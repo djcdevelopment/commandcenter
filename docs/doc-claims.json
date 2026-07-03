@@ -1,0 +1,24 @@
+[
+  {
+    "claim_id": "roadmap-first-capability",
+    "doc": "CAPABILITY-ROADMAP.html",
+    "description": "S5b claims the first real capability exists",
+    "check": {
+      "file": "knowledge/capabilities.json",
+      "path": "capability_count",
+      "op": "gte",
+      "value": 1
+    }
+  },
+  {
+    "claim_id": "candidates-present",
+    "doc": "TWO-ECONOMIES-WIND-TUNNEL.html",
+    "description": "the experiment funnel holds candidates",
+    "check": {
+      "file": "knowledge/experiment_candidates.json",
+      "path": "candidates",
+      "op": "gte",
+      "value": 1
+    }
+  }
+]

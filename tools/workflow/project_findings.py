@@ -16,6 +16,7 @@ from tools.workflow.project_capacity import (
     _confidence,
 )
 from tools.workflow.project_state import read_events
+from tools.workflow.corpus_guard import guard_write, make_extractor
 
 FINDINGS_FILE = "findings.json"
 
@@ -378,7 +379,7 @@ def materialize_findings(event_files: list[Path], knowledge_dir: Path) -> dict:
         "findings": findings,
     }
     knowledge_dir.mkdir(parents=True, exist_ok=True)
-    (knowledge_dir / FINDINGS_FILE).write_text(json.dumps(content, indent=2) + "\n", encoding="utf-8")
+    guard_write(knowledge_dir / FINDINGS_FILE, content, make_extractor("observation_count"))
     return content
 
 

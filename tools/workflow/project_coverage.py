@@ -18,6 +18,7 @@ from tools.workflow.project_capacity import (
 )
 from tools.workflow.project_findings import synthesize_findings
 from tools.workflow.project_state import read_events
+from tools.workflow.corpus_guard import guard_write, make_extractor
 
 COVERAGE_FILE = "coverage.json"
 
@@ -211,7 +212,7 @@ def materialize_coverage(event_files: list[Path], knowledge_dir: Path) -> dict:
         "gaps": gaps,
     }
     knowledge_dir.mkdir(parents=True, exist_ok=True)
-    (knowledge_dir / COVERAGE_FILE).write_text(json.dumps(content, indent=2) + "\n", encoding="utf-8")
+    guard_write(knowledge_dir / COVERAGE_FILE, content, make_extractor("observation_count"))
     return content
 
 

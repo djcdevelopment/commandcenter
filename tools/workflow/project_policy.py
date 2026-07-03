@@ -4,6 +4,8 @@ import argparse
 import json
 from pathlib import Path
 
+from tools.workflow.corpus_guard import guard_write, make_extractor
+
 POLICY_FILE = "policy.json"
 POLICY_AUDIT_FILE = "policy_audit.ndjson"
 POLICY_OVERRIDES_FILE = "policy_overrides.json"
@@ -211,7 +213,7 @@ def materialize_policy(findings_path: Path, knowledge_dir: Path) -> dict:
         "rules": rules,
     }
     knowledge_dir.mkdir(parents=True, exist_ok=True)
-    policy_path.write_text(json.dumps(content, indent=2) + "\n", encoding="utf-8")
+    guard_write(policy_path, content, make_extractor("source_findings"))
 
     # Audit trail: append-only record of every change to the rule set, stamped with the evidence
     # watermark (not wall clock) so a re-projection of the same corpus appends nothing.

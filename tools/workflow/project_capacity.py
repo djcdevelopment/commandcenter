@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from tools.workflow.project_state import read_events
+from tools.workflow.corpus_guard import guard_write, make_extractor
 
 KNOWN_GOOD_MIN_SUCCESS_RATE = 0.7
 KNOWN_BAD_MIN_FAILURES = 2
@@ -394,8 +395,19 @@ def materialize_knowledge(event_files: list[Path], knowledge_dir: Path) -> dict:
             "summary": prediction_accuracy,
         },
     }
+    guarded = {
+        CAPACITY_ESTIMATES_FILE: make_extractor("observation_count"),
+        PREDICTION_ACCURACY_FILE: make_extractor("observation_count"),
+    }
     for file_name, content in outputs.items():
-        (knowledge_dir / file_name).write_text(json.dumps(content, indent=2) + "\n", encoding="utf-8")
+        target = knowledge_dir / file_name
+        extractor = guarded.get(file_name)
+        if extractor is None:
+            # known_good/known_bad_models.json carry neither a watermark nor a count, so there
+            # is no monotonic quantity to guard on — left unguarded; see DECISION-NEEDED-A2.md.
+            target.write_text(json.dumps(content, indent=2) + "\n", encoding="utf-8")
+        else:
+            guard_write(target, content, extractor)
     return outputs
 
 

@@ -13,6 +13,7 @@ from tools.workflow.project_capacity import (
 )
 from tools.workflow.project_findings import _confidence_label, synthesize_findings
 from tools.workflow.project_state import read_events
+from tools.workflow.corpus_guard import guard_write, make_extractor
 
 ASSOCIATIONS_FILE = "associations.json"
 CAPABILITIES_FILE = "capabilities.json"
@@ -317,9 +318,13 @@ def materialize_associations(event_files: list[Path], knowledge_dir: Path) -> di
             "capabilities": capabilities,
         },
     }
+    extractors = {
+        ASSOCIATIONS_FILE: make_extractor("association_count"),
+        CAPABILITIES_FILE: make_extractor("capability_count"),
+    }
     knowledge_dir.mkdir(parents=True, exist_ok=True)
     for file_name, content in outputs.items():
-        (knowledge_dir / file_name).write_text(json.dumps(content, indent=2) + "\n", encoding="utf-8")
+        guard_write(knowledge_dir / file_name, content, extractors[file_name])
     return outputs
 
 

@@ -1,0 +1,7 @@
+{
+  "active": false,
+  "reason": "Template (inactive). To deliberately accept a corpus regression — e.g. a re-projection over a knowingly reduced evidence set — set active:true, list in scope the knowledge/*.json files whose watermark/count regression you accept, and state why. The guard appends an audit record to policy_audit.ndjson for each permitted file and deactivates this override automatically once every scoped file has been written once.",
+  "author": "derek",
+  "scope": [],
+  "created": "2026-07-03"
+}

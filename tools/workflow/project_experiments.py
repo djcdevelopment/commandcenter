@@ -21,6 +21,7 @@ from tools.workflow.project_associations import synthesize_associations, synthes
 from tools.workflow.project_coverage import synthesize_coverage
 from tools.workflow.project_policy import evaluate, synthesize_policy
 from tools.workflow.project_state import read_events
+from tools.workflow.corpus_guard import guard_write, make_extractor
 
 CANDIDATES_FILE = "experiment_candidates.json"
 RESULTS_FILE = "experiment_results.json"
@@ -460,9 +461,13 @@ def materialize_experiments(event_files: list[Path], knowledge_dir: Path) -> dic
             "results": results,
         },
     }
+    extractors = {
+        CANDIDATES_FILE: make_extractor("source_findings"),
+        RESULTS_FILE: make_extractor("plan_count"),
+    }
     knowledge_dir.mkdir(parents=True, exist_ok=True)
     for file_name, content in outputs.items():
-        (knowledge_dir / file_name).write_text(json.dumps(content, indent=2) + "\n", encoding="utf-8")
+        guard_write(knowledge_dir / file_name, content, extractors[file_name])
     return outputs
 
 

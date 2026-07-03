@@ -110,3 +110,18 @@ class CapabilityDirectedDispatchTests(TestCase):
         # 32768 exceeds the observed max_context_tokens of 16384: untested, so unmatched
         self.assertEqual(selection["capability_influence"]["capabilities_matched"], [])
         self.assertEqual(selection["selected"]["builder_id"], "builder-1")
+
+    def test_disable_frontier_falls_back_to_the_local_model_candidate(self) -> None:
+        # A token budget ran dry mid-pour: the operator kill switch excludes the frontier
+        # candidate outright, so the ollama candidate wins even though its base score is lower.
+        selection = schedule(CANDIDATE_POOLS["capability-pool"], "build", [], disable_frontier=True)
+        self.assertEqual(selection["selected"]["builder_id"], "omen-worker-1")
+        rejected = next(entry for entry in selection["candidates_considered"]
+                        if entry["builder_id"] == "builder-1")
+        self.assertFalse(rejected["filters_passed"])
+        self.assertEqual(rejected["rejected_reason"], "frontier disabled by operator")
+
+    def test_disable_frontier_with_no_local_candidate_blocks_cleanly(self) -> None:
+        selection = schedule(CANDIDATE_POOLS["default"], "reference-build", [], disable_frontier=True)
+        self.assertIsNone(selection["selected"])
+        self.assertIn("frontier disabled by operator", selection["decision_reason"])

@@ -5,10 +5,24 @@ build-outs run across VMs, get scored, and every hop is captured/traced. This is
 condensed quickstart. The full contract lives in `CLAUDE.md` on the canonical host —
 read that next if you're going to build here.
 
-**Canonical repo:** `claude@100.74.110.91:~/work/commandcenter` (host alias: cc-conductor).
-Everything below assumes you `ssh claude@100.74.110.91` first. The copy at
-`C:\work\commandcenter` on this Windows box is a **deprecated stub** — don't edit it,
-don't run anything from it.
+## Two trees, don't confuse them
+
+- **`C:\work\commandcenter` on OMEN (this repo)** — the workflow-ontology / belief-layer
+  codebase you're reading right now. It is **not** a deprecated stub (an earlier version
+  of this doc said so, before the 2026-07 pour made this the active target repo — that
+  line was stale and has been removed). Its own origin is the private GitHub repo
+  `djcdevelopment/commandcenter`. This is where you edit, run `python -m unittest
+  discover -s tests/workflow`, and commit/push from.
+- **`cc-conductor` (`claude@100.74.110.91:~/work/commandcenter`)** — a *different*
+  codebase: the fleet orchestration engine that dispatches builder VMs. Everything in
+  section 1–3 below runs there, over SSH, not on OMEN.
+
+If you're here to **pour work through the fleet against this repo**, read
+`docs/conductor-pour-howto.md` first — it covers filing work, restricting builders
+(including excluding frontier/Claude builders in favor of local models), and pointing
+the conductor at a non-default target repo. If you need conductor-side history visible
+on GitHub, see `docs/conductor-github-sync.md` and `tools/ops/sync_conductor_to_github.py`
+— the conductor never holds a GitHub credential; OMEN mirrors it there instead.
 
 ## 1. Start up / check the network is alive
 
@@ -91,10 +105,13 @@ Other views:
 
 ## Where to go deeper
 
-| Need | File (on cc-conductor) |
-|---|---|
-| Full operating contract / values | `CLAUDE.md` |
-| Onboard/debug a fleet VM | `FLEET-ADDRESSING-RUNBOOK.md` |
-| Architecture / design intent | `MAF.png`, `MASTER-RECONCILIATION.md` |
-| Latest health state | `HEALTHCHECK-REMEDIATION-2026-07-01.md` |
-| Proven wins/capabilities | `WINS.md` |
+| Need | File | Lives on |
+|---|---|---|
+| Full operating contract / values | `CLAUDE.md` | cc-conductor |
+| Onboard/debug a fleet VM | `FLEET-ADDRESSING-RUNBOOK.md` | cc-conductor |
+| Architecture / design intent | `MAF.png`, `MASTER-RECONCILIATION.md` | cc-conductor |
+| Latest health state | `HEALTHCHECK-REMEDIATION-2026-07-01.md` | cc-conductor |
+| Proven wins/capabilities | `WINS.md` | cc-conductor |
+| Pour work through the fleet at this repo | `docs/conductor-pour-howto.md` | OMEN (here) |
+| Sync the conductor's own repo to GitHub | `docs/conductor-github-sync.md` | OMEN (here) |
+| This repo's own pour history | `POUR-PLAN.md`, `POUR-STATUS.md`, `CODEX-POUR-ORCHESTRATOR.md` | OMEN (here) |

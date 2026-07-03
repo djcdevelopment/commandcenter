@@ -23,22 +23,24 @@ WORKLOAD_CONTEXT_TOKENS = 8192
 CANDIDATE_POOLS = {
     "default": [
         {"builder_id": "builder-1", "model_id": "claude-opus-4.8", "backend": "local",
-         "base_score": 1.0, "predictions": {}},
+         "base_score": 1.0, "predictions": {}, "frontier": True},
     ],
     "known-bad-only": [
         {"builder_id": "claudefarm1", "model_id": "qwen3-30b-a3b-awq", "backend": "vllm",
-         "base_score": 0.74,
+         "base_score": 0.74, "frontier": False,
          "predictions": {"expected_generation_tokens_per_second": 42.0, "tokens_per_s": 42.0,
                          "expected_peak_ram_mb": 18432.0}},
     ],
     "capability-pool": [
         {"builder_id": "builder-1", "model_id": "claude-opus-4.8", "backend": "local",
-         "base_score": 0.9, "predictions": {}},
+         "base_score": 0.9, "predictions": {}, "frontier": True},
         {"builder_id": "omen-worker-1", "model_id": "qwen3-coder:30b", "backend": "ollama",
-         "base_score": 0.8,
+         "base_score": 0.8, "frontier": False,
          "predictions": {"expected_generation_tokens_per_second": 54.0, "tokens_per_s": 54.0}},
     ],
 }
+
+FRONTIER_DISABLED_REASON = "frontier disabled by operator"
 
 SCENARIOS = {
     "happy": {"pool": "default", "experiment_flag": False, "requires_policy": False},
@@ -93,16 +95,39 @@ def _capability_matches(candidate: dict, capability: dict, estimated_context_tok
 
 def schedule(candidate_pool: list[dict], task_kind: str, rules: list[dict],
              experiment_flag: bool = False, capabilities: list[dict] | None = None,
-             estimated_context_tokens: int | None = WORKLOAD_CONTEXT_TOKENS) -> dict:
+             estimated_context_tokens: int | None = WORKLOAD_CONTEXT_TOKENS,
+             disable_frontier: bool = False) -> dict:
     """Policy- and capability-aware assignment: every candidate goes through policy.evaluate();
     blocked combos never dispatch without the experiment flag. When capabilities are loaded the
     scheduler asks what capabilities this work requires, then which candidate satisfies them —
-    qualified capabilities are scheduled, not machines — and the SchedulerDecision explains both."""
+    qualified capabilities are scheduled, not machines — and the SchedulerDecision explains both.
+    disable_frontier is an operator-level kill switch (a token budget ran dry mid-pour): frontier
+    candidates are excluded before policy even runs, so a local-model candidate wins by default
+    rather than the run stalling for lack of frontier quota."""
     required = _capability_requirements(capabilities, task_kind) if capabilities is not None else []
     considered = []
     verdicts = []
     capability_annotations = []
     for candidate in candidate_pool:
+        if disable_frontier and candidate.get("frontier"):
+            considered.append({
+                "builder_id": candidate["builder_id"],
+                "model_id": candidate["model_id"],
+                "backend": candidate["backend"],
+                "filters_passed": False,
+                "score": None,
+                "selected": False,
+                "rejected_reason": FRONTIER_DISABLED_REASON,
+            })
+            verdicts.append(None)
+            capability_annotations.append({
+                "builder_id": candidate["builder_id"],
+                "model_id": candidate["model_id"],
+                "backend": candidate["backend"],
+                "matched": [],
+                "missing": [capability["capability_id"] for capability in required],
+            })
+            continue
         verdict = evaluate(rules, builder_id=candidate["builder_id"], model_id=candidate["model_id"],
                            backend=candidate["backend"], task_kind=task_kind,
                            experiment_flag=experiment_flag)
@@ -135,14 +160,20 @@ def schedule(candidate_pool: list[dict], task_kind: str, rules: list[dict],
 
     blocked = [{"builder_id": entry["builder_id"], "model_id": entry["model_id"],
                 "backend": entry["backend"],
-                "policy_ids": [match["policy_id"] for match in verdict["matched_rules"]
+                "policy_ids": [] if verdict is None else
+                              [match["policy_id"] for match in verdict["matched_rules"]
                                if match["status"] == "active" and match["effect"] in ("block", "quarantine")]}
                for entry, verdict in zip(considered, verdicts) if not entry["filters_passed"]]
 
     allowed = [index for index, entry in enumerate(considered) if entry["filters_passed"]]
     if not allowed:
+        if disable_frontier and all(entry["rejected_reason"] == FRONTIER_DISABLED_REASON for entry in considered):
+            reason = f"frontier disabled by operator and no local-model candidate is registered " \
+                     f"in this pool ({len(considered)} candidate(s))"
+        else:
+            reason = f"policy blocked all {len(considered)} candidate(s)"
         return {"selected": None, "candidates_considered": considered, "candidates_blocked": blocked,
-                "decision_reason": f"policy blocked all {len(considered)} candidate(s)",
+                "decision_reason": reason,
                 "policy_influence": None, "capability_influence": None, "candidate": None}
 
     winner = max(allowed, key=lambda index: considered[index]["score"])
@@ -679,7 +710,8 @@ def build_scenario_events(run_id: str, workflow_id: str, scenario: str, selectio
 
 def run_reference_workflow(work_item: Path, runs_root: Path, scenario: str,
                            policy_path: Path | None = None,
-                           capabilities_path: Path | None = None) -> dict:
+                           capabilities_path: Path | None = None,
+                           disable_frontier: bool = False) -> dict:
     config = SCENARIOS.get(scenario)
     if config is None:
         raise ValueError(f"unknown scenario: {scenario}")
@@ -702,7 +734,8 @@ def run_reference_workflow(work_item: Path, runs_root: Path, scenario: str,
     rules = load_policy_rules(policy_path)
     selection = schedule(CANDIDATE_POOLS[config["pool"]], task_kind, rules,
                          experiment_flag=config["experiment_flag"],
-                         capabilities=load_capabilities(capabilities_path))
+                         capabilities=load_capabilities(capabilities_path),
+                         disable_frontier=disable_frontier)
 
     _write_text(artifacts_dir / "inputs" / work_item.name, work_item.read_text(encoding="utf-8"))
     _write_text(artifacts_dir / "PLAN.md", "# Plan\n\nReference workflow plan.\n")
@@ -756,11 +789,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--policy", default=None, help="Materialized policy.json the scheduler must consult")
     parser.add_argument("--capabilities", default=None,
                         help="Materialized capabilities.json for capability-directed dispatch")
+    parser.add_argument("--disable-frontier", action="store_true",
+                        help="Exclude frontier (Claude) candidates; only local-model candidates "
+                             "(ollama/vllm) are eligible for this dispatch")
     args = parser.parse_args(argv)
 
     state = run_reference_workflow(Path(args.work_item), Path(args.runs_root), args.scenario,
                                    policy_path=Path(args.policy) if args.policy else None,
-                                   capabilities_path=Path(args.capabilities) if args.capabilities else None)
+                                   capabilities_path=Path(args.capabilities) if args.capabilities else None,
+                                   disable_frontier=args.disable_frontier)
     print(json.dumps(state, indent=2))
     return 0
 

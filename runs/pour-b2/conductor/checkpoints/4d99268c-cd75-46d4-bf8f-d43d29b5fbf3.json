@@ -1,0 +1,41 @@
+{
+  "workflow_name": "pour-b2",
+  "graph_signature_hash": "254ffbccd3561718c12133ee6bda5481125cbb0df3a12e6d74ec4c9c239f0feb",
+  "checkpoint_id": "4d99268c-cd75-46d4-bf8f-d43d29b5fbf3",
+  "previous_checkpoint_id": "c99637ad-3728-499c-8f8e-d8b25c95bd7f",
+  "timestamp": "2026-07-03T04:09:28.602899+00:00",
+  "messages": {
+    "build_cc-builder-1": [
+      {
+        "__pickled__": "gAWV4gIAAAAAAACMKmFnZW50X2ZyYW1ld29yay5fd29ya2Zsb3dzLl9ydW5uZXJfY29udGV4dJSMD1dvcmtmbG93TWVzc2FnZZSTlCmBlH2UKIwEZGF0YZR9lCiMBndvcmtlcpSMDGNjLWJ1aWxkZXItMZSMBWVudHJ5lH2UKIwCb2uUiIwGYnJhbmNolIwgY2NmYXJtL3BvdXItYjIvY2MtYnVpbGRlci0xL2xhcDGUjAdwdXNoX29rlIiMBnJ1bm5lcpSMBmNsYXVkZZSMDHJ1bm5lcl9tb2RlbJSMBnNvbm5ldJSMCWNvbW1pdHRlZJSJjAZwdXNoZWSUiIwNY29tbWl0c19haGVhZJRLAYwLZW1wdHlfYnVpbGSUiYwLZG9uZV9zaWduYWyUiIwIYWdlbnRfcmOUSwCMD2FnZW50X3RpbWVkX291dJSJjAZzdGF0dXOUaAuMBnJlYXNvbpRoC3WMB3JvdXRpbmeUfZQojAVlcnJvcpSMCXRpbWVkIG91dJSMDHJvdXRlcl9tb2RlbJSME3F3ZW4yLjU6N2ItaW5zdHJ1Y3SUjA5yb3V0ZXJfYmFja2VuZJSMLmh0dHA6Ly8xMDAuMTI0LjEyLjM3OjExNDM0L3YxL2NoYXQvY29tcGxldGlvbnOUdXWMCXNvdXJjZV9pZJSMEmJ1aWxkX2NjLWJ1aWxkZXItMZSMCXRhcmdldF9pZJROjAR0eXBllGgAjAtNZXNzYWdlVHlwZZSTlIwIc3RhbmRhcmSUhZRSlIwOdHJhY2VfY29udGV4dHOUXZR9lIwLdHJhY2VwYXJlbnSUjDcwMC0zODVhMjNkNmQyNWZlM2Y4NDlhNTQ0YTFmNjJkMjViYS0zM2E5OGExZmViMWJkOTYzLTAzlHNhjA9zb3VyY2Vfc3Bhbl9pZHOUXZSMEDMzYTk4YTFmZWIxYmQ5NjOUYYwbb3JpZ2luYWxfcmVxdWVzdF9pbmZvX2V2ZW50lE51Yi4=",
+        "__type__": "agent_framework._workflows._runner_context:WorkflowMessage"
+      }
+    ],
+    "build_cc-builder-2": [
+      {
+        "__pickled__": "gAWV6gIAAAAAAACMKmFnZW50X2ZyYW1ld29yay5fd29ya2Zsb3dzLl9ydW5uZXJfY29udGV4dJSMD1dvcmtmbG93TWVzc2FnZZSTlCmBlH2UKIwEZGF0YZR9lCiMBndvcmtlcpSMDGNjLWJ1aWxkZXItMpSMBWVudHJ5lH2UKIwCb2uUiIwGYnJhbmNolIwgY2NmYXJtL3BvdXItYjIvY2MtYnVpbGRlci0yL2xhcDGUjAdwdXNoX29rlIiMBnJ1bm5lcpSMBm9wZW5haZSMDHJ1bm5lcl9tb2RlbJSMDnZsbGFtYS1wbGFubmVylIwJY29tbWl0dGVklIiMBnB1c2hlZJSIjA1jb21taXRzX2FoZWFklEsBjAtlbXB0eV9idWlsZJSJjAtkb25lX3NpZ25hbJSIjAhhZ2VudF9yY5RLAIwPYWdlbnRfdGltZWRfb3V0lImMBnN0YXR1c5RoC4wGcmVhc29ulGgLdYwHcm91dGluZ5R9lCiMBWVycm9ylIwJdGltZWQgb3V0lIwMcm91dGVyX21vZGVslIwTcXdlbjIuNTo3Yi1pbnN0cnVjdJSMDnJvdXRlcl9iYWNrZW5klIwuaHR0cDovLzEwMC4xMjQuMTIuMzc6MTE0MzQvdjEvY2hhdC9jb21wbGV0aW9uc5R1dYwJc291cmNlX2lklIwSYnVpbGRfY2MtYnVpbGRlci0ylIwJdGFyZ2V0X2lklE6MBHR5cGWUaACMC01lc3NhZ2VUeXBllJOUjAhzdGFuZGFyZJSFlFKUjA50cmFjZV9jb250ZXh0c5RdlH2UjAt0cmFjZXBhcmVudJSMNzAwLTM4NWEyM2Q2ZDI1ZmUzZjg0OWE1NDRhMWY2MmQyNWJhLTJkMmUzMGM3Zjg4N2FkNGYtMDOUc2GMD3NvdXJjZV9zcGFuX2lkc5RdlIwQMmQyZTMwYzdmODg3YWQ0ZpRhjBtvcmlnaW5hbF9yZXF1ZXN0X2luZm9fZXZlbnSUTnViLg==",
+        "__type__": "agent_framework._workflows._runner_context:WorkflowMessage"
+      }
+    ],
+    "build_am4-worker-1": [
+      {
+        "__pickled__": "gAWV6gIAAAAAAACMKmFnZW50X2ZyYW1ld29yay5fd29ya2Zsb3dzLl9ydW5uZXJfY29udGV4dJSMD1dvcmtmbG93TWVzc2FnZZSTlCmBlH2UKIwEZGF0YZR9lCiMBndvcmtlcpSMDGFtNC13b3JrZXItMZSMBWVudHJ5lH2UKIwCb2uUiIwGYnJhbmNolIwgY2NmYXJtL3BvdXItYjIvYW00LXdvcmtlci0xL2xhcDGUjAdwdXNoX29rlIiMBnJ1bm5lcpSMBm9wZW5haZSMDHJ1bm5lcl9tb2RlbJSMDnZsbGFtYS1wbGFubmVylIwJY29tbWl0dGVklIiMBnB1c2hlZJSIjA1jb21taXRzX2FoZWFklEsBjAtlbXB0eV9idWlsZJSJjAtkb25lX3NpZ25hbJSIjAhhZ2VudF9yY5RLAIwPYWdlbnRfdGltZWRfb3V0lImMBnN0YXR1c5RoC4wGcmVhc29ulGgLdYwHcm91dGluZ5R9lCiMBWVycm9ylIwJdGltZWQgb3V0lIwMcm91dGVyX21vZGVslIwTcXdlbjIuNTo3Yi1pbnN0cnVjdJSMDnJvdXRlcl9iYWNrZW5klIwuaHR0cDovLzEwMC4xMjQuMTIuMzc6MTE0MzQvdjEvY2hhdC9jb21wbGV0aW9uc5R1dYwJc291cmNlX2lklIwSYnVpbGRfYW00LXdvcmtlci0xlIwJdGFyZ2V0X2lklE6MBHR5cGWUaACMC01lc3NhZ2VUeXBllJOUjAhzdGFuZGFyZJSFlFKUjA50cmFjZV9jb250ZXh0c5RdlH2UjAt0cmFjZXBhcmVudJSMNzAwLTM4NWEyM2Q2ZDI1ZmUzZjg0OWE1NDRhMWY2MmQyNWJhLWE0MzAyNjRlODBiNGMzNjUtMDOUc2GMD3NvdXJjZV9zcGFuX2lkc5RdlIwQYTQzMDI2NGU4MGI0YzM2NZRhjBtvcmlnaW5hbF9yZXF1ZXN0X2luZm9fZXZlbnSUTnViLg==",
+        "__type__": "agent_framework._workflows._runner_context:WorkflowMessage"
+      }
+    ]
+  },
+  "state": {
+    "_workflow_run_kwargs": {},
+    "_executor_state": {
+      "route": {},
+      "build_cc-builder-1": {},
+      "build_cc-builder-2": {},
+      "build_am4-worker-1": {},
+      "finalize": {}
+    }
+  },
+  "pending_request_info_events": {},
+  "iteration_count": 1,
+  "metadata": {},
+  "version": "1.0"
+}

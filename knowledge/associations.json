@@ -1,12 +1,26 @@
 {
   "contract_version": "associations.v1",
-  "observation_count": 10,
+  "observation_count": 13,
   "unresolved_refs": 0,
-  "evidence_watermark": "2026-07-02T06:55:00Z",
+  "evidence_watermark": "2026-07-03T04:09:32.603190+00:00",
   "association_count": 0,
-  "gated_bucket_count": 8,
+  "gated_bucket_count": 13,
   "associations": [],
   "gated_buckets": [
+    {
+      "pattern": "failure_signature",
+      "invariant": {
+        "failure_class": "assay_test_failure",
+        "backend": "openai"
+      },
+      "samples": 2,
+      "workflows": [
+        "wf-pour-b2"
+      ],
+      "reasons": [
+        "all 2 sample(s) come from one workflow (wf-pour-b2); no generalization from one workflow"
+      ]
+    },
     {
       "pattern": "model_portability",
       "invariant": {
@@ -44,6 +58,33 @@
       ],
       "reasons": [
         "all 2 sample(s) come from one workflow (wf-omen-5070-hwbaseline-2026-07-02); no generalization from one workflow"
+      ]
+    },
+    {
+      "pattern": "model_portability",
+      "invariant": {
+        "model_id": "sonnet"
+      },
+      "samples": 1,
+      "workflows": [
+        "wf-pour-b2"
+      ],
+      "reasons": [
+        "all 1 sample(s) come from one workflow (wf-pour-b2); no generalization from one workflow",
+        "nothing varied under the invariant; a repeated particular is a finding, not an abstraction"
+      ]
+    },
+    {
+      "pattern": "model_portability",
+      "invariant": {
+        "model_id": "vllama-planner"
+      },
+      "samples": 2,
+      "workflows": [
+        "wf-pour-b2"
+      ],
+      "reasons": [
+        "all 2 sample(s) come from one workflow (wf-pour-b2); no generalization from one workflow"
       ]
     },
     {
@@ -115,6 +156,35 @@
       ],
       "reasons": [
         "all 2 sample(s) come from one workflow (wf-omen-5070-hwbaseline-2026-07-02); no generalization from one workflow"
+      ]
+    },
+    {
+      "pattern": "task_backend",
+      "invariant": {
+        "task_kind": "repo-build",
+        "backend": "claude"
+      },
+      "samples": 1,
+      "workflows": [
+        "wf-pour-b2"
+      ],
+      "reasons": [
+        "all 1 sample(s) come from one workflow (wf-pour-b2); no generalization from one workflow",
+        "nothing varied under the invariant; a repeated particular is a finding, not an abstraction"
+      ]
+    },
+    {
+      "pattern": "task_backend",
+      "invariant": {
+        "task_kind": "repo-build",
+        "backend": "openai"
+      },
+      "samples": 2,
+      "workflows": [
+        "wf-pour-b2"
+      ],
+      "reasons": [
+        "all 2 sample(s) come from one workflow (wf-pour-b2); no generalization from one workflow"
       ]
     }
   ]

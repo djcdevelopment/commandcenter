@@ -1,0 +1,149 @@
+{
+  "plan_id": "pour-b2",
+  "trace_id": "385a23d6d25fe3f849a544a1f62d25ba",
+  "routing": {
+    "error": "timed out",
+    "router_model": "qwen2.5:7b-instruct",
+    "router_backend": "http://100.124.12.37:11434/v1/chat/completions"
+  },
+  "builds": {
+    "cc-builder-1": {
+      "ok": true,
+      "branch": "ccfarm/pour-b2/cc-builder-1/lap1",
+      "push_ok": true,
+      "runner": "claude",
+      "runner_model": "sonnet",
+      "committed": false,
+      "pushed": true,
+      "commits_ahead": 1,
+      "empty_build": false,
+      "done_signal": true,
+      "agent_rc": 0,
+      "agent_timed_out": false,
+      "status": "ok",
+      "reason": "ok"
+    },
+    "cc-builder-2": {
+      "ok": true,
+      "branch": "ccfarm/pour-b2/cc-builder-2/lap1",
+      "push_ok": true,
+      "runner": "openai",
+      "runner_model": "vllama-planner",
+      "committed": true,
+      "pushed": true,
+      "commits_ahead": 1,
+      "empty_build": false,
+      "done_signal": true,
+      "agent_rc": 0,
+      "agent_timed_out": false,
+      "status": "ok",
+      "reason": "ok"
+    },
+    "am4-worker-1": {
+      "ok": true,
+      "branch": "ccfarm/pour-b2/am4-worker-1/lap1",
+      "push_ok": true,
+      "runner": "openai",
+      "runner_model": "vllama-planner",
+      "committed": true,
+      "pushed": true,
+      "commits_ahead": 1,
+      "empty_build": false,
+      "done_signal": true,
+      "agent_rc": 0,
+      "agent_timed_out": false,
+      "status": "ok",
+      "reason": "ok"
+    }
+  },
+  "assay": {
+    "plan_id": "pour-b2",
+    "lap": 1,
+    "grader": "claudefarm1",
+    "winner": "cc-builder-1",
+    "scoreboard": [
+      {
+        "worker": "cc-builder-1",
+        "branch": "ccfarm/pour-b2/cc-builder-1/lap1",
+        "score": 70,
+        "grade": "B",
+        "risk_score": 0.3,
+        "assay_mode": "behavior",
+        "static_score": 100,
+        "behavior_score": 70,
+        "tests_found": 130,
+        "tests_passed": 130,
+        "tests_failed": 0,
+        "imports_ok": 0,
+        "imports_failed": 0,
+        "assay_summary": "pytest: 130/130 passed; imports: 0/0 ok; score=70; isolation=docker",
+        "file_count": 147,
+        "code_files": 124,
+        "has_retro": true,
+        "has_result": true,
+        "has_tests": true,
+        "retro_excerpt": "# Session Retro \u2014 2026-06-29 (context-download + adversarial-vetting session)\n\n> One-line: A cold-start onboarding \u2014 new agent on the new OMEN box \u2014 where Derek downloaded his full worldview/thesis/identity as the baseline before building, and we stress-tested it. Almost no code; this was about getting the *whole* held accurately before the first build rep. The real test of it all is **resumption** \u2014 whether the next session picks up without re-explaining.\n\n---\n\n## What this session was\n- **Cold"
+      },
+      {
+        "worker": "am4-worker-1",
+        "branch": "ccfarm/pour-b2/am4-worker-1/lap1",
+        "score": 69,
+        "grade": "B",
+        "risk_score": 0.31,
+        "assay_mode": "behavior",
+        "static_score": 100,
+        "behavior_score": 69,
+        "tests_found": 115,
+        "tests_passed": 113,
+        "tests_failed": 2,
+        "imports_ok": 0,
+        "imports_failed": 0,
+        "assay_summary": "pytest: 113/115 passed; imports: 0/0 ok; score=69; isolation=docker",
+        "file_count": 145,
+        "code_files": 122,
+        "has_retro": true,
+        "has_result": true,
+        "has_tests": true,
+        "retro_excerpt": "# Retro (pour-b2-am4-worker-1)\n\nBuilt by agent_openai on model vllama-planner (completion: budget, 12 steps, 405s).\nexit=1\ncat: docs/doc-claims.json: No such file or directory\n\n\n<!-- agent_openai completion: reason=budget steps=12 elapsed_s=405.1 model=vllama-planner -->\n"
+      },
+      {
+        "worker": "cc-builder-2",
+        "branch": "ccfarm/pour-b2/cc-builder-2/lap1",
+        "score": 0,
+        "grade": "F",
+        "risk_score": 1.0,
+        "assay_mode": "behavior",
+        "static_score": 100,
+        "behavior_score": 0,
+        "tests_found": 1,
+        "tests_passed": 0,
+        "tests_failed": 1,
+        "imports_ok": 0,
+        "imports_failed": 0,
+        "assay_summary": "pytest: 0/1 passed; imports: 0/0 ok; score=0; isolation=docker",
+        "file_count": 147,
+        "code_files": 124,
+        "has_retro": true,
+        "has_result": true,
+        "has_tests": true,
+        "retro_excerpt": "# Retro (pour-b2-cc-builder-2)\n\nBuilt by agent_openai on model vllama-planner (completion: budget, 13 steps, 404s).\nwrote tests/workflow/test_doc_claims.py (7163 bytes)\n\n<!-- agent_openai completion: reason=budget steps=13 elapsed_s=404.2 model=vllama-planner -->\n"
+      }
+    ]
+  },
+  "winner": "cc-builder-1",
+  "questions": [],
+  "promotion": {
+    "promoted": false,
+    "reason": "promotion-disabled"
+  },
+  "target": {
+    "repo_path": "/home/claude/work/commandcenter-ontology/farmer-repo",
+    "promote": false,
+    "landing_branch": "stream/B2",
+    "builders": [
+      "cc-builder-1",
+      "cc-builder-2",
+      "am4-worker-1"
+    ]
+  }
+}

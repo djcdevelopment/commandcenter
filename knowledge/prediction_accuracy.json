@@ -1,8 +1,8 @@
 {
   "contract_version": "prediction-accuracy.v1",
   "decision_count": 0,
-  "observation_count": 10,
-  "comparison_count": 10,
+  "observation_count": 13,
+  "comparison_count": 13,
   "unresolved_decision_refs": 0,
   "comparisons": [
     {
@@ -324,24 +324,120 @@
           "matched": null
         }
       }
+    },
+    {
+      "decision_id": null,
+      "observation_id": "obs_pour_b2_am4_worker_1",
+      "workflow_id": "wf-pour-b2",
+      "run_id": "pour-b2",
+      "builder_id": "am4-worker-1",
+      "model_id": "vllama-planner",
+      "backend": "openai",
+      "workload_shape_key": "repo-build|unknown|unknown",
+      "timestamp": "2026-07-03T04:09:32.603190+00:00",
+      "confidence": null,
+      "prediction_source": null,
+      "prediction_present": false,
+      "metrics": {
+        "expected_ttft_ms": null,
+        "expected_generation_tokens_per_second": null,
+        "expected_peak_ram_mb": null,
+        "expected_peak_vram_mb": null
+      },
+      "outcomes": {
+        "assay": {
+          "predicted": null,
+          "observed": "failed",
+          "matched": null
+        },
+        "promotion": {
+          "predicted": null,
+          "observed": null,
+          "matched": null
+        }
+      }
+    },
+    {
+      "decision_id": null,
+      "observation_id": "obs_pour_b2_cc_builder_1",
+      "workflow_id": "wf-pour-b2",
+      "run_id": "pour-b2",
+      "builder_id": "cc-builder-1",
+      "model_id": "sonnet",
+      "backend": "claude",
+      "workload_shape_key": "repo-build|unknown|unknown",
+      "timestamp": "2026-07-03T04:09:32.603190+00:00",
+      "confidence": null,
+      "prediction_source": null,
+      "prediction_present": false,
+      "metrics": {
+        "expected_ttft_ms": null,
+        "expected_generation_tokens_per_second": null,
+        "expected_peak_ram_mb": null,
+        "expected_peak_vram_mb": null
+      },
+      "outcomes": {
+        "assay": {
+          "predicted": null,
+          "observed": "passed",
+          "matched": null
+        },
+        "promotion": {
+          "predicted": null,
+          "observed": null,
+          "matched": null
+        }
+      }
+    },
+    {
+      "decision_id": null,
+      "observation_id": "obs_pour_b2_cc_builder_2",
+      "workflow_id": "wf-pour-b2",
+      "run_id": "pour-b2",
+      "builder_id": "cc-builder-2",
+      "model_id": "vllama-planner",
+      "backend": "openai",
+      "workload_shape_key": "repo-build|unknown|unknown",
+      "timestamp": "2026-07-03T04:09:32.603190+00:00",
+      "confidence": null,
+      "prediction_source": null,
+      "prediction_present": false,
+      "metrics": {
+        "expected_ttft_ms": null,
+        "expected_generation_tokens_per_second": null,
+        "expected_peak_ram_mb": null,
+        "expected_peak_vram_mb": null
+      },
+      "outcomes": {
+        "assay": {
+          "predicted": null,
+          "observed": "failed",
+          "matched": null
+        },
+        "promotion": {
+          "predicted": null,
+          "observed": null,
+          "matched": null
+        }
+      }
     }
   ],
   "summary": {
     "overall": {
       "overall": {
-        "sample_count": 10,
-        "last_updated": "2026-07-02T06:55:00Z",
+        "sample_count": 13,
+        "last_updated": "2026-07-03T04:09:32.603190+00:00",
         "metrics": {},
         "outcomes": {
           "assay": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 10
+            "unknown": 13
           },
           "promotion": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 10
+            "unknown": 13
           }
         },
         "prediction_confidence": null
@@ -362,6 +458,60 @@
             "matched": 0,
             "mismatched": 0,
             "unknown": 10
+          }
+        },
+        "prediction_confidence": null
+      },
+      "am4-worker-1": {
+        "sample_count": 1,
+        "last_updated": "2026-07-03T04:09:32.603190+00:00",
+        "metrics": {},
+        "outcomes": {
+          "assay": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 1
+          },
+          "promotion": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 1
+          }
+        },
+        "prediction_confidence": null
+      },
+      "cc-builder-1": {
+        "sample_count": 1,
+        "last_updated": "2026-07-03T04:09:32.603190+00:00",
+        "metrics": {},
+        "outcomes": {
+          "assay": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 1
+          },
+          "promotion": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 1
+          }
+        },
+        "prediction_confidence": null
+      },
+      "cc-builder-2": {
+        "sample_count": 1,
+        "last_updated": "2026-07-03T04:09:32.603190+00:00",
+        "metrics": {},
+        "outcomes": {
+          "assay": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 1
+          },
+          "promotion": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 1
           }
         },
         "prediction_confidence": null
@@ -421,6 +571,42 @@
           }
         },
         "prediction_confidence": null
+      },
+      "vllama-planner": {
+        "sample_count": 2,
+        "last_updated": "2026-07-03T04:09:32.603190+00:00",
+        "metrics": {},
+        "outcomes": {
+          "assay": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 2
+          },
+          "promotion": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 2
+          }
+        },
+        "prediction_confidence": null
+      },
+      "sonnet": {
+        "sample_count": 1,
+        "last_updated": "2026-07-03T04:09:32.603190+00:00",
+        "metrics": {},
+        "outcomes": {
+          "assay": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 1
+          },
+          "promotion": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 1
+          }
+        },
+        "prediction_confidence": null
       }
     },
     "per_workload_shape": {
@@ -438,6 +624,24 @@
             "matched": 0,
             "mismatched": 0,
             "unknown": 10
+          }
+        },
+        "prediction_confidence": null
+      },
+      "repo-build|unknown|unknown": {
+        "sample_count": 3,
+        "last_updated": "2026-07-03T04:09:32.603190+00:00",
+        "metrics": {},
+        "outcomes": {
+          "assay": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 3
+          },
+          "promotion": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 3
           }
         },
         "prediction_confidence": null

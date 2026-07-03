@@ -1,24 +1,104 @@
 {
   "contract_version": "experiment-candidates.v1",
-  "source_findings": 7,
+  "source_findings": 15,
   "candidate_counts": {
-    "coverage_probe": 10,
-    "known_bad_retest": 1,
-    "prediction_bias_calibration": 1,
-    "prefer_validation": 3
+    "backend_comparison": 3,
+    "coverage_probe": 26,
+    "prefer_validation": 11,
+    "uncertain_resolution": 2
   },
   "candidates": [
     {
-      "candidate_id": "coverage_probe:single_workflow_evidence:failure_signature:failure_class=moe_offload_crash|backend=vllm",
+      "candidate_id": "backend_comparison:mixtral:8x22b-instruct-v0.1-q2_K:ollama-cuda+ollama-vulkan-igpu+ollama-vulkan-mixed",
+      "experiment_type": "backend_comparison",
+      "subject": {
+        "builder_id": null,
+        "model_id": "mixtral:8x22b-instruct-v0.1-q2_K",
+        "backend": null,
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "which backend serves mixtral:8x22b-instruct-v0.1-q2_K best (ollama-cuda=known_good, ollama-vulkan-igpu=known_good, ollama-vulkan-mixed=known_good)?",
+      "worth": "the model already runs on multiple backends but the beliefs were formed on different workloads; a controlled comparison replaces inference with measurement",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "the same workload shape run on each backend yields a per-task recommendation instead of a guess",
+      "risk_accepted": "one dispatch slot per backend; a gated backend must be opened with its own experiment",
+      "confidence": null,
+      "last_observed": "2026-07-02T06:05:00Z"
+    },
+    {
+      "candidate_id": "backend_comparison:qwen2.5:14b:ollama-cuda+ollama-cuda-contended+ollama-vulkan+ollama-vulkan-igpu+ollama-vulkan-mixed",
+      "experiment_type": "backend_comparison",
+      "subject": {
+        "builder_id": null,
+        "model_id": "qwen2.5:14b",
+        "backend": null,
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "which backend serves qwen2.5:14b best (ollama-cuda=known_good, ollama-cuda-contended=known_good, ollama-vulkan=known_good, ollama-vulkan-igpu=known_good, ollama-vulkan-mixed=known_good)?",
+      "worth": "the model already runs on multiple backends but the beliefs were formed on different workloads; a controlled comparison replaces inference with measurement",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "the same workload shape run on each backend yields a per-task recommendation instead of a guess",
+      "risk_accepted": "one dispatch slot per backend; a gated backend must be opened with its own experiment",
+      "confidence": null,
+      "last_observed": "2026-07-02T06:50:00Z"
+    },
+    {
+      "candidate_id": "backend_comparison:qwen3-coder:30b:ollama-cuda+ollama-cuda-contended",
+      "experiment_type": "backend_comparison",
+      "subject": {
+        "builder_id": null,
+        "model_id": "qwen3-coder:30b",
+        "backend": null,
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "which backend serves qwen3-coder:30b best (ollama-cuda=known_good, ollama-cuda-contended=known_good)?",
+      "worth": "the model already runs on multiple backends but the beliefs were formed on different workloads; a controlled comparison replaces inference with measurement",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "the same workload shape run on each backend yields a per-task recommendation instead of a guess",
+      "risk_accepted": "one dispatch slot per backend; a gated backend must be opened with its own experiment",
+      "confidence": null,
+      "last_observed": "2026-07-02T06:55:00Z"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:failure_signature:failure_class=assay_test_failure|backend=openai",
       "experiment_type": "coverage_probe",
       "subject": {
         "builder_id": null,
         "model_id": null,
-        "backend": "vllm",
+        "backend": "openai",
         "task_kind": null,
         "metric": null
       },
-      "question": "does 'failure_class=moe_offload_crash, backend=vllm' hold outside wf_vllm_probe?",
+      "question": "does 'failure_class=assay_test_failure, backend=openai' hold outside wf-pour-b2?",
+      "worth": "2 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-07-03T04:09:32.603190+00:00"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=mixtral:8x22b-instruct-v0.1-q2_K",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does 'model_id=mixtral:8x22b-instruct-v0.1-q2_K' hold outside wf-omen-5070-hwbaseline-2026-07-02?",
       "worth": "3 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
       "target_finding_id": null,
       "target_capability_id": null,
@@ -26,10 +106,10 @@
       "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
       "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
       "confidence": null,
-      "last_observed": "2026-06-30T18:26:00Z"
+      "last_observed": "2026-07-02T06:05:00Z"
     },
     {
-      "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=claude-opus-4.8",
+      "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=qwen2.5:14b",
       "experiment_type": "coverage_probe",
       "subject": {
         "builder_id": null,
@@ -38,55 +118,15 @@
         "task_kind": null,
         "metric": null
       },
-      "question": "does 'model_id=claude-opus-4.8' hold outside wf_hold_probe?",
-      "worth": "1 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "question": "does 'model_id=qwen2.5:14b' hold outside wf-omen-5070-hwbaseline-2026-07-02?",
+      "worth": "5 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
       "target_finding_id": null,
       "target_capability_id": null,
       "gate": null,
       "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
       "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
       "confidence": null,
-      "last_observed": "2026-07-02T13:03:20Z"
-    },
-    {
-      "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=qwen3-30b-a3b-awq",
-      "experiment_type": "coverage_probe",
-      "subject": {
-        "builder_id": null,
-        "model_id": null,
-        "backend": null,
-        "task_kind": null,
-        "metric": null
-      },
-      "question": "does 'model_id=qwen3-30b-a3b-awq' hold outside wf_vllm_probe?",
-      "worth": "3 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
-      "target_finding_id": null,
-      "target_capability_id": null,
-      "gate": null,
-      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
-      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
-      "confidence": null,
-      "last_observed": "2026-06-30T18:26:00Z"
-    },
-    {
-      "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=qwen3-coder:14b",
-      "experiment_type": "coverage_probe",
-      "subject": {
-        "builder_id": null,
-        "model_id": null,
-        "backend": null,
-        "task_kind": null,
-        "metric": null
-      },
-      "question": "does 'model_id=qwen3-coder:14b' hold outside wf_omen_followup?",
-      "worth": "1 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
-      "target_finding_id": null,
-      "target_capability_id": null,
-      "gate": null,
-      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
-      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
-      "confidence": null,
-      "last_observed": "2026-07-01T21:15:30Z"
+      "last_observed": "2026-07-02T06:50:00Z"
     },
     {
       "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=qwen3-coder:30b",
@@ -98,7 +138,27 @@
         "task_kind": null,
         "metric": null
       },
-      "question": "does 'model_id=qwen3-coder:30b' hold outside wf_omen_debut?",
+      "question": "does 'model_id=qwen3-coder:30b' hold outside wf-omen-5070-hwbaseline-2026-07-02?",
+      "worth": "2 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-07-02T06:55:00Z"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=sonnet",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does 'model_id=sonnet' hold outside wf-pour-b2?",
       "worth": "1 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
       "target_finding_id": null,
       "target_capability_id": null,
@@ -106,39 +166,39 @@
       "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
       "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
       "confidence": null,
-      "last_observed": "2026-07-01T20:25:30Z"
+      "last_observed": "2026-07-03T04:09:32.603190+00:00"
     },
     {
-      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=reference-build|backend=local",
+      "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=vllama-planner",
       "experiment_type": "coverage_probe",
       "subject": {
         "builder_id": null,
         "model_id": null,
-        "backend": "local",
-        "task_kind": "reference-build",
+        "backend": null,
+        "task_kind": null,
         "metric": null
       },
-      "question": "does 'task_kind=reference-build, backend=local' hold outside wf_hold_probe?",
-      "worth": "1 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "question": "does 'model_id=vllama-planner' hold outside wf-pour-b2?",
+      "worth": "2 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
       "target_finding_id": null,
       "target_capability_id": null,
       "gate": null,
       "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
       "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
       "confidence": null,
-      "last_observed": "2026-07-02T13:03:20Z"
+      "last_observed": "2026-07-03T04:09:32.603190+00:00"
     },
     {
-      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=serve|backend=vllm",
+      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=capacity-probe|backend=ollama-cuda",
       "experiment_type": "coverage_probe",
       "subject": {
         "builder_id": null,
         "model_id": null,
-        "backend": "vllm",
-        "task_kind": "serve",
+        "backend": "ollama-cuda",
+        "task_kind": "capacity-probe",
         "metric": null
       },
-      "question": "does 'task_kind=serve, backend=vllm' hold outside wf_vllm_probe?",
+      "question": "does 'task_kind=capacity-probe, backend=ollama-cuda' hold outside wf-omen-5070-hwbaseline-2026-07-02?",
       "worth": "3 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
       "target_finding_id": null,
       "target_capability_id": null,
@@ -146,19 +206,139 @@
       "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
       "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
       "confidence": null,
-      "last_observed": "2026-06-30T18:26:00Z"
+      "last_observed": "2026-07-02T06:41:15Z"
     },
     {
-      "candidate_id": "coverage_probe:unmeasured_metrics:builder-2|claude-opus-4.8|local",
+      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=capacity-probe|backend=ollama-cuda-contended",
       "experiment_type": "coverage_probe",
       "subject": {
-        "builder_id": "builder-2",
-        "model_id": "claude-opus-4.8",
-        "backend": "local",
+        "builder_id": null,
+        "model_id": null,
+        "backend": "ollama-cuda-contended",
+        "task_kind": "capacity-probe",
+        "metric": null
+      },
+      "question": "does 'task_kind=capacity-probe, backend=ollama-cuda-contended' hold outside wf-omen-5070-hwbaseline-2026-07-02?",
+      "worth": "2 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-07-02T06:55:00Z"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=capacity-probe|backend=ollama-vulkan",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "ollama-vulkan",
+        "task_kind": "capacity-probe",
+        "metric": null
+      },
+      "question": "does 'task_kind=capacity-probe, backend=ollama-vulkan' hold outside wf-omen-5070-hwbaseline-2026-07-02?",
+      "worth": "1 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-07-02T05:10:00Z"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=capacity-probe|backend=ollama-vulkan-igpu",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "ollama-vulkan-igpu",
+        "task_kind": "capacity-probe",
+        "metric": null
+      },
+      "question": "does 'task_kind=capacity-probe, backend=ollama-vulkan-igpu' hold outside wf-omen-5070-hwbaseline-2026-07-02?",
+      "worth": "2 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-07-02T06:05:00Z"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=capacity-probe|backend=ollama-vulkan-mixed",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "ollama-vulkan-mixed",
+        "task_kind": "capacity-probe",
+        "metric": null
+      },
+      "question": "does 'task_kind=capacity-probe, backend=ollama-vulkan-mixed' hold outside wf-omen-5070-hwbaseline-2026-07-02?",
+      "worth": "2 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-07-02T05:55:00Z"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=repo-build|backend=claude",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "claude",
+        "task_kind": "repo-build",
+        "metric": null
+      },
+      "question": "does 'task_kind=repo-build, backend=claude' hold outside wf-pour-b2?",
+      "worth": "1 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-07-03T04:09:32.603190+00:00"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=repo-build|backend=openai",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "openai",
+        "task_kind": "repo-build",
+        "metric": null
+      },
+      "question": "does 'task_kind=repo-build, backend=openai' hold outside wf-pour-b2?",
+      "worth": "2 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-07-03T04:09:32.603190+00:00"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:am4-worker-1|vllama-planner|openai",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "am4-worker-1",
+        "model_id": "vllama-planner",
+        "backend": "openai",
         "task_kind": null,
         "metric": null
       },
-      "question": "what are ttft_s, ram_gb_peak, vram_gb_peak on builder-2 + claude-opus-4.8 + local?",
+      "question": "what are ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak on am4-worker-1 + vllama-planner + openai?",
       "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
       "target_finding_id": null,
       "target_capability_id": null,
@@ -166,152 +346,517 @@
       "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
       "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
       "confidence": null,
-      "last_observed": "2026-07-02T13:03:20Z"
+      "last_observed": "2026-07-03T04:09:32.603190+00:00"
     },
     {
-      "candidate_id": "coverage_probe:unmeasured_metrics:claudefarm1|qwen3-30b-a3b-awq|vllm",
-      "experiment_type": "coverage_probe",
-      "subject": {
-        "builder_id": "claudefarm1",
-        "model_id": "qwen3-30b-a3b-awq",
-        "backend": "vllm",
-        "task_kind": null,
-        "metric": null
-      },
-      "question": "what are ttft_s, tokens_per_s, vram_gb_peak on claudefarm1 + qwen3-30b-a3b-awq + vllm?",
-      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
-      "target_finding_id": null,
-      "target_capability_id": null,
-      "gate": null,
-      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
-      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
-      "confidence": null,
-      "last_observed": "2026-06-30T18:26:00Z"
-    },
-    {
-      "candidate_id": "coverage_probe:unobserved_combo:cc-builder-1|claude-opus-4.8|frontier",
+      "candidate_id": "coverage_probe:unmeasured_metrics:cc-builder-1|sonnet|claude",
       "experiment_type": "coverage_probe",
       "subject": {
         "builder_id": "cc-builder-1",
-        "model_id": "claude-opus-4.8",
-        "backend": "frontier",
+        "model_id": "sonnet",
+        "backend": "claude",
         "task_kind": null,
         "metric": null
       },
-      "question": "what happens when cc-builder-1 + claude-opus-4.8 + frontier actually runs?",
-      "worth": "the scheduler is reasoning about a resource it has never observed; its first observation replaces assumption with evidence",
+      "question": "what are ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak on cc-builder-1 + sonnet + claude?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
       "target_finding_id": null,
       "target_capability_id": null,
       "gate": null,
-      "evidence_sought": "a single observation of any outcome moves the combo from unknown into the corpus, where findings can form",
-      "risk_accepted": "one dispatch slot on unproven ground; exploratory by nature",
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
       "confidence": null,
-      "last_observed": null
+      "last_observed": "2026-07-03T04:09:32.603190+00:00"
     },
     {
-      "candidate_id": "known_bad_retest:claudefarm1|qwen3-30b-a3b-awq|vllm",
-      "experiment_type": "known_bad_retest",
+      "candidate_id": "coverage_probe:unmeasured_metrics:cc-builder-2|vllama-planner|openai",
+      "experiment_type": "coverage_probe",
       "subject": {
-        "builder_id": "claudefarm1",
-        "model_id": "qwen3-30b-a3b-awq",
-        "backend": "vllm",
+        "builder_id": "cc-builder-2",
+        "model_id": "vllama-planner",
+        "backend": "openai",
         "task_kind": null,
         "metric": null
       },
-      "question": "does claudefarm1 + qwen3-30b-a3b-awq + vllm still fail (3/3 moe_offload_crash)?",
-      "worth": "the block is a belief, not a fact: evidence ended 2026-06-30T18:26:00Z and environment drift (driver, engine version, config) can invalidate it",
-      "target_finding_id": "known_bad:claudefarm1|qwen3-30b-a3b-awq|vllm",
+      "question": "what are ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak on cc-builder-2 + vllama-planner + openai?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-03T04:09:32.603190+00:00"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-cuda",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "mixtral:8x22b-instruct-v0.1-q2_K",
+        "backend": "ollama-cuda",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, vram_gb_peak on omen-5070 + mixtral:8x22b-instruct-v0.1-q2_K + ollama-cuda?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-02T05:45:00Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-vulkan-igpu",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "mixtral:8x22b-instruct-v0.1-q2_K",
+        "backend": "ollama-vulkan-igpu",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, vram_gb_peak on omen-5070 + mixtral:8x22b-instruct-v0.1-q2_K + ollama-vulkan-igpu?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-02T06:05:00Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-vulkan-mixed",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "mixtral:8x22b-instruct-v0.1-q2_K",
+        "backend": "ollama-vulkan-mixed",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, vram_gb_peak on omen-5070 + mixtral:8x22b-instruct-v0.1-q2_K + ollama-vulkan-mixed?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-02T05:55:00Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen-5070|qwen2.5:14b|ollama-cuda",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen2.5:14b",
+        "backend": "ollama-cuda",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s on omen-5070 + qwen2.5:14b + ollama-cuda?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-02T06:41:15Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen-5070|qwen2.5:14b|ollama-cuda-contended",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen2.5:14b",
+        "backend": "ollama-cuda-contended",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, vram_gb_peak on omen-5070 + qwen2.5:14b + ollama-cuda-contended?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-02T06:50:00Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen-5070|qwen2.5:14b|ollama-vulkan",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen2.5:14b",
+        "backend": "ollama-vulkan",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, vram_gb_peak on omen-5070 + qwen2.5:14b + ollama-vulkan?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-02T05:10:00Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen-5070|qwen2.5:14b|ollama-vulkan-igpu",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen2.5:14b",
+        "backend": "ollama-vulkan-igpu",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, vram_gb_peak on omen-5070 + qwen2.5:14b + ollama-vulkan-igpu?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-02T05:30:00Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen-5070|qwen2.5:14b|ollama-vulkan-mixed",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen2.5:14b",
+        "backend": "ollama-vulkan-mixed",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, vram_gb_peak on omen-5070 + qwen2.5:14b + ollama-vulkan-mixed?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-02T05:20:00Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen-5070|qwen3-coder:30b|ollama-cuda",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen3-coder:30b",
+        "backend": "ollama-cuda",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s on omen-5070 + qwen3-coder:30b + ollama-cuda?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-02T06:41:15Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen-5070|qwen3-coder:30b|ollama-cuda-contended",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen3-coder:30b",
+        "backend": "ollama-cuda-contended",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, vram_gb_peak on omen-5070 + qwen3-coder:30b + ollama-cuda-contended?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-02T06:55:00Z"
+    },
+    {
+      "candidate_id": "prefer_validation:cc-builder-1|sonnet|claude",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "cc-builder-1",
+        "model_id": "sonnet",
+        "backend": "claude",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does cc-builder-1 + sonnet + claude still hold up (1/1 success)?",
+      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
+      "target_finding_id": "known_good:cc-builder-1|sonnet|claude",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "low",
+      "last_observed": "2026-07-03T04:09:32.603190+00:00"
+    },
+    {
+      "candidate_id": "prefer_validation:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-cuda",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "mixtral:8x22b-instruct-v0.1-q2_K",
+        "backend": "ollama-cuda",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does omen-5070 + mixtral:8x22b-instruct-v0.1-q2_K + ollama-cuda still hold up (1/1 success)?",
+      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
+      "target_finding_id": "known_good:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-cuda",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "low",
+      "last_observed": "2026-07-02T05:45:00Z"
+    },
+    {
+      "candidate_id": "prefer_validation:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-vulkan-igpu",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "mixtral:8x22b-instruct-v0.1-q2_K",
+        "backend": "ollama-vulkan-igpu",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does omen-5070 + mixtral:8x22b-instruct-v0.1-q2_K + ollama-vulkan-igpu still hold up (1/1 success)?",
+      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
+      "target_finding_id": "known_good:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-vulkan-igpu",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "low",
+      "last_observed": "2026-07-02T06:05:00Z"
+    },
+    {
+      "candidate_id": "prefer_validation:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-vulkan-mixed",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "mixtral:8x22b-instruct-v0.1-q2_K",
+        "backend": "ollama-vulkan-mixed",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does omen-5070 + mixtral:8x22b-instruct-v0.1-q2_K + ollama-vulkan-mixed still hold up (1/1 success)?",
+      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
+      "target_finding_id": "known_good:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-vulkan-mixed",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "low",
+      "last_observed": "2026-07-02T05:55:00Z"
+    },
+    {
+      "candidate_id": "prefer_validation:omen-5070|qwen2.5:14b|ollama-cuda",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen2.5:14b",
+        "backend": "ollama-cuda",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does omen-5070 + qwen2.5:14b + ollama-cuda still hold up (1/1 success)?",
+      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
+      "target_finding_id": "known_good:omen-5070|qwen2.5:14b|ollama-cuda",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "low",
+      "last_observed": "2026-07-02T06:41:15Z"
+    },
+    {
+      "candidate_id": "prefer_validation:omen-5070|qwen2.5:14b|ollama-cuda-contended",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen2.5:14b",
+        "backend": "ollama-cuda-contended",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does omen-5070 + qwen2.5:14b + ollama-cuda-contended still hold up (1/1 success)?",
+      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
+      "target_finding_id": "known_good:omen-5070|qwen2.5:14b|ollama-cuda-contended",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "low",
+      "last_observed": "2026-07-02T06:50:00Z"
+    },
+    {
+      "candidate_id": "prefer_validation:omen-5070|qwen2.5:14b|ollama-vulkan",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen2.5:14b",
+        "backend": "ollama-vulkan",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does omen-5070 + qwen2.5:14b + ollama-vulkan still hold up (1/1 success)?",
+      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
+      "target_finding_id": "known_good:omen-5070|qwen2.5:14b|ollama-vulkan",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "low",
+      "last_observed": "2026-07-02T05:10:00Z"
+    },
+    {
+      "candidate_id": "prefer_validation:omen-5070|qwen2.5:14b|ollama-vulkan-igpu",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen2.5:14b",
+        "backend": "ollama-vulkan-igpu",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does omen-5070 + qwen2.5:14b + ollama-vulkan-igpu still hold up (1/1 success)?",
+      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
+      "target_finding_id": "known_good:omen-5070|qwen2.5:14b|ollama-vulkan-igpu",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "low",
+      "last_observed": "2026-07-02T05:30:00Z"
+    },
+    {
+      "candidate_id": "prefer_validation:omen-5070|qwen2.5:14b|ollama-vulkan-mixed",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen2.5:14b",
+        "backend": "ollama-vulkan-mixed",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does omen-5070 + qwen2.5:14b + ollama-vulkan-mixed still hold up (1/1 success)?",
+      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
+      "target_finding_id": "known_good:omen-5070|qwen2.5:14b|ollama-vulkan-mixed",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "low",
+      "last_observed": "2026-07-02T05:20:00Z"
+    },
+    {
+      "candidate_id": "prefer_validation:omen-5070|qwen3-coder:30b|ollama-cuda",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen3-coder:30b",
+        "backend": "ollama-cuda",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does omen-5070 + qwen3-coder:30b + ollama-cuda still hold up (1/1 success)?",
+      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
+      "target_finding_id": "known_good:omen-5070|qwen3-coder:30b|ollama-cuda",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "low",
+      "last_observed": "2026-07-02T06:41:15Z"
+    },
+    {
+      "candidate_id": "prefer_validation:omen-5070|qwen3-coder:30b|ollama-cuda-contended",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen3-coder:30b",
+        "backend": "ollama-cuda-contended",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does omen-5070 + qwen3-coder:30b + ollama-cuda-contended still hold up (1/1 success)?",
+      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
+      "target_finding_id": "known_good:omen-5070|qwen3-coder:30b|ollama-cuda-contended",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "low",
+      "last_observed": "2026-07-02T06:55:00Z"
+    },
+    {
+      "candidate_id": "uncertain_resolution:am4-worker-1|vllama-planner|openai",
+      "experiment_type": "uncertain_resolution",
+      "subject": {
+        "builder_id": "am4-worker-1",
+        "model_id": "vllama-planner",
+        "backend": "openai",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "which way does am4-worker-1 + vllama-planner + openai resolve (0/1 success, 1 failures)?",
+      "worth": "the combo is stuck in exploratory_only until the evidence resolves it one way or the other",
+      "target_finding_id": "uncertain:am4-worker-1|vllama-planner|openai",
       "target_capability_id": null,
       "gate": {
-        "policy_id": "block:claudefarm1|qwen3-30b-a3b-awq|vllm|*|*",
-        "effect": "block",
+        "policy_id": "exploratory_only:am4-worker-1|vllama-planner|openai|*|*",
+        "effect": "exploratory_only",
         "flag": "experiment_flag",
-        "semantics": "dispatch allowed only as an explicit experiment"
+        "semantics": "dispatch normally as an explicit experiment"
       },
-      "evidence_sought": "a single success contradicts '3/3 moe_offload_crash' and reclassifies known_bad -> uncertain (success rate 1/4); another failure raises confidence to high",
-      "risk_accepted": "one dispatch slot and a likely failure (3/3 moe_offload_crash); the opened gate admits only the flagged experiment, never normal work",
-      "confidence": "high",
-      "last_observed": "2026-06-30T18:26:00Z"
+      "evidence_sought": "3 consecutive success(es) reclassify uncertain -> known_good; 1 more failure(s) with zero successes reclassify to known_bad",
+      "risk_accepted": "one dispatch slot; failure odds roughly 1/1 on current evidence",
+      "confidence": "low",
+      "last_observed": "2026-07-03T04:09:32.603190+00:00"
     },
     {
-      "candidate_id": "prediction_bias_calibration:qwen3-30b-a3b-awq:expected_peak_ram_mb",
-      "experiment_type": "prediction_bias_calibration",
+      "candidate_id": "uncertain_resolution:cc-builder-2|vllama-planner|openai",
+      "experiment_type": "uncertain_resolution",
       "subject": {
-        "builder_id": null,
-        "model_id": "qwen3-30b-a3b-awq",
-        "backend": null,
-        "task_kind": null,
-        "metric": "expected_peak_ram_mb"
-      },
-      "question": "is the expected_peak_ram_mb correction for qwen3-30b-a3b-awq (+9984.0) still right?",
-      "worth": "every expected_peak_ram_mb prediction for qwen3-30b-a3b-awq is silently shifted by +9984.0; fresh comparisons confirm the correction or dissolve it",
-      "target_finding_id": "prediction_bias:qwen3-30b-a3b-awq:expected_peak_ram_mb",
-      "target_capability_id": null,
-      "gate": null,
-      "evidence_sought": "comparisons with opposite-signed error shrink the bias; the finding dissolves when |mean signed error| < 0.8 x MAE",
-      "risk_accepted": "none beyond a normal dispatch; calibration needs only the prediction/observation pair",
-      "confidence": "medium",
-      "last_observed": "2026-06-30T18:14:00Z"
-    },
-    {
-      "candidate_id": "prefer_validation:builder-2|claude-opus-4.8|local",
-      "experiment_type": "prefer_validation",
-      "subject": {
-        "builder_id": "builder-2",
-        "model_id": "claude-opus-4.8",
-        "backend": "local",
+        "builder_id": "cc-builder-2",
+        "model_id": "vllama-planner",
+        "backend": "openai",
         "task_kind": null,
         "metric": null
       },
-      "question": "does builder-2 + claude-opus-4.8 + local still hold up (1/1 success)?",
-      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
-      "target_finding_id": "known_good:builder-2|claude-opus-4.8|local",
+      "question": "which way does cc-builder-2 + vllama-planner + openai resolve (0/1 success, 1 failures)?",
+      "worth": "the combo is stuck in exploratory_only until the evidence resolves it one way or the other",
+      "target_finding_id": "uncertain:cc-builder-2|vllama-planner|openai",
       "target_capability_id": null,
-      "gate": null,
-      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
-      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
-      "confidence": "low",
-      "last_observed": "2026-07-02T13:03:20Z"
-    },
-    {
-      "candidate_id": "prefer_validation:omen-worker-1|qwen3-coder:30b|ollama",
-      "experiment_type": "prefer_validation",
-      "subject": {
-        "builder_id": "omen-worker-1",
-        "model_id": "qwen3-coder:30b",
-        "backend": "ollama",
-        "task_kind": null,
-        "metric": null
+      "gate": {
+        "policy_id": "exploratory_only:cc-builder-2|vllama-planner|openai|*|*",
+        "effect": "exploratory_only",
+        "flag": "experiment_flag",
+        "semantics": "dispatch normally as an explicit experiment"
       },
-      "question": "does omen-worker-1 + qwen3-coder:30b + ollama still hold up (1/1 success)?",
-      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
-      "target_finding_id": "known_good:omen-worker-1|qwen3-coder:30b|ollama",
-      "target_capability_id": null,
-      "gate": null,
-      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
-      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "evidence_sought": "3 consecutive success(es) reclassify uncertain -> known_good; 1 more failure(s) with zero successes reclassify to known_bad",
+      "risk_accepted": "one dispatch slot; failure odds roughly 1/1 on current evidence",
       "confidence": "low",
-      "last_observed": "2026-07-01T20:25:30Z"
-    },
-    {
-      "candidate_id": "prefer_validation:omen-worker-2|qwen3-coder:14b|ollama",
-      "experiment_type": "prefer_validation",
-      "subject": {
-        "builder_id": "omen-worker-2",
-        "model_id": "qwen3-coder:14b",
-        "backend": "ollama",
-        "task_kind": null,
-        "metric": null
-      },
-      "question": "does omen-worker-2 + qwen3-coder:14b + ollama still hold up (1/1 success)?",
-      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
-      "target_finding_id": "known_good:omen-worker-2|qwen3-coder:14b|ollama",
-      "target_capability_id": null,
-      "gate": null,
-      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
-      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
-      "confidence": "low",
-      "last_observed": "2026-07-01T21:15:30Z"
+      "last_observed": "2026-07-03T04:09:32.603190+00:00"
     }
   ]
 }

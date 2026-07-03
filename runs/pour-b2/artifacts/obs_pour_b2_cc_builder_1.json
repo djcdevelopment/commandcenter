@@ -1,0 +1,30 @@
+{
+    "contract_version":  "capacity-observation.v1",
+    "observation_id":  "obs_pour_b2_cc_builder_1",
+    "decision_id":  null,
+    "workflow_id":  "wf-pour-b2",
+    "run_id":  "pour-b2",
+    "timestamp":  "2026-07-03T04:09:32.603190+00:00",
+    "builder_id":  "cc-builder-1",
+    "model_id":  "sonnet",
+    "backend":  "claude",
+    "hardware_profile_id":  null,
+    "workload_shape":  {
+                           "task_kind":  "repo-build",
+                           "estimated_context_tokens":  null,
+                           "requires_gpu":  null,
+                           "notes":  "Pilot B2 conductor assay result"
+                       },
+    "observed":  {
+                     "runtime_s":  null,
+                     "ttft_s":  null,
+                     "tokens_per_s":  null,
+                     "ram_gb_peak":  null,
+                     "vram_gb_peak":  null,
+                     "context_tokens":  null,
+                     "physical":  null
+                 },
+    "outcome":  "success",
+    "failure_class":  null,
+    "promotion_status":  null
+}

@@ -1,7 +1,60 @@
 {
   "contract_version": "policies.v1",
-  "source_findings": 11,
-  "evidence_watermark": "2026-07-02T06:55:00Z",
-  "rule_counts": {},
-  "rules": []
+  "source_findings": 15,
+  "evidence_watermark": "2026-07-03T04:09:32.603190+00:00",
+  "rule_counts": {
+    "exploratory_only": 2
+  },
+  "rules": [
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "exploratory_only:am4-worker-1|vllama-planner|openai|*|*",
+      "effect": "exploratory_only",
+      "statement": "am4-worker-1 + vllama-planner + openai unproven (0/1 success, 1 failures); exploratory work only",
+      "subject": {
+        "builder_id": "am4-worker-1",
+        "model_id": "vllama-planner",
+        "backend": "openai",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "uncertain:am4-worker-1|vllama-planner|openai",
+      "finding_type": "uncertain",
+      "confidence": "low",
+      "evidence_summary": "0/1 success, 1 failures",
+      "override": {
+        "flag": "experiment_flag",
+        "semantics": "dispatch normally as an explicit experiment"
+      },
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-07-03T04:09:32.603190+00:00"
+    },
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "exploratory_only:cc-builder-2|vllama-planner|openai|*|*",
+      "effect": "exploratory_only",
+      "statement": "cc-builder-2 + vllama-planner + openai unproven (0/1 success, 1 failures); exploratory work only",
+      "subject": {
+        "builder_id": "cc-builder-2",
+        "model_id": "vllama-planner",
+        "backend": "openai",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "uncertain:cc-builder-2|vllama-planner|openai",
+      "finding_type": "uncertain",
+      "confidence": "low",
+      "evidence_summary": "0/1 success, 1 failures",
+      "override": {
+        "flag": "experiment_flag",
+        "semantics": "dispatch normally as an explicit experiment"
+      },
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-07-03T04:09:32.603190+00:00"
+    }
+  ]
 }

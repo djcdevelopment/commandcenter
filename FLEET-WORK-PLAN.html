@@ -1,0 +1,1342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fleet Work Plan — Review-Directed Streams</title>
+<style>
+  :root{
+    --bg:#0c0f14; --panel:#141a22; --panel2:#1b232e; --line:#26303d;
+    --ink:#e6edf3; --muted:#93a1b1; --dim:#6b7886;
+    --fire:#ff7a45; --ember:#ffb066; --cyan:#5fd0e0; --green:#5ad48a;
+    --amber:#f4c95d; --red:#ff6b6b; --violet:#a78bfa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  code,.mono{font-family:"JetBrains Mono",Consolas,Menlo,monospace;font-size:.86em}
+  a{color:var(--cyan)}
+  .wrap{max-width:1120px;margin:0 auto;padding:32px 24px 80px}
+  header.top{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:24px}
+  .eyebrow{color:var(--fire);letter-spacing:.18em;text-transform:uppercase;font-size:11px;font-weight:700}
+  h1{font-size:27px;margin:6px 0 8px;font-weight:700}
+  .thesis{color:var(--muted);max-width:82ch}
+  .thesis b{color:var(--ink)}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:16px;font-size:12.5px;color:var(--dim)}
+  .meta b{color:var(--ink)}
+  h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--ember);
+    margin:38px 0 14px;border-left:3px solid var(--fire);padding-left:10px}
+  .banner{background:linear-gradient(90deg,#2a1d10,#1b232e);border:1px solid #4a3a20;
+    border-radius:10px;padding:12px 16px;margin:18px 0 0;color:var(--ember);font-size:13.5px}
+  .banner b{color:var(--amber)}
+  .tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.05em;
+    padding:2px 7px;border-radius:20px;border:1px solid var(--line)}
+  .t-30b{color:var(--green);border-color:#274b39;background:#11231a}
+  .t-30br{color:var(--cyan);border-color:#1f4650;background:#0f2126}
+  .t-frontier{color:var(--violet);border-color:#3a2f5a;background:#181226}
+  .t-ops{color:var(--amber);border-color:#4a4023;background:#221d10}
+  .t-gate{color:var(--red);border-color:#4a2424;background:#221010}
+  .t-wave1{color:var(--green);border-color:#274b39;background:#11231a}
+  .t-wave2{color:var(--amber);border-color:#4a4023;background:#221d10}
+  .t-wave3{color:var(--dim);border-color:var(--line);background:var(--panel2)}
+
+  table.split{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:13px}
+  table.split th{background:var(--panel2);text-align:left;padding:10px 14px;font-size:11px;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+  table.split td{padding:9px 14px;border-top:1px solid var(--line);color:var(--muted);vertical-align:top}
+  table.split td b{color:var(--ink)}
+
+  .law{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--violet);
+    border-radius:10px;padding:14px 18px;margin-bottom:12px}
+  .law h3{margin:0 0 4px;font-size:15px;color:var(--violet)}
+  .law p{margin:4px 0 0;color:var(--muted);font-size:13.5px}
+  .law p b{color:var(--ink)}
+  .law.green{border-left-color:var(--green)}.law.green h3{color:var(--green)}
+  .law.red{border-left-color:var(--red)}.law.red h3{color:var(--red)}
+  .law.amber{border-left-color:var(--amber)}.law.amber h3{color:var(--amber)}
+
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:20px;overflow:hidden}
+  .stage .shead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    padding:14px 18px;background:var(--panel2);border-bottom:1px solid var(--line)}
+  .stage .shead .id{font-family:Consolas,monospace;color:var(--fire);font-weight:700;font-size:18px}
+  .stage .shead h3{margin:0;font-size:16px;flex:1;min-width:200px}
+  .sbody{padding:14px 18px 18px}
+  .sbody p.about{margin:0 0 10px;color:var(--muted);font-size:13.5px}
+  .sbody p.about b{color:var(--ink)}
+  pre.prompt{background:#0a0d11;border:1px solid var(--line);border-radius:8px;
+    padding:14px 16px;font-family:"JetBrains Mono",Consolas,Menlo,monospace;font-size:12px;
+    line-height:1.5;color:#c9d4de;white-space:pre-wrap;word-break:break-word;overflow-x:auto;margin:10px 0 0}
+  .plabel{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--cyan);margin-top:12px}
+  footer{margin-top:44px;border-top:1px solid var(--line);padding-top:16px;color:var(--dim);font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="eyebrow">Commandcenter · Fleet Work Plan</div>
+  <h1>Fleet Work Plan — Review-Directed Streams</h1>
+  <p class="thesis">The work set forth by the reviews (THREE-CHAIRS + addendum, CONSTITUTIONAL-REVIEW,
+  ECONOMICS-ARCHITECTURE-REVIEW, physical-telemetry findings), broken into <b>independent streams sized for
+  small, cheap builder models</b>. Each stream carries a <b>zero-context handoff prompt</b>: copy the common
+  preamble + the stream body, hand it to a builder that has never seen this repo. Every primary prompt was
+  <b>dry-run verified</b> — 14 fresh agents executed each prompt's evidence phase against the live tree,
+  read-only, and every path, field name, count, and trap they flagged is folded into the text below
+  (54 issues fixed, including 4 that would have stranded or misled a literal builder on day one).</p>
+  <div class="meta">
+    <span>Date: <b>2026-07-02 (late)</b></span>
+    <span>Streams: <b>12 primary + 4 continuations</b></span>
+    <span>Verified against: <b class="mono">110/110 baseline · git 6a0d308</b></span>
+    <span>Status: <b>draft-ready — released on Derek's cue, per fleet pacing</b></span>
+  </div>
+  <div class="banner"><b>Distribution prerequisite:</b> this tree has one commit and <b>no git remote</b> —
+  builders cannot clone what isn't pushed. Stream A1 is therefore both a safety fix and the distribution
+  mechanism: it goes first, alone, before anything is handed out. And per the standing rule from all reviews:
+  <b>no Δ4 idle-drain until Δ2 telemetry exists.</b></div>
+</header>
+
+<h2>Stream Map</h2>
+<table class="split">
+  <tr><th>Stream</th><th>What</th><th>Model class</th><th>Depends on</th><th>Wave</th></tr>
+  <tr><td><b>A1</b> Off-box replication</td><td>Git remote + scheduled backup push; tracks all evidence</td><td><span class="tag t-30b">30B</span></td><td>— (goes first)</td><td><span class="tag t-wave1">1</span></td></tr>
+  <tr><td><b>A2</b> Watermark guard</td><td>Projectors refuse corpus-regression writes; authored override</td><td><span class="tag t-30b">30B</span></td><td>—</td><td><span class="tag t-wave1">1</span></td></tr>
+  <tr><td><b>B1</b> Constitution amendments</td><td>Amendments 1+2 into roadmap; Δ1 superseded note; lost-capability annotations</td><td><span class="tag t-30b">30B</span></td><td>—</td><td><span class="tag t-wave1">1</span></td></tr>
+  <tr><td><b>B2</b> Doc-claims checker</td><td>Machine-checkable claims registry + waivers; rot test extended upward</td><td><span class="tag t-30b">30B</span></td><td>—</td><td><span class="tag t-wave1">1</span></td></tr>
+  <tr><td><b>C1</b> Residency seam</td><td>Raw model_* facts in schema; model_residency re-documented as derived</td><td><span class="tag t-30b">30B</span></td><td>—</td><td><span class="tag t-wave1">1</span></td></tr>
+  <tr><td><b>A3</b> Evidence hunt</td><td>Find the lost omen build-run events on the fleet; re-project on approval</td><td><span class="tag t-30br">30B + Derek gate</span></td><td>SSH details; ideally A2</td><td><span class="tag t-wave2">2</span></td></tr>
+  <tr><td><b>C2</b> Telemetry collector</td><td>nvidia-smi wrapper emitting observed.physical summaries; mock-first</td><td><span class="tag t-30b">30B</span></td><td>C1 (soft)</td><td><span class="tag t-wave2">2</span></td></tr>
+  <tr><td><b>D1</b> Economics Δ1′ core</td><td>Derived economy objective + economy_influence on decisions</td><td><span class="tag t-30br">30B + frontier review</span></td><td>—</td><td><span class="tag t-wave2">2</span></td></tr>
+  <tr><td><b>E1</b> Δ4 prerequisites</td><td>idle.observed/idle.ended events + operating-budget.v1 + budget_check</td><td><span class="tag t-30b">30B</span></td><td>—</td><td><span class="tag t-wave2">2</span></td></tr>
+  <tr><td><b>F1</b> Snapshot-diff</td><td>as_of-bounded projections + deterministic transition diff (shared subsystem)</td><td><span class="tag t-frontier">frontier</span></td><td>—</td><td><span class="tag t-wave2">2</span></td></tr>
+  <tr><td><b>Ga</b> Formulation E enablement + report</td><td>Authored numeric worth overlay + confidence_score on belief snapshots + worth-realized-per-hour report</td><td><span class="tag t-30br">30B + frontier review</span></td><td>—; Derek authors worth values</td><td><span class="tag t-wave2">2</span></td></tr>
+  <tr><td><b>Gc</b> Calibration projection</td><td>Confidence-curve calibration tool + the experiment candidate that feeds it</td><td><span class="tag t-30br">30B + frontier review</span></td><td>F1 (soft)</td><td><span class="tag t-wave2">2</span></td></tr>
+  <tr><td><b>C3</b> Hardware-profile discontinuity</td><td>Profile-scoped envelopes + profile-change coverage gaps</td><td><span class="tag t-frontier">frontier</span></td><td>C1</td><td><span class="tag t-wave3">3</span></td></tr>
+  <tr><td><b>I1</b> Study harness</td><td>study.v1 + pre-registration freeze + manifest + analysis (n≥30 A/B)</td><td><span class="tag t-30br">30B + frontier review</span></td><td>—; Derek authors tasks/criteria</td><td><span class="tag t-wave3">3</span></td></tr>
+  <tr><td><b>H</b> Refill the corpus</td><td>Fly the 15 candidates + external work through the loop (ops, not build)</td><td><span class="tag t-ops">conductor-side</span></td><td><b>GATE G0</b></td><td><span class="tag t-wave3">3</span></td></tr>
+  <tr><td><b>D2 / E2 / Ga-2</b> Continuations</td><td>Post-gate wiring (attendance, idle-drain enablement, diff-fed metrics)</td><td><span class="tag t-30br">30B + frontier review</span></td><td>Gates below</td><td><span class="tag t-wave3">3</span></td></tr>
+</table>
+
+<h2>Gates &amp; Handoffs</h2>
+<div class="law red">
+  <h3>G0 — Corpus protected. Blocks: H (any large re-pour).</h3>
+  <p>Open when A1's remote is live and receiving pushes AND A2's guard is merged with the simulated-incident
+  test green. Rationale: today's overwrite proved the corpus can be lost; do not pour weeks of new evidence
+  into an unprotected store. <b>Handoff artifact:</b> A1's BUILD-NOTES + a successful push; A2's BUILD-NOTES.</p>
+</div>
+<div class="law amber">
+  <h3>G1 — Derek's economics decisions. Blocks: D2 (and informs E2).</h3>
+  <p>D1 ends by producing <span class="mono">QUESTIONS-D1.md</span> (attention economy · mixed-dispatch credit
+  · leased default · attendance authoring). Derek answers in a <span class="mono">DECISIONS-D1.md</span>;
+  the D2 continuation prompt below consumes it verbatim.</p>
+</div>
+<div class="law amber">
+  <h3>G2 — Real telemetry validated. Blocks: E2 (idle-drain enablement), thermal-content publishing.</h3>
+  <p>Open when C2's collector has run on a real GPU node (OMEN, RTX 5070) wrapped around a real dispatch and
+  produced a schema-valid <span class="mono">observed.physical</span> block attached to a real observation.
+  C2's BUILD-NOTES contains the verbatim command an operator runs. This is a <b>Derek-paced dispatch</b>, not
+  a builder task.</p>
+</div>
+<div class="law amber">
+  <h3>G-budget — Operating budget authored. Blocks: E2.</h3>
+  <p>E1 delivers the contract and the check function; the budget itself (how hot, how loud, unattended or not)
+  is a declaration of will only Derek can author — Amendment 1's second residue member. One JSON file, his
+  values, his reason.</p>
+</div>
+<div class="law green">
+  <h3>G3 — Corpus refilled (≥2 real workflows; capability re-earned). Blocks: publishing envelope numbers, meaningful calibration run, B2 waiver removal, study analysis.</h3>
+  <p>Opens as H (and/or A3 recovery) lands real evidence. When capabilities.json shows the re-derived
+  capability, remove B2's waiver and restore the roadmap claim — the doc-claims checker will tell you.</p>
+</div>
+
+<h2>Derek's Desk — decisions the streams will ask for (not builder work)</h2>
+<table class="split">
+  <tr><th>Decision</th><th>Requested by</th><th>Shape</th></tr>
+  <tr><td><b>Git remote URL</b> (private GitHub vs bare repo on cc-conductor)</td><td>A1 (DECISION-NEEDED-A1.md)</td><td>One line + <span class="mono">git remote add origin ...</span></td></tr>
+  <tr><td><b>SSH details for the evidence hunt</b></td><td>A3 (precondition)</td><td>Host/user/paths handed with the prompt</td></tr>
+  <tr><td><b>Economics answers</b>: attention economy? credit split? leased default? who authors attended/unattended?</td><td>D1 (QUESTIONS-D1.md)</td><td>DECISIONS-D1.md, consumed by D2</td></tr>
+  <tr><td><b>Numeric worth valuations</b> for the 15 candidates (authored judgment — the projector's prose worth is not summable)</td><td>Ga (QUESTIONS-Ga.md)</td><td>knowledge/candidate_worth.json (authored overlay)</td></tr>
+  <tr><td><b>Operating budget values</b> (temp/power/fan ceilings, unattended yes/no, hours)</td><td>E1→E2 (G-budget)</td><td>One operating-budget.v1 JSON</td></tr>
+  <tr><td><b>Study task list + pre-registration sign-off</b> (30+ tasks, win definition, threshold, cost model)</td><td>I1 (QUESTIONS-I1.md)</td><td>study.v1 file, frozen</td></tr>
+  <tr><td><b>Publishing</b> (essays now, envelope numbers after G3) + the sign-off queue (P0, promotion thresholds, backlog)</td><td>Three-Chairs unified list</td><td>Derek-only; no stream depends on it</td></tr>
+</table>
+
+<h2>Discovered While Verifying — corrections to the reviews themselves</h2>
+<div class="law">
+  <h3>The verification pass falsified one review premise and surfaced three repo facts the prompts now encode.</h3>
+  <p><b>(1) LEARNING-RATE-CRITIQUE's Formulation E premise is false against the tree:</b> <span class="mono">worth</span>
+  on candidates is a <b>prose string generated by project_experiments.py</b> — projection-derived, not authored,
+  not numeric. "Σ worth already authored" summed nothing. Stream Ga therefore includes the enabling work
+  (authored numeric worth overlay) and Derek's valuation becomes an explicit desk item.
+  <b>(2)</b> experiment-result.v1's belief snapshots carry only the confidence <i>label</i> — no
+  <span class="mono">confidence_score</span> — so Formulation A needs one additive nullable field (Ga authorizes it).
+  <b>(3)</b> No dispatch open/close event types exist; Ga defines the duration rule explicitly
+  (open = builder.assigned; close = first terminal event) instead of letting a builder guess.
+  <b>(4)</b> The real run's observation artifacts (runs/omen-5070-hwbaseline) carry extra fields and lack
+  <span class="mono">contract_version</span> — they'd fail strict contract validation. Noted for H's evidence
+  discipline; not currently load-bearing.</p>
+</div>
+
+<h2>Common Preamble — prepend to every stream prompt</h2>
+<div class="stage"><div class="sbody">
+<pre class="prompt">You are a builder agent working in the commandcenter workflow-ontology repository. You have no prior
+context; everything you need is in this prompt and the repository itself.
+
+Repository root: {REPO_ROOT} (origin machine: C:\work\commandcenter; if you were given a clone, use that
+path wherever you see {REPO_ROOT}). Run all commands from the repo root.
+
+ORIENTATION (verify each exists; directories may contain MORE than listed — that is expected):
+- tools/workflow/ — contains at least: project_findings.py, project_policy.py, project_associations.py,
+  project_coverage.py, project_experiments.py, project_capacity.py, reference_runner.py, engine.py,
+  validate_events.py, ontology.py. NOTE: there is no project_capabilities.py — capabilities.json is
+  written by project_associations.py.
+- contracts/ — 10 JSON Schemas: finding.v1, policy.v1, association.v1, capability.v1, coverage.v1,
+  experiment-plan.v1, experiment-result.v1, scheduler-decision.v1, capacity-observation.v1,
+  workflow-event (no .v1 suffix on the last).
+- knowledge/ — the belief store. PROJECTION OUTPUTS (findings.json, capabilities.json, associations.json,
+  coverage.json, capacity_estimates.json, experiment_candidates.json, experiment_results.json,
+  prediction_accuracy.json, known_good/bad_models.json, policy.json) are NEVER edited by hand — a hand
+  edit is overwritten by the next projection and fails review. knowledge/ ALSO holds AUTHORED Clause-2
+  objects (policy_overrides.json, and any *_override.json a stream tells you to create) — the
+  never-hand-edit rule applies to projection outputs only.
+- fixtures/workflow/runs/ — 6 synthetic reference runs. HAZARD: many tests project over this ENTIRE
+  directory with exact-count assertions (e.g. observation_count == 6). Never add or modify anything under
+  fixtures/workflow/runs/ unless your stream explicitly says to, and then only within the constraints it
+  states.
+- runs/ — real fleet evidence. Currently exactly one run: runs/omen-5070-hwbaseline-2026-07-02/.
+  IMPORTANT: the current knowledge/*.json was materialized from runs/ (observation_count 10,
+  evidence_watermark 2026-07-02T06:55:00Z), NOT from fixtures/.
+- tests/workflow/ — the whole suite (has __init__.py). Baseline: python -m unittest discover -s
+  tests/workflow  → expect "Ran 110 tests ... OK" (as of plan authoring; record your actual count).
+  unittest prints to STDERR — on Windows PowerShell do not redirect with 2>&1; just read the final lines.
+  New tests go in tests/workflow/ named test_*.py or the discover command will never run them.
+- Background docs at repo root (read only what your stream cites): CAPABILITY-ROADMAP.html (the
+  constitution), TWO-ECONOMIES-WIND-TUNNEL.html, LEARNING-RATE-CRITIQUE.html,
+  REPLAY-INFORMATION-ARCHITECTURE.html, CONSTITUTIONAL-REVIEW-2026-07-02.html,
+  ECONOMICS-ARCHITECTURE-REVIEW.html, docs/physical-telemetry-instrumentation-findings.md.
+
+ENVIRONMENT FACTS:
+- Python 3.12, STDLIB ONLY. jsonschema is NOT installed. NEVER pip install anything. "Schema validation"
+  in this repo means hand-rolled structural checks against the loaded schema JSON — the house pattern is
+  set-inclusion assertions (see tests/workflow/test_project_associations.py lines ~139-140 and
+  tests/workflow/test_dispatch_capability.py lines ~71-79: required ⊆ keys ⊆ properties, enum membership).
+- tools/ packages have NO __init__.py (namespace packages); tests/workflow/ HAS one. Tests import
+  `from tools.workflow.X import Y` and assume cwd = repo root.
+
+LAWS THAT BIND EVERY CHANGE (from the constitution; a violation fails the build regardless of tests):
+1. Clause 1 — no organizational truth may be authored if it can be derived. Never hand-write beliefs
+   (confidence, qualification_status, capability records, findings). Anything that is not an event is a
+   projection.
+2. Clause 2 — authored objects are statements of will, never fact: intent, accepted risk, overrides —
+   always with a reason, always on an audit trail.
+3. D18 determinism — projections are deterministic and re-runnable: stable IDs, NO wall-clock timestamps
+   in derived output (staleness and "now" are measured against the evidence watermark — the newest
+   observation timestamp in the corpus; see evidence_watermark() in project_associations.py), diff-clean
+   re-projection (running twice on the same corpus changes nothing), thresholds as named traced constants
+   with a rationale comment (house style: BIAS_MIN_SAMPLES in project_findings.py).
+4. No silent caps — anything skipped, gated, or dropped is reported with a reason, never silently absent.
+5. Schema changes are additive and nullable-only: never touch an existing required list, preserve
+   additionalProperties: false, existing fixtures must remain valid unmodified.
+6. Build values — every deliverable must preserve or improve visibility (notes/artifacts explaining what
+   it did), testability (tests prove the behavior), resilience (fails loudly, never corrupts state).
+
+WORKING PROTOCOL:
+- PHASE 0 — EVIDENCE, before any change: run the baseline suite and record the count. Verify every item
+  in your stream's ASSUMPTIONS block by reading the named files. If an assumption FAILS or an instruction
+  contradicts what you find, DO NOT PROCEED: write QUESTIONS-&lt;stream-id&gt;.md at the repo root (what you
+  found, what you expected, options, your recommendation) and STOP. Exception: where a stream explicitly
+  says a divergence is "expected and not a contradiction", it is not a stop condition.
+- DECISION-NEEDED-&lt;stream-id&gt;.md is different from QUESTIONS: it is a decision request for Derek that
+  does NOT stop you — write it and continue with every task that does not depend on the answer.
+- PHASE FINAL: full suite green (baseline + your new tests), then write BUILD-NOTES-&lt;stream-id&gt;.md at the
+  repo root: what changed, why, how to verify, anything you would flag for a reviewer.</pre>
+</div></div>
+
+<!-- ================================================================= A1 -->
+<div class="stage">
+  <div class="shead"><span class="id">A1</span><h3>Off-box replication of the corpus</h3>
+    <span class="tag t-30b">30B</span><span class="tag t-wave1">WAVE 1 — GOES FIRST</span></div>
+  <div class="sbody">
+    <p class="about">The only non-regenerable asset is the evidence; it lives on one box, one commit deep.
+    This stream is also the <b>distribution mechanism</b> — no other stream can be handed to a fleet builder
+    until this repo has a remote to clone. <b>Verified traps fixed:</b> the existing .gitignore protects
+    <span class="mono">.env</span> and <span class="mono">*.log</span> and must not be narrowed before a
+    stage-everything backup script exists.</p>
+    <div class="plabel">Handoff prompt (prepend the common preamble)</div>
+<pre class="prompt">STREAM A1 — MISSION: make the event log and knowledge tree survive the loss of this machine, and give the
+fleet a remote to clone. The repo gained its first git commit today as a recovery baseline after an
+accidental overwrite of knowledge/*.json; it has no remote.
+
+ASSUMPTIONS (verify in Phase 0):
+- git log shows exactly one commit (6a0d308, "chore: initialize git repo for commandcenter local
+  checkout") tracking ~136 files.
+- git remote -v is EMPTY. (If a remote exists and pushes succeed, write BUILD-NOTES-A1.md saying so and
+  reduce scope to Tasks 3-4.)
+- git status --porcelain shows a small set of untracked files. As of prompt authoring the expected set is:
+  CONSTITUTIONAL-REVIEW-2026-07-02.html, ECONOMICS-ARCHITECTURE-REVIEW.html,
+  THREE-CHAIRS-PERSPECTIVES.html, FLEET-WORK-PLAN.html, docs/physical-telemetry-instrumentation-findings.md
+  (a few more artifacts of this planning session may appear; tracking them is correct).
+
+TASKS:
+1. .gitignore: one ALREADY EXISTS at the repo root with entries including .env, *.log, .venv/,
+   node_modules/. DO NOT replace, narrow, or regenerate it — keeping .env and *.log ignored is
+   load-bearing (Task 3's script stages everything). Only verify __pycache__/, *.pyc, .pytest_cache/ are
+   present (they are) and confirm nothing under runs/ or knowledge/ is ignored (nothing is).
+2. Track the untracked: git add the files from git status --porcelain and commit with message
+   "chore(A1): track all evidence and docs for replication".
+3. Create tools/ops/push_backup.py (create the tools/ops/ directory; no __init__.py — tools packages are
+   namespace packages): stages everything (git add -A), commits ONLY IF there are staged changes with
+   message "backup: &lt;STAMP&gt; corpus snapshot" where STAMP =
+   datetime.now(timezone.utc).isoformat(timespec="seconds"), then pushes to origin. It must fail loudly
+   (nonzero exit, clear one-line error) if no remote named origin is configured, must never force-push,
+   and must support --dry-run (print what would be staged/committed/pushed, change nothing).
+4. Write docs/ops-backup.md: how to configure the remote (git remote add origin &lt;URL&gt;), a Windows Task
+   Scheduler one-liner and a Linux cron line for scheduling push_backup.py, and the restore procedure
+   (clone; python -m unittest discover -s tests/workflow; expect the baseline count).
+5. The remote URL is Derek's decision. Since git remote -v is empty, write DECISION-NEEDED-A1.md asking
+   for it (offer: private GitHub repo under djcdevelopment, or a bare repo on cc-conductor over SSH).
+   This is a decision request, NOT a Phase-0 stop — complete Tasks 1-4 regardless; only the final
+   `git remote add` + first push wait for the answer.
+
+DEFINITION OF DONE: Tasks 1-4 committed; `python tools/ops/push_backup.py --dry-run` prints a sane plan;
+baseline suite still green. No new unit tests are required for this stream — PHASE FINAL here means the
+110-test baseline passes plus the successful --dry-run.
+OUT OF SCOPE: rewriting git history; touching projector code; pushing to any remote not explicitly
+configured by Derek's answer.</pre>
+  </div>
+</div>
+
+<!-- ================================================================= A2 -->
+<div class="stage">
+  <div class="shead"><span class="id">A2</span><h3>Watermark-monotonicity guard</h3>
+    <span class="tag t-30b">30B</span><span class="tag t-wave1">WAVE 1</span></div>
+  <div class="sbody">
+    <p class="about">Makes today's incident mechanically impossible to repeat silently: a projector that
+    sees <i>less</i> evidence than the store it is about to overwrite must refuse, absent an authored
+    override. <b>Verified facts encoded:</b> only 5 of 11 knowledge outputs carry
+    <span class="mono">evidence_watermark</span>; primary counts are named per file; the guard must resolve
+    its files relative to the write target (tests use temp dirs).</p>
+    <div class="plabel">Handoff prompt (prepend the common preamble)</div>
+<pre class="prompt">STREAM A2 — MISSION: an accidental pipeline rerun over an incomplete evidence corpus clobbered
+knowledge/*.json today. The rot test protects derived files from hand-edits; NOTHING protects them from a
+re-projection that sees less evidence than the previous run did. Add that protection.
+
+ASSUMPTIONS (verify in Phase 0 — the expected reality is stated here so none of this is a stop condition):
+- Projector outputs and their watermark/count fields are EXPECTED to be uneven:
+  · evidence_watermark present: associations.json, capabilities.json, coverage.json, policy.json.
+  · counts but NO watermark: findings.json (observation_count), capacity_estimates.json
+    (observation_count), prediction_accuracy.json (observation_count), experiment_candidates.json
+    (source_findings), experiment_results.json (plan_count).
+  · NEITHER watermark NOR count: known_good_models.json, known_bad_models.json (entries list only).
+  Verify by reading each file; record what you find.
+- knowledge/policy_overrides.json exists but its overrides array may be EMPTY — that is fine. The
+  house-style authored-override shape lives in code: tools/workflow/project_policy.py
+  apply_overrides()/load_overrides() (~lines 114-191), fields: policy_id, action:"suspend", author,
+  reason — a suspended rule stays visible with its reason.
+- project_policy.materialize_policy takes a findings_path (not event files) — its signature differs from
+  the other projectors. Expected; plan test (b) accordingly.
+
+TASKS:
+1. Create tools/workflow/corpus_guard.py with guard_write(path, new_doc, extract): loads the existing
+   file at path if present; extracts (watermark, primary_count) from old and new via the passed extractor;
+   REFUSES the write (raise CorpusRegressionError with a message naming both watermarks and both counts)
+   when the new watermark is OLDER than the existing OR the primary count is SMALLER — unless an authored
+   override is active. Comparison rules: watermark comparison only when both docs have one; count
+   comparison only when both have one; equal-or-newer + equal-or-larger passes untouched (diff-clean
+   reruns must not be disturbed). Primary count per file: observation_count where present;
+   experiment_candidates.json = source_findings; experiment_results.json = plan_count;
+   capabilities.json = capability_count; associations.json = association_count.
+2. Authored override (Clause 2): knowledge/corpus_regression_override.json —
+   {"active": true, "reason": "&lt;why&gt;", "author": "&lt;who&gt;", "scope": ["findings.json", ...],
+   "created": "&lt;ISO&gt;"}. RESOLUTION RULE: the guard locates both this file and policy_audit.ndjson
+   relative to the DIRECTORY OF THE FILE BEING WRITTEN (path.parent), never a hardcoded knowledge/ path —
+   tests run against temp knowledge dirs. When the guard permits a regression via override it APPENDS an
+   audit record (file, old/new watermark, old/new count, reason, author) to policy_audit.ndjson in that
+   same directory, then deactivates the override — but only after ALL files named in its scope have been
+   written once in the current invocation (per-batch, not per-file, or multi-file projectors strand
+   mid-run).
+3. Wire guard_write into every per-output-file write in the six projectors (project_findings,
+   project_associations [writes associations.json AND capabilities.json], project_coverage,
+   project_capacity [4 files], project_experiments [2 files], project_policy). Each file gets its own
+   extractor. Do NOT guard project_policy's existing policy_audit.ndjson append — that is an append-only
+   audit stream, not a snapshot. known_good/bad_models.json have neither watermark nor count: do NOT
+   invent one; leave them unguarded and record that in DECISION-NEEDED-A2.md (decision request, keep
+   working) with your proposed extractor (e.g. len(entries)).
+4. Tests (tests/workflow/test_corpus_guard.py): (a) normal advance passes; (b) THE INCIDENT — project the
+   full fixture corpus to a temp knowledge dir, then re-project over a subset of event files: guard
+   raises, file unchanged (for project_policy, simulate by projecting findings from fewer events first
+   and feeding the smaller findings.json); (c) override path — same regression with override present:
+   write succeeds, audit line appended, override deactivated after the batch; (d) diff-clean rerun
+   (equal watermark, equal counts) passes untouched.
+
+DEFINITION OF DONE: baseline + new tests green; the simulated-incident test proves the block;
+BUILD-NOTES-A2.md lists the extractor per file.
+OUT OF SCOPE: schema changes; changing WHAT projectors compute — only whether they may overwrite.</pre>
+  </div>
+</div>
+
+<!-- ================================================================= B1 -->
+<div class="stage">
+  <div class="shead"><span class="id">B1</span><h3>Constitution amendments + narrative reconciliation</h3>
+    <span class="tag t-30b">30B</span><span class="tag t-wave1">WAVE 1</span></div>
+  <div class="sbody">
+    <p class="about">Pure text work with exact anchors. <b>Verified fix:</b> the parallel corpus-proven claim
+    lives in the <b>S5</b> Shipped field (~line 190), not S6 — both S5 and S5b get the annotation.</p>
+    <div class="plabel">Handoff prompt (prepend the common preamble)</div>
+<pre class="prompt">STREAM B1 — MISSION: bring the authored documents in line with two adopted constitutional amendments and
+with the fact that the derived store lost state in today's overwrite. Careful HTML editing in the existing
+house style — no code. Preserve each file's CSS and structure; make no content changes beyond the six
+edits below.
+
+ASSUMPTIONS (verify in Phase 0):
+- CAPABILITY-ROADMAP.html: "The Constitution" section (~line 110) with four div.law blocks; the Residue
+  block (~line 131) titled "Residue — the one declaration that survives: what to observe."; the
+  Enforceability (D18) block precedes it (~lines 124-129); Standing Guardrails table at ~lines 375-390
+  (Rule/Why columns); S5 Shipped field ~line 190 and S5b Shipped field ~lines 217-225 both claim the
+  build|ollama capability as corpus-proven; footer ~line 396 reads "association.v1 · capability.v1 (next)".
+- CONSTITUTIONAL-REVIEW-2026-07-02.html: "Two amendments to the constitution" (~line 94), Amendment 1
+  sentence at ~lines 103-105, Amendment 2 sentence at ~lines 116-119.
+- TWO-ECONOMIES-WIND-TUNNEL.html: Δ1 stage card ~lines 173-183 (tag t-draft).
+  ECONOMICS-ARCHITECTURE-REVIEW.html: "Δ1 superseded by this review" (~line 96).
+- knowledge/capabilities.json: capability_count 0; knowledge/associations.json: association_count 0.
+
+THE SIX EDITS:
+1. CAPABILITY-ROADMAP.html — rewrite the Residue law block per Amendment 1: the residue is the CATEGORY
+   "declarations of will" — what to observe AND what operating risk/budget is accepted — quoting the
+   amendment sentence from the constitutional review verbatim. KEEP the original "Blind spots cannot
+   discover themselves." sentence.
+2. CAPABILITY-ROADMAP.html — add a new div.law block AFTER the Enforceability (D18) block, titled
+   "Decision dimensions — the three obligations (Amendment 2)", body = the Amendment 2 sentence from the
+   constitutional review, quoted verbatim.
+3. CAPABILITY-ROADMAP.html — add one row to the Standing Guardrails table. Rule cell:
+   "New scheduler decision dimensions carry the same three obligations as existing ones (explain /
+   replay / test)". Why cell, verbatim: "A count-based smell test (&amp;quot;no third _influence
+   field&amp;quot;) doesn't scale; the three obligations are the actual invariant (Amendment 2,
+   CONSTITUTIONAL-REVIEW-2026-07-02.html)."
+4. TWO-ECONOMIES-WIND-TUNNEL.html — inside the Δ1 stage card's header row, next to the existing DRAFT
+   tag, add: &lt;span class="tag t-authored"&gt;SUPERSEDED by Δ1′ — see
+   ECONOMICS-ARCHITECTURE-REVIEW.html&lt;/span&gt; (reusing the existing t-authored class is the chosen
+   mechanism; do not add new CSS). Keep all original Δ1 content visible beneath — audit trail, not
+   erasure.
+5. CAPABILITY-ROADMAP.html — annotate BOTH the S5 Shipped field (~line 190) and the S5b Shipped field
+   (~lines 217-225): append to each, inside the existing &lt;p&gt;, the sentence: " [Earned 2026-07-02 ·
+   lost in the 2026-07-02 knowledge/ overwrite (see THREE-CHAIRS-PERSPECTIVES.html addendum) ·
+   re-derivation pending.]" — exact wording as given here (it intentionally paraphrases the addendum;
+   do not copy that file's phrasing). Do not delete the original claims.
+6. CAPABILITY-ROADMAP.html — footer: change "→ association.v1 · capability.v1 (next)" to reflect shipped
+   status: "· association.v1 · capability.v1 (shipped 2026-07-02)".
+
+DEFINITION OF DONE: all SIX edits verifiable by grep (grep target per edit: the amendment-1 sentence; the
+Amendment 2 block title; the new guardrail Rule text; "SUPERSEDED by Δ1′"; "re-derivation pending" — twice;
+"(shipped 2026-07-02)"). Structural sanity check per edited file:
+python -c "from html.parser import HTMLParser; HTMLParser().feed(open('&lt;FILE&gt;',encoding='utf-8').read())"
+BUILD-NOTES-B1.md lists each edit with a before/after snippet. Baseline suite untouched and green.
+OUT OF SCOPE: schema or code changes; THREE-CHAIRS-PERSPECTIVES.html and the review docs themselves.</pre>
+  </div>
+</div>
+
+<!-- ================================================================= B2 -->
+<div class="stage">
+  <div class="shead"><span class="id">B2</span><h3>Doc-claims consistency checker</h3>
+    <span class="tag t-30b">30B</span><span class="tag t-wave1">WAVE 1</span></div>
+  <div class="sbody">
+    <p class="about">The rot test, extended upward: authored status claims checked against the projected
+    corpus, with Clause-2 waivers so known divergences (like the overwrite) stay visible instead of
+    breaking the suite. <b>Verified fix:</b> list-valued dot-paths get length semantics;
+    the test-count claim is explicitly omitted as uncheckable.</p>
+    <div class="plabel">Handoff prompt (prepend the common preamble)</div>
+<pre class="prompt">STREAM B2 — MISSION: the HTML narrative layer sits outside the constitution's jurisdiction and today it
+diverged from the derived state (the roadmap claims a capability; capabilities.json says count 0 — a known
+incident). Build a small checker that keeps authored claims honest against the projected corpus, with an
+authored waiver mechanism so known, dated divergences don't break the suite.
+
+ASSUMPTIONS (verify in Phase 0 — stated reality, not stop conditions):
+- knowledge/capabilities.json has top-level capability_count (currently 0).
+- knowledge/coverage.json has gap_counts (a dict: {single_workflow_evidence: 8, unmeasured_metrics: 10}).
+- knowledge/experiment_candidates.json is a DICT, not a list: {contract_version, source_findings: 7,
+  candidate_counts: {...}, candidates: [...]} — there is no single top-level count field.
+- CAPABILITY-ROADMAP.html claims the first capability (S5b) and "110/110 tests" (~line 103). The test
+  claim is NOT checkable via this registry — omit it and note the omission in BUILD-NOTES-B2.md.
+
+TASKS:
+1. docs/doc-claims.json — registry of machine-checkable claims. Entry shape: {"claim_id", "doc",
+   "description", "check": {"file": "knowledge/....json", "path": "&lt;dot-path&gt;", "op":
+   "gte|eq|exists", "value": ...}}. SEMANTICS: check.file resolves relative to the REPO ROOT (derive root
+   from the script location, __file__/../..); when a dot-path resolves to a LIST, the checker compares
+   its LENGTH (document this in the module docstring). Seed with exactly:
+   (a) {"claim_id": "roadmap-first-capability", "doc": "CAPABILITY-ROADMAP.html",
+        "description": "S5b claims the first real capability exists",
+        "check": {"file": "knowledge/capabilities.json", "path": "capability_count", "op": "gte",
+        "value": 1}}
+   (b) {"claim_id": "candidates-present", "doc": "TWO-ECONOMIES-WIND-TUNNEL.html",
+        "description": "the experiment funnel holds candidates",
+        "check": {"file": "knowledge/experiment_candidates.json", "path": "candidates", "op": "gte",
+        "value": 1}}
+2. tools/workflow/check_doc_claims.py — loads the registry, evaluates each check, prints a table
+   (claim_id, expected, actual, PASS/FAIL/WAIVED), exits nonzero if any un-waived FAIL. The checker is a
+   GATE, not a projection — comparing waiver expiry to today's UTC date is explicitly allowed here (it
+   produces no derived truth).
+3. Waivers: docs/doc-claims-waivers.json, entries {"claim_id", "reason", "author", "created",
+   "expires"}. expires: null = never expires; created/expires are ISO-8601 dates; an expired waiver
+   counts as FAIL. Seed ONE waiver now: {"claim_id": "roadmap-first-capability", "reason": "capability
+   lost in 2026-07-02 knowledge/ overwrite; re-derivation pending (see THREE-CHAIRS-PERSPECTIVES.html
+   addendum)", "author": "derek", "created": "2026-07-02", "expires": null}.
+4. tests/workflow/test_doc_claims.py: registry parses; checker passes on current repo state (with the
+   waiver); a synthetic failing claim without waiver → nonzero; an expired waiver → FAIL; a list-valued
+   path compares length.
+
+DEFINITION OF DONE: python tools/workflow/check_doc_claims.py runs clean from the repo root on the
+current tree; suite green; BUILD-NOTES-B2.md documents how to add a claim and how to waive one, and notes
+the omitted test-count claim.
+OUT OF SCOPE: parsing HTML prose (claims live in the registry); editing the HTML docs.</pre>
+  </div>
+</div>
+
+<!-- ================================================================= C1 -->
+<div class="stage">
+  <div class="shead"><span class="id">C1</span><h3>Residency seam — raw facts down, classification up</h3>
+    <span class="tag t-30b">30B</span><span class="tag t-wave1">WAVE 1</span></div>
+  <div class="sbody">
+    <p class="about">Resolves the one seam between the constitutional review and the landed Δ2 schema before
+    any producer populates it. <b>Verified fixes:</b> no schema-validation test exists for
+    capacity-observation (the builder creates one); the review's field names are declared a sketch this
+    stream refines — not a contradiction.</p>
+    <div class="plabel">Handoff prompt (prepend the common preamble)</div>
+<pre class="prompt">STREAM C1 — MISSION: contracts/capacity-observation.v1.schema.json (observed.physical) carries
+model_residency as an enum state (null | cold_load | warm_resident | evicted_mid_run). The constitutional
+review's Δ2 verdict says a warm/cold CLASSIFICATION is an authored threshold hiding inside telemetry:
+producers should record RAW facts and the classification should be projected downstream. Fix the contract
+now, before any producer populates the field — free now, expensive later.
+
+ASSUMPTIONS (verify in Phase 0):
+- Nothing populates observed.physical.model_residency: grep for model_residency across fixtures/, tools/,
+  tests/ — expected hits are ONLY the schema itself, docs, and root HTML review docs. If any producer or
+  fixture populates it, STOP and write QUESTIONS-C1.md.
+- CONSTITUTIONAL-REVIEW-2026-07-02.html's Δ2 verdict (~lines 135-141) sketches raw-field names
+  (model_loaded, last_model_load_event, last_model_unload_event). The field names in TASK 1 below are the
+  chosen concrete refinement of that sketch and SUPERSEDE it — this divergence is expected and is NOT a
+  contradiction.
+- The model_residency property currently has NO description key (only type + enum).
+
+TASKS:
+1. In observed.physical, ADD nullable raw fields (additive; no required list touched;
+   additionalProperties: false preserved): model_loaded_at_start (["boolean","null"] — was the target
+   model already resident when the run began), model_load_count (["integer","null"] — loads during the
+   run), model_unload_count (["integer","null"]), model_load_s (["number","null"] — total seconds spent
+   loading). These are sensor-level facts a collector can report without any threshold.
+2. KEEP model_residency (removal would be breaking) but ADD a description key stating: "DERIVED
+   classification — computed by projection from the raw model_* fields; producers/collectors must never
+   set this directly." Preserve its existing enum including the null member.
+3. docs/physical-telemetry-instrumentation-findings.md — append one short dated note (at the end of the
+   Status section) referencing the §4 priorities-table model_residency row and the Status field list:
+   state that model_residency is now projection-derived and the four raw model_* fields are what
+   collectors report.
+4. Tests: NO test currently validates capacity-observation documents against the schema — CREATE
+   tests/workflow/test_capacity_observation_schema.py following the house structural-check style (load
+   the schema JSON; assert required ⊆ doc keys ⊆ properties; enum membership — see
+   test_project_findings.py and test_project_associations.py for the pattern; jsonschema is NOT
+   installed, do not import it). Cases: a doc with the raw model_* fields set and model_residency null
+   is structurally valid; a doc with only raw facts is valid; the four new fields exist in the schema
+   with the exact nullable types above.
+
+DEFINITION OF DONE: schema change additive-only; suite green (baseline + your new test file);
+BUILD-NOTES-C1.md shows the before/after of the observed.physical block.
+OUT OF SCOPE: the projection that computes the residency classification (no evidence exists yet — the
+constitution forbids scaffolding beliefs ahead of evidence); the collector (stream C2).</pre>
+  </div>
+</div>
+
+<!-- ================================================================= A3 -->
+<div class="stage">
+  <div class="shead"><span class="id">A3</span><h3>Evidence hunt — recover the lost capability by re-projection</h3>
+    <span class="tag t-30br">30B + Derek approval gate</span><span class="tag t-wave2">WAVE 2</span></div>
+  <div class="sbody">
+    <p class="about">An hour of looking before weeks of re-earning. Report-only first; copy + re-project only
+    on approval. <b>Verified traps fixed:</b> the synthetic fixtures deliberately mimic the missing omen
+    workflows and must never be listed as recovered evidence; the exact projector CLI invocations are given
+    (no docstrings exist); watermark advance is verified, never assumed.</p>
+    <div class="plabel">Handoff prompt (prepend the common preamble; requires SSH details handed alongside)</div>
+<pre class="prompt">STREAM A3 — MISSION: today's overwrite regenerated the derived store from a corpus missing the two omen
+build workflows, so the first real capability (capability:task_kind=build|backend=ollama, qualified from
+omen-worker-1 + omen-worker-2 evidence: 16384 ctx, 54.6-61.0 tok/s) vanished — capabilities.json now
+reports capability_count 0. Projections are regenerable IF the underlying run events survive anywhere.
+Find them, report, and only re-project on approval.
+
+PRECONDITION: SSH access details for cc-conductor (fleet conductor VM, repo at ~/work/commandcenter) and
+any builder-node archive paths must be provided WITH this prompt. If they are not, write QUESTIONS-A3.md
+requesting them and STOP — do not attempt to discover the conductor yourself.
+
+ASSUMPTIONS (verify in Phase 0):
+- {REPO_ROOT}/runs/ contains only omen-5070-hwbaseline-2026-07-02.
+- knowledge/capabilities.json: capability_count 0, evidence_watermark 2026-07-02T06:55:00Z.
+- CRITICAL: fixtures/workflow/runs/run_omen_001 and run_omen_002 are SYNTHETIC test fixtures that
+  deliberately mimic the omen debut workflows (builder ids omen-worker-1/2, workflow_id wf_omen_debut).
+  They are NOT the missing evidence, must NEVER be listed as candidates in your report, and must NEVER be
+  used as projection sources for recovery.
+- Expected pre-existing oddity, not a stop condition: knowledge/findings.json says observation_count 16
+  while associations/coverage say 10 — different projectors were last run against different source sets.
+  Note it in your report; do not try to fix it in this stream.
+
+TASK (PHASE 1 — REPORT ONLY):
+1. On cc-conductor and reachable node archives, search for run directories / events.jsonl / observation
+   artifacts from the REAL omen build dispatches: grep for omen-worker-1, omen-worker-2, backend ollama,
+   workflow ids containing "omen" — excluding anything that is a clone of this repo's fixtures. Also
+   check conductor-side logs and checkpoint directories that may embed observation payloads.
+2. Write EVIDENCE-HUNT-A3.md at {REPO_ROOT}: every candidate found — path, host, timestamps, event
+   counts, which workflow it appears to be, confidence. If NOTHING is found, say so plainly: that is a
+   valid, useful result meaning re-earning (stream H) is the only path.
+3. STOP for Derek's approval. Copy nothing yet.
+
+CONTINUATION (PHASE 2 — only after Derek approves specific items in EVIDENCE-HUNT-A3.md):
+4. Copy approved run directories into {REPO_ROOT}/runs/&lt;original-run-id&gt;/ preserving names.
+5. Re-run the FULL projection chain over the runs/ directory (note: capabilities.json is written by
+   project_associations.py; there is no project_capabilities.py; projector CLIs are argparse with
+   positional event sources + --out, NOT documented in docstrings):
+     python -m tools.workflow.project_findings runs --out knowledge
+     python -m tools.workflow.project_policy knowledge/findings.json --out knowledge   (policy takes the
+       findings file — verify its exact CLI with --help before running)
+     python -m tools.workflow.project_capacity runs --out knowledge
+     python -m tools.workflow.project_associations runs --out knowledge
+     python -m tools.workflow.project_coverage runs --out knowledge
+     python -m tools.workflow.project_experiments runs --out knowledge
+   Run each with --help first and adapt if flags differ — a mismatch between this list and --help is NOT
+   a stop condition; --help is authoritative.
+6. VERIFY, do not assume: the evidence watermark advanced only if recovered observations are newer than
+   2026-07-02T06:55:00Z. If a projector refuses to write (a corpus-regression guard may be installed) or
+   the watermark moved backward, STOP and record it in QUESTIONS-A3.md — never force through a guard.
+7. Confirm knowledge/capabilities.json contains the build|ollama capability; run the suite; commit
+   evidence + ALL regenerated knowledge files together: "restore(A3): recovered omen build workflows,
+   capability re-derived". List every changed knowledge file in BUILD-NOTES-A3.md; a diff in a file you
+   did not expect means stop and ask.
+
+OUT OF SCOPE: hand-writing anything into knowledge/*.json — if the evidence can't be found, the
+capability stays gone until real dispatches re-earn it.</pre>
+  </div>
+</div>
+
+<!-- ================================================================= C2 -->
+<div class="stage">
+  <div class="shead"><span class="id">C2</span><h3>Physical telemetry collector (mock-first)</h3>
+    <span class="tag t-30b">30B</span><span class="tag t-wave2">WAVE 2</span></div>
+  <div class="sbody">
+    <p class="about">The sensor for Δ2. Fully testable without a GPU; the real-node run is the G2 gate.
+    <b>Verified traps fixed:</b> nvidia-smi's fan.speed is a percent, not RPM (honest null instead of a
+    unit lie); the mock format and sampling semantics are fully specified; tests must live in
+    tests/workflow/ or they'd silently never run.</p>
+    <div class="plabel">Handoff prompt (prepend the common preamble)</div>
+<pre class="prompt">STREAM C2 — MISSION: Δ2's schema fields exist (observed.physical on capacity-observation.v1) but nothing
+collects them. Build a standalone collector that wraps a command, samples GPU telemetry while it runs,
+and emits a schema-valid physical summary plus hardware_profile_id. Mock-first: fully testable on a
+machine with no GPU.
+
+ASSUMPTIONS (verify in Phase 0):
+- contracts/capacity-observation.v1.schema.json → observed.physical has EXACTLY these value fields (match
+  names exactly): gpu_temp_c_peak, gpu_temp_c_sustained_avg, power_w_avg, power_w_peak, fan_rpm_avg,
+  clock_mhz_avg — plus model_residency (NEVER set it) and possibly raw model_* fields if stream C1 has
+  landed. RULE: emit ONLY keys present in the schema properties you read in Phase 0; if
+  model_loaded_at_start / model_load_count are present, emit them as null; never emit keys the schema
+  lacks (additionalProperties: false).
+- The "sustained_avg = mean over the back half of the run window" definition lives in the
+  gpu_temp_c_sustained_avg field DESCRIPTION inside the schema (not in the instrumentation doc's §1/§4 —
+  those give the summary-only rule). Both citations verified; not a stop condition.
+- docs/physical-telemetry-instrumentation-findings.md §5 states the rule you must honor: an honest null
+  beats a fabricated reading.
+
+TASKS:
+1. Create tools/telemetry/collect_physical.py (create the directory; NO __init__.py — tools packages are
+   namespace packages). CLI:
+   python -m tools.telemetry.collect_physical --wrap "&lt;command&gt;" --out &lt;file.json&gt;
+     [--interval-s 2] [--source nvidia|mock:&lt;samples.json&gt;]
+   Runs the wrapped command, samples until it exits, writes {"hardware_profile_id": ..., "physical":
+   {...}} to --out, exits with the WRAPPED command's exit code.
+2. nvidia source: shell out per sample to
+   nvidia-smi --query-gpu=name,driver_version,temperature.gpu,power.draw,fan.speed,clocks.sm
+     --format=csv,noheader,nounits
+   Column mapping: temperature.gpu → temp series (gpu_temp_c_peak = max, gpu_temp_c_sustained_avg = mean
+   of back half); power.draw → power series (power_w_avg = mean, power_w_peak = max); clocks.sm →
+   clock_mhz_avg = mean. fan.speed is a PERCENT of max fan speed, not RPM: ALWAYS emit fan_rpm_avg as
+   null from the nvidia source and note the unit mismatch in BUILD-NOTES-C2.md as an extension point.
+   hardware_profile_id = "&lt;name&gt;|&lt;driver_version&gt;" from the first sample, normalized (lowercase,
+   spaces → "-"). If nvidia-smi is missing or errors: ALL physical fields null, hardware_profile_id null,
+   loud warning to stderr — and the wrapped command still runs with its exit code propagated.
+3. mock source (--source mock:&lt;path&gt;): reads a JSON file containing a list of sample rows, each
+   {"name", "driver_version", "temp_c", "power_w", "fan_pct", "clock_mhz"}. Mock mode uses the ENTIRE
+   file as the sampled series regardless of wall-clock timing or --interval-s (so a trivial wrapped
+   command still yields a full series); hardware_profile_id derives from the first row with the same
+   normalization.
+4. Summary math as a pure, separately-unit-tested function: peak = max; avg = mean; sustained_avg = mean
+   of the second half of the series (for odd n, the back ceil(n/2) samples); empty series → all null.
+5. Tests in tests/workflow/test_collect_physical.py (NOT a new tests/ subtree — discovery only sweeps
+   tests/workflow): summary math on a known series (exact expected values); mock end-to-end wrapping
+   python -c "pass"; missing-source degradation (all nulls, exit code propagates); output keys ⊆ the
+   schema's physical properties with types matching the declared nullable types (manual structural
+   check — no jsonschema).
+6. No wiring into reference_runner or projectors — integration is later and gated.
+
+DEFINITION OF DONE: suite green on a GPU-less machine; BUILD-NOTES-C2.md contains the VERBATIM command an
+operator will run on a real GPU node for the validation gate (the plan calls it G2: wrap a real dispatch
+on the omen RTX 5070 box, attach the output to that run's observation, confirm schema-valid non-null
+readings).
+OUT OF SCOPE: AMD/Intel-Arc sources (note as extension point); scheduling/budget logic; findings.</pre>
+  </div>
+</div>
+
+<!-- ================================================================= D1 -->
+<div class="stage">
+  <div class="shead"><span class="id">D1</span><h3>Economics Δ1′ core — derived economy, explained dispatch</h3>
+    <span class="tag t-30br">30B + frontier review</span><span class="tag t-wave2">WAVE 2</span></div>
+  <div class="sbody">
+    <p class="about">The Derek-confirmed correction, mechanical core only. <b>Verified fixes:</b> explicit
+    ordered decision table with a three-value objective; signals ride on the candidate dict; economy
+    explains but does not rank in this stream; no new run fixtures (exact-count assertions);
+    threading through both schedule() and build_scheduler_decision().</p>
+    <div class="plabel">Handoff prompt (prepend the common preamble)</div>
+<pre class="prompt">STREAM D1 — MISSION: implement the confirmed correction to Δ1 (ECONOMICS-ARCHITECTURE-REVIEW.html, whose
+opening quote from Derek is the spec): the scheduler never reads a static "metered|sunk" tag — it derives
+the economic context per dispatch from authored resource facts + live signals, selects an optimization
+objective, and EXPLAINS the selection through a new economy_influence block on scheduler-decision.v1,
+mirroring policy_influence. This stream is the mechanical core only; four review questions are Derek's
+and are handed back, not answered.
+
+ASSUMPTIONS (verify in Phase 0):
+- contracts/scheduler-decision.v1.schema.json: policy_influence (~line 275) and capability_influence
+  (~line 418), both type [object,null], additionalProperties:false, all their properties required —
+  economy_influence must mirror these conventions exactly.
+- tools/workflow/reference_runner.py: schedule() at ~line 94 attaches policy_influence (~184) and
+  capability_influence (~193) to its return; build_scheduler_decision() (~line 313) assembles the
+  contract document and must ALSO carry the new block (thread it exactly like capability_influence).
+  Candidates are defined ONLY as hard-coded dicts in CANDIDATE_POOLS (~line 23: builder_id, model_id,
+  backend, base_score, predictions) — there is NO candidate fixture file; add fields there and in your
+  new pool.
+- The review's Unresolved Questions section is an UNNUMBERED 6-item list; this stream refers to items by
+  POSITION: 1 (attention as third economy), 2 (credit splitting), 3 (leased default), 5 (attendance
+  threshold). Items 4 and 6 are out of this stream's scope.
+
+TASKS:
+1. Authored resource facts (Clause-2-legitimate: facts about the world only Derek knows), as OPTIONAL
+   keys on candidate dicts in CANDIDATE_POOLS: ownership ("owned" | "leased" | "metered_provider" |
+   null) and power_source ("mains" | "battery" | null). The review also lists "generator" — deliberately
+   DEFERRED; note the deferral in BUILD-NOTES-D1.md. Live signals ride on the candidate dict as a
+   nullable "signals" object, e.g. candidate["signals"] = {"battery_percent": 34.0} or None — no new
+   schedule() parameter.
+2. Derivation — new module tools/workflow/project_economy.py: derive_economic_context(candidate) →
+   {"objective": ..., "signals_read": [...], "reason": "..."}. objective is a THREE-value result:
+   "cost_per_outcome" | "knowledge_per_hour" | "undetermined". ORDERED decision table (evaluate top
+   down, first match wins; every threshold a named traced constant with rationale comment, house style
+   BIAS_MIN_SAMPLES):
+     R1: signals.battery_percent is non-null AND &lt; BATTERY_COST_THRESHOLD_PERCENT (=30) →
+         cost_per_outcome, reason "physics beats ownership: battery at N%".
+     R2: ownership == "metered_provider" → cost_per_outcome.
+     R3: ownership == "owned" AND power_source == "mains" → knowledge_per_hour.
+     R4: anything else (leased, null ownership, owned with null power_source) → "undetermined", with the
+         null/leased input NAMED in reason — reported, never silently defaulted (no silent caps).
+3. economy_influence on scheduler-decision.v1 — additive nullable object mirroring the siblings'
+   conventions: {"objective_selected": string, "signals_read": array, "reason": string,
+   "counterfactual": {"objective": string, "would_have_chosen": string-or-null builder_id,
+   "note": string} | null}. objective_selected = the derived context of the SELECTED candidate.
+   IMPORTANT: in this stream the economy does NOT affect ranking — schedule() still ranks by base_score
+   + existing bonuses; the economy layer only EXPLAINS. counterfactual.would_have_chosen is computed by
+   a small named helper implementing each objective's simple preference (cost_per_outcome prefers the
+   metered/cheapest candidate; knowledge_per_hour prefers owned+mains) — its result is recorded, never
+   fed into the score. Arrange your new pool's base_scores so the economically-sensible candidate wins
+   on existing ranking.
+4. Reference scenario "economy-directed": new entry in SCENARIOS (~line 43) + a new candidate pool,
+   following the capability-directed pattern exactly. DO NOT add any run directory under
+   fixtures/workflow/runs — test_project_capacity.py asserts exactly 6 observations/decisions over that
+   tree. The scenario's decision artifact is produced into a TEMP dir during tests, exactly like
+   tests/workflow/test_dispatch_capability.py.
+5. Tests (tests/workflow/test_dispatch_economy.py): one unit test per decision-table rule including
+   battery-overrides-ownership and undetermined-is-reported-with-reason; the scenario test (temp-dir,
+   assert economy_influence populated with counterfactual); a schema structural test for
+   economy_influence copying the set-inclusion pattern of test_dispatch_capability.py (~lines 71-79).
+6. Write QUESTIONS-D1.md for Derek REGARDLESS of success (this is the expected outcome, not a failure):
+   review items 1, 2, 3, 5 — each with the option space and your recommendation. State which parts of
+   your implementation are stubs pending answers (attendance/operating_mode is entirely absent by
+   design — it arrives with the answer to item 5).
+
+DEFINITION OF DONE: suite green; a temp-dir scheduler-decision artifact shows populated
+economy_influence; QUESTIONS-D1.md written; BUILD-NOTES-D1.md maps each rule to its constant and notes
+the generator deferral.
+OUT OF SCOPE: operating_mode / attendance detection; live price or battery feeds (the signals object is
+plumbing only); any Δ4/idle behavior; economy affecting candidate ranking.</pre>
+    <div class="plabel">Continuation prompt D2 — after Derek writes DECISIONS-D1.md (gate G1)</div>
+<pre class="prompt">STREAM D2 — MISSION: DECISIONS-D1.md at the repo root contains Derek's answers to the four economics
+questions raised by stream D1 (attention economy, credit splitting, leased default, attendance
+authoring). Wire them in.
+
+PHASE 0: read DECISIONS-D1.md, QUESTIONS-D1.md, BUILD-NOTES-D1.md, tools/workflow/project_economy.py,
+and the economy_influence block in contracts/scheduler-decision.v1.schema.json. If DECISIONS-D1.md is
+missing or does not answer all four items, write QUESTIONS-D2.md and STOP.
+
+TASKS (adapt to the actual answers; the shapes below cover the expected cases):
+1. Leased default (item 3): replace the R4 "undetermined" outcome for ownership=="leased" with the
+   decided rule, keeping the reason explicit. If the decision is "observe rather than assume", leave
+   leased → undetermined and add the decided observation signal to the signals object instead.
+2. Attendance (item 5): implement operating_mode ("attended" | "unattended") EXACTLY per the decided
+   authoring mechanism. If evented (expected): consume idle.observed / idle.ended events (added by
+   stream E1 — verify they exist in contracts/workflow-event.schema.json and tools/workflow/ontology.py;
+   if absent, write QUESTIONS-D2.md and stop). operating_mode is derived per dispatch from the latest
+   idle event for the node before the dispatch timestamp — never hand-set, never wall-clock.
+3. Credit splitting (item 2) and attention economy (item 1): these likely decide REPORTING conventions,
+   not scheduler behavior. Record the decided rules as named constants/docstrings in project_economy.py
+   and extend economy_influence.reason to name the economy of record for mixed dispatches per the
+   decision. Do not build new ranking behavior unless the decision explicitly orders it.
+4. Extend the decision table tests for every changed rule; keep the D1 tests passing (update only where
+   a decision explicitly changed a rule).
+
+DEFINITION OF DONE: suite green; BUILD-NOTES-D2.md quotes each decision verbatim and shows where it
+landed in code.</pre>
+  </div>
+</div>
+
+<!-- ================================================================= E1 -->
+<div class="stage">
+  <div class="shead"><span class="id">E1</span><h3>Δ4 prerequisites — evented idle + operating budget</h3>
+    <span class="tag t-30b">30B</span><span class="tag t-wave2">WAVE 2</span></div>
+  <div class="sbody">
+    <p class="about">Makes autonomy <i>possible to do constitutionally later</i>; enables nothing.
+    <b>Verified fixes:</b> event names follow the dotted-lowercase enum convention
+    (<span class="mono">idle.observed</span>, not PascalCase); both whitelists (schema enum + ontology.py)
+    get the new types; the new fixture run must dodge the corpus-sweep count assertions; the budget↔sensor
+    field mapping is explicit.</p>
+    <div class="plabel">Handoff prompt (prepend the common preamble)</div>
+<pre class="prompt">STREAM E1 — MISSION: build the two objects Δ4 (idle-drain autonomy) must stand on, WITHOUT enabling any
+autonomy: (1) idleness as EVENTS on the record — the constitutional review rejected polled wall-clock
+timers as hidden state violating D18 (its prose names them IdleObserved/IdleEnded; those are conceptual
+names, the wire format follows this repo's conventions); (2) the operating budget as an authored
+risk-acceptance contract. Idle-drain dispatch itself is explicitly out of scope and gated.
+
+ASSUMPTIONS (verify in Phase 0):
+- contracts/workflow-event.schema.json constrains event_type with a CLOSED enum of 19 dotted-lowercase
+  types (work.accepted, builder.assigned, promotion.held, ...). The runtime whitelist is EVENT_TYPES in
+  tools/workflow/ontology.py — validate_events.py imports from there and contains no list itself.
+  EVENT_TO_PHASE uses .get(), so new types need no phase entry.
+- contracts/experiment-plan.v1.schema.json shows the authored-object house style (reason /
+  risk_accepted / evidence_sought all required minLength-1 strings).
+- observed.physical in capacity-observation.v1 has DUAL temp fields (gpu_temp_c_peak,
+  gpu_temp_c_sustained_avg), DUAL power fields (power_w_avg, power_w_peak), and fan_rpm_avg only.
+
+TASKS:
+1. New event types "idle.observed" and "idle.ended", added in BOTH places: the event_type enum in
+   contracts/workflow-event.schema.json AND EVENT_TYPES in tools/workflow/ontology.py. Payload keys
+   (free-form object, all nullable): node_id, source ("session_end" | "manual" | "scheduler"),
+   observed_at. Fixture: a NEW run directory fixtures/workflow/runs/run_idle_001/ containing an
+   events.jsonl with ONLY the two idle events (plus whatever minimal envelope fields validate_event
+   requires — read a fixture events.jsonl first). SWEEP HAZARD: this directory is projected over by
+   count-asserting tests — it must contain NO artifact_refs of artifact_type capacity_observation or
+   scheduler_decision (extract_observations/extract_scheduler_decisions key on those), or baseline
+   assertions like observation_count == 6 break. Run the full suite immediately after adding the fixture
+   to prove the baseline held; if any count assertion breaks, fix your fixture, not the test.
+2. contracts/operating-budget.v1.schema.json — authored object (will, not belief; no derived fields):
+   properties: contract_version (const "operating-budget.v1"), budget_id (string), node_id
+   (string|null — null = fleet-wide), max_gpu_temp_c (number|null), max_power_w (number|null),
+   max_fan_rpm (number|null — null on any of these = that dimension unconstrained),
+   unattended_dispatch_allowed (boolean), active_hours ({start, end} | null, both "HH:MM" 24h strings,
+   both required inside the object), reason (string, minLength 1), authored_by (string, minLength 1),
+   created (string date-time, nullable/optional), suspended (boolean), suspend_reason (string|null).
+   required: [contract_version, budget_id, reason, authored_by, unattended_dispatch_allowed, suspended].
+   additionalProperties: false.
+3. Validator: jsonschema is NOT installed. Create tools/workflow/validate_budget.py, hand-rolled in the
+   style of tools/workflow/validate_events.py (required fields, types, enum/format checks against the
+   loaded schema dict), with a __main__ CLI taking a budget JSON path. Example budget at
+   fixtures/workflow/budgets/example-budget.json (new directory; NOT under fixtures/workflow/runs):
+   marked as fixture via budget_id "budget_fixture_example" and authored_by "fixture" and a reason
+   string saying it is synthetic — NO extra keys (additionalProperties: false).
+4. Budget check (pure function, no wiring): tools/workflow/budget_check.py →
+   check(budget, physical_or_none) returns {"permitted": bool, "violated": [{"dimension", "limit",
+   "observed"}], "unmeasurable": [{"dimension", "reason"}]}. Sensor mapping (explicit):
+   max_gpu_temp_c vs observed.physical.gpu_temp_c_peak; max_power_w vs power_w_peak; max_fan_rpm vs
+   fan_rpm_avg (the only fan sensor). Truth table:
+     · budget.suspended → permitted false, reason recorded in violated as {"dimension": "suspended", ...}.
+     · unattended_dispatch_allowed == false → permitted false (the budget does not authorize unattended
+       operation at all).
+     · physical is null → EVERY constrained dimension lands in unmeasurable with reason "sensor absent
+       for constrained dimension".
+     · any constrained dimension whose sensor value is null → that dimension in unmeasurable, and
+       permitted false ("an abort criterion without a sensor is a wish" — the rule this function
+       enforces; it is fully specified here, no further reading needed).
+     · all constrained dimensions measured and within limits → permitted true.
+5. Tests (tests/workflow/test_operating_budget.py): fixture events validate via validate_events; budget
+   schema round-trip via validate_budget (valid example passes; missing reason fails; extra key fails);
+   budget_check truth table including the null-sensor and physical-null rows.
+
+DEFINITION OF DONE: suite green; NOTHING dispatches on idle — your diff must not touch
+reference_runner.py at all; BUILD-NOTES-E1.md states verbatim: "Enablement gate: idle-drain dispatch may
+only be wired after (1) the physical-telemetry collector has produced real schema-valid observations on
+a target node, (2) Derek has authored a real operating-budget.v1 file, and (3) the attendance-authoring
+decision from the economics stream is recorded. See FLEET-WORK-PLAN.html gates G2 and G-budget."
+OUT OF SCOPE: idle detection daemons; scheduler wiring; candidate ranking; anything that ACTS.</pre>
+    <div class="plabel">Continuation prompt E2 — idle-drain enablement, after gates G2 + G-budget + G1</div>
+<pre class="prompt">STREAM E2 — MISSION: enable Δ4 idle-drain dispatch, now that its constitutional prerequisites exist.
+PRECONDITIONS (Phase 0 — verify ALL, else QUESTIONS-E2.md and STOP):
+- contracts/operating-budget.v1.schema.json + tools/workflow/budget_check.py exist (stream E1), and a
+  REAL budget file authored by Derek (authored_by is not "fixture") is present at the path handed to you
+  with this prompt.
+- idle.observed / idle.ended exist in the workflow-event enum and ontology EVENT_TYPES.
+- The telemetry collector exists (tools/telemetry/collect_physical.py) and at least one REAL run in
+  runs/ carries a non-null observed.physical block (grep for gpu_temp_c_peak in runs/*/artifacts).
+- DECISIONS-D1.md answers the attendance question; operating_mode derivation exists if stream D2 landed.
+- knowledge/experiment_candidates.json holds candidates; if an authored numeric worth overlay exists
+  (knowledge/candidate_worth.json, stream Ga), ordering uses it — otherwise QUESTIONS-E2.md: ordering
+  without authored worth is a Derek decision, do not invent one.
+
+TASKS:
+1. In tools/workflow/reference_runner.py, add an idle-drain path: given a corpus whose latest idle event
+   for a node is idle.observed (no newer idle.ended), the scheduler MAY select the highest-worth
+   experiment candidate compatible with that node and dispatch it as a normal gated dispatch —
+   experiment plan authored (existing S4 machinery), policy evaluated, capability match explained.
+   The dispatch decision must carry: policy_influence, capability_influence, economy_influence
+   (objective knowledge_per_hour expected), AND a budget check result — permitted must be true, and the
+   scheduler-decision's explanation must include the budget_id and the checked dimensions.
+2. Safety rules, enforced in code and tested: no dispatch when budget_check returns permitted false for
+   ANY reason (including unmeasurable dimensions — sensor absent means not eligible for unattended
+   work); no dispatch when the newest idle event is idle.ended; the whole path is inert when no budget
+   file is configured (absence = not permitted, loudly logged).
+3. Scenario "idle-drain" + tests in the established temp-dir pattern (no new fixtures under
+   fixtures/workflow/runs beyond an idle-event-only run if needed, honoring the sweep constraints from
+   E1's notes).
+DEFINITION OF DONE: suite green; a temp-dir decision artifact shows an idle-drain dispatch with all four
+explanation blocks; BUILD-NOTES-E2.md documents the safety rules and how to suspend (budget.suspended).</pre>
+  </div>
+</div>
+
+<!-- ================================================================= F1 -->
+<div class="stage">
+  <div class="shead"><span class="id">F1</span><h3>Snapshot-diff — the shared missing subsystem</h3>
+    <span class="tag t-frontier">frontier</span><span class="tag t-wave2">WAVE 2</span></div>
+  <div class="sbody">
+    <p class="about">Both review docs independently converged on this gap; built once, consumed by Δ3's
+    metric family and replay's diff mode. <b>Verified fixes:</b> the real qualification enum is
+    <span class="mono">qualified | requalification_due</span> (the prompt's earlier vocabulary invented
+    statuses); bounded projections must never write to knowledge/; the fixture corpus's actual time span
+    is given.</p>
+    <div class="plabel">Handoff prompt (prepend the common preamble)</div>
+<pre class="prompt">STREAM F1 — MISSION: association.v1 / capability.v1 / coverage.v1 are current-state snapshots, so "what
+formed / renewed / closed between T1 and T2" cannot be answered without a deterministic diff between two
+projection runs. Build it ONCE — LEARNING-RATE-CRITIQUE.html needs it for the Δ3 metric family terms 2-4
+(read its Q2 section, rows marked "[needs snapshot diff]") and REPLAY-INFORMATION-ARCHITECTURE.html needs
+it for the derived-overlay lane (read its "Cross-Reference — Shared Dependency" section).
+
+ASSUMPTIONS (verify in Phase 0 — stated reality):
+- NO projector accepts a time bound today ("as_of" appears nowhere in tools/workflow) — adding it is part
+  of this stream. There is no single chained entry point: materialize_findings, materialize_associations,
+  and materialize_coverage each independently extract observations/decisions (via
+  project_capacity.extract_observations / extract_scheduler_decisions) and call synthesize_* functions.
+- Both observations and decisions carry a required top-level "timestamp" field — the filter is
+  well-defined.
+- Stable IDs exist: association_id ("success_invariant:..." — project_associations.py ~line 158),
+  capability_id ("capability:"+invariant — ~line 236), gap_id (project_coverage.py), finding_id.
+- capability.v1's qualification_status enum is EXACTLY ["qualified", "requalification_due"] — no other
+  status exists anywhere. A renewal is the transition requalification_due → qualified.
+- Findings carry TWO confidence fields: "confidence" (label enum low/medium/high) and "confidence_score"
+  (float). Diffs use the NUMERIC confidence_score, never the label.
+- The fixture corpus (fixtures/workflow/runs) spans 2026-06-30T18:00Z through 2026-07-02T13:00Z —
+  t1 = 2026-06-30T23:59:59Z with t2 = the corpus watermark straddles known activity.
+
+TASKS:
+1. Add an optional as_of parameter (ISO-8601 string, default None) to the synthesize_*/materialize_*
+   functions in project_findings.py, project_associations.py, project_coverage.py: filter the extracted
+   observations and decisions lists to records with timestamp &lt;= as_of BEFORE synthesis. D18: the bound
+   is a projection input, never wall-clock; same corpus + same as_of = identical output (test: run a
+   bounded projection twice, compare serialized bytes). as_of=None must be provably unchanged behavior —
+   the existing 110-test baseline is the regression guard.
+2. tools/workflow/project_diff.py: diff_projections(sources, t1, t2) where sources is a list of
+   events.jsonl files or directories resolved with the existing collect_event_files convention
+   (project_capacity.py ~line 342). CRITICAL: compute both bounded snapshots IN MEMORY via the
+   synthesize_* functions (or into temp dirs) — NEVER by running a bounded materialize with
+   --out knowledge; a time-bounded snapshot written to knowledge/ would overwrite live current-state
+   files with wrong data.
+3. Transition vocabulary v1 (keep it small): association_formed, association_retired,
+   capability_appeared, qualification_transition (from_status → to_status, values from the real enum:
+   qualified | requalification_due), gap_opened, gap_closed, finding_confidence_moved (finding_id,
+   before, after — both confidence_score floats). Each transition: deterministic stable ID = sha256 hash
+   of (type + subject id + t1 + t2) truncated to 16 hex chars, subject reference, from/to values.
+   SEMANTICS (document in module docstring): diff what EXISTED at each bound — a gap present at t1 and
+   absent at t2 is gap_closed regardless of intermediate flapping.
+4. Output: a transitions document emitted to a caller-chosen artifact path (CLI: positional sources,
+   --t1, --t2, --out FILE) — this is a PROJECTION computed on demand, never stored under knowledge/.
+5. Tests (tests/workflow/test_project_diff.py): hand-computed expected transitions over the fixture
+   corpus straddle (work them out by reading the fixtures — do not blind-snapshot); empty diff when
+   t1 == t2; determinism (two runs byte-identical); the as_of=None regression (existing tests green).
+
+DEFINITION OF DONE: suite green; BUILD-NOTES-F1.md includes one worked example (command + trimmed output)
+a downstream consumer can copy.
+OUT OF SCOPE: the learning-rate metric (stream Ga consumes this); replay UI; storing diffs in knowledge/.</pre>
+  </div>
+</div>
+
+<!-- ================================================================= Ga -->
+<div class="stage">
+  <div class="shead"><span class="id">Ga</span><h3>Formulation E — enablement + worth-realized report</h3>
+    <span class="tag t-30br">30B + frontier review</span><span class="tag t-wave2">WAVE 2</span></div>
+  <div class="sbody">
+    <p class="about">Verification <b>falsified the review's premise</b>: <span class="mono">worth</span> is
+    a projector-generated prose string, not an authored number, and belief snapshots carry no
+    <span class="mono">confidence_score</span>. This stream therefore <i>creates</i> the authored worth
+    channel (Clause 2), adds the one additive field, defines the dispatch-duration rule explicitly — then
+    builds the reporting-only projection every review approved.</p>
+    <div class="plabel">Handoff prompt (prepend the common preamble)</div>
+<pre class="prompt">STREAM Ga — MISSION: implement the ONE learning-rate formulation every review approved — experiment
+worth realized per hour — as a pure REPORTING projection, plus the three enabling changes the repo needs
+first. Read LEARNING-RATE-CRITIQUE.html's "Experiment worth realized" formulation and Recommendation
+section. The blended Δ3 scalar was unanimously rejected; nothing here may feed candidate ranking.
+
+ASSUMPTIONS (verify in Phase 0 — this is the stated, verified reality; none of it is a stop condition):
+- knowledge/experiment_candidates.json candidates carry "worth" as a PROSE STRING generated by
+  project_experiments.py (_candidate(..., worth: str) ~line 67) — projection-derived, NOT authored, NOT
+  numeric. The critique's claim that worth is "already an authored field" is FALSE against this tree;
+  that is exactly why Task 1 exists.
+- contracts/experiment-result.v1.schema.json belief_before/belief_after contain ONLY {finding_id,
+  finding_type, confidence (string label), statement, evidence_summary} — NO confidence_score, and
+  additionalProperties:false. confidence_score (float) lives on finding.v1. belief_changed (boolean)
+  exists on the result.
+- NO dispatch open/close event types exist. The event enum's assignment event is "builder.assigned";
+  fixture runs terminate variously (promotion.approved / promotion.held / retrospective.created). The
+  single real run has NO builder.assigned event at all.
+- knowledge/experiment_results.json is empty (plan_count 0) and capabilities.json has zero records — the
+  live corpus yields an all-zero report; your tests therefore use NEW synthetic fixtures (allowed:
+  test-local corpora in temp dirs, NOT new directories under fixtures/workflow/runs).
+- No snapshot-diff tool exists yet (do not mistake _belief_snapshot in project_experiments.py for it).
+
+TASKS:
+1. Authored worth channel (Clause 2 — will, with reason): knowledge/candidate_worth.json, an AUTHORED
+   overlay file (same species as policy_overrides.json): {"contract_version": "candidate-worth.v1",
+   "entries": [{"candidate_id": ..., "worth_points": &lt;number&gt;, "reason": ..., "author": ...}]}.
+   Create it with an EMPTY entries list — the values are Derek's judgment, not yours. Write
+   DECISION-NEEDED-Ga.md (decision request, keep working) listing all 15 current candidate_ids with the
+   projector's prose worth beside each, asking Derek to assign worth_points.
+2. Additive field: add "confidence_score": ["number","null"] to BOTH belief_before and belief_after
+   property blocks in contracts/experiment-result.v1.schema.json, and populate it in
+   project_experiments.py's _belief_snapshot (~line 317) from the finding's confidence_score. Additive
+   discipline: nullable, no required change, fixtures stay valid.
+3. tools/workflow/project_learning.py — worth_realized(sources, t1, t2, group_by="node") → report dict:
+   · numerator = Σ worth_points (from the authored overlay; candidates without an entry are EXCLUDED
+     and REPORTED in the output as "unpriced_candidates" — no silent caps, and no use of the prose worth)
+     over candidates whose experiment result in the window has belief_changed == true OR
+     gate_before != gate_after (that inequality is the "transition attributable" rule — defined here,
+     not inferred).
+   · denominator = Σ dispatch durations from events.jsonl ONLY: open = the run's builder.assigned
+     timestamp; close = the FIRST of promotion.approved / promotion.rejected / promotion.held /
+     retrospective.created, else the run's last event. Runs lacking builder.assigned are EXCLUDED from
+     the denominator and REPORTED with reason. Never wall-clock.
+   · group_by "node": node = the builder id on the builder.assigned event (read a fixture to find the
+     exact field — actor.id or payload; record which in BUILD-NOTES). "economy" grouping is NOT
+     implemented in v1: emit "economy_grouping": "unavailable: requires economy_influence on decisions
+     (economics stream)".
+   · companion metrics in the SAME report, separately labeled, never summed: belief_movement =
+     Σ |confidence_score_after − confidence_score_before| per experiment (nulls skipped and counted);
+     qualifications_renewed and gaps_closed = "unavailable: requires snapshot-diff (F1)" unless
+     tools/workflow/project_diff.py exists, in which case call it for the window.
+   · report footer fields: every constant traced, evidence watermark of the consumed corpus, and
+     "dispatch_use_forbidden": true — a machine-readable tripwire against future scheduler consumption.
+4. Output to a caller-chosen artifact path (CLI like the other projectors: positional sources, --t1,
+   --t2, --out FILE). NEVER writes under knowledge/ except the two files named in Tasks 1-2? — NO:
+   Task 1's candidate_worth.json is authored BY HAND (you create the empty scaffold once); the report
+   itself never writes to knowledge/.
+5. Tests (tests/workflow/test_project_learning.py): synthetic corpus in a temp dir with hand-computed
+   numerator (two priced candidates, one belief_changed, one gate transition, one unpriced), denominator
+   from synthetic builder.assigned/promotion timestamps, a run without builder.assigned (excluded +
+   reported), zero-experiment window → zeros not errors, determinism.
+
+DEFINITION OF DONE: suite green; report runs against the live corpus producing an honest mostly-zero /
+mostly-unavailable output (that IS the correct current answer); BUILD-NOTES-Ga.md quotes the critique's
+warning that the wind tunnel never tells you to stop, so the next reader knows why this is
+reporting-only.
+OUT OF SCOPE: scheduler consumption; ranking; any blended scalar under any name; dashboards.</pre>
+    <div class="plabel">Continuation prompt Ga-2 — after F1 lands</div>
+<pre class="prompt">STREAM Ga-2 — MISSION: tools/workflow/project_diff.py (snapshot-diff) now exists. Replace
+project_learning.py's "unavailable: requires snapshot-diff (F1)" markers with real values.
+PHASE 0: verify project_diff.py exists with a callable diff_projections(sources, t1, t2); read
+BUILD-NOTES-F1.md's worked example; run the baseline suite.
+TASKS: qualifications_renewed = count of qualification_transition transitions requalification_due →
+qualified in the window; gaps_closed = count of gap_closed transitions. Both computed by calling the F1
+API in memory — never by shelling out, never by writing knowledge/. Keep them as separately-labeled
+report fields; the no-blending rule stands. Extend the tests with a synthetic corpus that renews one
+qualification and closes one gap across the window.
+DEFINITION OF DONE: suite green; the two fields carry counts (or 0) instead of unavailable markers;
+BUILD-NOTES-Ga2.md shows one worked report.</pre>
+  </div>
+</div>
+
+<!-- ================================================================= Gc -->
+<div class="stage">
+  <div class="shead"><span class="id">Gc</span><h3>Confidence-curve calibration — the missing experiment</h3>
+    <span class="tag t-30br">30B + frontier review</span><span class="tag t-wave2">WAVE 2</span></div>
+  <div class="sbody">
+    <p class="about">Everything inherits samples/(samples+2) and nothing validates it. <b>Verified fixes:</b>
+    the curve actually lives in project_capacity.py (imported by findings); 0.33/0.6 are comment examples,
+    not constants; the ladder is sample-count based; the report-freshness rule uses embedded watermarks,
+    never file mtimes (D18).</p>
+    <div class="plabel">Handoff prompt (prepend the common preamble)</div>
+<pre class="prompt">STREAM Gc — MISSION: every belief inherits confidence_score = samples/(samples+2), and no experiment
+validates that curve against real outcomes — LEARNING-RATE-CRITIQUE.html's "Information gain"
+formulation's Weakness block states it verbatim (search the file for "samples/(samples+2)"). Build the
+calibration PROJECTION and the experiment candidate that feeds it. The analysis runs now against the thin
+corpus (the tool must state its own insufficiency); the meaningful run happens after the corpus refills.
+
+ASSUMPTIONS (verify in Phase 0 — stated reality, not stop conditions):
+- The curve is _confidence(samples) = round(samples/(samples+2), 2) in tools/workflow/project_capacity.py
+  (~lines 71-73), IMPORTED by project_findings.py. The values 0.33/0.6 are example outputs in its
+  comment, NOT constants. The label ladder is _confidence_label() in project_findings.py
+  (HIGH_CONFIDENCE_MIN_SAMPLES = 3 + unanimous → high; samples ≥ 2 → medium; else low) — sample-count
+  thresholds, not score thresholds. Record both.
+- knowledge/experiment_candidates.json: 15 candidates; fields candidate_id, experiment_type, subject,
+  question, worth (string), evidence_sought, risk_accepted, confidence, last_observed. NO contracts
+  schema exists for candidate documents (the file self-labels experiment-candidates.v1; there is no such
+  schema file) — the only shape sources are _candidate() in project_experiments.py and the existing
+  entries.
+- A finding at time T implies an expected outcome for the NEXT observation of the same subject — that
+  implication is the testable claim.
+- Projector CLI convention: positional event sources + flags; "the current corpus" for the DoD run =
+  BOTH directories: fixtures/workflow/runs AND runs.
+
+TASKS:
+1. tools/workflow/project_calibration.py: walk the corpus in evidence-time order; at each observation,
+   compute the finding + confidence_score that existed for that subject BEFORE the observation. If
+   tools/workflow/project_diff.py exists (check), use its as_of-bounded findings projection; otherwise
+   implement a minimal internal findings-only replay (sort observations by timestamp, re-synthesize
+   findings on the prefix — determinism rules apply). Bucket predictions by prior confidence_score
+   (buckets [0,0.2),[0.2,0.4),[0.4,0.6),[0.6,0.8),[0.8,1.0]; traced constant list). Per bucket report:
+   n, observed_rate (fraction where the next observation matched the finding's predicted direction —
+   known_good predicts success, known_bad predicts failure; other finding types are EXCLUDED and
+   reported), curve_implied_rate = MEAN confidence_score of the predictions in that bucket (NOT the
+   bucket midpoint), bias = observed_rate − curve_implied_rate. Buckets with n &lt;
+   CALIBRATION_MIN_BUCKET_N (=5, traced) report "insufficient evidence" — never extrapolated.
+2. Report output: caller-chosen artifact path (--out FILE; suggest runs/calibration/ as the
+   conventional home — an artifact directory, NOT knowledge/). The report EMBEDS the corpus
+   evidence_watermark it was computed against — freshness comparisons use that embedded watermark
+   string, NEVER file mtimes (mtime is wall-clock; D18 forbids it).
+3. The candidate: add a synthesizer to project_experiments.py, following the _coverage_candidates
+   pattern: propose ONE confidence_calibration candidate when total scored predictions in the corpus ≥
+   CALIBRATION_MIN_TOTAL_PREDICTIONS (=10, traced) AND no calibration report at the conventional path
+   embeds a watermark equal to the current corpus watermark. Candidate fields follow the existing house
+   style; question: "does samples/(samples+2) predict actual next-observation reliability?";
+   evidence_sought: the per-bucket table; worth: the SENTINEL STRING
+   "AUTHORED-VALUE-REQUIRED: Derek must assign worth; see BUILD-NOTES-Gc.md" (worth is str-typed and an
+   authored judgment — do not invent a value). Append "confidence_calibration" to the EXPERIMENT_TYPES
+   tuple in project_experiments.py (~line 28). Do NOT touch contracts/experiment-plan.v1.schema.json —
+   plans for this type are a later stream.
+4. Tests (tests/workflow/test_project_calibration.py): synthetic corpus where outcomes are drawn to
+   match the curve → near-zero bias per populated bucket; a systematically overconfident subject →
+   bias shows in the right bucket; insufficiency reporting on a thin corpus; determinism (two runs
+   byte-identical); the candidate appears when the thresholds are met and does not when the report is
+   watermark-current.
+
+DEFINITION OF DONE: suite green; the DoD run
+(python -m tools.workflow.project_calibration fixtures/workflow/runs runs --out
+runs/calibration/calibration_report.json) produces an honest mostly-insufficient report — that IS the
+correct current answer; BUILD-NOTES-Gc.md explains how to read the report.
+OUT OF SCOPE: modifying the confidence curve or ladder thresholds (Derek's decision AFTER calibration
+evidence exists); changes to finding.v1.</pre>
+  </div>
+</div>
+
+<!-- ================================================================= C3 -->
+<div class="stage">
+  <div class="shead"><span class="id">C3</span><h3>Hardware-profile discontinuity in projections</h3>
+    <span class="tag t-frontier">frontier</span><span class="tag t-wave3">WAVE 3 — after C1</span></div>
+  <div class="sbody">
+    <p class="about">A thermal belief derived on one GPU/driver silently stops being true after a swap.
+    <b>Verified fixes:</b> the exact insertion points are named (nothing reads observed.physical today —
+    the original trigger condition was vacuous); the test fixture is specced so a capability actually
+    forms; gap_id collision and the closed coverage schema are handled.</p>
+    <div class="plabel">Handoff prompt (prepend the common preamble)</div>
+<pre class="prompt">STREAM C3 — MISSION: capacity-observation.v1 carries hardware_profile_id so that a GPU/driver/thermal
+change never silently merges pre- and post-change evidence — but no projector consumes it yet. Make the
+projections treat a hardware-profile change as an evidence discontinuity, the way S6 treats
+evidence-watermark staleness. Read docs/physical-telemetry-instrumentation-findings.md §5 (the
+sharpest-gap paragraph) first.
+
+ASSUMPTIONS (verify in Phase 0 — stated reality):
+- NO projector reads observed.physical today (the doc's own "Not done" list; _envelope() in
+  project_associations.py ~lines 189-205 uses only context_tokens, tokens_per_s, ram_gb_peak,
+  vram_gb_peak, requires_gpu). "Envelopes" exist only as operating_envelope on capability records.
+- hardware_profile_id is ABSENT from every fixture and real-run observation (grep hits only the
+  contract, docs, and review HTMLs). Null/absent profiles must keep grouping together ("unknown
+  lineage") — current behavior preserved exactly.
+- The current knowledge/*.json was materialized from runs/ (not fixtures/): to verify diff-clean
+  behavior on the live store, re-run the projectors over the runs directory with your changed code and
+  confirm git diff is clean on knowledge/.
+- The intent doc floats "its own gap type"; this stream deliberately REUSES stale_capability instead
+  (coverage.v1's gap_type enum is closed) — this divergence from the doc is intentional, NOT a stop
+  condition.
+- association.v1 and coverage.v1 have additionalProperties:false, and
+  test_project_associations.py (~line 140) asserts emitted keys ⊆ schema properties — recording lineage
+  on association records REQUIRES an additive nullable schema field.
+- extract_observations (project_capacity.py ~line 39) loads whole artifact JSONs, so
+  hardware_profile_id flows through with no extractor change.
+
+TASKS:
+1. Association/capability scoping: define the physical-sensitive metric set as tokens_per_s plus every
+   observed.physical.* field (today that means tokens_per_s in practice, since nothing populates
+   physical yet — the mechanism must be general). Implementation: add hardware_profile_id to the
+   grouping identity — either the bucket key tuple in analyze_buckets() or the member list passed to
+   _envelope() in synthesize_capabilities() (choose one, justify in BUILD-NOTES) — such that
+   observations with DIFFERENT non-null profiles never share one operating_envelope, while null/absent
+   profiles group together as one "unknown" lineage (baseline behavior). Record lineage on the
+   association/capability record via an additive nullable field "hardware_profiles" (array|null) added
+   to contracts/association.v1.schema.json (and capability.v1 if capabilities carry it — mirror where
+   the data lands).
+2. Coverage: new synthesis function in project_coverage.py ALONGSIDE _stale_capabilities() (independent
+   of qualification_status): a capability whose supporting evidence all carries an older non-null
+   hardware_profile_id than the newest profile seen for the SAME builder_id emits a gap with
+   gap_type "stale_capability" and gap_id "stale_capability:hardware_profile_changed:&lt;capability_id&gt;"
+   (the suffix prevents collision with the time-staleness gap for the same capability). The
+   "hardware_profile_changed: &lt;old&gt; → &lt;new&gt;" explanation goes in the gap's statement and
+   evidence.summary fields (coverage.v1 has no reason field; do not add one).
+3. Constants (D18): any comparison rule you introduce is a named module-level constant with a rationale
+   comment.
+4. Tests (tests/workflow/test_hardware_profile.py), using TEMP-DIR corpora (never new dirs under
+   fixtures/workflow/runs): (a) a corpus where a capability WOULD form — same task_kind+backend, VARIED
+   builder_id or model_id, spread across ≥ 2 distinct workflow_ids — with two hardware_profile_id values
+   split across members: assert no single merged envelope spans both profiles (two lineage-scoped
+   envelopes or scoped member lists); (b) same corpus with all profiles null: assert output equals a
+   pre-change golden capture (serialize the synthesize_* outputs byte-for-byte on unchanged inputs
+   BEFORE your edit and commit that snapshot as the golden fixture for this test); (c) the coverage gap
+   appears with the composite gap_id and explanation, and does not appear when profiles are uniform.
+5. Diff-clean check on the live store: re-run all projectors over runs/ and confirm git diff is clean on
+   knowledge/ (all real observations lack profiles, so nothing may change).
+
+DEFINITION OF DONE: suite green; null-profile behavior proven byte-identical by test (b); live-store
+diff-clean proven; BUILD-NOTES-C3.md explains the grouping rule and where lineage lands.
+OUT OF SCOPE: re-derivation TRIGGERS (no experiment demand from profile changes yet); collector work;
+any non-additive schema change.</pre>
+  </div>
+</div>
+
+<!-- ================================================================= I1 -->
+<div class="stage">
+  <div class="shead"><span class="id">I1</span><h3>Competing-builders study harness (n≥30, pre-registered)</h3>
+    <span class="tag t-30br">30B + frontier review</span><span class="tag t-wave3">WAVE 3</span></div>
+  <div class="sbody">
+    <p class="about">Turns the n=1 "local 30B beat frontier" anecdote into apparatus for a defensible study.
+    <b>Verified fixes:</b> the dispatch-loop assumption is now a checkable predicate (fleet node scripts DO
+    exist in-tree and are expected); the frozen-hash field is named; stdlib-only Wilson interval; tests
+    placed where discovery finds them.</p>
+    <div class="plabel">Handoff prompt (prepend the common preamble)</div>
+<pre class="prompt">STREAM I1 — MISSION: build the harness that turns the one-off local-vs-frontier win into a defensible
+study: n ≥ 30 real build tasks, stratified, pre-registered criteria authored BEFORE any run, the existing
+test-based assay as the blinded grader, cost-per-outcome beside win rate. You build apparatus and
+templates; Derek authors the task list and signs the pre-registration; runs execute later on the fleet.
+
+ASSUMPTIONS (verify in Phase 0):
+- This tree contains the ontology/projection layer, NOT the live dispatch loop. CHECKABLE PREDICATE:
+  there is no conductor_*.py and no long-running dispatch-loop daemon under tools/. You WILL find
+  dispatch-named projections (project_policy.py etc.), dispatch tests (test_dispatch_capability.py,
+  test_dispatch_policy.py), and node-side helper trees am4-fleet-node/ and fleet-worker-node/ (MCP
+  servers, systemd units) at the repo root — all expected; none is the dispatch loop. Your harness
+  therefore targets the ARTIFACT layer: study definition in, capacity-observation.v1-shaped evidence
+  back, analysis out. Define the fleet adapter's I/O contract precisely; write no SSH code.
+- contracts/capacity-observation.v1.schema.json: outcome enum [success, assay_failed, oom_crash,
+  timeout, error]; promotion_status enum [null, approved, held, rejected]; workload_shape.notes is a
+  single nullable string; additionalProperties:false everywhere.
+- Python stdlib only — no numpy/scipy; the Wilson score interval is hand-implemented (it is a few lines
+  of math.sqrt).
+
+TASKS:
+1. contracts/study.v1.schema.json — authored object (Clause 2), additionalProperties:false:
+   {contract_version (const "study.v1"), study_id, question, task_manifest: [{task_id, task_kind,
+   description, repo_or_input_ref, stratum}], arms: [{arm_id, builder_class, runner_config_note}],
+   preregistration: {win_definition, promotion_threshold, minimum_n_per_stratum, cost_model: {metered,
+   sunk}, analysis_plan, authored_by, authored_at, frozen (boolean)}, preregistration_sha256
+   (string|null — top level, NOT inside preregistration; must be non-null when preregistration.frozen
+   is true; computed as sha256 over canonical JSON of the preregistration object:
+   json.dumps(prereg, sort_keys=True, separators=(",",":"))), reason, authored_by}.
+   required: [contract_version, study_id, question, task_manifest, arms, preregistration, reason,
+   authored_by]. Top-level authored_by = who authored the study object; preregistration.authored_by =
+   who signed the pre-registration (may be the same person).
+2. Validator — jsonschema is NOT installed; the repo validates by hand. Create tools/study/
+   validate_study.py (create tools/study/, no __init__.py), modeled on tools/workflow/validate_events.py
+   style: required fields, types, enum membership, AND the freeze rule — a study whose
+   preregistration.frozen is true and whose recomputed canonical-JSON sha256 differs from
+   preregistration_sha256 FAILS validation. __main__ CLI takes a study JSON path.
+3. tools/study/run_manifest.py — from a valid study.v1 file, emit per-run work orders (one JSON per
+   task × arm) to an --out directory: {study_id, task_id, arm_id, task_kind, description,
+   repo_or_input_ref, runner_config_note, result_tag}. TAGGING CONVENTION (the fleet adapter's
+   contract): each resulting capacity-observation.v1 must carry workload_shape.notes =
+   "study=&lt;study_id&gt;;task=&lt;task_id&gt;;arm=&lt;arm_id&gt;" — exactly this format; run_manifest.py prints it
+   per work order.
+4. tools/study/analyze_study.py — consumes the study file + a directory of capacity-observation.v1
+   results tagged per the convention: per-stratum and overall win rates per arm (win = the
+   preregistration.win_definition field's named outcome; v1 supports "success_outcome" meaning
+   observation.outcome == "success" — document that analyze_study implements only this definition and
+   fails loudly on others), Wilson 95% interval per rate (hand-implemented, unit-tested), cost per
+   successful outcome per arm (cost fields read from the study's cost_model — v1: metered = a per-run
+   dollar figure in the work order results sidecar if present else "unavailable", sunk = flat rate ×
+   duration; keep it simple and REPORT what was unavailable). REFUSALS (no silent caps): if any stratum
+   n &lt; minimum_n_per_stratum, or preregistration.frozen is false, the report's top line states the
+   study is NOT publishable and why. The report carries NO wall-clock timestamp — if a generated-as-of
+   marker is wanted, use the max timestamp across consumed observations.
+5. Worked example: fixtures/study/example-study.v1.json (4 fake tasks, 2 arms, frozen=true with a
+   correct hash) + synthetic tagged results INSIDE the test (temp dir), demonstrating the full pipeline.
+6. Tests in tests/workflow/ (test_study_*.py — discovery only sweeps tests/workflow): schema round-trip
+   including the frozen-hash pass AND fail cases; manifest generation; analysis math on synthetic
+   results with a hand-computed Wilson interval; both refusal paths.
+7. QUESTIONS-I1.md for Derek (expected outcome, not failure): proposed task-source options for the 30+
+   real tasks (fleet backlog, past dispatch replays, synthesized from repo issues) with pros/cons, and
+   the pre-registration fields only he can author (win definition, threshold, cost model, strata).
+
+DEFINITION OF DONE: suite green; example study validates, manifests, and analyzes end-to-end in tests;
+BUILD-NOTES-I1.md states the fleet-adapter contract in ten lines or fewer.
+OUT OF SCOPE: SSH/conductor integration; authoring the real task list; publication text.</pre>
+  </div>
+</div>
+
+<!-- ================================================================= H -->
+<div class="stage">
+  <div class="shead"><span class="id">H</span><h3>Refill the corpus — fly the queue</h3>
+    <span class="tag t-ops">conductor-side ops</span><span class="tag t-gate">GATED ON G0</span></div>
+  <div class="sbody">
+    <p class="about">Not a build stream — dispatch orchestration through the existing fleet loop, paced by
+    Derek. The chairs' medicine and the recovery plan are the same list. The briefing below goes to
+    whatever agent drives the conductor.</p>
+    <div class="plabel">Queue-runner briefing — after gate G0 (A1 remote live + A2 guard merged)</div>
+<pre class="prompt">QUEUE-RUNNER BRIEFING (H) — MISSION: the belief layer's corpus was lost to an overwrite and must be
+re-earned; separately, 15 experiment candidates sit unflown in knowledge/experiment_candidates.json in
+the ontology tree (a Windows-side repo, clone URL provided with this briefing — NOT the conductor repo).
+Your job is to run experiments through the real fleet and land their evidence back in that tree's runs/
+directory, in the shape the projectors consume.
+
+PRECONDITIONS (verify before any dispatch): the ontology repo has a git remote and a recent backup push
+(gate G0); its corpus-guard is merged (tools/workflow/corpus_guard.py exists). If either is false, STOP
+and report — do not pour evidence into an unprotected store.
+
+DISCIPLINE PER DISPATCH:
+1. Take candidates in this order: (1) any candidate whose subject matches a second-workflow /
+   single_workflow_evidence coverage gap (these re-earn generalization fastest), (2) known_bad retests
+   and prefer_validations, (3) the rest. If knowledge/candidate_worth.json has authored worth_points,
+   order by them within each class. Derek may reorder at any time; his cue wins.
+2. One candidate = one real dispatch on the appropriate node (builder/model/backend per the candidate's
+   subject). The experiment plan is authored at dispatch (existing S4 machinery) — reason, evidence
+   sought, risk accepted.
+3. Evidence capture: the run's events.jsonl and observation artifacts must land in
+   {ONTOLOGY_REPO}/runs/&lt;run-id&gt;/ matching the existing run's layout
+   (runs/omen-5070-hwbaseline-2026-07-02 is the reference). Observations should be
+   capacity-observation.v1-shaped INCLUDING contract_version (note: the hwbaseline run's artifacts lack
+   it — do better than the reference on this one point). If the telemetry collector
+   (tools/telemetry/collect_physical.py) exists on the node, wrap the dispatch with it and attach the
+   physical block.
+4. After each landed run: re-run the projection chain over runs/ (findings, policy, capacity,
+   associations [writes capabilities.json too], coverage, experiments — each CLI: --help is
+   authoritative), run the test suite, commit evidence + regenerated knowledge together, push. If the
+   corpus guard refuses a write, STOP — that means the corpus regressed and something is wrong; never
+   override without Derek.
+5. Report cadence: after every 3 candidates, write a short status into the repo
+   (RUNS-STATUS-&lt;date&gt;.md): what flew, what the beliefs did (findings/associations/capabilities counts
+   before → after), what surprised you. When capabilities.json first shows a re-derived capability,
+   flag it prominently — that is gate G3 opening (B2's waiver can then be retired and the roadmap
+   annotation updated).
+STOP CONDITIONS: any test failure after re-projection; any guard refusal; any candidate whose
+risk_accepted you cannot honor on the available nodes; Derek's pause cue.</pre>
+  </div>
+</div>
+
+<footer>
+  Fleet Work Plan · derived from THREE-CHAIRS-PERSPECTIVES.html (+ addendum), CONSTITUTIONAL-REVIEW-2026-07-02.html,
+  ECONOMICS-ARCHITECTURE-REVIEW.html, docs/physical-telemetry-instrumentation-findings.md ·
+  prompts dry-run verified by 14 read-only agents against the live tree (110/110 baseline, git 6a0d308) ·
+  draft-ready, streams released on Derek's cue per fleet pacing · 2026-07-02
+</footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Three Chairs — Perspectives on Commandcenter</title>
+<style>
+  :root{
+    --bg:#0c0f14; --panel:#141a22; --panel2:#1b232e; --line:#26303d;
+    --ink:#e6edf3; --muted:#93a1b1; --dim:#6b7886;
+    --fire:#ff7a45; --ember:#ffb066; --cyan:#5fd0e0; --green:#5ad48a;
+    --amber:#f4c95d; --red:#ff6b6b; --violet:#a78bfa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  code,.mono{font-family:"JetBrains Mono",Consolas,Menlo,monospace;font-size:.86em}
+  a{color:var(--cyan)}
+  .wrap{max-width:1120px;margin:0 auto;padding:32px 24px 80px}
+  header.top{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:24px}
+  .eyebrow{color:var(--fire);letter-spacing:.18em;text-transform:uppercase;font-size:11px;font-weight:700}
+  h1{font-size:27px;margin:6px 0 8px;font-weight:700}
+  .thesis{color:var(--muted);max-width:82ch}
+  .thesis b{color:var(--ink)}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:16px;font-size:12.5px;color:var(--dim)}
+  .meta b{color:var(--ink)}
+  h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--ember);
+    margin:38px 0 14px;border-left:3px solid var(--fire);padding-left:10px}
+  .banner{background:linear-gradient(90deg,#2a1d10,#1b232e);border:1px solid #4a3a20;
+    border-radius:10px;padding:12px 16px;margin:18px 0 0;color:var(--ember);font-size:13.5px}
+  .banner b{color:var(--amber)}
+  .tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.05em;
+    padding:2px 7px;border-radius:20px;border:1px solid var(--line)}
+  .t-first{color:var(--red);border-color:#4a2424;background:#221010}
+  .t-soon{color:var(--amber);border-color:#4a4023;background:#221d10}
+  .t-later{color:var(--dim);border-color:var(--line);background:var(--panel2)}
+  .t-never{color:var(--violet);border-color:#3a2f5a;background:#181226}
+  .t-now{color:var(--green);border-color:#274b39;background:#11231a}
+
+  table.split{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:13px}
+  table.split th{background:var(--panel2);text-align:left;padding:10px 14px;font-size:11px;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+  table.split td{padding:9px 14px;border-top:1px solid var(--line);color:var(--muted);vertical-align:top}
+  table.split td b{color:var(--ink)}
+
+  .law{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--violet);
+    border-radius:10px;padding:14px 18px;margin-bottom:12px}
+  .law h3{margin:0 0 4px;font-size:15px;color:var(--violet)}
+  .law p{margin:4px 0 0;color:var(--muted);font-size:13.5px}
+  .law p b{color:var(--ink)}
+  .law.green{border-left-color:var(--green)}.law.green h3{color:var(--green)}
+  .law.red{border-left-color:var(--red)}.law.red h3{color:var(--red)}
+  .law.amber{border-left-color:var(--amber)}.law.amber h3{color:var(--amber)}
+
+  /* chairs */
+  .chair{background:var(--panel);border:1px solid var(--line);border-radius:14px;margin:26px 0;overflow:hidden}
+  .chair .chead{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;
+    padding:18px 22px;background:var(--panel2);border-bottom:1px solid var(--line)}
+  .chair .chead .cnum{font-family:Consolas,monospace;font-weight:700;font-size:20px}
+  .chair .chead h3{margin:0;font-size:19px;flex:1;min-width:220px}
+  .chair .chead .sub{font-size:12px;color:var(--dim)}
+  .chair .cbody{padding:20px 22px 24px}
+  .chair.nasa{--acc:var(--cyan)} .chair.prof{--acc:var(--violet)} .chair.april{--acc:var(--ember)}
+  .chair .chead .cnum{color:var(--acc)}
+  .voice{border-left:3px solid var(--acc);padding:2px 0 2px 16px;margin:14px 0;color:var(--muted)}
+  .voice p{margin:0 0 10px} .voice p:last-child{margin-bottom:0}
+  .voice b{color:var(--ink)}
+  .pulls{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0 4px}
+  .pull{background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--acc);
+    border-radius:8px;padding:10px 14px;font-size:13.5px;font-style:italic;color:var(--ink);max-width:520px}
+  h4.sec{margin:24px 0 8px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--acc)}
+  .duo{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:760px){.duo{grid-template-columns:1fr}}
+  .duo .col h5{margin:0 0 6px;font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+  .duo .col.up h5{color:var(--green)} .duo .col.down h5{color:var(--red)}
+  .duo ul{margin:0;padding-left:18px}
+  .duo li{margin:5px 0;color:var(--muted);font-size:13px}
+  .duo li b{color:var(--ink)}
+
+  .qgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px}
+  @media(max-width:760px){.qgrid{grid-template-columns:1fr}}
+  .qcard{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .qcard h4{margin:0 0 6px;font-size:14px;color:var(--ember)}
+  .qcard p{margin:0 0 6px;color:var(--muted);font-size:13px}
+  .qcard p b{color:var(--ink)}
+  .qcard .when{font-size:11.5px;color:var(--green)}
+  .qcard .cav{font-size:11.5px;color:var(--dim)}
+  .qcard .cav b{color:var(--amber)}
+  .qcard.full{grid-column:1 / -1}
+
+  .truths{background:#1a1113;border:1px solid #4a2424;border-radius:10px;padding:14px 18px;margin:10px 0}
+  .truths h5{margin:0 0 8px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--red)}
+  .truths ol{margin:0;padding-left:20px}
+  .truths li{margin:7px 0;color:var(--muted);font-size:13.5px}
+  .truths li b{color:var(--ink)}
+
+  footer{margin-top:44px;border-top:1px solid var(--line);padding-top:16px;color:var(--dim);font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="eyebrow">Commandcenter · Perspective Review</div>
+  <h1>Three Chairs — Perspectives on Commandcenter</h1>
+  <p class="thesis">Three reviewers who share no vocabulary read the same corpus — the four July documents,
+  the live <span class="mono">knowledge/</span> tree, the contracts, and the original April architecture
+  diagram: a <b>NASA mission-systems engineer</b> (hardware, telemetry, qualification programs), an
+  <b>MIT professor of Applied AI</b> who is also family (calibration, evaluation methodology, Goodhart),
+  and <b>Derek from three months ago</b> — the guy who drew the diagram. Each perspective was independently
+  fact-checked against the actual files before synthesis; corrections are applied in the text and noted at
+  the bottom. Where all three agree is the strongest signal this review can produce. Where they fight is a
+  decision on Derek's desk.</p>
+  <div class="meta">
+    <span>Inputs: <b class="mono">CAPABILITY-ROADMAP · TWO-ECONOMIES-WIND-TUNNEL · LEARNING-RATE-CRITIQUE · REPLAY-IA</b> + <b class="mono">knowledge/*.json · contracts/</b> + April diagram</span>
+    <span>Method: <b>3 persona agents · 3 fact-checkers · 1 synthesis</b></span>
+    <span>2026-07-02</span>
+  </div>
+  <div class="banner"><b>Unanimous verdict:</b> the apparatus is real, rare, and honest — and it is a
+  <b>magnificently instrumented experiment that has not yet been run</b>, wrapped in prose that has drifted
+  slightly ahead of its own derived state, owned by a man whose binding constraint is not in any schema —
+  it's the calendar. The prescription, from all three chairs independently: back up the one non-regenerable
+  asset, fly the queued experiments, publish the <i>discipline</i> (not the envelope numbers) this month,
+  and get one external, revenue-bearing piece of work through the leftmost box. <b>Revenue is evidence.</b></div>
+</header>
+
+<!-- ============================================================ ADDENDUM -->
+<h2>Addendum — same evening: two late reviews and the corpus overwrite</h2>
+<p class="thesis">After the chairs closed, three things arrived: <span class="mono">CONSTITUTIONAL-REVIEW-2026-07-02.html</span>
+(synthesis of five builder passes over Δ1–Δ5, two constitutional amendments),
+<span class="mono">ECONOMICS-ARCHITECTURE-REVIEW.html</span> (Δ1 superseded by a Derek-confirmed correction),
+plus <span class="mono">docs/physical-telemetry-instrumentation-findings.md</span> (Δ2's schema draft-landed) —
+and Derek disclosed that <b>an agent's accidental pipeline rerun overwrote the learning metrics from existing
+runs earlier today</b>. Verdict on the verdicts: <b>everything the chairs concluded stands.</b> The reviews
+reinforce them; the incident reframes one finding and vindicates another.</p>
+
+<div class="law red">
+  <h3>The incident — and what it changes in this review</h3>
+  <p><b>What happened (from the git record):</b> at 18:37 an accidental pipeline rerun clobbered
+  <span class="mono">knowledge/*.json</span> — capabilities, associations, coverage, capacity estimates,
+  known-good/bad, prediction accuracy, policy + audit. Prior state unrecoverable from that session;
+  <span class="mono">findings.json</span> was hand-merged back from content captured earlier. At 18:41 the tree
+  got its first git commit, explicitly as the baseline "so this can't happen silently again." The chairs read
+  the tree <i>after</i> this — their <span class="mono">capability_count: 0</span> reading was the post-incident state.</p>
+  <p><b>Agreement #4 reverses its cause, not its lesson.</b> The prose didn't drift ahead of the machine — the
+  machine's state was destroyed after the prose was written. The S5b "Shipped" claim was true when authored;
+  the corpus regressed underneath it. The professor's structural point survives (the narrative layer sits
+  outside the constitution's jurisdiction), but with an irony he'd appreciate: <b>the authored brochure is now
+  the only surviving record of the first capability.</b> The action item flips accordingly — don't rewrite the
+  docs down to match the machine; re-earn the machine's state, and date-stamp the S5b claim as "earned
+  2026-07-02, lost to the corpus overwrite, re-derivation pending."</p>
+  <p><b>NASA's do-first #1 was realized the same day it was written.</b> "Costs nothing to retire and
+  everything to explain afterward" — the mishap beat the report to print. The git baseline is the correct
+  first move, but it lives on the same box: <b>the off-box remote push is still open</b>, and it now protects
+  a corpus that has already demonstrated it can be lost.</p>
+  <p><b>The lesson none of the chairs could state (they didn't know):</b> "projections are regenerable" is only
+  true while the full evidence corpus is durable. The rot test guards derived files against hand-edits; nothing
+  guards them against <b>re-projection over an incomplete corpus</b> — a deterministic projector doing exactly
+  what it was told, against the wrong evidence. Proposed guardrail, constitutionally clean and one
+  <span class="mono">if</span>-statement per projector: <b>watermark monotonicity</b> — a projector refuses to
+  write output whose evidence watermark is older, or observation count smaller, than the file it replaces,
+  absent an authored override with reason (Clause 2 shape, same species as a policy suspension).</p>
+  <p><b>"Pour a lot of data through again" is the unanimous prescription, now doubled as the recovery plan.</b>
+  The chairs' medicine didn't change; the dosage did. One check before re-pouring: if the omen debut/follow-up
+  run events survive anywhere on the fleet (cc-conductor's tree), recovery of the first capability is a
+  re-projection, not a re-pour — worth an hour of looking before weeks of re-earning.</p>
+</div>
+
+<div class="law green">
+  <h3>The two late reviews — reinforcement map</h3>
+  <p><b>Δ3 SPLIT ↔ the chairs' unanimous "never."</b> The constitutional review reaches the chairs' conclusion
+  with a sharper rule: a metric consumed by a ranking function silently becomes a decision dimension and
+  inherits the explain/replay/test obligations (Amendment 2). Same verdict, now with a law behind it.</p>
+  <p><b>Δ4 conditional ↔ NASA's sequencing.</b> "Sensors, then budget, then autonomy" survives intact and gains
+  precision: idle must be <b>evented</b> (<span class="mono">IdleObserved</span>/<span class="mono">IdleEnded</span>),
+  never a polled timer — and Amendment 1 formalizes the operating budget as exactly the declaration-of-will
+  NASA judged it to be. The chairs' rule "no Δ4 before Δ2" now also reads "no Δ4 before evented idle."</p>
+  <p><b>Δ1′ ↔ untouched chairs, one resonance.</b> No chair depended on <span class="mono">cost_class</span>;
+  its replacement (per-dispatch derived economic context, explained via <span class="mono">economy_influence</span>)
+  is the constitution applied to its own doctrine. But the economics review's open question #1 — <i>"attention
+  as a third economy?"</i> — is the one the chairs already answered from three directions: the professor's
+  "your scarce resource is you," April-Derek's "I am the bottleneck by design," and T2's resolution rule
+  (compute can do both lists; attention cannot). <b>Recommend answering Q1: yes</b> — at minimum as the
+  authored tie-break rule the synthesis already proposed, before any Δ4 dispatch logic ships.</p>
+  <p><b>Δ2 moved from paper to draft-landed</b> — <span class="mono">observed.physical</span> +
+  <span class="mono">hardware_profile_id</span> on capacity-observation.v1, nullable-only, 110/110 tests still
+  passing, nothing released (fleet pacing respected). This advances NASA's do-first #2 and closes a gap no
+  chair caught: without hardware-lineage identity, a GPU swap or driver update silently invalidates every
+  thermal finding — authorship-by-omission of staleness. <b>One seam left between the builders:</b> the
+  constitutional review's Δ2 fix wants residency recorded as raw load/unload facts with warm/cold projected
+  downstream; the landed schema carries <span class="mono">model_residency</span> as a state field. Small,
+  cheap to reconcile now, expensive after fixtures populate it.</p>
+</div>
+
+<div class="law amber">
+  <h3>The chairs, briefly, on the news</h3>
+  <p><b>NASA:</b> "I filed the flight-recorder finding at dinner and the mishap report beat it to print. That's
+  not embarrassing, that's the review working — now put the remote in place and add the watermark interlock,
+  because the second occurrence is the one that has no excuse."</p>
+  <p><b>The professor:</b> "Note what survived: the events, the fixtures, the contracts, and the prose. What
+  died was exactly the layer the constitution says is cheap — and it was only expensive because the evidence
+  under it wasn't all retained. That's not a refutation of the design; it's the design grading its own
+  implementation. Also, my 'physician, project thyself' line stands — just aimed at a different organ."</p>
+  <p><b>April-Derek:</b> "So the system's first real production incident was self-inflicted, by an agent, on
+  the belief store. Good. Write it up as the first entry in the mishap log — that's a better consulting
+  artifact than the capability it erased. Then pour the data back through. The queue was the to-do list
+  anyway; now it's also the recovery procedure."</p>
+</div>
+
+<!-- ============================================================ CHAIR 1 -->
+<div class="chair nasa">
+  <div class="chead"><span class="cnum">01</span><h3>The NASA Systems Engineer</h3>
+    <span class="sub">25 years flight software · avionics test benches · mission ops · flight-readiness reviews</span></div>
+  <div class="cbody">
+
+    <div class="pulls">
+      <div class="pull">"The machine is more honest than the brochure — and that's the best news in the whole review."</div>
+      <div class="pull">"You wrote a doctrine about running hardware hot before installing a thermometer."</div>
+      <div class="pull">"n=2 is not qualification, it is a smoke test with excellent bookkeeping."</div>
+    </div>
+
+    <h4 class="sec">Opening — went straight to the telemetry</h4>
+    <div class="voice">
+      <p>Alright, I read the whole package — the constitution, the wind-tunnel doctrine, the metric critique,
+      the replay architecture — and then I did what I always do at a flight-readiness review: I ignored the
+      charts and went to the telemetry. The roadmap says — in a green "Shipped" box — that a first real
+      capability exists, qualified, medium confidence. The actual belief store on disk says
+      <b class="mono">capability_count: 0</b>, <span class="mono">association_count: 0</span>, zero experiment
+      results, and every one of the 10 observations the association engine consumes traces to a single
+      workflow (<span class="mono">wf-omen-5070-hwbaseline</span>). Eight gated buckets, each politely stating
+      "no generalization from one workflow."</p>
+      <p>And here's the thing — <b>that's the best news in the whole review.</b> The machine is more honest
+      than the brochure. Most orgs I've reviewed have it the other way around: gorgeous capability matrices,
+      rotten underneath. This system's gates actually held against its own data. The rot test — hand-edit a
+      qualification status, watch the projector overwrite it — is in the test suite. That's real discipline,
+      not slideware.</p>
+      <p>But let's be clear about where this program is. It has built the qualification bookkeeping before
+      running the qualification program. That's the correct order for software — you install the recorder
+      before the test flight — but nobody at my old shop would let you call a two-workflow envelope
+      "qualified," and the live corpus currently holds less than that. The paperwork is beautiful. The vehicle
+      has flown twice. Those are different facts, and the strongest thing about this project is that its own
+      data files know the difference even when its HTML prose gets ahead of itself.</p>
+    </div>
+
+    <h4 class="sec">Where it is</h4>
+    <div class="voice">
+      <p>This is a <b>ground-data-system architecture that would pass muster at a real mission ops shop,
+      wrapped around a flight program that has barely left the runway</b> — and I mean both halves precisely.
+      The architecture half: an append-only event log as sole source of truth, every belief a deterministic
+      re-runnable projection (D18: stable IDs, no wall-clock, evidence watermarks, thresholds as traced
+      constants), decay measured in evidence-days against the corpus watermark rather than the clock, and
+      replay defined as a projector called with a time bound instead of "latest." That is exactly how real
+      mission telemetry systems work — you keep the raw downlink forever, you version the calibration, and any
+      anomaly board must be able to reprocess the same data and get the same answer. D18 is genuinely
+      load-bearing here, not decorative: qualification decay, the rot test, and replay-as-view all collapse
+      without it. The self-review is also real: LEARNING-RATE-CRITIQUE reads like a competent independent
+      review board — five named gaming vectors, a recommendation to ship a metric family instead of a blended
+      scalar, an honest admission that three of Δ3's four terms need snapshot-diff machinery that does not
+      exist. The replay doc independently converges on the same gap and says build it once. That convergence
+      is systems engineering, not cosplay.</p>
+      <p>The flight-program half: the full corpus holds 16 observations across at least three workflows, but
+      the 10 the association/coverage projections consume are single-workflow; findings sit at n=1–5 samples;
+      zero associations, zero capabilities, zero experiment results in the live store; <b>18 stated coverage
+      gaps</b> (8 single-workflow-evidence + 10 unmeasured-metrics). The "first real capability"
+      (build|ollama, two workflows, omen workers) exists in the roadmap prose and an earlier corpus, not in
+      the current live store. Fifteen experiment candidates sit in the queue, unflown. Meanwhile the
+      wind-tunnel doctrine wants to run sunk hardware hot, and Δ2 — the entire physical sensor suite (temps,
+      power, fans, clocks, residency) — is DRAFT and uninstrumented. <b>The doctrine is written; the
+      thermometer is not installed.</b> Everything downstream of that sensor gap — thermal envelopes,
+      sustained-decay findings, the replay physiology lane, phase segmentation, the Δ4 operating budget — is
+      currently unmeasurable, and to the system's credit, coverage.json says so.</p>
+    </div>
+
+    <div class="duo">
+      <div class="col up"><h5>Strongest</h5><ul>
+        <li><b>The gates held against the demo.</b> The live store refusing to mint associations from one workflow — with reasons recorded per gated bucket — is the single most convincing artifact in the tree; the constitution is enforced by code, not intention.</li>
+        <li><b>D18 determinism is real practice, not borrowed language:</b> evidence-watermark staleness instead of wall-clock, diff-clean re-projection, the rot test in the suite. The same property that lets a real mission reprocess ten-year-old telemetry through new calibration and trust the diff.</li>
+        <li><b>The adversarial self-critique of Δ3</b> caught Goodhart before the metric shipped and recommended the cheapest constitutionally-clean formulation. Most programs pay outsiders for that and still don't get it.</li>
+        <li><b>Coverage as a first-class derived quantity</b> — eighteen stated gaps beats a hundred implied greens. That's the flight-rules mindset applied to the org itself.</li>
+        <li><b>Two documents independently deriving the same missing subsystem</b> (snapshot diff) and agreeing to build it once — the kind of cross-check that catches interface errors before integration.</li>
+      </ul></div>
+      <div class="col down"><h5>Most fragile</h5><ul>
+        <li><b>The event log is effectively single-copy on one box.</b> Projections are regenerable by construction; <span class="mono">events.jsonl</span> is not — it is the organization's flight recorder, one commit deep, no evident off-box replication. Losing it loses everything the constitution protects.</li>
+        <li><b>n=2 qualification (and n=0 on the current live corpus).</b> Every downstream claim — envelopes, confidence, decay behavior — inherits that sample size.</li>
+        <li><b>Δ2 uninstrumented while the doctrine plans hot unattended operation.</b> The Δ4 operating budget ("how hot, how loud, how much wear") is written in units the system cannot currently measure — an abort criterion without a sensor is a wish, not a flight rule.</li>
+        <li><b>The 7-evidence-day requalification window is a placeholder,</b> not a derived interval. Real calibration intervals come from observed drift data; at current sample sizes there is none.</li>
+        <li><b>Single coordination node and a single operator</b> — an architecture concern, not a machine-reliability one: every dispatch, plan, and belief update funnels through one process and one human's attention, with no documented degraded-mode procedure.</li>
+      </ul></div>
+    </div>
+
+    <h4 class="sec">What it needs</h4>
+    <table class="split">
+      <tr><th style="width:42%">Item</th><th>Why</th><th style="width:9%">Priority</th></tr>
+      <tr><td><b>Replicate the flight recorder</b> — push <span class="mono">events.jsonl</span> + the knowledge tree to an off-box git remote on a schedule</td>
+          <td>Raw events are the only non-regenerable asset in the entire constitution. Cheapest redundancy in the whole program. We never flew a vehicle whose black box had no backup path.</td>
+          <td><span class="tag t-first">DO FIRST</span></td></tr>
+      <tr><td><b>Instrument Δ2 before any autonomy</b> — the nullable temp/power/fan/clock/residency fields, sourced from nvidia-smi-class polling</td>
+          <td>You cannot write an enforceable operating budget in unmeasured units, and everything downstream starves without these sensors. Install the thermometer before you light the fan.</td>
+          <td><span class="tag t-first">DO FIRST</span></td></tr>
+      <tr><td><b>Fly the queue</b> — dispatch the 15 experiment candidates, second-workflow coverage probes first</td>
+          <td>The belief layer is starving for its second workflow — the gated buckets say so explicitly. Ten cheap dispatches convert a beautiful empty apparatus into a qualification program with actual n. Test as you fly.</td>
+          <td><span class="tag t-first">DO FIRST</span></td></tr>
+      <tr><td><b>Build the snapshot-diff mechanism once</b>, shared by replay's diff mode and Δ3's terms 2–4</td>
+          <td>Both review documents independently identified it as the missing subsystem; without it, three of Δ3's terms would have to be hand-tallied — a Clause 1 violation by their own analysis.</td>
+          <td><span class="tag t-soon">SOON</span></td></tr>
+      <tr><td><b>Gate Δ4 idle-drain behind Δ2 + a measured operating budget</b> (temp ceiling, power ceiling, auto-safe on sensor loss)</td>
+          <td>Unattended operation without health-and-status telemetry is how test stands catch fire. "Stops the moment Derek is using the machine" is a human in the loop, not a fault response. Sequence it: sensors, then budget, then autonomy.</td>
+          <td><span class="tag t-soon">SOON</span></td></tr>
+      <tr><td><b>Ship Δ3 as Formulation E only</b>; report belief movement and coverage as separate labeled numbers</td>
+          <td>Your own review board already did the analysis and it's correct. Don't overrule your own independent review; that's how programs lose review boards.</td>
+          <td><span class="tag t-later">LATER</span></td></tr>
+      <tr><td><b>Hand-author capability records, build S9, or design S10</b> before real fleet-derived capabilities exist</td>
+          <td>The existing gates are right. Missions authored against imagined capabilities are declarations — 25 years of watching requirements written against imagined hardware says the same thing.</td>
+          <td><span class="tag t-never">NEVER</span></td></tr>
+    </table>
+
+    <h4 class="sec">Monetization — through this lens</h4>
+    <div class="qgrid">
+      <div class="qcard"><h4>Steppe consulting, fleet as demonstration artifact</h4>
+        <p>This is the real one. Enterprise buyers are about to drown in agent demos with no qualification story, and Derek walks in with a written constitution, an event-sourced audit trail, decay-based requalification, and <b>a system that refused to believe its own demo data</b>. That last part is the pitch — I have never seen a vendor artifact that under-claims. CIAM background plus this equals "the person who makes agent fleets auditable."</p>
+        <p class="when">Timing: now — the artifacts are presentable today</p>
+        <p class="cav"><b>Caveat:</b> clients buy outcomes, not ontologies. Needs one end-to-end case study where the fleet shipped a real deliverable — the idea→plan→built run is close; write it up.</p></div>
+      <div class="qcard"><h4>Published methodology — the qualification-program-for-AI-agents story</h4>
+        <p>Genuinely novel content territory. Qualification decay, stated blind spots, schedule-qualified-capabilities-not-machines — nobody else is publishing this framing, and the dated HTML docs are the receipts. The honest <span class="mono">capability_count:0</span> makes a better article than any benchmark chart: "my system's gates held against my own enthusiasm" is the credibility hook.</p>
+        <p class="when">Timing: now to 3 months, while the framing is uncontested</p>
+        <p class="cav"><b>Caveat:</b> publish the discipline, not the envelope numbers — the discipline is defensible today; the numbers are not yet.</p></div>
+      <div class="qcard"><h4>Windows local-LLM thesis content</h4>
+        <p>The hwbaseline workflow is quietly generating exactly this material — the gated buckets already hold ollama-cuda vs vulkan vs igpu vs mixed backend data on consumer hardware. Once Δ2 lands, sustained-thermal-decay findings on a 5070 and mixed Arc/NVIDIA rigs are content no cloud-benchmark shop can produce, <b>because they don't own the thermal problem</b>.</p>
+        <p class="when">Timing: after Δ2 + a second workflow — call it 6–8 weeks of evidence</p>
+        <p class="cav"><b>Caveat:</b> one workflow of baseline data is an anecdote. Run the second workflow before publishing any envelope number.</p></div>
+      <div class="qcard"><h4>Productizing the belief layer itself</h4>
+        <p>The contracts are clean and substrate-agnostic, and there will eventually be a market for capability engineering on agent fleets. But right now it is one operator deep, undocumented for outsiders, and validated on two workflows. <b>Selling apparatus before it has produced findings is selling wind tunnels before wind-tunnel data.</b></p>
+        <p class="when">Timing: 6+ months, after the fleet has visibly learned something nontrivial through it</p>
+        <p class="cav"><b>Caveat:</b> runway math says this is the wrong horse for the lean period — the long-tail asset, not the near-term invoice.</p></div>
+    </div>
+
+    <div class="truths"><h5>Hard truths</h5><ol>
+      <li>Your roadmap's Shipped box claims a first real capability; your live belief store says <span class="mono">capability_count: 0</span>. The machine is honest — <b>make the paperwork match the machine</b>, because the first sharp client who greps your knowledge tree will do it for you.</li>
+      <li>n=2 is not qualification, it is a smoke test with excellent bookkeeping — and you wrote a doctrine about running hardware hot before installing a thermometer. <b>Δ2 before Δ4, no exceptions.</b></li>
+      <li>The binding risk is runway and you are polishing a constitution. The belief layer is the finest engineering in the lab and <b>nobody will ever pay for it directly</b> — they'll pay for the thing it lets you promise. Get one paying deliverable through the fleet before you refine another projection.</li>
+      <li>Projections are regenerable; <span class="mono">events.jsonl</span> is not. One copy of the flight recorder on one box, one commit deep, is the kind of single-string risk that costs nothing to retire and everything to explain afterward.</li>
+    </ol></div>
+
+    <h4 class="sec">Disposition</h4>
+    <div class="voice">
+      <p>Here's my summary judgment, same as I'd give at the board. <b>The ground system is real.</b>
+      Event-sourced truth, deterministic projections, decay against evidence watermarks, coverage that states
+      its own blind spots, and gates that demonstrably held against the builder's own demo data — that is not
+      borrowed aerospace language, that is the actual shape of how mission data systems keep themselves
+      honest, built by someone who understood why the shape matters. The self-critique documents alone would
+      pass for independent review at shops that pay six figures for it. <b>What's missing is flight time.</b>
+      So the disposition is: proceed, with actions. Back up the event log today. Install the sensors before
+      the autonomy. Fly the queue until the n stops being embarrassing. And get one revenue-bearing mission
+      through the vehicle, because the finest telemetry architecture I ever saw still needed a launch to
+      justify the ground station. This one is closer to earning its language than most programs I've reviewed
+      with a hundred times the budget. <b>Now go fly it.</b></p>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ CHAIR 2 -->
+<div class="chair prof">
+  <div class="chead"><span class="cnum">02</span><h3>The MIT Professor of Applied AI (your uncle)</h3>
+    <span class="sub">calibration · active learning · evaluation methodology · NeurIPS reviewer · fixes the wifi at Thanksgiving</span></div>
+  <div class="cbody">
+
+    <div class="pulls">
+      <div class="pull">"That is event sourcing promoted to an epistemology with teeth — and I don't know a published system that states it that crisply."</div>
+      <div class="pull">"Your constitution's rot has already appeared in the one layer the constitution can't reach — the hand-authored prose about the system."</div>
+      <div class="pull">"The wind tunnel will never tell you to stop; that declaration remains authored, and it's yours."</div>
+    </div>
+
+    <h4 class="sec">Opening — what you built vs. what you think you built</h4>
+    <div class="voice">
+      <p>Derek. I read all four documents the way I'd read a strong PhD student's systems proposal, which is
+      to say twice: once to find out what you built, once to find out what you think you built. Those are
+      different, and the gap between them is where my review lives.</p>
+      <p>First, cutting through the hype reflexively, because I've reviewed a thousand "agent frameworks":
+      most of this maps cleanly onto literature you didn't cite. Events plus deterministic re-runnable
+      projections is <b>event sourcing with CQRS read models</b> — a 2010s distributed-systems pattern. The
+      coverage probes and qualification runs are <b>acquisition functions</b>; the idle-drain queue in Δ4 is
+      <b>a bandit problem with free pulls</b>. Your confidence curve, samples/(samples+2), is <b>Laplace's
+      rule of succession</b> with prior strength 2 — a 1774 result, uncalibrated in your system, and your own
+      critique document admits it. Qualification decay is instrument-calibration scheduling;
+      capability-directed dispatch is qualified-resource scheduling from fab and aerospace, which you actually
+      name. None of that is a criticism. Reinvention under new names is the field's default failure; you
+      mostly renamed honestly and cited the right analogies.</p>
+      <p>What is <b>structurally unusual</b> — and I want you to hear this from someone who gets excited
+      roughly twice a year — is the constitutional move. "No organizational truth may be authored if it can be
+      derived," authored objects are will not fact, and determinism as the enforcement mechanism, with a
+      property test where hand-edited confidence gets overwritten by the next projection. That is not event
+      sourcing. That is event sourcing promoted to an epistemology with teeth, and I don't know a published
+      system that states it that crisply. <b>It's a contribution-shaped object. It is not yet a
+      contribution</b>, and the difference is evaluation, which brings me to n.</p>
+    </div>
+
+    <h4 class="sec">Where it is</h4>
+    <div class="voice">
+      <p>Where it actually stands: <b>the machinery is complete and the experiment hasn't been run.</b> S1–S8
+      shipped, 110/110 tests, ten versioned contract schemas under <span class="mono">contracts\</span> — that
+      part is real and unusually disciplined. But I read the corpus the constitution governs, not just the
+      prose about it. <span class="mono">knowledge\findings.json</span>: 16 observations, 6 decisions, ~18
+      findings, most of them n=1 sitting at confidence_score 0.33 — which is exactly 1/(1+2), your
+      rule-of-succession curve announcing that the organization has one data point.
+      <span class="mono">knowledge\capabilities.json</span>: capability_count 0. Meanwhile the roadmap's S5b
+      block says, in a green "Shipped" field, that "the first real capability exists... medium confidence from
+      2 workflows." Maybe that projection lives on the fleet tree; but in THIS tree, <b>the hand-authored
+      narrative claims a truth the derived file does not contain</b> — which is precisely the rot Clause 1 was
+      written to kill, one layer up, in the layer the constitution cannot see, because HTML documents are
+      authored objects. That's my sharpest structural finding: your epistemology governs
+      <span class="mono">knowledge\</span> and stops at the docs.</p>
+      <p>The verdict "a beautifully instrumented experiment that hasn't been run yet" applies fully to the
+      belief layer. It does NOT apply to the fleet substrate: the push-bug root-cause via an eyes-verify
+      dispatch, the fleet integrating 8 of its own top-10 improvements, checkpoint/resume, the
+      idea→plan→built A/100 — those are real operational results, and the deliberate restraint of not
+      flipping <span class="mono">knowledge\</span> beliefs on synthetic runs is the correct scientific
+      instinct. The critique doc is the best artifact in the corpus. What's missing is simply data — <b>the
+      one input the constitution cannot derive.</b></p>
+    </div>
+
+    <div class="duo">
+      <div class="col up"><h5>Strongest</h5><ul>
+        <li><b>LEARNING-RATE-CRITIQUE is genuinely reviewer-grade self-adversarialism:</b> five distinct Goodhart vectors found on its OWN proposed metric before a line was built, plus the catch that three of four terms need machinery Δ3 claimed already existed. Most published metric papers don't do this to themselves.</li>
+        <li><b>The rot test turns an epistemological principle into a property test.</b> Determinism (D18) as the thing that makes derived-truth safe is a real insight — better than most production event-sourced systems manage.</li>
+        <li><b>Statistical humility encoded as schema:</b> association.v1's <span class="mono">minItems: 2</span> workflows means "no generalization from a single workflow" isn't a guideline, it's a validation error. The vLLM MoE crash staying a finding shows the gate holds.</li>
+        <li><b>Two documents independently converging on the same missing machinery</b> and saying "build it once, not twice under two names" — architecture-review discipline I rarely see in funded labs.</li>
+        <li><b>The refusal to build S9 competency</b>, with the observation that competency decays when the comparison pool moves and must carry its reference set — a correct, publishable point about benchmark validity that most eval papers get wrong.</li>
+      </ul></div>
+      <div class="col down"><h5>Most fragile</h5><ul>
+        <li><b>The n.</b> Sixteen observations, six decisions, zero capabilities in the checked-in projection. The learning system has not yet learned anything a person couldn't hold in their head.</li>
+        <li><b>The confidence curve is uncalibrated and everything inherits it.</b> samples/(samples+2) with ladder thresholds at 0.33/0.6 has never been validated against outcomes — and no experiment to do so exists in the queue yet (the queued prediction_bias candidate only retests one model's RAM prediction).</li>
+        <li><b>The authored-docs blind spot:</b> S5b's Shipped prose asserts a capability that capabilities.json (count 0) does not contain. Hand-maintained truth — the exact disease — in the reflective layer.</li>
+        <li><b>Formulation E concentrates the value function in one human's unreviewed judgment.</b> Stale or miscalibrated <span class="mono">worth</span> fields silently steer the whole idle-drain engine, and nothing scores worth against realized value after the fact.</li>
+        <li><b>The competing-builders result is n=1.</b> One debut win, promoted through a gate — a great anecdote, zero-evidence claim. One task decides nothing.</li>
+      </ul></div>
+    </div>
+
+    <h4 class="sec">What it needs</h4>
+    <table class="split">
+      <tr><th style="width:42%">Item</th><th>Why</th><th style="width:9%">Priority</th></tr>
+      <tr><td><b>Define and run the confidence-curve calibration experiment</b> — it does not yet exist in the queue; the critique flags it as a prerequisite</td>
+          <td>Every belief, capability, and scheduler bonus inherits samples/(samples+2). Until that curve is validated against real outcomes, the whole spine computes precise-looking numbers over an unexamined prior — your own critique says so. Define it, then it's one dispatch.</td>
+          <td><span class="tag t-first">DO FIRST</span></td></tr>
+      <tr><td><b>Feed the machine:</b> 30–50 real fleet dispatches through S5–S8 before building any delta</td>
+          <td>The instrument is built; the experiment hasn't been run. Real evidence is the one thing no projection can derive. The 15 queued candidates are the to-do list — drain them.</td>
+          <td><span class="tag t-first">DO FIRST</span></td></tr>
+      <tr><td><b>Write the constitution as a standalone 3,000-word essay</b> for an external audience, dated and published</td>
+          <td>It's the most interesting intellectual object here and it's locked inside a dark-themed HTML file only you and I have read. State the rot test as the falsifiable claim. It costs a week, not a quarter.</td>
+          <td><span class="tag t-first">DO FIRST</span></td></tr>
+      <tr><td><b>Turn the A/B into a real study:</b> n≥30 tasks, stratified by task kind, pre-registered promotion criteria, the test-based assay as blinded grader, cost-per-outcome reported</td>
+          <td>"A local 30B beat a frontier model" at n=30 with methodology is a publishable, viral, lead-generating claim squarely on your Windows thesis. At n=1 it's a dinner-party story.</td>
+          <td><span class="tag t-soon">SOON</span></td></tr>
+      <tr><td><b>Build the snapshot-diff machinery once</b>, shared by Δ3's terms and replay's diff mode</td>
+          <td>Both documents independently identified it as the missing load-bearing piece. Ship Formulation E and report the rest unblended, per your own recommendation.</td>
+          <td><span class="tag t-soon">SOON</span></td></tr>
+      <tr><td><b>Extend the rot test to the narrative layer:</b> a check that HTML status claims match the projected corpus</td>
+          <td>Your constitution's jurisdiction ends at <span class="mono">knowledge\</span> and the drift has already happened in the docs. Even a crude consistency script closes the gap.</td>
+          <td><span class="tag t-soon">SOON</span></td></tr>
+      <tr><td><b>The blended Δ3 scalar as originally drafted</b></td>
+          <td>Your own critique enumerated five gaming vectors and recommended against it. I concur with the reviewer — who was you. Don't overrule yourself when a single number gets tempting for a dashboard.</td>
+          <td><span class="tag t-never">NEVER</span></td></tr>
+    </table>
+
+    <h4 class="sec">Monetization — through this lens</h4>
+    <div class="qgrid">
+      <div class="qcard"><h4>Publish the doc corpus as a public essay series</h4>
+        <p>These four documents are unusual artifacts — dated, versioned, self-adversarial; they read like internal memos from a lab that doesn't exist yet. As proof-of-work for a consultant claiming agentic-delivery expertise they're worth more than any certification, because <b>nobody can fake five months of dated, internally consistent design history</b>. The critique alone demonstrates a skill — adversarial evaluation of your own metrics — that every enterprise deploying agents will desperately need and can't hire.</p>
+        <p class="when">Timing: now — two weeks of editing, no new build</p>
+        <p class="cav"><b>Caveat:</b> essays open doors; they don't bill. And publish nothing touching the Concora Auth0 material.</p></div>
+      <div class="qcard"><h4>Steppe engagements: agentic delivery audit / observability build-out</h4>
+        <p>Your five engagement shapes at $36–84K are the actual runway math. Commandcenter contributes the demo and the credibility: a fleet with explained scheduler decisions, policy audit trails, and test-graded competing builders — exactly the governance story enterprise buyers need in mid-2026. <b>Sell the discipline, not the ontology. Nobody buys an ontology.</b></p>
+        <p class="when">Timing: now — the demo is sufficient today; don't wait for the deltas</p>
+        <p class="cav"><b>Caveat:</b> buyers speak KPIs, not constitutions — "no authored truth" becomes "your capability matrix can't rot." And someone has to do outbound, which the wind tunnel will happily let you avoid forever.</p></div>
+      <div class="qcard"><h4>The local-vs-frontier benchmark report</h4>
+        <p>The one path where more building IS the monetization. You have the track record (the viral Vulkan piece), the audience, and the rig. n≥30 real build tasks, test-graded, cost-normalized, methodology included — a piece with actual data in a sea of vibes.</p>
+        <p class="when">Timing: ~3 months — after the A/B reaches defensible n</p>
+        <p class="cav"><b>Caveat:</b> your own S9 note applies — the result perishes on the next frontier release. Publish fast and date everything; perishability is also urgency, which sells.</p></div>
+      <div class="qcard"><h4>Mech Suit Phase 7 workshops · Edgeless</h4>
+        <p>Workshops: coherent curriculum, artifacts double as course material — but it's a second business, in a market crowded with louder funnels and thinner receipts. Only pursue on demonstrated pull from the essays. Edgeless: <b>through my lens, a distraction</b> — thin POD economics, off-thesis for an identity-plus-agentic consultant. Fine only as zero-attention Economy-2 idle workload.</p>
+        <p class="when">Timing: 6 months (workshops, gated on audience signal) · later (Edgeless)</p>
+        <p class="cav"><b>Caveat:</b> your scarce resource is you, and your own two-economies doctrine says so. A workshop with no waitlist is a cathedral annex.</p></div>
+    </div>
+
+    <div class="truths"><h5>Hard truths</h5><ol>
+      <li>Your "organization that learns" has, per the checked-in corpus, learned almost nothing yet: 16 observations, 6 decisions, zero capabilities, most findings single-sample at confidence 0.33. That's not an insult — <b>it's the reading on the instrument you built, and you should trust your instrument over your prose.</b></li>
+      <li>The roadmap's S5b "Shipped" block asserts a first real capability that the derived file does not contain. Your constitution's rot has already appeared in the one layer the constitution can't reach. <b>Physician, project thyself.</b></li>
+      <li>The omen-worker-1 win is n=1. If that anecdote shows up in a client deck as "local models beat frontier," you'll deserve the reviewer who shreds it. <b>Run the study or keep it as a story.</b></li>
+      <li>Five months of runway went into the instrument; your own market thesis gives you under six to cash the window. Every delta you build before a paying engagement or a published piece is instrumentation you're buying with runway — and <b>the wind tunnel is specifically designed to always have fifteen more open questions. It will never tell you to stop.</b> That declaration remains authored, and it's yours.</li>
+    </ol></div>
+
+    <h4 class="sec">Closing — the one paragraph I'm allowed</h4>
+    <div class="voice">
+      <p>Here's the paragraph I'm allowed, so I'll spend it plainly: <b>I'm proud of you, and I don't say
+      that as filler.</b> Your mother worries about the job situation and honestly so do I, but I've watched
+      twenty-two-year-olds with fellowships and full labs produce less coherent systems thinking than you
+      produced alone, unemployed, on hardware you bought yourself, in five months. The critique document —
+      where you found five ways to game your own metric before building it — is the moment I stopped reading
+      as your uncle and started reading as a reviewer who'd fight for the paper. That instinct can't be
+      taught. I've tried.</p>
+      <p>Now, rigor back on. Verdict: <b>accept the architecture, major revision on evidence.</b> The
+      constitution is a real idea; write it for strangers. The corpus is nearly empty; fill it with real
+      dispatches before building another delta. The A/B is an anecdote; make it a study. And the binding
+      constraint is not in any schema — it's the calendar. The system's whole philosophy is that truth must be
+      derived from evidence rather than asserted. Apply it to yourself: "this will pay off" is currently an
+      authored belief with zero observations. Go collect the evidence. Ship the essay, book the engagement,
+      run the thirty tasks. Then call me — collect, obviously.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ CHAIR 3 -->
+<div class="chair april">
+  <div class="chead"><span class="cnum">03</span><h3>Derek, Three Months Ago</h3>
+    <span class="sub">the guy who drew the diagram · April 2026 · three terminals and an SSH script he's embarrassed by</span></div>
+  <div class="cbody">
+
+    <div class="pulls">
+      <div class="pull">"The belief engine is a cathedral built over a single pew."</div>
+      <div class="pull">"A system whose intake is itself will characterize itself forever."</div>
+      <div class="pull">"The decay function I most need is the one on my own runway, and no projection computes it."</div>
+    </div>
+
+    <h4 class="sec">Opening — reading my own future like a vendor deck</h4>
+    <div class="voice">
+      <p>Okay. I drew this thing yesterday, my now. Boxes, arrows, a legend I half-believed: "tracked and
+      orchestrated with OTel and MS agent framework" — I wrote that the way you write "synergy" in a
+      steering-committee deck, as a placeholder for competence I didn't have. Today my actual system is three
+      terminals, agents stepping on each other's files, and an SSH script I'm embarrassed by. So I read these
+      four documents from July the way I'd read a vendor's reference architecture: assume it's 60% aspiration
+      until proven otherwise.</p>
+      <p>Here's what got me. <b>The legend landed.</b> The contracts directory holds ten schema files (the
+      roadmap footer marks five shipped, with association and capability queued next — and those two shipped
+      too); the wind-tunnel doc calls the OTel trace the organization's nervous system, and out on the fleet
+      it's real — MAF middleware with OTel flowing into Jaeger. The throwaway annotation became the spine. And
+      the yellow box I marked "hosted local, likely custom built" — my apology-in-advance for the SSH tape —
+      got replaced with an MCP-first conductor, which is what I would have drawn if I'd known the word.</p>
+      <p>But I've watched enterprise architecture die in SharePoint for twenty years, and I know the smell of
+      a program that got really good at describing itself. Three of these four documents are about things
+      deliberately not built. The one capability the whole belief engine has derived is "we can run builds on
+      Ollama," medium confidence, two workflows. And not one page — not one — has a customer's name on it. I
+      drew "work creation" as the first box on the left edge for a reason. Let's do the map check honestly.</p>
+    </div>
+
+    <h4 class="sec">The map check — box by box, April → July</h4>
+    <table class="split">
+      <tr><th style="width:26%">April box</th><th>July reality</th><th style="width:13%">Verdict</th></tr>
+      <tr><td><b>Planning loop</b><br><span class="mono">analysis→decomposition→refine + failure reason</span></td>
+          <td>Competing planner models with an ensemble critic, proven idea→plan→built. I drew one loop; July built a <b>tournament</b>.</td>
+          <td><span class="tag t-now">LANDED BETTER</span></td></tr>
+      <tr><td><b>Scrum board / operator viewport</b></td>
+          <td>SCRUM loop L0/L1/L2/L4 live; L3 grooming and L5 audio missing. The board works but the <b>viewport half is still paper</b> — the replay doc is explicitly "information architecture only, no build."</td>
+          <td><span class="tag t-soon">HALF</span></td></tr>
+      <tr><td><b>Builder farm</b><br><span class="mono">3× VM (hyper-v ubuntu)</span></td>
+          <td>Four builders including one running a <b>local 30B that beat a frontier model in its debut A/B and got promoted</b>. That's the Windows local-LLM thesis producing evidence.</td>
+          <td><span class="tag t-now">LANDED BETTER</span></td></tr>
+      <tr><td><b>QA VM</b><br><span class="mono">quality grade, risk score</span></td>
+          <td>A dedicated assay node grading on <b>passing tests — behavior, not filenames</b>. Better than my artifact implied.</td>
+          <td><span class="tag t-now">LANDED BETTER</span></td></tr>
+      <tr><td><b>SSH distribution</b> (yellow: "hosted local, likely custom built")</td>
+          <td>Replaced by the MCP-first conductor with checkpoint/resume and self-healing NAT moves. <b>The tape became infrastructure.</b></td>
+          <td><span class="tag t-now">LANDED BETTER</span></td></tr>
+      <tr><td><b>Scrum Master "grants permission"</b></td>
+          <td>Became <span class="mono">policy.v1</span> — blocked by default, open by experiment, overrides authored with reasons on an audit trail. <b>My little permission box grew into a constitution.</b></td>
+          <td><span class="tag t-now">LANDED BETTER</span></td></tr>
+      <tr><td><b>The legend</b><br><span class="mono">OTel + MS agent framework</span></td>
+          <td>OTel as the nervous system in the docs; MAF middleware + OTel→Jaeger live on the fleet. The half-believed annotation became the actual spine.</td>
+          <td><span class="tag t-now">LANDED</span></td></tr>
+      <tr><td><b>Work creation</b> — the first box</td>
+          <td>Still feeds the system almost nothing external. P0 speak→board built but unsigned, audio a gap, and <b>the fleet's proudest missions are characterizations of the fleet</b>.</td>
+          <td><span class="tag t-first">STILL EMPTY</span></td></tr>
+      <tr><td><b>Not on my map at all</b></td>
+          <td>The entire belief layer — findings, associations, capability.v1, qualification decay, coverage, a written constitution. The box I couldn't draw: <b>where the organization keeps what it believes about itself</b>. I was gesturing at it with "quality grade, risk score" and feedback arrows into nowhere.</td>
+          <td><span class="tag t-now">THE CENTER</span></td></tr>
+    </table>
+
+    <div class="duo" style="margin-top:16px">
+      <div class="col up"><h5>What moves me</h5><ul>
+        <li><b>Clause 1 with a rot test.</b> I have personally watched twenty years of hand-maintained capability matrices rot; this is the first design I've seen that makes the rot mechanically impossible rather than procedurally discouraged.</li>
+        <li><b>omen-worker-1:</b> a local 30B on my own hardware beating a frontier builder and getting promoted, with the qualification evidence on the record. A result I could put in front of a CFO.</li>
+        <li><b>LEARNING-RATE-CRITIQUE exists at all.</b> The system adversarially reviewed its own metric BEFORE building it. Enterprise never does this; enterprise ships the KPI and games it for three years.</li>
+        <li><b>The distribution layer I was most ashamed of is the layer that got most professionally rebuilt.</b></li>
+      </ul></div>
+      <div class="col down"><h5>What worries me</h5><ul>
+        <li><b>The evidence base under the philosophy:</b> one real capability, two workflows, while 15 candidates queue. The whole S5–S8 layer is unproven at the scale it was designed for.</li>
+        <li><b>The first box.</b> Work creation is still internal. That's the exact failure mode of every internal-tooling program I've audited.</li>
+        <li><b>Three of four July documents describe things deliberately not built.</b> I know this genre intimately; it dies in SharePoint unless a paying mission pulls it into existence.</li>
+        <li><b>The operator viewport — my feedback-loop box — is the least built thing on the map</b>, and it's the thing that makes the system demoable and makes ME faster. Right now "watch the organization think" means reading JSON files and dark HTML.</li>
+        <li><b>I am the bottleneck by design</b> (pacing, sign-offs, observe-this declarations) and the pending-decision queue is visibly stacking. The residue clause is elegant right up until the residue is a backlog.</li>
+      </ul></div>
+    </div>
+
+    <h4 class="sec">What it needs</h4>
+    <table class="split">
+      <tr><th style="width:42%">Item</th><th>Why</th><th style="width:9%">Priority</th></tr>
+      <tr><td><b>Run one real, external work request end-to-end</b> — a paid or paid-adjacent deliverable (an Edgeless design job, a Steppe client artifact), intake to assay to shipped thing someone else receives</td>
+          <td>I drew "work creation" as the first box because the system was always supposed to eat real work, not characterize itself forever. Every layer downstream is now better than I drew it; <b>the leftmost box is the only one still empty, and it's the one that pays.</b></td>
+          <td><span class="tag t-first">DO FIRST</span></td></tr>
+      <tr><td><b>Publish the omen-worker-1 result as a dated public artifact</b> — local 30B on consumer hardware beats frontier builder in a scored A/B, evidence trail attached</td>
+          <td>This is the Windows local-LLM thesis producing its proof, and my whole survive-the-lean-period plan says published dated docs are the asset. It costs a blog post and I already went viral once on less. <i>(The professor wants n≥30 first — that fight is in the tensions below.)</i></td>
+          <td><span class="tag t-first">DO FIRST</span></td></tr>
+      <tr><td><b>Clear my own sign-off queue</b> — P0 speak→board, promotion thresholds, backlog reorder, auto-answer classes</td>
+          <td>The constitution makes me the authored residue, which is correct, but a residue with a backlog is a governance bottleneck wearing a philosophy costume. Batch the decisions in one sitting; <b>the fleet is waiting on me, not on compute.</b></td>
+          <td><span class="tag t-soon">SOON</span></td></tr>
+      <tr><td><b>Build the snapshot-diff mechanism once</b> — the gap both docs converge on</td>
+          <td>The strongest build signal in the whole stack. But only when replay or the metric family is actually pulled by a demo or a customer — not before.</td>
+          <td><span class="tag t-soon">SOON</span></td></tr>
+      <tr><td><b>Δ4 idle-drain dispatch, after real work flows</b></td>
+          <td>Stage-6 autonomy through economics is the right trick. But run the tunnel against task classes a customer cares about, or it optimizes knowledge about a fleet nobody is paying to run.</td>
+          <td><span class="tag t-later">LATER</span></td></tr>
+      <tr><td><b>L5 audio / whisper path</b></td>
+          <td>It completes the operator loop I drew and I want it, but text intake works today and nothing revenue-shaped is blocked on my voice.</td>
+          <td><span class="tag t-later">LATER</span></td></tr>
+      <tr><td><b>The blended Δ3 scalar</b></td>
+          <td>The critique already convicted it. Ship Formulation E if anything; the one-number version goes in the drawer.</td>
+          <td><span class="tag t-never">NEVER</span></td></tr>
+    </table>
+
+    <h4 class="sec">Monetization — where's the money</h4>
+    <div class="qgrid">
+      <div class="qcard"><h4>Steppe consulting — the only path sized to the runway problem</h4>
+        <p>Five engagement shapes at $36–84K, and I now have something no competing consultant has: a working multi-agent delivery organization with an audit trail, a QA gate, and a local model that beat frontier on cost. <b>The fleet is the demo, not the product.</b> But demos don't do outbound, and nothing in these four documents generates a lead.</p>
+        <p class="when">Timing: now — the window thesis I wrote says mid-2026, which is the date on these documents</p>
+        <p class="cav"><b>Caveat:</b> zero customer names anywhere in the July corpus. If the pipeline is empty in July, three months of build bought credibility but not runway.</p></div>
+      <div class="qcard"><h4>Published proof-of-foresight</h4>
+        <p>The local-beats-frontier writeup for the Windows consumer-GPU crowd (my declared audience, one viral article already), and the capability-engineering constitution for the enterprise-architecture crowd who've all watched skill matrices rot. Two different pieces, two different audiences. Dated publication is cheap insurance on the whole thesis.</p>
+        <p class="when">Timing: now — two weeks of writing, no build dependency</p>
+        <p class="cav"><b>Caveat:</b> virality happened once; it isn't a distribution strategy. Every piece needs a CTA that lands on Steppe, or it's reputation without revenue.</p></div>
+      <div class="qcard"><h4>Edgeless — the first-customer-name milestone</h4>
+        <p>The stack is real (ComfyUI on AM4, perception node scoring aesthetics, queue bot) and Edgeless pays AI-agent designers, so this is <b>the shortest path to the sentence "the fleet earned a dollar."</b> Small dollars, but it forces the work-creation box open with an external customer.</p>
+        <p class="when">Timing: 3 months — the plan exists on paper, execution hasn't started</p>
+        <p class="cav"><b>Caveat:</b> a friend's marketplace at written-plan stage; the first-customer-name milestone, not a runway strategy.</p></div>
+      <div class="qcard"><h4>CIAM + agentic delivery — the moat I keep not connecting</h4>
+        <p>Twenty years of customer-identity expertise is my highest-rate skill and the July documents mention identity exactly zero times. <b>An identity-program replatform executed through this fleet — competing builders, assay gate, full audit trail — is a differentiated offer nobody else can make</b>, and CIAM buyers already know my name.</p>
+        <p class="when">Timing: now for positioning; first engagement whenever the pipeline produces one</p>
+        <p class="cav"><b>Caveat:</b> requires admitting the fleet exists to serve the consulting, not the other way around — the version of me writing constitutions may resist that ordering.</p></div>
+    </div>
+
+    <div class="truths"><h5>Hard truths</h5><ol>
+      <li>Not one of these four documents has a customer's name in it. The organization that can state its own blind spots with four gap types <b>has not stated the biggest one: nobody outside this house has paid it anything.</b></li>
+      <li>Three of the four most polished artifacts describe things deliberately not built. I've written this genre for clients for twenty years — it dies in SharePoint unless a paying mission pulls it into existence. <b>Restraint is only a virtue if the freed capacity went somewhere that pays.</b></li>
+      <li>The belief engine passed 110/110 tests and has derived exactly one organizational belief: builds work on Ollama, medium confidence, two workflows. <b>The philosophy-to-evidence ratio is inverted</b>, and July-me knows it.</li>
+      <li>The window I priced at three years of revenue opened the month these documents are dated, and I spent that month on qualification decay measured in evidence-days. <b>The decay function I most need is the one on my own runway, and no projection computes it.</b></li>
+    </ol></div>
+
+    <h4 class="sec">Verdict from the guy holding the marker</h4>
+    <div class="voice">
+      <p>The diagram survived — not as decoration, as load-bearing structure. Every box either landed or
+      landed better: the tape became a conductor, the permission box became a constitution, the half-believed
+      legend became the actual nervous system. And the box I couldn't draw — where the organization keeps what
+      it believes about itself — turned out to be the center of the whole thing. July-me found it and built it
+      with more discipline than I've seen in any enterprise program I've billed. <b>I'm genuinely moved, and I
+      don't say that about architecture.</b></p>
+      <p>But I drew "work creation" at the left edge because arrows flow left to right, and right now the
+      arrows start from inside the machine. The wind tunnel is magnificent and it is testing its own fuselage.
+      So, future me: sign the P0. Publish the local-beats-frontier result this week. Then put one real
+      request — Edgeless job, Steppe deliverable, anything with an external name on it — through the leftmost
+      box and let the spine do what you built it for. <b>The constitution says confidence must be earned from
+      evidence. Revenue is evidence. Go derive some.</b></p>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ SYNTHESIS -->
+<h2>Where the Chairs Agree — the strongest signal in this review</h2>
+<div class="law green">
+  <h3>1 · Instrument built, experiment not run.</h3>
+  <p>NASA: <i>"n=2 is not qualification, it is a smoke test with excellent bookkeeping."</i> The professor:
+  <i>"a beautifully instrumented experiment that hasn't been run yet."</i> April-Derek: <i>"a cathedral built
+  over a single pew."</i> Same medicine from all three: <b>put real dispatches through S5–S8</b> — the 15
+  queued candidates, then 30–50 real workflows — before building any new delta.</p>
+</div>
+<div class="law green">
+  <h3>2 · The blended Δ3 scalar must never be built — a rare unanimous "never."</h3>
+  <p>All three endorse the system's own critique: ship Formulation E (worth-realized-per-hour) only, report
+  belief movement and coverage as separate labeled numbers. NASA: <i>"don't overrule your own independent
+  review — that's how programs lose review boards."</i> The professor: <i>"I concur with the reviewer — who
+  was you."</i> April-Derek: <i>"the one-number version goes in the drawer."</i></p>
+</div>
+<div class="law green">
+  <h3>3 · Build the snapshot-diff mechanism once — but it waits behind evidence and revenue.</h3>
+  <p>All three cite the same signal: two documents independently derived the same missing subsystem.
+  April-Derek calls it "the strongest build signal in the whole stack"; the professor calls the convergence
+  "architecture-review discipline I rarely see in funded labs." All three rank it <b>soon, not do-first</b>.</p>
+</div>
+<div class="law green">
+  <h3>4 · The paperwork is ahead of the machine — and the machine is the honest one.</h3>
+  <p>NASA and the professor independently found the same drift: the roadmap's S5b "Shipped" prose claims a
+  first real capability while the live tree's <span class="mono">capabilities.json</span> says
+  <span class="mono">capability_count: 0</span>. The professor's structural framing: <i>"your constitution's
+  rot has already appeared in the one layer the constitution can't reach — the hand-authored prose about the
+  system."</i> Both say: <b>make the docs match the derived state before a sharp client greps the tree.</b>
+  <i>(Addendum: the cause turned out to be the corpus overwrite, not doc drift — the finding's lesson survives,
+  its accusation reverses. See the addendum at the top.)</i></p>
+</div>
+<div class="law green">
+  <h3>5 · Steppe consulting is the runway answer; commandcenter is the demo, not the product.</h3>
+  <p>All three, independently, timed <b>now</b>. NASA: "the person who makes agent fleets auditable" is the
+  pitch. The professor: "sell the discipline, not the ontology — nobody buys an ontology." April-Derek: "the
+  only path sized to the runway problem." And all three flag the same gap: <b>nothing in the corpus generates
+  a lead, and zero customer names appear anywhere.</b></p>
+</div>
+<div class="law green">
+  <h3>6 · Publish the discipline now, as dated proof-of-foresight — hold the envelope numbers.</h3>
+  <p>Weeks, not quarters; no new build required. NASA: <i>"the honest capability_count:0 makes a better
+  article than any benchmark chart."</i> The professor: the constitution as a 3,000-word essay for strangers,
+  do-first. April-Derek: "published dated docs are the asset." Shared caveat: <b>the numbers are n=1–2 and
+  won't survive a careful reader — publish the framing, not the envelopes.</b></p>
+</div>
+
+<h2>Where They Fight — decisions on Derek's desk</h2>
+<div class="law amber">
+  <h3>T1 · Publish the omen-worker-1 "local 30B beat frontier" result now, or hold for a real study?</h3>
+  <p><b>April-Derek:</b> publish this week — the thesis producing its proof; went viral once on less; dated
+  publication is cheap insurance. <b>The professor:</b> it's n=1 — "a dinner-party story"; run a
+  pre-registered n≥30 stratified study first (~3 months) or deserve the reviewer who shreds it. <b>NASA</b>
+  splits it structurally: publish the discipline now, but run the second workflow before publishing any
+  envelope number.</p>
+  <p><b>The decision:</b> which flagship ships in the next two weeks — the constitution/discipline essay
+  (safe, unanimous) with the A/B held as a teaser for the 3-month study, or the benchmark claim now, accepting
+  that an n=1 asterisk can be weaponized against the whole thesis.</p>
+</div>
+<div class="law amber">
+  <h3>T2 · What counts as "feeding the machine": internal qualification flights or external paid work first?</h3>
+  <p><b>NASA + the professor:</b> fly the 15 candidates, run 30–50 real workflows — the machinery is only
+  proven when real evidence flows through it. <b>April-Derek:</b> that's the trap — "a system whose intake is
+  itself will characterize itself forever"; the leftmost box is the only one still empty and the only one that
+  pays. These are genuinely different next-dispatch lists.</p>
+  <p><b>The decision:</b> what the fleet's next 30 dispatches actually are. Compute can do some of both;
+  <b>Derek's attention — the stated scarce resource — cannot.</b> (The unified list below proposes the split:
+  internal flights on idle compute, Derek's attention on the external deliverable.)</p>
+</div>
+<div class="law amber">
+  <h3>T3 · Is Δ2 telemetry a prerequisite or a runway leak?</h3>
+  <p><b>NASA:</b> do-first, non-negotiable before any Δ4 autonomy — "you wrote a doctrine about running
+  hardware hot before installing a thermometer." <b>The professor:</b> "every delta you build before a paying
+  engagement or a published piece is instrumentation you're buying with runway — the wind tunnel will never
+  tell you to stop." <b>April-Derek</b> sides with the professor's ordering: build only what a demo or
+  customer pulls. Partial reconciliation: NASA's own content path <i>needs</i> Δ2 data — sustained thermal
+  decay on consumer GPUs is content no cloud shop can produce — which makes Δ2 arguably revenue-serving, on
+  the ~3-month content timeline.</p>
+  <p><b>The decision:</b> does Δ2 get built in the next 6 weeks (sensor prerequisite for both autonomy and the
+  thermal-content path) or parked with Δ4 until something external pulls it? Either way, one sequencing rule
+  survives from all chairs: <b>no Δ4 idle-drain until Δ2 exists.</b></p>
+</div>
+<div class="law amber">
+  <h3>T4 · Edgeless: first-customer milestone or mispriced distraction?</h3>
+  <p><b>April-Derek:</b> values it precisely because it's external — the shortest path to "the fleet earned a
+  dollar." <b>NASA:</b> peripheral, but outside evidence "is worth triple inside evidence" — a live-fire
+  exercise. <b>The professor:</b> a distraction outright — thin POD economics, off-thesis; acceptable only as
+  zero-attention idle workload; "any hour of your attention it consumes is mispriced."</p>
+  <p><b>The decision:</b> a real block of attention next quarter as the deliberate first-external-request
+  through the fleet, or strictly capped at zero-attention tenancy — which likely means it never happens, and
+  the first-customer-name milestone must come from a Steppe engagement instead.</p>
+</div>
+
+<h2>Unified Priority List</h2>
+<table class="split">
+  <tr><th style="width:48%">Item</th><th>Backed by</th><th style="width:10%">Priority</th></tr>
+  <tr><td><b>Replicate the flight recorder:</b> push <span class="mono">events.jsonl</span> + the knowledge tree to an off-box git remote on a schedule</td>
+      <td>NASA (uncontested — the only non-regenerable asset; the cheapest risk in the program to retire)</td>
+      <td><span class="tag t-first">DO FIRST</span></td></tr>
+  <tr><td><b>Fly the queue with a revenue-aware manifest:</b> dispatch the 15 candidates (second-workflow probes first) AND route at least one external, revenue-adjacent deliverable through intake→assay→shipped. Resolve T2 by splitting: cheap internal flights on idle compute, Derek's attention on the external one</td>
+      <td>All three (NASA "fly the queue" · professor "30–50 real dispatches" · April-Derek "one real external request end-to-end")</td>
+      <td><span class="tag t-first">DO FIRST</span></td></tr>
+  <tr><td><b>Publish the constitution/discipline essay series</b> as dated public artifacts under Steppe with a consulting CTA — the rot test as the falsifiable claim, the honest capability_count:0 as the credibility hook; hold all envelope numbers and the n=1 A/B result</td>
+      <td>All three</td>
+      <td><span class="tag t-first">DO FIRST</span></td></tr>
+  <tr><td><b>Clear the sign-off queue in one sitting:</b> P0 speak→board, promotion thresholds, backlog reorder, auto-answer classes</td>
+      <td>April-Derek explicitly; NASA implicitly (single-operator funnel named as fragile)</td>
+      <td><span class="tag t-first">DO FIRST</span></td></tr>
+  <tr><td><b>Reconcile the narrative layer with the derived state:</b> fix the roadmap's S5b claim to match <span class="mono">capabilities.json</span>, and add a consistency check that HTML status claims match the projected corpus — extend the rot test upward</td>
+      <td>Professor (sharpest structural finding) + NASA (hard truth #1)</td>
+      <td><span class="tag t-first">DO FIRST</span></td></tr>
+  <tr><td><b>Build the snapshot-diff mechanism once</b>, shared by replay's diff mode and Δ3's terms 2–4 — when a demo or customer pulls it</td>
+      <td>All three (both source documents independently derived it)</td>
+      <td><span class="tag t-soon">SOON</span></td></tr>
+  <tr><td><b>Instrument Δ2 physical telemetry</b> as the gate before any Δ4 autonomy and the data source for the thermal-content path; and <b>define the confidence-curve calibration experiment</b> that does not yet exist in the queue</td>
+      <td>NASA (Δ2-before-Δ4) + professor (curve calibration)</td>
+      <td><span class="tag t-soon">SOON</span></td></tr>
+  <tr><td><b>Turn the competing-builders A/B into a real study:</b> n≥30 tasks, stratified, pre-registered promotion criteria, the test-based assay as blinded grader, cost-per-outcome reported — the engine of the 3-month benchmark publication</td>
+      <td>Professor (methodology) + April-Derek (the thesis's proof) + NASA (second workflow before any published number)</td>
+      <td><span class="tag t-soon">SOON</span></td></tr>
+</table>
+
+<h2>Monetization Staging</h2>
+<div class="stage-wrap">
+<table class="split">
+  <tr><th style="width:16%">Stage</th><th>What — and why it's credible then</th></tr>
+  <tr><td><b>Now<br>(0–6 weeks)</b></td>
+      <td><b>Open the Steppe funnel + publish the discipline.</b> Pitch the agentic-delivery-audit /
+      observability build-out shapes ($36–84K) with commandcenter as the live demo — explained scheduler
+      decisions, policy audit trails, gates that refused to believe their own demo data: exactly the
+      governance story mid-2026 enterprise buyers need, presentable today without waiting for any delta.
+      Simultaneously publish the discipline essays (constitution, two economies, the self-critique) as dated
+      proof-of-foresight with a CTA landing on Steppe. Add the CIAM framing April-Derek uniquely flagged: an
+      identity-program replatform executed through this fleet is the differentiated offer nobody else can
+      make, and CIAM buyers already know Derek's name. <b>Credible now because it sells the discipline and the
+      demo, not the n=1–2 envelope numbers. This is the only stage that can produce an invoice inside the
+      &lt;6-month window.</b><br><span style="color:var(--dim);font-size:12px">Sourced: all three chairs (consulting-now + publish-now unanimous); CIAM angle from April-Derek; "sell discipline not ontology" from the professor; "the system that under-claims" pitch from NASA.</span></td></tr>
+  <tr><td><b>~3 months</b></td>
+      <td><b>Ship the data-backed pieces the "now" stage deliberately withheld.</b> (1) The Windows local-LLM
+      benchmark report — the competing-builders study at n≥30, test-graded, cost-normalized, methodology
+      included; published fast and dated because the result perishes on the next frontier release. (2) If Δ2
+      landed: sustained-thermal-decay findings on consumer GPUs — content no cloud-benchmark shop can produce
+      because they don't own the thermal problem. (3) The first end-to-end case study of an external
+      deliverable through the fleet (Edgeless job or Steppe client artifact, per how T4 resolves), giving the
+      consulting pitch the one thing NASA said it lacks: a real outcome, not an ontology. <b>Credible then
+      because by then the n exists — this stage converts the anecdotes the chairs vetoed into studies they
+      endorsed.</b><br><span style="color:var(--dim);font-size:12px">Sourced: professor (n≥30 timing + perishability-as-urgency), NASA (Δ2-then-publish sequencing; case-study requirement), April-Derek (Edgeless as first-customer-name milestone).</span></td></tr>
+  <tr><td><b>6+ months</b></td>
+      <td><b>The compounding long-tail, pursued only on demonstrated pull.</b> Mech Suit Phase-7
+      workshops/training if — and only if — the essay series generated an audience signal (the professor's
+      rule: "a workshop with no waitlist is a cathedral annex"; April-Derek's rule: the operator viewport must
+      be built enough that the demo isn't JSON files and dark HTML). And productizing the belief layer itself
+      (S1–S8 contracts + projectors) after the fleet has visibly learned something nontrivial through it —
+      NASA: "selling wind tunnels before wind-tunnel data." <b>Credible only after stages 1–2 produce the
+      receipts: paying engagements, published studies, and a corpus where capability_count is no longer
+      zero.</b><br><span style="color:var(--dim);font-size:12px">Sourced: NASA (belief-layer productization at 6+ months), professor (workshops gated on audience signal), April-Derek (methodology income as fallback shape, not lead).</span></td></tr>
+</table>
+</div>
+
+<h2>Fact-Check Notes — corrections applied above</h2>
+<div class="law">
+  <h3>Every perspective was independently verified against the actual files; all three graded "minor issues," fixed in the text.</h3>
+  <p><b>NASA</b> originally said "10 stated coverage gaps" — <span class="mono">coverage.json</span> records
+  <b>18</b> (8 single-workflow-evidence + 10 unmeasured-metrics); also clarified that the 10 single-workflow
+  observations are what the association/coverage projections consume, while the full corpus holds 16
+  observations across at least three workflows; and the "first capability" claim sits in the roadmap's S5b/S6
+  Shipped prose, not its header. <b>The professor</b> originally pointed at the queued
+  <span class="mono">prediction_bias</span> candidate as the confidence-curve calibration — it isn't; that
+  candidate only retests one model's RAM prediction, and the curve-calibration experiment <b>does not yet
+  exist and must be defined</b>. <b>April-Derek</b> originally said the roadmap footer lists ten shipped
+  contracts (it lists five shipped, with association/capability queued; the contracts directory holds ten
+  schema files) and attributed "MAF + Jaeger" to the four docs (the docs say only "OTel trace — nervous
+  system"; MAF middleware + OTel→Jaeger is real fleet state, sourced from the broader build, not these
+  documents).</p>
+</div>
+
+<footer>
+  Three Chairs perspective review · inputs: CAPABILITY-ROADMAP.html · TWO-ECONOMIES-WIND-TUNNEL.html ·
+  LEARNING-RATE-CRITIQUE.html · REPLAY-INFORMATION-ARCHITECTURE.html · live knowledge/ + contracts/ trees ·
+  April 2026 architecture diagram · method: 3 persona agents + 3 independent fact-checkers + 1 synthesis ·
+  perspectives only, no build, no schema changes · 2026-07-02 ·
+  addendum same evening: CONSTITUTIONAL-REVIEW + ECONOMICS-ARCHITECTURE-REVIEW + Δ2 schema landing + the
+  knowledge/ corpus overwrite incident — all chair verdicts stand
+</footer>
+
+</div>
+</body>
+</html>

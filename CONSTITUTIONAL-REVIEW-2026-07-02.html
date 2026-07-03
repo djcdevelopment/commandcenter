@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Constitutional Review — Two Economies / Wind Tunnel Deltas</title>
+<style>
+  :root{
+    --bg:#0c0f14; --panel:#141a22; --panel2:#1b232e; --line:#26303d;
+    --ink:#e6edf3; --muted:#93a1b1; --dim:#6b7886;
+    --fire:#ff7a45; --ember:#ffb066; --cyan:#5fd0e0; --green:#5ad48a;
+    --amber:#f4c95d; --red:#ff6b6b; --violet:#a78bfa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  code,.mono{font-family:"JetBrains Mono",Consolas,Menlo,monospace;font-size:.86em}
+  a{color:var(--cyan)}
+  .wrap{max-width:1120px;margin:0 auto;padding:32px 24px 80px}
+  header.top{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:24px}
+  .eyebrow{color:var(--fire);letter-spacing:.18em;text-transform:uppercase;font-size:11px;font-weight:700}
+  h1{font-size:27px;margin:6px 0 8px;font-weight:700}
+  .thesis{color:var(--muted);max-width:82ch}
+  .thesis b{color:var(--ink)}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:16px;font-size:12.5px;color:var(--dim)}
+  .meta b{color:var(--ink)}
+  h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--ember);
+    margin:38px 0 14px;border-left:3px solid var(--fire);padding-left:10px}
+  .banner{background:linear-gradient(90deg,#2a1d10,#1b232e);border:1px solid #4a3a20;
+    border-radius:10px;padding:12px 16px;margin:18px 0 0;color:var(--ember);font-size:13.5px}
+  .banner b{color:var(--amber)}
+  .tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.05em;
+    padding:2px 7px;border-radius:20px;border:1px solid var(--line)}
+  .t-pass{color:var(--green);border-color:#274b39;background:#11231a}
+  .t-risk{color:var(--amber);border-color:#4a4023;background:#221d10}
+  .t-fail{color:var(--red);border-color:#4a2424;background:#221010}
+  .t-redesign{color:var(--cyan);border-color:#1f4650;background:#0f2126}
+
+  .law{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--violet);
+    border-radius:10px;padding:14px 18px;margin-bottom:12px}
+  .law h3{margin:0 0 4px;font-size:15px;color:var(--violet)}
+  .law p{margin:4px 0 0;color:var(--muted);font-size:13.5px}
+  .law p b{color:var(--ink)}
+  .law.green{border-left-color:var(--green)}.law.green h3{color:var(--green)}
+  .law.red{border-left-color:var(--red)}.law.red h3{color:var(--red)}
+
+  table.split{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:13px}
+  table.split th{background:var(--panel2);text-align:left;padding:10px 14px;font-size:11px;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+  table.split td{padding:9px 14px;border-top:1px solid var(--line);color:var(--muted);vertical-align:top}
+  table.split td b{color:var(--ink)}
+
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:16px;overflow:hidden}
+  .stage .shead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    padding:14px 18px;background:var(--panel2);border-bottom:1px solid var(--line)}
+  .stage .shead .id{font-family:Consolas,monospace;color:var(--fire);font-weight:700;font-size:18px}
+  .stage .shead h3{margin:0;font-size:16px;flex:1;min-width:200px}
+  .sbody{padding:14px 18px 18px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:720px){.sbody{grid-template-columns:1fr}}
+  .field h4{margin:0 0 5px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--cyan)}
+  .field.gate h4{color:var(--green)}
+  .field.warn h4{color:var(--red)}
+  .field ul{margin:0;padding-left:18px}
+  .field li{margin:3px 0;color:var(--muted);font-size:13px}
+  .field li b{color:var(--ink)}
+  .field p{margin:0;color:var(--muted);font-size:13px}
+  .field p b{color:var(--ink)}
+  .full{grid-column:1 / -1}
+  footer{margin-top:44px;border-top:1px solid var(--line);padding-top:16px;color:var(--dim);font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="eyebrow">Commandcenter · Constitutional Review</div>
+  <h1>Constitutional Review — Two Economies / Wind Tunnel Deltas</h1>
+  <p class="thesis">Adversarial pass over Δ1–Δ5 (<span class="mono">TWO-ECONOMIES-WIND-TUNNEL.html</span>) against
+  the constitution in <span class="mono">CAPABILITY-ROADMAP.html</span>. Guilty until proven derivable. This doc
+  is the synthesis after cross-checking against the other four builder reviews (Δ3 detail in
+  <span class="mono">LEARNING-RATE-CRITIQUE.html</span>, Δ5 detail in
+  <span class="mono">REPLAY-INFORMATION-ARCHITECTURE.html</span>) — it captures the two constitutional amendments
+  and the generalized invariant that came out of reconciling them, which none of the individual reviews wrote down.</p>
+  <div class="meta">
+    <span>Reviewer role: constitutional, not implementation</span>
+    <span>Status date: <b>2026-07-02 (late)</b></span>
+    <span>Verdict: no delta rejected outright; two need redesign, one metric needs splitting</span>
+  </div>
+  <div class="banner"><b>Headline finding:</b> none of the five reviews concluded the wind-tunnel idea was
+  constitutionally flawed. All five converged on the same discipline: push interpreted state <b>downward into
+  observations</b> and <b>upward into projections</b>, leaving as little authored state in the middle as possible.</div>
+</header>
+
+<h2>Two amendments to the constitution</h2>
+
+<div class="law green">
+  <h3>Amendment 1 — the residue clause generalizes</h3>
+  <p>CAPABILITY-ROADMAP.html's Residue clause currently reads only <b>"what to observe."</b> The wind-tunnel
+  doctrine adds a second authored object — the operating budget (how hot, how loud, how much wear the lab may
+  spend unattended). Read side by side these look like a second exception. They are not: both are
+  <b>declarations of will</b>, the same species as <span class="mono">risk_accepted</span> on an experiment plan.
+  The clause should be rewritten to name the category, not enumerate its members one at a time:</p>
+  <p style="margin-top:8px"><b>"The irreducible authored residue consists only of declarations of will: what the
+  organization chooses to observe, and what operating risk or budget it accepts. Everything else is projected
+  from evidence."</b></p>
+  <p style="margin-top:8px">This strengthens Clause 2 rather than weakening it — it closes the door on future
+  additions being read as ad-hoc exceptions, as long as they're actually will and not fact.</p>
+</div>
+
+<div class="law green">
+  <h3>Amendment 2 — the guardrail against new decision dimensions generalizes</h3>
+  <p>The original objection to Δ1 was framed as a count: don't add a third <span class="mono">_influence</span>
+  field alongside <span class="mono">policy_influence</span> / <span class="mono">capability_influence</span>.
+  That framing doesn't scale and isn't the actual invariant — it was a smell-test standing in for a property
+  that hadn't been named. The real law:</p>
+  <p style="margin-top:8px"><b>"Any new scheduler decision dimension must explain itself, be replayable, and be
+  independently testable — the same obligations every existing decision dimension already carries. If a proposed
+  dimension satisfies those three properties, its existence is not a constitutional problem. If it can't, it
+  shouldn't exist regardless of how few dimensions currently exist."</b></p>
+  <p style="margin-top:8px">This reclassifies the Δ1 problem: the defect isn't "too many influence fields," it's
+  that <span class="mono">cost_class: metered | sunk</span> is currently a hand-assigned label with no stated
+  evidence trail. The open question isn't "should this be a field," it's "is this authored-because-irreducible
+  (like a resource-registration fact — no observation will ever tell you which node Derek physically owns) or
+  authored-because-nobody-wrote-the-derivation-yet."</p>
+</div>
+
+<h2>Revised verdicts</h2>
+<table class="split">
+  <tr><th>Delta</th><th>Verdict</th><th>Reasoning</th></tr>
+  <tr><td><b>Δ1</b> — economy as scheduling dimension</td><td><span class="tag t-redesign">REDESIGN</span></td>
+      <td>Not rejected for being a third influence field. Redesign target: prove <span class="mono">cost_class</span>
+      is either irreducible-authored (like an instrumentation decision) or derivable from usage/billing events —
+      don't ship it as an unexamined static label. If it clears that test, <span class="mono">economy_influence</span>
+      is constitutionally fine under Amendment 2.</td></tr>
+  <tr><td><b>Δ2</b> — physical telemetry channel</td><td><span class="tag t-pass">APPROVED w/ fix</span></td>
+      <td>Correct instance of Amendment 1's residue category. One field fails the test:
+      <span class="mono">model_residency: warm | cold</span> is a classification, not a sensor reading — the
+      warm/cold boundary is an authored threshold hiding inside what looks like telemetry. Fix: record
+      <span class="mono">last_model_load_event</span> / <span class="mono">last_model_unload_event</span> /
+      <span class="mono">model_loaded: bool</span> as raw facts; project warm/cold downstream, same as everything
+      else. This is exactly the mistake Clause 1 exists to prevent, caught before it shipped.</td></tr>
+  <tr><td><b>Δ3</b> — learning rate</td><td><span class="tag t-redesign">SPLIT</span></td>
+      <td>The metric itself is a clean derivation (sum over existing derived objects, no new state). The risk is
+      downstream: if Δ4's idle-drain dispatcher uses this scalar to <i>rank and select</i> candidates, the metric
+      silently becomes a decision dimension and inherits Amendment 2's obligations without anyone declaring that.
+      Split it — keep learning-rate as a pure human-facing reporting metric, and require any ranking function
+      that consumes it to expose its own terms the way <span class="mono">policy_influence</span> already does.
+      Full detail: <span class="mono">LEARNING-RATE-CRITIQUE.html</span>.</td></tr>
+  <tr><td><b>Δ4</b> — idle-drain dispatch</td><td><span class="tag t-pass">APPROVED, conditional</span></td>
+      <td>Mechanism is sound and correctly framed as stage-6 autonomy arriving through economics with no new
+      objects. Condition: idleness must become knowledge through <b>events</b>
+      (<span class="mono">IdleObserved</span> / <span class="mono">IdleEnded</span>), never a polled wall-clock
+      timer inside the scheduler. A timer check is hidden runtime state with no audit trail and violates D18
+      determinism (not diff-clean, not re-runnable). Evented idle preserves replay, determinism, and auditability
+      in one move.</td></tr>
+  <tr><td><b>Δ5</b> — mission replay</td><td><span class="tag t-pass">APPROVED</span></td>
+      <td>Accepted as designed — a projection with authored, derived, and physical lanes over data already on the
+      record. No new state. Detail: <span class="mono">REPLAY-INFORMATION-ARCHITECTURE.html</span>.</td></tr>
+</table>
+
+<h2>Cross-cutting pattern</h2>
+<p class="thesis">Every finding across all five reviews reduces to the same move: when a proposed object looks
+like it might be authored truth, ask whether it can be pushed to one of the two legitimate poles —
+<b>downward</b> into a raw, timestamped observation (Δ2's residency fields, Δ4's idle boundary), or
+<b>upward</b> into a projection computed from existing derived objects (Δ3's ranking function, Δ1's cost_class
+if it turns out to be derivable). What's left in the middle after that push is the true test of Amendment 1: is
+it actually a declaration of will? If yes, it's constitutional residue. If no, it hasn't found its proper layer
+yet and shouldn't ship in the middle.</p>
+
+<footer>
+  Companion to CAPABILITY-ROADMAP.html and TWO-ECONOMIES-WIND-TUNNEL.html · synthesis of five independent
+  constitutional/critique passes over Δ1–Δ5 · no delta rejected outright · 2026-07-02.
+</footer>
+
+</div>
+</body>
+</html>

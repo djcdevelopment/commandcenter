@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Economics Architecture Review — Two Economies, Scheduling</title>
+<style>
+  :root{
+    --bg:#0c0f14; --panel:#141a22; --panel2:#1b232e; --line:#26303d;
+    --ink:#e6edf3; --muted:#93a1b1; --dim:#6b7886;
+    --fire:#ff7a45; --ember:#ffb066; --cyan:#5fd0e0; --green:#5ad48a;
+    --amber:#f4c95d; --red:#ff6b6b; --violet:#a78bfa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  code,.mono{font-family:"JetBrains Mono",Consolas,Menlo,monospace;font-size:.86em}
+  a{color:var(--cyan)}
+  .wrap{max-width:1120px;margin:0 auto;padding:32px 24px 80px}
+  header.top{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:24px}
+  .eyebrow{color:var(--fire);letter-spacing:.18em;text-transform:uppercase;font-size:11px;font-weight:700}
+  h1{font-size:27px;margin:6px 0 8px;font-weight:700}
+  .thesis{color:var(--muted);max-width:82ch}
+  .thesis b{color:var(--ink)}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:16px;font-size:12.5px;color:var(--dim)}
+  .meta b{color:var(--ink)}
+  h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--ember);
+    margin:38px 0 14px;border-left:3px solid var(--fire);padding-left:10px}
+  .banner{background:linear-gradient(90deg,#2a1d10,#1b232e);border:1px solid #4a3a20;
+    border-radius:10px;padding:12px 16px;margin:18px 0 0;color:var(--ember);font-size:13.5px}
+  .banner b{color:var(--amber)}
+  .quote{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--cyan);
+    border-radius:10px;padding:14px 18px;margin:14px 0;font-size:14px;color:var(--ink);font-style:italic}
+  .quote cite{display:block;margin-top:8px;font-style:normal;font-size:12px;color:var(--dim)}
+  .tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.05em;
+    padding:2px 7px;border-radius:20px;border:1px solid var(--line)}
+  .t-reject{color:var(--red);border-color:#4a2424;background:#221010}
+  .t-confirm{color:var(--green);border-color:#274b39;background:#11231a}
+  .t-open{color:var(--amber);border-color:#4a4023;background:#221d10}
+
+  table.split{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:13px}
+  table.split th{background:var(--panel2);text-align:left;padding:10px 14px;font-size:11px;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+  table.split td{padding:9px 14px;border-top:1px solid var(--line);color:var(--muted);vertical-align:top}
+  table.split td b{color:var(--ink)}
+  table.split td:first-child{width:24%}
+
+  .law{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--violet);
+    border-radius:10px;padding:14px 18px;margin-bottom:12px}
+  .law h3{margin:0 0 4px;font-size:15px;color:var(--violet)}
+  .law p{margin:4px 0 0;color:var(--muted);font-size:13.5px}
+  .law p b{color:var(--ink)}
+  .law.green{border-left-color:var(--green)}
+  .law.green h3{color:var(--green)}
+  .law.red{border-left-color:var(--red)}
+  .law.red h3{color:var(--red)}
+
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:16px;overflow:hidden}
+  .stage .shead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    padding:14px 18px;background:var(--panel2);border-bottom:1px solid var(--line)}
+  .stage .shead .id{font-family:Consolas,monospace;color:var(--fire);font-weight:700;font-size:18px}
+  .stage .shead h3{margin:0;font-size:16px;flex:1;min-width:200px}
+  .sbody{padding:14px 18px 18px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:720px){.sbody{grid-template-columns:1fr}}
+  .field h4{margin:0 0 5px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--cyan)}
+  .field.gate h4{color:var(--green)}
+  .field.warn h4{color:var(--red)}
+  .field ul{margin:0;padding-left:18px}
+  .field li{margin:3px 0;color:var(--muted);font-size:13px}
+  .field li b{color:var(--ink)}
+  .field p{margin:0;color:var(--muted);font-size:13px}
+  .field p b{color:var(--ink)}
+  .full{grid-column:1 / -1}
+
+  ol.q{margin:0;padding-left:20px}
+  ol.q li{margin:8px 0;color:var(--muted);font-size:13.5px}
+  ol.q li b{color:var(--ink)}
+  footer{margin-top:44px;border-top:1px solid var(--line);padding-top:16px;color:var(--dim);font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="eyebrow">Commandcenter · Economics Architect Review</div>
+  <h1>Scheduling Economics — Findings</h1>
+  <p class="thesis">A review of <span class="mono">TWO-ECONOMIES-WIND-TUNNEL.html</span>'s Δ1
+  (<span class="mono">cost_class: metered | sunk</span>) against the constitution in
+  <span class="mono">CAPABILITY-ROADMAP.html</span>. Verdict: the two-economies split is directionally sound,
+  but a static per-resource <span class="mono">cost_class</span> field is the wrong abstraction — it authors a
+  truth that should be derived. <b>Derek confirmed the correction</b>; this document records it.</p>
+  <div class="meta">
+    <span>Tree: <b class="mono">C:\work\commandcenter</b></span>
+    <span>Date: <b>2026-07-02 (late)</b></span>
+    <span>Companions: <b class="mono">TWO-ECONOMIES-WIND-TUNNEL.html</b>, <b class="mono">CAPABILITY-ROADMAP.html</b></span>
+    <span>Status: <b>Δ1 superseded by this review — Δ2–Δ5 unaffected, still draft</b></span>
+  </div>
+</header>
+
+<h2>The correction, in Derek's words</h2>
+<div class="quote">
+  "The scheduler does not ask whether a resource is metered or sunk. It derives the current economic context
+  from authored resource facts and live operating signals, then selects an optimization objective for this
+  dispatch and explains that selection through <span class="mono">economy_influence</span>."
+  <cite>— Derek, confirming the review's recommendation, 2026-07-02</cite>
+</div>
+<p class="thesis">This resolves the core objection below: economy membership is a per-dispatch derivation,
+not a static tag on a resource.</p>
+
+<h2>1 · Evaluate the two-economies model</h2>
+<table class="split">
+  <tr><th>Strengths</th><th>Weaknesses</th></tr>
+  <tr>
+    <td>Splits genuinely different objective functions (cost-per-outcome vs knowledge-per-hour); Δ3 correctly
+    refuses to let raw GPU utilization stand in for the real objective — a hot GPU producing no belief change
+    scores zero; reuses existing spine mechanics (policy_influence-shaped scoring), cheap to add; Δ4 idle-drain
+    as an authored, suspendable policy is consistent with the constitution.</td>
+    <td>Rests on "sunk compute costs ~nothing marginal," which is false under variable electricity price,
+    battery power, and nonlinear wear — Δ2 senses power_w/thermals but nothing in Δ3/Δ4 consumes it; the
+    model has no home for a single dispatch that spans both economies (local+cloud overflow).</td></tr>
+</table>
+
+<h2>2 · Is <span class="mono">cost_class</span> the right abstraction?</h2>
+<div class="law red">
+  <h3>No — rejected as originally specified.</h3>
+  <p>Three problems: it <b>conflates ownership with objective</b> (owning hardware doesn't make every dispatch
+  on it economy-2 — a GPU serving an interactive session right now is scarce and latency-sensitive exactly like
+  a rate-limited API); it <b>violates Constitution Clause 1</b> ("no organizational truth may be authored if it
+  can be derived") — whether to optimize for cost or knowledge-per-hour is derivable from observable signals,
+  not a fact to hand-set; and it's <b>one-dimensional</b> where the domain has at least three independent axes
+  (ownership, attendance, real-time price/power state).</p>
+</div>
+<table class="split">
+  <tr><th>Alternative considered</th><th>Verdict</th></tr>
+  <tr><td><b>optimization objective</b></td><td>Correct concept, but needs a mechanism to assign it — doesn't
+    stand alone.</td></tr>
+  <tr><td><b>execution policy</b></td><td><b>Closest fit.</b> Matches how the spine already works —
+    <span class="mono">policy_influence</span> is already "derived effect, explained, overridable." Fold economy
+    selection into that same machinery instead of inventing a parallel concept.</td></tr>
+  <tr><td><b>resource class</b></td><td>Legitimate as a narrower, genuinely-static field
+    (<span class="mono">resource.ownership</span>) — but ownership ≠ economy; it's one input to the
+    derivation, not the derivation itself.</td></tr>
+  <tr><td><b>operating mode</b></td><td>Legitimate, needed as a separate derived signal (attended vs
+    unattended) — this is what Δ4's "stops the moment he is using it" already implies but never named.</td></tr>
+  <tr><td><b>dispatch intent</b></td><td>Legitimate, orthogonal — production vs characterization is a property
+    of what the dispatch is for, not of which node runs it.</td></tr>
+</table>
+
+<h2>3 · Minimum ontology additions</h2>
+<div class="stage">
+  <div class="shead"><span class="id">Δ1′</span><h3>Corrected — supersedes the original cost_class field</h3><span class="tag t-confirm">CONFIRMED</span></div>
+  <div class="sbody">
+    <div class="field"><h4>Authored (near-static facts)</h4>
+      <ul>
+        <li><span class="mono">resource.ownership: owned | leased | metered_provider</span> — a real third
+        class exists in the fleet today (farm VMs, cc-farmer tunnel: leased, neither owned-sunk nor
+        pay-per-call)</li>
+        <li><span class="mono">resource.power_source: mains | battery | generator</span></li>
+      </ul></div>
+    <div class="field"><h4>Derived (per dispatch)</h4>
+      <ul>
+        <li><span class="mono">operating_mode: attended | unattended</span> — from session-allocation events,
+        never hand-set</li>
+        <li>nullable live signals: price/rate, battery level, rate-limit headroom — same "observe-this"
+        pattern as Δ2's telemetry</li>
+        <li><span class="mono">optimization_objective</span> — computed per dispatch from the above +
+        dispatch intent; never stored on the resource</li>
+      </ul></div>
+    <div class="field full gate"><h4>Explanation surface</h4>
+      <p><span class="mono">economy_influence</span> added to <span class="mono">scheduler-decision.v1</span>,
+      parallel to <span class="mono">policy_influence</span> / <span class="mono">capability_influence</span>:
+      records which signals were read, which objective was selected and why, and the counterfactual (what the
+      other objective would have chosen and at what cost).</p></div>
+  </div>
+</div>
+
+<h2>4 · How scheduler reasoning explains decisions</h2>
+<table class="split">
+  <tr><th>Cost-minimizing dispatch</th><th>Knowledge-maximizing dispatch</th></tr>
+  <tr>
+    <td>Show the counterfactual against the next-cheapest qualified candidate: dollars saved, rate-limit
+    headroom consumed.</td>
+    <td>Show why this candidate beat the rest of the experiment queue: expected knowledge value (belief
+    uncertainty × worth × recency), not just "was idle."</td></tr>
+</table>
+<p class="thesis">Mixed-economy dispatches (below) need both legs shown — a single scalar
+<span class="mono">economy: sunk</span> cannot represent a job that spilled from local to cloud mid-run.</p>
+
+<h2>5 · Hidden edge cases</h2>
+<table class="split">
+  <tr><th>Case</th><th>Why it breaks the binary model</th></tr>
+  <tr><td><b>Mixed fleets / partial local / cloud overflow</b></td>
+    <td>One dispatch, two economy legs (local does 80%, cloud finishes the hard 20%; or planner ensemble runs
+    both concurrently for comparison). A per-resource tag has no home for this — argues for per-leg tracking
+    and an unresolved credit-attribution rule when a finding only exists <i>because</i> both legs ran.</td></tr>
+  <tr><td><b>Changing electricity cost</b></td>
+    <td>Falsifies "sunk ≈ free." Nothing in Δ1–Δ5 currently ingests a live price signal; Δ4 as written would
+    idle-drain regardless of price.</td></tr>
+  <tr><td><b>Battery-powered systems</b></td>
+    <td>Sharpest counterexample to ownership-as-economy: a laptop is "owned/sunk" by the model's logic, but a
+    draining battery is scarce and depleting exactly like metered budget. Ownership says sunk; physics says
+    metered.</td></tr>
+  <tr><td><b>Idle-but-warm models</b></td>
+    <td>Model residency (already sensed by Δ2's <span class="mono">model_residency</span>) has real economic
+    weight unused today: a warm-model match is near-free, a cold one pays load time + thermal ramp + possible
+    eviction. Δ4's candidate scoring should prefer warm-model matches but currently doesn't.</td></tr>
+</table>
+
+<h2>Migration impact</h2>
+<div class="law">
+  <h3>Free now, expensive later.</h3>
+  <p>Nothing built yet — this is the cheapest possible time to make the correction. If a static
+  <span class="mono">cost_class</span> had shipped and Δ3/Δ4 were built against it, unwinding it after mission
+  history was already projected against the wrong shape would be a second schema migration on a contract S7
+  (capability-directed dispatch) already depends on.</p>
+</div>
+
+<h2>Unresolved questions</h2>
+<ol class="q">
+  <li><b>Attention as a third economy?</b> Is Derek's own wait-time meant to be modeled explicitly, or
+  deliberately out of scope for now?</li>
+  <li><b>Credit splitting.</b> When a finding requires both a metered and a sunk leg (planner ensemble
+  comparisons), how is knowledge-per-hour credited — split, duplicated, or attributed to neither
+  individually?</li>
+  <li><b>Leased resources.</b> Farm VMs / cc-farmer tunnel are neither owned nor pay-per-call — what does
+  <span class="mono">resource.ownership: leased</span> default to economically, and should that be observed
+  rather than assumed?</li>
+  <li><b>Δ4 preconditions.</b> Does idle-drain need a live price/battery feed before it's safe to enable, or is
+  a static "quiet hours" window an acceptable v1?</li>
+  <li><b>Attendance threshold.</b> Who/what authors "unattended" — idle timeout, explicit session-end event, or
+  both? Wrong either way: false-idle burns electricity, missed-idle wastes real wind-tunnel time.</li>
+  <li><b>Residency-aware scoring.</b> Does model_residency fold into Δ3/Δ4 scoring now, or become its own
+  later delta?</li>
+</ol>
+
+<footer>
+  Companion to TWO-ECONOMIES-WIND-TUNNEL.html and CAPABILITY-ROADMAP.html · Economics Architect review ·
+  Δ1 correction confirmed by Derek 2026-07-02 · Δ2–Δ5 untouched, still draft-ready on his cue.
+</footer>
+
+</div>
+</body>
+</html>

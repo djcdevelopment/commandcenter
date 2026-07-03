@@ -1,0 +1,16 @@
+{
+  "active": true,
+  "reason": "Initial override for corpus regression protection",
+  "author": "system",
+  "scope": [
+    "findings.json",
+    "associations.json",
+    "capabilities.json",
+    "coverage.json",
+    "capacity_estimates.json",
+    "prediction_accuracy.json",
+    "experiment_candidates.json",
+    "experiment_results.json"
+  ],
+  "created": "2026-07-02T06:55:00Z"
+}

@@ -1,5 +1,5 @@
 {
-  "node": "zen-deepseek-1",
+  "node": "cc-builder-4",
   "host": "172.30.10.170",
   "access": "ssh -i ~/.ssh/id_ed25519 claude@172.30.10.170",
   "roles": ["worker", "exploratory-perspective"],
@@ -24,6 +24,7 @@
   },
   "dispatch_pool": "exploratory-perspective",
   "notes": [
+    "RENAMED 2026-07-03: was zen-deepseek-1, renamed to cc-builder-4 (VM + fleet.json entry + this manifest) — the name is now purely an identifier, not a description; despite the cc-builder-* naming it stays exclude_from_build_pool: true, not a critical-path builder.",
     "PIVOTED 2026-07-03: originally built to run opencode/DeepSeek via the Zen free tier (see git history for the original opencode-zen model_provider block). Zen's free tier started requiring a card on file, so this node was repointed at OMEN's own local Ollama MoE instead — same VM, same worker-mcp-server.py, only runner.json (base_url + model) changed.",
     "conductor_maf.py (the live conductor) has NO concept of dispatch_pool — it's read only by this repo's local test-fixture scheduler (tools/workflow/reference_runner.py). The REAL enforcement is fleet.json's exclude_from_build_pool: true (same mechanism used for claudefarm1): this node never enters the conductor's default load_nodes() selection, and only gets dispatched to via a per-request CCMETA builders allow-list (see docs/conductor-pour-howto.md).",
     "Very slow (~4.2-4.4 tok/s per ollama-moe-findings.md, 22-40s cold load): overnight/second-pass-critic role only, never the interactive/critical-path pool.",

@@ -44,7 +44,25 @@ list only the builders backed by a local model. Check `runner`/`runner_model` in
 So `{"builders": ["cc-builder-2", "am4-worker-1"]}` dispatches to local models only.
 
 **To exclude a builder permanently**, set `"exclude_from_build_pool": true` on its entry in the
-conductor's `fleet.json` (already used for `claudefarm1`).
+conductor's `fleet.json` (already used for `claudefarm1`, and for `cc-builder-4` — see below).
+
+**`dispatch_pool` is NOT real in production — don't rely on it.** `zen-deepseek-node/node.json`'s
+`"dispatch_pool": "exploratory-perspective"` field (and this repo's `CANDIDATE_POOLS`/`schedule()`
+in `tools/workflow/reference_runner.py`) is read only by this repo's local test-fixture scheduler —
+a simulation used for the belief-layer tests, not the live fleet. The live conductor
+(`scripts/conductor_maf.py`'s `load_nodes()`) has no concept of `dispatch_pool` at all; it only
+checks `"worker" in roles and not exclude_from_build_pool`. So the actual, enforced way to register
+a node as "exploratory only, never the default critical-path pool" is:
+- `roles` includes the literal string `"worker"` (a descriptive-only role like `"claude-agent-worker"`
+  doesn't count — `load_nodes()` checks for `"worker"` exactly)
+- `"exclude_from_build_pool": true` — this is what actually keeps it out of every default dispatch
+- opt it into a specific run via the `builders` CCMETA field above
+
+This bit `cc-builder-4` (originally `zen-deepseek-1`, an OMEN-local-MoE overnight critic node,
+2026-07-03): its `node.json` template describes `dispatch_pool` as if it were an enforced concept,
+but registering it required the `exclude_from_build_pool` + `roles: ["worker", ...]` combination
+above to actually keep it off the critical path. Don't add a new `dispatch_pool` value expecting the
+conductor to honor it — it won't.
 
 ## Targeting a different repo than the conductor's default
 

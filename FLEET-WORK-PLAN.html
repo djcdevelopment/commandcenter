@@ -560,10 +560,19 @@ constitution forbids scaffolding beliefs ahead of evidence); the collector (stre
     workflows and must never be listed as recovered evidence; the exact projector CLI invocations are given
     (no docstrings exist); watermark advance is verified, never assumed.</p>
     <div class="plabel">Handoff prompt (prepend the common preamble; requires SSH details handed alongside)</div>
-<pre class="prompt">STREAM A3 — MISSION: today's overwrite regenerated the derived store from a corpus missing the two omen
-build workflows, so the first real capability (capability:task_kind=build|backend=ollama, qualified from
-omen-worker-1 + omen-worker-2 evidence: 16384 ctx, 54.6-61.0 tok/s) vanished — capabilities.json now
-reports capability_count 0. Projections are regenerable IF the underlying run events survive anywhere.
+<pre class="prompt">STREAM A3 — MISSION: the 2026-07-02 overwrite regenerated the derived store from a corpus missing the
+two omen build workflows, so the first real capability (capability:task_kind=build|backend=ollama,
+qualified from omen-worker-1 + omen-worker-2 evidence: 16384 ctx, 54.6-61.0 tok/s) vanished —
+capability_count 0. The 2026-07-03 pilot re-projection then also dropped the hand-restored vllm-probe
+and hold-probe beliefs (see POUR-STATUS.md "External Audit"). Projections are regenerable IF the
+underlying run events survive anywhere. You are hunting THREE evidence sets:
+  T1 — the omen build workflows (obs_201/obs_202 lineage: omen-worker-1 + qwen3-coder:30b + ollama and
+       omen-worker-2 + qwen3-coder:14b + ollama, workflow ids containing "omen").
+  T2 — the vLLM probe runs (obs_301/302/303 lineage: claudefarm1 + qwen3-30b-a3b-awq + vllm, 3/3
+       failure_class moe_offload_crash) AND their dispatch DECISION records (dec_assign_301/302, which
+       carry the expected_peak_ram_mb predictions — needed for the prediction_bias finding). This set
+       re-derives the scheduling-safety block currently MISSING from policy.json.
+  T3 — the hold/reference-build run (obs_401 lineage: builder-2 + claude-opus-4.8 + local).
 Find them, report, and only re-project on approval.
 
 PRECONDITION: SSH access details for cc-conductor (fleet conductor VM, repo at ~/work/commandcenter) and
@@ -571,21 +580,26 @@ any builder-node archive paths must be provided WITH this prompt. If they are no
 requesting them and STOP — do not attempt to discover the conductor yourself.
 
 ASSUMPTIONS (verify in Phase 0):
-- {REPO_ROOT}/runs/ contains only omen-5070-hwbaseline-2026-07-02.
-- knowledge/capabilities.json: capability_count 0, evidence_watermark 2026-07-02T06:55:00Z.
-- CRITICAL: fixtures/workflow/runs/run_omen_001 and run_omen_002 are SYNTHETIC test fixtures that
-  deliberately mimic the omen debut workflows (builder ids omen-worker-1/2, workflow_id wf_omen_debut).
-  They are NOT the missing evidence, must NEVER be listed as candidates in your report, and must NEVER be
-  used as projection sources for recovery.
-- Expected pre-existing oddity, not a stop condition: knowledge/findings.json says observation_count 16
-  while associations/coverage say 10 — different projectors were last run against different source sets.
-  Note it in your report; do not try to fix it in this stream.
+- {REPO_ROOT}/runs/ contains omen-5070-hwbaseline-2026-07-02 plus pour-* run directories (the pour's own
+  evidence). None of these contain the T1/T2/T3 target events.
+- knowledge/capabilities.json: capability_count 0. knowledge/policy.json has NO block rule for the vllm
+  combo (that absence is what T2 fixes).
+- CRITICAL: fixtures/workflow/runs/ contains SYNTHETIC test fixtures that deliberately mimic the target
+  workflows — run_omen_001/002 (mimic T1) and run_vllm_001-003 + run_hold_001 (mimic T2/T3). They are
+  NOT the missing evidence, must NEVER be listed as candidates in your report, and must NEVER be used as
+  projection sources for recovery.
+- Precedent that raises the odds: the pour proved conductor-side checkpoints and result.json survive and
+  are materializable into capacity observations (see runs/pour-b2/conductor/). The D20-era vllm probes
+  and the omen debut dispatches may survive in the same conductor structures.
 
 TASK (PHASE 1 — REPORT ONLY):
-1. On cc-conductor and reachable node archives, search for run directories / events.jsonl / observation
-   artifacts from the REAL omen build dispatches: grep for omen-worker-1, omen-worker-2, backend ollama,
-   workflow ids containing "omen" — excluding anything that is a clone of this repo's fixtures. Also
-   check conductor-side logs and checkpoint directories that may embed observation payloads.
+1. On cc-conductor and reachable node archives, search run directories / events.jsonl / observation
+   artifacts / checkpoint payloads for ALL THREE target sets: grep for omen-worker-1, omen-worker-2,
+   backend ollama, workflow ids containing "omen" (T1); claudefarm1, qwen3-30b-a3b-awq, vllm,
+   moe_offload_crash, dec_assign_301/dec_assign_302, expected_peak_ram_mb (T2); builder-2,
+   claude-opus-4.8, reference-build, hold (T3) — excluding anything that is a clone of this repo's
+   fixtures. Also check conductor-side logs and checkpoint directories that may embed observation
+   payloads.
 2. Write EVIDENCE-HUNT-A3.md at {REPO_ROOT}: every candidate found — path, host, timestamps, event
    counts, which workflow it appears to be, confidence. If NOTHING is found, say so plainly: that is a
    valid, useful result meaning re-earning (stream H) is the only path.
@@ -605,13 +619,16 @@ CONTINUATION (PHASE 2 — only after Derek approves specific items in EVIDENCE-H
      python -m tools.workflow.project_experiments runs --out knowledge
    Run each with --help first and adapt if flags differ — a mismatch between this list and --help is NOT
    a stop condition; --help is authoritative.
-6. VERIFY, do not assume: the evidence watermark advanced only if recovered observations are newer than
-   2026-07-02T06:55:00Z. If a projector refuses to write (a corpus-regression guard may be installed) or
-   the watermark moved backward, STOP and record it in QUESTIONS-A3.md — never force through a guard.
-7. Confirm knowledge/capabilities.json contains the build|ollama capability; run the suite; commit
-   evidence + ALL regenerated knowledge files together: "restore(A3): recovered omen build workflows,
-   capability re-derived". List every changed knowledge file in BUILD-NOTES-A3.md; a diff in a file you
-   did not expect means stop and ask.
+6. VERIFY, do not assume: recovered evidence should ADVANCE counts (observation_count up) — the A2
+   corpus guard IS installed (tools/workflow/corpus_guard.py, since cdad039) and will refuse a
+   regression. If any projector refuses to write or a watermark moves backward, STOP and record it in
+   QUESTIONS-A3.md — never force through the guard; the override object is Derek's to author.
+7. Confirm what each recovered set restored: T1 → knowledge/capabilities.json contains the build|ollama
+   capability; T2 → knowledge/policy.json regains the block rule for claudefarm1|qwen3-30b-a3b-awq|vllm
+   (and the adjust_prediction rule if the decision records were found); T3 → the builder-2 known_good.
+   Run the suite; commit evidence + ALL regenerated knowledge files together: "restore(A3): recovered
+   evidence, beliefs re-derived". List every changed knowledge file in BUILD-NOTES-A3.md; a diff in a
+   file you did not expect means stop and ask.
 
 OUT OF SCOPE: hand-writing anything into knowledge/*.json — if the evidence can't be found, the
 capability stays gone until real dispatches re-earn it.</pre>

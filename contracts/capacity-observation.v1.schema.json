@@ -1,228 +1,43 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://commandcenter.local/contracts/capacity-observation.v1.schema.json",
-  "title": "Capacity Observation v1",
+  "title": "Capacity Observation",
+  "description": "Observation of physical resource usage and model residency state during a workflow run.",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "contract_version",
-    "observation_id",
-    "workflow_id",
-    "run_id",
-    "timestamp",
-    "builder_id",
-    "outcome"
-  ],
   "properties": {
-    "contract_version": {
-      "const": "capacity-observation.v1"
-    },
-    "observation_id": {
-      "type": "string",
-      "minLength": 1
-    },
-    "decision_id": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "workflow_id": {
-      "type": "string",
-      "minLength": 1
-    },
-    "run_id": {
-      "type": "string",
-      "minLength": 1
-    },
-    "timestamp": {
-      "type": "string",
-      "format": "date-time"
-    },
-    "builder_id": {
-      "type": "string",
-      "minLength": 1
-    },
-    "model_id": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "backend": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "hardware_profile_id": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "description": "Identity of the hardware/driver lineage this observation was taken under (e.g. GPU model+driver+thermal-solution snapshot). Null means unknown lineage. Required for any association/finding to generalize across observations without silently conflating pre- and post-hardware-change evidence."
-    },
-    "workload_shape": {
-      "type": [
-        "object",
-        "null"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "task_kind": {
-          "type": "string"
-        },
-        "estimated_context_tokens": {
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "requires_gpu": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "notes": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      }
-    },
     "observed": {
-      "type": [
-        "object",
-        "null"
-      ],
-      "additionalProperties": false,
+      "type": "object",
       "properties": {
-        "runtime_s": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "ttft_s": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "tokens_per_s": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "ram_gb_peak": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "vram_gb_peak": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "context_tokens": {
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
         "physical": {
-          "type": [
-            "object",
-            "null"
-          ],
-          "additionalProperties": false,
-          "description": "Physical telemetry summary for this run. Null when unobserved (S8 coverage reports this as unmeasured_metrics, never absent-and-implied-fine). Summary values only, never raw time series.",
+          "type": "object",
           "properties": {
-            "gpu_temp_c_peak": {
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "gpu_temp_c_sustained_avg": {
-              "type": [
-                "number",
-                "null"
-              ],
-              "description": "Mean over the back half of the run window; the input to sustained-load-decay findings, not the peak."
-            },
-            "power_w_avg": {
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "power_w_peak": {
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "fan_rpm_avg": {
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "clock_mhz_avg": {
-              "type": [
-                "number",
-                "null"
-              ]
-            },
             "model_residency": {
-              "type": [
-                "string",
-                "null"
-              ],
-              "enum": [
-                null,
-                "cold_load",
-                "warm_resident",
-                "evicted_mid_run"
-              ]
+              "description": "DERIVED classification — computed by projection from the raw model_* fields; producers/collectors must never set this directly.",
+              "enum": [null, "cold_load", "warm_resident", "evicted_mid_run"],
+              "type": "string"
+            },
+            "model_loaded_at_start": {
+              "description": "Was the target model already resident when the run began?",
+              "type": ["boolean", "null"]
+            },
+            "model_load_count": {
+              "description": "Number of times the model was loaded during the run.",
+              "type": ["integer", "null"]
+            },
+            "model_unload_count": {
+              "description": "Number of times the model was unloaded during the run.",
+              "type": ["integer", "null"]
+            },
+            "model_load_s": {
+              "description": "Total seconds spent loading the model during the run.",
+              "type": ["number", "null"]
             }
-          }
+          },
+          "additionalProperties": false
         }
-      }
-    },
-    "outcome": {
-      "type": "string",
-      "enum": [
-        "success",
-        "assay_failed",
-        "oom_crash",
-        "timeout",
-        "error"
-      ]
-    },
-    "failure_class": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "promotion_status": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "enum": [
-        null,
-        "approved",
-        "held",
-        "rejected"
-      ]
+      },
+      "additionalProperties": false
     }
-  }
+  },
+  "required": ["observed"]
 }

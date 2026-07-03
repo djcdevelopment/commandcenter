@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import date, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -87,7 +87,7 @@ def run_checks(
     Prints a table to `out`.
     """
     if today is None:
-        today = date.today()
+        today = datetime.now(timezone.utc).date()
 
     claims = _load_json(claims_path)
     waivers_list = _load_json(waivers_path) if waivers_path.exists() else []

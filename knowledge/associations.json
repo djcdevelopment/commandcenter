@@ -1,8 +1,8 @@
 {
   "contract_version": "associations.v1",
-  "observation_count": 13,
+  "observation_count": 15,
   "unresolved_refs": 0,
-  "evidence_watermark": "2026-07-03T04:09:32.603190+00:00",
+  "evidence_watermark": "2026-07-03T05:55:23.332966+00:00",
   "association_count": 0,
   "gated_bucket_count": 13,
   "associations": [],
@@ -79,12 +79,13 @@
       "invariant": {
         "model_id": "vllama-planner"
       },
-      "samples": 2,
+      "samples": 4,
       "workflows": [
+        "wf-pour-a1-r7",
         "wf-pour-b2"
       ],
       "reasons": [
-        "all 2 sample(s) come from one workflow (wf-pour-b2); no generalization from one workflow"
+        "outcomes are mixed; contested evidence stays at the findings layer"
       ]
     },
     {
@@ -179,12 +180,13 @@
         "task_kind": "repo-build",
         "backend": "openai"
       },
-      "samples": 2,
+      "samples": 4,
       "workflows": [
+        "wf-pour-a1-r7",
         "wf-pour-b2"
       ],
       "reasons": [
-        "all 2 sample(s) come from one workflow (wf-pour-b2); no generalization from one workflow"
+        "outcomes are mixed; contested evidence stays at the findings layer"
       ]
     }
   ]

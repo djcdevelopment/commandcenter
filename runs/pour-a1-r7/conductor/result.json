@@ -1,0 +1,120 @@
+{
+  "plan_id": "pour-a1-r7",
+  "trace_id": "16f6b84b9ea0bbd5ffdd2914c726f2aa",
+  "routing": {
+    "error": "route-disabled-temporarily"
+  },
+  "builds": {
+    "cc-builder-2": {
+      "ok": true,
+      "branch": "ccfarm/pour-a1-r7/cc-builder-2/lap1",
+      "push_ok": true,
+      "runner": "openai",
+      "runner_model": "vllama-planner",
+      "committed": true,
+      "pushed": true,
+      "commits_ahead": 1,
+      "empty_build": false,
+      "done_signal": true,
+      "agent_rc": 0,
+      "agent_timed_out": false,
+      "status": "ok",
+      "reason": "ok"
+    },
+    "am4-worker-1": {
+      "ok": true,
+      "branch": "ccfarm/pour-a1-r7/am4-worker-1/lap1",
+      "push_ok": true,
+      "runner": "openai",
+      "runner_model": "vllama-planner",
+      "committed": true,
+      "pushed": true,
+      "commits_ahead": 1,
+      "empty_build": false,
+      "done_signal": true,
+      "agent_rc": 0,
+      "agent_timed_out": false,
+      "status": "ok",
+      "reason": "ok"
+    }
+  },
+  "assay": {
+    "plan_id": "pour-a1-r7",
+    "lap": 1,
+    "grader": "claudefarm1",
+    "winner": "cc-builder-2",
+    "scoreboard": [
+      {
+        "worker": "cc-builder-2",
+        "branch": "ccfarm/pour-a1-r7/cc-builder-2/lap1",
+        "score": 70,
+        "grade": "B",
+        "risk_score": 0.3,
+        "assay_mode": "behavior",
+        "static_score": 100,
+        "behavior_score": 70,
+        "tests_found": 130,
+        "tests_passed": 130,
+        "tests_failed": 0,
+        "imports_ok": 0,
+        "imports_failed": 0,
+        "assay_summary": "pytest: 130/130 passed; imports: 0/0 ok; score=70; isolation=docker",
+        "file_count": 163,
+        "code_files": 139,
+        "has_retro": true,
+        "has_result": true,
+        "has_tests": true,
+        "retro_excerpt": "# Retro (pour-a1-r7-cc-builder-2)\n\nBuilt by agent_openai on model vllama-planner (completion: finished, 13 steps, 213s).\nCompleted all tasks for stream A1: verified .gitignore, committed untracked files, created push_backup.py with full functionality including dry-run and error handling, wrote comprehensive ops-backup.md documentation, and submitted decision-needed request. All tests pass (130 tests). Build notes summarize changes, verification steps, and next steps. The system is now ready for "
+      },
+      {
+        "worker": "am4-worker-1",
+        "branch": "ccfarm/pour-a1-r7/am4-worker-1/lap1",
+        "score": 70,
+        "grade": "B",
+        "risk_score": 0.3,
+        "assay_mode": "behavior",
+        "static_score": 100,
+        "behavior_score": 70,
+        "tests_found": 130,
+        "tests_passed": 130,
+        "tests_failed": 0,
+        "imports_ok": 0,
+        "imports_failed": 0,
+        "assay_summary": "pytest: 130/130 passed; imports: 0/0 ok; score=70; isolation=docker",
+        "file_count": 163,
+        "code_files": 139,
+        "has_retro": true,
+        "has_result": true,
+        "has_tests": true,
+        "retro_excerpt": "# Retro (pour-a1-r7-am4-worker-1)\n\nBuilt by agent_openai on model vllama-planner (completion: finished, 9 steps, 187s).\nAll tasks for stream A1 are complete: tools/ops/push_backup.py implemented with dry-run support, error handling, and deterministic behavior; docs/ops-backup.md created with full configuration and restore instructions; DECISION-NEEDED-A1.md written requesting Derek's remote URL decision; and baseline test suite (130 tests) remains green. The build is ready for Derek's remote con"
+      }
+    ],
+    "tiebreak": {
+      "tied": [
+        "cc-builder-2",
+        "am4-worker-1"
+      ],
+      "method": "am4-critic-debiased",
+      "winner": "cc-builder-2",
+      "why": "better test coverage and clarity",
+      "critic_model": "vllama-critic",
+      "bias_detected": false,
+      "fallback": null
+    }
+  },
+  "winner": "cc-builder-2",
+  "questions": [],
+  "promotion": {
+    "promoted": false,
+    "reason": "promotion-disabled"
+  },
+  "target": {
+    "repo_path": "/home/claude/work/commandcenter-ontology/farmer-repo",
+    "promote": false,
+    "landing_branch": "stream/A1",
+    "builders": [
+      "cc-builder-2",
+      "am4-worker-1"
+    ]
+  }
+}

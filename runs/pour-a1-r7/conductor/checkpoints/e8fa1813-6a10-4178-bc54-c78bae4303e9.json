@@ -1,0 +1,21 @@
+{
+  "workflow_name": "pour-a1-r7",
+  "graph_signature_hash": "699e6b70ea16054c35239c1c20b6033285ffdfdc0af0e55482f81d335d2ca69e",
+  "checkpoint_id": "e8fa1813-6a10-4178-bc54-c78bae4303e9",
+  "previous_checkpoint_id": "67c476f5-2f95-401a-a4a5-1c455ede6f5f",
+  "timestamp": "2026-07-03T05:55:23.332966+00:00",
+  "messages": {},
+  "state": {
+    "_workflow_run_kwargs": {},
+    "_executor_state": {
+      "route": {},
+      "build_cc-builder-2": {},
+      "build_am4-worker-1": {},
+      "finalize": {}
+    }
+  },
+  "pending_request_info_events": {},
+  "iteration_count": 2,
+  "metadata": {},
+  "version": "1.0"
+}

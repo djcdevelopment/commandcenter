@@ -1,6 +1,6 @@
 {
   "contract_version": "findings.v1",
-  "observation_count": 13,
+  "observation_count": 15,
   "decision_count": 0,
   "unresolved_refs": 0,
   "finding_counts": {
@@ -442,7 +442,7 @@
       "contract_version": "finding.v1",
       "finding_id": "uncertain:am4-worker-1|vllama-planner|openai",
       "finding_type": "uncertain",
-      "statement": "am4-worker-1 + vllama-planner + openai has mixed or insufficient evidence: 0/1 success (rate 0.0)",
+      "statement": "am4-worker-1 + vllama-planner + openai has mixed or insufficient evidence: 1/2 success (rate 0.5)",
       "subject": {
         "builder_id": "am4-worker-1",
         "model_id": "vllama-planner",
@@ -450,14 +450,15 @@
         "task_kind": null,
         "metric": null
       },
-      "confidence": "low",
-      "confidence_score": 0.33,
+      "confidence": "medium",
+      "confidence_score": 0.5,
       "evidence": {
-        "samples": 1,
-        "successes": 0,
+        "samples": 2,
+        "successes": 1,
         "failures": 1,
-        "summary": "0/1 success, 1 failures",
+        "summary": "1/2 success, 1 failures",
         "observation_ids": [
+          "obs_pour_a1_r7_am4_worker_1",
           "obs_pour_b2_am4_worker_1"
         ],
         "decision_ids": null,
@@ -466,7 +467,7 @@
       },
       "recommendation": "schedule only low-stakes work; gather more evidence",
       "first_observed": "2026-07-03T04:09:32.603190+00:00",
-      "last_observed": "2026-07-03T04:09:32.603190+00:00",
+      "last_observed": "2026-07-03T05:55:23.332966+00:00",
       "derived_from": [
         "capacity-estimates.v1"
       ]
@@ -475,7 +476,7 @@
       "contract_version": "finding.v1",
       "finding_id": "uncertain:cc-builder-2|vllama-planner|openai",
       "finding_type": "uncertain",
-      "statement": "cc-builder-2 + vllama-planner + openai has mixed or insufficient evidence: 0/1 success (rate 0.0)",
+      "statement": "cc-builder-2 + vllama-planner + openai has mixed or insufficient evidence: 1/2 success (rate 0.5)",
       "subject": {
         "builder_id": "cc-builder-2",
         "model_id": "vllama-planner",
@@ -483,14 +484,15 @@
         "task_kind": null,
         "metric": null
       },
-      "confidence": "low",
-      "confidence_score": 0.33,
+      "confidence": "medium",
+      "confidence_score": 0.5,
       "evidence": {
-        "samples": 1,
-        "successes": 0,
+        "samples": 2,
+        "successes": 1,
         "failures": 1,
-        "summary": "0/1 success, 1 failures",
+        "summary": "1/2 success, 1 failures",
         "observation_ids": [
+          "obs_pour_a1_r7_cc_builder_2",
           "obs_pour_b2_cc_builder_2"
         ],
         "decision_ids": null,
@@ -499,7 +501,7 @@
       },
       "recommendation": "schedule only low-stakes work; gather more evidence",
       "first_observed": "2026-07-03T04:09:32.603190+00:00",
-      "last_observed": "2026-07-03T04:09:32.603190+00:00",
+      "last_observed": "2026-07-03T05:55:23.332966+00:00",
       "derived_from": [
         "capacity-estimates.v1"
       ]

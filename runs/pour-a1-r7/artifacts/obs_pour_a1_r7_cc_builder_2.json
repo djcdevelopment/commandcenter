@@ -1,0 +1,30 @@
+{
+  "contract_version": "capacity-observation.v1",
+  "observation_id": "obs_pour_a1_r7_cc_builder_2",
+  "decision_id": null,
+  "workflow_id": "wf-pour-a1-r7",
+  "run_id": "pour-a1-r7",
+  "timestamp": "2026-07-03T05:55:23.332966+00:00",
+  "builder_id": "cc-builder-2",
+  "model_id": "vllama-planner",
+  "backend": "openai",
+  "hardware_profile_id": null,
+  "workload_shape": {
+    "task_kind": "repo-build",
+    "estimated_context_tokens": null,
+    "requires_gpu": null,
+    "notes": "A1 remainder conductor assay result"
+  },
+  "observed": {
+    "runtime_s": null,
+    "ttft_s": null,
+    "tokens_per_s": null,
+    "ram_gb_peak": null,
+    "vram_gb_peak": null,
+    "context_tokens": null,
+    "physical": null
+  },
+  "outcome": "success",
+  "failure_class": null,
+  "promotion_status": null
+}

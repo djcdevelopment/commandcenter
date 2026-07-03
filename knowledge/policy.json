@@ -1,7 +1,7 @@
 {
   "contract_version": "policies.v1",
   "source_findings": 15,
-  "evidence_watermark": "2026-07-03T04:09:32.603190+00:00",
+  "evidence_watermark": "2026-07-03T05:55:23.332966+00:00",
   "rule_counts": {
     "exploratory_only": 2
   },
@@ -10,7 +10,7 @@
       "contract_version": "policy.v1",
       "policy_id": "exploratory_only:am4-worker-1|vllama-planner|openai|*|*",
       "effect": "exploratory_only",
-      "statement": "am4-worker-1 + vllama-planner + openai unproven (0/1 success, 1 failures); exploratory work only",
+      "statement": "am4-worker-1 + vllama-planner + openai unproven (1/2 success, 1 failures); exploratory work only",
       "subject": {
         "builder_id": "am4-worker-1",
         "model_id": "vllama-planner",
@@ -20,8 +20,8 @@
       },
       "derived_from_finding": "uncertain:am4-worker-1|vllama-planner|openai",
       "finding_type": "uncertain",
-      "confidence": "low",
-      "evidence_summary": "0/1 success, 1 failures",
+      "confidence": "medium",
+      "evidence_summary": "1/2 success, 1 failures",
       "override": {
         "flag": "experiment_flag",
         "semantics": "dispatch normally as an explicit experiment"
@@ -29,13 +29,13 @@
       "adjustment": null,
       "status": "active",
       "suspended_reason": null,
-      "last_observed": "2026-07-03T04:09:32.603190+00:00"
+      "last_observed": "2026-07-03T05:55:23.332966+00:00"
     },
     {
       "contract_version": "policy.v1",
       "policy_id": "exploratory_only:cc-builder-2|vllama-planner|openai|*|*",
       "effect": "exploratory_only",
-      "statement": "cc-builder-2 + vllama-planner + openai unproven (0/1 success, 1 failures); exploratory work only",
+      "statement": "cc-builder-2 + vllama-planner + openai unproven (1/2 success, 1 failures); exploratory work only",
       "subject": {
         "builder_id": "cc-builder-2",
         "model_id": "vllama-planner",
@@ -45,8 +45,8 @@
       },
       "derived_from_finding": "uncertain:cc-builder-2|vllama-planner|openai",
       "finding_type": "uncertain",
-      "confidence": "low",
-      "evidence_summary": "0/1 success, 1 failures",
+      "confidence": "medium",
+      "evidence_summary": "1/2 success, 1 failures",
       "override": {
         "flag": "experiment_flag",
         "semantics": "dispatch normally as an explicit experiment"
@@ -54,7 +54,7 @@
       "adjustment": null,
       "status": "active",
       "suspended_reason": null,
-      "last_observed": "2026-07-03T04:09:32.603190+00:00"
+      "last_observed": "2026-07-03T05:55:23.332966+00:00"
     }
   ]
 }

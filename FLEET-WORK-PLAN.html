@@ -208,9 +208,9 @@ ORIENTATION (verify each exists; directories may contain MORE than listed — th
   evidence_watermark 2026-07-02T06:55:00Z), NOT from fixtures/.
 - tests/workflow/ — the whole suite (has __init__.py). Baseline: python -m unittest discover -s
   tests/workflow  → expect "Ran 110 tests ... OK" (as of plan authoring; record your actual count).
-  INTERPRETER: use `python` on Windows and `python3` on Linux VMs (Ubuntu has no bare `python` unless
-  python-is-python3 is installed) — any CPython ≥ 3.10 works; the suite is stdlib-only. Wherever this
-  plan writes `python`, substitute your platform's interpreter.
+  INTERPRETER: use `python` (fleet ruling, 2026-07-02). If `python` is not found on your platform,
+  fall back to `python3` and record which you used in BUILD-NOTES. Any CPython ≥ 3.10 works; the suite
+  is stdlib-only.
   unittest prints to STDERR — on Windows PowerShell do not redirect with 2>&1; just read the final lines.
   New tests go in tests/workflow/ named test_*.py or the discover command will never run them.
 - Background docs at repo root (read only what your stream cites): CAPABILITY-ROADMAP.html (the

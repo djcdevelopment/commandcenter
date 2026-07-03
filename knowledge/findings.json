@@ -1,14 +1,50 @@
 {
   "contract_version": "findings.v1",
-  "observation_count": 15,
+  "observation_count": 19,
   "decision_count": 0,
   "unresolved_refs": 0,
   "finding_counts": {
-    "known_good": 11,
+    "known_bad": 1,
+    "known_good": 12,
     "recommendation": 2,
     "uncertain": 2
   },
   "findings": [
+    {
+      "contract_version": "finding.v1",
+      "finding_id": "known_bad:omen-wsl|qwen3-30b-a3b-awq|vllm",
+      "finding_type": "known_bad",
+      "statement": "omen-wsl + qwen3-30b-a3b-awq + vllm fails: 3/3 failed runs, zero successes (dominant: moe_offload_crash)",
+      "subject": {
+        "builder_id": "omen-wsl",
+        "model_id": "qwen3-30b-a3b-awq",
+        "backend": "vllm",
+        "task_kind": null,
+        "metric": null
+      },
+      "confidence": "high",
+      "confidence_score": 0.6,
+      "evidence": {
+        "samples": 3,
+        "successes": 0,
+        "failures": 3,
+        "summary": "3/3 moe_offload_crash",
+        "observation_ids": [
+          "obs_vllm_crash_001",
+          "obs_vllm_crash_002",
+          "obs_vllm_crash_003"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": "do not schedule without explicit experiment flag",
+      "first_observed": "2026-07-02T09:34:50.860286Z",
+      "last_observed": "2026-07-02T10:31:56.771381Z",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
     {
       "contract_version": "finding.v1",
       "finding_id": "known_good:cc-builder-1|sonnet|claude",
@@ -374,6 +410,39 @@
     },
     {
       "contract_version": "finding.v1",
+      "finding_id": "known_good:omen-worker-1|qwen3-coder:30b|ollama",
+      "finding_type": "known_good",
+      "statement": "omen-worker-1 + qwen3-coder:30b + ollama works: 1/1 successful runs (success_rate 1.0), mean 54.6 tok/s",
+      "subject": {
+        "builder_id": "omen-worker-1",
+        "model_id": "qwen3-coder:30b",
+        "backend": "ollama",
+        "task_kind": null,
+        "metric": null
+      },
+      "confidence": "low",
+      "confidence_score": 0.33,
+      "evidence": {
+        "samples": 1,
+        "successes": 1,
+        "failures": 0,
+        "summary": "1/1 success",
+        "observation_ids": [
+          "obs_omen_debut_001"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": null,
+      "first_observed": "2026-07-02T10:45:55.071789+00:00",
+      "last_observed": "2026-07-02T10:45:55.071789+00:00",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
       "finding_id": "recommendation:task_kind=capacity-probe",
       "finding_type": "recommendation",
       "statement": "for task_kind capacity-probe, prefer omen-5070 + qwen2.5:14b + ollama-cuda (success rate 1.0 over 1 run(s), 59.88 tok/s)",
@@ -409,11 +478,11 @@
       "contract_version": "finding.v1",
       "finding_id": "recommendation:task_kind=repo-build",
       "finding_type": "recommendation",
-      "statement": "for task_kind repo-build, prefer cc-builder-1 + sonnet + claude (success rate 1.0 over 1 run(s))",
+      "statement": "for task_kind repo-build, prefer omen-worker-1 + qwen3-coder:30b + ollama (success rate 1.0 over 1 run(s), 54.6 tok/s)",
       "subject": {
-        "builder_id": "cc-builder-1",
-        "model_id": "sonnet",
-        "backend": "claude",
+        "builder_id": "omen-worker-1",
+        "model_id": "qwen3-coder:30b",
+        "backend": "ollama",
         "task_kind": "repo-build",
         "metric": null
       },
@@ -423,17 +492,17 @@
         "samples": 1,
         "successes": null,
         "failures": null,
-        "summary": "best of 1 known_good combo(s) observed on task_kind repo-build",
+        "summary": "best of 2 known_good combo(s) observed on task_kind repo-build",
         "observation_ids": [
-          "obs_pour_b2_cc_builder_1"
+          "obs_omen_debut_001"
         ],
         "decision_ids": null,
         "mean_signed_error": null,
         "mean_absolute_error": null
       },
-      "recommendation": "route task_kind repo-build to cc-builder-1 + sonnet + claude",
-      "first_observed": "2026-07-03T04:09:32.603190+00:00",
-      "last_observed": "2026-07-03T04:09:32.603190+00:00",
+      "recommendation": "route task_kind repo-build to omen-worker-1 + qwen3-coder:30b + ollama",
+      "first_observed": "2026-07-02T10:45:55.071789+00:00",
+      "last_observed": "2026-07-02T10:45:55.071789+00:00",
       "derived_from": [
         "capacity-estimates.v1"
       ]

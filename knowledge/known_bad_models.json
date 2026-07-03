@@ -1,4 +1,19 @@
 {
   "contract_version": "known-bad-models.v1",
-  "entries": []
+  "entries": [
+    {
+      "builder_id": "omen-wsl",
+      "model_id": "qwen3-30b-a3b-awq",
+      "backend": "vllm",
+      "failures": 3,
+      "samples": 3,
+      "dominant_failure_class": "moe_offload_crash",
+      "failure_classes": {
+        "moe_offload_crash": 3
+      },
+      "confidence": 0.6,
+      "last_observed": "2026-07-02T10:31:56.771381Z",
+      "reason": "3/3 failed runs, zero successes (dominant: moe_offload_crash)"
+    }
+  ]
 }

@@ -1,12 +1,12 @@
 {
   "contract_version": "coverage.v1",
-  "observation_count": 15,
+  "observation_count": 19,
   "decision_count": 0,
   "unresolved_refs": 0,
   "evidence_watermark": "2026-07-03T05:55:23.332966+00:00",
   "gap_counts": {
-    "single_workflow_evidence": 11,
-    "unmeasured_metrics": 13
+    "single_workflow_evidence": 14,
+    "unmeasured_metrics": 15
   },
   "gaps": [
     {
@@ -35,6 +35,33 @@
       },
       "proposed_experiment_type": "coverage_probe",
       "last_observed": "2026-07-03T04:09:32.603190+00:00"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "single_workflow_evidence:failure_signature:failure_class=moe_offload_crash|backend=vllm",
+      "gap_type": "single_workflow_evidence",
+      "statement": "'failure_class=moe_offload_crash, backend=vllm' has 3 consistent sample(s) but all from wf-vllm-moe-crash-omen-wsl-2026-07-02; a second distinct workflow would let the association engine generalize it",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "vllm",
+        "task_kind": null,
+        "invariant": {
+          "failure_class": "moe_offload_crash",
+          "backend": "vllm"
+        },
+        "missing_metrics": null,
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 3,
+        "workflows": [
+          "wf-vllm-moe-crash-omen-wsl-2026-07-02"
+        ],
+        "summary": "3 sample(s), 1 workflow (need 2)"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-02T10:31:56.771381Z"
     },
     {
       "contract_version": "coverage-gap.v1",
@@ -90,29 +117,29 @@
     },
     {
       "contract_version": "coverage-gap.v1",
-      "gap_id": "single_workflow_evidence:model_portability:model_id=qwen3-coder:30b",
+      "gap_id": "single_workflow_evidence:model_portability:model_id=qwen3-30b-a3b-awq",
       "gap_type": "single_workflow_evidence",
-      "statement": "'model_id=qwen3-coder:30b' has 2 consistent sample(s) but all from wf-omen-5070-hwbaseline-2026-07-02; a second distinct workflow would let the association engine generalize it",
+      "statement": "'model_id=qwen3-30b-a3b-awq' has 3 consistent sample(s) but all from wf-vllm-moe-crash-omen-wsl-2026-07-02; a second distinct workflow would let the association engine generalize it",
       "subject": {
         "builder_id": null,
         "model_id": null,
         "backend": null,
         "task_kind": null,
         "invariant": {
-          "model_id": "qwen3-coder:30b"
+          "model_id": "qwen3-30b-a3b-awq"
         },
         "missing_metrics": null,
         "capability_id": null
       },
       "evidence": {
-        "samples": 2,
+        "samples": 3,
         "workflows": [
-          "wf-omen-5070-hwbaseline-2026-07-02"
+          "wf-vllm-moe-crash-omen-wsl-2026-07-02"
         ],
-        "summary": "2 sample(s), 1 workflow (need 2)"
+        "summary": "3 sample(s), 1 workflow (need 2)"
       },
       "proposed_experiment_type": "coverage_probe",
-      "last_observed": "2026-07-02T06:55:00Z"
+      "last_observed": "2026-07-02T10:31:56.771381Z"
     },
     {
       "contract_version": "coverage-gap.v1",
@@ -277,6 +304,33 @@
     },
     {
       "contract_version": "coverage-gap.v1",
+      "gap_id": "single_workflow_evidence:task_backend:task_kind=engine-start|backend=vllm",
+      "gap_type": "single_workflow_evidence",
+      "statement": "'task_kind=engine-start, backend=vllm' has 3 consistent sample(s) but all from wf-vllm-moe-crash-omen-wsl-2026-07-02; a second distinct workflow would let the association engine generalize it",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "vllm",
+        "task_kind": "engine-start",
+        "invariant": {
+          "task_kind": "engine-start",
+          "backend": "vllm"
+        },
+        "missing_metrics": null,
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 3,
+        "workflows": [
+          "wf-vllm-moe-crash-omen-wsl-2026-07-02"
+        ],
+        "summary": "3 sample(s), 1 workflow (need 2)"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-02T10:31:56.771381Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
       "gap_id": "single_workflow_evidence:task_backend:task_kind=repo-build|backend=claude",
       "gap_type": "single_workflow_evidence",
       "statement": "'task_kind=repo-build, backend=claude' has 1 consistent sample(s) but all from wf-pour-b2; a second distinct workflow would let the association engine generalize it",
@@ -301,6 +355,33 @@
       },
       "proposed_experiment_type": "coverage_probe",
       "last_observed": "2026-07-03T04:09:32.603190+00:00"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "single_workflow_evidence:task_backend:task_kind=repo-build|backend=ollama",
+      "gap_type": "single_workflow_evidence",
+      "statement": "'task_kind=repo-build, backend=ollama' has 1 consistent sample(s) but all from wf-omen-debut-bl-dee707; a second distinct workflow would let the association engine generalize it",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "ollama",
+        "task_kind": "repo-build",
+        "invariant": {
+          "task_kind": "repo-build",
+          "backend": "ollama"
+        },
+        "missing_metrics": null,
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1,
+        "workflows": [
+          "wf-omen-debut-bl-dee707"
+        ],
+        "summary": "1 sample(s), 1 workflow (need 2)"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-02T10:45:55.071789+00:00"
     },
     {
       "contract_version": "coverage-gap.v1",
@@ -630,6 +711,59 @@
       },
       "proposed_experiment_type": "coverage_probe",
       "last_observed": "2026-07-02T06:55:00Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:omen-worker-1|qwen3-coder:30b|ollama",
+      "gap_type": "unmeasured_metrics",
+      "statement": "omen-worker-1 + qwen3-coder:30b + ollama has run 1 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "omen-worker-1",
+        "model_id": "qwen3-coder:30b",
+        "backend": "ollama",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1,
+        "workflows": null,
+        "summary": "3/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-02T10:45:55.071789+00:00"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:omen-wsl|qwen3-30b-a3b-awq|vllm",
+      "gap_type": "unmeasured_metrics",
+      "statement": "omen-wsl + qwen3-30b-a3b-awq + vllm has run 3 time(s) but never reported: ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "omen-wsl",
+        "model_id": "qwen3-30b-a3b-awq",
+        "backend": "vllm",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "tokens_per_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 3,
+        "workflows": null,
+        "summary": "4/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-02T10:31:56.771381Z"
     }
   ]
 }

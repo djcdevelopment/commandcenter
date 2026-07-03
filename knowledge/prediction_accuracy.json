@@ -1,8 +1,8 @@
 {
   "contract_version": "prediction-accuracy.v1",
   "decision_count": 0,
-  "observation_count": 15,
-  "comparison_count": 15,
+  "observation_count": 19,
+  "comparison_count": 19,
   "unresolved_decision_refs": 0,
   "comparisons": [
     {
@@ -327,6 +327,134 @@
     },
     {
       "decision_id": null,
+      "observation_id": "obs_vllm_crash_001",
+      "workflow_id": "wf-vllm-moe-crash-omen-wsl-2026-07-02",
+      "run_id": "vllm-moe-crash-omen-wsl-2026-07-02",
+      "builder_id": "omen-wsl",
+      "model_id": "qwen3-30b-a3b-awq",
+      "backend": "vllm",
+      "workload_shape_key": "engine-start|unknown|True",
+      "timestamp": "2026-07-02T09:34:50.860286Z",
+      "confidence": null,
+      "prediction_source": null,
+      "prediction_present": false,
+      "metrics": {
+        "expected_ttft_ms": null,
+        "expected_generation_tokens_per_second": null,
+        "expected_peak_ram_mb": null,
+        "expected_peak_vram_mb": null
+      },
+      "outcomes": {
+        "assay": {
+          "predicted": null,
+          "observed": "failed",
+          "matched": null
+        },
+        "promotion": {
+          "predicted": null,
+          "observed": null,
+          "matched": null
+        }
+      }
+    },
+    {
+      "decision_id": null,
+      "observation_id": "obs_vllm_crash_002",
+      "workflow_id": "wf-vllm-moe-crash-omen-wsl-2026-07-02",
+      "run_id": "vllm-moe-crash-omen-wsl-2026-07-02",
+      "builder_id": "omen-wsl",
+      "model_id": "qwen3-30b-a3b-awq",
+      "backend": "vllm",
+      "workload_shape_key": "engine-start|unknown|True",
+      "timestamp": "2026-07-02T10:03:41.870501Z",
+      "confidence": null,
+      "prediction_source": null,
+      "prediction_present": false,
+      "metrics": {
+        "expected_ttft_ms": null,
+        "expected_generation_tokens_per_second": null,
+        "expected_peak_ram_mb": null,
+        "expected_peak_vram_mb": null
+      },
+      "outcomes": {
+        "assay": {
+          "predicted": null,
+          "observed": "failed",
+          "matched": null
+        },
+        "promotion": {
+          "predicted": null,
+          "observed": null,
+          "matched": null
+        }
+      }
+    },
+    {
+      "decision_id": null,
+      "observation_id": "obs_vllm_crash_003",
+      "workflow_id": "wf-vllm-moe-crash-omen-wsl-2026-07-02",
+      "run_id": "vllm-moe-crash-omen-wsl-2026-07-02",
+      "builder_id": "omen-wsl",
+      "model_id": "qwen3-30b-a3b-awq",
+      "backend": "vllm",
+      "workload_shape_key": "engine-start|unknown|True",
+      "timestamp": "2026-07-02T10:31:56.771381Z",
+      "confidence": null,
+      "prediction_source": null,
+      "prediction_present": false,
+      "metrics": {
+        "expected_ttft_ms": null,
+        "expected_generation_tokens_per_second": null,
+        "expected_peak_ram_mb": null,
+        "expected_peak_vram_mb": null
+      },
+      "outcomes": {
+        "assay": {
+          "predicted": null,
+          "observed": "failed",
+          "matched": null
+        },
+        "promotion": {
+          "predicted": null,
+          "observed": null,
+          "matched": null
+        }
+      }
+    },
+    {
+      "decision_id": null,
+      "observation_id": "obs_omen_debut_001",
+      "workflow_id": "wf-omen-debut-bl-dee707",
+      "run_id": "omen-debut-bl-dee707",
+      "builder_id": "omen-worker-1",
+      "model_id": "qwen3-coder:30b",
+      "backend": "ollama",
+      "workload_shape_key": "repo-build|unknown|unknown",
+      "timestamp": "2026-07-02T10:45:55.071789+00:00",
+      "confidence": null,
+      "prediction_source": null,
+      "prediction_present": false,
+      "metrics": {
+        "expected_ttft_ms": null,
+        "expected_generation_tokens_per_second": null,
+        "expected_peak_ram_mb": null,
+        "expected_peak_vram_mb": null
+      },
+      "outcomes": {
+        "assay": {
+          "predicted": null,
+          "observed": "passed",
+          "matched": null
+        },
+        "promotion": {
+          "predicted": null,
+          "observed": "approved",
+          "matched": null
+        }
+      }
+    },
+    {
+      "decision_id": null,
       "observation_id": "obs_pour_b2_am4_worker_1",
       "workflow_id": "wf-pour-b2",
       "run_id": "pour-b2",
@@ -489,19 +617,19 @@
   "summary": {
     "overall": {
       "overall": {
-        "sample_count": 15,
+        "sample_count": 19,
         "last_updated": "2026-07-03T05:55:23.332966+00:00",
         "metrics": {},
         "outcomes": {
           "assay": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 15
+            "unknown": 19
           },
           "promotion": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 15
+            "unknown": 19
           }
         },
         "prediction_confidence": null
@@ -522,6 +650,42 @@
             "matched": 0,
             "mismatched": 0,
             "unknown": 10
+          }
+        },
+        "prediction_confidence": null
+      },
+      "omen-wsl": {
+        "sample_count": 3,
+        "last_updated": "2026-07-02T10:31:56.771381Z",
+        "metrics": {},
+        "outcomes": {
+          "assay": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 3
+          },
+          "promotion": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 3
+          }
+        },
+        "prediction_confidence": null
+      },
+      "omen-worker-1": {
+        "sample_count": 1,
+        "last_updated": "2026-07-02T10:45:55.071789+00:00",
+        "metrics": {},
+        "outcomes": {
+          "assay": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 1
+          },
+          "promotion": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 1
           }
         },
         "prediction_confidence": null
@@ -619,19 +783,37 @@
         "prediction_confidence": null
       },
       "qwen3-coder:30b": {
-        "sample_count": 2,
-        "last_updated": "2026-07-02T06:55:00Z",
+        "sample_count": 3,
+        "last_updated": "2026-07-02T10:45:55.071789+00:00",
         "metrics": {},
         "outcomes": {
           "assay": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 2
+            "unknown": 3
           },
           "promotion": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 2
+            "unknown": 3
+          }
+        },
+        "prediction_confidence": null
+      },
+      "qwen3-30b-a3b-awq": {
+        "sample_count": 3,
+        "last_updated": "2026-07-02T10:31:56.771381Z",
+        "metrics": {},
+        "outcomes": {
+          "assay": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 3
+          },
+          "promotion": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 3
           }
         },
         "prediction_confidence": null
@@ -692,20 +874,38 @@
         },
         "prediction_confidence": null
       },
+      "engine-start|unknown|True": {
+        "sample_count": 3,
+        "last_updated": "2026-07-02T10:31:56.771381Z",
+        "metrics": {},
+        "outcomes": {
+          "assay": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 3
+          },
+          "promotion": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 3
+          }
+        },
+        "prediction_confidence": null
+      },
       "repo-build|unknown|unknown": {
-        "sample_count": 5,
+        "sample_count": 6,
         "last_updated": "2026-07-03T05:55:23.332966+00:00",
         "metrics": {},
         "outcomes": {
           "assay": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 5
+            "unknown": 6
           },
           "promotion": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 5
+            "unknown": 6
           }
         },
         "prediction_confidence": null

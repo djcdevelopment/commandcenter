@@ -1,0 +1,24 @@
+{
+  "workflow_name": "bl-20260702-dee707",
+  "graph_signature_hash": "d86ba475f5e15afa0d79d7f7331de8d5cd6f9d368a80bad8004af9d0783e22b5",
+  "checkpoint_id": "80ecd061-8331-4beb-a78d-00854791f4ba",
+  "previous_checkpoint_id": "fa1f8ff2-f189-44e9-8330-3a2d2cbb9552",
+  "timestamp": "2026-07-02T10:45:55.071789+00:00",
+  "messages": {},
+  "state": {
+    "_workflow_run_kwargs": {},
+    "_executor_state": {
+      "route": {},
+      "build_cc-builder-1": {},
+      "build_cc-builder-2": {},
+      "build_cc-builder-3": {},
+      "build_am4-worker-1": {},
+      "build_omen-worker-1": {},
+      "finalize": {}
+    }
+  },
+  "pending_request_info_events": {},
+  "iteration_count": 2,
+  "metadata": {},
+  "version": "1.0"
+}

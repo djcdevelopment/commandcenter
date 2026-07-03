@@ -1,0 +1,30 @@
+{
+  "contract_version": "capacity-observation.v1",
+  "observation_id": "obs_omen_debut_001",
+  "decision_id": null,
+  "workflow_id": "wf-omen-debut-bl-dee707",
+  "run_id": "omen-debut-bl-dee707",
+  "timestamp": "2026-07-02T10:45:55.071789+00:00",
+  "builder_id": "omen-worker-1",
+  "model_id": "qwen3-coder:30b",
+  "backend": "ollama",
+  "hardware_profile_id": "nvidia-geforce-rtx-5070|13.1",
+  "workload_shape": {
+    "task_kind": "repo-build",
+    "estimated_context_tokens": null,
+    "requires_gpu": null,
+    "notes": "omen-worker-1 debut: conductor run bl-20260702-dee707, 5-way competing build; won debiased tiebreak vs cc-builder-1 (am4-critic-debiased, 'best test coverage'), promoted ff-only to main at 86c020d5. tokens_per_s 54.6 is the client-side measured figure recorded in fleet.json (D19 note); the same model measured 57.40 tok/s decode locally on OMEN CUDA (ollama-backend-lab hardware-baseline-omen-5070-2026-07-02.md) - local physical basis, not the observed value here."
+  },
+  "observed": {
+    "runtime_s": 470.035,
+    "ttft_s": null,
+    "tokens_per_s": 54.6,
+    "ram_gb_peak": null,
+    "vram_gb_peak": null,
+    "context_tokens": null,
+    "physical": null
+  },
+  "outcome": "success",
+  "failure_class": null,
+  "promotion_status": "approved"
+}

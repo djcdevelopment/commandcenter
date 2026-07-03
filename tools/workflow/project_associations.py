@@ -13,7 +13,7 @@ from tools.workflow.project_capacity import (
 )
 from tools.workflow.project_findings import _confidence_label, synthesize_findings
 from tools.workflow.project_state import read_events
-from tools.workflow.corpus_guard import guard_write, make_extractor
+from tools.workflow.corpus_guard import check_fixture_taint, guard_write, make_extractor
 
 ASSOCIATIONS_FILE = "associations.json"
 CAPABILITIES_FILE = "capabilities.json"
@@ -332,9 +332,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("sources", nargs="+", help="events.jsonl files, or directories to scan recursively for them")
     parser.add_argument("--out", default="knowledge", help="Directory for materialized knowledge files")
+    parser.add_argument("--allow-fixture-sources", action="store_true",
+                        help="Authored escape hatch (audited): permit fixture sources to project into the repo knowledge/ store")
     args = parser.parse_args(argv)
 
     event_files = collect_event_files([Path(raw) for raw in args.sources])
+    check_fixture_taint([Path(raw) for raw in args.sources] + event_files, Path(args.out),
+                        allow=args.allow_fixture_sources)
     outputs = materialize_associations(event_files, Path(args.out))
     print(json.dumps({
         "event_files": len(event_files),

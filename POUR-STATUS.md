@@ -111,6 +111,34 @@
 
 - Wave 1 complete. All five streams (`B2`, `A1-remainder`, `B1`, `C1`, `A2`) are landed on `master`. `B1`/`C1`/`A2` were curator passes from the approved prompts after the assay mis-selected the fleet winners — the instrument finding and a proposed stream-scoped acceptance assay are in `ASSAY-ACCEPTANCE-GAP-2026-07-03.html`. Test baseline `110 → 148`. `G0` open.
 
+## Landing: A3 (evidence restore) + A4 (fixture-taint guard) + doc corrections — 2026-07-03
+
+- Governing report: `EVIDENCE-HUNT-A3.md` (hunt + adversarial provenance verification). Derek approved D-A3-1..5.
+- **Framing finding:** the pre-loss store at `4cf048b` was fixture-poured for the obs_2xx/3xx/4xx lineage —
+  omen-worker-2 never existed; the real vLLM crash loop ran on OMEN WSL 2026-07-02 (not claudefarm1);
+  obs_401/builder-2 never happened. Fictions declared never-existed per D-A3-3; nothing restored from them.
+- **Materialized (real evidence, field-by-field PROVENANCE.md in each):**
+  - `runs/omen-debut-bl-dee707/` — the real omen-worker-1 debut (conductor result.json + intact checkpoint
+    chain + winning commit 86c020d5; obs_omen_debut_001, 54.6 tok/s, promoted).
+  - `runs/vllm-moe-crash-omen-wsl-2026-07-02/` — the real crash loop (3 observations from distinct engine
+    restarts in the 56-restart telemetry, sha256-verified payload copies, D20 diagnosis attached; the
+    moe_wna16 tail deliberately excluded as untested-rung, documented).
+- **Re-projection results (through both guards, no refusals):** findings `15 → 17` (known_bad
+  `omen-wsl|qwen3-30b-a3b-awq|vllm` at HIGH from 3 unanimous samples; known_good omen-worker-1);
+  **`policy.json` block rule RESTORED** (`block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*`, experiment_flag
+  override, audit trail recorded the change); **first honest association formed**
+  (`model_portability:model_id=qwen3-coder:30b`, 2 real workflows); capabilities `0` (correct — build
+  capability needs a second real build workflow); gaps `24 → 29`; candidates `40 → 47` **including the
+  returned `known_bad_retest` demand**; observations `15 → 19`.
+- **A4 fixture-taint guard landed:** `check_fixture_taint` in `corpus_guard.py`, wired into all six
+  projector mains — fixtures→repo-knowledge refuses; `--allow-fixture-sources` permits with an audit
+  record. 12 new tests. The original-sin operation is now mechanically impossible to repeat silently.
+- **Doc corrections (D-A3-4):** roadmap S5/S5b annotations now state the fixture-inflation correction;
+  THREE-CHAIRS addendum carries the second correction ("the machine was righter than everyone, twice").
+- Suite: `Ran 162 tests ... OK` (148 wave-1 + 12 fixture-taint + 2 concurrent-stream).
+- Follow-ups open: second real build workflow re-earns the capability (G3); optional claudefarm1 pass when
+  the VM returns (was down for cc-builder-4 provisioning); optional AM4 Jaeger sweep for debut-era traces.
+
 ## External Audit — 2026-07-03 (independent pass over the pilot landing, e41fd6b)
 
 **Verdict on the pilot: CLEAN.** Every mechanically checkable claim in this file verified true (130/130 + the 110 baseline re-proven at `4cf048b`; cycle time reproduces to the microsecond from the committed checkpoint timestamps; all belief-count deltas exact; gates correct). Determinism confirmed the hard way: re-running the six-projector chain over `runs/` left `knowledge/` byte-identical. Process conformant to `CODEX-POUR-ORCHESTRATOR.md` on every locally checkable point, including pilot-before-wave-1. Conductor-side claims (adapter commits, VM execution, assay runs) are internally consistent but rest on captured-copy evidence — not independently attestable from this box.
@@ -118,7 +146,7 @@
 **⚠ FINDING THE POUR DOES NOT YET KNOW: the vLLM crash gate is gone and projection cannot restore it.**
 - Yesterday's overwrite removed `block:claudefarm1|qwen3-30b-a3b-awq|vllm` (and the `+9984MB` `adjust_prediction` rule) from `policy.json` (`rules: []` at `4cf048b`; removal recorded in `policy_audit.ndjson` at watermark `2026-07-02T06:55:00Z`). The hand-restore fixed `findings.json` but never re-ran `project_policy`.
 - The pilot re-projection then deleted the `known_bad:claudefarm1|qwen3-30b-a3b-awq|vllm` finding itself (3/3 `moe_offload_crash`) **plus the 14 experiment candidates that were the re-earn demand for the dropped beliefs** (incl. `known_bad_retest` for this exact combo). The system forgot the knowledge AND the appetite to reacquire it — the new gaps/candidates all concern surviving/new evidence; zero reference the dropped subjects. (Design note: S8 coverage cannot state a blind spot about a combo with zero evidence in the corpus; the A2 guard — now landed — is the mitigation for future shrinks, but it does not retro-flag this one.)
-- **Operational hold requested:** do not schedule `claudefarm1 + qwen3-30b-a3b-awq + vllm` (or MoE-offload vLLM combos generally) without an experiment flag until the gate is re-derived. Nothing in `policy.json` currently blocks it.
+- **Operational hold requested:** do not schedule `claudefarm1 + qwen3-30b-a3b-awq + vllm` (or MoE-offload vLLM combos generally) without an experiment flag until the gate is re-derived. Nothing in `policy.json` currently blocks it. **→ HOLD LIFTED 2026-07-03: the block is re-derived from real evidence (see Landing: A3 below), node-corrected to `omen-wsl`.**
 - Also dropped, same mechanism: `known_good:omen-worker-1|qwen3-coder:30b|ollama`, `known_good:omen-worker-2|qwen3-coder:14b|ollama` (the two halves of the lost `build|ollama` capability evidence), `known_good:builder-2|claude-opus-4.8|local`, `prediction_bias:qwen3-30b-a3b-awq:expected_peak_ram_mb`, and both `recommendation` findings. All survive only in git history at `4cf048b`.
 - **Recovery paths, constitutional order:** (1) run the WIDENED stream A3 evidence hunt (its grep targets now include the vllm-probe and hold-probe lineages — see `FLEET-WORK-PLAN.html`, updated 2026-07-03); `pour-b2` proved conductor checkpoints/`result.json` are materializable into observations, so odds are fair. The `prediction_bias` finding additionally needs the dispatch decision records (`dec_assign_301/302`) — the hardest ask. (2) Whatever A3 cannot find gets re-earned: three fresh flagged vLLM probes re-derive the known_bad honestly. (3) Never hand-write any of it back into `knowledge/`.
 

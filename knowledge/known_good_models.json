@@ -132,6 +132,18 @@
       "confidence": 0.33,
       "last_observed": "2026-07-02T06:55:00Z",
       "reason": "1/1 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "omen-worker-1",
+      "model_id": "qwen3-coder:30b",
+      "backend": "ollama",
+      "success_rate": 1.0,
+      "samples": 1,
+      "mean_tokens_per_s": 54.6,
+      "promotion_holds": 0,
+      "confidence": 0.33,
+      "last_observed": "2026-07-02T10:45:55.071789+00:00",
+      "reason": "1/1 successful runs (success_rate 1.0)"
     }
   ]
 }

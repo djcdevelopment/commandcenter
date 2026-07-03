@@ -1,6 +1,6 @@
 {
   "contract_version": "capacity-estimates.v1",
-  "observation_count": 15,
+  "observation_count": 19,
   "unresolved_observation_refs": 0,
   "combos": {
     "am4-worker-1|vllama-planner|openai": {
@@ -214,6 +214,40 @@
       "mean_tokens_per_s": 4.12,
       "success_rate": 1.0,
       "confidence": 0.33
+    },
+    "omen-worker-1|qwen3-coder:30b|ollama": {
+      "builder_id": "omen-worker-1",
+      "model_id": "qwen3-coder:30b",
+      "backend": "ollama",
+      "samples": 1,
+      "successes": 1,
+      "failures": 0,
+      "failure_classes": {},
+      "promotion_holds": 0,
+      "max_context_tokens": null,
+      "max_vram_gb_peak": null,
+      "last_observed": "2026-07-02T10:45:55.071789+00:00",
+      "mean_tokens_per_s": 54.6,
+      "success_rate": 1.0,
+      "confidence": 0.33
+    },
+    "omen-wsl|qwen3-30b-a3b-awq|vllm": {
+      "builder_id": "omen-wsl",
+      "model_id": "qwen3-30b-a3b-awq",
+      "backend": "vllm",
+      "samples": 3,
+      "successes": 0,
+      "failures": 3,
+      "failure_classes": {
+        "moe_offload_crash": 3
+      },
+      "promotion_holds": 0,
+      "max_context_tokens": null,
+      "max_vram_gb_peak": null,
+      "last_observed": "2026-07-02T10:31:56.771381Z",
+      "mean_tokens_per_s": null,
+      "success_rate": 0.0,
+      "confidence": 0.6
     }
   }
 }

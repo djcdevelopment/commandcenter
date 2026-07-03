@@ -1,11 +1,61 @@
 {
   "contract_version": "associations.v1",
-  "observation_count": 15,
+  "observation_count": 19,
   "unresolved_refs": 0,
   "evidence_watermark": "2026-07-03T05:55:23.332966+00:00",
-  "association_count": 0,
-  "gated_bucket_count": 13,
-  "associations": [],
+  "association_count": 1,
+  "gated_bucket_count": 16,
+  "associations": [
+    {
+      "contract_version": "association.v1",
+      "association_id": "success_invariant:model_portability:model_id=qwen3-coder:30b",
+      "association_type": "success_invariant",
+      "pattern": "model_portability",
+      "statement": "model_id=qwen3-coder:30b succeeds independent of the particulars: held across 2 workflow(s) (2 builder_id value(s), 3 backend value(s))",
+      "invariant": {
+        "model_id": "qwen3-coder:30b"
+      },
+      "varied": {
+        "builder_id": [
+          "omen-5070",
+          "omen-worker-1"
+        ],
+        "backend": [
+          "ollama",
+          "ollama-cuda",
+          "ollama-cuda-contended"
+        ]
+      },
+      "workflows": [
+        "wf-omen-5070-hwbaseline-2026-07-02",
+        "wf-omen-debut-bl-dee707"
+      ],
+      "confidence": "medium",
+      "confidence_score": 0.5,
+      "evidence": {
+        "samples": 3,
+        "workflow_count": 2,
+        "observation_ids": [
+          "obs_omen5070_006",
+          "obs_omen5070_007",
+          "obs_omen_debut_001"
+        ],
+        "failure_class": null,
+        "summary": "3 observation(s) across 2 workflow(s), all success"
+      },
+      "supporting_findings": [
+        "known_good:omen-5070|qwen3-coder:30b|ollama-cuda",
+        "known_good:omen-5070|qwen3-coder:30b|ollama-cuda-contended",
+        "known_good:omen-worker-1|qwen3-coder:30b|ollama"
+      ],
+      "first_observed": "2026-07-02T06:41:15Z",
+      "last_observed": "2026-07-02T10:45:55.071789+00:00",
+      "derived_from": [
+        "capacity-observation.v1",
+        "findings.v1"
+      ]
+    }
+  ],
   "gated_buckets": [
     {
       "pattern": "failure_signature",
@@ -19,6 +69,21 @@
       ],
       "reasons": [
         "all 2 sample(s) come from one workflow (wf-pour-b2); no generalization from one workflow"
+      ]
+    },
+    {
+      "pattern": "failure_signature",
+      "invariant": {
+        "failure_class": "moe_offload_crash",
+        "backend": "vllm"
+      },
+      "samples": 3,
+      "workflows": [
+        "wf-vllm-moe-crash-omen-wsl-2026-07-02"
+      ],
+      "reasons": [
+        "all 3 sample(s) come from one workflow (wf-vllm-moe-crash-omen-wsl-2026-07-02); no generalization from one workflow",
+        "nothing varied under the invariant; a repeated particular is a finding, not an abstraction"
       ]
     },
     {
@@ -50,14 +115,15 @@
     {
       "pattern": "model_portability",
       "invariant": {
-        "model_id": "qwen3-coder:30b"
+        "model_id": "qwen3-30b-a3b-awq"
       },
-      "samples": 2,
+      "samples": 3,
       "workflows": [
-        "wf-omen-5070-hwbaseline-2026-07-02"
+        "wf-vllm-moe-crash-omen-wsl-2026-07-02"
       ],
       "reasons": [
-        "all 2 sample(s) come from one workflow (wf-omen-5070-hwbaseline-2026-07-02); no generalization from one workflow"
+        "all 3 sample(s) come from one workflow (wf-vllm-moe-crash-omen-wsl-2026-07-02); no generalization from one workflow",
+        "nothing varied under the invariant; a repeated particular is a finding, not an abstraction"
       ]
     },
     {
@@ -162,6 +228,21 @@
     {
       "pattern": "task_backend",
       "invariant": {
+        "task_kind": "engine-start",
+        "backend": "vllm"
+      },
+      "samples": 3,
+      "workflows": [
+        "wf-vllm-moe-crash-omen-wsl-2026-07-02"
+      ],
+      "reasons": [
+        "all 3 sample(s) come from one workflow (wf-vllm-moe-crash-omen-wsl-2026-07-02); no generalization from one workflow",
+        "nothing varied under the invariant; a repeated particular is a finding, not an abstraction"
+      ]
+    },
+    {
+      "pattern": "task_backend",
+      "invariant": {
         "task_kind": "repo-build",
         "backend": "claude"
       },
@@ -171,6 +252,21 @@
       ],
       "reasons": [
         "all 1 sample(s) come from one workflow (wf-pour-b2); no generalization from one workflow",
+        "nothing varied under the invariant; a repeated particular is a finding, not an abstraction"
+      ]
+    },
+    {
+      "pattern": "task_backend",
+      "invariant": {
+        "task_kind": "repo-build",
+        "backend": "ollama"
+      },
+      "samples": 1,
+      "workflows": [
+        "wf-omen-debut-bl-dee707"
+      ],
+      "reasons": [
+        "all 1 sample(s) come from one workflow (wf-omen-debut-bl-dee707); no generalization from one workflow",
         "nothing varied under the invariant; a repeated particular is a finding, not an abstraction"
       ]
     },

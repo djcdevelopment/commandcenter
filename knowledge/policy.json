@@ -1,11 +1,37 @@
 {
   "contract_version": "policies.v1",
-  "source_findings": 15,
+  "source_findings": 17,
   "evidence_watermark": "2026-07-03T05:55:23.332966+00:00",
   "rule_counts": {
+    "block": 1,
     "exploratory_only": 2
   },
   "rules": [
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+      "effect": "block",
+      "statement": "block omen-wsl + qwen3-30b-a3b-awq + vllm: 3/3 moe_offload_crash",
+      "subject": {
+        "builder_id": "omen-wsl",
+        "model_id": "qwen3-30b-a3b-awq",
+        "backend": "vllm",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "known_bad:omen-wsl|qwen3-30b-a3b-awq|vllm",
+      "finding_type": "known_bad",
+      "confidence": "high",
+      "evidence_summary": "3/3 moe_offload_crash",
+      "override": {
+        "flag": "experiment_flag",
+        "semantics": "dispatch allowed only as an explicit experiment"
+      },
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-07-02T10:31:56.771381Z"
+    },
     {
       "contract_version": "policy.v1",
       "policy_id": "exploratory_only:am4-worker-1|vllama-planner|openai|*|*",

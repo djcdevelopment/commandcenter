@@ -1,0 +1,30 @@
+{
+    "contract_version": "capacity-observation.v1",
+    "observation_id": "obs_vllm_crash_002",
+    "decision_id": null,
+    "workflow_id": "wf-vllm-moe-crash-omen-wsl-2026-07-02",
+    "run_id": "vllm-moe-crash-omen-wsl-2026-07-02",
+    "timestamp": "2026-07-02T10:03:41.870501Z",
+    "builder_id": "omen-wsl",
+    "model_id": "qwen3-30b-a3b-awq",
+    "backend": "vllm",
+    "hardware_profile_id": "nvidia-geforce-rtx-5070|wsl2",
+    "workload_shape": {
+        "task_kind": "engine-start",
+        "estimated_context_tokens": null,
+        "requires_gpu": true,
+        "notes": "one of 56 engine restart attempts in the 2026-07-02T09:34-10:36Z crash loop; vllm 0.24.0 Qwen3MoeForCausalLM auto_awq (this entry: log_time_ns=1782986621870501120, enforce_eager=true); see wsl/usage_stats.json"
+    },
+    "observed": {
+        "runtime_s": null,
+        "ttft_s": null,
+        "tokens_per_s": null,
+        "ram_gb_peak": null,
+        "vram_gb_peak": null,
+        "context_tokens": null,
+        "physical": null
+    },
+    "outcome": "oom_crash",
+    "failure_class": "moe_offload_crash",
+    "promotion_status": null
+}

@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from tools.workflow.corpus_guard import guard_write, make_extractor
+from tools.workflow.corpus_guard import check_fixture_taint, guard_write, make_extractor
 
 POLICY_FILE = "policy.json"
 POLICY_AUDIT_FILE = "policy_audit.ndjson"
@@ -229,8 +229,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("findings", help="Path to a materialized findings.json")
     parser.add_argument("--out", default="knowledge", help="Directory for policy.json + audit trail")
+    parser.add_argument("--allow-fixture-sources", action="store_true",
+                        help="Authored escape hatch (audited): permit a fixture-derived findings file to project into the repo knowledge/ store")
     args = parser.parse_args(argv)
 
+    # Taint for the policy projector = the input findings file itself living under a
+    # fixtures/ component while --out is the repo's own knowledge dir (same rule shape).
+    check_fixture_taint([Path(args.findings)], Path(args.out), allow=args.allow_fixture_sources)
     result = materialize_policy(Path(args.findings), Path(args.out))
     print(json.dumps({"rules": len(result["content"]["rules"]),
                       "by_effect": result["content"]["rule_counts"],

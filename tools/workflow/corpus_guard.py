@@ -27,12 +27,72 @@ OVERRIDE_FILE = "corpus_regression_override.json"
 AUDIT_FILE = "policy_audit.ndjson"
 PROGRESS_FILE = ".corpus_regression_progress.json"
 
+# Stream A4 (approved D-A3-5): the repo root this module lives in. Injectable in
+# check_fixture_taint so tests can simulate a repo-knowledge target inside a temp sandbox.
+REPO_ROOT = Path(__file__).resolve().parents[2]
+FIXTURE_COMPONENT = "fixtures"
+ALLOW_FIXTURE_FLAG = "--allow-fixture-sources"
+
 # An extractor maps a document to (watermark_or_None, primary_count_or_None).
 Extractor = Callable[[dict], Tuple[Optional[str], Optional[int]]]
 
 
 class CorpusRegressionError(RuntimeError):
     """Raised when a projection would overwrite a file with less-evidenced output."""
+
+
+class FixtureTaintError(RuntimeError):
+    """Raised when a projection would pour fixture sources into the repo's own knowledge/ store."""
+
+
+def check_fixture_taint(source_paths, out_dir, *, allow: bool = False,
+                        repo_root: Optional[Path] = None) -> None:
+    """Fixture-taint guard (Stream A4, approved D-A3-5).
+
+    The 2026-07-02 incident chain began when fixtures/workflow/runs was poured through the
+    projectors into the repo's own knowledge/ store; every downstream loss traces to that.
+    This check refuses exactly that combination and nothing else: it raises FixtureTaintError
+    when BOTH (a) any resolved source path contains a path component exactly equal to
+    "fixtures", AND (b) the resolved out dir IS the repo's own knowledge dir (repo root
+    derived from this module's location, injectable for tests). Tests projecting fixtures
+    into temp dirs pass untouched; real-corpus projections into knowledge/ pass untouched.
+
+    Escape hatch (authored act, Clause-2 shape): `allow=True` — wired to the projectors'
+    --allow-fixture-sources flag — permits the write AND appends an audit record (sources,
+    out dir, flag used) to the same policy_audit.ndjson append trail the A2 override path
+    uses. The audit record carries no wall-clock timestamp (D18).
+    """
+    root = Path(repo_root).resolve() if repo_root is not None else REPO_ROOT
+    repo_knowledge_dir = (root / "knowledge").resolve()
+    resolved_out = Path(out_dir).resolve()
+    if resolved_out != repo_knowledge_dir:
+        return
+
+    resolved_sources = [Path(source).resolve() for source in source_paths]
+    tainted = [source for source in resolved_sources if FIXTURE_COMPONENT in source.parts]
+    if not tainted:
+        return
+
+    if not allow:
+        raise FixtureTaintError(
+            f"fixture taint blocked: source {tainted[0]} lies under a {FIXTURE_COMPONENT!r} "
+            f"path component while --out targets the repo's own knowledge store "
+            f"({resolved_out}). Rule A4/D-A3-5: projectors must never project fixture "
+            f"sources into repo knowledge/ — that is the incident that destroyed the belief "
+            f"store. If this is a deliberate authored act, re-run with {ALLOW_FIXTURE_FLAG}; "
+            f"the permit will be audited to {AUDIT_FILE}."
+        )
+
+    record = {
+        "event": "fixture_taint_permitted",
+        "sources": [str(source) for source in resolved_sources],
+        "tainted_sources": [str(source) for source in tainted],
+        "out_dir": str(resolved_out),
+        "flag": ALLOW_FIXTURE_FLAG,
+    }
+    resolved_out.mkdir(parents=True, exist_ok=True)
+    with (resolved_out / AUDIT_FILE).open("a", encoding="utf-8") as audit:
+        audit.write(json.dumps(record) + "\n")
 
 
 def make_extractor(count_key: Optional[str],

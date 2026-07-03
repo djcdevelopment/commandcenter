@@ -89,9 +89,10 @@
     <span>Verified against: <b class="mono">110/110 baseline · git 6a0d308</b></span>
     <span>Status: <b>draft-ready — released on Derek's cue, per fleet pacing</b></span>
   </div>
-  <div class="banner"><b>Distribution prerequisite:</b> this tree has one commit and <b>no git remote</b> —
-  builders cannot clone what isn't pushed. Stream A1 is therefore both a safety fix and the distribution
-  mechanism: it goes first, alone, before anything is handed out. And per the standing rule from all reviews:
+  <div class="banner"><b>Distribution prerequisite — RESOLVED 2026-07-02 (late):</b> the remote is
+  <b class="mono">https://github.com/djcdevelopment/commandcenter</b> (private); master pushed (4cf048b), and the
+  session's review/plan docs are committed. Builders can clone now — A1's remaining scope is Tasks 3–4 only
+  (push_backup.py + scheduling + ops doc). Standing rule from all reviews:
   <b>no Δ4 idle-drain until Δ2 telemetry exists.</b></div>
 </header>
 
@@ -151,7 +152,7 @@
 <h2>Derek's Desk — decisions the streams will ask for (not builder work)</h2>
 <table class="split">
   <tr><th>Decision</th><th>Requested by</th><th>Shape</th></tr>
-  <tr><td><b>Git remote URL</b> (private GitHub vs bare repo on cc-conductor)</td><td>A1 (DECISION-NEEDED-A1.md)</td><td>One line + <span class="mono">git remote add origin ...</span></td></tr>
+  <tr><td><b>Git remote URL</b> — <span class="tag t-30b">RESOLVED</span> https://github.com/djcdevelopment/commandcenter (private), pushed 2026-07-02</td><td>A1</td><td>Done; A1's remainder = backup script + schedule</td></tr>
   <tr><td><b>SSH details for the evidence hunt</b></td><td>A3 (precondition)</td><td>Host/user/paths handed with the prompt</td></tr>
   <tr><td><b>Economics answers</b>: attention economy? credit split? leased default? who authors attended/unattended?</td><td>D1 (QUESTIONS-D1.md)</td><td>DECISIONS-D1.md, consumed by D2</td></tr>
   <tr><td><b>Numeric worth valuations</b> for the 15 candidates (authored judgment — the projector's prose worth is not summable)</td><td>Ga (QUESTIONS-Ga.md)</td><td>knowledge/candidate_worth.json (authored overlay)</td></tr>
@@ -266,15 +267,16 @@ WORKING PROTOCOL:
 fleet a remote to clone. The repo gained its first git commit today as a recovery baseline after an
 accidental overwrite of knowledge/*.json; it has no remote.
 
+STATUS UPDATE (2026-07-02 late, after prompt authoring): the remote decision is RESOLVED — origin =
+https://github.com/djcdevelopment/commandcenter (private), master pushed (4cf048b), and the review/plan
+docs are committed. Tasks 1-2 and 5 are therefore already satisfied; YOUR SCOPE IS TASKS 3-4 plus a first
+real (non-dry-run) push_backup.py run. The original assumptions below are kept for verification context.
+
 ASSUMPTIONS (verify in Phase 0):
-- git log shows exactly one commit (6a0d308, "chore: initialize git repo for commandcenter local
-  checkout") tracking ~136 files.
-- git remote -v is EMPTY. (If a remote exists and pushes succeed, write BUILD-NOTES-A1.md saying so and
-  reduce scope to Tasks 3-4.)
-- git status --porcelain shows a small set of untracked files. As of prompt authoring the expected set is:
-  CONSTITUTIONAL-REVIEW-2026-07-02.html, ECONOMICS-ARCHITECTURE-REVIEW.html,
-  THREE-CHAIRS-PERSPECTIVES.html, FLEET-WORK-PLAN.html, docs/physical-telemetry-instrumentation-findings.md
-  (a few more artifacts of this planning session may appear; tracking them is correct).
+- git log shows at least two commits (6a0d308 baseline + 4cf048b docs) and git remote -v shows origin →
+  https://github.com/djcdevelopment/commandcenter.git with master tracking origin/master. If the remote
+  is missing or a push fails, STOP and write QUESTIONS-A1.md.
+- git status --porcelain is clean or near-clean (tracking any new session artifacts is correct).
 
 TASKS:
 1. .gitignore: one ALREADY EXISTS at the repo root with entries including .env, *.log, .venv/,

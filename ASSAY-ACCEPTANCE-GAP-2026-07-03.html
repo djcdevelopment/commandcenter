@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Assay Acceptance Gap — the pour's real finding</title>
+<style>
+  :root{
+    --bg:#0c0f14; --panel:#141a22; --panel2:#1b232e; --line:#26303d;
+    --ink:#e6edf3; --muted:#93a1b1; --dim:#6b7886;
+    --fire:#ff7a45; --ember:#ffb066; --cyan:#5fd0e0; --green:#5ad48a;
+    --amber:#f4c95d; --red:#ff6b6b; --violet:#a78bfa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  code,.mono{font-family:"JetBrains Mono",Consolas,Menlo,monospace;font-size:.86em}
+  a{color:var(--cyan)}
+  .wrap{max-width:1120px;margin:0 auto;padding:32px 24px 80px}
+  header.top{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:24px}
+  .eyebrow{color:var(--fire);letter-spacing:.18em;text-transform:uppercase;font-size:11px;font-weight:700}
+  h1{font-size:27px;margin:6px 0 8px;font-weight:700}
+  .thesis{color:var(--muted);max-width:82ch}
+  .thesis b{color:var(--ink)}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:16px;font-size:12.5px;color:var(--dim)}
+  .meta b{color:var(--ink)}
+  h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--ember);
+    margin:38px 0 14px;border-left:3px solid var(--fire);padding-left:10px}
+  p.body{color:var(--muted);max-width:86ch}
+  p.body b{color:var(--ink)}
+  .banner{background:linear-gradient(90deg,#2a1d10,#1b232e);border:1px solid #4a3a20;
+    border-radius:10px;padding:12px 16px;margin:18px 0 0;color:var(--ember);font-size:13.5px}
+  .banner b{color:var(--amber)}
+  .tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.05em;
+    padding:2px 7px;border-radius:20px;border:1px solid var(--line)}
+  .t-pass{color:var(--green);border-color:#274b39;background:#11231a}
+  .t-risk{color:var(--amber);border-color:#4a4023;background:#221d10}
+  .t-fail{color:var(--red);border-color:#4a2424;background:#221010}
+
+  .law{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--violet);
+    border-radius:10px;padding:14px 18px;margin-bottom:12px}
+  .law h3{margin:0 0 4px;font-size:15px;color:var(--violet)}
+  .law p{margin:4px 0 0;color:var(--muted);font-size:13.5px}
+  .law p b{color:var(--ink)}
+  .law.green{border-left-color:var(--green)}.law.green h3{color:var(--green)}
+  .law.red{border-left-color:var(--red)}.law.red h3{color:var(--red)}
+
+  table.split{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:13px}
+  table.split th{background:var(--panel2);text-align:left;padding:10px 14px;font-size:11px;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+  table.split td{padding:9px 14px;border-top:1px solid var(--line);color:var(--muted);vertical-align:top}
+  table.split td b{color:var(--ink)}
+  table.split td.mono{color:var(--muted)}
+  footer{margin-top:44px;border-top:1px solid var(--line);padding-top:16px;color:var(--dim);font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="eyebrow">Commandcenter · Instrument Finding</div>
+  <h1>The Assay Acceptance Gap</h1>
+  <p class="thesis">Codex poured the five-stream worklist (A1, A2, B1, B2, C1) through the fleet. Two landed;
+  three did not. This documents what the pour actually <b>measured</b> — not a failure of the worklist, but a
+  diagnosable defect in the fleet's scorer. The assay is a <b>regression gate</b> ("did you break the baseline?"),
+  not an <b>acceptance oracle</b> ("did you do what the stream asked?"). Grounded in
+  <span class="mono">POUR-LEARNINGS-2026-07-03.md</span> and <span class="mono">POUR-STATUS.md</span>, cross-checked
+  against the fetched winner branches.</p>
+  <div class="meta">
+    <span>Author role: instrument review, not dispatch</span>
+    <span>Status date: <b>2026-07-03</b></span>
+    <span>Verdict: stale-base solved; <b>branch-quality selection</b> is the live bottleneck</span>
+  </div>
+  <div class="banner"><b>Headline:</b> the pour worked as an instrument. It stress-tested the scorer and the scorer
+  failed in one clean way — a branch that does <b>nothing</b> passes the assay. Stream A2's winning branch's only
+  meaningful diff was <span class="mono">retro.md</span>, yet it won on <span class="mono">130/130</span>.</div>
+</header>
+
+<h2>1 · The pour was an experiment on the instrument</h2>
+<p class="body">The worklist was the payload; the fleet was the subject. Two results, cleanly separated:</p>
+<div class="law green">
+  <h3>Solved — the stale-base problem (infrastructure)</h3>
+  <p>The first bad wave built from the conductor's stale ontology mirror
+  (<span class="mono">~/work/commandcenter-ontology/farmer-repo</span>), not local <span class="mono">master</span>.
+  Pushing <span class="mono">master</span> → mirror → resync fixed it, <b>proven</b> by C1&nbsp;r4 where both builders
+  independently reached <span class="mono">139/139</span>. This is durable and no longer a concern.</p>
+</div>
+<div class="law red">
+  <h3>Discovered — the assay cannot enforce stream-scoped correctness (the finding)</h3>
+  <p>The winning assay for every landed run reads <span class="mono">pytest: 130/130 passed; imports: 0/0 ok;
+  score=70; isolation=docker</span>. That grades <b>only</b> whether the branch left the existing baseline intact.
+  It never asks whether the branch produced the artifacts the stream demanded. Those are different questions, and the
+  pour is where the difference became load-bearing.</p>
+</div>
+
+<h2>2 · The null-action exploit</h2>
+<p class="body">When a stream's deliverable is "add new code and new tests," a branch that adds <b>nothing</b> scores
+identically to one that succeeds — because the fitness function measures <i>don't-break</i>, never <i>did-do</i>. An
+empty branch keeps all 130 tests green, imports clean, isolation intact: a perfect score for having done no work.
+That is not a hypothetical — it is exactly how A2's winner was selected. The irony writes itself: A2's own mission is
+to stop a re-projection that sees <i>less</i> evidence from silently overwriting the knowledge store. The assay did
+the same shape of thing to itself — it accepted a no-op as a win.</p>
+
+<h2>3 · Evidence, per stream</h2>
+<table class="split">
+  <tr><th>Stream</th><th>What the assay selected</th><th>Failure mode</th></tr>
+  <tr>
+    <td><b>A2</b> <span class="tag t-fail">null-action</span></td>
+    <td>Winner's only meaningful diff was <span class="mono">retro.md</span>. The real <span class="mono">corpus_guard</span>
+        work sat in the <i>losing</i> branch, and was incomplete.</td>
+    <td>A branch that did not do the task scored the same as one that did. Pure fitness-function blindness.</td>
+  </tr>
+  <tr>
+    <td><b>B1</b> <span class="tag t-fail">no grip</span></td>
+    <td>Winner destructively rewrote the target HTML documents instead of applying the six scoped amendments.</td>
+    <td>No test touches those prose files, so the assay has <b>zero</b> signal on them — a destructive rewrite and a
+        correct edit are indistinguishable to it.</td>
+  </tr>
+  <tr>
+    <td><b>C1</b> <span class="tag t-risk">too coarse</span></td>
+    <td>r3 graded a branch with <i>failing</i> tests as the winner; r4 (both builders green) still produced a winner
+        diff too structurally aggressive to land unreviewed.</td>
+    <td>Green-vs-correct is below the assay's resolution. "Passing" and "right" are not the same, and only the first
+        is measured.</td>
+  </tr>
+  <tr>
+    <td><b>B2 · A1</b> <span class="tag t-pass">landed</span></td>
+    <td>Landed — but the notes are explicit that A1's final landing was <b>curated locally</b> because fleet output
+        carried stale assumptions and unsolicited edits.</td>
+    <td>Even the successes needed a human pass. The assay never <i>unaided</i> selected a directly-landable winner —
+        B2 only looked clean because its deliverable was literally a gate checker the assay could partly grip.</td>
+  </tr>
+</table>
+<p class="body">Read together: the acceptance gap is universal. It was invisible on B2/A1 because their deliverables
+happened to overlap what the assay can see; it was glaring on A2/B1/C1 because theirs did not.</p>
+
+<h2>4 · Why this is the bottleneck, not dispatch</h2>
+<p class="body">The lab's whole shape is <b>competing build-outs → score → learn, laps on electricity</b>. The scorer
+<i>is</i> the fitness function of that loop. A scorer that can't tell "did the task" from "didn't break anything"
+forces a human curator back into every landing — which is precisely the bottleneck the system exists to remove.
+Codex's own read lands here: <span class="mono">"the next bottleneck is branch quality selection, not raw
+dispatch."</span> The recommended workaround — curate every stream from the approved prompt, treat the fleet as a
+draft generator — gets the work done but quietly re-inserts the human as the rate limiter. The finding is that the
+next increment worth building is the scorer, because that is what lets the fleet <b>auto-land</b> instead of draft.</p>
+
+<h2>5 · The fix — a stream-scoped acceptance assay</h2>
+<div class="law green">
+  <h3>Score = regression-gate AND acceptance-manifest AND scope-fence</h3>
+  <p>The acceptance contract already exists, latent, in every stream prompt's <span class="mono">DEFINITION OF DONE</span>:
+  required new files, required grep targets, named new test files, an expected baseline delta, an out-of-scope list.
+  Nothing new needs to be authored — the intake already states it in prose. The increment is to make that contract
+  <b>machine-checkable per dispatch</b> and require it <i>in addition to</i> the baseline gate.</p>
+</div>
+<table class="split">
+  <tr><th>Latent in the stream today</th><th>Machine check the assay should run</th><th>Which failure it would have caught</th></tr>
+  <tr><td><b>DoD names new files</b> (e.g. <span class="mono">corpus_guard.py</span>)</td>
+      <td>Those paths exist and are non-empty in the branch diff.</td>
+      <td>A2 null-action (no new file) → cannot win.</td></tr>
+  <tr><td><b>DoD lists grep targets</b> (the six B1 amendment strings)</td>
+      <td>Each target string is present in the named file.</td>
+      <td>B1 destructive rewrite (targets absent / file mangled) → cannot win.</td></tr>
+  <tr><td><b>DoD names new test files</b> and an expected count delta</td>
+      <td>Named tests exist, pass, and baseline count strictly increases by the expected amount.</td>
+      <td>C1 r3 (failing tests; no real delta) → cannot win.</td></tr>
+  <tr><td><b>OUT OF SCOPE list</b> (files the stream must not touch)</td>
+      <td>The diff touches only allowed paths; out-of-scope edits fail the branch.</td>
+      <td>B1 rewriting whole docs, A2's unsolicited <span class="mono">knowledge/*</span> edits → fenced out.</td></tr>
+</table>
+<p class="body">This keeps the assay honest about its own constitution: it authors <b>no</b> new belief — it just executes
+the acceptance contract the stream already declared, the same way a test executes an expectation. A null-action branch
+fails the manifest by construction; a destructive rewrite fails the scope fence; a green-but-wrong branch fails the
+delta. The regression gate stays necessary; it stops being <i>sufficient</i>.</p>
+
+<h2>6 · What this session landed (the streams were fine — selection wasn't)</h2>
+<p class="body">To prove the three "not landable" streams were always landable, they were curated in from the verbatim
+prompts and are now on <span class="mono">master</span>, suite <span class="mono">110 → 148</span> green:</p>
+<table class="split">
+  <tr><th>Stream</th><th>Landed</th><th>Notes</th></tr>
+  <tr><td><b>B1</b></td><td>Six constitutional HTML amendments; grep + HTMLParser verified.</td>
+      <td class="mono">BUILD-NOTES-B1.md</td></tr>
+  <tr><td><b>C1</b></td><td>Four raw <span class="mono">model_*</span> telemetry fields added; <span class="mono">model_residency</span>
+      marked DERIVED. +11 tests.</td><td class="mono">BUILD-NOTES-C1.md</td></tr>
+  <tr><td><b>A2</b></td><td>Corpus regression guard wired into all six projectors; authored override + audit. <b>Opens G0.</b>
+      +7 tests. <span class="mono">knowledge/*.json</span> deliberately not re-projected.</td><td class="mono">BUILD-NOTES-A2.md</td></tr>
+</table>
+<p class="body"><b>Next decision for Derek:</b> build the stream-scoped acceptance assay (§5) before the next pour, so the fleet
+selects correctly instead of needing a curator every time — or keep pouring with curator passes and accept the human
+in the loop for now. The former is the higher-leverage lab investment; the latter is faster this week.</p>
+
+<footer>
+  Instrument finding · commandcenter workflow-ontology tree · companion to
+  <span class="mono">POUR-LEARNINGS-2026-07-03.md</span>, <span class="mono">POUR-STATUS.md</span>,
+  <span class="mono">THREE-CHAIRS-PERSPECTIVES.html</span> ("instrument built, experiment not run") · 2026-07-03
+</footer>
+
+</div>
+</body>
+</html>

@@ -2,12 +2,15 @@
 
 ## Streams
 
-- `done`: `A1-remainder` on `stream/A1` at `abb75f2`, merged to `master` and verified locally.
 - `done`: `B2` on `stream/B2` at `90acc47`, merged to `master` and verified locally.
+- `done`: `A1-remainder` on `stream/A1` at `abb75f2`, merged to `master` and verified locally.
+- `done`: `B1` curated to `master` at `888a02d` (six constitutional HTML amendments).
+- `done`: `C1` curated to `master` at `3d9cbad` (raw `model_*` telemetry fields; `model_residency` derived).
+- `done`: `A2` curated to `master` at `cdad039` (corpus regression guard; opens G0).
 - `in-flight`: none.
 - `paused`: none.
 - `blocked`: none.
-- `not started`: `A2`, `B1`, `C1`.
+- `not started`: none. Wave 1 complete.
 
 ## Pilot Landing: B2
 
@@ -35,10 +38,32 @@
   - `python tools/ops/push_backup.py --dry-run` -> sane stage/commit/push plan
   - `python -m unittest discover -s tests/workflow` -> `Ran 130 tests ... OK`
 
+## Landing: B1 (curated)
+
+- Curated locally from the approved STREAM B1 prompt; the fleet `pour-b1` winner rewrote the target HTML destructively instead of applying the six scoped edits.
+- Landed on `master` at `888a02d`. `stream/B1` reference is held by a codex worktree and left untouched.
+- Scope: `CAPABILITY-ROADMAP.html` (5 edits), `TWO-ECONOMIES-WIND-TUNNEL.html` (1 edit), `BUILD-NOTES-B1.md`.
+- Verification: all six DoD grep targets match (one each; `re-derivation pending` x2); `HTMLParser` clean on both files; suite `Ran 130 tests ... OK` (untouched).
+
+## Landing: C1 (curated)
+
+- Curated locally from the approved STREAM C1 prompt; the fleet `pour-c1` winner touched the right files but under the wave's shared destructive `knowledge/*` rewrite.
+- Landed on `master` at `3d9cbad`.
+- Scope: `contracts/capacity-observation.v1.schema.json` (4 additive raw `model_*` fields; `model_residency` marked DERIVED), `docs/physical-telemetry-instrumentation-findings.md` (dated note), `tests/workflow/test_capacity_observation_schema.py` (new), `BUILD-NOTES-C1.md`.
+- Verification: schema JSON parses; suite `Ran 141 tests ... OK` (130 baseline + 11 new).
+
+## Landing: A2 (curated)
+
+- Curated locally from the approved STREAM A2 prompt; the fleet `pour-a2` winner was the null-action false positive (only meaningful diff `retro.md`).
+- Landed on `master` at `cdad039`.
+- Scope: `tools/workflow/corpus_guard.py` (new), `guard_write` wired into all six projectors, `knowledge/corpus_regression_override.json` (authored, inactive), `tests/workflow/test_corpus_guard.py` (new), `DECISION-NEEDED-A2.md`, `BUILD-NOTES-A2.md`.
+- `knowledge/*.json` deliberately NOT re-projected — the guard is code-only, and re-projecting the corpus is the incident operation itself.
+- Verification: suite `Ran 148 tests ... OK` (141 + 7 new). Opens G0.
+
 ## Gates
 
-- `G0`: `CLOSED`
-  - Check: `origin` configured = yes; `tools/workflow/corpus_guard.py` exists = no
+- `G0`: `OPEN`
+  - Check: `origin` configured = yes; `tools/workflow/corpus_guard.py` exists = yes (landed in A2 `cdad039`)
 - `G1`: `CLOSED`
   - Check: `DECISIONS-D1.md` exists = no
 - `G2`: `CLOSED`
@@ -84,4 +109,4 @@
 
 ## Checkpoint
 
-- Wave 1 is in progress. `A1-remainder` and `B2` are landed. Next up: `A2`, `B1`, and `C1`.
+- Wave 1 complete. All five streams (`B2`, `A1-remainder`, `B1`, `C1`, `A2`) are landed on `master`. `B1`/`C1`/`A2` were curator passes from the approved prompts after the assay mis-selected the fleet winners — the instrument finding and a proposed stream-scoped acceptance assay are in `ASSAY-ACCEPTANCE-GAP-2026-07-03.html`. Test baseline `110 → 148`. `G0` open.

@@ -1,0 +1,130 @@
+{
+  "plan_id": "pour-c2",
+  "trace_id": "d432bbe7805bb69f538a7bcaa6da3235",
+  "routing": {
+    "error": "route-disabled-temporarily"
+  },
+  "builds": {
+    "cc-builder-1": {
+      "ok": false,
+      "branch": "ccfarm/pour-c2/cc-builder-1/lap1",
+      "push_ok": true,
+      "runner": "claude",
+      "runner_model": "sonnet",
+      "committed": true,
+      "pushed": true,
+      "commits_ahead": 12,
+      "empty_build": false,
+      "done_signal": true,
+      "agent_rc": -1,
+      "agent_timed_out": true,
+      "status": "ok",
+      "reason": "ok"
+    },
+    "cc-builder-2": {
+      "ok": true,
+      "branch": "ccfarm/pour-c2/cc-builder-2/lap1",
+      "push_ok": true,
+      "runner": "openai",
+      "runner_model": "vllama-planner",
+      "committed": true,
+      "pushed": true,
+      "commits_ahead": 12,
+      "empty_build": false,
+      "done_signal": true,
+      "agent_rc": 0,
+      "agent_timed_out": false,
+      "status": "ok",
+      "reason": "ok"
+    }
+  },
+  "assay": {
+    "plan_id": "pour-c2",
+    "lap": 1,
+    "grader": "cc-builder-3",
+    "winner": "cc-builder-1",
+    "scoreboard": [
+      {
+        "worker": "cc-builder-1",
+        "branch": "ccfarm/pour-c2/cc-builder-1/lap1",
+        "score": 70,
+        "grade": "B",
+        "risk_score": 0.3,
+        "assay_mode": "behavior",
+        "static_score": 100,
+        "behavior_score": 70,
+        "tests_found": 162,
+        "tests_passed": 162,
+        "tests_failed": 0,
+        "imports_ok": 0,
+        "imports_failed": 0,
+        "assay_summary": "pytest: 162/162 passed; imports: 0/0 ok; score=70; isolation=direct",
+        "file_count": 204,
+        "code_files": 175,
+        "has_retro": true,
+        "has_result": true,
+        "has_tests": true,
+        "retro_excerpt": "# Session Retro \u2014 2026-06-29 (context-download + adversarial-vetting session)\n\n> One-line: A cold-start onboarding \u2014 new agent on the new OMEN box \u2014 where Derek downloaded his full worldview/thesis/identity as the baseline before building, and we stress-tested it. Almost no code; this was about getting the *whole* held accurately before the first build rep. The real test of it all is **resumption** \u2014 whether the next session picks up without re-explaining.\n\n---\n\n## What this session was\n- **Cold"
+      },
+      {
+        "worker": "cc-builder-2",
+        "branch": "ccfarm/pour-c2/cc-builder-2/lap1",
+        "score": 70,
+        "grade": "B",
+        "risk_score": 0.3,
+        "assay_mode": "behavior",
+        "static_score": 100,
+        "behavior_score": 70,
+        "tests_found": 171,
+        "tests_passed": 171,
+        "tests_failed": 0,
+        "imports_ok": 0,
+        "imports_failed": 0,
+        "assay_summary": "pytest: 171/171 passed; imports: 0/0 ok; score=70; isolation=direct",
+        "file_count": 207,
+        "code_files": 178,
+        "has_retro": true,
+        "has_result": true,
+        "has_tests": true,
+        "retro_excerpt": "# Retro (pour-c2-cc-builder-2)\n\nBuilt by agent_openai on model vllama-planner (completion: finished, 9 steps, 232s).\nCreated tools/telemetry/collect_physical.py and tests/workflow/test_collect_physical.py as required. All tests pass. BUILD-NOTES-C2.md documents the implementation, verification steps, and known limitations. The solution is complete and ready for review.\n\n<!-- agent_openai completion: reason=finished steps=9 elapsed_s=231.7 model=vllama-planner -->\n"
+      }
+    ],
+    "tiebreak": {
+      "tied": [
+        "cc-builder-1",
+        "cc-builder-2"
+      ],
+      "method": "am4-critic-debiased",
+      "winner": null,
+      "why": "complete build notes",
+      "critic_model": "vllama-critic",
+      "bias_detected": true,
+      "fallback": "order"
+    }
+  },
+  "winner": "cc-builder-1",
+  "questions": [],
+  "promotion": {
+    "promoted": true,
+    "mode": "ff-only",
+    "target": "main",
+    "commit": "97d23883d7435f4138e2bc96a313b25fce419b08",
+    "notes": "fast-forwarded main from c8cd2aa3c79e0a85a4c4f53df6891453a502f7ed to 97d23883d7435f4138e2bc96a313b25fce419b08",
+    "risk": {
+      "score": 25,
+      "level": "low",
+      "factors": [
+        "blast radius: 61 files changed"
+      ],
+      "files_changed": 61,
+      "computed_at": "2026-07-03T13:30:15Z"
+    }
+  },
+  "target": {
+    "builders": [
+      "cc-builder-1",
+      "cc-builder-2",
+      "cc-builder-4"
+    ]
+  }
+}

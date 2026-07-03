@@ -1,6 +1,6 @@
 {
   "contract_version": "capacity-estimates.v1",
-  "observation_count": 19,
+  "observation_count": 21,
   "unresolved_observation_refs": 0,
   "combos": {
     "am4-worker-1|vllama-planner|openai": {
@@ -25,24 +25,26 @@
       "builder_id": "cc-builder-1",
       "model_id": "sonnet",
       "backend": "claude",
-      "samples": 1,
+      "samples": 2,
       "successes": 1,
-      "failures": 0,
-      "failure_classes": {},
+      "failures": 1,
+      "failure_classes": {
+        "agent_timeout_partial_deliverable": 1
+      },
       "promotion_holds": 0,
       "max_context_tokens": null,
       "max_vram_gb_peak": null,
-      "last_observed": "2026-07-03T04:09:32.603190+00:00",
+      "last_observed": "2026-07-03T13:30:15.997922+00:00",
       "mean_tokens_per_s": null,
-      "success_rate": 1.0,
-      "confidence": 0.33
+      "success_rate": 0.5,
+      "confidence": 0.5
     },
     "cc-builder-2|vllama-planner|openai": {
       "builder_id": "cc-builder-2",
       "model_id": "vllama-planner",
       "backend": "openai",
-      "samples": 2,
-      "successes": 1,
+      "samples": 3,
+      "successes": 2,
       "failures": 1,
       "failure_classes": {
         "assay_test_failure": 1
@@ -50,10 +52,10 @@
       "promotion_holds": 0,
       "max_context_tokens": null,
       "max_vram_gb_peak": null,
-      "last_observed": "2026-07-03T05:55:23.332966+00:00",
+      "last_observed": "2026-07-03T13:30:15.997922+00:00",
       "mean_tokens_per_s": null,
-      "success_rate": 0.5,
-      "confidence": 0.5
+      "success_rate": 0.67,
+      "confidence": 0.6
     },
     "omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-cuda": {
       "builder_id": "omen-5070",

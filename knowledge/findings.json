@@ -1,13 +1,14 @@
 {
   "contract_version": "findings.v1",
-  "observation_count": 19,
+  "observation_count": 21,
   "decision_count": 0,
   "unresolved_refs": 0,
   "finding_counts": {
     "known_bad": 1,
-    "known_good": 12,
+    "known_good": 11,
     "recommendation": 2,
-    "uncertain": 2
+    "regression": 1,
+    "uncertain": 3
   },
   "findings": [
     {
@@ -41,39 +42,6 @@
       "recommendation": "do not schedule without explicit experiment flag",
       "first_observed": "2026-07-02T09:34:50.860286Z",
       "last_observed": "2026-07-02T10:31:56.771381Z",
-      "derived_from": [
-        "capacity-estimates.v1"
-      ]
-    },
-    {
-      "contract_version": "finding.v1",
-      "finding_id": "known_good:cc-builder-1|sonnet|claude",
-      "finding_type": "known_good",
-      "statement": "cc-builder-1 + sonnet + claude works: 1/1 successful runs (success_rate 1.0)",
-      "subject": {
-        "builder_id": "cc-builder-1",
-        "model_id": "sonnet",
-        "backend": "claude",
-        "task_kind": null,
-        "metric": null
-      },
-      "confidence": "low",
-      "confidence_score": 0.33,
-      "evidence": {
-        "samples": 1,
-        "successes": 1,
-        "failures": 0,
-        "summary": "1/1 success",
-        "observation_ids": [
-          "obs_pour_b2_cc_builder_1"
-        ],
-        "decision_ids": null,
-        "mean_signed_error": null,
-        "mean_absolute_error": null
-      },
-      "recommendation": null,
-      "first_observed": "2026-07-03T04:09:32.603190+00:00",
-      "last_observed": "2026-07-03T04:09:32.603190+00:00",
       "derived_from": [
         "capacity-estimates.v1"
       ]
@@ -492,7 +460,7 @@
         "samples": 1,
         "successes": null,
         "failures": null,
-        "summary": "best of 2 known_good combo(s) observed on task_kind repo-build",
+        "summary": "best of 1 known_good combo(s) observed on task_kind repo-build",
         "observation_ids": [
           "obs_omen_debut_001"
         ],
@@ -503,6 +471,39 @@
       "recommendation": "route task_kind repo-build to omen-worker-1 + qwen3-coder:30b + ollama",
       "first_observed": "2026-07-02T10:45:55.071789+00:00",
       "last_observed": "2026-07-02T10:45:55.071789+00:00",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
+      "finding_id": "regression:cc-builder-1|sonnet|claude",
+      "finding_type": "regression",
+      "statement": "cc-builder-1 + sonnet + claude regressed: 1 failure(s) (agent_timeout_partial_deliverable) after last success at 2026-07-03T04:09:32.603190+00:00",
+      "subject": {
+        "builder_id": "cc-builder-1",
+        "model_id": "sonnet",
+        "backend": "claude",
+        "task_kind": null,
+        "metric": null
+      },
+      "confidence": "low",
+      "confidence_score": 0.33,
+      "evidence": {
+        "samples": 1,
+        "successes": 1,
+        "failures": 1,
+        "summary": "1 failure(s) after success at 2026-07-03T04:09:32.603190+00:00",
+        "observation_ids": [
+          "obs_pour_c2_cc_builder_1"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": "re-assay before scheduling; a previously working combo is now failing",
+      "first_observed": "2026-07-03T04:09:32.603190+00:00",
+      "last_observed": "2026-07-03T13:30:15.997922+00:00",
       "derived_from": [
         "capacity-estimates.v1"
       ]
@@ -543,13 +544,13 @@
     },
     {
       "contract_version": "finding.v1",
-      "finding_id": "uncertain:cc-builder-2|vllama-planner|openai",
+      "finding_id": "uncertain:cc-builder-1|sonnet|claude",
       "finding_type": "uncertain",
-      "statement": "cc-builder-2 + vllama-planner + openai has mixed or insufficient evidence: 1/2 success (rate 0.5)",
+      "statement": "cc-builder-1 + sonnet + claude has mixed or insufficient evidence: 1/2 success (rate 0.5)",
       "subject": {
-        "builder_id": "cc-builder-2",
-        "model_id": "vllama-planner",
-        "backend": "openai",
+        "builder_id": "cc-builder-1",
+        "model_id": "sonnet",
+        "backend": "claude",
         "task_kind": null,
         "metric": null
       },
@@ -561,8 +562,8 @@
         "failures": 1,
         "summary": "1/2 success, 1 failures",
         "observation_ids": [
-          "obs_pour_a1_r7_cc_builder_2",
-          "obs_pour_b2_cc_builder_2"
+          "obs_pour_b2_cc_builder_1",
+          "obs_pour_c2_cc_builder_1"
         ],
         "decision_ids": null,
         "mean_signed_error": null,
@@ -570,7 +571,42 @@
       },
       "recommendation": "schedule only low-stakes work; gather more evidence",
       "first_observed": "2026-07-03T04:09:32.603190+00:00",
-      "last_observed": "2026-07-03T05:55:23.332966+00:00",
+      "last_observed": "2026-07-03T13:30:15.997922+00:00",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
+      "finding_id": "uncertain:cc-builder-2|vllama-planner|openai",
+      "finding_type": "uncertain",
+      "statement": "cc-builder-2 + vllama-planner + openai has mixed or insufficient evidence: 2/3 success (rate 0.67)",
+      "subject": {
+        "builder_id": "cc-builder-2",
+        "model_id": "vllama-planner",
+        "backend": "openai",
+        "task_kind": null,
+        "metric": null
+      },
+      "confidence": "medium",
+      "confidence_score": 0.6,
+      "evidence": {
+        "samples": 3,
+        "successes": 2,
+        "failures": 1,
+        "summary": "2/3 success, 1 failures",
+        "observation_ids": [
+          "obs_pour_a1_r7_cc_builder_2",
+          "obs_pour_b2_cc_builder_2",
+          "obs_pour_c2_cc_builder_2"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": "schedule only low-stakes work; gather more evidence",
+      "first_observed": "2026-07-03T04:09:32.603190+00:00",
+      "last_observed": "2026-07-03T13:30:15.997922+00:00",
       "derived_from": [
         "capacity-estimates.v1"
       ]

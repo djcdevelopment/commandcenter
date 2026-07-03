@@ -1,0 +1,34 @@
+{
+  "workflow_name": "pour-c2",
+  "graph_signature_hash": "ada6d277f21ce3c2a75545a0aeb5bff5e6ed3535f272a84ab2e7cb79fede063d",
+  "checkpoint_id": "ec2535f2-3da9-44ac-8154-ad3d8b579837",
+  "previous_checkpoint_id": "792906ab-2864-4699-8f41-d90441109ecf",
+  "timestamp": "2026-07-03T13:29:54.783517+00:00",
+  "messages": {
+    "build_cc-builder-2": [
+      {
+        "__pickled__": "gAWVkwIAAAAAAACMKmFnZW50X2ZyYW1ld29yay5fd29ya2Zsb3dzLl9ydW5uZXJfY29udGV4dJSMD1dvcmtmbG93TWVzc2FnZZSTlCmBlH2UKIwEZGF0YZR9lCiMBndvcmtlcpSMDGNjLWJ1aWxkZXItMpSMBWVudHJ5lH2UKIwCb2uUiIwGYnJhbmNolIwgY2NmYXJtL3BvdXItYzIvY2MtYnVpbGRlci0yL2xhcDGUjAdwdXNoX29rlIiMBnJ1bm5lcpSMBm9wZW5haZSMDHJ1bm5lcl9tb2RlbJSMDnZsbGFtYS1wbGFubmVylIwJY29tbWl0dGVklIiMBnB1c2hlZJSIjA1jb21taXRzX2FoZWFklEsMjAtlbXB0eV9idWlsZJSJjAtkb25lX3NpZ25hbJSIjAhhZ2VudF9yY5RLAIwPYWdlbnRfdGltZWRfb3V0lImMBnN0YXR1c5RoC4wGcmVhc29ulGgLdYwHcm91dGluZ5R9lIwFZXJyb3KUjBpyb3V0ZS1kaXNhYmxlZC10ZW1wb3JhcmlseZRzdYwJc291cmNlX2lklIwSYnVpbGRfY2MtYnVpbGRlci0ylIwJdGFyZ2V0X2lklE6MBHR5cGWUaACMC01lc3NhZ2VUeXBllJOUjAhzdGFuZGFyZJSFlFKUjA50cmFjZV9jb250ZXh0c5RdlH2UjAt0cmFjZXBhcmVudJSMNzAwLWQ0MzJiYmU3ODA1YmI2OWY1MzhhN2JjYWE2ZGEzMjM1LTliZmZhMmU3ZTZhN2E1ZjMtMDOUc2GMD3NvdXJjZV9zcGFuX2lkc5RdlIwQOWJmZmEyZTdlNmE3YTVmM5RhjBtvcmlnaW5hbF9yZXF1ZXN0X2luZm9fZXZlbnSUTnViLg==",
+        "__type__": "agent_framework._workflows._runner_context:WorkflowMessage"
+      }
+    ],
+    "build_cc-builder-1": [
+      {
+        "__pickled__": "gAWVjgIAAAAAAACMKmFnZW50X2ZyYW1ld29yay5fd29ya2Zsb3dzLl9ydW5uZXJfY29udGV4dJSMD1dvcmtmbG93TWVzc2FnZZSTlCmBlH2UKIwEZGF0YZR9lCiMBndvcmtlcpSMDGNjLWJ1aWxkZXItMZSMBWVudHJ5lH2UKIwCb2uUiYwGYnJhbmNolIwgY2NmYXJtL3BvdXItYzIvY2MtYnVpbGRlci0xL2xhcDGUjAdwdXNoX29rlIiMBnJ1bm5lcpSMBmNsYXVkZZSMDHJ1bm5lcl9tb2RlbJSMBnNvbm5ldJSMCWNvbW1pdHRlZJSIjAZwdXNoZWSUiIwNY29tbWl0c19haGVhZJRLDIwLZW1wdHlfYnVpbGSUiYwLZG9uZV9zaWduYWyUiIwIYWdlbnRfcmOUSv////+MD2FnZW50X3RpbWVkX291dJSIjAZzdGF0dXOUaAuMBnJlYXNvbpRoC3WMB3JvdXRpbmeUfZSMBWVycm9ylIwacm91dGUtZGlzYWJsZWQtdGVtcG9yYXJpbHmUc3WMCXNvdXJjZV9pZJSMEmJ1aWxkX2NjLWJ1aWxkZXItMZSMCXRhcmdldF9pZJROjAR0eXBllGgAjAtNZXNzYWdlVHlwZZSTlIwIc3RhbmRhcmSUhZRSlIwOdHJhY2VfY29udGV4dHOUXZR9lIwLdHJhY2VwYXJlbnSUjDcwMC1kNDMyYmJlNzgwNWJiNjlmNTM4YTdiY2FhNmRhMzIzNS0wNTlmZjk1NGMwOTA4NWRiLTAzlHNhjA9zb3VyY2Vfc3Bhbl9pZHOUXZSMEDA1OWZmOTU0YzA5MDg1ZGKUYYwbb3JpZ2luYWxfcmVxdWVzdF9pbmZvX2V2ZW50lE51Yi4=",
+        "__type__": "agent_framework._workflows._runner_context:WorkflowMessage"
+      }
+    ]
+  },
+  "state": {
+    "_workflow_run_kwargs": {},
+    "_executor_state": {
+      "route": {},
+      "build_cc-builder-1": {},
+      "build_cc-builder-2": {},
+      "finalize": {}
+    }
+  },
+  "pending_request_info_events": {},
+  "iteration_count": 1,
+  "metadata": {},
+  "version": "1.0"
+}

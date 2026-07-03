@@ -1,0 +1,21 @@
+{
+  "workflow_name": "pour-c2",
+  "graph_signature_hash": "ada6d277f21ce3c2a75545a0aeb5bff5e6ed3535f272a84ab2e7cb79fede063d",
+  "checkpoint_id": "9974b3b9-6361-4af8-b304-7d3574cc76b4",
+  "previous_checkpoint_id": "ec2535f2-3da9-44ac-8154-ad3d8b579837",
+  "timestamp": "2026-07-03T13:30:15.997922+00:00",
+  "messages": {},
+  "state": {
+    "_workflow_run_kwargs": {},
+    "_executor_state": {
+      "route": {},
+      "build_cc-builder-1": {},
+      "build_cc-builder-2": {},
+      "finalize": {}
+    }
+  },
+  "pending_request_info_events": {},
+  "iteration_count": 2,
+  "metadata": {},
+  "version": "1.0"
+}

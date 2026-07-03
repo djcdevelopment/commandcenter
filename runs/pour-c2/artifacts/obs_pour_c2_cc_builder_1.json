@@ -1,0 +1,30 @@
+{
+    "contract_version": "capacity-observation.v1",
+    "observation_id": "obs_pour_c2_cc_builder_1",
+    "decision_id": null,
+    "workflow_id": "wf-pour-c2",
+    "run_id": "pour-c2",
+    "timestamp": "2026-07-03T13:30:15.997922+00:00",
+    "builder_id": "cc-builder-1",
+    "model_id": "sonnet",
+    "backend": "claude",
+    "hardware_profile_id": null,
+    "workload_shape": {
+        "task_kind": "repo-build",
+        "estimated_context_tokens": null,
+        "requires_gpu": null,
+        "notes": "Stream C2 lap: agent timed out (agent_rc -1) after committing the collector only (no tests, no BUILD-NOTES); assay B/70 (162/162 baseline, isolation=direct); tie broken by list order after position-bias no-consensus; conductor promoted lap; curator review rejected it — collector adopted into synthesis c40ee1e"
+    },
+    "observed": {
+        "runtime_s": null,
+        "ttft_s": null,
+        "tokens_per_s": null,
+        "ram_gb_peak": null,
+        "vram_gb_peak": null,
+        "context_tokens": null,
+        "physical": null
+    },
+    "outcome": "timeout",
+    "failure_class": "agent_timeout_partial_deliverable",
+    "promotion_status": "approved"
+}

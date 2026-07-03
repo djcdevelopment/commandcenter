@@ -15,8 +15,10 @@
 ## Lap provenance
 
 Both pour-c2 laps were rejected by review; this branch is a curator synthesis of
-their verified-good parts. The assay returned no scoreboard and the tiebreak fell
-back to list order — see POUR-STATUS.md.
+their verified-good parts. The assay graded both laps an identical B/70 (behavior mode
+weighed neither the timeout flag nor the missing required deliverables), the debiased
+tiebreak detected position bias with no consensus and fell back to list order — see
+POUR-STATUS.md.
 
 - **Collector** = cc-builder-1's lap (`pour-c2/cc-builder-1/lap1`, commit `97d2388`)
   taken verbatim as the base (it was verified live on the RTX 5070: exit-code

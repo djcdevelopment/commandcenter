@@ -60,6 +60,43 @@
 - `knowledge/*.json` deliberately NOT re-projected — the guard is code-only, and re-projecting the corpus is the incident operation itself.
 - Verification: suite `Ran 148 tests ... OK` (141 + 7 new). Opens G0.
 
+## Landing: C2 (wave 2 opener — curated synthesis) — 2026-07-03
+
+- Conductor run: `pour-c2` (trace `d432bbe7...`), cycle `13:22:31.976 → 13:30:15.998` (464.0s from checkpoints).
+- Campaign mechanics per `docs/conductor-pour-howto.md`: mirror fast-forwarded to `d9c76e2` + HEAD switched
+  `main → master` (builders were cloning a stale default); `FARMER_REPO_PATH` set via systemd `--user`
+  override `pour-campaign.conf`; daemon restarted.
+- **Instrument finding #1 (howto corrected in this landing):** `cc-builder-4` was requested via the CCMETA
+  allow-list but the daemon dropped it — `exclude_from_build_pool` removes a node from the ready set BEFORE
+  the allow-list applies (`requested builders missing from ready set`). There is currently no per-run opt-in
+  for excluded nodes. Its ollama-backend build data point (and mixtral debut) did not happen.
+- **Instrument finding #2 (assay gap, second occurrence):** the behavior assay graded a TIMED-OUT partial lap
+  (cc-builder-1: `agent_rc -1`, collector only, zero tests) and a complete lap (cc-builder-2: all four
+  deliverables, 171/171) an identical **B/70** — neither the timeout flag nor required-deliverable presence
+  is weighed. The debiased tiebreak then detected POSITION BIAS (fwd/rev disagreed), declared no consensus,
+  and fell back to list order — crowning the timed-out lap. Concrete fixes: (a) `agent_timed_out`/`agent_rc`
+  should cap the grade; (b) stream-scoped acceptance checks per `ASSAY-ACCEPTANCE-GAP-2026-07-03.html`.
+- **Curator review (two agents, worktree-isolated):** cc-builder-1's collector = correct, verified live on
+  the RTX 5070, but two required deliverables absent → reject. cc-builder-2's lap = complete deliverables
+  but the collector's core contract unimplemented (samples BEFORE the wrapped command; non-terminating
+  nvidia loop; crash on missing nvidia-smi) → reject. The local model out-delivered on completeness; the
+  frontier model out-delivered on correctness; neither lap was landable alone.
+- **Landed: synthesis `c40ee1e`** — cc-builder-1's collector (+ two review-ordered fixes: per-column [N/A]
+  tolerance, interpreter docstring) + 15 tests rewritten from cc-builder-2's material against the real API
+  (including the three cases whose absence let both laps' defects survive) + fresh BUILD-NOTES-C2.md with
+  the verbatim G2 command. Co-authored-by both builders. Suite `162 → 177`, green.
+- Evidence: `runs/pour-c2/` (events + 2 observations + conductor payload). Honest outcomes: cc-builder-1
+  `timeout` (failure_class `agent_timeout_partial_deliverable`, promotion_status `approved` — the conductor
+  did promote it to mirror `main` @ `97d2388` before curation), cc-builder-2 `success`.
+- **Belief deltas after re-projection:** findings `17 → 18` — a `regression` finding formed on
+  `cc-builder-1|sonnet|claude` (pour-b2 success → pour-c2 timeout) and `cc-builder-2|vllama-planner|openai`
+  moved to `uncertain` (assay_failed → success); policy `3 → 5` rules — the vllm block held and a
+  **quarantine** now gates the regressed sonnet combo; candidates 47 including a new `regression_probe`.
+  The organization watched a frontier builder time out and quarantined it, on evidence, within one lap.
+- Follow-ups: G2 validation run on the 5070 (verbatim command in BUILD-NOTES-C2.md); omen-worker-1 build lap
+  when claudefarm1 returns (capability re-earn); mirror `main` left at the promoted partial lap (harmless,
+  promotion target is scratch — noted for hygiene).
+
 ## Gates
 
 - `G0`: `OPEN`

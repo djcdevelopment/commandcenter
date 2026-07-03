@@ -2,18 +2,6 @@
   "contract_version": "known-good-models.v1",
   "entries": [
     {
-      "builder_id": "cc-builder-1",
-      "model_id": "sonnet",
-      "backend": "claude",
-      "success_rate": 1.0,
-      "samples": 1,
-      "mean_tokens_per_s": null,
-      "promotion_holds": 0,
-      "confidence": 0.33,
-      "last_observed": "2026-07-03T04:09:32.603190+00:00",
-      "reason": "1/1 successful runs (success_rate 1.0)"
-    },
-    {
       "builder_id": "omen-5070",
       "model_id": "mixtral:8x22b-instruct-v0.1-q2_K",
       "backend": "ollama-cuda",

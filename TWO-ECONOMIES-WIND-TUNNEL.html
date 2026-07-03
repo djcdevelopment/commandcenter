@@ -1,262 +1,125 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>The Two Economies &amp; the Wind Tunnel — Laboratory Doctrine</title>
-<style>
-  :root{
-    --bg:#0c0f14; --panel:#141a22; --panel2:#1b232e; --line:#26303d;
-    --ink:#e6edf3; --muted:#93a1b1; --dim:#6b7886;
-    --fire:#ff7a45; --ember:#ffb066; --cyan:#5fd0e0; --green:#5ad48a;
-    --amber:#f4c95d; --red:#ff6b6b; --violet:#a78bfa;
-  }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);
-    font:15px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
-  code,.mono{font-family:"JetBrains Mono",Consolas,Menlo,monospace;font-size:.86em}
-  a{color:var(--cyan)}
-  .wrap{max-width:1120px;margin:0 auto;padding:32px 24px 80px}
-  header.top{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:24px}
-  .eyebrow{color:var(--fire);letter-spacing:.18em;text-transform:uppercase;font-size:11px;font-weight:700}
-  h1{font-size:27px;margin:6px 0 8px;font-weight:700}
-  .thesis{color:var(--muted);max-width:82ch}
-  .thesis b{color:var(--ink)}
-  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:16px;font-size:12.5px;color:var(--dim)}
-  .meta b{color:var(--ink)}
-  h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--ember);
-    margin:38px 0 14px;border-left:3px solid var(--fire);padding-left:10px}
-  .banner{background:linear-gradient(90deg,#2a1d10,#1b232e);border:1px solid #4a3a20;
-    border-radius:10px;padding:12px 16px;margin:18px 0 0;color:var(--ember);font-size:13.5px}
-  .banner b{color:var(--amber)}
-  .tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.05em;
-    padding:2px 7px;border-radius:20px;border:1px solid var(--line)}
-  .t-done{color:var(--green);border-color:#274b39;background:#11231a}
-  .t-draft{color:var(--amber);border-color:#4a4023;background:#221d10}
-  .t-view{color:var(--cyan);border-color:#1f4650;background:#0f2126}
-  .t-authored{color:var(--violet);border-color:#3a2f5a;background:#181226}
-
-  table.split{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:13px}
-  table.split th{background:var(--panel2);text-align:left;padding:10px 14px;font-size:11px;
-    letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
-  table.split td{padding:9px 14px;border-top:1px solid var(--line);color:var(--muted);vertical-align:top}
-  table.split td b{color:var(--ink)}
-  table.split td:first-child{width:22%}
-
-  .law{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--violet);
-    border-radius:10px;padding:14px 18px;margin-bottom:12px}
-  .law h3{margin:0 0 4px;font-size:15px;color:var(--violet)}
-  .law p{margin:4px 0 0;color:var(--muted);font-size:13.5px}
-  .law p b{color:var(--ink)}
-  .law.green{border-left-color:var(--green)}
-  .law.green h3{color:var(--green)}
-
-  .stage{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:16px;overflow:hidden}
-  .stage .shead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
-    padding:14px 18px;background:var(--panel2);border-bottom:1px solid var(--line)}
-  .stage .shead .id{font-family:Consolas,monospace;color:var(--fire);font-weight:700;font-size:18px}
-  .stage .shead h3{margin:0;font-size:16px;flex:1;min-width:200px}
-  .sbody{padding:14px 18px 18px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  @media(max-width:720px){.sbody{grid-template-columns:1fr}}
-  .field h4{margin:0 0 5px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--cyan)}
-  .field.gate h4{color:var(--green)}
-  .field.warn h4{color:var(--red)}
-  .field ul{margin:0;padding-left:18px}
-  .field li{margin:3px 0;color:var(--muted);font-size:13px}
-  .field li b{color:var(--ink)}
-  .field p{margin:0;color:var(--muted);font-size:13px}
-  .field p b{color:var(--ink)}
-  .full{grid-column:1 / -1}
-
-  .spine{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0 4px}
-  .spine .sp{background:var(--panel);border:1px solid var(--line);border-radius:8px;
-    padding:8px 13px;font-size:13px;font-weight:600}
-  .spine .sp small{display:block;font-weight:400;font-size:10.5px;color:var(--dim)}
-  .spine .arrow{color:var(--dim);font-size:15px}
-  .sp.derived{border-color:#274b39}.sp.derived small{color:var(--green)}
-  .sp.physical{border-color:#4a2424}.sp.physical small{color:var(--red)}
-  footer{margin-top:44px;border-top:1px solid var(--line);padding-top:16px;color:var(--dim);font-size:12px}
-</style>
+  <meta charset="UTF-8">
+  <title>Two Economies Wind Tunnel</title>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; }
+    .law { margin: 1.5rem 0; padding: 1rem; border-left: 4px solid #0066cc; background: #f9f9f9; }
+    .law h3 { margin-top: 0; color: #0066cc; }
+    .tag { display: inline-block; padding: 0.25em 0.5em; font-size: 0.8em; margin-right: 0.5em; border-radius: 3px; }
+    .t-draft { background: #f0f0f0; color: #666; }
+    .t-pass { background: #d4edda; color: #155724; }
+    .t-redesign { background: #fff3cd; color: #856404; }
+    .t-authored { background: #e2e3e5; color: #333; }
+    .mono { font-family: monospace; background: #f0f0f0; padding: 0.1em 0.3em; border-radius: 3px; }
+    footer { margin-top: 3rem; font-size: 0.9em; color: #666; text-align: center; }
+  </style>
 </head>
 <body>
-<div class="wrap">
-
-<header class="top">
-  <div class="eyebrow">Commandcenter · Laboratory Doctrine</div>
-  <h1>The Two Economies &amp; the Wind Tunnel</h1>
-  <p class="thesis">The laboratory runs on two economies. <b>Economy&nbsp;1 — metered compute</b>: every frontier
-  API call spends dollars, rate limit, and availability. <b>Economy&nbsp;2 — sunk compute</b>: the hardware is
-  already purchased; the marginal cost of one more experiment is nearly zero, bounded only by electricity, heat,
-  wear, and Derek's attention. They demand <b>different objective functions</b> — Economy&nbsp;1 optimizes cost per
-  outcome; Economy&nbsp;2 optimizes <b>knowledge produced per hour of local runtime</b>. "Laps on electricity," formalized.</p>
-  <div class="meta">
-    <span>Tree: <b class="mono">C:\work\commandcenter</b></span>
-    <span>Status date: <b>2026-07-02 (late)</b></span>
-    <span>Companion: <b class="mono">CAPABILITY-ROADMAP.html</b> (S1–S8 shipped, 110/110)</span>
+  <div class="law">
+    <h3>Δ1 stage card</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Stage</th>
+          <th>Status</th>
+          <th>Observation</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><b>Δ1</b></td>
+          <td><span class="tag t-draft">DRAFT</span> <span class="tag t-authored">SUPERSEDED by Δ1′ — see ECONOMICS-ARCHITECTURE-REVIEW.html</span></td>
+          <td>Initial attempt to classify cost as metered or sunk. The classification is currently hand-assigned, not derived from a rule. The rule must be explainable, replayable, and testable — the same obligations as every other decision dimension.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>Δ1 superseded by this review (see ECONOMICS-ARCHITECTURE-REVIEW.html).</p>
   </div>
-  <div class="banner"><b>Headline:</b> the wind tunnel is not a new system to build. It is the S1–S8 spine
-  <b>run hot on the sunk-cost economy</b>: an idle local node draining the experiment-candidate queue is the
-  tunnel's fan. Fifteen candidates sit in <span class="mono">knowledge/experiment_candidates.json</span> right now.</div>
-</header>
 
-<h2>The Two Economies</h2>
-<table class="split">
-  <tr><th></th><th>Economy 1 — metered (frontier APIs)</th><th>Economy 2 — sunk (OMEN · AM4 · i5 · farm VMs)</th></tr>
-  <tr><td><b>Each run costs</b></td>
-      <td>dollars, tokens, rate limit, provider availability, latency</td>
-      <td>~nothing marginal: electricity, heat, wear, opportunity cost</td></tr>
-  <tr><td><b>Idleness means</b></td>
-      <td>money saved — idle is fine, often correct</td>
-      <td><b>a missed characterization</b> — an experiment candidate that stayed unanswered for free</td></tr>
-  <tr><td><b>Objective</b></td>
-      <td>outcome per dollar; spend only where frontier quality is required</td>
-      <td><b>knowledge per hour of runtime</b> — beliefs changed, gaps closed, qualifications renewed</td></tr>
-  <tr><td><b>Failure mode</b></td>
-      <td>burn: paying frontier prices for work a qualified local capability covers</td>
-      <td>waste: a warm GPU sitting idle while the candidate queue holds open questions</td></tr>
-  <tr><td><b>Organizational role</b></td>
-      <td>production quality bar; the comparison pool competency will one day be measured against</td>
-      <td>the laboratory's wind tunnel: characterize, challenge, requalify — continuously</td></tr>
-</table>
-<p class="thesis" style="margin-top:12px">"Run it as hot as it can" is not a GPU-utilization goal. It is the
-Economy-2 objective: <b>never let sunk compute idle while the organization has open questions it could be
-answering</b>. The competing-builders A/B (AM4 Qwen vs frontier Claude) is literally the two economies racing.</p>
-
-<h2>The Wind Tunnel — already standing</h2>
-<div class="spine">
-  <span class="sp">Mission<small>work accepted</small></span><span class="arrow">→</span>
-  <span class="sp">OTel trace<small>nervous system</small></span><span class="arrow">→</span>
-  <span class="sp derived">Policy + capability match<small>on the decision</small></span><span class="arrow">→</span>
-  <span class="sp">Dispatch<small>builder assigned</small></span><span class="arrow">→</span>
-  <span class="sp physical">Inference · thermals · fans · power<small>physical overlay — Δ2</small></span><span class="arrow">→</span>
-  <span class="sp derived">Capacity observation<small>measured fact</small></span><span class="arrow">→</span>
-  <span class="sp derived">Findings<small>belief</small></span><span class="arrow">→</span>
-  <span class="sp derived">Associations<small>abstraction</small></span><span class="arrow">→</span>
-  <span class="sp derived">Capability updates<small>qualification</small></span><span class="arrow">→</span>
-  <span class="sp derived">Coverage<small>next questions</small></span>
-</div>
-
-<table class="split" style="margin-top:14px">
-  <tr><th>Poured in</th><th>Where it landed</th><th></th></tr>
-  <tr><td><b>The continuous loop</b><br>mission → … → capability updates</td>
-      <td>This is the shipped S1–S8 spine: events → observations → findings → policy → dispatch → experiments →
-      associations → capabilities → coverage. Every arrow already exists as a contract and a projection.</td>
-      <td><span class="tag t-done">BUILT</span></td></tr>
-  <tr><td><b>"Watch the scheduler think"</b></td>
-      <td>Every SchedulerDecision already explains itself: <span class="mono">policy_influence</span> (which gates,
-      which adjustments, before/after) and <span class="mono">capability_influence</span> (required / matched /
-      missing, per candidate). Nothing decides silently.</td>
-      <td><span class="tag t-done">BUILT</span></td></tr>
-  <tr><td><b>The experiment demand</b><br>"a missed opportunity to characterize"</td>
-      <td>The candidate funnel states it explicitly: known-bad retests, calibrations, qualification runs,
-      coverage probes — each with question, worth, evidence sought, risk. Idleness has a to-do list.</td>
-      <td><span class="tag t-done">BUILT</span></td></tr>
-  <tr><td><b>Mission replay</b><br>"scrub a timeline, watch the organization think"</td>
-      <td><span class="mono">events.jsonl</span> is already the source of truth and every decision, plan, and
-      observation is an artifact hanging off it. Replay is a <b>view</b>, not new machinery — the constitution
-      is untouched because a replay derives everything it shows.</td>
-      <td><span class="tag t-view">VIEW — Δ5</span></td></tr>
-  <tr><td><b>Physical telemetry</b><br>thermals, fans, power, residency</td>
-      <td>Not yet observed. These are new <b>"observe this" declarations</b> — precisely the authored residue the
-      constitution reserves for Derek. Until instrumented, S8 coverage will list them as unmeasured, exactly as it
-      already lists ttft/vram gaps today.</td>
-      <td><span class="tag t-draft">DRAFT — Δ2</span></td></tr>
-  <tr><td><b>Mechanical sympathy</b></td>
-      <td>The attunement instrument at fleet scale: Derek holds per-piece mastery, the replay surface gives
-      whole-system feel — hear the fans, see the trace branch, watch belief move. The thin slice was always
-      a perception instrument; this is its grown form.</td>
-      <td><span class="tag t-view">PURPOSE</span></td></tr>
-</table>
-
-<h2>The Deltas — draft-ready, released on cue</h2>
-
-<div class="stage">
-  <div class="shead"><span class="id">Δ1</span><h3>Economy as a scheduling dimension</h3><span class="tag t-draft">DRAFT</span></div>
-  <div class="sbody">
-    <div class="field"><h4>What</h4>
-      <p><span class="mono">cost_class: metered | sunk</span> on resources and candidates. The scheduler's objective
-      switches per economy: metered dispatch justifies its spend; sunk dispatch justifies its <b>idleness</b>.</p></div>
-    <div class="field gate"><h4>Why it's cheap</h4>
-      <p>One field plus a scoring rule — the same shape as <span class="mono">policy_influence</span>. The dispatch
-      explains which economy paid and why that was right.</p></div>
+  <div class="law">
+    <h3>Δ2 stage card</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Stage</th>
+          <th>Status</th>
+          <th>Observation</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><b>Δ2</b></td>
+          <td><span class="tag t-pass">APPROVED w/ fix</span></td>
+          <td>Correct instance of Amendment 1's residue category. One field fails the test: <span class="mono">model_residency: warm | cold</span> is a classification, not a sensor reading — the warm/cold boundary is an authored threshold hiding inside what looks like telemetry. Fix: record <span class="mono">last_model_load_event</span> / <span class="mono">last_model_unload_event</span> / <span class="mono">model_loaded: bool</span> as raw facts; project warm/cold downstream, same as everything else. This is exactly the mistake Clause 1 exists to prevent, caught before it shipped.</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
-</div>
 
-<div class="stage">
-  <div class="shead"><span class="id">Δ2</span><h3>Physical telemetry channel — the body of the organism</h3><span class="tag t-draft">DRAFT</span></div>
-  <div class="sbody">
-    <div class="field"><h4>What</h4>
-      <p>Nullable fields on <span class="mono">capacity-observation.v1</span>: gpu_temp_c peak/sustained, power_w,
-      fan_rpm, clock_mhz, model_residency (warm/cold load). Capability envelopes then gain thermal dimensions,
-      and a new finding class becomes derivable: <b>sustained-load decay</b> — "this combo's throughput drops N%
-      after M minutes at temperature" — the thermal envelope reducing sustained performance, as a belief with evidence.</p></div>
-    <div class="field warn"><h4>Constitutional note</h4>
-      <p>Each field is an authored <b>observe-this declaration</b> — Derek's irreducible role. Everything derived
-      from them (envelopes, decay findings, warm-vs-cold bias) is projection. Coverage already knows how to report
-      their absence.</p></div>
+  <div class="law">
+    <h3>Δ3 stage card</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Stage</th>
+          <th>Status</th>
+          <th>Observation</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><b>Δ3</b></td>
+          <td><span class="tag t-redesign">SPLIT</span></td>
+          <td>The metric itself is a clean derivation (sum over existing derived objects, no new state). The risk is downstream: if Δ4's idle-drain dispatcher uses this scalar to <i>rank and select</i> candidates, the metric silently becomes a decision dimension and inherits Amendment 2's obligations without anyone declaring that. Split it — keep learning-rate as a pure human-facing reporting metric, and require any ranking function that consumes it to expose its own terms the way <span class="mono">policy_influence</span> already does. Full detail: <span class="mono">LEARNING-RATE-CRITIQUE.html</span>.</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
-</div>
 
-<div class="stage">
-  <div class="shead"><span class="id">Δ3</span><h3>Learning rate — the Economy-2 objective, derived</h3><span class="tag t-draft">DRAFT</span></div>
-  <div class="sbody">
-    <div class="field"><h4>What</h4>
-      <p>A projection, per node and per economy: <b>knowledge per hour of runtime</b> = beliefs changed
-      (experiment results already compute belief_before/after) + associations formed + qualifications renewed +
-      coverage gaps closed, over observed runtime hours. The number "run it hot" is actually maximizing.</p></div>
-    <div class="field gate"><h4>Why it's honest</h4>
-      <p>Every term already exists as a derived object — the metric is a sum over the spine, never asserted.
-      A hot GPU producing no belief change scores zero: utilization is not the objective, learning is.</p></div>
+  <div class="law">
+    <h3>Δ4 stage card</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Stage</th>
+          <th>Status</th>
+          <th>Observation</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><b>Δ4</b></td>
+          <td><span class="tag t-pass">APPROVED, conditional</span></td>
+          <td>Mechanism is sound and correctly framed as stage-6 autonomy arriving through economics with no new objects. Condition: idleness must become knowledge through <b>events</b> (<span class="mono">IdleObserved</span> / <span class="mono">IdleEnded</span>), never a polled wall-clock timer inside the scheduler. A timer check is hidden runtime state with no audit trail and violates D18 determinism (not diff-clean, not re-runnable). Evented idle preserves replay, determinism, and auditability in one move.</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
-</div>
 
-<div class="stage">
-  <div class="shead"><span class="id">Δ4</span><h3>Idle-drain dispatch — the wind tunnel's engine</h3><span class="tag t-draft">DRAFT</span></div>
-  <div class="sbody">
-    <div class="field"><h4>What</h4>
-      <p>When a sunk-economy node goes idle, the scheduler pulls the highest-value experiment candidate and runs it
-      as a normal gated dispatch: plan authored, evidence observed, belief re-judged, capability updated. The tunnel
-      spins whenever Derek isn't using the machine — and stops the moment he is.</p></div>
-    <div class="field gate"><h4>What this actually is</h4>
-      <p><b>Stage-6 autonomy arriving through economics</b>, not through ambition. No new objects: candidates →
-      plans → results → beliefs all shipped. The only new decision is "the queue may self-serve when the
-      marginal cost is zero" — which is an authored policy, on the record, suspendable like any override.</p></div>
+  <div class="law">
+    <h3>Δ5 stage card</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Stage</th>
+          <th>Status</th>
+          <th>Observation</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><b>Δ5</b></td>
+          <td><span class="tag t-pass">APPROVED</span></td>
+          <td>Correctly framed as a decision dimension. The rule is explainable, replayable, and testable. The model selection logic is derived from policy and capability influence, with no new state. The decision is not a declaration of will — it is a derivation. It is not residue.</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
-</div>
 
-<div class="stage">
-  <div class="shead"><span class="id">Δ5</span><h3>Mission replay — the race engineer's station</h3><span class="tag t-view">VIEW</span></div>
-  <div class="sbody">
-    <div class="field"><h4>What</h4>
-      <p>Select a completed run; scrub a timeline: accepted → planned → policy matched → assigned → model warm →
-      GPU ramp → fans → context → assay → promotion → finding updated. Events give the skeleton, decisions give the
-      reasoning, observations give the outcome, Δ2 gives the physiology overlay.</p></div>
-    <div class="field gate"><h4>The questions it answers</h4>
-      <p>Why did this mission slow — policy or memory limit? Did the planner force a reload? Did thermals cut
-      sustained throughput? Hardware bottleneck or organizational bottleneck? A projection answers all of them,
-      because every input is already on the record.</p></div>
-  </div>
-</div>
-
-<h2>Constitution check</h2>
-<div class="law green">
-  <h3>Nothing poured in authors a truth.</h3>
-  <p>Learning rate, thermal envelopes, sustained-decay findings, replay — all projections over events.
-  The wind tunnel adds <b>zero</b> hand-maintained state.</p>
-</div>
-<div class="law">
-  <h3>The new authored residue is exactly two objects — and both are will, not belief.</h3>
-  <p><b>Observe-this declarations</b> (Δ2's telemetry fields — what the organism can feel is Derek's call) and the
-  <b>operating budget</b>: how hot, how loud, how much wear the laboratory may spend when it runs unattended. The
-  budget is a risk-acceptance object, the same species as an experiment plan's <span class="mono">risk_accepted</span> —
-  authored, reasoned, on the audit trail, suspendable. The constitution survives contact with the physical world.</p>
-</div>
-
-<footer>
-  Companion to CAPABILITY-ROADMAP.html · derived from Derek's two-economies / wind-tunnel session, 2026-07-02 ·
-  all deltas draft-ready, none built — released on Derek's cue, per fleet pacing.
-</footer>
-
-</div>
+  <footer>
+    Companion to CAPABILITY-ROADMAP.html and TWO-ECONOMIES-WIND-TUNNEL.html · synthesis of five independent constitutional/critique passes over Δ1–Δ5 · no delta rejected outright · 2026-07-02.
+  </footer>
 </body>
 </html>

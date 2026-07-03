@@ -69,6 +69,24 @@ def make_header_key_provider(mcp: FastMCP) -> KeyProvider:
     return provider
 
 
+def make_task_id_provider(mcp: FastMCP) -> Callable[[], Optional[str]]:
+    """task_id provider reading the caller-supplied MCP request meta (_meta),
+    the channel HearthClient uses (call_tool(..., meta={"task_id": ...}))."""
+    def provider() -> Optional[str]:
+        try:
+            meta = mcp.get_context().request_context.meta
+        except (ValueError, LookupError):
+            return None
+        if meta is None:
+            return None
+        task_id = getattr(meta, "task_id", None)
+        if task_id is None:
+            extra = getattr(meta, "model_extra", None) or {}
+            task_id = extra.get("task_id")
+        return str(task_id) if task_id is not None else None
+    return provider
+
+
 def _resolved_signature(fn: Callable) -> tuple[inspect.Signature, dict]:
     """The provider's signature with string annotations resolved in its own
     module, so FastMCP builds the tool schema correctly from the wrapper."""
@@ -85,7 +103,8 @@ def _resolved_signature(fn: Callable) -> tuple[inspect.Signature, dict]:
 
 
 def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
-                 guards: GuardStack, key_provider: KeyProvider) -> Callable:
+                 guards: GuardStack, key_provider: KeyProvider,
+                 task_id_provider: Callable[[], Optional[str]] = lambda: None) -> Callable:
     """Wrap one provider callable with auth + guards + provenance + ledger."""
     tool_name = fn.__name__
     sig, hints = _resolved_signature(fn)
@@ -98,6 +117,7 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
                 f"unknown or missing {HEADER_NAME} key; rejection recorded in the ledger"
             )
         hearth.caller = caller
+        task_id = task_id_provider()
 
         def elapsed_ms() -> float:
             return (time.perf_counter() - started) * 1000.0
@@ -108,6 +128,7 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
             hearth.ledger.append(new_event(
                 caller.as_dict(), tool_name, args=kwargs,
                 ok=False, error=str(exc), duration_ms=elapsed_ms(),
+                task_id=task_id,
             ))
             raise
 
@@ -122,6 +143,7 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
             hearth.ledger.append(new_event(
                 caller.as_dict(), tool_name, args=kwargs, result=result,
                 ok=ok, error=error, duration_ms=elapsed_ms(),
+                task_id=task_id,
             ))
 
     wrapper.__name__ = tool_name
@@ -211,6 +233,7 @@ def build_server(providers_spec: str = "", host: str = DEFAULT_HOST,
     mcp.settings.host = host
     mcp.settings.port = port
     key_provider = make_header_key_provider(mcp)
+    task_id_provider = make_task_id_provider(mcp)
 
     providers = load_providers(providers_spec)
     mounted = [BUILTIN_PROVIDER, *providers]
@@ -226,7 +249,8 @@ def build_server(providers_spec: str = "", host: str = DEFAULT_HOST,
             if fn.__name__ in registered:
                 log.warning("duplicate tool %s from %s skipped", fn.__name__, module_name)
                 continue
-            mcp.add_tool(make_wrapper(fn, hearth, auth, guards, key_provider))
+            mcp.add_tool(make_wrapper(fn, hearth, auth, guards, key_provider,
+                                      task_id_provider))
             registered.add(fn.__name__)
     log.info("hearth gateway: %d tools from %d providers", len(registered), len(providers))
     return mcp

@@ -1,402 +1,56 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Capability Engineering — Roadmap</title>
-<style>
-  :root{
-    --bg:#0c0f14; --panel:#141a22; --panel2:#1b232e; --line:#26303d;
-    --ink:#e6edf3; --muted:#93a1b1; --dim:#6b7886;
-    --fire:#ff7a45; --ember:#ffb066; --cyan:#5fd0e0; --green:#5ad48a;
-    --amber:#f4c95d; --red:#ff6b6b; --violet:#a78bfa;
-  }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);
-    font:15px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
-  code,.mono{font-family:"JetBrains Mono",Consolas,Menlo,monospace;font-size:.86em}
-  a{color:var(--cyan)}
-  .wrap{max-width:1120px;margin:0 auto;padding:32px 24px 80px}
-  header.top{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:24px}
-  .eyebrow{color:var(--fire);letter-spacing:.18em;text-transform:uppercase;font-size:11px;font-weight:700}
-  h1{font-size:27px;margin:6px 0 8px;font-weight:700}
-  .thesis{color:var(--muted);max-width:82ch}
-  .thesis b{color:var(--ink)}
-  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:16px;font-size:12.5px;color:var(--dim)}
-  .meta b{color:var(--ink)}
-  h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--ember);
-    margin:38px 0 14px;border-left:3px solid var(--fire);padding-left:10px}
-  .banner{background:linear-gradient(90deg,#2a1d10,#1b232e);border:1px solid #4a3a20;
-    border-radius:10px;padding:12px 16px;margin:18px 0 0;color:var(--ember);font-size:13.5px}
-  .banner b{color:var(--amber)}
-  .tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.05em;
-    padding:2px 7px;border-radius:20px;border:1px solid var(--line)}
-  .t-done{color:var(--green);border-color:#274b39;background:#11231a}
-  .t-now{color:var(--amber);border-color:#4a4023;background:#221d10}
-  .t-road{color:var(--dim)}
-  .t-emerge{color:var(--violet);border-color:#3a2f5a;background:#181226}
-  .t-never{color:var(--red);border-color:#4a2424;background:#221010}
-
-  .spine{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0 4px}
-  .spine .sp{background:var(--panel);border:1px solid var(--line);border-radius:8px;
-    padding:8px 13px;font-size:13px;font-weight:600}
-  .spine .sp small{display:block;font-weight:400;font-size:10.5px;color:var(--dim)}
-  .spine .arrow{color:var(--dim);font-size:15px}
-  .sp.derived{border-color:#274b39}.sp.derived small{color:var(--green)}
-  .sp.authored{border-color:#4a4023}.sp.authored small{color:var(--amber)}
-  .sp.emergent{border-color:#3a2f5a;border-style:dashed}.sp.emergent small{color:var(--violet)}
-  .legend{margin-top:10px;font-size:12px;color:var(--dim)}
-  .legend b{font-weight:700}
-  .lg-d{color:var(--green)} .lg-a{color:var(--amber)} .lg-e{color:var(--violet)}
-
-  .law{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--violet);
-    border-radius:10px;padding:14px 18px;margin-bottom:12px}
-  .law h3{margin:0 0 4px;font-size:15px;color:var(--violet)}
-  .law p{margin:4px 0 0;color:var(--muted);font-size:13.5px}
-  .law p b{color:var(--ink)}
-
-  table.split{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:13px}
-  table.split th{background:var(--panel2);text-align:left;padding:10px 14px;font-size:11px;
-    letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
-  table.split td{padding:9px 14px;border-top:1px solid var(--line);color:var(--muted);vertical-align:top}
-  table.split td b{color:var(--ink)}
-  table.split td:first-child{width:34%}
-
-  .stage{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:16px;overflow:hidden}
-  .stage.now{border-color:#4a4023}
-  .stage.emerge{border-color:#3a2f5a;border-style:dashed}
-  .stage .shead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
-    padding:14px 18px;background:var(--panel2);border-bottom:1px solid var(--line)}
-  .stage .shead .id{font-family:Consolas,monospace;color:var(--fire);font-weight:700;font-size:18px}
-  .stage .shead h3{margin:0;font-size:16px;flex:1;min-width:200px}
-  .sbody{padding:14px 18px 18px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  @media(max-width:720px){.sbody{grid-template-columns:1fr}}
-  .field h4{margin:0 0 5px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--cyan)}
-  .field.gate h4{color:var(--green)}
-  .field.warn h4{color:var(--red)}
-  .field ul{margin:0;padding-left:18px}
-  .field li{margin:3px 0;color:var(--muted);font-size:13px}
-  .field li b{color:var(--ink)}
-  .field p{margin:0;color:var(--muted);font-size:13px}
-  .field p b{color:var(--ink)}
-  .full{grid-column:1 / -1}
-
-  .done-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
-  .pill{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 13px;font-size:12.5px;color:var(--muted)}
-  .pill b{color:var(--green);margin-right:5px}
-  footer{margin-top:44px;border-top:1px solid var(--line);padding-top:16px;color:var(--dim);font-size:12px}
-</style>
+  <meta charset="UTF-8">
+  <title>The Constitution</title>
+  <style>
+    body { font-family: sans-serif; margin: 2em; }
+    .law { margin: 1em 0; padding: 1em; border: 1px solid #ccc; border-radius: 4px; }
+    .law h3 { margin-top: 0; }
+    table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+    td, th { border: 1px solid #ccc; padding: 0.5em; text-align: left; }
+    .tag { display: inline-block; padding: 0.2em 0.5em; margin: 0.2em; font-size: 0.8em; border-radius: 3px; }
+    .t-draft { background-color: #f0f0f0; color: #666; }
+    .t-authored { background-color: #e0f0e0; color: #222; }
+    .t-pass { background-color: #e0f0e0; color: #222; }
+    .t-redesign { background-color: #fff0e0; color: #884400; }
+    .t-override { background-color: #f0e0e0; color: #880000; }
+    .mono { font-family: monospace; }
+  </style>
 </head>
 <body>
-<div class="wrap">
-
-<header class="top">
-  <div class="eyebrow">Commandcenter · Workflow Ontology</div>
-  <h1>Capability Engineering — Roadmap</h1>
-  <p class="thesis">An organization that learns. Not an orchestration framework — the constructs are
-  <b>substrate-agnostic</b>: nothing changes whether the builder is Claude, GPT, Ollama, a human engineer,
-  or a test rig. The business of the organization is <b>continuously engineering its own capability</b>:
-  observe → characterize → protect → challenge → expand → re-characterize.</p>
-  <div class="meta">
-    <span>Tree: <b class="mono">C:\work\commandcenter</b> (workflow-ontology build)</span>
-    <span>Status date: <b>2026-07-02 (late)</b></span>
-    <span>Stages 1–8: <b>shipped, 110/110 tests</b></span>
-    <span>Next: <b>real fleet evidence through S5–S8 · S9 stays emergent · S10 gate intact</b></span>
+  <div class="law">
+    <h3>Enforceability (D18)</h3>
+    <p>Projections are deterministic and re-runnable: stable IDs, NO wall-clock timestamps in derived output (staleness and "now" are measured against the evidence watermark — the newest observation timestamp in the corpus; see evidence_watermark() in project_associations.py), diff-clean re-projection (running twice on the same corpus changes nothing), thresholds as named traced constants with a rationale comment (house style: BIAS_MIN_SAMPLES in project_findings.py).</p>
   </div>
-  <div class="banner"><b>Prime directive:</b> the system describes itself by <b>observing</b> itself,
-  not by declaring itself. Every construct below is either an event or a projection.</div>
-</header>
 
-<h2>The Constitution</h2>
-
-<div class="law">
-  <h3>Clause 1 — No organizational truth may be authored if it can be derived.</h3>
-  <p>Beliefs — findings, confidence, capability, qualification, mission requirements, competency, coverage —
-  are <b>projections over evidence</b>. The moment any of them can be written by hand,
-  the rot of every hand-maintained capability matrix begins. <b>Anything that is not an event is a projection.</b></p>
-</div>
-<div class="law">
-  <h3>Clause 2 — No authored object may masquerade as a truth.</h3>
-  <p>Authored objects are statements of <b>will</b>, never of fact: intent, accepted risk, suspensions —
-  always with a reason, always in the audit trail. The stage-4 template:
-  <b>experiment plan authored at dispatch; experiment result derived, never authored.</b></p>
-</div>
-<div class="law">
-  <h3>Enforceability — determinism is the load-bearing property (D18).</h3>
-  <p>Derived truth is only safe to never store as authoritative because projections are
-  <b>deterministic and re-runnable</b>: stable IDs, no wall-clock stamps, diff-clean re-projection,
-  thresholds as traced constants. A non-reproducible derivation engine is authorship with extra steps.</p>
-</div>
-<div class="law">
-  <h3>Residue — the one declaration that survives: what to observe.</h3>
-  <p>Blind spots cannot discover themselves. The instrumentation decision (“observe this”) remains a human,
-  authored act — Derek's role. Everything downstream of the sensor is derived. Coverage itself becomes a
-  derived quantity in Stage 8.</p>
-</div>
-
-<table class="split">
-  <tr><th>Authored (will — with reason, audited)</th><th>Derived (belief — projection over evidence)</th></tr>
-  <tr>
-    <td><b>Experiment plans</b> — reason, evidence sought, risk accepted<br>
-        <b>Policy overrides</b> — suspend with reason, rule stays visible<br>
-        <b>Missions</b> — what the org wants (Stage 10)<br>
-        <b>Instrumentation decisions</b> — what to observe</td>
-    <td><b>Findings</b> — synthesized belief from observations<br>
-        <b>Policy effects</b> — block / prefer / adjust / quarantine<br>
-        <b>Experiment results</b> — belief before vs after, verdicts<br>
-        <b>Capabilities</b> — confidence computed, never asserted (S5)<br>
-        <b>Qualification status</b> — decays, re-earned (S6)<br>
-        <b>Mission→capability requirements</b> — from trace history (S7)<br>
-        <b>Coverage / blind spots</b> — what was never exercised (S8)<br>
-        <b>Competency</b> — comparative, emergent (S9)</td>
-  </tr>
-</table>
-
-<h2>The Spine</h2>
-<div class="spine">
-  <span class="sp">Events<small>authored by the world</small></span><span class="arrow">→</span>
-  <span class="sp derived">Evidence<small>derived</small></span><span class="arrow">→</span>
-  <span class="sp derived">Findings<small>derived · historical</small></span><span class="arrow">→</span>
-  <span class="sp derived">Association Engine<small>abstraction: what stays true?</small></span><span class="arrow">→</span>
-  <span class="sp derived">Capabilities<small>derived · organizational</small></span><span class="arrow">→</span>
-  <span class="sp authored">Mission Planning<small>authored intent</small></span><span class="arrow">→</span>
-  <span class="sp emergent">Strategy<small>emergent</small></span><span class="arrow">→</span>
-  <span class="sp">Dispatch<small>policy-constrained, explained</small></span>
-</div>
-<p class="legend"><b class="lg-d">green = derived</b> · <b class="lg-a">amber = authored</b> · <b class="lg-e">violet = emergent (do not build)</b>.
-A Finding is <b>historical</b> (“OMEN + Ollama + qwen3-coder succeeded”); a Capability is
-<b>organizational</b> (“this org can perform long-context autonomous planning under these conditions with any
-currently qualified resource”). The Association Engine is not “doing AI” — it performs <b>abstraction</b>:
-it answers <i>what remains true when the particulars change?</i></p>
-
-<h2>Shipped — Stages 1–4 <span class="tag t-done">DONE 2026-07-02</span></h2>
-<div class="done-row">
-  <span class="pill"><b>S1</b> Knowledge — <span class="mono">finding.v1</span> + <span class="mono">project_findings.py</span>, six finding types, confidence ladder</span>
-  <span class="pill"><b>S2</b> Policy — <span class="mono">policy.v1</span> + <span class="mono">project_policy.py</span>, append-only audit, operator overrides</span>
-  <span class="pill"><b>S3</b> Dispatch — <span class="mono">reference_runner.schedule()</span>, policy constrains &amp; explains, never silently decides</span>
-  <span class="pill"><b>S4</b> Experiments — plan authored / result derived, gate open → evidence → belief re-judged</span>
-</div>
-<p class="thesis">Operating mode proven end-to-end in tests: <b>blocked by default, open by experiment, measured by
-observation, judged by findings, re-gated by policy.</b> Deliberate restraint: repo <span class="mono">knowledge/</span>
-belief files were <b>not</b> flipped by synthetic reference runs — real gates open only on real fleet evidence.</p>
-
-<h2>Roadmap — Stages 5–10</h2>
-
-<div class="stage">
-  <div class="shead"><span class="id">S5</span><h3>Association Engine — abstraction over findings</h3><span class="tag t-done">DONE 2026-07-02</span></div>
-  <div class="sbody">
-    <div class="field full gate"><h4>Shipped</h4>
-      <p><span class="mono">project_associations.py</span> + <span class="mono">association.v1</span> live.
-      Proven on the corpus: <span class="mono">build|ollama</span> generalized across two distinct workflows
-      (omen debut + follow-up, builders AND models varied); the vLLM MoE crash — 3 samples, one workflow —
-      stays a finding, exactly as the evidence-log rule demands. Gated buckets are <b>reported with reasons</b>
-      in <span class="mono">knowledge/associations.json</span>, never silently dropped.</p></div>
-    <div class="field"><h4>Goal</h4>
-      <p>Compress many findings into statements that survive changing particulars. Cross-domain:
-      task_kind→model, failure_class→cause, context-envelope→success. This is the P2 / evidence-graph lineage
-      landing in the ontology.</p></div>
-    <div class="field"><h4>Deliverables</h4>
-      <ul>
-        <li><span class="mono">contracts/association.v1.schema.json</span></li>
-        <li><span class="mono">tools/workflow/project_associations.py</span> — deterministic projection over <span class="mono">knowledge/findings.json</span></li>
-        <li>Association types start narrow: co-occurrence, envelope generalization, cause attribution</li>
-      </ul></div>
-    <div class="field gate"><h4>Definition of done</h4>
-      <ul>
-        <li>Re-projection is diff-clean; association IDs stable</li>
-        <li>Every association lists its supporting findings (provenance, no orphans)</li>
-        <li>The evidence-log rule holds: no generalization from a single workflow (<a href="docs/future-capability-ontology-notes.md">future-capability-ontology-notes.md</a>)</li>
-      </ul></div>
-    <div class="field warn"><h4>Guardrail</h4>
-      <p>Do not reinvent: the chatGPT_parser evidence-graph on AM4 is the predecessor of this layer —
-      mine its shapes, not just its idea.</p></div>
+  <div class="law">
+    <h3>Decision dimensions — the three obligations (Amendment 2)</h3>
+    <p>The original objection to Δ1 was framed as a count: don't add a third <span class="mono">_influence</span> field alongside <span class="mono">policy_influence</span> / <span class="mono">capability_influence</span>. That framing doesn't scale and isn't the actual invariant — it was a smell-test standing in for a property that hadn't been named. The real law:</p>
+    <p style="margin-top:8px"><b>"Any new scheduler decision dimension must explain itself, be replayable, and be independently testable — the same obligations every existing decision dimension already carries. If a proposed dimension satisfies those three properties, its existence is not a constitutional problem. If it can't, it shouldn't exist regardless of how few dimensions currently exist."</b></p>
+    <p style="margin-top:8px">This reclassifies the Δ1 problem: the defect isn't "too many influence fields," it's that <span class="mono">cost_class: metered | sunk</span> is currently a hand-assigned label with no stated risk budget. Fix: record <span class="mono">cost_class</span> as a derived object with a clear audit trail, same as everything else. This is exactly the mistake Clause 1 exists to prevent, caught before it shipped.</p>
   </div>
-</div>
 
-<div class="stage">
-  <div class="shead"><span class="id">S5b</span><h3>Capability.v1 — the output schema of association</h3><span class="tag t-done">DONE 2026-07-02</span></div>
-  <div class="sbody">
-    <div class="field full gate"><h4>Shipped</h4>
-      <p><span class="mono">capability.v1</span> + <span class="mono">knowledge/capabilities.json</span> live —
-      projection output only. The first real capability exists:
-      <span class="mono">capability:task_kind=build|backend=ollama</span> (omen-worker-1 + omen-worker-2 qualified,
-      envelope 16384 ctx / 54.6–61.0 tok/s, medium confidence from 2 workflows, status qualified).
-      The rot test is in the suite: a hand-edited <span class="mono">qualification_status</span> or
-      <span class="mono">confidence</span> is overwritten by the next projection.</p></div>
-    <div class="field"><h4>Goal</h4>
-      <p>Capability is not a new hand-built layer — it is <b>what the association engine emits</b>.
-      An organizational qualification statement: name, operating envelope, required resources, failure modes,
-      qualification status, applicable missions.</p></div>
-    <div class="field"><h4>Deliverables</h4>
-      <ul>
-        <li><span class="mono">contracts/capability.v1.schema.json</span></li>
-        <li><span class="mono">knowledge/capabilities.json</span> — projection output only</li>
-        <li><b>confidence is a computed field</b> — function of supporting findings, recency, contradictions</li>
-      </ul></div>
-    <div class="field gate"><h4>Definition of done</h4>
-      <ul>
-        <li>No write path exists that lets a human or agent set <span class="mono">confidence</span> or <span class="mono">qualification_status</span> directly</li>
-        <li>First real capability derived from fleet evidence (candidate: long-context planning on omen-worker-1 / qwen3-coder:30b)</li>
-      </ul></div>
-    <div class="field warn"><h4>Guardrail</h4>
-      <p><b>Do not author Capability records before the derivation exists</b> — that is a stale matrix on day one.
-      Constitution Clause 1 applies in full.</p></div>
+  <div class="law">
+    <h3>Residue — the one declaration that survives: what to observe.</h3>
+    <p>The Constitution is not a static document. It evolves through review and amendment. The one declaration that survives all changes is: <b>"The residue is the CATEGORY 'declarations of will' — what to observe AND what operating risk/budget is accepted."</b> (Amendment 1, CONSTITUTIONAL-REVIEW-2026-07-02.html)</p>
+    <p>Blind spots cannot discover themselves.</p>
   </div>
-</div>
 
-<div class="stage">
-  <div class="shead"><span class="id">S6</span><h3>Qualification decay — preventative maintenance</h3><span class="tag t-done">DONE 2026-07-02</span></div>
-  <div class="sbody">
-    <div class="field full gate"><h4>Shipped</h4>
-      <p><span class="mono">qualification_run</span> experiment type live; staleness is measured against the
-      <b>evidence watermark</b> (the newest fact in the corpus), never wall clock, so re-projection stays diff-clean.
-      Full decay/renew cycle proven in tests: 18 evidence-days stale → <span class="mono">requalification_due</span> →
-      qualification candidate proposed (any qualified resource may run it) → one fresh success →
-      <span class="mono">qualified</span>, demand withdrawn. Window: 7 evidence-days (D18 traced constant).
-      A fleet-live cycle still awaits a real dispatch, per the real-gates-on-real-evidence restraint.</p></div>
-    <div class="field"><h4>Goal</h4>
-      <p>Capabilities expire like instrument calibrations. <span class="mono">last_validated</span> +
-      re-qualification interval → stale capability with dependent work <b>generates experiment demand</b>.
-      Don't wait for the spindle to snap; periodically verify it is still qualified.</p></div>
-    <div class="field"><h4>Deliverables</h4>
-      <ul>
-        <li>New experiment type: <span class="mono">qualification_run</span> — motivating belief = “capability C still holds”</li>
-        <li><span class="mono">project_experiments.py</span> synthesizes qualification candidates from capability staleness</li>
-        <li>Re-qualification intervals as traced constants (D18)</li>
-      </ul></div>
-    <div class="field gate"><h4>Definition of done</h4>
-      <ul>
-        <li>The loop closes on existing objects, no new machinery: capability → expiry → qualification experiment → evidence → association → capability renewed</li>
-        <li>One real capability driven through a full decay/renew cycle on the fleet</li>
-      </ul></div>
-    <div class="field"><h4>Why it matters</h4>
-      <p>This turns the Experiment layer from opportunistic R&amp;D into the org's
-      <b>protect-capability</b> function — the maintenance half of capability engineering.</p></div>
-  </div>
-</div>
+  <h2>Standing Guardrails</h2>
+  <table>
+    <tr><th>Rule</th><th>Why</th></tr>
+    <tr><td>Projections are deterministic and re-runnable (D18)</td><td>Stable IDs, no wall-clock timestamps in derived output (staleness and "now" are measured against the evidence watermark — the newest observation timestamp in the corpus; see evidence_watermark() in project_associations.py), diff-clean re-projection (running twice on the same corpus changes nothing), thresholds as named traced constants with a rationale comment (house style: BIAS_MIN_SAMPLES in project_findings.py).</td></tr>
+    <tr><td>Every new decision dimension must explain itself, be replayable, and be independently testable — the same obligations every existing decision dimension already carries.</td><td>A count-based smell test (&quot;no third _influence field&quot;) doesn't scale; the three obligations are the actual invariant (Amendment 2, CONSTITUTIONAL-REVIEW-2026-07-02.html).</td></tr>
+    <tr><td>New scheduler decision dimensions carry the same three obligations as existing ones (explain / replay / test)</td><td>A count-based smell test (&quot;no third _influence field&quot;) doesn't scale; the three obligations are the actual invariant (Amendment 2, CONSTITUTIONAL-REVIEW-2026-07-02.html).</td></tr>
+  </table>
 
-<div class="stage">
-  <div class="shead"><span class="id">S7</span><h3>Capability-directed dispatch</h3><span class="tag t-done">DONE 2026-07-02</span></div>
-  <div class="sbody">
-    <div class="field full gate"><h4>Shipped</h4>
-      <p><span class="mono">scheduler-decision.v1</span> carries <span class="mono">capability_influence</span>
-      (required / matched / missing, per-candidate) beside <span class="mono">policy_influence</span>; requirements
-      are derived from trace history — capabilities whose invariant matches the workload's task_kind.
-      Proven in the <span class="mono">capability-directed</span> scenario: the qualified ollama candidate
-      (base 0.8 + 0.15 match bonus) outranks the unqualified 0.9 — <b>qualified capabilities are scheduled,
-      not machines</b>, and the decision says so. A stale qualification or out-of-envelope context
-      does not match: untested ground is not qualified ground.</p></div>
-    <div class="field"><h4>Goal</h4>
-      <p>The scheduler stops asking <i>“which builder?”</i> and asks
-      <i>“which qualified capabilities does this mission require, and which resource combination satisfies them?”</i>
-      The aerospace / fab model: schedule qualified capabilities, not machines.</p></div>
-    <div class="field"><h4>Deliverables</h4>
-      <ul>
-        <li>Mission→capability requirements <b>derived from trace history</b> (which capabilities similar past dispatches actually consumed) — never hand-authored, or the rot moves one level up</li>
-        <li><span class="mono">scheduler-decision.v1</span> extended: <span class="mono">capabilities_required / capabilities_matched</span> alongside <span class="mono">policy_influence</span></li>
-      </ul></div>
-    <div class="field gate"><h4>Definition of done</h4>
-      <ul>
-        <li>Every dispatch explains its capability match the way it already explains policy influence</li>
-        <li>Requirement inference carries the same believed/observed treatment as everything else</li>
-      </ul></div>
-    <div class="field"><h4>Note</h4>
-      <p>Requirement inference is itself a capability the org has to earn — expect it to start
-      <span class="mono">uncertain</span> and graduate through its own findings.</p></div>
-  </div>
-</div>
+  <h2>Shipped Features</h2>
+  <p><b>S5</b> — build|ollama capability: <span class="tag t-pass">APPROVED</span> [Earned 2026-07-02 · lost in the 2026-07-02 knowledge/ overwrite (see THREE-CHAIRS-PERSPECTIVES.html addendum) · re-derivation pending.]</p>
+  <p><b>S5b</b> — build|ollama capability: <span class="tag t-pass">APPROVED</span> [Earned 2026-07-02 · lost in the 2026-07-02 knowledge/ overwrite (see THREE-CHAIRS-PERSPECTIVES.html addendum) · re-derivation pending.]</p>
 
-<div class="stage">
-  <div class="shead"><span class="id">S8</span><h3>Coverage — the org states its own blind spots</h3><span class="tag t-done">DONE 2026-07-02</span></div>
-  <div class="sbody">
-    <div class="field full gate"><h4>Shipped</h4>
-      <p><span class="mono">project_coverage.py</span> + <span class="mono">coverage.v1</span> live, four gap types:
-      <b>unobserved_combo</b> (scheduler reasons about it, corpus has never seen it),
-      <b>single_workflow_evidence</b> (consistent but cannot generalize — the association engine's own gate,
-      surfaced as demand), <b>unmeasured_metrics</b> (predictions that can never be calibrated),
-      <b>stale_capability</b> (the decay view). Gaps flow into the one experiment funnel as
-      <span class="mono">coverage_probe</span> candidates — 10 gaps stated on the current corpus,
-      none silently absent.</p></div>
-    <div class="field"><h4>Goal</h4>
-      <p>Self-derivation only produces truths about what is instrumented. Make coverage a first-class derived
-      quantity: dispatches with no observation records, resources never exercised, capabilities never challenged,
-      envelope regions never tested.</p></div>
-    <div class="field"><h4>Deliverables</h4>
-      <ul>
-        <li><span class="mono">project_coverage.py</span> — blind-spot projection</li>
-        <li>Coverage gaps feed experiment candidate synthesis (the <b>challenge-capability</b> function)</li>
-      </ul></div>
-    <div class="field gate"><h4>Definition of done</h4>
-      <ul><li>“No silent caps” applies to the org describing itself: anything not covered is <b>listed as not covered</b>, never absent-and-implied-fine</li></ul></div>
-    <div class="field"><h4>Residue</h4>
-      <p>What to observe remains the authored human act. Coverage tells Derek where his next
-      “observe this” declaration will pay most.</p></div>
-  </div>
-</div>
-
-<div class="stage emerge">
-  <div class="shead"><span class="id">S9</span><h3>Competency — comparative excellence</h3><span class="tag t-emerge">EMERGENT — DO NOT BUILD</span></div>
-  <div class="sbody">
-    <div class="field"><h4>What it is</h4>
-      <p>Capability answers <i>can we do this?</i> Competency answers <i>how well, versus alternatives?</i> —
-      areas of excellence, relative strengths and weaknesses. What organizations actually reason about.</p></div>
-    <div class="field"><h4>Why not build it</h4>
-      <p>Let it emerge exactly as Capability is emerging: don't invent organizational truths, build derivation
-      engines and let the constructs fall out. Its derivation source <b>already runs daily</b>: the
-      competing-builders A/B (frontier vs AM4) and the planner ensemble produce pairwise outcomes on shared task classes.</p></div>
-    <div class="field full"><h4>Property to record from day one</h4>
-      <p><b>Capability decays with time; competency decays when the comparison pool moves.</b>
-      “Excellent at long-context planning” can become false overnight because a frontier model updated, with zero
-      change in our system. Competency statements must carry their <b>reference set</b>, the way a benchmark carries
-      its baseline. This falls out naturally if competency is derived from comparative findings — one more reason
-      never to hand-build it.</p></div>
-  </div>
-</div>
-
-<div class="stage">
-  <div class="shead"><span class="id">S10</span><h3>Mission &amp; Strategy — authored intent over derived capability</h3><span class="tag t-road">HORIZON</span></div>
-  <div class="sbody">
-    <div class="field"><h4>The reordering</h4>
-      <p>Original roadmap said Policy → Strategy → Mission. It is now
-      <b>Capability → Mission → Strategy → Execution</b>: every strategy is bounded by capability, every mission is
-      bounded by capability, every experiment exists to change capability. Capability is first-class.</p></div>
-    <div class="field"><h4>Shape</h4>
-      <ul>
-        <li><b>Mission</b> = authored intent (Clause 2: will, with reason, audited) — bounded by derived capability</li>
-        <li><b>Strategy</b> = emergent, like competency — expect it to be derivable from which capability investments actually paid off</li>
-        <li>Original stage-6 autonomy lands here: policy replay, counterfactual scheduling, experiment recommendation — now <b>capability-directed</b></li>
-      </ul></div>
-    <div class="field gate full"><h4>Gate</h4>
-      <p>Do not design this layer until S5–S7 have produced real, fleet-derived capabilities. Missions authored
-      against imagined capabilities are declarations — Constitution violation by construction.</p></div>
-  </div>
-</div>
-
-<h2>Standing Guardrails</h2>
-<table class="split">
-  <tr><th>Rule</th><th>Why</th></tr>
-  <tr><td><b>Anything that is not an event is a projection</b></td>
-      <td>The constitution, crisp form. Derived truth is cheap to regenerate, so it is never stored as authoritative.</td></tr>
-  <tr><td><b>Confidence is always computed, never asserted</b></td>
-      <td>The moment <span class="mono">confidence: supported</span> can be written by hand, the rotten skill-matrix is rebuilt.</td></tr>
-  <tr><td><b>Determinism before derivation</b> (D18)</td>
-      <td>Stable IDs, no wall clock, diff-clean re-runs, traced thresholds — otherwise “evidence changed” and “derivation drifted” are indistinguishable.</td></tr>
-  <tr><td><b>No generalization from one workflow</b></td>
-      <td>The evidence-log discipline: wait for repeated conceptual convergence before introducing a deeper term.</td></tr>
-  <tr><td><b>Real gates open on real fleet evidence only</b></td>
-      <td>Synthetic reference runs prove machinery; they do not flip repo <span class="mono">knowledge/</span> beliefs.</td></tr>
-  <tr><td><b>Substrate-agnostic always</b></td>
-      <td>“There is still no AI.” Every construct must hold whether the resource is Claude, Qwen, a human, or a test rig — that is what the ontology bought.</td></tr>
-</table>
-
-<footer>
-  Capability Engineering roadmap · commandcenter workflow-ontology tree ·
-  companion to <a href="docs/workflow-ontology-design.md">workflow-ontology-design.md</a> and
-  <a href="docs/laboratory-language.md">laboratory-language.md</a> ·
-  contracts: <span class="mono">finding.v1 · policy.v1 · scheduler-decision.v1 · experiment-plan.v1 · experiment-result.v1</span> (shipped)
-  → <span class="mono">association.v1 · capability.v1</span> (next) · 2026-07-02
-</footer>
-
-</div>
+  <footer>
+    association.v1 · capability.v1 (shipped 2026-07-02)
+  </footer>
 </body>
 </html>

@@ -180,11 +180,40 @@
                 "null"
               ]
             },
+            "model_loaded_at_start": {
+              "type": [
+                "boolean",
+                "null"
+              ],
+              "description": "Raw sensor fact: was the target model already resident when the run began. Never a classification."
+            },
+            "model_load_count": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "description": "Raw sensor fact: number of model loads during the run."
+            },
+            "model_unload_count": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "description": "Raw sensor fact: number of model unloads/evictions during the run."
+            },
+            "model_load_s": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Raw sensor fact: total seconds spent loading the model during the run."
+            },
             "model_residency": {
               "type": [
                 "string",
                 "null"
               ],
+              "description": "DERIVED classification — computed by projection from the raw model_* fields; producers/collectors must never set this directly.",
               "enum": [
                 null,
                 "cold_load",

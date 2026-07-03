@@ -77,3 +77,7 @@ Not done, intentionally:
 - No reducer treats a `hardware_profile_id` change as an evidence-time discontinuity.
 - No fleet node collects or reports this telemetry.
 - No operating-budget contract exists yet (the one authored object this delta requires).
+
+### Update 2026-07-03 — model_residency reclassified as derived (Δ2 verdict, stream C1)
+
+Per the constitutional review's Δ2 verdict, `model_residency` (the §4 priorities-table "High" row, and the last field in the Status list above) was an authored warm/cold classification hiding inside telemetry. The contract now separates the two: `observed.physical` carries four **raw sensor facts** a collector can report without any threshold — `model_loaded_at_start`, `model_load_count`, `model_unload_count`, `model_load_s` (all nullable, additive) — and `model_residency` gains a `description` marking it **DERIVED** (computed by projection from those raw fields; producers/collectors must never set it directly). The enum is unchanged; removing it would be breaking. The four raw `model_*` fields are what collectors report; the residency classification is projected downstream. That projection does not exist yet (no evidence exists — the constitution forbids scaffolding beliefs ahead of evidence), and the collector is stream C2.

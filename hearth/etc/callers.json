@@ -1,0 +1,3 @@
+{
+  "dev-local": { "id": "dev-local", "runner_class": "human", "node": "omen" }
+}

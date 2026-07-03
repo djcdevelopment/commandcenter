@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hearth-event.v1.schema.json",
+  "title": "hearth-event.v1",
+  "description": "One HEARTH ledger event: a single tool call through the kernel gateway, provenance-stamped. Frozen contract per HEARTH-BUILD-ORCHESTRATION.html.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "event_id",
+    "ts",
+    "caller",
+    "tool",
+    "args_digest",
+    "args_preview",
+    "result_digest",
+    "ok",
+    "error",
+    "duration_ms",
+    "cost",
+    "task_id"
+  ],
+  "properties": {
+    "schema": { "const": "hearth-event.v1" },
+    "event_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "ts": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|\\+00:00)$"
+    },
+    "caller": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "runner_class", "node"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "runner_class": { "enum": ["frontier", "local", "human"] },
+        "node": { "type": "string", "minLength": 1 }
+      }
+    },
+    "tool": { "type": "string", "minLength": 1 },
+    "args_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "args_preview": { "type": "string", "maxLength": 400 },
+    "result_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "ok": { "type": "boolean" },
+    "error": { "type": ["string", "null"] },
+    "duration_ms": { "type": "number", "minimum": 0 },
+    "cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tokens_in", "tokens_out", "watt_s"],
+      "properties": {
+        "tokens_in": { "type": ["number", "null"] },
+        "tokens_out": { "type": ["number", "null"] },
+        "watt_s": { "type": ["number", "null"] }
+      }
+    },
+    "task_id": { "type": ["string", "null"] }
+  }
+}

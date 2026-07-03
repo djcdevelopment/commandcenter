@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "hearth": {
+      "type": "http",
+      "url": "http://127.0.0.1:8710/mcp",
+      "headers": {
+        "X-Hearth-Key": "dev-local"
+      }
+    }
+  }
+}

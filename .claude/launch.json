@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "mmp",
+      "runtimeExecutable": "C:/work/commandcenter/fleet-worker-node/.venv-omen/Scripts/python.exe",
+      "runtimeArgs": ["-m", "http.server", "8099"],
+      "port": 8099
+    }
+  ]
+}

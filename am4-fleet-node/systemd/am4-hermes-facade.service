@@ -1,0 +1,18 @@
+[Unit]
+Description=AM4 Hermes OpenAI-compatible facade
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=derek
+Group=derek
+WorkingDirectory=/home/derek/am4-fleet-node
+EnvironmentFile=-/home/derek/.config/am4-fleet/hermes.env
+ExecStart=/usr/bin/python3 /home/derek/am4-fleet-node/scripts/hermes-facade.py
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
+

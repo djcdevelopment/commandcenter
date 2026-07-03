@@ -1,0 +1,109 @@
+{
+  "contract_version": "policies.v1",
+  "source_findings": 4,
+  "evidence_watermark": "2026-07-02T13:03:20Z",
+  "rule_counts": {
+    "adjust_prediction": 2,
+    "block": 1,
+    "prefer": 1
+  },
+  "rules": [
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "adjust_prediction:*|claude-opus-4.8|*|*|expected_generation_tokens_per_second",
+      "effect": "adjust_prediction",
+      "statement": "adjust expected_generation_tokens_per_second predictions for claude-opus-4.8 by -8.0",
+      "subject": {
+        "builder_id": null,
+        "model_id": "claude-opus-4.8",
+        "backend": null,
+        "task_kind": null,
+        "metric": "expected_generation_tokens_per_second"
+      },
+      "derived_from_finding": "prediction_bias:claude-opus-4.8:expected_generation_tokens_per_second",
+      "finding_type": "prediction_bias",
+      "confidence": "medium",
+      "evidence_summary": "2 comparisons, mean signed error -8.0 (MAE 8.0)",
+      "override": null,
+      "adjustment": {
+        "metric": "expected_generation_tokens_per_second",
+        "additive_correction": -8.0
+      },
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-07-02T13:03:20Z"
+    },
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "adjust_prediction:*|qwen3-30b-a3b-awq|*|*|expected_peak_ram_mb",
+      "effect": "adjust_prediction",
+      "statement": "adjust expected_peak_ram_mb predictions for qwen3-30b-a3b-awq by +9984.0",
+      "subject": {
+        "builder_id": null,
+        "model_id": "qwen3-30b-a3b-awq",
+        "backend": null,
+        "task_kind": null,
+        "metric": "expected_peak_ram_mb"
+      },
+      "derived_from_finding": "prediction_bias:qwen3-30b-a3b-awq:expected_peak_ram_mb",
+      "finding_type": "prediction_bias",
+      "confidence": "medium",
+      "evidence_summary": "2 comparisons, mean signed error 9984.0 (MAE 9984.0)",
+      "override": null,
+      "adjustment": {
+        "metric": "expected_peak_ram_mb",
+        "additive_correction": 9984.0
+      },
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-06-30T18:14:00Z"
+    },
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "block:claudefarm1|qwen3-30b-a3b-awq|vllm|*|*",
+      "effect": "block",
+      "statement": "block claudefarm1 + qwen3-30b-a3b-awq + vllm: 3/3 moe_offload_crash",
+      "subject": {
+        "builder_id": "claudefarm1",
+        "model_id": "qwen3-30b-a3b-awq",
+        "backend": "vllm",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "known_bad:claudefarm1|qwen3-30b-a3b-awq|vllm",
+      "finding_type": "known_bad",
+      "confidence": "high",
+      "evidence_summary": "3/3 moe_offload_crash",
+      "override": {
+        "flag": "experiment_flag",
+        "semantics": "dispatch allowed only as an explicit experiment"
+      },
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-06-30T18:26:00Z"
+    },
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "prefer:builder-1|claude-opus-4.8|local|*|*",
+      "effect": "prefer",
+      "statement": "prefer builder-1 + claude-opus-4.8 + local when compatible: 5/5 success",
+      "subject": {
+        "builder_id": "builder-1",
+        "model_id": "claude-opus-4.8",
+        "backend": "local",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "known_good:builder-1|claude-opus-4.8|local",
+      "finding_type": "known_good",
+      "confidence": "high",
+      "evidence_summary": "5/5 success",
+      "override": null,
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-07-02T13:03:20Z"
+    }
+  ]
+}

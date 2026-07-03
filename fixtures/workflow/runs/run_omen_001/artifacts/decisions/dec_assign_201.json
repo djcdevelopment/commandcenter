@@ -1,0 +1,59 @@
+{
+  "contract_version": "scheduler-decision.v1",
+  "decision_id": "dec_assign_201",
+  "workflow_id": "wf_omen_debut",
+  "run_id": "run_omen_001",
+  "timestamp": "2026-07-01T20:00:10Z",
+  "workload_shape": {
+    "task_kind": "build",
+    "estimated_context_tokens": 16384,
+    "requires_gpu": true,
+    "notes": "debut A/B vs frontier"
+  },
+  "candidates_considered": [
+    {
+      "builder_id": "omen-worker-1",
+      "model_id": "qwen3-coder:30b",
+      "backend": "ollama",
+      "filters_passed": true,
+      "score": 0.9,
+      "selected": true,
+      "rejected_reason": null
+    },
+    {
+      "builder_id": "cc-builder-1",
+      "model_id": "claude-opus-4.8",
+      "backend": "frontier",
+      "filters_passed": true,
+      "score": 0.85,
+      "selected": false,
+      "rejected_reason": "assigned as competing A/B baseline, not primary"
+    }
+  ],
+  "selected": {
+    "builder_id": "omen-worker-1",
+    "model_id": "qwen3-coder:30b",
+    "backend": "ollama"
+  },
+  "decision_reason": "debut A/B: local qwen3-coder vs frontier baseline",
+  "predictions": {
+    "runtime_s": null,
+    "ttft_s": null,
+    "tokens_per_s": 50.0,
+    "ram_gb_peak": null,
+    "vram_gb_peak": 12.0,
+    "assay_pass_probability": null,
+    "promotion_probability": null,
+    "expected_model_load_ms": 18000.0,
+    "expected_ttft_ms": 1400.0,
+    "expected_prompt_tokens_per_second": null,
+    "expected_generation_tokens_per_second": 50.0,
+    "expected_peak_ram_mb": 11264.0,
+    "expected_peak_vram_mb": 12288.0,
+    "expected_assay_outcome": "passed",
+    "expected_promotion_status": "approved",
+    "confidence": 0.82,
+    "prediction_source": "fixture:accurate"
+  },
+  "evidence_refs": []
+}

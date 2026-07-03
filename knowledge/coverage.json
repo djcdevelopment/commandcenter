@@ -1,0 +1,474 @@
+{
+  "contract_version": "coverage.v1",
+  "observation_count": 10,
+  "decision_count": 0,
+  "unresolved_refs": 0,
+  "evidence_watermark": "2026-07-02T06:55:00Z",
+  "gap_counts": {
+    "single_workflow_evidence": 8,
+    "unmeasured_metrics": 10
+  },
+  "gaps": [
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "single_workflow_evidence:model_portability:model_id=mixtral:8x22b-instruct-v0.1-q2_K",
+      "gap_type": "single_workflow_evidence",
+      "statement": "'model_id=mixtral:8x22b-instruct-v0.1-q2_K' has 3 consistent sample(s) but all from wf-omen-5070-hwbaseline-2026-07-02; a second distinct workflow would let the association engine generalize it",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": null,
+        "invariant": {
+          "model_id": "mixtral:8x22b-instruct-v0.1-q2_K"
+        },
+        "missing_metrics": null,
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 3,
+        "workflows": [
+          "wf-omen-5070-hwbaseline-2026-07-02"
+        ],
+        "summary": "3 sample(s), 1 workflow (need 2)"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-02T06:05:00Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "single_workflow_evidence:model_portability:model_id=qwen2.5:14b",
+      "gap_type": "single_workflow_evidence",
+      "statement": "'model_id=qwen2.5:14b' has 5 consistent sample(s) but all from wf-omen-5070-hwbaseline-2026-07-02; a second distinct workflow would let the association engine generalize it",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": null,
+        "invariant": {
+          "model_id": "qwen2.5:14b"
+        },
+        "missing_metrics": null,
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 5,
+        "workflows": [
+          "wf-omen-5070-hwbaseline-2026-07-02"
+        ],
+        "summary": "5 sample(s), 1 workflow (need 2)"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-02T06:50:00Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "single_workflow_evidence:model_portability:model_id=qwen3-coder:30b",
+      "gap_type": "single_workflow_evidence",
+      "statement": "'model_id=qwen3-coder:30b' has 2 consistent sample(s) but all from wf-omen-5070-hwbaseline-2026-07-02; a second distinct workflow would let the association engine generalize it",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": null,
+        "invariant": {
+          "model_id": "qwen3-coder:30b"
+        },
+        "missing_metrics": null,
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 2,
+        "workflows": [
+          "wf-omen-5070-hwbaseline-2026-07-02"
+        ],
+        "summary": "2 sample(s), 1 workflow (need 2)"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-02T06:55:00Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "single_workflow_evidence:task_backend:task_kind=capacity-probe|backend=ollama-cuda",
+      "gap_type": "single_workflow_evidence",
+      "statement": "'task_kind=capacity-probe, backend=ollama-cuda' has 3 consistent sample(s) but all from wf-omen-5070-hwbaseline-2026-07-02; a second distinct workflow would let the association engine generalize it",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "ollama-cuda",
+        "task_kind": "capacity-probe",
+        "invariant": {
+          "task_kind": "capacity-probe",
+          "backend": "ollama-cuda"
+        },
+        "missing_metrics": null,
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 3,
+        "workflows": [
+          "wf-omen-5070-hwbaseline-2026-07-02"
+        ],
+        "summary": "3 sample(s), 1 workflow (need 2)"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-02T06:41:15Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "single_workflow_evidence:task_backend:task_kind=capacity-probe|backend=ollama-cuda-contended",
+      "gap_type": "single_workflow_evidence",
+      "statement": "'task_kind=capacity-probe, backend=ollama-cuda-contended' has 2 consistent sample(s) but all from wf-omen-5070-hwbaseline-2026-07-02; a second distinct workflow would let the association engine generalize it",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "ollama-cuda-contended",
+        "task_kind": "capacity-probe",
+        "invariant": {
+          "task_kind": "capacity-probe",
+          "backend": "ollama-cuda-contended"
+        },
+        "missing_metrics": null,
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 2,
+        "workflows": [
+          "wf-omen-5070-hwbaseline-2026-07-02"
+        ],
+        "summary": "2 sample(s), 1 workflow (need 2)"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-02T06:55:00Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "single_workflow_evidence:task_backend:task_kind=capacity-probe|backend=ollama-vulkan",
+      "gap_type": "single_workflow_evidence",
+      "statement": "'task_kind=capacity-probe, backend=ollama-vulkan' has 1 consistent sample(s) but all from wf-omen-5070-hwbaseline-2026-07-02; a second distinct workflow would let the association engine generalize it",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "ollama-vulkan",
+        "task_kind": "capacity-probe",
+        "invariant": {
+          "task_kind": "capacity-probe",
+          "backend": "ollama-vulkan"
+        },
+        "missing_metrics": null,
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1,
+        "workflows": [
+          "wf-omen-5070-hwbaseline-2026-07-02"
+        ],
+        "summary": "1 sample(s), 1 workflow (need 2)"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-02T05:10:00Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "single_workflow_evidence:task_backend:task_kind=capacity-probe|backend=ollama-vulkan-igpu",
+      "gap_type": "single_workflow_evidence",
+      "statement": "'task_kind=capacity-probe, backend=ollama-vulkan-igpu' has 2 consistent sample(s) but all from wf-omen-5070-hwbaseline-2026-07-02; a second distinct workflow would let the association engine generalize it",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "ollama-vulkan-igpu",
+        "task_kind": "capacity-probe",
+        "invariant": {
+          "task_kind": "capacity-probe",
+          "backend": "ollama-vulkan-igpu"
+        },
+        "missing_metrics": null,
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 2,
+        "workflows": [
+          "wf-omen-5070-hwbaseline-2026-07-02"
+        ],
+        "summary": "2 sample(s), 1 workflow (need 2)"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-02T06:05:00Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "single_workflow_evidence:task_backend:task_kind=capacity-probe|backend=ollama-vulkan-mixed",
+      "gap_type": "single_workflow_evidence",
+      "statement": "'task_kind=capacity-probe, backend=ollama-vulkan-mixed' has 2 consistent sample(s) but all from wf-omen-5070-hwbaseline-2026-07-02; a second distinct workflow would let the association engine generalize it",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "ollama-vulkan-mixed",
+        "task_kind": "capacity-probe",
+        "invariant": {
+          "task_kind": "capacity-probe",
+          "backend": "ollama-vulkan-mixed"
+        },
+        "missing_metrics": null,
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 2,
+        "workflows": [
+          "wf-omen-5070-hwbaseline-2026-07-02"
+        ],
+        "summary": "2 sample(s), 1 workflow (need 2)"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-02T05:55:00Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-cuda",
+      "gap_type": "unmeasured_metrics",
+      "statement": "omen-5070 + mixtral:8x22b-instruct-v0.1-q2_K + ollama-cuda has run 1 time(s) but never reported: ttft_s, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "mixtral:8x22b-instruct-v0.1-q2_K",
+        "backend": "ollama-cuda",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1,
+        "workflows": null,
+        "summary": "2/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-02T05:45:00Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-vulkan-igpu",
+      "gap_type": "unmeasured_metrics",
+      "statement": "omen-5070 + mixtral:8x22b-instruct-v0.1-q2_K + ollama-vulkan-igpu has run 1 time(s) but never reported: ttft_s, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "mixtral:8x22b-instruct-v0.1-q2_K",
+        "backend": "ollama-vulkan-igpu",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1,
+        "workflows": null,
+        "summary": "2/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-02T06:05:00Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-vulkan-mixed",
+      "gap_type": "unmeasured_metrics",
+      "statement": "omen-5070 + mixtral:8x22b-instruct-v0.1-q2_K + ollama-vulkan-mixed has run 1 time(s) but never reported: ttft_s, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "mixtral:8x22b-instruct-v0.1-q2_K",
+        "backend": "ollama-vulkan-mixed",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1,
+        "workflows": null,
+        "summary": "2/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-02T05:55:00Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:omen-5070|qwen2.5:14b|ollama-cuda",
+      "gap_type": "unmeasured_metrics",
+      "statement": "omen-5070 + qwen2.5:14b + ollama-cuda has run 1 time(s) but never reported: ttft_s; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen2.5:14b",
+        "backend": "ollama-cuda",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1,
+        "workflows": null,
+        "summary": "1/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-02T06:41:15Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:omen-5070|qwen2.5:14b|ollama-cuda-contended",
+      "gap_type": "unmeasured_metrics",
+      "statement": "omen-5070 + qwen2.5:14b + ollama-cuda-contended has run 1 time(s) but never reported: ttft_s, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen2.5:14b",
+        "backend": "ollama-cuda-contended",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1,
+        "workflows": null,
+        "summary": "2/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-02T06:50:00Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:omen-5070|qwen2.5:14b|ollama-vulkan",
+      "gap_type": "unmeasured_metrics",
+      "statement": "omen-5070 + qwen2.5:14b + ollama-vulkan has run 1 time(s) but never reported: ttft_s, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen2.5:14b",
+        "backend": "ollama-vulkan",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1,
+        "workflows": null,
+        "summary": "2/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-02T05:10:00Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:omen-5070|qwen2.5:14b|ollama-vulkan-igpu",
+      "gap_type": "unmeasured_metrics",
+      "statement": "omen-5070 + qwen2.5:14b + ollama-vulkan-igpu has run 1 time(s) but never reported: ttft_s, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen2.5:14b",
+        "backend": "ollama-vulkan-igpu",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1,
+        "workflows": null,
+        "summary": "2/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-02T05:30:00Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:omen-5070|qwen2.5:14b|ollama-vulkan-mixed",
+      "gap_type": "unmeasured_metrics",
+      "statement": "omen-5070 + qwen2.5:14b + ollama-vulkan-mixed has run 1 time(s) but never reported: ttft_s, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen2.5:14b",
+        "backend": "ollama-vulkan-mixed",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1,
+        "workflows": null,
+        "summary": "2/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-02T05:20:00Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:omen-5070|qwen3-coder:30b|ollama-cuda",
+      "gap_type": "unmeasured_metrics",
+      "statement": "omen-5070 + qwen3-coder:30b + ollama-cuda has run 1 time(s) but never reported: ttft_s; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen3-coder:30b",
+        "backend": "ollama-cuda",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1,
+        "workflows": null,
+        "summary": "1/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-02T06:41:15Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:omen-5070|qwen3-coder:30b|ollama-cuda-contended",
+      "gap_type": "unmeasured_metrics",
+      "statement": "omen-5070 + qwen3-coder:30b + ollama-cuda-contended has run 1 time(s) but never reported: ttft_s, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen3-coder:30b",
+        "backend": "ollama-cuda-contended",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1,
+        "workflows": null,
+        "summary": "2/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-02T06:55:00Z"
+    }
+  ]
+}

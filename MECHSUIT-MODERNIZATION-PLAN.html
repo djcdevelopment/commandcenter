@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mechsuit Modernization — Plan &amp; Live Status</title>
+<style>
+  :root{
+    --bg:#0c0f14; --panel:#141a22; --panel2:#1b232e; --line:#26303d;
+    --ink:#e6edf3; --muted:#93a1b1; --dim:#6b7886;
+    --fire:#ff7a45; --ember:#ffb066; --cyan:#5fd0e0; --green:#5ad48a;
+    --amber:#f4c95d; --red:#ff6b6b; --violet:#a78bfa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  code,.mono{font-family:"JetBrains Mono",Consolas,Menlo,monospace;font-size:.86em}
+  a{color:var(--cyan)}
+  .wrap{max-width:1120px;margin:0 auto;padding:32px 24px 80px}
+  header.top{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:24px}
+  .eyebrow{color:var(--fire);letter-spacing:.18em;text-transform:uppercase;font-size:11px;font-weight:700}
+  h1{font-size:27px;margin:6px 0 8px;font-weight:700}
+  .thesis{color:var(--muted);max-width:82ch}
+  .thesis b{color:var(--ink)}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:16px;font-size:12.5px;color:var(--dim)}
+  .meta b{color:var(--ink)}
+  h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--ember);
+    margin:38px 0 14px;border-left:3px solid var(--fire);padding-left:10px}
+  .banner{background:linear-gradient(90deg,#2a1d10,#1b232e);border:1px solid #4a3a20;
+    border-radius:10px;padding:12px 16px;margin:18px 0 0;color:var(--ember);font-size:13.5px}
+  .banner b{color:var(--amber)}
+  .grid{display:grid;gap:14px}
+  .nodes{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+  .node{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .node h3{margin:0 0 2px;font-size:15px}
+  .node .role{color:var(--cyan);font-size:12px;font-weight:600}
+  .node p{margin:8px 0 0;color:var(--muted);font-size:12.5px}
+  .node.parked{opacity:.6;border-style:dashed}
+  .node.busy{border-color:#4a3a20}
+  .tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.05em;
+    padding:2px 7px;border-radius:20px;border:1px solid var(--line)}
+  .t-done{color:var(--green);border-color:#274b39;background:#11231a}
+  .t-now{color:var(--amber);border-color:#4a4023;background:#221d10}
+  .t-busy{color:var(--red);border-color:#4a2424;background:#221010}
+  .t-park{color:var(--dim)}
+  .board{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .board .row{display:grid;grid-template-columns:54px 1fr 120px 132px;gap:0;
+    border-top:1px solid var(--line);align-items:center}
+  .board .row.head{border-top:none;background:var(--panel2);font-size:11px;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+  .board .cell{padding:11px 14px}
+  .board .id{color:var(--fire);font-weight:700;font-family:Consolas,monospace}
+  .board .nm{font-weight:600}
+  .board .nm small{display:block;color:var(--dim);font-weight:400;font-size:11.5px;margin-top:2px}
+  .horizon{font-size:11px;font-weight:700;letter-spacing:.06em}
+  .h-now{color:var(--amber)} .h-road{color:var(--dim)}
+  .badge{font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;display:inline-block;text-align:center;min-width:96px}
+  .b-backlog{color:var(--dim);background:#171d25;border:1px solid var(--line)}
+  .b-prog{color:#0c0f14;background:var(--amber)}
+  .b-signed{color:#0c0f14;background:var(--green)}
+  .summary{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 14px}
+  .pill{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 13px;font-size:12.5px}
+  .pill b{font-size:16px;color:var(--ink);margin-right:5px}
+  .slice{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:0;margin-bottom:16px;overflow:hidden}
+  .slice.now{border-color:#4a4023}
+  .slice .shead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    padding:14px 18px;background:var(--panel2);border-bottom:1px solid var(--line)}
+  .slice .shead .id{font-family:Consolas,monospace;color:var(--fire);font-weight:700;font-size:18px}
+  .slice .shead h3{margin:0;font-size:16px;flex:1;min-width:200px}
+  .layers{display:flex;gap:6px;flex-wrap:wrap;padding:12px 18px 0}
+  .layer{font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:3px 8px;border-radius:5px;
+    background:#10161d;border:1px solid var(--line);color:var(--violet)}
+  .sbody{padding:14px 18px 18px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:720px){.sbody{grid-template-columns:1fr}.board .row{grid-template-columns:44px 1fr 92px;}.board .horizon{display:none}}
+  .field h4{margin:0 0 5px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--cyan)}
+  .field.signoff h4{color:var(--green)}
+  .field.ctrl h4{color:var(--amber)}
+  .field ul{margin:0;padding-left:18px}
+  .field li{margin:3px 0;color:var(--muted);font-size:13px}
+  .field li b{color:var(--ink)}
+  .full{grid-column:1/-1}
+  .goal{color:var(--ink);font-size:13.5px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:720px){.two{grid-template-columns:1fr}}
+  .panel h3{margin:0 0 8px;font-size:14px}
+  .panel ul{margin:6px 0 0;padding-left:18px}
+  .panel li{margin:5px 0;color:var(--muted);font-size:13px}
+  .panel li b{color:var(--ink)}
+  .callout{background:linear-gradient(90deg,#11231a55,transparent);
+    padding:12px 16px;border-left:3px solid var(--green);border-radius:0 8px 8px 0;margin-top:8px}
+  footer{margin-top:40px;border-top:1px solid var(--line);padding-top:16px;color:var(--dim);font-size:12px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--dim);margin-top:10px}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="eyebrow">Command Center · Phase 7</div>
+    <h1>Mechsuit Modernization — Plan &amp; Live Status</h1>
+    <p class="thesis">Move the conductor off the keyboard and onto OMEN, and change the control language from SSH-strings to MCP.
+      <b>The suit stops being something you operate and becomes something you direct.</b> Strategy: <b>prove the MCP contract locally on an OMEN VM first</b> (max control, isolation, speed, zero network variables), then <b>distribute by changing placement</b> — same contract, different host. AM4 already proves the modern node pattern.</p>
+    <div class="meta">
+      <span>Updated <b>2026-06-29 (OBS-1 live — Collector + Prometheus + Grafana fleet cost dashboards)</b></span>
+      <span>Scope <b>OMEN · AM4 · i5</b></span>
+      <span>Conductor <b>OMEN</b></span>
+      <span>fx99 <b>parked</b></span>
+    </div>
+    <div class="banner">ℹ <b>AM4 note:</b> B70s are running image generation with their own watchdogs + monitoring — not a gate on S2. MCP control calls (<code>node_status</code>, etc.) are clear. Coordinate before ops that would contend with the image gen workload on the GPUs.</div>
+  </header>
+
+  <h2>The Fleet</h2>
+  <div class="grid nodes">
+    <div class="node">
+      <h3>OMEN <span class="tag t-now">HYPER-V HOST</span></h3>
+      <div class="role">hypervisor · 5070 / 128 GB</div>
+      <p>Win11 · 100.124.12.37. <b>Hyper-V host only</b> — the real conductor is a native Linux VM on it (<code>cc-conductor</code>) running Claude Code, so no Windows sits in the dev or data path. Compute-rich, thin NIC → heavy external I/O to the i5 edge.</p>
+    </div>
+    <div class="node">
+      <h3>cc-conductor <span class="tag t-done">CONDUCTOR ✓</span></h3>
+      <div class="role">Linux orchestrator · on OMEN</div>
+      <p>Ubuntu VM on OMEN · tailnet <b>100.74.110.91</b> (Tailscale SSH on) · sees the fleet (am4/i5/omen). Where Claude Code, the MCP client, and the repo + memory live — Linux-native. conductor→worker SSH verified. Awaiting only your Claude login.</p>
+    </div>
+    <div class="node busy">
+      <h3>AM4 <span class="tag t-busy">REFERENCE · BUSY</span></h3>
+      <div class="role">inference · remote dev/build · storage</div>
+      <p>Ubuntu · dual-B70 · 100.116.82.60 (Funnel). The v2 reference node (MCP-first, Hermes :8090, NATS, OTel). Image generation running on B70s with watchdogs + monitoring. <b>MCP control calls clear</b>; coordinate before ops that contend with the image gen workload.</p>
+    </div>
+    <div class="node">
+      <h3>i5 laptop <span class="tag t-now">NETWORK EDGE (future)</span></h3>
+      <div class="role">network offload · portable demo</div>
+      <p>Win10 · 32 GB · 100.125.141.110 · SSH ✓. <b>Not the build worker</b> — it's the network edge that fronts OMEN's thin NIC (dispatch to external agents / AM4) and a portable command-center for on-site customer demos. End-to-end control banked for later.</p>
+    </div>
+    <div class="node parked">
+      <h3>fx99 <span class="tag t-park">PARKED</span></h3>
+      <div class="role">future capacity</div>
+      <p>Always-on someday; maybe routing / network-state / wake-on-LAN. Not built for now.</p>
+    </div>
+  </div>
+
+  <h2>Live Status Board</h2>
+  <div class="summary">
+    <span class="pill"><b>8</b>/8 signed off</span>
+    <span class="pill"><b>0</b> in progress</span>
+    <span class="pill"><b>6</b> in the NOW horizon</span>
+    <span class="pill"><b>0</b> blocked</span>
+  </div>
+  <div class="board">
+    <div class="row head"><div class="cell">#</div><div class="cell">Vertical slice</div><div class="cell">Horizon</div><div class="cell">Status</div></div>
+    <div class="row">
+      <div class="cell id">SC</div>
+      <div class="cell nm">Linux conductor VM + Tailscale fleet<small>cc-conductor live on tailnet (100.74.110.91); Claude Code v2.1.195 / Opus 4.8 / Max running native. Windows seam closed.</small></div>
+      <div class="cell"><span class="horizon h-now">● NOW</span></div>
+      <div class="cell"><span class="badge b-signed">Signed off</span></div>
+    </div>
+    <div class="row">
+      <div class="cell id">S0</div>
+      <div class="cell nm">MCP control surface, conductor→worker<small>node_status returned clean JSON from claudefarm1 over MCP SSH stdio. mcp 1.28.1 both ends. conductor→worker proven. Awaiting Derek live sign-off.</small></div>
+      <div class="cell"><span class="horizon h-now">● NOW</span></div>
+      <div class="cell"><span class="badge b-signed">Signed off</span></div>
+    </div>
+    <div class="row">
+      <div class="cell id">S1</div>
+      <div class="cell nm">Local agent loop over MCP<small>Loop closed: run_plan → agent launched (PID 4870) → DONE logged → s1-result.txt verified. No SSHFS anywhere. Awaiting Derek live sign-off.</small></div>
+      <div class="cell"><span class="horizon h-now">● NOW</span></div>
+      <div class="cell"><span class="badge b-signed">Signed off</span></div>
+    </div>
+    <div class="row">
+      <div class="cell id">S2</div>
+      <div class="cell nm">First distributed hop — AM4 MCP server<small>Same contract, remote host. node_status to AM4 (server exists, lightweight). The local→distributed placement swap.</small></div>
+      <div class="cell"><span class="horizon h-now">● NOW</span></div>
+      <div class="cell"><span class="badge b-signed">Signed off</span></div>
+    </div>
+    <div class="row">
+      <div class="cell id">S3</div>
+      <div class="cell nm">Push progress — kill the poll<small>watch_progress long-poll tool; mcp_watch.py conductor script; conductor sees transitions as they happen, exits on ## DONE:. No sleep, no manual poll.</small></div>
+      <div class="cell"><span class="horizon h-now">● NOW</span></div>
+      <div class="cell"><span class="badge b-signed">Signed off</span></div>
+    </div>
+    <div class="row">
+      <div class="cell id">S4</div>
+      <div class="cell nm">OMEN always-on conductor<small>fleet.json (4 nodes) + conductor.py inbox loop + commandcenter-conductor.service. Drop plan → runs/ result. Session-independent.</small></div>
+      <div class="cell"><span class="horizon h-now">● NOW</span></div>
+      <div class="cell"><span class="badge b-signed">Signed off</span></div>
+    </div>
+    <div class="row">
+      <div class="cell id">S5</div>
+      <div class="cell nm">Migrate worker placement<small>fleet-worker:latest Docker image on OMEN (cc-conductor). docker stdio transport — no SSH, no port. omen-worker alongside claudefarm1 in fleet.json. farmer v1 SSHFS retired.</small></div>
+      <div class="cell"><span class="horizon h-now">● NOW</span></div>
+      <div class="cell"><span class="badge b-signed">Signed off</span></div>
+    </div>
+    <div class="row">
+      <div class="cell id">S6</div>
+      <div class="cell nm">Discord control surface<small>Ambient/mobile: push notifications + lightweight command input, bridged to the conductor.</small></div>
+      <div class="cell"><span class="horizon h-now">● NOW / Signed off</span></div>
+      <div class="cell"><span class="badge b-done">Signed off</span></div>
+    </div>
+  </div>
+  <div class="legend">
+    <span><span class="dot" style="background:var(--dim)"></span>Backlog</span>
+    <span><span class="dot" style="background:var(--amber)"></span>In progress</span>
+    <span><span class="dot" style="background:var(--green)"></span>Signed off</span>
+    <span style="margin-left:auto">Each slice is end-to-end (Conductor → Contract → Node → Agent). Desk view here; phone view via Discord (S6).</span>
+  </div>
+
+  <h2>Vertical Slices — NOW horizon</h2>
+
+  <div class="slice now">
+    <div class="shead"><span class="id">SC</span><h3>Linux conductor VM + Tailscale fleet (env pivot)</h3><span class="badge b-signed">Signed off</span></div>
+    <div class="layers"><span class="layer">Host: OMEN Hyper-V</span><span class="layer">Conductor: cc-conductor (Ubuntu)</span><span class="layer">Net: Tailscale</span></div>
+    <div class="sbody">
+      <div class="field full"><h4>Why</h4><p class="goal">Every blocker so far was the Windows↔Linux seam (path mangling, BOM, mcp-over-ssh on Windows) plus Default-Switch IP fragility. Root-cause fix: the conductor becomes a <b>native Linux VM on OMEN running Claude Code</b>, and the fleet moves onto <b>Tailscale</b> for stable addressing. No Windows in the dev or data path.</p></div>
+      <div class="field ctrl"><h4>Steps</h4><ul>
+        <li>Clone the proven Ubuntu image → <code>cc-conductor</code>; dedup identity (hostname / machine-id / ssh host keys).</li>
+        <li>Install Claude Code; bring in the commandcenter repo &amp; memory.</li>
+        <li>Join cc-conductor (and the worker VM) to Tailscale; retire fragile Default-Switch IPs.</li>
+      </ul></div>
+      <div class="field signoff"><h4>Sign-off =</h4><ul>
+        <li>Claude Code runs inside cc-conductor; repo + memory present.</li>
+        <li>cc-conductor reaches the worker VM, AM4, i5 by tailnet name.</li>
+        <li>You drive it via SSH / VS Code Remote-SSH — Windows seam gone.</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="slice">
+    <div class="shead"><span class="id">S0</span><h3>MCP control surface — conductor → worker</h3><span class="badge b-signed">Signed off</span></div>
+    <div class="layers"><span class="layer">Conductor: cc-conductor (Linux VM)</span><span class="layer">Contract: MCP 1.28.1 / SSH-stdio</span><span class="layer">Node: claudefarm1 VM</span></div>
+    <div class="sbody">
+      <div class="field full"><h4>Goal</h4><p class="goal">Prove the MCP control contract with <b>zero network variables</b>: conductor Linux VM → worker Linux VM, over SSH-stdio MCP. Lift am4-fleet-node's Python MCP server into a reusable, GPU-stripped <b>worker template</b>.</p></div>
+      <div class="field ctrl"><h4>Achieved</h4><ul>
+        <li><b>mcp 1.28.1 installed both ends</b> — conductor venv at <code>~/work/commandcenter/fleet-worker-node/.venv</code>; worker venv at <code>~/fleet-worker-node/.venv</code>.</li>
+        <li><b>node_status returned clean JSON ✓</b> — <code>claudefarm1</code>, 4 vCPU, 29.4 GiB free, Linux 6.8.0-107, python 3.12.3.</li>
+        <li>All local — AM4 untouched.</li>
+        <li>Worker template committed: <code>fleet-worker-node/scripts/worker-mcp-server.py</code> (GPU-agnostic, container-portable).</li>
+      </ul></div>
+      <div class="field"><h4>Command that proved it</h4><ul>
+        <li><code>.venv/bin/python scripts/mcp_call.py --ssh "ssh -i ~/.ssh/id_ed25519 claude@172.19.133.70" --python ~/fleet-worker-node/.venv/bin/python --server ~/fleet-worker-node/scripts/worker-mcp-server.py --tool node_status</code></li>
+      </ul></div>
+      <div class="field signoff"><h4>Sign-off</h4><ul>
+        <li><code>node_status</code> returned complete JSON from claudefarm1. Worker template committed. <b>Signed off 2026-06-29.</b></li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="slice">
+    <div class="shead"><span class="id">S1</span><h3>Local agent loop over MCP</h3><span class="badge b-signed">Signed off</span></div>
+    <div class="layers"><span class="layer">Conductor: cc-conductor</span><span class="layer">Contract: MCP run_plan / get_progress</span><span class="layer">Node: claudefarm1</span><span class="layer">Agent: Claude 2.1.195</span></div>
+    <div class="sbody">
+      <div class="field full"><h4>Goal</h4><p class="goal">One full farmer loop — <b>deliver a plan → trigger the agent → observe completion</b> — through MCP, conductor↔VM. <b>No SSHFS, no mapped drive.</b> The modern spine, proven locally.</p></div>
+      <div class="field ctrl"><h4>Achieved</h4><ul>
+        <li><b>Claude 2.1.195 on worker ✓</b> — binary copied from conductor; credentials synced; Hyper-V NAT internet fixed (deleted bad static route via 10.20.0.1).</li>
+        <li><b>New MCP tools ✓</b> — <code>run_plan</code> + <code>get_progress</code> + <code>get_run_log</code> added to worker server; confirmed over MCP (5 tools listed).</li>
+        <li><b>S1 shakedown plan delivered via MCP ✓</b> — <code>run_plan</code> call wrote plan to <code>~/projects/plans/s1-shakedown.md</code>, launched agent PID 4870.</li>
+        <li><b>Loop closed ✓</b> — progress.md shows PLAN_RECEIVED → STARTED → PROGRESS×2 → DONE; <code>s1-result.txt</code> artifact verified on worker.</li>
+        <li><b>Zero SSHFS</b> — entire flow: MCP stdio call → worker agent → MCP progress read. No mapped drives.</li>
+      </ul></div>
+      <div class="field signoff"><h4>Sign-off ✓ — 2026-06-29</h4><ul>
+        <li>Loop closed end-to-end via MCP. <code>## DONE: s1-live</code> observed live by Derek via <code>poll-progress.sh</code>. Artifact <code>dist/s1-live.txt</code> verified. <b>Signed off.</b></li>
+      </ul></div>
+    </div>
+  </div>
+
+  <h2>Vertical Slices — Signed off (S2–S4)</h2>
+
+  <div class="slice">
+    <div class="shead"><span class="id">S2</span><h3>First distributed hop — AM4 MCP server</h3><span class="badge b-signed">Signed off</span></div>
+    <div class="layers"><span class="layer">Conductor: cc-conductor</span><span class="layer">Contract: MCP node manifest (--node)</span><span class="layer">Node: am4 (100.116.82.60)</span></div>
+    <div class="sbody">
+      <div class="field ctrl"><h4>Achieved</h4><ul>
+        <li><b>SSH cc-conductor → AM4 authorized ✓</b> — cc-conductor ed25519 key added to derek@am4 authorized_keys.</li>
+        <li><b><code>--node</code> manifest flag added to mcp_call.py ✓</b> — reads <code>endpoints.mcp_stdio</code> from node.json; one flag replaces 3 manual ones. Change the target once in the manifest, every caller follows.</li>
+        <li><b>node_status returned clean from AM4 ✓</b> — 13 tools on AM4's MCP surface (vs 5 on local worker). returncode 0, no stderr.</li>
+        <li><b>AM4 state confirmed:</b> both B70s owned by image gen (PID 819654, port :8188). Hermes facade up (:8090), backend down (intentional). Grafana + Jaeger live (44-45h). NATS not running.</li>
+        <li><b>Identical contract ✓</b> — <code>.venv/bin/python fleet-worker-node/scripts/mcp_call.py --node am4-fleet-node/node.json --tool node_status</code></li>
+      </ul></div>
+      <div class="field signoff"><h4>Sign-off ✓ — 2026-06-29</h4><ul>
+        <li>OMEN conductor drives both claudefarm1 (local VM) and AM4 (remote host) through the identical MCP contract. Placement swap proven. <b>Signed off.</b></li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="slice">
+    <div class="shead"><span class="id">S3</span><h3>Push progress — kill the poll</h3><span class="badge b-signed">Signed off</span></div>
+    <div class="layers"><span class="layer">Conductor: mcp_watch.py</span><span class="layer">Contract: watch_progress (long-poll tool)</span><span class="layer">Node: claudefarm1</span></div>
+    <div class="sbody">
+      <div class="field ctrl"><h4>Achieved</h4><ul>
+        <li><b>watch_progress tool ✓</b> — added to worker server (6 tools total). Async sleep loop, returns on mtime advance. Uses mtime cursor, not content payload.</li>
+        <li><b>mcp_watch.py conductor script ✓</b> — loops calling watch_progress; prints each state transition; exits on ## DONE:. No static sleep anywhere.</li>
+        <li><b>S3 demo closed ✓</b> — three MCP calls, each firing on file change: PLAN_RECEIVED → STARTED+PROGRESS → DONE. Watcher exited itself. Artifact verified.</li>
+        <li><b>demo-s3.sh ✓</b> — deliver plan → watch (no sleep). The watcher is the wait.</li>
+      </ul></div>
+      <div class="field signoff"><h4>Sign-off ✓ — 2026-06-29</h4><ul>
+        <li>OMEN sees progress as it happens. No polling, no sleep, no manual re-poll. <b>Signed off.</b></li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="slice">
+    <div class="shead"><span class="id">S4</span><h3>OMEN always-on conductor</h3><span class="badge b-signed">Signed off</span></div>
+    <div class="layers"><span class="layer">Conductor: commandcenter-conductor.service</span><span class="layer">Inbox: commandcenter/inbox/</span><span class="layer">Runs: commandcenter/runs/</span><span class="layer">Fleet: fleet.json (4 nodes)</span></div>
+    <div class="sbody">
+      <div class="field ctrl"><h4>Achieved</h4><ul>
+        <li><b>fleet.json ✓</b> — lists all 4 machines: claudefarm1 (mcp_ready), AM4 (mcp_ready), OMEN (hypervisor), i5 (edge/future).</li>
+        <li><b>fleet-worker-node/node.json updated ✓</b> — added endpoints.mcp_stdio in standard manifest format; correct SSH key.</li>
+        <li><b>scripts/conductor.py ✓</b> — async inbox loop; fleet manifest routing; dispatches via run_plan + watches via watch_progress (S3); writes dispatch.json + progress.md + result.json per run.</li>
+        <li><b>commandcenter-conductor.service ✓</b> — systemd user service, enabled, logs to conductor.log. Survives session close and reboots.</li>
+        <li><b>S4 sign-off run ✓</b> — plan dropped in inbox, conductor picked it up (PID 7719), agent ran on claudefarm1, result.json written: <code>{"status":"done","plan_id":"s4-always-on"}</code>. Artifact <code>dist/s4-result.txt</code> verified.</li>
+      </ul></div>
+      <div class="field signoff"><h4>Sign-off ✓ — 2026-06-29</h4><ul>
+        <li>Plan ran to completion via always-on conductor. Manifest lists OMEN/AM4/VM/i5. Loop leaves the keyboard. <b>Signed off.</b></li>
+      </ul></div>
+    </div>
+  </div>
+
+  <h2>Vertical Slices — Signed off (S5–S6)</h2>
+
+  <div class="slice">
+    <div class="shead"><span class="id">S5</span><h3>Migrate worker placement &amp; retire farmer v1</h3><span class="badge b-signed">Signed off</span></div>
+    <div class="layers"><span class="layer">Image: fleet-worker:latest</span><span class="layer">Transport: docker stdio (no SSH)</span><span class="layer">Host: cc-conductor (OMEN)</span><span class="layer">Scale: N containers, same contract</span></div>
+    <div class="sbody">
+      <div class="field ctrl"><h4>Achieved</h4><ul>
+        <li><b>Dockerfile ✓</b> — python:3.12-slim + mcp 1.28.1 pinned deps + worker-mcp-server.py. Builds in ~12s.</li>
+        <li><b>Docker stdio transport ✓</b> — <code>mcp_stdio: "docker run --rm -i fleet-worker python scripts/worker-mcp-server.py"</code>. No sshd in container, no port mapping. Conductor exec's it locally.</li>
+        <li><b>omen-worker.json manifest ✓</b> — node record for the container worker; same format as claudefarm1/AM4.</li>
+        <li><b>fleet.json updated ✓</b> — omen-worker alongside claudefarm1 (5 nodes total: 3 mcp_ready). Conductor picks first available worker.</li>
+        <li><b>node_status from container ✓</b> — 6 tools, returns hostname (container ID), 4 vCPU, 28.5 GiB free. Clean.</li>
+        <li><b>AM4 DDR protected</b> — Docker stays on OMEN (128GB DDR5) while B70 image gen runs. Container moves to AM4 later via fleet.json pointer swap — no code change.</li>
+      </ul></div>
+      <div class="field signoff"><h4>Sign-off ✓ — 2026-06-29</h4><ul>
+        <li>Worker runs in a Docker container on OMEN alongside claudefarm1. Same MCP contract, different placement. farmer v1 SSH/SSHFS path no longer required for any signed-off slice. <b>Signed off.</b></li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="slice">
+    <div class="shead"><span class="id">S6</span><h3>Discord control surface — ambient + mobile</h3><span class="badge b-signed">Signed off</span></div>
+    <div class="layers"><span class="layer">scripts/discord_notify.py</span><span class="layer">conductor.py → webhook</span><span class="layer">feed: completion events</span></div>
+    <div class="sbody">
+      <div class="field ctrl"><h4>Achieved</h4><ul>
+        <li><b>discord_notify.py ✓</b> — stdlib-only (no discord.py dependency). Reads <code>DISCORD_WEBHOOK_URL</code> from <code>commandcenter/.env</code>. User-Agent header required (Discord rejects Python's default urllib UA).</li>
+        <li><b>conductor.py wired ✓</b> — AMBER on dispatch, GREEN on completion, RED on failure. Three callsites, one import.</li>
+        <li><b>stdin bug fixed ✓</b> — claude subprocess inherited MCP server's SSH stdin fd, stealing bytes from the protocol stream after run_plan. Fixed with <code>stdin=subprocess.DEVNULL</code>. Hang eliminated.</li>
+        <li><b>Failure notification proven:</b> failed run pings Discord with exception summary.</li>
+        <li><b>Completion notification proven:</b> clean run pings green embed with result path.</li>
+      </ul></div>
+      <div class="field signoff"><h4>Sign-off ✓ — 2026-06-29</h4><ul>
+        <li>Plan dropped → conductor dispatched (AMBER ping) → claudefarm1 agent ran → DONE → green Discord embed landed on phone. Failure path also verified (RED ping with exception text). Pairs with voice→Discord idea-to-plan pipeline for Phase 7 ambient control surface. <b>Signed off.</b></li>
+      </ul></div>
+    </div>
+  </div>
+
+  <h2>Constraint &amp; Control Points (cross-cutting)</h2>
+  <div class="two">
+    <div class="panel">
+      <h3>Architecture invariants</h3>
+      <ul>
+        <li><b>Local-first:</b> prove every contract on the OMEN VM before distributing. Distribution = a placement change, not a rewrite.</li>
+        <li><b>Plane separation:</b> MCP = control surface, never the data bus.</li>
+        <li><b>Location transparency:</b> cross-host = MCP/NATS, never filesystem. No new SSHFS coupling.</li>
+        <li><b>Idempotent triggers;</b> reuse am4-fleet-node, deltas only.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3>Operating constraints</h3>
+      <ul>
+        <li><b>AM4 image gen running:</b> B70s running image generation with watchdogs + monitoring. MCP control calls (<code>node_status</code>, etc.) clear. Coordinate before GPU-contending ops.</li>
+        <li><b>OMEN thin NIC:</b> push heavy external I/O to the i5 edge, not through OMEN.</li>
+        <li><b>Identity (your edge):</b> token/key auth, secrets on-node; fleet-wide auth model (keys vs Tailscale SSH) decided at S4.</li>
+        <li><b>No overcommit:</b> commit S0–S1 only; roadmap stays uncommitted. fx99 parked.</li>
+      </ul>
+    </div>
+  </div>
+
+
+  <h2>Observability Track (cross-cutting)</h2>
+  <div class="panel">
+    <p style="margin:0 0 8px;font-size:.9rem;color:var(--muted)">The mechsuit is the substrate; observability is the first cross-cutting concern wired through it. Full track and decisions in <b>IDEA-PIPELINE-PLAN.html</b> — Observability section. Key decisions:</p>
+    <ul>
+      <li><b>Extend AM4 Jaeger</b> (not replace) — already hosts imagegen / omen-llm / omen-perception / b70-0/1 traces. <code>cc-conductor</code> joined as service #5, 2026-06-29.</li>
+      <li><b>OTel as middleware</b> — <code>otel_setup.py</code> shared initializer; <code>ENABLE_OTEL=true</code> gate; OTLP → <code>http://am4.tail8e749c.ts.net:4318</code>. Gated, zero-cost no-op when off.</li>
+      <li><b>MCP stays tool layer; A2A at seams only</b> — Agent Cards (capability router) first; ensemble-as-agents + cross-org boundary later.</li>
+      <li><b>First trace verified:</b> <code>fleet.node_status_call</code> → <code>mcp.tool_call.node_status</code> → <code>am4-mcp-server::am4.node_status</code> — 3-span cross-service tree, traceparent via <code>params._meta</code>, trace id <code>69f0312f</code>.</li>
+    </ul>
+    <li><b>OBS-1 ✅ 2026-06-29:</b> OTel Collector (contrib:0.105.0) deployed on AM4 — takes over :4317/:4318, fans traces → Jaeger + metrics → Prometheus. Prometheus added (<code>traces</code> network, 30d retention). Grafana <em>Fleet Cost &amp; Latency</em> dashboard provisioned — token cost by model, 30B input share, p50/p95 latency. SDK: <code>MeterProvider</code> + <code>gen_ai.usage.input_tokens / output_tokens</code> Counters in <code>ensemble_structure.py</code>. Token metrics confirmed in Prometheus (8 series across all 8 cells on first run).</li>
+    <p style="margin:8px 0 0;font-size:.85rem"><b>OBS-2 (deferred, D9):</b> per-cell matrix spans + capture middleware (generalize <code>matrix-log.jsonl</code> into telemetry byproduct).</p>
+  </div>
+
+  <h2>Sign-off Protocol</h2>
+  <div class="panel">
+    <p style="margin:0 0 6px;color:var(--muted)">A slice signs off only when three things are true:</p>
+    <ul>
+      <li><b>1 · Automated test passes</b> — the test named on the slice, reproducibly.</li>
+      <li><b>2 · You observe the demo</b> — the loop/call closes <b>live in front of you</b>.</li>
+      <li><b>3 · You mark the board</b> — I flip the badge to <span class="badge b-signed" style="min-width:auto;padding:2px 8px">Signed off</span> only after your nod.</li>
+    </ul>
+    <div class="callout">
+      <b>Cadence:</b> I keep this HTML current as the source of truth for "where are we" — badges, counts, a note per slice. <b>Two surfaces:</b> this dashboard is the at-desk, detailed view; <b>Discord (S6)</b> is the ambient/mobile view, fed by the same event stream once S3 lands.
+    </div>
+  </div>
+
+  <h2>Revisions</h2>
+  <div class="panel">
+    <ul style="margin:0;padding-left:18px">
+      <li><b>r20 · 2026-06-29</b> — <b>Observability Track seeded.</b> OTel end-to-end trace verified: <code>cc-conductor::fleet.node_status_call</code> → <code>mcp.tool_call.node_status</code> → <code>am4-mcp-server::am4.node_status</code> (3-span tree, traceparent via params._meta). cc-conductor is now a named service in the fleet Jaeger alongside imagegen/omen-llm/omen-perception/b70-0/b70-1. Observability cross-reference section added to this plan. Full track, decisions, and roadmap (OBS-0 – OBS-4) in IDEA-PIPELINE-PLAN.html.</li>
+      <li><b>r19 · 2026-06-29</b> — <b>Hardening pass.</b> SSH keepalive added to node.json (ServerAliveInterval=30/CountMax=3). fleet_status.py: 3/3 nodes checked in parallel in &lt;1.5s, handles both worker and AM4 shell-script response formats. Conductor retry logic (DISPATCH_RETRIES=2, 5s delay, skips TimeoutError). Inbox cleanup: plan.md archived to runs/ on pickup; already-done plans skipped on restart (delete result.json to re-run). Open threads: claudefarm1 DHCP reservation (needs OMEN Hyper-V config by Derek) and CLAUDE_CODE_OAUTH_TOKEN setup-token on claudefarm1 (needs interactive SSH -t by Derek).</li>
+      <li><b>r18 · 2026-06-29</b> — <b>S6 SIGNED OFF. ALL 8 SLICES COMPLETE.</b> Discord webhook (discord_notify.py, stdlib-only). conductor.py wired: AMBER on dispatch, GREEN on completion, RED on failure. stdin=DEVNULL bug fixed (claude subprocess was stealing MCP stdio bytes, causing protocol hang after watch_progress call 2). Failure notification verified, completion notification verified (phone received both embeds). 8/8 signed off.</li>
+      <li><b>r17 · 2026-06-29</b> — <b>S5 SIGNED OFF.</b> fleet-worker Docker image (python:3.12-slim + mcp 1.28.1) built on cc-conductor. Docker stdio transport (no SSH/port). omen-worker.json manifest added. fleet.json now 5 nodes (3 mcp_ready: claudefarm1 + omen-worker + AM4). node_status clean from container. AM4 DDR protected — container stays on OMEN until clear. 7/8 signed off. S6 next.</li>
+      <li><b>r16 · 2026-06-29</b> — Board sync: S3/S4 table rows updated to ● NOW / Signed off; slice cards moved from Roadmap section to Signed off section; Roadmap section now S5–S6 only; NOW horizon pill corrected to 6.</li>
+      <li><b>r15 · 2026-06-29</b> — <b>S4 SIGNED OFF.</b> fleet.json (4 nodes), scripts/conductor.py (inbox→route→dispatch→watch→result), commandcenter-conductor.service (systemd, always-on, logs to conductor.log). S4 run: plan dropped in inbox, conductor dispatched to claudefarm1, agent ran, result.json written, artifact verified. Bug fixed: done_runs now filters by plan_id. Seen set tracks (name, mtime) for re-drop support. 6/8 signed off. S5 next.</li>
+      <li><b>r14 · 2026-06-29</b> — <b>S3 SIGNED OFF.</b> watch_progress long-poll tool added to worker server (6 tools). mcp_watch.py loops on conductor — prints each state transition as it arrives, exits on ## DONE:. demo-s3.sh: deliver plan → watcher (no sleep). Three MCP calls, three transitions, watcher self-exited. No polling anywhere. 5/8 signed off. S4 next.</li>
+      <li><b>r13 · 2026-06-29</b> — <b>S2 SIGNED OFF.</b> cc-conductor → AM4 <code>node_status</code> via <code>--node am4-fleet-node/node.json</code>: 13 tools listed, returncode 0. B70s owned by image gen (PID 819654, :8188). Hermes facade up, backend down (intentional). <code>--node</code> manifest flag added to mcp_call.py — one pointer replaces 3 manual flags. OMEN now drives both claudefarm1 and AM4 through the identical contract. 4/8 signed off. S3 next.</li>
+      <li><b>r12 · 2026-06-29</b> — S2 SSH blocker: cc-conductor's ed25519 key (<code>AAAAC3NzaC1lZDI1NTE5AAAAIAWwKN/Zl+YnFZGbJ4ob1DVGWGjUdZrc1HHMKz48Tgev cc-conductor</code>) not yet in AM4's <code>~/.ssh/authorized_keys</code> for derek. Awaiting Derek to add it. <code>--node</code> flag pending SSH fix.</li>
+      <li><b>r11 · 2026-06-29</b> — S2 unblocked: AM4 is running image generation (not benchmarks) with its own watchdogs + monitoring — not a gate on MCP control calls. S2 status → In Progress. Banner updated. 0 blocked.</li>
+      <li><b>r10 · 2026-06-29</b> — <b>S1 LOOP CLOSED.</b> Full farmer loop over MCP proven: conductor <code>run_plan</code> → worker Claude agent (PID 4870) executed shakedown plan → <code>s1-result.txt</code> created → <code>## DONE: s1-shakedown</code> visible via <code>get_progress</code>. No SSHFS. Worker infra: claude 2.1.195 installed, Hyper-V NAT internet fixed (bad 10.20.0.1 route deleted), auth via copied credentials (pending Derek's <code>setup-token</code> pass). Fleet auth policy: Max via CLAUDE_CODE_OAUTH_TOKEN; API key = break-glass only. NOW horizon cleared (SC/S0/S1 done). Next: S2 (AM4 hop).</li>
+      <li><b>r9 · 2026-06-29</b> — <b>S0 DONE.</b> mcp 1.28.1 installed both ends (conductor venv + worker venv). <code>node_status</code> called conductor→claudefarm1 over SSH-stdio MCP; returned clean JSON (claudefarm1, 4 vCPU, 29.4 GiB free). S1 now In Progress; gate = install claude CLI on claudefarm1.</li>
+      <li><b>r8 · 2026-06-29</b> — <b>SC SIGNED OFF.</b> Derek running Claude Code natively on cc-conductor (v2.1.195, Opus 4.8, Claude Max) over Tailscale SSH. The conductor is now the canonical dev environment; OMEN-Windows is just the Hyper-V host. First all-Linux task: the S0 node_status demo.</li>
+      <li><b>r7 · 2026-06-29</b> — <b>cc-conductor LIVE on the tailnet</b> (100.74.110.91, Tailscale SSH; sees am4/i5/omen); conductor→worker SSH verified. SC done except Derek's Claude Code login. Windows↔Linux seam closed.</li>
+      <li><b>r6 · 2026-06-29</b> — SC implemented: <code>cc-conductor</code> cloned from the proven image (172.19.128.126), renamed + fresh machine-id, boot-time route-fix, Claude Code 2.1.195 + Tailscale 1.98.4 installed, commandcenter repo + memory transferred. Awaiting Derek's two logins (Tailscale auth, Claude login) to finish SC.</li>
+      <li><b>r5 · 2026-06-29</b> — <b>Conductor pivot.</b> Every blocker so far was the Windows↔Linux seam + Default-Switch IP fragility. Fix the root cause: the conductor becomes a native Linux VM on OMEN (<code>cc-conductor</code>) running Claude Code, and the fleet moves onto Tailscale. Added foundational slice SC. S0 finishes the moment the conductor is Linux (all-Linux MCP roundtrip already proven).</li>
+      <li><b>r4 · 2026-06-29</b> — AM4 benchmark update ingested: placement settled (single0); node-local scheduler/admission track (cost estimator + facade gate) exposed via MCP. Enriched S2 (AM4's growing surface) + S4 (two-layer scheduling).</li>
+      <li><b>r3 · 2026-06-29</b> — Local-VM-first pivot: S0 is now the OMEN <code>claudefarm1</code> VM (up at 172.19.133.70); i5 reframed as network edge; AM4 flagged busy (benchmarks); slices re-sequenced S0–S6; Discord moved to S6.</li>
+      <li><b>r2 · 2026-06-29</b> — i5 onboarding: SSH opened, native-Windows-worker fork resolved, AM4 handoff doc; added Discord control surface.</li>
+      <li><b>r1 · 2026-06-29</b> — Initial plan: thesis, fleet, slices S0–S5, status board, sign-off protocol.</li>
+    </ul>
+  </div>
+
+  <footer>
+    Mechsuit Modernization · commandcenter Phase 7 · MCP-first, OMEN-conducted, local-VM-first · OTel spine live · updated 2026-06-29 ·
+    living document — updated on every state change. Companion to the (forthcoming) ADR-0002.
+  </footer>
+
+</div>
+</body>
+</html>

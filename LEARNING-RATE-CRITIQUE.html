@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Learning Rate — Critical Evaluation of Δ3</title>
+<style>
+  :root{
+    --bg:#0c0f14; --panel:#141a22; --panel2:#1b232e; --line:#26303d;
+    --ink:#e6edf3; --muted:#93a1b1; --dim:#6b7886;
+    --fire:#ff7a45; --ember:#ffb066; --cyan:#5fd0e0; --green:#5ad48a;
+    --amber:#f4c95d; --red:#ff6b6b; --violet:#a78bfa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  code,.mono{font-family:"JetBrains Mono",Consolas,Menlo,monospace;font-size:.86em}
+  a{color:var(--cyan)}
+  .wrap{max-width:1120px;margin:0 auto;padding:32px 24px 80px}
+  header.top{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:24px}
+  .eyebrow{color:var(--fire);letter-spacing:.18em;text-transform:uppercase;font-size:11px;font-weight:700}
+  h1{font-size:27px;margin:6px 0 8px;font-weight:700}
+  .thesis{color:var(--muted);max-width:82ch}
+  .thesis b{color:var(--ink)}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:16px;font-size:12.5px;color:var(--dim)}
+  .meta b{color:var(--ink)}
+  h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--ember);
+    margin:38px 0 14px;border-left:3px solid var(--fire);padding-left:10px}
+  .banner{background:linear-gradient(90deg,#2a1d10,#1b232e);border:1px solid #4a3a20;
+    border-radius:10px;padding:12px 16px;margin:18px 0 0;color:var(--ember);font-size:13.5px}
+  .banner b{color:var(--amber)}
+  .tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.05em;
+    padding:2px 7px;border-radius:20px;border:1px solid var(--line)}
+  .t-pass{color:var(--green);border-color:#274b39;background:#11231a}
+  .t-risk{color:var(--amber);border-color:#4a4023;background:#221d10}
+  .t-fail{color:var(--red);border-color:#4a2424;background:#221010}
+  .t-rec{color:var(--cyan);border-color:#1f4650;background:#0f2126}
+
+  .law{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--violet);
+    border-radius:10px;padding:14px 18px;margin-bottom:12px}
+  .law h3{margin:0 0 4px;font-size:15px;color:var(--violet)}
+  .law p{margin:4px 0 0;color:var(--muted);font-size:13.5px}
+  .law p b{color:var(--ink)}
+  .law.red{border-left-color:var(--red)}.law.red h3{color:var(--red)}
+  .law.green{border-left-color:var(--green)}.law.green h3{color:var(--green)}
+  .law.amber{border-left-color:var(--amber)}.law.amber h3{color:var(--amber)}
+
+  table.split{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:13px}
+  table.split th{background:var(--panel2);text-align:left;padding:10px 14px;font-size:11px;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+  table.split td{padding:9px 14px;border-top:1px solid var(--line);color:var(--muted);vertical-align:top}
+  table.split td b{color:var(--ink)}
+  table.split td:first-child{width:22%}
+
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:16px;overflow:hidden}
+  .stage .shead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    padding:14px 18px;background:var(--panel2);border-bottom:1px solid var(--line)}
+  .stage .shead .id{font-family:Consolas,monospace;color:var(--fire);font-weight:700;font-size:18px}
+  .stage .shead h3{margin:0;font-size:16px;flex:1;min-width:200px}
+  .sbody{padding:14px 18px 18px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:720px){.sbody{grid-template-columns:1fr}}
+  .field h4{margin:0 0 5px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--cyan)}
+  .field.gate h4{color:var(--green)}
+  .field.warn h4{color:var(--red)}
+  .field ul{margin:0;padding-left:18px}
+  .field li{margin:3px 0;color:var(--muted);font-size:13px}
+  .field li b{color:var(--ink)}
+  .field p{margin:0;color:var(--muted);font-size:13px}
+  .field p b{color:var(--ink)}
+  .full{grid-column:1 / -1}
+
+  .qbox{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin-bottom:14px}
+  .qbox h3{margin:0 0 6px;font-size:14.5px;color:var(--ember)}
+  .qbox .verdict{font-weight:700}
+  .verdict.yes{color:var(--green)}.verdict.no{color:var(--red)}.verdict.partial{color:var(--amber)}
+
+  .formula{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:12px 16px;
+    font-family:Consolas,monospace;font-size:13px;color:var(--cyan);overflow-x:auto;margin:8px 0}
+  footer{margin-top:44px;border-top:1px solid var(--line);padding-top:16px;color:var(--dim);font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="eyebrow">Commandcenter · Knowledge Systems Architecture</div>
+  <h1>Learning Rate — Critical Evaluation of Δ3</h1>
+  <p class="thesis">Δ3 in <span class="mono">TWO-ECONOMIES-WIND-TUNNEL.html</span> proposes a single scalar,
+  <b>knowledge per hour of runtime</b>, as the Economy-2 objective function. This document evaluates whether that
+  formulation survives contact with the constitution (<span class="mono">CAPABILITY-ROADMAP.html</span>), whether it
+  can be gamed, and what a defensible version looks like. <b>No code changes. No schema changes. Analysis only.</b></p>
+  <div class="meta">
+    <span>Inputs: <b class="mono">CAPABILITY-ROADMAP.html</b>, <b class="mono">TWO-ECONOMIES-WIND-TUNNEL.html</b>,
+    <b class="mono">contracts/*.v1.schema.json</b></span>
+    <span>Scope: <b>Δ3 only</b> — Δ1/Δ2/Δ4/Δ5 referenced where they consume Δ3's output</span>
+    <span>2026-07-02</span>
+  </div>
+  <div class="banner"><b>Headline verdict:</b> Δ3 as drafted is <b>constitutionally legal but under-specified</b> —
+  it is a projection in spirit, but the draft blends four incommensurable quantities into one unweighted sum, which
+  is exactly the shape that invites Goodharting. It should ship as a <b>metric family</b>, not one number, and one
+  term (<span class="mono">belief_changed</span>) should be replaced before it drives any dispatch decision.</p>
+</header>
+
+<h2>Five Questions</h2>
+
+<div class="qbox">
+  <h3>1 — Is "learning rate" a projection?</h3>
+  <p><span class="verdict yes">YES</span>, with one caveat. Every term Δ3 names —
+  <span class="mono">belief_before/after</span> (experiment-result.v1), associations formed, qualifications renewed,
+  coverage gaps closed — is already a field or state transition on a derived object. Nothing in the definition
+  requires a human to type in a number. That satisfies Constitution Clause&nbsp;1 (no organizational truth authored
+  if it can be derived).</p>
+  <p><b>Caveat:</b> the denominator, "hours of runtime," must be sourced from event-log dispatch-open/close
+  timestamps already in <span class="mono">events.jsonl</span> — never from wall-clock "now." Δ3's phrasing doesn't
+  say this explicitly. If it's computed any other way, D18 (determinism) breaks: re-projecting the same corpus at a
+  different moment would produce a different rate for a completed, immutable run. This is a one-line fix, but it's
+  currently an open question, not a settled one.</p>
+</div>
+
+<div class="qbox">
+  <h3>2 — Can it be computed entirely from existing events?</h3>
+  <p><span class="verdict partial">PARTIALLY</span> — and this is the sharpest gap in the draft. Look at what each
+  term actually requires:</p>
+  <table class="split">
+    <tr><th>Term</th><th>What it needs</th><th>Status</th></tr>
+    <tr><td><b>belief_before/after moved</b></td>
+        <td>A single already-materialized field pair on one <span class="mono">experiment-result.v1</span> record.</td>
+        <td><span class="tag t-pass">READY TODAY</span></td></tr>
+    <tr><td><b>associations formed</b></td>
+        <td>Count of <span class="mono">association.v1</span> records whose <span class="mono">first_observed</span>
+        falls inside the window — fine if <span class="mono">first_observed</span> is trustworthy, but "formed" as
+        a rate requires comparing the corpus at two points in time.</td>
+        <td><span class="tag t-risk">NEEDS WINDOWING</span></td></tr>
+    <tr><td><b>qualifications renewed</b></td>
+        <td>A transition: <span class="mono">qualification_status</span> going
+        <span class="mono">requalification_due → qualified</span>. <span class="mono">capability.v1</span> is a
+        current-state snapshot, not a transition log — "renewed" is a diff between two projection runs, not a field
+        on one record.</td>
+        <td><span class="tag t-risk">NEEDS DIFFING</span></td></tr>
+    <tr><td><b>coverage gaps closed</b></td>
+        <td>A gap present in one <span class="mono">coverage.v1</span> snapshot and absent in the next — same
+        diff-across-projections problem.</td>
+        <td><span class="tag t-risk">NEEDS DIFFING</span></td></tr>
+  </table>
+  <p style="margin-top:10px">Three of four terms are <b>rates of change of derived state</b>, not derived state
+  itself. That's a second-order derivation: a deterministic diff between two projection snapshots at two evidence
+  watermarks. It's buildable within the constitution (the spine is replayable, so the diff is itself deterministic)
+  — but it's machinery that doesn't exist yet. Δ3's own justification ("every term already exists as a derived
+  object") is true for one term out of four and optimistic for the other three.</p>
+</div>
+
+<div class="qbox">
+  <h3>3 — Which existing derived objects contribute?</h3>
+  <table class="split">
+    <tr><th>Object</th><th>Fields consumed</th></tr>
+    <tr><td><span class="mono">experiment-result.v1</span></td>
+        <td><span class="mono">belief_before</span>, <span class="mono">belief_after</span> (and the
+        <span class="mono">confidence_score</span> nested inside each), <span class="mono">belief_changed</span></td></tr>
+    <tr><td><span class="mono">finding.v1</span></td>
+        <td><span class="mono">confidence_score</span> — the evidence-count curve
+        <span class="mono">samples/(samples+2)</span> that everything else inherits</td></tr>
+    <tr><td><span class="mono">association.v1</span></td>
+        <td><span class="mono">workflows[]</span> (minItems 2 — the no-single-workflow guard),
+        <span class="mono">first_observed</span></td></tr>
+    <tr><td><span class="mono">capability.v1</span></td>
+        <td><span class="mono">qualification_status</span>, <span class="mono">last_validated</span>,
+        <span class="mono">evidence_watermark</span>, <span class="mono">staleness_days</span></td></tr>
+    <tr><td><span class="mono">coverage.v1</span></td>
+        <td><span class="mono">gap_id</span> presence/absence, <span class="mono">gap_type</span></td></tr>
+    <tr><td><span class="mono">workflow-event</span> / events.jsonl</td>
+        <td>dispatch-open / dispatch-close timestamps for the runtime-hours denominator</td></tr>
+    <tr><td><span class="mono">scheduler-decision.v1</span></td>
+        <td>which node/economy the dispatch ran on, for the "per node and per economy" split</td></tr>
+  </table>
+</div>
+
+<div class="qbox">
+  <h3>4 — Can the metric be gamed?</h3>
+  <p><span class="verdict no" style="color:var(--red)">YES — five distinct vectors</span>, all stemming from the
+  same root cause: it's an <b>unweighted sum of a boolean and three counts</b>, divided by time.</p>
+  <ul>
+    <li><b>Churn farming.</b> <span class="mono">belief_changed</span> is boolean, not magnitude-weighted. Flipping
+    an <span class="mono">uncertain</span> finding to <span class="mono">known_bad</span> on one more sample scores
+    identically to a high-confidence capability changing qualification status. Design experiments that sit near a
+    confidence-ladder threshold and they'll oscillate cheaply — free points, no durable knowledge.</li>
+    <li><b>Qualification treadmill.</b> Re-running <span class="mono">qualification_run</span> on an
+    already-easy, already-qualified capability right before <span class="mono">staleness_days</span> expires resets
+    the clock and scores "renewed" again — forever. This out-competes touching the 10 genuinely unknown coverage
+    gaps the corpus has already stated it's blind to, because the easy capability is cheap and reliable and the
+    unknown gaps are neither.</li>
+    <li><b>Duration bias.</b> Rate = numerator ÷ hours. Long experiments — exactly the ones Δ2's physical telemetry
+    exists to enable (sustained-load thermal decay over tens of minutes) — structurally score worse per hour than
+    ten short <span class="mono">known_bad_retest</span> cycles, even when the long experiment is far more valuable.
+    The metric penalizes the experiment class its own sibling delta was built to unlock.</li>
+    <li><b>Shallow coverage closure.</b> An <span class="mono">unmeasured_metrics</span> gap closes the moment the
+    metric is reported once, regardless of what it reveals. "Gap closed" and "gap closed with a useful answer" are
+    conflated — a junk observation that formally satisfies the schema scores the same as one that changes a
+    decision.</li>
+    <li><b>Node starvation.</b> Scored "per node," a node can be kept off hard problems to protect its rate,
+    inverting the actual purpose of the competing-builders A/B (compare capability under equal difficulty, not farm
+    throughput under selected difficulty).</li>
+  </ul>
+</div>
+
+<div class="qbox">
+  <h3>5 — What behaviors would maximizing it unintentionally encourage?</h3>
+  <ul>
+    <li>Systematic preference for <b>cheap, short, low-stakes experiment types</b> over
+    <span class="mono">qualification_run</span> at scale or <span class="mono">coverage_probe</span> into
+    genuinely unobserved envelope regions.</li>
+    <li>Association formation stopping at the <b>minimum viable abstraction</b> (exactly 2 workflows, the schema
+    floor) rather than pursuing deeper, harder-won generalizations — the 2-workflow minimum is the cheapest "formed"
+    count available.</li>
+    <li><b>Avoidance of true exploration.</b> A <span class="mono">coverage_probe</span> into an
+    <span class="mono">unobserved_combo</span> is, by definition, the experiment most likely to land on
+    <span class="mono">uncertain</span> (belief_changed=false) — the metric penalizes exactly the work Stage&nbsp;8
+    (Coverage) exists to generate demand for.</li>
+    <li>If wired into Δ4's idle-drain dispatch, the scheduler would learn to prefer the candidate queue's easy tail
+    over its valuable head — the opposite of "run it hot" as originally intended (knowledge produced, not throughput).</li>
+  </ul>
+</div>
+
+<h2>Alternative Formulations</h2>
+<div class="stage">
+  <div class="shead"><span class="id">A</span><h3>Belief movement</h3><span class="tag t-rec">RECOMMENDED — replaces belief_changed</span></div>
+  <div class="sbody">
+    <div class="field"><h4>Definition</h4>
+      <p>Replace the boolean <span class="mono">belief_changed</span> with the magnitude
+      <span class="mono">|confidence_score_after − confidence_score_before|</span>, summed per experiment.
+      <span class="mono">confidence_score</span> already lives inside <span class="mono">belief_before</span> /
+      <span class="mono">belief_after</span> on every <span class="mono">experiment-result.v1</span> — no schema change.</p></div>
+    <div class="field gate"><h4>Why it's better</h4>
+      <p>Directly closes gaming vector 4a (churn farming). A confidence jump from 0→0.8 now outweighs ten
+      threshold-hugging 0.33↔0.5 flips instead of tying with each of them.</p></div>
+  </div>
+</div>
+<div class="stage">
+  <div class="shead"><span class="id">B</span><h3>Uncertainty reduction</h3><span class="tag t-risk">PARTIAL — directional blind spot</span></div>
+  <div class="sbody">
+    <div class="field"><h4>Definition</h4>
+      <p><span class="mono">confidence_score_after − confidence_score_before</span>, signed (not absolute).
+      Rewards only movement toward a decision-usable belief.</p></div>
+    <div class="field warn"><h4>Weakness</h4>
+      <p>Under-values corrective findings. Discovering a <span class="mono">known_good</span> belief was actually
+      wrong is high-value knowledge even when it moves the corpus toward <span class="mono">uncertain</span>
+      (confidence_score down). Signed uncertainty reduction scores that as a loss.</p></div>
+  </div>
+</div>
+<div class="stage">
+  <div class="shead"><span class="id">C</span><h3>Information gain</h3><span class="tag t-risk">Rigorous, but recursive on an unvalidated curve</span></div>
+  <div class="sbody">
+    <div class="field"><h4>Definition</h4>
+      <p>Treat <span class="mono">confidence_score</span> as a probability and take a KL-divergence /
+      surprisal-reduction between before/after states. The formally correct version of (A) and (B).</p></div>
+    <div class="field warn"><h4>Weakness</h4>
+      <p><span class="mono">confidence_score = samples/(samples+2)</span> is a heuristic evidence curve, not a
+      calibrated probability — no <span class="mono">prediction_bias</span> finding yet validates that curve against
+      real outcomes. Computing entropy over an uncalibrated number produces a precise-looking answer to an imprecise
+      question. (Worth its own future finding: does the evidence curve predict actual reliability?)</p></div>
+  </div>
+</div>
+<div class="stage">
+  <div class="shead"><span class="id">D</span><h3>Capability expansion</h3><span class="tag t-risk">Too narrow alone</span></div>
+  <div class="sbody">
+    <div class="field"><h4>Definition</h4>
+      <p>New <span class="mono">capability_id</span>s created, <span class="mono">qualified_resources</span> growing,
+      or <span class="mono">operating_envelope</span> widening (e.g. <span class="mono">max_context_tokens</span> up).</p></div>
+    <div class="field warn"><h4>Weakness</h4>
+      <p>Measures reach growing, not knowledge maintained. An org that only maximized this would neglect Stage&nbsp;6
+      decay entirely — directly opposed to the roadmap's own framing of qualification decay as "the org's
+      protect-capability function."</p></div>
+  </div>
+</div>
+<div class="stage">
+  <div class="shead"><span class="id">E</span><h3>Experiment worth realized</h3><span class="tag t-rec">RECOMMENDED — primary dispatch objective</span></div>
+  <div class="sbody">
+    <div class="field"><h4>Definition</h4>
+      <p><span class="mono">Σ worth(candidate) for candidates where belief_changed / capability transitioned, ÷ hours</span>.
+      <span class="mono">worth</span> is already an authored field on each candidate in
+      <span class="mono">experiment_candidates.json</span> at plan time (Clause 2: intent, with reason).</p></div>
+    <div class="field gate"><h4>Why it's the strongest fit</h4>
+      <p>It doesn't invent a second competing valuation scheme — it sums a scalar that's already authored,
+      reasoned, and in the audit trail. This is the cleanest Clause-1 answer: nothing new is asserted, an existing
+      authored judgment is aggregated. It also naturally resists duration bias (4c), because <span class="mono">worth</span>
+      is set by a human who already knows a thermal-decay probe is worth more than a known-bad retest.</p></div>
+  </div>
+</div>
+<div class="stage">
+  <div class="shead"><span class="id">F</span><h3>Coverage improvement</h3><span class="tag t-risk">Fleet dashboard, not a per-node dispatch input</span></div>
+  <div class="sbody">
+    <div class="field"><h4>Definition</h4>
+      <p>% of open <span class="mono">coverage.v1</span> gaps closed fleet-wide over a window.</p></div>
+    <div class="field warn"><h4>Weakness</h4>
+      <p>Structurally uneven per node — a node can show zero improvement simply because none of the open gaps match
+      its resource envelope, which isn't underperformance. Good as a top-line KPI, wrong as a rate a scheduler
+      dispatches against.</p></div>
+  </div>
+</div>
+<div class="stage">
+  <div class="shead"><span class="id">G</span><h3>Organizational entropy reduction</h3><span class="tag t-risk">Coarse — good headline, bad control signal</span></div>
+  <div class="sbody">
+    <div class="field"><h4>Definition</h4>
+      <p>Total Shannon entropy across all findings' confidence distributions, before/after a window, corpus-wide.</p></div>
+    <div class="field warn"><h4>Weakness</h4>
+      <p>Elegant as a single "is the org getting smarter" number, but not attributable back to one node or one
+      experiment when several land in the same window — unusable as a per-dispatch objective.</p></div>
+  </div>
+</div>
+
+<h2>Mathematical Decomposition</h2>
+<div class="formula">
+learning_rate(node, window) =
+&nbsp;&nbsp;w1 · Σ |Δconfidence_score|            over experiment-results in window     [belief movement — replaces belief_changed]
++ w2 · count(associations.first_observed ∈ window)                                     [needs snapshot diff]
++ w3 · count(capabilities: requalification_due → qualified, in window)                 [needs snapshot diff]
++ w4 · count(coverage gaps: present at window_start, absent at window_end)             [needs snapshot diff]
+÷ Σ (dispatch_close_ts − dispatch_open_ts)   over runs in window                       [from events.jsonl only — never wall-clock]
+</div>
+<p class="thesis">As drafted, Δ3 sets <span class="mono">w1=w2=w3=w4=1</span> implicitly by just adding the counts.
+That implicit weighting is itself an authored choice hiding inside code — see Constitutional Validation below. Two
+honest paths: (1) collapse to a single term whose weighting is already authored elsewhere (Formulation E, worth), or
+(2) keep the family but report each <span class="mono">w</span>-term separately rather than summing across
+incommensurable units (a confidence-score delta and a gap-count are not the same currency).</p>
+
+<h2>Constitutional Validation</h2>
+<table class="split">
+  <tr><th>Clause</th><th>Verdict</th><th>Reasoning</th></tr>
+  <tr><td><b>Clause 1</b> — no authored truth if derivable</td>
+      <td><span class="tag t-pass">PASS*</span></td>
+      <td>Every input is already a derived field. *Contingent on building the snapshot-diff machinery for
+      terms 2–4 (Q2) — until then, "associations formed / qualifications renewed / gaps closed" would have to be
+      hand-tallied, which <i>would</i> violate Clause 1.</td></tr>
+  <tr><td><b>Clause 2</b> — authored ≠ truth</td>
+      <td><span class="tag t-risk">RISK</span></td>
+      <td>The metric itself isn't authored as truth. But the moment it feeds Δ4's dispatch priority, it becomes an
+      objective function — and its term weights (<span class="mono">w1..w4</span> above) are an authored policy
+      choice. If those weights live implicitly in code rather than as a traced constant, that's an unaudited
+      authored will wearing a projection's clothes.</td></tr>
+  <tr><td><b>D18</b> — determinism</td>
+      <td><span class="tag t-risk">RISK</span></td>
+      <td>Numerator terms are fine if sourced from stored timestamps/snapshots. The runtime-hours denominator must
+      come from event-log dispatch-open/close pairs, never from "now" — Δ3's current phrasing doesn't say this
+      explicitly and should before anything is built.</td></tr>
+  <tr><td><b>No single-workflow generalization</b></td>
+      <td><span class="tag t-pass">PASS</span></td>
+      <td>Inherited for free — the associations term rides on <span class="mono">association.v1</span>'s own
+      <span class="mono">minItems: 2</span> workflows guard.</td></tr>
+  <tr><td><b>No silent caps</b></td>
+      <td><span class="tag t-risk">OPEN</span></td>
+      <td>If Δ4 later thresholds candidates by learning-rate score ("below X, deprioritize"), that threshold needs
+      the same treatment coverage gaps already get — reported with a reason, never silently dropped. Not yet
+      specified in Δ3.</td></tr>
+</table>
+
+<h2>Recommendation</h2>
+<div class="law green">
+  <h3>Ship a metric family, not one scalar.</h3>
+  <p><b>Dispatch-time objective</b> (what Δ4's idle-drain scheduler actually optimizes): Formulation
+  <b>E — experiment worth realized per hour</b>. It reuses an already-authored field (<span class="mono">worth</span>
+  on the candidate), requires no new derivation machinery, and structurally resists the duration-bias and
+  churn-farming gaming vectors because a human already priced in that a thermal-decay probe outweighs a
+  known-bad retest.</p>
+</div>
+<div class="law amber">
+  <h3>Report the rest — don't blend it.</h3>
+  <p><b>Belief movement</b> (Formulation A) as a dashboard KPI per node, replacing the boolean
+  <span class="mono">belief_changed</span> Δ3 currently proposes. <b>Coverage improvement</b> (F) and
+  <b>capability expansion</b> (D) reported as separate, labeled fleet-wide counts — never summed into the dispatch
+  scalar, because mixing "maintain" and "expand" work in one number is precisely what produces the qualification
+  treadmill (gaming vector 4b).</p>
+</div>
+<div class="law red">
+  <h3>Do not build the blended Δ3 scalar as drafted.</h3>
+  <p>Two prerequisites first: (1) a deterministic snapshot-diff mechanism for associations/capabilities/coverage —
+  currently missing machinery, not an existing derived object as Δ3 claims; (2) a validated calibration of
+  <span class="mono">confidence_score</span> against real outcomes (a <span class="mono">prediction_bias</span>
+  finding on the curve itself) before any information-gain-flavored version (C) is trusted. Until then, Formulation
+  E is buildable today with zero new schema and zero new gaming surface beyond what <span class="mono">worth</span>
+  already carries.</p>
+</div>
+
+<footer>
+  Critique of Δ3 · companion to CAPABILITY-ROADMAP.html and TWO-ECONOMIES-WIND-TUNNEL.html ·
+  analysis only — no schema or code changes made · 2026-07-02
+</footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,65 @@
+{
+  "node": "am4",
+  "host": "am4.tail8e749c.ts.net",
+  "roles": [
+    "fleet-services",
+    "observability",
+    "dual-b70-inference",
+    "torch-xpu-worker"
+  ],
+  "gpu": {
+    "vendor": "Intel",
+    "devices": [
+      {
+        "pci": "0c:00.0",
+        "drm": "/dev/dri/renderD128",
+        "name": "Battlemage G31 / Arc Pro B70",
+        "memory_gib_observed": 30.3
+      },
+      {
+        "pci": "10:00.0",
+        "drm": "/dev/dri/renderD129",
+        "name": "Battlemage G31 / Arc Pro B70",
+        "memory_gib_observed": 30.3
+      }
+    ]
+  },
+  "endpoints": {
+    "ssh": "ssh derek@am4.tail8e749c.ts.net",
+    "mcp_stdio": "ssh derek@am4.tail8e749c.ts.net /home/derek/am4-fleet-node/.venv/bin/python /home/derek/am4-fleet-node/scripts/am4-mcp-server.py",
+    "jaeger": "http://am4.tail8e749c.ts.net:16686",
+    "otlp_grpc": "http://am4.tail8e749c.ts.net:4317",
+    "otlp_http": "http://am4.tail8e749c.ts.net:4318",
+    "nats_optional": "nats://am4.tail8e749c.ts.net:4222",
+    "nats_monitor_optional": "http://am4.tail8e749c.ts.net:8222",
+    "openai": "http://am4.tail8e749c.ts.net:8090/v1",
+    "hermes_health": "http://am4.tail8e749c.ts.net:8090/health"
+  },
+  "models": {
+    "vllama-planner": {
+      "backend": "llama.cpp SYCL / Level Zero",
+      "model_file": "/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
+      "placement": "dual",
+      "device_list": "0,1",
+      "split_mode": "layer",
+      "tensor_split": "1,1",
+      "ctx": 131072,
+      "kv_type": "q8_0",
+      "hermes_target": "minimum long-context target; 262144 is experimental until measured on Ubuntu"
+    },
+    "hermes": {
+      "alias_of": "vllama-planner"
+    }
+  },
+  "notes": [
+    "The facade may be up while the backend is intentionally stopped.",
+    "Start the backend only after checking render-node ownership.",
+    "MCP is the primary agent control surface.",
+    "Denning is Windows/VidMm data; on AM4 Ubuntu, use it as bounds, not as the control law.",
+    "SYCL multi-card failed on Windows 10; first AM4 proof is Linux SYCL multi-card correctness.",
+    "Linux memory pinning should simplify placement; still measure P2P/card-to-card throughput and engine placement behavior before designing around KV-on-one-card/model-on-another.",
+    "With 32 GB DDR, pooled/shared memory is not the first plan; keep steady-state inside B70 VRAM and treat host memory as scarce.",
+    "NATS is optional and only needed for durable run events or queue fanout.",
+    "Hermes HTTP is authenticated; credentials live only on AM4 under ~/.config/am4-fleet."
+  ]
+}

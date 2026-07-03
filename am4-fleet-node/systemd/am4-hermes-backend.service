@@ -1,0 +1,19 @@
+[Unit]
+Description=AM4 dual-B70 llama.cpp backend for Hermes
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=derek
+Group=derek
+WorkingDirectory=/home/derek/am4-fleet-node
+EnvironmentFile=-/home/derek/.config/am4-fleet/hermes.env
+ExecStart=/home/derek/am4-fleet-node/scripts/start-hermes-backend.sh
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target
+

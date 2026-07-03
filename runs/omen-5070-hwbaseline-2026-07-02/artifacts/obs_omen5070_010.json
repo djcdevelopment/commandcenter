@@ -1,0 +1,29 @@
+{
+  "observation_id": "obs_omen5070_010",
+  "run_id": "omen-5070-hwbaseline-2026-07-02",
+  "workflow_id": "wf-omen-5070-hwbaseline-2026-07-02",
+  "decision_id": null,
+  "timestamp": "2026-07-02T06:05:00Z",
+  "builder_id": "omen-5070",
+  "model_id": "mixtral:8x22b-instruct-v0.1-q2_K",
+  "backend": "ollama-vulkan-igpu",
+  "outcome": "success",
+  "failure_class": null,
+  "promotion_status": null,
+  "workload_shape": {
+    "task_kind": "capacity-probe",
+    "estimated_context_tokens": null,
+    "requires_gpu": true
+  },
+  "observed": {
+    "tokens_per_s": 0.83,
+    "context_tokens": null,
+    "ram_gb_peak": 123.1,
+    "vram_gb_peak": null
+  },
+  "note": "Capability proof only; unsafe memory margin for routine use",
+  "source_docs": [
+    "C:/work/tuning/ollama-backend-lab/hardware-capability-matrix.md",
+    "C:/work/tuning/ollama-backend-lab/hardware-baseline-omen-5070-2026-07-02.md"
+  ]
+}

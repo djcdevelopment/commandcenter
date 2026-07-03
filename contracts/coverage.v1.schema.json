@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://commandcenter.local/contracts/coverage.v1.schema.json",
+  "title": "CoverageGap v1",
+  "description": "A derived blind spot: something the organization is reasoning about but has not observed, or has observed too narrowly to trust. Coverage turns the last authored residue — 'what should we observe?' — into a derived quantity: the corpus itself reports where it is thin. Gaps are experiment demand, not warnings.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "gap_id",
+    "gap_type",
+    "statement",
+    "subject",
+    "evidence",
+    "proposed_experiment_type"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "coverage-gap.v1"
+    },
+    "gap_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Deterministic identity derived from gap_type + subject, so re-projection updates the gap in place."
+    },
+    "gap_type": {
+      "type": "string",
+      "enum": [
+        "unobserved_combo",
+        "single_workflow_evidence",
+        "unmeasured_metrics",
+        "stale_capability"
+      ]
+    },
+    "statement": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The blind spot, stated for a human operator."
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "builder_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "backend": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "task_kind": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "invariant": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "single_workflow_evidence only: the invariant that cannot yet generalize."
+        },
+        "missing_metrics": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "unmeasured_metrics only: which metrics have never been reported for this combo."
+        },
+        "capability_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "stale_capability only."
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "samples",
+        "summary"
+      ],
+      "properties": {
+        "samples": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "workflows": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "proposed_experiment_type": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        null,
+        "coverage_probe",
+        "qualification_run"
+      ],
+      "description": "Which experiment type would close this gap. Null when observation alone (no dispatch) closes it."
+    },
+    "last_observed": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    }
+  }
+}

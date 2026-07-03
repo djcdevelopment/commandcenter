@@ -1,0 +1,29 @@
+{
+  "observation_id": "obs_omen5070_006",
+  "run_id": "omen-5070-hwbaseline-2026-07-02",
+  "workflow_id": "wf-omen-5070-hwbaseline-2026-07-02",
+  "decision_id": null,
+  "timestamp": "2026-07-02T06:41:15Z",
+  "builder_id": "omen-5070",
+  "model_id": "qwen3-coder:30b",
+  "backend": "ollama-cuda",
+  "outcome": "success",
+  "failure_class": null,
+  "promotion_status": null,
+  "workload_shape": {
+    "task_kind": "capacity-probe",
+    "estimated_context_tokens": null,
+    "requires_gpu": true
+  },
+  "observed": {
+    "tokens_per_s": 57.4,
+    "context_tokens": null,
+    "ram_gb_peak": 34.4,
+    "vram_gb_peak": 11.21
+  },
+  "note": "Strong warm specialist once resident, but much heavier cold load and RAM cost",
+  "source_docs": [
+    "C:/work/tuning/ollama-backend-lab/hardware-capability-matrix.md",
+    "C:/work/tuning/ollama-backend-lab/hardware-baseline-omen-5070-2026-07-02.md"
+  ]
+}

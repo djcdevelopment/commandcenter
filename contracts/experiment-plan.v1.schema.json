@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://commandcenter.local/contracts/experiment-plan.v1.schema.json",
+  "title": "ExperimentPlan v1",
+  "description": "A declared intent to gain evidence: a gated dispatch performed on purpose. Written at dispatch time, before the outcome is known — it records why the gate is being opened, what evidence is sought, and what risk is accepted. Blocked by default, open by experiment, measured by observation, judged by findings, re-gated by policy.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "experiment_id",
+    "experiment_type",
+    "workflow_id",
+    "run_id",
+    "decision_id",
+    "timestamp",
+    "subject",
+    "reason",
+    "evidence_sought",
+    "risk_accepted"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "experiment-plan.v1"
+    },
+    "experiment_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "experiment_type": {
+      "type": "string",
+      "enum": [
+        "known_bad_retest",
+        "prediction_bias_calibration",
+        "uncertain_resolution",
+        "regression_probe",
+        "prefer_validation",
+        "backend_comparison",
+        "qualification_run",
+        "coverage_probe"
+      ]
+    },
+    "workflow_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "decision_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The SchedulerDecision this experiment dispatched through. The linkage direction is plan -> decision -> observation."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "builder_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "backend": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "task_kind": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "metric": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Set on prediction_bias_calibration experiments: which predicted metric is being calibrated."
+        }
+      }
+    },
+    "target_finding_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The belief this experiment is designed to test. Null only for experiments not aimed at an existing finding (e.g. backend_comparison over unexplored ground)."
+    },
+    "derived_from_candidate": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "candidate_id from experiment_candidates.json, when the experiment was proposed by the projection rather than an operator."
+    },
+    "gate_opened": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "policy_id",
+        "effect",
+        "flag"
+      ],
+      "description": "The policy rule this dispatch would otherwise be stopped or shaped by. Null for ungated experiment types (e.g. prefer_validation, calibration).",
+      "properties": {
+        "policy_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "effect": {
+          "type": "string",
+          "enum": [
+            "block",
+            "quarantine",
+            "exploratory_only"
+          ]
+        },
+        "flag": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The override flag that opened the gate, e.g. experiment_flag."
+        },
+        "semantics": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Why this is worth retesting — stated for a human operator."
+    },
+    "evidence_sought": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What evidence would change the target finding, stated concretely enough to judge the result against."
+    },
+    "risk_accepted": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The risk/cost being accepted by opening the gate."
+    }
+  }
+}

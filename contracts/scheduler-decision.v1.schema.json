@@ -1,0 +1,518 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://commandcenter.local/contracts/scheduler-decision.v1.schema.json",
+  "title": "Scheduler Decision v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "decision_id",
+    "workflow_id",
+    "run_id",
+    "timestamp",
+    "workload_shape",
+    "candidates_considered",
+    "selected",
+    "decision_reason"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "scheduler-decision.v1"
+    },
+    "decision_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "workflow_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "workload_shape": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_kind"
+      ],
+      "properties": {
+        "task_kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "estimated_context_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "requires_gpu": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "notes": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "candidates_considered": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "builder_id",
+          "selected"
+        ],
+        "properties": {
+          "builder_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "model_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "backend": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "filters_passed": {
+            "type": "boolean"
+          },
+          "score": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "selected": {
+            "type": "boolean"
+          },
+          "rejected_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "selected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "builder_id"
+      ],
+      "properties": {
+        "builder_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "backend": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "decision_reason": {
+      "type": "string",
+      "minLength": 1
+    },
+    "predictions": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "runtime_s": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ttft_s": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "tokens_per_s": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ram_gb_peak": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "vram_gb_peak": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "assay_pass_probability": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "promotion_probability": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "expected_model_load_ms": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "expected_ttft_ms": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "expected_prompt_tokens_per_second": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "expected_generation_tokens_per_second": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "expected_peak_ram_mb": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "expected_peak_vram_mb": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "expected_assay_outcome": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            null,
+            "passed",
+            "failed"
+          ]
+        },
+        "expected_promotion_status": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            null,
+            "approved",
+            "held",
+            "rejected"
+          ]
+        },
+        "confidence": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "prediction_source": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "policy_influence": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "policy_evaluated",
+        "experiment_flag",
+        "requires_experiment_flag",
+        "matched_rules",
+        "adjustments_applied",
+        "candidates_blocked"
+      ],
+      "properties": {
+        "policy_evaluated": {
+          "type": "boolean",
+          "description": "false = no policy was loaded; the scheduler ran unconstrained and says so."
+        },
+        "experiment_flag": {
+          "type": "boolean"
+        },
+        "requires_experiment_flag": {
+          "type": "boolean",
+          "description": "true = this dispatch only happened because experiment_flag opened a gate; it is an experiment."
+        },
+        "matched_rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "policy_id",
+              "effect",
+              "status",
+              "statement"
+            ],
+            "properties": {
+              "policy_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "effect": {
+                "type": "string",
+                "enum": [
+                  "block",
+                  "prefer",
+                  "adjust_prediction",
+                  "exploratory_only",
+                  "quarantine"
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "suspended"
+                ]
+              },
+              "statement": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "description": "Every policy rule that matched the selected candidate — the dispatch explains itself."
+        },
+        "adjustments_applied": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "policy_id",
+              "metric",
+              "additive_correction",
+              "before",
+              "after"
+            ],
+            "properties": {
+              "policy_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "metric": {
+                "type": "string",
+                "minLength": 1
+              },
+              "additive_correction": {
+                "type": "number"
+              },
+              "before": {
+                "type": "number"
+              },
+              "after": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        "candidates_blocked": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "builder_id",
+              "model_id",
+              "backend",
+              "policy_ids"
+            ],
+            "properties": {
+              "builder_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "model_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "backend": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "policy_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        }
+      },
+      "description": "How policy constrained this assignment. Policy never silently decides: gates and adjustments are recorded here, on the decision they shaped."
+    },
+    "capability_influence": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "capabilities_evaluated",
+        "requirements_source",
+        "capabilities_required",
+        "capabilities_matched",
+        "capabilities_missing",
+        "candidates"
+      ],
+      "properties": {
+        "capabilities_evaluated": {
+          "type": "boolean",
+          "description": "false never appears in practice: the block is null when no capabilities were loaded."
+        },
+        "requirements_source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Where the requirements came from. Always derivation — mission->capability requirements are never hand-authored."
+        },
+        "capabilities_required": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "capability_ids whose invariant matches this workload's task_kind — what trace history says this class of work needs."
+        },
+        "capabilities_matched": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Of the required capabilities, the ones the SELECTED candidate is a qualified resource for (qualified status, inside the measured envelope)."
+        },
+        "capabilities_missing": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "builder_id",
+              "model_id",
+              "backend",
+              "matched",
+              "missing"
+            ],
+            "properties": {
+              "builder_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "model_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "backend": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "matched": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "missing": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          "description": "Per-candidate capability match, so the dispatch explains why the qualified candidate outranked a higher base score."
+        }
+      },
+      "description": "How derived capabilities shaped this assignment. The scheduler asks what capabilities the work requires (derived from trace history), then which candidate satisfies them: qualified capabilities are scheduled, not machines."
+    }
+  }
+}

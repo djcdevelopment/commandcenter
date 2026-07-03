@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://commandcenter.local/contracts/experiment-result.v1.schema.json",
+  "title": "ExperimentResult v1",
+  "description": "The judgment of an experiment: what happened, and did the belief change. Derived, never authored — the projection joins an ExperimentPlan to its SchedulerDecision and CapacityObservations, then synthesizes findings with and without the experiment's evidence to show the belief before and after. Re-running the projection over the same events reproduces results byte-for-byte.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "experiment_id",
+    "experiment_type",
+    "workflow_id",
+    "run_id",
+    "decision_id",
+    "subject",
+    "observation_ids",
+    "outcome",
+    "belief_before",
+    "belief_after",
+    "belief_changed",
+    "gate_before",
+    "gate_after",
+    "verdict"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "experiment-result.v1"
+    },
+    "experiment_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "experiment_type": {
+      "type": "string",
+      "enum": [
+        "known_bad_retest",
+        "prediction_bias_calibration",
+        "uncertain_resolution",
+        "regression_probe",
+        "prefer_validation",
+        "backend_comparison",
+        "qualification_run",
+        "coverage_probe"
+      ]
+    },
+    "workflow_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "decision_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "builder_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "backend": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "task_kind": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "metric": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "target_finding_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "observation_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "CapacityObservations joined to the plan via (run_id, decision_id). Empty means the experiment dispatched but no observation has landed yet."
+    },
+    "outcome": {
+      "type": "string",
+      "minLength": 1,
+      "description": "success, the dominant failure outcome, or no_observation."
+    },
+    "failure_classes": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "timestamp": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time",
+      "description": "Latest experiment observation timestamp; the plan's timestamp when no observation exists."
+    },
+    "belief_before": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "description": "The subject's finding synthesized from the corpus WITHOUT the experiment's observations. Null when no belief about the subject existed.",
+      "properties": {
+        "finding_id": {
+          "type": "string"
+        },
+        "finding_type": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": "string"
+        },
+        "statement": {
+          "type": "string"
+        },
+        "evidence_summary": {
+          "type": "string"
+        }
+      }
+    },
+    "belief_after": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "description": "The subject's finding synthesized from the full corpus. Null when the belief dissolved (e.g. a bias no longer clears the consistency gate).",
+      "properties": {
+        "finding_id": {
+          "type": "string"
+        },
+        "finding_type": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": "string"
+        },
+        "statement": {
+          "type": "string"
+        },
+        "evidence_summary": {
+          "type": "string"
+        }
+      }
+    },
+    "belief_changed": {
+      "type": "boolean",
+      "description": "True when finding_type or confidence moved between belief_before and belief_after."
+    },
+    "gate_before": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "description": "Most severe gating policy effect on the subject before the experiment's evidence. Null = no gate.",
+      "properties": {
+        "policy_id": {
+          "type": "string"
+        },
+        "effect": {
+          "type": "string",
+          "enum": [
+            "block",
+            "quarantine",
+            "exploratory_only"
+          ]
+        }
+      }
+    },
+    "gate_after": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "policy_id": {
+          "type": "string"
+        },
+        "effect": {
+          "type": "string",
+          "enum": [
+            "block",
+            "quarantine",
+            "exploratory_only"
+          ]
+        }
+      }
+    },
+    "verdict": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The result stated for a human operator: what the belief and the gate did."
+    }
+  }
+}

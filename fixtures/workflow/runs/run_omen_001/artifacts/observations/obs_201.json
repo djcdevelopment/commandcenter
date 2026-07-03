@@ -1,0 +1,28 @@
+{
+  "contract_version": "capacity-observation.v1",
+  "observation_id": "obs_201",
+  "decision_id": "dec_assign_201",
+  "workflow_id": "wf_omen_debut",
+  "run_id": "run_omen_001",
+  "timestamp": "2026-07-01T20:25:30Z",
+  "builder_id": "omen-worker-1",
+  "model_id": "qwen3-coder:30b",
+  "backend": "ollama",
+  "workload_shape": {
+    "task_kind": "build",
+    "estimated_context_tokens": 16384,
+    "requires_gpu": true,
+    "notes": "debut A/B vs frontier"
+  },
+  "observed": {
+    "runtime_s": 1080.0,
+    "ttft_s": 1.9,
+    "tokens_per_s": 54.6,
+    "ram_gb_peak": 9.5,
+    "vram_gb_peak": 11.2,
+    "context_tokens": 16384
+  },
+  "outcome": "success",
+  "failure_class": null,
+  "promotion_status": "approved"
+}

@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Replay &amp; Observability — Information Architecture</title>
+<style>
+  :root{
+    --bg:#0c0f14; --panel:#141a22; --panel2:#1b232e; --line:#26303d;
+    --ink:#e6edf3; --muted:#93a1b1; --dim:#6b7886;
+    --fire:#ff7a45; --ember:#ffb066; --cyan:#5fd0e0; --green:#5ad48a;
+    --amber:#f4c95d; --red:#ff6b6b; --violet:#a78bfa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  code,.mono{font-family:"JetBrains Mono",Consolas,Menlo,monospace;font-size:.86em}
+  a{color:var(--cyan)}
+  .wrap{max-width:1120px;margin:0 auto;padding:32px 24px 80px}
+  header.top{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:24px}
+  .eyebrow{color:var(--fire);letter-spacing:.18em;text-transform:uppercase;font-size:11px;font-weight:700}
+  h1{font-size:27px;margin:6px 0 8px;font-weight:700}
+  .thesis{color:var(--muted);max-width:82ch}
+  .thesis b{color:var(--ink)}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:16px;font-size:12.5px;color:var(--dim)}
+  .meta b{color:var(--ink)}
+  h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--ember);
+    margin:38px 0 14px;border-left:3px solid var(--fire);padding-left:10px}
+  .banner{background:linear-gradient(90deg,#2a1d10,#1b232e);border:1px solid #4a3a20;
+    border-radius:10px;padding:12px 16px;margin:18px 0 0;color:var(--ember);font-size:13.5px}
+  .banner b{color:var(--amber)}
+  .tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.05em;
+    padding:2px 7px;border-radius:20px;border:1px solid var(--line)}
+  .t-done{color:var(--green);border-color:#274b39;background:#11231a}
+  .t-draft{color:var(--amber);border-color:#4a4023;background:#221d10}
+  .t-view{color:var(--cyan);border-color:#1f4650;background:#0f2126}
+  .t-new{color:var(--violet);border-color:#3a2f5a;background:#181226}
+
+  table.split{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:13px}
+  table.split th{background:var(--panel2);text-align:left;padding:10px 14px;font-size:11px;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+  table.split td{padding:9px 14px;border-top:1px solid var(--line);color:var(--muted);vertical-align:top}
+  table.split td b{color:var(--ink)}
+  table.split td:first-child{width:24%}
+
+  .law{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--violet);
+    border-radius:10px;padding:14px 18px;margin-bottom:12px}
+  .law h3{margin:0 0 4px;font-size:15px;color:var(--violet)}
+  .law p{margin:4px 0 0;color:var(--muted);font-size:13.5px}
+  .law p b{color:var(--ink)}
+  .law.green{border-left-color:var(--green)}
+  .law.green h3{color:var(--green)}
+
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:16px;overflow:hidden}
+  .stage .shead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    padding:14px 18px;background:var(--panel2);border-bottom:1px solid var(--line)}
+  .stage .shead .id{font-family:Consolas,monospace;color:var(--fire);font-weight:700;font-size:18px}
+  .stage .shead h3{margin:0;font-size:16px;flex:1;min-width:200px}
+  .sbody{padding:14px 18px 18px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:720px){.sbody{grid-template-columns:1fr}}
+  .field h4{margin:0 0 5px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--cyan)}
+  .field.gate h4{color:var(--green)}
+  .field.warn h4{color:var(--red)}
+  .field ul{margin:0;padding-left:18px}
+  .field li{margin:3px 0;color:var(--muted);font-size:13px}
+  .field li b{color:var(--ink)}
+  .field p{margin:0;color:var(--muted);font-size:13px}
+  .field p b{color:var(--ink)}
+  .full{grid-column:1 / -1}
+
+  .spine{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0 4px}
+  .spine .sp{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    padding:8px 13px;font-size:13px;font-weight:600}
+  .spine .sp small{display:block;font-weight:400;font-size:10.5px;color:var(--dim)}
+  .spine .arrow{color:var(--dim);font-size:15px}
+  .sp.derived{border-color:#274b39}.sp.derived small{color:var(--green)}
+  .sp.physical{border-color:#4a2424}.sp.physical small{color:var(--red)}
+  .sp.authored{border-color:#4a4023}.sp.authored small{color:var(--amber)}
+
+  .qgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px}
+  @media(max-width:760px){.qgrid{grid-template-columns:1fr}}
+  .qcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .qcard h4{margin:0 0 6px;font-size:14px;color:var(--ember)}
+  .qcard p{margin:0;color:var(--muted);font-size:13px}
+  .qcard p b{color:var(--ink)}
+  .qcard .src{margin-top:8px;font-size:11.5px;color:var(--dim)}
+
+  footer{margin-top:44px;border-top:1px solid var(--line);padding-top:16px;color:var(--dim);font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="eyebrow">Commandcenter · Experience Architecture</div>
+  <h1>Replay &amp; Observability — Information Architecture</h1>
+  <p class="thesis">"Watch the organization think" is not a new belief layer — it is a <b>view</b> over the
+  S1–S8 spine and the Δ2 physical overlay, both already contracted. This document does not design pixels.
+  It decides <b>what a replay shows, in what order of prominence, and where the line falls between rendering
+  an existing derived field and inventing a new one.</b> Two new derived quantities are proposed; everything
+  else is disciplined rendering of contracts that already exist.</p>
+  <div class="meta">
+    <span>Tree: <b class="mono">C:\work\commandcenter</b></span>
+    <span>Grounds in: <b class="mono">CAPABILITY-ROADMAP.html</b> (S1–S8) + <b class="mono">TWO-ECONOMIES-WIND-TUNNEL.html</b> (Δ2, Δ5)</span>
+    <span>Status: <b>draft — information architecture only, no build</b></span>
+  </div>
+  <div class="banner"><b>Constitutional constraint carried forward:</b> a replay derives everything it shows.
+  If a replay needs a fact no projection currently emits, that is a gap to close in the projector — never a
+  value to hand-author into the replay layer itself.</div>
+</header>
+
+<h2>1 — What Belongs on the Timeline</h2>
+<p class="thesis">Three distinct kinds of thing share one time axis, and they must stay visually and
+structurally distinct because they answer different questions:</p>
+<div class="spine">
+  <span class="sp authored">Authored spine<small>sparse, high-signal</small></span><span class="arrow">→</span>
+  <span class="sp derived">Derived overlay<small>re-projected, not stored</small></span><span class="arrow">→</span>
+  <span class="sp physical">Telemetry band<small>continuous, sampled</small></span>
+</div>
+<table class="split" style="margin-top:12px">
+  <tr><th>Lane</th><th>Contents</th><th>Nature</th></tr>
+  <tr><td><b>Authored spine</b></td>
+      <td>Mission accepted, experiment plan authored, policy override authored, dispatch decision,
+      observe-this declaration. The events a human or the world actually committed.</td>
+      <td>Discrete, sparse, never re-derived — these are the ground truth <span class="mono">events.jsonl</span> already is.</td></tr>
+  <tr><td><b>Derived overlay</b></td>
+      <td>Capacity observations, findings synthesized/updated, associations formed, capability confidence
+      changes, qualification transitions, coverage gaps opened/closed.</td>
+      <td>Computed on demand by re-running the existing projectors up to time T. Never stored as a separate
+      replay log — storing it would violate Clause 1 a second time, just one layer up.</td></tr>
+  <tr><td><b>Telemetry band</b></td>
+      <td>gpu_temp_c, power_w, fan_rpm, clock_mhz, model_residency (Δ2, once instrumented).</td>
+      <td>Continuous time series, not discrete events — rendered as a curve/band beneath the two event
+      lanes, on the same axis, never merged into them.</td></tr>
+</table>
+<p class="thesis" style="margin-top:10px">Consequence: the replay engine has <b>no new storage</b>. It takes a
+time window and a run/mission ID, slices <span class="mono">events.jsonl</span> + the capacity-observation
+stream, and re-runs the association/capability/coverage projectors bounded to that window. This is exactly the
+determinism property (D18) the roadmap already requires of every projector — replay is just a projector called
+with a time bound instead of "latest."</p>
+
+<h2>2 — Which Events Deserve Visual Prominence</h2>
+<p class="thesis">Prominence must not be a function of <b>frequency</b> (routine successful observations would
+dominate) or of <b>lane</b> (physical telemetry samples are the most numerous events in the system and the
+least individually interesting). Prominence should be a function of <b>belief delta</b> — how much an event
+changed what the organization believed, or how far it diverged from what capability/policy predicted.</p>
+<table class="split">
+  <tr><th>Tier</th><th>Examples</th><th>Default visibility</th></tr>
+  <tr><td><b>Tier 1 — always prominent</b></td>
+      <td>Dispatch decisions; qualification status transitions (qualified↔stale↔requalified); policy
+      overrides (authored, exceptional by construction); any finding whose confidence crossed a threshold
+      band; coverage gap opened or closed.</td>
+      <td>Rendered as markers on the primary lane, always visible at any zoom level.</td></tr>
+  <tr><td><b>Tier 2 — visible on zoom / secondary row</b></td>
+      <td>Capacity observations that matched prediction; association formation; experiment results that
+      confirmed an existing belief without moving it.</td>
+      <td>Collapsed into a density strip until the operator zooms into that window.</td></tr>
+  <tr><td><b>Tier 3 — background, query-only</b></td>
+      <td>Raw telemetry samples; routine successful runs with zero belief delta; re-projection bookkeeping.</td>
+      <td>Never rendered as discrete markers — only as the continuous band (telemetry) or on explicit drill-down.</td></tr>
+</table>
+<p class="thesis" style="margin-top:10px">This requires one new derived quantity: a <b>belief-delta / surprise
+score</b> per event — cheap to define (magnitude of confidence change, or divergence between predicted
+capability match and observed outcome) and, like everything else in the ontology, computed, never asserted.
+It is the one genuinely new construct this document proposes for prominence ranking.</p>
+
+<h2>3 — Derived Information: Show vs. Remain Hidden</h2>
+<table class="split">
+  <tr><th>Shown by default</th><th>Hidden — one click / query away</th></tr>
+  <tr><td><span class="mono">policy_influence</span> and <span class="mono">capability_influence</span> on
+      the selected dispatch decision — already designed to explain themselves.<br><br>
+      Confidence value at time of decision, and its direction of change since the prior decision on the
+      same capability.<br><br>
+      Coverage gaps that were live at decision time, marked distinctly — not absent, not conflated with
+      "no data."</td>
+      <td>Full provenance chain of a finding (every supporting evidence ID) — required to exist (no orphans),
+      not required to be on-screen by default.<br><br>
+      Full association computation (which findings compressed into which statement).<br><br>
+      Raw telemetry samples underlying a thermal-decay finding.<br><br>
+      Historical decay math for a qualification (evidence-day counting, window arithmetic).</td></tr>
+</table>
+<p class="thesis" style="margin-top:10px">Rule of thumb: if a field already exists on a shipped contract
+specifically to <b>explain a decision</b> (<span class="mono">scheduler-decision.v1</span>'s two influence
+objects, <span class="mono">experiment-result.v1</span>'s belief_before/after), it is default-visible. If a
+field exists to <b>support</b> a decision (provenance, raw evidence, computation trace) it is drill-down —
+present, never absent, but not competing for attention in the first pass. This mirrors the roadmap's own
+authored/derived split: default view = what changed and why; drill-down = what was the evidence.</p>
+<p class="thesis">Coverage is the one category that must never be silently dropped at either level — a
+decision made with an unmeasured input has to say so in the default view, per S8's "no silent caps" rule
+applied to the org describing itself.</p>
+
+<h2>4 — Merging Physical Telemetry With Reasoning</h2>
+<p class="thesis">The wind-tunnel doc already puts physical telemetry (Δ2) between dispatch and capacity
+observation in the spine — it is an <b>input to belief</b>, not decoration. The replay surface should
+therefore treat it as a parallel, time-synchronized lane with explicit causal links, not a bottom strip that
+happens to share an x-axis:</p>
+<div class="qgrid">
+  <div class="qcard">
+    <h4>Two lanes, one axis</h4>
+    <p><b>Reasoning lane</b> (authored spine + derived overlay) above, <b>physical lane</b> (telemetry curve,
+    phase-segmented) below, both addressed by the same timestamp. Nothing about the physical lane is folded
+    into the reasoning lane's event stream — they stay separately inspectable so an operator can look at
+    either in isolation.</p>
+  </div>
+  <div class="qcard">
+    <h4>Evidence links, not decoration</h4>
+    <p>Wherever a derived finding or capacity observation actually consumed a telemetry window as evidence
+    (e.g. a sustained-load-decay finding), a connector ties the reasoning-lane node to the physical-lane
+    window it was computed from. No connector, no claimed relationship — this is provenance, rendered
+    across lanes instead of within one.</p>
+  </div>
+  <div class="qcard full">
+    <h4>Phase segmentation — the second new derived quantity</h4>
+    <p>The physical lane is only useful for debugging if it is segmented into named phases
+    (<b>cold-load → warm-ramp → sustained → cooldown</b>) rather than left as a raw curve. This segmentation
+    is derivable from model_residency + clock/power trend, computed once per run, and is the second new
+    construct this document proposes. It is what lets "why was it slow" decompose into phases instead of
+    requiring the operator to eyeball a temperature graph.</p>
+  </div>
+</div>
+
+<h2>5 — Answering the Operator's Questions</h2>
+<p class="thesis">Each question below should resolve to a specific, already-designed (or minimally-extended)
+field — not a new investigation each time. If a question can't be answered this way today, that gap belongs
+in S8 coverage, not in a bespoke debugging script.</p>
+<div class="qgrid">
+  <div class="qcard">
+    <h4>Why was this resource selected?</h4>
+    <p>Click the dispatch node → render <span class="mono">capability_influence</span> (required / matched /
+    missing, per candidate) beside <span class="mono">policy_influence</span> as a ranked comparison table,
+    not a single winner. The scheduler already produces this; replay just has to stop collapsing it to one line.</p>
+    <div class="src">Source: scheduler-decision.v1 (S7, shipped)</div>
+  </div>
+  <div class="qcard">
+    <h4>Why was it slow?</h4>
+    <p>Decompose elapsed time across phase boundaries: queue/policy wait, cold-load, warm-ramp, sustained
+    inference, cooldown, assay. Each phase is timestamped on the physical lane (via phase segmentation, §4)
+    so slowness attributes to a specific phase instead of a single opaque duration.</p>
+    <div class="src">Source: dispatch timestamps + new phase-segmentation derivation</div>
+  </div>
+  <div class="qcard">
+    <h4>What changed?</h4>
+    <p>Diff mode: pick two points on the timeline, render the delta in findings / capabilities / coverage
+    between them, sourced directly from <span class="mono">belief_before</span> /
+    <span class="mono">belief_after</span> already required on every experiment result — no new field, just
+    a two-point rendering mode instead of single-snapshot only.</p>
+    <div class="src">Source: experiment-result.v1 (S4, shipped)</div>
+  </div>
+  <div class="qcard">
+    <h4>Why did confidence increase?</h4>
+    <p>Click the finding/capability node → list the specific supporting findings that fed the computed
+    confidence, their recency, and any contradictions counted against it. Provenance is already a
+    definition-of-done requirement (no orphans) — this is that list, surfaced.</p>
+    <div class="src">Source: capability.v1 confidence computation (S5b, shipped)</div>
+  </div>
+  <div class="qcard full">
+    <h4>Was the bottleneck organizational or physical?</h4>
+    <p>Read directly off the two-lane layout (§4): a long reasoning-lane span with a flat physical lane
+    means organizational (queue, policy gate, requirement inference); a short reasoning-lane span with a
+    physical lane showing thermal throttle or cold-load ramp means physical. No new synthesis is required —
+    this question is answerable by construction once the two lanes share an axis and phase boundaries are
+    marked, which is exactly why the two-lane structure in §4 is the load-bearing recommendation of this
+    document.</p>
+  </div>
+</div>
+
+<h2>Recommendations Summary</h2>
+<div class="stage">
+  <div class="shead"><span class="id">R1</span><h3>Replay model</h3><span class="tag t-view">VIEW, no new storage</span></div>
+  <div class="sbody">
+    <div class="field"><h4>What</h4>
+      <p>Replay = existing projectors called with a bounded time window against
+      <span class="mono">events.jsonl</span> + the capacity-observation stream. No replay log, no snapshot
+      table. If it can't be re-derived on demand, it isn't ready to be replayed.</p></div>
+    <div class="field gate"><h4>Why</h4>
+      <p>Preserves D18 (determinism) and Clause 1 (no authored truth where derivation exists) without
+      exception. A stored replay log would be a second, driftable copy of belief.</p></div>
+  </div>
+</div>
+<div class="stage">
+  <div class="shead"><span class="id">R2</span><h3>Timeline structure</h3><span class="tag t-view">three lanes, one axis</span></div>
+  <div class="sbody">
+    <div class="field"><h4>What</h4>
+      <p>Authored spine (sparse markers) / derived overlay (density strip, expands on zoom) / physical
+      telemetry (continuous, phase-segmented band) — sharing one time axis, never merged into each other,
+      connected only by explicit evidence links where provenance says so.</p></div>
+    <div class="field gate"><h4>Why</h4>
+      <p>Keeps "what did we decide," "what did we come to believe," and "what did the hardware do" separately
+      falsifiable — which is the precondition for the organizational-vs-physical bottleneck question in §5.</p></div>
+  </div>
+</div>
+<div class="stage">
+  <div class="shead"><span class="id">R3</span><h3>Visualization hierarchy</h3><span class="tag t-new">1 new derived field</span></div>
+  <div class="sbody">
+    <div class="field"><h4>What</h4>
+      <p>Default prominence = belief-delta / surprise score, computed per event, not chronological density
+      or lane. Tier 1 (belief-moving) always on-screen; Tier 2 (confirmatory) collapses to a strip; Tier 3
+      (routine/raw) query-only.</p></div>
+    <div class="field gate"><h4>Why</h4>
+      <p>A replay that shows everything with equal weight is unreadable at fleet scale; a replay that shows
+      only "interesting" events by editorial choice reintroduces authorship. A computed delta score keeps
+      curation itself a projection.</p></div>
+  </div>
+</div>
+<div class="stage">
+  <div class="shead"><span class="id">R4</span><h3>Debugging workflow</h3><span class="tag t-new">1 new derived field</span></div>
+  <div class="sbody">
+    <div class="field"><h4>What</h4>
+      <p>Every one of the five stock operator questions resolves to: click a node → render a specific
+      existing contract field (or the phase-segmentation field, the one other new construct) → done. No
+      bespoke investigation path per question.</p></div>
+    <div class="field gate"><h4>Why</h4>
+      <p>If a question can't be answered this way, the gap is a coverage gap (S8), not a reason to hand-build
+      a one-off debugging script — the same discipline the roadmap already applies everywhere else.</p></div>
+  </div>
+</div>
+
+<h2>Cross-Reference — Shared Dependency With LEARNING-RATE-CRITIQUE.html</h2>
+<div class="law amber">
+  <h3>The derived-overlay lane (§1) and diff mode (R2/"what changed?") assume machinery that doesn't exist yet.</h3>
+  <p><span class="mono">LEARNING-RATE-CRITIQUE.html</span> (Q2, terms 2–4) independently identifies the same gap
+  from the Δ3 metric side: <span class="mono">association.v1</span>, <span class="mono">capability.v1</span>,
+  and <span class="mono">coverage.v1</span> are <b>current-state snapshots, not transition logs</b>. "What
+  associations formed / what qualifications renewed / what gaps closed between two points in time" is a
+  <b>deterministic diff between two projection runs</b> — buildable within the constitution (the spine is
+  replayable, so the diff is itself deterministic), but it is missing machinery, not an existing derived field,
+  for exactly the three object types replay's derived-overlay lane needs to animate over a scrubbed window.</p>
+  <p>Only the <span class="mono">belief_before</span>/<span class="mono">belief_after</span> pair on
+  <span class="mono">experiment-result.v1</span> is diff-ready today (a materialized field pair on one record).
+  Everything else in the derived-overlay lane is <b>render-only at a single point in time</b> until the
+  snapshot-diff mechanism both documents independently converge on gets built once, shared by replay's diff
+  mode and Δ3's associations/qualifications/coverage terms alike. Build it once — not twice under two names.</p>
+</div>
+
+<h2>Constitution Check</h2>
+<div class="law green">
+  <h3>The replay layer authors nothing.</h3>
+  <p>Every lane, every prominence ranking, every answer to an operator question is a projection over events
+  and existing derived contracts. The replay surface adds exactly two new derived fields —
+  <b>belief-delta/surprise score</b> and <b>phase segmentation</b> — both computed, neither asserted.</p>
+</div>
+<div class="law">
+  <h3>What remains authored: nothing new.</h3>
+  <p>No new "observe-this" declarations are required beyond Δ2's telemetry fields, already proposed. The
+  replay layer is purely a rendering discipline over what Derek has already chosen to instrument.</p>
+</div>
+
+<footer>
+  Experience Architecture note · companion to <a href="CAPABILITY-ROADMAP.html">CAPABILITY-ROADMAP.html</a>
+  (S1–S8) and <a href="TWO-ECONOMIES-WIND-TUNNEL.html">TWO-ECONOMIES-WIND-TUNNEL.html</a> (Δ2 physical
+  telemetry, Δ5 mission replay) · information architecture only, no UI aesthetics, no build · 2026-07-02
+</footer>
+
+</div>
+</body>
+</html>

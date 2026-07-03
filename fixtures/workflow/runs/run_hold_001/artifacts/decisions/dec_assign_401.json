@@ -1,0 +1,50 @@
+{
+  "contract_version": "scheduler-decision.v1",
+  "decision_id": "dec_assign_401",
+  "workflow_id": "wf_hold_probe",
+  "run_id": "run_hold_001",
+  "timestamp": "2026-07-02T13:00:10Z",
+  "workload_shape": {
+    "task_kind": "reference-build",
+    "estimated_context_tokens": 8192,
+    "requires_gpu": false,
+    "notes": "wrong promotion prediction case"
+  },
+  "candidates_considered": [
+    {
+      "builder_id": "builder-2",
+      "model_id": "claude-opus-4.8",
+      "backend": "local",
+      "filters_passed": true,
+      "score": 1.0,
+      "selected": true,
+      "rejected_reason": null
+    }
+  ],
+  "selected": {
+    "builder_id": "builder-2",
+    "model_id": "claude-opus-4.8",
+    "backend": "local"
+  },
+  "decision_reason": "local reference builder selected",
+  "predictions": {
+    "runtime_s": 160.0,
+    "ttft_s": null,
+    "tokens_per_s": 40.0,
+    "ram_gb_peak": null,
+    "vram_gb_peak": null,
+    "assay_pass_probability": 0.9,
+    "promotion_probability": 0.85,
+    "expected_model_load_ms": null,
+    "expected_ttft_ms": null,
+    "expected_prompt_tokens_per_second": null,
+    "expected_generation_tokens_per_second": 40.0,
+    "expected_peak_ram_mb": null,
+    "expected_peak_vram_mb": null,
+    "expected_assay_outcome": "passed",
+    "expected_promotion_status": "approved",
+    "confidence": 0.83,
+    "prediction_source": "fixture:wrong-promotion"
+  },
+  "evidence_refs": []
+}

@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://commandcenter.local/contracts/finding.v1.schema.json",
+  "title": "Finding v1",
+  "description": "A synthesized belief projected from the corpus. Observation = measured fact; PredictionAccuracy = calibration fact; Finding = synthesized belief. Findings are derived, never authored: re-running the projection over the same events reproduces them byte-for-byte.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "finding_id",
+    "finding_type",
+    "statement",
+    "subject",
+    "confidence",
+    "confidence_score",
+    "evidence"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "finding.v1"
+    },
+    "finding_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Deterministic identity derived from finding_type + subject, so re-projection updates a belief in place instead of duplicating it."
+    },
+    "finding_type": {
+      "type": "string",
+      "enum": [
+        "known_good",
+        "known_bad",
+        "prediction_bias",
+        "regression",
+        "uncertain",
+        "recommendation"
+      ]
+    },
+    "statement": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The belief, stated for a human operator."
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "builder_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "backend": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "task_kind": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "metric": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Set on prediction_bias findings: which predicted metric the belief is about."
+        }
+      }
+    },
+    "confidence": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "confidence_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Evidence-count based, samples/(samples+2) — same curve as capacity estimates. Never 1.0."
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "samples",
+        "summary"
+      ],
+      "properties": {
+        "samples": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "successes": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "failures": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Compressed evidence, e.g. \"3/3 moe_offload_crash\"."
+        },
+        "observation_ids": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "decision_ids": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "mean_signed_error": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "prediction_bias only: mean(observed - predicted). Positive = predictions run low."
+        },
+        "mean_absolute_error": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
+    "recommendation": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "What the scheduler/operator should do about this belief, if anything."
+    },
+    "first_observed": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "last_observed": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "derived_from": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Which knowledge layers this belief was synthesized from."
+    }
+  }
+}

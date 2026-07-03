@@ -1,0 +1,447 @@
+{
+  "contract_version": "prediction-accuracy.v1",
+  "decision_count": 0,
+  "observation_count": 10,
+  "comparison_count": 10,
+  "unresolved_decision_refs": 0,
+  "comparisons": [
+    {
+      "decision_id": null,
+      "observation_id": "obs_omen5070_002",
+      "workflow_id": "wf-omen-5070-hwbaseline-2026-07-02",
+      "run_id": "omen-5070-hwbaseline-2026-07-02",
+      "builder_id": "omen-5070",
+      "model_id": "qwen2.5:14b",
+      "backend": "ollama-vulkan",
+      "workload_shape_key": "capacity-probe|unknown|True",
+      "timestamp": "2026-07-02T05:10:00Z",
+      "confidence": null,
+      "prediction_source": null,
+      "prediction_present": false,
+      "metrics": {
+        "expected_ttft_ms": null,
+        "expected_generation_tokens_per_second": null,
+        "expected_peak_ram_mb": null,
+        "expected_peak_vram_mb": null
+      },
+      "outcomes": {
+        "assay": {
+          "predicted": null,
+          "observed": "passed",
+          "matched": null
+        },
+        "promotion": {
+          "predicted": null,
+          "observed": null,
+          "matched": null
+        }
+      }
+    },
+    {
+      "decision_id": null,
+      "observation_id": "obs_omen5070_003",
+      "workflow_id": "wf-omen-5070-hwbaseline-2026-07-02",
+      "run_id": "omen-5070-hwbaseline-2026-07-02",
+      "builder_id": "omen-5070",
+      "model_id": "qwen2.5:14b",
+      "backend": "ollama-vulkan-mixed",
+      "workload_shape_key": "capacity-probe|unknown|True",
+      "timestamp": "2026-07-02T05:20:00Z",
+      "confidence": null,
+      "prediction_source": null,
+      "prediction_present": false,
+      "metrics": {
+        "expected_ttft_ms": null,
+        "expected_generation_tokens_per_second": null,
+        "expected_peak_ram_mb": null,
+        "expected_peak_vram_mb": null
+      },
+      "outcomes": {
+        "assay": {
+          "predicted": null,
+          "observed": "passed",
+          "matched": null
+        },
+        "promotion": {
+          "predicted": null,
+          "observed": null,
+          "matched": null
+        }
+      }
+    },
+    {
+      "decision_id": null,
+      "observation_id": "obs_omen5070_004",
+      "workflow_id": "wf-omen-5070-hwbaseline-2026-07-02",
+      "run_id": "omen-5070-hwbaseline-2026-07-02",
+      "builder_id": "omen-5070",
+      "model_id": "qwen2.5:14b",
+      "backend": "ollama-vulkan-igpu",
+      "workload_shape_key": "capacity-probe|unknown|True",
+      "timestamp": "2026-07-02T05:30:00Z",
+      "confidence": null,
+      "prediction_source": null,
+      "prediction_present": false,
+      "metrics": {
+        "expected_ttft_ms": null,
+        "expected_generation_tokens_per_second": null,
+        "expected_peak_ram_mb": null,
+        "expected_peak_vram_mb": null
+      },
+      "outcomes": {
+        "assay": {
+          "predicted": null,
+          "observed": "passed",
+          "matched": null
+        },
+        "promotion": {
+          "predicted": null,
+          "observed": null,
+          "matched": null
+        }
+      }
+    },
+    {
+      "decision_id": null,
+      "observation_id": "obs_omen5070_008",
+      "workflow_id": "wf-omen-5070-hwbaseline-2026-07-02",
+      "run_id": "omen-5070-hwbaseline-2026-07-02",
+      "builder_id": "omen-5070",
+      "model_id": "mixtral:8x22b-instruct-v0.1-q2_K",
+      "backend": "ollama-cuda",
+      "workload_shape_key": "capacity-probe|unknown|True",
+      "timestamp": "2026-07-02T05:45:00Z",
+      "confidence": null,
+      "prediction_source": null,
+      "prediction_present": false,
+      "metrics": {
+        "expected_ttft_ms": null,
+        "expected_generation_tokens_per_second": null,
+        "expected_peak_ram_mb": null,
+        "expected_peak_vram_mb": null
+      },
+      "outcomes": {
+        "assay": {
+          "predicted": null,
+          "observed": "passed",
+          "matched": null
+        },
+        "promotion": {
+          "predicted": null,
+          "observed": null,
+          "matched": null
+        }
+      }
+    },
+    {
+      "decision_id": null,
+      "observation_id": "obs_omen5070_009",
+      "workflow_id": "wf-omen-5070-hwbaseline-2026-07-02",
+      "run_id": "omen-5070-hwbaseline-2026-07-02",
+      "builder_id": "omen-5070",
+      "model_id": "mixtral:8x22b-instruct-v0.1-q2_K",
+      "backend": "ollama-vulkan-mixed",
+      "workload_shape_key": "capacity-probe|unknown|True",
+      "timestamp": "2026-07-02T05:55:00Z",
+      "confidence": null,
+      "prediction_source": null,
+      "prediction_present": false,
+      "metrics": {
+        "expected_ttft_ms": null,
+        "expected_generation_tokens_per_second": null,
+        "expected_peak_ram_mb": null,
+        "expected_peak_vram_mb": null
+      },
+      "outcomes": {
+        "assay": {
+          "predicted": null,
+          "observed": "passed",
+          "matched": null
+        },
+        "promotion": {
+          "predicted": null,
+          "observed": null,
+          "matched": null
+        }
+      }
+    },
+    {
+      "decision_id": null,
+      "observation_id": "obs_omen5070_010",
+      "workflow_id": "wf-omen-5070-hwbaseline-2026-07-02",
+      "run_id": "omen-5070-hwbaseline-2026-07-02",
+      "builder_id": "omen-5070",
+      "model_id": "mixtral:8x22b-instruct-v0.1-q2_K",
+      "backend": "ollama-vulkan-igpu",
+      "workload_shape_key": "capacity-probe|unknown|True",
+      "timestamp": "2026-07-02T06:05:00Z",
+      "confidence": null,
+      "prediction_source": null,
+      "prediction_present": false,
+      "metrics": {
+        "expected_ttft_ms": null,
+        "expected_generation_tokens_per_second": null,
+        "expected_peak_ram_mb": null,
+        "expected_peak_vram_mb": null
+      },
+      "outcomes": {
+        "assay": {
+          "predicted": null,
+          "observed": "passed",
+          "matched": null
+        },
+        "promotion": {
+          "predicted": null,
+          "observed": null,
+          "matched": null
+        }
+      }
+    },
+    {
+      "decision_id": null,
+      "observation_id": "obs_omen5070_001",
+      "workflow_id": "wf-omen-5070-hwbaseline-2026-07-02",
+      "run_id": "omen-5070-hwbaseline-2026-07-02",
+      "builder_id": "omen-5070",
+      "model_id": "qwen2.5:14b",
+      "backend": "ollama-cuda",
+      "workload_shape_key": "capacity-probe|unknown|True",
+      "timestamp": "2026-07-02T06:41:15Z",
+      "confidence": null,
+      "prediction_source": null,
+      "prediction_present": false,
+      "metrics": {
+        "expected_ttft_ms": null,
+        "expected_generation_tokens_per_second": null,
+        "expected_peak_ram_mb": null,
+        "expected_peak_vram_mb": null
+      },
+      "outcomes": {
+        "assay": {
+          "predicted": null,
+          "observed": "passed",
+          "matched": null
+        },
+        "promotion": {
+          "predicted": null,
+          "observed": null,
+          "matched": null
+        }
+      }
+    },
+    {
+      "decision_id": null,
+      "observation_id": "obs_omen5070_006",
+      "workflow_id": "wf-omen-5070-hwbaseline-2026-07-02",
+      "run_id": "omen-5070-hwbaseline-2026-07-02",
+      "builder_id": "omen-5070",
+      "model_id": "qwen3-coder:30b",
+      "backend": "ollama-cuda",
+      "workload_shape_key": "capacity-probe|unknown|True",
+      "timestamp": "2026-07-02T06:41:15Z",
+      "confidence": null,
+      "prediction_source": null,
+      "prediction_present": false,
+      "metrics": {
+        "expected_ttft_ms": null,
+        "expected_generation_tokens_per_second": null,
+        "expected_peak_ram_mb": null,
+        "expected_peak_vram_mb": null
+      },
+      "outcomes": {
+        "assay": {
+          "predicted": null,
+          "observed": "passed",
+          "matched": null
+        },
+        "promotion": {
+          "predicted": null,
+          "observed": null,
+          "matched": null
+        }
+      }
+    },
+    {
+      "decision_id": null,
+      "observation_id": "obs_omen5070_005",
+      "workflow_id": "wf-omen-5070-hwbaseline-2026-07-02",
+      "run_id": "omen-5070-hwbaseline-2026-07-02",
+      "builder_id": "omen-5070",
+      "model_id": "qwen2.5:14b",
+      "backend": "ollama-cuda-contended",
+      "workload_shape_key": "capacity-probe|unknown|True",
+      "timestamp": "2026-07-02T06:50:00Z",
+      "confidence": null,
+      "prediction_source": null,
+      "prediction_present": false,
+      "metrics": {
+        "expected_ttft_ms": null,
+        "expected_generation_tokens_per_second": null,
+        "expected_peak_ram_mb": null,
+        "expected_peak_vram_mb": null
+      },
+      "outcomes": {
+        "assay": {
+          "predicted": null,
+          "observed": "passed",
+          "matched": null
+        },
+        "promotion": {
+          "predicted": null,
+          "observed": null,
+          "matched": null
+        }
+      }
+    },
+    {
+      "decision_id": null,
+      "observation_id": "obs_omen5070_007",
+      "workflow_id": "wf-omen-5070-hwbaseline-2026-07-02",
+      "run_id": "omen-5070-hwbaseline-2026-07-02",
+      "builder_id": "omen-5070",
+      "model_id": "qwen3-coder:30b",
+      "backend": "ollama-cuda-contended",
+      "workload_shape_key": "capacity-probe|unknown|True",
+      "timestamp": "2026-07-02T06:55:00Z",
+      "confidence": null,
+      "prediction_source": null,
+      "prediction_present": false,
+      "metrics": {
+        "expected_ttft_ms": null,
+        "expected_generation_tokens_per_second": null,
+        "expected_peak_ram_mb": null,
+        "expected_peak_vram_mb": null
+      },
+      "outcomes": {
+        "assay": {
+          "predicted": null,
+          "observed": "passed",
+          "matched": null
+        },
+        "promotion": {
+          "predicted": null,
+          "observed": null,
+          "matched": null
+        }
+      }
+    }
+  ],
+  "summary": {
+    "overall": {
+      "overall": {
+        "sample_count": 10,
+        "last_updated": "2026-07-02T06:55:00Z",
+        "metrics": {},
+        "outcomes": {
+          "assay": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 10
+          },
+          "promotion": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 10
+          }
+        },
+        "prediction_confidence": null
+      }
+    },
+    "per_builder": {
+      "omen-5070": {
+        "sample_count": 10,
+        "last_updated": "2026-07-02T06:55:00Z",
+        "metrics": {},
+        "outcomes": {
+          "assay": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 10
+          },
+          "promotion": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 10
+          }
+        },
+        "prediction_confidence": null
+      }
+    },
+    "per_model": {
+      "qwen2.5:14b": {
+        "sample_count": 5,
+        "last_updated": "2026-07-02T06:50:00Z",
+        "metrics": {},
+        "outcomes": {
+          "assay": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 5
+          },
+          "promotion": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 5
+          }
+        },
+        "prediction_confidence": null
+      },
+      "mixtral:8x22b-instruct-v0.1-q2_K": {
+        "sample_count": 3,
+        "last_updated": "2026-07-02T06:05:00Z",
+        "metrics": {},
+        "outcomes": {
+          "assay": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 3
+          },
+          "promotion": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 3
+          }
+        },
+        "prediction_confidence": null
+      },
+      "qwen3-coder:30b": {
+        "sample_count": 2,
+        "last_updated": "2026-07-02T06:55:00Z",
+        "metrics": {},
+        "outcomes": {
+          "assay": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 2
+          },
+          "promotion": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 2
+          }
+        },
+        "prediction_confidence": null
+      }
+    },
+    "per_workload_shape": {
+      "capacity-probe|unknown|True": {
+        "sample_count": 10,
+        "last_updated": "2026-07-02T06:55:00Z",
+        "metrics": {},
+        "outcomes": {
+          "assay": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 10
+          },
+          "promotion": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 10
+          }
+        },
+        "prediction_confidence": null
+      }
+    }
+  }
+}

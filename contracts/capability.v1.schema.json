@@ -1,0 +1,241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://commandcenter.local/contracts/capability.v1.schema.json",
+  "title": "Capability v1",
+  "description": "An organizational qualification statement: the organization can perform this class of work under these conditions using any currently qualified resource. A Capability is the OUTPUT SCHEMA of the association engine — derived, never authored. There is no write path for confidence or qualification_status; both are computed from evidence on every projection, so the record cannot rot the way a hand-maintained skill matrix does. Constitutional rule: no organizational truth may be authored if it can be derived.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "capability_id",
+    "name",
+    "statement",
+    "invariant",
+    "derived_from_association",
+    "confidence",
+    "confidence_score",
+    "qualified_resources",
+    "operating_envelope",
+    "failure_modes",
+    "evidence",
+    "last_validated",
+    "evidence_watermark",
+    "staleness_days",
+    "qualification_status"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "capability.v1"
+    },
+    "capability_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Deterministic identity derived from the invariant, so re-projection updates the capability in place."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "statement": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The qualification, stated for a human operator."
+    },
+    "invariant": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "The conditions the capability holds under — inherited from the association that produced it. Must include task_kind: a capability is about a class of work."
+    },
+    "derived_from_association": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The association_id this capability was projected from — provenance up the spine."
+    },
+    "confidence": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "description": "COMPUTED from distinct-workflow count. Any hand-writable confidence field rebuilds the rotten skill matrix."
+    },
+    "confidence_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "qualified_resources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "builder_id",
+          "model_id",
+          "backend"
+        ],
+        "properties": {
+          "builder_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "model_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "backend": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "description": "The resource combinations whose observed successes support the capability. The scheduler asks which capabilities a mission requires, then which of these satisfies them — qualified capabilities are scheduled, not machines."
+    },
+    "operating_envelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_context_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "Largest context actually observed succeeding. The envelope is what was measured, not what is hoped."
+        },
+        "tokens_per_s_range": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "max_ram_gb_peak": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "max_vram_gb_peak": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "requires_gpu": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "true/false only when every supporting observation agrees; null when mixed or unknown."
+        }
+      }
+    },
+    "failure_modes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Failure classes ever observed on the qualified resources — the known edges of the envelope."
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "samples",
+        "workflow_count",
+        "summary"
+      ],
+      "properties": {
+        "samples": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "workflow_count": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "observation_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "workflows": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "supporting_findings": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "first_observed": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "last_validated": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time",
+      "description": "Timestamp of the newest supporting observation. Qualification decays from here."
+    },
+    "evidence_watermark": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time",
+      "description": "The newest timestamp anywhere in the corpus — 'now' as the organization knows it. Staleness is measured against this, never against wall clock, so re-projection of the same corpus is byte-identical."
+    },
+    "staleness_days": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "Evidence-days between last_validated and evidence_watermark."
+    },
+    "qualification_status": {
+      "type": "string",
+      "enum": [
+        "qualified",
+        "requalification_due"
+      ],
+      "description": "COMPUTED: qualified while staleness_days <= the qualification window, requalification_due after. A due capability is experiment demand — preventative maintenance, not emergency repair."
+    },
+    "derived_from": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

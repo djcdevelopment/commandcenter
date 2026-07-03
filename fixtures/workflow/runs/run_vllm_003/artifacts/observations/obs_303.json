@@ -1,0 +1,28 @@
+{
+  "contract_version": "capacity-observation.v1",
+  "observation_id": "obs_303",
+  "decision_id": "dec_assign_303",
+  "workflow_id": "wf_vllm_probe",
+  "run_id": "run_vllm_003",
+  "timestamp": "2026-06-30T18:26:00Z",
+  "builder_id": "claudefarm1",
+  "model_id": "qwen3-30b-a3b-awq",
+  "backend": "vllm",
+  "workload_shape": {
+    "task_kind": "serve",
+    "estimated_context_tokens": 8192,
+    "requires_gpu": true,
+    "notes": "cpu-offload x MoE, swap fallback"
+  },
+  "observed": {
+    "runtime_s": 355.0,
+    "ttft_s": null,
+    "tokens_per_s": null,
+    "ram_gb_peak": 30.6,
+    "vram_gb_peak": null,
+    "context_tokens": null
+  },
+  "outcome": "oom_crash",
+  "failure_class": "moe_offload_crash",
+  "promotion_status": null
+}

@@ -1,0 +1,25 @@
+{
+  "event_id": "evt_single_001",
+  "event_type": "question.answered",
+  "timestamp": "2026-07-02T14:00:00Z",
+  "workflow_id": "wf_single",
+  "run_id": "run_single",
+  "question_id": "q_single",
+  "decision_id": "dec_single",
+  "decision_type": "question_answer",
+  "decision_class": "question_answer",
+  "decision_maker": {
+    "type": "operator",
+    "id": "derek"
+  },
+  "decision_reason": "clarified expected scope",
+  "actor": {
+    "type": "operator",
+    "id": "derek"
+  },
+  "status": "answered",
+  "outcome": "approved",
+  "payload": {
+    "decision": "continue"
+  }
+}

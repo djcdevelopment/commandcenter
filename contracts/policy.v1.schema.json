@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://commandcenter.local/contracts/policy.v1.schema.json",
+  "title": "Policy Rule v1",
+  "description": "An operational constraint projected from a Finding. Findings are passive beliefs; a policy rule is how the system acts on one. Rules are derived, never authored — the only human input is the override file, and every rule keeps a pointer back to the finding (and through it, the observations) that justified it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "policy_id",
+    "effect",
+    "statement",
+    "subject",
+    "derived_from_finding",
+    "finding_type",
+    "confidence",
+    "evidence_summary",
+    "status"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "policy.v1"
+    },
+    "policy_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Deterministic identity derived from effect + subject, stable across re-projections."
+    },
+    "effect": {
+      "type": "string",
+      "enum": [
+        "block",
+        "prefer",
+        "adjust_prediction",
+        "exploratory_only",
+        "quarantine"
+      ]
+    },
+    "statement": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The rule, stated for a human operator."
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "builder_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "backend": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "task_kind": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "metric": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "derived_from_finding": {
+      "type": "string",
+      "minLength": 1,
+      "description": "finding_id of the belief this rule enforces — the audit chain: observation -> finding -> policy."
+    },
+    "finding_type": {
+      "type": "string",
+      "enum": [
+        "known_good",
+        "known_bad",
+        "prediction_bias",
+        "regression",
+        "uncertain",
+        "recommendation"
+      ]
+    },
+    "confidence": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "description": "Inherited from the source finding."
+    },
+    "evidence_summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "override": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "flag",
+        "semantics"
+      ],
+      "properties": {
+        "flag": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Dispatch flag that bypasses this rule, e.g. experiment_flag."
+        },
+        "semantics": {
+          "type": "string",
+          "minLength": 1,
+          "description": "What setting the flag means operationally."
+        }
+      },
+      "description": "How this rule may be bypassed at dispatch time. null = not bypassable by flag (prefer/adjust rules gate nothing)."
+    },
+    "adjustment": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "metric",
+        "additive_correction"
+      ],
+      "properties": {
+        "metric": {
+          "type": "string",
+          "minLength": 1
+        },
+        "additive_correction": {
+          "type": "number",
+          "description": "Add to predictions of this metric: mean(observed - predicted) from the bias finding."
+        }
+      },
+      "description": "adjust_prediction only."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "suspended"
+      ],
+      "description": "suspended = an operator override disabled enforcement; the rule stays visible."
+    },
+    "suspended_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "last_observed": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time",
+      "description": "Freshness of the underlying evidence."
+    }
+  }
+}

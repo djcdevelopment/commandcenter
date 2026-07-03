@@ -1,0 +1,50 @@
+{
+  "contract_version": "scheduler-decision.v1",
+  "decision_id": "dec_assign_302",
+  "workflow_id": "wf_vllm_probe",
+  "run_id": "run_vllm_002",
+  "timestamp": "2026-06-30T18:10:10Z",
+  "workload_shape": {
+    "task_kind": "serve",
+    "estimated_context_tokens": 8192,
+    "requires_gpu": true,
+    "notes": "second optimistic probe"
+  },
+  "candidates_considered": [
+    {
+      "builder_id": "claudefarm1",
+      "model_id": "qwen3-30b-a3b-awq",
+      "backend": "vllm",
+      "filters_passed": true,
+      "score": 0.68,
+      "selected": true,
+      "rejected_reason": null
+    }
+  ],
+  "selected": {
+    "builder_id": "claudefarm1",
+    "model_id": "qwen3-30b-a3b-awq",
+    "backend": "vllm"
+  },
+  "decision_reason": "repeat optimistic vLLM viability probe",
+  "predictions": {
+    "runtime_s": 180.0,
+    "ttft_s": 2.0,
+    "tokens_per_s": 35.0,
+    "ram_gb_peak": 20.0,
+    "vram_gb_peak": 20.0,
+    "assay_pass_probability": 0.55,
+    "promotion_probability": 0.4,
+    "expected_model_load_ms": 60000.0,
+    "expected_ttft_ms": 2000.0,
+    "expected_prompt_tokens_per_second": null,
+    "expected_generation_tokens_per_second": 35.0,
+    "expected_peak_ram_mb": 20480.0,
+    "expected_peak_vram_mb": 20480.0,
+    "expected_assay_outcome": "passed",
+    "expected_promotion_status": "approved",
+    "confidence": 0.62,
+    "prediction_source": "fixture:optimistic"
+  },
+  "evidence_refs": []
+}

@@ -1,0 +1,121 @@
+{
+  "contract_version": "associations.v1",
+  "observation_count": 10,
+  "unresolved_refs": 0,
+  "evidence_watermark": "2026-07-02T06:55:00Z",
+  "association_count": 0,
+  "gated_bucket_count": 8,
+  "associations": [],
+  "gated_buckets": [
+    {
+      "pattern": "model_portability",
+      "invariant": {
+        "model_id": "mixtral:8x22b-instruct-v0.1-q2_K"
+      },
+      "samples": 3,
+      "workflows": [
+        "wf-omen-5070-hwbaseline-2026-07-02"
+      ],
+      "reasons": [
+        "all 3 sample(s) come from one workflow (wf-omen-5070-hwbaseline-2026-07-02); no generalization from one workflow"
+      ]
+    },
+    {
+      "pattern": "model_portability",
+      "invariant": {
+        "model_id": "qwen2.5:14b"
+      },
+      "samples": 5,
+      "workflows": [
+        "wf-omen-5070-hwbaseline-2026-07-02"
+      ],
+      "reasons": [
+        "all 5 sample(s) come from one workflow (wf-omen-5070-hwbaseline-2026-07-02); no generalization from one workflow"
+      ]
+    },
+    {
+      "pattern": "model_portability",
+      "invariant": {
+        "model_id": "qwen3-coder:30b"
+      },
+      "samples": 2,
+      "workflows": [
+        "wf-omen-5070-hwbaseline-2026-07-02"
+      ],
+      "reasons": [
+        "all 2 sample(s) come from one workflow (wf-omen-5070-hwbaseline-2026-07-02); no generalization from one workflow"
+      ]
+    },
+    {
+      "pattern": "task_backend",
+      "invariant": {
+        "task_kind": "capacity-probe",
+        "backend": "ollama-cuda"
+      },
+      "samples": 3,
+      "workflows": [
+        "wf-omen-5070-hwbaseline-2026-07-02"
+      ],
+      "reasons": [
+        "all 3 sample(s) come from one workflow (wf-omen-5070-hwbaseline-2026-07-02); no generalization from one workflow"
+      ]
+    },
+    {
+      "pattern": "task_backend",
+      "invariant": {
+        "task_kind": "capacity-probe",
+        "backend": "ollama-cuda-contended"
+      },
+      "samples": 2,
+      "workflows": [
+        "wf-omen-5070-hwbaseline-2026-07-02"
+      ],
+      "reasons": [
+        "all 2 sample(s) come from one workflow (wf-omen-5070-hwbaseline-2026-07-02); no generalization from one workflow"
+      ]
+    },
+    {
+      "pattern": "task_backend",
+      "invariant": {
+        "task_kind": "capacity-probe",
+        "backend": "ollama-vulkan"
+      },
+      "samples": 1,
+      "workflows": [
+        "wf-omen-5070-hwbaseline-2026-07-02"
+      ],
+      "reasons": [
+        "all 1 sample(s) come from one workflow (wf-omen-5070-hwbaseline-2026-07-02); no generalization from one workflow",
+        "nothing varied under the invariant; a repeated particular is a finding, not an abstraction"
+      ]
+    },
+    {
+      "pattern": "task_backend",
+      "invariant": {
+        "task_kind": "capacity-probe",
+        "backend": "ollama-vulkan-igpu"
+      },
+      "samples": 2,
+      "workflows": [
+        "wf-omen-5070-hwbaseline-2026-07-02"
+      ],
+      "reasons": [
+        "all 2 sample(s) come from one workflow (wf-omen-5070-hwbaseline-2026-07-02); no generalization from one workflow"
+      ]
+    },
+    {
+      "pattern": "task_backend",
+      "invariant": {
+        "task_kind": "capacity-probe",
+        "backend": "ollama-vulkan-mixed"
+      },
+      "samples": 2,
+      "workflows": [
+        "wf-omen-5070-hwbaseline-2026-07-02"
+      ],
+      "reasons": [
+        "all 2 sample(s) come from one workflow (wf-omen-5070-hwbaseline-2026-07-02); no generalization from one workflow"
+      ]
+    }
+  ]
+}

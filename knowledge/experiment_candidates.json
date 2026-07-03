@@ -1,0 +1,317 @@
+{
+  "contract_version": "experiment-candidates.v1",
+  "source_findings": 7,
+  "candidate_counts": {
+    "coverage_probe": 10,
+    "known_bad_retest": 1,
+    "prediction_bias_calibration": 1,
+    "prefer_validation": 3
+  },
+  "candidates": [
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:failure_signature:failure_class=moe_offload_crash|backend=vllm",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "vllm",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does 'failure_class=moe_offload_crash, backend=vllm' hold outside wf_vllm_probe?",
+      "worth": "3 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-06-30T18:26:00Z"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=claude-opus-4.8",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does 'model_id=claude-opus-4.8' hold outside wf_hold_probe?",
+      "worth": "1 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-07-02T13:03:20Z"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=qwen3-30b-a3b-awq",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does 'model_id=qwen3-30b-a3b-awq' hold outside wf_vllm_probe?",
+      "worth": "3 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-06-30T18:26:00Z"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=qwen3-coder:14b",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does 'model_id=qwen3-coder:14b' hold outside wf_omen_followup?",
+      "worth": "1 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-07-01T21:15:30Z"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=qwen3-coder:30b",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does 'model_id=qwen3-coder:30b' hold outside wf_omen_debut?",
+      "worth": "1 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-07-01T20:25:30Z"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=reference-build|backend=local",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "local",
+        "task_kind": "reference-build",
+        "metric": null
+      },
+      "question": "does 'task_kind=reference-build, backend=local' hold outside wf_hold_probe?",
+      "worth": "1 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-07-02T13:03:20Z"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=serve|backend=vllm",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "vllm",
+        "task_kind": "serve",
+        "metric": null
+      },
+      "question": "does 'task_kind=serve, backend=vllm' hold outside wf_vllm_probe?",
+      "worth": "3 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-06-30T18:26:00Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:builder-2|claude-opus-4.8|local",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "builder-2",
+        "model_id": "claude-opus-4.8",
+        "backend": "local",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, ram_gb_peak, vram_gb_peak on builder-2 + claude-opus-4.8 + local?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-02T13:03:20Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:claudefarm1|qwen3-30b-a3b-awq|vllm",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "claudefarm1",
+        "model_id": "qwen3-30b-a3b-awq",
+        "backend": "vllm",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, tokens_per_s, vram_gb_peak on claudefarm1 + qwen3-30b-a3b-awq + vllm?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-06-30T18:26:00Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unobserved_combo:cc-builder-1|claude-opus-4.8|frontier",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "cc-builder-1",
+        "model_id": "claude-opus-4.8",
+        "backend": "frontier",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what happens when cc-builder-1 + claude-opus-4.8 + frontier actually runs?",
+      "worth": "the scheduler is reasoning about a resource it has never observed; its first observation replaces assumption with evidence",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single observation of any outcome moves the combo from unknown into the corpus, where findings can form",
+      "risk_accepted": "one dispatch slot on unproven ground; exploratory by nature",
+      "confidence": null,
+      "last_observed": null
+    },
+    {
+      "candidate_id": "known_bad_retest:claudefarm1|qwen3-30b-a3b-awq|vllm",
+      "experiment_type": "known_bad_retest",
+      "subject": {
+        "builder_id": "claudefarm1",
+        "model_id": "qwen3-30b-a3b-awq",
+        "backend": "vllm",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does claudefarm1 + qwen3-30b-a3b-awq + vllm still fail (3/3 moe_offload_crash)?",
+      "worth": "the block is a belief, not a fact: evidence ended 2026-06-30T18:26:00Z and environment drift (driver, engine version, config) can invalidate it",
+      "target_finding_id": "known_bad:claudefarm1|qwen3-30b-a3b-awq|vllm",
+      "target_capability_id": null,
+      "gate": {
+        "policy_id": "block:claudefarm1|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block",
+        "flag": "experiment_flag",
+        "semantics": "dispatch allowed only as an explicit experiment"
+      },
+      "evidence_sought": "a single success contradicts '3/3 moe_offload_crash' and reclassifies known_bad -> uncertain (success rate 1/4); another failure raises confidence to high",
+      "risk_accepted": "one dispatch slot and a likely failure (3/3 moe_offload_crash); the opened gate admits only the flagged experiment, never normal work",
+      "confidence": "high",
+      "last_observed": "2026-06-30T18:26:00Z"
+    },
+    {
+      "candidate_id": "prediction_bias_calibration:qwen3-30b-a3b-awq:expected_peak_ram_mb",
+      "experiment_type": "prediction_bias_calibration",
+      "subject": {
+        "builder_id": null,
+        "model_id": "qwen3-30b-a3b-awq",
+        "backend": null,
+        "task_kind": null,
+        "metric": "expected_peak_ram_mb"
+      },
+      "question": "is the expected_peak_ram_mb correction for qwen3-30b-a3b-awq (+9984.0) still right?",
+      "worth": "every expected_peak_ram_mb prediction for qwen3-30b-a3b-awq is silently shifted by +9984.0; fresh comparisons confirm the correction or dissolve it",
+      "target_finding_id": "prediction_bias:qwen3-30b-a3b-awq:expected_peak_ram_mb",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "comparisons with opposite-signed error shrink the bias; the finding dissolves when |mean signed error| < 0.8 x MAE",
+      "risk_accepted": "none beyond a normal dispatch; calibration needs only the prediction/observation pair",
+      "confidence": "medium",
+      "last_observed": "2026-06-30T18:14:00Z"
+    },
+    {
+      "candidate_id": "prefer_validation:builder-2|claude-opus-4.8|local",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "builder-2",
+        "model_id": "claude-opus-4.8",
+        "backend": "local",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does builder-2 + claude-opus-4.8 + local still hold up (1/1 success)?",
+      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
+      "target_finding_id": "known_good:builder-2|claude-opus-4.8|local",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "low",
+      "last_observed": "2026-07-02T13:03:20Z"
+    },
+    {
+      "candidate_id": "prefer_validation:omen-worker-1|qwen3-coder:30b|ollama",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "omen-worker-1",
+        "model_id": "qwen3-coder:30b",
+        "backend": "ollama",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does omen-worker-1 + qwen3-coder:30b + ollama still hold up (1/1 success)?",
+      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
+      "target_finding_id": "known_good:omen-worker-1|qwen3-coder:30b|ollama",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "low",
+      "last_observed": "2026-07-01T20:25:30Z"
+    },
+    {
+      "candidate_id": "prefer_validation:omen-worker-2|qwen3-coder:14b|ollama",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "omen-worker-2",
+        "model_id": "qwen3-coder:14b",
+        "backend": "ollama",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does omen-worker-2 + qwen3-coder:14b + ollama still hold up (1/1 success)?",
+      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
+      "target_finding_id": "known_good:omen-worker-2|qwen3-coder:14b|ollama",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "low",
+      "last_observed": "2026-07-01T21:15:30Z"
+    }
+  ]
+}

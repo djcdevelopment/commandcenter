@@ -1,0 +1,50 @@
+{
+  "contract_version": "scheduler-decision.v1",
+  "decision_id": "dec_assign_202",
+  "workflow_id": "wf_omen_followup",
+  "run_id": "run_omen_002",
+  "timestamp": "2026-07-01T21:00:10Z",
+  "workload_shape": {
+    "task_kind": "build",
+    "estimated_context_tokens": 12288,
+    "requires_gpu": true,
+    "notes": "pessimistic follow-up estimate"
+  },
+  "candidates_considered": [
+    {
+      "builder_id": "omen-worker-2",
+      "model_id": "qwen3-coder:14b",
+      "backend": "ollama",
+      "filters_passed": true,
+      "score": 0.78,
+      "selected": true,
+      "rejected_reason": null
+    }
+  ],
+  "selected": {
+    "builder_id": "omen-worker-2",
+    "model_id": "qwen3-coder:14b",
+    "backend": "ollama"
+  },
+  "decision_reason": "pessimistic local estimate for follow-up run",
+  "predictions": {
+    "runtime_s": 1800.0,
+    "ttft_s": 4.0,
+    "tokens_per_s": 20.0,
+    "ram_gb_peak": 14.0,
+    "vram_gb_peak": 18.0,
+    "assay_pass_probability": 0.55,
+    "promotion_probability": 0.5,
+    "expected_model_load_ms": 90000.0,
+    "expected_ttft_ms": 4000.0,
+    "expected_prompt_tokens_per_second": null,
+    "expected_generation_tokens_per_second": 20.0,
+    "expected_peak_ram_mb": 14336.0,
+    "expected_peak_vram_mb": 18432.0,
+    "expected_assay_outcome": "passed",
+    "expected_promotion_status": "approved",
+    "confidence": 0.64,
+    "prediction_source": "fixture:pessimistic"
+  },
+  "evidence_refs": []
+}

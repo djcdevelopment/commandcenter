@@ -1,0 +1,29 @@
+{
+  "observation_id": "obs_omen5070_004",
+  "run_id": "omen-5070-hwbaseline-2026-07-02",
+  "workflow_id": "wf-omen-5070-hwbaseline-2026-07-02",
+  "decision_id": null,
+  "timestamp": "2026-07-02T05:30:00Z",
+  "builder_id": "omen-5070",
+  "model_id": "qwen2.5:14b",
+  "backend": "ollama-vulkan-igpu",
+  "outcome": "success",
+  "failure_class": null,
+  "promotion_status": null,
+  "workload_shape": {
+    "task_kind": "capacity-probe",
+    "estimated_context_tokens": null,
+    "requires_gpu": true
+  },
+  "observed": {
+    "tokens_per_s": 3.7,
+    "context_tokens": null,
+    "ram_gb_peak": 42.7,
+    "vram_gb_peak": null
+  },
+  "note": "Fallback-only path; too slow for normal interactive control",
+  "source_docs": [
+    "C:/work/tuning/ollama-backend-lab/hardware-capability-matrix.md",
+    "C:/work/tuning/ollama-backend-lab/hardware-baseline-omen-5070-2026-07-02.md"
+  ]
+}

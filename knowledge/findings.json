@@ -1,0 +1,614 @@
+{
+  "contract_version": "findings.v1",
+  "observation_count": 16,
+  "decision_count": 6,
+  "unresolved_refs": 0,
+  "finding_counts": {
+    "known_bad": 1,
+    "known_good": 13,
+    "prediction_bias": 1,
+    "recommendation": 3
+  },
+  "findings": [
+    {
+      "contract_version": "finding.v1",
+      "finding_id": "known_bad:claudefarm1|qwen3-30b-a3b-awq|vllm",
+      "finding_type": "known_bad",
+      "statement": "claudefarm1 + qwen3-30b-a3b-awq + vllm fails: 3/3 failed runs, zero successes (dominant: moe_offload_crash)",
+      "subject": {
+        "builder_id": "claudefarm1",
+        "model_id": "qwen3-30b-a3b-awq",
+        "backend": "vllm",
+        "task_kind": null,
+        "metric": null
+      },
+      "confidence": "high",
+      "confidence_score": 0.6,
+      "evidence": {
+        "samples": 3,
+        "successes": 0,
+        "failures": 3,
+        "summary": "3/3 moe_offload_crash",
+        "observation_ids": [
+          "obs_301",
+          "obs_302",
+          "obs_303"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": "do not schedule without explicit experiment flag",
+      "first_observed": "2026-06-30T18:04:00Z",
+      "last_observed": "2026-06-30T18:26:00Z",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
+      "finding_id": "known_good:builder-2|claude-opus-4.8|local",
+      "finding_type": "known_good",
+      "statement": "builder-2 + claude-opus-4.8 + local works: 1/1 successful runs (success_rate 1.0), mean 38.5 tok/s",
+      "subject": {
+        "builder_id": "builder-2",
+        "model_id": "claude-opus-4.8",
+        "backend": "local",
+        "task_kind": null,
+        "metric": null
+      },
+      "confidence": "low",
+      "confidence_score": 0.33,
+      "evidence": {
+        "samples": 1,
+        "successes": 1,
+        "failures": 0,
+        "summary": "1/1 success",
+        "observation_ids": [
+          "obs_401"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": null,
+      "first_observed": "2026-07-02T13:03:20Z",
+      "last_observed": "2026-07-02T13:03:20Z",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
+      "finding_id": "known_good:omen-worker-1|qwen3-coder:30b|ollama",
+      "finding_type": "known_good",
+      "statement": "omen-worker-1 + qwen3-coder:30b + ollama works: 1/1 successful runs (success_rate 1.0), mean 54.6 tok/s",
+      "subject": {
+        "builder_id": "omen-worker-1",
+        "model_id": "qwen3-coder:30b",
+        "backend": "ollama",
+        "task_kind": null,
+        "metric": null
+      },
+      "confidence": "low",
+      "confidence_score": 0.33,
+      "evidence": {
+        "samples": 1,
+        "successes": 1,
+        "failures": 0,
+        "summary": "1/1 success",
+        "observation_ids": [
+          "obs_201"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": null,
+      "first_observed": "2026-07-01T20:25:30Z",
+      "last_observed": "2026-07-01T20:25:30Z",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
+      "finding_id": "known_good:omen-worker-2|qwen3-coder:14b|ollama",
+      "finding_type": "known_good",
+      "statement": "omen-worker-2 + qwen3-coder:14b + ollama works: 1/1 successful runs (success_rate 1.0), mean 61.0 tok/s",
+      "subject": {
+        "builder_id": "omen-worker-2",
+        "model_id": "qwen3-coder:14b",
+        "backend": "ollama",
+        "task_kind": null,
+        "metric": null
+      },
+      "confidence": "low",
+      "confidence_score": 0.33,
+      "evidence": {
+        "samples": 1,
+        "successes": 1,
+        "failures": 0,
+        "summary": "1/1 success",
+        "observation_ids": [
+          "obs_202"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": null,
+      "first_observed": "2026-07-01T21:15:30Z",
+      "last_observed": "2026-07-01T21:15:30Z",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
+      "finding_id": "prediction_bias:qwen3-30b-a3b-awq:expected_peak_ram_mb",
+      "finding_type": "prediction_bias",
+      "statement": "predictions of expected_peak_ram_mb for qwen3-30b-a3b-awq run low: observed exceeds predicted by ~9984.0 on average over 2 runs",
+      "subject": {
+        "builder_id": null,
+        "model_id": "qwen3-30b-a3b-awq",
+        "backend": null,
+        "task_kind": null,
+        "metric": "expected_peak_ram_mb"
+      },
+      "confidence": "medium",
+      "confidence_score": 0.5,
+      "evidence": {
+        "samples": 2,
+        "successes": null,
+        "failures": null,
+        "summary": "2 comparisons, mean signed error 9984.0 (MAE 9984.0)",
+        "observation_ids": [
+          "obs_301",
+          "obs_302"
+        ],
+        "decision_ids": [
+          "dec_assign_301",
+          "dec_assign_302"
+        ],
+        "mean_signed_error": 9984.0,
+        "mean_absolute_error": 9984.0
+      },
+      "recommendation": "correct expected_peak_ram_mb predictions for qwen3-30b-a3b-awq upward",
+      "first_observed": "2026-06-30T18:04:00Z",
+      "last_observed": "2026-06-30T18:14:00Z",
+      "derived_from": [
+        "prediction-accuracy.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
+      "finding_id": "recommendation:task_kind=build",
+      "finding_type": "recommendation",
+      "statement": "for task_kind build, prefer omen-worker-2 + qwen3-coder:14b + ollama (success rate 1.0 over 1 run(s), 61.0 tok/s)",
+      "subject": {
+        "builder_id": "omen-worker-2",
+        "model_id": "qwen3-coder:14b",
+        "backend": "ollama",
+        "task_kind": "build",
+        "metric": null
+      },
+      "confidence": "low",
+      "confidence_score": 0.33,
+      "evidence": {
+        "samples": 1,
+        "successes": null,
+        "failures": null,
+        "summary": "best of 2 known_good combo(s) observed on task_kind build",
+        "observation_ids": [
+          "obs_202"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": "route task_kind build to omen-worker-2 + qwen3-coder:14b + ollama",
+      "first_observed": "2026-07-01T21:15:30Z",
+      "last_observed": "2026-07-01T21:15:30Z",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
+      "finding_id": "recommendation:task_kind=reference-build",
+      "finding_type": "recommendation",
+      "statement": "for task_kind reference-build, prefer builder-2 + claude-opus-4.8 + local (success rate 1.0 over 1 run(s), 38.5 tok/s)",
+      "subject": {
+        "builder_id": "builder-2",
+        "model_id": "claude-opus-4.8",
+        "backend": "local",
+        "task_kind": "reference-build",
+        "metric": null
+      },
+      "confidence": "low",
+      "confidence_score": 0.33,
+      "evidence": {
+        "samples": 1,
+        "successes": null,
+        "failures": null,
+        "summary": "best of 1 known_good combo(s) observed on task_kind reference-build",
+        "observation_ids": [
+          "obs_401"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": "route task_kind reference-build to builder-2 + claude-opus-4.8 + local",
+      "first_observed": "2026-07-02T13:03:20Z",
+      "last_observed": "2026-07-02T13:03:20Z",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
+      "finding_id": "known_good:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-cuda",
+      "finding_type": "known_good",
+      "statement": "omen-5070 + mixtral:8x22b-instruct-v0.1-q2_K + ollama-cuda works: 1/1 successful runs (success_rate 1.0), mean 3.34 tok/s",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "mixtral:8x22b-instruct-v0.1-q2_K",
+        "backend": "ollama-cuda",
+        "task_kind": null,
+        "metric": null
+      },
+      "confidence": "low",
+      "confidence_score": 0.33,
+      "evidence": {
+        "samples": 1,
+        "successes": 1,
+        "failures": 0,
+        "summary": "1/1 success",
+        "observation_ids": [
+          "obs_omen5070_008"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": null,
+      "first_observed": "2026-07-02T05:45:00Z",
+      "last_observed": "2026-07-02T05:45:00Z",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
+      "finding_id": "known_good:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-vulkan-igpu",
+      "finding_type": "known_good",
+      "statement": "omen-5070 + mixtral:8x22b-instruct-v0.1-q2_K + ollama-vulkan-igpu works: 1/1 successful runs (success_rate 1.0), mean 0.83 tok/s",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "mixtral:8x22b-instruct-v0.1-q2_K",
+        "backend": "ollama-vulkan-igpu",
+        "task_kind": null,
+        "metric": null
+      },
+      "confidence": "low",
+      "confidence_score": 0.33,
+      "evidence": {
+        "samples": 1,
+        "successes": 1,
+        "failures": 0,
+        "summary": "1/1 success",
+        "observation_ids": [
+          "obs_omen5070_010"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": null,
+      "first_observed": "2026-07-02T06:05:00Z",
+      "last_observed": "2026-07-02T06:05:00Z",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
+      "finding_id": "known_good:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-vulkan-mixed",
+      "finding_type": "known_good",
+      "statement": "omen-5070 + mixtral:8x22b-instruct-v0.1-q2_K + ollama-vulkan-mixed works: 1/1 successful runs (success_rate 1.0), mean 3.62 tok/s",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "mixtral:8x22b-instruct-v0.1-q2_K",
+        "backend": "ollama-vulkan-mixed",
+        "task_kind": null,
+        "metric": null
+      },
+      "confidence": "low",
+      "confidence_score": 0.33,
+      "evidence": {
+        "samples": 1,
+        "successes": 1,
+        "failures": 0,
+        "summary": "1/1 success",
+        "observation_ids": [
+          "obs_omen5070_009"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": null,
+      "first_observed": "2026-07-02T05:55:00Z",
+      "last_observed": "2026-07-02T05:55:00Z",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
+      "finding_id": "known_good:omen-5070|qwen2.5:14b|ollama-cuda",
+      "finding_type": "known_good",
+      "statement": "omen-5070 + qwen2.5:14b + ollama-cuda works: 1/1 successful runs (success_rate 1.0), mean 59.88 tok/s",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen2.5:14b",
+        "backend": "ollama-cuda",
+        "task_kind": null,
+        "metric": null
+      },
+      "confidence": "low",
+      "confidence_score": 0.33,
+      "evidence": {
+        "samples": 1,
+        "successes": 1,
+        "failures": 0,
+        "summary": "1/1 success",
+        "observation_ids": [
+          "obs_omen5070_001"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": null,
+      "first_observed": "2026-07-02T06:41:15Z",
+      "last_observed": "2026-07-02T06:41:15Z",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
+      "finding_id": "known_good:omen-5070|qwen2.5:14b|ollama-cuda-contended",
+      "finding_type": "known_good",
+      "statement": "omen-5070 + qwen2.5:14b + ollama-cuda-contended works: 1/1 successful runs (success_rate 1.0), mean 21.54 tok/s",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen2.5:14b",
+        "backend": "ollama-cuda-contended",
+        "task_kind": null,
+        "metric": null
+      },
+      "confidence": "low",
+      "confidence_score": 0.33,
+      "evidence": {
+        "samples": 1,
+        "successes": 1,
+        "failures": 0,
+        "summary": "1/1 success",
+        "observation_ids": [
+          "obs_omen5070_005"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": null,
+      "first_observed": "2026-07-02T06:50:00Z",
+      "last_observed": "2026-07-02T06:50:00Z",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
+      "finding_id": "known_good:omen-5070|qwen2.5:14b|ollama-vulkan",
+      "finding_type": "known_good",
+      "statement": "omen-5070 + qwen2.5:14b + ollama-vulkan works: 1/1 successful runs (success_rate 1.0), mean 42.26 tok/s",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen2.5:14b",
+        "backend": "ollama-vulkan",
+        "task_kind": null,
+        "metric": null
+      },
+      "confidence": "low",
+      "confidence_score": 0.33,
+      "evidence": {
+        "samples": 1,
+        "successes": 1,
+        "failures": 0,
+        "summary": "1/1 success",
+        "observation_ids": [
+          "obs_omen5070_002"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": null,
+      "first_observed": "2026-07-02T05:10:00Z",
+      "last_observed": "2026-07-02T05:10:00Z",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
+      "finding_id": "known_good:omen-5070|qwen2.5:14b|ollama-vulkan-igpu",
+      "finding_type": "known_good",
+      "statement": "omen-5070 + qwen2.5:14b + ollama-vulkan-igpu works: 1/1 successful runs (success_rate 1.0), mean 3.7 tok/s",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen2.5:14b",
+        "backend": "ollama-vulkan-igpu",
+        "task_kind": null,
+        "metric": null
+      },
+      "confidence": "low",
+      "confidence_score": 0.33,
+      "evidence": {
+        "samples": 1,
+        "successes": 1,
+        "failures": 0,
+        "summary": "1/1 success",
+        "observation_ids": [
+          "obs_omen5070_004"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": null,
+      "first_observed": "2026-07-02T05:30:00Z",
+      "last_observed": "2026-07-02T05:30:00Z",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
+      "finding_id": "known_good:omen-5070|qwen2.5:14b|ollama-vulkan-mixed",
+      "finding_type": "known_good",
+      "statement": "omen-5070 + qwen2.5:14b + ollama-vulkan-mixed works: 1/1 successful runs (success_rate 1.0), mean 45.32 tok/s",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen2.5:14b",
+        "backend": "ollama-vulkan-mixed",
+        "task_kind": null,
+        "metric": null
+      },
+      "confidence": "low",
+      "confidence_score": 0.33,
+      "evidence": {
+        "samples": 1,
+        "successes": 1,
+        "failures": 0,
+        "summary": "1/1 success",
+        "observation_ids": [
+          "obs_omen5070_003"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": null,
+      "first_observed": "2026-07-02T05:20:00Z",
+      "last_observed": "2026-07-02T05:20:00Z",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
+      "finding_id": "known_good:omen-5070|qwen3-coder:30b|ollama-cuda",
+      "finding_type": "known_good",
+      "statement": "omen-5070 + qwen3-coder:30b + ollama-cuda works: 1/1 successful runs (success_rate 1.0), mean 57.4 tok/s",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen3-coder:30b",
+        "backend": "ollama-cuda",
+        "task_kind": null,
+        "metric": null
+      },
+      "confidence": "low",
+      "confidence_score": 0.33,
+      "evidence": {
+        "samples": 1,
+        "successes": 1,
+        "failures": 0,
+        "summary": "1/1 success",
+        "observation_ids": [
+          "obs_omen5070_006"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": null,
+      "first_observed": "2026-07-02T06:41:15Z",
+      "last_observed": "2026-07-02T06:41:15Z",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
+      "finding_id": "known_good:omen-5070|qwen3-coder:30b|ollama-cuda-contended",
+      "finding_type": "known_good",
+      "statement": "omen-5070 + qwen3-coder:30b + ollama-cuda-contended works: 1/1 successful runs (success_rate 1.0), mean 4.12 tok/s",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen3-coder:30b",
+        "backend": "ollama-cuda-contended",
+        "task_kind": null,
+        "metric": null
+      },
+      "confidence": "low",
+      "confidence_score": 0.33,
+      "evidence": {
+        "samples": 1,
+        "successes": 1,
+        "failures": 0,
+        "summary": "1/1 success",
+        "observation_ids": [
+          "obs_omen5070_007"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": null,
+      "first_observed": "2026-07-02T06:55:00Z",
+      "last_observed": "2026-07-02T06:55:00Z",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
+      "finding_id": "recommendation:task_kind=capacity-probe",
+      "finding_type": "recommendation",
+      "statement": "for task_kind capacity-probe, prefer omen-5070 + qwen2.5:14b + ollama-cuda (success rate 1.0 over 1 run(s), 59.88 tok/s)",
+      "subject": {
+        "builder_id": "omen-5070",
+        "model_id": "qwen2.5:14b",
+        "backend": "ollama-cuda",
+        "task_kind": "capacity-probe",
+        "metric": null
+      },
+      "confidence": "low",
+      "confidence_score": 0.33,
+      "evidence": {
+        "samples": 1,
+        "successes": null,
+        "failures": null,
+        "summary": "best of 10 known_good combo(s) observed on task_kind capacity-probe",
+        "observation_ids": [
+          "obs_omen5070_001"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": "route task_kind capacity-probe to omen-5070 + qwen2.5:14b + ollama-cuda",
+      "first_observed": "2026-07-02T06:41:15Z",
+      "last_observed": "2026-07-02T06:41:15Z",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    }
+  ]
+}

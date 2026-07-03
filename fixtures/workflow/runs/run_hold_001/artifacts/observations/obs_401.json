@@ -1,0 +1,28 @@
+{
+  "contract_version": "capacity-observation.v1",
+  "observation_id": "obs_401",
+  "decision_id": "dec_assign_401",
+  "workflow_id": "wf_hold_probe",
+  "run_id": "run_hold_001",
+  "timestamp": "2026-07-02T13:03:20Z",
+  "builder_id": "builder-2",
+  "model_id": "claude-opus-4.8",
+  "backend": "local",
+  "workload_shape": {
+    "task_kind": "reference-build",
+    "estimated_context_tokens": 8192,
+    "requires_gpu": false,
+    "notes": null
+  },
+  "observed": {
+    "runtime_s": 175.0,
+    "ttft_s": null,
+    "tokens_per_s": 38.5,
+    "ram_gb_peak": null,
+    "vram_gb_peak": null,
+    "context_tokens": 8192
+  },
+  "outcome": "success",
+  "failure_class": null,
+  "promotion_status": "held"
+}

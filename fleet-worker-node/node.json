@@ -1,0 +1,25 @@
+{
+  "node": "claudefarm1",
+  "host": "172.19.133.70",
+  "access": "ssh -i ~/.ssh/claudevm_ed25519 claude@172.19.133.70",
+  "roles": ["claude-agent-worker"],
+  "placement": "OMEN-local Hyper-V VM (Default Switch NAT); container-portable to AM4 later (S5)",
+  "runtime": {
+    "os": "Ubuntu 24.04 LTS",
+    "python": "/usr/bin/python3",
+    "node": "/usr/bin/node",
+    "venv": "~/fleet-worker-node/.venv"
+  },
+  "mcp": {
+    "transport": "stdio-over-ssh",
+    "server": "~/fleet-worker-node/scripts/worker-mcp-server.py",
+    "tools": ["node_status", "ping"],
+    "resources": ["worker://node"]
+  },
+  "notes": [
+    "Reusable GPU-agnostic worker template; first instance is claudefarm1 on OMEN.",
+    "MCP is the control contract, launched on demand over SSH stdio.",
+    "host IP is the Hyper-V Default Switch lease and can change across host reboots.",
+    "run_plan / agent_status / get_progress arrive in S1."
+  ]
+}

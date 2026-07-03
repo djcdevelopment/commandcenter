@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://commandcenter.local/contracts/association.v1.schema.json",
+  "title": "Association v1",
+  "description": "An abstraction derived from the corpus: what remains true when the particulars change. A Finding is historical (this combo did this); an Association is invariant (this holds across combos). Never formed from a single workflow — the evidence-log discipline in docs/future-capability-ontology-notes.md requires repeated conceptual convergence across distinct workflows. Derived, never authored: re-running the projection over the same events reproduces it byte-for-byte.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "association_id",
+    "association_type",
+    "pattern",
+    "statement",
+    "invariant",
+    "varied",
+    "workflows",
+    "confidence",
+    "confidence_score",
+    "evidence"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "association.v1"
+    },
+    "association_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Deterministic identity derived from association_type + pattern + invariant, so re-projection updates the abstraction in place instead of duplicating it."
+    },
+    "association_type": {
+      "type": "string",
+      "enum": [
+        "success_invariant",
+        "failure_invariant"
+      ]
+    },
+    "pattern": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Which abstraction axis produced this association (e.g. task_backend: hold task_kind+backend constant, vary builder+model)."
+    },
+    "statement": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The abstraction, stated for a human operator."
+    },
+    "invariant": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "The fields that stayed constant while everything else changed — the content of the abstraction."
+    },
+    "varied": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "description": "The particulars that changed under the invariant: field -> distinct observed values. At least one field must have varied, or this is a repeated particular, not an abstraction."
+    },
+    "workflows": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "The distinct workflows the invariant held across. minItems 2 IS the no-generalization-from-one-workflow rule, enforced at the contract."
+    },
+    "confidence": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "description": "Keyed to the number of distinct workflows, not raw samples: an abstraction earns confidence from independent contexts."
+    },
+    "confidence_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "workflows/(workflows+2) — the standard evidence curve applied to context count. Never 1.0."
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "samples",
+        "workflow_count",
+        "summary"
+      ],
+      "properties": {
+        "samples": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "workflow_count": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "observation_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "failure_class": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "failure_invariant only: the single failure class every member observation shares."
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "supporting_findings": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "finding_ids for the member combos — provenance down into the findings layer."
+    },
+    "first_observed": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "last_observed": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "derived_from": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

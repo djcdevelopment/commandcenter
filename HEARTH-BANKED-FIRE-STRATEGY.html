@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Banked Fire — HEARTH idle-drain scheduling onto the mechnet</title>
+<style>
+  :root {
+    --bg: #12100e; --panel: #1c1916; --panel2: #24201c;
+    --ink: #e8e0d4; --dim: #a89c8a; --ember: #e2683c; --gold: #d9a441;
+    --green: #7fb069; --red: #c8553d; --line: #3a332c;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font: 16px/1.6 Georgia, 'Times New Roman', serif;
+         max-width: 980px; margin: 0 auto; padding: 2rem 1.5rem 6rem; }
+  h1 { font-size: 1.9rem; color: var(--ember); margin-bottom: .2rem; }
+  h2 { font-size: 1.3rem; color: var(--gold); border-bottom: 1px solid var(--line);
+       padding-bottom: .3rem; margin-top: 2.5rem; }
+  h3 { font-size: 1.05rem; color: var(--ink); margin-top: 1.6rem; }
+  .sub { color: var(--dim); font-style: italic; margin-top: 0; }
+  .badge { display: inline-block; font: 700 .7rem/1 system-ui; letter-spacing: .08em;
+           padding: .25em .6em; border-radius: 3px; vertical-align: middle; }
+  .draft { background: var(--gold); color: #1a1408; }
+  .verified { background: var(--green); color: #10200c; }
+  .warn { background: var(--red); color: #fff; }
+  code, pre { font: .85rem/1.5 Consolas, monospace; background: var(--panel2);
+              border-radius: 3px; }
+  code { padding: .1em .35em; }
+  pre { padding: .9rem 1.1rem; overflow-x: auto; border: 1px solid var(--line); }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .92rem; }
+  th, td { border: 1px solid var(--line); padding: .5rem .7rem; text-align: left; vertical-align: top; }
+  th { background: var(--panel2); color: var(--gold); font-family: system-ui; font-size: .8rem;
+       letter-spacing: .05em; text-transform: uppercase; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--ember);
+           padding: 1rem 1.3rem; margin: 1.2rem 0; border-radius: 0 4px 4px 0; }
+  .panel.gold { border-left-color: var(--gold); }
+  .panel.green { border-left-color: var(--green); }
+  .dim { color: var(--dim); }
+  ul, ol { padding-left: 1.4rem; }
+  li { margin: .35rem 0; }
+  .footer { margin-top: 4rem; color: var(--dim); font-size: .85rem; border-top: 1px solid var(--line);
+            padding-top: 1rem; }
+</style>
+</head>
+<body>
+
+<h1>Banked Fire</h1>
+<p class="sub">HEARTH idle-drain scheduling onto the mechnet &mdash; Δ4 made concrete
+&nbsp;<span class="badge draft">STRATEGY v0.1 — 2026-07-04</span></p>
+
+<div class="panel">
+<strong>The ask (Derek, 2026-07-04):</strong> the dual B70s (32&nbsp;GB VRAM each, 32&nbsp;GB DDR4 system)
+are already on the mechnet. HEARTH should be able to use that hardware whenever no active mechnet job
+has it &mdash; research, simple builds, bigger inference &mdash; without hand-built configuration each time,
+with the mechnet healing itself. Every offloaded task = learning insight + hardware rep + frontier tokens saved.
+<br><br>
+<strong>The name:</strong> a <em>banked fire</em> is the hearth's overnight state &mdash; coals kept alive under
+ash so the fire rekindles instantly when needed. Idle GPUs holding a resident model, drained by queued work,
+yielding the moment real work arrives. Proposed codename: <code>bankfire</code> (Derek ratifies naming).
+</div>
+
+<h2>This is Δ4, not a new idea</h2>
+<p>TWO-ECONOMIES-WIND-TUNNEL.html already authored this delta:
+<em>"When a sunk-economy node goes idle, the scheduler pulls the highest-value experiment candidate and runs
+it as a normal gated dispatch&hellip; The tunnel spins whenever Derek isn't using the machine &mdash; and stops
+the moment he is."</em> The only new authored object Δ4 requires &mdash; the <strong>operating budget</strong> &mdash;
+was ratified with D1 economics on 2026-07-03 (<code>fad3be9</code>), and <strong>46 experiment candidates are
+already priced</strong>. The policy layer exists. What's missing is plumbing, and less of it than expected.</p>
+
+<h2>Ground truth <span class="badge verified">VERIFIED 2026-07-04</span></h2>
+<table>
+<tr><th>Fact</th><th>Consequence</th></tr>
+<tr><td>hermes (dual-B70 Qwen3-30B) answers from OMEN at <code>100.116.82.60:8090</code> &mdash; tailnet port is OPEN, no tunnel needed</td>
+    <td>Phase 1 is pure software; zero network work</td></tr>
+<tr><td>hermes is OpenAI-shaped and bearer-token-auth'd (401 without token; token known to live in conductor's <code>.env</code>)</td>
+    <td>Router needs an <code>api</code> adapter (ollama | openai) and a token provisioned to OMEN (Derek)</td></tr>
+<tr><td><code>local_generate</code> already accepts an <code>endpoint</code> parameter (explicit endpoint wins over <code>HEARTH_OLLAMA</code>) but speaks only Ollama <code>/api/generate</code></td>
+    <td>The seam for a backend pool already exists in the tool signature</td></tr>
+<tr><td>HEARTH toolsurface already ships <code>wake_am4</code>, <code>start_ollama</code>, <code>checkpoint_vm</code>, <code>record_event</code></td>
+    <td>Summon/heal primitives exist; self-healing is composition, not construction</td></tr>
+<tr><td><code>fleet/inventory.toml</code> + <code>fleet_ping</code> + <code>doorcheck --revive</code> landed today (<code>322ab7d</code>); revive pattern proven by kill/revive round-trip</td>
+    <td>The watchdog generalizes a working pattern</td></tr>
+<tr><td>vllama on AM4 = mature model-lifecycle layer: OOM safety gates, ready=serve-truth, planner/critic aliases</td>
+    <td>Occupancy and model-swap safety are <em>pulled</em>, not rebuilt</td></tr>
+<tr><td>Conductor (:8080) owns build dispatch; am4-worker-1 already builds against hermes</td>
+    <td>Task-lane scheduling exists &mdash; HEARTH must not grow a second scheduler</td></tr>
+</table>
+
+<h2>Design principles</h2>
+<ol>
+<li><strong>One scheduler.</strong> The conductor owns queued/async work. HEARTH gets a <em>door</em> to it,
+    never a rival queue. HEARTH's own routing decisions are confined to synchronous inference calls.</li>
+<li><strong>One config file.</strong> Backends are declared once, declaratively; router, watchdog, and doorcheck
+    all read the same declaration. No per-incident custom config &mdash; that's the "wasting time debugging" trap.</li>
+<li><strong>Serve-truth occupancy.</strong> "Idle" is asked of the systems that know (conductor: active dispatches;
+    backend: in-flight slots), never inferred from wall clocks or hope. vllama's core value, applied.</li>
+<li><strong>Mechnet jobs always win.</strong> Opportunistic work runs on short leases and doesn't renew when
+    real work appears. "Stops the moment he is" is a lease policy, not a kill signal.</li>
+<li><strong>Respect the DDR4 ceiling.</strong> 32&nbsp;GB system RAM makes model swaps the expensive operation.
+    Policy: prefer the <em>resident</em> model; swap only when idle-time and queue depth justify it (hysteresis).</li>
+<li><strong>Every dispatch is an assay observation.</strong> Ledger records backend, occupancy-at-decision,
+    tokens, duration. The B70/Qwen3-30B combo is a <em>second clean local combo</em> &mdash; exactly what the G3
+    gate is waiting for. Banked-fire traffic re-earns beliefs as a side effect.</li>
+</ol>
+
+<h2>Architecture — two lanes through one door</h2>
+
+<h3>Lane 1 · Inference (synchronous, seconds)</h3>
+<p><code>local_generate</code> grows a backend pool behind the same tool signature. New file
+<code>hearth/etc/backends.toml</code>:</p>
+<pre>[[backend]]
+name     = "omen-ollama"
+endpoint = "http://127.0.0.1:11434"
+api      = "ollama"
+models   = ["qwen3-coder:30b"]
+tags     = ["default", "code"]
+revive   = "hearth start_ollama"            # existing summon tool
+
+[[backend]]
+name      = "am4-hermes"                    # the banked fire
+endpoint  = "http://100.116.82.60:8090"
+api       = "openai"
+auth_env  = "HEARTH_HERMES_TOKEN"
+models    = ["qwen3-30b"]                   # dual-B70 resident
+tags      = ["big-context", "research", "second-opinion"]
+occupancy = { conductor_worker = "am4-worker-1" }
+revive    = "hearth wake_am4"</pre>
+<p>Routing policy, in order: (1)&nbsp;caller-pinned endpoint wins, unchanged; (2)&nbsp;tag match
+(<code>task="research"</code> &rarr; prefer B70s); (3)&nbsp;occupancy check &mdash; busy backends are skipped;
+(4)&nbsp;fall back to <code>omen-ollama</code>; (5)&nbsp;ledger the routing decision. The adapter difference
+(ollama <code>/api/generate</code> vs OpenAI <code>/v1/chat/completions</code>) is ~40 lines.</p>
+
+<h3>Lane 2 · Tasks (asynchronous, minutes) — research &amp; simple builds</h3>
+<p>New HEARTH tool <code>submit_task</code>: writes a normal work item into the <strong>conductor's existing
+inbox</strong> (the same machinery that runs fleet builds), tagged <code>origin=hearth</code> and
+<code>class=opportunistic</code>. The conductor dispatches it to am4-worker-1 / omen-worker-1 exactly like any
+build; results land back as ledger events. Research briefs, doc summarization corpora, test-scaffold builds,
+retro drafts &mdash; all become fleet work items instead of frontier tokens. HEARTH adds a door; the conductor
+keeps the schedule.</p>
+
+<h3>Occupancy protocol (both lanes)</h3>
+<ul>
+<li><strong>Probe:</strong> conductor API &mdash; any active dispatch on the backend's
+    <code>conductor_worker</code>? Plus backend serve-truth (in-flight request count) where exposed.
+    <span class="dim">(v0 can ship with the conductor check alone.)</span></li>
+<li><strong>Lease:</strong> opportunistic work holds a 10-minute lease; renewal re-probes. Busy signal
+    &rarr; no renewal &rarr; task re-queues. Inference calls are short enough to just finish.</li>
+<li><strong>Hysteresis:</strong> a non-resident model may load only after N idle minutes AND queue depth &ge; K
+    (protects the DDR4 ceiling; vllama's OOM gates are the backstop).</li>
+</ul>
+
+<h3>Self-healing — the mechnet leveraging itself</h3>
+<p>Generalize what doorcheck proved today. <code>fleet/inventory.toml</code> checks grow an optional
+<code>revive</code> field naming a HEARTH tool or command. A <strong>mechnet-watchdog</strong> (scheduled task
+on OMEN, every 15&nbsp;min: <code>fleet_ping --json</code> &rarr; for each down expected-up service, run its
+declared revive once &rarr; re-probe &rarr; <code>record_event</code> either way) turns the inventory into a
+self-healing declaration. Un-revivable failures surface on the ledger instead of being discovered mid-dispatch.
+OMEN is the right host: always-on, sees tailnet and VM network simultaneously.</p>
+
+<h2>Phases — thin slice first</h2>
+<table>
+<tr><th>Phase</th><th>What ships</th><th>Effort</th><th>Acceptance check</th></tr>
+<tr><td><strong>P1 · Pool</strong></td>
+    <td><code>backends.toml</code> + openai adapter + hermes token on OMEN; <code>local_generate</code> routes by tag, no occupancy yet</td>
+    <td>~2–3 h</td>
+    <td>One prompt answered by the B70s through the HEARTH door, on the ledger with <code>backend=am4-hermes</code></td></tr>
+<tr><td><strong>P2 · Yield</strong></td>
+    <td>Conductor occupancy probe + skip-busy routing + lease policy</td>
+    <td>~2–3 h</td>
+    <td>With a real build running on am4-worker-1, routed traffic demonstrably stays on OMEN</td></tr>
+<tr><td><strong>P3 · Task lane</strong></td>
+    <td><code>submit_task</code> &rarr; conductor inbox; research-brief and simple-build templates</td>
+    <td>~half day</td>
+    <td>A research brief submitted via HEARTH completes on the fleet and its result event reaches the ledger</td></tr>
+<tr><td><strong>P4 · Watchdog</strong></td>
+    <td><code>revive</code> fields in inventory.toml + mechnet-watchdog scheduled task</td>
+    <td>~2 h</td>
+    <td>Kill hermes or the gateway; watchdog restores it within one cycle, ledgered</td></tr>
+<tr><td><strong>P5 · Δ4 proper</strong></td>
+    <td>Idle-drain: the 46 priced candidates queue-serve into idle windows under the ratified operating budget</td>
+    <td>~1 day</td>
+    <td>An experiment candidate runs unattended overnight as a normal gated dispatch; belief layer updates</td></tr>
+</table>
+<div class="panel green">
+<strong>Why this ordering:</strong> P1 alone roughly doubles local inference capacity and starts the B70
+belief-earning stream (the G3 second combo). P2 makes it polite. P3 is where "research and simple builds"
+arrive. P4 removes the babysitting. P5 is stage-6 autonomy through economics &mdash; and by then every part
+it needs has been proven separately.</div>
+
+<h2>What NOT to build</h2>
+<ul>
+<li><span class="badge warn">NO</span> a second scheduler or queue store &mdash; the conductor exists.</li>
+<li><span class="badge warn">NO</span> tunnels or network plumbing &mdash; hermes is already reachable.</li>
+<li><span class="badge warn">NO</span> a model-lifecycle manager on AM4 &mdash; vllama is the mature layer; pull its truth, don't wrap it.</li>
+<li><span class="badge warn">NO</span> per-task custom configs &mdash; if a job needs config the backends.toml can't express, it's fleet work (lane 2), not a new lane.</li>
+<li><span class="badge warn">NO</span> autonomous frontier spend &mdash; banked fire burns sunk compute only; metered calls stay human-initiated.</li>
+</ul>
+
+<h2>Decisions on Derek's desk</h2>
+<ol>
+<li><strong>Codename</strong> &mdash; <code>bankfire</code> for the router+drain layer? (hearth/fire family; glossary entry pending)</li>
+<li><strong>Hermes token</strong> &mdash; provision to OMEN (env var <code>HEARTH_HERMES_TOKEN</code> for the gateway task). It exists in conductor's <code>.env</code>; copying it is a Derek action.</li>
+<li><strong>Release cue for P1</strong> &mdash; strategy is draft-ready per the pacing directive; build starts on your word.</li>
+<li><strong>P5 switch</strong> &mdash; should unattended idle-drain require an explicit arm/disarm toggle (a <code>kernel_change</code>), per the constitution's suspendable-override pattern? (Recommended: yes.)</li>
+</ol>
+
+<div class="footer">
+Companion to TWO-ECONOMIES-WIND-TUNNEL.html (Δ4) · CAPABILITY-ROADMAP.html · FLEET-WORK-PLAN.html<br>
+Authored 2026-07-04 from verified probes (hermes tailnet reach, local_generate seam, toolsurface inventory) · Banked Fire v0.1 DRAFT — nothing built, released on Derek's cue.
+</div>
+
+</body>
+</html>

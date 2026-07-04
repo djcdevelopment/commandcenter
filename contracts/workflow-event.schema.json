@@ -40,7 +40,9 @@
         "promotion.held",
         "promotion.approved",
         "promotion.rejected",
-        "retrospective.created"
+        "retrospective.created",
+        "idle.observed",
+        "idle.ended"
       ]
     },
     "timestamp": {

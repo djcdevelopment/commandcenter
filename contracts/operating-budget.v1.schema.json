@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://commandcenter.local/contracts/operating-budget.v1.schema.json",
+  "title": "OperatingBudget v1",
+  "description": "Authored risk-acceptance contract stating the physical operating envelope within which unattended dispatch may run. A statement of will, not belief: what Derek accepts, not what sensors have observed. Clause-2 object — reason and authored_by are mandatory; every constraint is explicit and nullable (null = that dimension unconstrained).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "budget_id",
+    "reason",
+    "authored_by",
+    "unattended_dispatch_allowed",
+    "suspended"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "operating-budget.v1"
+    },
+    "budget_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "node_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Target node. Null means fleet-wide."
+    },
+    "max_gpu_temp_c": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "description": "Hard ceiling on gpu_temp_c_peak. Null = unconstrained."
+    },
+    "max_power_w": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "description": "Hard ceiling on power_w_peak. Null = unconstrained."
+    },
+    "max_fan_rpm": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "description": "Hard ceiling on fan_rpm_avg (the only fan sensor). Null = unconstrained."
+    },
+    "unattended_dispatch_allowed": {
+      "type": "boolean",
+      "description": "Explicit authored permission for unattended dispatch. False means the budget does not authorize any unattended operation regardless of physical readings."
+    },
+    "active_hours": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "start",
+            "end"
+          ],
+          "properties": {
+            "start": {
+              "type": "string",
+              "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+              "description": "24-hour HH:MM start of the allowed dispatch window."
+            },
+            "end": {
+              "type": "string",
+              "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+              "description": "24-hour HH:MM end of the allowed dispatch window."
+            }
+          }
+        }
+      ],
+      "description": "Allowed dispatch window. Null = no time restriction."
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Why this budget was authored — stated for a human operator."
+    },
+    "authored_by": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Identity of the person or process that created this contract."
+    },
+    "created": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time",
+      "description": "ISO-8601 datetime when this contract was authored. Optional."
+    },
+    "suspended": {
+      "type": "boolean",
+      "description": "When true, all dispatch is blocked regardless of other fields. An emergency stop that does not require deleting the contract."
+    },
+    "suspend_reason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Explains why suspended was set. Null when not suspended."
+    }
+  }
+}

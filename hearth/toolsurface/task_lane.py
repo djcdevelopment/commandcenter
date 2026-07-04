@@ -46,7 +46,16 @@ INBOX_DIR = f"{CONDUCTOR_REPO}/inbox"
 RUNS_DIR = f"{CONDUCTOR_REPO}/runs"
 SSH_TIMEOUT_S = 15
 PLAN_ID_PREFIX = "hearth-"
-DEFAULT_BUILDERS = ["am4-worker-1"]
+# The conductor's MAF workflow fans every run across a FanOutEdgeGroup that
+# requires at least two targets — a single-builder run crashes on dispatch
+# ("FanOutEdgeGroup must contain at least two targets") and never writes a
+# result, lingering as a phantom in-flight run that also holds occupancy.
+# Default to TWO local B70 builders (both openai/vllama runners) so the offload
+# lane works without pulling in a frontier (claude/sonnet) builder. cc-builder-1
+# is frontier and is only the last-resort padding tail. See _ensure_fanout_minimum.
+DEFAULT_BUILDERS = ["am4-worker-1", "cc-builder-2"]
+FANOUT_MIN_BUILDERS = 2
+COMPANION_BUILDERS = ["cc-builder-2", "am4-worker-1", "cc-builder-1"]
 
 _SLUG_RE = re.compile(r"[^a-z0-9-]+")
 
@@ -94,15 +103,47 @@ def _ccmeta_header(builders: list[str]) -> str:
     return "<!-- CCMETA\n" + json.dumps({"builders": builders}) + "\n-->\n"
 
 
+def _ensure_fanout_minimum(builders: list[str]) -> list[str]:
+    """Return >= FANOUT_MIN_BUILDERS distinct builders, preserving caller order.
+
+    The conductor's MAF workflow fans every run across a FanOutEdgeGroup that
+    requires at least two targets. A single-builder run therefore crashes on
+    dispatch and never produces a result — it shows as forever "in-flight" and
+    its ``nodes.json`` (written before the crash) reads as phantom occupancy.
+    Padding a short list with distinct local-first companions lets an offloaded
+    single-builder task actually run. De-duplicates while preserving order.
+
+    The clean fix is conductor-side (treat a single-builder run as a direct
+    assignment instead of a fan-out), but that is concurrently-owned code; this
+    keeps the HEARTH task lane working without touching the conductor.
+    """
+    ordered: list[str] = []
+    for b in builders:
+        if b not in ordered:
+            ordered.append(b)
+    for companion in COMPANION_BUILDERS:
+        if len(ordered) >= FANOUT_MIN_BUILDERS:
+            break
+        if companion not in ordered:
+            ordered.append(companion)
+    return ordered
+
+
 def submit_task(prompt: str, builders: list[str] | None = None,
                plan_id_hint: str | None = None) -> dict:
     """Submit a research brief / simple build to the fleet via the conductor inbox.
 
     Writes ``inbox/<plan_id>.md`` on cc-conductor with a CCMETA builder-pin
-    header (default: ``["am4-worker-1"]``) and `prompt` as the body. Returns
-    immediately with the plan_id — the conductor's own serve loop picks it up
-    within one ~3s scan and runs it through the normal build/assay pipeline.
-    Poll ``task_status(plan_id)`` for the result.
+    header (default: two local B70 builders, ``["am4-worker-1", "cc-builder-2"]``)
+    and `prompt` as the body. Returns immediately with the plan_id — the
+    conductor's own serve loop picks it up within one ~3s scan and runs it
+    through the normal build/assay pipeline. Poll ``task_status(plan_id)`` for
+    the result.
+
+    A single-builder request is padded up to the conductor's fan-out minimum
+    (>= 2 targets) — a one-builder run crashes on dispatch and never returns
+    (see _ensure_fanout_minimum). The returned ``builders`` reflect what was
+    actually written.
 
     Zero conductor-side changes: this is the same inbox mechanism every fleet
     build already uses, so no scheduler is duplicated (Banked Fire design
@@ -113,6 +154,9 @@ def submit_task(prompt: str, builders: list[str] | None = None,
     chosen_builders = list(DEFAULT_BUILDERS) if builders is None else list(builders)
     if not chosen_builders or not all(isinstance(b, str) and b.strip() for b in chosen_builders):
         raise ValueError("builders must be a non-empty list of non-empty strings")
+    # Pad to the conductor's fan-out minimum so a single-builder request runs
+    # instead of crashing on dispatch (see _ensure_fanout_minimum).
+    chosen_builders = _ensure_fanout_minimum(chosen_builders)
 
     plan_id = _new_plan_id(plan_id_hint)
     body = _ccmeta_header(chosen_builders) + prompt

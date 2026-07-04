@@ -46,13 +46,35 @@ class SubmitTaskTests(TestCase):
         b64_segment = remote_command.split("echo ", 1)[1].split(" | base64", 1)[0]
         decoded = base64.b64decode(b64_segment).decode("utf-8")
         self.assertTrue(decoded.startswith("<!-- CCMETA"))
-        self.assertIn('"builders": ["am4-worker-1"]', decoded)
+        self.assertIn('"am4-worker-1"', decoded)
         self.assertIn("list three risks of X", decoded)
+
+    def test_default_builders_meet_fanout_minimum(self) -> None:
+        # The conductor's fan-out needs >= 2 targets; the default must satisfy it.
+        self.assertGreaterEqual(len(DEFAULT_BUILDERS), 2)
+        self.assertEqual(len(DEFAULT_BUILDERS), len(set(DEFAULT_BUILDERS)))
 
     def test_custom_builders_forwarded(self) -> None:
         with patch("subprocess.run", return_value=_completed(stdout="written\n")):
             result = submit_task("q", builders=["cc-builder-1", "cc-builder-2"])
         self.assertEqual(result["builders"], ["cc-builder-1", "cc-builder-2"])
+
+    def test_single_builder_is_padded_to_fanout_minimum(self) -> None:
+        # A one-builder request would crash the conductor fan-out; it must be
+        # padded to >= 2 distinct builders, caller's choice kept first.
+        with patch("subprocess.run", return_value=_completed(stdout="written\n")):
+            result = submit_task("q", builders=["am4-worker-1"])
+        self.assertGreaterEqual(len(result["builders"]), 2)
+        self.assertEqual(result["builders"][0], "am4-worker-1")
+        self.assertEqual(len(result["builders"]), len(set(result["builders"])))
+
+    def test_single_builder_padding_prefers_local_companion(self) -> None:
+        # Padding must not reach for the frontier (claude/sonnet) builder
+        # cc-builder-1 when a local companion is available.
+        with patch("subprocess.run", return_value=_completed(stdout="written\n")):
+            result = submit_task("q", builders=["am4-worker-1"])
+        self.assertIn("cc-builder-2", result["builders"])
+        self.assertNotIn("cc-builder-1", result["builders"])
 
     def test_ssh_failure_is_a_clean_result_not_an_exception(self) -> None:
         with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="ssh", timeout=15)):

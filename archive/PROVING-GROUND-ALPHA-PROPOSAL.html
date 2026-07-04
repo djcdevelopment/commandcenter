@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Proving Ground — Alpha Integration Proposal</title>
+<style>
+  :root{
+    --bg:#0c0f14; --panel:#141a22; --panel2:#1b232e; --line:#26303d;
+    --ink:#e6edf3; --muted:#93a1b1; --dim:#6b7886;
+    --fire:#ff7a45; --ember:#ffb066; --cyan:#5fd0e0; --green:#5ad48a;
+    --amber:#f4c95d; --red:#ff6b6b; --violet:#a78bfa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  code,.mono{font-family:"JetBrains Mono",Consolas,Menlo,monospace;font-size:.86em}
+  a{color:var(--cyan)}
+  .wrap{max-width:1120px;margin:0 auto;padding:32px 24px 80px}
+  header.top{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:24px}
+  .eyebrow{color:var(--fire);letter-spacing:.18em;text-transform:uppercase;font-size:11px;font-weight:700}
+  h1{font-size:27px;margin:6px 0 8px;font-weight:700}
+  .thesis{color:var(--muted);max-width:82ch}
+  .thesis b{color:var(--ink)}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:16px;font-size:12.5px;color:var(--dim)}
+  .meta b{color:var(--ink)}
+  h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--ember);
+    margin:38px 0 14px;border-left:3px solid var(--fire);padding-left:10px}
+  .banner{background:linear-gradient(90deg,#2a1d10,#1b232e);border:1px solid #4a3a20;
+    border-radius:10px;padding:12px 16px;margin:18px 0 0;color:var(--ember);font-size:13.5px}
+  .banner b{color:var(--amber)}
+  .tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.05em;
+    padding:2px 7px;border-radius:20px;border:1px solid var(--line)}
+  .t-now{color:var(--green);border-color:#274b39;background:#11231a}
+  .t-soon{color:var(--amber);border-color:#4a4023;background:#221d10}
+  .t-later{color:var(--dim);border-color:var(--line);background:var(--panel2)}
+
+  table.split{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:13px}
+  table.split th{background:var(--panel2);text-align:left;padding:10px 14px;font-size:11px;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+  table.split td{padding:9px 14px;border-top:1px solid var(--line);color:var(--muted);vertical-align:top}
+  table.split td b{color:var(--ink)}
+  table.split td .mono{color:var(--cyan)}
+
+  .law{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--violet);
+    border-radius:10px;padding:14px 18px;margin-bottom:12px}
+  .law h3{margin:0 0 4px;font-size:15px;color:var(--violet)}
+  .law p{margin:4px 0 0;color:var(--muted);font-size:13.5px}
+  .law p b{color:var(--ink)}
+  .law.green{border-left-color:var(--green)}.law.green h3{color:var(--green)}
+  .law.amber{border-left-color:var(--amber)}.law.amber h3{color:var(--amber)}
+  .law.cyan{border-left-color:var(--cyan)}.law.cyan h3{color:var(--cyan)}
+
+  /* level ladder */
+  .level{background:var(--panel);border:1px solid var(--line);border-radius:14px;margin:18px 0;overflow:hidden}
+  .level .lhead{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;
+    padding:14px 20px;background:var(--panel2);border-bottom:1px solid var(--line)}
+  .level .lhead .lnum{font-family:Consolas,monospace;font-weight:700;font-size:18px;color:var(--acc)}
+  .level .lhead h3{margin:0;font-size:17px;flex:1;min-width:220px}
+  .level .lhead .sub{font-size:12px;color:var(--dim)}
+  .level .lbody{padding:16px 20px 18px;color:var(--muted);font-size:13.5px}
+  .level .lbody b{color:var(--ink)}
+  .level .lbody p{margin:0 0 10px}
+  .level .lbody p:last-child{margin-bottom:0}
+  .level.l0{--acc:var(--green)} .level.l1{--acc:var(--amber)} .level.l2{--acc:var(--fire)}
+  .level .lhead{border-left:3px solid var(--acc)}
+
+  /* agent brief */
+  .agentzone{border:1px dashed var(--cyan);border-radius:14px;padding:4px 22px 22px;margin-top:14px;
+    background:linear-gradient(180deg,#101820,var(--panel))}
+  .agentzone h2{color:var(--cyan);border-left-color:var(--cyan)}
+  .agentzone > p{color:var(--muted);font-size:13.5px;max-width:90ch}
+  .agentzone b{color:var(--ink)}
+  pre.block{background:#0a0e13;border:1px solid var(--line);border-radius:10px;padding:16px 18px;
+    overflow-x:auto;font-family:"JetBrains Mono",Consolas,Menlo,monospace;font-size:12.5px;
+    line-height:1.5;color:#c9d6e2;white-space:pre-wrap;word-break:break-word}
+  pre.block .cm{color:var(--dim)}
+  h4.sec{margin:24px 0 8px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--cyan)}
+
+  footer{margin-top:44px;border-top:1px solid var(--line);padding-top:16px;color:var(--dim);font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="eyebrow">Commandcenter · Alpha Integration Proposal</div>
+  <h1>The Proving Ground — your models vs. the frontier, on your workload</h1>
+  <p class="thesis">An invitation to be the <b>first outside alpha tester</b> of a system that runs the
+  same task across any set of model endpoints — local models on consumer hardware, frontier APIs, or
+  anything OpenAI-compatible you want to point at it — and returns a <b>traced, scored, costed
+  comparison</b>. Not a benchmark someone else picked: <b>your prompt, your documents, your endpoints</b>.
+  This document has two halves: the top half is for you; the bottom half is written for your agent to read.</p>
+  <div class="meta">
+    <span>From: <b>Derek</b> · Steppe Integrations / Commandcenter</span>
+    <span>To: <b>Edgeless</b> — first alpha invitation</span>
+    <span>Status: <b>v0.1 draft</b></span>
+    <span>2026-07-02</span>
+  </div>
+  <div class="banner"><b>What's in it for you:</b> free, first-in-line access to a fleet-scale A/B harness —
+  find out what your Mac + Hermes setup can actually do against the paid APIs you're burning tokens on,
+  with receipts, before you spend another dollar deciding on faith.</div>
+</header>
+
+<!-- ============================================================ -->
+<!-- PART 1 · HUMAN-READABLE                                      -->
+<!-- ============================================================ -->
+
+<h2>Part 1 · The pitch, human version</h2>
+
+<p class="thesis" style="margin-bottom:14px">You already live the problem this thing measures: you run
+local models (Hermes on Apple Silicon) <i>and</i> you pay several online APIs for tokens, Claude included.
+Every day you make an implicit bet about which one to point at which job, and that bet is currently priced
+on vibes. The Proving Ground makes it priced on evidence: submit a task once, it fans out to every
+contender — my fleet (consumer GPUs running local models), your endpoints, the frontier APIs — and comes
+back with side-by-side outputs, quality scores from an automated judging loop, latency, token counts, and
+cost per contender. The whole run is traced end-to-end, so nothing is a claim; everything is a receipt.</p>
+
+<p class="thesis" style="margin-bottom:14px">This grew directly out of the Edgeless integration work — that's
+why you're getting the first invite. The same fleet that generates and scores images can run planning,
+refinement, document analysis, copy, and code tasks, and the interesting question stopped being "can it do
+the work" and became <b>"how does local hardware stack up against metered APIs on a real workload, in
+public, with receipts."</b> You get to be the first real workload that isn't mine.</p>
+
+<h2>Three ways in — pick your bravery level</h2>
+
+<div class="level l0">
+  <div class="lhead"><span class="lnum">L0</span><h3>Send a prompt, get a result</h3>
+    <span class="tag t-now">ZERO SETUP · AVAILABLE NOW</span></div>
+  <div class="lbody">
+    <p>Send me a prompt or a document — a file, or just a Discord message. I run it through the fleet's
+    planning/refinement ensemble (multiple competing models plan it, a critic ensemble scores the plans)
+    and send you back the result package: the winning output plus the comparison table of how each
+    contender did. You do nothing but read it.</p>
+    <p><b>Good first tests:</b> an Edgeless product-description batch, a pricing/positioning question you'd
+    normally ask Claude, a supplier email thread you want summarized and answered.</p>
+  </div>
+</div>
+
+<div class="level l1">
+  <div class="lhead"><span class="lnum">L1</span><h3>Bring your keys (BYOK)</h3>
+    <span class="tag t-now">MINUTES OF SETUP</span></div>
+  <div class="lbody">
+    <p>Same as L0, but the frontier contenders run on <b>your</b> API keys — so the cost column in the
+    report is your actual bill, not my estimate. Your key, your invoice; my hardware, my electricity.
+    That contrast is the whole point of the instrument. Keys are used only for your runs, never stored
+    beyond the run, and every call they make shows up in your trace.</p>
+  </div>
+</div>
+
+<div class="level l2">
+  <div class="lhead"><span class="lnum">L2</span><h3>Bring your model — enter Hermes as a contender</h3>
+    <span class="tag t-soon">THE BRAVE OPTION · NEEDS VALIDATION FIRST</span></div>
+  <div class="lbody">
+    <p>Expose any OpenAI-compatible endpoint — Hermes on your Mac, anything else you run, doesn't matter
+    what's behind it — and it competes in the same arena, scored by the same judges, traced by the same
+    telemetry. Your local setup vs. my fleet vs. the frontier, all on your task.</p>
+    <p><b>How to start:</b> don't read the spec yourself — feed <b>Part 2 of this document to your agent</b>
+    and ask it whether this is worth doing and what it would take. If you and your agent agree, the agent
+    runs the validation procedure in Part 2 against your endpoint and sends me the report it produces.
+    That report is the onboarding form — there is no other paperwork.</p>
+  </div>
+</div>
+
+<h2>What you get back, whatever the level</h2>
+<table class="split">
+  <tr><th style="width:24%">Artifact</th><th>Contents</th></tr>
+  <tr><td><b>Comparison report</b> (HTML)</td>
+      <td>Per contender: the full output · quality score from the judging loop and how it was derived ·
+      latency (first-token and total) · token counts · cost (measured for metered contenders, declared
+      basis for local ones). Side by side, one page.</td></tr>
+  <tr><td><b>Trace</b></td>
+      <td>The end-to-end OpenTelemetry trace of your run — every dispatch, retry, and judge call. If you
+      ever doubt a number in the report, the trace is where it came from.</td></tr>
+  <tr><td><b>Your provenance tag</b></td>
+      <td>Every request and everything derived from it is tagged to you. You are literally the first
+      external tenant this system has ever had — the tagging layer is part of what you're alpha-testing.</td></tr>
+</table>
+
+<h2>Straight answers on data & expectations</h2>
+<div class="law green"><h3>Your data</h3>
+  <p>Prompts, documents, and outputs persist in run traces on my hardware — that's what makes the receipts
+  possible. They are <b>not shared, not published, and not used to train anything</b>. Purged on request,
+  no questions. One honest caveat: anything you send via Discord transits Discord's servers before it
+  reaches me — use file handoff for anything sensitive. Your runs do <b>not</b> feed the system's learning
+  corpus unless you explicitly opt in later.</p></div>
+<div class="law amber"><h3>Alpha means alpha</h3>
+  <p>I am in the loop on every run. No SLA, no dashboard yet, turnaround measured in hours not seconds,
+  and the rough edges are the product feedback I'm asking you for. In exchange: it's free, you're first,
+  and the reports you get are yours to keep and use.</p></div>
+<div class="law cyan"><h3>Fairness</h3>
+  <p>Contenders I run on my own hardware are attested — I can prove what's behind the endpoint. A
+  contender behind your URL is self-declared — for your private reports that distinction doesn't matter
+  (you'd only be fooling yourself), but it's labeled in the report so the receipts stay honest.</p></div>
+
+<!-- ============================================================ -->
+<!-- PART 2 · AGENT-READABLE                                      -->
+<!-- ============================================================ -->
+
+<div class="agentzone">
+<h2>Part 2 · Brief for the agent</h2>
+<p><b>Human instruction:</b> copy everything from here to the end of this document (or hand over the whole
+file) and give it to your agent with a question like <i>"read this, tell me if it's worth doing, and what
+you'd need from me."</i> The rest of this section is addressed to the agent.</p>
+
+<h4 class="sec">A0 · Context — what you are reading</h4>
+<pre class="block">You are an agent acting for a principal who has been invited to alpha-test an
+inference-comparison system ("the Proving Ground"). The system runs one task
+across N model endpoints ("contenders") and produces a traced, scored, costed
+comparison. Contenders include: the operator's local-hardware fleet, frontier
+APIs (via the principal's own keys), and optionally an OpenAI-compatible
+endpoint hosted by your principal (e.g. Hermes on Apple Silicon).
+
+Your jobs, in order:
+  1. DECIDE  — advise your principal whether to participate, and at what level
+              (L0 courier / L1 BYOK / L2 own endpoint). Sections A1–A2.
+  2. VALIDATE — only if you both choose L2: run the validation procedure in A3
+              against the candidate endpoint and produce the report in A5.
+              Consult the failure catalog in A4 to interpret what you find.
+  3. REPORT  — return the A5 report to Derek (Discord or file, via principal).
+
+Nothing here asks you to grant the operator access to your principal's machine.
+Participation at L2 means exposing ONE inference endpoint URL, nothing else.</pre>
+
+<h4 class="sec">A1 · What participation means (for your DECIDE step)</h4>
+<pre class="block">DATA FLOW    Prompts/documents submitted → run on multiple endpoints → outputs,
+             scores, latency, cost captured in traces on the operator's hardware.
+             Retained for the alpha, purge-on-request, not used for training,
+             not shared. Tenant-tagged: every derivative artifact carries your
+             principal's identity tag.
+COST         Alpha is free. Frontier contenders bill the principal's own API
+             keys IF L1/L2 is chosen (BYOK). Local contenders are sunk-cost
+             hardware (electricity), declared as such in reports.
+EXPOSURE     L0/L1: none. L2: the principal exposes one OpenAI-compatible HTTPS
+             endpoint (tunnel acceptable: Tailscale Funnel, cloudflared, etc.).
+             The harness sends inference requests to it during runs. No inbound
+             access beyond that endpoint is used or needed.
+EFFORT       L0: none. L1: share keys per-run. L2: keep an endpoint reachable
+             + run the A3 validation once (~20 min agent time).
+WHAT YOU GET Side-by-side evidence of local-vs-frontier capability on the
+             principal's real workload. If the principal runs local models to
+             save money, this measures whether that bet is paying off.</pre>
+
+<h4 class="sec">A2 · Endpoint contract (what an L2 contender must provide)</h4>
+<table class="split">
+  <tr><th style="width:30%">Requirement</th><th style="width:12%">Level</th><th>Detail</th></tr>
+  <tr><td><b><span class="mono">POST /v1/chat/completions</span></b></td><td><b>MUST</b></td>
+      <td>OpenAI-compatible request/response. Non-streaming JSON is the baseline.</td></tr>
+  <tr><td><b><span class="mono">usage</span> block in responses</b></td><td><b>MUST</b></td>
+      <td><span class="mono">prompt_tokens</span> / <span class="mono">completion_tokens</span> present and sane. Without it, cost accounting — the core output — is impossible for this contender.</td></tr>
+  <tr><td><b>Bearer-token auth</b></td><td><b>MUST</b></td>
+      <td><span class="mono">Authorization: Bearer &lt;key&gt;</span>. Any key you mint; it identifies the harness to you.</td></tr>
+  <tr><td><b>JSON error shapes</b></td><td><b>MUST</b></td>
+      <td>Failures return 4xx/5xx with a JSON error object — not HTTP 200, not HTML, not a hang.</td></tr>
+  <tr><td><b><span class="mono">max_tokens</span> and <span class="mono">stop</span> honored</b></td><td><b>MUST</b></td>
+      <td>The harness bounds every call; a contender that ignores bounds ruins its own latency and cost numbers.</td></tr>
+  <tr><td><b>Reachable HTTPS URL</b></td><td><b>MUST</b></td>
+      <td>Tunnel is fine. The endpoint must survive a 10-minute run window without the host sleeping (see A4/F8 — macOS sleep is a known killer).</td></tr>
+  <tr><td><b><span class="mono">GET /v1/models</span></b></td><td>SHOULD</td>
+      <td>Used for discovery and liveness. If absent, declare model IDs manually in the A5 report.</td></tr>
+  <tr><td><b>Streaming (SSE)</b></td><td>MAY</td>
+      <td>Optional. If declared, must be conformant (<span class="mono">data:</span> chunks, terminal <span class="mono">[DONE]</span>). If flaky, declare non-streaming — that's fine.</td></tr>
+  <tr><td><b>Declared metadata</b></td><td><b>MUST</b></td>
+      <td>Model ID(s), true context window, effective max concurrency, cost basis (<span class="mono">$/1M tokens</span> or <span class="mono">sunk/electricity</span>). Self-declared, labeled as such in reports.</td></tr>
+</table>
+
+<h4 class="sec">A3 · Validation procedure — run only after principal + agent agree on L2</h4>
+<p>This is the prompt. Fill the three placeholders and execute it yourself (you are the agent it addresses),
+or hand it to a fresh agent session with shell access on the endpoint's network.</p>
+<pre class="block"><span class="cm"># ── VALIDATION PROMPT · Proving Ground contender check · v0.1 ──────────────</span>
+You are validating an OpenAI-compatible inference endpoint as a candidate
+contender for the Proving Ground comparison harness.
+
+  BASE_URL = {{https://your-endpoint.example}}
+  MODEL    = {{model-id-to-validate}}
+  API_KEY  = {{key-you-minted-for-the-harness}}
+
+Run checks V1–V10 in order. Never skip on failure — record and continue.
+Judge each check PASS / FAIL / UNTESTED and keep the evidence (raw responses,
+timings). Small helper scripts are fine. Do not send any real/private data;
+use only the synthetic prompts below.
+
+V1  DISCOVERY   GET $BASE_URL/v1/models with the key.
+                PASS: 200 + JSON listing $MODEL (or documented absence).
+V2  COMPLETION  POST /v1/chat/completions, messages=[{user:"Reply with the
+                single word: pong"}], max_tokens=8.
+                PASS: 200, non-empty content, AND a usage block with plausible
+                prompt_tokens/completion_tokens. usage missing = FAIL (hard).
+V3  BOUNDS      max_tokens=16 on a prompt inviting a long answer; then a
+                request with stop=["7"] asking it to count 1..20.
+                PASS: completion_tokens ≤ ~20; generation stops at the stop
+                sequence. Either ignored = FAIL.
+V4  STREAMING   Same call with stream=true (skip → UNTESTED if not declared).
+                PASS: valid SSE (data: chunks, terminal [DONE], parseable
+                deltas). Malformed frames or missing [DONE] = FAIL.
+V5  CONTEXT     Build a prompt ≈50% of the DECLARED context window: sentinel
+    TRUTH       "ALPHA-7391" first line, filler text, sentinel "OMEGA-2486"
+                last line. Ask: "state both sentinel codes".
+                PASS: both echoed. First-only = silent tail truncation = FAIL
+                (this invalidates every comparison — see F2).
+V6  ERROR       Request model="does-not-exist-xyz".
+    SHAPE       PASS: 4xx + JSON error object. 200, HTML, or a hang = FAIL.
+V7  COLD/WARM   First request after ≥10 min idle vs an immediate second
+                request. Report both latencies. Cold ≫ warm is not a failure
+                — it must simply be DECLARED (harness will pre-warm).
+V8  CONCURRENCY 3 simultaneous small completions.
+                Report effective concurrency (parallel / serialized / errors).
+                Serialized is acceptable IF declared as max_concurrency=1.
+V9  SUSTAINED   10 sequential medium completions (~300 tokens out each).
+                Report mean tok/s and drift first→last. Thermal or memory-
+                pressure decay shows up here, especially on Apple Silicon.
+V10 SERVE-TRUTH If you can restart the serving process: does the endpoint
+                accept requests BEFORE the model is actually loaded (accepts-
+                then-hangs)? If you cannot restart it, mark UNTESTED and say so.
+
+Then produce the report exactly in the format of section A5 and return it to
+your principal for forwarding.
+<span class="cm"># ── end validation prompt ───────────────────────────────────────────────────</span></pre>
+
+<h4 class="sec">A4 · Failure catalog — what breaks, and why it matters</h4>
+<table class="split">
+  <tr><th style="width:26%">Failure point</th><th style="width:14%">Caught by</th><th>Why it matters</th></tr>
+  <tr><td><b>F1 · Missing <span class="mono">usage</span> block</b></td><td class="mono">V2</td>
+      <td>The harness can't count tokens → can't cost-account → the cost comparison (the entire punchline of the instrument) is broken for this contender. Hard blocker.</td></tr>
+  <tr><td><b>F2 · Silent context truncation</b></td><td class="mono">V5</td>
+      <td>The model answers on a partial document without saying so. It scores unfairly low — or worse, wins on a task it never fully read. Either way the comparison is <b>invalid, not just noisy</b>. Hard blocker until declared window is corrected.</td></tr>
+  <tr><td><b>F3 · Fake-ready (accepts before loaded)</b></td><td class="mono">V10, V7</td>
+      <td>The endpoint says 200-ready while the model is still loading; the first real request eats a 60–90s "latency" that is actually load time, or times out entirely. Skews every latency figure. Known failure class on local model servers — the harness treats "ready" as a claim to verify, but a contender that lies about readiness wastes run budget.</td></tr>
+  <tr><td><b>F4 · Nonconformant SSE streaming</b></td><td class="mono">V4</td>
+      <td>Malformed frames or a missing <span class="mono">[DONE]</span> make the harness misread partial output or wait forever. Never fatal — declare non-streaming and it's a non-issue.</td></tr>
+  <tr><td><b>F5 · <span class="mono">max_tokens</span>/<span class="mono">stop</span> ignored</b></td><td class="mono">V3</td>
+      <td>Runaway generations inflate the contender's own latency and cost numbers and blow per-run budgets. The contender mostly hurts itself — but budget overruns stall the whole mission.</td></tr>
+  <tr><td><b>F6 · Undeclared concurrency = 1</b></td><td class="mono">V8</td>
+      <td>The harness fans out in parallel; an endpoint that silently serializes (or errors on the 2nd connection) stalls the run. Declared <span class="mono">max_concurrency=1</span> is perfectly fine — the harness serializes for you. Undeclared is the failure.</td></tr>
+  <tr><td><b>F7 · Errors as 200/HTML/hangs</b></td><td class="mono">V6</td>
+      <td>Retry logic can't tell fatal from transient → wasted retries, false failure verdicts, poisoned scores. JSON errors with real status codes let the harness be fair to you.</td></tr>
+  <tr><td><b>F8 · Host sleep / power management</b></td><td class="mono">V7 (partly)</td>
+      <td>macOS App Nap / sleep kills the endpoint mid-run and it reads as a contender failure. For run windows: <span class="mono">caffeinate</span> or equivalent. A dropped run is labeled infrastructure-failure, not model-failure — but it still burns the slot.</td></tr>
+  <tr><td><b>F9 · Unified-memory pressure / model swap</b></td><td class="mono">V9</td>
+      <td>On Apple Silicon, another large model (or the principal's normal workload) sharing unified memory causes swap thrash: tok/s decays run-over-run. Not a blocker — V9 documents it so a slow-under-load result is explainable rather than mysterious.</td></tr>
+  <tr><td><b>F10 · Tunnel drops mid-stream</b></td><td class="mono">—</td>
+      <td>Funnel/cloudflared hiccups truncate a response; the harness retries within budget and labels the retry in the trace. Frequent drops → contender marked unstable. Nothing to validate up front; just know it's watched.</td></tr>
+  <tr><td><b>F11 · Hidden proxy to a metered API</b></td><td class="mono">honesty</td>
+      <td>An "endpoint" that quietly forwards to a paid cloud API with cost basis declared as <span class="mono">sunk</span> makes the economics readout lie. Reports label self-declared contenders for exactly this reason. Declare what's behind the URL; nobody audits your basement, but the label follows the claim.</td></tr>
+</table>
+
+<h4 class="sec">A5 · Report-back format</h4>
+<pre class="block">{
+  "contender": {
+    "base_url":        "https://...",
+    "models":          ["..."],
+    "runtime":         "e.g. Hermes / llama.cpp / MLX / other",
+    "hardware":        "e.g. MacBook Pro M3 Max 64GB (free text)",
+    "declared": {
+      "context_window":  0,
+      "max_concurrency": 0,
+      "streaming":       true,
+      "cost_basis":      "sunk | $X per 1M in / $Y per 1M out"
+    }
+  },
+  "checks": {
+    "V1":  {"verdict": "pass|fail|untested", "note": ""},
+    "V2":  {"verdict": "", "note": ""},
+    "V3":  {"verdict": "", "note": ""},
+    "V4":  {"verdict": "", "note": ""},
+    "V5":  {"verdict": "", "note": ""},
+    "V6":  {"verdict": "", "note": ""},
+    "V7":  {"verdict": "", "note": "cold: Xs · warm: Ys"},
+    "V8":  {"verdict": "", "note": "effective concurrency: N"},
+    "V9":  {"verdict": "", "note": "tok/s first: X · last: Y"},
+    "V10": {"verdict": "", "note": ""}
+  },
+  "agent_recommendation": "one paragraph: participate or not, at what level,
+                           and any caveats your principal should know",
+  "return_via": "Discord to Derek, or file handoff"
+}</pre>
+
+<p style="margin-top:18px"><b>Agent, final note:</b> your DECIDE step owes your principal a straight answer,
+including "don't bother" if that's the honest read. The operator explicitly prefers a well-reasoned
+declination over a half-committed endpoint that fails runs. If you recommend L0 first to see a sample
+report before committing to L2 — that is a sensible and welcome path.</p>
+</div>
+
+<footer>
+  Proving Ground alpha proposal v0.1 · prepared 2026-07-02 · Commandcenter / Steppe Integrations ·
+  status: <b>draft for Derek's review before sending</b> · L0/L1 available immediately; L2 onboarding
+  gated on the A3→A5 validation report · internal codename: <span class="mono">naadam</span>
+</footer>
+
+</div>
+</body>
+</html>

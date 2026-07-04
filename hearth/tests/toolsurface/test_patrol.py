@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 from unittest import TestCase
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from hearth.toolsurface.patrol import patrol
 
@@ -28,7 +28,7 @@ class PatrolTests(TestCase):
              "winner_grade": "B", "winner_files": 205, "n_questions": 0},
         ]
         with patch("subprocess.run", return_value=_completed(stdout=_gather_payload(records, scanned=143))):
-            out = patrol()
+            out = patrol(refresh=False)
         self.assertTrue(out["ok"])
         self.assertEqual(out["scanned"], 143)
         self.assertEqual(out["considered"], 3)
@@ -41,57 +41,125 @@ class PatrolTests(TestCase):
                     "status": "ok", "winner": "x", "promoted": True,
                     "winner_grade": "A", "winner_files": 100, "n_questions": 0}]
         with patch("subprocess.run", return_value=_completed(stdout=_gather_payload(records))):
-            out = patrol()
+            out = patrol(refresh=False)
         self.assertTrue(out["ok"])
         self.assertEqual(out["gaps"], [])
         self.assertEqual(out["summary"]["total"], 0)
 
     def test_ssh_failure_is_a_clean_result(self):
         with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="ssh", timeout=15)):
-            out = patrol()
+            out = patrol(refresh=False)
         self.assertFalse(out["ok"])
         self.assertIn("TimeoutExpired", out["error"])
 
     def test_non_json_gather_output_reported(self):
         with patch("subprocess.run", return_value=_completed(stdout="not json")):
-            out = patrol()
+            out = patrol(refresh=False)
         self.assertFalse(out["ok"])
         self.assertIn("non-JSON", out["error"])
 
-    def test_missing_capacity_file_is_a_silent_noop(self):
-        # Default capacity_path points at knowledge/capacity.json, which does not
-        # exist in this repo yet — patrol must still succeed with zero gaps from
-        # schedule_divergence (no crash, no gap fired without evidence).
+    def test_refresh_false_excludes_refresh_key(self):
         records = [{"plan_id": "pour-ok", "age_s": 9000, "has_result": True,
                     "status": "ok", "winner": "x", "promoted": True,
-                    "winner_grade": "A", "winner_files": 100, "n_questions": 0,
-                    "duration_s": 99999}]
+                    "winner_grade": "A", "winner_files": 100, "n_questions": 0}]
         with patch("subprocess.run", return_value=_completed(stdout=_gather_payload(records))):
-            out = patrol(capacity_path="knowledge/does-not-exist-capacity.json")
+            out = patrol(refresh=False)
         self.assertTrue(out["ok"])
-        self.assertEqual(out["gaps"], [])
+        self.assertNotIn("refresh", out)
 
-    def test_schedule_divergence_surfaces_through_patrol_with_capacity_file(self):
-        import json as _json
-        import tempfile
-        from pathlib import Path
-        from unittest.mock import patch as _patch
+    def test_refresh_true_includes_refresh_section(self):
+        records = [{"plan_id": "pour-ok", "age_s": 9000, "has_result": True,
+                    "status": "ok", "winner": "x", "promoted": True,
+                    "winner_grade": "A", "winner_files": 100, "n_questions": 0}]
 
-        records = [{"plan_id": "js6-e2e", "age_s": 10, "has_result": True,
-                    "status": "ok", "winner": "am4-worker-1", "task_class": "build",
-                    "promoted": True, "winner_grade": "A", "winner_files": 20,
-                    "n_questions": 0, "duration_s": 500}]
-        capacity_doc = {"contract_version": "capacity.v1", "buckets": [
-            {"task_class": "build", "node": "am4-worker-1", "tool": "submit_task",
-             "calls": 5, "duration_ms": {"p90": 1000}},
-        ]}
-        with tempfile.TemporaryDirectory() as tmp:
-            cap_path = Path(tmp) / "capacity.json"
-            cap_path.write_text(_json.dumps(capacity_doc), encoding="utf-8")
-            with _patch("subprocess.run", return_value=_completed(stdout=_gather_payload(records))), \
-                 _patch.dict("os.environ", {"HEARTH_SCOPE": tmp}):
-                out = patrol(capacity_path="capacity.json")
+        mock_capacity_result = {"path": "/tmp/capacity.json", "bucket_count": 5}
+        mock_am4_result = {"models": {"m1": {}, "m2": {}}, "cards": []}
+        mock_hindsight_result = {
+            "ok": True,
+            "report": {"n_runs": 10, "regret": {"mean_regret": 0.05, "max_regret": 0.15}},
+            "table": "table output"
+        }
+
+        with patch("subprocess.run", return_value=_completed(stdout=_gather_payload(records))), \
+             patch("hearth.toolsurface.patrol._project_capacity_knowledge", return_value=mock_capacity_result), \
+             patch("hearth.toolsurface.patrol._gather_am4_catalog", return_value=mock_am4_result), \
+             patch("hearth.toolsurface.patrol._schedule_hindsight", return_value=mock_hindsight_result):
+            out = patrol(refresh=True)
+
         self.assertTrue(out["ok"])
-        kinds = sorted(g["kind"] for g in out["gaps"])
-        self.assertEqual(kinds, ["schedule_divergence"])
-        self.assertEqual(out["gaps"][0]["severity"], "info")
+        self.assertIn("refresh", out)
+        self.assertIn("capacity", out["refresh"])
+        self.assertIn("am4_catalog", out["refresh"])
+        self.assertIn("hindsight", out["refresh"])
+
+        # Verify structure of each refresh result
+        self.assertTrue(out["refresh"]["capacity"]["ok"])
+        self.assertEqual(out["refresh"]["capacity"]["bucket_count"], 5)
+
+        self.assertTrue(out["refresh"]["am4_catalog"]["ok"])
+        self.assertEqual(out["refresh"]["am4_catalog"]["model_count"], 2)
+
+        self.assertTrue(out["refresh"]["hindsight"]["ok"])
+        self.assertEqual(out["refresh"]["hindsight"]["regret"]["n_runs"], 10)
+        self.assertEqual(out["refresh"]["hindsight"]["regret"]["mean_regret"], 0.05)
+
+    def test_refresh_capacity_failure_does_not_break_patrol(self):
+        records = [{"plan_id": "pour-ok", "age_s": 9000, "has_result": True,
+                    "status": "ok", "winner": "x", "promoted": True,
+                    "winner_grade": "A", "winner_files": 100, "n_questions": 0}]
+
+        mock_hindsight_result = {
+            "ok": True,
+            "report": {"n_runs": 0, "regret": {}},
+            "table": ""
+        }
+
+        with patch("subprocess.run", return_value=_completed(stdout=_gather_payload(records))), \
+             patch("hearth.toolsurface.patrol._project_capacity_knowledge", side_effect=ValueError("bad capacity")), \
+             patch("hearth.toolsurface.patrol._gather_am4_catalog", return_value={"models": {}}), \
+             patch("hearth.toolsurface.patrol._schedule_hindsight", return_value=mock_hindsight_result):
+            out = patrol(refresh=True)
+
+        self.assertTrue(out["ok"])
+        self.assertIn("refresh", out)
+        self.assertFalse(out["refresh"]["capacity"]["ok"])
+        self.assertIn("ValueError", out["refresh"]["capacity"]["error"])
+        # Other callees should still be present
+        self.assertIn("am4_catalog", out["refresh"])
+        self.assertIn("hindsight", out["refresh"])
+
+    def test_refresh_all_three_callees_can_fail_independently(self):
+        records = [{"plan_id": "pour-ok", "age_s": 9000, "has_result": True,
+                    "status": "ok", "winner": "x", "promoted": True,
+                    "winner_grade": "A", "winner_files": 100, "n_questions": 0}]
+
+        with patch("subprocess.run", return_value=_completed(stdout=_gather_payload(records))), \
+             patch("hearth.toolsurface.patrol._project_capacity_knowledge", side_effect=RuntimeError("cap error")), \
+             patch("hearth.toolsurface.patrol._gather_am4_catalog", side_effect=RuntimeError("am4 error")), \
+             patch("hearth.toolsurface.patrol._schedule_hindsight", side_effect=RuntimeError("hindsight error")):
+            out = patrol(refresh=True)
+
+        self.assertTrue(out["ok"])
+        self.assertFalse(out["refresh"]["capacity"]["ok"])
+        self.assertFalse(out["refresh"]["am4_catalog"]["ok"])
+        self.assertFalse(out["refresh"]["hindsight"]["ok"])
+        self.assertIn("RuntimeError", out["refresh"]["capacity"]["error"])
+        self.assertIn("RuntimeError", out["refresh"]["am4_catalog"]["error"])
+        self.assertIn("RuntimeError", out["refresh"]["hindsight"]["error"])
+
+    def test_refresh_hindsight_ok_false_returns_error_in_refresh(self):
+        records = [{"plan_id": "pour-ok", "age_s": 9000, "has_result": True,
+                    "status": "ok", "winner": "x", "promoted": True,
+                    "winner_grade": "A", "winner_files": 100, "n_questions": 0}]
+
+        mock_hindsight_failed = {"ok": False, "error": "ssh unreachable"}
+
+        with patch("subprocess.run", return_value=_completed(stdout=_gather_payload(records))), \
+             patch("hearth.toolsurface.patrol._project_capacity_knowledge", return_value={"bucket_count": 0}), \
+             patch("hearth.toolsurface.patrol._gather_am4_catalog", return_value={"models": {}}), \
+             patch("hearth.toolsurface.patrol._schedule_hindsight", return_value=mock_hindsight_failed):
+            out = patrol(refresh=True)
+
+        self.assertTrue(out["ok"])
+        self.assertFalse(out["refresh"]["hindsight"]["ok"])
+        self.assertEqual(out["refresh"]["hindsight"]["error"], "ssh unreachable")

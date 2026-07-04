@@ -1,0 +1,1 @@
+The requested files (hearth/toolsurface/task_lane.py, hearth/tests/toolsurface/test_task_lane.py, and docs/adr/0004-retrospection-is-frontier-assembled.md) were not found in the repository. The hearth directory does not exist in the commandcenter-src checkout. Can you confirm the correct file paths or provide the missing files so I can proceed with the retrospective?

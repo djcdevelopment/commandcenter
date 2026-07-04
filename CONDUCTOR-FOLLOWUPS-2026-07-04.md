@@ -73,48 +73,39 @@ position bias, declared no consensus, and fell back to list order — crowning t
 artifacts and is blind to the agent's exit signal. `build_one` DOES capture `agent_rc` /
 `agent_timed_out` (snapshot line ~230) but `finalize` never uses them to gate the score.
 
-**Fix (immediate, mechanical) — cap a timed-out/nonzero-rc lap's score before the tiebreak** so a
-false tie can't be resolved by list order. In `finalize` (line ~417), right after the assay call:
+**⚠ RETRACTED (2026-07-04) — the naive timeout grade-cap is WRONG. Do NOT apply it.**
+The earlier proposal ("cap any `agent_timed_out`/nonzero-rc lap to 0 before the tiebreak") was
+falsified by the wave-2 evidence gathered the same day. In all five wave-2 pours (d1/e1/f1/ga/gc),
+**cc-builder-1 shows `agent_timed_out=True, agent_rc=-1` yet produced the winning, complete,
+landable code every time** (d1/e1 landed to master green untouched; f1/ga's code landed with
+curated tests). The harness timeout there fired *after* a clean commit — it does not indicate an
+incomplete lap. Capping on it would have demoted the builder that actually delivered and handed
+the win to a lesser lap. `agent_timed_out` is NOT a reliable proxy for deliverable quality:
+- pour-c2: timeout coincided with an INCOMPLETE lap (collector only, missing tests) → should lose.
+- wave-2: timeout coincided with COMPLETE laps (all deliverables, passing tests) → should win.
+Both scored B/70 with passing baseline tests. No timeout/rc/test-count signal separates them.
 
-```python
-        if assay:
-            assay_res=await run_assay(assay[0],assay[1],plan_id,[b[0] for b in builders],
-                                      repo_path=target_meta.get("repo_path"))
-            _cap_incomplete_scores(assay_res, results)      # <-- finding #2, pour-c2
-            winner=assay_res.get("winner")                  # re-read: cap may have moved the top
-            tb=await _tiebreak(plan_id, plan_text, assay_res, repo_path=target_meta.get("repo_path"))
-            ...
-```
+**The only correct fix is stream-scoped acceptance (#2b) — and it lives in the assay layer, not
+`conductor_maf.py`.** The ranking assay (`assay_compare_branches`, on the worker/assay node) must
+check whether each lap produced the stream's REQUIRED deliverables, and gate laps that didn't,
+BEFORE ranking by behavior score. That correctly handles both cases: pour-c2's incomplete lap
+fails acceptance (excluded); wave-2's complete laps pass and rank normally regardless of the
+timeout flag. This needs:
+1. A per-stream way to DECLARE required deliverables — e.g. a CCMETA `requires: [<paths/globs>]`
+   field, or a `## DOD:` manifest block the builder prompt already implies. (The DoD lines in
+   FLEET-WORK-PLAN.html streams are exactly this list, currently unstructured.)
+2. `assay_compare_branches` to verify presence (git ls-tree on each `ccfarm/<plan>/<worker>/lap1`
+   branch) + optionally run stream-declared checks, and mark a lap `acceptance_failed` (score 0 /
+   excluded from the tie) when a required deliverable is absent.
+3. The conductor already surfaces `agent_timed_out` in the observation — keep recording it as
+   METADATA (it's real signal for the belief/economics layers), just don't let it gate the winner.
 
-New helper (near `_tied_top`):
+Design context in `ASSAY-ACCEPTANCE-GAP-2026-07-03.html`. This is its own stream (assay-node
+change + a stream-manifest convention), not a `conductor_maf.py` patch. **Do not ship the timeout
+cap as an interim measure — wave-2 proved it does active harm.**
 
-```python
-def _cap_incomplete_scores(assay_res, build_results):
-    """A lap that timed out or exited nonzero cannot outrank a clean lap. The behavior
-    assay is blind to the agent exit signal; without this a bare, timed-out lap ties a
-    complete one at B/70 and the debiased tiebreak falls to list order (pour-c2 2026-07-03)."""
-    sb=assay_res.get("scoreboard") or []
-    for row in sb:
-        e=build_results.get(row.get("worker")) or {}
-        if e.get("agent_timed_out") or (e.get("agent_rc") not in (0, None)):
-            row["score"]=0
-            row.setdefault("flags",[]).append("capped:agent_incomplete")
-    sb.sort(key=lambda r:(r.get("score") or 0), reverse=True)
-    assay_res["scoreboard"]=sb
-    top=sb[0] if sb else None
-    assay_res["winner"]=top.get("worker") if (top and (top.get("score") or 0)>0) else None
-    # winner=None on an all-capped board -> the existing _promote health-gate refuses (correct).
-```
-
-This composes with the existing promote health-gate (empty/all-zero scoreboard → promote refused,
-snapshot line ~485) and `_tied_top`'s positive-score requirement.
-
-**Fix (deeper, follow-on) — stream-scoped acceptance checks (#2b).** The grade-cap stops the
-timeout exploit but does NOT catch a lap that runs to completion yet omits required deliverables
-(cc-builder-2's collector was complete-but-wrong). The design for a per-stream acceptance assay
-(required-file presence + stream-declared checks, run as an acceptance gate *before* the ranking
-assay) is in `ASSAY-ACCEPTANCE-GAP-2026-07-03.html`. That is a larger change and its own stream —
-track it separately; the grade-cap above is the immediate guard.
+Evidence for this retraction is preserved in `runs/regression-probe-ccb1/PROVENANCE.md` (why the
+wave-2 build observations were withheld from the belief layer for the same reason).
 
 ---
 
@@ -167,9 +158,17 @@ on Derek's cue, ideally after patch #2 lands so wave-2 laps get the timeout/acce
 
 ---
 
-### Status at time of writing (2026-07-04)
-- Suite 177/177 green; master @ `13ba046`; belief store: 18 findings (1 regression, 1 quarantine),
-  1 block, 3 exploratory_only.
-- **G2: now OPEN** (this session — see `POUR-STATUS.md` "Landing: G2" + `runs/g2-validation/`).
-- Items 1-2 = code patches above (conductor). Item 3 = ready-to-file inbox item. Item 4 = blocked
-  (claudefarm1) / on-cue (wave-2).
+### Status — updated 2026-07-04 (post wave-2 curation)
+- **Item 1 (allow-list overrides exclusion): APPLIED + LIVE on the conductor** (`63935ee`, service
+  restarted, clean). cc-builder-4's mixtral debut can now be opted in per-run.
+- **Item 2 (assay grade-cap): RETRACTED — do not apply.** Wave-2 proved the timeout cap does active
+  harm. The correct fix is stream-scoped acceptance in the assay layer (see the retraction above).
+- **Item 3 (regression retest): DONE.** Filed, ran clean, and the quarantine was LIFTED via
+  re-projection (`master` @ `f256d38`, this repo). cc-builder-2 upgraded to known_good as a bonus.
+- **Item 4:** wave-2 D1/E1/F1/Ga/Gc were dispatched, curated, and LANDED to master (suite 177→264);
+  belief-layer fold-in of their build observations deliberately withheld (poisoning risk — see
+  `runs/regression-probe-ccb1/PROVENANCE.md`). Capability re-earn (G3) still blocked on claudefarm1.
+- **G2: OPEN** (`runs/g2-validation/`).
+- **claudefarm1:** diagnosed — golden VM renamed to Hyper-V `cc-worker-1`, powered on but
+  unreachable on the current NAT gen (see `fleet/inventory.toml`). Recovery is a VMConnect/guest
+  fix. Re-homing `omen-worker-1`'s shell off claudefarm1 remains a worthwhile resilience follow-up.

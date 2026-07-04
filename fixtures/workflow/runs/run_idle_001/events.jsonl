@@ -1,0 +1,2 @@
+{"event_type": "idle.observed", "timestamp": "2026-07-02T06:55:00Z", "source": "scheduler", "node_id": "node-001", "payload": {"node_id": "node-001", "source": "scheduler", "observed_at": "2026-07-02T06:55:00Z"}}
+{"event_type": "idle.ended", "timestamp": "2026-07-02T06:55:30Z", "source": "scheduler", "node_id": "node-001", "payload": {"node_id": "node-001", "source": "scheduler", "observed_at": "2026-07-02T06:55:30Z"}}

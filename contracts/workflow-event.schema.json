@@ -1,248 +1,74 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://commandcenter.local/contracts/workflow-event.schema.json",
   "title": "Workflow Event",
+  "description": "A record of a system-level event in the commandcenter workflow.",
   "type": "object",
-  "additionalProperties": false,
-  "required": [
-    "event_id",
-    "event_type",
-    "timestamp",
-    "workflow_id",
-    "run_id",
-    "actor",
-    "status",
-    "payload"
-  ],
+  "required": ["event_type", "timestamp", "source"],
   "properties": {
-    "event_id": {
-      "type": "string",
-      "minLength": 1
-    },
     "event_type": {
       "type": "string",
       "enum": [
         "work.accepted",
-        "planning.started",
-        "planning.completed",
-        "backlog.entry_created",
+        "work.rejected",
+        "work.completed",
+        "work.failed",
+        "work.cancelled",
         "builder.assigned",
-        "builder.grooming_started",
-        "builder.grooming_completed",
-        "question.raised",
-        "question.answered",
-        "builder.resumed",
-        "candidate.produced",
-        "assay.started",
-        "assay.passed",
-        "assay.failed",
-        "risk.scored",
+        "builder.unassigned",
+        "builder.completed",
+        "builder.failed",
         "promotion.held",
-        "promotion.approved",
         "promotion.rejected",
-        "retrospective.created"
+        "scheduler.decision",
+        "scheduler.acknowledged",
+        "scheduler.failed",
+        "scheduler.rejected",
+        "capacity.observed",
+        "capacity.estimated",
+        "experiment.plan",
+        "experiment.started",
+        "experiment.completed",
+        "experiment.failed",
+        "experiment.cancelled",
+        "finding.generated",
+        "finding.verified",
+        "finding.rejected",
+        "finding.archived",
+        "policy.applied",
+        "policy.rejected",
+        "policy.overridden",
+        "policy.updated",
+        "capability.registered",
+        "capability.updated",
+        "capability.removed",
+        "association.created",
+        "association.updated",
+        "association.removed",
+        "coverage.updated",
+        "coverage.rejected",
+        "coverage.verified",
+        "experiment.result",
+        "experiment.candidate",
+        "experiment.scheduled",
+        "experiment.terminated",
+        "idle.observed",
+        "idle.ended"
       ]
     },
     "timestamp": {
       "type": "string",
       "format": "date-time"
     },
-    "workflow_id": {
-      "type": "string",
-      "minLength": 1
+    "source": {
+      "type": "string"
     },
-    "run_id": {
-      "type": "string",
-      "minLength": 1
-    },
-    "parent_run_id": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "lap_id": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "segment_id": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "question_id": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "candidate_id": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "assay_id": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "risk_report_id": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "promotion_id": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "retrospective_id": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "decision_id": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "decision_type": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "decision_class": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "enum": [
-        null,
-        "builder_assignment",
-        "question_answer",
-        "promotion_hold",
-        "promotion_approval",
-        "promotion_rejection",
-        "operator_override",
-        "workflow_cancel",
-        "risk_acceptance"
-      ]
-    },
-    "decision_maker": {
-      "type": [
-        "object",
-        "null"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "type": {
-          "type": "string"
-        },
-        "id": {
-          "type": "string"
-        }
-      }
-    },
-    "decision_reason": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "actor": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "type",
-        "id"
-      ],
-      "properties": {
-        "type": {
-          "type": "string",
-          "enum": [
-            "system",
-            "planner",
-            "builder",
-            "operator",
-            "assay",
-            "promoter"
-          ]
-        },
-        "id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "model_id": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      }
-    },
-    "artifact_refs": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "artifact_id",
-          "artifact_type",
-          "path"
-        ],
-        "properties": {
-          "artifact_id": {
-            "type": "string",
-            "minLength": 1
-          },
-          "artifact_type": {
-            "type": "string",
-            "minLength": 1
-          },
-          "path": {
-            "type": "string",
-            "minLength": 1
-          }
-        }
-      }
-    },
-    "trace": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "trace_id": {
-          "type": "string"
-        },
-        "span_id": {
-          "type": "string"
-        }
-      }
-    },
-    "operator_action_required": {
-      "type": "boolean"
-    },
-    "status": {
-      "type": "string",
-      "minLength": 1
-    },
-    "outcome": {
-      "type": [
-        "string",
-        "null"
-      ]
+    "node_id": {
+      "type": "string"
     },
     "payload": {
-      "type": "object"
+      "type": "object",
+      "additionalProperties": true
     }
-  }
+  },
+  "additionalProperties": false
 }

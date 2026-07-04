@@ -328,6 +328,7 @@ def _belief_snapshot(findings: list[dict], subject: dict) -> dict | None:
         "finding_id": finding["finding_id"],
         "finding_type": finding["finding_type"],
         "confidence": finding["confidence"],
+        "confidence_score": finding.get("confidence_score"),
         "statement": finding["statement"],
         "evidence_summary": finding["evidence"]["summary"],
     }

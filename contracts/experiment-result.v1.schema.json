@@ -145,6 +145,10 @@
         "confidence": {
           "type": "string"
         },
+        "confidence_score": {
+          "type": ["number", "null"],
+          "description": "Numeric confidence score from the finding (0.0–1.0). Nullable: absent in older snapshots and when the finding has no score."
+        },
         "statement": {
           "type": "string"
         },
@@ -169,6 +173,10 @@
         },
         "confidence": {
           "type": "string"
+        },
+        "confidence_score": {
+          "type": ["number", "null"],
+          "description": "Numeric confidence score from the finding (0.0–1.0). Nullable: absent in older snapshots and when the finding has no score."
         },
         "statement": {
           "type": "string"

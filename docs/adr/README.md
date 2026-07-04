@@ -15,6 +15,7 @@ record with its status changed and a pointer to the ADR that replaced it.
 | [0004](0004-retrospection-is-frontier-assembled.md) | Retrospection is frontier-assembled; the fleet drafts, it does not author | Accepted (2026-07-04) |
 | [0005](0005-one-boundary-three-planes.md) | One boundary, three planes: every offload crossing goes through HEARTH | Accepted (2026-07-04) |
 | [0006](0006-idle-drain-arming-policy.md) | Unattended autonomy is an authored, suspendable toggle, earned by a supervised cycle | Accepted (2026-07-04) |
+| [0007](0007-watchfire-coherence-watching-and-auto-heal.md) | The guard dog watches coherence, and auto-heals the obvious | Accepted (2026-07-04) |
 
 ## Historical note
 The "ADR-0001" referenced in `SESSION-RETRO-2026-06-29.md` (which orchestrator is

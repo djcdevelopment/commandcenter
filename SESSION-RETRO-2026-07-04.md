@@ -322,3 +322,101 @@ but the stall itself was this bug. Both requests were re-fed through the fixed l
 `hearth-retro-2026-07-04-r2-36f26f8d` and `hearth-occupancy-risks-r2-c140665f` (the fix visibly pads
 dispatch with a second builder). Phantom-busy from crashed runs was itself flagged in P2's recon as
 the #1 false-busy trap — it caught our own dispatches.
+
+---
+
+# Session Retro — 2026-07-04 (addendum 3 · the fan-out fix → the guard dog learns to see)
+
+> One-line: a question about a stuck board became a **root-caused fan-out crash fixed live**, which
+> became **Watchfire** — a coherence-watching sense that turns the fleet's own lies into signal, built
+> rules-first as Slice 0 (`preflight` + `remediate`) and **wired into the watchdog so it now patrols
+> and self-heals the obvious autonomously.** The through-line, a fourth time today: *the fleet's
+> signals don't mean what they look like* — so we taught the guard dog to notice when they disagree.
+
+## What this session was
+
+A diagnose-then-build session that started from one blunt operator question — *"are the jobs actually
+running? I see them entering the board but not moving"* — and ended with the mechnet watchdog patrolling
+for **incoherence**, not just death. Heavy SSH into the conductor, three gateway reloads, and a design
+shaped almost entirely in conversation (Derek intuiting, Claude instrumenting).
+
+## What shipped (`8c0a75a` → `b75f28a`, this session's commits only)
+
+| Commit | What |
+|---|---|
+| `e287059` | **fix** — `submit_task` pads to the conductor fan-out minimum (≥2 local builders). The bug that made every single-builder HEARTH job crash on dispatch. Pushed. |
+| `2384934` | **WATCHFIRE-FLARE-DESIGN** v0.2 (→ v0.3) — NPU charm for the guard dog; one engine, two sensitivities; SVG diagram |
+| `c3495d0` | **Slice 0 · preflight** — `hearth/health/gaps.py` (the spellbook) + `hearth.preflight` coherence gap-detector (pure observer) |
+| `82f4e35` | **Slice 0 · remediate** — the first *healing* spell: auto-heals obvious+reversible gaps, flags ambiguous; + a fix so a heal *resolves* a gap, never relabels it |
+| `b75f28a` | **watchdog patrols coherence** — `remediate` on every 15-min tick; Watchfire goes autonomous |
+
+New durable artifacts: `WATCHFIRE-FLARE-DESIGN-2026-07-04.html`, `hearth/health/`,
+`hearth/toolsurface/{preflight,remediate}.py`, `docs/adr/0007`. ~28 new tests; hearth suite 196 green,
+fleet 55 green. *(Concurrent other-thread commits `a353c09`/`a3dc3a9`/`a2a310b` are explicitly excluded.)*
+
+## The team retro — our collaboration across the seats
+
+*(Role-read first-passes drafted by qwen3-coder:30b via HEARTH `local_generate` — 16s — then edited
+against the factsheet.)*
+
+- **Architect** — The strongest call was structural, and it was Derek's: *don't build a new watcher —
+  hand the guard dog we already have (`mechnet_watchdog`) a charm.* That collapsed a whole "new system"
+  into "new spells on P4," and reframed the goal precisely — from *liveness* (is it down?) to
+  *coherence* (do the sources agree?). Every failure today was a coherence gap no single view caught.
+  What to watch: the auto-heal/flag-only boundary is a policy the code *describes* but can't *prove* —
+  discipline lives in `AUTO_HEAL_KINDS`.
+- **Implementer** — Low rework, high leverage. The fan-out fix was small and surgical; Slice 0 was a
+  clean pure-rules core (`gaps.py`) behind an SSH-gathering tool, which made everything unit-testable
+  without a network. The code fought us exactly once, and it was instructive (see QA).
+- **Reviewer / QA** — Two real defects, both caught by *running the thing live*, not by tests: (1) the
+  original fan-out crash slipped through because the P3 tests mocked the conductor and never exercised
+  the real fan-out; (2) my own detector re-flagged the runs it had just healed (a heal-stub is still a
+  stub) — caught seconds after the first live heal, fixed so a heal resolves. Lesson: mock-only tests
+  hide integration truth, and *dogfooding on live state is the real test.* 28 new tests lock the fixes.
+- **Operator / SRE** — This is the seat that changed most. The watchdog now does two things per tick —
+  revive down services (liveness) *and* auto-heal phantom runs (coherence) — with liveness kept as the
+  health gate so a coherence-sweep failure never fails the patrol. Three gateway reloads to ship live
+  tools; the scheduled `MechnetWatchdog` task verified registered and firing. Every heal is reversible
+  (delete the stub) and ledgered.
+- **Product / planning** — Right thing, and it compounded. We didn't set out to build a self-healing
+  sense; we set out to answer "are the jobs running?" — and each honest answer opened the next brick
+  (crash → fix → why-did-nothing-warn-us → a sense that warns). Scope stayed disciplined (rules-first,
+  NPU deferred until there are labeled reps) and pacing was Derek's throughout.
+
+## Two seats, two views
+
+**From Claude's seat.** The satisfying part was that the diagnosis *became* the design: the four false
+signals (in-flight-but-crashed, B/70-but-empty, ran-but-stale, busy-but-idle) are literally the gap
+kinds `gaps.py` now checks. Where I had to stay honest: the `stale_checkout` and false-B/70 findings
+were tempting to auto-fix, but they're ambiguous — I kept them flag-only, which is the whole point.
+What I'd want next: the "fans digitized" spell (AM4 GPU-util vs a running claim) isn't built yet, and
+it's the one that most directly encodes Derek's own instrument.
+
+**From Derek's seat** *(my reconstruction — correct me).* You heard the fans stay quiet while the board
+claimed work, and trusted the fans — that mechanical-sympathy read is the seed of the entire design,
+and you said it felt like a gift a remote dashboard can't give. You'd want the obvious decisions made
+*for* you (it's a research lab; act, document, undo), the ambiguous ones left as eyes not authority,
+and the whole thing to ride the guard dog you already trust rather than a new daemon. You paced every
+commit and never let scope run.
+
+## Lessons learned
+
+1. **Single-builder `submit_task` crashes the conductor fan-out; the task lane must dispatch ≥2.** The
+   HEARTH pad is the stopgap; the clean fix (conductor single-builder → direct-assign) is a deferred
+   follow-up. → git `e287059` + open follow-up (not yet an ADR — decision not yet made).
+2. **Mock-only tests hid a live-integration crash.** The P3 suite passed while the lane was broken in
+   production. Dogfooding on live state is the real acceptance test. → practice note (this retro).
+3. **The guard dog should watch coherence, not just liveness** — every failure today was a
+   claim-vs-truth gap. → **ADR-0007**.
+4. **Auto-heal the obvious + reversible, flag the ambiguous, document everything** (research-lab
+   policy). A heal must *resolve* a gap, never relabel it. → **ADR-0007**.
+5. **A healing tool can manufacture the gap it closes** — validate remediation against the *next* scan,
+   not just the action. → codified in `gaps.py` + tests.
+
+## Provenance
+
+Git range `8c0a75a`→`b75f28a` (this session; concurrent `a353c09`/`a3dc3a9`/`a2a310b` excluded).
+Offloaded: the five role-read first-passes (`local_generate`, qwen3-coder:30b, edited after). Frontier:
+factsheet, all repo writes, ADR-0007, this section, every diagnosis and fix. `--fleet` not re-run here
+(the earlier fleet draft is blocked on stale `~/commandcenter-src`, a separate thread). Derek's-seat
+section is a reconstruction. 4 commits unpushed at write time.

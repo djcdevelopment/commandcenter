@@ -312,3 +312,13 @@ across the session. Fleet second opinion: `--fleet` dispatched as plan
 `hearth-retro-2026-07-04-a2c55db0` (am4-worker-1; check `task_status` later — B70s were under real
 load at dispatch time). Frontier: factsheet, all repo writes, ADR wording, both seat views; Derek's
 seat is a reconstruction. Builds credited above were Sonnet-agent work against frontier briefs.
+
+**Correction (same evening).** The P3 acceptance stall and the `--fleet` retro dispatch were NOT
+slow-grinding under B70 load — both had crashed the conductor's fan-out (`FanOutEdgeGroup` requires
+≥2 targets; single-builder `submit_task` was incompatible). Another session fixed the task lane
+(`e287059`) and wrote stub results to clear the phantom in-flight state. Lesson 7 above is therefore
+half-right: the occupancy probe's busy reading was real (llama-server did hold both render nodes),
+but the stall itself was this bug. Both requests were re-fed through the fixed lane:
+`hearth-retro-2026-07-04-r2-36f26f8d` and `hearth-occupancy-risks-r2-c140665f` (the fix visibly pads
+dispatch with a second builder). Phantom-busy from crashed runs was itself flagged in P2's recon as
+the #1 false-busy trap — it caught our own dispatches.

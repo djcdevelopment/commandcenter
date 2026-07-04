@@ -12,6 +12,7 @@ all resolve inside the sandbox.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from datetime import datetime, timezone
@@ -29,6 +30,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from tools.workflow.append_event import append_event  # noqa: E402
+from tools.workflow.corpus import Corpus  # noqa: E402
 from tools.workflow.corpus_guard import check_fixture_taint  # noqa: E402
 from tools.workflow.project_associations import materialize_associations  # noqa: E402
 from tools.workflow.project_capacity import collect_event_files, materialize_knowledge  # noqa: E402
@@ -65,6 +67,69 @@ def _summarize(document: dict) -> dict:
     return summary
 
 
+def _aggregate_corpus(source_paths: list[Path]) -> Corpus:
+    """Build one Corpus over every resolved source root (files or dirs).
+
+    `sources` may name several roots (default is just ["runs"], but callers can pass
+    more). Corpus.enumerate operates on a single root, so aggregate: union the event
+    files, sum event counts, take the max watermark, and fold every root's digest
+    input together (sorted, so order of `sources` doesn't matter) into one combined
+    corpus_digest — this is the fingerprint of "everything project() actually read".
+    """
+    per_root = [Corpus.enumerate(path) for path in source_paths]
+    all_event_files = tuple(sorted(
+        {f for corpus in per_root for f in corpus.event_files},
+        key=lambda p: p.as_posix(),
+    ))
+    total_events = sum(corpus.event_count for corpus in per_root)
+    watermark = None
+    for corpus in per_root:
+        if corpus.watermark is not None and (watermark is None or corpus.watermark > watermark):
+            watermark = corpus.watermark
+
+    # Combine per-root digests deterministically. Absolute root paths must NOT enter
+    # the hash (they vary per checkout/sandbox and would break digest stability over
+    # identical content); each per-root digest is already content-shaped, so the sorted
+    # set of digests is a stable fingerprint regardless of `sources` order or mount point.
+    # A single root passes through unchanged, so it matches Corpus.enumerate exactly.
+    if len(per_root) == 1:
+        combined_digest = per_root[0].corpus_digest
+    else:
+        hasher = hashlib.sha256()
+        for digest in sorted(corpus.corpus_digest for corpus in per_root):
+            hasher.update(f"{digest}\n".encode("utf-8"))
+        combined_digest = f"sha256:{hasher.hexdigest()}"
+
+    return Corpus(
+        root=source_paths[0] if len(source_paths) == 1 else Path(""),
+        event_files=all_event_files,
+        event_count=total_events,
+        watermark=watermark,
+        corpus_digest=combined_digest,
+    )
+
+
+def _restamp_written_file(path: Path, corpus: Corpus) -> None:
+    """Re-write an already-materialized knowledge file with the two additive corpus keys.
+
+    materialize_* functions (tools/workflow/project_*.py) build their own output dict
+    and write it themselves (via guard_write or a bare write_text) before returning —
+    their public signatures are out of scope for this change (plan step 4, task 2/3).
+    The least invasive injection point is therefore here, one level up: read back what
+    was just written, add corpus_digest/corpus_event_count, and rewrite. Only these two
+    keys change, so this never re-triggers (or needs to re-satisfy) corpus_guard's
+    regression check — the guarded write already happened with the real content.
+    """
+    if not path.is_file():
+        return
+    document = json.loads(path.read_text(encoding="utf-8-sig"))
+    if not isinstance(document, dict):
+        return
+    document["corpus_digest"] = corpus.corpus_digest
+    document["corpus_event_count"] = corpus.event_count
+    path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+
+
 def record_event(event: dict, events_path: str = DEFAULT_EVENTS_PATH) -> dict:
     """Validate a workflow event and append it to a sandboxed events.jsonl ledger."""
     if not isinstance(event, dict):
@@ -99,6 +164,11 @@ def project(kinds: list[str] | None = None, sources: list[str] | None = None,
     # Same guard the projector CLIs run: fixture sources must not pour into repo knowledge/.
     check_fixture_taint(source_paths + event_files, out_dir, allow=allow_fixture_sources)
 
+    # Canonical corpus fingerprint for THIS run — same source roots the projectors below
+    # actually read. Stamped into every materialized doc so a doc's own provenance can be
+    # checked against the corpus that produced it (CQRS-ES-STANDARDIZATION.md step 4).
+    corpus = _aggregate_corpus(source_paths)
+
     # policy projects FROM findings.json, not from events — keep dependency order.
     ordered = [kind for kind in _PROJECTION_KINDS if kind in requested]
     runners = {
@@ -109,6 +179,17 @@ def project(kinds: list[str] | None = None, sources: list[str] | None = None,
         "experiments": lambda: materialize_experiments(event_files, out_dir),
         "policy": lambda: materialize_policy(out_dir / "findings.json", out_dir),
     }
+    # Every knowledge file a given kind may write — restamped with corpus provenance
+    # after the kind's own (guarded) write already landed the real content.
+    written_files = {
+        "capacity": ("capacity_estimates.json", "known_good_models.json",
+                     "known_bad_models.json", "prediction_accuracy.json"),
+        "findings": ("findings.json",),
+        "associations": ("associations.json", "capabilities.json"),
+        "coverage": ("coverage.json",),
+        "experiments": ("experiment_candidates.json", "experiment_results.json"),
+        "policy": ("policy.json",),
+    }
 
     results: dict[str, dict] = {}
     for kind in ordered:
@@ -117,6 +198,8 @@ def project(kinds: list[str] | None = None, sources: list[str] | None = None,
         except Exception as exc:  # guard refusals and projector faults both belong in the digest
             results[kind] = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
             continue
+        for file_name in written_files.get(kind, ()):
+            _restamp_written_file(out_dir / file_name, corpus)
         if kind in ("capacity", "associations", "experiments"):
             summary = {name: _summarize(doc) for name, doc in output.items()}
         elif kind == "policy":
@@ -128,6 +211,8 @@ def project(kinds: list[str] | None = None, sources: list[str] | None = None,
     return {
         "out": str(out_dir),
         "event_files": len(event_files),
+        "corpus_digest": corpus.corpus_digest,
+        "corpus_event_count": corpus.event_count,
         "kinds": results,
         "ok": all(entry["ok"] for entry in results.values()),
     }

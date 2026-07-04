@@ -183,3 +183,54 @@ class CapacityKnowledgeTests(KnowledgeScopedTestCase):
     def test_ledger_path_outside_scope_rejected(self) -> None:
         with self.assertRaises(ValueError):
             project_capacity_knowledge(ledger_path="../escape.ndjson")
+
+
+class CorpusProvenanceTests(KnowledgeScopedTestCase):
+    """CQRS/ES step 4: every materialized doc is stamped with the corpus that produced it."""
+
+    def test_project_docs_carry_corpus_digest_and_event_count(self) -> None:
+        result = project(kinds=["capacity", "findings"])
+        self.assertTrue(result["ok"], result)
+        self.assertTrue(result["corpus_digest"].startswith("sha256:"))
+        self.assertGreater(result["corpus_event_count"], 0)
+
+        for file_name in ("capacity_estimates.json", "findings.json",
+                          "known_good_models.json", "prediction_accuracy.json"):
+            document = json.loads(
+                (self.scope / "knowledge" / file_name).read_text(encoding="utf-8-sig"))
+            self.assertEqual(document["corpus_digest"], result["corpus_digest"], file_name)
+            self.assertEqual(document["corpus_event_count"], result["corpus_event_count"], file_name)
+
+    def test_rerun_over_identical_corpus_yields_identical_digest(self) -> None:
+        first = project(kinds=["capacity"])
+        second = project(kinds=["capacity"])
+        self.assertTrue(first["ok"] and second["ok"])
+        self.assertEqual(first["corpus_digest"], second["corpus_digest"])
+        self.assertEqual(first["corpus_event_count"], second["corpus_event_count"])
+
+        document = json.loads(
+            (self.scope / "knowledge" / "capacity_estimates.json").read_text(encoding="utf-8-sig"))
+        self.assertEqual(document["corpus_digest"], first["corpus_digest"])
+
+    def test_capacity_json_carries_ledger_corpus_provenance(self) -> None:
+        ledger = self.scope / "hearth" / "var" / "ledger" / "events.ndjson"
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        events = [
+            {"ts": "2026-07-04T00:00:00+00:00", "tool": "run_tests", "ok": True,
+             "duration_ms": 1000, "caller": {"node": "omen"}},
+            {"ts": "2026-07-04T00:01:00+00:00", "tool": "run_tests", "ok": True,
+             "duration_ms": 1200, "caller": {"node": "omen"}},
+        ]
+        with ledger.open("w", encoding="utf-8", newline="\n") as handle:
+            for event in events:
+                handle.write(json.dumps(event) + "\n")
+
+        project_capacity_knowledge(ledger_path="hearth/var/ledger/events.ndjson")
+        content = query_capacity()["content"]
+        self.assertEqual(content["corpus_event_count"], 2)
+        self.assertTrue(content["corpus_digest"].startswith("sha256:"))
+
+        # identical ledger -> identical digest on re-projection
+        digest_before = content["corpus_digest"]
+        project_capacity_knowledge(ledger_path="hearth/var/ledger/events.ndjson")
+        self.assertEqual(query_capacity()["content"]["corpus_digest"], digest_before)

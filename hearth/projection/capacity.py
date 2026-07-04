@@ -13,6 +13,7 @@ somewhere. Malformed lines are skipped and counted, never raised.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -69,11 +70,13 @@ def build_capacity_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
     """
     accumulators: dict[BucketKey, dict] = {}
     newest_ts: str | None = None
+    line_count = 0
 
     if ledger_path.exists():
         for raw_line in ledger_path.read_text(encoding="utf-8").splitlines():
             if not raw_line.strip():
                 continue
+            line_count += 1
             try:
                 event = json.loads(raw_line)
             except json.JSONDecodeError:
@@ -138,10 +141,21 @@ def build_capacity_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
         b["runner_class"] or "", b["tool"],
     ))
 
+    # Corpus provenance (CQRS-ES-STANDARDIZATION.md step 4): this ledger is a single
+    # file, not a tree, so there is no per-file (relpath, line_count) set to hash the
+    # way tools/workflow/corpus.py's Corpus.enumerate does for event-file trees. Kept
+    # in the same spirit (content-shaped, not mtime/size-based) but simplified to the
+    # single quantity that matters for one file: its non-blank line count. Scheme:
+    # sha256("events.ndjson:<line_count>") — deterministic, changes iff the ledger's
+    # event count changes, stable across checkouts/clones of identical content.
+    corpus_digest = f"sha256:{hashlib.sha256(f'events.ndjson:{line_count}'.encode('utf-8')).hexdigest()}"
+
     return {
         "contract_version": "capacity.v1",
         "evidence_watermark": newest_ts,
         "buckets": buckets,
+        "corpus_digest": corpus_digest,
+        "corpus_event_count": line_count,
     }
 
 

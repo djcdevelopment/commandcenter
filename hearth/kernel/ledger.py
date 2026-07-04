@@ -237,6 +237,21 @@ class Ledger:
             if "model" not in existing:
                 conn.execute("ALTER TABLE events ADD COLUMN model TEXT")
 
+    @staticmethod
+    def _insert_event_row(conn: sqlite3.Connection, event: dict, offset: int, length: int) -> None:
+        """The one INSERT statement used by both `append` and `reindex`, so the
+        two paths can never drift apart on which columns are written."""
+        conn.execute(
+            "INSERT INTO events (event_id, ts, caller_id, runner_class, tool,"
+            " ok, duration_ms, offset, length, task_class, model)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (event["event_id"], event["ts"], event["caller"]["id"],
+             event["caller"]["runner_class"], event["tool"],
+             1 if event["ok"] else 0, float(event["duration_ms"]),
+             offset, length,
+             event.get("task_class"), event.get("model")),
+        )
+
     def append(self, event: dict) -> str:
         """Validate `event` against hearth-event.v1, append one NDJSON line, and
         index it. Returns the event_id."""
@@ -247,17 +262,130 @@ class Ledger:
             with self.events_path.open("ab") as fh:
                 fh.write(line)
             with self._index() as conn:
-                conn.execute(
-                    "INSERT INTO events (event_id, ts, caller_id, runner_class, tool,"
-                    " ok, duration_ms, offset, length, task_class, model)"
-                    " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                    (event["event_id"], event["ts"], event["caller"]["id"],
-                     event["caller"]["runner_class"], event["tool"],
-                     1 if event["ok"] else 0, float(event["duration_ms"]),
-                     offset, len(line),
-                     event.get("task_class"), event.get("model")),
-                )
+                self._insert_event_row(conn, event, offset, len(line))
         return event["event_id"]
+
+    def reindex(self) -> int:
+        """Rebuild index.sqlite from events.ndjson (the source of truth).
+
+        Drops and recreates the events table, then streams the NDJSON file in
+        binary mode (byte offsets, not char offsets), re-inserting one row per
+        line via the exact same INSERT as `append`. A truncated final line
+        (one that fails to parse as JSON or fails schema validation, and is
+        not newline-terminated) is treated as an in-progress write that was
+        never fully flushed and is skipped with a warning; a torn line
+        anywhere else in the file is corruption and raises
+        LedgerValidationError. Returns the number of events reindexed.
+        """
+        with self._lock:
+            with self._index() as conn:
+                conn.execute("DROP TABLE IF EXISTS events")
+            self._init_index()
+
+            if not self.events_path.exists():
+                return 0
+
+            with self.events_path.open("rb") as fh:
+                raw = fh.read()
+
+            lines = raw.splitlines(keepends=True)
+            count = 0
+            offset = 0
+            with self._index() as conn:
+                for i, raw_line in enumerate(lines):
+                    length = len(raw_line)
+                    is_last = i == len(lines) - 1
+                    stripped = raw_line.strip()
+                    if not stripped:
+                        offset += length
+                        continue
+
+                    def _torn_line_error(exc: Exception) -> LedgerValidationError:
+                        return LedgerValidationError(
+                            f"reindex: corrupt line {i} at offset {offset} "
+                            f"(not the last line, does not parse/validate): {exc}"
+                        )
+
+                    try:
+                        event = json.loads(raw_line.decode("utf-8"))
+                        validate_event(event)
+                    except (json.JSONDecodeError, UnicodeDecodeError,
+                            LedgerValidationError) as exc:
+                        if is_last and not raw_line.endswith(b"\n"):
+                            print(
+                                f"reindex: skipping truncated final line "
+                                f"({length} bytes): {exc}"
+                            )
+                            offset += length
+                            continue
+                        raise _torn_line_error(exc) from exc
+
+                    self._insert_event_row(conn, event, offset, length)
+                    count += 1
+                    offset += length
+            return count
+
+    def verify(self) -> dict:
+        """Read-only consistency check between index.sqlite and events.ndjson.
+
+        Returns {ok, index_rows, ndjson_lines, mismatches}. `ndjson_lines` is
+        the count of non-blank lines in the NDJSON file. A mismatch is
+        recorded when an indexed (offset, length) slice does not parse as
+        JSON, or parses but its event_id disagrees with the index row.
+        Performs no mutation of either store.
+        """
+        mismatches: list[dict] = []
+
+        ndjson_lines = 0
+        if self.events_path.exists():
+            with self.events_path.open("rb") as fh:
+                for raw_line in fh:
+                    if raw_line.strip():
+                        ndjson_lines += 1
+
+        with self._index() as conn:
+            rows = conn.execute("SELECT event_id, offset, length FROM events").fetchall()
+        index_rows = len(rows)
+
+        if rows and self.events_path.exists():
+            with self.events_path.open("rb") as fh:
+                for event_id, offset, length in rows:
+                    fh.seek(offset)
+                    raw = fh.read(length)
+                    try:
+                        event = json.loads(raw.decode("utf-8"))
+                    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                        mismatches.append({
+                            "event_id": event_id,
+                            "offset": offset,
+                            "length": length,
+                            "reason": f"slice does not parse as JSON: {exc}",
+                        })
+                        continue
+                    if event.get("event_id") != event_id:
+                        mismatches.append({
+                            "event_id": event_id,
+                            "offset": offset,
+                            "length": length,
+                            "reason": f"event_id mismatch: index={event_id} "
+                                      f"ndjson={event.get('event_id')}",
+                        })
+        elif rows and not self.events_path.exists():
+            for event_id, offset, length in rows:
+                mismatches.append({
+                    "event_id": event_id,
+                    "offset": offset,
+                    "length": length,
+                    "reason": "events.ndjson does not exist",
+                })
+
+        ok = (index_rows == ndjson_lines) and not mismatches
+        return {
+            "ok": ok,
+            "index_rows": index_rows,
+            "ndjson_lines": ndjson_lines,
+            "mismatches": mismatches,
+        }
 
     def query(self, caller: Optional[str] = None, tool: Optional[str] = None,
               since: Optional[str] = None, ok: Optional[bool] = None) -> list[dict]:
@@ -293,3 +421,44 @@ class Ledger:
                 fh.seek(offset)
                 events.append(json.loads(fh.read(length).decode("utf-8")))
         return events
+
+
+def _cli(argv: Optional[list[str]] = None) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="python -m hearth.kernel.ledger",
+        description="Rebuild or verify the HEARTH kernel event-ledger sqlite index "
+                     "from events.ndjson (the source of truth). Respects HEARTH_ROOT.",
+    )
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--reindex", action="store_true",
+                        help="Rebuild index.sqlite from events.ndjson.")
+    group.add_argument("--verify", action="store_true",
+                        help="Read-only check that index.sqlite matches events.ndjson.")
+    args = parser.parse_args(argv)
+
+    ledger = Ledger()
+    print(f"ledger dir: {ledger.dir}")
+
+    if args.reindex:
+        count = ledger.reindex()
+        print(f"reindex: OK, {count} event(s) reindexed")
+        return 0
+
+    result = ledger.verify()
+    if result["ok"]:
+        print(f"verify: OK, {result['index_rows']} indexed row(s) match "
+              f"{result['ndjson_lines']} ndjson line(s)")
+        return 0
+    print(f"verify: FAILED, index_rows={result['index_rows']} "
+          f"ndjson_lines={result['ndjson_lines']} "
+          f"mismatches={len(result['mismatches'])}")
+    for mismatch in result["mismatches"]:
+        print(f"  - {mismatch}")
+    return 1
+
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(_cli())

@@ -1,8 +1,8 @@
 {
   "contract_version": "prediction-accuracy.v1",
   "decision_count": 0,
-  "observation_count": 21,
-  "comparison_count": 21,
+  "observation_count": 23,
+  "comparison_count": 23,
   "unresolved_decision_refs": 0,
   "comparisons": [
     {
@@ -676,24 +676,88 @@
           "matched": null
         }
       }
+    },
+    {
+      "decision_id": null,
+      "observation_id": "obs_regression_probe_ccb1_cc_builder_1",
+      "workflow_id": "wf-regression-probe-ccb1",
+      "run_id": "regression-probe-ccb1",
+      "builder_id": "cc-builder-1",
+      "model_id": "sonnet",
+      "backend": "claude",
+      "workload_shape_key": "repo-build|unknown|unknown",
+      "timestamp": "2026-07-04T04:18:00+00:00",
+      "confidence": null,
+      "prediction_source": null,
+      "prediction_present": false,
+      "metrics": {
+        "expected_ttft_ms": null,
+        "expected_generation_tokens_per_second": null,
+        "expected_peak_ram_mb": null,
+        "expected_peak_vram_mb": null
+      },
+      "outcomes": {
+        "assay": {
+          "predicted": null,
+          "observed": "passed",
+          "matched": null
+        },
+        "promotion": {
+          "predicted": null,
+          "observed": null,
+          "matched": null
+        }
+      }
+    },
+    {
+      "decision_id": null,
+      "observation_id": "obs_regression_probe_ccb1_cc_builder_2",
+      "workflow_id": "wf-regression-probe-ccb1",
+      "run_id": "regression-probe-ccb1",
+      "builder_id": "cc-builder-2",
+      "model_id": "vllama-planner",
+      "backend": "openai",
+      "workload_shape_key": "repo-build|unknown|unknown",
+      "timestamp": "2026-07-04T04:18:00+00:00",
+      "confidence": null,
+      "prediction_source": null,
+      "prediction_present": false,
+      "metrics": {
+        "expected_ttft_ms": null,
+        "expected_generation_tokens_per_second": null,
+        "expected_peak_ram_mb": null,
+        "expected_peak_vram_mb": null
+      },
+      "outcomes": {
+        "assay": {
+          "predicted": null,
+          "observed": "passed",
+          "matched": null
+        },
+        "promotion": {
+          "predicted": null,
+          "observed": null,
+          "matched": null
+        }
+      }
     }
   ],
   "summary": {
     "overall": {
       "overall": {
-        "sample_count": 21,
-        "last_updated": "2026-07-03T13:30:15.997922+00:00",
+        "sample_count": 23,
+        "last_updated": "2026-07-04T04:18:00+00:00",
         "metrics": {},
         "outcomes": {
           "assay": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 21
+            "unknown": 23
           },
           "promotion": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 21
+            "unknown": 23
           }
         },
         "prediction_confidence": null
@@ -773,37 +837,37 @@
         "prediction_confidence": null
       },
       "cc-builder-1": {
-        "sample_count": 2,
-        "last_updated": "2026-07-03T13:30:15.997922+00:00",
+        "sample_count": 3,
+        "last_updated": "2026-07-04T04:18:00+00:00",
         "metrics": {},
         "outcomes": {
           "assay": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 2
+            "unknown": 3
           },
           "promotion": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 2
+            "unknown": 3
           }
         },
         "prediction_confidence": null
       },
       "cc-builder-2": {
-        "sample_count": 3,
-        "last_updated": "2026-07-03T13:30:15.997922+00:00",
+        "sample_count": 4,
+        "last_updated": "2026-07-04T04:18:00+00:00",
         "metrics": {},
         "outcomes": {
           "assay": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 3
+            "unknown": 4
           },
           "promotion": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 3
+            "unknown": 4
           }
         },
         "prediction_confidence": null
@@ -883,37 +947,37 @@
         "prediction_confidence": null
       },
       "vllama-planner": {
-        "sample_count": 5,
-        "last_updated": "2026-07-03T13:30:15.997922+00:00",
+        "sample_count": 6,
+        "last_updated": "2026-07-04T04:18:00+00:00",
         "metrics": {},
         "outcomes": {
           "assay": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 5
+            "unknown": 6
           },
           "promotion": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 5
+            "unknown": 6
           }
         },
         "prediction_confidence": null
       },
       "sonnet": {
-        "sample_count": 2,
-        "last_updated": "2026-07-03T13:30:15.997922+00:00",
+        "sample_count": 3,
+        "last_updated": "2026-07-04T04:18:00+00:00",
         "metrics": {},
         "outcomes": {
           "assay": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 2
+            "unknown": 3
           },
           "promotion": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 2
+            "unknown": 3
           }
         },
         "prediction_confidence": null
@@ -957,19 +1021,19 @@
         "prediction_confidence": null
       },
       "repo-build|unknown|unknown": {
-        "sample_count": 8,
-        "last_updated": "2026-07-03T13:30:15.997922+00:00",
+        "sample_count": 10,
+        "last_updated": "2026-07-04T04:18:00+00:00",
         "metrics": {},
         "outcomes": {
           "assay": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 8
+            "unknown": 10
           },
           "promotion": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 8
+            "unknown": 10
           }
         },
         "prediction_confidence": null

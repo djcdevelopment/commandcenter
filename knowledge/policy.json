@@ -1,11 +1,10 @@
 {
   "contract_version": "policies.v1",
-  "source_findings": 18,
-  "evidence_watermark": "2026-07-03T13:30:15.997922+00:00",
+  "source_findings": 17,
+  "evidence_watermark": "2026-07-04T04:18:00+00:00",
   "rule_counts": {
     "block": 1,
-    "exploratory_only": 3,
-    "quarantine": 1
+    "exploratory_only": 2
   },
   "rules": [
     {
@@ -62,7 +61,7 @@
       "contract_version": "policy.v1",
       "policy_id": "exploratory_only:cc-builder-1|sonnet|claude|*|*",
       "effect": "exploratory_only",
-      "statement": "cc-builder-1 + sonnet + claude unproven (1/2 success, 1 failures); exploratory work only",
+      "statement": "cc-builder-1 + sonnet + claude unproven (2/3 success, 1 failures); exploratory work only",
       "subject": {
         "builder_id": "cc-builder-1",
         "model_id": "sonnet",
@@ -73,31 +72,6 @@
       "derived_from_finding": "uncertain:cc-builder-1|sonnet|claude",
       "finding_type": "uncertain",
       "confidence": "medium",
-      "evidence_summary": "1/2 success, 1 failures",
-      "override": {
-        "flag": "experiment_flag",
-        "semantics": "dispatch normally as an explicit experiment"
-      },
-      "adjustment": null,
-      "status": "active",
-      "suspended_reason": null,
-      "last_observed": "2026-07-03T13:30:15.997922+00:00"
-    },
-    {
-      "contract_version": "policy.v1",
-      "policy_id": "exploratory_only:cc-builder-2|vllama-planner|openai|*|*",
-      "effect": "exploratory_only",
-      "statement": "cc-builder-2 + vllama-planner + openai unproven (2/3 success, 1 failures); exploratory work only",
-      "subject": {
-        "builder_id": "cc-builder-2",
-        "model_id": "vllama-planner",
-        "backend": "openai",
-        "task_kind": null,
-        "metric": null
-      },
-      "derived_from_finding": "uncertain:cc-builder-2|vllama-planner|openai",
-      "finding_type": "uncertain",
-      "confidence": "medium",
       "evidence_summary": "2/3 success, 1 failures",
       "override": {
         "flag": "experiment_flag",
@@ -106,32 +80,7 @@
       "adjustment": null,
       "status": "active",
       "suspended_reason": null,
-      "last_observed": "2026-07-03T13:30:15.997922+00:00"
-    },
-    {
-      "contract_version": "policy.v1",
-      "policy_id": "quarantine:cc-builder-1|sonnet|claude|*|*",
-      "effect": "quarantine",
-      "statement": "quarantine cc-builder-1 + sonnet + claude: 1 failure(s) after success at 2026-07-03T04:09:32.603190+00:00",
-      "subject": {
-        "builder_id": "cc-builder-1",
-        "model_id": "sonnet",
-        "backend": "claude",
-        "task_kind": null,
-        "metric": null
-      },
-      "derived_from_finding": "regression:cc-builder-1|sonnet|claude",
-      "finding_type": "regression",
-      "confidence": "low",
-      "evidence_summary": "1 failure(s) after success at 2026-07-03T04:09:32.603190+00:00",
-      "override": {
-        "flag": "experiment_flag",
-        "semantics": "re-assay runs must dispatch as explicit experiments"
-      },
-      "adjustment": null,
-      "status": "active",
-      "suspended_reason": null,
-      "last_observed": "2026-07-03T13:30:15.997922+00:00"
+      "last_observed": "2026-07-04T04:18:00+00:00"
     }
   ]
 }

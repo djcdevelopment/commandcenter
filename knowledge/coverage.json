@@ -1,9 +1,9 @@
 {
   "contract_version": "coverage.v1",
-  "observation_count": 21,
+  "observation_count": 23,
   "decision_count": 0,
   "unresolved_refs": 0,
-  "evidence_watermark": "2026-07-03T13:30:15.997922+00:00",
+  "evidence_watermark": "2026-07-04T04:18:00+00:00",
   "gap_counts": {
     "single_workflow_evidence": 13,
     "unmeasured_metrics": 15
@@ -388,38 +388,11 @@
       "contract_version": "coverage-gap.v1",
       "gap_id": "unmeasured_metrics:cc-builder-1|sonnet|claude",
       "gap_type": "unmeasured_metrics",
-      "statement": "cc-builder-1 + sonnet + claude has run 2 time(s) but never reported: ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "statement": "cc-builder-1 + sonnet + claude has run 3 time(s) but never reported: ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
       "subject": {
         "builder_id": "cc-builder-1",
         "model_id": "sonnet",
         "backend": "claude",
-        "task_kind": null,
-        "invariant": null,
-        "missing_metrics": [
-          "ttft_s",
-          "tokens_per_s",
-          "ram_gb_peak",
-          "vram_gb_peak"
-        ],
-        "capability_id": null
-      },
-      "evidence": {
-        "samples": 2,
-        "workflows": null,
-        "summary": "4/4 metrics never measured"
-      },
-      "proposed_experiment_type": "coverage_probe",
-      "last_observed": "2026-07-03T13:30:15.997922+00:00"
-    },
-    {
-      "contract_version": "coverage-gap.v1",
-      "gap_id": "unmeasured_metrics:cc-builder-2|vllama-planner|openai",
-      "gap_type": "unmeasured_metrics",
-      "statement": "cc-builder-2 + vllama-planner + openai has run 3 time(s) but never reported: ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
-      "subject": {
-        "builder_id": "cc-builder-2",
-        "model_id": "vllama-planner",
-        "backend": "openai",
         "task_kind": null,
         "invariant": null,
         "missing_metrics": [
@@ -436,7 +409,34 @@
         "summary": "4/4 metrics never measured"
       },
       "proposed_experiment_type": "coverage_probe",
-      "last_observed": "2026-07-03T13:30:15.997922+00:00"
+      "last_observed": "2026-07-04T04:18:00+00:00"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:cc-builder-2|vllama-planner|openai",
+      "gap_type": "unmeasured_metrics",
+      "statement": "cc-builder-2 + vllama-planner + openai has run 4 time(s) but never reported: ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "cc-builder-2",
+        "model_id": "vllama-planner",
+        "backend": "openai",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "tokens_per_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 4,
+        "workflows": null,
+        "summary": "4/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-04T04:18:00+00:00"
     },
     {
       "contract_version": "coverage-gap.v1",

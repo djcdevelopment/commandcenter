@@ -1,13 +1,12 @@
 {
   "contract_version": "experiment-candidates.v1",
-  "source_findings": 18,
+  "source_findings": 17,
   "candidate_counts": {
     "backend_comparison": 3,
     "coverage_probe": 28,
     "known_bad_retest": 1,
-    "prefer_validation": 11,
-    "regression_probe": 1,
-    "uncertain_resolution": 3
+    "prefer_validation": 12,
+    "uncertain_resolution": 2
   },
   "candidates": [
     {
@@ -368,7 +367,7 @@
       "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
       "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
       "confidence": null,
-      "last_observed": "2026-07-03T13:30:15.997922+00:00"
+      "last_observed": "2026-07-04T04:18:00+00:00"
     },
     {
       "candidate_id": "coverage_probe:unmeasured_metrics:cc-builder-2|vllama-planner|openai",
@@ -388,7 +387,7 @@
       "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
       "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
       "confidence": null,
-      "last_observed": "2026-07-03T13:30:15.997922+00:00"
+      "last_observed": "2026-07-04T04:18:00+00:00"
     },
     {
       "candidate_id": "coverage_probe:unmeasured_metrics:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-cuda",
@@ -656,6 +655,26 @@
       "last_observed": "2026-07-02T10:31:56.771381Z"
     },
     {
+      "candidate_id": "prefer_validation:cc-builder-2|vllama-planner|openai",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "cc-builder-2",
+        "model_id": "vllama-planner",
+        "backend": "openai",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does cc-builder-2 + vllama-planner + openai still hold up (3/4 success)?",
+      "worth": "the preference nudges every dispatch; it must keep earning that",
+      "target_finding_id": "known_good:cc-builder-2|vllama-planner|openai",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "medium",
+      "last_observed": "2026-07-04T04:18:00+00:00"
+    },
+    {
       "candidate_id": "prefer_validation:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-cuda",
       "experiment_type": "prefer_validation",
       "subject": {
@@ -876,31 +895,6 @@
       "last_observed": "2026-07-02T10:45:55.071789+00:00"
     },
     {
-      "candidate_id": "regression_probe:cc-builder-1|sonnet|claude",
-      "experiment_type": "regression_probe",
-      "subject": {
-        "builder_id": "cc-builder-1",
-        "model_id": "sonnet",
-        "backend": "claude",
-        "task_kind": null,
-        "metric": null
-      },
-      "question": "is the regression on cc-builder-1 + sonnet + claude real or transient (1 failure(s) after success at 2026-07-03T04:09:32.603190+00:00)?",
-      "worth": "quarantine costs capacity every day it is wrong; a fresh probe settles it",
-      "target_finding_id": "regression:cc-builder-1|sonnet|claude",
-      "target_capability_id": null,
-      "gate": {
-        "policy_id": "quarantine:cc-builder-1|sonnet|claude|*|*",
-        "effect": "quarantine",
-        "flag": "experiment_flag",
-        "semantics": "re-assay runs must dispatch as explicit experiments"
-      },
-      "evidence_sought": "one fresh success supersedes the post-success failures and clears the regression; another failure confirms it and keeps the quarantine",
-      "risk_accepted": "one dispatch slot; the regression may reproduce (1 failure(s) after success at 2026-07-03T04:09:32.603190+00:00)",
-      "confidence": "low",
-      "last_observed": "2026-07-03T13:30:15.997922+00:00"
-    },
-    {
       "candidate_id": "uncertain_resolution:am4-worker-1|vllama-planner|openai",
       "experiment_type": "uncertain_resolution",
       "subject": {
@@ -935,7 +929,7 @@
         "task_kind": null,
         "metric": null
       },
-      "question": "which way does cc-builder-1 + sonnet + claude resolve (1/2 success, 1 failures)?",
+      "question": "which way does cc-builder-1 + sonnet + claude resolve (2/3 success, 1 failures)?",
       "worth": "the combo is stuck in exploratory_only until the evidence resolves it one way or the other",
       "target_finding_id": "uncertain:cc-builder-1|sonnet|claude",
       "target_capability_id": null,
@@ -945,35 +939,10 @@
         "flag": "experiment_flag",
         "semantics": "dispatch normally as an explicit experiment"
       },
-      "evidence_sought": "2 consecutive success(es) reclassify uncertain -> known_good; known_bad is unreachable once a success exists, so only more evidence resolves it",
-      "risk_accepted": "one dispatch slot; failure odds roughly 1/2 on current evidence",
-      "confidence": "medium",
-      "last_observed": "2026-07-03T13:30:15.997922+00:00"
-    },
-    {
-      "candidate_id": "uncertain_resolution:cc-builder-2|vllama-planner|openai",
-      "experiment_type": "uncertain_resolution",
-      "subject": {
-        "builder_id": "cc-builder-2",
-        "model_id": "vllama-planner",
-        "backend": "openai",
-        "task_kind": null,
-        "metric": null
-      },
-      "question": "which way does cc-builder-2 + vllama-planner + openai resolve (2/3 success, 1 failures)?",
-      "worth": "the combo is stuck in exploratory_only until the evidence resolves it one way or the other",
-      "target_finding_id": "uncertain:cc-builder-2|vllama-planner|openai",
-      "target_capability_id": null,
-      "gate": {
-        "policy_id": "exploratory_only:cc-builder-2|vllama-planner|openai|*|*",
-        "effect": "exploratory_only",
-        "flag": "experiment_flag",
-        "semantics": "dispatch normally as an explicit experiment"
-      },
       "evidence_sought": "1 consecutive success(es) reclassify uncertain -> known_good; known_bad is unreachable once a success exists, so only more evidence resolves it",
       "risk_accepted": "one dispatch slot; failure odds roughly 1/3 on current evidence",
       "confidence": "medium",
-      "last_observed": "2026-07-03T13:30:15.997922+00:00"
+      "last_observed": "2026-07-04T04:18:00+00:00"
     }
   ]
 }

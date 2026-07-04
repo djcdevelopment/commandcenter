@@ -1,0 +1,30 @@
+{
+  "contract_version": "capacity-observation.v1",
+  "observation_id": "obs_regression_probe_ccb1_cc_builder_2",
+  "decision_id": null,
+  "workflow_id": "wf-regression-probe-ccb1",
+  "run_id": "regression-probe-ccb1",
+  "timestamp": "2026-07-04T04:18:00+00:00",
+  "builder_id": "cc-builder-2",
+  "model_id": "vllama-planner",
+  "backend": "openai",
+  "hardware_profile_id": null,
+  "workload_shape": {
+    "task_kind": "repo-build",
+    "estimated_context_tokens": null,
+    "requires_gpu": null,
+    "notes": "Regression probe for the quarantined cc-builder-1|sonnet combo (pour-c2 timeout -> quarantine). Small deterministic wordcount task. Clean lap: agent_rc 0, not timed out, assay 167/167 pass, score 70/B. Materialized to lift the quarantine. promote was disabled (promote:false) so promotion_status is not a quality signal."
+  },
+  "observed": {
+    "runtime_s": null,
+    "ttft_s": null,
+    "tokens_per_s": null,
+    "ram_gb_peak": null,
+    "vram_gb_peak": null,
+    "context_tokens": null,
+    "physical": null
+  },
+  "outcome": "success",
+  "failure_class": null,
+  "promotion_status": null
+}

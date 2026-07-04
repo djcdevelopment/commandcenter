@@ -2,6 +2,18 @@
   "contract_version": "known-good-models.v1",
   "entries": [
     {
+      "builder_id": "cc-builder-2",
+      "model_id": "vllama-planner",
+      "backend": "openai",
+      "success_rate": 0.75,
+      "samples": 4,
+      "mean_tokens_per_s": null,
+      "promotion_holds": 0,
+      "confidence": 0.67,
+      "last_observed": "2026-07-04T04:18:00+00:00",
+      "reason": "3/4 successful runs (success_rate 0.75)"
+    },
+    {
       "builder_id": "omen-5070",
       "model_id": "mixtral:8x22b-instruct-v0.1-q2_K",
       "backend": "ollama-cuda",

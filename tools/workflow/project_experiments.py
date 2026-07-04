@@ -17,7 +17,12 @@ from tools.workflow.project_findings import (
     _confidence_label,
     synthesize_findings,
 )
-from tools.workflow.project_associations import synthesize_associations, synthesize_capabilities
+from tools.workflow.project_associations import evidence_watermark, synthesize_associations, synthesize_capabilities
+from tools.workflow.project_calibration import (
+    CALIBRATION_CONVENTIONAL_PATH,
+    CALIBRATION_MIN_TOTAL_PREDICTIONS,
+    count_scored_predictions,
+)
 from tools.workflow.project_coverage import synthesize_coverage
 from tools.workflow.project_policy import evaluate, synthesize_policy
 from tools.workflow.project_state import read_events
@@ -35,6 +40,7 @@ EXPERIMENT_TYPES = (
     "backend_comparison",
     "qualification_run",
     "coverage_probe",
+    "confidence_calibration",
 )
 
 GATING_EFFECTS = {"block": 2, "quarantine": 1, "exploratory_only": 0}
@@ -172,9 +178,43 @@ def _coverage_candidates(coverage_gaps: list[dict]) -> list[dict]:
     return candidates
 
 
+def _calibration_candidates(total_predictions: int,
+                            corpus_watermark: str | None,
+                            report_watermark: str | None) -> list[dict]:
+    """The confidence curve samples/(samples+2) is inherited by every belief and never
+    validated against real outcomes. Propose ONE corpus-wide calibration experiment when
+    there are enough scored predictions to say something (>= CALIBRATION_MIN_TOTAL_PREDICTIONS)
+    AND the latest calibration report is not already current with the corpus watermark (a
+    watermark-current report has nothing new to measure). No silent gate: below the threshold,
+    or when already current, no candidate is proposed."""
+    if total_predictions < CALIBRATION_MIN_TOTAL_PREDICTIONS:
+        return []
+    if corpus_watermark is not None and report_watermark == corpus_watermark:
+        return []
+    subject = {"builder_id": None, "model_id": None, "backend": None,
+               "task_kind": None, "metric": "confidence_score"}
+    return [_candidate(
+        "confidence_calibration", "confidence_calibration:corpus", subject,
+        "does samples/(samples+2) predict actual next-observation reliability?",
+        "AUTHORED-VALUE-REQUIRED: Derek must assign worth; see BUILD-NOTES-Gc.md",
+        target_finding_id=None,
+        gate=None,
+        evidence_sought="the per-bucket calibration table (observed_rate vs curve_implied_rate with "
+                        "bias) over the current corpus; buckets below CALIBRATION_MIN_BUCKET_N report "
+                        "insufficient_evidence rather than extrapolate from noise",
+        risk_accepted="no dispatch — a projection over existing evidence; the only cost is one report "
+                      "regeneration when the corpus watermark advances",
+        confidence=None,
+        last_observed=corpus_watermark,
+    )]
+
+
 def synthesize_candidates(findings: list[dict], rules: list[dict],
                           capabilities: list[dict] | None = None,
-                          coverage_gaps: list[dict] | None = None) -> list[dict]:
+                          coverage_gaps: list[dict] | None = None,
+                          calibration_total_predictions: int = 0,
+                          calibration_corpus_watermark: str | None = None,
+                          calibration_report_watermark: str | None = None) -> list[dict]:
     """Every finding proposes the experiment that would test it. The candidate answers, up front,
     the questions the eventual ExperimentPlan must answer: what to retest, why it is worth it,
     which gate opens, what evidence would move the belief, and what risk that purchase costs.
@@ -292,6 +332,11 @@ def synthesize_candidates(findings: list[dict], rules: list[dict],
 
     candidates.extend(_qualification_candidates(capabilities or []))
     candidates.extend(_coverage_candidates(coverage_gaps or []))
+    candidates.extend(_calibration_candidates(
+        calibration_total_predictions,
+        calibration_corpus_watermark,
+        calibration_report_watermark,
+    ))
     candidates.sort(key=lambda candidate: (candidate["experiment_type"], candidate["candidate_id"]))
     return candidates
 

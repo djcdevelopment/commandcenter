@@ -47,37 +47,97 @@ _LOCAL_BUILDER_NAMES = {"am4-worker-1", "cc-builder-1", "cc-builder-2"}
 
 
 @dataclass
+class ModelSpec:
+    """A loadable model on the stateful AM4 machine, sourced from am4-catalog.v1
+    models[]. Carries the residency economics JS7b optimizes over: how big it is
+    per card (`per_card_gb`), how long it takes to stage into VRAM (`warmup_ms_*`),
+    and how fast it generates once warm (`expected_gen_tps`)."""
+
+    model_id: str
+    alias: Optional[str] = None
+    placement: str = "single"  # "single" | "dual"
+    visible_devices: Optional[str] = None
+    vram_gb: Optional[float] = None       # total VRAM footprint
+    per_card_gb: Optional[float] = None   # per-card footprint (dual charges both)
+    expected_gen_tps: Optional[float] = None
+    warmup_ms_p50: Optional[float] = None
+    warmup_ms_max: Optional[float] = None
+    sample_count: Optional[int] = None
+    notes: Optional[str] = None
+
+    def setup_s(self, default_s: float = 30.0) -> float:
+        """Load (setup) time in seconds: warmup p50, fallback max, fallback default."""
+        for candidate in (self.warmup_ms_p50, self.warmup_ms_max):
+            if candidate is not None and candidate > 0:
+                return float(candidate) / 1000.0
+        return default_s
+
+    def card_charge_gb(self) -> float:
+        """Per-card VRAM charged when this model is resident. `dual` placement
+        charges `per_card_gb` on BOTH cards; `single` on exactly one card."""
+        if self.per_card_gb is not None:
+            return float(self.per_card_gb)
+        if self.vram_gb is not None:
+            # No per-card figure: split total across the placement's card count.
+            return float(self.vram_gb) / (2.0 if self.placement == "dual" else 1.0)
+        return 0.0
+
+
+@dataclass
 class Job:
-    """A unit of work to place. Snapshot-shaped: precedence names other plan_ids."""
+    """A unit of work to place. Snapshot-shaped: precedence names other plan_ids.
+
+    JS7b: `required_model` names a model that must be RESIDENT on the chosen
+    stateful machine before the job may start (paying a load/setup interval if it
+    is not already loaded). `est_out_tokens` lets duration derive from a model's
+    `expected_gen_tps` when the catalog supplies one."""
 
     plan_id: str
     task_class: str
     precedence: list[str] = field(default_factory=list)
     deadline_s: Optional[float] = None
     est_tokens: Optional[int] = None
+    required_model: Optional[str] = None
+    est_out_tokens: Optional[int] = None
 
 
 @dataclass
 class Machine:
     """A schedulable resource. token_cost_weight scales metered-token cost: ~0 for
-    local (owned, mains power), high for frontier (metered API tokens)."""
+    local (owned, mains power), high for frontier (metered API tokens).
+
+    JS7b: a `stateful` machine (the AM4 box) carries model-residency STATE — its
+    physical `cards` (each with a vram_gb budget), the `resident_models` already
+    loaded at t=0, and how many models may stream through DDR4 at once
+    (`staging_slots`, the single-DDR4 bottleneck = 1)."""
 
     name: str
     kind: str  # "local" | "frontier"
     token_cost_weight: float
     tags: list[str] = field(default_factory=list)
     available: bool = True
+    stateful: bool = False
+    cards: list[dict] = field(default_factory=list)  # [{index, vram_gb}]
+    resident_models: list[str] = field(default_factory=list)  # loaded at t=0
+    staging_slots: int = 1
+    host: Optional[str] = None  # physical host key for DDR4 staging contention
 
 
 @dataclass
 class ScheduleProposal:
-    """The advisory result. Read-only; nothing here is dispatched."""
+    """The advisory result. Read-only; nothing here is dispatched.
+
+    JS7b adds `loads` (the model-load/setup intervals the placement implies — one
+    per (machine, model) actually loaded, sharing the DDR4 staging slot) and
+    `residency` (the per-card resident-VRAM summary at horizon)."""
 
     assignments: list[dict]  # [{plan_id, machine, start_s, end_s}]
     makespan_s: float
     est_metered_tokens: int
     solver_status: str
     objective_value: float
+    loads: list[dict] = field(default_factory=list)  # [{machine, model_id, cards, start_s, end_s}]
+    residency: list[dict] = field(default_factory=list)  # [{machine, card, resident_models, used_gb, budget_gb}]
 
 
 # --- loaders ----------------------------------------------------------------
@@ -171,17 +231,77 @@ def _bucket_p90(document: dict, *, task_class: Optional[str], tool: Optional[str
     return None
 
 
-def lookup_duration_s(job: Job, machine: Machine, capacity: Optional[dict]) -> float:
+AM4_CATALOG_CONTRACT = "am4-catalog.v1"
+
+
+def load_am4_catalog(path: str) -> dict:
+    """Load the frozen am4-catalog.v1 model catalog. Returns
+    {"models": {model_id: ModelSpec}, "gates": dict|None, "cards": list|None}.
+
+    Tolerant of the file being ABSENT or malformed: every field comes back None/{}
+    so the scheduler degrades to stateless (fully backward compatible with JS7a).
+    A model is keyed by BOTH its model_id and its alias (when distinct) so a job's
+    `required_model` may name either.
+    """
+    empty = {"models": {}, "gates": None, "cards": None}
+    p = Path(path)
+    if not p.is_file():
+        return empty
+    try:
+        document = json.loads(p.read_text(encoding="utf-8-sig"))
+    except (json.JSONDecodeError, OSError):
+        return empty
+    if not isinstance(document, dict) or document.get("contract_version") != AM4_CATALOG_CONTRACT:
+        return empty
+
+    models: dict[str, ModelSpec] = {}
+    for raw in document.get("models", []):
+        if not isinstance(raw, dict) or not raw.get("model_id"):
+            continue
+        spec = ModelSpec(
+            model_id=str(raw["model_id"]),
+            alias=raw.get("alias"),
+            placement=str(raw.get("placement") or "single"),
+            visible_devices=raw.get("visible_devices"),
+            vram_gb=raw.get("vram_gb"),
+            per_card_gb=raw.get("per_card_gb"),
+            expected_gen_tps=raw.get("expected_gen_tps"),
+            warmup_ms_p50=raw.get("warmup_ms_p50"),
+            warmup_ms_max=raw.get("warmup_ms_max"),
+            sample_count=raw.get("sample_count"),
+            notes=raw.get("notes"),
+        )
+        models[spec.model_id] = spec
+        if spec.alias and spec.alias not in models:
+            models[spec.alias] = spec
+
+    cards = document.get("cards")
+    return {
+        "models": models,
+        "gates": document.get("gates"),
+        "cards": cards if isinstance(cards, list) else None,
+    }
+
+
+def lookup_duration_s(job: Job, machine: Machine, capacity: Optional[dict],
+                      models: Optional[dict] = None) -> float:
     """Estimated duration (seconds) for `job` on `machine`.
 
     Fallback chain:
+      0. model gen-rate: est_out_tokens / expected_gen_tps  (JS7b, only when the job
+         names a required_model that the catalog supplies a gen-rate for)
       1. capacity (task_class x node) p90
       2. capacity (tool x node) p90       — tool taken as the job's task_class
       3. DEFAULT_DURATIONS_S[task_class]  — else DEFAULT_DURATIONS_S['default']
 
     `machine.name` is used as the capacity `node` key; when no node-specific bucket
     exists the same lookups are retried node-agnostic before falling to defaults.
+    This is RUN time only — model LOAD/setup time is modeled separately in solve.py.
     """
+    if models and job.required_model and job.est_out_tokens:
+        spec = models.get(job.required_model)
+        if spec is not None and spec.expected_gen_tps:
+            return float(job.est_out_tokens) / float(spec.expected_gen_tps)
     if capacity is not None:
         for node in (machine.name, None):
             hit = _bucket_p90(capacity, task_class=job.task_class, tool=None, node=node)

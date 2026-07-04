@@ -24,10 +24,11 @@ from hearth.toolsurface._scope import resolve_in_scope, scope_root
 from hearth.toolsurface.task_lane import CONDUCTOR_REPO, _run_ssh
 from hearth.scheduler.decision import build_scheduler_decision, validate_decision
 from hearth.scheduler.hindsight import render_table, replay
-from hearth.scheduler.ontology import Job, load_capacity, load_machines
+from hearth.scheduler.ontology import Job, load_am4_catalog, load_capacity, load_machines
 from hearth.scheduler.solve import solve_schedule
 
 DEFAULT_CAPACITY_PATH = "knowledge/capacity.json"
+DEFAULT_AM4_CATALOG_PATH = "knowledge/am4_catalog.json"
 _INVENTORY_REL = "fleet/inventory.toml"
 _BACKENDS_REL = "hearth/etc/backends.toml"
 
@@ -96,10 +97,35 @@ def _job_from_dict(raw: dict) -> Job:
         precedence=[str(p) for p in (raw.get("precedence") or [])],
         deadline_s=raw.get("deadline_s"),
         est_tokens=raw.get("est_tokens"),
+        required_model=(str(raw["required_model"]) if raw.get("required_model") else None),
+        est_out_tokens=raw.get("est_out_tokens"),
     )
 
 
-def propose_schedule(jobs: list[dict], capacity_path: str = DEFAULT_CAPACITY_PATH) -> dict:
+# The AM4 box — the one physically stateful machine (2x Arc B70, 32GB DDR4). Its
+# logical builder name in the inventory. When the am4-catalog is present, THIS machine
+# gains the catalog's cards as its VRAM budget and becomes `stateful`.
+_AM4_MACHINE_NAME = "am4-worker-1"
+
+
+def _apply_am4_catalog(machines: list, catalog: dict) -> None:
+    """In place: make the AM4 machine stateful with the catalog's cards, if present."""
+    cards = catalog.get("cards")
+    if not cards:
+        return
+    for machine in machines:
+        if machine.name == _AM4_MACHINE_NAME:
+            machine.stateful = True
+            machine.cards = [
+                {"index": int(c.get("index", i)), "vram_gb": float(c.get("vram_gb", 0.0))}
+                for i, c in enumerate(cards)
+            ]
+            machine.host = machine.host or _AM4_MACHINE_NAME
+            break
+
+
+def propose_schedule(jobs: list[dict], capacity_path: str = DEFAULT_CAPACITY_PATH,
+                     am4_catalog_path: str = DEFAULT_AM4_CATALOG_PATH) -> dict:
     """Propose an advisory job-shop schedule for a snapshot of jobs (read-only).
 
     Solves jobs x eligible-machines with CP-SAT: exactly-one machine per job,
@@ -107,6 +133,11 @@ def propose_schedule(jobs: list[dict], capacity_path: str = DEFAULT_CAPACITY_PAT
     minimizes metered (frontier) token spend first and makespan second. Returns
     {ok, proposal, decision_record, machines_considered}; the decision_record
     conforms to and is validated against scheduler-decision.v1. Nothing is dispatched.
+
+    JS7b: when `am4_catalog_path` (am4-catalog.v1) exists, the AM4 machine gains
+    model-residency state — jobs naming a `required_model` pay a load/setup interval
+    unless the model is resident, loads contend for a single DDR4 staging slot, and
+    per-card VRAM is budgeted. Absent catalog -> stateless, JS7a-identical behavior.
     """
     if not isinstance(jobs, list):
         raise ValueError("jobs must be a list of job dicts")
@@ -118,8 +149,11 @@ def propose_schedule(jobs: list[dict], capacity_path: str = DEFAULT_CAPACITY_PAT
     machines = load_machines(inventory_path, backends_path)
 
     capacity = load_capacity(str(resolve_in_scope(capacity_path)))
+    catalog = load_am4_catalog(str(resolve_in_scope(am4_catalog_path)))
+    models = catalog.get("models") or {}
+    _apply_am4_catalog(machines, catalog)
 
-    proposal = solve_schedule(job_objs, machines, capacity)
+    proposal = solve_schedule(job_objs, machines, capacity, models=models)
     decision = build_scheduler_decision(job_objs, machines, proposal)
     validate_decision(decision)
 
@@ -131,6 +165,8 @@ def propose_schedule(jobs: list[dict], capacity_path: str = DEFAULT_CAPACITY_PAT
             "est_metered_tokens": proposal.est_metered_tokens,
             "solver_status": proposal.solver_status,
             "objective_value": proposal.objective_value,
+            "loads": proposal.loads,
+            "residency": proposal.residency,
         },
         "decision_record": decision,
         "machines_considered": [

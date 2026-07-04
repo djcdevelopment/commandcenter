@@ -1,0 +1,50 @@
+# ============================================================================
+# HEARTH inference backend pool  —  "bankfire" (Banked Fire, P1)
+# ============================================================================
+# Declarative pool for hearth.toolsurface.inference.local_generate.
+#
+# One config file, one scheduler (Banked Fire design principle #2): the router
+# reads this, and later phases (occupancy probe P2, watchdog P4) read the SAME
+# declaration. Add a backend here and it is routable — no code change.
+#
+# Parsed with stdlib tomllib (Python 3.11+); no third-party deps by design.
+# Override the path with the HEARTH_BACKENDS env var. If the file is absent the
+# router falls back to a built-in omen-ollama default, so the gateway never
+# breaks on a missing pool file.
+#
+# Routing policy (see backends.py select_backend), in order:
+#   1. caller-pinned endpoint  -> unchanged legacy behavior, wins outright
+#   2. caller-pinned backend name
+#   3. tag match (task="research" -> a backend tagged "research")
+#   4. occupancy skip           (P2, not yet consulted)
+#   5. fall back to `default`
+# ============================================================================
+
+# Name of the backend used when nothing else matches.
+default = "omen-ollama"
+
+[[backend]]
+name     = "omen-ollama"
+endpoint = "http://127.0.0.1:11434"
+api      = "ollama"                          # /api/generate
+models   = ["qwen3-coder:30b"]
+tags     = ["default", "code"]
+revive   = "start_ollama"                    # HEARTH summon tool (consumed in P4)
+
+[[backend]]
+name     = "am4-oxen"                          # the banked fire — dual-B70 Qwen3-30B
+endpoint = "http://100.116.82.60:8090"        # AM4 tailnet, port already open
+api      = "openai"                           # /v1/chat/completions, Bearer auth
+auth_env = "AM4_OXEN_TOKEN"                   # SAME name the fleet already uses
+                                              # (conductor .env; ensemble_structure.py:71).
+                                              # Copy that line into hearth/var/gateway.cmd
+                                              # as `set AM4_OXEN_TOKEN=...` (batch fragment,
+                                              # sourced by start-hearth-gateway.cmd).
+models   = ["oxen"]                           # facade-advertised id (GET /v1/models);
+                                              # dual-B70 Qwen3-30B behind the oxen alias.
+                                              # (was "qwen3-30b" — not a real id → 404.)
+tags     = ["big-context", "research", "second-opinion"]
+revive   = "wake_am4"                          # HEARTH summon tool (consumed in P4)
+# Occupancy (P2): which conductor worker rides this backend. Declared now so the
+# occupancy probe has a target the moment it lands; the router ignores it in P1.
+occupancy = { conductor_worker = "am4-worker-1" }

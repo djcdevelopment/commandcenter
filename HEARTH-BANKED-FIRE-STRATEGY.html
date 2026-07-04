@@ -46,7 +46,9 @@
 
 <h1>Banked Fire</h1>
 <p class="sub">HEARTH idle-drain scheduling onto the mechnet &mdash; Δ4 made concrete
-&nbsp;<span class="badge draft">STRATEGY v0.1 — 2026-07-04</span></p>
+&nbsp;<span class="badge draft">STRATEGY v0.1 — 2026-07-04</span>
+&nbsp;<span class="badge verified">P1 + P4 BUILT — 2026-07-04</span>
+&nbsp;<span class="badge draft">P2/P3 recon done</span></p>
 
 <div class="panel">
 <strong>The ask (Derek, 2026-07-04):</strong> the dual B70s (32&nbsp;GB VRAM each, 32&nbsp;GB DDR4 system)
@@ -67,13 +69,33 @@ the moment he is."</em> The only new authored object Δ4 requires &mdash; the <s
 was ratified with D1 economics on 2026-07-03 (<code>fad3be9</code>), and <strong>46 experiment candidates are
 already priced</strong>. The policy layer exists. What's missing is plumbing, and less of it than expected.</p>
 
+<div class="panel gold">
+<strong>The three-plane model</strong> &mdash; the mental model that orders all the mechanics below.
+<br><br>
+These are <strong>control-surface roles</strong>, not machine roles &mdash; a single box can host two planes:
+<ul>
+<li>AM4's MCP + OTel/Jaeger spine = the <strong>SENSE plane</strong> &mdash; infrastructure telemetry and
+    self-maintenance. It never issues engineering commands.</li>
+<li>The mechnet = the <strong>ACT plane</strong> &mdash; engineering capability, where offloaded work runs
+    and learning is generated.</li>
+<li>HEARTH = the <strong>ONE BOUNDARY</strong> &mdash; connect + offload + capture. Every offload/engineering
+    crossing, in or out, is observed on one ledger.</li>
+</ul>
+AM4 the hardware hosts both a sense surface (AM4-MCP, Jaeger) <em>and</em> act capacity (oxen inference)
+&mdash; the point isn't that AM4 does no work, it's that its <em>acting</em> is only reachable through HEARTH.
+<br><br>
+Offload aggressively, but guard the ledger &mdash; bad observations poison the beliefs the reps are meant to
+earn (the corpus-overwrite and null-action-winner incidents are the precedents). The objective is throughput
+of trustworthy reps, not raw reps.
+</div>
+
 <h2>Ground truth <span class="badge verified">VERIFIED 2026-07-04</span></h2>
 <table>
 <tr><th>Fact</th><th>Consequence</th></tr>
-<tr><td>hermes (dual-B70 Qwen3-30B) answers from OMEN at <code>100.116.82.60:8090</code> &mdash; tailnet port is OPEN, no tunnel needed</td>
+<tr><td>oxen (dual-B70 Qwen3-30B) answers from OMEN at <code>100.116.82.60:8090</code> &mdash; tailnet port is OPEN, no tunnel needed</td>
     <td>Phase 1 is pure software; zero network work</td></tr>
-<tr><td>hermes is OpenAI-shaped and bearer-token-auth'd (401 without token; token known to live in conductor's <code>.env</code>)</td>
-    <td>Router needs an <code>api</code> adapter (ollama | openai) and a token provisioned to OMEN (Derek)</td></tr>
+<tr><td>oxen is OpenAI-shaped and bearer-token-auth'd &mdash; <span class="badge verified">RE-VERIFIED 2026-07-04</span> <code>/health</code> is open (200), but <code>/v1/models</code> and <code>/v1/chat/completions</code> return <strong>401 "missing or invalid bearer token"</strong>. It's Derek's own wrapper, but it currently enforces auth. Token lives in conductor's <code>.env</code> as <code>AM4_OXEN_TOKEN</code> (<code>ensemble_structure.py:71</code>) &mdash; the SAME token am4-worker-1 already uses.</td>
+    <td>Router needs an <code>openai</code> adapter (done) + the existing <code>AM4_OXEN_TOKEN</code> given to the OMEN gateway. Chosen path (Derek, A): provision the token, keep wrapper auth on.</td></tr>
 <tr><td><code>local_generate</code> already accepts an <code>endpoint</code> parameter (explicit endpoint wins over <code>HEARTH_OLLAMA</code>) but speaks only Ollama <code>/api/generate</code></td>
     <td>The seam for a backend pool already exists in the tool signature</td></tr>
 <tr><td>HEARTH toolsurface already ships <code>wake_am4</code>, <code>start_ollama</code>, <code>checkpoint_vm</code>, <code>record_event</code></td>
@@ -82,7 +104,7 @@ already priced</strong>. The policy layer exists. What's missing is plumbing, an
     <td>The watchdog generalizes a working pattern</td></tr>
 <tr><td>vllama on AM4 = mature model-lifecycle layer: OOM safety gates, ready=serve-truth, planner/critic aliases</td>
     <td>Occupancy and model-swap safety are <em>pulled</em>, not rebuilt</td></tr>
-<tr><td>Conductor (:8080) owns build dispatch; am4-worker-1 already builds against hermes</td>
+<tr><td>Conductor (:8080) owns build dispatch; am4-worker-1 already builds against oxen</td>
     <td>Task-lane scheduling exists &mdash; HEARTH must not grow a second scheduler</td></tr>
 </table>
 
@@ -117,10 +139,10 @@ tags     = ["default", "code"]
 revive   = "hearth start_ollama"            # existing summon tool
 
 [[backend]]
-name      = "am4-hermes"                    # the banked fire
+name      = "am4-oxen"                      # the banked fire
 endpoint  = "http://100.116.82.60:8090"
 api       = "openai"
-auth_env  = "HEARTH_HERMES_TOKEN"
+auth_env  = "AM4_OXEN_TOKEN"
 models    = ["qwen3-30b"]                   # dual-B70 resident
 tags      = ["big-context", "research", "second-opinion"]
 occupancy = { conductor_worker = "am4-worker-1" }
@@ -160,22 +182,24 @@ OMEN is the right host: always-on, sees tailnet and VM network simultaneously.</
 <h2>Phases — thin slice first</h2>
 <table>
 <tr><th>Phase</th><th>What ships</th><th>Effort</th><th>Acceptance check</th></tr>
-<tr><td><strong>P1 · Pool</strong></td>
-    <td><code>backends.toml</code> + openai adapter + hermes token on OMEN; <code>local_generate</code> routes by tag, no occupancy yet</td>
+<tr><td><strong>P1 · Pool</strong> <span class="badge verified">BUILT</span></td>
+    <td><code>hearth/etc/backends.toml</code> + <code>hearth/toolsurface/backends.py</code> (pool loader + tag/name router) + openai adapter in <code>inference.py</code>; <code>local_generate</code> grows <code>task</code>/<code>backend</code> params and routes by tag, no occupancy yet. Missing token → clean <code>ok:false</code>, never a 401. 22 new tests; full hearth suite 133 green; gateway registers the new schema.</td>
     <td>~2–3 h</td>
-    <td>One prompt answered by the B70s through the HEARTH door, on the ledger with <code>backend=am4-hermes</code></td></tr>
-<tr><td><strong>P2 · Yield</strong></td>
-    <td>Conductor occupancy probe + skip-busy routing + lease policy</td>
+    <td><span class="badge verified">code ✓</span> routing + adapters proven offline &amp; in the gateway. <span class="badge draft">live pending</span> the two Derek-gated steps: provision <code>AM4_OXEN_TOKEN</code> to OMEN, restart the gateway task → then one B70 answer lands on the ledger with <code>backend=am4-oxen</code>.</td></tr>
+<tr><td><strong>P2 · Yield</strong> <span class="badge draft">RECON DONE</span></td>
+    <td>Occupancy probe + skip-busy routing + lease policy. <strong>Primary instrument:</strong> the AM4 telemetry node's serve-truth, via the AM4-MCP tools <code>render_owners</code> (who owns the two render nodes <code>/dev/dri/renderD128-9</code> &mdash; this also sees ComfyUI, which the conductor can <em>never</em> see) and <code>oxen_backend_status</code>, reached over the same SSH transport the recon already assumed. No stale-dir trap; measures the actual resource. <em>Demoted (not deleted) &mdash; conductor-FS recon (2026-07-04):</em> occupancy can also be derived from the conductor filesystem &mdash; <code>runs/&lt;plan_id&gt;/nodes.json</code> without a <code>result.json</code>, gated on a ~30&nbsp;min freshness window, with stale crashed dirs as the false-busy trap. Retained only as the <strong>P5 admission signal</strong> &mdash; "is real fleet work queued though not yet running" is invisible to GPU-level truth.</td>
     <td>~2–3 h</td>
     <td>With a real build running on am4-worker-1, routed traffic demonstrably stays on OMEN</td></tr>
-<tr><td><strong>P3 · Task lane</strong></td>
-    <td><code>submit_task</code> &rarr; conductor inbox; research-brief and simple-build templates</td>
+<tr><td><strong>P3 · Task lane</strong> <span class="badge draft">RECON DONE</span></td>
+    <td><code>submit_task</code> &rarr; conductor inbox. <em>Recon:</em> best path = drop <code>inbox/&lt;plan_id&gt;.md</code> on the conductor with a <code>&lt;!-- CCMETA {"builders":["am4-worker-1"]} --&gt;</code> header + a <code>hearth-</code>prefixed plan_id (body = builder prompt); daemon dispatches within one 3&nbsp;s scan, result at <code>runs/&lt;plan_id&gt;/result.json</code>. <strong>Zero conductor changes, pins the worker, provenance in the plan_id.</strong> (HTTP <code>POST :8080/board/backlog</code> can't pin a worker or set origin/class without a ~2-line conductor patch.)</td>
     <td>~half day</td>
     <td>A research brief submitted via HEARTH completes on the fleet and its result event reaches the ledger</td></tr>
-<tr><td><strong>P4 · Watchdog</strong></td>
-    <td><code>revive</code> fields in inventory.toml + mechnet-watchdog scheduled task</td>
+<tr><td><strong>P4 · Watchdog</strong> <span class="badge verified">BUILT</span></td>
+    <td><code>revive</code> field on inventory <em>checks</em> (per-service, not per-node) + <code>fleet/mechnet_watchdog.py</code> (sweep → revive down expect-up services once → re-probe → record a <code>mechnet_watchdog.revive</code> event on the kernel ledger, which is separate from the belief-projection sources so it can't pollute them) + <code>fleet/mechnet-watchdog.cmd</code> wrapper. Gateway revive wired to the proven <code>doorcheck --revive</code>. 8 new tests; live dry-run sweeps 15 services green.
+    <br><br>
+    <strong>The am4-oxen backend revives in layers:</strong> service check fails &rarr; <strong>service-level revive</strong> is AM4-MCP's <code>start_oxen_backend</code>, which carries a GPU co-tenancy safety gate &mdash; it refuses to start when python/llama/ComfyUI already own the render nodes, unless called with <code>force=true</code>, so the watchdog can never stomp a render. Node unreachable &rarr; <code>wake_am4</code> is retained one rung down as the <strong>machine-level revive</strong>, for when the node itself is down, not just the service.</td>
     <td>~2 h</td>
-    <td>Kill hermes or the gateway; watchdog restores it within one cycle, ledgered</td></tr>
+    <td><span class="badge verified">code ✓</span> logic + ledger proven (23 fleet tests). <span class="badge draft">1 Derek step:</span> register the 15-min task — <code>schtasks /Create /TN "MechnetWatchdog" /SC MINUTE /MO 15 /RL LIMITED /F /TR "C:\work\commandcenter\fleet\mechnet-watchdog.cmd"</code> — then kill the gateway and watch it heal within a cycle, ledgered.</td></tr>
 <tr><td><strong>P5 · Δ4 proper</strong></td>
     <td>Idle-drain: the 46 priced candidates queue-serve into idle windows under the ratified operating budget</td>
     <td>~1 day</td>
@@ -190,23 +214,32 @@ it needs has been proven separately.</div>
 <h2>What NOT to build</h2>
 <ul>
 <li><span class="badge warn">NO</span> a second scheduler or queue store &mdash; the conductor exists.</li>
-<li><span class="badge warn">NO</span> tunnels or network plumbing &mdash; hermes is already reachable.</li>
+<li><span class="badge warn">NO</span> tunnels or network plumbing &mdash; oxen is already reachable.</li>
 <li><span class="badge warn">NO</span> a model-lifecycle manager on AM4 &mdash; vllama is the mature layer; pull its truth, don't wrap it.</li>
 <li><span class="badge warn">NO</span> per-task custom configs &mdash; if a job needs config the backends.toml can't express, it's fleet work (lane 2), not a new lane.</li>
 <li><span class="badge warn">NO</span> autonomous frontier spend &mdash; banked fire burns sunk compute only; metered calls stay human-initiated.</li>
 </ul>
 
+<h2>Why not a second connector on AM4</h2>
+<p>At this stage <strong>data is the deliverable</strong>. A second connection point leaks observations &mdash;
+some crossings ledger, some don't, and learning fragments across two records instead of accumulating in one.
+One boundary is what makes the dataset complete; a second door defeats the purpose the system is being built for.</p>
+<p>The sharpened rule: every offload/engineering crossing goes through HEARTH and lands on the ledger. Sense and
+self-maintenance surfaces &mdash; the AM4-MCP, the mechnet-watchdog &mdash; may exist beside it, but never carry work.
+The P4 build already embodies this: watchdog events go to the kernel ledger, deliberately separate from
+belief-projection sources.</p>
+
 <h2>Decisions on Derek's desk</h2>
 <ol>
 <li><strong>Codename</strong> &mdash; <code>bankfire</code> for the router+drain layer? (hearth/fire family; glossary entry pending)</li>
-<li><strong>Hermes token</strong> &mdash; provision to OMEN (env var <code>HEARTH_HERMES_TOKEN</code> for the gateway task). It exists in conductor's <code>.env</code>; copying it is a Derek action.</li>
-<li><strong>Release cue for P1</strong> &mdash; strategy is draft-ready per the pacing directive; build starts on your word.</li>
+<li><strong>Oxen token</strong> <span class="badge verified">RESOLVED &amp; LIVE 2026-07-04</span> &mdash; provisioned to OMEN. The gateway sources a gitignored <code>hearth/var/gateway.cmd</code> batch fragment on start (one <code>set AM4_OXEN_TOKEN=&hellip;</code> line, copied from conductor's <code>.env</code>). <em>Fixed a latent wrapper bug:</em> the file was originally <code>.env</code>, but <code>call</code> only executes <code>.bat</code>/<code>.cmd</code> as batch &mdash; calling a <code>.env</code> silently opened it in Notepad instead of loading the token, so the token never reached the gateway. Renamed to <code>.cmd</code>; oxen now answers on the ledger.</li>
+<li><strong>Release cue for P1</strong> <span class="badge verified">GIVEN</span> &mdash; P1 built, tested, deployed live 2026-07-04.</li>
 <li><strong>P5 switch</strong> &mdash; should unattended idle-drain require an explicit arm/disarm toggle (a <code>kernel_change</code>), per the constitution's suspendable-override pattern? (Recommended: yes.)</li>
 </ol>
 
 <div class="footer">
 Companion to TWO-ECONOMIES-WIND-TUNNEL.html (Δ4) · CAPABILITY-ROADMAP.html · FLEET-WORK-PLAN.html<br>
-Authored 2026-07-04 from verified probes (hermes tailnet reach, local_generate seam, toolsurface inventory) · Banked Fire v0.1 DRAFT — nothing built, released on Derek's cue.
+Authored 2026-07-04 from verified probes (oxen tailnet reach, local_generate seam, toolsurface inventory) · Banked Fire v0.1 DRAFT — nothing built, released on Derek's cue.
 </div>
 
 </body>

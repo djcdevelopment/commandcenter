@@ -13,15 +13,15 @@ ssh derek@am4.tail8e749c.ts.net
 - Observability: Jaeger on `:16686`, OTLP on `:4317`/`:4318`.
 - Agent control surface: MCP over stdio, normally launched through SSH.
 - Optional fleet bus: NATS JetStream on `:4222`, monitoring on `:8222`.
-- Hermes/OpenAI facade: `http://am4.tail8e749c.ts.net:8090/v1`.
-- Heavy backend: Linux-native llama.cpp SYCL/Level Zero on loopback `127.0.0.1:8080`, launched by `am4-hermes-backend.service`.
+- oxen/OpenAI facade: `http://am4.tail8e749c.ts.net:8090/v1`.
+- Heavy backend: Linux-native llama.cpp SYCL/Level Zero on loopback `127.0.0.1:8080`, launched by `am4-oxen-backend.service`.
 - GPUs: two Intel Battlemage G31 / Arc Pro B70 devices, render nodes `/dev/dri/renderD128` and `/dev/dri/renderD129`.
 
 ## Communication Contract
 
 Use MCP as the northbound agent interface.
 
-MCP is the right first contract because commandcenter/Hermes/Codex-style callers need to discover node state, read resources, and invoke explicit tools like `render_owners`, `hermes_ready`, `start_hermes_backend`, and `stop_hermes_backend`.
+MCP is the right first contract because commandcenter/Codex-style callers need to discover node state, read resources, and invoke explicit tools like `render_owners`, `oxen_ready`, `start_oxen_backend`, and `stop_oxen_backend`.
 
 Keep NATS optional. It becomes useful when a run contract needs durable queueing, replayable events, fanout to multiple workers, or high-volume telemetry. It should not be required for a single agent asking AM4 what it can do.
 
@@ -31,18 +31,18 @@ MCP over SSH:
 ssh derek@am4.tail8e749c.ts.net /home/derek/am4-fleet-node/.venv/bin/python /home/derek/am4-fleet-node/scripts/am4-mcp-server.py
 ```
 
-## Hermes Alias Contract
+## oxen Alias Contract
 
 First slice exposes:
 
-- `vllama-planner` -> Qwen3-30B-A3B GGUF through dual-B70 llama.cpp.
-- `hermes` -> same backend alias for clients that expect a literal Hermes model name.
+- `oxen-planner` -> Qwen3-30B-A3B GGUF through dual-B70 llama.cpp.
+- `oxen` -> same backend alias for clients that expect a literal oxen model name.
 
-The alias names match the existing vllama/Hermes contract. `vllama-critic` should be added as a second resident slot only after the AM4 backend has proven stable under one dual-card planner model.
+The alias names match the oxen alias contract. `oxen-critic` should be added as a second resident slot only after the AM4 backend has proven stable under one dual-card planner model.
 
 ## Safety Rule
 
-Do not start `am4-hermes-backend.service` while another process owns both render nodes unless you deliberately want GPU co-tenancy. Check first:
+Do not start `am4-oxen-backend.service` while another process owns both render nodes unless you deliberately want GPU co-tenancy. Check first:
 
 ```bash
 ~/am4-fleet-node/scripts/am4-node-status.sh
@@ -61,7 +61,7 @@ With 32 GB host DDR, do not make pooled/shared memory the plan. Treat host memor
 
 - keep the resident workload inside B70 VRAM;
 - avoid host spill and host-bounced steady-state paths;
-- run one Hermes long-context backend before chasing multi-tenant fanout;
+- run one oxen long-context backend before chasing multi-tenant fanout;
 - add custom probes/tooling at whichever layer is lying, including driver/kernel work if the public stack does not expose the needed control.
 
 Use Denning as the bounds ledger, not as the Linux control law:
@@ -92,9 +92,9 @@ Placement experiments to run once ComfyUI is not occupying both render nodes:
 3. `tensor`: candidate if row is unstable or slow.
 4. Only after those are measured: raise `CTX=262144`.
 
-The acceptance criterion is not "starts." It is: both cards are used as intended, no host spill is visible, readiness can generate through the Hermes alias, and throughput is good enough to justify the placement.
+The acceptance criterion is not "starts." It is: both cards are used as intended, no host spill is visible, readiness can generate through the oxen alias, and throughput is good enough to justify the placement.
 
-Do not pick a placement from a single small-context smoke. Run a context ladder because the fast setting at shallow context can be the slow setting at Hermes-scale context:
+Do not pick a placement from a single small-context smoke. Run a context ladder because the fast setting at shallow context can be the slow setting at oxen-scale context:
 
 ```bash
 ~/am4-fleet-node/scripts/context-ladder-probe.sh
@@ -125,24 +125,24 @@ What that first ladder showed:
 ~/am4-fleet-node/scripts/am4-node-status.sh
 ~/am4-fleet-node/scripts/am4-node-status.sh --xpu-smoke
 
-sudo systemctl status am4-hermes-facade.service
-sudo systemctl status am4-hermes-backend.service
+sudo systemctl status am4-oxen-facade.service
+sudo systemctl status am4-oxen-backend.service
 
 # Start backend only when render nodes are free.
-sudo systemctl start am4-hermes-backend.service
+sudo systemctl start am4-oxen-backend.service
 
 # Verify facade.
 curl -s http://127.0.0.1:8090/health
-curl -s http://127.0.0.1:8090/v1/models -H "Authorization: Bearer $(cat ~/.config/am4-fleet/hermes.token)"
-curl -s http://127.0.0.1:8090/vllama/ready?alias=vllama-planner -H "Authorization: Bearer $(cat ~/.config/am4-fleet/hermes.token)"
+curl -s http://127.0.0.1:8090/v1/models -H "Authorization: Bearer $(cat ~/.config/am4-fleet/oxen.token)"
+curl -s http://127.0.0.1:8090/oxen/ready?alias=oxen-planner -H "Authorization: Bearer $(cat ~/.config/am4-fleet/oxen.token)"
 ```
 
 ## Files On AM4
 
 - `~/am4-fleet-node/` - scripts, facade, service files.
 - `~/am4-fleet-node/.venv/` - MCP server Python environment.
-- `~/.config/am4-fleet/hermes.env` - local service config.
-- `~/.config/am4-fleet/hermes.token` - HTTP bearer token.
+- `~/.config/am4-fleet/oxen.env` - local service config.
+- `~/.config/am4-fleet/oxen.token` - HTTP bearer token.
 - `~/.config/am4-fleet/nats.conf` - optional NATS server config with auth.
 - `~/.config/am4-fleet/nats.env` - optional NATS client environment values.
 

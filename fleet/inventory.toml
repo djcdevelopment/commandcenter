@@ -40,9 +40,12 @@ alt = ["omen.mshome.net"]
 via = "tailnet"
 expect = "up"
 purpose = "Hyper-V hypervisor + Ollama backend (:11434) + HEARTH gateway (:8710). Hosts all builder VMs. THIS box."
+# `revive` (optional, per-check): a shell command the mechnet-watchdog runs when
+# this service is down on an expect="up" node. The gateway revive is the proven
+# doorcheck --revive (kill/revive round-trip verified 2026-07-04, 322ab7d).
 checks = [
   { service = "ollama", port = 11434, host = "omen.mshome.net" },
-  { service = "hearth-gateway", port = 8710, host = "127.0.0.1" },
+  { service = "hearth-gateway", port = 8710, host = "127.0.0.1", revive = "C:\\work\\commandcenter\\fleet-worker-node\\.venv-omen\\Scripts\\python.exe -m hearth.callers.doorcheck --revive" },
 ]
 
 [[node]]
@@ -117,7 +120,7 @@ address = "cc-builder-2.mshome.net"
 via = "mshome"
 host = "omen"
 expect = "up"
-purpose = "Builder VM (local vllama-planner runner)."
+purpose = "Builder VM (local oxen-planner runner)."
 checks = [
   { service = "ssh", port = 22 },
 ]
@@ -155,10 +158,10 @@ checks = [
 name = "am4-worker-1"
 kind = "logical-builder"
 rides_on = "am4"
-model_backend = "127.0.0.1:8090"   # hermes (dual B70 Qwen3-30B), local to AM4
+model_backend = "127.0.0.1:8090"   # oxen (dual B70 Qwen3-30B), local to AM4
 via = "tailnet"
 expect = "up"
-purpose = "AM4 local-model builder: openai runner -> hermes. Shell on AM4; farmer via cc-farmer tunnel."
+purpose = "AM4 local-model builder: openai runner -> oxen. Shell on AM4; farmer via cc-farmer tunnel."
 checks = [
   { service = "ssh", port = 22, host = "100.116.82.60" },
 ]

@@ -11,13 +11,13 @@ config_dir="${HOME}/.config/am4-fleet"
 mkdir -p "${config_dir}"
 chmod 700 "${config_dir}"
 
-if [[ ! -f "${config_dir}/hermes.token" ]]; then
+if [[ ! -f "${config_dir}/oxen.token" ]]; then
   if command -v openssl >/dev/null 2>&1; then
-    openssl rand -hex 32 > "${config_dir}/hermes.token"
+    openssl rand -hex 32 > "${config_dir}/oxen.token"
   else
-    python3 -c 'import secrets; print(secrets.token_urlsafe(48))' > "${config_dir}/hermes.token"
+    python3 -c 'import secrets; print(secrets.token_urlsafe(48))' > "${config_dir}/oxen.token"
   fi
-  chmod 600 "${config_dir}/hermes.token"
+  chmod 600 "${config_dir}/oxen.token"
 fi
 
 if [[ ! -f "${config_dir}/nats.password" ]]; then
@@ -29,14 +29,14 @@ if [[ ! -f "${config_dir}/nats.password" ]]; then
   chmod 600 "${config_dir}/nats.password"
 fi
 
-hermes_token="$(<"${config_dir}/hermes.token")"
+oxen_token="$(<"${config_dir}/oxen.token")"
 nats_password="$(<"${config_dir}/nats.password")"
 
-cat > "${config_dir}/hermes.env" <<EOF
-AM4_HERMES_HOST=0.0.0.0
-AM4_HERMES_PORT=8090
-AM4_HERMES_TOKEN=${hermes_token}
-AM4_HERMES_ALIASES=vllama-planner,hermes
+cat > "${config_dir}/oxen.env" <<EOF
+AM4_OXEN_HOST=0.0.0.0
+AM4_OXEN_PORT=8090
+AM4_OXEN_TOKEN=${oxen_token}
+AM4_OXEN_ALIASES=oxen-planner,oxen
 AM4_BACKEND_HOST=127.0.0.1
 AM4_BACKEND_PORT=8080
 AM4_BACKEND_MODEL_ID=Qwen3-30B-A3B-Instruct-2507-Q4_K_M
@@ -53,7 +53,7 @@ KV_TYPE_V=q8_0
 NO_MMAP=0
 NO_HOST=0
 EOF
-chmod 600 "${config_dir}/hermes.env"
+chmod 600 "${config_dir}/oxen.env"
 
 cat > "${config_dir}/nats.conf" <<EOF
 server_name: am4
@@ -92,11 +92,11 @@ if ! "${root}/.venv/bin/python" -c 'import mcp' >/dev/null 2>&1; then
   "${root}/.venv/bin/python" -m pip install "mcp==1.28.1" >/dev/null
 fi
 
-sudo install -m 0644 "${root}/systemd/am4-hermes-facade.service" /etc/systemd/system/am4-hermes-facade.service
-sudo install -m 0644 "${root}/systemd/am4-hermes-backend.service" /etc/systemd/system/am4-hermes-backend.service
+sudo install -m 0644 "${root}/systemd/am4-oxen-facade.service" /etc/systemd/system/am4-oxen-facade.service
+sudo install -m 0644 "${root}/systemd/am4-oxen-backend.service" /etc/systemd/system/am4-oxen-backend.service
 sudo systemctl daemon-reload
-sudo systemctl enable --now am4-hermes-facade.service
-sudo systemctl disable am4-hermes-backend.service >/dev/null 2>&1 || true
+sudo systemctl enable --now am4-oxen-facade.service
+sudo systemctl disable am4-oxen-backend.service >/dev/null 2>&1 || true
 
 if [[ "${with_nats}" == "1" ]]; then
   docker rm -f nats >/dev/null 2>&1 || true
@@ -116,6 +116,6 @@ fi
 
 echo "AM4 fleet node installed."
 echo "MCP stdio command: ssh derek@am4.tail8e749c.ts.net ${root}/.venv/bin/python ${root}/scripts/am4-mcp-server.py"
-echo "Hermes facade token: ${config_dir}/hermes.token"
+echo "oxen facade token: ${config_dir}/oxen.token"
 echo "NATS env: ${config_dir}/nats.env (optional; install with --with-nats)"
-echo "Backend installed but not started. Start with: sudo systemctl start am4-hermes-backend.service"
+echo "Backend installed but not started. Start with: sudo systemctl start am4-oxen-backend.service"

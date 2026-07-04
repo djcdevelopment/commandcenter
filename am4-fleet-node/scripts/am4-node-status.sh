@@ -6,7 +6,7 @@ if [[ "${1:-}" == "--xpu-smoke" ]]; then
   run_xpu_smoke=1
 fi
 
-token_file="${HOME}/.config/am4-fleet/hermes.token"
+token_file="${HOME}/.config/am4-fleet/oxen.token"
 auth_header=()
 if [[ -f "${token_file}" ]]; then
   auth_header=(-H "Authorization: Bearer $(<"${token_file}")")
@@ -52,7 +52,7 @@ ss -ltnp 2>/dev/null | sed -n '1,120p' || true
 section "nats"
 curl -fsS http://127.0.0.1:8222/varz 2>/dev/null | python3 -m json.tool 2>/dev/null | sed -n '1,80p' || echo "nats monitor unavailable"
 
-section "hermes facade"
+section "oxen facade"
 curl -fsS http://127.0.0.1:8090/health 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "facade unavailable"
 if [[ ${#auth_header[@]} -gt 0 ]]; then
   curl -fsS "${auth_header[@]}" http://127.0.0.1:8090/v1/models 2>/dev/null | python3 -m json.tool 2>/dev/null || true

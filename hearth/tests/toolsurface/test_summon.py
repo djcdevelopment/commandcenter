@@ -14,11 +14,12 @@ class SummonStubShapeTests(TestCase):
         self.assertIsInstance(result["would_run"], str)
         self.assertTrue(result["would_run"].strip())
 
-    def test_wake_am4_targets_hermes_backend_over_ssh(self) -> None:
+    def test_wake_am4_targets_oxen_backend_over_ssh(self) -> None:
         result = wake_am4()
         self._assert_stub_shape(result)
         self.assertIn("ssh derek@am4.tail8e749c.ts.net", result["would_run"])
-        self.assertIn("am4-hermes-backend.service", result["would_run"])
+        self.assertIn("am4-planner.service", result["would_run"])
+        self.assertIn("am4-critic.service", result["would_run"])
         self.assertIn("8090/health", result["verify"])
 
     def test_start_ollama_defaults_to_resident_coder_model(self) -> None:

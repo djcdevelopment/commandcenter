@@ -89,3 +89,63 @@ class LocalGenerateTests(TestCase):
             local_generate("ok", timeout_s=-1)
         with self.assertRaises(ValueError):
             local_generate("ok", model="")
+
+    def test_default_path_reports_backend_provenance(self) -> None:
+        with patch("urllib.request.urlopen", return_value=_FakeResponse(OLLAMA_REPLY)):
+            result = local_generate("hello")
+        self.assertEqual(result["backend"], "omen-ollama")
+        self.assertEqual(result["routed_by"], "default")
+
+
+OPENAI_REPLY = {
+    "model": "qwen3-30b",
+    "choices": [{"message": {"role": "assistant", "content": "the banked answer"}}],
+    "usage": {"prompt_tokens": 20, "completion_tokens": 40},
+}
+
+
+class BankedFireRoutingTests(TestCase):
+    """P1: task/backend routing to the OpenAI-shaped oxen backend."""
+
+    def test_task_research_routes_to_oxen_openai(self) -> None:
+        with patch.dict(os.environ, {"AM4_OXEN_TOKEN": "sk-oxen"}):
+            with patch("urllib.request.urlopen",
+                       return_value=_FakeResponse(OPENAI_REPLY)) as mocked:
+                result = local_generate("what is banked in the coals?", task="research")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["text"], "the banked answer")
+        self.assertEqual(result["backend"], "am4-oxen")
+        self.assertEqual(result["routed_by"], "tag:research")
+        self.assertEqual(result["tokens_in"], 20)
+        self.assertEqual(result["tokens_out"], 40)
+
+        sent = mocked.call_args[0][0]
+        self.assertEqual(sent.full_url, "http://100.116.82.60:8090/v1/chat/completions")
+        self.assertEqual(sent.headers.get("Authorization"), "Bearer sk-oxen")
+        body = json.loads(sent.data.decode("utf-8"))
+        self.assertEqual(body["messages"][-1], {"role": "user",
+                                                "content": "what is banked in the coals?"})
+        self.assertEqual(body["model"], "oxen")  # backend's declared default model
+
+    def test_system_prompt_becomes_openai_system_message(self) -> None:
+        with patch.dict(os.environ, {"AM4_OXEN_TOKEN": "sk-oxen"}):
+            with patch("urllib.request.urlopen",
+                       return_value=_FakeResponse(OPENAI_REPLY)) as mocked:
+                local_generate("q", backend="am4-oxen", system="be terse")
+        body = json.loads(mocked.call_args[0][0].data.decode("utf-8"))
+        self.assertEqual(body["messages"][0], {"role": "system", "content": "be terse"})
+
+    def test_openai_backend_without_token_is_clean_error(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            with patch("urllib.request.urlopen") as mocked:
+                result = local_generate("q", task="research")
+        self.assertFalse(result["ok"])
+        self.assertIn("AM4_OXEN_TOKEN", result["error"])
+        self.assertEqual(result["backend"], "am4-oxen")
+        mocked.assert_not_called()  # short-circuits before any 401-yielding POST
+
+    def test_unknown_backend_name_returns_routing_error(self) -> None:
+        result = local_generate("q", backend="ghost")
+        self.assertFalse(result["ok"])
+        self.assertIn("routing failed", result["error"])

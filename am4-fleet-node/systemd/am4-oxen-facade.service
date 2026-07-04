@@ -1,5 +1,5 @@
 [Unit]
-Description=AM4 Hermes OpenAI-compatible facade
+Description=AM4 oxen OpenAI-compatible facade
 After=network-online.target
 Wants=network-online.target
 
@@ -8,8 +8,8 @@ Type=simple
 User=derek
 Group=derek
 WorkingDirectory=/home/derek/am4-fleet-node
-EnvironmentFile=-/home/derek/.config/am4-fleet/hermes.env
-ExecStart=/usr/bin/python3 /home/derek/am4-fleet-node/scripts/hermes-facade.py
+EnvironmentFile=-/home/derek/.config/am4-fleet/oxen.env
+ExecStart=/usr/bin/python3 /home/derek/am4-fleet-node/scripts/oxen-facade.py
 Restart=always
 RestartSec=2
 

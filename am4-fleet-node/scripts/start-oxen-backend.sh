@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-env_file="${AM4_HERMES_ENV:-/home/derek/.config/am4-fleet/hermes.env}"
+env_file="${AM4_OXEN_ENV:-/home/derek/.config/am4-fleet/oxen.env}"
 if [[ -f "${env_file}" ]]; then
   while IFS= read -r raw; do
     line="${raw#"${raw%%[![:space:]]*}"}"
@@ -35,7 +35,7 @@ NO_HOST="${NO_HOST:-0}"
 if [[ "${BACKEND_KIND}" == "sycl" && -f /opt/intel/oneapi/setvars.sh ]]; then
   # Required for libsycl/libsvml and friends when systemd launches the service.
   # shellcheck disable=SC1091
-  source /opt/intel/oneapi/setvars.sh >/tmp/am4-hermes-oneapi-setvars.log 2>&1 || true
+  source /opt/intel/oneapi/setvars.sh >/tmp/am4-oxen-oneapi-setvars.log 2>&1 || true
 fi
 
 if [[ "${BACKEND_KIND}" == "vulkan" ]]; then

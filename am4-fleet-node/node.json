@@ -33,10 +33,10 @@
     "nats_optional": "nats://am4.tail8e749c.ts.net:4222",
     "nats_monitor_optional": "http://am4.tail8e749c.ts.net:8222",
     "openai": "http://am4.tail8e749c.ts.net:8090/v1",
-    "hermes_health": "http://am4.tail8e749c.ts.net:8090/health"
+    "oxen_health": "http://am4.tail8e749c.ts.net:8090/health"
   },
   "models": {
-    "vllama-planner": {
+    "oxen-planner": {
       "backend": "llama.cpp SYCL / Level Zero",
       "model_file": "/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
       "placement": "dual",
@@ -45,10 +45,10 @@
       "tensor_split": "1,1",
       "ctx": 131072,
       "kv_type": "q8_0",
-      "hermes_target": "minimum long-context target; 262144 is experimental until measured on Ubuntu"
+      "oxen_target": "minimum long-context target; 262144 is experimental until measured on Ubuntu"
     },
-    "hermes": {
-      "alias_of": "vllama-planner"
+    "oxen": {
+      "alias_of": "oxen-planner"
     }
   },
   "notes": [
@@ -60,6 +60,6 @@
     "Linux memory pinning should simplify placement; still measure P2P/card-to-card throughput and engine placement behavior before designing around KV-on-one-card/model-on-another.",
     "With 32 GB DDR, pooled/shared memory is not the first plan; keep steady-state inside B70 VRAM and treat host memory as scarce.",
     "NATS is optional and only needed for durable run events or queue fanout.",
-    "Hermes HTTP is authenticated; credentials live only on AM4 under ~/.config/am4-fleet."
+    "The oxen facade HTTP is authenticated; credentials live only on AM4 under ~/.config/am4-fleet."
   ]
 }

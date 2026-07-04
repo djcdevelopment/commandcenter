@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a service-path benchmark through the AM4 Hermes facade.
+"""Run a service-path benchmark through the AM4 oxen facade.
 
 This is intentionally closer to the old vllama proof shape than llama-bench:
 bring up a resident backend, wait for facade serve-readiness, then measure real
@@ -24,8 +24,8 @@ from typing import Any
 
 ROOT = Path("/home/derek/am4-fleet-node")
 CONFIG_DIR = Path.home() / ".config" / "am4-fleet"
-DEFAULT_ENV_FILE = CONFIG_DIR / "hermes.env"
-DEFAULT_TOKEN_FILE = CONFIG_DIR / "hermes.token"
+DEFAULT_ENV_FILE = CONFIG_DIR / "oxen.env"
+DEFAULT_TOKEN_FILE = CONFIG_DIR / "oxen.token"
 DEFAULT_RESULTS_DIR = ROOT / "results"
 
 
@@ -162,7 +162,7 @@ def make_context_prompt(target_tokens: int, question: str) -> str:
     # Approximate 4 chars/token. This is only for deep-path benchmarking, not exact token packing.
     target_chars = max(0, target_tokens * 4)
     line = (
-        "Context block: AM4 Hermes long-context service probe. "
+        "Context block: AM4 oxen long-context service probe. "
         "This line exists to create repeated attention load without semantic importance. "
         "Preserve position, but do not summarize it. "
     )
@@ -180,7 +180,7 @@ def make_context_prompt(target_tokens: int, question: str) -> str:
 
 
 def launch_backend(env_overrides: dict[str, str], log_prefix: Path) -> subprocess.Popen[str]:
-    cmd = [str(ROOT / "scripts" / "start-hermes-backend.sh")]
+    cmd = [str(ROOT / "scripts" / "start-oxen-backend.sh")]
     env = os.environ.copy()
     env.update(read_env_file(DEFAULT_ENV_FILE))
     env.update(env_overrides)
@@ -278,7 +278,7 @@ def wait_for_ready(alias: str, timeout_s: float) -> dict[str, Any]:
     last: Any = None
     while time.perf_counter() < deadline:
         status, payload = json_request(
-            f"http://127.0.0.1:8090/vllama/ready?alias={encoded}",
+            f"http://127.0.0.1:8090/oxen/ready?alias={encoded}",
             authorized=True,
             timeout=35,
         )
@@ -300,7 +300,7 @@ def wait_for_ready(alias: str, timeout_s: float) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--alias", default="vllama-planner")
+    parser.add_argument("--alias", default="oxen-planner")
     parser.add_argument("--placement", default="single0", choices=["single0", "single1", "layer"])
     parser.add_argument("--ctx", type=int, default=131072)
     parser.add_argument("--parallel", type=int, default=1)

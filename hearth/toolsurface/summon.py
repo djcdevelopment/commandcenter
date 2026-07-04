@@ -5,9 +5,11 @@ topology). These stubs return {ok: false, stub: true, would_run: <the real comma
 so callers and the ledger see the correct tool shapes NOW; H3 flips them live.
 
 Command provenance:
-- wake_am4 / hermes backend: am4-fleet-node/node.json (ssh endpoint) +
-  am4-fleet-node/README.md ("sudo systemctl start am4-hermes-backend.service";
-  check render-node ownership first — B70s may be owned by image gen).
+- wake_am4 / oxen backend: am4-fleet-node/node.json (ssh endpoint). The live AM4
+  inference muscle is two systemd slot units — am4-planner.service (B70 SYCL0 :8080,
+  Qwen3-30B) + am4-critic.service (B70 SYCL1 :8081, qwen2.5-14b) — fronted by
+  am4-oxen-facade.service (:8090). Check render-node ownership first — B70s may be
+  owned by image gen.
 - start_ollama: omen-worker-1 runs Ollama (login-start today; service-ification is the
   Δ4 decision). `ollama serve` starts the daemon; hitting /api/generate with the model
   loads it resident.
@@ -21,7 +23,7 @@ from __future__ import annotations
 from typing import Callable
 
 AM4_SSH = "ssh derek@am4.tail8e749c.ts.net"
-AM4_HERMES_HEALTH = "http://am4.tail8e749c.ts.net:8090/health"
+AM4_OXEN_HEALTH = "http://am4.tail8e749c.ts.net:8090/health"
 OLLAMA_DEFAULT_ENDPOINT = "http://127.0.0.1:11434"
 
 
@@ -30,15 +32,15 @@ def _stub(would_run: str, **extra: object) -> dict:
 
 
 def wake_am4() -> dict:
-    """[stub] Wake AM4's inference muscle: start the dual-B70 hermes backend over SSH."""
+    """[stub] Wake AM4's inference muscle: start the dual-B70 oxen backend over SSH."""
     return _stub(
-        f"{AM4_SSH} 'sudo systemctl start am4-hermes-backend.service'",
+        f"{AM4_SSH} 'sudo systemctl start am4-planner.service am4-critic.service'",
         preflight=(
-            f"{AM4_SSH} 'systemctl status am4-hermes-facade.service' — facade may be up while "
-            "the backend is intentionally stopped; check render-node ownership before starting "
-            "(both B70s may be owned by the image-gen workload)"
+            f"{AM4_SSH} 'systemctl status am4-oxen-facade.service' — facade may be up while "
+            "the slot backends are intentionally stopped; check render-node ownership before "
+            "starting (both B70s may be owned by the image-gen workload)"
         ),
-        verify=f"curl -s {AM4_HERMES_HEALTH}",
+        verify=f"curl -s {AM4_OXEN_HEALTH}",
         node="am4",
     )
 

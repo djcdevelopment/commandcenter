@@ -22,8 +22,8 @@ from mcp.server.fastmcp import FastMCP
 
 ROOT = Path(os.environ.get("AM4_FLEET_ROOT", "/home/derek/am4-fleet-node"))
 CONFIG = Path(os.environ.get("AM4_FLEET_CONFIG", "/home/derek/.config/am4-fleet"))
-TOKEN_FILE = CONFIG / "hermes.token"
-HERMES_ENV = CONFIG / "hermes.env"
+TOKEN_FILE = CONFIG / "oxen.token"
+OXEN_ENV = CONFIG / "oxen.env"
 
 mcp = FastMCP("am4-fleet-node")
 
@@ -92,12 +92,12 @@ def node_resource() -> str:
     return (ROOT / "node.json").read_text(encoding="utf-8")
 
 
-@mcp.resource("am4://hermes/env")
-def hermes_env_resource() -> str:
-    if not HERMES_ENV.exists():
-        return "hermes.env not found"
+@mcp.resource("am4://oxen/env")
+def oxen_env_resource() -> str:
+    if not OXEN_ENV.exists():
+        return "oxen.env not found"
     lines = []
-    for line in HERMES_ENV.read_text(encoding="utf-8").splitlines():
+    for line in OXEN_ENV.read_text(encoding="utf-8").splitlines():
         if "TOKEN=" in line or "PASSWORD=" in line:
             key = line.split("=", 1)[0]
             lines.append(f"{key}=<redacted>")
@@ -127,32 +127,32 @@ def render_owners() -> str:
 
 
 @mcp.tool()
-def hermes_facade_health() -> dict[str, Any]:
-    """Return the AM4 Hermes/OpenAI facade health payload."""
+def oxen_facade_health() -> dict[str, Any]:
+    """Return the AM4 oxen OpenAI facade health payload."""
     return http_json("http://127.0.0.1:8090/health", authorized=False, timeout=5)
 
 
 @mcp.tool()
-def hermes_models() -> dict[str, Any]:
-    """List Hermes/OpenAI facade aliases and readiness."""
+def oxen_models() -> dict[str, Any]:
+    """List oxen OpenAI facade aliases and readiness."""
     return http_json("http://127.0.0.1:8090/v1/models", authorized=True, timeout=5)
 
 
 @mcp.tool()
-def hermes_ready(alias: str = "vllama-planner") -> dict[str, Any]:
+def oxen_ready(alias: str = "oxen-planner") -> dict[str, Any]:
     """Run the facade readiness probe for an alias."""
     quoted = quote(alias, safe="")
-    return http_json(f"http://127.0.0.1:8090/vllama/ready?alias={quoted}", authorized=True, timeout=35)
+    return http_json(f"http://127.0.0.1:8090/oxen/ready?alias={quoted}", authorized=True, timeout=35)
 
 
 @mcp.tool()
-def hermes_backend_status() -> dict[str, Any]:
+def oxen_backend_status() -> dict[str, Any]:
     """Return systemd status for the heavy llama.cpp backend."""
-    return run(["systemctl", "is-active", "am4-hermes-backend.service"], timeout=5)
+    return run(["systemctl", "is-active", "am4-oxen-backend.service"], timeout=5)
 
 
 @mcp.tool()
-def start_hermes_backend(force: bool = False) -> dict[str, Any]:
+def start_oxen_backend(force: bool = False) -> dict[str, Any]:
     """Start the heavy dual-B70 backend. Refuses while render nodes are busy unless force=true."""
     owners = render_owner_lines()
     if not force and ("COMMAND" in owners and any(name in owners for name in ("python", "llama", "ComfyUI"))):
@@ -162,14 +162,14 @@ def start_hermes_backend(force: bool = False) -> dict[str, Any]:
             "reason": "render nodes are busy; pass force=true only if co-tenancy is deliberate",
             "render_owners": owners,
         }
-    result = run(["sudo", "systemctl", "start", "am4-hermes-backend.service"], timeout=20)
+    result = run(["sudo", "systemctl", "start", "am4-oxen-backend.service"], timeout=20)
     return {"started": result["returncode"] == 0, "systemctl": result, "render_owners_before": owners}
 
 
 @mcp.tool()
-def stop_hermes_backend() -> dict[str, Any]:
+def stop_oxen_backend() -> dict[str, Any]:
     """Stop the heavy dual-B70 backend."""
-    result = run(["sudo", "systemctl", "stop", "am4-hermes-backend.service"], timeout=20)
+    result = run(["sudo", "systemctl", "stop", "am4-oxen-backend.service"], timeout=20)
     return {"stopped": result["returncode"] == 0, "systemctl": result}
 
 
@@ -259,7 +259,7 @@ def denning_bounds() -> dict[str, Any]:
 
 @mcp.tool()
 def llama_cpp_placement_modes() -> dict[str, Any]:
-    """Summarize llama.cpp placement modes relevant to Hermes on dual B70."""
+    """Summarize llama.cpp placement modes relevant to the oxen facade on dual B70."""
     return {
         "backend": "SYCL / Level Zero preferred on Ubuntu AM4; Vulkan remains a fallback",
         "baseline": {
@@ -285,7 +285,7 @@ def llama_cpp_placement_modes() -> dict[str, Any]:
         "acceptance": [
             "both cards used as intended",
             "no steady-state host spill",
-            "Hermes alias readiness succeeds through /v1",
+            "oxen alias readiness succeeds through /v1",
             "throughput is usable at the target context, not merely at small context",
         ],
     }
@@ -296,7 +296,7 @@ def am4_operating_posture() -> dict[str, Any]:
     """Return the current engineering posture for AM4."""
     return {
         "northbound_control": "MCP over SSH stdio",
-        "model_endpoint": "OpenAI-compatible Hermes facade on :8090",
+        "model_endpoint": "OpenAI-compatible oxen facade on :8090",
         "event_bus": "NATS optional, not required for first slice",
         "memory_strategy": {
             "not_chasing": "pooled/shared memory as VRAM extension on 32 GB DDR",
@@ -331,10 +331,10 @@ def accelerator_capabilities() -> dict[str, Any]:
 
 
 @mcp.prompt()
-def safe_hermes_long_context_run() -> str:
-    """Operational prompt for agents before starting a Hermes long-context run on AM4."""
+def safe_oxen_long_context_run() -> str:
+    """Operational prompt for agents before starting an oxen long-context run on AM4."""
     return (
-        "Before starting AM4 Hermes long-context inference: call render_owners; refuse to start "
+        "Before starting AM4 oxen long-context inference: call render_owners; refuse to start "
         "the backend if ComfyUI or another process owns both render nodes unless the operator "
         "explicitly asks for co-tenancy. Start with the configured 131072 context, q8_0 KV, "
         "one server slot, and a single alias readiness probe. Treat Denning as Windows bounds; "

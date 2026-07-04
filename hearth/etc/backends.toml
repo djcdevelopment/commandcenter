@@ -1,11 +1,11 @@
 # ============================================================================
-# HEARTH inference backend pool  —  "bankfire" (Banked Fire, P1)
+# HEARTH inference backend pool  —  "bankedfire" (Banked Fire, P1 + P2)
 # ============================================================================
 # Declarative pool for hearth.toolsurface.inference.local_generate.
 #
 # One config file, one scheduler (Banked Fire design principle #2): the router
-# reads this, and later phases (occupancy probe P2, watchdog P4) read the SAME
-# declaration. Add a backend here and it is routable — no code change.
+# reads this, and later phases (watchdog P4) read the SAME declaration. Add a
+# backend here and it is routable — no code change.
 #
 # Parsed with stdlib tomllib (Python 3.11+); no third-party deps by design.
 # Override the path with the HEARTH_BACKENDS env var. If the file is absent the
@@ -13,11 +13,13 @@
 # breaks on a missing pool file.
 #
 # Routing policy (see backends.py select_backend), in order:
-#   1. caller-pinned endpoint  -> unchanged legacy behavior, wins outright
-#   2. caller-pinned backend name
-#   3. tag match (task="research" -> a backend tagged "research")
-#   4. occupancy skip           (P2, not yet consulted)
-#   5. fall back to `default`
+#   1. caller-pinned endpoint  -> unchanged legacy behavior, wins outright, no occupancy check
+#   2. caller-pinned backend name -> wins outright, no occupancy check (a pin is deliberate)
+#   3. tag match (task="research" -> a backend tagged "research"), occupancy-checked (P2):
+#      a busy or unknown-occupancy candidate is skipped, next tag/candidate tried
+#   4. fall back to `default` (never itself occupancy-gated)
+# Occupancy probe: hearth.toolsurface.occupancy (SSH render-node check on AM4,
+# 30s cache, fail-open to "unknown" -> busy for opportunistic/tag-routed calls).
 # ============================================================================
 
 # Name of the backend used when nothing else matches.
@@ -45,6 +47,9 @@ models   = ["oxen"]                           # facade-advertised id (GET /v1/mo
                                               # (was "qwen3-30b" — not a real id → 404.)
 tags     = ["big-context", "research", "second-opinion"]
 revive   = "wake_am4"                          # HEARTH summon tool (consumed in P4)
-# Occupancy (P2): which conductor worker rides this backend. Declared now so the
-# occupancy probe has a target the moment it lands; the router ignores it in P1.
+# `conductor_worker`: metadata only — which conductor worker rides this backend
+# (useful for humans cross-referencing fleet.json). The LIVE P2 occupancy probe
+# does NOT read this field: it goes straight to AM4 serve-truth (render_owners
+# over SSH — hearth.toolsurface.occupancy.check_occupancy, keyed by backend
+# name "am4-oxen"), per the strategy doc's ground truth over conductor-FS demotion.
 occupancy = { conductor_worker = "am4-worker-1" }

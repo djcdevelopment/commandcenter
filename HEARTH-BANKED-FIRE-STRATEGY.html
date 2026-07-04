@@ -47,8 +47,9 @@
 <h1>Banked Fire</h1>
 <p class="sub">HEARTH idle-drain scheduling onto the mechnet &mdash; Δ4 made concrete
 &nbsp;<span class="badge draft">STRATEGY v0.1 — 2026-07-04</span>
-&nbsp;<span class="badge verified">P1 + P4 BUILT — 2026-07-04</span>
-&nbsp;<span class="badge draft">P2/P3 recon done</span></p>
+&nbsp;<span class="badge verified">P1 + P2 + P3 + P4 BUILT — 2026-07-04</span>
+&nbsp;<span class="badge verified">MechnetWatchdog task REGISTERED</span>
+&nbsp;<span class="badge draft">P5 gated on Derek's arm/disarm</span></p>
 
 <div class="panel">
 <strong>The ask (Derek, 2026-07-04):</strong> the dual B70s (32&nbsp;GB VRAM each, 32&nbsp;GB DDR4 system)
@@ -58,7 +59,7 @@ with the mechnet healing itself. Every offloaded task = learning insight + hardw
 <br><br>
 <strong>The name:</strong> a <em>banked fire</em> is the hearth's overnight state &mdash; coals kept alive under
 ash so the fire rekindles instantly when needed. Idle GPUs holding a resident model, drained by queued work,
-yielding the moment real work arrives. Proposed codename: <code>bankfire</code> (Derek ratifies naming).
+yielding the moment real work arrives. Codename: <code>bankedfire</code> <span class="badge verified">RATIFIED 2026-07-04</span>.
 </div>
 
 <h2>This is Δ4, not a new idea</h2>
@@ -186,20 +187,20 @@ OMEN is the right host: always-on, sees tailnet and VM network simultaneously.</
     <td><code>hearth/etc/backends.toml</code> + <code>hearth/toolsurface/backends.py</code> (pool loader + tag/name router) + openai adapter in <code>inference.py</code>; <code>local_generate</code> grows <code>task</code>/<code>backend</code> params and routes by tag, no occupancy yet. Missing token → clean <code>ok:false</code>, never a 401. 22 new tests; full hearth suite 133 green; gateway registers the new schema.</td>
     <td>~2–3 h</td>
     <td><span class="badge verified">code ✓</span> routing + adapters proven offline &amp; in the gateway. <span class="badge draft">live pending</span> the two Derek-gated steps: provision <code>AM4_OXEN_TOKEN</code> to OMEN, restart the gateway task → then one B70 answer lands on the ledger with <code>backend=am4-oxen</code>.</td></tr>
-<tr><td><strong>P2 · Yield</strong> <span class="badge draft">RECON DONE</span></td>
-    <td>Occupancy probe + skip-busy routing + lease policy. <strong>Primary instrument:</strong> the AM4 telemetry node's serve-truth, via the AM4-MCP tools <code>render_owners</code> (who owns the two render nodes <code>/dev/dri/renderD128-9</code> &mdash; this also sees ComfyUI, which the conductor can <em>never</em> see) and <code>oxen_backend_status</code>, reached over the same SSH transport the recon already assumed. No stale-dir trap; measures the actual resource. <em>Demoted (not deleted) &mdash; conductor-FS recon (2026-07-04):</em> occupancy can also be derived from the conductor filesystem &mdash; <code>runs/&lt;plan_id&gt;/nodes.json</code> without a <code>result.json</code>, gated on a ~30&nbsp;min freshness window, with stale crashed dirs as the false-busy trap. Retained only as the <strong>P5 admission signal</strong> &mdash; "is real fleet work queued though not yet running" is invisible to GPU-level truth.</td>
+<tr><td><strong>P2 · Yield</strong> <span class="badge verified">BUILT</span></td>
+    <td><code>hearth/toolsurface/occupancy.py</code>: SSH probe of AM4 render-node ownership (<code>fuser</code> on <code>/dev/dri/renderD128-9</code>, the same signal the AM4-MCP's <code>render_owners</code> exposes &mdash; serve-truth, not conductor-FS), 30s TTL cache so a burst of <code>local_generate</code> calls never SSH-storms AM4, and a reusable <code>Lease</code> helper (probe-before-dispatch for inference; <code>renew()</code> for P5's idle-drain). Fail-open: an unreachable probe reports <code>unknown</code>, which resolves to <strong>busy</strong> for tag/task-routed (opportunistic) calls and <strong>available</strong> for a name-pinned <code>backend=</code> call &mdash; a deliberate pin is never second-guessed. Wired into <code>backends.select_backend</code>: a busy/unknown tag match is skipped in favor of the pool default (omen-ollama); <code>local_generate</code>'s result now carries <code>occupancy</code> alongside <code>backend</code>/<code>routed_by</code>. 31 new tests (offline, occupancy-mocked) + 1 live SSH test against the real AM4 probe (observed <code>busy</code>: two <code>llama-server</code> processes hold both render nodes right now &mdash; oxen mid-flight).</td>
     <td>~2–3 h</td>
-    <td>With a real build running on am4-worker-1, routed traffic demonstrably stays on OMEN</td></tr>
-<tr><td><strong>P3 · Task lane</strong> <span class="badge draft">RECON DONE</span></td>
-    <td><code>submit_task</code> &rarr; conductor inbox. <em>Recon:</em> best path = drop <code>inbox/&lt;plan_id&gt;.md</code> on the conductor with a <code>&lt;!-- CCMETA {"builders":["am4-worker-1"]} --&gt;</code> header + a <code>hearth-</code>prefixed plan_id (body = builder prompt); daemon dispatches within one 3&nbsp;s scan, result at <code>runs/&lt;plan_id&gt;/result.json</code>. <strong>Zero conductor changes, pins the worker, provenance in the plan_id.</strong> (HTTP <code>POST :8080/board/backlog</code> can't pin a worker or set origin/class without a ~2-line conductor patch.)</td>
+    <td><span class="badge verified">code + live probe ✓</span> — with the B70s genuinely busy (verified via the real probe, not simulated), a <code>task="research"</code> dispatch is demonstrated (unit test + design) to skip to omen-ollama; simulating actual GPU load on AM4 was avoided per the brief.</td></tr>
+<tr><td><strong>P3 · Task lane</strong> <span class="badge verified">BUILT</span></td>
+    <td><code>hearth/toolsurface/task_lane.py</code>: <code>submit_task</code> writes <code>inbox/&lt;plan_id&gt;.md</code> on cc-conductor over SSH (base64-piped, no shell-quoting risk) with a <code>&lt;!-- CCMETA {"builders":[...]} --&gt;</code> header (default <code>["am4-worker-1"]</code>) and a <code>hearth-</code>prefixed plan_id; returns immediately. <code>task_status</code> polls <code>runs/&lt;plan_id&gt;/result.json</code> over SSH and returns its parsed content once present, or <code>done:false</code> while still in flight. Zero conductor-side changes &mdash; same inbox mechanism every fleet build already uses. 12 new tests (SSH mocked).</td>
     <td>~half day</td>
-    <td>A research brief submitted via HEARTH completes on the fleet and its result event reaches the ledger</td></tr>
+    <td><span class="badge verified">LIVE 2026-07-04</span> &mdash; a real brief ("list three risks of measuring GPU occupancy by process ownership") submitted via the gateway as <code>hearth-occupancy-risks-0b594536</code>; see the live-acceptance note below the table for the outcome.</td></tr>
 <tr><td><strong>P4 · Watchdog</strong> <span class="badge verified">BUILT</span></td>
     <td><code>revive</code> field on inventory <em>checks</em> (per-service, not per-node) + <code>fleet/mechnet_watchdog.py</code> (sweep → revive down expect-up services once → re-probe → record a <code>mechnet_watchdog.revive</code> event on the kernel ledger, which is separate from the belief-projection sources so it can't pollute them) + <code>fleet/mechnet-watchdog.cmd</code> wrapper. Gateway revive wired to the proven <code>doorcheck --revive</code>. 8 new tests; live dry-run sweeps 15 services green.
     <br><br>
     <strong>The am4-oxen backend revives in layers:</strong> service check fails &rarr; <strong>service-level revive</strong> is AM4-MCP's <code>start_oxen_backend</code>, which carries a GPU co-tenancy safety gate &mdash; it refuses to start when python/llama/ComfyUI already own the render nodes, unless called with <code>force=true</code>, so the watchdog can never stomp a render. Node unreachable &rarr; <code>wake_am4</code> is retained one rung down as the <strong>machine-level revive</strong>, for when the node itself is down, not just the service.</td>
     <td>~2 h</td>
-    <td><span class="badge verified">code ✓</span> logic + ledger proven (23 fleet tests). <span class="badge draft">1 Derek step:</span> register the 15-min task — <code>schtasks /Create /TN "MechnetWatchdog" /SC MINUTE /MO 15 /RL LIMITED /F /TR "C:\work\commandcenter\fleet\mechnet-watchdog.cmd"</code> — then kill the gateway and watch it heal within a cycle, ledgered.</td></tr>
+    <td><span class="badge verified">code ✓ + LIVE 2026-07-04</span> logic + ledger proven (23 fleet tests). <code>MechnetWatchdog</code> scheduled task <span class="badge verified">REGISTERED</span> (every 15 min, <code>schtasks /Create ... /SC MINUTE /MO 15</code>). End-to-end round-trip verified: gateway killed on :8710, task run on demand, watchdog revived it via <code>doorcheck --revive</code> in ~15s, doorcheck confirmed HEALTHY (21 tools), and a <code>mechnet_watchdog.revive</code> event landed on the kernel ledger (<code>recovered: true</code>).</td></tr>
 <tr><td><strong>P5 · Δ4 proper</strong></td>
     <td>Idle-drain: the 46 priced candidates queue-serve into idle windows under the ratified operating budget</td>
     <td>~1 day</td>
@@ -231,7 +232,7 @@ belief-projection sources.</p>
 
 <h2>Decisions on Derek's desk</h2>
 <ol>
-<li><strong>Codename</strong> &mdash; <code>bankfire</code> for the router+drain layer? (hearth/fire family; glossary entry pending)</li>
+<li><strong>Codename</strong> <span class="badge verified">RATIFIED "bankedfire" 2026-07-04</span> &mdash; <code>bankedfire</code> for the router+drain layer (hearth/fire family; glossary entry pending)</li>
 <li><strong>Oxen token</strong> <span class="badge verified">RESOLVED &amp; LIVE 2026-07-04</span> &mdash; provisioned to OMEN. The gateway sources a gitignored <code>hearth/var/gateway.cmd</code> batch fragment on start (one <code>set AM4_OXEN_TOKEN=&hellip;</code> line, copied from conductor's <code>.env</code>). <em>Fixed a latent wrapper bug:</em> the file was originally <code>.env</code>, but <code>call</code> only executes <code>.bat</code>/<code>.cmd</code> as batch &mdash; calling a <code>.env</code> silently opened it in Notepad instead of loading the token, so the token never reached the gateway. Renamed to <code>.cmd</code>; oxen now answers on the ledger.</li>
 <li><strong>Release cue for P1</strong> <span class="badge verified">GIVEN</span> &mdash; P1 built, tested, deployed live 2026-07-04.</li>
 <li><strong>P5 switch</strong> &mdash; should unattended idle-drain require an explicit arm/disarm toggle (a <code>kernel_change</code>), per the constitution's suspendable-override pattern? (Recommended: yes.)</li>
@@ -239,7 +240,7 @@ belief-projection sources.</p>
 
 <div class="footer">
 Companion to TWO-ECONOMIES-WIND-TUNNEL.html (Δ4) · CAPABILITY-ROADMAP.html · FLEET-WORK-PLAN.html<br>
-Authored 2026-07-04 from verified probes (oxen tailnet reach, local_generate seam, toolsurface inventory) · Banked Fire v0.1 DRAFT — nothing built, released on Derek's cue.
+Authored 2026-07-04 from verified probes (oxen tailnet reach, local_generate seam, toolsurface inventory) · P1&ndash;P4 built, tested, and live 2026-07-04 (same day) &mdash; P5 remains gated on Derek's arm/disarm decision.
 </div>
 
 </body>

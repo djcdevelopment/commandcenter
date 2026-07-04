@@ -5,6 +5,9 @@
 frontier synthesis). Fleet second opinion pending: plan_id
 `hearth-retro-2026-07-04-cqrs-fanout-d164cdf2`.
 
+**Status update 2026-07-04:** steps 2–4 landed and merged (677 tests green, up from 653
+baseline). Step 5 (`rebuild --from-zero`) is now unblocked.
+
 ## Verdict
 
 HEARTH is already ~80% of a classic CQRS/ES system: the gateway auto-ledgers every command
@@ -34,9 +37,11 @@ path-sniffing) becomes deletable.
 
 ## Sharpest findings
 
-- **LIVE BLIND SPOT:** `hearth/toolsurface/knowledge.py::project_capacity_knowledge` writes
-  `knowledge/capacity.json` via bare `write_text`, bypassing `corpus_guard` entirely; the
-  guard's extractor table only knows `capacity_estimates.json`. Cheapest real risk-closure.
+- **LIVE BLIND SPOT — CLOSED (bd636d5):** `hearth/toolsurface/knowledge.py::project_capacity_knowledge`
+  wrote `knowledge/capacity.json` via bare `write_text`, bypassing `corpus_guard` entirely; the
+  guard's extractor table only knew `capacity_estimates.json`. Cheapest real risk-closure.
+  Closed by routing the write through `guard_write` + adding `bucket_count` to the
+  `capacity.v1` contract.
 - **Atomic writes:** every knowledge write is in-place `write_text`; a crash mid-`project`
   leaves torn files or fresh `findings.json` beside stale `policy.json`. One
   `atomic_write_json` (temp + `os.replace`) routed through all writers.
@@ -61,13 +66,13 @@ fine for this lab.
 
 ## Execution order
 
-| Step | Work | Size (sessions) |
-|---|---|---|
-| 1 | ADR: two ledgers = two bounded contexts; one door ≠ one store | 0.5 |
-| 2 | `atomic_write_json` everywhere + guard `capacity.json` (live bypass) | 0.5 |
-| 3 | `Ledger.reindex()` + `verify()` + CLI | 1 |
-| 4 | Canonical `Corpus` enumerator + digest stamped in docs | 1 |
-| 5 | `rebuild --from-zero` + golden determinism test | 1 |
+| Step | Work | Size (sessions) | Status |
+|---|---|---|---|
+| 1 | ADR: two ledgers = two bounded contexts; one door ≠ one store | 0.5 | |
+| 2 | `atomic_write_json` everywhere + guard `capacity.json` (live bypass) | 0.5 | DONE bd636d5 (2026-07-04) |
+| 3 | `Ledger.reindex()` + `verify()` + CLI | 1 | DONE f1f2b8b (2026-07-04) |
+| 4 | Canonical `Corpus` enumerator + digest stamped in docs | 1 | DONE ad486d6 (2026-07-04) |
+| 5 | `rebuild --from-zero` + golden determinism test | 1 | unblocked |
 | 6 | `HEARTH_ROOT` isolation for tests; retire fixture-name guard | 0.5–1 |
 | 7 | `stream_seq` + `schema` field + upcast seam on domain events | 1 |
 | 8 | Idempotency keys + `record_event`/`ledger_adapter` directional dedup | 1 |

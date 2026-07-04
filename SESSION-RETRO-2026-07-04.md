@@ -635,3 +635,18 @@ bare `write_text` for capacity.json, and `tools/workflow/corpus_guard.py:104` co
 list omits capacity.json. Side observation: the pipeline still declared a "winner" off an
 empty diff (the null-action shape from ADR-0001 appearing in the task lane). The /retro v2
 reap step caught all of this on its first use.
+
+### Addendum 5 — steps 2–4 built and merged (post-retro)
+
+Fleet briefs for plan steps 2–4 landed and merged same day: **bd636d5** (step 2 —
+`atomic_write_json` routed through all knowledge writers; closed the `capacity.json` guard
+bypass via `guard_write` + new `bucket_count` field in `capacity.v1`), **f1f2b8b** (step 3 —
+`Ledger.reindex()`/`verify()` + CLI `python -m hearth.kernel.ledger --reindex|--verify`),
+**ad486d6** (step 4 — `tools/workflow/corpus.py Corpus.enumerate` single enumeration path;
+`corpus_digest`/`corpus_event_count` stamped into all projection outputs). Final merge
+bfaaf9f: full suite 677 passed + 36 subtests (up from 653 baseline). Two process notes: zero
+stale-base incidents this time (a stray local branch literally named `origin/master` had to
+be deleted to unblock worktree creation); one builder tried to sub-delegate to a background
+agent and was redirected, then caught and fixed a real bug in its sub-agent's draft (absolute
+paths in the corpus digest that would have broken cross-checkout stability). Step 5
+(`rebuild --from-zero`) is now unblocked.

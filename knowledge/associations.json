@@ -1,8 +1,8 @@
 {
   "contract_version": "associations.v1",
-  "observation_count": 23,
+  "observation_count": 25,
   "unresolved_refs": 0,
-  "evidence_watermark": "2026-07-04T04:18:00+00:00",
+  "evidence_watermark": "2026-07-04T05:50:00+00:00",
   "association_count": 1,
   "gated_bucket_count": 17,
   "associations": [
@@ -11,7 +11,7 @@
       "association_id": "success_invariant:model_portability:model_id=qwen3-coder:30b",
       "association_type": "success_invariant",
       "pattern": "model_portability",
-      "statement": "model_id=qwen3-coder:30b succeeds independent of the particulars: held across 2 workflow(s) (2 builder_id value(s), 3 backend value(s))",
+      "statement": "model_id=qwen3-coder:30b succeeds independent of the particulars: held across 3 workflow(s) (2 builder_id value(s), 3 backend value(s))",
       "invariant": {
         "model_id": "qwen3-coder:30b"
       },
@@ -28,20 +28,22 @@
       },
       "workflows": [
         "wf-omen-5070-hwbaseline-2026-07-02",
-        "wf-omen-debut-bl-dee707"
+        "wf-omen-debut-bl-dee707",
+        "wf-omen-worker-1-reearn"
       ],
-      "confidence": "medium",
-      "confidence_score": 0.5,
+      "confidence": "high",
+      "confidence_score": 0.6,
       "evidence": {
-        "samples": 3,
-        "workflow_count": 2,
+        "samples": 4,
+        "workflow_count": 3,
         "observation_ids": [
           "obs_omen5070_006",
           "obs_omen5070_007",
-          "obs_omen_debut_001"
+          "obs_omen_debut_001",
+          "obs_omen_worker_1_reearn_omen_worker_1"
         ],
         "failure_class": null,
-        "summary": "3 observation(s) across 2 workflow(s), all success"
+        "summary": "4 observation(s) across 3 workflow(s), all success"
       },
       "supporting_findings": [
         "known_good:omen-5070|qwen3-coder:30b|ollama-cuda",
@@ -49,7 +51,7 @@
         "known_good:omen-worker-1|qwen3-coder:30b|ollama"
       ],
       "first_observed": "2026-07-02T06:41:15Z",
-      "last_observed": "2026-07-02T10:45:55.071789+00:00",
+      "last_observed": "2026-07-04T05:50:00+00:00",
       "derived_from": [
         "capacity-observation.v1",
         "findings.v1"
@@ -162,8 +164,9 @@
       "invariant": {
         "model_id": "vllama-planner"
       },
-      "samples": 6,
+      "samples": 7,
       "workflows": [
+        "wf-omen-worker-1-reearn",
         "wf-pour-a1-r7",
         "wf-pour-b2",
         "wf-pour-c2",
@@ -282,12 +285,12 @@
         "task_kind": "repo-build",
         "backend": "ollama"
       },
-      "samples": 1,
+      "samples": 2,
       "workflows": [
-        "wf-omen-debut-bl-dee707"
+        "wf-omen-debut-bl-dee707",
+        "wf-omen-worker-1-reearn"
       ],
       "reasons": [
-        "all 1 sample(s) come from one workflow (wf-omen-debut-bl-dee707); no generalization from one workflow",
         "nothing varied under the invariant; a repeated particular is a finding, not an abstraction"
       ]
     },
@@ -297,8 +300,9 @@
         "task_kind": "repo-build",
         "backend": "openai"
       },
-      "samples": 6,
+      "samples": 7,
       "workflows": [
+        "wf-omen-worker-1-reearn",
         "wf-pour-a1-r7",
         "wf-pour-b2",
         "wf-pour-c2",

@@ -5,13 +5,13 @@
       "builder_id": "cc-builder-2",
       "model_id": "vllama-planner",
       "backend": "openai",
-      "success_rate": 0.75,
-      "samples": 4,
+      "success_rate": 0.8,
+      "samples": 5,
       "mean_tokens_per_s": null,
       "promotion_holds": 0,
-      "confidence": 0.67,
-      "last_observed": "2026-07-04T04:18:00+00:00",
-      "reason": "3/4 successful runs (success_rate 0.75)"
+      "confidence": 0.71,
+      "last_observed": "2026-07-04T05:50:00+00:00",
+      "reason": "4/5 successful runs (success_rate 0.8)"
     },
     {
       "builder_id": "omen-5070",
@@ -138,12 +138,12 @@
       "model_id": "qwen3-coder:30b",
       "backend": "ollama",
       "success_rate": 1.0,
-      "samples": 1,
+      "samples": 2,
       "mean_tokens_per_s": 54.6,
       "promotion_holds": 0,
-      "confidence": 0.33,
-      "last_observed": "2026-07-02T10:45:55.071789+00:00",
-      "reason": "1/1 successful runs (success_rate 1.0)"
+      "confidence": 0.5,
+      "last_observed": "2026-07-04T05:50:00+00:00",
+      "reason": "2/2 successful runs (success_rate 1.0)"
     }
   ]
 }

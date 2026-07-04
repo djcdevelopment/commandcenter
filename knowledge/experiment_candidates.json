@@ -3,7 +3,7 @@
   "source_findings": 17,
   "candidate_counts": {
     "backend_comparison": 3,
-    "coverage_probe": 28,
+    "coverage_probe": 27,
     "known_bad_retest": 1,
     "prefer_validation": 12,
     "uncertain_resolution": 2
@@ -67,7 +67,7 @@
       "evidence_sought": "the same workload shape run on each backend yields a per-task recommendation instead of a guess",
       "risk_accepted": "one dispatch slot per backend; a gated backend must be opened with its own experiment",
       "confidence": null,
-      "last_observed": "2026-07-02T10:45:55.071789+00:00"
+      "last_observed": "2026-07-04T05:50:00+00:00"
     },
     {
       "candidate_id": "coverage_probe:single_workflow_evidence:failure_signature:failure_class=agent_timeout_partial_deliverable|backend=claude",
@@ -310,26 +310,6 @@
       "last_observed": "2026-07-02T10:31:56.771381Z"
     },
     {
-      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=repo-build|backend=ollama",
-      "experiment_type": "coverage_probe",
-      "subject": {
-        "builder_id": null,
-        "model_id": null,
-        "backend": "ollama",
-        "task_kind": "repo-build",
-        "metric": null
-      },
-      "question": "does 'task_kind=repo-build, backend=ollama' hold outside wf-omen-debut-bl-dee707?",
-      "worth": "1 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
-      "target_finding_id": null,
-      "target_capability_id": null,
-      "gate": null,
-      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
-      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
-      "confidence": null,
-      "last_observed": "2026-07-02T10:45:55.071789+00:00"
-    },
-    {
       "candidate_id": "coverage_probe:unmeasured_metrics:am4-worker-1|vllama-planner|openai",
       "experiment_type": "coverage_probe",
       "subject": {
@@ -387,7 +367,7 @@
       "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
       "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
       "confidence": null,
-      "last_observed": "2026-07-04T04:18:00+00:00"
+      "last_observed": "2026-07-04T05:50:00+00:00"
     },
     {
       "candidate_id": "coverage_probe:unmeasured_metrics:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-cuda",
@@ -607,7 +587,7 @@
       "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
       "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
       "confidence": null,
-      "last_observed": "2026-07-02T10:45:55.071789+00:00"
+      "last_observed": "2026-07-04T05:50:00+00:00"
     },
     {
       "candidate_id": "coverage_probe:unmeasured_metrics:omen-wsl|qwen3-30b-a3b-awq|vllm",
@@ -664,7 +644,7 @@
         "task_kind": null,
         "metric": null
       },
-      "question": "does cc-builder-2 + vllama-planner + openai still hold up (3/4 success)?",
+      "question": "does cc-builder-2 + vllama-planner + openai still hold up (4/5 success)?",
       "worth": "the preference nudges every dispatch; it must keep earning that",
       "target_finding_id": "known_good:cc-builder-2|vllama-planner|openai",
       "target_capability_id": null,
@@ -672,7 +652,7 @@
       "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
       "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
       "confidence": "medium",
-      "last_observed": "2026-07-04T04:18:00+00:00"
+      "last_observed": "2026-07-04T05:50:00+00:00"
     },
     {
       "candidate_id": "prefer_validation:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-cuda",
@@ -884,15 +864,15 @@
         "task_kind": null,
         "metric": null
       },
-      "question": "does omen-worker-1 + qwen3-coder:30b + ollama still hold up (1/1 success)?",
-      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
+      "question": "does omen-worker-1 + qwen3-coder:30b + ollama still hold up (2/2 success)?",
+      "worth": "1 more clean run(s) reach high confidence and earn a prefer rule (2/2 success today)",
       "target_finding_id": "known_good:omen-worker-1|qwen3-coder:30b|ollama",
       "target_capability_id": null,
       "gate": null,
       "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
       "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
-      "confidence": "low",
-      "last_observed": "2026-07-02T10:45:55.071789+00:00"
+      "confidence": "medium",
+      "last_observed": "2026-07-04T05:50:00+00:00"
     },
     {
       "candidate_id": "uncertain_resolution:am4-worker-1|vllama-planner|openai",

@@ -1,0 +1,119 @@
+{
+  "plan_id": "omen-worker-1-reearn",
+  "trace_id": "fda7e34f67112d59860e92be9d78b072",
+  "routing": {
+    "error": "route-disabled-temporarily"
+  },
+  "builds": {
+    "cc-builder-2": {
+      "ok": true,
+      "branch": "ccfarm/omen-worker-1-reearn/cc-builder-2/lap1",
+      "push_ok": true,
+      "runner": "openai",
+      "runner_model": "vllama-planner",
+      "committed": true,
+      "pushed": true,
+      "commits_ahead": 1,
+      "empty_build": false,
+      "done_signal": true,
+      "agent_rc": 0,
+      "agent_timed_out": false,
+      "status": "ok",
+      "reason": "ok"
+    },
+    "omen-worker-1": {
+      "ok": true,
+      "branch": "ccfarm/omen-worker-1-reearn/omen-worker-1/lap1",
+      "push_ok": true,
+      "runner": "openai",
+      "runner_model": "qwen3-coder:30b",
+      "committed": true,
+      "pushed": true,
+      "commits_ahead": 1,
+      "empty_build": false,
+      "done_signal": true,
+      "agent_rc": 0,
+      "agent_timed_out": false,
+      "status": "ok",
+      "reason": "ok"
+    }
+  },
+  "assay": {
+    "plan_id": "omen-worker-1-reearn",
+    "lap": 1,
+    "grader": "claudefarm1",
+    "winner": "cc-builder-2",
+    "scoreboard": [
+      {
+        "worker": "cc-builder-2",
+        "branch": "ccfarm/omen-worker-1-reearn/cc-builder-2/lap1",
+        "score": 70,
+        "grade": "B",
+        "risk_score": 0.3,
+        "assay_mode": "behavior",
+        "static_score": 100,
+        "behavior_score": 70,
+        "tests_found": 167,
+        "tests_passed": 167,
+        "tests_failed": 0,
+        "imports_ok": 0,
+        "imports_failed": 0,
+        "assay_summary": "pytest: 167/167 passed; imports: 0/0 ok; score=70; isolation=docker",
+        "file_count": 206,
+        "code_files": 177,
+        "has_retro": true,
+        "has_result": true,
+        "has_tests": true,
+        "retro_excerpt": "# Retro: Slugify Function Implementation\n\n## What Was Built\n- Created `tools/text/slugify.py` with a `slugify` function that:\n  - Lowercases input text\n  - Replaces runs of non-alphanumeric characters with a single hyphen\n  - Strips leading and trailing hyphens\n- Created `tests/workflow/test_slugify.py` with comprehensive test cases covering:\n  - Empty string\n  - Single word\n  - Spaces and punctuation collapsing to one hyphen\n  - Leading/trailing separators stripped\n  - Already-clean input uncha"
+      },
+      {
+        "worker": "omen-worker-1",
+        "branch": "ccfarm/omen-worker-1-reearn/omen-worker-1/lap1",
+        "score": 70,
+        "grade": "B",
+        "risk_score": 0.3,
+        "assay_mode": "behavior",
+        "static_score": 100,
+        "behavior_score": 70,
+        "tests_found": 167,
+        "tests_passed": 167,
+        "tests_failed": 0,
+        "imports_ok": 0,
+        "imports_failed": 0,
+        "assay_summary": "pytest: 167/167 passed; imports: 0/0 ok; score=70; isolation=docker",
+        "file_count": 206,
+        "code_files": 177,
+        "has_retro": true,
+        "has_result": true,
+        "has_tests": true,
+        "retro_excerpt": "# Retro (omen-worker-1-reearn-omen-worker-1)\n\nBuilt by agent_openai on model qwen3-coder:30b (completion: finished, 7 steps, 29s).\nSuccessfully implemented the slugify function and its tests as requested. Created tools/text/slugify.py with the slugify(text: str) -> str function that lowercases input, replaces runs of non-alphanumeric characters with single hyphens, and strips leading/trailing hyphens. Created tests/workflow/test_slugify.py with 5 test cases covering empty string, single word, sp"
+      }
+    ],
+    "tiebreak": {
+      "tied": [
+        "cc-builder-2",
+        "omen-worker-1"
+      ],
+      "method": "am4-critic-debiased",
+      "winner": null,
+      "why": "correct implementation, no extraneous changes",
+      "critic_model": "vllama-critic",
+      "bias_detected": true,
+      "fallback": "order"
+    }
+  },
+  "winner": "cc-builder-2",
+  "questions": [],
+  "promotion": {
+    "promoted": false,
+    "error": "refused: main (97d23883d7435f4138e2bc96a313b25fce419b08) and ccfarm/omen-worker-1-reearn/cc-builder-2/lap1 (3454643370cba0ac88ffa3093a4390b1de43c9d0) have diverged; ff-only cannot advance without a me",
+    "winner_branch": "ccfarm/omen-worker-1-reearn/cc-builder-2/lap1"
+  },
+  "target": {
+    "builders": [
+      "omen-worker-1",
+      "cc-builder-2"
+    ],
+    "promote": false
+  }
+}

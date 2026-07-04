@@ -1,0 +1,30 @@
+{
+  "contract_version": "capacity-observation.v1",
+  "observation_id": "obs_omen_worker_1_reearn_cc_builder_2",
+  "decision_id": null,
+  "workflow_id": "wf-omen-worker-1-reearn",
+  "run_id": "omen-worker-1-reearn",
+  "timestamp": "2026-07-04T05:50:00+00:00",
+  "builder_id": "cc-builder-2",
+  "model_id": "vllama-planner",
+  "backend": "openai",
+  "hardware_profile_id": null,
+  "workload_shape": {
+    "task_kind": "repo-build",
+    "estimated_context_tokens": null,
+    "requires_gpu": null,
+    "notes": "Capability re-earn build lap (slugify util + tests). Clean lap: agent_rc 0, not timed out, assay 167/167 pass, score 70. omen-worker-1 = Ollama qwen3-coder:30b on OMEN's RTX 5070 (claudefarm1 shell, recovered 2026-07-04). Second real build|ollama success for omen-worker-1 after obs_omen_debut_001."
+  },
+  "observed": {
+    "runtime_s": null,
+    "ttft_s": null,
+    "tokens_per_s": null,
+    "ram_gb_peak": null,
+    "vram_gb_peak": null,
+    "context_tokens": null,
+    "physical": null
+  },
+  "outcome": "success",
+  "failure_class": null,
+  "promotion_status": null
+}

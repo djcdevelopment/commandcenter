@@ -1,11 +1,11 @@
 {
   "contract_version": "coverage.v1",
-  "observation_count": 23,
+  "observation_count": 25,
   "decision_count": 0,
   "unresolved_refs": 0,
-  "evidence_watermark": "2026-07-04T04:18:00+00:00",
+  "evidence_watermark": "2026-07-04T05:50:00+00:00",
   "gap_counts": {
-    "single_workflow_evidence": 13,
+    "single_workflow_evidence": 12,
     "unmeasured_metrics": 15
   },
   "gaps": [
@@ -332,33 +332,6 @@
     },
     {
       "contract_version": "coverage-gap.v1",
-      "gap_id": "single_workflow_evidence:task_backend:task_kind=repo-build|backend=ollama",
-      "gap_type": "single_workflow_evidence",
-      "statement": "'task_kind=repo-build, backend=ollama' has 1 consistent sample(s) but all from wf-omen-debut-bl-dee707; a second distinct workflow would let the association engine generalize it",
-      "subject": {
-        "builder_id": null,
-        "model_id": null,
-        "backend": "ollama",
-        "task_kind": "repo-build",
-        "invariant": {
-          "task_kind": "repo-build",
-          "backend": "ollama"
-        },
-        "missing_metrics": null,
-        "capability_id": null
-      },
-      "evidence": {
-        "samples": 1,
-        "workflows": [
-          "wf-omen-debut-bl-dee707"
-        ],
-        "summary": "1 sample(s), 1 workflow (need 2)"
-      },
-      "proposed_experiment_type": "coverage_probe",
-      "last_observed": "2026-07-02T10:45:55.071789+00:00"
-    },
-    {
-      "contract_version": "coverage-gap.v1",
       "gap_id": "unmeasured_metrics:am4-worker-1|vllama-planner|openai",
       "gap_type": "unmeasured_metrics",
       "statement": "am4-worker-1 + vllama-planner + openai has run 2 time(s) but never reported: ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
@@ -415,7 +388,7 @@
       "contract_version": "coverage-gap.v1",
       "gap_id": "unmeasured_metrics:cc-builder-2|vllama-planner|openai",
       "gap_type": "unmeasured_metrics",
-      "statement": "cc-builder-2 + vllama-planner + openai has run 4 time(s) but never reported: ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "statement": "cc-builder-2 + vllama-planner + openai has run 5 time(s) but never reported: ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
       "subject": {
         "builder_id": "cc-builder-2",
         "model_id": "vllama-planner",
@@ -431,12 +404,12 @@
         "capability_id": null
       },
       "evidence": {
-        "samples": 4,
+        "samples": 5,
         "workflows": null,
         "summary": "4/4 metrics never measured"
       },
       "proposed_experiment_type": "coverage_probe",
-      "last_observed": "2026-07-04T04:18:00+00:00"
+      "last_observed": "2026-07-04T05:50:00+00:00"
     },
     {
       "contract_version": "coverage-gap.v1",
@@ -690,7 +663,7 @@
       "contract_version": "coverage-gap.v1",
       "gap_id": "unmeasured_metrics:omen-worker-1|qwen3-coder:30b|ollama",
       "gap_type": "unmeasured_metrics",
-      "statement": "omen-worker-1 + qwen3-coder:30b + ollama has run 1 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "statement": "omen-worker-1 + qwen3-coder:30b + ollama has run 2 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
       "subject": {
         "builder_id": "omen-worker-1",
         "model_id": "qwen3-coder:30b",
@@ -705,12 +678,12 @@
         "capability_id": null
       },
       "evidence": {
-        "samples": 1,
+        "samples": 2,
         "workflows": null,
         "summary": "3/4 metrics never measured"
       },
       "proposed_experiment_type": "coverage_probe",
-      "last_observed": "2026-07-02T10:45:55.071789+00:00"
+      "last_observed": "2026-07-04T05:50:00+00:00"
     },
     {
       "contract_version": "coverage-gap.v1",

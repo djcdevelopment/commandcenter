@@ -150,8 +150,16 @@
   - Check: `runs/g2-validation/artifacts/obs_g2_validation_001.json` carries non-null `gpu_temp_c_peak` (`35.0`) = yes (opened 2026-07-04, see "Landing: G2" below)
 - `G-budget`: `OPEN` (2026-07-04)
   - Check: `operating-budget.v1` with `authored_by != "fixture"` exists = yes (`knowledge/operating-budget.json`, authored_by `derek`, validates via `validate_budget.py`; conservative RTX 5070 bootstrap ceilings, re-derive after observed sustained telemetry).
-- `G3`: `CLOSED` (UNBLOCKED 2026-07-04)
-  - Check: `knowledge/capabilities.json` `capability_count >= 1` = no (`0`). Was blocked on claudefarm1 (down); claudefarm1 RECOVERED 2026-07-04 (MAC-collision fix) → `omen-worker-1` is UP and a real build lap is now dispatchable to re-earn the `build|ollama` capability.
+- `G3`: `CLOSED` — reframed 2026-07-04: it's a belief-layer investigation, NOT a "fire a lap" task.
+  - Check: `knowledge/capabilities.json` `capability_count >= 1` = no (`0`). claudefarm1 recovered and
+    the `omen-worker-1` re-earn lap ran CLEAN (`runs/omen-worker-1-reearn/`, 167/167, its 2nd real
+    `build|ollama` success) — but **no capability formed.** The corpus now has repo-build successes
+    across 4 builders / 3 backends / many workflows, yet the association engine forms a
+    `model_portability` association instead of a `task_kind=repo-build` `success_invariant` (the only
+    kind `synthesize_capabilities` turns into a capability). So G3 is gated by the association
+    engine's task_kind-invariant bucketing, not by evidence volume. See
+    `runs/omen-worker-1-reearn/PROVENANCE.md`. Next: investigate `synthesize_associations` (why no
+    task_kind=repo-build association forms from varied build evidence).
 
 ## Learning Metrics
 

@@ -1,7 +1,7 @@
 {
   "contract_version": "policies.v1",
   "source_findings": 17,
-  "evidence_watermark": "2026-07-04T04:18:00+00:00",
+  "evidence_watermark": "2026-07-04T05:50:00+00:00",
   "rule_counts": {
     "block": 1,
     "exploratory_only": 2

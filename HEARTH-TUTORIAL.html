@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Build Your Own HEARTH — a local MCP gateway for Claude Code</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel2: #1d2130; --ink: #d8dce6;
+    --dim: #8a93a6; --accent: #e8a04c; --accent2: #6fb3d2; --good: #7bc97e;
+    --warn: #e0c06a; --bad: #d97b6c; --line: #2a2f3d;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.65 "Segoe UI", system-ui, sans-serif; margin: 0; padding: 2rem; }
+  main { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 1.9rem; color: var(--accent); margin: 0 0 .2rem; }
+  h2 { font-size: 1.3rem; color: var(--accent2); border-bottom: 1px solid var(--line); padding-bottom: .3rem; margin-top: 2.4rem; }
+  h3 { font-size: 1.05rem; color: var(--ink); margin-bottom: .3rem; }
+  .sub { color: var(--dim); margin-bottom: 1.5rem; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.2rem; margin: .8rem 0; }
+  .test { border-left: 4px solid var(--good); }
+  .trap { border-left: 4px solid var(--bad); }
+  .tip  { border-left: 4px solid var(--accent2); }
+  code, pre { font-family: Consolas, monospace; background: var(--panel2); border-radius: 4px; }
+  code { padding: .1em .35em; font-size: .88em; }
+  pre { padding: 1rem; overflow-x: auto; border: 1px solid var(--line); font-size: .8rem; line-height: 1.45; }
+  table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .9rem; }
+  th, td { border: 1px solid var(--line); padding: .45rem .7rem; text-align: left; vertical-align: top; }
+  th { background: var(--panel2); color: var(--accent2); }
+  .step { color: var(--accent); font-weight: 600; }
+  .status { font-size: .8rem; color: var(--dim); }
+  li { margin: .3rem 0; }
+</style>
+</head>
+<body>
+<main>
+<h1>Build Your Own HEARTH</h1>
+<p class="sub">A local MCP gateway for Claude Code on a Windows machine with an NVIDIA GPU — every tool call logged, a local model on tap, and proof it's all working. ~90 minutes, no prior MCP experience required. <em>A hearth is the small fire that never goes out at the center of the camp: always warm, always watched, everything cooked on it. That's what you're building — a small, always-on fire your AI agents gather around.</em></p>
+
+<h2>What you're building, and why</h2>
+<div class="card">
+<p>When Claude Code (or any frontier agent) works on your machine today, it reaches for tools ad hoc — a shell command here, a file edit there — and none of it is captured anywhere you control. Two things are wrong with that picture:</p>
+<ul>
+<li><strong>You're paying frontier prices for grunt work.</strong> Summarizing a log, drafting boilerplate, extracting fields from text — a local model on your own GPU does these at the cost of electricity, and your GPU is sitting right there.</li>
+<li><strong>You have no record.</strong> When something goes sideways, or when you want to know what your agent actually <em>did</em>, there's nothing to query.</li>
+</ul>
+<p>HEARTH fixes both with one small daemon: a local <strong>MCP gateway</strong> that exposes tools (file ops, a local-model generate, whatever you add) to Claude Code over HTTP, and writes <strong>every single call to a ledger</strong> — a JSONL file plus a SQLite index you can query. Claude does the thinking; your machine does the hands; the ledger is the receipts.</p>
+<p>MCP (<a href="https://modelcontextprotocol.io" style="color:var(--accent2)">Model Context Protocol</a>) is the open standard that makes this plug-and-play: Claude Code natively speaks it, so once your gateway is up, its tools appear in Claude like built-ins.</p>
+</div>
+
+<h2>What you need</h2>
+<table>
+<tr><th>Piece</th><th>Spec / version</th><th>Why</th></tr>
+<tr><td>Windows PC</td><td>Windows 10/11</td><td>the whole point — this guide is for the consumer-Windows crowd</td></tr>
+<tr><td>NVIDIA GPU</td><td>~12 GB VRAM</td><td>runs a 14B coding model fully on-GPU at pleasant speed</td></tr>
+<tr><td>RAM / CPU</td><td>32 GB+ / modern fast CPU</td><td>lets you stretch to bigger models with partial CPU offload later</td></tr>
+<tr><td>Python</td><td>3.11+ (3.12 recommended)</td><td>the gateway is ~150 lines of Python</td></tr>
+<tr><td>Ollama</td><td>latest Windows build</td><td>the easiest local-model server; one installer, one command</td></tr>
+<tr><td>Claude Code</td><td>latest</td><td>your frontier agent and MCP client</td></tr>
+<tr><td>A local model</td><td><code>qwen2.5-coder:14b</code> (~9 GB)</td><td>fits comfortably in 12 GB VRAM; strong at code/text chores. (Stretch: <code>qwen3-coder:30b</code> runs with CPU offload if you have the RAM — slower but smarter.)</td></tr>
+</table>
+<div class="card tip"><strong>You have a copilot for this tutorial.</strong> Every step below is something Claude Code (or Claude in your browser) can help with. Stuck on an error? Paste it into Claude and ask. You're not just building an agent workbench — you're allowed to use the agent to build it.</div>
+
+<h2><span class="step">Step 1</span> — Install Ollama and pull a model</h2>
+<div class="card">
+<ol>
+<li>Download and run the Windows installer from <code>https://ollama.com/download</code>. It installs a background server on port <code>11434</code> that starts when you log in.</li>
+<li>Open PowerShell and pull the model (~9 GB download):</li>
+</ol>
+<pre>ollama pull qwen2.5-coder:14b</pre>
+</div>
+<div class="card test"><strong>✔ Test it</strong> — ask the model something and watch your GPU do the work (first call loads the model into VRAM, ~10s; after that it's fast):
+<pre>ollama run qwen2.5-coder:14b "Write a haiku about a fire that never goes out."</pre>
+And confirm the HTTP API answers (this is what the gateway will call):
+<pre>Invoke-RestMethod http://127.0.0.1:11434/api/tags | Select-Object -Expand models | Format-Table name</pre>
+</div>
+
+<h2><span class="step">Step 2</span> — Python environment + the MCP SDK</h2>
+<div class="card">
+<pre>mkdir C:\hearth
+cd C:\hearth
+python -m venv venv
+.\venv\Scripts\pip install "mcp[cli]" httpx</pre>
+</div>
+<div class="card test"><strong>✔ Test it</strong>
+<pre>.\venv\Scripts\python -c "import mcp; print('mcp OK:', mcp.__name__)"</pre>
+</div>
+
+<h2><span class="step">Step 3</span> — The gateway (one file, with a ledger)</h2>
+<div class="card">
+<p>Save this as <code>C:\hearth\hearth_gateway.py</code>. It exposes five tools over MCP and logs <em>every call</em> to both <code>ledger.jsonl</code> (append-only, human-readable) and <code>ledger.sqlite</code> (queryable). The logging decorator is the heart of HEARTH — everything that passes through the fire is remembered.</p>
+<pre>"""HEARTH: a minimal local MCP gateway with a tool-call ledger.
+
+Tools appear in Claude Code automatically once wired via .mcp.json.
+Every call is appended to ledger.jsonl and indexed in ledger.sqlite.
+"""
+import functools
+import hashlib
+import json
+import sqlite3
+import subprocess
+import time
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+
+import httpx
+from mcp.server.fastmcp import FastMCP
+
+HOME = Path(__file__).parent
+SCOPE = Path("C:/")           # tools may only touch paths under here — tighten to your projects dir!
+OLLAMA = "http://127.0.0.1:11434"
+MODEL = "qwen2.5-coder:14b"
+
+mcp = FastMCP("hearth")
+
+# ---------- the ledger ----------
+_db = sqlite3.connect(HOME / "ledger.sqlite", check_same_thread=False)
+_db.execute("""CREATE TABLE IF NOT EXISTS events(
+    id TEXT PRIMARY KEY, ts TEXT, tool TEXT, ok INTEGER,
+    duration_ms REAL, args_preview TEXT, error TEXT)""")
+_db.commit()
+
+
+def _digest(obj) -> str:
+    return "sha256:" + hashlib.sha256(
+        json.dumps(obj, default=str, sort_keys=True).encode()).hexdigest()[:16]
+
+
+def ledgered(fn):
+    """Every tool call becomes one ledger event. This is the whole trick."""
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        started = time.perf_counter()
+        event = {
+            "event_id": str(uuid.uuid4()),
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "tool": fn.__name__,
+            "args_preview": json.dumps(kwargs, default=str)[:300],
+            "args_digest": _digest(kwargs),
+            "ok": True, "error": None,
+        }
+        try:
+            result = fn(*args, **kwargs)
+            event["result_digest"] = _digest(result)
+            return result
+        except Exception as exc:
+            event.update(ok=False, error=f"{type(exc).__name__}: {exc}")
+            raise
+        finally:
+            event["duration_ms"] = round((time.perf_counter() - started) * 1000, 2)
+            with open(HOME / "ledger.jsonl", "a", encoding="utf-8") as f:
+                f.write(json.dumps(event) + "\n")
+            _db.execute("INSERT INTO events VALUES(?,?,?,?,?,?,?)",
+                        (event["event_id"], event["ts"], event["tool"],
+                         int(event["ok"]), event["duration_ms"],
+                         event["args_preview"], event["error"]))
+            _db.commit()
+    return wrapper
+
+
+def _in_scope(path: str) -> Path:
+    p = (SCOPE / path).resolve() if not Path(path).is_absolute() else Path(path).resolve()
+    if not str(p).lower().startswith(str(SCOPE.resolve()).lower()):
+        raise ValueError(f"path {p} is outside HEARTH scope {SCOPE}")
+    return p
+
+
+# ---------- the tools ----------
+@mcp.tool()
+@ledgered
+def hearth_status() -> dict:
+    """HEARTH self-test: ledger location and total event count."""
+    n = _db.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+    return {"hearth": "burning", "ledger": str(HOME / "ledger.jsonl"), "events": n}
+
+
+@mcp.tool()
+@ledgered
+def read_file(path: str, max_bytes: int = 200_000) -> dict:
+    """Read a text file (scope-checked)."""
+    data = _in_scope(path).read_text(encoding="utf-8", errors="replace")
+    return {"path": path, "truncated": len(data) > max_bytes, "content": data[:max_bytes]}
+
+
+@mcp.tool()
+@ledgered
+def write_file(path: str, content: str) -> dict:
+    """Write a text file (scope-checked); creates parent dirs."""
+    p = _in_scope(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(content, encoding="utf-8")
+    return {"path": str(p), "bytes": len(content)}
+
+
+@mcp.tool()
+@ledgered
+def run_tests(directory: str, command: str = "python -m pytest -q --tb=short") -> dict:
+    """Run a test command in a directory; returns a compact digest, never full output."""
+    p = subprocess.run(command, cwd=_in_scope(directory), shell=True,
+                       capture_output=True, text=True, timeout=600)
+    tail = (p.stdout + p.stderr).strip().splitlines()[-15:]
+    return {"exit_code": p.returncode, "ok": p.returncode == 0, "tail": tail}
+
+
+@mcp.tool()
+@ledgered
+def local_generate(prompt: str, system: str = "", max_tokens: int = 1024) -> dict:
+    """Generate text with the LOCAL model (free, runs on your GPU).
+    Use for: summarizing, extracting, boilerplate, drafts, classification."""
+    r = httpx.post(f"{OLLAMA}/api/generate", json={
+        "model": MODEL, "prompt": prompt, "system": system or None,
+        "stream": False, "options": {"num_predict": max_tokens}}, timeout=300)
+    r.raise_for_status()
+    body = r.json()
+    return {"text": body.get("response", ""),
+            "model": MODEL,
+            "tokens_in": body.get("prompt_eval_count"),
+            "tokens_out": body.get("eval_count"),
+            "duration_ms": round(body.get("total_duration", 0) / 1e6)}
+
+
+if __name__ == "__main__":
+    mcp.settings.host = "127.0.0.1"
+    mcp.settings.port = 8710
+    mcp.run(transport="streamable-http")</pre>
+<p><strong>Before running:</strong> change <code>SCOPE</code> from <code>C:/</code> to the folder your projects live in (e.g. <code>C:/work</code>). The scope check is your seatbelt — tools refuse to touch anything outside it.</p>
+</div>
+<div class="card test"><strong>✔ Test it</strong> — start the gateway in one PowerShell window:
+<pre>cd C:\hearth
+.\venv\Scripts\python hearth_gateway.py</pre>
+You should see <code>Uvicorn running on http://127.0.0.1:8710</code>. Leave it running. In a <em>second</em> window, prove a real MCP client can call a tool end to end:
+<pre>@'
+import asyncio
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
+
+async def main():
+    async with streamablehttp_client("http://127.0.0.1:8710/mcp") as (r, w, _):
+        async with ClientSession(r, w) as s:
+            await s.initialize()
+            tools = await s.list_tools()
+            print("tools:", [t.name for t in tools.tools])
+            result = await s.call_tool("hearth_status", {})
+            print("status:", result.content[0].text)
+
+asyncio.run(main())
+'@ | Out-File -Encoding ascii C:\hearth\test_client.py
+C:\hearth\venv\Scripts\python C:\hearth\test_client.py</pre>
+Expected: a list of five tools, then <code>"hearth": "burning"</code>. Now check your receipts — the call you just made is already in the ledger:
+<pre>Get-Content C:\hearth\ledger.jsonl -Tail 2</pre>
+</div>
+
+<h2><span class="step">Step 4</span> — Wire it into Claude Code</h2>
+<div class="card">
+<p>Two small files in the project folder where you use Claude Code (e.g. <code>C:\work\myproject</code>):</p>
+<p><strong>1 · <code>.mcp.json</code></strong> — tells Claude Code the gateway exists:</p>
+<pre>{
+  "mcpServers": {
+    "hearth": {
+      "type": "http",
+      "url": "http://127.0.0.1:8710/mcp"
+    }
+  }
+}</pre>
+<p><strong>2 · <code>CLAUDE.md</code></strong> — add a section telling Claude <em>when</em> to use it. Without this, Claude has the tools but no habit:</p>
+<pre>## Local-first offload (HEARTH)
+
+A local model is available via the `hearth` MCP server's `local_generate`
+tool, plus ledgered file/test tools. Before spending frontier tokens on a
+self-contained sub-task, delegate it to the local model:
+
+- summarizing / condensing a file, log, or diff you have already read
+- extracting structured data (fields, lists, JSON) from unstructured text
+- generating boilerplate (config, test scaffold, docstring, commit draft)
+- classifying / labeling / yes-no triage over a chunk of text
+
+Rules: the local model has NO repo access — pass all needed context in the
+prompt. If the output is unusable, do the task yourself; one retry max.
+First call after boot pays a model-load tax (~10s) — that is not a failure.</pre>
+</div>
+<div class="card trap"><strong>⚠ The restart trap (this one costs everyone an hour).</strong> Claude Code loads MCP config at startup. After creating <code>.mcp.json</code> you must <strong>fully restart the Claude Code application AND start a new session</strong> in that project. An existing session — even one that helped you write the config — will never see the server. On the first new session, Claude Code will ask you to approve the project's <code>hearth</code> server: say yes.</div>
+<div class="card test"><strong>✔ Test it</strong> — in the fresh session, type:
+<pre>Use the hearth_status tool, then use local_generate to write a two-line poem about a hearth.</pre>
+You should see Claude call both tools (they show as <code>mcp__hearth__...</code>) and the poem should come back from <em>your GPU</em>, not the cloud. Then the money shot — prove the ledger caught it all:
+<pre>C:\hearth\venv\Scripts\python -c "import sqlite3; [print(r) for r in sqlite3.connect(r'C:\hearth\ledger.sqlite').execute('SELECT ts, tool, ok, duration_ms FROM events ORDER BY ts DESC LIMIT 5')]"</pre>
+Every tool call your agent has ever made, timestamped, with durations. That's HEARTH working.</div>
+
+<h2><span class="step">Step 5</span> — Keep the fire lit (auto-start)</h2>
+<div class="card">
+<p>Save as <code>C:\hearth\start-hearth.cmd</code>:</p>
+<pre>@echo off
+cd /d C:\hearth
+echo [%date% %time%] HEARTH starting >> hearth.log
+venv\Scripts\python.exe hearth_gateway.py >> hearth.log 2>&1</pre>
+<p>Register it to run at logon (plain PowerShell, no admin needed):</p>
+<pre>$action  = New-ScheduledTaskAction -Execute 'C:\hearth\start-hearth.cmd'
+$trigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
+Register-ScheduledTask -TaskName 'Hearth' -Action $action -Trigger $trigger</pre>
+</div>
+<div class="card trap"><strong>⚠ Use <code>python.exe</code>, not <code>pythonw.exe</code>, in the wrapper.</strong> <code>pythonw</code> under Task Scheduler dies silently with no log and no error — we learned this the hard way. With <code>python.exe</code> + the log redirect above, any failure leaves evidence in <code>hearth.log</code>.</div>
+<div class="card test"><strong>✔ Test it</strong> — stop your manual gateway window (Ctrl+C), then:
+<pre>Start-ScheduledTask -TaskName Hearth
+Start-Sleep 5
+Test-NetConnection 127.0.0.1 -Port 8710 | Select-Object TcpTestSucceeded</pre>
+<code>TcpTestSucceeded : True</code> means the fire relights itself every time you log in. Reboot when convenient and check once more.</div>
+
+<h2>Troubleshooting — the traps we actually hit</h2>
+<table>
+<tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr>
+<tr><td>Claude Code doesn't show any <code>hearth</code> tools</td><td>MCP config loads at app startup only</td><td>fully restart the app AND open a new session; approve the server when prompted</td></tr>
+<tr><td>Gateway fails to parse a JSON config you wrote from PowerShell</td><td>PowerShell 5.1's <code>Out-File -Encoding utf8</code> writes a UTF-8 BOM</td><td>write JSON from Python, an editor, or use <code>-Encoding ascii</code></td></tr>
+<tr><td>Gateway "runs" from Task Scheduler but nothing listens</td><td><code>pythonw.exe</code> dying silently</td><td>use <code>python.exe</code> with output redirected to a log</td></tr>
+<tr><td>Port 8710 behaves strangely / calls hit a stale server</td><td>an old gateway process still holds the port</td><td><code>Get-NetTCPConnection -LocalPort 8710 -State Listen</code> → stop that PID, restart the task</td></tr>
+<tr><td>First <code>local_generate</code> after boot is slow or times out</td><td>model loading into VRAM (~10s, once)</td><td>not a failure; retry once. Optionally warm it at logon with a tiny generate call</td></tr>
+<tr><td><code>local_generate</code> returns nonsense / ignores your text</td><td>local 14B models are honest workers, not geniuses</td><td>give them ALL the context in the prompt, ask for one narrow thing, and verify — the ledger makes their error rate measurable, which is the point</td></tr>
+</table>
+
+<h2>Where this goes next</h2>
+<div class="card">
+<p>You now have the kernel of something bigger. In rough order of payoff:</p>
+<ul>
+<li><strong>Add per-caller keys</strong> — an <code>X-Hearth-Key</code> header and a <code>callers.json</code> turn "who did what" from a guess into a ledger field.</li>
+<li><strong>Add coarser tools</strong> — a <code>git_commit_push</code> that stages/commits/pushes in one audited call; a lint digest; whatever your inner loop repeats.</li>
+<li><strong>Query your economics</strong> — the SQLite ledger already knows how many calls went to the local model vs. how long they took. One evening of SQL gives you a dashboard proving what your GPU is saving you.</li>
+<li><strong>The learning loop</strong> — in the full HEARTH design, the ledger feeds a projection layer that derives what your machines are actually <em>capable</em> of from evidence, and routes each task to the cheapest runner that can do it. That's a bigger story — the ledger you built today is its foundation.</li>
+</ul>
+<p>Light it, keep it lit, and let everything cook on the same fire.</p>
+</div>
+
+<p class="status">HEARTH tutorial v1 · 2026-07-03 · from the commandcenter lab (Derek Ciula / Steppe Integrations), distilled from the build documented in HEARTH-FULL-BUILDOUT.html and HEARTH-BUILD-RETROSPECTIVE-2026-07-03.md · written with Claude (Fable 5)</p>
+</main>
+</body>
+</html>

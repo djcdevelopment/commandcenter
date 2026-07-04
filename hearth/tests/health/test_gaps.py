@@ -138,6 +138,23 @@ class ScanRunsTests(TestCase):
         gaps = scan_runs([rec], capacity=capacity)
         self.assertNotIn("schedule_divergence", _kinds(gaps))
 
+    def test_schedule_divergence_null_p90_is_skipped(self):
+        # When a matching bucket has null p90 (all events were failures),
+        # it should not match — the spell stays silent. This is "no evidence either way".
+        capacity = {"contract_version": "capacity.v1", "buckets": [
+            {"task_class": "build", "node": "am4-worker-1", "tool": "submit_task",
+             "calls": 20, "ok_rate": 0.0,
+             "duration_ms": {"p50": None, "p90": None, "mean": None, "max": None}},
+        ]}
+        rec = {"plan_id": "js6-null-p90", "age_s": 10, "has_result": True,
+               "status": "ok", "winner": "am4-worker-1", "task_class": "build",
+               "promoted": True, "n_questions": 0, "questions_text": "",
+               "winner_files": 20, "winner_grade": "A",
+               "duration_s": 999999}  # far over any real p90, but null p90 doesn't match
+        gaps = scan_runs([rec], capacity=capacity)
+        # No gap should fire: bucket matches but p90 is null, so it doesn't count
+        self.assertNotIn("schedule_divergence", _kinds(gaps))
+
     def test_summarize_counts_by_severity_and_kind(self):
         gaps = [Gap("phantom_in_flight", "warn", "a", "x"),
                 Gap("crashed_isolated", "high", "b", "y"),

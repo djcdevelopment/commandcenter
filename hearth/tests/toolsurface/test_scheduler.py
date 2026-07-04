@@ -132,6 +132,30 @@ class CapacityLookupTests(TestCase):
         self.assertEqual(lookup_duration_s(job, machine, None),
                          DEFAULT_DURATIONS_S["default"])
 
+    def test_null_p90_bucket_skips_to_fallback(self) -> None:
+        # When a matching bucket has null p90 (all events were failures),
+        # it should be skipped in favor of the fallback chain.
+        capacity = {
+            "contract_version": "capacity.v1",
+            "evidence_watermark": None,
+            "buckets": [
+                # First bucket: matches task_class+node but has null p90 (all failures)
+                {"task_class": "build", "node": "local-a", "runner_class": "local",
+                 "model": None, "tool": "run_build", "calls": 5, "ok_rate": 0.0,
+                 "duration_ms": {"p50": None, "p90": None, "mean": None, "max": None},
+                 "tokens_out_per_s_p50": None, "last_seen": None},
+                # Fallback bucket: no node, has valid p90
+                {"task_class": "build", "node": None, "runner_class": None,
+                 "model": None, "tool": "run_build", "calls": 10, "ok_rate": 1.0,
+                 "duration_ms": {"p50": 800, "p90": 1500, "mean": 1000, "max": 2000},
+                 "tokens_out_per_s_p50": None, "last_seen": None},
+            ],
+        }
+        job = Job(plan_id="j1", task_class="build")
+        machine = _machine("local-a", "local", 0.0)
+        # Should skip the null-p90 bucket and use the fallback (1500ms = 1.5s)
+        self.assertEqual(lookup_duration_s(job, machine, capacity), 1.5)
+
 
 class LoadMachinesTests(TestCase):
     def test_missing_inventory_yields_defaults(self) -> None:

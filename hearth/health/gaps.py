@@ -84,11 +84,19 @@ def _find_bucket(buckets, task_class, node, tool):
 
 
 def _bucket_p90(bucket) -> "float | None":
+    """Extract p90 (ms) from a bucket's duration_ms, or None.
+
+    A bucket with null p90 means all events were failures and were excluded from
+    percentiles — such a bucket carries no valid duration data and should not match."""
     if not isinstance(bucket, dict):
         return None
     duration_ms = bucket.get("duration_ms") or {}
     p90 = duration_ms.get("p90")
-    return p90 if isinstance(p90, (int, float)) else None
+    # Only return p90 if it's a valid positive number; null/None/zero/non-numeric
+    # values mean the bucket has no valid data.
+    if isinstance(p90, (int, float)) and p90 > 0:
+        return float(p90)
+    return None
 
 
 def scan_runs(records, phantom_age_s: int = PHANTOM_AGE_S, capacity: "dict | None" = None) -> "list[Gap]":

@@ -54,13 +54,13 @@
 <h2>Slice map</h2>
 <table>
 <tr><th>Slice</th><th>Name</th><th>Depends on</th><th>Status</th></tr>
-<tr><td>JS1</td><td>Ledger schema: <code>task_class</code> + <code>model</code></td><td>—</td><td><span class="tag t-ready">READY</span></td></tr>
-<tr><td>JS2</td><td>Capacity projection → <code>knowledge/capacity.json</code></td><td>— (tolerates missing JS1 fields)</td><td><span class="tag t-ready">READY (parallel w/ JS1)</span></td></tr>
-<tr><td>JS3</td><td>CP-SAT shadow scheduler + <code>propose_schedule</code> tool</td><td>JS2 (capacity contract)</td><td><span class="tag t-blocked">AFTER JS2</span></td></tr>
-<tr><td>JS4</td><td>Hindsight assay — proposed vs actual dispatch (regret)</td><td>JS3</td><td><span class="tag t-blocked">AFTER JS3</span></td></tr>
-<tr><td><b>G-JS</b></td><td><b>GATE: Derek reviews JS4 regret report</b></td><td>JS4</td><td><span class="tag t-gated">DEREK</span></td></tr>
-<tr><td>JS5</td><td>Actuation: <code>submit_task</code> consults scheduler (flagged)</td><td>G-JS pass</td><td><span class="tag t-gated">GATED</span></td></tr>
-<tr><td>JS6</td><td>Watchfire <code>schedule_divergence</code> spell (flag-only)</td><td>JS3</td><td><span class="tag t-blocked">AFTER JS3</span></td></tr>
+<tr><td>JS1</td><td>Ledger schema: <code>task_class</code> + <code>model</code></td><td>—</td><td><span class="tag t-ready">BUILT ✓</span></td></tr>
+<tr><td>JS2</td><td>Capacity projection → <code>knowledge/capacity.json</code></td><td>— (tolerates missing JS1 fields)</td><td><span class="tag t-ready">BUILT ✓</span></td></tr>
+<tr><td>JS3</td><td>CP-SAT shadow scheduler + <code>propose_schedule</code> tool</td><td>JS2 (capacity contract)</td><td><span class="tag t-ready">BUILT ✓ (opus)</span></td></tr>
+<tr><td>JS4</td><td>Hindsight assay — proposed vs actual dispatch (regret)</td><td>JS3</td><td><span class="tag t-ready">BUILT ✓</span></td></tr>
+<tr><td><b>G-JS</b></td><td><b>GATE: Derek reviews JS4 regret report</b></td><td>JS4</td><td><span class="tag t-gated">WAIVED for build; actuation still gated on regret trend (ADR-0008)</span></td></tr>
+<tr><td>JS5</td><td>Actuation: <code>submit_task</code> consults scheduler (flagged)</td><td>G-JS pass</td><td><span class="tag t-gated">GATED (unbuilt by design)</span></td></tr>
+<tr><td>JS6</td><td>Watchfire <code>schedule_divergence</code> spell (flag-only)</td><td>JS3</td><td><span class="tag t-ready">BUILT ✓</span></td></tr>
 </table>
 <p class="why">JS1 and JS2 can run as parallel Sonnet agents (different files). JS3 is the big one. JS4 produces the first evidence. Nothing touches live dispatch until Derek passes the gate — advisory-first, same act-then-document discipline as Watchfire but inverted: here it's document-then-act.</p>
 
@@ -147,7 +147,7 @@
 <li>Ledger everything through existing machinery — no new event-writing paths.</li>
 </ul>
 
-<p class="meta">Status: DRAFT-READY — awaiting Derek's cue to dispatch (fleet handoff pacing). JS1 + JS2 can go out as parallel Sonnet agents immediately on release.</p>
+<p class="meta">Status 2026-07-04 EOD: JS1–JS4, JS6, JS7a/b + U1–U6 BUILT AND LIVE (gateway 32 tools; suite 272 green). Added post-plan: JS7 setup-aware AM4 scheduling (model residency, DDR4 staging slot, per-card VRAM budgets — durations from the B70 stack's measured warmups) and the imagegen-250 assay (CP-SAT OPTIMAL: 3 loads / 0 deadline misses vs FIFO 24 / 19; promoted to repo fixture at hearth/scheduler/experiments/). JS5 is the only unbuilt slice, gated on the ledgered regret trend per ADR-0008. Watchfire patrol auto-refreshes capacity + catalog + regret every 15 min. See SESSION-RETRO-2026-07-04.md addendum 4.</p>
 
 </body>
 </html>

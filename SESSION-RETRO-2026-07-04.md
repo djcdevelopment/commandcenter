@@ -420,3 +420,120 @@ Offloaded: the five role-read first-passes (`local_generate`, qwen3-coder:30b, e
 factsheet, all repo writes, ADR-0007, this section, every diagnosis and fix. `--fleet` not re-run here
 (the earlier fleet draft is blocked on stale `~/commandcenter-src`, a separate thread). Derek's-seat
 section is a reconstruction. 4 commits unpushed at write time.
+
+---
+
+# Session Retro — 2026-07-04 (addendum 4 · the job shop scheduler · the 2019 article was the map all along)
+
+**One-line:** Derek revealed his 2019 OR-Tools job-shop article as the north star — and in one
+session the lab **became the scheduler**: JS1–JS7 built by a tiered agent fleet, integration-first,
+live on the door, with a 250-job synthetic assay proving the CP-SAT formulation beats FIFO 19→0
+on deadline misses.
+
+## What this session was
+
+A revelation, then a sprint. The doorcheck was routine; the pivot was Derek linking his
+7-year-old article ("Solving the Job Shop Problem", Google OR-Tools CP-SAT) and naming it the
+next level for HEARTH/mechnet/Watchfire — with the recognition that *"it always seemed to come
+together... almost like I was recreating another system I lived in."* Everything since (ledger,
+assay, capacity instrumentation) was, in hindsight, building the solver's input dataset. Derek
+then waived the staged gates ("skip to the end and the integration test works... that's a huge
+win"), so this became a build-to-integration session with the plan doc as contract.
+
+## What shipped (`8d438a6` → `9674e32`, 24 commits, 43 files, +5118 lines)
+
+| Commit | What |
+|---|---|
+| `73a1d0a` | JS1 — ledger events carry `task_class` + `model` (additive schema, sqlite migration, `_ledger_model` lift) |
+| `4c80301` | JS2 — capacity projection → `knowledge/capacity.json` (p50/p90 buckets, legacy-tolerant) |
+| `be7bbd9` | JS3 — CP-SAT shadow scheduler (`hearth/scheduler/`, `propose_schedule`, two-economies objective, emits scheduler-decision.v1) |
+| `20c8781` | JS6 — Watchfire `schedule_divergence` spell (flag-only, >2× capacity p90) |
+| `1cf7fc5` | JS4 — `schedule_hindsight` regret replay |
+| `9d3ba94` | **Integration fix**: conductor success runs have NO `status` key — completion = no-status + winner; verified live on 50 real runs |
+| `be722ec` | JS7a — AM4 catalog ingest (vllama `models.json` + b70tools warmups → `knowledge/am4_catalog.json`) |
+| `4b7d70c` | JS7b — setup-aware CP-SAT: model residency, shared load intervals, DDR4 staging NoOverlap, per-card VRAM budgets |
+| `037fc1a` | **Integration fix**: `required_model` = hard eligibility (jobs were escaping to stateless/frontier machines); `est_out_tokens` in token objective |
+| `a364642`–`9674e32` | U1–U6 surgical upgrades (5 haiku agents): `est_duration_s`, patrol auto-refresh + regret ledgering, imagegen-250 assay promoted to fixture, null-p90 guard, `_ledger_task_class` lift |
+
+New durable artifacts: [JOB-SHOP-SCHEDULER-PLAN.html](JOB-SHOP-SCHEDULER-PLAN.html),
+`hearth/scheduler/` (ontology · solve · decision · hindsight · experiments/imagegen_250),
+`hearth/toolsurface/{scheduler,am4}.py`, contracts `capacity.v1` + `am4-catalog.v1`,
+`knowledge/{capacity,am4_catalog}.json` (now patrol-refreshed), ADR-0008/0009 (this retro).
+Gateway ends HEALTHY, 32 tools.
+
+## The team retro — our collaboration across the seats
+
+- **Architect** (Derek's intuition, Claude's math — the how-derek-scales engine verbatim):
+  the two big calls were both Derek's and both right: naming the JSP frame (which turned scattered
+  lab instruments into *solver inputs*), and the AM4 insight that **load time + prerequisites,
+  not runtime**, is the real scheduling problem on 64GB-VRAM/32GB-DDR4 — classic
+  sequence-dependent setups + a single staging resource. Claude's contribution was recognizing
+  both as textbook CP-SAT shapes and finding the pre-existing `scheduler-decision.v1` contract so
+  we extended rather than invented. Advisory-first (shadow → hindsight → gated actuation) held
+  even with gates waived: JS5 actuation remains unbuilt *by design*.
+- **Implementer** (sonnet slices, opus for the solver, haiku for surgery; frontier merged):
+  slice briefs as contracts worked — every agent shipped green tests on the first pass. The
+  solver formulation (shared load intervals via OR-literals, staging NoOverlap, per-card charge)
+  came back from opus correct and deterministic. Where code fought us: nothing in the math —
+  all three real bugs were *world-model* bugs (wrong assumptions about conductor data shapes).
+- **Reviewer/QA** (frontier, deliberately): integration-first caught what unit tests
+  structurally couldn't — the no-status-key success shape, the eligibility escape, the token
+  fallback. All three were faithful implementations of wrong beliefs; only contact with real
+  data exposed them. The imagegen-250 assay is now a 0.1s regression guard encoding the
+  headline result (3 loads / 0 misses vs FIFO's 24 / 19).
+- **Operator/SRE**: two clean gateway reloads (kill + doorcheck --revive, ~15s each); ortools
+  9.15 installed first-try on the Windows venv (de-risked before JS3 was briefed). The known
+  flaky Windows temp-teardown test wandered as usual; ignored deliberately, documented.
+  One self-inflicted scar: `git add -A` during conflict resolution committed the generated
+  `knowledge/*.json` — harmless (patrol now refreshes them) but against JS2's own rule.
+- **Product/planning**: pacing was Derek's explicitly this session — he waived his own gates
+  and set the tier budget ("sonnet builds", "haiku surgical", "opus to fit"). Scope stayed on
+  the plan's rails even at speed; the one unplanned addition (imagegen assay) was Derek's ask
+  and became the session's best evidence.
+
+## Two seats, two views
+
+**From Claude's seat.** The thing I'd bottle: *integration as the review*. Three bugs, none
+findable by the agents that wrote them, all found within minutes of touching real data — the
+"skip to the end" instruction was the highest-leverage decision of the session and it wasn't
+mine. Where I under-reached: I trusted scout reports as ground truth when writing briefs (the
+status-key claim propagated into two agents' code); scouts confirm *existence*, only live data
+confirms *shape*. Where the cheap tier bit: 3 of 5 haiku worktree agents branched from stale
+bases and rebuilt existing code from scratch — one recreated the whole scheduler, one made
+`task_class` required (would have broken every legacy event). My merge review caught all of it,
+but that review is load-bearing; budget for it whenever haiku writes code.
+
+**From Derek's seat** *(my reconstruction — correct me)*: seven years ago I wrote down the
+math for this exact system; today it scheduled 250 jobs optimally on my own hardware using
+durations my own lab measured. The lab finally paid off as designed — capacity → ontology →
+solver → talk at the schedule level. The tier economics worked: frontier briefed and merged,
+everything else was sonnet/opus/haiku/qwen on sunk compute. What I'd watch: the haiku
+stale-base mess means "surgical" briefs aren't actually cheap if Fable has to hand-reapply
+them — either fix worktree branching or stop pretending haiku can touch shared files.
+
+## Lessons learned
+
+1. **Scout reports confirm existence, not shape** — any data contract a brief depends on must be
+   verified against one live sample first. → folded into ADR-0009.
+2. **Integration-first catches world-model bugs that unit tests faithfully encode.** Three for
+   three this session. → ADR-0009 (build protocol).
+3. **The scheduler stays advisory until the ledgered regret trend proves it** — patrol now accrues
+   that trend automatically every 15 min. → ADR-0008.
+4. **Haiku worktree agents may branch from stale bases and rebuild existing code** — merge
+   strategy: `checkout --ours` for rebuilt files + hand-apply the small intent; frontier merge
+   review is mandatory, not ceremonial. → ADR-0009 + memory.
+5. **Setup times dominate on AM4** (32GB DDR4 staging vs 64GB VRAM) and the B70 stack already
+   measured them (`warmup.wall_ms`) — reuse of hard-won data beat new instrumentation. → memory
+   (already written).
+6. Cold-load vs first-inference split is still unmeasured (open item in Derek
+'s own
+   PICKUP-battlemage.md) - the one instrumentation gap left. -> doc note, no ADR.
+
+## Provenance
+
+Git range `8d438a6` -> `9674e32` (24 commits; all this session's). Offloaded: timeline/role-read/
+lessons first-pass (`local_generate`, qwen3-coder:30b, 20.3s, edited - it misattributed the plan
+doc to Derek and garbled the scout targets; corrected against the factsheet). `--fleet` second
+opinion dispatched: plan_id `hearth-retro-2026-07-04-jobshop-35fc03d7` (poll `task_status`).
+Frontier: factsheet, all judgments, ADR-0008/0009, every repo write. Derek's-seat is a
+reconstruction. Suite green at write time (272 tests + assay 6); commits unpushed.

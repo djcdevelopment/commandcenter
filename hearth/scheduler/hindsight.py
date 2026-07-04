@@ -76,7 +76,8 @@ def build_jobs_from_history(
 ) -> list[dict]:
     """Turn completed, successful historical run records into job specs.
 
-    Only records with status == "ok" and a winner are considered — errored,
+    Completed = status == "ok", or no status at all with a winner (the
+    conductor only stamps status on errored/abandoned/stub runs). Errored,
     stubbed, or still-in-flight runs carry no reliable "what actually
     happened" signal and are excluded. Each returned dict carries both the
     scheduler-shaped job fields (plan_id, task_class, est_tokens) AND the
@@ -86,7 +87,7 @@ def build_jobs_from_history(
     machines_by_name = {m.name: m for m in (machines or [])}
     jobs: list[dict] = []
     for record in records:
-        if record.get("status") != "ok":
+        if record.get("status") not in (None, "ok"):
             continue
         winner = record.get("winner")
         if not winner:

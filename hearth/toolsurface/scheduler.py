@@ -63,7 +63,10 @@ for name in names:
         rec["status"] = None
     records.append(rec)
 records.sort(key=lambda x: x["age_s"])
-records = [r for r in records if r.get("status") == "ok"][:LIMIT_PLACEHOLDER]
+# Completed = explicit ok, or the common success shape: no status key at all
+# (conductor only stamps status on errored/abandoned/stub runs) but a winner.
+records = [r for r in records if r.get("status") == "ok"
+           or (r.get("status") is None and not r.get("parse_error") and r.get("winner"))][:LIMIT_PLACEHOLDER]
 print(json.dumps({"records": records, "scanned": len(records)}))
 '''
 

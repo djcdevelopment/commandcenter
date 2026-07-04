@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Job Shop Scheduler — Build Plan (JS0–JS6)</title>
+<style>
+  :root{--bg:#0f1115;--panel:#171a21;--ink:#d8dee9;--dim:#8b95a7;--accent:#e8a33d;--green:#7fbf7f;--red:#d97b7b;--blue:#6fa8dc;--border:#2a2f3a}
+  body{background:var(--bg);color:var(--ink);font:15px/1.55 "Segoe UI",system-ui,sans-serif;margin:0;padding:2rem;max-width:1100px;margin-inline:auto}
+  h1{color:var(--accent);font-size:1.6rem;border-bottom:2px solid var(--accent);padding-bottom:.4rem}
+  h2{color:var(--blue);font-size:1.2rem;margin-top:2.2rem}
+  h3{color:var(--ink);font-size:1.02rem}
+  .meta{color:var(--dim);font-size:.85rem}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:1rem 1.3rem;margin:1rem 0}
+  .brief{border-left:4px solid var(--accent)}
+  .gate{border-left:4px solid var(--red)}
+  code,pre{font-family:Consolas,monospace;background:#0a0c10;border-radius:4px}
+  code{padding:.1em .35em;font-size:.88em}
+  pre{padding:.8rem 1rem;overflow-x:auto;font-size:.82rem;line-height:1.45;border:1px solid var(--border)}
+  table{border-collapse:collapse;width:100%;font-size:.88rem;margin:.8rem 0}
+  th,td{border:1px solid var(--border);padding:.4rem .6rem;text-align:left}
+  th{background:#1d212b;color:var(--blue)}
+  .tag{display:inline-block;padding:.05rem .5rem;border-radius:10px;font-size:.75rem;font-weight:600}
+  .t-ready{background:#2a3d2a;color:var(--green)} .t-blocked{background:#3d2a2a;color:var(--red)} .t-gated{background:#3d362a;color:var(--accent)}
+  .status{font-weight:700}
+  ul{margin:.4rem 0}
+  .why{color:var(--dim);font-style:italic}
+</style>
+</head>
+<body>
+
+<h1>Job Shop Scheduler — Build Plan</h1>
+<p class="meta">Created 2026-07-04 · Origin: Derek's 2019 article <a href="https://www.linkedin.com/pulse/solving-job-shop-problem-derek-ciula/" style="color:var(--blue)">"Solving the Job Shop Problem"</a> (OR-Tools / CP-SAT) declared the north star for HEARTH + mechnet + Watchfire. Landscape confirmed by 3 scout agents 2026-07-04. Executor tier: <strong>Sonnet agents</strong> (Fable briefs &amp; reviews, per token-tier delegation).</p>
+
+<div class="panel">
+<h3 style="margin-top:0">The thesis in one paragraph</h3>
+<p>Classic JSP needs three inputs the lab has been quietly instrumenting: task durations, machine capabilities, and constraints. The HEARTH ledger measures durations per node; the assay earns capabilities; occupancy/fan-out/precedence are the constraints. The scheduler is <strong>advisory-first</strong> (shadow mode) and the objective is <strong>minimize metered tokens subject to deadline</strong> — not raw makespan — per the two-economies doctrine. The conductor stays the ONE scheduler; HEARTH only orders/filters the eligible-builders list (CCMETA) once the shadow assay proves value.</p>
+</div>
+
+<h2>Landscape (verified 2026-07-04 by scouts)</h2>
+<table>
+<tr><th>Fact</th><th>Where</th><th>Implication</th></tr>
+<tr><td>Ledger events already carry <code>duration_ms</code>, <code>caller.node</code>, <code>runner_class</code>, <code>cost.tokens_*</code>, <code>ok</code>, <code>task_id</code></td><td><code>hearth/contracts/hearth-event.v1.schema.json</code>, <code>hearth/kernel/ledger.py:68-102</code></td><td>Durations by (runner_class × tool × node) computable TODAY</td></tr>
+<tr><td>No <code>task_class</code> or <code>model</code> field on events</td><td>same schema</td><td>JS1 adds them (additive, optional)</td></tr>
+<tr><td><code>contracts/scheduler-decision.v1.schema.json</code> (586 lines) already exists; <code>tools/workflow/reference_runner.py</code> is a heuristic scheduler fixture</td><td>contracts/, tools/workflow/</td><td>The decision RECORD format is pre-designed — JS3 emits it, don't invent a new one</td></tr>
+<tr><td>Dispatch selection today: sync inference = pinned &gt; tag &gt; default (<code>backends.py:164-219</code>); async tasks = hardcoded <code>DEFAULT_BUILDERS</code> (<code>task_lane.py:56-58</code>)</td><td>hearth/toolsurface/</td><td>The decision point JS5 eventually informs</td></tr>
+<tr><td>"One scheduler" doctrine — conductor owns dispatch; HEARTH names eligible builders via CCMETA header</td><td><code>task_lane.py:101-104</code></td><td>Actuation = ordering the CCMETA list, nothing more</td></tr>
+<tr><td>Watchfire: <code>Gap</code> dataclass + 5 spells in <code>scan_runs()</code>; extend by appending a rule block + test</td><td><code>hearth/health/gaps.py:30-88</code></td><td>JS6 divergence spell is a small, known-shape change</td></tr>
+<tr><td>No OR-Tools anywhere in the repo; scheduler venv = <code>fleet-worker-node/.venv-omen</code></td><td>grep verified</td><td>JS3 adds the dep; CPU-only, zero metered tokens</td></tr>
+<tr><td><code>knowledge/capabilities.json</code> is EMPTY (post corpus-overwrite)</td><td>knowledge/</td><td>Capacity projection (JS2) must not depend on capabilities being populated</td></tr>
+<tr><td>Test conventions: <code>unittest.TestCase</code>, <code>HEARTH_SCOPE</code> temp-sandbox pattern, provider-contract test enforces <code>get_tools()</code></td><td><code>hearth/tests/</code></td><td>All briefs mandate this pattern; NO live SSH in tests</td></tr>
+</table>
+
+<h2>Slice map</h2>
+<table>
+<tr><th>Slice</th><th>Name</th><th>Depends on</th><th>Status</th></tr>
+<tr><td>JS1</td><td>Ledger schema: <code>task_class</code> + <code>model</code></td><td>—</td><td><span class="tag t-ready">READY</span></td></tr>
+<tr><td>JS2</td><td>Capacity projection → <code>knowledge/capacity.json</code></td><td>— (tolerates missing JS1 fields)</td><td><span class="tag t-ready">READY (parallel w/ JS1)</span></td></tr>
+<tr><td>JS3</td><td>CP-SAT shadow scheduler + <code>propose_schedule</code> tool</td><td>JS2 (capacity contract)</td><td><span class="tag t-blocked">AFTER JS2</span></td></tr>
+<tr><td>JS4</td><td>Hindsight assay — proposed vs actual dispatch (regret)</td><td>JS3</td><td><span class="tag t-blocked">AFTER JS3</span></td></tr>
+<tr><td><b>G-JS</b></td><td><b>GATE: Derek reviews JS4 regret report</b></td><td>JS4</td><td><span class="tag t-gated">DEREK</span></td></tr>
+<tr><td>JS5</td><td>Actuation: <code>submit_task</code> consults scheduler (flagged)</td><td>G-JS pass</td><td><span class="tag t-gated">GATED</span></td></tr>
+<tr><td>JS6</td><td>Watchfire <code>schedule_divergence</code> spell (flag-only)</td><td>JS3</td><td><span class="tag t-blocked">AFTER JS3</span></td></tr>
+</table>
+<p class="why">JS1 and JS2 can run as parallel Sonnet agents (different files). JS3 is the big one. JS4 produces the first evidence. Nothing touches live dispatch until Derek passes the gate — advisory-first, same act-then-document discipline as Watchfire but inverted: here it's document-then-act.</p>
+
+<h2>Sonnet briefs (zero-context, the brief is the contract)</h2>
+
+<div class="panel brief">
+<h3>JS1 — Ledger event schema: add <code>task_class</code> and <code>model</code></h3>
+<p><b>Repo:</b> C:\work\commandcenter (branch off master). <b>Do not touch:</b> conductor code, anything over SSH.</p>
+<ul>
+<li>Evolve <code>hearth/contracts/hearth-event.v1.schema.json</code> ADDITIVELY: two new OPTIONAL top-level fields — <code>task_class</code> (string|null; free-form semantic category, e.g. "inference", "build", "io", "query") and <code>model</code> (string|null; e.g. "qwen3-coder:30b"). Bump nothing that breaks old events — v1 events without the fields must still validate. If the schema pins <code>additionalProperties:false</code>, extend properties in place and keep <code>schema: "hearth-event.v1"</code> (additive-optional = same major).</li>
+<li><code>hearth/kernel/ledger.py</code> <code>new_event()</code> (~line 68): accept optional <code>task_class</code> and <code>model</code> kwargs, default None, include in the event dict. Extend the sqlite index table + insert (~lines 205-216) with nullable <code>task_class</code>, <code>model</code> columns; handle existing DBs (ALTER TABLE if columns missing — a tiny migration on open).</li>
+<li>Populate at the two call sites that KNOW the values: (a) the gateway wrapper <code>make_wrapper()</code> in <code>hearth/kernel/gateway.py</code> (~line 105) — derive <code>task_class</code> from a small TOOL_CLASS map (local_generate→"inference", submit_task→"dispatch", run_tests→"test", git_*→"vcs", read/write/glob/list→"io", query_*→"query", default None); (b) <code>hearth/toolsurface/inference.py</code> — thread the resolved backend's <code>model_id</code> into the event (the wrapper can't know it; add a lightweight mechanism, e.g. the tool result carrying <code>_ledger_model</code> that the wrapper lifts into the event and strips from the stored result — pick the cleanest option and document it).</li>
+<li>Tests: <code>unittest.TestCase</code> under <code>hearth/tests/kernel/</code>; follow the <code>HEARTH_SCOPE</code> temp-sandbox pattern in <code>hearth/tests/toolsurface/test_knowledge.py</code>. Old-event validation, new-field round-trip, sqlite migration on a legacy DB file. <b>NO network, NO SSH, NO live gateway in tests.</b></li>
+<li>Run the full hearth suite before finishing. Deliverable: passing tests + a 5-line summary of the model-threading mechanism you chose.</li>
+</ul>
+</div>
+
+<div class="panel brief">
+<h3>JS2 — Capacity projection: <code>knowledge/capacity.json</code></h3>
+<p><b>Repo:</b> C:\work\commandcenter. <b>Read-only inputs, sandboxed outputs.</b></p>
+<ul>
+<li>New contract <code>hearth/contracts/capacity.v1.schema.json</code>: document shape <code>{contract_version:"capacity.v1", evidence_watermark, buckets:[{task_class, node, runner_class, model, tool, calls, ok_rate, duration_ms:{p50,p90,mean,max}, tokens_out_per_s:{p50}|null, last_seen}]}</code>. Bucket key = (task_class × node × model), with <code>tool</code>-level fallback buckets for legacy events lacking task_class (use <code>task_class=null, tool=&lt;name&gt;</code>).</li>
+<li>New module <code>hearth/projection/capacity.py</code>: pure function reading <code>hearth/var/ledger/events.ndjson</code>-shaped input (pass path in; default via HEARTH_SCOPE resolution like <code>hearth/toolsurface/knowledge.py</code> does), computing the buckets. Percentiles via stdlib (sorted list index) — no numpy. Must tolerate: missing task_class/model (pre-JS1 events), null costs, ok:false rows (count into ok_rate, EXCLUDE from duration percentiles — failures have garbage durations).</li>
+<li>New tool <code>project_capacity_knowledge()</code> + <code>query_capacity()</code> in <code>hearth/toolsurface/knowledge.py</code> following the existing pattern exactly (write <code>knowledge/capacity.json</code> via <code>resolve_in_scope</code>; register in that module's <code>get_tools()</code>). The provider-contract test must stay green.</li>
+<li>Tests under <code>hearth/tests/</code>: fixture ndjson with mixed old/new events, verify buckets, percentile math, legacy fallback, empty-ledger case. Sandbox pattern, <b>NO SSH/network</b>.</li>
+<li>Deliverable: passing suite + run the projector once against the repo's real <code>hearth/var/ledger/events.ndjson</code> if present and include the bucket count in your summary (do NOT commit the generated capacity.json).</li>
+</ul>
+</div>
+
+<div class="panel brief">
+<h3>JS3 — CP-SAT shadow scheduler: <code>hearth/scheduler/</code> + <code>propose_schedule</code></h3>
+<p><b>Repo:</b> C:\work\commandcenter. <b>Advisory only — this slice must not change any dispatch behavior.</b></p>
+<ul>
+<li>Add <code>ortools</code> to the hearth venv requirements (find where deps are declared for <code>fleet-worker-node/.venv-omen</code>; pin a version with cp312-win wheels). If install fails in your environment, code against the API and mark install as a handoff note — do NOT stub the solver with a fake.</li>
+<li>New package <code>hearth/scheduler/</code> with three pure modules:
+  <ul>
+  <li><code>ontology.py</code> — dataclasses: <code>Job</code> (plan_id, task_class, precedence list, deadline_s|None, est_duration source), <code>Machine</code> (name, kind local|frontier, token_cost_weight, capabilities/tags, available bool), <code>ScheduleProposal</code>. Loaders: machines from <code>fleet/inventory.toml</code> + <code>hearth/etc/backends.toml</code> + <code>knowledge/capacity.json</code> (tolerate absent capacity → fall back to a declared default duration per task_class); jobs from a plain list-of-dicts snapshot (caller provides — do NOT ssh from this module).</li>
+  <li><code>solve.py</code> — CP-SAT model: interval vars per (job × eligible machine), <code>AddNoOverlap</code> per machine, precedence constraints, optional deadline. Objective = <code>W_TOKENS * Σ(est_tokens × machine.token_cost_weight) + W_SPAN * makespan</code> with frontier machines carrying high token weight and local machines ~0 (two-economies objective). Durations = capacity p90 for the (task_class × machine) bucket, fallback chain p90→tool-bucket→default. Rolling-horizon by construction: solver is stateless, takes a snapshot, returns a proposal; 10s solver time limit.</li>
+  <li><code>decision.py</code> — render a proposal into a <code>scheduler-decision.v1</code> record (READ <code>contracts/scheduler-decision.v1.schema.json</code> and conform: candidates_considered, selected, decision_reason, predictions, economy_influence). Validate against the schema in tests.</li>
+  </ul></li>
+<li>New toolsurface module <code>hearth/toolsurface/scheduler.py</code> with <code>propose_schedule(jobs_snapshot: list|None = None)</code>: if no snapshot given, build one from local <code>runs/</code> info available WITHOUT ssh (or accept that live snapshotting lands in JS4) — the tool must work fully offline on a provided snapshot. Returns the proposal + decision record; the gateway wrapper ledgers it automatically. Export via <code>get_tools()</code>; register the provider in the gateway <code>--providers</code> default list (find where the provider spec is declared, e.g. the start script <code>hearth/etc/start-hearth-gateway.cmd</code>).</li>
+<li>Tests: deterministic 3-job × 3-machine fixtures — assert no-overlap holds, a frontier-only-capable job goes to frontier, a both-capable job goes LOCAL when deadline is slack (token objective dominates) and FRONTIER when deadline is tight (span term dominates), decision record validates against scheduler-decision.v1. If ortools import is unavailable in CI env, skip solver tests with a clear skip reason but keep ontology/decision tests running. <b>NO SSH/network in tests.</b></li>
+<li>Deliverable: passing suite + a worked example in the summary (3 jobs, the schedule CP-SAT chose, and why).</li>
+</ul>
+</div>
+
+<div class="panel brief">
+<h3>JS4 — Hindsight assay: proposed vs actual (regret report)</h3>
+<p><b>Repo:</b> C:\work\commandcenter. <b>Read-only everywhere.</b></p>
+<ul>
+<li>New module <code>hearth/scheduler/hindsight.py</code> + tool <code>schedule_hindsight()</code> in <code>hearth/toolsurface/scheduler.py</code>: take a set of COMPLETED historical runs (snapshot provided as list-of-dicts: plan_id, task_class, builders_used, actual duration, tokens), replay them through <code>propose_schedule</code>'s solver as if they had arrived together, and compute regret: actual metered tokens + span vs proposed. Output a small JSON report + human-readable table.</li>
+<li>Add a gathering helper that builds the snapshot from conductor <code>runs/*/result.json</code> over the EXISTING ssh path used by <code>hearth/toolsurface/preflight.py</code> (<code>_GATHER_SRC</code> pattern) — reuse that mechanism, don't invent a new ssh wrapper. The ssh gather is a thin, separately-testable-by-mock layer; the regret math is pure and fully unit-tested offline. <b>Tests: NO live SSH — mock the gather exactly as <code>test_preflight.py</code> does.</b></li>
+<li>Deliverable: passing suite + run the real hindsight report ONCE against the conductor (this one live call is allowed at delivery time, from the gateway box) and paste the regret table into your summary. This report is the gate artifact for Derek.</li>
+</ul>
+</div>
+
+<div class="panel gate">
+<h3>G-JS — GATE (Derek)</h3>
+<p>Review the JS4 regret report. Proceed to JS5 only if the solver's proposals beat (or match with better token economics) the current hardcoded <code>DEFAULT_BUILDERS</code> dispatch on real history. If regret ≈ 0, the win is still JS2's capacity data + JS6's divergence watching — actuation waits for more ledger data.</p>
+</div>
+
+<div class="panel brief">
+<h3>JS5 — Actuation (GATED): scheduler-informed CCMETA ordering</h3>
+<ul>
+<li>In <code>hearth/toolsurface/task_lane.py</code> <code>submit_task()</code>: behind env flag <code>HEARTH_SCHEDULER_ADVISE=1</code> (default OFF), when the caller did not pin builders, consult <code>propose_schedule</code> to order/select the builders list. <code>_ensure_fanout_minimum</code> (≥2 builders) still applies AFTER — never regress the phantom fix. On any scheduler error: fall back to DEFAULT_BUILDERS silently-but-ledgered. Conductor remains the one scheduler — HEARTH only orders eligibility.</li>
+<li>Tests: flag off = byte-identical behavior to today (regression tests must prove this); flag on = ordering follows a mocked proposal; scheduler-throws = fallback. NO live SSH.</li>
+</ul>
+</div>
+
+<div class="panel brief">
+<h3>JS6 — Watchfire <code>schedule_divergence</code> spell (flag-only)</h3>
+<ul>
+<li>In <code>hearth/health/gaps.py</code> <code>scan_runs()</code>: new Gap kind <code>schedule_divergence</code>, severity "info" — fires when a completed run's actual duration exceeds the capacity p90 for its (task_class × node) bucket by &gt;2× (bucket read from <code>knowledge/capacity.json</code>; silently skip if capacity absent or bucket missing). Extend <code>preflight.py</code>'s <code>_GATHER_SRC</code> only if a needed field is missing. Do NOT add to <code>AUTO_HEAL_KINDS</code> — flag-only, per Watchfire policy (ambiguous ≠ auto-heal).</li>
+<li>Tests in <code>hearth/tests/health/test_gaps.py</code> following the existing pattern: divergent run fires, normal run doesn't, missing capacity file = no gap, no crash.</li>
+</ul>
+</div>
+
+<h2>Standing rules for every brief (copy into each dispatch)</h2>
+<ul>
+<li>Test isolation is PARANOID: unittest + HEARTH_SCOPE temp sandbox; zero live SSH/network/gateway in any test. Mock ssh exactly as <code>test_preflight.py</code> / <code>test_task_lane.py</code> do.</li>
+<li>Additive contracts only; legacy events/files must keep validating. The provider-contract test must stay green.</li>
+<li>Run the FULL hearth suite (~200 tests) before declaring done; report the count.</li>
+<li>Do not modify conductor-side code (concurrently owned) or push anything to fleet nodes.</li>
+<li>Ledger everything through existing machinery — no new event-writing paths.</li>
+</ul>
+
+<p class="meta">Status: DRAFT-READY — awaiting Derek's cue to dispatch (fleet handoff pacing). JS1 + JS2 can go out as parallel Sonnet agents immediately on release.</p>
+
+</body>
+</html>

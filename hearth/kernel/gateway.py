@@ -50,6 +50,10 @@ DEFAULT_PORT = 8710
 KERNEL_DIR = Path(__file__).resolve().parent
 BUILTIN_PROVIDER = "hearth.kernel.gateway#builtin"
 KNOWLEDGE_MODULE_SUFFIX = ".knowledge"
+LEDGER_TASK_CLASS_KEY = "_ledger_task_class"
+TOOL_CLASS = {
+    "submit_task": "dispatch",
+}
 
 log = logging.getLogger("hearth.gateway")
 
@@ -85,6 +89,18 @@ def make_task_id_provider(mcp: FastMCP) -> Callable[[], Optional[str]]:
             task_id = extra.get("task_id")
         return str(task_id) if task_id is not None else None
     return provider
+
+
+def _lift_ledger_task_class(result: Any) -> Optional[str]:
+    """Extract _ledger_task_class from result dict if present, removing it.
+
+    Allows tool providers to override the static task_class derivation by
+    embedding a _ledger_task_class key in their result dict. Lifted value
+    is removed so it is never leaked to the caller.
+    """
+    if not isinstance(result, dict):
+        return None
+    return result.pop(LEDGER_TASK_CLASS_KEY, None)
 
 
 def _resolved_signature(fn: Callable) -> tuple[inspect.Signature, dict]:
@@ -133,17 +149,22 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
             raise
 
         result, ok, error = None, True, None
+        task_class = None
         try:
             result = fn(**kwargs)
+            # Lift task_class from result if present (overrides static map derivation)
+            lifted_task_class = _lift_ledger_task_class(result)
+            task_class = lifted_task_class or TOOL_CLASS.get(tool_name)
             return result
         except Exception as exc:
             ok, error = False, f"{type(exc).__name__}: {exc}"
+            task_class = TOOL_CLASS.get(tool_name)
             raise
         finally:
             hearth.ledger.append(new_event(
                 caller.as_dict(), tool_name, args=kwargs, result=result,
                 ok=ok, error=error, duration_ms=elapsed_ms(),
-                task_id=task_id,
+                task_id=task_id, task_class=task_class,
             ))
 
     wrapper.__name__ = tool_name

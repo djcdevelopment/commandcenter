@@ -103,6 +103,38 @@ class SubmitTaskTests(TestCase):
             result = submit_task("q")
         self.assertTrue(result["plan_id"].startswith("hearth-"))
 
+    def test_task_class_parameter_sets_ledger_key(self) -> None:
+        """submit_task(task_class="build") sets _ledger_task_class in result."""
+        with patch("subprocess.run", return_value=_completed(stdout="written\n")):
+            result = submit_task("q", task_class="build")
+        self.assertTrue(result["ok"])
+        self.assertIn("_ledger_task_class", result)
+        self.assertEqual(result["_ledger_task_class"], "build")
+
+    def test_est_tokens_parameter_included_in_result(self) -> None:
+        """submit_task(est_tokens=500) includes est_tokens in result."""
+        with patch("subprocess.run", return_value=_completed(stdout="written\n")):
+            result = submit_task("q", est_tokens=500)
+        self.assertTrue(result["ok"])
+        self.assertIn("est_tokens", result)
+        self.assertEqual(result["est_tokens"], 500)
+
+    def test_task_class_and_est_tokens_together(self) -> None:
+        """submit_task with both task_class and est_tokens includes both."""
+        with patch("subprocess.run", return_value=_completed(stdout="written\n")):
+            result = submit_task("q", task_class="research", est_tokens=1000)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["_ledger_task_class"], "research")
+        self.assertEqual(result["est_tokens"], 1000)
+
+    def test_task_class_and_est_tokens_omitted_when_not_provided(self) -> None:
+        """submit_task without task_class/est_tokens omits the keys."""
+        with patch("subprocess.run", return_value=_completed(stdout="written\n")):
+            result = submit_task("q")
+        self.assertTrue(result["ok"])
+        self.assertNotIn("_ledger_task_class", result)
+        self.assertNotIn("est_tokens", result)
+
 
 class TaskStatusTests(TestCase):
     def test_no_result_yet_reports_done_false_not_error(self) -> None:

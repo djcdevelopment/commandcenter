@@ -18,7 +18,8 @@
     "error",
     "duration_ms",
     "cost",
-    "task_id"
+    "task_id",
+    "task_class"
   ],
   "properties": {
     "schema": { "const": "hearth-event.v1" },
@@ -57,6 +58,7 @@
         "watt_s": { "type": ["number", "null"] }
       }
     },
-    "task_id": { "type": ["string", "null"] }
+    "task_id": { "type": ["string", "null"] },
+    "task_class": { "type": ["string", "null"] }
   }
 }

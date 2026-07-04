@@ -69,7 +69,7 @@ def new_event(caller: Mapping[str, str], tool: str, *,
               args: Any = None, result: Any = None, ok: bool = True,
               error: Optional[str] = None, duration_ms: float = 0,
               cost: Optional[Mapping[str, Any]] = None,
-              task_id: Optional[str] = None) -> dict:
+              task_id: Optional[str] = None, task_class: Optional[str] = None) -> dict:
     """Build a schema-complete hearth-event.v1 dict for `append`.
 
     `args` and `result` are the raw python values; digests and the 400-char args
@@ -99,6 +99,7 @@ def new_event(caller: Mapping[str, str], tool: str, *,
             "watt_s": cost.get("watt_s"),
         },
         "task_id": task_id,
+        "task_class": task_class,
     }
 
 
@@ -109,7 +110,7 @@ def _validate_stdlib(event: Any) -> None:
         raise LedgerValidationError("event must be an object")
     required = {"schema", "event_id", "ts", "caller", "tool", "args_digest",
                 "args_preview", "result_digest", "ok", "error", "duration_ms",
-                "cost", "task_id"}
+                "cost", "task_id", "task_class"}
     keys = set(event)
     if keys != required:
         missing, extra = sorted(required - keys), sorted(keys - required)
@@ -149,6 +150,8 @@ def _validate_stdlib(event: Any) -> None:
             raise LedgerValidationError(f"cost.{field} must be a number or null")
     if event["task_id"] is not None and not isinstance(event["task_id"], str):
         raise LedgerValidationError("task_id must be a string or null")
+    if event["task_class"] is not None and not isinstance(event["task_class"], str):
+        raise LedgerValidationError("task_class must be a string or null")
 
 
 _jsonschema_validator = None

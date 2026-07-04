@@ -92,7 +92,7 @@ via = "mshome"
 host = "omen"
 expect = "up"
 purpose = "Original golden-image VM. Worker + (temp) assay shell; hosts the omen-worker-1 builder."
-note = "2026-07-04 DIAGNOSED: golden VM is powered on but its Hyper-V display name is now 'cc-worker-1' (renamed during sibling provisioning) and it is NOT SSH-reachable on the current NAT gen (172.21.x). claudefarm1.mshome.net resolves to a stale 172.30.5.209 lease (a prior NAT generation). fleet_rediscover finds only cc-builder-1..4. Fix is Derek's: VMConnect into the 'cc-worker-1' VM, check guest hostname + sshd + that it pulled a 172.21.x lease. Runbook: FLEET-ADDRESSING-RUNBOOK.md on cc-conductor."
+note = "2026-07-04 DIAGNOSED: golden VM renamed to Hyper-V display name 'cc-worker-1' during sibling provisioning. Guest OS is ALIVE (Heartbeat OK) but its networking is broken at the config level: Key-Value Pair Exchange integration = 'No Contact', ZERO IPs, and a graceful Restart-VM did NOT fix it (persistent, not a stale lease). So it's unreachable on the current NAT gen (172.21.x); claudefarm1.mshome.net still points at a dead 172.30.5.209 lease. Restart already attempted (didn't help). Fix requires GUEST access Claude can't do: VMConnect (console) into 'cc-worker-1' and fix netplan/DHCP + hostname + hv-kvp-daemon + sshd; OR offline VHDX-mount surgery (see [[project-fleet-vm-provisioning]] WSL2-mount recovery). Blocks omen-worker-1 + G3. Runbook: FLEET-ADDRESSING-RUNBOOK.md on cc-conductor."
 checks = [
   { service = "ssh", port = 22 },
 ]

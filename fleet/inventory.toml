@@ -39,9 +39,10 @@ address = "100.124.12.37"
 alt = ["omen.mshome.net"]
 via = "tailnet"
 expect = "up"
-purpose = "Hyper-V hypervisor + Ollama backend (:11434). Hosts all builder VMs. THIS box."
+purpose = "Hyper-V hypervisor + Ollama backend (:11434) + HEARTH gateway (:8710). Hosts all builder VMs. THIS box."
 checks = [
   { service = "ollama", port = 11434, host = "omen.mshome.net" },
+  { service = "hearth-gateway", port = 8710, host = "127.0.0.1" },
 ]
 
 [[node]]

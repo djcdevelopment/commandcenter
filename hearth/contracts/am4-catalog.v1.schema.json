@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "am4-catalog.v1.schema.json",
+  "title": "AM4 model catalog (JS7a)",
+  "description": "AM4 B70 model-lifecycle catalog: per-model VRAM fit, placement, measured warmup times, and host-RAM safety gates. Consumed by the CP-SAT scheduler. Shape is FROZEN: extra optional fields are fine, do not rename these.",
+  "type": "object",
+  "required": ["contract_version", "gathered_at", "host", "gates", "cards", "models"],
+  "properties": {
+    "contract_version": { "const": "am4-catalog.v1" },
+    "gathered_at": { "type": "string" },
+    "host": { "type": "string" },
+    "gates": {
+      "type": "object",
+      "required": [
+        "max_host_used_gb_preflight",
+        "telemetry_settle_sec",
+        "health_timeout_sec",
+        "verdict_gate"
+      ],
+      "properties": {
+        "max_host_used_gb_preflight": { "type": "number" },
+        "telemetry_settle_sec": { "type": "number" },
+        "health_timeout_sec": { "type": "number" },
+        "verdict_gate": { "type": "boolean" }
+      }
+    },
+    "cards": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["index", "vram_gb"],
+        "properties": {
+          "index": { "type": "integer" },
+          "vram_gb": { "type": "number" }
+        }
+      }
+    },
+    "models": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "model_id", "alias", "placement", "visible_devices", "vram_gb",
+          "per_card_gb", "expected_gen_tps", "warmup_ms_p50", "warmup_ms_max",
+          "sample_count", "notes"
+        ],
+        "properties": {
+          "model_id": { "type": "string" },
+          "alias": { "type": ["string", "null"] },
+          "placement": { "enum": ["single", "dual"] },
+          "visible_devices": { "type": ["string", "null"] },
+          "vram_gb": { "type": ["number", "null"] },
+          "per_card_gb": { "type": ["number", "null"] },
+          "expected_gen_tps": { "type": ["number", "null"] },
+          "warmup_ms_p50": { "type": ["number", "null"] },
+          "warmup_ms_max": { "type": ["number", "null"] },
+          "sample_count": { "type": "integer" },
+          "notes": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

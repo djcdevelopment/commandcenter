@@ -16,6 +16,7 @@ from hearth.toolsurface.knowledge import (
     query_findings,
     record_event,
 )
+from tools.workflow.corpus_guard import CorpusRegressionError
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 FIXTURE_RUNS = REPO_ROOT / "fixtures" / "workflow" / "runs"
@@ -183,3 +184,41 @@ class CapacityKnowledgeTests(KnowledgeScopedTestCase):
     def test_ledger_path_outside_scope_rejected(self) -> None:
         with self.assertRaises(ValueError):
             project_capacity_knowledge(ledger_path="../escape.ndjson")
+
+    def test_regression_over_capacity_json_is_refused_by_guard(self) -> None:
+        """CQRS/ES plan step 2: capacity.json now goes through corpus_guard like every other
+        knowledge file — a re-projection over a ledger with fewer buckets (and an older
+        watermark) than what's already on disk must be refused, not silently clobbered."""
+        big_ledger = self._write_ledger("hearth/var/ledger/events.ndjson")
+        project_capacity_knowledge(ledger_path="hearth/var/ledger/events.ndjson")
+        before = (self.scope / "knowledge" / "capacity.json").read_text(encoding="utf-8")
+
+        # Overwrite the ledger with an empty one: 0 buckets, null watermark -> regression.
+        big_ledger.write_text("", encoding="utf-8")
+        with self.assertRaises(CorpusRegressionError):
+            project_capacity_knowledge(ledger_path="hearth/var/ledger/events.ndjson")
+
+        after = (self.scope / "knowledge" / "capacity.json").read_text(encoding="utf-8")
+        self.assertEqual(before, after)  # blocked write leaves the on-disk file untouched
+
+    def test_forward_capacity_projection_still_succeeds_under_guard(self) -> None:
+        """Normal advance (more evidence) must still pass now that the guard is wired in."""
+        ledger = self._write_ledger("hearth/var/ledger/events.ndjson")
+        project_capacity_knowledge(ledger_path="hearth/var/ledger/events.ndjson")
+
+        with ledger.open("a", encoding="utf-8", newline="\n") as handle:
+            handle.write(json.dumps({
+                "schema": "hearth-event.v1",
+                "event_id": "he_b",
+                "ts": "2026-07-04T01:00:00+00:00",
+                "caller": {"id": "local-1", "runner_class": "local", "node": "omen"},
+                "tool": "local_generate",
+                "ok": True,
+                "duration_ms": 500,
+                "cost": {"tokens_in": 5, "tokens_out": 25, "watt_s": None},
+                "task_id": None,
+            }) + "\n")
+
+        result = project_capacity_knowledge(ledger_path="hearth/var/ledger/events.ndjson")
+        self.assertEqual(result["bucket_count"], 2)
+        self.assertEqual(result["evidence_watermark"], "2026-07-04T01:00:00+00:00")

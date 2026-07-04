@@ -141,6 +141,10 @@ def build_capacity_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
     return {
         "contract_version": "capacity.v1",
         "evidence_watermark": newest_ts,
+        # Monotonic-ish primary count for the corpus regression guard (CQRS/ES plan step 2):
+        # a normal re-projection over more ledger evidence should never yield fewer buckets,
+        # so bucket_count doubles as guard_write's count field alongside evidence_watermark.
+        "bucket_count": len(buckets),
         "buckets": buckets,
     }
 

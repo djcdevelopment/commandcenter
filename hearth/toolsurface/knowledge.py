@@ -29,7 +29,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from tools.workflow.append_event import append_event  # noqa: E402
-from tools.workflow.corpus_guard import check_fixture_taint  # noqa: E402
+from tools.workflow.corpus_guard import check_fixture_taint, guard_write, make_extractor  # noqa: E402
 from tools.workflow.project_associations import materialize_associations  # noqa: E402
 from tools.workflow.project_capacity import collect_event_files, materialize_knowledge  # noqa: E402
 from tools.workflow.project_coverage import materialize_coverage  # noqa: E402
@@ -198,7 +198,10 @@ def project_capacity_knowledge(
     out_dir = resolve_in_scope(out)
     out_dir.mkdir(parents=True, exist_ok=True)
     target = out_dir / "capacity.json"
-    target.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+    # Route through the same corpus regression guard every other knowledge projector uses
+    # (CQRS/ES plan step 2 — closes the LIVE BLIND SPOT: this was a bare write_text bypassing
+    # corpus_guard entirely). Guards on evidence_watermark + bucket_count.
+    guard_write(target, document, make_extractor("bucket_count"))
     return {
         "path": str(target),
         "evidence_watermark": document["evidence_watermark"],

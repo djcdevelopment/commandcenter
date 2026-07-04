@@ -8,6 +8,20 @@ frontier synthesis). Fleet second opinion pending: plan_id
 **Status update 2026-07-04:** steps 2–4 landed and merged (677 tests green, up from 653
 baseline). Step 5 (`rebuild --from-zero`) is now unblocked.
 
+**Status update 2026-07-04 (later):** step 5 landed — `hearth/projection/rebuild.py`
+(`rebuild_knowledge`, also exposed as an MCP tool via `hearth/toolsurface/knowledge.py`)
+replays the full projection DAG (six event-derived kinds + the ledger-native
+capacity.json) into a `<out>/.staging-rebuild/` dir, validates the complete staged set
+(every expected file present, parses, carries `contract_version`), then atomically
+swaps every file over the live one with `os.replace`. Staging is cleaned up on both the
+success and failure path; a mid-rebuild projector fault leaves the live knowledge/ dir
+byte-untouched. Golden determinism test added: two from-zero rebuilds of the identical
+fixture corpus are byte-identical for every knowledge file, and a from-zero rebuild is
+byte-identical to the equivalent incremental `project()` + `project_capacity_knowledge()`
+run — no projector fixes were needed for this (none of the existing projectors embed a
+wall-clock field; everything already sorts deterministically before writing). 12 new
+tests, full suite green (687 tests + 37 subtests, up from 677).
+
 ## Verdict
 
 HEARTH is already ~80% of a classic CQRS/ES system: the gateway auto-ledgers every command
@@ -72,7 +86,7 @@ fine for this lab.
 | 2 | `atomic_write_json` everywhere + guard `capacity.json` (live bypass) | 0.5 | DONE bd636d5 (2026-07-04) |
 | 3 | `Ledger.reindex()` + `verify()` + CLI | 1 | DONE f1f2b8b (2026-07-04) |
 | 4 | Canonical `Corpus` enumerator + digest stamped in docs | 1 | DONE ad486d6 (2026-07-04) |
-| 5 | `rebuild --from-zero` + golden determinism test | 1 | unblocked |
+| 5 | `rebuild --from-zero` + golden determinism test | 1 | DONE (2026-07-04) |
 | 6 | `HEARTH_ROOT` isolation for tests; retire fixture-name guard | 0.5–1 |
 | 7 | `stream_seq` + `schema` field + upcast seam on domain events | 1 |
 | 8 | Idempotency keys + `record_event`/`ledger_adapter` directional dedup | 1 |

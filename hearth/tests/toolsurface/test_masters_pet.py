@@ -5,7 +5,7 @@ import subprocess
 from unittest import TestCase
 from unittest.mock import patch
 
-from hearth.toolsurface.remediate import AUTO_HEAL_KINDS, remediate
+from hearth.toolsurface.masters_pet import AUTO_HEAL_KINDS, remediate
 
 
 def _completed(stdout="", stderr="", returncode=0):

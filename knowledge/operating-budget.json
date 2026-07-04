@@ -1,0 +1,15 @@
+{
+  "contract_version": "operating-budget.v1",
+  "budget_id": "budget_omen_5070_bootstrap_2026_07_04",
+  "node_id": "omen",
+  "max_gpu_temp_c": 83,
+  "max_power_w": 250,
+  "max_fan_rpm": null,
+  "unattended_dispatch_allowed": true,
+  "active_hours": null,
+  "reason": "Conservative bootstrap envelope for unattended GPU inference on OMEN's RTX 5070 (the omen-worker-1 backend). 83C sits just under the card's thermal-throttle point; 250W approximates its TGP; fan_rpm is null because there is no RPM sensor (nvidia-smi reports fan as a percent, honest-null per the C2 collector). active_hours null = always-on box, no time window. These are ceilings authored from judgment, NOT observed sustained telemetry (the G2 validation run was a short generation that barely warmed the GPU) — re-derive after a real sustained inference/build run produces observed.physical peaks. suspended=false; flip to true for an emergency stop without deleting the contract.",
+  "authored_by": "derek",
+  "created": "2026-07-04",
+  "suspended": false,
+  "suspend_reason": null
+}

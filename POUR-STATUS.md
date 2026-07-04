@@ -144,12 +144,12 @@
 
 - `G0`: `OPEN`
   - Check: `origin` configured = yes; `tools/workflow/corpus_guard.py` exists = yes (landed in A2 `cdad039`)
-- `G1`: `CLOSED`
-  - Check: `DECISIONS-D1.md` exists = no. (`QUESTIONS-D1.md` now landed via D1 — awaiting Derek's answers in `DECISIONS-D1.md`.)
+- `G1`: `OPEN` (2026-07-04)
+  - Check: `DECISIONS-D1.md` exists = yes (all four economics items decided; D2 unblocked).
 - `G2`: `OPEN`
   - Check: `runs/g2-validation/artifacts/obs_g2_validation_001.json` carries non-null `gpu_temp_c_peak` (`35.0`) = yes (opened 2026-07-04, see "Landing: G2" below)
-- `G-budget`: `CLOSED`
-  - Check: `operating-budget.v1` with `authored_by != "fixture"` exists = no. (E1 landed the contract + validator; awaiting Derek-authored budget values.)
+- `G-budget`: `OPEN` (2026-07-04)
+  - Check: `operating-budget.v1` with `authored_by != "fixture"` exists = yes (`knowledge/operating-budget.json`, authored_by `derek`, validates via `validate_budget.py`; conservative RTX 5070 bootstrap ceilings, re-derive after observed sustained telemetry).
 - `G3`: `CLOSED` (UNBLOCKED 2026-07-04)
   - Check: `knowledge/capabilities.json` `capability_count >= 1` = no (`0`). Was blocked on claudefarm1 (down); claudefarm1 RECOVERED 2026-07-04 (MAC-collision fix) → `omen-worker-1` is UP and a real build lap is now dispatchable to re-earn the `build|ollama` capability.
 

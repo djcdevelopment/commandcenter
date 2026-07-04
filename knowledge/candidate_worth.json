@@ -1,6 +1,281 @@
 {
   "contract_version": "candidate-worth.v1",
-  "authored_by": "stream-Ga",
-  "purpose": "Clause 2 authored overlay: operator assigns numeric worth_points to each experiment candidate. These values are Derek's judgment, not derived from data. Each entry must carry a reason. Candidates without an entry are EXCLUDED from the worth_realized numerator and reported as unpriced_candidates — no silent caps.",
-  "entries": []
+  "entries": [
+    {
+      "candidate_id": "backend_comparison:mixtral:8x22b-instruct-v0.1-q2_K:ollama-cuda+ollama-vulkan-igpu+ollama-vulkan-mixed",
+      "worth_points": 6,
+      "reason": "Core lab thesis: replace inference with measurement across backends.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "backend_comparison:qwen2.5:14b:ollama-cuda+ollama-cuda-contended+ollama-vulkan+ollama-vulkan-igpu+ollama-vulkan-mixed",
+      "worth_points": 6,
+      "reason": "Core lab thesis: replace inference with measurement across backends.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "backend_comparison:qwen3-coder:30b:ollama+ollama-cuda+ollama-cuda-contended",
+      "worth_points": 6,
+      "reason": "Core lab thesis: replace inference with measurement across backends.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:failure_signature:failure_class=agent_timeout_partial_deliverable|backend=claude",
+      "worth_points": 2,
+      "reason": "Single-workflow generalization insurance; lowest marginal worth per probe.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:failure_signature:failure_class=assay_test_failure|backend=openai",
+      "worth_points": 2,
+      "reason": "Single-workflow generalization insurance; lowest marginal worth per probe.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:failure_signature:failure_class=moe_offload_crash|backend=vllm",
+      "worth_points": 2,
+      "reason": "Single-workflow generalization insurance; lowest marginal worth per probe.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=mixtral:8x22b-instruct-v0.1-q2_K",
+      "worth_points": 2,
+      "reason": "Single-workflow generalization insurance; lowest marginal worth per probe.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=qwen2.5:14b",
+      "worth_points": 2,
+      "reason": "Single-workflow generalization insurance; lowest marginal worth per probe.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=qwen3-30b-a3b-awq",
+      "worth_points": 2,
+      "reason": "Single-workflow generalization insurance; lowest marginal worth per probe.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=capacity-probe|backend=ollama-cuda",
+      "worth_points": 2,
+      "reason": "Single-workflow generalization insurance; lowest marginal worth per probe.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=capacity-probe|backend=ollama-cuda-contended",
+      "worth_points": 2,
+      "reason": "Single-workflow generalization insurance; lowest marginal worth per probe.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=capacity-probe|backend=ollama-vulkan",
+      "worth_points": 2,
+      "reason": "Single-workflow generalization insurance; lowest marginal worth per probe.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=capacity-probe|backend=ollama-vulkan-igpu",
+      "worth_points": 2,
+      "reason": "Single-workflow generalization insurance; lowest marginal worth per probe.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=capacity-probe|backend=ollama-vulkan-mixed",
+      "worth_points": 2,
+      "reason": "Single-workflow generalization insurance; lowest marginal worth per probe.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=engine-start|backend=vllm",
+      "worth_points": 2,
+      "reason": "Single-workflow generalization insurance; lowest marginal worth per probe.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=repo-build|backend=ollama",
+      "worth_points": 2,
+      "reason": "Single-workflow generalization insurance; lowest marginal worth per probe.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:am4-worker-1|vllama-planner|openai",
+      "worth_points": 3,
+      "reason": "Unmeasured metric: cheap, diffuse; collectively builds calibration data.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:cc-builder-1|sonnet|claude",
+      "worth_points": 3,
+      "reason": "Unmeasured metric: cheap, diffuse; collectively builds calibration data.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:cc-builder-2|vllama-planner|openai",
+      "worth_points": 3,
+      "reason": "Unmeasured metric: cheap, diffuse; collectively builds calibration data.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-cuda",
+      "worth_points": 3,
+      "reason": "Unmeasured metric: cheap, diffuse; collectively builds calibration data.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-vulkan-igpu",
+      "worth_points": 3,
+      "reason": "Unmeasured metric: cheap, diffuse; collectively builds calibration data.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-vulkan-mixed",
+      "worth_points": 3,
+      "reason": "Unmeasured metric: cheap, diffuse; collectively builds calibration data.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen-5070|qwen2.5:14b|ollama-cuda",
+      "worth_points": 3,
+      "reason": "Unmeasured metric: cheap, diffuse; collectively builds calibration data.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen-5070|qwen2.5:14b|ollama-cuda-contended",
+      "worth_points": 3,
+      "reason": "Unmeasured metric: cheap, diffuse; collectively builds calibration data.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen-5070|qwen2.5:14b|ollama-vulkan",
+      "worth_points": 3,
+      "reason": "Unmeasured metric: cheap, diffuse; collectively builds calibration data.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen-5070|qwen2.5:14b|ollama-vulkan-igpu",
+      "worth_points": 3,
+      "reason": "Unmeasured metric: cheap, diffuse; collectively builds calibration data.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen-5070|qwen2.5:14b|ollama-vulkan-mixed",
+      "worth_points": 3,
+      "reason": "Unmeasured metric: cheap, diffuse; collectively builds calibration data.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen-5070|qwen3-coder:30b|ollama-cuda",
+      "worth_points": 3,
+      "reason": "Unmeasured metric: cheap, diffuse; collectively builds calibration data.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen-5070|qwen3-coder:30b|ollama-cuda-contended",
+      "worth_points": 3,
+      "reason": "Unmeasured metric: cheap, diffuse; collectively builds calibration data.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen-worker-1|qwen3-coder:30b|ollama",
+      "worth_points": 3,
+      "reason": "Unmeasured metric: cheap, diffuse; collectively builds calibration data.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen-wsl|qwen3-30b-a3b-awq|vllm",
+      "worth_points": 3,
+      "reason": "Unmeasured metric: cheap, diffuse; collectively builds calibration data.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "known_bad_retest:omen-wsl|qwen3-30b-a3b-awq|vllm",
+      "worth_points": 10,
+      "reason": "Highest worth: a stale block silently wastes the fleet or hides a recovered capability (guards the exact corpus-loss failure mode).",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "prefer_validation:cc-builder-2|vllama-planner|openai",
+      "worth_points": 5,
+      "reason": "Promotes a working combo to a prefer-rule; real but not urgent.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "prefer_validation:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-cuda",
+      "worth_points": 5,
+      "reason": "Promotes a working combo to a prefer-rule; real but not urgent.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "prefer_validation:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-vulkan-igpu",
+      "worth_points": 5,
+      "reason": "Promotes a working combo to a prefer-rule; real but not urgent.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "prefer_validation:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-vulkan-mixed",
+      "worth_points": 5,
+      "reason": "Promotes a working combo to a prefer-rule; real but not urgent.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "prefer_validation:omen-5070|qwen2.5:14b|ollama-cuda",
+      "worth_points": 5,
+      "reason": "Promotes a working combo to a prefer-rule; real but not urgent.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "prefer_validation:omen-5070|qwen2.5:14b|ollama-cuda-contended",
+      "worth_points": 5,
+      "reason": "Promotes a working combo to a prefer-rule; real but not urgent.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "prefer_validation:omen-5070|qwen2.5:14b|ollama-vulkan",
+      "worth_points": 5,
+      "reason": "Promotes a working combo to a prefer-rule; real but not urgent.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "prefer_validation:omen-5070|qwen2.5:14b|ollama-vulkan-igpu",
+      "worth_points": 5,
+      "reason": "Promotes a working combo to a prefer-rule; real but not urgent.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "prefer_validation:omen-5070|qwen2.5:14b|ollama-vulkan-mixed",
+      "worth_points": 5,
+      "reason": "Promotes a working combo to a prefer-rule; real but not urgent.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "prefer_validation:omen-5070|qwen3-coder:30b|ollama-cuda",
+      "worth_points": 5,
+      "reason": "Promotes a working combo to a prefer-rule; real but not urgent.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "prefer_validation:omen-5070|qwen3-coder:30b|ollama-cuda-contended",
+      "worth_points": 5,
+      "reason": "Promotes a working combo to a prefer-rule; real but not urgent.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "prefer_validation:omen-worker-1|qwen3-coder:30b|ollama",
+      "worth_points": 5,
+      "reason": "Promotes a working combo to a prefer-rule; real but not urgent.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "uncertain_resolution:am4-worker-1|vllama-planner|openai",
+      "worth_points": 8,
+      "reason": "Directly unblocks a combo stuck in exploratory_only \u2014 converts 'can't schedule confidently' into a decision.",
+      "author": "derek"
+    },
+    {
+      "candidate_id": "uncertain_resolution:cc-builder-1|sonnet|claude",
+      "worth_points": 8,
+      "reason": "Directly unblocks a combo stuck in exploratory_only \u2014 converts 'can't schedule confidently' into a decision.",
+      "author": "derek"
+    }
+  ]
 }

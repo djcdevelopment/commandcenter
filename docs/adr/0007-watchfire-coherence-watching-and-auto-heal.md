@@ -2,7 +2,7 @@
 
 **Status:** Accepted (2026-07-04) — Slice 0 built + live; wired into `mechnet_watchdog`'s patrol.
 **Context sources:** SESSION-RETRO-2026-07-04.md (addendum 3), WATCHFIRE-FLARE-DESIGN-2026-07-04.html,
-the fan-out incident (`e287059`), `hearth/health/gaps.py`, `hearth/toolsurface/{patrol,remediate}.py`,
+the fan-out incident (`e287059`), `hearth/health/gaps.py`, `hearth/toolsurface/patrol.py` + `hearth/toolsurface/masters_pet.py` (the `remediate` tool's module; file renamed 2026-07-04, tool name unchanged),
 `fleet/mechnet_watchdog.py`.
 
 ## Context

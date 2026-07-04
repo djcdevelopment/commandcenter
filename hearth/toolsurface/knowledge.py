@@ -131,7 +131,11 @@ def _restamp_written_file(path: Path, corpus: Corpus) -> None:
 
 
 def record_event(event: dict, events_path: str = DEFAULT_EVENTS_PATH) -> dict:
-    """Validate a workflow event and append it to a sandboxed events.jsonl ledger."""
+    """Validate a workflow event and append it to a sandboxed events.jsonl ledger.
+
+    Note: the gateway wrapper also ledgers this call itself in the kernel ledger.
+    That double-write is intentional — two facts, not one fact twice (ADR-0011).
+    """
     if not isinstance(event, dict):
         raise ValueError("event must be a dict")
     target = resolve_in_scope(events_path)

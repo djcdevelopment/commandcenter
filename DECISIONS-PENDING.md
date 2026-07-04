@@ -3,10 +3,12 @@
 One register for open decisions accumulated across retros, ADRs, and review docs.
 Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
 
-- [ ] 2026-07-04 — Ratify "two ledgers = two bounded contexts; one door ≠ one store"
+- [x] 2026-07-04 — Ratify "two ledgers = two bounded contexts; one door ≠ one store"
       as an ADR-0005 amendment or new ADR (source: [docs/CQRS-ES-STANDARDIZATION.md](docs/CQRS-ES-STANDARDIZATION.md))
-- [ ] 2026-07-04 — `record_event` double-write: keep + document (reviewers' lean) vs
+      — DONE 2026-07-04 ("make it so"): [ADR-0010](docs/adr/0010-two-ledgers-two-bounded-contexts.md)
+- [x] 2026-07-04 — `record_event` double-write: keep + document (reviewers' lean) vs
       special-case the gateway wrapper (source: [docs/CQRS-ES-STANDARDIZATION.md](docs/CQRS-ES-STANDARDIZATION.md))
+      — DONE 2026-07-04 ("make it so"): keep + document, [ADR-0011](docs/adr/0011-record-event-double-write-is-intentional.md)
 - [x] 2026-07-04 — Green-light fleet briefs for CQRS plan steps 2–4 (atomic writes +
       capacity.json guard, Ledger.reindex, canonical Corpus enumerator)
       (source: [docs/CQRS-ES-STANDARDIZATION.md](docs/CQRS-ES-STANDARDIZATION.md))

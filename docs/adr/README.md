@@ -18,6 +18,8 @@ record with its status changed and a pointer to the ADR that replaced it.
 | [0007](0007-watchfire-coherence-watching-and-auto-heal.md) | The guard dog watches coherence, and auto-heals the obvious | Accepted (2026-07-04) |
 | [0008](0008-scheduler-advisory-first.md) | The scheduler advises until the ledgered regret trend earns it dispatch | Accepted (2026-07-04) |
 | [0009](0009-tiered-builds-integration-is-the-review.md) | Tiered agent builds: integration is the review; frontier merge review is load-bearing | Accepted (2026-07-04) |
+| [0010](0010-two-ledgers-two-bounded-contexts.md) | Two ledgers, two bounded contexts: one door is not one store | Accepted (2026-07-04) |
+| [0011](0011-record-event-double-write-is-intentional.md) | The record_event double-write is intentional | Accepted (2026-07-04) |
 
 ## Historical note
 The "ADR-0001" referenced in `SESSION-RETRO-2026-06-29.md` (which orchestrator is

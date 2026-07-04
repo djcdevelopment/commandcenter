@@ -83,8 +83,8 @@ Steps 2–4 are independent and fleet-briefable in parallel; 5 depends on 3+4; 1
 
 ## Open decisions for Derek
 
-- Ratify "two ledgers stay separate" as an ADR-0005 amendment or new ADR.
-- `record_event` double-write (domain event + kernel event about the call): all reviewers
-  lean **keep it, document it** — two different questions answered — rather than
-  special-casing the gateway wrapper (high blast radius, low payoff).
-- Green-light which steps to brief to the fleet first (2–4 recommended).
+All resolved 2026-07-04 ("make it so"):
+
+- ~~Ratify "two ledgers stay separate"~~ → [ADR-0010](adr/0010-two-ledgers-two-bounded-contexts.md).
+- ~~`record_event` double-write~~ → keep + document, [ADR-0011](adr/0011-record-event-double-write-is-intentional.md).
+- ~~Green-light steps 2–4~~ → built + merged (see status update above); step 5 in flight.

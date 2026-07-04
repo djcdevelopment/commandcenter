@@ -334,7 +334,11 @@ def synthesize_recommendations(known_good: list[dict], histories: dict[str, dict
     return findings
 
 
-def synthesize_findings(observations: list[dict], decisions: list[dict]) -> list[dict]:
+def synthesize_findings(observations: list[dict], decisions: list[dict],
+                        as_of: str | None = None) -> list[dict]:
+    if as_of is not None:
+        observations = [o for o in observations if (o.get("timestamp") or "") <= as_of]
+        decisions = [d for d in decisions if (d.get("timestamp") or "") <= as_of]
     estimates = reduce_capacity(observations)
     known_good = classify_known_good(estimates)
     known_bad = classify_known_bad(estimates)
@@ -353,7 +357,8 @@ def synthesize_findings(observations: list[dict], decisions: list[dict]) -> list
     return findings
 
 
-def materialize_findings(event_files: list[Path], knowledge_dir: Path) -> dict:
+def materialize_findings(event_files: list[Path], knowledge_dir: Path,
+                         as_of: str | None = None) -> dict:
     observations: list[dict] = []
     decisions: list[dict] = []
     unresolved_refs = 0
@@ -364,6 +369,10 @@ def materialize_findings(event_files: list[Path], knowledge_dir: Path) -> dict:
         observations.extend(extracted_observations)
         decisions.extend(extracted_decisions)
         unresolved_refs += unresolved_observations + unresolved_decisions
+
+    if as_of is not None:
+        observations = [o for o in observations if (o.get("timestamp") or "") <= as_of]
+        decisions = [d for d in decisions if (d.get("timestamp") or "") <= as_of]
 
     findings = synthesize_findings(observations, decisions)
     counts: dict[str, int] = {}

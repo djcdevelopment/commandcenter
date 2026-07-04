@@ -10,7 +10,8 @@ from typing import Any
 
 from hearth.kernel.auth import AuthRegistry
 from hearth.kernel.context import HearthContext
-from hearth.kernel.gateway import LEDGER_MODEL_KEY, _task_class_for, make_wrapper
+from hearth.kernel.gateway import (LEDGER_MODEL_KEY, LEDGER_TASK_CLASS_KEY,
+                                   _task_class_for, make_wrapper)
 from hearth.kernel.guards import GuardStack
 from hearth.kernel.ledger import Ledger
 
@@ -30,6 +31,12 @@ def read_file(path: str) -> str:
 def fake_mystery_tool() -> str:
     """A tool with no TOOL_CLASS mapping and no matching prefix."""
     return "?"
+
+
+def submit_task(prompt: str) -> dict[str, Any]:
+    """Stand-in dispatch tool carrying a caller-supplied task_class override
+    (U6: _ledger_task_class beats the static TOOL_CLASS-derived 'dispatch')."""
+    return {"ok": True, "plan_id": "p1", LEDGER_TASK_CLASS_KEY: "build"}
 
 
 class ToolClassMappingTest(unittest.TestCase):
@@ -93,6 +100,15 @@ class WrapperStampsTaskClassAndModelTest(unittest.TestCase):
         events = self.ledger.query(tool="read_file")
         self.assertEqual(events[0]["task_class"], "io")
         self.assertIsNone(events[0]["model"])
+
+    def test_lifted_task_class_overrides_static_map_and_is_stripped(self):
+        wrapped = make_wrapper(submit_task, self.hearth, self.auth,
+                               self.guards, lambda: "good-key")
+        result = wrapped(prompt="build me a thing")
+        self.assertNotIn(LEDGER_TASK_CLASS_KEY, result)
+        events = self.ledger.query(tool="submit_task")
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["task_class"], "build")  # not "dispatch"
 
     def test_unmapped_tool_gets_null_task_class(self):
         wrapped = make_wrapper(fake_mystery_tool, self.hearth, self.auth,

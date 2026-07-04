@@ -100,6 +100,17 @@ def _lift_ledger_model(result: Any) -> Optional[str]:
     return None
 
 
+LEDGER_TASK_CLASS_KEY = "_ledger_task_class"
+
+
+def _lift_ledger_task_class(result: Any) -> Optional[str]:
+    """Pop and return the _ledger_task_class hint from a dict result, if present.
+    A tool-supplied task_class overrides the static TOOL_CLASS-derived one."""
+    if isinstance(result, dict) and LEDGER_TASK_CLASS_KEY in result:
+        return result.pop(LEDGER_TASK_CLASS_KEY)
+    return None
+
+
 log = logging.getLogger("hearth.gateway")
 
 KeyProvider = Callable[[], Optional[str]]
@@ -183,9 +194,13 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
             raise
 
         result, ok, error, model = None, True, None, None
+        event_task_class = task_class
         try:
             result = fn(**kwargs)
             model = _lift_ledger_model(result)
+            lifted = _lift_ledger_task_class(result)
+            if lifted:
+                event_task_class = lifted
             return result
         except Exception as exc:
             ok, error = False, f"{type(exc).__name__}: {exc}"
@@ -194,7 +209,7 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
             hearth.ledger.append(new_event(
                 caller.as_dict(), tool_name, args=kwargs, result=result,
                 ok=ok, error=error, duration_ms=elapsed_ms(),
-                task_id=task_id, task_class=task_class, model=model,
+                task_id=task_id, task_class=event_task_class, model=model,
             ))
 
     wrapper.__name__ = tool_name

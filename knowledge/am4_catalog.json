@@ -1,0 +1,75 @@
+{
+  "contract_version": "am4-catalog.v1",
+  "gathered_at": "2026-07-04T16:06:45.818314+00:00",
+  "host": "am4",
+  "gates": {
+    "max_host_used_gb_preflight": 22.0,
+    "telemetry_settle_sec": 10,
+    "health_timeout_sec": 180,
+    "verdict_gate": true
+  },
+  "cards": [
+    {
+      "index": 0,
+      "vram_gb": 32.0
+    },
+    {
+      "index": 1,
+      "vram_gb": 32.0
+    }
+  ],
+  "models": [
+    {
+      "model_id": "mistral-24b-q4",
+      "alias": "mistral-24b-q4",
+      "placement": "single",
+      "visible_devices": "0",
+      "vram_gb": 13.3,
+      "per_card_gb": 13.3,
+      "expected_gen_tps": 27.3,
+      "warmup_ms_p50": 2880.0,
+      "warmup_ms_max": 3067.0,
+      "sample_count": 3,
+      "notes": "13.3 GB single-card; documented ~27.3 gen t/s."
+    },
+    {
+      "model_id": "qwen2.5-14b-q4",
+      "alias": "qwen2.5-14b-q4",
+      "placement": "single",
+      "visible_devices": "0",
+      "vram_gb": 8.4,
+      "per_card_gb": 8.4,
+      "expected_gen_tps": 46.81,
+      "warmup_ms_p50": 5022.0,
+      "warmup_ms_max": 28384.0,
+      "sample_count": 4,
+      "notes": "8.4 GB single-card territory; canonical M1 parity model. expected_gen_tps = baseline recorded 2026-06-06 (warmup, device 0)."
+    },
+    {
+      "model_id": "qwen2.5-32b-q4",
+      "alias": "qwen2.5-32b-q4",
+      "placement": "dual",
+      "visible_devices": "0,1",
+      "vram_gb": 18.5,
+      "per_card_gb": 9.25,
+      "expected_gen_tps": 20.7,
+      "warmup_ms_p50": 2975.5,
+      "warmup_ms_max": 3890.0,
+      "sample_count": 10,
+      "notes": "18.5 GB dense; proven dual layer-split; documented ~20.7 gen t/s, ~242 prompt t/s."
+    },
+    {
+      "model_id": "qwen3-30b-a3b-128k",
+      "alias": "qwen3-30b-a3b-128k",
+      "placement": "dual",
+      "visible_devices": "0,1",
+      "vram_gb": 17.3,
+      "per_card_gb": 8.65,
+      "expected_gen_tps": 81.7,
+      "warmup_ms_p50": 1365.0,
+      "warmup_ms_max": 30703.0,
+      "sample_count": 5,
+      "notes": "MoE 17.3 GB, 256k native. Hermes vllama-planner (judge) backend: right-sized for the recap workload (~1.5k tokens read) at n_parallel=1 + 16k ctx, NOT 4x131072 -- that auto-np=4 x 128k KV blowup was the latent smell behind the 2026-06-17 incident (ADR-0007). Dual layer-split across cards 0,1. b70tools proved this MoE dual at 81.7 gen t/s (32k). Raise ctx deliberately if a long-context planner role is needed."
+    }
+  ]
+}

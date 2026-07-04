@@ -1,0 +1,431 @@
+{
+  "contract_version": "capacity.v1",
+  "evidence_watermark": "2026-07-04T15:34:08.161352Z",
+  "buckets": [
+    {
+      "task_class": null,
+      "node": "am4",
+      "runner_class": "human",
+      "model": null,
+      "tool": "mechnet_watchdog.dream",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "duration_ms": {
+        "p50": 0.0,
+        "p90": 0.0,
+        "mean": 0.0,
+        "max": 0.0
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-07-04T15:07:00.745656Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
+      "tool": "git_log",
+      "calls": 2,
+      "ok_rate": 1.0,
+      "duration_ms": {
+        "p50": 22.498,
+        "p90": 23.321,
+        "mean": 22.9095,
+        "max": 23.321
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-07-04T03:54:41.309653Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
+      "tool": "git_status",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "duration_ms": {
+        "p50": 26.658,
+        "p90": 26.658,
+        "mean": 26.658,
+        "max": 26.658
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-07-04T03:54:41.188070Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
+      "tool": "glob_files",
+      "calls": 3,
+      "ok_rate": 0.6667,
+      "duration_ms": {
+        "p50": 91.848,
+        "p90": 97.015,
+        "mean": 94.4315,
+        "max": 97.015
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-07-04T03:58:02.641847Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
+      "tool": "kernel_status",
+      "calls": 6,
+      "ok_rate": 1.0,
+      "duration_ms": {
+        "p50": 1.035,
+        "p90": 1.554,
+        "mean": 1.159,
+        "max": 1.602
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-07-04T13:34:03.232631Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
+      "tool": "list_dir",
+      "calls": 3,
+      "ok_rate": 1.0,
+      "duration_ms": {
+        "p50": 0.749,
+        "p90": 0.933,
+        "mean": 0.7543,
+        "max": 0.933
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-07-04T03:41:30.141563Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
+      "tool": "local_generate",
+      "calls": 8,
+      "ok_rate": 1.0,
+      "duration_ms": {
+        "p50": 10032.391,
+        "p90": 16404.307,
+        "mean": 10132.3905,
+        "max": 18428.148
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-07-04T13:22:05.452225Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
+      "tool": "project",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "duration_ms": {
+        "p50": 21.872,
+        "p90": 21.872,
+        "mean": 21.872,
+        "max": 21.872
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-07-04T00:21:20.940384Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
+      "tool": "query_beliefs_summary",
+      "calls": 2,
+      "ok_rate": 1.0,
+      "duration_ms": {
+        "p50": 1.437,
+        "p90": 2.393,
+        "mean": 1.915,
+        "max": 2.393
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-07-04T03:58:10.046573Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
+      "tool": "query_capabilities",
+      "calls": 2,
+      "ok_rate": 1.0,
+      "duration_ms": {
+        "p50": 0.552,
+        "p90": 0.623,
+        "mean": 0.5875,
+        "max": 0.623
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-07-04T03:58:10.102701Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
+      "tool": "query_findings",
+      "calls": 2,
+      "ok_rate": 1.0,
+      "duration_ms": {
+        "p50": 0.801,
+        "p90": 0.854,
+        "mean": 0.8275,
+        "max": 0.854
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-07-04T03:54:43.682336Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
+      "tool": "read_file",
+      "calls": 4,
+      "ok_rate": 0.75,
+      "duration_ms": {
+        "p50": 1.362,
+        "p90": 2.442,
+        "mean": 1.685,
+        "max": 2.442
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-07-04T03:58:02.616656Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
+      "tool": "record_event",
+      "calls": 7,
+      "ok_rate": 0.4286,
+      "duration_ms": {
+        "p50": 4.574,
+        "p90": 4.988,
+        "mean": 4.459,
+        "max": 4.988
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-07-04T13:25:36.700283Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
+      "tool": "run_tests",
+      "calls": 2,
+      "ok_rate": 1.0,
+      "duration_ms": {
+        "p50": 2179.401,
+        "p90": 2241.382,
+        "mean": 2210.3915,
+        "max": 2241.382
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-07-04T04:08:45.739918Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
+      "tool": "submit_task",
+      "calls": 4,
+      "ok_rate": 1.0,
+      "duration_ms": {
+        "p50": 112.96,
+        "p90": 124.747,
+        "mean": 113.4582,
+        "max": 124.747
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-07-04T12:15:48.705502Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
+      "tool": "task_status",
+      "calls": 12,
+      "ok_rate": 1.0,
+      "duration_ms": {
+        "p50": 111.192,
+        "p90": 123.017,
+        "mean": 108.6362,
+        "max": 123.532
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-07-04T13:34:03.794328Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "human",
+      "model": null,
+      "tool": "bankedfire_drain.tick",
+      "calls": 9,
+      "ok_rate": 0.0,
+      "duration_ms": {
+        "p50": null,
+        "p90": null,
+        "mean": null,
+        "max": null
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-07-04T15:06:02.005884Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "human",
+      "model": null,
+      "tool": "local_generate",
+      "calls": 15,
+      "ok_rate": 1.0,
+      "duration_ms": {
+        "p50": 241.192,
+        "p90": 2714.797,
+        "mean": 1286.815,
+        "max": 9356.83
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-07-04T11:09:06.697694Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "human",
+      "model": null,
+      "tool": "mechnet_watchdog.revive",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "duration_ms": {
+        "p50": 0.0,
+        "p90": 0.0,
+        "mean": 0.0,
+        "max": 0.0
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-07-04T10:34:49.543174Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "human",
+      "model": null,
+      "tool": "mechnet_watchdog.watchfire",
+      "calls": 10,
+      "ok_rate": 1.0,
+      "duration_ms": {
+        "p50": 0.0,
+        "p90": 0.0,
+        "mean": 0.0,
+        "max": 0.0
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-07-04T15:34:08.161352Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "human",
+      "model": null,
+      "tool": "submit_task",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "duration_ms": {
+        "p50": 69.43,
+        "p90": 69.43,
+        "mean": 69.43,
+        "max": 69.43
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-07-04T10:44:16.469295Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "human",
+      "model": null,
+      "tool": "task_status",
+      "calls": 39,
+      "ok_rate": 1.0,
+      "duration_ms": {
+        "p50": 108.017,
+        "p90": 122.268,
+        "mean": 109.1669,
+        "max": 124.165
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-07-04T10:54:08.667661Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "local",
+      "model": null,
+      "tool": "git_status",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "duration_ms": {
+        "p50": 31.187,
+        "p90": 31.187,
+        "mean": 31.187,
+        "max": 31.187
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-07-04T00:20:04.858034Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "local",
+      "model": null,
+      "tool": "read_file",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "duration_ms": {
+        "p50": 0.593,
+        "p90": 0.593,
+        "mean": 0.593,
+        "max": 0.593
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-07-04T00:20:05.021568Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "local",
+      "model": null,
+      "tool": "write_file",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "duration_ms": {
+        "p50": 0.99,
+        "p90": 0.99,
+        "mean": 0.99,
+        "max": 0.99
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-07-04T00:20:05.179694Z"
+    }
+  ]
+}

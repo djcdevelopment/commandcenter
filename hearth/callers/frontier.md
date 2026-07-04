@@ -11,7 +11,7 @@ http://127.0.0.1:8710/mcp --header "X-Hearth-Key: <key>"`).
 
 - Endpoint: `http://127.0.0.1:8710/mcp` (streamable-http; localhost on OMEN).
 - Auth: HTTP header `X-Hearth-Key: <caller key>`. Keys live in
-  `hearth/etc/callers.json`; `dev-local` is the dev/test key. Unknown keys
+  `hearth/var/callers.json` (gitignored); `dev-local` is the dev/test key. Unknown keys
   are rejected and the rejection itself is a ledger event.
 - Identity: the key maps to `{id, runner_class, node}` — a frontier session
   is `runner_class: "frontier"`. Every tool call lands in

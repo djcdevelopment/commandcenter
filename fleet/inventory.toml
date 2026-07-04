@@ -1,0 +1,177 @@
+# ============================================================================
+# Fleet reachability inventory -- canonical, OMEN-side.
+# ============================================================================
+# THE source of truth for HOW to reach every node on the fleet network.
+#
+# Why it lives here (OMEN / C:\work\commandcenter) and not on the conductor:
+# OMEN is the durable host (the Hyper-V hypervisor, always up). The conductor is
+# rebuildable and can be down -- exactly when you MOST need to know what's reachable.
+# OMEN is also the best vantage point: it can see the tailnet (100.x via Tailscale)
+# AND its own Hyper-V VM siblings (mshome.net / 172.x) at the same time.
+#
+# Relationship to the conductor's fleet.json:
+#   - fleet.json  = the conductor's auto-maintained BUILD-POOL view (which nodes are
+#     workers/assay, mcp_ready, excluded). It churns as builds run.
+#   - this file   = the stable REACHABILITY superset (addresses, how-to-reach, which
+#     services should answer on which ports). It changes rarely.
+# Different jobs. Don't fold one into the other.
+#
+# Consumed by: fleet/fleet_ping.py (health sweep CLI). Parsed with stdlib tomllib
+# (Python 3.11+); no PyYAML dependency by design (repo is stdlib-only).
+#
+# Addressing model (Derek, 2026-07-02): VMs never join the tailnet -- only physical
+# hosts hold tailnet identities. Same-host VMs are reached via mshome.net sibling DNS;
+# off-host VMs via a ProxyJump through their tailnet-member hypervisor.
+# ============================================================================
+
+[meta]
+tailnet = "tail8e749c.ts.net"
+hyperv_host = "omen"
+updated = "2026-07-04"
+ssh_user = "claude"          # default ssh user for reachability/health probes
+
+# --- Physical hosts (tailnet members) ---------------------------------------
+
+[[node]]
+name = "omen"
+kind = "physical-host"
+address = "100.124.12.37"
+alt = ["omen.mshome.net"]
+via = "tailnet"
+expect = "up"
+purpose = "Hyper-V hypervisor + Ollama backend (:11434). Hosts all builder VMs. THIS box."
+checks = [
+  { service = "ollama", port = 11434, host = "omen.mshome.net" },
+]
+
+[[node]]
+name = "cc-conductor"
+kind = "physical-host"
+address = "100.74.110.91"
+alt = ["cc-conductor.tail8e749c.ts.net", "cc-conductor.mshome.net"]
+via = "tailnet"
+expect = "up"
+purpose = "Fleet orchestration engine: conductor daemon + api/dashboard (:8080)."
+checks = [
+  { service = "ssh", port = 22 },
+  { service = "dashboard", port = 8080 },
+]
+
+[[node]]
+name = "am4"
+kind = "physical-host"
+address = "100.116.82.60"
+alt = ["am4.tail8e749c.ts.net"]
+via = "tailnet"
+expect = "up"
+purpose = "AM4 inference + observability (OTel/Jaeger :16686). Local-model host. NOT a build VM."
+checks = [
+  { service = "ssh", port = 22 },
+  { service = "jaeger", port = 16686 },
+]
+
+[[node]]
+name = "i5-laptop"
+kind = "physical-host"
+address = "100.125.141.110"
+alt = ["i5-laptop.tail8e749c.ts.net"]
+via = "tailnet"
+expect = "optional"
+purpose = "Portable demo/edge node. Normally offline -- not part of the SPINE baseline."
+checks = [
+  { service = "ssh", port = 22 },
+]
+
+# --- OMEN Hyper-V VMs (mshome.net siblings) ---------------------------------
+
+[[node]]
+name = "claudefarm1"
+kind = "vm"
+address = "claudefarm1.mshome.net"
+via = "mshome"
+host = "omen"
+expect = "up"
+purpose = "Original golden-image VM. Worker + (temp) assay shell; hosts the omen-worker-1 builder."
+note = "2026-07-04 DIAGNOSED: golden VM is powered on but its Hyper-V display name is now 'cc-worker-1' (renamed during sibling provisioning) and it is NOT SSH-reachable on the current NAT gen (172.21.x). claudefarm1.mshome.net resolves to a stale 172.30.5.209 lease (a prior NAT generation). fleet_rediscover finds only cc-builder-1..4. Fix is Derek's: VMConnect into the 'cc-worker-1' VM, check guest hostname + sshd + that it pulled a 172.21.x lease. Runbook: FLEET-ADDRESSING-RUNBOOK.md on cc-conductor."
+checks = [
+  { service = "ssh", port = 22 },
+]
+
+[[node]]
+name = "cc-builder-1"
+kind = "vm"
+address = "cc-builder-1.mshome.net"
+via = "mshome"
+host = "omen"
+expect = "up"
+purpose = "Frontier builder VM (claude/sonnet runner)."
+checks = [
+  { service = "ssh", port = 22 },
+]
+
+[[node]]
+name = "cc-builder-2"
+kind = "vm"
+address = "cc-builder-2.mshome.net"
+via = "mshome"
+host = "omen"
+expect = "up"
+purpose = "Builder VM (local vllama-planner runner)."
+checks = [
+  { service = "ssh", port = 22 },
+]
+
+[[node]]
+name = "cc-builder-3"
+kind = "vm"
+address = "cc-builder-3.mshome.net"
+via = "mshome"
+host = "omen"
+expect = "up"
+purpose = "Builder + assay VM (rebuilt 2026-07-01, standalone disk). Current assay node while claudefarm1 is down."
+checks = [
+  { service = "ssh", port = 22 },
+]
+
+[[node]]
+name = "cc-builder-4"
+kind = "vm"
+address = "172.21.182.65"
+via = "nat-ip"
+host = "omen"
+expect = "optional"
+purpose = "OMEN-local Ollama MoE critic (mixtral 8x22b q2_K). exploratory-perspective only; excluded from default build pool."
+note = "NAT IP drifts on OMEN reboots (fleet_rediscover re-sweeps). Update address if a sweep re-homes it."
+checks = [
+  { service = "ssh", port = 22 },
+]
+
+# --- Logical builders (a runner riding another node's shell) ----------------
+# These are not machines of their own -- they run a worker shell on `rides_on`
+# and point at a separate model backend. Reachability = can we reach the shell host?
+
+[[node]]
+name = "am4-worker-1"
+kind = "logical-builder"
+rides_on = "am4"
+model_backend = "127.0.0.1:8090"   # hermes (dual B70 Qwen3-30B), local to AM4
+via = "tailnet"
+expect = "up"
+purpose = "AM4 local-model builder: openai runner -> hermes. Shell on AM4; farmer via cc-farmer tunnel."
+checks = [
+  { service = "ssh", port = 22, host = "100.116.82.60" },
+]
+
+[[node]]
+name = "omen-worker-1"
+kind = "logical-builder"
+rides_on = "claudefarm1"
+model_backend = "omen.mshome.net:11434"   # Ollama qwen3-coder:30b, on OMEN
+via = "mshome"
+expect = "up"
+purpose = "OMEN Ollama qwen3-coder:30b builder (54.6 tok/s). Shell rides claudefarm1 -- so it dies when claudefarm1 is down, even though its model backend (OMEN) is fine."
+note = "Coupling to claudefarm1 is a fragility: OMEN's Ollama is reachable independently. Candidate to re-home its shell off claudefarm1 (see CONDUCTOR-FOLLOWUPS)."
+checks = [
+  { service = "ssh", port = 22, host = "claudefarm1.mshome.net" },
+  { service = "ollama", port = 11434, host = "omen.mshome.net" },
+]

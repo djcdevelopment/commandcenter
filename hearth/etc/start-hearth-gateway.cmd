@@ -10,5 +10,5 @@ rem .env silently opens it in the file's associated editor instead of running it
 rem Format: one `set NAME=value` per line. Optional.
 if exist hearth\var\gateway.cmd call hearth\var\gateway.cmd
 echo [%date% %time%] HearthGateway task starting >> hearth\var\gateway-task.log
-C:\work\commandcenter\fleet-worker-node\.venv-omen\Scripts\python.exe -m hearth.kernel.gateway --callers hearth\var\callers.json --providers hearth.toolsurface.fs,hearth.toolsurface.git,hearth.toolsurface.testing,hearth.toolsurface.knowledge,hearth.toolsurface.summon,hearth.toolsurface.inference,hearth.toolsurface.task_lane,hearth.toolsurface.patrol,hearth.toolsurface.remediate,hearth.toolsurface.dream >> hearth\var\gateway-task.log 2>&1
+C:\work\commandcenter\fleet-worker-node\.venv-omen\Scripts\python.exe -m hearth.kernel.gateway --callers hearth\var\callers.json --providers hearth.toolsurface.fs,hearth.toolsurface.git,hearth.toolsurface.testing,hearth.toolsurface.knowledge,hearth.toolsurface.summon,hearth.toolsurface.inference,hearth.toolsurface.task_lane,hearth.toolsurface.patrol,hearth.toolsurface.remediate,hearth.toolsurface.dream,hearth.toolsurface.scheduler >> hearth\var\gateway-task.log 2>&1
 echo [%date% %time%] HearthGateway exited with %errorlevel% >> hearth\var\gateway-task.log

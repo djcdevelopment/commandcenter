@@ -170,8 +170,27 @@ def solve_schedule(
         job_start[job.plan_id] = start
         job_end[job.plan_id] = end
 
+        # Eligibility: a job naming a required_model can only run on machines
+        # that can actually serve it — stateful machines that either already
+        # hold the model or have it in the catalog to load. Without this, jobs
+        # "escape" to stateless machines and dodge the load cost entirely.
+        # No stateful machine at all (catalog absent) -> nothing to enforce
+        # against; degrade to stateless behavior rather than INFEASIBLE.
+        if job.required_model and stateful:
+            eligible = [
+                m for m in available
+                if m.stateful and (
+                    job.required_model in m.resident_models
+                    or job.required_model in models
+                )
+            ]
+            if not eligible:
+                return ScheduleProposal([], 0.0, 0, "INFEASIBLE", 0.0)
+        else:
+            eligible = available
+
         lits = []
-        for machine in available:
+        for machine in eligible:
             key = (job.plan_id, machine.name)
             lit = model.NewBoolVar(f"x_{job.plan_id}_{machine.name}")
             presence[key] = lit
@@ -201,7 +220,10 @@ def solve_schedule(
     for (mname, M) in sorted(load_pairs):
         machine = by_name[mname]
         # jobs that would need model M on machine mname
-        needing = [j for j in jobs if j.required_model == M]
+        needing = [j for j in jobs
+                   if j.required_model == M and (j.plan_id, mname) in presence]
+        if not needing:  # no eligible job could land here; no load needed
+            continue
         assign_lits = [presence[(j.plan_id, mname)] for j in needing]
 
         used = model.NewBoolVar(f"loaduse_{mname}_{M}")
@@ -346,12 +368,15 @@ def solve_schedule(
     # objective: metered tokens first, makespan second
     token_terms = []
     for job in jobs:
-        tokens = job.est_tokens or 0
+        tokens = job.est_tokens or job.est_out_tokens or 0
         for machine in available:
+            key = (job.plan_id, machine.name)
+            if key not in presence:  # machine not eligible for this job
+                continue
             scaled_weight = int(round(machine.token_cost_weight * _TOKEN_WEIGHT_SCALE))
             cost = tokens * scaled_weight  # metered cost if this job lands on this machine
             if cost:
-                token_terms.append(cost * presence[(job.plan_id, machine.name)])
+                token_terms.append(cost * presence[key])
     model.Minimize(W_TOKENS * sum(token_terms) + W_SPAN * makespan)
 
     solver = cp_model.CpSolver()
@@ -368,7 +393,10 @@ def solve_schedule(
     metered_tokens = 0
     for job in jobs:
         for machine in available:
-            if solver.BooleanValue(presence[(job.plan_id, machine.name)]):
+            key = (job.plan_id, machine.name)
+            if key not in presence:
+                continue
+            if solver.BooleanValue(presence[key]):
                 start_s = solver.Value(job_start[job.plan_id])
                 end_s = solver.Value(job_end[job.plan_id])
                 assignments.append({
@@ -378,14 +406,14 @@ def solve_schedule(
                     "end_s": float(end_s),
                 })
                 if machine.token_cost_weight > 0:
-                    metered_tokens += (job.est_tokens or 0)
+                    metered_tokens += (job.est_tokens or job.est_out_tokens or 0)
                 break
 
     # --- JS7b outputs: loads + per-card residency summary -----------------------
     loads_out = []
     for (mname, M) in sorted(load_pairs):
-        used = load_used[(mname, M)]
-        if not solver.BooleanValue(used):
+        used = load_used.get((mname, M))
+        if used is None or not solver.BooleanValue(used):
             continue
         plan = residency_plan.get(mname, {}).get(M, {})
         if plan.get("placement") == "dual":

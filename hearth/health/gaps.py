@@ -2,7 +2,7 @@
 
 Pure, IO-free rules over run records. Each rule is a "spell": a named coherence
 check that fires when two sources disagree. Kept pure so the rules are
-unit-testable without SSH and reusable by both the on-demand `preflight` HEARTH
+unit-testable without SSH and reusable by both the on-demand `patrol` HEARTH
 tool and (later) the scheduled watchdog (Watchfire).
 
 v0 covers the ledger/runs signals that beat us on 2026-07-04 (see
@@ -42,7 +42,7 @@ def _as_int(v):
 def scan_runs(records, phantom_age_s: int = PHANTOM_AGE_S) -> "list[Gap]":
     """Apply the coherence spells to a list of run records; return the gaps found.
 
-    A record is a plain dict (shape produced by preflight._gather_runs):
+    A record is a plain dict (shape produced by patrol._gather_runs):
     ``plan_id``, ``age_s``, ``has_result`` and — when ``has_result`` is true —
     ``status``, ``error``, ``stub``, ``winner``, ``winner_grade``,
     ``winner_files``, ``n_questions``, ``questions_text``, ``promoted``.

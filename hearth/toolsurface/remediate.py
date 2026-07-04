@@ -7,7 +7,7 @@ reads in-flight but has produced no result for a long time — by writing an
 abandoned-stub ``result.json``, which releases its phantom occupancy.
 
 Kept honest three ways:
-  * ``preflight`` stays a pure observer; this is the only tool that mutates.
+  * ``patrol`` stays a pure observer; this is the only tool that mutates.
   * the stub is self-documenting (``_healed_by`` / ``_healed_at`` / reversible
     note) and reversible — delete the file to restore the pre-heal state.
   * every ``remediate`` call is a HEARTH tool call, so the gateway wrapper
@@ -27,7 +27,7 @@ import json
 from typing import Callable, Optional
 
 from hearth.health.gaps import gaps_as_dicts, scan_runs
-from hearth.toolsurface.preflight import _gather_runs
+from hearth.toolsurface.patrol import _gather_runs
 from hearth.toolsurface.task_lane import CONDUCTOR_REPO, _run_ssh
 
 # Obvious + reversible only. Everything else stays flag-only.

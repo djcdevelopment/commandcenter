@@ -1,6 +1,6 @@
 """HEARTH tool: dream — the guard dog's off-duty spell (Watchfire · art mode).
 
-The third face of the mechnet-watchdog. It patrols (``preflight`` — its eyes), it
+The third face of the mechnet-watchdog. It patrols (``patrol`` — its eyes), it
 heals (``remediate`` — its hands), and when the mechs are quiet and the cards are
 free (art mode), it **dreams** — renders an image on the fleet's idle GPU. The
 guard dog is the dreamer, not a generic caller: every dream is ledgered under the

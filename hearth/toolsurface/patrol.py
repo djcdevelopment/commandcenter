@@ -1,14 +1,15 @@
-"""HEARTH tool: preflight — one cross-source correlation snapshot, on demand.
+"""HEARTH tool: patrol — one round of the guard dog's coherence watch.
 
 Slice 0 of Watchfire/Flare (WATCHFIRE-FLARE-DESIGN-2026-07-04.html): a
-deterministic, rules-only gap detector — the guard dog's first spell, callable
-as a HEARTH tool. "Take one snapshot right now — any gaps?" It gathers recent
-run records from the conductor over SSH (the same hop task_lane uses) and casts
-the coherence spells in hearth.health.gaps.
+deterministic, rules-only gap detector — the guard dog's eyes, callable as a
+HEARTH tool. One patrol = "make the rounds now — anything out of place?" It
+gathers recent run records from the conductor over SSH (the same hop task_lane
+uses) and casts the coherence spells in hearth.health.gaps. The scheduled
+watchdog runs a patrol on every 15-minute tick.
 
 No NPU and no learning yet — that is the earned upgrade once these rules have
-produced labeled reps. preflight *finds and names* a gap; it does not fix it
-(the auto-heal-vs-flag-only line is a separate, deliberate decision).
+produced labeled reps. patrol *finds and names* a gap; it does not fix it (the
+auto-heal-vs-flag-only line is a separate, deliberate decision — see remediate).
 """
 from __future__ import annotations
 
@@ -78,8 +79,8 @@ def _gather_runs(runner: Optional[Callable] = None):
     return payload, None
 
 
-def preflight() -> dict:
-    """Take one correlation snapshot of the fleet's runs and flag coherence gaps.
+def patrol() -> dict:
+    """Make one round of the coherence watch: scan the fleet's runs, flag gaps.
 
     Returns ``{ok, scanned, considered, gaps:[{kind,severity,plan_id,detail}],
     summary}``. A gap is a place two sources disagree — a run that reads
@@ -101,4 +102,4 @@ def preflight() -> dict:
 
 
 def get_tools() -> "list[Callable]":
-    return [preflight]
+    return [patrol]

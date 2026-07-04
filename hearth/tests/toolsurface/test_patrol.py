@@ -5,7 +5,7 @@ import subprocess
 from unittest import TestCase
 from unittest.mock import patch
 
-from hearth.toolsurface.preflight import preflight
+from hearth.toolsurface.patrol import patrol
 
 
 def _completed(stdout="", stderr="", returncode=0):
@@ -17,7 +17,7 @@ def _gather_payload(records, scanned=None):
     return json.dumps({"records": records, "scanned": scanned if scanned is not None else len(records)})
 
 
-class PreflightTests(TestCase):
+class PatrolTests(TestCase):
     def test_reports_gaps_from_gathered_records(self):
         records = [
             {"plan_id": "hearth-old", "age_s": 5000, "has_result": False},
@@ -28,7 +28,7 @@ class PreflightTests(TestCase):
              "winner_grade": "B", "winner_files": 205, "n_questions": 0},
         ]
         with patch("subprocess.run", return_value=_completed(stdout=_gather_payload(records, scanned=143))):
-            out = preflight()
+            out = patrol()
         self.assertTrue(out["ok"])
         self.assertEqual(out["scanned"], 143)
         self.assertEqual(out["considered"], 3)
@@ -41,19 +41,19 @@ class PreflightTests(TestCase):
                     "status": "ok", "winner": "x", "promoted": True,
                     "winner_grade": "A", "winner_files": 100, "n_questions": 0}]
         with patch("subprocess.run", return_value=_completed(stdout=_gather_payload(records))):
-            out = preflight()
+            out = patrol()
         self.assertTrue(out["ok"])
         self.assertEqual(out["gaps"], [])
         self.assertEqual(out["summary"]["total"], 0)
 
     def test_ssh_failure_is_a_clean_result(self):
         with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="ssh", timeout=15)):
-            out = preflight()
+            out = patrol()
         self.assertFalse(out["ok"])
         self.assertIn("TimeoutExpired", out["error"])
 
     def test_non_json_gather_output_reported(self):
         with patch("subprocess.run", return_value=_completed(stdout="not json")):
-            out = preflight()
+            out = patrol()
         self.assertFalse(out["ok"])
         self.assertIn("non-JSON", out["error"])

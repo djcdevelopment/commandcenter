@@ -624,3 +624,14 @@ edited; draft was faithful, mildly fluffy, no factual inventions this time). `--
 opinion dispatched: plan_id `hearth-retro-2026-07-04-cqrs-fanout-d164cdf2` (verifies the
 blind-spot claim against code; poll `task_status`). Frontier: factsheet, synthesis doc, all
 judgments, this addendum. Derek's-seat is a reconstruction.
+
+### Addendum 5 — second opinion resolved (post-push)
+
+Polled `hearth-retro-2026-07-04-cqrs-fanout-d164cdf2`: **empty** — both builders
+(vllama-planner runner, `route-disabled-temporarily`) produced nothing (`agent_rc: 3`);
+normal during the current build-and-swap churn, no incident. Frontier verified the
+blind-spot claim directly instead: **CONFIRMED** — `hearth/toolsurface/knowledge.py:201`
+bare `write_text` for capacity.json, and `tools/workflow/corpus_guard.py:104` coverage
+list omits capacity.json. Side observation: the pipeline still declared a "winner" off an
+empty diff (the null-action shape from ADR-0001 appearing in the task lane). The /retro v2
+reap step caught all of this on its first use.

@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "capacity.v1.schema.json",
+  "title": "capacity.v1",
+  "description": "Duration/token distributions per (task_class x node x model x tool) bucket, projected from the HEARTH ledger. Feeds the CP-SAT job-shop scheduler (JS2).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "evidence_watermark", "buckets"],
+  "properties": {
+    "contract_version": { "const": "capacity.v1" },
+    "evidence_watermark": {
+      "description": "ISO timestamp of the newest event seen while building this document, or null if the ledger was empty.",
+      "type": ["string", "null"]
+    },
+    "buckets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "task_class", "node", "runner_class", "model", "tool",
+          "calls", "ok_rate", "duration_ms", "tokens_out_per_s_p50", "last_seen"
+        ],
+        "properties": {
+          "task_class": { "type": ["string", "null"] },
+          "node": { "type": ["string", "null"] },
+          "runner_class": { "type": ["string", "null"] },
+          "model": { "type": ["string", "null"] },
+          "tool": { "type": "string", "minLength": 1 },
+          "calls": { "type": "integer", "minimum": 0 },
+          "ok_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+          "duration_ms": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["p50", "p90", "mean", "max"],
+            "properties": {
+              "p50": { "type": ["number", "null"] },
+              "p90": { "type": ["number", "null"] },
+              "mean": { "type": ["number", "null"] },
+              "max": { "type": ["number", "null"] }
+            }
+          },
+          "tokens_out_per_s_p50": { "type": ["number", "null"] },
+          "last_seen": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,161 @@
+"""Capacity projection over the HEARTH ledger (Job Shop Scheduler slice JS2).
+
+Pure read, mcp-free. Buckets ledger events by (task_class, node, model, tool) and
+computes duration/token distributions the CP-SAT job-shop scheduler consumes as its
+processing-time estimates. Contract: hearth/contracts/capacity.v1.schema.json.
+
+A parallel effort is adding optional `task_class` and `model` fields to ledger events;
+most historical events predate that and will not carry them. Missing values fall back
+to `None` in the bucket key rather than being dropped — every event is still counted
+somewhere. Malformed lines are skipped and counted, never raised.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+DEFAULT_LEDGER = Path("hearth/var/ledger/events.ndjson")
+
+BucketKey = tuple[Any, Any, Any, Any, str]
+
+
+def _percentile(sorted_values: list[float], fraction: float) -> float:
+    """Nearest-rank percentile via stdlib sorted-index (no numpy dependency)."""
+    if not sorted_values:
+        raise ValueError("cannot take a percentile of an empty sequence")
+    if len(sorted_values) == 1:
+        return sorted_values[0]
+    index = int(round(fraction * (len(sorted_values) - 1)))
+    index = max(0, min(index, len(sorted_values) - 1))
+    return sorted_values[index]
+
+
+def _empty_accumulator() -> dict:
+    return {
+        "calls": 0,
+        "ok": 0,
+        "durations_ms": [],  # only from ok:true events
+        "tokens_out_per_s": [],
+        "last_seen": None,
+    }
+
+
+def _bucket_key(event: dict) -> BucketKey:
+    caller = event.get("caller") or {}
+    task_class = event.get("task_class")
+    node = caller.get("node")
+    model = event.get("model")
+    runner_class = caller.get("runner_class")
+    tool = event.get("tool") or "unknown"
+    return (task_class, node, model, runner_class, tool)
+
+
+def build_capacity_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
+    """Read the ledger at ledger_path and return a capacity.v1 document (dict).
+
+    Rules:
+    - ok:false events count toward calls/ok_rate but are excluded from duration
+      percentiles and token-rate samples.
+    - Missing task_class/model on an event yields a null in that bucket's key
+      rather than dropping the event.
+    - Malformed (non-JSON) lines are skipped; they do not raise and are not
+      counted into any bucket.
+    - tokens_out_per_s is only sampled when both tokens_out and duration_ms are
+      present and duration_ms > 0.
+    """
+    accumulators: dict[BucketKey, dict] = {}
+    newest_ts: str | None = None
+
+    if ledger_path.exists():
+        for raw_line in ledger_path.read_text(encoding="utf-8").splitlines():
+            if not raw_line.strip():
+                continue
+            try:
+                event = json.loads(raw_line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(event, dict):
+                continue
+
+            key = _bucket_key(event)
+            acc = accumulators.setdefault(key, _empty_accumulator())
+            acc["calls"] += 1
+
+            ts = event.get("ts")
+            if isinstance(ts, str):
+                if newest_ts is None or ts > newest_ts:
+                    newest_ts = ts
+                if acc["last_seen"] is None or ts > acc["last_seen"]:
+                    acc["last_seen"] = ts
+
+            ok = bool(event.get("ok"))
+            if ok:
+                acc["ok"] += 1
+                duration_ms = event.get("duration_ms")
+                if isinstance(duration_ms, (int, float)):
+                    acc["durations_ms"].append(float(duration_ms))
+                    cost = event.get("cost") or {}
+                    tokens_out = cost.get("tokens_out")
+                    if isinstance(tokens_out, (int, float)) and duration_ms > 0:
+                        seconds = duration_ms / 1000.0
+                        acc["tokens_out_per_s"].append(tokens_out / seconds)
+
+    buckets = []
+    for (task_class, node, model, runner_class, tool), acc in accumulators.items():
+        durations = sorted(acc["durations_ms"])
+        if durations:
+            duration_summary = {
+                "p50": _percentile(durations, 0.50),
+                "p90": _percentile(durations, 0.90),
+                "mean": round(sum(durations) / len(durations), 4),
+                "max": max(durations),
+            }
+        else:
+            duration_summary = {"p50": None, "p90": None, "mean": None, "max": None}
+
+        token_rates = sorted(acc["tokens_out_per_s"])
+        tokens_out_per_s_p50 = _percentile(token_rates, 0.50) if token_rates else None
+
+        buckets.append({
+            "task_class": task_class,
+            "node": node,
+            "runner_class": runner_class,
+            "model": model,
+            "tool": tool,
+            "calls": acc["calls"],
+            "ok_rate": round(acc["ok"] / acc["calls"], 4) if acc["calls"] else 0.0,
+            "duration_ms": duration_summary,
+            "tokens_out_per_s_p50": tokens_out_per_s_p50,
+            "last_seen": acc["last_seen"],
+        })
+
+    buckets.sort(key=lambda b: (
+        b["task_class"] or "", b["node"] or "", b["model"] or "",
+        b["runner_class"] or "", b["tool"],
+    ))
+
+    return {
+        "contract_version": "capacity.v1",
+        "evidence_watermark": newest_ts,
+        "buckets": buckets,
+    }
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="python -m hearth.projection.capacity",
+        description="Project HEARTH ledger capacity buckets (pure read).",
+    )
+    parser.add_argument("--ledger", type=Path, default=DEFAULT_LEDGER)
+    args = parser.parse_args(argv[1:])
+
+    print(json.dumps(build_capacity_document(args.ledger), indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))

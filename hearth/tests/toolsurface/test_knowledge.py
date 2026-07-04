@@ -9,8 +9,10 @@ from unittest import TestCase
 
 from hearth.toolsurface.knowledge import (
     project,
+    project_capacity_knowledge,
     query_beliefs_summary,
     query_capabilities,
+    query_capacity,
     query_findings,
     record_event,
 )
@@ -130,3 +132,54 @@ class QueryTests(KnowledgeScopedTestCase):
         self.assertIsNotNone(files["findings.json"]["mtime"])
         self.assertIn("finding_counts", files["findings.json"])
         self.assertFalse(files["policy.json"]["available"])  # not projected in this test
+
+
+class CapacityKnowledgeTests(KnowledgeScopedTestCase):
+    """JS2: project_capacity_knowledge / query_capacity round-trip via the ledger."""
+
+    def _write_ledger(self, relative_path: str = "hearth/var/ledger/events.ndjson") -> Path:
+        ledger = self.scope / relative_path
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        events = [
+            {
+                "schema": "hearth-event.v1",
+                "event_id": "he_a",
+                "ts": "2026-07-04T00:00:00+00:00",
+                "caller": {"id": "local-1", "runner_class": "local", "node": "omen"},
+                "tool": "run_tests",
+                "ok": True,
+                "duration_ms": 1000,
+                "cost": {"tokens_in": 10, "tokens_out": 50, "watt_s": None},
+                "task_id": None,
+            },
+        ]
+        with ledger.open("w", encoding="utf-8", newline="\n") as handle:
+            for event in events:
+                handle.write(json.dumps(event) + "\n")
+        return ledger
+
+    def test_query_before_projection_reports_unavailable(self) -> None:
+        self.assertFalse(query_capacity()["available"])
+
+    def test_project_then_query_round_trips_capacity_json(self) -> None:
+        self._write_ledger()
+        result = project_capacity_knowledge(ledger_path="hearth/var/ledger/events.ndjson")
+        self.assertEqual(result["bucket_count"], 1)
+        self.assertEqual(result["evidence_watermark"], "2026-07-04T00:00:00+00:00")
+
+        queried = query_capacity()
+        self.assertTrue(queried["available"])
+        self.assertIsNotNone(queried["mtime"])
+        content = queried["content"]
+        self.assertEqual(content["contract_version"], "capacity.v1")
+        self.assertEqual(len(content["buckets"]), 1)
+        self.assertEqual(content["buckets"][0]["tool"], "run_tests")
+
+    def test_missing_ledger_yields_empty_document(self) -> None:
+        result = project_capacity_knowledge(ledger_path="hearth/var/ledger/events.ndjson")
+        self.assertEqual(result["bucket_count"], 0)
+        self.assertEqual(result["evidence_watermark"], None)
+
+    def test_ledger_path_outside_scope_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            project_capacity_knowledge(ledger_path="../escape.ndjson")

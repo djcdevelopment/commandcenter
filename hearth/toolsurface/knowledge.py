@@ -40,6 +40,8 @@ from tools.workflow.project_findings import materialize_findings  # noqa: E402
 from tools.workflow.project_policy import materialize_policy  # noqa: E402
 from tools.workflow.validate_events import ValidationError  # noqa: E402
 
+from hearth.projection.rebuild import rebuild_knowledge as _rebuild_knowledge  # noqa: E402
+
 DEFAULT_EVENTS_PATH = "runs/hearth/events.jsonl"
 DEFAULT_SOURCES = ["runs"]
 DEFAULT_OUT = "knowledge"
@@ -303,8 +305,25 @@ def query_capacity(knowledge_dir: str = DEFAULT_OUT) -> dict:
     return _query_knowledge_file("capacity.json", knowledge_dir)
 
 
+def rebuild_knowledge(sources: list[str] | None = None, out: str = DEFAULT_OUT,
+                      ledger_path: str = str(_CAPACITY_DEFAULT_LEDGER),
+                      allow_fixture_sources: bool = False) -> dict:
+    """Rebuild the entire knowledge/ store from zero (CQRS/ES plan step 5).
+
+    Replays the full projection DAG (every kind project() runs, plus the ledger-native
+    capacity.json) over the canonical corpus into a staging directory, validates the
+    complete staged set, then atomically swaps it into `out`. Unlike project(), this
+    is not an incremental write: staging starts empty, so corpus_guard's regression
+    comparison never fires for a from-zero rebuild — that is the point, not a bypass
+    of the guard's intent. A crash mid-rebuild leaves the live knowledge/ dir
+    byte-untouched; staging is always cleaned up.
+    """
+    return _rebuild_knowledge(sources=sources, out=out, ledger_path=ledger_path,
+                              allow_fixture_sources=allow_fixture_sources)
+
+
 def get_tools() -> list[Callable]:
     return [
         record_event, project, query_capabilities, query_findings, query_beliefs_summary,
-        project_capacity_knowledge, query_capacity,
+        project_capacity_knowledge, query_capacity, rebuild_knowledge,
     ]

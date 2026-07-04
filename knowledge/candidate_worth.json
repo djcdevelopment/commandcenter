@@ -1,0 +1,6 @@
+{
+  "contract_version": "candidate-worth.v1",
+  "authored_by": "stream-Ga",
+  "purpose": "Clause 2 authored overlay: operator assigns numeric worth_points to each experiment candidate. These values are Derek's judgment, not derived from data. Each entry must carry a reason. Candidates without an entry are EXCLUDED from the worth_realized numerator and reported as unpriced_candidates — no silent caps.",
+  "entries": []
+}

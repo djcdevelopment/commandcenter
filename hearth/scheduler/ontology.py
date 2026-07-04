@@ -217,7 +217,11 @@ def load_capacity(capacity_path: str) -> Optional[dict]:
 def _bucket_p90(document: dict, *, task_class: Optional[str], tool: Optional[str],
                 node: Optional[str]) -> Optional[float]:
     """Return the p90 duration (ms) of the first bucket matching the given
-    (task_class|tool) x node key, or None."""
+    (task_class|tool) x node key, or None.
+
+    A bucket with null p90 (meaning all events were failures, excluded from
+    percentiles) does NOT match — we continue to the next bucket in the fallback
+    chain rather than using it."""
     for bucket in document.get("buckets", []):
         if node is not None and bucket.get("node") != node:
             continue
@@ -226,7 +230,9 @@ def _bucket_p90(document: dict, *, task_class: Optional[str], tool: Optional[str
         if tool is not None and bucket.get("tool") != tool:
             continue
         p90 = (bucket.get("duration_ms") or {}).get("p90")
-        if p90 is not None:
+        # Null p90 means all events for this bucket were failures (excluded from
+        # percentiles), so the bucket carries no valid duration data. Skip it.
+        if p90 is not None and isinstance(p90, (int, float)) and p90 > 0:
             return float(p90)
     return None
 

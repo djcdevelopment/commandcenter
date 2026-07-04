@@ -130,7 +130,8 @@ def _ensure_fanout_minimum(builders: list[str]) -> list[str]:
 
 
 def submit_task(prompt: str, builders: list[str] | None = None,
-               plan_id_hint: str | None = None) -> dict:
+               plan_id_hint: str | None = None, task_class: str | None = None,
+               est_tokens: int | None = None) -> dict:
     """Submit a research brief / simple build to the fleet via the conductor inbox.
 
     Writes ``inbox/<plan_id>.md`` on cc-conductor with a CCMETA builder-pin
@@ -144,6 +145,10 @@ def submit_task(prompt: str, builders: list[str] | None = None,
     (>= 2 targets) — a one-builder run crashes on dispatch and never returns
     (see _ensure_fanout_minimum). The returned ``builders`` reflect what was
     actually written.
+
+    Optional ``task_class`` and ``est_tokens`` are threaded into the ledger event
+    for observability (task_class overrides the gateway's static derivation,
+    est_tokens is a pass-through for scheduler hindsight).
 
     Zero conductor-side changes: this is the same inbox mechanism every fleet
     build already uses, so no scheduler is duplicated (Banked Fire design
@@ -176,7 +181,7 @@ def submit_task(prompt: str, builders: list[str] | None = None,
     if error is not None:
         return {"ok": False, "error": error, "plan_id": plan_id,
                 "builders": chosen_builders, "duration_ms": duration_ms}
-    return {
+    result = {
         "ok": True,
         "plan_id": plan_id,
         "builders": chosen_builders,
@@ -184,6 +189,11 @@ def submit_task(prompt: str, builders: list[str] | None = None,
         "result_path": f"{RUNS_DIR}/{plan_id}/result.json",
         "duration_ms": duration_ms,
     }
+    if est_tokens is not None:
+        result["est_tokens"] = est_tokens
+    if task_class is not None:
+        result["_ledger_task_class"] = task_class
+    return result
 
 
 def task_status(plan_id: str) -> dict:

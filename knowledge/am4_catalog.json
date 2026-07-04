@@ -1,6 +1,6 @@
 {
   "contract_version": "am4-catalog.v1",
-  "gathered_at": "2026-07-04T16:06:45.818314+00:00",
+  "gathered_at": "2026-07-04T17:33:52.880009+00:00",
   "host": "am4",
   "gates": {
     "max_host_used_gb_preflight": 22.0,

@@ -50,6 +50,11 @@ DEFAULT_PORT = 8710
 KERNEL_DIR = Path(__file__).resolve().parent
 BUILTIN_PROVIDER = "hearth.kernel.gateway#builtin"
 KNOWLEDGE_MODULE_SUFFIX = ".knowledge"
+# Tools outside the knowledge module that still legitimately reference a
+# knowledge/ path in their own args (patrol's capacity_path, read-only) — the
+# guard can't tell read from write, so they need the same trust as the
+# knowledge module's own tools.
+EXTRA_KNOWLEDGE_READERS = {"patrol"}
 
 # JS1: task_class bucketing for ledger events, keyed by tool name (exact match
 # first, then a prefix match against TOOL_CLASS_PREFIXES). Unknown tools get
@@ -65,7 +70,7 @@ TOOL_CLASS: dict[str, str] = {
     "list_dir": "io",
     "project": "query",
     "preflight": "health",
-    "remediate": "health",
+    "masters_pet": "health",
     "patrol": "health",
 }
 TOOL_CLASS_PREFIXES: tuple[tuple[str, str], ...] = (
@@ -285,6 +290,15 @@ def load_providers(spec: str) -> dict[str, list[Callable]]:
     return providers
 
 
+def wire_knowledge_guards(guards: GuardStack, providers: dict[str, list[Callable]]) -> None:
+    """Register every trusted knowledge-path referrer: the knowledge module's
+    own tools (derived from the mounted providers) plus EXTRA_KNOWLEDGE_READERS."""
+    for module_name, tools in providers.items():
+        if module_name.endswith(KNOWLEDGE_MODULE_SUFFIX):
+            guards.register_knowledge_tools(fn.__name__ for fn in tools)
+    guards.register_knowledge_tools(EXTRA_KNOWLEDGE_READERS)
+
+
 def build_server(providers_spec: str = "", host: str = DEFAULT_HOST,
                  port: int = DEFAULT_PORT,
                  callers_path: Optional[Path | str] = None,
@@ -305,9 +319,7 @@ def build_server(providers_spec: str = "", host: str = DEFAULT_HOST,
     mounted = [BUILTIN_PROVIDER, *providers]
     providers[BUILTIN_PROVIDER] = builtin_get_tools(hearth, mounted)
 
-    for module_name, tools in providers.items():
-        if module_name.endswith(KNOWLEDGE_MODULE_SUFFIX):
-            guards.register_knowledge_tools(fn.__name__ for fn in tools)
+    wire_knowledge_guards(guards, providers)
 
     registered: set[str] = set()
     for module_name, tools in providers.items():

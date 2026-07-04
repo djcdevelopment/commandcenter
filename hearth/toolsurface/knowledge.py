@@ -31,6 +31,7 @@ if str(_REPO_ROOT) not in sys.path:
 
 from tools.workflow.append_event import append_event  # noqa: E402
 from tools.workflow.corpus import Corpus  # noqa: E402
+from tools.workflow.fsio import atomic_write_json  # noqa: E402
 from tools.workflow.corpus_guard import check_fixture_taint, guard_write, make_extractor  # noqa: E402
 from tools.workflow.project_associations import materialize_associations  # noqa: E402
 from tools.workflow.project_capacity import collect_event_files, materialize_knowledge  # noqa: E402
@@ -129,7 +130,7 @@ def _restamp_written_file(path: Path, corpus: Corpus) -> None:
         return
     document["corpus_digest"] = corpus.corpus_digest
     document["corpus_event_count"] = corpus.event_count
-    path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+    atomic_write_json(path, document)
 
 
 def record_event(event: dict, events_path: str = DEFAULT_EVENTS_PATH) -> dict:

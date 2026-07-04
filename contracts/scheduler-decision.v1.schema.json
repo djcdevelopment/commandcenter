@@ -513,6 +513,74 @@
         }
       },
       "description": "How derived capabilities shaped this assignment. The scheduler asks what capabilities the work requires (derived from trace history), then which candidate satisfies them: qualified capabilities are scheduled, not machines."
+    },
+    "economy_influence": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "objective_selected",
+        "signals_read",
+        "reason",
+        "counterfactual"
+      ],
+      "properties": {
+        "objective_selected": {
+          "type": "string",
+          "enum": [
+            "cost_per_outcome",
+            "knowledge_per_hour",
+            "undetermined"
+          ],
+          "description": "The optimization objective derived for the selected candidate's dispatch context."
+        },
+        "signals_read": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Live signal names that were consulted during objective derivation."
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable explanation of why this objective was selected. Null/leased inputs are always named (no silent caps)."
+        },
+        "counterfactual": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "objective",
+            "would_have_chosen",
+            "note"
+          ],
+          "properties": {
+            "objective": {
+              "type": "string",
+              "description": "The alternative objective (the one not selected)."
+            },
+            "would_have_chosen": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "builder_id the alternative objective's simple preference would have selected, or null if no qualifying candidate exists in the pool."
+            },
+            "note": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Why the alternative would have differed, for transparency."
+            }
+          }
+        }
+      },
+      "description": "How the derived economic context shaped this assignment. Economy never affects ranking — this block explains the objective selected and what the alternative would have chosen."
     }
   }
 }

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from tools.workflow.append_event import append_event
 from tools.workflow.materialize_run import materialize_run
+from tools.workflow.project_economy import build_economy_influence
 from tools.workflow.project_policy import EXPERIMENT_FLAG, evaluate
 
 # Arbitrary-at-birth baselines, recorded per the arbitrary-but-traced decision rule (D18).
@@ -38,6 +39,17 @@ CANDIDATE_POOLS = {
          "base_score": 0.8, "frontier": False,
          "predictions": {"expected_generation_tokens_per_second": 54.0, "tokens_per_s": 54.0}},
     ],
+    # economy-pool: base_scores arranged so the economically-sensible candidate (owned+mains →
+    # knowledge_per_hour) already wins on existing ranking — economy explains, never re-ranks.
+    "economy-pool": [
+        {"builder_id": "builder-owned-mains", "model_id": "claude-opus-4.8", "backend": "local",
+         "base_score": 0.9, "predictions": {}, "frontier": True,
+         "ownership": "owned", "power_source": "mains"},
+        {"builder_id": "builder-metered", "model_id": "qwen3-coder:30b", "backend": "ollama",
+         "base_score": 0.7, "frontier": False,
+         "predictions": {"expected_generation_tokens_per_second": 54.0, "tokens_per_s": 54.0},
+         "ownership": "metered_provider", "power_source": None},
+    ],
 }
 
 FRONTIER_DISABLED_REASON = "frontier disabled by operator"
@@ -51,6 +63,7 @@ SCENARIOS = {
     "policy-suspended": {"pool": "known-bad-only", "experiment_flag": False, "requires_policy": True},
     "capability-directed": {"pool": "capability-pool", "experiment_flag": False, "requires_policy": False,
                             "requires_capabilities": True, "task_kind": "build"},
+    "economy-directed": {"pool": "economy-pool", "experiment_flag": False, "requires_policy": False},
 }
 
 
@@ -174,7 +187,8 @@ def schedule(candidate_pool: list[dict], task_kind: str, rules: list[dict],
             reason = f"policy blocked all {len(considered)} candidate(s)"
         return {"selected": None, "candidates_considered": considered, "candidates_blocked": blocked,
                 "decision_reason": reason,
-                "policy_influence": None, "capability_influence": None, "candidate": None}
+                "policy_influence": None, "capability_influence": None,
+                "economy_influence": None, "candidate": None}
 
     winner = max(allowed, key=lambda index: considered[index]["score"])
     considered[winner]["selected"] = True
@@ -222,6 +236,7 @@ def schedule(candidate_pool: list[dict], task_kind: str, rules: list[dict],
             "candidates_blocked": blocked,
         },
         "capability_influence": capability_influence,
+        "economy_influence": build_economy_influence(candidate_pool[winner], candidate_pool),
     }
 
 
@@ -364,6 +379,7 @@ def build_scheduler_decision(run_id: str, workflow_id: str, scenario: str, selec
         "evidence_refs": [],
         "policy_influence": selection["policy_influence"],
         "capability_influence": selection.get("capability_influence"),
+        "economy_influence": selection.get("economy_influence"),
     }
 
 

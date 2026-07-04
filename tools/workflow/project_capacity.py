@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from tools.workflow.project_state import read_events
+from tools.workflow.corpus import Corpus
 from tools.workflow.corpus_guard import check_fixture_taint, guard_write, make_extractor
 from tools.workflow.fsio import atomic_write_json
 
@@ -342,10 +343,17 @@ def summarize_prediction_accuracy(comparisons: list[dict]) -> dict:
 
 
 def collect_event_files(paths: list[Path]) -> list[Path]:
+    """Flatten `paths` (files or directories) into a deterministic events.jsonl list.
+
+    Delegates directory expansion to `Corpus.enumerate` (tools/workflow/corpus.py) —
+    the only remaining `rglob("events.jsonl")` call site — so there is exactly one
+    place that walks a tree looking for events. Non-directory paths (a bare
+    events.jsonl file passed directly) are kept as-is, matching prior behavior.
+    """
     event_files: list[Path] = []
     for path in paths:
         if path.is_dir():
-            event_files.extend(sorted(path.rglob("events.jsonl")))
+            event_files.extend(Corpus.enumerate(path).event_files)
         else:
             event_files.append(path)
     return event_files

@@ -17,6 +17,16 @@
       "type": "integer",
       "minimum": 0
     },
+    "corpus_digest": {
+      "description": "Content-shaped fingerprint of the ledger this document was projected from: sha256 over 'events.ndjson:<non-blank line count>' (CQRS-ES-STANDARDIZATION.md step 4). Optional/additive.",
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "corpus_event_count": {
+      "description": "Non-blank ledger lines consumed while building this document. Optional/additive.",
+      "type": "integer",
+      "minimum": 0
+    },
     "buckets": {
       "type": "array",
       "items": {

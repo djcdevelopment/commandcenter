@@ -7,6 +7,7 @@ from pathlib import Path
 from tools.workflow.project_state import project_events, read_events
 from tools.workflow.projections import write_board_projection, write_otel_mirror
 from tools.workflow.validate_events import validate_file
+from tools.workflow.fsio import atomic_write_json
 
 
 def materialize_run(run_dir: Path) -> dict:
@@ -21,7 +22,7 @@ def materialize_run(run_dir: Path) -> dict:
 
     events = read_events(events_path)
     state = project_events(events)
-    state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+    atomic_write_json(state_path, state)
     write_board_projection(board_path, state)
     write_otel_mirror(otel_path, events)
     return state

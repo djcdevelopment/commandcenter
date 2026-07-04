@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 from tools.workflow.ontology import EVENT_TO_PHASE
+from tools.workflow.fsio import atomic_write_json
 
 
 def _builder_id(event: dict) -> str | None:
@@ -139,7 +140,7 @@ def main(argv: list[str]) -> int:
     events = read_events(Path(argv[1]))
     state = project_events(events)
     if len(argv) == 3:
-        Path(argv[2]).write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+        atomic_write_json(Path(argv[2]), state)
     else:
         print(json.dumps(state, indent=2))
     return 0

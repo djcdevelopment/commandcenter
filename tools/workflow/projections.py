@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from tools.workflow.otel_adapter import to_otel_span_event
+from tools.workflow.fsio import atomic_write_json
 
 
 def project_board(state: dict) -> dict:
@@ -24,7 +25,7 @@ def project_board(state: dict) -> dict:
 
 
 def write_board_projection(path: Path, state: dict) -> None:
-    path.write_text(json.dumps(project_board(state), indent=2) + "\n", encoding="utf-8")
+    atomic_write_json(path, project_board(state))
 
 
 def write_otel_mirror(path: Path, events: list[dict]) -> None:

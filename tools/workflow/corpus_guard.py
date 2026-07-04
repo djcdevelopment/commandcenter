@@ -20,6 +20,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional, Tuple
 
+from tools.workflow.fsio import atomic_write_json
+
 # Authored override + audit + batch-progress bookkeeping all live in the SAME directory as the
 # file being written (path.parent), never a hardcoded knowledge/ path — tests run against temp
 # knowledge dirs, and each projector may target a different --out.
@@ -107,6 +109,9 @@ def make_extractor(count_key: Optional[str],
       capabilities.json               -> capability_count
       experiment_candidates.json / policy.json -> source_findings
       experiment_results.json         -> plan_count
+      capacity.json                   -> bucket_count (CQRS/ES plan step 2: closes the
+                                         2026-07-04 LIVE BLIND SPOT where this file bypassed
+                                         the guard entirely via a bare write_text)
       known_good/bad_models.json      -> neither watermark nor count -> UNGUARDED (see
                                          DECISION-NEEDED-A2.md).
     """
@@ -138,7 +143,7 @@ def _count_regressed(old_count: Optional[int], new_count: Optional[int]) -> bool
 
 
 def _write(path: Path, doc: dict) -> None:
-    path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+    atomic_write_json(path, doc)
 
 
 def _active_override(directory: Path, file_name: str) -> Optional[dict]:

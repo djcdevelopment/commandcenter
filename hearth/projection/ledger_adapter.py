@@ -38,6 +38,7 @@ from pathlib import Path
 
 from tools.workflow.append_event import append_event
 from tools.workflow.validate_events import ValidationError, validate_event
+from tools.workflow.fsio import atomic_write_json
 
 DEFAULT_LEDGER = Path("hearth/var/ledger/events.ndjson")
 DEFAULT_CURSOR = Path("hearth/var/projection_cursor.json")
@@ -111,11 +112,7 @@ def load_cursor(cursor_path: Path) -> dict:
 
 
 def save_cursor(cursor_path: Path, last_event_id: str, line: int) -> None:
-    cursor_path.parent.mkdir(parents=True, exist_ok=True)
-    cursor_path.write_text(
-        json.dumps({"last_event_id": last_event_id, "line": line}, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    atomic_write_json(cursor_path, {"last_event_id": last_event_id, "line": line})
 
 
 def _start_line(lines: list[str], cursor: dict) -> int:

@@ -5,12 +5,17 @@
   "description": "Duration/token distributions per (task_class x node x model x tool) bucket, projected from the HEARTH ledger. Feeds the CP-SAT job-shop scheduler (JS2).",
   "type": "object",
   "additionalProperties": false,
-  "required": ["contract_version", "evidence_watermark", "buckets"],
+  "required": ["contract_version", "evidence_watermark", "bucket_count", "buckets"],
   "properties": {
     "contract_version": { "const": "capacity.v1" },
     "evidence_watermark": {
       "description": "ISO timestamp of the newest event seen while building this document, or null if the ledger was empty.",
       "type": ["string", "null"]
+    },
+    "bucket_count": {
+      "description": "len(buckets); the corpus regression guard's primary count field for capacity.json (CQRS/ES plan step 2).",
+      "type": "integer",
+      "minimum": 0
     },
     "buckets": {
       "type": "array",

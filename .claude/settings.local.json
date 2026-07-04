@@ -1,6 +1,7 @@
 {
   "permissions": {
     "allow": [
+      "mcp__hearth__local_generate",
       "PowerShell(Write-Output \"===== ReBAR via NVIDIA BAR1 \\(BAR1~=VRAM => ReBAR ON; ~256MB => OFF\\) =====\"; try { & nvidia-smi -q | Select-String -Pattern \"BAR1|Product Name|Total\" | Select-Object -First 12 } catch { Write-Output \"nvidia-smi not found\" }; Write-Output \"\"; Write-Output \"===== PCIe SLOTS \\(Win32_SystemSlot\\) =====\"; Get-CimInstance Win32_SystemSlot | Select-Object SlotDesignation, CurrentUsage, @{n='Width';e={$_.MaxDataWidth}}, Status | Format-Table -AutoSize; Write-Output \"===== PnP: BAR/Large-memory hint for NVIDIA =====\"; Write-Output \"\\(Above-4G/ReBAR is a platform default on Arrow Lake; verifying BAR1 above is the real test\\)\")",
       "Bash(ssh *)",
       "PowerShell(Set-Location C:\\\\work\\\\commandcenter; python -m tools.workflow.reference_runner fixtures/workflow/sample-work-item.md \"$env:TEMP\\\\cc-dispatch-demo\" --scenario policy-blocked --policy fixtures/workflow/policy/policy.json | Select-Object -Last 12; python -m tools.workflow.reference_runner fixtures/workflow/sample-work-item.md \"$env:TEMP\\\\cc-dispatch-demo2\" --scenario policy-experiment --policy fixtures/workflow/policy/policy.json | python -c \"import json,sys; s=json.load\\(sys.stdin\\); print\\('status:', s['status']\\)\")",

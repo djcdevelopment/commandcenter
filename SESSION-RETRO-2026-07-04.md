@@ -186,3 +186,129 @@ Git range: since `5573979` (last retro commit); this session added only
 `.claude/skills/retro/SKILL.md` (untracked). Offloaded: the five role-read first-passes
 (`local_generate`, qwen3-coder:30b, edited after). Frontier: factsheet, all repo writes, ADR wording,
 this whole edit. `--fleet` not used (no independent draft). Derek's-seat section is a reconstruction.
+
+---
+
+# Session Retro — 2026-07-04 (addendum 2 · Banked Fire P1–P5 · the wind tunnel armed)
+
+> One-line: from "where are we at" to **stage-6 autonomy armed in one session** — mothballed the
+> external pitch, found and fixed the door that had died with a closed console window, wrote the
+> Banked Fire strategy on verified probes, and shipped **P1–P5 of bankedfire** (backend pool →
+> occupancy → task lane → watchdog → idle-drain) with the drain live-ARMED — while Fable never
+> built a line itself: **Sonnet agents built, qwen drafted, the frontier designed and reviewed.**
+
+## What this session was
+
+A design→delegate→ship session, and a deliberate economics experiment in its own right: after the
+strategy and review work, Derek's constraint ("I can't afford your tokens to build this") forced
+the token-tier split that the rest of the session then proved out. Concurrent with (and interleaving)
+an independent builder session that owned the oxen rename + P1.
+
+## What shipped (this session's commits; `584d816`/`8c0a75a` are the concurrent session's)
+
+| Commit | What |
+|---|---|
+| `de19082` | gateway wrapper observability (the silent console-death fix's first half) |
+| `ec2ca27` | Proving Ground proposal **mothballed** to `archive/` (priority → in-house MCP + mechnet) |
+| `322ab7d` | **doorcheck CLI** (`--revive` relaunches DETACHED; kill/revive proven live) + `/checkmcp` + `/checkmechnet` skills + gateway check in fleet inventory |
+| `3ddc8e5` | **HEARTH-BANKED-FIRE-STRATEGY.html** — Δ4 made concrete on verified probes; two lanes, no second scheduler, P1–P5 |
+| `a825adf` | **P4 mechnet watchdog** committed (concurrent session's build; tests re-verified 8/8) |
+| `7bd6441` | **P2 occupancy** — AM4 render-owner serve-truth over SSH, 30s cache, fail-open, `Lease` helper (Sonnet agent) |
+| `7b55fb7` | **P3 task lane** — `submit_task`/`task_status`, conductor inbox drops, zero conductor changes (Sonnet agent) |
+| `ea71d93` | codename **bankedfire** ratified; P1–P4 doc status (Sonnet agent) |
+| `f790ec4` | **P5 idle-drain** — tick: arm→occupancy→budget→highest-worth candidate→dispatch; authored arm toggle; `BankedfireDrain` 30-min task; **ARMED** after a clean supervised busy-no-op cycle (Sonnet agent) |
+
+New durable artifacts: `hearth/callers/doorcheck.py`, `hearth/toolsurface/{occupancy,task_lane}.py`,
+`fleet/{mechnet_watchdog,bankedfire_drain}.py` (+ cmd wrappers + tests), `.claude/skills/{checkmcp,checkmechnet}/`,
+two registered scheduled tasks (`MechnetWatchdog`, `BankedfireDrain`), `archive/`, the three-plane
+doctrine (memory + strategy-doc panel), ADR-0005/0006 (below). Tests 148 → 226; gateway 21 → 23 tools.
+
+## The team retro — our collaboration across the seats
+
+*(First passes drafted by qwen3-coder:30b via `local_generate` and edited against the factsheet —
+it predictably credited Derek with hand-rolling the client and building doorcheck; those were
+Claude's. Corrected here; the seat-level judgments are frontier.)*
+
+- **Architect** (Claude proposed, Derek + another Claude sharpened) — The load-bearing calls were
+  *reconciliation* calls, not inventions: Banked Fire is Derek's own Δ4 with plumbing, the task lane
+  rides the existing conductor instead of growing a second scheduler, and the three-plane review
+  adopted an outside model only after verifying its factual claims in code and amending where it
+  oversimplified (control-surface roles; conductor-FS demoted to admission signal; layered revive).
+  What to change: the strategy doc was written before discovering the AM4-MCP tools existed — a
+  five-minute capability inventory of the *whole* mechnet before writing would have gotten P2's
+  design right the first time.
+- **Implementer** (three Sonnet agents, ~444k of their tokens) — Precise zero-context briefs turned
+  out to be the real interface: all three agents shipped on-spec with tests (31+12+27 new) and none
+  needed a second round-trip. The one real defect (the `subprocess.run` default-arg binding that
+  defeated a test mock) was the agent's own, caught by the agent, reported honestly. What to change:
+  briefs should mandate dry-run/mock-verification *before* any code path can touch a shared box —
+  the 7 stray inbox items were harmless but real.
+- **Reviewer / QA** (Claude, with the live system as witness) — Verification-before-endorsement
+  carried the session: the three-plane suggestion's tool claims were checked in source before
+  adoption, both kill/revive loops were proven against the *live* gateway rather than asserted, and
+  the P5 supervised cycle was accepted on a busy-no-op — the *correct* boring outcome — instead of
+  forcing a dispatch for a prettier demo. What slipped: the stray-items incident reached the real
+  conductor before tests caught it; test isolation for anything SSH-shaped needs to be paranoid by
+  default.
+- **Operator / SRE** (Claude on OMEN; the mechnet itself) — Two genuine incidents, both closed with
+  root cause: the gateway's silent death was a console-lifetime kill (task never registered — the
+  script's own comment claimed otherwise), fixed structurally with DETACHED relaunch + watchdog; and
+  the B70s' real contention stalled the P3 acceptance run, which is not a failure but the P5
+  admission gap demonstrating itself on schedule. Self-healing went from zero to two registered
+  watchdog layers in one session. What to change: thermal/power ceilings are declared in the budget
+  but not yet measured — Δ2 telemetry is now the obvious next operator investment.
+- **Product / planning** (Derek's seat, exercised exactly as designed) — Derek made every
+  irreversible call (mothball, name, codename, delegate, arm) and spent zero time on reversible
+  ones; the pacing directive held (strategy stayed draft until the cue). Scope grew once —
+  "strategy" became "strategy + build" — but by explicit ratification, not drift. The token
+  constraint was the session's best product decision: it forced an operating model (below) that is
+  itself reusable.
+
+## Two seats, two views
+
+**From Claude's seat.** The session's quiet lesson is that my highest-value output was *briefs and
+verification*, not code — every line shipped was written by a cheaper tier against a spec I could
+hold to account, and nothing needed rework. Where I nearly over-reached: I was one keystroke from
+building P2 inline before Derek's cost correction; the delegation produced the same outcome at a
+fraction of the spend. Where I under-reached: I recommended wiring the HEARTH MCP into session
+config in my first hour and then let it sit — the whole session ran on a hand-rolled client, which
+worked but left the CLAUDE.md directive unexecutable for any session that doesn't think to do the
+same. What I'd want next time: the factsheet's "files touched" half assembled mechanically from my
+tool log instead of recalled.
+
+**From Derek's seat** *(my reconstruction of your view — correct me).* You got the thing you've been
+circling for weeks: the wind tunnel actually armed, on your own hardware, under your own authored
+budget, with every crossing on one ledger — and you got it without burning frontier tokens on grunt
+work, which was the point of HEARTH all along. The three-plane doctrine landing as a ratified ADR
+matters to you because it's the argument you'll reuse when the next shiny "second connector" idea
+shows up. You'd flag two things: the stray-items incident is exactly why agents don't get cleanup
+authority on shared boxes without asking, and the first unattended overnight drain is the real
+acceptance test — tonight's ledger is the artifact you actually care about reading tomorrow.
+
+## Lessons learned
+
+1. **A comment claiming "registered as scheduled task" is not a registered scheduled task.**
+   Services must be *provably* detached from consoles and watched by something that heals them.
+   → done structurally (doorcheck DETACHED + two watchdog layers); runbook note in `/checkmcp`.
+2. **Verify an outside reviewer's factual claims in source before adopting the design.** The
+   three-plane suggestion was right *because* `render_owners`/`start_oxen_backend` were real; the
+   review's value was the verification plus the three amendments. → practice, recorded here.
+3. **One boundary or the dataset fragments.** → **ADR-0005**.
+4. **Autonomy is earned by a boring supervised cycle, not granted by a flag.** The drain got its
+   ARMED state because it correctly did *nothing* on busy hardware. → **ADR-0006**.
+5. **Token-tier delegation works when the brief is the contract.** Frontier designs/reviews, mid-tier
+   builds, local drafts — three agents, zero rework rounds. → memory (`feedback-token-tier-delegation`).
+6. **Anything SSH-shaped in tests gets paranoid isolation.** Default-arg binding of `subprocess.run`
+   silently defeated a mock and leaked 7 items to a shared box. → brief-template note (5's memory).
+7. **The B70 stall was the thesis proving itself** — the conductor dispatches without checking
+   occupancy; P5's admission gate is the fix and it was already designed. → no action, satisfaction.
+
+## Provenance
+
+Git range `8c8213b..f790ec4` (+ this docs commit); `584d816`/`8c0a75a` are a concurrent session's,
+scoped out. Offloaded: timeline/role-read/lessons first passes (`local_generate`, qwen3-coder:30b,
+~35s, edited against the factsheet — attribution errors corrected) and 5 commit-message drafts
+across the session. Fleet second opinion: `--fleet` dispatched as plan
+`hearth-retro-2026-07-04-a2c55db0` (am4-worker-1; check `task_status` later — B70s were under real
+load at dispatch time). Frontier: factsheet, all repo writes, ADR wording, both seat views; Derek's
+seat is a reconstruction. Builds credited above were Sonnet-agent work against frontier briefs.

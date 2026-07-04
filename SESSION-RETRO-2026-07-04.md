@@ -537,3 +537,90 @@ doc to Derek and garbled the scout targets; corrected against the factsheet). `-
 opinion dispatched: plan_id `hearth-retro-2026-07-04-jobshop-35fc03d7` (poll `task_status`).
 Frontier: factsheet, all judgments, ADR-0008/0009, every repo write. Derek's-seat is a
 reconstruction. Suite green at write time (272 tests + assay 6); commits unpushed.
+
+---
+
+# Addendum 5 — the CQRS fan-out session (advisory)
+
+**One-line:** Derek asked one sentence — *standardize toward classic event sourcing, fan out
+as needed* — and the suit **ran a full scout → three-lens review → synthesis lap** producing a
+ratifiable 10-step plan, zero code touched; then Derek named what he was watching: Phase 7.
+
+## What this session was
+
+Pure advisory/design — no commits, no code edits. A structured architecture review of the
+HEARTH event/ledger/projection layer against classic CQRS/event-sourcing, executed as a
+multi-agent fan-out: 1 Sonnet explorer mapped the terrain, then 3 parallel reviewers
+(Opus ES-purist, Sonnet pragmatic-migration, Opus query-side/projections), then frontier
+synthesis. Followed by Derek articulating **Phase 7 of the Mech Suit Methodology** live.
+
+## What shipped
+
+No commits. Durable artifacts:
+- [docs/CQRS-ES-STANDARDIZATION.md](docs/CQRS-ES-STANDARDIZATION.md) — full synthesis:
+  unanimous calls, sharpest findings, don't-bothers, 10-step execution order, open decisions.
+- Memory: Phase 7 articulation added to `reference-mech-suit-methodology`; new
+  `project-cqrs-es-review` memory.
+- Fleet second opinion in flight: `hearth-retro-2026-07-04-cqrs-fanout-d164cdf2`.
+
+## The team retro — our collaboration across the seats
+
+- **Architect** (Derek intent, Claude structure): the fan-out design was right-sized — three
+  *genuinely different* lenses (purist/migration/query-side) rather than three redundant
+  reviewers, and they converged independently on the big calls (two bounded contexts, rebuild
+  button, corpus_guard demotion). Convergence across diverse lenses is the signal; identical
+  prompts would have proven nothing. The Three Chairs pattern is now an operational move, not
+  a one-off artifact.
+- **Implementer**: idle by design. The output is deliberately fleet-briefable — each of steps
+  2–4 is a self-contained builder prompt per the token-tier protocol. Nothing was built that
+  Derek hadn't paced (fleet-handoff-pacing honored: plan drafted, release on his cue).
+- **Reviewer/QA**: the reviewers spot-checked code rather than trusting the explorer's map
+  wholesale — the query-side agent's verification pass surfaced the session's sharpest
+  finding (the unguarded `capacity.json` bare `write_text` bypass), which the map alone had
+  only hinted at. Lesson from Addendum 4 applied: scout reports confirm existence, reviewers
+  confirmed shape.
+- **Operator/SRE**: the door behaved — `local_generate` (qwen3-coder, 24.7s) and `submit_task`
+  both clean on first call; no revives needed. The retro's own offloads landed on the ledger
+  per capture-first.
+- **Product/planning**: exactly the asked-for deliverable, no scope creep into building.
+  The one addition (Phase 7 memory capture) was Derek's own articulation, worth durable
+  storage on its face.
+
+## Two seats, two views
+
+**From Claude's seat.** The clean part: the lap cost Derek one sentence, and the synthesis is
+decision-ready rather than a wall of agent output — the convergence check (what did all three
+agree on?) did most of the compression work. What I'd repeat: sequencing the explorer *before*
+the fan-out so all three reviewers shared one verified map instead of each re-exploring.
+What I'd watch: advisory sessions produce recommendations that *feel* done — nothing here is
+real until steps land and the golden determinism test passes.
+
+**From Derek's seat** *(my reconstruction — correct me)*: this is what the suit is for. I said
+one sentence about a pattern I care about and got back a fact-checked, sequenced, fleet-ready
+plan that found a live blind spot in code I thought was guarded. And the session itself was
+the demonstration of Phase 7 — pieces became roles, I scouted/drove/posted up/collected. The
+part that isn't transferable is that I actually care whether the ledger tells the truth;
+that's why the review was worth running at all.
+
+## Lessons learned
+
+1. **Lens diversity, not reviewer redundancy, is what makes fan-out reviews trustworthy** —
+   independent convergence across different framings is the acceptance signal. → memory
+   (folded into mech-suit Phase 7 note); candidate ADR if ratified as review protocol.
+2. **Advisory output must be fleet-briefable to be real** — each recommendation step sized and
+   scoped as a zero-context builder prompt, or it's just an essay. → practice, no ADR.
+3. **A guard that must fire to prevent data loss is a design smell** — the corpus_guard
+   demotion principle generalizes: replace conventions with mechanisms, keep guards as
+   tripwires. → becomes an ADR when Derek ratifies the CQRS plan.
+4. **The `capacity.json` bypass shows guards rot silently as new writers appear** — new
+   projection writers didn't inherit guard coverage. Interim: watch for it; structural fix is
+   plan steps 2/4. → doc (captured in CQRS-ES-STANDARDIZATION.md).
+
+## Provenance
+
+Git range: none (zero commits; working tree clean at ea0b62a throughout). Offloaded:
+timeline/role-reads/lessons first pass (`local_generate`, qwen3-coder:30b, 24.7s, 906 tok —
+edited; draft was faithful, mildly fluffy, no factual inventions this time). `--fleet` second
+opinion dispatched: plan_id `hearth-retro-2026-07-04-cqrs-fanout-d164cdf2` (verifies the
+blind-spot claim against code; poll `task_status`). Frontier: factsheet, synthesis doc, all
+judgments, this addendum. Derek's-seat is a reconstruction.

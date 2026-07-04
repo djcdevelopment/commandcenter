@@ -40,8 +40,21 @@ user asks).
 
 ## Phase 0 — Gather the factsheet (frontier — only I can do this)
 
-Assemble a compact FACTSHEET. Pull from three sources and keep it tight; it is the
-context every later offload depends on (a local draft is only as good as this).
+**First, close the loops from last time (reap before you sow):**
+- **Reap pending fleet second opinions.** Read the previous retro's Provenance for
+  any `--fleet` plan_ids; `mcp__hearth__task_status(plan_id)` each. Fold completed
+  verdicts into this retro as a short **"Second opinion resolved"** note (agree /
+  disagree / what it caught that we missed). A dispatched-but-never-read second
+  opinion is worse than none — it costs tokens and teaches nothing.
+- **Audit last retro's lessons for follow-through.** Read the previous retro's
+  Lessons section and grade each: `acted-on | pending | dropped` (one-line table
+  in the new retro, with a link when acted-on). Retros are cheap; follow-through
+  is the value. A lesson pending 2+ retros gets escalated to the open-decisions
+  register (Phase 2e) or explicitly dropped with a reason.
+
+Then assemble a compact FACTSHEET. Pull from three sources and keep it tight; it
+is the context every later offload depends on (a local draft is only as good as
+this).
 
 1. **The conversation arc** (only I have it): the original ask, how it evolved,
    decisions made, dead-ends, things the user corrected. Include the *why*.
@@ -54,6 +67,10 @@ context every later offload depends on (a local draft is only as good as this).
    Auto-detect `<since>` when not given: the commit where this session started
    (the first commit after the last `SESSION-RETRO-*` docs commit, or `HEAD~N`
    spanning today's work — check `git log --since=<session-start>`).
+   **Advisory / zero-commit sessions are normal** (design reviews, fan-outs,
+   decisions): if the range is empty, say so plainly, skip the diff-derived doc
+   sweep in 2c, and center "What shipped" on artifacts + decisions instead of the
+   commit table. Don't stretch the range backward to manufacture commits.
 3. **Tools & files I touched this session** (from my context): which files were
    read/edited/written, which MCP/fleet calls were made, what they returned.
 
@@ -68,6 +85,10 @@ extract" cases CLAUDE.md says to offload. **The local model has no repo access �
 put every fact it needs in the prompt.** One retry max on `ok:false`; if still
 cold or unusable, draft it yourself.
 
+**Give the model one real exemplar:** include ~40 lines of the previous retro's
+role-reads section in the prompt as a style sample (local models draft far better
+with an in-context example; the edit tax drops measurably).
+
 Offload these sub-jobs (separate `mcp__hearth__local_generate` calls, or one
 batched prompt):
 - **Timeline condense** — turn the raw arc into a tight chronological narrative.
@@ -78,7 +99,11 @@ batched prompt):
 
 Treat every result as a *draft*: correct hallucinations against the FACTSHEET
 (the local model has invented content here before — that's expected, it's why we
-edit). If HEARTH is down, run `checkmcp` once (`doorcheck --revive`); if still
+edit). **Grade the draft** with a one-word verdict —
+`faithful | minor-fixes | hallucinated` — recorded in both the retro's Provenance
+line and the Phase 3 event payload (`offload.edit_verdict`). This is free
+longitudinal quality data on local-model prose; it's the learning loop the
+offload doctrine promises, at zero extra cost. If HEARTH is down, run `checkmcp` once (`doorcheck --revive`); if still
 down, fall back to `--no-offload` behavior and note it in the retro's provenance.
 
 **`--fleet` (optional independent draft):** also
@@ -115,10 +140,19 @@ overwriting.) Match the house style. Required sections:
   see it* from his stated preferences and this session's signals (mark it clearly
   as my reconstruction of his view, to be corrected — never put words in his mouth
   as fact).
+- **Last time's lessons** — the follow-through table from Phase 0
+  (`acted-on | pending | dropped`, one line each). Skip only if there is no prior
+  retro with lessons.
+- **Second opinion resolved** — verdict(s) from any reaped `--fleet` plan_ids
+  (Phase 0). Omit if none were pending.
 - **Lessons learned** — the durable ones, numbered; each flags whether it becomes
-  an ADR, a memory, or a doc change.
-- **Provenance** — one line: git range, what was offloaded vs frontier, `--fleet`
-  plan_id if used. (Honesty per the report-faithfully rule.)
+  an ADR, a memory, or a doc change. Give each a stable id
+  (`L-<YYYY-MM-DD>-<n>`, suffix addendum letter if multiple retros that day) so
+  the follow-through audit and the lessons read-model can track it across
+  sessions.
+- **Provenance** — one line: git range, what was offloaded vs frontier (incl. the
+  draft `edit_verdict`), `--fleet` plan_id if used. (Honesty per the
+  report-faithfully rule.)
 
 ### 2b. ADRs — `docs/adr/000N-<slug>.md`
 For each durable *decision* (not just a lesson): write a new ADR or update an
@@ -138,6 +172,14 @@ memory rules in the system prompt), and add/refresh the one-line pointer in
 `MEMORY.md`. Update existing memory rather than duplicating; delete what's now
 wrong.
 
+### 2e. Open-decisions register — `DECISIONS-PENDING.md`
+Retros, ADRs, and review docs each accumulate "pending Derek decisions" that
+scatter. Keep one register at repo root: append this session's open decisions as
+`- [ ] <date> — <decision> (source: <link>)`, and check off / prune any the
+session resolved (with a link to where it was decided). This is the single place
+Derek looks when batching decisions in a downtime window. Bounded: touch only
+lines this session created or resolved — no register-wide rewrites.
+
 ## Phase 3 — Ledger & report (HEARTH)
 
 - `mcp__hearth__record_event` a compact observation (the retro is itself a
@@ -146,8 +188,23 @@ wrong.
   `event_type: "retrospective.created"` (a canonical, terminal type),
   `actor: {type, id}` (an **object**, not a string), and the required
   `retrospective_id`, plus `event_id`, `run_id`, `workflow_id`, `timestamp`
-  (ISO-Z), `status`, and a `payload` object (put summary/artifacts/git-range/
-  offload there). Note: every `local_generate`/`submit_task` call already
+  (ISO-Z), `status`, and a `payload` object. **Structure the payload for
+  projection, not just for reading** — the retro is an event stream, so make it a
+  read-model source (CQRS applied to the skill itself):
+  ```json
+  "payload": {
+    "summary": "<one-liner>",
+    "git_range": "<a>..<b> | none (advisory)",
+    "artifacts": ["path", ...],
+    "lessons": [{"id": "L-<date>-<n>", "text": "...", "disposition": "adr|memory|doc|practice"}],
+    "lessons_followthrough": [{"id": "L-...", "status": "acted-on|pending|dropped"}],
+    "offload": {"model": "...", "tokens_out": 0, "edit_verdict": "faithful|minor-fixes|hallucinated"},
+    "fleet_plan_id": "<id or null>"
+  }
+  ```
+  A future `project_retros.py` can then materialize `knowledge/lessons.json` — a
+  queryable read model of every lesson ever learned ("have we learned this
+  before?") — without re-parsing markdown. Note: every `local_generate`/`submit_task` call already
   self-ledgers via the gateway wrapper, so this event is the retro's *own*
   marker, not the offload's. Skip only if HEARTH is down.
 - Report to the user: the through-line one-liner, a short table of artifacts

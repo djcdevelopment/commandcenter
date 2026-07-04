@@ -9,3 +9,5 @@ node_modules/
 *.log
 hearth/var/
 .mcp.json
+runs/hearth/
+.codex-temp/

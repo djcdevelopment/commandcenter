@@ -281,7 +281,8 @@ def _gated_summary(buckets: list[dict]) -> list[dict]:
     ]
 
 
-def materialize_associations(event_files: list[Path], knowledge_dir: Path) -> dict:
+def materialize_associations(event_files: list[Path], knowledge_dir: Path,
+                              as_of: str | None = None) -> dict:
     observations: list[dict] = []
     decisions: list[dict] = []
     unresolved_refs = 0
@@ -292,6 +293,10 @@ def materialize_associations(event_files: list[Path], knowledge_dir: Path) -> di
         observations.extend(extracted_observations)
         decisions.extend(extracted_decisions)
         unresolved_refs += unresolved_observations + unresolved_decisions
+
+    if as_of is not None:
+        observations = [o for o in observations if (o.get("timestamp") or "") <= as_of]
+        decisions = [d for d in decisions if (d.get("timestamp") or "") <= as_of]
 
     findings = synthesize_findings(observations, decisions)
     buckets = analyze_buckets(observations)

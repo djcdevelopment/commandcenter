@@ -60,9 +60,12 @@ def scan_runs(records, phantom_age_s: int = PHANTOM_AGE_S) -> "list[Gap]":
                     f"holds phantom occupancy"))
             continue
 
-        # Spell: crashed_isolated — a terminal error result (includes our stubs).
+        # Spell: crashed_isolated — a terminal ERROR result. Key on the error
+        # status itself, NOT the bare _stub flag: a watchfire heal-stub is also a
+        # stub but its status is "abandoned" (resolved), not "errored" — a heal
+        # must resolve a gap, never relabel it as a fresh crash.
         err = r.get("error") or ""
-        if r.get("stub") or r.get("status") == "errored" or "errored (isolated)" in err:
+        if r.get("status") == "errored" or "errored (isolated)" in err:
             gaps.append(Gap("crashed_isolated", "high", pid,
                 f"run errored: {(err or r.get('status') or '').strip()[:120]}"))
 

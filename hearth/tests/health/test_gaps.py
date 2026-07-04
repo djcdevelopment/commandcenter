@@ -62,6 +62,15 @@ class ScanRunsTests(TestCase):
         self.assertIn("false_success", _kinds(gaps))
         self.assertTrue(any("empty deliverable" in g.detail for g in gaps))
 
+    def test_watchfire_heal_stub_is_resolved_not_a_fresh_crash(self):
+        # A healed phantom (status "abandoned") must produce NO gap — a heal
+        # resolves, it must not re-flag as crashed_isolated just because it's a stub.
+        healed = {"plan_id": "soak-x", "age_s": 10, "has_result": True,
+                  "status": "abandoned", "stub": True, "_stub_reason": "watchfire-phantom-heal",
+                  "error": "auto-healed by watchfire: phantom_in_flight - occupancy released",
+                  "winner": None, "n_questions": 0, "questions_text": ""}
+        self.assertEqual(scan_runs([healed]), [])
+
     def test_summarize_counts_by_severity_and_kind(self):
         gaps = [Gap("phantom_in_flight", "warn", "a", "x"),
                 Gap("crashed_isolated", "high", "b", "y"),

@@ -51,8 +51,8 @@
 
 <h1>Watchfire &amp; Flare</h1>
 <p class="sub">An NPU charm for the guard dog (<code>mechnet_watchdog</code>) &mdash; cross-source correlation, one engine, two sensitivities
-&nbsp;<span class="badge draft">DESIGN v0.2 — 2026-07-04</span>
-&nbsp;<span class="badge idea">SHAPED IN CONVERSATION — not yet built</span>
+&nbsp;<span class="badge draft">DESIGN v0.3 — 2026-07-04</span>
+&nbsp;<span class="badge verified">SLICE 0 BUILT + LIVE — preflight + remediate</span>
 &nbsp;<span class="badge idea">names floated, not ratified</span>
 &nbsp;<span class="badge verified">extends mechnet_watchdog (P4)</span></p>
 
@@ -258,7 +258,7 @@ labeled corpus.</p>
 <tr><td><strong>0 — the trigger</strong></td>
     <td>A deterministic rules detector over ledger + <code>runs/</code> + the four sources, exposed as
         <code>hearth.preflight</code>. Catches all four of today's false-greens. <em>Generates the labeled dataset.</em></td>
-    <td>No</td><td>Nothing — buildable now</td></tr>
+    <td>No</td><td><span class="badge verified">BUILT + LIVE 2026-07-04</span> <code>preflight</code> (observer) + <code>remediate</code> (hands); first live run found 7 gaps across 82 runs, auto-healed 3 phantoms, left 4 flagged. 22 tests.</td></tr>
 <tr><td><strong>1 — the flare's brain</strong></td>
     <td>Small ONNX model (snapshot-shape / log-line → failure-class + novelty score), hosted on the NPU via OpenVINO. Catches the fuzzy tail rules miss.</td>
     <td>Yes</td><td>Slice 0's labeled reps</td></tr>
@@ -297,7 +297,12 @@ described it → it becomes something to <em>offload</em> instead of something h
 <li><strong>Names:</strong> ratify / replace <em>watchfire</em> + <em>flare</em> (naming is Derek's domain).</li>
 <li><strong>Start point:</strong> build Slice 0 (the rules detector + <code>hearth.preflight</code>) now, or shape further on this doc first?</li>
 <li><strong>Flare trigger policy:</strong> may Watchfire <em>auto-suggest</em> arming a Flare when it trips a gap, or only ever offer (never self-arm)? (Recommended: offer only &mdash; keep it eyes, never an authority.)</li>
-<li><strong>Auto-heal vs flag-only line</strong> <span class="badge idea">the charm's load-bearing guardrail</span> &mdash; which findings may the guard dog auto-remediate (boring / reversible: stub an errored run, release phantom occupancy, freshen a stale checkout) vs. flag-only (ambiguous: hand to a reasoner)? Getting this line wrong is the one way the familiar does harm.</li>
+<li><strong>Auto-heal vs flag-only line</strong> <span class="badge verified">RESOLVED 2026-07-04</span> &mdash;
+    <em>research-lab policy (Derek):</em> the guard dog <strong>auto-heals the obvious + reversible</strong> gaps and
+    documents each move (act, then post-mortem; everything is undoable / rebuildable), and leaves everything
+    ambiguous <strong>flag-only</strong>. v0 auto-heals <code>phantom_in_flight</code> (stub &rarr; release occupancy;
+    delete the stub to undo); <code>false_success</code> and <code>stale_checkout</code> stay flagged. Shipped as the
+    <code>remediate</code> tool &mdash; and a heal <em>resolves</em> a gap, it never relabels it as a fresh crash.</li>
 <li><strong>Snapshot cadence:</strong> Watchfire idle interval, and the auto-disarm window for a Flare.</li>
 <li><strong>Correlation rules v0:</strong> confirm the starting gap-checks (claim-vs-physical-util, nodes-without-result, graded-pass-empty-deliverable, stale-checkout question, span-started-no-completion).</li>
 </ul>

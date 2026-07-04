@@ -17,8 +17,10 @@ import base64
 import json
 from typing import Callable, Optional
 
-from hearth.health.gaps import gaps_as_dicts, scan_runs, summarize
+from hearth.health.gaps import gaps_as_dicts, load_capacity_document, scan_runs, summarize
 from hearth.toolsurface.task_lane import CONDUCTOR_REPO, _run_ssh
+
+DEFAULT_CAPACITY_PATH = "knowledge/capacity.json"
 
 # Runs on the conductor's python3; emits a compact JSON summary of run dirs that
 # carry a nodes.json (i.e. were dispatched), newest first, bounded to 60. The
@@ -43,12 +45,18 @@ for name in names:
            "has_result": os.path.isfile(res)}
     if rec["has_result"]:
         try:
+            # duration_s: least-invasive actual-runtime proxy — the gap between
+            # dispatch (nodes.json write) and completion (result.json write),
+            # both already-stat'd mtimes. No new artifact/schema needed on the
+            # conductor side to get a real "how long did this run take".
+            rec["duration_s"] = round(os.path.getmtime(res) - os.path.getmtime(nodes))
             r = json.load(open(res))
             rec["status"] = r.get("status")
             rec["error"] = (r.get("error") or "")[:200]
             rec["stub"] = bool(r.get("_stub"))
             rec["winner"] = r.get("winner")
             rec["promoted"] = bool((r.get("promotion") or {}).get("promoted"))
+            rec["task_class"] = r.get("task_class") or r.get("workflow_id") or "unknown"
             qs = r.get("questions") or []
             rec["n_questions"] = len(qs)
             rec["questions_text"] = " ".join(q.get("question", "") for q in qs)[:600]
@@ -79,19 +87,25 @@ def _gather_runs(runner: Optional[Callable] = None):
     return payload, None
 
 
-def patrol() -> dict:
+def patrol(capacity_path: str = DEFAULT_CAPACITY_PATH) -> dict:
     """Make one round of the coherence watch: scan the fleet's runs, flag gaps.
 
     Returns ``{ok, scanned, considered, gaps:[{kind,severity,plan_id,detail}],
     summary}``. A gap is a place two sources disagree — a run that reads
     in-flight but is stalled, a pass grade over an empty deliverable, a builder
-    reporting missing files. Finds and names the gap; does not fix it.
+    reporting missing files, or (JS6) a run that took far longer than its
+    capacity envelope predicts. Finds and names the gap; does not fix it.
+
+    ``capacity_path`` resolves in the HEARTH sandbox (see ``_scope``); when the
+    file is absent, the schedule_divergence spell simply fires nothing — cheap,
+    default-on, and silent when there's no capacity data yet.
     """
     payload, error = _gather_runs()
     if error is not None:
         return {"ok": False, "error": error}
     records = payload.get("records", [])
-    gaps = scan_runs(records)
+    capacity = load_capacity_document(capacity_path)
+    gaps = scan_runs(records, capacity=capacity)
     return {
         "ok": True,
         "scanned": payload.get("scanned", len(records)),

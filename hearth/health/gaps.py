@@ -12,10 +12,16 @@ it needs cross-node telemetry and is deliberately out of this slice.
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, asdict
 
 # No result.json this long after dispatch => phantom/stalled run holding occupancy.
 PHANTOM_AGE_S = 1800  # 30 minutes
+
+# schedule_divergence (JS6): actual duration this many times over the bucket's
+# p90 counts as "far longer than the capacity envelope predicts". Strictly
+# greater-than — exactly 2x is still within the envelope, not a divergence.
+SCHEDULE_DIVERGENCE_FACTOR = 2
 
 # Substrings in a builder's surfaced question that mean "my source checkout is stale".
 _STALE_CHECKOUT_MARKERS = (
@@ -39,7 +45,53 @@ def _as_int(v):
     return v if isinstance(v, int) else None
 
 
-def scan_runs(records, phantom_age_s: int = PHANTOM_AGE_S) -> "list[Gap]":
+def load_capacity_document(path) -> "dict | None":
+    """Read a capacity.v1 document (see hearth/contracts/capacity.v1.schema.json)
+    from the HEARTH sandbox. Returns None (not a raise) when the file is absent
+    or unreadable/malformed — capacity data is optional evidence, never a hard
+    dependency; the schedule_divergence spell just fires nothing without it.
+    Import is local to avoid a toolsurface->health import at module load time.
+    """
+    from hearth.toolsurface._scope import resolve_in_scope
+
+    try:
+        resolved = resolve_in_scope(path)
+        if not resolved.is_file():
+            return None
+        return json.loads(resolved.read_text(encoding="utf-8"))
+    except (ValueError, OSError, json.JSONDecodeError):
+        return None
+
+
+def _find_bucket(buckets, task_class, node, tool):
+    """(task_class, node) -> (tool, node) -> any-node-for-task fallback chain."""
+    by_task_node = None
+    by_tool_node = None
+    by_task_any = None
+    for b in buckets:
+        if not isinstance(b, dict):
+            continue
+        b_task = b.get("task_class")
+        b_node = b.get("node")
+        b_tool = b.get("tool")
+        if by_task_node is None and task_class is not None and b_task == task_class and b_node == node:
+            by_task_node = b
+        if by_tool_node is None and tool is not None and b_tool == tool and b_node == node:
+            by_tool_node = b
+        if by_task_any is None and task_class is not None and b_task == task_class and b_node is None:
+            by_task_any = b
+    return by_task_node or by_tool_node or by_task_any
+
+
+def _bucket_p90(bucket) -> "float | None":
+    if not isinstance(bucket, dict):
+        return None
+    duration_ms = bucket.get("duration_ms") or {}
+    p90 = duration_ms.get("p90")
+    return p90 if isinstance(p90, (int, float)) else None
+
+
+def scan_runs(records, phantom_age_s: int = PHANTOM_AGE_S, capacity: "dict | None" = None) -> "list[Gap]":
     """Apply the coherence spells to a list of run records; return the gaps found.
 
     A record is a plain dict (shape produced by patrol._gather_runs):
@@ -85,6 +137,24 @@ def scan_runs(records, phantom_age_s: int = PHANTOM_AGE_S) -> "list[Gap]":
         if wf is not None and wf <= 1 and r.get("winner_grade"):
             gaps.append(Gap("false_success", "warn", pid,
                 f"winner graded {r.get('winner_grade')} but produced {wf} file(s) — likely empty deliverable"))
+
+        # Spell: schedule_divergence (JS6, info, flag-only) — a completed run
+        # took far longer than its capacity envelope predicts. Needs both a
+        # measurable actual duration AND a matching bucket; either missing
+        # means "no evidence either way", not "fine" — so it silently skips.
+        buckets = (capacity or {}).get("buckets") or []
+        duration_s = r.get("duration_s")
+        if buckets and isinstance(duration_s, (int, float)) and r.get("status") not in (None, "errored", "abandoned"):
+            bucket = _find_bucket(buckets, r.get("task_class"), r.get("winner"), r.get("tool"))
+            p90_ms = _bucket_p90(bucket)
+            if p90_ms is not None and p90_ms > 0:
+                actual_ms = duration_s * 1000
+                if actual_ms > SCHEDULE_DIVERGENCE_FACTOR * p90_ms:
+                    used = bucket.get("task_class") or bucket.get("tool") or "unknown"
+                    node = bucket.get("node") or "any-node"
+                    gaps.append(Gap("schedule_divergence", "info", pid,
+                        f"actual {round(actual_ms)}ms vs bucket p90 {round(p90_ms)}ms "
+                        f"(bucket {used}@{node}) — ran {round(actual_ms / p90_ms, 1)}x envelope"))
     return gaps
 
 

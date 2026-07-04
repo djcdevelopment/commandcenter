@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://commandcenter.local/contracts/capacity.v1.schema.json",
+  "title": "Capacity Buckets v1",
+  "description": "Duration-percentile buckets used by Watchfire's schedule_divergence spell (JS6) to compare an actual run duration against its capacity envelope. Distinct from capacity-observation.v1 (per-run raw telemetry) and capacity-estimates.v1 (success-rate/tokens-per-s combos) — this is a purpose-built lookup for schedule-vs-reality comparison.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "buckets"],
+  "properties": {
+    "contract_version": { "const": "capacity.v1" },
+    "buckets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["duration_ms"],
+        "properties": {
+          "task_class": { "type": ["string", "null"] },
+          "node": { "type": ["string", "null"] },
+          "model": { "type": ["string", "null"] },
+          "tool": { "type": ["string", "null"] },
+          "calls": { "type": ["integer", "null"] },
+          "duration_ms": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "p50": { "type": ["number", "null"] },
+              "p90": { "type": ["number", "null"] },
+              "p99": { "type": ["number", "null"] }
+            }
+          }
+        }
+      }
+    }
+  }
+}

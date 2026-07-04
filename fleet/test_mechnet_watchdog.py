@@ -45,6 +45,14 @@ def _fake_prober(up_ports):
     return prober
 
 
+def _fake_remediator(apply):
+    """Stand-in for hearth.toolsurface.remediate.remediate — no SSH."""
+    return {"ok": True, "dry_run": not apply,
+            "healable": [{"kind": "phantom_in_flight", "plan_id": "x"}],
+            "flagged": [{"kind": "false_success", "plan_id": "y"}],
+            "healed": ([{"plan_id": "x", "action": "stubbed"}] if apply else [])}
+
+
 def _write_inv(tmp: Path) -> Path:
     path = tmp / "inventory.toml"
     path.write_text(_INV, encoding="utf-8")
@@ -109,7 +117,8 @@ class RunPassTests(TestCase):
         report = wd.run_pass(
             self.inv_path, 1.0, dry_run=True, write_ledger=False,
             prober=_fake_prober(_UP_PORTS),
-            runner=lambda cmd: called.append(cmd) or {"exit_code": 0, "timed_out": False})
+            runner=lambda cmd: called.append(cmd) or {"exit_code": 0, "timed_out": False},
+            remediator=_fake_remediator)
         self.assertEqual(called, [])  # nothing executed
         self.assertEqual(report["revivable"], 1)
         self.assertTrue(report["revivals"][0]["dry_run"])
@@ -129,12 +138,67 @@ class RunPassTests(TestCase):
         report = wd.run_pass(
             self.inv_path, 1.0, dry_run=False, write_ledger=False,
             prober=prober,
-            runner=lambda cmd: {"exit_code": 0, "timed_out": False})
+            runner=lambda cmd: {"exit_code": 0, "timed_out": False},
+            remediator=_fake_remediator)
         gw = next(o for o in report["revivals"] if o["service"] == "hearth-gateway")
         self.assertTrue(gw["recovered"])
         # conductor has no revive -> still alert-only -> not healthy
         self.assertEqual([a["node"] for a in report["alert_only"]], ["cc-conductor"])
         self.assertFalse(report["healthy"])
+
+
+class WatchfireTests(TestCase):
+    def setUp(self) -> None:
+        self.tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
+
+    def test_applies_when_not_dry_run(self) -> None:
+        seen = {}
+        def rem(apply):
+            seen["apply"] = apply
+            return {"ok": True, "dry_run": not apply, "healable": [], "flagged": [], "healed": []}
+        out = wd.run_watchfire(dry_run=False, write_ledger=False, remediator=rem)
+        self.assertTrue(seen["apply"])
+        self.assertTrue(out["ok"])
+
+    def test_dry_run_does_not_apply(self) -> None:
+        seen = {}
+        def rem(apply):
+            seen["apply"] = apply
+            return {"ok": True, "dry_run": not apply, "healable": [], "flagged": [], "healed": []}
+        wd.run_watchfire(dry_run=True, write_ledger=False, remediator=rem)
+        self.assertFalse(seen["apply"])
+
+    def test_remediator_error_never_crashes_patrol(self) -> None:
+        def boom(apply):
+            raise RuntimeError("conductor down")
+        out = wd.run_watchfire(dry_run=False, write_ledger=False, remediator=boom)
+        self.assertFalse(out["ok"])
+        self.assertIn("conductor down", out["error"])
+
+    def test_watchfire_ledger_event_recorded(self) -> None:
+        from hearth.kernel.ledger import Ledger
+        led = Ledger(self.tmp / "ledger")
+        result = {"ok": True, "dry_run": False, "healable": [1], "flagged": [1, 2], "healed": [1]}
+        eid = wd._record_watchfire(result, ledger=led)
+        self.assertIsNotNone(eid)
+        events = led.query(tool="mechnet_watchdog.watchfire")
+        self.assertEqual(len(events), 1)
+        self.assertTrue(events[0]["ok"])
+        self.assertEqual(events[0]["caller"]["id"], "mechnet-watchdog")
+        self.assertIsNotNone(events[0]["result_digest"])  # summary captured as a digest
+
+    def test_run_pass_includes_watchfire_and_can_disable(self) -> None:
+        inv = _write_inv(self.tmp)
+        runner = lambda cmd: {"exit_code": 0, "timed_out": False}
+        with_wf = wd.run_pass(inv, 1.0, dry_run=True, write_ledger=False,
+                              prober=_fake_prober(_UP_PORTS), runner=runner,
+                              remediator=_fake_remediator)
+        self.assertIn("watchfire", with_wf)
+        self.assertTrue(with_wf["watchfire"]["ok"])
+        without = wd.run_pass(inv, 1.0, dry_run=True, write_ledger=False,
+                              prober=_fake_prober(_UP_PORTS), runner=runner,
+                              include_watchfire=False)
+        self.assertNotIn("watchfire", without)
 
 
 class LedgerRecordTests(TestCase):

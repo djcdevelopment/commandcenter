@@ -12,6 +12,13 @@ being discovered mid-dispatch.
     python -m fleet.mechnet_watchdog --dry-run       # plan only, run nothing
     python -m fleet.mechnet_watchdog --json          # machine-readable
     python -m fleet.mechnet_watchdog --no-ledger     # skip the ledger write
+    python -m fleet.mechnet_watchdog --no-watchfire  # liveness only, skip coherence sweep
+
+Each pass does two things: a LIVENESS heal (probe services, revive the down ones)
+and a COHERENCE sweep (Watchfire — hearth.toolsurface.remediate auto-heals the
+obvious+reversible run-coherence gaps, e.g. phantom_in_flight, and flags the
+ambiguous ones). Liveness stays the health gate (the exit code); the coherence
+sweep is additive and best-effort — its failure never fails the patrol.
 
 Design (Banked Fire):
 - Per-CHECK revive, not per-node: a node can be up while one of its services is
@@ -134,10 +141,64 @@ def _record(outcome: dict, ledger=None) -> Optional[str]:
         return None
 
 
+def _record_watchfire(result: dict, ledger=None) -> Optional[str]:
+    """Append one hearth-event summarizing a Watchfire coherence sweep.
+
+    Best-effort, like _record: a ledger failure must not crash the patrol. The
+    per-heal detail lives in each healed run's self-documenting stub on the
+    conductor; this is the patrol-level audit line."""
+    try:
+        from hearth.kernel.ledger import Ledger, new_event
+        led = ledger or Ledger()
+        summary = {
+            "healed": len(result.get("healed") or []),
+            "healable": len(result.get("healable") or []),
+            "flagged": len(result.get("flagged") or []),
+            "dry_run": result.get("dry_run"),
+        }
+        return led.append(new_event(
+            WATCHDOG_CALLER, "mechnet_watchdog.watchfire",
+            args={"dry_run": summary["dry_run"]},
+            result=summary,
+            ok=bool(result.get("ok")),
+            error=result.get("error"),
+        ))
+    except Exception as exc:  # audit is best-effort; never break the patrol
+        print(f"[watchdog] watchfire ledger append failed: {type(exc).__name__}: {exc}",
+              file=sys.stderr)
+        return None
+
+
+def run_watchfire(dry_run: bool, write_ledger: bool, remediator=None, ledger=None) -> dict:
+    """Coherence sweep: auto-heal the obvious+reversible run-coherence gaps.
+
+    Wraps hearth.toolsurface.remediate (phantom_in_flight -> stub, occupancy
+    released, reversible + documented; ambiguous gaps stay flagged). Best-effort:
+    a failure here (conductor unreachable, import error) is captured and MUST NOT
+    crash the liveness patrol — coherence-healing is additive, liveness is the gate.
+    `remediator` is injectable so tests run without SSH.
+    """
+    try:
+        if remediator is None:
+            from hearth.toolsurface.remediate import remediate as remediator
+        result = remediator(apply=not dry_run)
+    except Exception as exc:  # never let the coherence sweep break the patrol
+        result = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+    if write_ledger:
+        result = dict(result)
+        result["ledger_event_id"] = _record_watchfire(result, ledger=ledger)
+    return result
+
+
 def run_pass(inventory_path: Path, timeout: float, dry_run: bool,
              write_ledger: bool, prober=probe,
-             runner: Callable[[str], dict] = _run_command) -> dict:
-    """One healing pass. Returns a JSON-serializable report."""
+             runner: Callable[[str], dict] = _run_command,
+             include_watchfire: bool = True, remediator=None) -> dict:
+    """One patrol pass: liveness heal + (optional) Watchfire coherence sweep.
+
+    Returns a JSON-serializable report. `healthy` reflects LIVENESS only — the
+    coherence sweep is additive and never flips the health verdict.
+    """
     inv = load_inventory(inventory_path)
     rows = collect_checks(inv["nodes"], timeout, prober=prober)
     revivable, alert_only = plan_revivals(rows)
@@ -155,7 +216,7 @@ def run_pass(inventory_path: Path, timeout: float, dry_run: bool,
 
     still_down = [r for r in alert_only] + [
         o for o in revivals if not o.get("dry_run") and not o.get("recovered")]
-    return {
+    report = {
         "checked": len(rows),
         "down": len(revivable) + len(alert_only),
         "revivable": len(revivable),
@@ -163,6 +224,9 @@ def run_pass(inventory_path: Path, timeout: float, dry_run: bool,
         "revivals": revivals,
         "healthy": not still_down,
     }
+    if include_watchfire:
+        report["watchfire"] = run_watchfire(dry_run, write_ledger, remediator=remediator)
+    return report
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -171,11 +235,13 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)
     ap.add_argument("--dry-run", action="store_true", help="plan revivals, run nothing")
     ap.add_argument("--no-ledger", action="store_true", help="skip the ledger audit write")
+    ap.add_argument("--no-watchfire", action="store_true", help="liveness only, skip the coherence sweep")
     ap.add_argument("--json", action="store_true", help="machine-readable output")
     args = ap.parse_args(argv)
 
     report = run_pass(args.inventory, args.timeout, dry_run=args.dry_run,
-                      write_ledger=not args.no_ledger)
+                      write_ledger=not args.no_ledger,
+                      include_watchfire=not args.no_watchfire)
 
     if args.json:
         print(json.dumps(report, indent=2))
@@ -191,6 +257,16 @@ def main(argv: Optional[list[str]] = None) -> int:
         for a in report["alert_only"]:
             print(f"  ALERT (no revive declared)  {a['node']}/{a['service']} "
                   f"@ {a['host']}:{a['port']}")
+        wf = report.get("watchfire")
+        if wf is not None:
+            if not wf.get("ok"):
+                print(f"watchfire: sweep failed — {wf.get('error')}")
+            elif wf.get("dry_run"):
+                print(f"watchfire: WOULD heal {len(wf.get('healable') or [])} phantom(s), "
+                      f"{len(wf.get('flagged') or [])} gap(s) flagged")
+            else:
+                print(f"watchfire: healed {len(wf.get('healed') or [])} phantom(s), "
+                      f"{len(wf.get('flagged') or [])} gap(s) flagged")
         print("verdict: " + ("HEALTHY" if report["healthy"] else "DEGRADED"))
 
     return 0 if report["healthy"] else 1

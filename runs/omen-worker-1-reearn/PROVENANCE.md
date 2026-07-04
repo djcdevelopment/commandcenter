@@ -45,3 +45,26 @@ varied-value discipline is measured on a dimension these observations don't vary
 **Recommendation:** treat G3 as a belief-layer investigation (why no task_kind=repo-build
 capability forms from 4-builder/3-backend evidence), NOT a "fire another lap" task. The earlier
 POUR-STATUS assumption ("second build workflow re-earns the capability") is corrected here.
+
+## Investigation RESOLVED (2026-07-04) — correct gating, not a bug
+
+Ran `analyze_buckets` over the corpus. The `task_backend` pattern (invariant `(task_kind, backend)`,
+varies `(builder_id, model_id)`, needs all-success + ≥2 workflows + ≥2 varied values) produces three
+`repo-build` buckets, each correctly gated:
+
+| bucket | outcome | workflows | varied | why gated |
+|---|---|---|---|---|
+| `repo-build + claude` | mixed | 3 | none (cc-builder-1\|sonnet) | cc-builder-1 timed out in pour-c2 → contested; also unvaried |
+| `repo-build + ollama` | **success** | 2 | **none** (omen-worker-1\|qwen3-coder) | single combo → "a repeated particular is a finding, not an abstraction" |
+| `repo-build + openai` | mixed | 5 | builder varies (am4-worker-1, cc-builder-2) | am4-worker-1 has a failure → contested |
+
+The engine is working as designed: it refuses to abstract "the org can do repo-build" because no
+backend has clean + varied + multi-combo evidence. **The ollama bucket is one varied combo away** —
+it's clean and multi-workflow, it just needs a *second distinct model or builder on ollama* doing a
+clean repo-build.
+
+**⚠ Do NOT close it with cc-builder-4/mixtral (or any unreliable ollama combo).** A failure there
+would flip the ollama bucket from `success` to `mixed`, and that failure observation persists —
+durably contesting the currently-clean bucket and *permanently* blocking the ollama path to G3. The
+right close is a RELIABLE second ollama combo (omen-worker-1 on a second solid model, or a
+provisioned omen-worker-2). G3 is not urgent; the lab functions without a certified capability.

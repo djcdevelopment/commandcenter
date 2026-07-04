@@ -113,18 +113,45 @@
   re-earn the `build|ollama` capability (G3 still needs a real `omen-worker-1` build workflow).
   `knowledge/*.json` was NOT re-projected here; that is a separate curator/guarded step.
 
+## Landing: Wave 2 (D1/E1/F1/Ga/Gc curated) + quarantine lift — 2026-07-04
+
+- All five wave-2 streams dispatched through the conductor (`promote:false`), curated, and landed
+  on `master`. Test baseline **177 → 264** (+87). Commits: D1 `ae46a35`, E1 `3944f01`, F1 `c656cfe`,
+  Ga `a3986e7`, Gc `b5ad8ca`.
+- **The assay picked unlandable "winners" again** (fourth+ sighting of the acceptance gap, see
+  `docs/adr/0001-assay-acceptance-gap.md`): F1/Ga shipped code without the DoD-required tests
+  (writing them in curation caught a latent `KeyError` crash in Ga's `worth_realized`); **neither Gc
+  lap was landable** — the assay "winner" (am4-worker-1, 70) was a bare module+retro, the runner-up
+  (cc-builder-1, 64) called an undefined `_calibration_candidates` (`NameError`, broke 10 tests).
+  Gc was synthesized (cc-builder-1's module + the missing function written per the DoD + tests).
+- **cc-builder-1 timed out on all five yet produced the winning complete code each time** — proof
+  that `agent_timed_out` ≠ incomplete, which is why the proposed timeout grade-cap was retracted
+  (`CONDUCTOR-FOLLOWUPS-2026-07-04.md`).
+- **Belief re-projection (step 4):** materialized ONLY the clean regression-probe double-success
+  (`runs/regression-probe-ccb1/`), deliberately WITHHOLDING the wave-2 build observations (harness
+  timeouts + infra F/0s would poison the belief layer — `docs/adr/0002`,
+  `runs/regression-probe-ccb1/PROVENANCE.md`). Result: `regression:cc-builder-1|sonnet|claude`
+  RETIRED → `uncertain`; **quarantine LIFTED**; `regression_probe` candidate retired;
+  `cc-builder-2|vllama-planner|openai` upgraded uncertain → known_good. Findings 18→17 accepted via
+  an authored scoped `corpus_regression_override.json` (A2 mechanism's first real use; permit on
+  `policy_audit.ndjson`). Commit `f256d38`.
+- **Conductor:** finding #1 (allow-list overrides `exclude_from_build_pool`) applied live
+  (`63935ee`), service restarted clean. See `docs/adr/0003`.
+- **Decisions on Derek's desk:** `QUESTIONS-D1.md` (economics), `DECISION-NEEDED-Ga.md` +
+  `BUILD-NOTES-Gc.md` (numeric worth values).
+
 ## Gates
 
 - `G0`: `OPEN`
   - Check: `origin` configured = yes; `tools/workflow/corpus_guard.py` exists = yes (landed in A2 `cdad039`)
 - `G1`: `CLOSED`
-  - Check: `DECISIONS-D1.md` exists = no
+  - Check: `DECISIONS-D1.md` exists = no. (`QUESTIONS-D1.md` now landed via D1 — awaiting Derek's answers in `DECISIONS-D1.md`.)
 - `G2`: `OPEN`
   - Check: `runs/g2-validation/artifacts/obs_g2_validation_001.json` carries non-null `gpu_temp_c_peak` (`35.0`) = yes (opened 2026-07-04, see "Landing: G2" below)
 - `G-budget`: `CLOSED`
-  - Check: `operating-budget.v1` with `authored_by != "fixture"` exists = no
-- `G3`: `CLOSED`
-  - Check: `knowledge/capabilities.json` `capability_count >= 1` = no (`0`)
+  - Check: `operating-budget.v1` with `authored_by != "fixture"` exists = no. (E1 landed the contract + validator; awaiting Derek-authored budget values.)
+- `G3`: `CLOSED` (UNBLOCKED 2026-07-04)
+  - Check: `knowledge/capabilities.json` `capability_count >= 1` = no (`0`). Was blocked on claudefarm1 (down); claudefarm1 RECOVERED 2026-07-04 (MAC-collision fix) → `omen-worker-1` is UP and a real build lap is now dispatchable to re-earn the `build|ollama` capability.
 
 ## Learning Metrics
 

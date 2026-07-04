@@ -56,13 +56,14 @@ a node as "exploratory only, never the default critical-path pool" is:
 - `roles` includes the literal string `"worker"` (a descriptive-only role like `"claude-agent-worker"`
   doesn't count — `load_nodes()` checks for `"worker"` exactly)
 - `"exclude_from_build_pool": true` — this is what actually keeps it out of every default dispatch
-- ~~opt it into a specific run via the `builders` CCMETA field above~~ **WRONG — verified false
-  2026-07-03 (pour-c2):** the CCMETA `builders` allow-list can only SELECT FROM the ready set, and
-  `exclude_from_build_pool: true` removes a node from the ready set before the allow-list applies.
-  The daemon logs `requested builders missing from ready set: <node>` and silently proceeds without
-  it. There is currently NO way to opt an excluded node into a single run — to dispatch to it you
-  must temporarily flip `exclude_from_build_pool` to `false` in `fleet.json` (and flip it back), or
-  the daemon needs an allow-list-overrides-exclusion change.
+- **opt it into a specific run via the `builders` CCMETA field above.** As of 2026-07-04 (finding
+  #1, conductor commit `63935ee`) an explicit allow-list **OVERRIDES** `exclude_from_build_pool`:
+  `_select_builders()` re-admits a node trimmed only by the exclusion flag when it is named in the
+  allow-list AND is `mcp_ready` with the `worker` role AND passes a live SSH health probe. So
+  `{"builders": ["cc-builder-4"]}` dispatches to the excluded node for that one run; the default
+  pool (no allow-list) still excludes it. No more `fleet.json` flip-flop.
+  (History: this was WRONG until 2026-07-04 — pour-c2 on 2026-07-03 silently dropped cc-builder-4
+  with `requested builders missing from ready set`. See `docs/adr/0003-allowlist-overrides-exclusion.md`.)
 
 This bit `cc-builder-4` (originally `zen-deepseek-1`, an OMEN-local-MoE overnight critic node,
 2026-07-03): its `node.json` template describes `dispatch_pool` as if it were an enforced concept,

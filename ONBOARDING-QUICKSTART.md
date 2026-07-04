@@ -26,8 +26,17 @@ on GitHub, see `docs/conductor-github-sync.md` and `tools/ops/sync_conductor_to_
 
 ## 1. Start up / check the network is alive
 
-The fleet is already-running systemd `--user` services on cc-conductor, not something
-you boot per-session. Just verify it's up:
+**Fastest whole-fleet check (run from OMEN — the durable host):**
+```bash
+python fleet/fleet_ping.py          # reachability of every node; exit 1 if any expect=up is down
+```
+This is the conductor-independent source of truth (`fleet/inventory.toml` + a stdlib TCP
+sweep). It sees both the tailnet and OMEN's Hyper-V VM siblings, so it works even when the
+conductor is down. Use it *first* when "the fleet looks dead" — it tells you in seconds
+whether it's one node or the whole network. See `fleet/README.md`.
+
+The fleet itself is already-running systemd `--user` services on cc-conductor, not something
+you boot per-session. Verify it's up:
 
 ```bash
 ssh claude@100.74.110.91
@@ -96,12 +105,36 @@ Other views:
 
 ## Know before you build
 
-- A scored winner branch is **not auto-merged** to mainline — promotion is a manual/open
-  step, not automatic. Don't assume "winner" means "shipped."
+- **A "winner" is a candidate, not a landable deliverable.** The assay is a *regression
+  gate, not an acceptance oracle* — it grades test pass-rate, not whether the lap produced
+  what the stream asked for. It has repeatedly crowned unlandable laps: ones missing their
+  required tests, one that called an undefined function (`NameError`), and (in wave-2) it
+  scored a builder that timed out yet delivered *higher* than complete rivals. **Always
+  curate before landing:** verify the required deliverables exist, run the tests, then merge.
+  Use `promote: false` on campaign work. Curation regularly catches real bugs the assay
+  can't see. Full rationale: [ADR-0001](docs/adr/0001-assay-acceptance-gap.md).
+- **Don't feed the belief layer infra/harness noise.** A `timeout` that coincides with a
+  complete commit, or an F/0 from an unreachable shell host, is NOT capability evidence —
+  materializing it would false-quarantine a good builder or false-`known_bad` a good model.
+  Materialize only genuine signals; record what you excluded and why (a run `PROVENANCE.md`).
+  See [ADR-0002](docs/adr/0002-belief-layer-excludes-infra-failures.md).
+- **Opting an excluded node into one run:** `exclude_from_build_pool` no longer means
+  "unreachable" — a CCMETA `{"builders": ["<node>"]}` allow-list now overrides it (finding
+  #1, live on the conductor). [ADR-0003](docs/adr/0003-allowlist-overrides-exclusion.md).
+- **"One node down, others up" is usually the node, not addressing** — `Get-VM` on OMEN and
+  check it. Two traps that mimic a dead guest but are host-side + fixable without a console:
+  (1) a **static-MAC collision** between a clone and its golden source (both VMs claim the
+  same MAC → one gets knocked off the net; `Get-VM | Get-VMNetworkAdapter | Select MAC` to
+  spot it; fix = `Stop-VM` → `Set-VMNetworkAdapter -StaticMacAddress <unique>` → `Start-VM`);
+  (2) `KVP: No Contact` just means the guest's `hv-kvp-daemon` is off — it does NOT mean the
+  guest is offline (a red herring). Full runbook: `FLEET-ADDRESSING-RUNBOOK.md` on
+  cc-conductor; provisioning traps in the fleet-vm-provisioning memory.
 - Every run spends real fleet compute (a Claude agent per worker) — mind cost when batching.
 - Failed runs (e.g. grade F) are treated as valid data, not errors — don't hide or
   soften a bad score, that's the one hard rule in this codebase (see `CLAUDE.md`).
 - Deprecated, do not run: `scripts/conductor.py`, `scripts/conductor_workflow.py`.
+- Architecture decisions live in `docs/adr/`; the latest session's full story in the newest
+  `SESSION-RETRO-*.md`.
 
 ## Where to go deeper
 

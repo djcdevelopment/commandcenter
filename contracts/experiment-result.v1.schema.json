@@ -150,7 +150,11 @@
         },
         "evidence_summary": {
           "type": "string"
-        }
+        },
+        "confidence_score": [
+          "number",
+          "null"
+        ]
       }
     },
     "belief_after": {
@@ -159,7 +163,7 @@
         "null"
       ],
       "additionalProperties": false,
-      "description": "The subject's finding synthesized from the full corpus. Null when the belief dissolved (e.g. a bias no longer clears the consistency gate).",
+      "description": "The subject's finding synthesized from the corpus WITH the experiment's observations. Null when no belief about the subject existed.",
       "properties": {
         "finding_id": {
           "type": "string"
@@ -175,58 +179,24 @@
         },
         "evidence_summary": {
           "type": "string"
-        }
+        },
+        "confidence_score": [
+          "number",
+          "null"
+        ]
       }
     },
     "belief_changed": {
-      "type": "boolean",
-      "description": "True when finding_type or confidence moved between belief_before and belief_after."
+      "type": "boolean"
     },
     "gate_before": {
-      "type": [
-        "object",
-        "null"
-      ],
-      "additionalProperties": false,
-      "description": "Most severe gating policy effect on the subject before the experiment's evidence. Null = no gate.",
-      "properties": {
-        "policy_id": {
-          "type": "string"
-        },
-        "effect": {
-          "type": "string",
-          "enum": [
-            "block",
-            "quarantine",
-            "exploratory_only"
-          ]
-        }
-      }
+      "type": "string"
     },
     "gate_after": {
-      "type": [
-        "object",
-        "null"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "policy_id": {
-          "type": "string"
-        },
-        "effect": {
-          "type": "string",
-          "enum": [
-            "block",
-            "quarantine",
-            "exploratory_only"
-          ]
-        }
-      }
+      "type": "string"
     },
     "verdict": {
-      "type": "string",
-      "minLength": 1,
-      "description": "The result stated for a human operator: what the belief and the gate did."
+      "type": "string"
     }
   }
 }

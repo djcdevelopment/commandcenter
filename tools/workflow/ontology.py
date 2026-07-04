@@ -20,6 +20,8 @@ EVENT_TYPES = {
     "promotion.approved",
     "promotion.rejected",
     "retrospective.created",
+    "idle.observed",
+    "idle.ended",
 }
 
 EVENT_REQUIREMENTS = {

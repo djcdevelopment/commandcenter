@@ -1,0 +1,15 @@
+{
+  "contract_version": "operating-budget.v1",
+  "budget_id": "budget_fixture_example",
+  "node_id": null,
+  "max_gpu_temp_c": 85,
+  "max_power_w": 350,
+  "max_fan_rpm": null,
+  "unattended_dispatch_allowed": false,
+  "active_hours": null,
+  "reason": "Synthetic fixture for schema validation tests — not a real operating budget",
+  "authored_by": "fixture",
+  "created": null,
+  "suspended": false,
+  "suspend_reason": null
+}

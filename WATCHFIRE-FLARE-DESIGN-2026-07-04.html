@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watchfire &amp; Flare — NPU cross-source correlation for HEARTH</title>
+<style>
+  :root {
+    --bg: #12100e; --panel: #1c1916; --panel2: #24201c;
+    --ink: #e8e0d4; --dim: #a89c8a; --ember: #e2683c; --gold: #d9a441;
+    --green: #7fb069; --red: #c8553d; --line: #3a332c; --flare: #ff9a3c;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font: 16px/1.6 Georgia, 'Times New Roman', serif;
+         max-width: 980px; margin: 0 auto; padding: 2rem 1.5rem 6rem; }
+  h1 { font-size: 1.9rem; color: var(--ember); margin-bottom: .2rem; }
+  h2 { font-size: 1.3rem; color: var(--gold); border-bottom: 1px solid var(--line);
+       padding-bottom: .3rem; margin-top: 2.5rem; }
+  h3 { font-size: 1.05rem; color: var(--ink); margin-top: 1.6rem; }
+  .sub { color: var(--dim); font-style: italic; margin-top: 0; }
+  .badge { display: inline-block; font: 700 .7rem/1 system-ui; letter-spacing: .08em;
+           padding: .25em .6em; border-radius: 3px; vertical-align: middle; }
+  .draft { background: var(--gold); color: #1a1408; }
+  .verified { background: var(--green); color: #10200c; }
+  .warn { background: var(--red); color: #fff; }
+  .idea { background: var(--ember); color: #1a1408; }
+  code, pre { font: .85rem/1.5 Consolas, monospace; background: var(--panel2); border-radius: 3px; }
+  code { padding: .1em .35em; }
+  pre { padding: .9rem 1.1rem; overflow-x: auto; border: 1px solid var(--line); }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .92rem; }
+  th, td { border: 1px solid var(--line); padding: .5rem .7rem; text-align: left; vertical-align: top; }
+  th { background: var(--panel2); color: var(--gold); font-family: system-ui; font-size: .8rem;
+       letter-spacing: .05em; text-transform: uppercase; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--ember);
+           padding: 1rem 1.3rem; margin: 1.2rem 0; border-radius: 0 4px 4px 0; }
+  .panel.gold { border-left-color: var(--gold); }
+  .panel.green { border-left-color: var(--green); }
+  .panel.flare { border-left-color: var(--flare); }
+  .dim { color: var(--dim); }
+  ul, ol { padding-left: 1.4rem; }
+  li { margin: .35rem 0; }
+  .diagram { overflow-x: auto; margin: 1.5rem 0; }
+  .foot { margin-top: 4rem; color: var(--dim); font-size: .85rem; border-top: 1px solid var(--line);
+          padding-top: 1rem; }
+  .k { color: var(--gold); }
+  em.claim { color: var(--flare); font-style: normal; }
+  em.truth { color: var(--green); font-style: normal; }
+</style>
+</head>
+<body>
+
+<h1>Watchfire &amp; Flare</h1>
+<p class="sub">An NPU charm for the guard dog (<code>mechnet_watchdog</code>) &mdash; cross-source correlation, one engine, two sensitivities
+&nbsp;<span class="badge draft">DESIGN v0.2 — 2026-07-04</span>
+&nbsp;<span class="badge idea">SHAPED IN CONVERSATION — not yet built</span>
+&nbsp;<span class="badge idea">names floated, not ratified</span>
+&nbsp;<span class="badge verified">extends mechnet_watchdog (P4)</span></p>
+
+<div class="panel">
+<strong>The ask (Derek, 2026-07-04):</strong> OMEN has an idle Intel AI Boost <strong>NPU</strong> sitting at 0%.
+It would be a natural home for catching "empty logs and base-level failures." Turn it <em>up</em> when you suspect
+something's wrong or want in-depth live debugging; in the offtime let it quietly classify, sort and organize
+logs and requests. And give it a <strong>health-check correlation</strong> job: read the current workload, the
+HEARTH calls, AM4's physical specs and the OTel traces, take snapshots, and look for the obvious gaps. Expose it
+so <em>others</em> can quickly check &mdash; especially around new work, infra changes, and integration points.
+Front it with an <code>/armdebug</code> command: another set of eyes, on demand, just in case.
+</div>
+
+<div class="panel flare">
+<strong>The names</strong> (from the fire-on-the-steppe cosmology &mdash; <em>proposed, awaiting Derek's ratify</em>):
+a <strong>watchfire</strong> is the standing beacon that warns the whole network when something's wrong &mdash; the
+idle, always-there sense. A <strong>flare</strong> is the bright light you <em>send up when you suspect trouble</em>,
+lighting the whole field for a moment. <strong>Watchfire watches; you fire a flare when you need to see.</strong>
+</div>
+
+<h2>Not a new watcher &mdash; a charm for the guard dog we already have</h2>
+<div class="panel green">
+We already have the guard dog: <code>mechnet_watchdog</code> (Banked Fire P4) &mdash; it patrols on a schedule and
+already <strong>self-heals</strong> (revives the gateway, recovers nodes). Watchfire/Flare is <strong>not a rival
+watcher.</strong> Think of the watchdog as a <em>familiar that learns spells</em>, and the NPU as a
+<strong>charm we hand it</strong>. This collapses the whole design from "a new system" into "new spells + a charm on
+the watchdog we've got" &mdash; less to build, more coherent.
+<ul>
+<li><strong>The charm upgrades its sense from <em class="claim">liveness</em> to <em class="truth">coherence</em>.</strong>
+    Today the guard dog barks when something is <em>down</em>. But <strong>nothing was down this session</strong> &mdash;
+    every node was "up"; the signals just <em>disagreed</em>. The charm teaches it to bark at <strong>incoherence</strong>,
+    not just death: <em>do the sources agree?</em> That is exactly the sense that was missing.</li>
+<li><strong>The spellbook grows.</strong> Each gap-check it learns is a spell it can cast forever after &mdash;
+    rules-spells now, NPU-learned spells later (the same rules&rarr;learned slice plan, reframed as the familiar's
+    spellbook filling in).</li>
+<li><strong>Because it already heals, the charm expands <em>what</em> it can heal.</strong> Some gaps are safe to
+    auto-cast a healing spell on &mdash; stub a confirmed-errored run and release its phantom occupancy (what we did
+    by hand today), freshen a stale checkout. Others stay <strong>flag-only</strong> &mdash; eyes handed to a reasoner,
+    never auto-fixed. The line is the same discipline as the assay (a <em>gate, not an oracle</em>) and the
+    arm/disarm toggle: <strong>auto-heal only the boring, reversible, high-confidence spells; flag everything
+    ambiguous.</strong> A familiar that miscasts a heal on a false positive is worse than one that just points.</li>
+</ul>
+<code>/armdebug</code> is simply <em>"familiar, cast the flare"</em> &mdash; raise the NPU deep-sight on command.
+</div>
+
+<h2>Born from a debugging session &mdash; the evidence</h2>
+<p>This design isn't abstract. On 2026-07-04 the HEARTH task lane was found broken against the live conductor, and
+every false signal that cost us time was the <strong>same shape</strong>: a gap between two sources that should have
+agreed, which <em>no single view reconciled</em>.</p>
+
+<table>
+<tr><th>What one source claimed</th><th>What another source knew</th><th>The gap</th></tr>
+<tr><td>Operator board: run <em class="claim">in-flight</em></td><td>conductor.log: <em class="truth">errored (isolated)</em> in ~1&nbsp;ms</td><td>phantom in-flight; held phantom occupancy</td></tr>
+<tr><td>Assay: graded <em class="claim">B/70, 162/162 pass</em></td><td>deliverable: <em class="truth">a QUESTION.md, no retro</em></td><td>false success on a prose task</td></tr>
+<tr><td>Mechnet: builder <em class="claim">ran</em></td><td><code>~/commandcenter-src</code>: <em class="truth">stale, no <code>hearth/</code></em></td><td>work about code it couldn't see</td></tr>
+</table>
+
+<p>All three were caught by hand &mdash; grepping the conductor log, reading a result stub, decoding a builder's
+question &mdash; roughly <strong>50 minutes</strong> after the first failure. A standing correlation that snapshots the
+planes and asks <em>"do these agree?"</em> catches all three <strong>at the instant they diverge</strong>.</p>
+
+<h2>The core insight: the fans, digitized</h2>
+<div class="panel gold">
+Derek caught the first phantom because he could <strong>hear the room</strong> &mdash; "I see them entering the board
+but not moving," and later the fans staying quiet when the board claimed work was running. That is a human reading
+<em class="truth">mechanical truth</em> (fan noise) against a <em class="claim">logical claim</em> (the dashboard) and
+trusting the fans.
+<br><br>
+<strong>Reading AM4's physical specs is exactly that signal, digitized.</strong> When HEARTH says
+<em class="claim">"running on am4-worker-1"</em> and the AM4 GPU reads <em class="truth">0%</em> with no OTel span for
+four minutes &mdash; that's the board lying and the fans telling the truth, except the NPU hears the fans for you.
+The whole system stops needing Derek's ears in the loop.
+</div>
+
+<h2>One engine: cross-source correlation</h2>
+<p>Everything above &mdash; the failure detector, the deep debug mode, the health snapshot &mdash; is
+<strong>not three features</strong>. It is one primitive: pull the planes into a single frame, cross-check the
+<em class="claim">logical claim</em> against the <em class="truth">mechanical/other-source truth</em>, and name what
+disagrees.</p>
+
+<div class="diagram">
+<svg viewBox="0 0 900 430" width="900" xmlns="http://www.w3.org/2000/svg" font-family="system-ui" font-size="13">
+  <defs>
+    <marker id="arw" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#a89c8a"/>
+    </marker>
+    <linearGradient id="dial" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#3a332c"/><stop offset="1" stop-color="#ff9a3c"/>
+    </linearGradient>
+  </defs>
+
+  <!-- sources -->
+  <g>
+    <text x="30" y="24" fill="#d9a441" font-weight="700" letter-spacing="1">SOURCES</text>
+    <g fill="#24201c" stroke="#3a332c">
+      <rect x="30" y="38" width="210" height="56" rx="4"/>
+      <rect x="30" y="106" width="210" height="56" rx="4"/>
+      <rect x="30" y="174" width="210" height="56" rx="4"/>
+      <rect x="30" y="242" width="210" height="56" rx="4"/>
+    </g>
+    <g fill="#e8e0d4">
+      <text x="46" y="62">Workload / queue state</text><text x="46" y="80" fill="#a89c8a" font-size="11">conductor runs, occupancy</text>
+      <text x="46" y="130">HEARTH ledger</text><text x="46" y="148" fill="#a89c8a" font-size="11">every call / dispatch / answer</text>
+      <text x="46" y="198">AM4 physical specs</text><text x="46" y="216" fill="#a89c8a" font-size="11">GPU util, VRAM, temp — "the fans"</text>
+      <text x="46" y="266">OTel traces</text><text x="46" y="284" fill="#a89c8a" font-size="11">MAF spans, Jaeger</text>
+    </g>
+  </g>
+
+  <!-- arrows to engine -->
+  <g stroke="#a89c8a" fill="none" marker-end="url(#arw)">
+    <path d="M240,66 C310,66 320,150 358,175"/>
+    <path d="M240,134 C300,134 320,168 358,188"/>
+    <path d="M240,202 C300,202 320,196 358,205"/>
+    <path d="M240,270 C310,270 320,230 358,222"/>
+  </g>
+
+  <!-- engine -->
+  <rect x="360" y="150" width="196" height="110" rx="6" fill="#1c1916" stroke="#e2683c" stroke-width="2"/>
+  <text x="458" y="188" text-anchor="middle" fill="#e2683c" font-weight="700" font-size="15">CORRELATION</text>
+  <text x="458" y="208" text-anchor="middle" fill="#e2683c" font-weight="700" font-size="15">ENGINE</text>
+  <text x="458" y="232" text-anchor="middle" fill="#a89c8a" font-size="11">NPU · Intel AI Boost</text>
+  <text x="458" y="248" text-anchor="middle" fill="#a89c8a" font-size="11">snapshot → compare → flag</text>
+
+  <!-- outputs -->
+  <g stroke="#a89c8a" fill="none" marker-end="url(#arw)">
+    <path d="M556,180 C610,180 630,120 668,120"/>
+    <path d="M556,230 C610,230 630,300 668,300"/>
+  </g>
+  <rect x="670" y="92" width="200" height="66" rx="4" fill="#24201c" stroke="#c8553d"/>
+  <text x="684" y="118" fill="#ff9a3c" font-weight="700">GAP flags</text>
+  <text x="684" y="138" fill="#a89c8a" font-size="11">names the two things</text>
+  <text x="684" y="152" fill="#a89c8a" font-size="11">that disagree</text>
+
+  <rect x="670" y="272" width="200" height="56" rx="4" fill="#24201c" stroke="#3a332c"/>
+  <text x="684" y="298" fill="#e8e0d4">snapshot log</text>
+  <text x="684" y="316" fill="#a89c8a" font-size="11">labels + index (idle housekeeping)</text>
+
+  <!-- handed to reasoner -->
+  <g stroke="#a89c8a" fill="none" marker-end="url(#arw)"><path d="M770,158 C770,190 770,200 770,262"/></g>
+  <text x="782" y="212" fill="#7fb069" font-size="12">→ handed to a reasoner</text>
+  <text x="782" y="228" fill="#a89c8a" font-size="11">(it finds the gap,</text>
+  <text x="782" y="242" fill="#a89c8a" font-size="11">doesn't fix it)</text>
+
+  <!-- duty-cycle dial -->
+  <text x="30" y="352" fill="#d9a441" font-weight="700" letter-spacing="1">SENSITIVITY (one engine, one dial)</text>
+  <rect x="30" y="366" width="500" height="16" rx="8" fill="url(#dial)"/>
+  <circle cx="90" cy="374" r="9" fill="#12100e" stroke="#d9a441" stroke-width="2"/>
+  <text x="30" y="404" fill="#a89c8a" font-size="12"><tspan fill="#d9a441" font-weight="700">WATCHFIRE</tspan> — idle: cheap periodic snapshots, baseline &amp; drift</text>
+  <text x="540" y="376" fill="#ff9a3c" font-weight="700">FLARE</text>
+  <text x="540" y="404" fill="#a89c8a" font-size="12">armed via <tspan fill="#ff9a3c" font-family="Consolas,monospace">/armdebug</tspan> — hot, continuous, deep</text>
+</svg>
+</div>
+
+<h2>The duty cycle &mdash; one engine, two sensitivities</h2>
+<table>
+<tr><th>Mode</th><th>When</th><th>What it does</th><th>Cost</th></tr>
+<tr>
+  <td><strong class="k">Watchfire</strong><br><span class="dim">idle / offtime</span></td>
+  <td>Always, in the background when nothing's wrong</td>
+  <td>Cheap periodic correlation snapshots → baseline &amp; drift. The log <strong>organizing / classifying / sorting</strong> falls out of building the snapshot index &mdash; tidying <em>is</em> the by-product, not a separate job.</td>
+  <td>Free idle NPU cycles (Banked Fire, applied to the NPU)</td>
+</tr>
+<tr>
+  <td><strong style="color:var(--flare)">Flare</strong><br><span class="dim">armed via <code>/armdebug</code></span></td>
+  <td>On suspicion, or when Watchfire trips a gap, or around risky work</td>
+  <td>The same correlation, run <strong>hot and continuous</strong>: score every event live, rank the anomalous, correlate, make the firehose <em>legible</em>. A second, independent set of eyes while you're heads-down.</td>
+  <td>Deliberate &amp; metered — armed, then auto-disarms</td>
+</tr>
+<tr>
+  <td><strong>preflight</strong><br><span class="dim">on demand</span></td>
+  <td>Explicitly, before/after new work or an infra change</td>
+  <td>"Take <em>one</em> snapshot right now &mdash; any gaps?" The same engine, a single shot. Exposed as a HEARTH tool so any agent or node can check.</td>
+  <td>One snapshot</td>
+</tr>
+</table>
+
+<p class="dim">The offtime organizing isn't just tidiness &mdash; every log Watchfire tags and every event it clusters is a
+<em>label</em> and an <em>index</em>, so when you fire a Flare it's already warm and knows the shapes. Idle prepares the corpus that makes the armed mode fast and smart. The loop sharpens itself on your actual failures.</p>
+
+<h2>What the NPU actually is &mdash; the honest boundary</h2>
+<div class="panel">
+The Intel AI Boost NPU is a low-power, always-on accelerator for <strong>small quantized models</strong>
+(ONNX via OpenVINO / DirectML). It is a <strong>pattern classifier / anomaly scorer</strong>, not a reasoner &mdash;
+it will not root-cause a bug or understand a retro.
+<ul>
+<li><strong>Right engine because it's the idle one.</strong> The RTX does the B70 builds; the CPU runs the conductor;
+    the NPU sits at 0%. A standing watcher must <em>never</em> compete with a build &mdash; so it belongs here by elimination, not just capability. Reading AM4's specs across the network reuses the <code>observability</code> role + Jaeger that already carry that telemetry.</li>
+<li><strong>Microscope + triage, not detective.</strong> It gets you to the smoking log line in seconds and names the
+    two sources that disagree; the reasoning still needs a reasoner (frontier, or Derek). Today it would have surfaced
+    <code>FanOutEdgeGroup must contain at least two targets</code> the instant the run errored, ranked #1, with the eight
+    prior identical crashes clustered beside it &mdash; collapsing the <em>time-to-signal</em>, not the thinking.</li>
+</ul>
+</div>
+
+<h2>Rules first, NPU second &mdash; the discipline that keeps it honest</h2>
+<p>Every failure this session was <strong>rule-catchable</strong> &mdash; no ML required. Reaching for the NPU on day
+one would be instrumenting before there's signal, the exact anti-pattern the belief layer already punished
+("trustworthy reps, not raw reps"). So the NPU is the <em>learned upgrade</em>, earned once the rules have generated a
+labeled corpus.</p>
+
+<table>
+<tr><th>Slice</th><th>What</th><th>NPU?</th><th>Depends on</th></tr>
+<tr><td><strong>0 — the trigger</strong></td>
+    <td>A deterministic rules detector over ledger + <code>runs/</code> + the four sources, exposed as
+        <code>hearth.preflight</code>. Catches all four of today's false-greens. <em>Generates the labeled dataset.</em></td>
+    <td>No</td><td>Nothing — buildable now</td></tr>
+<tr><td><strong>1 — the flare's brain</strong></td>
+    <td>Small ONNX model (snapshot-shape / log-line → failure-class + novelty score), hosted on the NPU via OpenVINO. Catches the fuzzy tail rules miss.</td>
+    <td>Yes</td><td>Slice 0's labeled reps</td></tr>
+<tr><td><strong>2 — the ecosystem</strong></td>
+    <td>Auto preflight/postflight around dispatch, the drain, and infra changes; <code>/armdebug</code> front door; HEARTH exposes it so <em>others</em> check cheaply. Capture → detect → learn → gate.</td>
+    <td>Yes</td><td>Slices 0–1</td></tr>
+</table>
+
+<div class="panel green">
+<strong>Sharp reason to start with Slice 0 now:</strong> the immediate next fleet action is freshening the builders'
+stale <code>~/commandcenter-src</code> and re-firing <code>/retro --fleet</code>. Slice 0 would let us
+<strong>postflight that change</strong> &mdash; prove the freshen worked and the next run isn't another false-green
+&mdash; instead of eyeballing the board and listening for fans. It earns its first real rep on the very next thing we do.
+</div>
+
+<h2>Where it fits &mdash; the operator toolkit</h2>
+<p><code>/armdebug</code> is a repo skill in the family we already have, same pattern as <code>/retro</code>: default-off,
+authored, suspendable &mdash; the exact <strong>arm/disarm toggle</strong> Banked Fire already uses (authored,
+suspendable, auto-disarms so it never becomes ambient surveillance you forgot to turn off).</p>
+<table>
+<tr><th>Skill</th><th>Question it answers</th></tr>
+<tr><td><code>/checkmcp</code> · <code>/checkmechnet</code></td><td>Is the door up? Is the fleet healthy?</td></tr>
+<tr><td><code>/retro</code></td><td>Close out and learn.</td></tr>
+<tr><td><strong style="color:var(--flare)"><code>/armdebug</code></strong></td><td><strong>Watch me while I do something risky &mdash; another set of eyes, just in case.</strong></td></tr>
+</table>
+
+<div class="panel gold">
+<strong>The recursion worth naming:</strong> today <em>Derek</em> was the second set of eyes &mdash; "I see them entering
+but not moving" was a human watching the board while the agent was buried in SSH. <code>/armdebug</code> hands that job
+to a tool so Derek isn't the only backstop next time. It's the scaling engine running on itself: he felt the need →
+described it → it becomes something to <em>offload</em> instead of something he has to <em>be</em>.
+</div>
+
+<h2>On Derek's desk &mdash; open decisions</h2>
+<ul>
+<li><strong>Names:</strong> ratify / replace <em>watchfire</em> + <em>flare</em> (naming is Derek's domain).</li>
+<li><strong>Start point:</strong> build Slice 0 (the rules detector + <code>hearth.preflight</code>) now, or shape further on this doc first?</li>
+<li><strong>Flare trigger policy:</strong> may Watchfire <em>auto-suggest</em> arming a Flare when it trips a gap, or only ever offer (never self-arm)? (Recommended: offer only &mdash; keep it eyes, never an authority.)</li>
+<li><strong>Auto-heal vs flag-only line</strong> <span class="badge idea">the charm's load-bearing guardrail</span> &mdash; which findings may the guard dog auto-remediate (boring / reversible: stub an errored run, release phantom occupancy, freshen a stale checkout) vs. flag-only (ambiguous: hand to a reasoner)? Getting this line wrong is the one way the familiar does harm.</li>
+<li><strong>Snapshot cadence:</strong> Watchfire idle interval, and the auto-disarm window for a Flare.</li>
+<li><strong>Correlation rules v0:</strong> confirm the starting gap-checks (claim-vs-physical-util, nodes-without-result, graded-pass-empty-deliverable, stale-checkout question, span-started-no-completion).</li>
+</ul>
+
+<div class="foot">
+<strong>WATCHFIRE-FLARE-DESIGN v0.1</strong> — shaped in conversation 2026-07-04, born from the HEARTH task-lane
+fan-out debugging session (see <code>SESSION-RETRO-2026-07-04.md</code>, <code>docs/adr/0004</code>, and the
+<code>e287059</code> fix). Nothing here is built yet. Names are proposed, not ratified. Rules-first: the NPU is the
+learned upgrade, earned on real reps &mdash; not the starting point. Next brick when Derek says go: Slice 0.
+</div>
+
+</body>
+</html>

@@ -8,6 +8,15 @@ from unittest.mock import patch
 
 from hearth.toolsurface.inference import local_generate
 
+# P1 test intent predates occupancy (P2): every pre-existing test in this file
+# exercises routing, not occupancy, so force "available" everywhere here to keep
+# them hermetic (no live SSH to AM4) and behaviorally unchanged. P2's own skip
+# semantics get a dedicated class below with per-test occupancy patches.
+_ALWAYS_AVAILABLE = patch(
+    "hearth.toolsurface.inference.check_occupancy",
+    return_value={"occupancy": "available"},
+)
+
 
 class _FakeResponse:
     def __init__(self, payload: dict) -> None:
@@ -95,6 +104,7 @@ class LocalGenerateTests(TestCase):
             result = local_generate("hello")
         self.assertEqual(result["backend"], "omen-ollama")
         self.assertEqual(result["routed_by"], "default")
+        self.assertEqual(result["occupancy"], "available")
 
 
 OPENAI_REPLY = {
@@ -106,6 +116,11 @@ OPENAI_REPLY = {
 
 class BankedFireRoutingTests(TestCase):
     """P1: task/backend routing to the OpenAI-shaped oxen backend."""
+
+    def setUp(self) -> None:
+        # These tests exercise P1 tag/name routing, not P2 occupancy — force
+        # "available" so they never make a live SSH probe to AM4.
+        self.enterContext(_ALWAYS_AVAILABLE)
 
     def test_task_research_routes_to_oxen_openai(self) -> None:
         with patch.dict(os.environ, {"AM4_OXEN_TOKEN": "sk-oxen"}):
@@ -149,3 +164,60 @@ class BankedFireRoutingTests(TestCase):
         result = local_generate("q", backend="ghost")
         self.assertFalse(result["ok"])
         self.assertIn("routing failed", result["error"])
+
+
+class OccupancyRoutingTests(TestCase):
+    """P2: local_generate consults occupancy for tag-routed calls; a busy or
+    unknown oxen backend is skipped in favor of omen-ollama, and every result
+    carries the occupancy reading at decision time."""
+
+    def test_busy_oxen_skipped_falls_back_to_ollama(self) -> None:
+        with patch("hearth.toolsurface.inference.check_occupancy",
+                   return_value={"occupancy": "busy"}):
+            with patch("urllib.request.urlopen",
+                       return_value=_FakeResponse(OLLAMA_REPLY)) as mocked:
+                result = local_generate("what is banked in the coals?", task="research")
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["backend"], "omen-ollama")
+        self.assertEqual(result["routed_by"], "default")
+        self.assertEqual(result["occupancy"], "available")
+        self.assertEqual(mocked.call_args[0][0].full_url, "http://127.0.0.1:11434/api/generate")
+
+    def test_unknown_oxen_skipped_falls_back_to_ollama(self) -> None:
+        with patch("hearth.toolsurface.inference.check_occupancy",
+                   return_value={"occupancy": "unknown", "detail": "ssh timed out"}):
+            with patch("urllib.request.urlopen",
+                       return_value=_FakeResponse(OLLAMA_REPLY)):
+                result = local_generate("q", task="research")
+        self.assertEqual(result["backend"], "omen-ollama")
+
+    def test_available_oxen_routes_and_reports_occupancy(self) -> None:
+        with patch.dict(os.environ, {"AM4_OXEN_TOKEN": "sk-oxen"}):
+            with patch("hearth.toolsurface.inference.check_occupancy",
+                       return_value={"occupancy": "available"}):
+                with patch("urllib.request.urlopen",
+                           return_value=_FakeResponse(OPENAI_REPLY)):
+                    result = local_generate("q", task="research")
+        self.assertEqual(result["backend"], "am4-oxen")
+        self.assertEqual(result["occupancy"], "available")
+
+    def test_pinned_backend_busy_still_dispatches_there(self) -> None:
+        """A name-pinned backend is never occupancy-skipped, even busy."""
+        with patch.dict(os.environ, {"AM4_OXEN_TOKEN": "sk-oxen"}):
+            with patch("hearth.toolsurface.inference.check_occupancy",
+                       return_value={"occupancy": "busy"}):
+                with patch("urllib.request.urlopen",
+                           return_value=_FakeResponse(OPENAI_REPLY)) as mocked:
+                    result = local_generate("q", backend="am4-oxen")
+        self.assertEqual(result["backend"], "am4-oxen")
+        self.assertEqual(result["occupancy"], "busy")
+        self.assertEqual(mocked.call_args[0][0].full_url,
+                         "http://100.116.82.60:8090/v1/chat/completions")
+
+    def test_pinned_endpoint_bypasses_occupancy_entirely(self) -> None:
+        """An endpoint pin never even calls check_occupancy (path 1 short-circuits)."""
+        with patch("hearth.toolsurface.inference.check_occupancy") as occ_mock:
+            with patch("urllib.request.urlopen", return_value=_FakeResponse(OLLAMA_REPLY)):
+                result = local_generate("q", endpoint="http://127.0.0.1:9999")
+        occ_mock.assert_not_called()
+        self.assertEqual(result["occupancy"], "available")

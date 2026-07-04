@@ -109,33 +109,83 @@ class SelectBackendTests(TestCase):
         self.pool = load_pool(_write_pool(self.tmp))
 
     def test_no_signal_returns_default(self) -> None:
-        chosen, reason = select_backend(self.pool)
+        chosen, reason, occ = select_backend(self.pool)
         self.assertEqual(chosen.name, "omen-ollama")
         self.assertEqual(reason, "default")
+        self.assertEqual(occ["occupancy"], "available")
 
     def test_task_tag_routes_to_oxen(self) -> None:
-        chosen, reason = select_backend(self.pool, task="research")
+        chosen, reason, occ = select_backend(self.pool, task="research")
         self.assertEqual(chosen.name, "am4-oxen")
         self.assertEqual(reason, "tag:research")
+        self.assertEqual(occ["occupancy"], "available")
 
     def test_pinned_backend_name(self) -> None:
-        chosen, reason = select_backend(self.pool, backend="am4-oxen")
+        chosen, reason, occ = select_backend(self.pool, backend="am4-oxen")
         self.assertEqual(chosen.name, "am4-oxen")
         self.assertEqual(reason, "pinned:am4-oxen")
+        self.assertEqual(occ["occupancy"], "available")
 
     def test_unknown_backend_name_raises(self) -> None:
         with self.assertRaises(BackendConfigError):
             select_backend(self.pool, backend="nope")
 
     def test_unmatched_tag_falls_back_to_default(self) -> None:
-        chosen, reason = select_backend(self.pool, task="does-not-exist")
+        chosen, reason, occ = select_backend(self.pool, task="does-not-exist")
         self.assertEqual(chosen.name, "omen-ollama")
         self.assertEqual(reason, "default")
 
     def test_explicit_tags_list_matched(self) -> None:
-        chosen, reason = select_backend(self.pool, tags=["big-context"])
+        chosen, reason, occ = select_backend(self.pool, tags=["big-context"])
         self.assertEqual(chosen.name, "am4-oxen")
         self.assertEqual(reason, "tag:big-context")
+
+
+class OccupancySkipTests(TestCase):
+    """P2: a tag-routed candidate that is busy (or unknown) is skipped."""
+
+    def setUp(self) -> None:
+        self.tmp = Path(self.enterContext(__import__("tempfile").TemporaryDirectory()))
+        self.pool = load_pool(_write_pool(self.tmp))
+
+    def test_busy_tag_candidate_falls_back_to_default(self) -> None:
+        def occ_check(name: str) -> dict:
+            return {"occupancy": "busy"} if name == "am4-oxen" else {"occupancy": "available"}
+        chosen, reason, occ = select_backend(self.pool, task="research", occupancy_check=occ_check)
+        self.assertEqual(chosen.name, "omen-ollama")
+        self.assertEqual(reason, "default")
+
+    def test_unknown_tag_candidate_treated_as_busy_and_skipped(self) -> None:
+        def occ_check(name: str) -> dict:
+            return {"occupancy": "unknown"} if name == "am4-oxen" else {"occupancy": "available"}
+        chosen, reason, occ = select_backend(self.pool, task="research", occupancy_check=occ_check)
+        self.assertEqual(chosen.name, "omen-ollama")
+
+    def test_available_tag_candidate_is_chosen_and_occupancy_reported(self) -> None:
+        def occ_check(name: str) -> dict:
+            return {"occupancy": "available"}
+        chosen, reason, occ = select_backend(self.pool, task="research", occupancy_check=occ_check)
+        self.assertEqual(chosen.name, "am4-oxen")
+        self.assertEqual(occ["occupancy"], "available")
+
+    def test_pinned_backend_never_occupancy_skipped_even_when_busy(self) -> None:
+        def occ_check(name: str) -> dict:
+            return {"occupancy": "busy"}
+        chosen, reason, occ = select_backend(self.pool, backend="am4-oxen", occupancy_check=occ_check)
+        self.assertEqual(chosen.name, "am4-oxen")
+        self.assertEqual(reason, "pinned:am4-oxen")
+        self.assertEqual(occ["occupancy"], "busy")
+
+    def test_pinned_backend_unknown_occupancy_still_routes(self) -> None:
+        def occ_check(name: str) -> dict:
+            return {"occupancy": "unknown"}
+        chosen, reason, occ = select_backend(self.pool, backend="am4-oxen", occupancy_check=occ_check)
+        self.assertEqual(chosen.name, "am4-oxen")
+
+    def test_no_occupancy_check_injected_behaves_like_p1(self) -> None:
+        chosen, reason, occ = select_backend(self.pool, task="research")
+        self.assertEqual(chosen.name, "am4-oxen")
+        self.assertEqual(occ["occupancy"], "available")
 
 
 class PackagedPoolTests(TestCase):

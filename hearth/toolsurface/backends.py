@@ -1,22 +1,26 @@
-"""Banked Fire — HEARTH inference backend pool + routing (P1).
+"""Banked Fire — HEARTH inference backend pool + routing (P1 + P2 occupancy).
 
 The declarative pool lives in ``hearth/etc/backends.toml`` (override with the
 HEARTH_BACKENDS env var). This module turns it into ``Backend`` records and picks
 one per call. Pure stdlib, no network, no gateway import — so it unit-tests
-offline exactly like the rest of the toolsurface.
+offline exactly like the rest of the toolsurface. (The occupancy *probe* lives
+in ``hearth.toolsurface.occupancy``, which does SSH; it is injected here as a
+callable so this module never imports it directly.)
 
 Routing is confined to *synchronous inference* calls (Banked Fire design
 principle #1: HEARTH routes inference, the conductor owns queued work). Policy,
 in order:
 
   1. caller-pinned ``endpoint``  -> legacy behavior, handled by the caller, not here
-  2. caller-pinned ``backend``   name -> exact match or error
-  3. ``task``/``tags`` tag match -> first backend carrying a matching tag
-  4. (occupancy skip -- P2, not yet consulted here)
-  5. fall back to the pool's ``default`` backend
+  2. caller-pinned ``backend``   name -> exact match or error; NEVER occupancy-skipped
+     (a pin is a deliberate operator choice; fail-open resolves unknown -> available)
+  3. ``task``/``tags`` tag match -> first candidate whose occupancy is NOT busy
+     (busy or unknown -> skip, try the next tag/candidate)
+  4. fall back to the pool's ``default`` backend (never itself occupancy-gated)
 
-``select_backend`` returns ``(Backend, reason)`` so the router can ledger *why*
-a backend was chosen — every dispatch is an assay observation (principle #6).
+``select_backend`` returns ``(Backend, reason, occupancy)`` so the router can
+ledger *why* a backend was chosen and what its occupancy looked like at decision
+time — every dispatch is an assay observation (principle #6).
 """
 
 from __future__ import annotations
@@ -25,7 +29,7 @@ import os
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 # Pool file: HEARTH_BACKENDS wins; else the etc/ default beside this package.
 ENV_VAR = "HEARTH_BACKENDS"
@@ -159,21 +163,40 @@ def load_pool(path: Optional[Path | str] = None) -> Pool:
 
 def select_backend(pool: Pool, *, backend: Optional[str] = None,
                    task: Optional[str] = None,
-                   tags: Optional[list[str]] = None) -> tuple[Backend, str]:
-    """Pick a backend and return (backend, reason).
+                   tags: Optional[list[str]] = None,
+                   occupancy_check: Optional[Callable[[str], dict]] = None) -> tuple[Backend, str, dict]:
+    """Pick a backend and return (backend, reason, occupancy).
 
-    `backend` pins by name (error if unknown). Otherwise `task` and any `tags`
-    are matched against each backend's declared tags, first match wins. With no
-    signal, the pool default is returned. (Occupancy is a P2 concern and is not
-    consulted here.)
+    `backend` pins by name (error if unknown) — a pin is a deliberate operator
+    choice and is NEVER skipped for occupancy (Banked Fire P2 fail-open policy:
+    unknown/busy occupancy on a pinned call still routes there; the caller asked
+    for it by name). Otherwise `task` and any `tags` are matched against each
+    backend's declared tags in order; a tag match whose backend is BUSY is
+    skipped and the next candidate (then the pool default) is tried instead —
+    this is the P2 skip-busy behavior. With no signal, the pool default is
+    returned unconditionally (the default is the safe fallback, never itself
+    occupancy-gated).
+
+    `occupancy_check(name) -> {"occupancy": "available"|"busy"|"unknown", ...}`
+    is injected so this module stays pure/offline (no SSH import here); pass
+    `hearth.toolsurface.occupancy.check_occupancy` in production. Omitted, every
+    backend is treated as available (P1 behavior, unchanged).
     """
+    def _occ(name: str) -> dict:
+        if occupancy_check is None:
+            return {"occupancy": "available"}
+        return occupancy_check(name)
+
     if backend is not None:
         chosen = pool.by_name(backend)
         if chosen is None:
             raise BackendConfigError(
                 f"no backend named {backend!r} (have: "
                 f"{', '.join(b.name for b in pool.backends)})")
-        return chosen, f"pinned:{backend}"
+        occ = _occ(chosen.name)
+        occ["occupancy"] = occ.get("occupancy", "available")
+        # Pinned calls resolve unknown -> available (fail-open for a deliberate pin).
+        return chosen, f"pinned:{backend}", occ
 
     wanted: list[str] = []
     if task:
@@ -183,6 +206,13 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
     for tag in wanted:
         for candidate in pool.backends:
             if tag in candidate.tags:
-                return candidate, f"tag:{tag}"
+                occ = _occ(candidate.name)
+                occupancy = occ.get("occupancy", "available")
+                if occupancy == "busy" or (occupancy == "unknown"):
+                    # Opportunistic (tag-routed) call: unknown resolves to busy —
+                    # skip this candidate and keep looking, same as a hard busy.
+                    continue
+                return candidate, f"tag:{tag}", occ
 
-    return pool.default_backend(), "default"
+    default = pool.default_backend()
+    return default, "default", {"occupancy": "available"}

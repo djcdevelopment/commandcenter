@@ -1,4 +1,4 @@
-"""HEARTH tool provider: local inference (Stream H-B) + Banked Fire routing (P1).
+"""HEARTH tool provider: local inference (Stream H-B) + Banked Fire routing (P1 + P2).
 
 Delegate a sub-thought to sunk compute mid-task: one blocking POST to a local
 model, returned as text plus token/timing cost. Connection failure is a result,
@@ -11,6 +11,15 @@ router pick — e.g. task="research" prefers the dual-B70 oxen box. Two adapters
 Ollama ``/api/generate`` and OpenAI ``/v1/chat/completions`` (Bearer-auth). The
 chosen backend and the reason are returned so every dispatch is an assay
 observation on the ledger.
+
+Banked Fire (P2): tag/task-routed (opportunistic) dispatches consult
+``hearth.toolsurface.occupancy`` before landing on a backend — a busy (or
+unreachable-probe/"unknown") backend is skipped in favor of the pool default
+(omen-ollama), per the "mechnet jobs always win" design principle. The
+occupancy reading at decision time rides in the result (``occupancy`` key)
+alongside ``backend``/``routed_by``, so every dispatch is a complete assay
+observation. A caller-pinned ``backend=`` name is never occupancy-skipped —
+fail-open resolves unknown -> available for a deliberate pin.
 """
 
 from __future__ import annotations
@@ -23,6 +32,7 @@ import urllib.request
 from typing import Callable, NamedTuple, Optional
 
 from hearth.toolsurface.backends import BackendConfigError, load_pool, select_backend
+from hearth.toolsurface.occupancy import check_occupancy
 
 DEFAULT_ENDPOINT = "http://127.0.0.1:11434"
 ENDPOINT_ENV_VAR = "HEARTH_OLLAMA"
@@ -36,37 +46,42 @@ class _Target(NamedTuple):
     auth_env: Optional[str]  # env var name, for a helpful "token missing" error
     backend: Optional[str]   # declared backend name, or None for ad-hoc endpoints
     routed_by: str           # why this target was chosen (ledger provenance)
+    occupancy: str            # "available" | "busy" | "unknown" at decision time
 
 
 def _resolve_target(endpoint: str, task: Optional[str], backend: Optional[str]) -> _Target:
     """Apply the Banked Fire routing policy and return the dispatch target.
 
     Precedence: (1) an explicitly-passed endpoint wins outright, unchanged; then
-    (2) backend/task routing through the pool; then (3) the legacy default path,
-    which still honors the HEARTH_OLLAMA override so existing behavior is intact.
+    (2) backend/task routing through the pool (occupancy-checked, P2); then
+    (3) the legacy default path, which still honors the HEARTH_OLLAMA override
+    so existing behavior is intact.
     """
     pool = load_pool()
 
     # (1) Caller-pinned endpoint wins. Adopt a declared backend's api/auth if the
     # endpoint matches one; otherwise treat it as an ad-hoc Ollama endpoint.
+    # An endpoint pin is as deliberate as a backend-name pin: no occupancy check.
     if endpoint != DEFAULT_ENDPOINT:
         matched = pool.by_endpoint(endpoint)
         if matched is not None:
             return _Target(endpoint.rstrip("/"), matched.api, matched.token(),
-                           matched.auth_env, matched.name, "pinned-endpoint")
-        return _Target(endpoint.rstrip("/"), "ollama", None, None, None, "pinned-endpoint")
+                           matched.auth_env, matched.name, "pinned-endpoint", "available")
+        return _Target(endpoint.rstrip("/"), "ollama", None, None, None, "pinned-endpoint", "available")
 
-    # (2) Route by backend name or task tag.
+    # (2) Route by backend name or task tag; occupancy consulted for tag routes.
     if backend or task:
-        chosen, reason = select_backend(pool, backend=backend, task=task)
+        chosen, reason, occ = select_backend(pool, backend=backend, task=task,
+                                             occupancy_check=check_occupancy)
         return _Target(chosen.endpoint.rstrip("/"), chosen.api, chosen.token(),
-                       chosen.auth_env, chosen.name, reason)
+                       chosen.auth_env, chosen.name, reason, occ.get("occupancy", "available"))
 
-    # (3) Legacy default: HEARTH_OLLAMA overrides the default endpoint.
+    # (3) Legacy default: HEARTH_OLLAMA overrides the default endpoint. This path
+    # never touches the banked-fire pool routing, so occupancy is not applicable.
     resolved = os.environ.get(ENDPOINT_ENV_VAR, DEFAULT_ENDPOINT).rstrip("/")
     named = pool.by_endpoint(resolved)
     return _Target(resolved, "ollama", None, None,
-                   named.name if named else None, "default")
+                   named.name if named else None, "default", "available")
 
 
 def _post(url: str, payload: dict, timeout_s: int,
@@ -160,7 +175,10 @@ def local_generate(prompt: str, model: str | None = None,
 
     Routing (Banked Fire): pass ``task`` (e.g. "research") to prefer a tagged
     backend, or ``backend`` to pin one by name; an explicit ``endpoint`` still
-    wins outright. The chosen backend and routing reason ride in the result.
+    wins outright. A tag-routed backend that is busy (or has unreachable
+    occupancy) is skipped in favor of the pool default (P2); a name-pinned
+    backend is never occupancy-skipped. The chosen backend, routing reason, and
+    occupancy-at-decision all ride in the result.
     """
     if not isinstance(prompt, str) or not prompt.strip():
         raise ValueError("prompt must be a non-empty string")
@@ -191,6 +209,7 @@ def local_generate(prompt: str, model: str | None = None,
 
     result["backend"] = target.backend
     result["routed_by"] = target.routed_by
+    result["occupancy"] = target.occupancy
     return result
 
 

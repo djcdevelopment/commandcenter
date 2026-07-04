@@ -57,3 +57,41 @@ class PatrolTests(TestCase):
             out = patrol()
         self.assertFalse(out["ok"])
         self.assertIn("non-JSON", out["error"])
+
+    def test_missing_capacity_file_is_a_silent_noop(self):
+        # Default capacity_path points at knowledge/capacity.json, which does not
+        # exist in this repo yet — patrol must still succeed with zero gaps from
+        # schedule_divergence (no crash, no gap fired without evidence).
+        records = [{"plan_id": "pour-ok", "age_s": 9000, "has_result": True,
+                    "status": "ok", "winner": "x", "promoted": True,
+                    "winner_grade": "A", "winner_files": 100, "n_questions": 0,
+                    "duration_s": 99999}]
+        with patch("subprocess.run", return_value=_completed(stdout=_gather_payload(records))):
+            out = patrol(capacity_path="knowledge/does-not-exist-capacity.json")
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["gaps"], [])
+
+    def test_schedule_divergence_surfaces_through_patrol_with_capacity_file(self):
+        import json as _json
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch as _patch
+
+        records = [{"plan_id": "js6-e2e", "age_s": 10, "has_result": True,
+                    "status": "ok", "winner": "am4-worker-1", "task_class": "build",
+                    "promoted": True, "winner_grade": "A", "winner_files": 20,
+                    "n_questions": 0, "duration_s": 500}]
+        capacity_doc = {"contract_version": "capacity.v1", "buckets": [
+            {"task_class": "build", "node": "am4-worker-1", "tool": "submit_task",
+             "calls": 5, "duration_ms": {"p90": 1000}},
+        ]}
+        with tempfile.TemporaryDirectory() as tmp:
+            cap_path = Path(tmp) / "capacity.json"
+            cap_path.write_text(_json.dumps(capacity_doc), encoding="utf-8")
+            with _patch("subprocess.run", return_value=_completed(stdout=_gather_payload(records))), \
+                 _patch.dict("os.environ", {"HEARTH_SCOPE": tmp}):
+                out = patrol(capacity_path="capacity.json")
+        self.assertTrue(out["ok"])
+        kinds = sorted(g["kind"] for g in out["gaps"])
+        self.assertEqual(kinds, ["schedule_divergence"])
+        self.assertEqual(out["gaps"][0]["severity"], "info")

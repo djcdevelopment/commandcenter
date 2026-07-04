@@ -71,6 +71,73 @@ class ScanRunsTests(TestCase):
                   "winner": None, "n_questions": 0, "questions_text": ""}
         self.assertEqual(scan_runs([healed]), [])
 
+    def test_schedule_divergence_fires_when_actual_far_exceeds_p90(self):
+        capacity = {"contract_version": "capacity.v1", "buckets": [
+            {"task_class": "build", "node": "am4-worker-1", "tool": "submit_task",
+             "calls": 20, "duration_ms": {"p50": 60000, "p90": 120000}},
+        ]}
+        rec = {"plan_id": "js6-slow", "age_s": 10, "has_result": True,
+               "status": "ok", "winner": "am4-worker-1", "task_class": "build",
+               "promoted": True, "n_questions": 0, "questions_text": "",
+               "winner_files": 20, "winner_grade": "A",
+               "duration_s": 300}  # 300_000ms > 2x120_000ms
+        gaps = scan_runs([rec], capacity=capacity)
+        div = [g for g in gaps if g.kind == "schedule_divergence"]
+        self.assertEqual(len(div), 1)
+        self.assertEqual(div[0].severity, "info")
+        self.assertIn("300000ms", div[0].detail)
+        self.assertIn("120000ms", div[0].detail)
+
+    def test_schedule_divergence_silent_when_within_envelope(self):
+        capacity = {"contract_version": "capacity.v1", "buckets": [
+            {"task_class": "build", "node": "am4-worker-1", "tool": "submit_task",
+             "calls": 20, "duration_ms": {"p50": 60000, "p90": 120000}},
+        ]}
+        rec = {"plan_id": "js6-normal", "age_s": 10, "has_result": True,
+               "status": "ok", "winner": "am4-worker-1", "task_class": "build",
+               "promoted": True, "n_questions": 0, "questions_text": "",
+               "winner_files": 20, "winner_grade": "A",
+               "duration_s": 100}  # well under p90
+        gaps = scan_runs([rec], capacity=capacity)
+        self.assertNotIn("schedule_divergence", _kinds(gaps))
+
+    def test_schedule_divergence_boundary_exactly_2x_does_not_fire(self):
+        capacity = {"contract_version": "capacity.v1", "buckets": [
+            {"task_class": "build", "node": "am4-worker-1", "tool": "submit_task",
+             "calls": 20, "duration_ms": {"p50": 60000, "p90": 120000}},
+        ]}
+        rec = {"plan_id": "js6-boundary", "age_s": 10, "has_result": True,
+               "status": "ok", "winner": "am4-worker-1", "task_class": "build",
+               "promoted": True, "n_questions": 0, "questions_text": "",
+               "winner_files": 20, "winner_grade": "A",
+               "duration_s": 240}  # exactly 2x120_000ms == 240_000ms
+        gaps = scan_runs([rec], capacity=capacity)
+        self.assertNotIn("schedule_divergence", _kinds(gaps))
+
+    def test_schedule_divergence_missing_capacity_document_is_a_silent_noop(self):
+        rec = {"plan_id": "js6-nocap", "age_s": 10, "has_result": True,
+               "status": "ok", "winner": "am4-worker-1", "task_class": "build",
+               "promoted": True, "n_questions": 0, "questions_text": "",
+               "winner_files": 20, "winner_grade": "A",
+               "duration_s": 999999}
+        gaps = scan_runs([rec], capacity=None)
+        self.assertNotIn("schedule_divergence", _kinds(gaps))
+        gaps2 = scan_runs([rec], capacity={})
+        self.assertNotIn("schedule_divergence", _kinds(gaps2))
+
+    def test_schedule_divergence_missing_matching_bucket_is_a_silent_noop(self):
+        capacity = {"contract_version": "capacity.v1", "buckets": [
+            {"task_class": "other_class", "node": "some-other-node",
+             "tool": "other_tool", "calls": 5, "duration_ms": {"p90": 1000}},
+        ]}
+        rec = {"plan_id": "js6-nobucket", "age_s": 10, "has_result": True,
+               "status": "ok", "winner": "am4-worker-1", "task_class": "build",
+               "promoted": True, "n_questions": 0, "questions_text": "",
+               "winner_files": 20, "winner_grade": "A",
+               "duration_s": 999999}
+        gaps = scan_runs([rec], capacity=capacity)
+        self.assertNotIn("schedule_divergence", _kinds(gaps))
+
     def test_summarize_counts_by_severity_and_kind(self):
         gaps = [Gap("phantom_in_flight", "warn", "a", "x"),
                 Gap("crashed_isolated", "high", "b", "y"),

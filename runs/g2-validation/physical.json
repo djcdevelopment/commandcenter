@@ -1,0 +1,15 @@
+{
+  "hardware_profile_id": "nvidia-geforce-rtx-5070|591.55",
+  "physical": {
+    "gpu_temp_c_peak": 35.0,
+    "gpu_temp_c_sustained_avg": 33.285714285714285,
+    "power_w_avg": 64.61357142857143,
+    "power_w_peak": 70.24,
+    "fan_rpm_avg": null,
+    "clock_mhz_avg": 2723.9285714285716,
+    "model_loaded_at_start": null,
+    "model_load_count": null,
+    "model_unload_count": null,
+    "model_load_s": null
+  }
+}

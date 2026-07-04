@@ -97,14 +97,30 @@
   when claudefarm1 returns (capability re-earn); mirror `main` left at the promoted partial lap (harmless,
   promotion target is scratch — noted for hygiene).
 
+## Landing: G2 (validation gate opened) — 2026-07-04
+
+- Ran the verbatim operator command from `BUILD-NOTES-C2.md` §"G2 validation gate" on **omen**
+  (this box, RTX 5070): `collect_physical` wrapped a real `ollama run qwen3-coder:30b` generation,
+  sampled `nvidia-smi` at 2s while it ran, and exited with the wrapped rc (`0`). First non-mock
+  physical telemetry the system has ever captured.
+- Evidence: `runs/g2-validation/` — `physical.json` (raw collector output) +
+  `artifacts/obs_g2_validation_001.json` (run observation, `observed.physical` populated) +
+  `PROVENANCE.md` (field-by-field, every value a measured sensor reading).
+- Telemetry: `hardware_profile_id = nvidia-geforce-rtx-5070|591.55`; `gpu_temp_c_peak 35.0`,
+  `sustained_avg 33.29`, `power_w_avg 64.61`, `power_w_peak 70.24`, `clock_mhz_avg 2723.93`;
+  `fan_rpm_avg` null (honest — percent, not RPM) and `model_*` null (collector cannot observe).
+- Scope: this is a `physical-telemetry-validation` observation, **not** a build lap — it does NOT
+  re-earn the `build|ollama` capability (G3 still needs a real `omen-worker-1` build workflow).
+  `knowledge/*.json` was NOT re-projected here; that is a separate curator/guarded step.
+
 ## Gates
 
 - `G0`: `OPEN`
   - Check: `origin` configured = yes; `tools/workflow/corpus_guard.py` exists = yes (landed in A2 `cdad039`)
 - `G1`: `CLOSED`
   - Check: `DECISIONS-D1.md` exists = no
-- `G2`: `CLOSED`
-  - Check: some `runs/*/artifacts/*.json` carries non-null `gpu_temp_c_peak` = no
+- `G2`: `OPEN`
+  - Check: `runs/g2-validation/artifacts/obs_g2_validation_001.json` carries non-null `gpu_temp_c_peak` (`35.0`) = yes (opened 2026-07-04, see "Landing: G2" below)
 - `G-budget`: `CLOSED`
   - Check: `operating-budget.v1` with `authored_by != "fixture"` exists = no
 - `G3`: `CLOSED`

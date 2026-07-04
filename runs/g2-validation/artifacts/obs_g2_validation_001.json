@@ -1,0 +1,41 @@
+{
+    "contract_version": "capacity-observation.v1",
+    "observation_id": "obs_g2_validation_001",
+    "decision_id": null,
+    "workflow_id": "wf-g2-validation",
+    "run_id": "g2-validation",
+    "timestamp": "2026-07-04T04:04:07.766656+00:00",
+    "builder_id": "omen-worker-1",
+    "model_id": "qwen3-coder:30b",
+    "backend": "ollama",
+    "hardware_profile_id": "nvidia-geforce-rtx-5070|591.55",
+    "workload_shape": {
+        "task_kind": "physical-telemetry-validation",
+        "estimated_context_tokens": null,
+        "requires_gpu": true,
+        "notes": "G2 validation lap: verbatim collector command from BUILD-NOTES-C2.md wrapped a real ollama generation (qwen3-coder:30b, 'reverse a singly linked list with tests') on the RTX 5070; collector sampled nvidia-smi at 2s while it ran and exited with the wrapped command's rc (0). First non-mock physical telemetry captured by tools/telemetry/collect_physical.py. Opens gate G2."
+    },
+    "observed": {
+        "runtime_s": null,
+        "ttft_s": null,
+        "tokens_per_s": null,
+        "ram_gb_peak": null,
+        "vram_gb_peak": null,
+        "context_tokens": null,
+        "physical": {
+            "gpu_temp_c_peak": 35.0,
+            "gpu_temp_c_sustained_avg": 33.285714285714285,
+            "power_w_avg": 64.61357142857143,
+            "power_w_peak": 70.24,
+            "fan_rpm_avg": null,
+            "clock_mhz_avg": 2723.9285714285716,
+            "model_loaded_at_start": null,
+            "model_load_count": null,
+            "model_unload_count": null,
+            "model_load_s": null
+        }
+    },
+    "outcome": "success",
+    "failure_class": null,
+    "promotion_status": null
+}

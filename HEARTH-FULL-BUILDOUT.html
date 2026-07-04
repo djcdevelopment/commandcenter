@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HEARTH — Always-On Lab, Full Build-Out</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel2: #1d2130; --ink: #d8dce6;
+    --dim: #8a93a6; --accent: #e8a04c; --accent2: #6fb3d2; --good: #7bc97e;
+    --warn: #e0c06a; --bad: #d97b6c; --line: #2a2f3d;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.6 "Segoe UI", system-ui, sans-serif; margin: 0; padding: 2rem; }
+  main { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 1.9rem; color: var(--accent); margin: 0 0 .2rem; }
+  h2 { font-size: 1.25rem; color: var(--accent2); border-bottom: 1px solid var(--line); padding-bottom: .3rem; margin-top: 2.2rem; }
+  h3 { font-size: 1.02rem; color: var(--ink); margin-bottom: .3rem; }
+  .sub { color: var(--dim); margin-bottom: 1.5rem; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.2rem; margin: .8rem 0; }
+  .kernel { border-left: 4px solid var(--accent); }
+  code, pre { font-family: Consolas, monospace; background: var(--panel2); border-radius: 4px; }
+  code { padding: .1em .35em; font-size: .88em; }
+  pre { padding: 1rem; overflow-x: auto; border: 1px solid var(--line); font-size: .82rem; line-height: 1.45; }
+  table { border-collapse: collapse; width: 100%; margin: .8rem 0; font-size: .9rem; }
+  th, td { border: 1px solid var(--line); padding: .45rem .7rem; text-align: left; vertical-align: top; }
+  th { background: var(--panel2); color: var(--accent2); }
+  .tag { display: inline-block; font-size: .72rem; padding: .05rem .5rem; border-radius: 10px; border: 1px solid var(--line); color: var(--dim); margin-right: .4rem; }
+  .tag.frozen { color: var(--accent); border-color: var(--accent); }
+  .tag.live { color: var(--good); border-color: var(--good); }
+  .tag.new { color: var(--warn); border-color: var(--warn); }
+  .decision { border-left: 4px solid var(--bad); }
+  .status { font-size: .8rem; color: var(--dim); }
+  li { margin: .25rem 0; }
+</style>
+</head>
+<body>
+<main>
+<h1>HEARTH — the always-on lab</h1>
+<p class="sub">Full build-out design · drafted 2026-07-03 · status: <strong style="color:var(--warn)">DRAFT — awaiting Derek's review</strong> · name proposed from the fire family: the hearth is the small fire that never goes out, at the center of the camp.</p>
+
+<h2>0 · The inversion, stated once</h2>
+<div class="card">
+<p>Today: frontier agents sit on top and reach down into machines (SSH, direct file edits); the lab observes what it can. <strong>HEARTH inverts this: the lab is the only thing with hands.</strong> Every actor — Claude, Codex, qwen3-coder, mixtral — is a stateless caller behind one always-on MCP surface. Building the lab and using the lab are the same instrumented act, so the lab learns about itself even while frontier models construct it.</p>
+<p>Scope shrinks to match: HEARTH is the mini commandcenter built for already-specific work requests. It keeps one always-on gateway + one local inference worker warm on OMEN so the system can react quickly while still capturing communication, action, and learning. Everything else (AM4, VM farm) becomes capacity the lab <em>summons through its own tools</em>.</p>
+</div>
+
+<h2>1 · Layer map</h2>
+
+<h3><span class="tag frozen">L0 KERNEL</span> Frozen core — changes by ceremony only</h3>
+<div class="card kernel">
+<ul>
+<li><strong>MCP gateway</strong> — the single always-on daemon, living on OMEN. All tool traffic enters here. It terminates caller auth, stamps provenance, and fans out to tool providers (local or remote via SSH-stdio, the existing worker-mcp-server pattern).</li>
+<li><strong>Event ledger</strong> — append-only store (NDJSON + SQLite index). Every tool call = one event: caller identity, runner class (frontier|local), tool, args digest, result digest, wall-time, token/watt cost fields. This is the raw ore the belief spine smelts.</li>
+<li><strong>Guard stack</strong> — corpus_guard + fixture-taint guard (both shipped) + watermark-monotonicity guard (proposed in Three Chairs addendum). Guards run in the gateway, not in agent convention.</li>
+<li><strong>Identity & auth</strong> — per-caller keys. A caller is (who) × (runner class) × (node). Frontier sessions get MCP credentials only; they are locked down to the gateway surface and do not receive general SSH write access.</li>
+<li><strong>Kernel change path</strong> — kernel repo is separate (or a protected subtree); changes require a signed-off dispatch through a dedicated <code>kernel_change</code> tool that snapshots before/after. A break-glass path exists as explicit operator policy for incidents, but it is not part of the normal build path and is not implemented in HEARTH yet. The bootstrap loop (capture layer edited through the capture layer) is closed by making kernel edits rare, logged, and reversible.</li>
+</ul>
+</div>
+
+<h3><span class="tag new">L1 HANDS</span> Tool surface — the only write path</h3>
+<div class="card">
+<table>
+<tr><th>Tool family</th><th>Contents</th><th>Source</th></tr>
+<tr><td>Files & git</td><td>read/write/glob, <code>git_commit_push</code> (one audited call — the F/0 lesson), branch/worktree ops</td><td>official <code>modelcontextprotocol/servers</code> filesystem + git, wrapped for provenance</td></tr>
+<tr><td>Build & test</td><td><code>run_tests → failures-only digest</code>, lint digest, build digest — coarse tools that collapse frontier round-trips</td><td>new, thin wrappers over existing scripts</td></tr>
+<tr><td>Knowledge store</td><td><code>record_event</code>, <code>project</code> (S1–S8), <code>query_capabilities</code>, <code>query_beliefs</code> — the ONLY writers to <code>knowledge/*.json</code></td><td>wrap existing workflow-ontology tree (148 tests)</td></tr>
+<tr><td>Dispatch</td><td><code>dispatch_task(runner, task)</code>, <code>watch_progress</code> (exists), assay trigger, promote/demote. Common local development actions stay local and warm by default; HEARTH should not require an external agent hop for routine work.</td><td>lift from conductor loop</td></tr>
+<tr><td>Summon</td><td>wake/checkpoint VM (Checkpoint-VM path proven), start/stop hermes backend (exists on AM4), start Ollama</td><td>existing am4-mcp-server + VM provisioning scripts</td></tr>
+<tr><td>Inference</td><td><code>local_generate(alias, prompt)</code> against Ollama/hermes aliases — so callers can delegate sub-thoughts to sunk compute mid-task</td><td>new, thin</td></tr>
+</table>
+</div>
+
+<h3><span class="tag live">L2 MUSCLE</span> Compute — callers and workers, all behind the same door</h3>
+<div class="card">
+<ul>
+<li><strong>Standing (always-on):</strong> OMEN hosts the gateway and omen-worker-1 (qwen3-coder:30b, 54.6 tok/s) as the resident local brain. Ollama moves from login-start to service — with HEARTH capturing everything, always-on is safe by design, and routine local development actions stay warm instead of waiting on summoned external capacity.</li>
+<li><strong>Summonable:</strong> AM4/homebase (hermes/vllama aliases, Arc pool, ComfyUI), VM farm builders, claudefarm1 assay. They register capabilities on wake (self-announcing MCP servers — pattern already built).</li>
+<li><strong>Callers:</strong> frontier (Claude Code, Codex pours) and local runners share one client contract — <code>runner.json</code> grows an <code>mcp_endpoint</code> field and the agent-agnostic design carries over unchanged.</li>
+</ul>
+</div>
+
+<h3><span class="tag new">L3 MIND</span> Learning loop — the lab as its own subject</h3>
+<div class="card">
+<ul>
+<li><strong>Projection:</strong> S1–S8 spine consumes the unified event ledger instead of scattered run events. Capabilities are re-earned automatically — the corpus-overwrite wound heals as a side effect of normal work, and can't reopen (single writer + guards).</li>
+<li><strong>Assay:</strong> dynamic assay stays the regression gate; the new stream-scoped <em>acceptance</em> assay (the pour's finding) grades dispatches flowing through the gateway.</li>
+<li><strong>Economics ledger:</strong> every event carries cost — metered tokens (frontier) or watt-seconds/tok-s (local). Knowledge-per-local-hour becomes a computed metric, not a doctrine sentence.</li>
+<li><strong>Routing policy (the payoff):</strong> conductor learns dispatch = argmax(capability × grade ÷ cost) per task class. This is the offload engine — Derek describes an effect, the ledger finds the math, the router applies it. Frontier gets reserved for planning & synthesis (the top box of the sketch), mechanical middle moves to electricity.</li>
+<li><strong>Naadam for free:</strong> frontier vs local on identical tools with identical provenance IS the proving-ground comparison arena; the multi-tenant/BYOK version for the Edgeless colleague is this ledger with CIAM in front.</li>
+</ul>
+</div>
+
+<h3><span class="tag live">L4 FACE</span> Interfaces</h3>
+<div class="card">
+<ul>
+<li>P0 idea pipeline (speak→board) stays the human front door; its output becomes <code>dispatch_task</code> calls.</li>
+<li>Living HTML plans on :8080, now renderable from ledger state (real numbers, not hand-updated prose — fixes the "worth is authored" projector-prose class of drift).</li>
+<li>OTel→Jaeger on AM4 unchanged; gateway spans slot into the existing pipeline.</li>
+</ul>
+</div>
+
+<h2>2 · What maps where (convergence, not greenfield)</h2>
+<table>
+<tr><th>Existing asset</th><th>HEARTH role</th></tr>
+<tr><td>worker-mcp-server.py / am4-mcp-server.py</td><td>tool providers behind the gateway (unchanged contract, new front door)</td></tr>
+<tr><td>workflow-ontology tree (S1–S8, 148 tests)</td><td>L3 projection engine, fed by the ledger</td></tr>
+<tr><td>conductor build/plan loops</td><td>become gateway tools (<code>dispatch_task</code>, <code>watch_progress</code>)</td></tr>
+<tr><td>runner.json per node</td><td>gains <code>mcp_endpoint</code>; runner-agnostic design carries over</td></tr>
+<tr><td>corpus_guard, fixture-taint guard</td><td>move from repo hooks into gateway (L0)</td></tr>
+<tr><td>vllama (AM4)</td><td>serve-truth + OOM gates + local-critic surfaced as summonable inference tools</td></tr>
+<tr><td>VM farm + golden-image playbook</td><td>demoted to summonable capacity; provisioning script becomes a tool</td></tr>
+<tr><td>MAF middleware + OTel</td><td>unchanged capture fabric; gateway is one more (central) span source</td></tr>
+</table>
+
+<h2>3 · Phases</h2>
+<table>
+<tr><th>Phase</th><th>Deliverable</th><th>Done-when</th></tr>
+<tr><td><strong>H0 · Kernel</strong></td><td>Gateway daemon + event ledger + caller auth on the always-on host; existing worker MCP servers mounted behind it</td><td>one tool call from a frontier session lands in the ledger with full provenance</td></tr>
+<tr><td><strong>H1 · Hands</strong></td><td>Tool-surface parity: files/git/test/knowledge/dispatch tools cover everything agents do by SSH today</td><td>one real build task completes end-to-end with zero out-of-band writes</td></tr>
+<tr><td><strong>H2 · Lockdown</strong></td><td>SSH write paths to lab stores revoked; guards enforced in gateway; kernel_change ceremony live</td><td>a deliberate bypass attempt fails and is itself logged</td></tr>
+<tr><td><strong>H3 · Muscle</strong></td><td>Local callers wired (runner.json→MCP); omen-worker-1 always-on as service; AM4/VMs summonable</td><td>local builder completes a graded task through the gateway; a VM is summoned, used, checkpointed by tool call</td></tr>
+<tr><td><strong>H4 · Mind</strong></td><td>Projection reads the ledger; economics fields populated; acceptance assay grades gateway dispatches</td><td>capabilities.json re-earned from real gateway events (the wound closed by evidence, not restoration)</td></tr>
+<tr><td><strong>H5 · Router</strong></td><td>Learned dispatch policy: task class → cheapest capable runner; frontier reserved for plan/synthesize</td><td>a week's ledger shows measurable token-cost drop at equal assay grade</td></tr>
+<tr><td><strong>H6 · Arena</strong></td><td>Naadam externalized: BYOK caller identity, per-tenant provenance (CIAM), Edgeless-colleague alpha on the same ledger</td><td>an external key runs a comparison and reads its own scoreboard</td></tr>
+</table>
+<p class="status">H0–H2 are the kernel investment (~small, mostly assembly of built pieces). H3–H4 are wiring. H5 is where cost actually drops. H6 is where it becomes a product.</p>
+
+<h2>4 · Build-values check</h2>
+<div class="card">
+<ul>
+<li><strong>Visibility</strong> — strongest version yet: one door, every act a ledger event, plans rendered from state.</li>
+<li><strong>Testability</strong> — gateway is a choke point: replayable (mission replay doctrine — re-run a day's ledger against a changed lab), guards unit-testable, tool contracts assayable.</li>
+<li><strong>Resilience</strong> — kernel is small and boring; workers stateless and summonable; ledger append-only; the failure mode "agent silently mutated state" is designed out rather than patrolled.</li>
+</ul>
+</div>
+
+<h2>5 · Decisions on Derek's desk</h2>
+<div class="card decision">
+<ol>
+<li><strong>Where the kernel lives:</strong> decided — HEARTH lives on OMEN.</li>
+<li><strong>How hard the lockdown:</strong> decided — frontier callers are locked down to MCP-only operation. Common local development actions should run locally through HEARTH without depending on external agents.</li>
+<li><strong>Kernel ceremony:</strong> HEARTH is the mini commandcenter for already-specific work requests; kernel scope is the HEARTH gateway/ledger/guards/auth surface, and break-glass exists as operator policy but is not implemented in this slice yet.</li>
+<li><strong>Ollama always-on:</strong> locked in on OMEN. omen-worker-1 moves from login-start to service; HEARTH captures the economics and usage trail directly.</li>
+<li><strong>Name:</strong> HEARTH proposed (fire family: the small always-burning fire at the center). Veto freely.</li>
+</ol>
+</div>
+
+<h2>6 · Risks, honestly</h2>
+<div class="card">
+<ul>
+<li><strong>Tool-surface friction:</strong> if a needed tool is missing, frontier agents will route around. Mitigation: H1 parity gate + a <code>request_tool</code> escape hatch that logs the gap instead of hiding it.</li>
+<li><strong>Gateway as single point of failure:</strong> accepted deliberately — it's also the single point of truth. Ledger is append-only on disk; gateway restart loses nothing.</li>
+<li><strong>Local tool-calling quality:</strong> qwen3-coder is decent at tools, mixtral weaker; H3's graded-task gate measures this instead of assuming it.</li>
+<li><strong>Latency tax:</strong> every op through one daemon adds hops. Coarse digest tools (L1) more than repay it in frontier round-trips saved.</li>
+</ul>
+</div>
+
+<p class="status">Draft by Claude (Fable 5) session 2026-07-03 · pairs with FLEET-WORK-PLAN.html, TWO-ECONOMIES-WIND-TUNNEL.html, THREE-CHAIRS-PERSPECTIVES.html · not yet pushed anywhere — release on Derek's cue.</p>
+</main>
+</body>
+</html>

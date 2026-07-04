@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HEARTH — Build Orchestration</title>
+<style>
+  :root { --bg:#0f1115; --panel:#171a21; --panel2:#1d2130; --ink:#d8dce6; --dim:#8a93a6;
+          --accent:#e8a04c; --accent2:#6fb3d2; --good:#7bc97e; --warn:#e0c06a; --bad:#d97b6c; --line:#2a2f3d; }
+  body { background:var(--bg); color:var(--ink); font:15px/1.6 "Segoe UI",system-ui,sans-serif; margin:0; padding:2rem; }
+  main { max-width:980px; margin:0 auto; }
+  h1 { font-size:1.8rem; color:var(--accent); margin:0 0 .2rem; }
+  h2 { font-size:1.2rem; color:var(--accent2); border-bottom:1px solid var(--line); padding-bottom:.3rem; margin-top:2rem; }
+  .sub { color:var(--dim); margin-bottom:1.4rem; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:1rem 1.2rem; margin:.8rem 0; }
+  code,pre { font-family:Consolas,monospace; background:var(--panel2); border-radius:4px; }
+  code { padding:.1em .35em; font-size:.88em; }
+  pre { padding:1rem; overflow-x:auto; border:1px solid var(--line); font-size:.8rem; line-height:1.45; }
+  table { border-collapse:collapse; width:100%; margin:.8rem 0; font-size:.9rem; }
+  th,td { border:1px solid var(--line); padding:.45rem .7rem; text-align:left; vertical-align:top; }
+  th { background:var(--panel2); color:var(--accent2); }
+  .s { font-size:.8rem; color:var(--dim); }
+  .A { color:var(--accent); } .B { color:var(--good); } .C { color:var(--accent2); }
+</style>
+</head>
+<body>
+<main>
+<h1>HEARTH — build orchestration</h1>
+<p class="sub">2026-07-03 · executes HEARTH-FULL-BUILDOUT.html phases H0–H4 as <strong>3 parallel worktree builds + integration gate</strong> · baseline: master @ fdb68dd, 177/177 tests green · rollback = don't merge, delete branches; master untouched until integration is green.</p>
+
+<h2>Streams</h2>
+<table>
+<tr><th>Stream</th><th>Builds</th><th>Owns paths (no overlap = clean merges)</th></tr>
+<tr><td class="A"><strong>H-A · Kernel</strong></td><td>Gateway daemon (FastMCP streamable-http :8710), caller auth, append-only ledger (NDJSON+SQLite), provenance wrapper, guard hooks, kernel_change ceremony</td><td><code>hearth/kernel/</code>, <code>hearth/contracts/</code>, <code>hearth/etc/</code>, <code>hearth/tests/kernel/</code>, <code>BUILD-NOTES-HA.md</code></td></tr>
+<tr><td class="B"><strong>H-B · Hands</strong></td><td>Tool providers: fs, git (incl. one-call <code>git_commit_push</code>), test-digest, knowledge (record_event/project/query), summon stubs, local_generate (Ollama)</td><td><code>hearth/toolsurface/</code>, <code>hearth/tests/toolsurface/</code>, <code>BUILD-NOTES-HB.md</code></td></tr>
+<tr><td class="C"><strong>H-C · Callers + Mind</strong></td><td>MCP client harness, local-model caller loop (Ollama tool-calling), frontier caller config, ledger→workflow-event projection adapter with economics fields</td><td><code>hearth/callers/</code>, <code>hearth/projection/</code>, <code>hearth/tests/callers/</code>, <code>BUILD-NOTES-HC.md</code></td></tr>
+</table>
+
+<h2>Frozen contracts (all three build against these verbatim)</h2>
+<div class="card">
+<p><strong>1 · Event schema</strong> — <code>hearth/contracts/hearth-event.v1.schema.json</code> (H-A commits the file; H-B/H-C code to this shape):</p>
+<pre>{ "schema": "hearth-event.v1", "event_id": "&lt;uuid4&gt;", "ts": "&lt;ISO-8601 UTC&gt;",
+  "caller": { "id": "str", "runner_class": "frontier|local|human", "node": "str" },
+  "tool": "str", "args_digest": "sha256:&lt;hex&gt;", "args_preview": "&lt;str, first 400 chars of JSON args&gt;",
+  "result_digest": "sha256:&lt;hex&gt;", "ok": true, "error": null,
+  "duration_ms": 0, "cost": { "tokens_in": null, "tokens_out": null, "watt_s": null },
+  "task_id": null }</pre>
+<p><strong>2 · Provider contract</strong> — each H-B module exposes <code>def get_tools() -&gt; list[Callable]</code>: plain typed python functions with docstrings, JSON-serializable args/returns, <em>no kernel imports</em>. The gateway wraps each callable with auth+provenance+ledger and registers it with FastMCP. Providers stay pure and unit-testable by direct call.</p>
+<p><strong>3 · Gateway endpoint</strong> — streamable-http at <code>http://127.0.0.1:8710/mcp</code>. Auth: header <code>X-Hearth-Key</code>; registry <code>hearth/etc/callers.json</code> = <code>{ "&lt;key&gt;": {"id","runner_class","node"} }</code> (ships with a <code>dev-local</code> test key). Unknown key ⇒ rejected AND the rejection is itself a ledger event.</p>
+<p><strong>4 · Ledger API</strong> — <code>hearth/kernel/ledger.py</code>: <code>append(event: dict) -&gt; str</code> (validates against schema, appends to <code>hearth/var/ledger/events.ndjson</code>, indexes into <code>index.sqlite</code>), <code>query(caller=None, tool=None, since=None, ok=None) -&gt; list[dict]</code>. Append-only: no update/delete functions exist.</p>
+<p><strong>5 · Environment</strong> — Windows, Python 3.12. mcp 1.28.1 lives in <code>C:\work\commandcenter\fleet-worker-node\.venv-omen\Scripts\python.exe</code> (absolute path works from worktrees). Hearth tests run with that interpreter: <code>&amp; &lt;venv&gt; -m unittest discover -s hearth/tests</code>. Existing repo tests stay on system python: <code>python -m unittest discover -s tests</code> (must remain 177/177 — hearth code must not touch them).</p>
+<p><strong>6 · Existing assets to reuse, not reinvent</strong> — event append: <code>tools/workflow/append_event.py</code>; projections: <code>tools/workflow/projections.py</code> + <code>project_*.py</code>; guards: <code>tools/workflow/corpus_guard.py</code>, fixture-taint (see <code>tests/workflow/test_fixture_taint.py</code>); target event shape: <code>contracts/workflow-event.schema.json</code>; MCP server exemplar: <code>fleet-worker-node/scripts/worker-mcp-server.py</code>.</p>
+</div>
+
+<h2>Merge & integration gate (conductor session, after all three land)</h2>
+<div class="card">
+<ol>
+<li>Merge the three build branches into <code>hearth-integration</code> (path ownership ⇒ conflict-free by construction).</li>
+<li>Regression: existing 177 tests green on system python.</li>
+<li>Unit: all hearth tests green on venv python.</li>
+<li><strong>End-to-end smoke:</strong> start gateway with all providers mounted → connect MCP client with <code>dev-local</code> key → in a temp sandbox: fs write, git status, <code>run_tests</code> digest, <code>record_event</code> → verify every call landed in the ledger with provenance → run projection adapter → verify a workflow-event materializes. Bad-key call rejected and logged.</li>
+<li>Green ⇒ merge to master (local commit; GitHub push on Derek's cue). Red ⇒ fix-forward once; still red ⇒ hold on branches, report.</li>
+</ol>
+</div>
+
+<h2>Deferred by design</h2>
+<p class="s">H2 live-host lockdown details remain Derek-paced, but the policy direction is now fixed: HEARTH lives on OMEN, frontier callers are MCP-only, common local development actions stay local and warm, and break-glass exists as policy only for now. H5 learned router (needs ledger data) · H6 naadam arena (needs H5).</p>
+
+<h2>Result — 2026-07-03</h2>
+<div class="card">
+<p>Status: <strong style="color:var(--good)">LANDED ON MASTER @ 3c3855f</strong> (local only; GitHub push on Derek's cue).</p>
+<ul>
+<li>All 3 streams built in parallel worktrees (one interruption: session-limit reset mid-build; all resumed with no work lost). Octopus merge was conflict-free — path ownership held.</li>
+<li>Gates: regression <strong>177/177</strong> · hearth suites <strong>111/111</strong> · end-to-end smoke <strong>15/15</strong> (gateway boot, 17 tools mounted, authenticated fs/git/test/knowledge calls, failures-only digest verified, ledger provenance + digests, bad-key rejected AND logged as <code>__auth__</code> event, task_id attribution, projection to workflow events processed 6/6 + idempotent re-run 0/6, economics summary).</li>
+<li>One cross-stream defect found by the smoke and fixed forward (<code>3c3855f</code>): the gateway never read the MCP request meta carrying the caller's <code>task_id</code>, so ledger events lost task attribution. Exactly the class of bug the integration gate existed to catch.</li>
+<li>Two environment traps documented for ops: a gateway process leaked from H-A's own tests can squat port 8710 and silently absorb traffic (smoke now fails fast on an occupied port); the streams' pre-limit first run left stale partial <code>hearth/</code> drafts in the main checkout, cleared before merge.</li>
+<li>SDK note: both header paths work in mcp 1.28.1 — <code>streamablehttp_client(url, headers=...)</code> (deprecated shim, feeds the httpx factory) and <code>streamable_http_client(url, http_client=httpx.AsyncClient(headers=...))</code>. Client uses the former today; migrate when the shim is dropped.</li>
+</ul>
+<p><strong>Went live 2026-07-03 evening ("onward"):</strong></p>
+<ul>
+<li><strong>Gateway is LIVE</strong> on :8710 with all 6 providers + real caller keys (<code>claude-frontier</code>, <code>omen-worker-1</code>, <code>dev-local</code>) in gitignored <code>hearth/var/callers.json</code>; frontier sessions wired via repo <code>.mcp.json</code> (also gitignored — carries the key). Login-start task <code>HearthGateway</code> registered (same posture as OmenOllamaTracingProxy), wrapper at <code>hearth/etc/start-hearth-gateway.cmd</code>.</li>
+<li><strong>First real local dispatch:</strong> omen-worker-1 (qwen3-coder:30b) completed a 3-tool task through the gateway (git_status → read_file → write_file), 2 turns, 4440/208 tokens — full provenance + task_id in the ledger. Honest quality note: output hallucinated ("main" branch; HEARTH described as an OS kernel) — the first real local-vs-frontier quality data point, permanently on the ledger.</li>
+<li><strong>First frontier dispatch:</strong> claude-frontier ran <code>project(all)</code> + <code>query_capabilities</code> through the same gateway; live ledger projected into <code>runs/hearth-gateway/events.jsonl</code> (3 events, idempotent cursor) and consumed by the S1–S8 projections (7 event files).</li>
+<li><strong>Economics table has its first frontier-vs-local rows</strong> (3 calls each, 100% ok both). <code>capability_count</code> is still 0 — correct: work.accepted tool-call events alone don't earn a capability; that takes real build-class dispatches (H4's done-when remains open, by evidence standards rather than by gap).</li>
+</ul>
+<p class="s">Still Derek's: boot-level (pre-logon) always-on needs an elevated shell — e.g. <code>nssm install ollama "C:\Users\derek\AppData\Local\Programs\Ollama\ollama.exe" serve</code> or an elevated <code>schtasks /sc onstart</code> pair for ollama + the gateway wrapper; current login-start posture works and matches the box's deliberate config. GitHub push of HEARTH still on cue.</p>
+</div>
+</main>
+</body>
+</html>

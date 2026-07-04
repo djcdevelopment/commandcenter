@@ -7,3 +7,5 @@ __pycache__/
 node_modules/
 .env
 *.log
+hearth/var/
+.mcp.json

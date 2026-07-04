@@ -89,3 +89,100 @@ Fleet health: `python fleet/fleet_ping.py` from OMEN. The lab is green (264 test
 is healthier than it started (a recovered builder, a promoted one, and it refused to be poisoned),
 claudefarm1 + omen-worker-1 are back. Next substantive moves: the omen-worker-1 build lap (→ G3),
 stream-scoped acceptance (ADR-0001), and Derek's three decision docs. He sets when it fires.
+
+---
+
+# Session Retro — 2026-07-04 (addendum · the `/retro` skill · a tool that writes this)
+
+> One-line: a small, self-referential build — a question about whether `submit_task` could
+> carry a retrospective's context **turned into the tool that writes them**: a `/retro` Claude
+> Code skill that assembles the story frontier-side, offloads the draftable prose to
+> HEARTH/mechnet, and keeps every repo-coherent write local. Shaken down by running it on itself.
+
+## What this session was
+
+A tight design-and-build session (not curation, not recovery). It started from a pointed
+question — *is `submit_task` smart enough to hand off the conversation, tool calls, and files
+touched for a retro?* — and the honest "no" became the design spec for a new skill. One artifact
+shipped: [.claude/skills/retro/SKILL.md](.claude/skills/retro/SKILL.md). No commits yet (working
+tree; Derek paces the commit).
+
+## What shipped
+
+| Change | What |
+|---|---|
+| `.claude/skills/retro/SKILL.md` (untracked) | **`/retro`** — a playbook skill: gather factsheet (frontier) → offload draft prose (HEARTH `local_generate`, opt-in `--fleet` `submit_task`) → write retro + ADRs + docs + memory (frontier) → ledger via `record_event`. Multi-role engineering-team retro + dual Claude/Derek POV. |
+| this addendum + ADR-0004 + memory | the skill's own first run, writing itself up |
+
+*Not this session:* the untracked `fleet/bankedfire_drain*` files in the working tree are
+concurrent work from another session — explicitly **not** claimed here (honest scoping is the
+whole point of the tool).
+
+## The team retro — our collaboration across the seats
+
+*(First-pass role reads drafted by qwen3-coder:30b on omen-ollama via HEARTH `local_generate` —
+8.3s, occupancy available — then edited against the factsheet. The offload itself was the live
+integration test.)*
+
+- **Architect** — The design call was sound and cheap to reach: because `submit_task` is a dumb
+  pipe (proven by reading [task_lane.py](hearth/toolsurface/task_lane.py), not assumed), the skill
+  had to split work by *who can see what* — conversation/why is frontier-only, file-truth is
+  git-reconstructable. Modeling `/retro` as a pure `SKILL.md` playbook (matching `checkmcp`/`checkmechnet`)
+  rather than new code kept blast radius near zero. What we'd watch: the offload/frontier boundary is
+  a judgment call the skill *describes* but can't *enforce* — discipline lives in the playbook prose.
+- **Implementer** — Low-friction: study two existing skills + the retro/ADR house style, then write
+  one file. No rework, nothing fought us. The build's honesty was load-bearing — reading the actual
+  `submit_task` source before answering, and catching that the `bankedfire_drain` files weren't ours,
+  are the difference between a retro and a fabrication.
+- **Reviewer / QA** — The shakedown *is* the test, and it earned its keep: it exercised the real
+  HEARTH path (`ok:true`, ledgered), forced the append-don't-overwrite guardrail (today's retro
+  already existed), and surfaced the scoping trap (foreign working-tree files). Gap: there are no
+  automated tests for a prose skill — its correctness is only ever observed by running it, which is
+  exactly what we did here.
+- **Operator / SRE** — The door was up and warm enough (8.3s incl. model turnaround, `occupancy:
+  available`, `routed_by: default` → omen-ollama). `local_generate` returning routing + occupancy
+  in-band is what let this retro *cite its own provenance* honestly. No infra incidents; no
+  cc-conductor writes (the `--fleet` path stayed unused, so nothing touched the shared box).
+- **Product / planning** — Right thing, right size. Derek asked a scoping question first ("is it
+  smart enough?") before asking to build, so the tool was shaped by a real limitation instead of a
+  guess. Scope held — one skill, no gold-plating — and pacing was deliberate (built, then immediately
+  dogfooded, no premature commit).
+
+## Two seats, two views
+
+**From Claude's seat.** I like that the answer to "can the fleet do this?" was a clean split rather
+than a yes/no — naming what only I can see (the conversation, the *why*) versus what git already
+holds made the design fall out almost for free. Where I could over-reach on future runs: the "update
+docs/plans/README" phase is the dangerous one — it's the easiest place to sweep too wide, so I bounded
+it to the diff-affected set in the playbook and will hold that line. What I'd want next time: a cheap
+way to diff *my* tool-call log against git, so the factsheet's "files touched" half is mechanical
+instead of recalled.
+
+**From Derek's seat** *(my reconstruction of your view — correct me).* You asked the sharp question
+first because you wanted to know the *shape of the limitation* before spending tokens on a tool — the
+`submit_task`-is-a-dumb-pipe framing is the kind of mechanical-sympathy read you reach for. You'd
+value that the skill leaves artifacts everywhere (ADDP) and captures many perspectives in one pass,
+and that it offloads grunt drafting to your own idle mechnet rather than burning frontier tokens. You'd
+want the commit to wait on your cue, and you'd probably want an HTML mirror only when a retro is worth
+publishing, not by default.
+
+## Lessons learned
+
+1. **`submit_task` carries only its prompt string — retrospection context is frontier-assembled, not
+   transport-provided.** → **ADR-0004** (the reusable principle behind `/retro` and any future
+   offload-of-authoring).
+2. **A prose-generating skill's only test is running it.** The recursive shakedown (run `/retro` on the
+   session that built `/retro`) is the cheapest honest test and should be the default for skill work. →
+   doc/practice note (this retro).
+3. **Scope a retro to *this* session's diff, not the whole working tree.** Foreign untracked files
+   (`bankedfire_drain*`) were present; claiming them would have been a fabrication. The guardrail earned
+   its place on first run. → already codified in the skill's guardrails.
+4. **Offloading is also an observation.** The `local_generate` draft landed on the ledger by construction
+   — the retro's own authoring is now a captured signal (capture-first). → memory + `record_event`.
+
+## Provenance
+
+Git range: since `5573979` (last retro commit); this session added only
+`.claude/skills/retro/SKILL.md` (untracked). Offloaded: the five role-read first-passes
+(`local_generate`, qwen3-coder:30b, edited after). Frontier: factsheet, all repo writes, ADR wording,
+this whole edit. `--fleet` not used (no independent draft). Derek's-seat section is a reconstruction.

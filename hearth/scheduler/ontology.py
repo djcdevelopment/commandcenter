@@ -99,6 +99,8 @@ class Job:
     est_tokens: Optional[int] = None
     required_model: Optional[str] = None
     est_out_tokens: Optional[int] = None
+    # U1: caller-supplied direct duration — wins over every lookup path.
+    est_duration_s: Optional[float] = None
 
 
 @dataclass
@@ -304,6 +306,8 @@ def lookup_duration_s(job: Job, machine: Machine, capacity: Optional[dict],
     exists the same lookups are retried node-agnostic before falling to defaults.
     This is RUN time only — model LOAD/setup time is modeled separately in solve.py.
     """
+    if job.est_duration_s is not None and job.est_duration_s > 0:
+        return float(job.est_duration_s)
     if models and job.required_model and job.est_out_tokens:
         spec = models.get(job.required_model)
         if spec is not None and spec.expected_gen_tps:

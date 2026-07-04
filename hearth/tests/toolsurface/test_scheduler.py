@@ -132,6 +132,28 @@ class CapacityLookupTests(TestCase):
         self.assertEqual(lookup_duration_s(job, machine, None),
                          DEFAULT_DURATIONS_S["default"])
 
+    def test_est_duration_s_overrides_capacity(self) -> None:
+        # U1: a caller-supplied per-job duration wins over every lookup path.
+        capacity = {
+            "contract_version": "capacity.v1",
+            "evidence_watermark": None,
+            "buckets": [
+                {"task_class": "build", "node": "local-a", "runner_class": "local",
+                 "model": None, "tool": "run_build", "calls": 3, "ok_rate": 1.0,
+                 "duration_ms": {"p50": 1000, "p90": 2000, "mean": 1200, "max": 3000},
+                 "tokens_out_per_s_p50": None, "last_seen": None},
+            ],
+        }
+        job = Job(plan_id="j1", task_class="build", est_duration_s=42.0)
+        machine = _machine("local-a", "local", 0.0)
+        self.assertEqual(lookup_duration_s(job, machine, capacity), 42.0)
+
+    def test_est_duration_s_none_falls_through(self) -> None:
+        job = Job(plan_id="j1", task_class="build", est_duration_s=None)
+        machine = _machine("local-a", "local", 0.0)
+        self.assertEqual(lookup_duration_s(job, machine, None),
+                         DEFAULT_DURATIONS_S["build"])
+
     def test_null_p90_bucket_skips_to_fallback(self) -> None:
         # When a matching bucket has null p90 (all events were failures),
         # it should be skipped in favor of the fallback chain.

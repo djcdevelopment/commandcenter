@@ -99,6 +99,7 @@ def _job_from_dict(raw: dict) -> Job:
         est_tokens=raw.get("est_tokens"),
         required_model=(str(raw["required_model"]) if raw.get("required_model") else None),
         est_out_tokens=raw.get("est_out_tokens"),
+        est_duration_s=raw.get("est_duration_s"),
     )
 
 

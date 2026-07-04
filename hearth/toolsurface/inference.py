@@ -210,6 +210,10 @@ def local_generate(prompt: str, model: str | None = None,
     result["backend"] = target.backend
     result["routed_by"] = target.routed_by
     result["occupancy"] = target.occupancy
+    # JS1: thread the resolved model_id to the gateway wrapper for the ledger
+    # event's `model` field via the _ledger_model convention (see gateway.py);
+    # the wrapper pops this key before returning the result to the caller.
+    result["_ledger_model"] = result.get("model", model)
     return result
 
 

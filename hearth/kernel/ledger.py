@@ -69,11 +69,17 @@ def new_event(caller: Mapping[str, str], tool: str, *,
               args: Any = None, result: Any = None, ok: bool = True,
               error: Optional[str] = None, duration_ms: float = 0,
               cost: Optional[Mapping[str, Any]] = None,
-              task_id: Optional[str] = None) -> dict:
+              task_id: Optional[str] = None,
+              task_class: Optional[str] = None,
+              model: Optional[str] = None) -> dict:
     """Build a schema-complete hearth-event.v1 dict for `append`.
 
     `args` and `result` are the raw python values; digests and the 400-char args
     preview are computed here so every producer stamps provenance identically.
+
+    `task_class` and `model` are optional additive fields (JS1) so duration
+    distributions can later be bucketed by (task_class x node x model); both
+    default to None and are omitted from nothing — old readers simply see null.
     """
     cost = dict(cost) if cost else {}
     args_json = json_dumps_canonical(args)
@@ -99,6 +105,8 @@ def new_event(caller: Mapping[str, str], tool: str, *,
             "watt_s": cost.get("watt_s"),
         },
         "task_id": task_id,
+        "task_class": task_class,
+        "model": model,
     }
 
 
@@ -110,9 +118,10 @@ def _validate_stdlib(event: Any) -> None:
     required = {"schema", "event_id", "ts", "caller", "tool", "args_digest",
                 "args_preview", "result_digest", "ok", "error", "duration_ms",
                 "cost", "task_id"}
+    optional = {"task_class", "model"}
     keys = set(event)
-    if keys != required:
-        missing, extra = sorted(required - keys), sorted(keys - required)
+    if not required.issubset(keys) or not keys.issubset(required | optional):
+        missing, extra = sorted(required - keys), sorted(keys - (required | optional))
         raise LedgerValidationError(f"bad event keys: missing={missing} extra={extra}")
     if event["schema"] != SCHEMA_ID:
         raise LedgerValidationError(f"schema must be {SCHEMA_ID!r}")
@@ -149,6 +158,10 @@ def _validate_stdlib(event: Any) -> None:
             raise LedgerValidationError(f"cost.{field} must be a number or null")
     if event["task_id"] is not None and not isinstance(event["task_id"], str):
         raise LedgerValidationError("task_id must be a string or null")
+    for optional_field in ("task_class", "model"):
+        if optional_field in event and event[optional_field] is not None \
+                and not isinstance(event[optional_field], str):
+            raise LedgerValidationError(f"{optional_field} must be a string or null")
 
 
 _jsonschema_validator = None
@@ -212,9 +225,17 @@ class Ledger:
                 " ok INTEGER NOT NULL,"
                 " duration_ms REAL NOT NULL,"
                 " offset INTEGER NOT NULL,"
-                " length INTEGER NOT NULL)"
+                " length INTEGER NOT NULL,"
+                " task_class TEXT,"
+                " model TEXT)"
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts)")
+            # Migration: a DB created before JS1 lacks task_class/model columns.
+            existing = {row[1] for row in conn.execute("PRAGMA table_info(events)")}
+            if "task_class" not in existing:
+                conn.execute("ALTER TABLE events ADD COLUMN task_class TEXT")
+            if "model" not in existing:
+                conn.execute("ALTER TABLE events ADD COLUMN model TEXT")
 
     def append(self, event: dict) -> str:
         """Validate `event` against hearth-event.v1, append one NDJSON line, and
@@ -228,11 +249,13 @@ class Ledger:
             with self._index() as conn:
                 conn.execute(
                     "INSERT INTO events (event_id, ts, caller_id, runner_class, tool,"
-                    " ok, duration_ms, offset, length) VALUES (?,?,?,?,?,?,?,?,?)",
+                    " ok, duration_ms, offset, length, task_class, model)"
+                    " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                     (event["event_id"], event["ts"], event["caller"]["id"],
                      event["caller"]["runner_class"], event["tool"],
                      1 if event["ok"] else 0, float(event["duration_ms"]),
-                     offset, len(line)),
+                     offset, len(line),
+                     event.get("task_class"), event.get("model")),
                 )
         return event["event_id"]
 

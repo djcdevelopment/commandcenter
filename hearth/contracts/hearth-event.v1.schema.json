@@ -57,6 +57,8 @@
         "watt_s": { "type": ["number", "null"] }
       }
     },
-    "task_id": { "type": ["string", "null"] }
+    "task_id": { "type": ["string", "null"] },
+    "task_class": { "type": ["string", "null"] },
+    "model": { "type": ["string", "null"] }
   }
 }

@@ -51,6 +51,55 @@ KERNEL_DIR = Path(__file__).resolve().parent
 BUILTIN_PROVIDER = "hearth.kernel.gateway#builtin"
 KNOWLEDGE_MODULE_SUFFIX = ".knowledge"
 
+# JS1: task_class bucketing for ledger events, keyed by tool name (exact match
+# first, then a prefix match against TOOL_CLASS_PREFIXES). Unknown tools get
+# task_class=None rather than a guess.
+TOOL_CLASS: dict[str, str] = {
+    "local_generate": "inference",
+    "submit_task": "dispatch",
+    "task_status": "dispatch",
+    "run_tests": "test",
+    "read_file": "io",
+    "write_file": "io",
+    "glob_files": "io",
+    "list_dir": "io",
+    "project": "query",
+    "preflight": "health",
+    "remediate": "health",
+    "patrol": "health",
+}
+TOOL_CLASS_PREFIXES: tuple[tuple[str, str], ...] = (
+    ("git_", "vcs"),
+    ("query_", "query"),
+)
+
+# JS1: model-threading mechanism. A provider tool that resolves a model_id
+# locally (e.g. local_generate picking a backend's model) cannot itself write
+# the ledger event -- the wrapper does that, after the call returns. Rather
+# than plumb a new return channel through every provider, a tool may stash the
+# resolved model under the "_ledger_model" key in its (dict) result; the
+# wrapper lifts that key into the event's `model` field and pops it back out
+# before returning the result to the caller, so the public tool contract is
+# unchanged.
+LEDGER_MODEL_KEY = "_ledger_model"
+
+
+def _task_class_for(tool_name: str) -> Optional[str]:
+    if tool_name in TOOL_CLASS:
+        return TOOL_CLASS[tool_name]
+    for prefix, task_class in TOOL_CLASS_PREFIXES:
+        if tool_name.startswith(prefix):
+            return task_class
+    return None
+
+
+def _lift_ledger_model(result: Any) -> Optional[str]:
+    """Pop and return the _ledger_model hint from a dict result, if present."""
+    if isinstance(result, dict) and LEDGER_MODEL_KEY in result:
+        return result.pop(LEDGER_MODEL_KEY)
+    return None
+
+
 log = logging.getLogger("hearth.gateway")
 
 KeyProvider = Callable[[], Optional[str]]
@@ -108,6 +157,7 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
     """Wrap one provider callable with auth + guards + provenance + ledger."""
     tool_name = fn.__name__
     sig, hints = _resolved_signature(fn)
+    task_class = _task_class_for(tool_name)
 
     def wrapper(**kwargs: Any) -> Any:
         started = time.perf_counter()
@@ -128,13 +178,14 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
             hearth.ledger.append(new_event(
                 caller.as_dict(), tool_name, args=kwargs,
                 ok=False, error=str(exc), duration_ms=elapsed_ms(),
-                task_id=task_id,
+                task_id=task_id, task_class=task_class,
             ))
             raise
 
-        result, ok, error = None, True, None
+        result, ok, error, model = None, True, None, None
         try:
             result = fn(**kwargs)
+            model = _lift_ledger_model(result)
             return result
         except Exception as exc:
             ok, error = False, f"{type(exc).__name__}: {exc}"
@@ -143,7 +194,7 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
             hearth.ledger.append(new_event(
                 caller.as_dict(), tool_name, args=kwargs, result=result,
                 ok=ok, error=error, duration_ms=elapsed_ms(),
-                task_id=task_id,
+                task_id=task_id, task_class=task_class, model=model,
             ))
 
     wrapper.__name__ = tool_name

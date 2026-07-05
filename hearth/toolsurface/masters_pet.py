@@ -1,4 +1,4 @@
-"""HEARTH tool: remediate — the guard dog's first healing spell (Watchfire auto-heal).
+"""HEARTH tool: masters_pet — the guard dog's first healing spell (Watchfire auto-heal).
 
 Policy (Derek, 2026-07-04 — "this is a research lab: let it make the obvious
 decisions, document them, we can undo"): auto-heal only OBVIOUS + REVERSIBLE
@@ -10,7 +10,7 @@ Kept honest three ways:
   * ``patrol`` stays a pure observer; this is the only tool that mutates.
   * the stub is self-documenting (``_healed_by`` / ``_healed_at`` / reversible
     note) and reversible — delete the file to restore the pre-heal state.
-  * every ``remediate`` call is a HEARTH tool call, so the gateway wrapper
+  * every ``masters_pet`` call is a HEARTH tool call, so the gateway wrapper
     records it (args + result) to the MCP tool-chain ledger automatically — the
     post-mortem trail.
 
@@ -53,7 +53,7 @@ for pid in PLAN_IDS:
         "winner": None, "builds": {{}}, "assay": {{"scoreboard": []}},
         "promotion": {{"promoted": False}}, "target": {{"promote": False}},
         "_stub": True, "_stub_reason": "watchfire-phantom-heal",
-        "_healed_by": "watchfire.remediate", "_healed_at": now,
+        "_healed_by": "watchfire.masters_pet", "_healed_at": now,
         "_reversible": "delete this file to restore the pre-heal state",
     }}
     with open(p, "w") as f:
@@ -77,7 +77,7 @@ def _apply_heal(plan_ids, runner: Optional[Callable] = None):
         return None, f"non-JSON heal output: {exc}"
 
 
-def remediate(apply: bool = False) -> dict:
+def masters_pet(apply: bool = False) -> dict:
     """Find gaps and, for the obvious+reversible ones, heal them (Watchfire).
 
     With ``apply=False`` (default) this is a dry run: it returns what it *would*
@@ -108,4 +108,4 @@ def remediate(apply: bool = False) -> dict:
 
 
 def get_tools() -> "list[Callable]":
-    return [remediate]
+    return [masters_pet]

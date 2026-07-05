@@ -2,7 +2,7 @@
 
 **Status:** Accepted (2026-07-04) — Slice 0 built + live; wired into `mechnet_watchdog`'s patrol.
 **Context sources:** SESSION-RETRO-2026-07-04.md (addendum 3), WATCHFIRE-FLARE-DESIGN-2026-07-04.html,
-the fan-out incident (`e287059`), `hearth/health/gaps.py`, `hearth/toolsurface/patrol.py` + `hearth/toolsurface/masters_pet.py` (the `remediate` tool's module; file renamed 2026-07-04, tool name unchanged),
+the fan-out incident (`e287059`), `hearth/health/gaps.py`, `hearth/toolsurface/{patrol,masters_pet}.py` (`remediate` renamed `masters_pet` 2026-07-04),
 `fleet/mechnet_watchdog.py`.
 
 ## Context
@@ -32,10 +32,10 @@ flagging the ambiguous ones.**
   `patrol` HEARTH tool gathers records over SSH and casts them; it is a **pure observer** and never
   mutates. The NPU-hosted learned classifier is a deferred upgrade, earned once these rules have produced
   labeled reps.
-- **Heal (research-lab policy, Derek 2026-07-04).** `remediate` **auto-heals only the obvious + reversible**
+- **Heal (research-lab policy, Derek 2026-07-04).** `masters_pet` **auto-heals only the obvious + reversible**
   gaps (v0: `phantom_in_flight` → write an abandoned stub, releasing phantom occupancy) and leaves
   everything ambiguous (`false_success`, `stale_checkout`) **flag-only**. Act, then post-mortem; every heal
-  is self-documenting (`_healed_by`/`_healed_at`) and reversible (delete the stub), and every `remediate`
+  is self-documenting (`_healed_by`/`_healed_at`) and reversible (delete the stub), and every `masters_pet`
   call is ledgered. **A heal must resolve a gap, never relabel it** (a heal-stub must not re-flag as a
   fresh crash).
 - **Patrol.** `mechnet_watchdog` runs the coherence sweep after its liveness heal on every 15-min tick.
@@ -45,14 +45,14 @@ flagging the ambiguous ones.**
 ## Consequences
 
 - The watchdog gains a second, deeper sense without a new daemon — it rides the P4 process already trusted
-  to self-heal. `patrol`/`remediate`/`watchfire` extend it; they do not replace it.
+  to self-heal. `patrol`/`masters_pet`/`watchfire` extend it; they do not replace it.
 - **The auto-heal boundary is the load-bearing guardrail.** It is enforced only by `AUTO_HEAL_KINDS` +
   the flag-only default — a miscast healing spell on a false positive is worse than a missed flag, so the
   set stays deliberately small and grows only on evidence. Ambiguous gaps are eyes handed to a reasoner,
   never auto-fixed (same discipline as ADR-0001: a gate, not an oracle).
 - Reversibility + the ledger make the research-lab posture safe: acting on the obvious is cheap because
   every action is undoable and audited.
-- The observer/actor split (`patrol` never mutates; `remediate` is the only mutator) keeps the sense
+- The observer/actor split (`patrol` never mutates; `masters_pet` is the only mutator) keeps the sense
   safe to call anywhere and the healing explicit.
 - Deferred: the NPU learned classifier (Slice 1), an on-demand deep mode (`/armdebug` / "Flare"), the
   physical-vs-claim spell ("the fans, digitized" — AM4 GPU-util vs a running claim), and gap

@@ -51,7 +51,7 @@ class ToolClassMappingTest(unittest.TestCase):
         self.assertEqual(_task_class_for("list_dir"), "io")
         self.assertEqual(_task_class_for("project"), "query")
         self.assertEqual(_task_class_for("preflight"), "health")
-        self.assertEqual(_task_class_for("remediate"), "health")
+        self.assertEqual(_task_class_for("masters_pet"), "health")
         self.assertEqual(_task_class_for("patrol"), "health")
 
     def test_prefix_matches(self):

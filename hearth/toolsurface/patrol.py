@@ -9,7 +9,7 @@ watchdog runs a patrol on every 15-minute tick.
 
 No NPU and no learning yet — that is the earned upgrade once these rules have
 produced labeled reps. patrol *finds and names* a gap; it does not fix it (the
-auto-heal-vs-flag-only line is a separate, deliberate decision — see remediate).
+auto-heal-vs-flag-only line is a separate, deliberate decision — see masters_pet).
 """
 from __future__ import annotations
 

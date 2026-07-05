@@ -1,0 +1,205 @@
+{
+  "count": 20,
+  "ideas": [
+    {
+      "slug": "scheduler-imagegen-inference",
+      "builders": [
+        "omen-worker-1",
+        "cc-builder-2"
+      ],
+      "plan_id": "hearth-spec-scheduler-imagegen-inference-c6edd20e",
+      "ok": true,
+      "error": null
+    },
+    {
+      "slug": "self-learning-loop-improvements",
+      "builders": [
+        "omen-worker-1",
+        "am4-worker-1"
+      ],
+      "plan_id": "hearth-spec-self-learning-loop-improvements-84ac8765",
+      "ok": true,
+      "error": null
+    },
+    {
+      "slug": "architecture-alignment",
+      "builders": [
+        "cc-builder-2",
+        "am4-worker-1"
+      ],
+      "plan_id": "hearth-spec-architecture-alignment-311e3b26",
+      "ok": true,
+      "error": null
+    },
+    {
+      "slug": "sensory-dashboard",
+      "builders": [
+        "omen-worker-1",
+        "cc-builder-2"
+      ],
+      "plan_id": "hearth-spec-sensory-dashboard-2b107d81",
+      "ok": true,
+      "error": null
+    },
+    {
+      "slug": "bankedfire-candidate-source",
+      "builders": [
+        "omen-worker-1",
+        "am4-worker-1"
+      ],
+      "plan_id": "hearth-spec-bankedfire-candidate-source-9f380bd9",
+      "ok": true,
+      "error": null
+    },
+    {
+      "slug": "acceptance-oracle",
+      "builders": [
+        "cc-builder-2",
+        "am4-worker-1"
+      ],
+      "plan_id": "hearth-spec-acceptance-oracle-7c08869b",
+      "ok": true,
+      "error": null
+    },
+    {
+      "slug": "builder-elo-tournament",
+      "builders": [
+        "omen-worker-1",
+        "cc-builder-2"
+      ],
+      "plan_id": "hearth-spec-builder-elo-tournament-6d506fb3",
+      "ok": true,
+      "error": null
+    },
+    {
+      "slug": "watchfire-npu-classifier",
+      "builders": [
+        "omen-worker-1",
+        "am4-worker-1"
+      ],
+      "plan_id": "hearth-spec-watchfire-npu-classifier-9b902d35",
+      "ok": true,
+      "error": null
+    },
+    {
+      "slug": "knowledge-per-kwh",
+      "builders": [
+        "cc-builder-2",
+        "am4-worker-1"
+      ],
+      "plan_id": "hearth-spec-knowledge-per-kwh-c9e9a8a3",
+      "ok": true,
+      "error": null
+    },
+    {
+      "slug": "learned-router",
+      "builders": [
+        "omen-worker-1",
+        "cc-builder-2"
+      ],
+      "plan_id": "hearth-spec-learned-router-3acbc0d1",
+      "ok": true,
+      "error": null
+    },
+    {
+      "slug": "imagegen-as-machine",
+      "builders": [
+        "omen-worker-1",
+        "am4-worker-1"
+      ],
+      "plan_id": "hearth-spec-imagegen-as-machine-5bcb2fb7",
+      "ok": true,
+      "error": null
+    },
+    {
+      "slug": "end-to-end-lineage",
+      "builders": [
+        "cc-builder-2",
+        "am4-worker-1"
+      ],
+      "plan_id": "hearth-spec-end-to-end-lineage-44375040",
+      "ok": true,
+      "error": null
+    },
+    {
+      "slug": "fleet-autoscale",
+      "builders": [
+        "omen-worker-1",
+        "cc-builder-2"
+      ],
+      "plan_id": "hearth-spec-fleet-autoscale-0054eb2c",
+      "ok": true,
+      "error": null
+    },
+    {
+      "slug": "belief-recency-decay",
+      "builders": [
+        "omen-worker-1",
+        "am4-worker-1"
+      ],
+      "plan_id": "hearth-spec-belief-recency-decay-11e434ec",
+      "ok": true,
+      "error": null
+    },
+    {
+      "slug": "mechnet-modes",
+      "builders": [
+        "cc-builder-2",
+        "am4-worker-1"
+      ],
+      "plan_id": "hearth-spec-mechnet-modes-c7f246db",
+      "ok": true,
+      "error": null
+    },
+    {
+      "slug": "watchfire-autoheal-envelope",
+      "builders": [
+        "omen-worker-1",
+        "cc-builder-2"
+      ],
+      "plan_id": "hearth-spec-watchfire-autoheal-envelope-40a3337f",
+      "ok": true,
+      "error": null
+    },
+    {
+      "slug": "idea-to-candidate-loop",
+      "builders": [
+        "omen-worker-1",
+        "am4-worker-1"
+      ],
+      "plan_id": "hearth-spec-idea-to-candidate-loop-c54a3bb3",
+      "ok": true,
+      "error": null
+    },
+    {
+      "slug": "research-brief-assay",
+      "builders": [
+        "cc-builder-2",
+        "am4-worker-1"
+      ],
+      "plan_id": "hearth-spec-research-brief-assay-57d3bfa8",
+      "ok": true,
+      "error": null
+    },
+    {
+      "slug": "fleet-model-residency-planner",
+      "builders": [
+        "omen-worker-1",
+        "cc-builder-2"
+      ],
+      "plan_id": "hearth-spec-fleet-model-residency-planner-55a4c101",
+      "ok": true,
+      "error": null
+    },
+    {
+      "slug": "ledger-rebuild-dr",
+      "builders": [
+        "omen-worker-1",
+        "am4-worker-1"
+      ],
+      "plan_id": "hearth-spec-ledger-rebuild-dr-ec63b4c4",
+      "ok": true,
+      "error": null
+    }
+  ]
+}

@@ -5,7 +5,7 @@ import subprocess
 from unittest import TestCase
 from unittest.mock import patch
 
-from hearth.toolsurface.masters_pet import AUTO_HEAL_KINDS, remediate
+from hearth.toolsurface.masters_pet import AUTO_HEAL_KINDS, masters_pet
 
 
 def _completed(stdout="", stderr="", returncode=0):
@@ -28,10 +28,10 @@ _RECORDS = [
 ]
 
 
-class RemediateTests(TestCase):
+class MastersPetTests(TestCase):
     def test_dry_run_partitions_but_does_not_heal(self):
         with patch("subprocess.run", return_value=_completed(stdout=_gather(_RECORDS))) as run:
-            out = remediate(apply=False)
+            out = masters_pet(apply=False)
         self.assertTrue(out["ok"])
         self.assertTrue(out["dry_run"])
         self.assertEqual([g["kind"] for g in out["healable"]], ["phantom_in_flight"])
@@ -48,7 +48,7 @@ class RemediateTests(TestCase):
         with patch("subprocess.run", side_effect=[
                 _completed(stdout=_gather(_RECORDS)),
                 _completed(stdout=heal_out)]):
-            out = remediate(apply=True)
+            out = masters_pet(apply=True)
         self.assertTrue(out["ok"])
         self.assertFalse(out["dry_run"])
         self.assertIn("healed", out)
@@ -66,7 +66,7 @@ class RemediateTests(TestCase):
                   "winner": "w", "promoted": True, "winner_grade": "A", "winner_files": 50,
                   "n_questions": 0}]
         with patch("subprocess.run", return_value=_completed(stdout=_gather(clean))) as run:
-            out = remediate(apply=True)
+            out = masters_pet(apply=True)
         self.assertTrue(out["ok"])
         self.assertEqual(out["healable"], [])
         self.assertNotIn("healed", out)
@@ -74,6 +74,6 @@ class RemediateTests(TestCase):
 
     def test_ssh_failure_is_clean(self):
         with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="ssh", timeout=15)):
-            out = remediate(apply=True)
+            out = masters_pet(apply=True)
         self.assertFalse(out["ok"])
         self.assertIn("TimeoutExpired", out["error"])

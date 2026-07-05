@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from tools.workflow.lexicon import label_actor, label_event
 from tools.workflow.ontology import EVENT_TO_PHASE
 
 
@@ -50,6 +51,18 @@ def to_otel_span_event(event: dict) -> dict:
         attributes["decision.maker.type"] = decision_maker["type"]
     if decision_maker.get("id"):
         attributes["decision.maker.id"] = decision_maker["id"]
+
+    # Presentation layer (additive; span name stays the technical event_type so
+    # tooling can group by it). Lore display attributes are derived at render
+    # time from the lexicon and are never written back to the ledger.
+    labelled = label_event(event)
+    attributes["display.label"] = labelled["display"]
+    if labelled["phase_display"] is not None:
+        attributes["display.phase"] = labelled["phase_display"]
+    if actor.get("id"):
+        attributes["display.actor"] = label_actor(
+            actor["id"], actor.get("type")
+        )["display"]
 
     return {
         "name": event["event_type"],

@@ -1,0 +1,248 @@
+# ============================================================================
+# HEARTH / mechnet ontology lexicon -- the presentation vocabulary.
+# ============================================================================
+# This file is the SINGLE SOURCE OF TRUTH for the lore phrasing that renders
+# on top of the technical span/event ontology (tools/workflow/ontology.py).
+#
+# PRESENTATION-ONLY. Lore terms are applied at render/projection time and are
+# NEVER written into the ledger or the durable event log. Durable events stay
+# 100% technical; this matches the repo rule "no authorship where derivation
+# exists" (REPLAY-INFORMATION-ARCHITECTURE.html). If a lore term ever appears
+# in a *.ndjson ledger line or a workflow-event.schema.json event, that is a
+# bug -- the lexicon only decorates views.
+#
+# Format note: TOML + stdlib tomllib (Python 3.11+), NOT YAML, matching the
+# repo's stdlib-only rule (see fleet/inventory.toml: "no PyYAML dependency by
+# design"). Neither the system interpreter nor fleet-worker-node/.venv-omen
+# ships PyYAML; both ship tomllib. Zero new dependencies.
+#
+# Drift guard: every EVENT_TYPE in ontology.py MUST have an [events.<type>]
+# entry here, enforced by lexicon.check_completeness() and its test.
+# ============================================================================
+
+[meta]
+version = "1.0.0"
+charter = "presentation vocabulary only; ledger stays technical"
+source_of_truth = "tools/workflow/ontology.py (EVENT_TYPES / EVENT_TO_PHASE)"
+lore_cosmology = "fire on the steppe"
+
+# ----------------------------------------------------------------------------
+# terms: the core lore glossary. `technical` = what it maps to in the codebase;
+# `gloss` = one-line plain meaning. These are for tooltips/legends, not for
+# per-event timeline labels (those live under [events]).
+# ----------------------------------------------------------------------------
+
+[terms.hearth]
+technical = "the always-on MCP gateway on OMEN, port 8710 (the system itself)"
+gloss = "The fire at the center of camp -- every crossing is observed and ledgered."
+
+[terms.guard_dog]
+technical = "fleet/mechnet_watchdog.py -- scheduled liveness/coherence sweep; caller id 'mechnet-watchdog'"
+gloss = "The familiar that patrols the fleet, revives what it can, and barks at the rest."
+
+[terms.charm]
+technical = "the NPU coherence upgrade carried by the guard dog (WATCHFIRE-FLARE-DESIGN-2026-07-04.html -- 'the NPU as a charm we hand it')"
+gloss = "The spell that upgrades the guard dog's sense from liveness to coherence -- one engine, two sensitivities."
+
+[terms.grooming]
+technical = "builder grooming / context-assembly phase (builder.grooming_started/completed)"
+gloss = "The preparation cast on a builder before it codes -- context assembled, segment groomed."
+
+[terms.banked_fire]
+technical = "idle-window opportunistic dispatch (Banked Fire P5); fleet/bankedfire_drain.py"
+gloss = "Coals kept alive under ash -- idle GPUs draining queued work on electricity instead of tokens, yielding the moment real work arrives."
+
+[terms.ember]
+technical = "an idea-to-PR work seed (candidate.produced carries one to assay)"
+gloss = "A glowing seed of work that might spark into a candidate."
+
+[terms.watchfire]
+technical = "the standing coherence signal / always-on patrol mode (ADR-0007)"
+gloss = "The standing beacon that warns the network -- watches coherence, not just liveness."
+
+[terms.flare]
+technical = "armed deep-debug mode, raised on demand via /armdebug"
+gloss = "The bright light sent up to see the whole field when trouble is suspected."
+
+[terms.bark]
+technical = "an alert signal from the guard dog -- surfaces as question.raised in the workflow ontology"
+gloss = "The cry that says something needs attention."
+
+[terms.lane]
+technical = "a dispatch channel (Lane 1 inference, seconds; Lane 2 tasks, async minutes)"
+gloss = "A pathway through the system with its own pace and rules."
+
+[terms.gate]
+technical = "the promotion decision point (promotion.held/approved/rejected)"
+gloss = "The controlled passage where a candidate is held, admitted, or turned back."
+
+[terms.drain]
+technical = "fleet/bankedfire_drain.py idle-drain tick; caller id 'bankedfire-drain'"
+gloss = "The steady draw that releases a banked fire's queued work onto idle hardware."
+
+# ----------------------------------------------------------------------------
+# events: one entry per EVENT_TYPE in ontology.py. `display` is the lore label
+# short enough for a timeline chip; `gloss` is the one-line meaning for a
+# tooltip. The technical event_type is ALWAYS retained separately by callers.
+# ----------------------------------------------------------------------------
+
+[events."work.accepted"]
+display = "Work enters the hearth"
+gloss = "A new unit of work was accepted and is now tracked."
+
+[events."planning.started"]
+display = "The forge awakens"
+gloss = "Planning began for accepted work."
+
+[events."planning.completed"]
+display = "Plan set"
+gloss = "Planning finished; the shape of the work is settled."
+
+[events."backlog.entry_created"]
+display = "Laid by the fire"
+gloss = "Work was placed in the backlog to await routing."
+
+[events."builder.assigned"]
+display = "Builder called to the bench"
+gloss = "A builder was assigned to carry the work."
+
+[events."builder.grooming_started"]
+display = "Grooming begun"
+gloss = "The builder began context assembly and grooming before coding."
+
+[events."builder.grooming_completed"]
+display = "Groomed and ready"
+gloss = "Grooming finished; the builder is ready to code."
+
+[events."question.raised"]
+display = "The guard dog barks"
+gloss = "A blocking question was raised -- something needs attention."
+
+[events."question.answered"]
+display = "The dog settles"
+gloss = "The blocking question was answered; work can resume."
+
+[events."builder.resumed"]
+display = "Back to the bench"
+gloss = "The builder resumed after a pause or an answered question."
+
+[events."candidate.produced"]
+display = "An ember glows"
+gloss = "A candidate build is ready to go to assay."
+
+[events."assay.started"]
+display = "Into the fire"
+gloss = "Evaluation of the candidate began."
+
+[events."assay.passed"]
+display = "Tempered true"
+gloss = "The candidate passed assay."
+
+[events."assay.failed"]
+display = "Cracked in the fire"
+gloss = "The candidate failed assay."
+
+[events."risk.scored"]
+display = "Weighed for risk"
+gloss = "A risk report was scored for the candidate."
+
+[events."promotion.held"]
+display = "Held at the gate"
+gloss = "Promotion was paused pending operator review or a policy gate."
+
+[events."promotion.approved"]
+display = "Through the gate"
+gloss = "The candidate was approved to advance."
+
+[events."promotion.rejected"]
+display = "Turned back at the gate"
+gloss = "The candidate was rejected at promotion."
+
+[events."retrospective.created"]
+display = "Ashes gathered"
+gloss = "A retrospective was written; lessons captured after the run."
+
+[events."idle.observed"]
+display = "Fire banked"
+gloss = "A node went idle -- coals kept warm for opportunistic drain."
+
+[events."idle.ended"]
+display = "Fire stoked"
+gloss = "Idle ended; the node is back to real work."
+
+# ----------------------------------------------------------------------------
+# phases: each EVENT_TO_PHASE value -> lore label.
+# ----------------------------------------------------------------------------
+
+[phases]
+intake = "At the door"
+planning = "At the forge"
+routing = "By the fire"
+dispatch = "To the bench"
+builder = "At the bench"
+assay = "In the fire"
+risk = "On the scales"
+promotion = "The gate"
+retrospective = "The ashes"
+idle = "By the banked fire"
+
+# ----------------------------------------------------------------------------
+# actors: exact-id display rules + inventory enrichment.
+#   [actors.exact.<id>]         -> display/tooltip for a known caller id
+#   [actors.enrich]             -> rule: enrich builder ids from
+#                                   fleet/inventory.toml (display=name,
+#                                   tooltip=purpose)
+# Unknown ids fall back to the id verbatim (see lexicon.label_actor).
+# ----------------------------------------------------------------------------
+
+[actors.exact."mechnet-watchdog"]
+display = "the guard dog"
+tooltip = "fleet/mechnet_watchdog.py -- scheduled liveness/coherence sweep."
+
+[actors.exact."bankedfire-drain"]
+display = "the ember drain"
+tooltip = "fleet/bankedfire_drain.py -- idle-window opportunistic dispatch."
+
+[actors.exact."claude-frontier"]
+display = "the frontier hand"
+tooltip = "claude-frontier -- the frontier (Claude/Sonnet) builder runner."
+
+[actors.exact."dev-local"]
+display = "the keeper"
+tooltip = "dev-local -- the human operator working directly on OMEN."
+
+[actors.enrich]
+source = "fleet/inventory.toml"
+match_kinds = ["vm", "logical-builder"]
+display_field = "name"
+tooltip_field = "purpose"
+
+# ----------------------------------------------------------------------------
+# tools: render-time display override keyed by payload.tool (the ledger tool
+# name -- see hearth/projection/ledger_adapter.py's payload construction).
+# All hearth-ledger events map to the neutral "work.accepted" event type by
+# design; this section lets specific gateway tools carry a more specific lore
+# label without touching the durable event type. Unknown tools fall back to
+# the event-type display (see lexicon.label_event).
+# ----------------------------------------------------------------------------
+
+[tools."mechnet_watchdog.dream"]
+display = "The guard dog dreams"
+
+[tools."mechnet_watchdog.patrol_snapshot"]
+display = "The guard dog makes its rounds"
+
+[tools."mechnet_watchdog.patrol_trend"]
+display = "The guard dog reads old tracks"
+
+[tools."mechnet_watchdog.patrol"]
+display = "The guard dog patrols"
+
+[tools."mechnet_watchdog.revive"]
+display = "The guard dog nudges a sleeper awake"
+
+[tools."mechnet_watchdog.watchfire"]
+display = "The watchfire is tended"
+
+[tools."bankedfire_drain.tick"]
+display = "Embers stirred"

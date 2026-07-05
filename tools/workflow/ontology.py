@@ -62,6 +62,8 @@ EVENT_TO_PHASE = {
     "promotion.approved": "promotion",
     "promotion.rejected": "promotion",
     "retrospective.created": "retrospective",
+    "idle.observed": "idle",
+    "idle.ended": "idle",
 }
 
 TERMINAL_EVENTS = {"promotion.approved", "promotion.rejected", "retrospective.created"}

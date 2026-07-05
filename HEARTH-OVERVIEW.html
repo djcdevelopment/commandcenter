@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HEARTH — Overview</title>
+<style>
+  :root {
+    --bg: #12100e; --panel: #1c1916; --panel2: #24201c;
+    --ink: #e8e0d4; --dim: #a89c8a; --ember: #e2683c; --gold: #d9a441;
+    --green: #7fb069; --red: #c8553d; --line: #3a332c; --flare: #ff9a3c;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font: 16px/1.6 Georgia, 'Times New Roman', serif;
+         max-width: 1000px; margin: 0 auto; padding: 2rem 1.5rem 6rem; }
+  h1 { font-size: 1.9rem; color: var(--ember); margin-bottom: .2rem; }
+  h2 { font-size: 1.3rem; color: var(--gold); border-bottom: 1px solid var(--line);
+       padding-bottom: .3rem; margin-top: 2.6rem; }
+  h3 { font-size: 1.02rem; color: var(--ink); margin-top: 1.6rem; }
+  h4 { font-size: .92rem; color: var(--gold); margin: 0 0 .3rem; }
+  .sub { color: var(--dim); font-style: italic; margin-top: 0; }
+  .badge { display: inline-block; font: 700 .7rem/1 system-ui; letter-spacing: .06em;
+           padding: .3em .6em; border-radius: 3px; vertical-align: middle; font-style: normal; }
+  .draft { background: var(--gold); color: #1a1408; }
+  .verified { background: var(--green); color: #10200c; }
+  .warn { background: var(--red); color: #fff; }
+  .idea { background: var(--ember); color: #1a1408; }
+  code, pre { font: .85rem/1.5 Consolas, monospace; background: var(--panel2); border-radius: 3px; }
+  code { padding: .1em .35em; }
+  pre { padding: .9rem 1.1rem; overflow-x: auto; border: 1px solid var(--line); }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .92rem; }
+  th, td { border: 1px solid var(--line); padding: .5rem .7rem; text-align: left; vertical-align: top; }
+  th { background: var(--panel2); color: var(--gold); font-family: system-ui; font-size: .8rem;
+       letter-spacing: .05em; text-transform: uppercase; }
+  td code { white-space: nowrap; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--ember);
+           padding: 1rem 1.3rem; margin: 1.2rem 0; border-radius: 0 4px 4px 0; }
+  .panel.gold { border-left-color: var(--gold); }
+  .panel.green { border-left-color: var(--green); }
+  .panel.flare { border-left-color: var(--flare); }
+  .dim { color: var(--dim); }
+  ul, ol { padding-left: 1.4rem; }
+  li { margin: .35rem 0; }
+  .diagram { overflow-x: auto; margin: 1.5rem 0; }
+  .foot { margin-top: 4rem; color: var(--dim); font-size: .85rem; border-top: 1px solid var(--line);
+          padding-top: 1rem; }
+  .k { color: var(--gold); }
+  em.claim { color: var(--flare); font-style: normal; }
+  em.truth { color: var(--green); font-style: normal; }
+  .topnav { display: flex; flex-wrap: wrap; gap: .35rem 1rem; margin: 1.4rem 0 2rem;
+            padding: .8rem 1.1rem; background: var(--panel); border: 1px solid var(--line);
+            border-radius: 4px; font: .82rem system-ui; }
+  .topnav a { color: var(--gold); text-decoration: none; }
+  .topnav a:hover { text-decoration: underline; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+           gap: 1rem; margin: 1.2rem 0; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 4px;
+          padding: .9rem 1.1rem; }
+  .card p { margin: .3rem 0 0; font-size: .85rem; color: var(--dim); }
+  .card .tag { font: 700 .68rem system-ui; letter-spacing: .05em; color: var(--flare); }
+  .timeline { border-left: 2px solid var(--line); margin: 1.2rem 0 1.2rem .4rem; padding-left: 1.3rem; }
+  .timeline .tl { position: relative; margin: 0 0 1.1rem; font-size: .92rem; }
+  .timeline .tl::before { content: ''; position: absolute; left: -1.58rem; top: .35rem;
+                          width: 9px; height: 9px; border-radius: 50%; background: var(--ember); }
+  .timeline .h { color: var(--dim); font: .75rem Consolas, monospace; }
+  .stat { display: inline-block; min-width: 7.5em; }
+  a { color: var(--flare); }
+</style>
+</head>
+<body>
+
+<h1>HEARTH</h1>
+<p class="sub">The always-on MCP door for the whole mechnet &mdash; one boundary, every crossing ledgered.
+&nbsp;<span class="badge verified">LIVE &mdash; OMEN :8710</span>
+&nbsp;<span class="badge gold">32 tools live (+1 pending restart) &middot; 12 providers</span>
+&nbsp;<span class="badge verified">338 tests in hearth/ (733 repo-wide)</span>
+&nbsp;<span class="badge idea">11 ADRs, all ratified 2026-07-04</span></p>
+
+<div class="topnav">
+<a href="#what-it-is">What it is</a>
+<a href="#architecture">Architecture</a>
+<a href="#contract">The contract</a>
+<a href="#tools">Tool surface</a>
+<a href="#connects">What it connects to</a>
+<a href="#watchfire">The guard dog</a>
+<a href="#scheduler">The scheduler</a>
+<a href="#ledger">The ledger</a>
+<a href="#decisions">Decision trail</a>
+<a href="#timeline">Evolution</a>
+<a href="#glossary">Glossary</a>
+<a href="#origin">Origin artifact</a>
+</div>
+
+<h2 id="what-it-is">What HEARTH is</h2>
+<div class="panel">
+HEARTH is the single always-on <strong>MCP gateway</strong> that fronts every offload in the lab &mdash;
+local-model calls, fleet task dispatch, file/git/test operations, health checks, knowledge queries, and
+scheduling &mdash; so that <strong>every crossing lands on one ledger</strong>. It runs on <strong>OMEN</strong>
+at <code>127.0.0.1:8710</code> (FastMCP over streamable-http), started by a login/scheduled task and kept
+alive by its own guard dog. Three kinds of callers reach it: <strong>frontier Claude Code sessions</strong>
+(this one included &mdash; native <code>mcp__hearth__*</code> tools via the repo's <code>.mcp.json</code>),
+the <strong>local model</strong> (qwen3-coder:30b, driven through a tool-calling loop), and the
+<strong>fleet</strong> (builder VMs dispatched through the async task lane).
+</div>
+<div class="panel gold">
+<strong>The doctrine:</strong> <a href="docs/adr/0005-one-boundary-three-planes.md">ADR-0005, &ldquo;one boundary,
+three planes&rdquo;</a>. <strong>SENSE</strong> (AM4-MCP + OTel/Jaeger) and <strong>ACT</strong> (the mechnet:
+builders, VMs, backends) are separate planes &mdash; but every offload or engineering crossing between an agent
+and either plane goes through <strong>the one boundary</strong>: HEARTH. Not for tidiness &mdash; because at this
+stage of the lab, <strong>data is the deliverable</strong>. A second door that carries work is a second place
+observations can leak, and the belief layer (S1&ndash;S8) only learns from what actually reaches the ledger.
+The companion rule, for frontier sessions specifically (<code>hearth/callers/frontier.md</code>): act
+<em>only</em> through gateway tools &mdash; no SSH side-writes, no direct <code>knowledge/</code> edits, no
+out-of-band git push. If a tool is missing, that's a gap to name, not a door to route around.
+</div>
+
+<h2 id="architecture">Architecture</h2>
+<div class="diagram">
+<svg viewBox="0 0 920 630" width="920" xmlns="http://www.w3.org/2000/svg" font-family="system-ui" font-size="12.5">
+  <defs>
+    <marker id="arw" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#a89c8a"/>
+    </marker>
+    <marker id="arwg" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#7fb069"/>
+    </marker>
+  </defs>
+
+  <text x="16" y="16" fill="#d9a441" font-weight="700" letter-spacing="1" font-size="12">CALLERS</text>
+  <g fill="#24201c" stroke="#3a332c">
+    <rect x="16" y="24" width="204" height="60" rx="4"/>
+    <rect x="16" y="98" width="204" height="60" rx="4"/>
+    <rect x="16" y="172" width="204" height="60" rx="4"/>
+    <rect x="16" y="246" width="204" height="60" rx="4"/>
+  </g>
+  <g fill="#e8e0d4">
+    <text x="28" y="46">Claude Code &middot; frontier</text>
+    <text x="28" y="63" fill="#a89c8a" font-size="10.5">this session &mdash; native mcp__hearth__*</text>
+    <text x="28" y="120">Local model loop</text>
+    <text x="28" y="137" fill="#a89c8a" font-size="10.5">qwen3-coder:30b via local_caller.py</text>
+    <text x="28" y="194">Fleet builders</text>
+    <text x="28" y="211" fill="#a89c8a" font-size="10.5">cc-builder-1..4, claudefarm1</text>
+    <text x="28" y="268">mechnet_watchdog</text>
+    <text x="28" y="285" fill="#a89c8a" font-size="10.5">5-min snapshot + 15-min heal tick</text>
+  </g>
+
+  <g stroke="#a89c8a" fill="none" marker-end="url(#arw)">
+    <path d="M220,54 C270,54 270,150 300,168"/>
+    <path d="M220,128 C270,128 270,165 300,178"/>
+    <path d="M220,202 C270,202 270,195 300,192"/>
+    <path d="M220,276 C270,276 270,220 300,206"/>
+  </g>
+
+  <rect x="302" y="70" width="240" height="260" rx="6" fill="#1c1916" stroke="#e2683c" stroke-width="2"/>
+  <text x="422" y="98" text-anchor="middle" fill="#e2683c" font-weight="700" font-size="15">HEARTH GATEWAY</text>
+  <text x="422" y="116" text-anchor="middle" fill="#a89c8a" font-size="10.5">OMEN &middot; 127.0.0.1:8710</text>
+  <line x1="322" y1="128" x2="522" y2="128" stroke="#3a332c"/>
+  <text x="332" y="150" fill="#e8e0d4" font-size="11.5">auth &rarr; X-Hearth-Key header</text>
+  <text x="332" y="172" fill="#e8e0d4" font-size="11.5">guards &rarr; knowledge-path +</text>
+  <text x="342" y="188" fill="#e8e0d4" font-size="11.5">fixture-taint</text>
+  <text x="332" y="210" fill="#e8e0d4" font-size="11.5">12 providers &middot; 33 tools</text>
+  <text x="332" y="232" fill="#e8e0d4" font-size="11.5">timed + sha256 args/result</text>
+  <text x="332" y="254" fill="#e8e0d4" font-size="11.5">digest, every call</text>
+  <text x="422" y="304" text-anchor="middle" fill="#ff9a3c" font-weight="700" font-size="11.5">&rarr; one ledger event, always</text>
+
+  <text x="598" y="20" fill="#d9a441" font-weight="700" letter-spacing="1" font-size="12">TWO BOUNDED CONTEXTS (ADR-0010)</text>
+  <g stroke="#a89c8a" fill="none" marker-end="url(#arw)">
+    <path d="M542,150 C570,150 570,80 596,80"/>
+    <path d="M542,190 C570,190 570,190 596,190"/>
+  </g>
+  <rect x="598" y="42" width="238" height="80" rx="4" fill="#24201c" stroke="#3a332c"/>
+  <text x="612" y="64" fill="#e8e0d4" font-weight="700">KERNEL LEDGER</text>
+  <text x="612" y="82" fill="#a89c8a" font-size="10.5">hearth-event.v1 &middot; audit truth</text>
+  <text x="612" y="98" fill="#a89c8a" font-size="10.5">every MCP call, no exceptions</text>
+
+  <rect x="598" y="152" width="238" height="80" rx="4" fill="#24201c" stroke="#3a332c"/>
+  <text x="612" y="174" fill="#e8e0d4" font-weight="700">WORKFLOW LEDGER</text>
+  <text x="612" y="192" fill="#a89c8a" font-size="10.5">domain events &middot; full payload</text>
+  <text x="612" y="208" fill="#a89c8a" font-size="10.5">replayable (event-sourced)</text>
+
+  <g stroke="#a89c8a" fill="none" marker-end="url(#arw)">
+    <path d="M680,232 C680,255 717,255 717,270"/>
+    <path d="M754,122 C754,200 717,240 717,270"/>
+  </g>
+  <rect x="598" y="272" width="238" height="66" rx="4" fill="#24201c" stroke="#3a332c"/>
+  <text x="612" y="294" fill="#e8e0d4" font-weight="700">knowledge/*.json</text>
+  <text x="612" y="312" fill="#a89c8a" font-size="10.5">capacity &middot; beliefs &middot; am4_catalog &middot; findings</text>
+  <text x="612" y="328" fill="#a89c8a" font-size="10.5">each stamped with a corpus_digest</text>
+
+  <g stroke="#7fb069" stroke-dasharray="4 3" fill="none" marker-end="url(#arwg)">
+    <path d="M598,305 C480,470 300,460 222,292"/>
+  </g>
+  <text x="390" y="500" text-anchor="middle" fill="#7fb069" font-size="11.5" font-weight="700">advises &mdash; read-only</text>
+  <text x="390" y="516" text-anchor="middle" fill="#a89c8a" font-size="10.5">propose_schedule &middot; schedule_hindsight &middot; patrol</text>
+
+  <text x="460" y="586" text-anchor="middle" fill="#a89c8a" font-size="11.5">Every arrow into the gateway is a ledgered crossing.</text>
+  <text x="460" y="602" text-anchor="middle" fill="#a89c8a" font-size="11.5">No side doors &mdash; ADR-0005.</text>
+</svg>
+</div>
+
+<h2 id="contract">The contract &mdash; what every call gets</h2>
+<p>Every provider tool is a plain typed Python function with a docstring; the gateway wraps each one so a
+caller can't get a partial contract. From <code>hearth/kernel/gateway.py::make_wrapper</code>:</p>
+<ol>
+<li><strong>Identity resolved</strong> from the <code>X-Hearth-Key</code> header. Unknown or missing keys are
+    rejected &mdash; and the rejection is itself a ledger event, recorded under a synthetic
+    <code>__unauthenticated__</code> identity (key fingerprinted, never logged raw).</li>
+<li><strong>Guard-checked</strong> before the call runs: a knowledge-path guard (only the knowledge module's
+    own tools may touch <code>knowledge/*.json</code>) and a fixture-taint guard (refuses args carrying
+    fixture-derived source paths &mdash; the 2026-07-02 corpus-overwrite incident, designed out at the door).</li>
+<li><strong>Timed</strong> &mdash; wall-clock duration in milliseconds, on every call.</li>
+<li><strong>Digested, not recorded</strong> &mdash; sha256 of the JSON-serialized args and result, plus a
+    400-character preview. Audit truth, not a replay log (that's the workflow ledger's job &mdash; see
+    <a href="#ledger">below</a>).</li>
+<li><strong>Bucketed</strong> by <code>task_class</code> (inference, dispatch, test, io, health, vcs, query,
+    &hellip;) for cost and capacity analytics.</li>
+<li><strong>Ledgered, always</strong> &mdash; a <code>hearth-event.v1</code> lands in the append-only kernel
+    ledger even when the tool also writes its own domain event (<code>record_event</code> does exactly this;
+    <a href="docs/adr/0011-record-event-double-write-is-intentional.md">ADR-0011</a> is the one-file answer for
+    why that's two facts, not one fact twice).</li>
+</ol>
+
+<h2 id="tools">The tool surface</h2>
+<p class="dim">32 tools are live on the gateway process this session is actually connected to; a 33rd is merged
+in source and will appear after the next restart (noted inline). Grouped by what they're for, not by file.</p>
+
+<h3>Inference &amp; dispatch</h3>
+<table>
+<tr><th>Tool</th><th>What it does</th></tr>
+<tr><td><code>local_generate</code></td><td>Synchronous call to the boot-started local model (Ollama or an
+    OpenAI-shaped endpoint). Tag/task-routed calls check AM4 GPU occupancy before dispatch; returns the
+    backend used, the routing reason, and occupancy-at-decision.</td></tr>
+<tr><td><code>submit_task</code></td><td>Writes a self-contained brief to the conductor's inbox over SSH
+    &mdash; the async task lane to the fleet. Padded to the conductor's 2-builder fan-out minimum.</td></tr>
+<tr><td><code>task_status</code></td><td>Poll a submitted task's <code>plan_id</code> for the fleet's
+    result.</td></tr>
+</table>
+
+<h3>Local backend bring-up <span class="badge warn">STUB &mdash; shape only</span></h3>
+<table>
+<tr><th>Tool</th><th>What it does</th></tr>
+<tr><td><code>wake_am4</code></td><td>Would start AM4's dual-B70 <code>oxen</code> backend over SSH
+    (<code>am4-planner</code>/<code>am4-critic</code> services). Returns
+    <code>{ok:false, stub:true, would_run:&hellip;}</code> today.</td></tr>
+<tr><td><code>start_ollama</code></td><td>Would start the local Ollama daemon and warm a model resident.
+    Same stub shape.</td></tr>
+<tr><td><code>checkpoint_vm</code></td><td>Would Hyper-V-checkpoint a builder VM on OMEN
+    (<code>Checkpoint-VM</code> / <code>Export-VMSnapshot</code>). Same stub shape.</td></tr>
+</table>
+<p class="dim">These three ship the correct tool <em>shape</em> now &mdash; callers and the ledger already see
+the real contract &mdash; so the caller-facing surface won't change when execution lands.</p>
+
+<h3>Files, git &amp; tests <span class="badge verified">sandboxed to HEARTH_SCOPE</span></h3>
+<table>
+<tr><th>Tool</th><th>What it does</th></tr>
+<tr><td><code>read_file</code> &middot; <code>write_file</code> &middot; <code>list_dir</code> &middot;
+    <code>glob_files</code></td><td>Scoped filesystem access &mdash; every path resolves against
+    <code>HEARTH_SCOPE</code> and is rejected if it escapes.</td></tr>
+<tr><td><code>git_status</code> &middot; <code>git_diff</code> &middot; <code>git_log</code></td>
+    <td>Read-only git inspection via subprocess (60s timeout).</td></tr>
+<tr><td><code>git_commit_push</code></td><td>Commit + push &mdash; always pushes, even on a clean tree (the
+    fix for the fleet's "F/0" incident, where a silently-skipped push once looked like the workers were
+    source-blind).</td></tr>
+<tr><td><code>run_tests</code> &middot; <code>lint_digest</code></td><td>Run the suite / linter and return
+    only the failures, not full stdout &mdash; keeps frontier round-trips cheap.</td></tr>
+</table>
+
+<h3>Knowledge &amp; belief layer</h3>
+<table>
+<tr><th>Tool</th><th>What it does</th></tr>
+<tr><td><code>record_event</code></td><td>Append a typed domain event to a run's workflow ledger. Also lands
+    its own audit entry on the kernel ledger, on purpose (ADR-0011).</td></tr>
+<tr><td><code>project</code></td><td>Run the projector DAG (capacity, findings, associations, coverage,
+    experiments, policy) and write <code>knowledge/*.json</code>, each stamped with a
+    <code>corpus_digest</code>.</td></tr>
+<tr><td><code>rebuild_knowledge</code> <span class="badge draft">merged, pending restart</span></td>
+    <td>Full from-zero replay of the projector DAG into a staging directory, validated, then atomically
+    swapped in &mdash; the CQRS step-5 "golden determinism" rebuild.</td></tr>
+<tr><td><code>query_capabilities</code> &middot; <code>query_findings</code> &middot;
+    <code>query_beliefs_summary</code></td><td>Read the belief layer (S1&ndash;S8) &mdash; what the lab
+    currently believes it can do, and why.</td></tr>
+<tr><td><code>query_capacity</code> &middot; <code>project_capacity_knowledge</code></td><td>Duration and
+    throughput percentiles, bucketed by task_class &times; node &times; model.</td></tr>
+<tr><td><code>query_am4_catalog</code> &middot; <code>gather_am4_catalog</code></td><td>AM4's model catalog
+    &mdash; VRAM, placement (single/dual-card), measured warmup times &mdash; ingested from
+    <code>vllama</code> + <code>b70tools</code> over SSH.</td></tr>
+</table>
+
+<h3>The guard dog &mdash; Watchfire</h3>
+<table>
+<tr><th>Tool</th><th>What it does</th></tr>
+<tr><td><code>patrol</code></td><td>Pure observer. Scans conductor run records for coherence gaps; never
+    mutates. <code>refresh=True</code> (default) also best-effort refreshes capacity / AM4-catalog /
+    hindsight.</td></tr>
+<tr><td><code>remediate</code> <span class="badge draft">source-renamed masters_pet, pending restart</span></td>
+    <td>The only mutator. Auto-heals <code>phantom_in_flight</code> only (v0 policy); dry-run unless
+    <code>apply=True</code>.</td></tr>
+<tr><td><code>dream</code></td><td>Off-duty art mode &mdash; drives ComfyUI SD3.5-Large on AM4 over SSH,
+    thermal-guarded at 95&deg;C, ledgers under identity <code>mechnet-watchdog</code>.</td></tr>
+</table>
+
+<h3>Scheduler <span class="badge gold">advisory-only</span></h3>
+<table>
+<tr><th>Tool</th><th>What it does</th></tr>
+<tr><td><code>propose_schedule</code></td><td>Read-only CP-SAT job-shop proposal over pending jobs, machines,
+    and <code>capacity.json</code>.</td></tr>
+<tr><td><code>schedule_hindsight</code></td><td>Replays real completed runs through the solver and reports
+    regret &mdash; how far the actual dispatch was from what the solver would have chosen.</td></tr>
+</table>
+
+<h3>Kernel <span class="badge verified">built-in, always mounted</span></h3>
+<table>
+<tr><th>Tool</th><th>What it does</th></tr>
+<tr><td><code>kernel_status</code></td><td>Self-test: mounted providers, ledger location + event count,
+    resolved caller identity.</td></tr>
+<tr><td><code>kernel_change</code></td><td>The kernel-change ceremony &mdash; zip-snapshots the kernel source
+    and records a ledger event <em>before</em> acknowledging. Kernel edits are rare, logged, reversible.</td></tr>
+</table>
+
+<h2 id="connects">What it connects to</h2>
+<div class="cards">
+<div class="card"><span class="tag">PHYSICAL HOST &middot; THIS BOX</span>
+<h4>OMEN</h4>
+<p>Hyper-V hypervisor. Runs Ollama (qwen3-coder:30b, :11434), the HEARTH gateway itself (:8710), and
+<code>mechnet_watchdog</code>. Hosts every builder VM.</p></div>
+
+<div class="card"><span class="tag">PHYSICAL HOST &middot; SENSE PLANE</span>
+<h4>AM4</h4>
+<p>Ryzen 9, RTX 4070&nbsp;Ti + 2&times;Intel Arc Pro (~64GB VRAM). Dual ComfyUI image-gen, the
+<code>vllama</code> model-lifecycle layer, Jaeger/OTel (:16686). Reached only through HEARTH for anything
+that counts as work &mdash; ADR-0005.</p></div>
+
+<div class="card"><span class="tag">PHYSICAL HOST</span>
+<h4>cc-conductor</h4>
+<p>Canonical fleet repo + task inbox + the living-plan web server (:8080). <code>submit_task</code>'s
+destination.</p></div>
+
+<div class="card"><span class="tag">VMs + LOGICAL BUILDERS</span>
+<h4>Builder fleet</h4>
+<p><code>cc-builder-1..4</code>, <code>claudefarm1</code>, plus logical builders
+<code>am4-worker-1</code> and <code>omen-worker-1</code> &mdash; competing frontier-vs-local build-outs.</p></div>
+
+<div class="card"><span class="tag">EXTERNAL SERVICE</span>
+<h4>GitHub &middot; djcdevelopment</h4>
+<p><code>git_commit_push</code>'s destination.</p></div>
+
+<div class="card"><span class="tag">PHYSICAL HOST &middot; OPTIONAL</span>
+<h4>i5-laptop</h4>
+<p>Portable demo/edge node. Normally offline &mdash; not part of the reachability baseline.</p></div>
+</div>
+<p class="dim">Reachability for all of the above is canonically tracked in <code>fleet/inventory.toml</code>
+and swept by <code>/checkmechnet</code>; the gateway's own health is <code>/checkmcp</code>
+(<code>hearth/callers/doorcheck.py</code>, with a proven <code>--revive</code> path for a dead gateway).</p>
+
+<h2 id="watchfire">The guard dog &mdash; Watchfire</h2>
+<div class="panel green">
+<a href="docs/adr/0007-watchfire-coherence-watching-and-auto-heal.md">ADR-0007</a>: the watchdog's sense was
+upgraded from <em class="claim">liveness</em> (is a service reachable?) to <em class="truth">coherence</em>
+(do the sources agree?). Every false signal in the session that motivated this was the same shape &mdash; two
+sources that should have agreed, and didn't, with no single view reconciling them.
+</div>
+
+<h3>Gap kinds (<code>hearth/health/gaps.py</code>)</h3>
+<table>
+<tr><th>Gap kind</th><th>Severity</th><th>What it means</th><th>Auto-healed?</th></tr>
+<tr><td><code>phantom_in_flight</code></td><td>warn</td><td>No result after 30 minutes &mdash; holds phantom
+    occupancy on a builder that's actually done.</td><td><span class="badge verified">yes (v0)</span></td></tr>
+<tr><td><code>crashed_isolated</code></td><td>high</td><td>Status reads "errored" / "errored (isolated)".</td>
+    <td>flag-only</td></tr>
+<tr><td><code>stale_checkout</code></td><td>high</td><td>A builder's reference checkout is missing expected
+    files.</td><td>flag-only</td></tr>
+<tr><td><code>false_success</code></td><td>warn</td><td>Graded/finished but still has pending questions, or
+    the "winner" produced &le;1 files.</td><td>flag-only</td></tr>
+<tr><td><code>schedule_divergence</code></td><td>info</td><td>Actual duration &gt; 2&times; the capacity
+    bucket's p90 for that (task_class, node, model).</td><td>flag-only</td></tr>
+</table>
+<p><strong>The auto-heal boundary is deliberately narrow:</strong> <code>AUTO_HEAL_KINDS = {phantom_in_flight}</code>.
+Every heal is self-documenting (<code>_healed_by</code> / <code>_healed_at</code>) and reversible (delete the
+stub), and a heal must <em>resolve</em> a gap, never relabel it as a fresh crash. Everything ambiguous stays
+eyes-only, handed to a reasoner &mdash; the same "gate, not an oracle" discipline as the fleet assay
+(<a href="docs/adr/0001-assay-acceptance-gap.md">ADR-0001</a>).</p>
+
+<h3>Cadence &mdash; two ticks, one engine</h3>
+<p>The newest slice (commit <code>7428a94</code>): a cheap <code>patrol(refresh=False)</code> snapshot runs
+every <strong>5 minutes</strong> into a small rolling file (capped ~1 hour). The existing
+<strong>15-minute</strong> watchdog tick reads back the last 3 snapshots and tags each gap
+<em>persistent / new / resolved</em> by plain set comparison on (kind, plan_id) &mdash; then runs the
+liveness heal pass and best-effort refreshes capacity, the AM4 catalog, and a 20-run hindsight replay. The
+coherence sweep never affects the liveness health verdict; it's additive and best-effort.</p>
+
+<p><code>dream</code> is the guard dog's off-duty spell: when nothing needs watching, it can render on AM4's
+idle GPU instead &mdash; the lab having some soul, thermally guarded at 95&deg;C so it never contends with
+real work.</p>
+
+<h2 id="scheduler">The scheduler &mdash; a job shop for GPU time</h2>
+<div class="panel gold">
+The newest layer, and a full-circle moment: Derek's 2019 article on rebuilding a manufacturing MES with
+OR-Tools turned out to be the destination all along. GPU model residency is machine setup time; a model swap
+is a changeover. <a href="docs/adr/0008-scheduler-advisory-first.md">ADR-0008</a> is the current gate.
+</div>
+<p><strong>Objective (two economies):</strong> minimize metered frontier tokens first, makespan second
+&mdash; local placement is always preferred unless a hard deadline forces parallelism.
+<strong>Constraints:</strong> one machine per job, no-overlap per machine, precedence, hard deadlines, plus
+the setup-aware layer (JS7b): model residency, a single shared DDR4 staging slot on AM4, and a per-card VRAM
+budget.</p>
+
+<h3>The imagegen-250 assay</h3>
+<table>
+<tr><th></th><th>Makespan</th><th>Model loads</th><th>Setup time</th><th>Deadline misses</th></tr>
+<tr><td>FIFO baseline</td><td>3378.0s</td><td>24</td><td>410.0s</td><td>19</td></tr>
+<tr><td>Smart serial baseline</td><td>3018.0s</td><td>3</td><td>50.0s</td><td>16</td></tr>
+<tr><td><strong>CP-SAT scheduler</strong></td><td><strong>3124.0s</strong></td><td><strong>3</strong></td>
+    <td><strong>50.0s</strong></td><td><strong>0</strong> <span class="badge verified">OPTIMAL</span></td></tr>
+</table>
+<p class="dim">250 synthetic image-gen jobs across sd3.5_large / sdxl-base / flux-schnell on a single stateful
+AM4 machine. The solver matches the smart baseline's model-load count structurally (by packing residency)
+while clearing every deadline miss &mdash; 88% less setup time than naive FIFO.</p>
+
+<div class="panel">
+<strong>Advisory-only, on purpose.</strong> <code>propose_schedule</code> and <code>schedule_hindsight</code>
+are read-only &mdash; nothing dispatches from them. The one-scheduler doctrine holds: the conductor owns
+dispatch; HEARTH only ever <em>names</em> eligible builders. JS5 (scheduler-informed ordering, behind
+<code>HEARTH_SCHEDULER_ADVISE=1</code>) is specified but deliberately unbuilt until the regret trend &mdash;
+accrued automatically every 15-minute patrol tick, on real runs &mdash; shows sustained, non-trivial savings.
+Today that trend shows zero token regret, because the dispatch history so far is all-local: the synthetic
+assay justifies the <em>formulation</em>, not yet the <em>actuation</em>.
+</div>
+
+<h2 id="ledger">The ledger &mdash; two bounded contexts</h2>
+<p><a href="docs/adr/0010-two-ledgers-two-bounded-contexts.md">ADR-0010</a>: HEARTH has two event systems, and
+a three-reviewer CQRS review unanimously rejected unifying them &mdash; they answer different questions.</p>
+<table>
+<tr><th></th><th>Kernel ledger</th><th>Workflow ledger</th></tr>
+<tr><td>Where</td><td><code>hearth/var/ledger/events.ndjson</code></td><td><code>runs/&lt;run-id&gt;/events.jsonl</code></td></tr>
+<tr><td>Answers</td><td>"A call happened, by whom, at what cost"</td><td>"This business fact is now part of
+    the domain history"</td></tr>
+<tr><td>Contains</td><td>Caller, tool, sha256 digests, 400-char preview, ok/error, duration, cost</td>
+    <td>Full typed payloads (<code>work.accepted</code>, <code>candidate.produced</code>,
+    <code>promotion.*</code>, &hellip;)</td></tr>
+<tr><td>Guarantee</td><td>Append-only audit truth, non-replayable by design</td><td>Must satisfy
+    event-sourcing replay</td></tr>
+</table>
+<p><code>hearth/projection/ledger_adapter.py</code> is the directional, idempotent anti-corruption translator
+between them &mdash; never a second birthplace for a domain fact.</p>
+
+<h3>CQRS/ES hardening &mdash; shipped 2026-07-04</h3>
+<ul>
+<li><span class="badge verified">done</span> atomic <code>write_json</code> everywhere; the
+    <code>capacity.json</code> guard bypass closed (step 2)</li>
+<li><span class="badge verified">done</span> <code>Ledger.reindex()</code> + <code>verify()</code> + CLI
+    (step 3)</li>
+<li><span class="badge verified">done</span> canonical <code>Corpus</code> enumerator + <code>corpus_digest</code>
+    provenance stamping (step 4)</li>
+<li><span class="badge verified">done</span> <code>rebuild --from-zero</code> + a golden determinism test
+    (step 5) &mdash; replays the full projector DAG into a staging dir; the live <code>knowledge/</code> tree
+    is byte-untouched on any failure before the atomic swap</li>
+<li><span class="dim">ahead: stream_seq + idempotent append hardening on the workflow ledger (steps 7&ndash;8)</span></li>
+</ul>
+
+<h2 id="decisions">Decision trail</h2>
+<p>Eleven ADRs, every one ratified the same day &mdash; the record of a lab that decided a lot in one
+sitting and wrote down why, so none of it has to be re-litigated.</p>
+<table>
+<tr><th>ADR</th><th>Title</th></tr>
+<tr><td><a href="docs/adr/0001-assay-acceptance-gap.md">0001</a></td><td>The assay is a regression gate, not an acceptance oracle</td></tr>
+<tr><td><a href="docs/adr/0002-belief-layer-excludes-infra-failures.md">0002</a></td><td>The belief layer must not ingest infra/harness-caused failures</td></tr>
+<tr><td><a href="docs/adr/0003-allowlist-overrides-exclusion.md">0003</a></td><td>A CCMETA allow-list overrides <code>exclude_from_build_pool</code></td></tr>
+<tr><td><a href="docs/adr/0004-retrospection-is-frontier-assembled.md">0004</a></td><td>Retrospection is frontier-assembled; the fleet drafts, it does not author</td></tr>
+<tr><td><a href="docs/adr/0005-one-boundary-three-planes.md">0005</a></td><td>One boundary, three planes: every offload crossing goes through HEARTH</td></tr>
+<tr><td><a href="docs/adr/0006-idle-drain-arming-policy.md">0006</a></td><td>Unattended autonomy is an authored, suspendable toggle, earned by a supervised cycle</td></tr>
+<tr><td><a href="docs/adr/0007-watchfire-coherence-watching-and-auto-heal.md">0007</a></td><td>The guard dog watches coherence, and auto-heals the obvious</td></tr>
+<tr><td><a href="docs/adr/0008-scheduler-advisory-first.md">0008</a></td><td>The scheduler advises until the ledgered regret trend earns it dispatch</td></tr>
+<tr><td><a href="docs/adr/0009-tiered-builds-integration-is-the-review.md">0009</a></td><td>Tiered agent builds: integration is the review; frontier merge review is load-bearing</td></tr>
+<tr><td><a href="docs/adr/0010-two-ledgers-two-bounded-contexts.md">0010</a></td><td>Two ledgers, two bounded contexts: one door is not one store</td></tr>
+<tr><td><a href="docs/adr/0011-record-event-double-write-is-intentional.md">0011</a></td><td>The record_event double-write is intentional</td></tr>
+</table>
+
+<h2 id="timeline">Evolution</h2>
+<div class="timeline">
+<div class="tl"><span class="h">ea71d93</span> &mdash; Banked Fire (idle-drain) codename ratified, P1&ndash;P4 marked built and live.</div>
+<div class="tl"><span class="h">c3495d0 &middot; 82f4e35 &middot; b61714c</span> &mdash; Watchfire Slice 0: <code>patrol</code> (observer), <code>remediate</code> (first healing spell), <code>dream</code> (off-duty art mode).</div>
+<div class="tl"><span class="h">8d438a6</span> &mdash; <code>preflight</code> renamed <code>patrol</code> &mdash; the guard dog's rounds, not an aviation checklist.</div>
+<div class="tl"><span class="h">73a1d0a &rarr; be7bbd9 &rarr; 4b7d70c</span> &mdash; JS1&ndash;JS7b: ledger task_class + capacity projection &rarr; CP-SAT shadow scheduler &rarr; setup-aware model residency.</div>
+<div class="tl"><span class="h">1cf7fc5 &middot; a471bcd</span> &mdash; <code>schedule_hindsight</code> regret replay; imagegen-250 promoted to a repo fixture.</div>
+<div class="tl"><span class="h">246816e</span> &mdash; patrol starts refreshing capacity/AM4-catalog and ledgering hindsight regret on every tick (U2+U3).</div>
+<div class="tl"><span class="h">bd636d5 &rarr; f1f2b8b &rarr; ad486d6 &rarr; 28cdea4</span> &mdash; CQRS/ES hardening steps 2&ndash;5: atomic writes, ledger reindex/verify, corpus digests, from-zero rebuild.</div>
+<div class="tl"><span class="h">4c25664</span> &mdash; ADR-0010 + ADR-0011 ratified: two ledgers are two bounded contexts, and the double-write is intentional.</div>
+<div class="tl"><span class="h">9279620</span> &mdash; <code>remediate</code> &rarr; <code>masters_pet</code> module rename completed (a half-done rename from a prior session had briefly broken test collection &mdash; a small coherence gap in the coherence-watcher's own codebase).</div>
+<div class="tl"><span class="h">7428a94</span> &mdash; <strong>today's latest:</strong> the 5-minute patrol snapshot / 15-minute trend split, with persistent/new/resolved gap tagging.</div>
+</div>
+
+<h2 id="glossary">Glossary &mdash; fire on the steppe</h2>
+<p class="dim">The lore vocabulary lives in exactly one place, <code>tools/workflow/lexicon.toml</code>, and is
+applied only at render/projection time &mdash; it is never written into the ledger. If a lore term ever shows
+up in a raw ledger line, that's a bug.</p>
+<table>
+<tr><th>Term</th><th>Technical meaning</th></tr>
+<tr><td><strong>hearth</strong></td><td>The always-on MCP gateway on OMEN, port 8710 &mdash; the system itself.</td></tr>
+<tr><td><strong>the guard dog</strong></td><td><code>fleet/mechnet_watchdog.py</code> &mdash; the scheduled liveness/coherence sweep.</td></tr>
+<tr><td><strong>watchfire</strong></td><td>The standing coherence signal / always-on patrol mode (ADR-0007).</td></tr>
+<tr><td><strong>flare</strong></td><td>The proposed armed deep-debug mode, raised on demand &mdash; not yet built.</td></tr>
+<tr><td><strong>charm</strong></td><td>Builder context-assembly/grooming before it codes.</td></tr>
+<tr><td><strong>banked fire</strong></td><td>Idle-window opportunistic dispatch &mdash; coals kept alive under ash, draining queued work onto idle GPUs.</td></tr>
+<tr><td><strong>ember</strong></td><td>An idea-to-PR work seed &mdash; a glowing seed that might spark into a candidate.</td></tr>
+<tr><td><strong>bark</strong></td><td>An alert from the guard dog (<code>question.raised</code> in the workflow ontology).</td></tr>
+<tr><td><strong>lane</strong></td><td>A dispatch channel &mdash; Lane 1 is inference (seconds), Lane 2 is tasks (async minutes).</td></tr>
+<tr><td><strong>gate</strong></td><td>A promotion decision point &mdash; held, approved, or turned back.</td></tr>
+<tr><td><strong>drain</strong></td><td><code>fleet/bankedfire_drain.py</code> &mdash; the tick that releases banked work onto idle hardware.</td></tr>
+</table>
+
+<h2 id="origin">Origin artifact</h2>
+<div class="panel flare">
+HEARTH's very first local dispatch (qwen3-coder, before the ledger had a single real rep) was asked, in
+effect, to describe the system it was running inside. It confabulated a generic textbook description of an
+operating-system kernel &mdash; not a single fact about this repo. It's kept verbatim, on purpose, as the
+system's oldest artifact: an honest first data point about local-model reliability, from
+<code>hearth/var/first-dispatch-report.md</code>.
+<pre>The HEARTH kernel serves as the core operating system component that orchestrates
+hardware resources, manages system processes, and provides a stable environment for
+applications to run. It handles tasks such as memory management, process scheduling,
+and hardware abstraction.</pre>
+<p class="dim" style="margin-bottom:0">For contrast, this page you're reading was assembled from the actual
+source, ADRs, and a fresh test-collection run &mdash; the whole reason the belief layer exists is to stop
+trusting the confident-sounding version and start trusting the ledgered one.</p>
+</div>
+
+<div class="foot">
+<strong>HEARTH &mdash; Overview</strong> &mdash; a living reference, assembled 2026-07-04 directly from
+<code>hearth/</code> source, <code>docs/adr/</code>, <code>fleet/inventory.toml</code>, and a live test
+collection (338 tests / 40 files in <code>hearth/tests</code>, 733 repo-wide). Numbers and tool names will
+drift as HEARTH grows &mdash; regenerate this page after the next big slice lands rather than hand-patching
+it stale. See also <a href="WATCHFIRE-FLARE-DESIGN-2026-07-04.html">WATCHFIRE-FLARE-DESIGN-2026-07-04.html</a>
+for the guard dog's full design rationale, and <a href="MECHNET-EVOLUTION-2026-07-04.md">MECHNET-EVOLUTION-2026-07-04.md</a>
+for the whole mechnet's six-phase origin story.
+</div>
+
+</body>
+</html>

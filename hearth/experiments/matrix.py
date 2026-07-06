@@ -38,6 +38,25 @@ PROMPTS: dict[str, str] = {
         "the first shippable slice, the key risks, and the done-criteria for phase 1. "
         "Keep it a skeleton, not an essay."
     ),
+    "risk-triage": (
+        "A team hands you eight open risks on a system launching in two weeks: a flaky "
+        "integration test, an unpatched dependency CVE, a single-owner service, unbounded "
+        "retry logic, no runbook, a slow query under load, a hard-coded credential, and "
+        "missing backups. Rank the top three to fix before launch and justify the cut line "
+        "for the rest. Be decisive."
+    ),
+    "resource-allocation": (
+        "You have 3 engineers and one week before a demo. Four things want doing: fix a "
+        "P1 data-loss bug, build the demo's headline feature, pay down test debt blocking "
+        "CI, and write docs a customer asked for. Allocate the engineers across the week "
+        "and state what you explicitly will NOT do, and why."
+    ),
+    "rollback-decision": (
+        "A deploy 40 minutes ago correlates with a 15% error-rate rise on one endpoint, but "
+        "a marketing push started 30 minutes ago and traffic is up 3x. Latency is normal. "
+        "Decide: roll back now, hold and watch, or forward-fix. Give the decision, the signal "
+        "that would change it, and the time budget before you must act."
+    ),
 }
 
 # ---- Critic-panel scorer ----

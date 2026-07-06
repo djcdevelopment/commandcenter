@@ -51,8 +51,11 @@ Measured on this box: critic at **32k ctx = 7.8 GiB host RSS**; dropping it to *
 (used 23→16 GiB, available 6→13 GiB). Rules of thumb:
 - Keep contexts small: **critic ≤ 8k, planner ≤ 16k** for planning workloads (both slots resident).
 - Watch `free -h` — keep **>8 GiB available** under load; two big models co-resident is tight.
-- The old Windows vllama enforced a **`max_host_used_gb_preflight: 22.0`** gate for exactly this; the
-  Linux serving has **no such gate yet** → real follow-up: port the host-RAM preflight into the launcher.
+- **Preflight gate (implemented):** `scripts/b70-preflight.sh <required_gib> <label>` is a Linux port of
+  vllama's `max_host_used_gb_preflight`. Each `serve-*.sh` calls it before `exec` (planner floor 8 GiB,
+  critic 5 GiB) so a slot **fails closed** instead of piling on and OOM-killing a running model. Test:
+  `bash ~/baseline/b70-preflight.sh 100 test` → refuses (exit 3). Combine with small contexts (above) —
+  the gate guards launch-ordering, small ctx guards the runtime peak.
 - OOM signature: `journalctl --user -u b70-planner | grep -i oom-kill`.
 
 ## Launch recipe (SYCL llama-server)

@@ -37,7 +37,9 @@ OMEN = (None, "qwen3-coder:30b")
 
 class BuildCellsTests(TestCase):
     def test_pilot_grid_count_and_shape(self) -> None:
-        cells = build_pilot_cells(AM4, OMEN, laps=(1, 3))
+        # pin prompt_ids so the count is independent of how many PROMPTS exist
+        three = ["choose-next-agent", "escalate-or-not", "plan-skeleton"]
+        cells = build_pilot_cells(AM4, OMEN, prompt_ids=three, laps=(1, 3))
         # 2 am4 models x 3 prompts x 2 laps x 2 orderings = 24
         self.assertEqual(len(cells), 24)
         orderings = {c.ordering for c in cells}

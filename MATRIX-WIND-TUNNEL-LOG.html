@@ -65,7 +65,7 @@ model plans vs critiques, and on the task?</p>
 :8081 critic slot is unbacked). Full 2-AM4-model grid unlocks once :8081 has a gguf+launcher.</p>
 </div>
 
-<h2>Finding 1 — refinement is <span class="down">not</span> a free win for planning <span class="tag t-live">pilot, n=1/cell</span></h2>
+<h2>Finding 1 — refinement is <span class="down">not</span> a free win for planning <span class="tag t-live">CONFIRMED · n=12/lap</span></h2>
 <div class="panel finding">
 <p>Across the 12-cell pilot (2026-07-06), <strong>3 laps scored lower than 1 lap for both planners.</strong>
 More refinement, on aggregate, made planning answers <em>worse</em>, not better.</p>
@@ -77,10 +77,12 @@ More refinement, on aggregate, made planning answers <em>worse</em>, not better.
 </table>
 </div>
 
-<h2>Finding 2 — but the effect is <span class="up">task-dependent</span> <span class="tag t-live">pilot</span></h2>
+<h2>Finding 2 — the effect is <span class="up">task-dependent</span> (but never positive) <span class="tag t-live">REVISED by sweep</span></h2>
 <div class="panel finding">
-<p>Refinement helped one task and hurt the others — so "how many laps" should be a <em>per-task</em> call,
-not a global default.</p>
+<p><strong>Revised by the n=12 sweep:</strong> the pilot suggested refinement <em>helped</em> escalate-or-not;
+the sweep shows that was noise (flat at 84.2). Corrected read: refinement ranges from <em>harmless</em>
+(escalate-or-not, flat) to <em>harmful</em> (choose-next-agent, −12.5 at L3) — never a net win. Pilot n=1
+numbers below, kept for the record; the authoritative per-prompt×lap view is in the Confirmation sweep.</p>
 <table>
 <tr><th>Prompt</th><th>1 lap</th><th>3 laps</th><th>verdict</th></tr>
 <tr><td>choose-next-agent</td><td class="n">80.0</td><td class="n">65.0</td><td class="down">refinement HURT (−15)</td></tr>
@@ -101,23 +103,44 @@ convergence bar (or critic prompt) needs a look — and it means the lap count, 
 control knob.</p>
 </div>
 
-<h2>Confirmation sweep <span class="tag t-run">RUNNING</span></h2>
+<h2>Confirmation sweep — <span class="down">verdict: refinement doesn't help</span> <span class="tag t-live">DONE · 36 cells, n=12/lap</span></h2>
 <div class="panel live">
-<p>The pilot was n=1 per cell — enough to spot the effect, not to trust it. Confirmation sweep launched
-2026-07-06: <strong>laps {1, 2, 3} × 3 prompts × both orderings × 2 repeats = 36 cells</strong> (adds the L2
-trend point + a second sample per condition). Run <code>python -m hearth.experiments.run_pilot --laps 1 2 3
---repeats 2</code>, dataset → <code>hearth/var/experiments/matrix-&lt;ts&gt;-sweep-r2/</code>.</p>
-<p><strong>Will confirm or refute:</strong> (1) does L3 &lt; L1 hold with repeats? (2) is the trend
-monotonic (L1&gt;L2&gt;L3) or U-shaped (an optimum at L2)? (3) does the task-dependence replicate?</p>
-<p class="meta">Results table to be filled in here when the sweep lands.</p>
+<p>Sweep: <strong>laps {1,2,3} × 3 prompts × both orderings × 2 repeats = 36 cells</strong>, all ok
+(<code>matrix-20260706T063613Z-sweep-r2</code>). The pilot's effect <strong>replicated and sharpened</strong>.</p>
+<h3>Headline — score by lap count (all planners/prompts pooled)</h3>
+<table>
+<tr><th>Laps</th><th>Mean (n=12)</th><th></th></tr>
+<tr><td>1</td><td class="n"><strong>82.2</strong></td><td><span class="bar" style="width:164px"></span></td></tr>
+<tr><td>2</td><td class="n">81.4</td><td><span class="bar" style="width:163px"></span></td></tr>
+<tr><td>3</td><td class="n down">77.2</td><td><span class="bar" style="width:154px"></span></td></tr>
+</table>
+<p><strong>Monotonic decline (L1 &gt; L2 &gt; L3).</strong> Not U-shaped — there is no sweet spot at 2; L2 ≈ L1,
+then L3 degrades. <span class="why">1 lap is as good as 2 and clearly better than 3.</span></p>
+<h3 style="margin-top:1rem">Where the damage is — score by prompt × laps (n=4 each)</h3>
+<table>
+<tr><th>Prompt</th><th>L1</th><th>L2</th><th>L3</th><th>read</th></tr>
+<tr><td>choose-next-agent</td><td class="n">77.5</td><td class="n">77.5</td><td class="n down">65.0</td><td class="down">L3 collapse (−12.5)</td></tr>
+<tr><td>escalate-or-not</td><td class="n">84.2</td><td class="n">84.2</td><td class="n">84.2</td><td>dead flat — no effect</td></tr>
+<tr><td>plan-skeleton</td><td class="n">85.0</td><td class="n">82.5</td><td class="n">82.5</td><td class="down">mild decline</td></tr>
+</table>
+<p class="why">Correction to the pilot: escalate-or-not's apparent "+5 at L3" was <strong>noise</strong> — with n=4
+it's flat. No task improved with more laps; the best case is "no change," the worst is a real drop on the
+routing/decision task. AM4 Qwen3-30B alone showed L2=85 (its best) then L3=74.5, but OMEN went the other way,
+so the pooled signal is: <strong>don't refine past 1 lap for planning.</strong></p>
 </div>
 
-<h2>What this changes</h2>
+<h2>What this changes <span class="tag t-live">confirmed</span></h2>
 <ul>
-<li><strong>Commander lane default.</strong> If confirmed, <code>rounds=3</code> is the wrong default — planning
-should use fewer laps, or a per-task lap count, or convergence-gating that can actually fire.</li>
-<li><strong>The matrix earns its keep.</strong> First cross-machine run already produced a counterintuitive,
-actionable result — exactly the wind-tunnel's purpose (knowledge-per-local-hour, on idle electricity).</li>
+<li><strong>Change the commander lane default to 1 lap.</strong> <code>rounds=3</code> is now
+<em>disconfirmed</em> for planning: it scored −5.0 vs 1 lap on aggregate and −12.5 on the routing task, and
+never beat 1 lap on anything. Fewer laps = better <em>and</em> cheaper. (Revisit if BUILD/refine-for-code
+shows a different curve — this result is planning-prompt-specific.)</li>
+<li><strong>Fix or drop convergence.</strong> The critic never emits CONVERGED, so "refine until converged"
+can't stop early — and since more laps hurt, a good default may be <em>1 lap, no critic loop at all</em> for
+planning, reserving the loop for tasks where a sweep shows it pays.</li>
+<li><strong>The matrix earned its keep.</strong> Two idle-hour runs on local hardware overturned a baked-in
+assumption (<code>rounds=3</code>) with a clean, replicated, counterintuitive result — exactly the
+wind-tunnel's purpose (knowledge-per-local-hour, on electricity).</li>
 </ul>
 
 <h2>Open threads</h2>

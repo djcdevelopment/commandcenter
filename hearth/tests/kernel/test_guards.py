@@ -80,5 +80,40 @@ class GuardLedgerLoggingTest(unittest.TestCase):
         self.assertEqual(events[0]["caller"]["id"], "claude")
 
 
+class ExtraKnowledgeReadersTest(unittest.TestCase):
+    """Read tools outside the knowledge module (am4 catalog, scheduler) must be
+    trusted to reference knowledge/ paths — the guard can't tell read from write,
+    and FastMCP passes their knowledge-path DEFAULT args, so they were wrongly
+    refused before being registered (the query_am4_catalog/schedule_hindsight bug)."""
+
+    def setUp(self):
+        from hearth.kernel.gateway import EXTRA_KNOWLEDGE_READERS, wire_knowledge_guards
+        self.EXTRA = EXTRA_KNOWLEDGE_READERS
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.repo = Path(self.tmp.name)
+        (self.repo / "knowledge").mkdir()
+        self.guards = GuardStack(repo_root=self.repo, knowledge_tools={"record_event"})
+        # wire_knowledge_guards registers EXTRA_KNOWLEDGE_READERS regardless of providers.
+        wire_knowledge_guards(self.guards, {})
+
+    def test_the_three_reported_tools_are_registered(self):
+        for name in ("query_am4_catalog", "schedule_hindsight", "gather_am4_catalog",
+                     "propose_schedule", "patrol"):
+            self.assertIn(name, self.EXTRA)
+
+    def test_am4_catalog_read_passes_on_its_knowledge_path(self):
+        # would have raised GuardRejection before the fix
+        self.guards.check("query_am4_catalog", {"out": "knowledge/am4_catalog.json"})
+
+    def test_schedule_hindsight_passes_on_capacity_path(self):
+        self.guards.check("schedule_hindsight",
+                          {"capacity_path": "knowledge/capacity.json", "limit": 50})
+
+    def test_rogue_writer_still_refused(self):
+        with self.assertRaises(GuardRejection):
+            self.guards.check("fs_write", {"path": "knowledge/findings.json", "content": "{}"})
+
+
 if __name__ == "__main__":
     unittest.main()

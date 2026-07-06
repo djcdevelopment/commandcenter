@@ -51,10 +51,18 @@ KERNEL_DIR = Path(__file__).resolve().parent
 BUILTIN_PROVIDER = "hearth.kernel.gateway#builtin"
 KNOWLEDGE_MODULE_SUFFIX = ".knowledge"
 # Tools outside the knowledge module that still legitimately reference a
-# knowledge/ path in their own args (patrol's capacity_path, read-only) — the
-# guard can't tell read from write, so they need the same trust as the
-# knowledge module's own tools.
-EXTRA_KNOWLEDGE_READERS = {"patrol"}
+# knowledge/ path in their own args — read-only queries, or the am4 catalog
+# owner that writes its OWN non-corpus file. The guard can't tell read from
+# write (and FastMCP passes default arg values, so even a caller who omits the
+# path trips it), so these need the same trust as the knowledge module's tools.
+# Keep this tight: only tools whose knowledge-path use is verified benign.
+EXTRA_KNOWLEDGE_READERS = {
+    "patrol",              # patrol.py — capacity_path, read-only
+    "query_am4_catalog",   # am4.py — reads knowledge/am4_catalog.json
+    "gather_am4_catalog",  # am4.py — writes its OWN knowledge/am4_catalog.json (not the belief corpus)
+    "propose_schedule",    # scheduler.py — reads capacity.json + am4_catalog.json
+    "schedule_hindsight",  # scheduler.py — reads knowledge/capacity.json
+}
 
 # JS1: task_class bucketing for ledger events, keyed by tool name (exact match
 # first, then a prefix match against TOOL_CLASS_PREFIXES). Unknown tools get

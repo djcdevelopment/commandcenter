@@ -39,6 +39,22 @@ Qwen3-30B-A3B Q4_K_M weights are ~18.5 GB → fits one 32 GB card easily at ≤3
 | Qwen3-30B-A3B Q4 | 18.5 GB | single (≤32k ctx); dual only for speed (the planner) |
 | Qwen2.5-32B Q4 | 19.9 GB | single (dense; dual for speed) |
 
+## Host RAM is the binding constraint — NOT VRAM (32 GB DDR4)
+
+VRAM is plentiful (2×32 GB). The real limit is the **32 GB DDR4 host RAM**. SYCL `llama-server`
+keeps host-side buffers (KV cache host copies, compute buffers) even with `-ngl 99`, plus the mmap'd
+gguf in page cache. Co-loading the 30B planner + 14B critic at generous contexts **OOM-killed the
+planner** mid-sweep (2026-07-06: `b70-planner.service: Failed with result 'oom-kill'` → 503s on every
+in-flight request until systemd restarted it ~20 s later).
+
+Measured on this box: critic at **32k ctx = 7.8 GiB host RSS**; dropping it to **8k ctx freed ~7 GiB**
+(used 23→16 GiB, available 6→13 GiB). Rules of thumb:
+- Keep contexts small: **critic ≤ 8k, planner ≤ 16k** for planning workloads (both slots resident).
+- Watch `free -h` — keep **>8 GiB available** under load; two big models co-resident is tight.
+- The old Windows vllama enforced a **`max_host_used_gb_preflight: 22.0`** gate for exactly this; the
+  Linux serving has **no such gate yet** → real follow-up: port the host-RAM preflight into the launcher.
+- OOM signature: `journalctl --user -u b70-planner | grep -i oom-kill`.
+
 ## Launch recipe (SYCL llama-server)
 
 **Always `source /opt/intel/oneapi/setvars.sh` first** — the SYCL build needs the oneAPI runtime

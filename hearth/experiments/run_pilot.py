@@ -93,6 +93,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="run each cell N times (confirmation sweep; averages the score gradient)")
     ap.add_argument("--planner-critic", action="store_true",
                     help="dedicated AM4 planner(30B,:8080) <-> critic(14b,:8081) loop, OMEN judge")
+    ap.add_argument("--prompts", nargs="+", default=None,
+                    help="restrict to these prompt ids (e.g. plan-skeleton) — for completing a partial sweep")
     args = ap.parse_args(argv)
 
     omen = _omen_ready()
@@ -117,7 +119,8 @@ def main(argv: list[str] | None = None) -> int:
         if not am4:
             print("\nAM4 planner (:8080) COLD — bring up the planner+critic first.")
             return 1
-        cells = build_planner_critic_cells(laps=tuple(args.laps), repeats=args.repeats)
+        cells = build_planner_critic_cells(prompt_ids=args.prompts,
+                                           laps=tuple(args.laps), repeats=args.repeats)
         tag = f"pc-sweep-r{args.repeats}"
     elif args.smoke:
         cells, tag = _smoke_cells(), "smoke"

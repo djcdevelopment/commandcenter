@@ -129,6 +129,36 @@ routing/decision task. AM4 Qwen3-30B alone showed L2=85 (its best) then L3=74.5,
 so the pooled signal is: <strong>don't refine past 1 lap for planning.</strong></p>
 </div>
 
+<h2>Round 3 — a <span class="down">dedicated</span> planner↔critic doesn't flip it either <span class="tag t-run">2/3 prompts, n=6/lap</span></h2>
+<div class="panel finding">
+<p>The obvious objection: rounds 1–2 used two <em>general</em> models with a generic critic that never
+converged — maybe a purpose-built loop is where laps earn their keep. So we built exactly that:
+<strong>Qwen3-30B planner (card 0) ↔ Qwen2.5-14B critic (card 1)</strong>, dedicated asymmetric roles,
+OMEN a held-out judge.</p>
+<table>
+<tr><th>Laps</th><th>Mean (n=6)</th></tr>
+<tr><td>1</td><td class="n"><strong>84.5</strong></td></tr>
+<tr><td>2</td><td class="n">81.3</td></tr>
+<tr><td>3</td><td class="n">81.8</td></tr>
+</table>
+<p><strong>Still no win for refinement.</strong> L1 best; L2/L3 dip then flatten. A dedicated critic did
+<em>not</em> flip it — "1 lap is best for planning" is robust across model pairings. <span class="why">(The
+plan-skeleton cells are re-running after a host-RAM OOM took the planner mid-sweep; the two completed
+prompts already tell the story.)</span></p>
+</div>
+
+<h2>Hardware finding — <span class="down">32GB DDR4</span> is the binding constraint, not VRAM <span class="tag t-live">confirmed</span></h2>
+<div class="panel finding">
+<p>The dedicated-loop run surfaced an infra truth flagged from the very start: the B70s hold 64GB VRAM
+total, but AM4 has only <strong>32GB DDR4 host RAM</strong>. SYCL llama-server keeps host-side KV + compute
+buffers even with <code>-ngl 99</code>; co-loading the 30B planner + 14B critic at generous contexts
+<strong>OOM-killed the planner</strong> mid-run (503s until systemd restarted it). Dropping the critic
+32k→8k ctx freed ~7 GiB (used 23→16 GiB) and restored headroom. The old Windows vllama had a
+<code>max_host_used_gb_preflight: 22.0</code> gate for exactly this — the Linux serving has none yet
+(a real follow-up). Runbook:
+<a href="am4-fleet-node/B70-CARD-MANAGEMENT.md" style="color:var(--blue)">B70-CARD-MANAGEMENT.md</a>.</p>
+</div>
+
 <h2>What this changes <span class="tag t-live">confirmed</span></h2>
 <ul>
 <li><strong>Change the commander lane default to 1 lap.</strong> <code>rounds=3</code> is now

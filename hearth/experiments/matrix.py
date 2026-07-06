@@ -123,6 +123,27 @@ def build_pilot_cells(am4_models: list[tuple], omen_model: tuple,
     return cells
 
 
+def build_planner_critic_cells(prompt_ids: Optional[list[str]] = None,
+                               laps: tuple = (1, 2, 3), repeats: int = 1,
+                               planner: tuple = ("am4-oxen", "oxen-planner"),
+                               critic: tuple = ("am4-oxen", "oxen-critic")) -> list[Cell]:
+    """A DEDICATED planner<->critic loop with FIXED asymmetric roles (not swapped):
+    a strong planner drafts, a distinct critic reviews. This is the setup where
+    refinement laps are supposed to pay off — the proper test of the "laps hurt"
+    finding, which used two general models with a generic critic instead."""
+    prompt_ids = prompt_ids or list(PROMPTS.keys())
+    p = Role(_node_of(planner[0]), planner[0], planner[1])
+    c = Role(_node_of(critic[0]), critic[0], critic[1])
+    cells: list[Cell] = []
+    for pid in prompt_ids:
+        for lp in laps:
+            base = f"{planner[1]}x{critic[1]}_{pid}_L{lp}"
+            for k in range(max(1, repeats)):
+                cid = base if repeats <= 1 else f"{base}_r{k}"
+                cells.append(Cell(cid, pid, p, c, lp, f"{p.node}:planner->{c.node}:critic"))
+    return cells
+
+
 def run_cell(cell: Cell, generate: Callable[..., dict],
              judges: Optional[list[tuple]] = None,
              on_progress: Optional[Callable[[str], None]] = None) -> dict:

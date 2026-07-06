@@ -18,8 +18,10 @@ class SummonStubShapeTests(TestCase):
         result = wake_am4()
         self._assert_stub_shape(result)
         self.assertIn("ssh derek@am4.tail8e749c.ts.net", result["would_run"])
-        self.assertIn("am4-planner.service", result["would_run"])
-        self.assertIn("am4-critic.service", result["would_run"])
+        # the real units are systemd --user services b70-planner/b70-critic (no sudo)
+        self.assertIn("systemctl --user", result["would_run"])
+        self.assertIn("b70-planner", result["would_run"])
+        self.assertIn("b70-critic", result["would_run"])
         self.assertIn("8090/health", result["verify"])
 
     def test_start_ollama_defaults_to_resident_coder_model(self) -> None:

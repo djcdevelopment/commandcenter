@@ -6,10 +6,11 @@ so callers and the ledger see the correct tool shapes NOW; H3 flips them live.
 
 Command provenance:
 - wake_am4 / oxen backend: am4-fleet-node/node.json (ssh endpoint). The live AM4
-  inference muscle is two systemd slot units — am4-planner.service (B70 SYCL0 :8080,
-  Qwen3-30B) + am4-critic.service (B70 SYCL1 :8081, qwen2.5-14b) — fronted by
-  am4-oxen-facade.service (:8090). Check render-node ownership first — B70s may be
-  owned by image gen.
+  inference muscle is two systemd --user slot units — b70-planner (B70 SYCL0 :8080,
+  Qwen3-30B) + b70-critic (B70 SYCL1 :8081, qwen2.5-14b) — fronted by the
+  am4-oxen-facade.service (:8090). They are enabled+lingered (survive reboot); see
+  am4-fleet-node/B70-CARD-MANAGEMENT.md. Check render-node ownership first — B70s may
+  be owned by image gen.
 - start_ollama: omen-worker-1 runs Ollama (login-start today; service-ification is the
   Δ4 decision). `ollama serve` starts the daemon; hitting /api/generate with the model
   loads it resident.
@@ -34,11 +35,11 @@ def _stub(would_run: str, **extra: object) -> dict:
 def wake_am4() -> dict:
     """[stub] Wake AM4's inference muscle: start the dual-B70 oxen backend over SSH."""
     return _stub(
-        f"{AM4_SSH} 'sudo systemctl start am4-planner.service am4-critic.service'",
+        f"{AM4_SSH} 'systemctl --user start b70-planner b70-critic'",
         preflight=(
-            f"{AM4_SSH} 'systemctl status am4-oxen-facade.service' — facade may be up while "
-            "the slot backends are intentionally stopped; check render-node ownership before "
-            "starting (both B70s may be owned by the image-gen workload)"
+            f"{AM4_SSH} 'curl -s localhost:8188/queue' — the B70s are shared with imagegen "
+            "(ComfyUI); confirm queue_running/queue_pending are empty (or accept single-card "
+            "coexistence) before loading both slots. Facade (:8090) stays up regardless."
         ),
         verify=f"curl -s {AM4_OXEN_HEALTH}",
         node="am4",

@@ -1,17 +1,17 @@
 """run_pilot — execute the planning-quality matrix pilot and persist the dataset.
 
-Full pilot (cross-machine) needs the AM4 vllama slots hot (oxen-planner +
-oxen-critic). Because the B70 stack is Windows-native on D:\\work and this host
-reaches AM4 only over a WSL SSH with no Windows interop, hotting the slots is a
-Windows-side action:
+AM4 is now native Ubuntu (the Windows vllama.exe lifecycle is gone; the alias
+contract survives in ~/.config/am4-fleet/alias-backends.json). Only the PLANNER
+slot has Linux backing today: oxen-planner -> :8080 Qwen3-30B-A3B (dual-B70).
+The critic slot (oxen-critic -> :8081 qwen2.5-14b) has no gguf/launcher yet, so
+the interim pilot is AM4 planner <-> OMEN critic (both orderings) -- the split
+run_refine's per-role routing was built for.
 
-    # on AM4 (PowerShell), once:
-    & 'D:\\work\\vllama\\src\\Vllama\\bin\\Release\\net9.0\\vllama.exe' up --model qwen3-30b-a3b-128k
-    & '...\\vllama.exe' up --model qwen2.5-14b-q4
-    # (or the persistent supervisor: D:\\work\\b70tools\\scripts\\tooling\\Start-AlwaysHotMoE.ps1)
+Wake the planner on AM4 (check the B70s are free of imagegen first):
+    ssh derek@am4.tail8e749c.ts.net 'nohup ~/baseline/relaunch-qwen3-baseline.sh >> ~/baseline/qwen3.log 2>&1 &'
 
 Then, from OMEN:
-    python -m hearth.experiments.run_pilot            # full 24-cell cross-machine pilot
+    python -m hearth.experiments.run_pilot            # interim 12-cell cross-machine pilot
     python -m hearth.experiments.run_pilot --smoke    # OMEN-only 2-cell live proof (no AM4)
     python -m hearth.experiments.run_pilot --check    # preflight only: are both boxes ready?
 """
@@ -28,8 +28,10 @@ from hearth.experiments.matrix import (
 )
 from hearth.toolsurface.inference import local_generate
 
-# Pilot config (grounded in the am4-catalog + backends.toml).
-AM4_MODELS = [("am4-oxen", "oxen-planner"), ("am4-oxen", "oxen-critic")]
+# Pilot config. Only the planner slot (:8080 Qwen3-30B) has Linux backing today;
+# the :8081 critic slot is unbacked, so the interim grid is 1 AM4 model x OMEN
+# (both orderings) = 12 cells. Add oxen-critic here once :8081 has a gguf+launcher.
+AM4_MODELS = [("am4-oxen", "oxen-planner")]     # :8080 Qwen3-30B-A3B (dual-B70)
 OMEN_MOE = (None, "qwen3-coder:30b")            # OMEN's resident MoE (A3B); fast
 JUDGES = [(None, "qwen3-coder:30b")]            # held-out judge on OMEN
 
@@ -95,9 +97,9 @@ def main(argv: list[str] | None = None) -> int:
           f"AM4 oxen slots={'READY' if am4 else 'COLD'}")
     if args.check:
         if not am4:
-            print("\nAM4 slots cold. Hot them on AM4 (Windows), then re-run:")
-            print("  & 'D:\\work\\vllama\\...\\vllama.exe' up --model qwen3-30b-a3b-128k")
-            print("  & '...\\vllama.exe' up --model qwen2.5-14b-q4")
+            print("\nAM4 planner (:8080) cold. Check the B70s are free, then wake it:")
+            print("  ssh derek@am4.tail8e749c.ts.net 'nohup ~/baseline/relaunch-qwen3-baseline.sh "
+                  ">> ~/baseline/qwen3.log 2>&1 &'")
         return 0 if (omen and am4) else 1
 
     if not omen:
@@ -111,8 +113,8 @@ def main(argv: list[str] | None = None) -> int:
         cells, tag = _smoke_cells(), "smoke"
     else:
         if not am4:
-            print("\nAM4 slots COLD — the cross-machine pilot needs them hot first.")
-            print("Hot them on AM4 (see module docstring), or run --smoke for the OMEN-only proof.")
+            print("\nAM4 planner (:8080) COLD — the cross-machine pilot needs it hot first.")
+            print("Wake it (see module docstring), or run --smoke for the OMEN-only proof.")
             return 1
         cells, tag = build_pilot_cells(AM4_MODELS, OMEN_MOE, laps=tuple(args.laps)), "pilot"
 

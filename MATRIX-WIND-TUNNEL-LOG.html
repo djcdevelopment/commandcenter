@@ -65,7 +65,10 @@ model plans vs critiques, and on the task?</p>
 :8081 critic slot is unbacked). Full 2-AM4-model grid unlocks once :8081 has a gguf+launcher.</p>
 </div>
 
-<h2>Finding 1 — refinement is <span class="down">not</span> a free win for planning <span class="tag t-live">CONFIRMED · n=12/lap</span></h2>
+<h2>Finding 1 — refinement is <span class="down">not</span> a free win for planning <span class="tag t-todo">PRELIMINARY · superseded by Round 4 (2 laps wins)</span></h2>
+<p class="why" style="margin:0 0 .6rem">The rounds below (3 prompts, low n) suggested laps only hurt. The
+6-prompt n=12 Round 4 sweep corrected this: one review pass helps; only over-refinement hurts. Kept for the
+honest arc.</p>
 <div class="panel finding">
 <p>Across the 12-cell pilot (2026-07-06), <strong>3 laps scored lower than 1 lap for both planners.</strong>
 More refinement, on aggregate, made planning answers <em>worse</em>, not better.</p>
@@ -147,6 +150,37 @@ plan-skeleton cells are re-running after a host-RAM OOM took the planner mid-swe
 prompts already tell the story.)</span></p>
 </div>
 
+<h2>Round 4 — the larger matrix <span class="up">flips it</span>: 2 laps is the sweet spot <span class="tag t-live">AUTHORITATIVE · 48/48, 6 prompts, n=12/lap</span></h2>
+<div class="panel finding">
+<p>Doubling the task coverage (6 planning archetypes) and the samples (n=12/lap), memory-safe cross-machine
+(AM4 30B planner ↔ OMEN critic), <strong>overturned the preliminary finding.</strong> With only the 3
+original prompts and low n, refinement looked monotonically harmful. It isn't — the curve is an
+<strong>inverted-U with a peak at 2 laps</strong>:</p>
+<table>
+<tr><th>Laps</th><th>Mean (n=12)</th><th></th></tr>
+<tr><td>1</td><td class="n">81.2</td><td><span class="bar" style="width:162px"></span></td></tr>
+<tr><td>2</td><td class="n up"><strong>86.2</strong></td><td><span class="bar" style="width:172px;background:var(--green)"></span></td></tr>
+<tr><td>3</td><td class="n">82.6</td><td><span class="bar" style="width:165px"></span></td></tr>
+<tr><td>4</td><td class="n down">75.9</td><td><span class="bar" style="width:152px;background:var(--red)"></span></td></tr>
+</table>
+<p><strong>Refinement DOES help — up to 2 laps (+5 over 1 lap) — then over-refinement degrades</strong>
+(L4 is worst of all). Per prompt, L2 is best on 4 of 6 archetypes:</p>
+<table>
+<tr><th>Prompt</th><th>L1</th><th>L2</th><th>L3</th><th>L4</th></tr>
+<tr><td>choose-next-agent</td><td class="n">65.0</td><td class="n up">83.5</td><td class="n">65.0</td><td class="n">70.0</td></tr>
+<tr><td>escalate-or-not</td><td class="n">85.0</td><td class="n up">88.5</td><td class="n">85.0</td><td class="n down">75.0</td></tr>
+<tr><td>plan-skeleton</td><td class="n">80.0</td><td class="n">80.0</td><td class="n up">85.0</td><td class="n">78.5</td></tr>
+<tr><td>resource-allocation</td><td class="n">85.0</td><td class="n up">92.0</td><td class="n up">92.0</td><td class="n down">75.0</td></tr>
+<tr><td>risk-triage</td><td class="n">88.5</td><td class="n">88.5</td><td class="n">86.5</td><td class="n">92.0</td></tr>
+<tr><td>rollback-decision</td><td class="n">83.5</td><td class="n up">85.0</td><td class="n">82.0</td><td class="n down">65.0</td></tr>
+</table>
+<p class="why">Why the reversal: the 3 original prompts happened to be ones a review pass didn't help; the
+3 new archetypes (resource-allocation, risk-triage, rollback-decision) benefit from one. And n=12 beats the
+earlier n=1–3 noise. Caveat: per-prompt cells are still n=2 (noisy — choose-next-agent swings 65↔83); trust
+the pooled by-laps (n=12). The honest arc — preliminary "1 lap" → authoritative "2 laps" — is the
+wind-tunnel working as intended.</p>
+</div>
+
 <h2>Hardware finding — <span class="down">32GB DDR4</span> is the binding constraint, not VRAM <span class="tag t-live">confirmed</span></h2>
 <div class="panel finding">
 <p>The dedicated-loop run surfaced an infra truth flagged from the very start: the B70s hold 64GB VRAM
@@ -159,18 +193,18 @@ buffers even with <code>-ngl 99</code>; co-loading the 30B planner + 14B critic 
 <a href="am4-fleet-node/B70-CARD-MANAGEMENT.md" style="color:var(--blue)">B70-CARD-MANAGEMENT.md</a>.</p>
 </div>
 
-<h2>What this changes <span class="tag t-live">confirmed</span></h2>
+<h2>What this changes <span class="tag t-live">updated by Round 4</span></h2>
 <ul>
-<li><strong>Change the commander lane default to 1 lap.</strong> <code>rounds=3</code> is now
-<em>disconfirmed</em> for planning: it scored −5.0 vs 1 lap on aggregate and −12.5 on the routing task, and
-never beat 1 lap on anything. Fewer laps = better <em>and</em> cheaper. (Revisit if BUILD/refine-for-code
-shows a different curve — this result is planning-prompt-specific.)</li>
-<li><strong>Fix or drop convergence.</strong> The critic never emits CONVERGED, so "refine until converged"
-can't stop early — and since more laps hurt, a good default may be <em>1 lap, no critic loop at all</em> for
-planning, reserving the loop for tasks where a sweep shows it pays.</li>
-<li><strong>The matrix earned its keep.</strong> Two idle-hour runs on local hardware overturned a baked-in
-assumption (<code>rounds=3</code>) with a clean, replicated, counterintuitive result — exactly the
-wind-tunnel's purpose (knowledge-per-local-hour, on electricity).</li>
+<li><strong>Set the commander lane planning default to <code>rounds=2</code></strong> — not 3 (over-refines,
+82.6), not 1 (under-refines, 81.2). Two laps is the measured peak (86.2). The earlier "1 lap" call was
+premature (3 prompts, low n); the 6-prompt n=12 sweep is authoritative. <span class="why">Still
+planning-specific — a BUILD/refine-for-code sweep could peak elsewhere.</span></li>
+<li><strong>The critic loop earns its keep — once.</strong> A single review pass helps (L1→L2 +5); the
+problem was never "refinement," it was <em>over</em>-refinement (L3–L4). Cap laps at 2 for planning rather
+than dropping the loop. (Convergence still never fires — the lap cap is the real control.)</li>
+<li><strong>The matrix earned its keep — twice.</strong> First it flagged a counterintuitive effect; then a
+larger run <em>corrected</em> the effect (1→2 laps) before it hardened into a wrong default. Idle local
+hardware, self-funding knowledge — exactly the wind-tunnel's purpose.</li>
 </ul>
 
 <h2>Open threads</h2>

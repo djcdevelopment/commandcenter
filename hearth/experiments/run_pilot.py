@@ -89,6 +89,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--smoke", action="store_true", help="OMEN-only 2-cell live proof")
     ap.add_argument("--check", action="store_true", help="preflight only")
     ap.add_argument("--laps", type=int, nargs="+", default=[1, 3])
+    ap.add_argument("--repeats", type=int, default=1,
+                    help="run each cell N times (confirmation sweep; averages the score gradient)")
     args = ap.parse_args(argv)
 
     omen = _omen_ready()
@@ -116,7 +118,9 @@ def main(argv: list[str] | None = None) -> int:
             print("\nAM4 planner (:8080) COLD — the cross-machine pilot needs it hot first.")
             print("Wake it (see module docstring), or run --smoke for the OMEN-only proof.")
             return 1
-        cells, tag = build_pilot_cells(AM4_MODELS, OMEN_MOE, laps=tuple(args.laps)), "pilot"
+        cells = build_pilot_cells(AM4_MODELS, OMEN_MOE, laps=tuple(args.laps),
+                                  repeats=args.repeats)
+        tag = "pilot" if args.repeats <= 1 else f"sweep-r{args.repeats}"
 
     print(f"running {len(cells)} cells ({tag})...")
     rows = run_matrix(cells, generate=local_generate, judges=JUDGES, on_progress=prog)

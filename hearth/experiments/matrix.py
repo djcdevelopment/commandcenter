@@ -102,9 +102,11 @@ def _node_of(backend: Optional[str]) -> str:
 
 def build_pilot_cells(am4_models: list[tuple], omen_model: tuple,
                       prompt_ids: Optional[list[str]] = None,
-                      laps: tuple = (1, 3)) -> list[Cell]:
+                      laps: tuple = (1, 3), repeats: int = 1) -> list[Cell]:
     """The pilot grid: each AM4 model paired with the OMEN model, both orderings,
-    every prompt, every lap count. am4_models/omen_model are (backend, model) pairs."""
+    every prompt, every lap count. am4_models/omen_model are (backend, model) pairs.
+    ``repeats`` > 1 runs each cell N times (distinct cell_ids ``_r<k>``) so the
+    stochastic score gradient can be averaged — a confirmation sweep."""
     prompt_ids = prompt_ids or list(PROMPTS.keys())
     omen = Role(_node_of(omen_model[0]), omen_model[0], omen_model[1])
     cells: list[Cell] = []
@@ -114,8 +116,10 @@ def build_pilot_cells(am4_models: list[tuple], omen_model: tuple,
             for lp in laps:
                 for planner, critic in ((am4, omen), (omen, am4)):
                     ordering = f"{planner.node}->{critic.node}"
-                    cid = f"{am.split(':')[0]}_{pid}_L{lp}_{ordering}".replace("/", "-")
-                    cells.append(Cell(cid, pid, planner, critic, lp, ordering))
+                    base = f"{am.split(':')[0]}_{pid}_L{lp}_{ordering}".replace("/", "-")
+                    for k in range(max(1, repeats)):
+                        cid = base if repeats <= 1 else f"{base}_r{k}"
+                        cells.append(Cell(cid, pid, planner, critic, lp, ordering))
     return cells
 
 
@@ -165,13 +169,23 @@ def dataset_summary(rows: list[dict]) -> dict:
         return round(sum(v) / len(v), 1) if v else None
     by_planner: dict[str, list] = {}
     by_prompt: dict[str, list] = {}
+    by_laps: dict[str, list] = {}
+    by_prompt_laps: dict[str, list] = {}
     for r in rows:
         s = (r.get("score") or {}).get("mean")
         by_planner.setdefault(f"{r['planner']['model']}|L{r['laps']}", []).append(s)
         by_prompt.setdefault(r["prompt_id"], []).append(s)
+        by_laps.setdefault(f"L{r['laps']}", []).append(s)
+        by_prompt_laps.setdefault(f"{r['prompt_id']}|L{r['laps']}", []).append(s)
+
+    def _agg(d):
+        return {k: {"mean": _mean(v), "n": len([x for x in v if x is not None])}
+                for k, v in sorted(d.items())}
     return {
         "cells": len(rows),
         "ok_cells": sum(1 for r in rows if r.get("ok")),
+        "mean_score_by_laps": _agg(by_laps),               # the headline: does refining help?
         "mean_score_by_planner_laps": {k: _mean(v) for k, v in sorted(by_planner.items())},
         "mean_score_by_prompt": {k: _mean(v) for k, v in sorted(by_prompt.items())},
+        "mean_score_by_prompt_laps": _agg(by_prompt_laps),  # is the effect task-dependent?
     }

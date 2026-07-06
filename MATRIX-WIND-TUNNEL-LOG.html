@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Matrix Wind-Tunnel — Lab Log</title>
+<style>
+  :root{--bg:#0f1115;--panel:#171a21;--panel2:#1d2130;--ink:#d8dee9;--dim:#8b95a7;
+        --accent:#e8a33d;--green:#7fbf7f;--red:#d97b7b;--blue:#6fa8dc;--border:#2a2f3a}
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--ink);font:15px/1.55 "Segoe UI",system-ui,sans-serif;margin:0;padding:2rem;max-width:1080px;margin-inline:auto}
+  h1{color:var(--accent);font-size:1.7rem;border-bottom:2px solid var(--accent);padding-bottom:.4rem;margin-bottom:.2rem}
+  h2{color:var(--blue);font-size:1.2rem;margin-top:2.2rem;border-bottom:1px solid var(--border);padding-bottom:.3rem}
+  h3{color:var(--ink);font-size:1.02rem;margin-bottom:.3rem}
+  .meta{color:var(--dim);font-size:.85rem}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:1rem 1.3rem;margin:1rem 0}
+  .finding{border-left:4px solid var(--accent)}
+  .live{border-left:4px solid var(--green)}
+  code{font-family:Consolas,monospace;background:var(--panel2);border-radius:4px;padding:.1em .35em;font-size:.88em}
+  table{border-collapse:collapse;width:100%;font-size:.88rem;margin:.7rem 0}
+  th,td{border:1px solid var(--border);padding:.4rem .6rem;text-align:left}
+  th{background:var(--panel2);color:var(--blue)}
+  td.n{text-align:right;font-variant-numeric:tabular-nums}
+  .up{color:var(--green)} .down{color:var(--red)}
+  .tag{display:inline-block;padding:.05rem .5rem;border-radius:10px;font-size:.72rem;font-weight:600}
+  .t-live{background:#2a3d2a;color:var(--green)} .t-run{background:#3d362a;color:var(--accent)} .t-todo{background:#33323a;color:var(--dim)}
+  ul{margin:.4rem 0}
+  .why{color:var(--dim);font-style:italic}
+  .bar{display:inline-block;height:.7em;background:var(--blue);border-radius:2px;vertical-align:middle;margin-right:.4rem}
+</style>
+</head>
+<body>
+
+<h1>Matrix Wind-Tunnel — Lab Log</h1>
+<p class="meta">Living document · started 2026-07-05 · the mechnet's planning-quality experiment: does self-refinement actually improve planning, and does it depend on the model / hardware / task? Two-economies doctrine — laps on electricity across AM4 (2× Intel B70) + OMEN (RTX 5070). Updated as runs land.</p>
+
+<h2>What we built (the instrument)</h2>
+<div class="panel">
+<h3>Commander intent lane <span class="tag t-live">LIVE</span></h3>
+<p>A local author↔critic refine loop that takes frontier <em>out</em> of the run loop
+(<a href="docs/adr/0012-commander-intent-lane-frontier-out-of-loop.md" style="color:var(--blue)">ADR-0012</a>).
+<code>hearth/commander/</code> + door tools <code>refine_idea</code>/<code>refine_result</code> + CLI. This loop is the
+<strong>cell engine</strong> of the matrix.</p>
+<h3 style="margin-top:1rem">Matrix dataset harness <span class="tag t-live">LIVE</span></h3>
+<p>Per-role backend routing in <code>run_refine</code> (planner and critic on <em>different boxes</em>) +
+<code>hearth/experiments/</code> (cells, held-out critic-panel scorer, dataset). Each cell =
+<code>(planner × critic × prompt × laps × ordering)</code> → a scored proposal. Fully offline-testable
+(237 toolsurface tests green); the AM4/OMEN legs run live.</p>
+</div>
+
+<h2>The experiment</h2>
+<div class="panel">
+<p><strong>Question:</strong> the commander lane defaults to <code>rounds=3</code> refinement laps on the
+assumption more refinement = better. Is that true for <em>planning</em> tasks — and does it depend on which
+model plans vs critiques, and on the task?</p>
+<table>
+<tr><th>Axis</th><th>Values</th></tr>
+<tr><td>Planner / critic</td><td>AM4 <code>Qwen3-30B-A3B</code> (dual-B70, :8080 via oxen facade) · OMEN <code>qwen3-coder:30b</code></td></tr>
+<tr><td>Ordering</td><td>AM4→OMEN (AM4 plans, OMEN critiques) · OMEN→AM4 (reverse)</td></tr>
+<tr><td>Prompt</td><td>choose-next-agent · escalate-or-not · plan-skeleton (planning archetypes)</td></tr>
+<tr><td>Laps</td><td>1, 2, 3 self-refinement rounds</td></tr>
+<tr><td>Score</td><td>held-out judge panel (OMEN <code>qwen3-coder:30b</code>), 0–100 rubric</td></tr>
+</table>
+<p class="why">Interim grid uses one AM4 model (only the :8080 planner slot has Linux backing today; the
+:8081 critic slot is unbacked). Full 2-AM4-model grid unlocks once :8081 has a gguf+launcher.</p>
+</div>
+
+<h2>Finding 1 — refinement is <span class="down">not</span> a free win for planning <span class="tag t-live">pilot, n=1/cell</span></h2>
+<div class="panel finding">
+<p>Across the 12-cell pilot (2026-07-06), <strong>3 laps scored lower than 1 lap for both planners.</strong>
+More refinement, on aggregate, made planning answers <em>worse</em>, not better.</p>
+<table>
+<tr><th>Planner</th><th>1 lap</th><th>3 laps</th><th>Δ</th></tr>
+<tr><td>AM4 Qwen3-30B</td><td class="n">85.0</td><td class="n">74.0</td><td class="n down">−11.0</td></tr>
+<tr><td>OMEN qwen3-coder:30b</td><td class="n">80.7</td><td class="n">78.3</td><td class="n down">−2.4</td></tr>
+<tr><td><strong>overall</strong></td><td class="n"><strong>82.8</strong></td><td class="n"><strong>76.2</strong></td><td class="n down"><strong>−6.6</strong></td></tr>
+</table>
+</div>
+
+<h2>Finding 2 — but the effect is <span class="up">task-dependent</span> <span class="tag t-live">pilot</span></h2>
+<div class="panel finding">
+<p>Refinement helped one task and hurt the others — so "how many laps" should be a <em>per-task</em> call,
+not a global default.</p>
+<table>
+<tr><th>Prompt</th><th>1 lap</th><th>3 laps</th><th>verdict</th></tr>
+<tr><td>choose-next-agent</td><td class="n">80.0</td><td class="n">65.0</td><td class="down">refinement HURT (−15)</td></tr>
+<tr><td>escalate-or-not</td><td class="n">83.5</td><td class="n">88.5</td><td class="up">refinement HELPED (+5)</td></tr>
+<tr><td>plan-skeleton</td><td class="n">85.0</td><td class="n">75.0</td><td class="down">refinement HURT (−10)</td></tr>
+</table>
+<p class="why">Read: the skeptical critic pushes toward more complexity/verbosity; for a crisp routing decision
+(choose-next-agent) or a deliberately-terse skeleton that penalizes; for a judgment call with tradeoffs to
+surface (escalate-or-not) it pays off.</p>
+</div>
+
+<h2>Finding 3 — the critic <span class="down">never converged</span> <span class="tag t-live">pilot</span></h2>
+<div class="panel finding">
+<p><code>converged=False</code> on <strong>all 12 cells</strong>. The critic never emitted
+<code>VERDICT: CONVERGED</code> — it always found something to revise, so every cell burned its full lap
+budget. "Refine until converged" would run forever here; the lap <em>cap</em> is what stops it. The
+convergence bar (or critic prompt) needs a look — and it means the lap count, not convergence, is the real
+control knob.</p>
+</div>
+
+<h2>Confirmation sweep <span class="tag t-run">RUNNING</span></h2>
+<div class="panel live">
+<p>The pilot was n=1 per cell — enough to spot the effect, not to trust it. Confirmation sweep launched
+2026-07-06: <strong>laps {1, 2, 3} × 3 prompts × both orderings × 2 repeats = 36 cells</strong> (adds the L2
+trend point + a second sample per condition). Run <code>python -m hearth.experiments.run_pilot --laps 1 2 3
+--repeats 2</code>, dataset → <code>hearth/var/experiments/matrix-&lt;ts&gt;-sweep-r2/</code>.</p>
+<p><strong>Will confirm or refute:</strong> (1) does L3 &lt; L1 hold with repeats? (2) is the trend
+monotonic (L1&gt;L2&gt;L3) or U-shaped (an optimum at L2)? (3) does the task-dependence replicate?</p>
+<p class="meta">Results table to be filled in here when the sweep lands.</p>
+</div>
+
+<h2>What this changes</h2>
+<ul>
+<li><strong>Commander lane default.</strong> If confirmed, <code>rounds=3</code> is the wrong default — planning
+should use fewer laps, or a per-task lap count, or convergence-gating that can actually fire.</li>
+<li><strong>The matrix earns its keep.</strong> First cross-machine run already produced a counterintuitive,
+actionable result — exactly the wind-tunnel's purpose (knowledge-per-local-hour, on idle electricity).</li>
+</ul>
+
+<h2>Open threads</h2>
+<ul>
+<li>Back the <code>:8081</code> critic slot (gguf + launcher) → full 2-AM4-model grid.</li>
+<li>Bigger sweep for statistical confidence if the 36-cell run is suggestive but not decisive.</li>
+<li>Fix the knowledge-guard bug blocking <code>query_am4_catalog</code>/<code>schedule_hindsight</code>/<code>query_capacity</code>.</li>
+<li>Point <code>hearth wake_am4</code> at <code>~/baseline/relaunch-qwen3-baseline.sh</code> (it references non-existent systemd units).</li>
+</ul>
+
+<p class="meta">Provenance: harness <code>hearth/experiments/</code> + <code>hearth/commander/</code> (master @ a0cc2d3).
+Pilot dataset <code>matrix-20260706T052819Z-pilot</code> (12/12 ok). AM4 native Ubuntu; planner woken via
+<code>relaunch-qwen3-baseline.sh</code>, co-resident with idle ComfyUI. Scores by a single OMEN judge — a
+known bias to widen (multi-judge panel) in a later pass.</p>
+
+</body>
+</html>

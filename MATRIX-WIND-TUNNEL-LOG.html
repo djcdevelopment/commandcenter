@@ -193,18 +193,45 @@ buffers even with <code>-ngl 99</code>; co-loading the 30B planner + 14B critic 
 <a href="am4-fleet-node/B70-CARD-MANAGEMENT.md" style="color:var(--blue)">B70-CARD-MANAGEMENT.md</a>.</p>
 </div>
 
-<h2>What this changes <span class="tag t-live">updated by Round 4</span></h2>
+<h2>Round 5 — the over-refinement collapse is a <span class="up">prompt artifact</span>, not a law <span class="tag t-live">AUTHORITATIVE · 192/192, n=12/arm·lap</span></h2>
+<div class="panel finding">
+<p>Round 4's inverted-U raised the real question: is the L3–L4 collapse <em>inherent to refining</em>, or is
+the critic pushing bloat the judge then penalizes? So we swept 4 prompt-variant arms across the full grid
+(memory-safe cross-machine). The answer is decisive — <strong>the collapse is caused by the prompt, and a
+better prompt removes it entirely.</strong></p>
+<table>
+<tr><th>Arm (what it changes)</th><th>L1</th><th>L2</th><th>L3</th><th>L4</th><th>overall</th></tr>
+<tr><td>baseline</td><td class="n">85.2</td><td class="n">84.2</td><td class="n">84.3</td><td class="n down">74.5</td><td class="n">82.1</td></tr>
+<tr><td><strong>minimalist-critic</strong> (reward brevity)</td><td class="n">88.8</td><td class="n">86.8</td><td class="n">86.2</td><td class="n up">86.5</td><td class="n">87.1</td></tr>
+<tr><td>thorough-critic (demand coverage)</td><td class="n">84.5</td><td class="n">80.3</td><td class="n">79.2</td><td class="n down">76.8</td><td class="n down">80.2</td></tr>
+<tr><td><strong>concise-author</strong> (shortest complete)</td><td class="n up">91.4</td><td class="n up">90.8</td><td class="n">88.0</td><td class="n up">90.2</td><td class="n up"><strong>90.1</strong></td></tr>
+</table>
 <ul>
-<li><strong>Set the commander lane planning default to <code>rounds=2</code></strong> — not 3 (over-refines,
-82.6), not 1 (under-refines, 81.2). Two laps is the measured peak (86.2). The earlier "1 lap" call was
-premature (3 prompts, low n); the 6-prompt n=12 sweep is authoritative. <span class="why">Still
-planning-specific — a BUILD/refine-for-code sweep could peak elsewhere.</span></li>
-<li><strong>The critic loop earns its keep — once.</strong> A single review pass helps (L1→L2 +5); the
-problem was never "refinement," it was <em>over</em>-refinement (L3–L4). Cap laps at 2 for planning rather
-than dropping the loop. (Convergence still never fires — the lap cap is the real control.)</li>
-<li><strong>The matrix earned its keep — twice.</strong> First it flagged a counterintuitive effect; then a
-larger run <em>corrected</em> the effect (1→2 laps) before it hardened into a wrong default. Idle local
-hardware, self-funding knowledge — exactly the wind-tunnel's purpose.</li>
+<li><strong>The collapse is prompt-driven.</strong> baseline dives at L4 (→74.5); <strong>minimalist-critic
+stays flat</strong> (~86 across all laps — no collapse). The critic pushing complexity <em>was</em> the cause.</li>
+<li><strong>The author prompt dominates the critic prompt.</strong> <code>concise-author</code> is the best arm
+AND immune to over-refinement (90.2 at L4). "Write the shortest complete answer" beats every critic tweak — a
+bigger, simpler lever.</li>
+<li><strong>thorough-critic is actively harmful</strong> (80.2, worst) — demanding exhaustiveness degrades
+planning at every lap. Mechanism confirmed.</li>
+</ul>
+<p class="why">Caveat under test next: is "concise wins" partly the judge (a single OMEN model) rewarding
+directness? The follow-up stacks the winners (concise author + minimalist critic) and pushes laps to 6 — if
+quality holds flat where baseline collapsed, the lever is unambiguously prompt design, not lap count.</p>
+</div>
+
+<h2>What this changes <span class="tag t-live">reframed by Round 5</span></h2>
+<ul>
+<li><strong>The lever is the PROMPT, not the lap count.</strong> Set the commander lane's <em>author</em>
+system prompt to the concise variant ("the shortest complete, buildable answer; lead with the decision; no
+preamble") — the single biggest win (+8 overall, and it removes the collapse). Prefer a minimalist critic
+("reward brevity, flag over-engineering") over the default; never a thoroughness-maximizing one.</li>
+<li><strong>Then laps stop mattering much.</strong> With a concise author, quality is flat-high through L4
+(90.2) — the "cap at 2 laps" rule was a <em>baseline-prompt artifact</em>. Fix the prompt and you can refine
+freely; the lap cap was treating a symptom.</li>
+<li><strong>The matrix earned its keep three times:</strong> it flagged an effect (laps hurt), corrected it
+(2 laps, inverted-U), then <em>explained</em> it (the critic prompt caused the collapse; the author prompt
+dominates). Each step was idle local hardware turning electricity into knowledge — the wind tunnel's whole point.</li>
 </ul>
 
 <h2>Open threads</h2>

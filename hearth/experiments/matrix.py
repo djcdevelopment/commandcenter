@@ -85,7 +85,15 @@ STUDY_CONFIGS = [
     {"name": "minimalist-critic", "author_system": None, "critic_system": MINIMALIST_CRITIC},
     {"name": "thorough-critic", "author_system": None, "critic_system": THOROUGH_CRITIC},
     {"name": "concise-author", "author_system": CONCISE_AUTHOR, "critic_system": None},
+    # follow-up: stack the two winners — does prompt design fully defeat over-refinement?
+    {"name": "concise+minimalist", "author_system": CONCISE_AUTHOR, "critic_system": MINIMALIST_CRITIC},
 ]
+
+
+def configs_by_name(names: list[str]) -> list[dict]:
+    """Select STUDY_CONFIGS arms by name (for a focused follow-up sweep)."""
+    by = {c["name"]: c for c in STUDY_CONFIGS}
+    return [by[n] for n in names if n in by]
 
 # ---- Critic-panel scorer ----
 JUDGE_SYSTEM = (

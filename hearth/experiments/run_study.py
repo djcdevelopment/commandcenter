@@ -23,7 +23,7 @@ import traceback
 from datetime import datetime, timezone
 
 from hearth.experiments.matrix import (
-    STUDY_CONFIGS, build_variant_cells, run_cell, dataset_summary,
+    STUDY_CONFIGS, configs_by_name, build_variant_cells, run_cell, dataset_summary,
 )
 from hearth.experiments.run_pilot import _omen_ready, _am4_ready, OUT_ROOT, _REPO
 from hearth.toolsurface.inference import local_generate
@@ -38,6 +38,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--laps", type=int, nargs="+", default=[1, 2, 3, 4])
     ap.add_argument("--repeats", type=int, default=2)
     ap.add_argument("--prompts", nargs="+", default=None)
+    ap.add_argument("--configs", nargs="+", default=None,
+                    help="select STUDY_CONFIGS arms by name (default: all)")
     args = ap.parse_args(argv)
 
     omen, am4 = _omen_ready(), _am4_ready()
@@ -47,7 +49,8 @@ def main(argv: list[str] | None = None) -> int:
         print("preflight failed — need OMEN ollama + AM4 oxen-planner (:8080).")
         return 1
 
-    cells = build_variant_cells(STUDY_CONFIGS, prompt_ids=args.prompts,
+    configs = configs_by_name(args.configs) if args.configs else STUDY_CONFIGS
+    cells = build_variant_cells(configs, prompt_ids=args.prompts,
                                 laps=tuple(args.laps), repeats=args.repeats,
                                 planner=PLANNER, critic=CRITIC)
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")

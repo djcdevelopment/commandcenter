@@ -107,6 +107,19 @@ _SCORE_PROMPT = (
 )
 _SCORE_RE = re.compile(r"SCORE:\s*(\d{1,3})", re.IGNORECASE)
 
+# Alternative judge rubrics — to test whether "concise wins" is a judge artifact.
+COMPLETENESS_JUDGE = (
+    "You are a rigorous evaluator who prizes THOROUGHNESS and COVERAGE. Score higher for "
+    "answers that address more considerations, edge cases, risks, and stakeholders. A brief "
+    "answer that omits any relevant factor is DEFICIENT regardless of how clear it is — reward "
+    "completeness over brevity."
+)
+NEUTRAL_JUDGE = (
+    "You are a rigorous evaluator. Judge ONLY the quality of the decision/plan — correctness, "
+    "feasibility, and usefulness. Do NOT reward or penalize length, verbosity, or brevity as "
+    "such: a short answer and a long answer of equal soundness must score equally."
+)
+
 # Default held-out judge panel: OMEN's resident coder MoE (separate from cell roles).
 DEFAULT_JUDGES: list[tuple] = [(None, "qwen3-coder:30b")]
 
@@ -119,12 +132,15 @@ def _parse_score(text: str) -> Optional[int]:
 
 
 def score_proposal(final: str, prompt: str, judges: list[tuple],
-                   generate: Callable[..., dict], timeout_s: int = 600) -> dict:
-    """Score a final proposal with a held-out judge panel; return {mean, judges}."""
+                   generate: Callable[..., dict], timeout_s: int = 600,
+                   judge_system: Optional[str] = None) -> dict:
+    """Score a final proposal with a held-out judge panel; return {mean, judges}.
+    ``judge_system`` overrides the judge's rubric bias (for confound testing)."""
+    j_sys = judge_system or JUDGE_SYSTEM
     per_judge = []
     for jb, jm in judges:
         r = generate(_SCORE_PROMPT.format(prompt=prompt, response=final), model=jm,
-                     backend=jb, system=JUDGE_SYSTEM, max_tokens=300, timeout_s=timeout_s)
+                     backend=jb, system=j_sys, max_tokens=300, timeout_s=timeout_s)
         score = _parse_score(r.get("text", "")) if r.get("ok") else None
         per_judge.append({"model": r.get("model", jm), "backend": jb, "score": score,
                           "ok": bool(r.get("ok")) and score is not None})

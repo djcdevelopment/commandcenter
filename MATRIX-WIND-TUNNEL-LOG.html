@@ -34,6 +34,26 @@
 <h1>Matrix Wind-Tunnel — Lab Log</h1>
 <p class="meta">Living document · started 2026-07-05 · the mechnet's planning-quality experiment: does self-refinement actually improve planning, and does it depend on the model / hardware / task? Two-economies doctrine — laps on electricity across AM4 (2× Intel B70) + OMEN (RTX 5070). Updated as runs land.</p>
 
+<div class="panel" style="border-left:4px solid var(--green)">
+<h3 style="margin-top:0;color:var(--green)">Bottom line (read this first)</h3>
+<p>Six rounds of idle-hardware experiments on refinement laps for planning, ending with a confound check that
+rewrote the conclusion:</p>
+<ul>
+<li><strong>Lap count barely matters</strong> under fair (length-neutral) judging — quality sits ~87–92 across
+1–4 laps. The early "laps hurt → 2 laps best → over-refinement collapse" arc was <strong>largely an artifact
+of the default judge's brevity bias</strong> (it penalized the verbosity that laps accumulate).</li>
+<li><strong>The one robust, real effect: a concise author system prompt</strong> ("shortest complete answer;
+lead with the decision") — a small (~+3) but consistent edge that survives every judge and stays flat across
+laps. That's the actionable change for the commander lane.</li>
+<li><strong>Biggest lesson — the judge is a first-order confound.</strong> A single LLM judge's rubric shaped
+the results more than the thing under test. This applies directly to the lab's belief/assay layer: LLM-scored
+agent work needs multi-rubric / multi-judge scoring, or the numbers measure the ruler.</li>
+</ul>
+<p class="why">The value wasn't the answer about laps (it's "meh") — it was the method: the wind tunnel
+flagged an effect, corrected it, explained it, then <em>caught its own measurement bias</em>. All on idle
+local electricity, overnight.</p>
+</div>
+
 <h2>What we built (the instrument)</h2>
 <div class="panel">
 <h3>Commander intent lane <span class="tag t-live">LIVE</span></h3>
@@ -245,10 +265,16 @@ lead to +8; length-neutral, it's <strong>+2.8</strong> over baseline.</li>
 jump from ~81 → ~90. So much of the "over-refinement collapse" and arm spread was the default judge
 <em>penalizing verbosity</em>, not real quality loss.</li>
 </ul>
+<p><strong>Definitive — the collapse was largely a judge artifact.</strong> Re-judging per lap under the
+neutral rubric: baseline goes 90.2 / 87.4 / 89.1 / <strong>86.5</strong> (a mild −3.7 drift, NO cliff) where
+the default judge showed a −10.7 collapse to 74.5. concise-author is <strong>dead flat and top at every
+lap</strong> (91.4 / 91.4 / 91.1 / 91.7). So under fair measurement, <strong>lap count barely matters</strong>
+(everything sits ~87–92 across 1–4 laps); the one robust effect is the concise author prompt's small,
+consistent edge.</p>
 <p class="why"><strong>Meta-lesson (the biggest one):</strong> the judge rubric is a first-order confound —
-the Round 4–5 effect sizes were partly measuring the instrument. Always test the judge. Real signal remains,
-but calibrated smaller. Next: re-judge PER LAP under the neutral rubric to see whether the over-refinement
-collapse itself is real or a brevity artifact.</p>
+the Round 4–5 "inverted-U / collapse" was mostly the instrument. Always test the judge. This lands on the
+lab's own belief/assay layer: LLM-scored agent work needs multi-rubric judging, or the scores measure the
+ruler as much as the work.</p>
 </div>
 
 <h2>What this changes <span class="tag t-live">calibrated by Round 6</span></h2>

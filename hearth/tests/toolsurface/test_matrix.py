@@ -16,7 +16,8 @@ class FakeGen:
 
     def __call__(self, prompt, model=None, backend=None, system=None,
                  max_tokens=None, timeout_s=None):
-        self.calls.append({"model": model, "backend": backend, "prompt": prompt})
+        self.calls.append({"model": model, "backend": backend, "prompt": prompt,
+                           "system": system})
         if "Output ONLY a final line" in prompt:            # judge
             return {"ok": True, "text": f"ok\nSCORE: {self.score}", "model": model}
         if "Write the full proposal now" in prompt:
@@ -99,6 +100,31 @@ class RunCellTests(TestCase):
         self.assertEqual(summary["cells"], 4)
         self.assertEqual(summary["ok_cells"], 4)
         self.assertEqual(summary["mean_score_by_prompt"]["plan-skeleton"], 80)
+
+    def test_variant_cells_thread_system_prompts(self) -> None:
+        from hearth.experiments.matrix import build_variant_cells
+        cfgs = [{"name": "min", "author_system": "WRITE SHORT", "critic_system": "BE MINIMAL"}]
+        cells = build_variant_cells(cfgs, prompt_ids=["plan-skeleton"], laps=(1,), repeats=1)
+        self.assertEqual(len(cells), 1)
+        self.assertEqual(cells[0].variant, "min")
+        gen = FakeGen()
+        row = run_cell(cells[0], generate=gen)
+        self.assertEqual(row["variant"], "min")
+        # the variant's system prompts reach the model calls
+        expand = next(c for c in gen.calls if "Write the full proposal now" in c["prompt"])
+        review = next(c for c in gen.calls if "End your review" in c["prompt"])
+        self.assertEqual(expand["system"], "WRITE SHORT")
+        self.assertEqual(review["system"], "BE MINIMAL")
+
+    def test_variant_laps_in_summary(self) -> None:
+        from hearth.experiments.matrix import build_variant_cells
+        cfgs = [{"name": "a", "critic_system": None}, {"name": "b", "critic_system": "X"}]
+        cells = build_variant_cells(cfgs, prompt_ids=["plan-skeleton"], laps=(1, 2), repeats=1)
+        rows = run_matrix(cells, generate=FakeGen(score=70))
+        summ = matrix.dataset_summary(rows)
+        self.assertIn("a|L1", summ["mean_score_by_variant_laps"])
+        self.assertIn("b|L2", summ["mean_score_by_variant_laps"])
+        self.assertEqual(summ["mean_score_by_variant"]["a"], 70)
 
     def test_score_parse_clamps_and_picks_last(self) -> None:
         self.assertEqual(matrix._parse_score("SCORE: 150"), 100)

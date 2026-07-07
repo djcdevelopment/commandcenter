@@ -59,6 +59,34 @@ PROMPTS: dict[str, str] = {
     ),
 }
 
+# ---- Prompting-study variants (Phase: does the critic/author PROMPT shape the laps curve?) ----
+# Hypothesis: the L3-L4 over-refinement collapse is driven by the critic pushing complexity.
+# A minimalist critic should flatten it; a thorough critic should steepen it.
+MINIMALIST_CRITIC = (
+    "You are a decisive editor. Reward brevity, clarity, and commitment. Push the author to "
+    "CUT scope, remove hedging and caveats, and make the call. Treat verbosity, over-engineering, "
+    "and unnecessary complexity as DEFECTS to flag. A shorter, sharper answer is a better answer. "
+    "Do not ask for more content — ask for less, better."
+)
+THOROUGH_CRITIC = (
+    "You are an exhaustive reviewer. Surface EVERY gap, edge case, failure mode, missing "
+    "consideration, and unstated assumption. An answer that omits any relevant factor is "
+    "incomplete. Push relentlessly for completeness, rigor, and coverage — more thorough is better."
+)
+CONCISE_AUTHOR = (
+    "You are a systems architect who prizes decisiveness. Produce the SHORTEST proposal that is "
+    "complete and buildable. Lead with the decision. No preamble, no restating the question, "
+    "minimal hedging. Use structure only when it aids clarity."
+)
+
+# Each config = one prompt-variant arm. author_system/critic_system None -> run_refine defaults.
+STUDY_CONFIGS = [
+    {"name": "baseline", "author_system": None, "critic_system": None},
+    {"name": "minimalist-critic", "author_system": None, "critic_system": MINIMALIST_CRITIC},
+    {"name": "thorough-critic", "author_system": None, "critic_system": THOROUGH_CRITIC},
+    {"name": "concise-author", "author_system": CONCISE_AUTHOR, "critic_system": None},
+]
+
 # ---- Critic-panel scorer ----
 JUDGE_SYSTEM = (
     "You are a strict evaluator of planning responses. Score on specificity, "
@@ -113,6 +141,9 @@ class Cell:
     critic: Role
     laps: int
     ordering: str        # "am4->omen" | "omen->am4" | ... (planner->critic node)
+    variant: str = ""    # prompt-variant arm name (e.g. "minimalist-critic"), "" = baseline
+    author_system: Optional[str] = None   # per-cell author system-prompt override
+    critic_system: Optional[str] = None   # per-cell critic system-prompt override
 
 
 def _node_of(backend: Optional[str]) -> str:
@@ -163,6 +194,30 @@ def build_planner_critic_cells(prompt_ids: Optional[list[str]] = None,
     return cells
 
 
+def build_variant_cells(configs: list[dict], prompt_ids: Optional[list[str]] = None,
+                        laps: tuple = (1, 2, 3, 4), repeats: int = 1,
+                        planner: tuple = ("am4-oxen", "oxen-planner"),
+                        critic: tuple = (None, "qwen3-coder:30b")) -> list[Cell]:
+    """A PROMPTING study: sweep prompt-variant arms (configs) x prompt x laps. Roles are
+    FIXED (planner drafts, critic reviews) and memory-safe cross-machine by default (one
+    model on AM4). Each config carries author_system/critic_system overrides. Repeats are
+    the OUTER loop so a partial run still covers the whole grid at n>=1."""
+    prompt_ids = prompt_ids or list(PROMPTS.keys())
+    p = Role(_node_of(planner[0]), planner[0], planner[1])
+    c = Role(_node_of(critic[0]), critic[0], critic[1])
+    cells: list[Cell] = []
+    for k in range(max(1, repeats)):
+        for cfg in configs:
+            for pid in prompt_ids:
+                for lp in laps:
+                    cid = f"{cfg['name']}_{pid}_L{lp}_r{k}"
+                    cells.append(Cell(cid, pid, p, c, lp, f"{p.node}:planner->{c.node}:critic",
+                                      variant=cfg["name"],
+                                      author_system=cfg.get("author_system"),
+                                      critic_system=cfg.get("critic_system")))
+    return cells
+
+
 def run_cell(cell: Cell, generate: Callable[..., dict],
              judges: Optional[list[tuple]] = None,
              on_progress: Optional[Callable[[str], None]] = None) -> dict:
@@ -177,12 +232,13 @@ def run_cell(cell: Cell, generate: Callable[..., dict],
         prompt, rounds=cell.laps, generate=generate,
         author_model=cell.planner.model, author_backend=cell.planner.backend,
         critic_specs=[(cell.critic.backend, cell.critic.model)],
+        author_system=cell.author_system, critic_system=cell.critic_system,
     )
     score = (score_proposal(res.get("final") or "", prompt, judges, generate)
              if res.get("ok") else None)
     return {
         "cell_id": cell.cell_id, "prompt_id": cell.prompt_id, "laps": cell.laps,
-        "ordering": cell.ordering,
+        "ordering": cell.ordering, "variant": cell.variant,
         "planner": asdict(cell.planner), "critic": asdict(cell.critic),
         "ok": res.get("ok"), "converged": res.get("converged"),
         "rounds_run": res.get("rounds_run"), "cost": res.get("cost"),
@@ -211,12 +267,17 @@ def dataset_summary(rows: list[dict]) -> dict:
     by_prompt: dict[str, list] = {}
     by_laps: dict[str, list] = {}
     by_prompt_laps: dict[str, list] = {}
+    by_variant_laps: dict[str, list] = {}
+    by_variant: dict[str, list] = {}
     for r in rows:
         s = (r.get("score") or {}).get("mean")
         by_planner.setdefault(f"{r['planner']['model']}|L{r['laps']}", []).append(s)
         by_prompt.setdefault(r["prompt_id"], []).append(s)
         by_laps.setdefault(f"L{r['laps']}", []).append(s)
         by_prompt_laps.setdefault(f"{r['prompt_id']}|L{r['laps']}", []).append(s)
+        v = r.get("variant") or "baseline"
+        by_variant_laps.setdefault(f"{v}|L{r['laps']}", []).append(s)
+        by_variant.setdefault(v, []).append(s)
 
     def _agg(d):
         return {k: {"mean": _mean(v), "n": len([x for x in v if x is not None])}
@@ -228,4 +289,6 @@ def dataset_summary(rows: list[dict]) -> dict:
         "mean_score_by_planner_laps": {k: _mean(v) for k, v in sorted(by_planner.items())},
         "mean_score_by_prompt": {k: _mean(v) for k, v in sorted(by_prompt.items())},
         "mean_score_by_prompt_laps": _agg(by_prompt_laps),  # is the effect task-dependent?
+        "mean_score_by_variant": {k: _mean(v) for k, v in sorted(by_variant.items())},
+        "mean_score_by_variant_laps": _agg(by_variant_laps),  # does the PROMPT shape the laps curve?
     }

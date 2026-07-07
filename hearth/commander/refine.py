@@ -117,6 +117,8 @@ def run_refine(
     author_backend: Optional[str] = None,
     fan_critics: Optional[list[str]] = None,
     critic_specs: Optional[list[tuple]] = None,
+    author_system: Optional[str] = None,
+    critic_system: Optional[str] = None,
     max_tokens: int = 1500,
     critic_max_tokens: int = 800,
     timeout_s: int = 600,
@@ -146,6 +148,8 @@ def run_refine(
         from hearth.toolsurface.inference import local_generate as generate
 
     author_model = author_model or DEFAULT_AUTHOR_MODEL
+    a_sys = author_system or AUTHOR_SYSTEM      # per-run prompt-variant overrides
+    c_sys = critic_system or CRITIC_SYSTEM
     # Critics as (backend, model) pairs. Explicit critic_specs wins; else derive
     # from the fan flag (fan critics on the default backend, or self-review).
     if critic_specs is not None:
@@ -160,7 +164,7 @@ def run_refine(
 
     # Initial expand.
     first = generate(_EXPAND.format(idea=idea), model=author_model,
-                     backend=author_backend, system=AUTHOR_SYSTEM,
+                     backend=author_backend, system=a_sys,
                      max_tokens=max_tokens, timeout_s=timeout_s)
     cost.add(first, critic=False)
     if not first.get("ok"):
@@ -178,7 +182,7 @@ def run_refine(
         reviews: list[dict] = []
         for cb, cm in critic_pairs:
             rv = generate(_REVIEW.format(idea=idea_short, draft=draft), model=cm,
-                          backend=cb, system=CRITIC_SYSTEM, max_tokens=critic_max_tokens,
+                          backend=cb, system=c_sys, max_tokens=critic_max_tokens,
                           timeout_s=timeout_s)
             cost.add(rv, critic=True)
             if rv.get("ok"):
@@ -206,7 +210,7 @@ def run_refine(
             break
         joined = "\n\n".join(f"[{rv['model']}]\n{rv['text']}" for rv in ok_reviews)
         rev = generate(_REVISE.format(draft=draft, reviews=joined), model=author_model,
-                       backend=author_backend, system=AUTHOR_SYSTEM,
+                       backend=author_backend, system=a_sys,
                        max_tokens=max_tokens, timeout_s=timeout_s)
         cost.add(rev, critic=False)
         if not rev.get("ok"):

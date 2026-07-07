@@ -224,18 +224,48 @@ directness? A re-judge of the same outputs under a completeness-favoring rubric 
 answers are genuinely better planning or just judge-preferred.</p>
 </div>
 
-<h2>What this changes <span class="tag t-live">reframed by Round 5</span></h2>
+<h2>Round 6 — the <span class="down">judge was a confound</span>; the effect is real but smaller <span class="tag t-live">honest caveat · 192 finals re-judged</span></h2>
+<div class="panel finding">
+<p>Before trusting any of the above: the score came from ONE judge (OMEN qwen3-coder) whose rubric included
+"directness". Does that reward brevity and inflate concise-author? We re-judged all 192 finals under two
+alternative rubrics — <strong>no regeneration, same outputs</strong> — and it changed the story.</p>
+<table>
+<tr><th>Arm</th><th>default (directness)</th><th>completeness judge</th><th>neutral judge</th></tr>
+<tr><td>baseline</td><td class="n">82.1</td><td class="n">90.4</td><td class="n">88.1</td></tr>
+<tr><td>concise-author</td><td class="n">90.1</td><td class="n">90.2</td><td class="n up"><strong>90.9</strong></td></tr>
+<tr><td>minimalist-critic</td><td class="n">87.1</td><td class="n">89.1</td><td class="n">89.8</td></tr>
+<tr><td>thorough-critic</td><td class="n">80.2</td><td class="n">90.3</td><td class="n">88.0</td></tr>
+</table>
 <ul>
-<li><strong>The lever is the PROMPT, not the lap count.</strong> Set the commander lane's <em>author</em>
-system prompt to the concise variant ("the shortest complete, buildable answer; lead with the decision; no
-preamble") — the single biggest win (+8 overall, and it removes the collapse). Prefer a minimalist critic
-("reward brevity, flag over-engineering") over the default; never a thoroughness-maximizing one.</li>
-<li><strong>Then laps stop mattering much.</strong> With a concise author, quality is flat-high through L4
-(90.2) — the "cap at 2 laps" rule was a <em>baseline-prompt artifact</em>. Fix the prompt and you can refine
-freely; the lap cap was treating a symptom.</li>
-<li><strong>The matrix earned its keep three times:</strong> it flagged an effect (laps hurt), corrected it
-(2 laps, inverted-U), then <em>explained</em> it (the critic prompt caused the collapse; the author prompt
-dominates). Each step was idle local hardware turning electricity into knowledge — the wind tunnel's whole point.</li>
+<li><strong>The finding survives — concise-author still wins under the neutral judge</strong> (90.9, top of the
+ranking). It's genuinely better planning, not just short answers the judge liked.</li>
+<li><strong>But the effect was inflated ~3x.</strong> The default judge's brevity bias stretched concise's
+lead to +8; length-neutral, it's <strong>+2.8</strong> over baseline.</li>
+<li><strong>The completeness judge collapses the spread</strong> (all arms ~90): baseline and thorough-critic
+jump from ~81 → ~90. So much of the "over-refinement collapse" and arm spread was the default judge
+<em>penalizing verbosity</em>, not real quality loss.</li>
+</ul>
+<p class="why"><strong>Meta-lesson (the biggest one):</strong> the judge rubric is a first-order confound —
+the Round 4–5 effect sizes were partly measuring the instrument. Always test the judge. Real signal remains,
+but calibrated smaller. Next: re-judge PER LAP under the neutral rubric to see whether the over-refinement
+collapse itself is real or a brevity artifact.</p>
+</div>
+
+<h2>What this changes <span class="tag t-live">calibrated by Round 6</span></h2>
+<ul>
+<li><strong>A concise author prompt is a real, modest win.</strong> Setting the commander lane's author system
+prompt to concise ("shortest complete, buildable answer; lead with the decision; no preamble") helps ~+3
+under a fair judge (not the +8 the default judge suggested). Worth doing; not a silver bullet.</li>
+<li><strong>Lap count matters less than it first looked</strong> — much of the "over-refinement collapse" was
+the default judge penalizing the verbosity that more laps produce. Don't hard-cap laps on that basis; a
+concise author + a fair judge is the better fix. (Pending the per-lap re-judge to quantify exactly.)</li>
+<li><strong>The biggest takeaway is about measurement, not laps:</strong> the judge rubric was a first-order
+confound that inflated every effect ~3x. This lands directly on the lab's own belief/assay layer — <em>it
+scores agent work with LLM judges too.</em> Judge-robustness (multi-rubric / multi-judge) belongs in the
+assay, or the scores measure the ruler as much as the work.</li>
+<li><strong>The matrix earned its keep four times:</strong> found an effect → corrected it → explained it →
+then <em>caught its own measurement bias</em>. Idle local hardware, self-funding — and self-skeptical —
+knowledge. That last step is the one most experiments skip.</li>
 </ul>
 
 <h2>Open threads</h2>

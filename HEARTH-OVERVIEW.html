@@ -72,9 +72,9 @@
 <h1>HEARTH</h1>
 <p class="sub">The always-on MCP door for the whole mechnet &mdash; one boundary, every crossing ledgered.
 &nbsp;<span class="badge verified">LIVE &mdash; OMEN :8710</span>
-&nbsp;<span class="badge gold">32 tools live (+1 pending restart) &middot; 12 providers</span>
-&nbsp;<span class="badge verified">338 tests in hearth/ (733 repo-wide)</span>
-&nbsp;<span class="badge idea">11 ADRs, all ratified 2026-07-04</span></p>
+&nbsp;<span class="badge gold">35 tools live &middot; 13 providers</span>
+&nbsp;<span class="badge verified">381 tests in hearth/ (784 repo-wide)</span>
+&nbsp;<span class="badge idea">13 ADRs &middot; 0001&ndash;0011 ratified 2026-07-04, 0012&ndash;0013 after</span></p>
 
 <div class="topnav">
 <a href="#what-it-is">What it is</a>
@@ -158,7 +158,7 @@ out-of-band git push. If a tool is missing, that's a gap to name, not a door to 
   <text x="332" y="150" fill="#e8e0d4" font-size="11.5">auth &rarr; X-Hearth-Key header</text>
   <text x="332" y="172" fill="#e8e0d4" font-size="11.5">guards &rarr; knowledge-path +</text>
   <text x="342" y="188" fill="#e8e0d4" font-size="11.5">fixture-taint</text>
-  <text x="332" y="210" fill="#e8e0d4" font-size="11.5">12 providers &middot; 33 tools</text>
+  <text x="332" y="210" fill="#e8e0d4" font-size="11.5">13 providers &middot; 35 tools</text>
   <text x="332" y="232" fill="#e8e0d4" font-size="11.5">timed + sha256 args/result</text>
   <text x="332" y="254" fill="#e8e0d4" font-size="11.5">digest, every call</text>
   <text x="422" y="304" text-anchor="middle" fill="#ff9a3c" font-weight="700" font-size="11.5">&rarr; one ledger event, always</text>
@@ -221,8 +221,8 @@ caller can't get a partial contract. From <code>hearth/kernel/gateway.py::make_w
 </ol>
 
 <h2 id="tools">The tool surface</h2>
-<p class="dim">32 tools are live on the gateway process this session is actually connected to; a 33rd is merged
-in source and will appear after the next restart (noted inline). Grouped by what they're for, not by file.</p>
+<p class="dim">35 tools are live on the gateway process this session is actually connected to, across 13 mounted
+providers (plus the always-on kernel builtin). Grouped by what they're for, not by file.</p>
 
 <h3>Inference &amp; dispatch</h3>
 <table>
@@ -235,6 +235,26 @@ in source and will appear after the next restart (noted inline). Grouped by what
 <tr><td><code>task_status</code></td><td>Poll a submitted task's <code>plan_id</code> for the fleet's
     result.</td></tr>
 </table>
+
+<h3>Commander intent lane <span class="badge verified">REFINE live</span> <span class="badge idea">BUILD/BOTH deferred</span></h3>
+<p class="dim">The lane that lets Derek issue intent with <em>no frontier session in the run loop</em>
+(<a href="docs/adr/0012-commander-intent-lane-frontier-out-of-loop.md">ADR-0012</a>): frontier builds the
+lane once, then exits. The REFINE slice runs a local author&harr;critic convergence loop entirely on OMEN's
+models; BUILD (the fleet lane) and BOTH are specified but deferred. Also exposed as a CLI
+(<code>python -m hearth.commander.cli</code>) so intent can be issued with no Claude session at all.</p>
+<table>
+<tr><th>Tool</th><th>What it does</th></tr>
+<tr><td><code>refine_idea(idea, rounds=3, fan=False)</code></td><td>Runs the local author&harr;critic loop until
+    the critics signal <code>VERDICT: CONVERGED</code> or the round budget is spent; persists the full trail
+    under <code>hearth/var/commander/refine/</code> and returns a digest (<code>intent_id</code>, final,
+    rounds_run, converged, cost). <code>fan=True</code> spreads each review across several local models for
+    diverse perspectives at the cost of wall-clock.</td></tr>
+<tr><td><code>refine_result(intent_id)</code></td><td>Retrieve a stored refinement &mdash; idea, final, and the
+    round-by-round trail &mdash; by <code>intent_id</code>.</td></tr>
+</table>
+<p class="dim">The matrix / wind-tunnel experiment harness (<code>hearth/experiments/</code>) reuses
+<code>run_refine</code> as its per-cell engine &mdash; a swept REFINE across planner &times; critic &times;
+prompt &times; laps.</p>
 
 <h3>Local backend bring-up <span class="badge verified">wake_am4 LIVE</span> <span class="badge warn">2 still STUB</span></h3>
 <table>
@@ -279,7 +299,7 @@ change when their execution lands.</p>
 <tr><td><code>project</code></td><td>Run the projector DAG (capacity, findings, associations, coverage,
     experiments, policy) and write <code>knowledge/*.json</code>, each stamped with a
     <code>corpus_digest</code>.</td></tr>
-<tr><td><code>rebuild_knowledge</code> <span class="badge draft">merged, pending restart</span></td>
+<tr><td><code>rebuild_knowledge</code> <span class="badge verified">live</span></td>
     <td>Full from-zero replay of the projector DAG into a staging directory, validated, then atomically
     swapped in &mdash; the CQRS step-5 "golden determinism" rebuild.</td></tr>
 <tr><td><code>query_capabilities</code> &middot; <code>query_findings</code> &middot;
@@ -298,9 +318,9 @@ change when their execution lands.</p>
 <tr><td><code>patrol</code></td><td>Pure observer. Scans conductor run records for coherence gaps; never
     mutates. <code>refresh=True</code> (default) also best-effort refreshes capacity / AM4-catalog /
     hindsight.</td></tr>
-<tr><td><code>remediate</code> <span class="badge draft">source-renamed masters_pet, pending restart</span></td>
-    <td>The only mutator. Auto-heals <code>phantom_in_flight</code> only (v0 policy); dry-run unless
-    <code>apply=True</code>.</td></tr>
+<tr><td><code>masters_pet</code> <span class="badge verified">live</span></td>
+    <td>The only mutator (the <code>remediate</code> rename). Auto-heals <code>phantom_in_flight</code> only
+    (v0 policy); dry-run unless <code>apply=True</code>.</td></tr>
 <tr><td><code>dream</code></td><td>Off-duty art mode &mdash; drives ComfyUI SD3.5-Large on AM4 over SSH,
     thermal-guarded at 95&deg;C, ledgers under identity <code>mechnet-watchdog</code>.</td></tr>
 </table>
@@ -464,8 +484,9 @@ between them &mdash; never a second birthplace for a domain fact.</p>
 </ul>
 
 <h2 id="decisions">Decision trail</h2>
-<p>Eleven ADRs, every one ratified the same day &mdash; the record of a lab that decided a lot in one
-sitting and wrote down why, so none of it has to be re-litigated.</p>
+<p>Thirteen ADRs. The first eleven were ratified the same day (2026-07-04) &mdash; the record of a lab that
+decided a lot in one sitting and wrote down why. Two more followed as their slices landed: 0012 with the
+commander lane (2026-07-05) and 0013 when <code>wake_am4</code> flipped live (2026-07-07).</p>
 <table>
 <tr><th>ADR</th><th>Title</th></tr>
 <tr><td><a href="docs/adr/0001-assay-acceptance-gap.md">0001</a></td><td>The assay is a regression gate, not an acceptance oracle</td></tr>
@@ -479,6 +500,8 @@ sitting and wrote down why, so none of it has to be re-litigated.</p>
 <tr><td><a href="docs/adr/0009-tiered-builds-integration-is-the-review.md">0009</a></td><td>Tiered agent builds: integration is the review; frontier merge review is load-bearing</td></tr>
 <tr><td><a href="docs/adr/0010-two-ledgers-two-bounded-contexts.md">0010</a></td><td>Two ledgers, two bounded contexts: one door is not one store</td></tr>
 <tr><td><a href="docs/adr/0011-record-event-double-write-is-intentional.md">0011</a></td><td>The record_event double-write is intentional</td></tr>
+<tr><td><a href="docs/adr/0012-commander-intent-lane-frontier-out-of-loop.md">0012</a></td><td>The commander issues intent; mechnet carries it, with no frontier model in the run loop</td></tr>
+<tr><td><a href="docs/adr/0013-wake-am4-live-serve-truth-single-claimant.md">0013</a></td><td>wake_am4 goes live: serve-truth idempotency, queue-gated occupancy, one systemd claimant per port</td></tr>
 </table>
 
 <h2 id="timeline">Evolution</h2>
@@ -492,7 +515,12 @@ sitting and wrote down why, so none of it has to be re-litigated.</p>
 <div class="tl"><span class="h">bd636d5 &rarr; f1f2b8b &rarr; ad486d6 &rarr; 28cdea4</span> &mdash; CQRS/ES hardening steps 2&ndash;5: atomic writes, ledger reindex/verify, corpus digests, from-zero rebuild.</div>
 <div class="tl"><span class="h">4c25664</span> &mdash; ADR-0010 + ADR-0011 ratified: two ledgers are two bounded contexts, and the double-write is intentional.</div>
 <div class="tl"><span class="h">9279620</span> &mdash; <code>remediate</code> &rarr; <code>masters_pet</code> module rename completed (a half-done rename from a prior session had briefly broken test collection &mdash; a small coherence gap in the coherence-watcher's own codebase).</div>
-<div class="tl"><span class="h">7428a94</span> &mdash; <strong>today's latest:</strong> the 5-minute patrol snapshot / 15-minute trend split, with persistent/new/resolved gap tagging.</div>
+<div class="tl"><span class="h">7428a94</span> &mdash; the 5-minute patrol snapshot / 15-minute trend split, with persistent/new/resolved gap tagging.</div>
+<div class="tl"><span class="h">2dc5582 &middot; 7ed58d4</span> &mdash; this overview page first assembled; the ontology lexicon lands (<code>tools/workflow/lexicon.toml</code>) &mdash; a lore display layer applied only at render time, never written to the ledger.</div>
+<div class="tl"><span class="h">daac7eb &rarr; 8f67a78</span> &mdash; <strong>the commander intent lane</strong> (ADR-0012): local author&harr;critic REFINE loop + <code>refine_idea</code>/<code>refine_result</code> door tools and a CLI, so intent is issued with no frontier session in the run loop. A wind-tunnel finding is applied back (concise author + brevity-aware critic).</div>
+<div class="tl"><span class="h">ef08410 &middot; 7203a3c</span> &mdash; AM4 is now <strong>native Ubuntu</strong>: B70 card runbook + reboot-persistent <code>b70-planner</code>/<code>b70-critic</code> units; a host-RAM preflight gate, fixed to read the used-ceiling not the available-floor after a crash-loop.</div>
+<div class="tl"><span class="h">a0cc2d3 &rarr; 0e7111f</span> &mdash; the cross-hardware planning <strong>wind-tunnel</strong> (planner &times; critic &times; prompt &times; laps): a larger matrix flips the finding to &ldquo;2 laps is the sweet spot,&rdquo; prompt design dominates lap count, and the held-out judge is itself shown to be a confound &mdash; calibrated, not trusted.</div>
+<div class="tl"><span class="h">0db1e52 &rarr; 4a7ed31</span> &mdash; <strong>latest:</strong> <code>wake_am4</code> flips live (ADR-0013) &mdash; serve-truth idempotent, ComfyUI-queue occupancy gate, one systemd claimant per port. Proven cold planner &rarr; serving in 26s.</div>
 </div>
 
 <h2 id="glossary">Glossary &mdash; fire on the steppe</h2>
@@ -531,11 +559,12 @@ trusting the confident-sounding version and start trusting the ledgered one.</p>
 </div>
 
 <div class="foot">
-<strong>HEARTH &mdash; Overview</strong> &mdash; a living reference, assembled 2026-07-04 directly from
-<code>hearth/</code> source, <code>docs/adr/</code>, <code>fleet/inventory.toml</code>, and a live test
-collection (338 tests / 40 files in <code>hearth/tests</code>, 733 repo-wide). Numbers and tool names will
-drift as HEARTH grows &mdash; regenerate this page after the next big slice lands rather than hand-patching
-it stale. See also <a href="WATCHFIRE-FLARE-DESIGN-2026-07-04.html">WATCHFIRE-FLARE-DESIGN-2026-07-04.html</a>
+<strong>HEARTH &mdash; Overview</strong> &mdash; a living reference, first assembled 2026-07-04 and
+regenerated 2026-07-08 directly from <code>hearth/</code> source, <code>docs/adr/</code>,
+<code>fleet/inventory.toml</code>, the gateway launch spec (<code>hearth/etc/start-hearth-gateway.cmd</code>),
+and a static test scan (381 tests / 37 files in <code>hearth/tests</code>, 784 repo-wide). Numbers and tool
+names will drift as HEARTH grows &mdash; regenerate this page after the next big slice lands rather than
+hand-patching it stale. See also <a href="WATCHFIRE-FLARE-DESIGN-2026-07-04.html">WATCHFIRE-FLARE-DESIGN-2026-07-04.html</a>
 for the guard dog's full design rationale, and <a href="MECHNET-EVOLUTION-2026-07-04.md">MECHNET-EVOLUTION-2026-07-04.md</a>
 for the whole mechnet's six-phase origin story.
 </div>

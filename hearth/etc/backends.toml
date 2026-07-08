@@ -46,7 +46,10 @@ models   = ["oxen"]                           # facade-advertised id (GET /v1/mo
                                               # dual-B70 Qwen3-30B behind the oxen alias.
                                               # (was "qwen3-30b" — not a real id → 404.)
 tags     = ["big-context", "research", "second-opinion"]
-revive   = "wake_am4"                          # HEARTH summon tool (consumed in P4)
+revive   = "wake_am4"                          # LIVE HEARTH summon tool: idempotent
+                                              # (facade backend.ok short-circuits),
+                                              # imagegen-occupancy-gated, starts the
+                                              # managed b70-planner --user unit.
 # `conductor_worker`: metadata only — which conductor worker rides this backend
 # (useful for humans cross-referencing fleet.json). The LIVE P2 occupancy probe
 # does NOT read this field: it goes straight to AM4 serve-truth (render_owners

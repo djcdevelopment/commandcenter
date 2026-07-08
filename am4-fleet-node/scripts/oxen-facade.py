@@ -179,7 +179,7 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "refused": True,
                     "reason": "backend lifecycle is managed by systemd on AM4",
-                    "remedy": "sudo systemctl start|stop|restart am4-planner.service (or am4-critic.service)",
+                    "remedy": "systemctl --user start|stop|restart b70-planner.service (or b70-critic.service)",
                 },
             )
             return

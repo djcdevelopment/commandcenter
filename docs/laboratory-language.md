@@ -53,3 +53,7 @@ A `Promotion` is the gate between a candidate being produced and a candidate bei
 ## Retrospective
 
 A `Retrospective` is a durable learning artifact created after or during a run. It records what happened, what was learned, and what should change next. A retrospective is identified by `retrospective_id`.
+
+## Presentation Lexicon
+
+The terms above are the technical, durable meaning layer. A separate **presentation lexicon** ([tools/workflow/lexicon.toml](/C:/work/commandcenter/tools/workflow/lexicon.toml)) maps these ontology events, phases, actors, and tools onto the project's "fire on the steppe" lore for display surfaces only. It is applied at render/projection time and is **never** written into the ledger or event log — durable records stay 100% technical. See [workflow-ontology-design.md](/C:/work/commandcenter/docs/workflow-ontology-design.md) for the rules (render-time only, hard fallback to the technical string, drift-guarded against `ontology.py`).

@@ -22,6 +22,7 @@ Supporting implementation artifacts added alongside this design:
 - reference run-boundary emitter: [reference_runner.py](/C:/work/commandcenter/tools/workflow/reference_runner.py)
 - L2 OTel event mapping adapter: [otel_adapter.py](/C:/work/commandcenter/tools/workflow/otel_adapter.py)
 - deterministic projection helpers for board and OTel mirror: [projections.py](/C:/work/commandcenter/tools/workflow/projections.py)
+- presentation lexicon (lore display layer, render-time only): [lexicon.toml](/C:/work/commandcenter/tools/workflow/lexicon.toml) + [lexicon.py](/C:/work/commandcenter/tools/workflow/lexicon.py)
 
 Recommended shape:
 
@@ -806,6 +807,20 @@ Recommended event log rules:
 - no synthetic state-only rows
 - `state.json` should be a projection over `events.jsonl`
 - `result.json` should summarize terminal workflow outcome, not replace the event stream
+
+## Presentation Lexicon
+
+The ontology above is deliberately technical: `work.accepted`, `builder.grooming_started`, dotted lowercase names that survive UI churn. A separate **presentation lexicon** ([lexicon.toml](/C:/work/commandcenter/tools/workflow/lexicon.toml), loaded by [lexicon.py](/C:/work/commandcenter/tools/workflow/lexicon.py)) maps each of those to the project's "fire on the steppe" lore for display surfaces (timeline chips, tooltips, the overview page).
+
+Rules that keep it honest:
+
+- **Render-time only.** Lore strings are applied when projecting a view. They are never written into `events.jsonl`, the hearth ledger, or any `workflow-event.schema.json` payload. Durable events stay 100% technical — this upholds "no authorship where derivation exists." A lore term appearing in a raw ledger line is a bug.
+- **Hard fallback.** Any unknown event type, actor id, or tool resolves to its technical string verbatim. The resolvers never invent lore and never raise in a render path.
+- **Drift-guarded.** Every `EVENT_TYPE` in [ontology.py](/C:/work/commandcenter/tools/workflow/ontology.py) must have a matching `[events.<type>]` entry, enforced by `lexicon.check_completeness()` and its test.
+- **Layers it decorates.** Event types get a `display` chip + `gloss`; `EVENT_TO_PHASE` values get a phase label; known caller ids get an actor name (with `fleet/inventory.toml` enrichment for builder VMs); and specific gateway tools — which all land as the neutral `work.accepted` event — can carry a more specific label keyed on `payload.tool` without touching the durable event type.
+- **Stdlib only.** TOML via `tomllib`, matching the repo's no-PyYAML rule; zero new dependencies.
+
+The constitutional term definitions this lore layer decorates live in [laboratory-language.md](/C:/work/commandcenter/docs/laboratory-language.md).
 
 ## Open Design Notes
 

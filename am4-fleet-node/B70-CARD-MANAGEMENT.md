@@ -97,6 +97,31 @@ systemctl --user enable --now b70-planner b70-critic   # (re)install + start; en
 For a one-off ad-hoc server use `systemd-run --user --unit=NAME --collect bash <script>` — it
 returns cleanly and persists. **Do NOT** rely on `nohup … &` over SSH (see gotchas).
 
+⚠ **Zombie units (disabled 2026-07-07):** `am4-planner.service` / `am4-critic.service` (an older
+hermes-era pair in `~/.config/systemd/user/`) pointed at a deleted `start-hermes-backend.sh` and
+crash-looped **58,922 restarts** (`Restart=always`, every 5 s, ~3.4 days) before being
+`systemctl --user disable --now`'d. Unit files left in place for reference. Lesson: no latent
+second claimant for :8080/:8081 — `b70-planner`/`b70-critic` are THE managed units.
+
+## Waking from HEARTH (`wake_am4`)
+
+`hearth/toolsurface/summon.py:wake_am4` (the `revive` hook for the `am4-oxen` backend in
+`hearth/etc/backends.toml`) is LIVE and is the sanctioned remote wake path:
+
+1. **Idempotent:** facade `http://100.116.82.60:8090/health` → `backend.ok` true = no-op.
+2. **Occupancy-gated:** if imagegen (ComfyUI/python) holds the render nodes it checks the
+   ComfyUI queue (`:8188/queue`) — only an in-flight or unverifiable job refuses the wake
+   (`force=True` overrides). Idle ComfyUI merely resident does NOT block (it holds the
+   nodes 24/7); our own `llama` slot holders never block either.
+3. **Wakes the managed unit:** `systemctl --user start b70-planner` over SSH (never
+   nohup — gotcha #2), then polls facade health until `backend.ok` or `wait_s` elapses.
+
+The dual-card `~/baseline/relaunch-qwen3-baseline.sh` (SYCL0,SYCL1 split, 131k ctx) is the
+*experiment throughput mode*, not the wake target — it grabs both cards (stomps the critic
+slot and imagegen). Run it ad hoc via `systemd-run --user` when a matrix sweep wants
+tensor-parallel speed, and stop `b70-planner`/`b70-critic` first. No permanent unit wraps it,
+deliberately: a latent second claimant of :8080 is how the zombie-unit crash-loop happened.
+
 ## Gotchas (each cost real time this session)
 
 1. **Self-killing `pkill`.** NEVER run `pkill -f llama-server` inside an SSH command: `-f` matches

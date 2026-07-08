@@ -7,8 +7,10 @@ The critic slot (oxen-critic -> :8081 qwen2.5-14b) has no gguf/launcher yet, so
 the interim pilot is AM4 planner <-> OMEN critic (both orderings) -- the split
 run_refine's per-role routing was built for.
 
-Wake the planner on AM4 (check the B70s are free of imagegen first):
-    ssh derek@am4.tail8e749c.ts.net 'nohup ~/baseline/relaunch-qwen3-baseline.sh >> ~/baseline/qwen3.log 2>&1 &'
+Wake the planner on AM4 (idempotent + imagegen-occupancy-gated; see summon.wake_am4):
+    python -c "from hearth.toolsurface.summon import wake_am4; print(wake_am4())"
+(equivalently: ssh derek@am4.tail8e749c.ts.net 'systemctl --user start b70-planner' —
+NOT nohup-over-SSH, per B70-CARD-MANAGEMENT.md gotcha #2)
 
 Then, from OMEN:
     python -m hearth.experiments.run_pilot            # interim 12-cell cross-machine pilot
@@ -103,9 +105,8 @@ def main(argv: list[str] | None = None) -> int:
           f"AM4 oxen slots={'READY' if am4 else 'COLD'}")
     if args.check:
         if not am4:
-            print("\nAM4 planner (:8080) cold. Check the B70s are free, then wake it:")
-            print("  ssh derek@am4.tail8e749c.ts.net 'nohup ~/baseline/relaunch-qwen3-baseline.sh "
-                  ">> ~/baseline/qwen3.log 2>&1 &'")
+            print("\nAM4 planner (:8080) cold. Wake it (idempotent, occupancy-gated):")
+            print("  python -c \"from hearth.toolsurface.summon import wake_am4; print(wake_am4())\"")
         return 0 if (omen and am4) else 1
 
     if not omen:

@@ -21,6 +21,7 @@ record with its status changed and a pointer to the ADR that replaced it.
 | [0010](0010-two-ledgers-two-bounded-contexts.md) | Two ledgers, two bounded contexts: one door is not one store | Accepted (2026-07-04) |
 | [0011](0011-record-event-double-write-is-intentional.md) | The record_event double-write is intentional | Accepted (2026-07-04) |
 | [0012](0012-commander-intent-lane-frontier-out-of-loop.md) | The commander issues intent; mechnet carries it, no frontier in the run loop | Accepted (2026-07-05) |
+| [0013](0013-wake-am4-live-serve-truth-single-claimant.md) | wake_am4 goes live: serve-truth idempotency, queue-gated occupancy, one systemd claimant per port | Accepted (2026-07-07) |
 
 ## Historical note
 The "ADR-0001" referenced in `SESSION-RETRO-2026-06-29.md` (which orchestrator is

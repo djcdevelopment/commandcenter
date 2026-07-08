@@ -299,7 +299,7 @@ knowledge. That last step is the one most experiments skip.</li>
 <li>Back the <code>:8081</code> critic slot (gguf + launcher) → full 2-AM4-model grid.</li>
 <li>Bigger sweep for statistical confidence if the 36-cell run is suggestive but not decisive.</li>
 <li>Fix the knowledge-guard bug blocking <code>query_am4_catalog</code>/<code>schedule_hindsight</code>/<code>query_capacity</code>.</li>
-<li>Point <code>hearth wake_am4</code> at <code>~/baseline/relaunch-qwen3-baseline.sh</code> (it references non-existent systemd units).</li>
+<li><s>Point <code>hearth wake_am4</code> at <code>~/baseline/relaunch-qwen3-baseline.sh</code> (it references non-existent systemd units).</s> <strong>Resolved 2026-07-07:</strong> <code>wake_am4</code> is LIVE and starts the managed <code>b70-planner</code> <code>--user</code> unit &mdash; deliberately <em>not</em> the relaunch script (its dual-card split grabs both B70s, stomping the critic slot + imagegen; runbook gotcha #2 rules nohup-over-SSH out). See <a href="docs/adr/0013-wake-am4-live-serve-truth-single-claimant.md">ADR-0013</a>.</li>
 </ul>
 
 <p class="meta">Provenance: harness <code>hearth/experiments/</code> + <code>hearth/commander/</code> (master @ a0cc2d3).

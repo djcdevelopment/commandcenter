@@ -43,13 +43,14 @@ symlinks cannot escape. Read at call time, so H2 lockdown is an env-var change.
 | knowledge.py | `query_capabilities(knowledge_dir='knowledge')` | capabilities.json + file mtime |
 | knowledge.py | `query_findings(knowledge_dir='knowledge')` | findings.json + file mtime |
 | knowledge.py | `query_beliefs_summary(knowledge_dir='knowledge')` | Cross-file counts + mtimes digest, not full contents |
-| summon.py | `wake_am4()` | [stub] `ssh derek@am4.tail8e749c.ts.net 'sudo systemctl start am4-hermes-backend.service'` (+ preflight/verify from am4-fleet-node docs) |
+| summon.py | `wake_am4(force=False, wait_s=120)` | **LIVE (H3, 2026-07-07)** — idempotent facade serve-truth, ComfyUI-`:8188/queue`-gated, starts the managed `b70-planner --user` unit over SSH then polls health. See [ADR-0013](docs/adr/0013-wake-am4-live-serve-truth-single-claimant.md). _(Originally stubbed against the since-retired `am4-hermes-backend.service`.)_ |
 | summon.py | `start_ollama(model='qwen3-coder:30b')` | [stub] `ollama serve` + warmup /api/generate hit to load the model resident |
 | summon.py | `checkpoint_vm(name)` | [stub] Hyper-V `Checkpoint-VM -Name '<name>'` (+ Export-VMSnapshot), the proven snapshot path |
 | inference.py | `local_generate(prompt, model='qwen3-coder:30b', endpoint='http://127.0.0.1:11434', system=None, max_tokens=1024, timeout_s=120)` | Blocking Ollama /api/generate (stream=false): {text, tokens_in, tokens_out, duration_ms}; `HEARTH_OLLAMA` overrides the default endpoint; connection failure → {ok:false, error}, not an exception |
 
-All summon stubs return `{ok: false, stub: true, would_run: <real command>}` — shapes
-are final, H3 flips them live.
+`wake_am4` is now live (H3 flipped it 2026-07-07 — see ADR-0013). The remaining two
+summon stubs (`start_ollama`, `checkpoint_vm`) return `{ok: false, stub: true,
+would_run: <real command>}` — shapes are final, H3 flips them live.
 
 ## How knowledge.py wires into the existing machinery
 

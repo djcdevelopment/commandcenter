@@ -236,19 +236,25 @@ in source and will appear after the next restart (noted inline). Grouped by what
     result.</td></tr>
 </table>
 
-<h3>Local backend bring-up <span class="badge warn">STUB &mdash; shape only</span></h3>
+<h3>Local backend bring-up <span class="badge verified">wake_am4 LIVE</span> <span class="badge warn">2 still STUB</span></h3>
 <table>
 <tr><th>Tool</th><th>What it does</th></tr>
-<tr><td><code>wake_am4</code></td><td>Would start AM4's dual-B70 <code>oxen</code> backend over SSH
-    (<code>am4-planner</code>/<code>am4-critic</code> services). Returns
-    <code>{ok:false, stub:true, would_run:&hellip;}</code> today.</td></tr>
+<tr><td><code>wake_am4(force=False, wait_s=120)</code></td><td><span class="badge verified">LIVE 2026-07-07</span>
+    Wakes AM4's <code>oxen</code> backend, idempotent + occupancy-gated. Serve-truth first: if the
+    always-on facade (<code>:8090 /health</code>) already reports <code>backend.ok</code>, it's a no-op.
+    Else it checks the ComfyUI <code>:8188/queue</code> &mdash; ComfyUI holds both B70 render nodes 24/7,
+    so only a <em>busy or unverifiable</em> queue refuses (<code>force=True</code> overrides) &mdash; then
+    starts the managed <code>b70-planner</code> <code>--user</code> unit over SSH and polls health until
+    <code>backend.ok</code> or <code>wait_s</code> elapses. Never nohup-over-SSH, never the dual-card
+    relaunch script. See <a href="docs/adr/0013-wake-am4-live-serve-truth-single-claimant.md">ADR-0013</a>.</td></tr>
 <tr><td><code>start_ollama</code></td><td>Would start the local Ollama daemon and warm a model resident.
-    Same stub shape.</td></tr>
+    Returns <code>{ok:false, stub:true, would_run:&hellip;}</code> today.</td></tr>
 <tr><td><code>checkpoint_vm</code></td><td>Would Hyper-V-checkpoint a builder VM on OMEN
     (<code>Checkpoint-VM</code> / <code>Export-VMSnapshot</code>). Same stub shape.</td></tr>
 </table>
-<p class="dim">These three ship the correct tool <em>shape</em> now &mdash; callers and the ledger already see
-the real contract &mdash; so the caller-facing surface won't change when execution lands.</p>
+<p class="dim"><code>wake_am4</code> flipped live in H3; the other two still ship the correct tool <em>shape</em>
+only &mdash; callers and the ledger already see the real contract, so the caller-facing surface won't
+change when their execution lands.</p>
 
 <h3>Files, git &amp; tests <span class="badge verified">sandboxed to HEARTH_SCOPE</span></h3>
 <table>

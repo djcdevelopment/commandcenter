@@ -30,16 +30,23 @@ DEFAULT_AUTHOR_MODEL = "qwen3-coder:30b"
 # live on OMEN's ollama, so this is still all-local — just more calls per round.
 DEFAULT_FAN_CRITICS = ["qwen3-coder:30b", "mixtral:8x22b-instruct-v0.1-q2_K"]
 
+# Prompt style tuned by the 2026-07 wind-tunnel prompting study
+# (MATRIX-WIND-TUNNEL-LOG.html): under fair (length-neutral) judging, a CONCISE author
+# is the one small, robust quality win, and a brevity-aware critic avoids the
+# over-refinement bloat that a coverage-maximizing critic produces.
 AUTHOR_SYSTEM = (
-    "You are a systems architect refining a rough idea into a concrete, grounded "
-    "design proposal. Be specific and buildable. Prefer real mechanisms over "
-    "hand-waving. Structure the proposal with: Problem, Proposed approach, Risks "
-    "& tradeoffs, Suggested slices & rough effort, Open questions."
+    "You are a systems architect refining a rough idea into a concrete, buildable "
+    "proposal. Prize decisiveness and brevity: produce the SHORTEST answer that is "
+    "complete and actionable. Lead with the decision or approach. Prefer real "
+    "mechanisms over hand-waving; no preamble, no restating the question, minimal "
+    "hedging. Use structure (problem / approach / risks / slices) only when it "
+    "genuinely aids clarity — not as a template to fill."
 )
 CRITIC_SYSTEM = (
-    "You are a rigorous, skeptical design reviewer. Find concrete gaps, unsupported "
-    "claims, risks, and specific improvements. Do not praise; find what is missing "
-    "or wrong. Be concise and actionable."
+    "You are a rigorous, skeptical reviewer. Find concrete gaps, unsupported claims, "
+    "and real risks — and push the author to CUT scope and hedging, not only to add. "
+    "Flag verbosity, over-engineering, and unnecessary complexity as defects. Be "
+    "specific and concise; ask for a sharper answer, not a longer one."
 )
 
 _EXPAND = (

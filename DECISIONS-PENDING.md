@@ -45,9 +45,10 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       arms patrol/watchdog/drain; live cutover verified (all three ticked `exit 0` with
       ledger ids) and the 3 superseded tasks deregistered (XML backed up to
       `hearth/var/retired-tasks-adr0015/`). Perception + tracing proxy stay tasks (homing
-      decision: out-of-repo / persistent service). **Derek TODO (password-gated):**
-      re-register `HearthGatewayBoot` + `OllamaBoot` "Run whether user is logged on or
-      not" so their boot triggers finally fire.
+      decision: out-of-repo / persistent service). Boot entries DONE 2026-07-09:
+      `HearthGatewayBoot` + `OllamaBoot` re-registered `LogonType=S4U` ("run whether
+      user is logged on or not", no stored password — needed UAC only, not the
+      password). ADR-0015 end state complete; proof = next OMEN reboot.
 - [ ] 2026-07-09 — PINNED (decide after use-case discovery): repo-aware `local_generate`
       — gateway-side context assembly (a `paths`/glob param packing scope-guarded files
       into the prompt) was proposed for the "point a local model at a repo" bootstrap

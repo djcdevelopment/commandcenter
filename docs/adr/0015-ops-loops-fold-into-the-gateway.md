@@ -77,7 +77,11 @@ through `start-hearth-gateway.cmd`, so the revive path re-arms the timers unchan
 
 **Homing decisions:** perception stays a task (its loop lives out-of-repo at
 `C:\work\omen-perception\`, outside the gateway's bounded context, ADR-0010); the Ollama
-tracing proxy stays a task (a persistent logon service, not a periodic loop). **Not yet
-done (Derek, password-gated):** re-registering the two keeper boot entries
-(`HearthGatewayBoot`, `OllamaBoot`) "Run whether user is logged on or not" so their
-boot triggers actually fire (they have never run — Interactive-only boot trigger).
+tracing proxy stays a task (a persistent logon service, not a periodic loop). **DONE
+2026-07-09 (same day):** the two keeper boot entries (`HearthGatewayBoot`, `OllamaBoot`)
+re-registered `LogonType=S4U` — "Run whether user is logged on or not" with *do not store
+password*, so no credential was needed (the password gate was a false gate; only UAC
+elevation was required). Both verified S4U/Ready with running services undisturbed.
+S4U caveat (acceptable here): no per-user Credential Manager/DPAPI secrets and no
+network credentials for authenticated outbound — both services use local/file-based
+config. Definitive proof of the end state = next OMEN reboot (services up pre-logon).

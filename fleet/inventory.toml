@@ -22,12 +22,19 @@
 # Addressing model (Derek, 2026-07-02): VMs never join the tailnet -- only physical
 # hosts hold tailnet identities. Same-host VMs are reached via mshome.net sibling DNS;
 # off-host VMs via a ProxyJump through their tailnet-member hypervisor.
+#
+# Addressing model v2 (Derek, 2026-07-09, ADR-0014): MACHINE lanes never ride the
+# tailnet at all. HEARTH/mechnet machine-to-machine traffic uses mshome.net (VMs)
+# or the home LAN 192.168.12.0/24 (physical AM4). Tailscale remains only for
+# HUMAN/roaming access (phone, i5) and the AM4 gallery Funnel — never in the
+# control loop. Trigger: Tailscale SSH "check" mode blocked the conductor lane
+# pending a browser re-auth (2026-07-09).
 # ============================================================================
 
 [meta]
 tailnet = "tail8e749c.ts.net"
 hyperv_host = "omen"
-updated = "2026-07-04"
+updated = "2026-07-09"
 ssh_user = "claude"          # default ssh user for reachability/health probes
 
 # --- Physical hosts (tailnet members) ---------------------------------------
@@ -35,9 +42,9 @@ ssh_user = "claude"          # default ssh user for reachability/health probes
 [[node]]
 name = "omen"
 kind = "physical-host"
-address = "100.124.12.37"
-alt = ["omen.mshome.net"]
-via = "tailnet"
+address = "omen.mshome.net"
+alt = ["100.124.12.37"]   # tailnet identity stays (i5/phone reach it from another project)
+via = "mshome"
 expect = "up"
 purpose = "Hyper-V hypervisor + Ollama backend (:11434) + HEARTH gateway (:8710). Hosts all builder VMs. THIS box."
 # `revive` (optional, per-check): a shell command the mechnet-watchdog runs when
@@ -51,9 +58,11 @@ checks = [
 [[node]]
 name = "cc-conductor"
 kind = "physical-host"
-address = "100.74.110.91"
-alt = ["cc-conductor.tail8e749c.ts.net", "cc-conductor.mshome.net"]
-via = "tailnet"
+address = "cc-conductor.mshome.net"
+alt = ["100.74.110.91", "cc-conductor.tail8e749c.ts.net"]   # tailnet identity now UNUSED by
+   # HEARTH/mechnet (ADR-0014); candidate for `tailscale logout` once Derek confirms nothing
+   # human-facing (e.g. dashboard :8080 from phone) still rides it.
+via = "mshome"
 expect = "up"
 purpose = "Fleet orchestration engine: conductor daemon + api/dashboard (:8080)."
 checks = [
@@ -64,9 +73,11 @@ checks = [
 [[node]]
 name = "am4"
 kind = "physical-host"
-address = "100.116.82.60"
-alt = ["am4.tail8e749c.ts.net"]
-via = "tailnet"
+address = "192.168.12.233"
+alt = ["100.116.82.60", "am4.tail8e749c.ts.net"]   # tailscale STAYS on AM4 (gallery Funnel +
+   # phone/i5 access) — but HEARTH/mechnet lanes use the LAN address (ADR-0014).
+   # ufw: 22 + 8090 ALLOW from 192.168.12.0/24 (8090 rule added 2026-07-09).
+via = "lan"
 expect = "up"
 purpose = "AM4 inference + observability (OTel/Jaeger :16686). Local-model host. NOT a build VM."
 checks = [
@@ -159,11 +170,11 @@ name = "am4-worker-1"
 kind = "logical-builder"
 rides_on = "am4"
 model_backend = "127.0.0.1:8090"   # oxen (dual B70 Qwen3-30B), local to AM4
-via = "tailnet"
+via = "lan"
 expect = "up"
 purpose = "AM4 local-model builder: openai runner -> oxen. Shell on AM4; farmer via cc-farmer tunnel."
 checks = [
-  { service = "ssh", port = 22, host = "100.116.82.60" },
+  { service = "ssh", port = 22, host = "192.168.12.233" },
 ]
 
 [[node]]

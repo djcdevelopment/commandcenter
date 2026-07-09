@@ -42,7 +42,7 @@ from typing import Callable, Literal, Optional
 
 Occupancy = Literal["available", "busy", "unknown"]
 
-SSH_USER_HOST = "derek@am4.tail8e749c.ts.net"
+SSH_USER_HOST = "derek@192.168.12.233"  # LAN, not tailnet (ADR-0014)
 SSH_TIMEOUT_S = 8
 CACHE_TTL_S = 30.0
 

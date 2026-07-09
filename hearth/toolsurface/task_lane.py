@@ -40,7 +40,7 @@ import time
 import uuid
 from typing import Callable, Optional
 
-SSH_USER_HOST = "claude@100.74.110.91"
+SSH_USER_HOST = "claude@cc-conductor.mshome.net"  # local Hyper-V switch; machine lanes don't ride the tailnet (ADR-0014)
 CONDUCTOR_REPO = "/home/claude/work/commandcenter"
 INBOX_DIR = f"{CONDUCTOR_REPO}/inbox"
 RUNS_DIR = f"{CONDUCTOR_REPO}/runs"

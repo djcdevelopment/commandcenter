@@ -11,7 +11,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MIRROR_DIR = REPO_ROOT.parent / "conductor-mirror.git"
-CONDUCTOR_SSH_URL = "ssh://claude@100.74.110.91/home/claude/work/commandcenter.git"
+CONDUCTOR_SSH_URL = "ssh://claude@cc-conductor.mshome.net/home/claude/work/commandcenter.git"  # local vswitch, not tailnet (ADR-0014)
 GITHUB_URL = "https://github.com/djcdevelopment/conductor.git"
 BRANCH = "main"
 

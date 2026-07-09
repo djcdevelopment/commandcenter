@@ -24,7 +24,7 @@ import subprocess
 from pathlib import Path
 from typing import Callable, Optional
 
-AM4_SSH = "derek@100.116.82.60"
+AM4_SSH = "derek@192.168.12.233"  # LAN, not tailnet (ADR-0014)
 SSH_TIMEOUT_PAD_S = 45
 THERMAL_LIMIT_C = 95
 DREAMS_DIR = Path(__file__).resolve().parents[1] / "var" / "dreams"

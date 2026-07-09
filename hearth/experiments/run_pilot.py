@@ -9,7 +9,7 @@ run_refine's per-role routing was built for.
 
 Wake the planner on AM4 (idempotent + imagegen-occupancy-gated; see summon.wake_am4):
     python -c "from hearth.toolsurface.summon import wake_am4; print(wake_am4())"
-(equivalently: ssh derek@am4.tail8e749c.ts.net 'systemctl --user start b70-planner' —
+(equivalently: ssh derek@192.168.12.233 'systemctl --user start b70-planner' —
 NOT nohup-over-SSH, per B70-CARD-MANAGEMENT.md gotcha #2)
 
 Then, from OMEN:
@@ -55,7 +55,7 @@ def _am4_ready() -> bool:
     body = json.dumps({"model": "oxen-planner", "max_tokens": 4,
                        "messages": [{"role": "user", "content": "ok"}]}).encode()
     req = urllib.request.Request(
-        "http://100.116.82.60:8090/v1/chat/completions", data=body,
+        "http://192.168.12.233:8090/v1/chat/completions", data=body,
         headers={"Content-Type": "application/json",
                  "Authorization": f"Bearer {token}"}, method="POST")
     try:

@@ -25,7 +25,7 @@ from typing import Callable, Optional
 from hearth.projection.am4_catalog import build_catalog
 from hearth.toolsurface._scope import resolve_in_scope
 
-AM4_SSH = "derek@100.116.82.60"
+AM4_SSH = "derek@192.168.12.233"  # LAN, not tailnet (ADR-0014)
 SSH_TIMEOUT_S = 30
 
 MODELS_JSON_PATH = "/mnt/win/work/vllama/config/models.json"

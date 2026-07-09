@@ -35,7 +35,9 @@ revive   = "start_ollama"                    # HEARTH summon tool (consumed in P
 
 [[backend]]
 name     = "am4-oxen"                          # the banked fire — dual-B70 Qwen3-30B
-endpoint = "http://100.116.82.60:8090"        # AM4 tailnet, port already open
+endpoint = "http://192.168.12.233:8090"       # AM4 over LAN (ufw 8090 ALLOW 192.168.12.0/24,
+                                              # added 2026-07-09) — machine lanes stay off the
+                                              # tailnet (ADR-0014)
 api      = "openai"                           # /v1/chat/completions, Bearer auth
 auth_env = "AM4_OXEN_TOKEN"                   # SAME name the fleet already uses
                                               # (conductor .env; ensemble_structure.py:71).

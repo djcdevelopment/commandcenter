@@ -42,8 +42,8 @@ from typing import Callable, Optional
 # render-node serve-truth); summon reuses it rather than growing a second one.
 from hearth.toolsurface import occupancy as _occupancy
 
-AM4_SSH = "ssh derek@am4.tail8e749c.ts.net"
-AM4_OXEN_HEALTH = "http://100.116.82.60:8090/health"   # facade IP = backends.toml endpoint
+AM4_SSH = "ssh derek@192.168.12.233"                    # LAN, not tailnet (ADR-0014)
+AM4_OXEN_HEALTH = "http://192.168.12.233:8090/health"   # facade IP = backends.toml endpoint
 AM4_PLANNER_UNIT = "b70-planner.service"
 WAKE_AM4_CMD = f"systemctl --user start {AM4_PLANNER_UNIT}"
 WAKE_POLL_INTERVAL_S = 5.0

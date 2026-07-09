@@ -136,7 +136,7 @@ class BankedFireRoutingTests(TestCase):
         self.assertEqual(result["tokens_out"], 40)
 
         sent = mocked.call_args[0][0]
-        self.assertEqual(sent.full_url, "http://100.116.82.60:8090/v1/chat/completions")
+        self.assertEqual(sent.full_url, "http://192.168.12.233:8090/v1/chat/completions")
         self.assertEqual(sent.headers.get("Authorization"), "Bearer sk-oxen")
         body = json.loads(sent.data.decode("utf-8"))
         self.assertEqual(body["messages"][-1], {"role": "user",
@@ -212,7 +212,7 @@ class OccupancyRoutingTests(TestCase):
         self.assertEqual(result["backend"], "am4-oxen")
         self.assertEqual(result["occupancy"], "busy")
         self.assertEqual(mocked.call_args[0][0].full_url,
-                         "http://100.116.82.60:8090/v1/chat/completions")
+                         "http://192.168.12.233:8090/v1/chat/completions")
 
     def test_pinned_endpoint_bypasses_occupancy_entirely(self) -> None:
         """An endpoint pin never even calls check_occupancy (path 1 short-circuits)."""

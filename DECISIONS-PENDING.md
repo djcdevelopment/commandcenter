@@ -32,12 +32,16 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       lane). DECIDED + SHIPPED same day: machine lanes moved to mshome/LAN, Tailscale =
       humans + Funnel only; conductor stays a Hyper-V VM (WSL/AM4 relocation rejected)
       — [ADR-0014](docs/adr/0014-machine-lanes-off-the-tailnet.md), verified live.
-- [ ] 2026-07-09 — Derek: Tailscale admin hygiene for the remaining HUMAN lanes —
+- [x] 2026-07-09 — Derek: Tailscale admin hygiene for the remaining HUMAN lanes —
       disable key expiry on server nodes (OMEN, AM4), flip SSH ACL `check`→`accept`
-      (admin console; source: ADR-0014 consequences).
-- [ ] 2026-07-09 — Derek: confirm nothing human-facing still rides cc-conductor's
+      (admin console; source: ADR-0014 consequences). DONE 2026-07-09 (Derek, separate
+      session).
+- [x] 2026-07-09 — Derek: confirm nothing human-facing still rides cc-conductor's
       tailnet identity (dashboard :8080 from phone?) → then `tailscale logout` on the
-      conductor (source: ADR-0014 consequences).
+      conductor (source: ADR-0014 consequences). DONE 2026-07-09 (Derek, separate
+      session): conductor is off the tailnet — confirmed independently the same evening
+      via `tailscale status` from OMEN (only omen/am4/i5/pixel-8a remain); cc-builder-4's
+      rogue tailnet node also removed. inventory.toml updated to match.
 - [x] 2026-07-09 — BUILD: fold patrol/watchdog/drain/perception into the gateway as
       internal timers; shrink Task Scheduler to two headless boot entries; deregister
       the superseded tasks ([ADR-0015](docs/adr/0015-ops-loops-fold-into-the-gateway.md)).

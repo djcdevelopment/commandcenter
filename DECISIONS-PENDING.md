@@ -38,10 +38,16 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
 - [ ] 2026-07-09 — Derek: confirm nothing human-facing still rides cc-conductor's
       tailnet identity (dashboard :8080 from phone?) → then `tailscale logout` on the
       conductor (source: ADR-0014 consequences).
-- [ ] 2026-07-09 — BUILD: fold patrol/watchdog/drain/perception into the gateway as
+- [x] 2026-07-09 — BUILD: fold patrol/watchdog/drain/perception into the gateway as
       internal timers; shrink Task Scheduler to two headless boot entries; deregister
-      the superseded tasks ([ADR-0015](docs/adr/0015-ops-loops-fold-into-the-gateway.md)
-      — decided, unbuilt).
+      the superseded tasks ([ADR-0015](docs/adr/0015-ops-loops-fold-into-the-gateway.md)).
+      DONE 2026-07-09 (slice 1): `hearth/kernel/timers.py` + 291 tests green; gateway
+      arms patrol/watchdog/drain; live cutover verified (all three ticked `exit 0` with
+      ledger ids) and the 3 superseded tasks deregistered (XML backed up to
+      `hearth/var/retired-tasks-adr0015/`). Perception + tracing proxy stay tasks (homing
+      decision: out-of-repo / persistent service). **Derek TODO (password-gated):**
+      re-register `HearthGatewayBoot` + `OllamaBoot` "Run whether user is logged on or
+      not" so their boot triggers finally fire.
 - [ ] 2026-07-09 — PINNED (decide after use-case discovery): repo-aware `local_generate`
       — gateway-side context assembly (a `paths`/glob param packing scope-guarded files
       into the prompt) was proposed for the "point a local model at a repo" bootstrap

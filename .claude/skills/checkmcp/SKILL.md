@@ -25,6 +25,12 @@ prints a verdict; exit 0 = HEALTHY, exit 1 = DEGRADED:
   gateway's `start_ollama` tool from another caller).
 - **ledger** — timestamp of the newest event (staleness check, UTC).
 
+Since ADR-0015 the gateway also hosts the repeating ops loops (patrol 5m, watchdog
+15m, bankedfire drain 30m) as internal timers — so a door that's DOWN means those
+loops are dark too, and a `--revive` re-arms them automatically (the start script
+prints `hearth timers armed: ...`). Tick logs stay at `hearth/var/{watchdog-patrol,
+watchdog,bankedfire-drain}-task.log`.
+
 ## Reporting
 
 Tell the user the verdict in one line, plus — only if it was down — what state

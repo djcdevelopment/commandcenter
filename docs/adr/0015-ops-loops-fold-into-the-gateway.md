@@ -1,6 +1,6 @@
 # ADR-0015 — Repeating ops loops fold into the always-on gateway; no interactive scheduled tasks
 
-**Status:** Accepted (2026-07-09) — **not yet implemented** (build pinned in DECISIONS-PENDING.md).
+**Status:** Accepted (2026-07-09) — **implemented 2026-07-09** (slice 1: patrol/watchdog/drain).
 
 ## Context
 
@@ -55,3 +55,29 @@ non-interactive boot entries: gateway + Ollama.
   approved interim (it does not conflict with this decision).
 - After the build: deregister the superseded tasks; update the checkmcp skill notes
   (gateway revive posture) and `fleet/inventory.toml` revive commands if they change.
+
+## Implementation (2026-07-09, slice 1)
+
+Shipped: [`hearth/kernel/timers.py`](../../hearth/kernel/timers.py) (daemon-thread periodic
+runner: staggered first fire, skip-if-still-running, per-tick timeout+kill, failures
+never stop the schedule) + [`test_timers.py`](../../hearth/tests/kernel/test_timers.py)
+(291 suite green). The gateway arms them on start via `start_timers()`
+([`gateway.py`](../../hearth/kernel/gateway.py)), with a `--no-timers` /
+`HEARTH_TIMERS=off` escape hatch. Each timer fires the *same* argv the retired `.cmd`
+wrapper ran (`sys.executable -m fleet.mechnet_watchdog [--patrol-only] --json`,
+`... fleet.bankedfire_drain --json`) into the *same* `hearth/var/*.log` file — a trigger
+swap, not a behavior change; the loop modules are untouched. Ticks still land on the
+ledger through the subprocess's own writes.
+
+Live cutover verified: gateway restarted, all three timers armed and fired their first
+tick `exited with 0` (each with a `ledger_event_id`), then the three superseded tasks
+(`MechnetWatchdogPatrol`, `MechnetWatchdog`, `BankedfireDrain`) were deregistered (XML
+backed up to `hearth/var/retired-tasks-adr0015/`). `doorcheck --revive` already relaunches
+through `start-hearth-gateway.cmd`, so the revive path re-arms the timers unchanged.
+
+**Homing decisions:** perception stays a task (its loop lives out-of-repo at
+`C:\work\omen-perception\`, outside the gateway's bounded context, ADR-0010); the Ollama
+tracing proxy stays a task (a persistent logon service, not a periodic loop). **Not yet
+done (Derek, password-gated):** re-registering the two keeper boot entries
+(`HearthGatewayBoot`, `OllamaBoot`) "Run whether user is logged on or not" so their
+boot triggers actually fire (they have never run — Interactive-only boot trigger).

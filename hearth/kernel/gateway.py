@@ -30,6 +30,7 @@ import importlib
 import inspect
 import json
 import logging
+import os
 import time
 import typing
 import uuid
@@ -44,6 +45,7 @@ from hearth.kernel.auth import HEADER_NAME, AuthRegistry
 from hearth.kernel.context import HearthContext
 from hearth.kernel.guards import GuardRejection, GuardStack
 from hearth.kernel.ledger import REPO_ROOT, Ledger, hearth_root, new_event
+from hearth.kernel.timers import start_timers
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8710
@@ -352,10 +354,21 @@ def main(argv: Optional[list[str]] = None) -> None:
                         help="path to callers.json (default hearth/etc/callers.json)")
     parser.add_argument("--ledger-dir", default=None,
                         help="ledger directory (default $HEARTH_ROOT/var/ledger)")
+    parser.add_argument("--no-timers", action="store_true",
+                        help="don't start the in-process ops-loop timers (ADR-0015)")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
     mcp = build_server(providers_spec=args.providers, host=args.host, port=args.port,
                        callers_path=args.callers, ledger_dir=args.ledger_dir)
+
+    timers_enabled = not args.no_timers and os.environ.get("HEARTH_TIMERS", "").lower() != "off"
+    handles = start_timers(timers_enabled)
+    if handles:
+        armed = ", ".join(f"{h.spec.name}={int(h.spec.interval_s)}s" for h in handles)
+        print(f"hearth timers armed: {armed}")
+    else:
+        print("hearth timers disabled")
+
     mcp.run(transport="streamable-http")
 
 

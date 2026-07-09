@@ -1,0 +1,200 @@
+<svg viewBox="0 0 1460 1000" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1460" height="1000" fill="#fafaf9"/>
+  <text x="30" y="34" font-size="21" font-weight="700" fill="#1e293b">mechnet data flow diagram — communication channels, post-ADR-0014</text>
+  <text x="30" y="54" font-size="12.5" fill="#64748b">2026-07-09 · rectangles = external entities · rounded = processes · open bars = data stores · every arrow labeled with its channel</text>
+
+  <!-- ===================== EXTERNAL ENTITIES ===================== -->
+  <rect x="60" y="120" width="180" height="70" fill="#ffffff" stroke="#1e293b" stroke-width="2"/>
+  <text x="74" y="146" font-size="13" font-weight="700" fill="#1e293b">Derek / Claude</text>
+  <text x="74" y="164" font-size="11" fill="#475569">operator seat (OMEN)</text>
+
+  <rect x="1240" y="120" width="180" height="70" fill="#ffffff" stroke="#1e293b" stroke-width="2"/>
+  <text x="1254" y="146" font-size="13" font-weight="700" fill="#1e293b">Anthropic API</text>
+  <text x="1254" y="164" font-size="11" fill="#475569">frontier models</text>
+
+  <rect x="1240" y="300" width="180" height="70" fill="#ffffff" stroke="#1e293b" stroke-width="2"/>
+  <text x="1254" y="326" font-size="13" font-weight="700" fill="#1e293b">GitHub</text>
+  <text x="1254" y="344" font-size="11" fill="#475569">djcdevelopment</text>
+
+  <rect x="1240" y="780" width="180" height="70" fill="#ffffff" stroke="#1e293b" stroke-width="2"/>
+  <text x="1254" y="806" font-size="13" font-weight="700" fill="#1e293b">Gallery visitor</text>
+  <text x="1254" y="824" font-size="11" fill="#475569">via Tailscale Funnel</text>
+
+  <!-- ===================== PROCESSES ===================== -->
+  <rect x="300" y="110" width="220" height="94" rx="14" fill="#ffedd5" stroke="#c2410c" stroke-width="1.6"/>
+  <text x="314" y="134" font-size="12.5" font-weight="700" fill="#1e293b">P1 · HEARTH gateway</text>
+  <text x="314" y="152" font-size="11" fill="#475569">:8710 · 35 MCP tools</text>
+  <text x="314" y="168" font-size="11" fill="#475569">routes, guards scope,</text>
+  <text x="314" y="184" font-size="11" fill="#475569">ledgers every call</text>
+
+  <rect x="620" y="110" width="230" height="100" rx="14" fill="#eff6ff" stroke="#2563eb" stroke-width="1.6"/>
+  <text x="634" y="134" font-size="12.5" font-weight="700" fill="#1e293b">P2 · conductor serve loop</text>
+  <text x="634" y="152" font-size="11" fill="#475569">MAF fan-out ≥2 builders</text>
+  <text x="634" y="168" font-size="11" fill="#475569">health-gates, assigns runs;</text>
+  <text x="634" y="184" font-size="11" fill="#475569">plan_gen/critic/triage run</text>
+  <text x="634" y="200" font-size="11" fill="#475569">local `claude -p` in-process</text>
+
+  <rect x="950" y="110" width="230" height="100" rx="14" fill="#ecfdf5" stroke="#059669" stroke-width="1.6"/>
+  <text x="964" y="134" font-size="12.5" font-weight="700" fill="#1e293b">P3 · worker run_plan</text>
+  <text x="964" y="152" font-size="11" fill="#475569">per builder VM + am4-worker-1</text>
+  <text x="964" y="168" font-size="11" fill="#475569">runner.json seam:</text>
+  <text x="964" y="184" font-size="11" fill="#475569">claude -p (frontier) |</text>
+  <text x="964" y="200" font-size="11" fill="#475569">agent_openai.py (local)</text>
+
+  <rect x="950" y="300" width="230" height="100" rx="14" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.6"/>
+  <text x="964" y="324" font-size="12.5" font-weight="700" fill="#1e293b">P5 · local inference</text>
+  <text x="964" y="342" font-size="11" fill="#475569">Ollama :11434 (OMEN, mshome)</text>
+  <text x="964" y="358" font-size="11" fill="#475569">oxen facade :8090 (AM4, LAN)</text>
+  <text x="964" y="376" font-size="11" font-style="italic" fill="#5b21b6">occupancy-gated · wake_am4</text>
+
+  <rect x="950" y="450" width="230" height="90" rx="14" fill="#ecfdf5" stroke="#059669" stroke-width="1.6"/>
+  <text x="964" y="474" font-size="12.5" font-weight="700" fill="#1e293b">P4 · assay</text>
+  <text x="964" y="492" font-size="11" fill="#475569">dynamic/behavior grading —</text>
+  <text x="964" y="508" font-size="11" fill="#475569">grades = passing tests</text>
+  <text x="964" y="526" font-size="11" font-style="italic" fill="#065f46">regression gate, not oracle</text>
+
+  <rect x="60" y="250" width="180" height="104" rx="14" fill="#fff8ef" stroke="#d97706" stroke-width="1.6"/>
+  <text x="74" y="274" font-size="12.5" font-weight="700" fill="#1e293b">P6 · watchfire</text>
+  <text x="74" y="292" font-size="11" fill="#475569">watchdog · patrol · drain</text>
+  <text x="74" y="308" font-size="11" fill="#475569">probes every node (SSH/TCP),</text>
+  <text x="74" y="324" font-size="11" fill="#475569">heals the obvious</text>
+  <text x="74" y="342" font-size="11" font-style="italic" fill="#92400e">→ gateway timers (ADR-0015)</text>
+
+  <rect x="620" y="650" width="230" height="90" rx="14" fill="#fff8ef" stroke="#d97706" stroke-width="1.6"/>
+  <text x="634" y="674" font-size="12.5" font-weight="700" fill="#1e293b">P7 · perception loop</text>
+  <text x="634" y="692" font-size="11" fill="#475569">OMEN CPU-scores AM4 images</text>
+  <text x="634" y="708" font-size="11" fill="#475569">(aesthetic + CLIP, 5-min tick,</text>
+  <text x="634" y="724" font-size="11" fill="#475569">OTel-instrumented)</text>
+
+  <!-- ===================== DATA STORES ===================== -->
+  <g>
+    <line x1="300" y1="250" x2="520" y2="250" stroke="#c2410c" stroke-width="2"/>
+    <line x1="300" y1="300" x2="520" y2="300" stroke="#c2410c" stroke-width="2"/>
+    <text x="314" y="272" font-size="12" font-weight="700" fill="#1e293b">D1 · HEARTH kernel ledger</text>
+    <text x="314" y="290" font-size="10.5" fill="#475569">append-only events · atomic writes</text>
+  </g>
+  <g>
+    <line x1="300" y1="330" x2="520" y2="330" stroke="#c2410c" stroke-width="2"/>
+    <line x1="300" y1="380" x2="520" y2="380" stroke="#c2410c" stroke-width="2"/>
+    <text x="314" y="352" font-size="12" font-weight="700" fill="#1e293b">D2 · knowledge/*.json</text>
+    <text x="314" y="370" font-size="10.5" fill="#475569">beliefs · worth · budget · findings</text>
+  </g>
+  <g>
+    <line x1="620" y1="260" x2="850" y2="260" stroke="#2563eb" stroke-width="2"/>
+    <line x1="620" y1="310" x2="850" y2="310" stroke="#2563eb" stroke-width="2"/>
+    <text x="634" y="282" font-size="12" font-weight="700" fill="#1e293b">D3 · inbox/&lt;plan_id&gt;.md</text>
+    <text x="634" y="300" font-size="10.5" fill="#475569">CCMETA header + builder prompt</text>
+  </g>
+  <g>
+    <line x1="620" y1="340" x2="850" y2="340" stroke="#2563eb" stroke-width="2"/>
+    <line x1="620" y1="390" x2="850" y2="390" stroke="#2563eb" stroke-width="2"/>
+    <text x="634" y="362" font-size="12" font-weight="700" fill="#1e293b">D4 · runs/&lt;plan_id&gt;/</text>
+    <text x="634" y="380" font-size="10.5" fill="#475569">progress · QUESTION.md · result.json</text>
+  </g>
+  <g>
+    <line x1="620" y1="420" x2="850" y2="420" stroke="#2563eb" stroke-width="2"/>
+    <line x1="620" y1="470" x2="850" y2="470" stroke="#2563eb" stroke-width="2"/>
+    <text x="634" y="442" font-size="12" font-weight="700" fill="#1e293b">D5 · farmer git repo (conductor)</text>
+    <text x="634" y="460" font-size="10.5" fill="#475569">builder branches · winner promotion</text>
+  </g>
+  <g>
+    <line x1="950" y1="660" x2="1180" y2="660" stroke="#7c3aed" stroke-width="2"/>
+    <line x1="950" y1="710" x2="1180" y2="710" stroke="#7c3aed" stroke-width="2"/>
+    <text x="964" y="682" font-size="12" font-weight="700" fill="#1e293b">D6 · gallery (AM4, Caddy :8190)</text>
+    <text x="964" y="700" font-size="10.5" fill="#475569">img/thumb/meta · ranked by score</text>
+  </g>
+
+  <!-- ===================== FLOWS ===================== -->
+  <!-- Derek -> P1 -->
+  <line x1="240" y1="145" x2="296" y2="145" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="243" y="138" font-size="10.5" font-style="italic" fill="#64748b">intent (MCP)</text>
+  <line x1="296" y1="172" x2="240" y2="172" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="243" y="188" font-size="10.5" font-style="italic" fill="#64748b">results · answers</text>
+
+  <!-- P1 -> D3 -->
+  <polyline points="520,150 570,150 570,285 616,285" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="410" y="222" font-size="10.5" font-style="italic" fill="#64748b">submit_task (SSH)</text>
+
+  <!-- D3 -> P2 -->
+  <line x1="735" y1="260" x2="735" y2="214" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="745" y="242" font-size="10.5" font-style="italic" fill="#64748b">scan ~3 s</text>
+
+  <!-- P2 -> P3 -->
+  <line x1="850" y1="150" x2="946" y2="150" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="858" y="142" font-size="10.5" font-style="italic" fill="#64748b">plan · SSH-stdio MCP</text>
+  <text x="858" y="166" font-size="10.5" font-style="italic" fill="#64748b">(OTel-captured)</text>
+
+  <!-- P3 <-> Anthropic -->
+  <line x1="1180" y1="150" x2="1236" y2="150" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)" marker-start="url(#arr)"/>
+  <text x="1186" y="142" font-size="10.5" font-style="italic" fill="#64748b">HTTPS 443</text>
+
+  <!-- P3 -> P5 -->
+  <line x1="1065" y1="210" x2="1065" y2="296" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="1075" y="258" font-size="10.5" font-style="italic" fill="#64748b">prompts (HTTP · mshome/LAN)</text>
+
+  <!-- P1 -> P5 (local_generate) -->
+  <polyline points="450,110 450,72 935,72 935,330 946,330" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="600" y="66" font-size="10.5" font-style="italic" fill="#64748b">local_generate — the offload lane (code tier → Ollama · research tier → oxen)</text>
+
+  <!-- P3 -> D4 progress -->
+  <polyline points="1000,210 1000,247 870,247 870,365 854,365" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="878" y="241" font-size="10.5" font-style="italic" fill="#64748b">progress · QUESTION.md</text>
+
+  <!-- D4 -> P2 watch_progress -->
+  <polyline points="620,365 590,365 590,190 616,190" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="470" y="392" font-size="10.5" font-style="italic" fill="#64748b">watch_progress (long-poll)</text>
+
+  <!-- P3 -> D5 git push -->
+  <polyline points="946,190 900,190 900,445 854,445" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="906" y="428" font-size="10.5" font-style="italic" fill="#64748b">git push branch</text>
+  <text x="906" y="442" font-size="10.5" font-style="italic" fill="#64748b">(mshome / cc-farmer :2222)</text>
+
+  <!-- D5 -> P4 -->
+  <polyline points="850,455 920,455 920,490 946,490" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="856" y="478" font-size="10.5" font-style="italic" fill="#64748b">checkout ·</text>
+  <text x="856" y="492" font-size="10.5" font-style="italic" fill="#64748b">run tests</text>
+
+  <!-- P4 -> D4 -->
+  <polyline points="1040,450 1040,415 780,415 780,394" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="790" y="410" font-size="10.5" font-style="italic" fill="#64748b">grade → result.json</text>
+
+  <!-- D4 -> P1 task_status -->
+  <polyline points="620,352 545,352 545,180 524,180" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="552" y="224" font-size="10.5" font-style="italic" fill="#64748b">task_status (SSH)</text>
+
+  <!-- P1 -> D1 -->
+  <line x1="365" y1="204" x2="365" y2="246" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="375" y="230" font-size="10.5" font-style="italic" fill="#64748b">every call → event</text>
+
+  <!-- D1 -> D2 -->
+  <line x1="365" y1="300" x2="365" y2="326" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="375" y="320" font-size="10.5" font-style="italic" fill="#64748b">projections (rebuild_knowledge)</text>
+
+  <!-- P6 -> D1 -->
+  <line x1="240" y1="285" x2="296" y2="285" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="246" y="314" font-size="10.5" font-style="italic" fill="#64748b">patrol · heal events</text>
+
+  <!-- P7 -> D6 -->
+  <line x1="850" y1="690" x2="946" y2="690" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="856" y="682" font-size="10.5" font-style="italic" fill="#64748b">scores (SSH · 5-min tick)</text>
+
+  <!-- D6 -> visitor -->
+  <polyline points="1180,690 1210,690 1210,815 1236,815" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="1218" y="760" font-size="10.5" font-style="italic" fill="#64748b">Funnel</text>
+  <text x="1218" y="774" font-size="10.5" font-style="italic" fill="#64748b">HTTPS</text>
+
+  <!-- D5 -> GitHub mirror -->
+  <polyline points="830,420 830,408 1210,408 1210,335 1236,335" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="950" y="424" font-size="10.5" font-style="italic" fill="#64748b">mirror push — via OMEN, which alone holds GitHub creds</text>
+
+  <!-- footnote -->
+  <rect x="60" y="900" width="1360" height="60" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="76" y="924" font-size="11.5" fill="#475569">Channels: MCP over streamable-HTTP (operator → P1) · SSH-stdio MCP (P2 → P3, OTel-captured by transport) · plain key SSH (P1 → conductor files; P6 probes; P7 scores) ·</text>
+  <text x="76" y="942" font-size="11.5" fill="#475569">HTTP on mshome/LAN (P3/P1 → P5) · HTTPS to internet (frontier, GitHub, Funnel). No tailnet, no browser auth, no passwords — keys only (ADR-0014).</text>
+</svg>

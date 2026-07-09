@@ -1,0 +1,213 @@
+<svg viewBox="0 0 1460 1040" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, -apple-system, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+    <marker id="arrd" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1460" height="1040" fill="#fafaf9"/>
+  <text x="30" y="34" font-size="21" font-weight="700" fill="#1e293b">mechnet network topology — post-ADR-0014</text>
+  <text x="30" y="54" font-size="12.5" fill="#64748b">2026-07-09 · machine lanes = mshome.net + LAN only · Tailscale = humans + Funnel · conductor &amp; cc-builder-4 removed from tailnet</text>
+
+  <!-- ===== Internet band ===== -->
+  <rect x="30" y="70" width="1400" height="120" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.4"/>
+  <text x="48" y="92" font-size="13" font-weight="700" fill="#475569">Internet</text>
+  <rect x="60" y="102" width="240" height="70" rx="6" fill="#ffffff" stroke="#71717a"/>
+  <text x="72" y="124" font-size="12.5" font-weight="600" fill="#1e293b">Anthropic API</text>
+  <text x="72" y="142" font-size="11" fill="#475569">frontier models · HTTPS 443</text>
+  <text x="72" y="158" font-size="11" fill="#475569">callers: claude CLI in VMs + OMEN</text>
+  <rect x="330" y="102" width="240" height="70" rx="6" fill="#ffffff" stroke="#71717a"/>
+  <text x="342" y="124" font-size="12.5" font-weight="600" fill="#1e293b">GitHub (djcdevelopment)</text>
+  <text x="342" y="142" font-size="11" fill="#475569">commandcenter + conductor mirror</text>
+  <text x="342" y="158" font-size="11" fill="#475569">only OMEN holds credentials</text>
+  <rect x="600" y="102" width="260" height="70" rx="6" fill="#ffffff" stroke="#71717a"/>
+  <text x="612" y="124" font-size="12.5" font-weight="600" fill="#1e293b">Tailscale control plane / DERP</text>
+  <text x="612" y="142" font-size="11" fill="#475569">key expiry disabled on servers</text>
+  <text x="612" y="158" font-size="11" fill="#475569">SSH ACL: check → accept (2026-07-09)</text>
+  <rect x="890" y="102" width="220" height="70" rx="6" fill="#ffffff" stroke="#71717a"/>
+  <text x="902" y="124" font-size="12.5" font-weight="600" fill="#1e293b">Gallery visitors</text>
+  <text x="902" y="142" font-size="11" fill="#475569">HTTPS 443 via Funnel edge</text>
+  <text x="902" y="158" font-size="11" fill="#475569">am4.tail8e749c.ts.net (basic_auth)</text>
+
+  <!-- ===== Tailnet overlay band ===== -->
+  <rect x="30" y="220" width="1400" height="130" rx="10" fill="#faf5ff" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="8 5"/>
+  <text x="48" y="244" font-size="13" font-weight="700" fill="#5b21b6">Tailscale overlay · tail8e749c.ts.net — HUMANS + FUNNEL ONLY (ADR-0014): zero machine lanes ride this layer</text>
+  <text x="48" y="262" font-size="11" font-style="italic" fill="#7c3aed">phone/i5 → am4: gallery via Funnel · ComfyUI :8188 over tailscale0 — that's the whole remaining job of this network</text>
+  <rect x="60" y="275" width="220" height="52" rx="6" fill="#ffffff" stroke="#a78bfa"/>
+  <text x="72" y="295" font-size="12" font-weight="600" fill="#1e293b">omen · 100.124.12.37</text>
+  <text x="72" y="312" font-size="10.5" fill="#475569">Win11 · human roaming access</text>
+  <rect x="310" y="275" width="230" height="52" rx="6" fill="#ffffff" stroke="#a78bfa"/>
+  <text x="322" y="295" font-size="12" font-weight="600" fill="#1e293b">am4 · 100.116.82.60 · Funnel</text>
+  <text x="322" y="312" font-size="10.5" fill="#475569">gallery public ingress lives here</text>
+  <rect x="570" y="275" width="250" height="52" rx="6" fill="#ffffff" stroke="#a78bfa"/>
+  <text x="582" y="295" font-size="12" font-weight="600" fill="#1e293b">i5-laptop · 100.125.141.110</text>
+  <text x="582" y="312" font-size="10.5" fill="#475569">portable demo/edge · usually offline</text>
+  <rect x="850" y="275" width="160" height="52" rx="6" fill="#ffffff" stroke="#a78bfa"/>
+  <text x="862" y="295" font-size="12" font-weight="600" fill="#1e293b">pixel-8a</text>
+  <text x="862" y="312" font-size="10.5" fill="#475569">phone · mobile</text>
+  <rect x="1040" y="275" width="180" height="52" rx="6" fill="#faf5ff" stroke="#c4b5fd" stroke-dasharray="4 3"/>
+  <text x="1052" y="295" font-size="11.5" fill="#94a3b8" text-decoration="line-through">cc-conductor</text>
+  <text x="1052" y="312" font-size="10.5" fill="#94a3b8">removed 2026-07-09</text>
+  <rect x="1245" y="275" width="165" height="52" rx="6" fill="#faf5ff" stroke="#c4b5fd" stroke-dasharray="4 3"/>
+  <text x="1257" y="295" font-size="11.5" fill="#94a3b8" text-decoration="line-through">cc-builder-4</text>
+  <text x="1257" y="312" font-size="10.5" fill="#94a3b8">removed 2026-07-09</text>
+
+  <!-- ===== LAN band ===== -->
+  <rect x="30" y="380" width="1400" height="600" rx="10" fill="#fffceb" stroke="#ca8a04" stroke-width="1.5"/>
+  <text x="48" y="404" font-size="13" font-weight="700" fill="#854d0e">Home LAN · 192.168.12.0/24</text>
+
+  <!-- OMEN -->
+  <rect x="60" y="415" width="790" height="525" rx="8" fill="#fff8ef" stroke="#d97706" stroke-width="1.6"/>
+  <text x="76" y="438" font-size="13.5" font-weight="700" fill="#92400e">OMEN · Win11 · Hyper-V host</text>
+
+  <rect x="85" y="455" width="190" height="60" rx="5" fill="#ffffff" stroke="#fbbf24"/>
+  <text x="95" y="475" font-size="12" font-weight="600" fill="#1e293b">Claude Code sessions</text>
+  <text x="95" y="492" font-size="10.5" fill="#475569">operator seat · frontier</text>
+
+  <rect x="85" y="540" width="190" height="70" rx="5" fill="#ffedd5" stroke="#c2410c"/>
+  <text x="95" y="560" font-size="12" font-weight="600" fill="#1e293b">HEARTH gateway :8710</text>
+  <text x="95" y="577" font-size="10.5" fill="#475569">MCP · 35 tools · single door</text>
+  <text x="95" y="593" font-size="10.5" fill="#475569">every crossing ledgered</text>
+
+  <rect x="85" y="635" width="190" height="60" rx="5" fill="#ffffff" stroke="#fbbf24"/>
+  <text x="95" y="655" font-size="12" font-weight="600" fill="#1e293b">Ollama :11434</text>
+  <text x="95" y="672" font-size="10.5" fill="#475569">← builders via omen.mshome.net</text>
+
+  <rect x="85" y="720" width="190" height="85" rx="5" fill="#ffffff" stroke="#fbbf24"/>
+  <text x="95" y="740" font-size="12" font-weight="600" fill="#1e293b">watchdog · patrol · drain</text>
+  <text x="95" y="757" font-size="10.5" fill="#475569">probes every node (SSH/TCP)</text>
+  <text x="95" y="773" font-size="10.5" fill="#475569">heals the obvious (ADR-0007)</text>
+  <text x="95" y="791" font-size="10.5" font-style="italic" fill="#92400e">→ gateway timers (ADR-0015)</text>
+
+  <!-- Hyper-V region -->
+  <rect x="300" y="450" width="530" height="470" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.3" stroke-dasharray="7 5"/>
+  <text x="316" y="908" font-size="12.5" font-weight="700" fill="#475569">Hyper-V Default Switch · *.mshome.net (172.17.x this boot — dial names, never IPs)</text>
+
+  <rect x="325" y="485" width="245" height="115" rx="5" fill="#eff6ff" stroke="#2563eb"/>
+  <text x="337" y="505" font-size="12" font-weight="700" fill="#1e40af">cc-conductor</text>
+  <text x="337" y="522" font-size="10.5" fill="#475569">sshd :22 · api/dashboard :8080</text>
+  <text x="337" y="538" font-size="10.5" fill="#475569">inbox · runs/ · farmer git repo</text>
+  <text x="337" y="554" font-size="10.5" fill="#475569">MAF conductor loop</text>
+  <text x="337" y="572" font-size="10.5" font-style="italic" fill="#1e40af">no GitHub creds · no tailnet</text>
+
+  <rect x="595" y="485" width="215" height="115" rx="5" fill="#ecfdf5" stroke="#059669"/>
+  <text x="607" y="505" font-size="12" font-weight="700" fill="#065f46">claudefarm1</text>
+  <text x="607" y="522" font-size="10.5" fill="#475569">(Hyper-V name: cc-worker-1)</text>
+  <text x="607" y="538" font-size="10.5" fill="#475569">golden image · assay shell</text>
+  <text x="607" y="554" font-size="10.5" fill="#475569">omen-worker-1 rides here</text>
+
+  <rect x="325" y="625" width="245" height="115" rx="5" fill="#ecfdf5" stroke="#059669"/>
+  <text x="337" y="645" font-size="12" font-weight="700" fill="#065f46">cc-builder-1</text>
+  <text x="337" y="662" font-size="10.5" fill="#475569">frontier builder (claude runner)</text>
+  <text x="337" y="678" font-size="10.5" fill="#475569">claude CLI pre-authed</text>
+
+  <rect x="595" y="625" width="215" height="115" rx="5" fill="#ecfdf5" stroke="#059669"/>
+  <text x="607" y="645" font-size="12" font-weight="700" fill="#065f46">cc-builder-2</text>
+  <text x="607" y="662" font-size="10.5" fill="#475569">local builder (openai runner</text>
+  <text x="607" y="678" font-size="10.5" fill="#475569">→ oxen / vllama aliases)</text>
+
+  <rect x="325" y="765" width="245" height="115" rx="5" fill="#ecfdf5" stroke="#059669"/>
+  <text x="337" y="785" font-size="12" font-weight="700" fill="#065f46">cc-builder-3</text>
+  <text x="337" y="802" font-size="10.5" fill="#475569">builder + assay node</text>
+  <text x="337" y="818" font-size="10.5" fill="#475569">(standalone disk rebuild)</text>
+
+  <rect x="595" y="765" width="215" height="115" rx="5" fill="#ecfdf5" stroke="#059669"/>
+  <text x="607" y="785" font-size="12" font-weight="700" fill="#065f46">cc-builder-4</text>
+  <text x="607" y="802" font-size="10.5" fill="#475569">Ollama MoE critic (optional,</text>
+  <text x="607" y="818" font-size="10.5" fill="#475569">excluded from build pool)</text>
+  <text x="607" y="836" font-size="10.5" font-style="italic" fill="#065f46">tailscale cut 2026-07-09</text>
+
+  <!-- AM4 -->
+  <rect x="890" y="415" width="540" height="525" rx="8" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.6"/>
+  <text x="906" y="438" font-size="13.5" font-weight="700" fill="#5b21b6">AM4 · Ubuntu (native) · 192.168.12.233</text>
+
+  <rect x="915" y="455" width="240" height="55" rx="5" fill="#ffffff" stroke="#c4b5fd"/>
+  <text x="925" y="475" font-size="12" font-weight="600" fill="#1e293b">sshd :22 (derek · claude)</text>
+  <text x="925" y="492" font-size="10.5" fill="#475569">ufw: 22 · 8080 · 8090 from LAN only</text>
+
+  <rect x="1185" y="455" width="220" height="55" rx="5" fill="#ffffff" stroke="#c4b5fd"/>
+  <text x="1195" y="475" font-size="12" font-weight="600" fill="#1e293b">OTel / Jaeger :16686</text>
+  <text x="1195" y="492" font-size="10.5" fill="#475569">OTLP :4317 / :4318</text>
+
+  <rect x="915" y="530" width="240" height="90" rx="5" fill="#ffffff" stroke="#c4b5fd"/>
+  <text x="925" y="550" font-size="12" font-weight="600" fill="#1e293b">oxen facade :8090</text>
+  <text x="925" y="567" font-size="10.5" fill="#475569">→ planner :8080 (B70 card0)</text>
+  <text x="925" y="583" font-size="10.5" fill="#475569">→ critic :8081 (B70 card1, unbacked)</text>
+  <text x="925" y="601" font-size="10.5" font-style="italic" fill="#5b21b6">woken by hearth wake_am4</text>
+
+  <rect x="1185" y="530" width="220" height="90" rx="5" fill="#ffffff" stroke="#c4b5fd"/>
+  <text x="1195" y="550" font-size="12" font-weight="600" fill="#1e293b">127.0.0.1:2222</text>
+  <text x="1195" y="567" font-size="10.5" fill="#475569">← conductor's ssh -R tunnel</text>
+  <text x="1195" y="583" font-size="10.5" fill="#475569">"cc-farmer" alias → conductor</text>
+  <text x="1195" y="601" font-size="10.5" font-style="italic" fill="#5b21b6">NAT return path (git push)</text>
+
+  <rect x="915" y="645" width="240" height="70" rx="5" fill="#ffffff" stroke="#c4b5fd"/>
+  <text x="925" y="665" font-size="12" font-weight="600" fill="#1e293b">ComfyUI :8188 / :8189</text>
+  <text x="925" y="682" font-size="10.5" fill="#475569">imagegen A/B · LAN + tailscale0</text>
+  <text x="925" y="698" font-size="10.5" fill="#475569">occupancy-gates the B70 wake</text>
+
+  <rect x="915" y="740" width="240" height="80" rx="5" fill="#ffffff" stroke="#c4b5fd"/>
+  <text x="925" y="760" font-size="12" font-weight="600" fill="#1e293b">gallery · Caddy :8190</text>
+  <text x="925" y="777" font-size="10.5" fill="#475569">password-protected showcase</text>
+  <text x="925" y="793" font-size="10.5" fill="#475569">published via Tailscale Funnel</text>
+
+  <rect x="1185" y="645" width="220" height="80" rx="5" fill="#ffffff" stroke="#c4b5fd"/>
+  <text x="1195" y="665" font-size="12" font-weight="600" fill="#1e293b">am4-worker-1 shell</text>
+  <text x="1195" y="682" font-size="10.5" fill="#475569">worker-mcp-server (user claude)</text>
+  <text x="1195" y="698" font-size="10.5" fill="#475569">openai runner → 127.0.0.1:8090</text>
+
+  <!-- ===== links ===== -->
+  <!-- sessions -> HEARTH -->
+  <line x1="180" y1="515" x2="180" y2="536" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="192" y="530" font-size="10.5" font-style="italic" fill="#64748b">MCP</text>
+
+  <!-- HEARTH -> conductor -->
+  <line x1="275" y1="570" x2="321" y2="570" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="283" y="564" font-size="10.5" font-style="italic" fill="#64748b">SSH 22</text>
+
+  <!-- conductor -> builders -->
+  <line x1="447" y1="600" x2="447" y2="621" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <line x1="570" y1="540" x2="591" y2="540" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="462" y="613" font-size="10.5" font-style="italic" fill="#64748b">SSH 22 · MCP-stdio</text>
+
+  <!-- builders -> ollama -->
+  <line x1="325" y1="668" x2="279" y2="668" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="130" y="712" font-size="10.5" font-style="italic" fill="#64748b">HTTP :11434</text>
+
+  <!-- builders -> Anthropic (up through bands) -->
+  <polyline points="555,450 555,200 180,200 180,176" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="565" y="398" font-size="10.5" font-style="italic" fill="#64748b">HTTPS 443 · claude -p</text>
+
+  <!-- OMEN -> GitHub -->
+  <polyline points="290,415 290,212 450,212 450,176" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="298" y="400" font-size="10.5" font-style="italic" fill="#64748b">HTTPS · git push</text>
+
+  <!-- conductor -> AM4 dispatch -->
+  <polyline points="500,485 500,470 911,470" fill="none" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="618" y="464" font-size="10.5" font-style="italic" fill="#64748b">SSH 22 · claude@192.168.12.233 (am4-worker-1 dispatch)</text>
+
+  <!-- conductor ssh -R tunnel -->
+  <polyline points="570,590 580,590 580,612 862,612 862,632 1295,632 1295,624" fill="none" stroke="#64748b" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#arrd)"/>
+  <text x="640" y="607" font-size="10.5" font-style="italic" fill="#64748b">ssh -R 127.0.0.1:2222 → conductor sshd (cc-farmer return)</text>
+
+  <!-- gallery -> Funnel -> visitors -->
+  <polyline points="1155,780 1418,780 1418,200 1000,200 1000,176" fill="none" stroke="#64748b" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#arrd)"/>
+  <text x="1170" y="772" font-size="10.5" font-style="italic" fill="#64748b">Funnel · HTTPS 443</text>
+
+  <!-- LAN bus -->
+  <line x1="100" y1="958" x2="1390" y2="958" stroke="#ca8a04" stroke-width="3"/>
+  <line x1="455" y1="940" x2="455" y2="958" stroke="#ca8a04" stroke-width="2"/>
+  <line x1="1160" y1="940" x2="1160" y2="958" stroke="#ca8a04" stroke-width="2"/>
+  <text x="520" y="975" font-size="11" font-style="italic" fill="#854d0e">OMEN ⇄ AM4 over the LAN: SSH 22 (derek@ — summon · occupancy · dream · am4 catalog) · HTTP :8090 (local_generate research tier · wake health)</text>
+
+  <!-- legend -->
+  <rect x="30" y="994" width="1400" height="38" rx="8" fill="#ffffff" stroke="#e2e8f0"/>
+  <line x1="52" y1="1013" x2="92" y2="1013" stroke="#475569" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="100" y="1017" font-size="11" fill="#475569">dispatch / request</text>
+  <line x1="240" y1="1013" x2="280" y2="1013" stroke="#64748b" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#arrd)"/>
+  <text x="288" y="1017" font-size="11" fill="#475569">return / publish path</text>
+  <text x="460" y="1017" font-size="11" font-style="italic" fill="#92400e">every SSH lane = key auth, BatchMode — no browser, no stored passwords, no control-plane dependency in the loop</text>
+</svg>

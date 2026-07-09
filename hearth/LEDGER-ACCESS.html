@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HEARTH Ledger — How to Get the Tool-Call Manifest</title>
+<style>
+  :root{
+    --bg:#0c0f14; --panel:#141a22; --panel2:#1b232e; --line:#26303d;
+    --ink:#e6edf3; --muted:#93a1b1; --dim:#6b7886;
+    --fire:#ff7a45; --ember:#ffb066; --cyan:#5fd0e0; --green:#5ad48a;
+    --amber:#f4c95d; --red:#ff6b6b; --violet:#a78bfa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  code,.mono{font-family:"JetBrains Mono",Consolas,Menlo,monospace;font-size:.86em}
+  a{color:var(--cyan)}
+  .wrap{max-width:1120px;margin:0 auto;padding:32px 24px 80px}
+  header.top{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:24px}
+  .eyebrow{color:var(--fire);letter-spacing:.18em;text-transform:uppercase;font-size:11px;font-weight:700}
+  h1{font-size:27px;margin:6px 0 8px;font-weight:700}
+  .thesis{color:var(--muted);max-width:82ch}
+  .thesis b{color:var(--ink)}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:16px;font-size:12.5px;color:var(--dim)}
+  .meta b{color:var(--ink)}
+  h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--ember);
+    margin:38px 0 14px;border-left:3px solid var(--fire);padding-left:10px}
+  p{max-width:82ch}
+  .banner{background:linear-gradient(90deg,#2a1d10,#1b232e);border:1px solid #4a3a20;
+    border-radius:10px;padding:12px 16px;margin:18px 0 0;color:var(--ember);font-size:13.5px}
+  .banner b{color:var(--amber)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:14px 0}
+  .card.cyan{border-left:3px solid var(--cyan)}
+  .card.green{border-left:3px solid var(--green)}
+  .card.violet{border-left:3px solid var(--violet)}
+  .card.amber{border-left:3px solid var(--amber)}
+  .card h3{margin:0 0 8px;font-size:16px}
+  .card.cyan h3{color:var(--cyan)}
+  .card.green h3{color:var(--green)}
+  .card.violet h3{color:var(--violet)}
+  .card.amber h3{color:var(--amber)}
+  .card p{margin:6px 0;color:var(--muted);font-size:13.5px}
+  .card p b{color:var(--ink)}
+  pre{background:#0a0d12;border:1px solid var(--line);border-radius:8px;padding:12px 14px;
+    overflow-x:auto;font-family:"JetBrains Mono",Consolas,Menlo,monospace;font-size:12.5px;color:var(--ink);margin:10px 0}
+  pre .c{color:var(--dim)}
+  .tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.05em;
+    padding:2px 7px;border-radius:20px;border:1px solid var(--line);color:var(--muted)}
+  .tag.truth{color:var(--green);border-color:#274b39;background:#11231a}
+  .tag.derived{color:var(--amber);border-color:#4a4023;background:#221d10}
+  table.split{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:13px;margin:12px 0}
+  table.split th{background:var(--panel2);text-align:left;padding:10px 14px;font-size:11px;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+  table.split td{padding:9px 14px;border-top:1px solid var(--line);color:var(--muted);vertical-align:top}
+  table.split td b{color:var(--ink)}
+  table.split td:first-child{width:22%;white-space:nowrap}
+  ol,ul{max-width:82ch}
+  ol li,ul li{margin:6px 0;color:var(--muted);font-size:13.5px}
+  ol li b,ul li b{color:var(--ink)}
+  footer{margin-top:44px;border-top:1px solid var(--line);padding-top:16px;color:var(--dim);font-size:12px}
+  .kv{color:var(--fire)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="eyebrow">Commandcenter · HEARTH Kernel</div>
+  <h1>Getting the Ledger — the Tool-Call Manifest</h1>
+  <p class="thesis">Every tool call through the HEARTH gateway becomes <b>exactly one</b>
+  <span class="mono">hearth-event.v1</span> line on an append-only ledger. This is the complete manifest of
+  what has gone through the door. This doc is the how-to for reading it — where it lives, its shape,
+  and every way to pull it.</p>
+  <div class="meta">
+    <span><b>Source of truth:</b> <span class="mono">events.ndjson</span></span>
+    <span><b>Index:</b> <span class="mono">index.sqlite</span></span>
+    <span><b>Contract:</b> <span class="mono">hearth-event.v1</span></span>
+    <span><b>Code:</b> <span class="mono">hearth/kernel/ledger.py</span></span>
+  </div>
+</header>
+
+<div class="banner"><b>Where it lives.</b> The ledger sits at
+<span class="mono kv">$HEARTH_ROOT/var/ledger/</span> when <span class="mono">HEARTH_ROOT</span> is set,
+otherwise <span class="mono kv">&lt;repo&gt;/hearth/var/ledger/</span> (gitignored). The live one is on
+<b>OMEN</b>, where the always-on gateway runs — not on the Windows box. Run any of the commands below on
+OMEN (or against a copied-down ledger dir).</div>
+
+<h2>The two files</h2>
+<div class="card green">
+  <h3>events.ndjson <span class="tag truth">source of truth</span></h3>
+  <p>One JSON object per line, one line per tool call. <b>This is the manifest.</b> Append-only —
+  there is no update or delete, by API design, not just convention. To eyeball it, just tail it.</p>
+</div>
+<div class="card amber">
+  <h3>index.sqlite <span class="tag derived">derived / rebuildable</span></h3>
+  <p>Only an <b>index into</b> the NDJSON: per event it stores a byte <span class="mono">offset</span> +
+  <span class="mono">length</span> plus fast-filter columns (<span class="mono">ts, caller_id, runner_class,
+  tool, ok, duration_ms, task_class, model</span>). <span class="mono">query()</span> uses it to seek and read
+  the full event back from disk. If it's ever lost or stale, rebuild it from the NDJSON — the NDJSON never
+  depends on it.</p>
+</div>
+
+<h2>What one event holds</h2>
+<p>Built by <span class="mono">new_event()</span> in <span class="mono">hearth/kernel/ledger.py</span>.
+Note it stores <b>digests + a 400-char args preview</b>, not full args/results — a provenance manifest, not a
+payload archive.</p>
+<table class="split">
+  <tr><th>Field</th><th>Meaning</th></tr>
+  <tr><td><b>event_id</b></td><td>uuid4</td></tr>
+  <tr><td><b>ts</b></td><td>ISO-8601 UTC, <span class="mono">Z</span> suffix</td></tr>
+  <tr><td><b>caller</b></td><td><span class="mono">{id, runner_class, node}</span> — runner_class ∈ frontier | local | human</td></tr>
+  <tr><td><b>tool</b></td><td>the tool name that was called</td></tr>
+  <tr><td><b>args_digest / result_digest</b></td><td><span class="mono">sha256:&lt;hex&gt;</span> of the canonical JSON</td></tr>
+  <tr><td><b>args_preview</b></td><td>first 400 chars of the canonicalized args</td></tr>
+  <tr><td><b>ok / error</b></td><td>success bool; error string or null</td></tr>
+  <tr><td><b>duration_ms</b></td><td>wall time</td></tr>
+  <tr><td><b>cost</b></td><td><span class="mono">{tokens_in, tokens_out, watt_s}</span> (any may be null)</td></tr>
+  <tr><td><b>task_id</b></td><td>fleet task correlation, or null</td></tr>
+  <tr><td><b>task_class / model</b></td><td>JS1 additive fields for bucketing duration distributions</td></tr>
+</table>
+
+<h2>How to get it — four ways</h2>
+
+<div class="card cyan">
+  <h3>1 · Raw — read the NDJSON directly</h3>
+  <p>No Python needed; the file is the record.</p>
+  <pre><span class="c"># on OMEN</span>
+cd "$HEARTH_ROOT/var/ledger"   <span class="c"># or &lt;repo&gt;/hearth/var/ledger</span>
+tail -n 20 events.ndjson | jq .          <span class="c"># last 20 calls, pretty</span>
+jq -r 'select(.ok==false) | .tool' events.ndjson | sort | uniq -c   <span class="c"># failures by tool</span>
+wc -l events.ndjson                       <span class="c"># total calls ever</span></pre>
+</div>
+
+<div class="card cyan">
+  <h3>2 · Programmatic — the Ledger API</h3>
+  <p>Reads full events back through the index, oldest first. Filters: <span class="mono">caller</span>
+  (matches caller.id), <span class="mono">tool</span>, <span class="mono">since</span> (ISO-8601 UTC lower
+  bound, inclusive), <span class="mono">ok</span>.</p>
+  <pre><span class="c"># from the repo root, in the fleet venv</span>
+python - &lt;&lt;'PY'
+from hearth.kernel.ledger import Ledger
+led = Ledger()                              <span class="c"># respects HEARTH_ROOT</span>
+print("dir:", led.dir)
+rows = led.query(tool="local_generate", since="2026-07-09T00:00:00Z")
+print(len(rows), "events")
+for e in rows[-5:]:
+    print(e["ts"], e["caller"]["id"], e["tool"], e["ok"], e["duration_ms"])
+PY</pre>
+</div>
+
+<div class="card cyan">
+  <h3>3 · SQLite — fast aggregates without loading events</h3>
+  <p>Query the index columns directly for counts/rollups. (Payload isn't here — join back to the NDJSON via
+  offset/length, or use the API, when you need args/result.)</p>
+  <pre>sqlite3 "$HEARTH_ROOT/var/ledger/index.sqlite" \
+  "SELECT tool, count(*), round(avg(duration_ms)) ms
+   FROM events GROUP BY tool ORDER BY 2 DESC;"</pre>
+</div>
+
+<div class="card cyan">
+  <h3>4 · Through the door — projections</h3>
+  <p>The gateway's <span class="mono">query_*</span> tools and the projection layer
+  (<span class="mono">hearth/projection/ledger_adapter.py</span>, <span class="mono">economics.py</span>,
+  <span class="mono">capacity.py</span>) all read back through this same ledger — use them when you want the
+  rolled-up belief/economics/capacity views rather than raw events.</p>
+</div>
+
+<h2>Maintenance — reindex &amp; verify</h2>
+<p>The CLI in <span class="mono">hearth/kernel/ledger.py</span> rebuilds or checks the index. Both respect
+<span class="mono">HEARTH_ROOT</span> and print the resolved ledger dir.</p>
+<pre>python -m hearth.kernel.ledger --verify    <span class="c"># read-only: does index.sqlite match events.ndjson?</span>
+python -m hearth.kernel.ledger --reindex   <span class="c"># rebuild index.sqlite from the NDJSON (source of truth)</span></pre>
+<ul>
+  <li><b>verify</b> → <span class="mono">{ok, index_rows, ndjson_lines, mismatches}</span>. A mismatch = an
+  indexed slice that won't parse or whose event_id disagrees with its row. Mutates nothing.</li>
+  <li><b>reindex</b> drops &amp; recreates the table, re-streams the NDJSON in binary (byte offsets), and
+  reinserts one row per line. A truncated <i>final</i> line is treated as an in-flight write and skipped;
+  a torn line anywhere else is corruption and raises.</li>
+</ul>
+
+<footer>
+  HEARTH kernel · ledger contract 4 (<span class="mono">hearth-event.v1</span>) ·
+  code: <span class="mono">hearth/kernel/ledger.py</span> ·
+  schema: <span class="mono">hearth/contracts/hearth-event.v1.schema.json</span> ·
+  written 2026-07-09
+</footer>
+
+</div>
+</body>
+</html>

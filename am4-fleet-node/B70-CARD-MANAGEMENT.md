@@ -144,6 +144,28 @@ Check it's idle before loading LLMs: `curl -s localhost:8188/queue` → `queue_r
 `queue_pending:[]` means idle. **Two LLM cards leave none for imagegen** — free one with
 `systemctl --user stop b70-critic`. AM4 is rock-solid under load (1000 imagegen jobs / 7 h / 92 °C).
 
+## Non-GPU tenants (Valheim dedicated server)
+
+AM4 also hosts a **headless Valheim dedicated server** ("Comfy Era16 Lab", used for the Valheim
+network-replacement mod's test loop). It is **CPU + host-RAM only and touches no B70** —
+launched `valheim_server.x86_64 -nographics -batchmode -port 2456` (wrapper
+`/usr/local/bin/valheim-server` + `-logfilter`/`-updater`/`-backup`). `-nographics` means it never
+opens a render node: a live `fuser -v /dev/dri/renderD128 /dev/dri/renderD129` shows only ComfyUI
+(`python`) and `llama-server` holding the cards — **valheim is absent** (verified 2026-07-09).
+
+Implications for the fleet's monitoring — **no card contention exists, so nothing changes**:
+- It will **never** appear in the render-node occupancy probe (`hearth/toolsurface/occupancy.py`),
+  and it **must not** be added to `_BUSY_PROCESS_NAMES` — marking the B70s "busy" for a workload
+  that isn't on them would wrongly suppress opportunistic GPU dispatch.
+- The watchdog/patrol (`fleet/mechnet_watchdog.py`) never scans AM4 processes and never kills or
+  restarts anything on AM4, so it can neither flag the game as an anomaly nor knock it off; equally,
+  no fleet job (all GPU-bound: `wake_am4` only starts `b70-planner` on card 0) can evict a CPU-only
+  process. The game and the B70 work are on disjoint resources.
+- Ports are **UDP** 2456/2457 → deliberately **no** `inventory.toml` liveness check (the fleet_ping
+  prober is TCP-only; a TCP probe would false-alarm).
+- The one real shared resource is **host RAM** (32 GB DDR is scarce — see `node.json`). The headless
+  server is light; if you ever pressure host memory, that is the dimension to watch, not VRAM.
+
 ## Health / inspection
 
 ```bash

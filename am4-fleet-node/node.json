@@ -60,6 +60,7 @@
     "Linux memory pinning should simplify placement; still measure P2P/card-to-card throughput and engine placement behavior before designing around KV-on-one-card/model-on-another.",
     "With 32 GB DDR, pooled/shared memory is not the first plan; keep steady-state inside B70 VRAM and treat host memory as scarce.",
     "NATS is optional and only needed for durable run events or queue fanout.",
-    "The oxen facade HTTP is authenticated; credentials live only on AM4 under ~/.config/am4-fleet."
+    "The oxen facade HTTP is authenticated; credentials live only on AM4 under ~/.config/am4-fleet.",
+    "A headless Valheim dedicated server ('Comfy Era16 Lab', UDP 2456/2457, valheim_server.x86_64 -nographics -batchmode) is a standing tenant. It uses CPU + host RAM only and holds NO render node (verified 2026-07-09 via fuser) — it never contends for the B70s and never appears in the GPU occupancy probe. See B70-CARD-MANAGEMENT.md > Non-GPU tenants."
   ]
 }

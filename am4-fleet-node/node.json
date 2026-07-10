@@ -39,13 +39,12 @@
     "oxen-planner": {
       "backend": "llama.cpp SYCL / Level Zero",
       "model_file": "/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
-      "placement": "dual",
-      "device_list": "0,1",
-      "split_mode": "layer",
-      "tensor_split": "1,1",
-      "ctx": 131072,
+      "placement": "single",
+      "device_list": "0",
+      "ctx": 16384,
       "kv_type": "q8_0",
-      "oxen_target": "minimum long-context target; 262144 is experimental until measured on Ubuntu"
+      "unit": "b70-planner.service — serve-planner.sh: -dev SYCL0 -c 16384 -ctk/-ctv q8_0 -fa on --port 8080",
+      "note": "Single-card SYCL0 by design: 18.5 GB weights + 16k KV fit one B70, leaving card 1 (SYCL1) entirely free. Dual-split '0,1' is a throughput mode, not steady state. See B70-CARD-MANAGEMENT.md > Card 1 is idle capacity."
     },
     "oxen": {
       "alias_of": "oxen-planner"

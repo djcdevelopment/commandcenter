@@ -39,6 +39,32 @@ Qwen3-30B-A3B Q4_K_M weights are ~18.5 GB → fits one 32 GB card easily at ≤3
 | Qwen3-30B-A3B Q4 | 18.5 GB | single (≤32k ctx); dual only for speed (the planner) |
 | Qwen2.5-32B Q4 | 19.9 GB | single (dense; dual for speed) |
 
+## Card 1 (SYCL1) is idle capacity — mechnet should use it
+
+**Steady state today: only `b70-planner` runs (single-card SYCL0). `b70-critic` is stopped, so an
+entire B70 — card 1 (SYCL1, ~30 GiB free VRAM) — sits unused.** That is standing local-inference
+capacity mechnet is currently leaving on the floor: a second resident model on `:8081` (the critic
+leg, or a different model entirely — Mistral-Small-24B, Qwen2.5-14B, etc.), reachable through the
+facade the same way the planner is. **What to actually put there is a deliberate design decision for
+later** — this note just marks the capacity so it isn't forgotten.
+
+The path is proven, not speculative: **pre-mechnet, Derek ran mixed models on both cards
+simultaneously, each `-dev SYCL<n>` on its own port, successfully.** VRAM was never the problem —
+2×32 GB is plentiful. The trap is **host RAM** (see next section): pressure comes from *loading a
+model + a large context*, not from the GPU. The discipline that avoids it:
+
+- **Leave each model resident** (don't churn load/unload) and **size `-c` so one card's slice fits
+  on its own** — a per-card context small enough that two models co-resident stay within the 32 GB
+  DDR ceiling. Big contexts inflate host-side KV/compute buffers; that, not VRAM, is what OOM-killed
+  the planner (see below). Rule of thumb from measurements: critic ≤ 8k, planner ≤ 16k when both are
+  resident.
+- Practically: one model per card, distinct ports (`:8080` SYCL0, `:8081` SYCL1), modest contexts —
+  exactly the `serve-planner.sh` / `serve-critic.sh` shape, just with both slots actually up.
+
+When mechnet is ready to claim card 1, the wiring already exists (`b70-critic.service` +
+`serve-critic.sh` bind SYCL1:8081; the facade already aliases `oxen-critic → :8081`). The open
+question is *what model / role* earns the slot, not *how* to serve it.
+
 ## Host RAM is the binding constraint — NOT VRAM (32 GB DDR4)
 
 VRAM is plentiful (2×32 GB). The real limit is the **32 GB DDR4 host RAM**. SYCL `llama-server`

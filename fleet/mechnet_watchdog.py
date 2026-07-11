@@ -13,17 +13,21 @@ being discovered mid-dispatch.
     python -m fleet.mechnet_watchdog --json          # machine-readable
     python -m fleet.mechnet_watchdog --no-ledger     # skip the ledger write
     python -m fleet.mechnet_watchdog --no-watchfire  # liveness only, skip coherence sweep
+    python -m fleet.mechnet_watchdog --no-hindsight  # skip the regret accrual
     python -m fleet.mechnet_watchdog --patrol-only   # 5-min cadence: cheap gap-scan snapshot only
 
-Each 15-min pass does three things: a LIVENESS heal (probe services, revive the
+Each 15-min pass does four things: a LIVENESS heal (probe services, revive the
 down ones), a COHERENCE sweep (Watchfire — hearth.toolsurface.masters_pet
 auto-heals the obvious+reversible run-coherence gaps, e.g. phantom_in_flight,
-and flags the ambiguous ones), and a PATROL-TREND lookback (reads the last 3 of
+and flags the ambiguous ones), a PATROL-TREND lookback (reads the last 3 of
 the separate 5-min --patrol-only snapshots and tags gaps persistent/new/
 resolved by plain set comparison on (kind, plan_id) — no scoring, just "has
-this shown up before"). Liveness stays the health gate (the exit code); the
-coherence sweep and the trend lookback are both additive and best-effort —
-their failure never fails the patrol.
+this shown up before"), and the REGRET ACCRUAL ADR-0008 designed (replay the
+last 20 completed runs through the shadow scheduler and ledger the regret
+summary, so the H1 promotion gate accrues a trend series unattended). Liveness
+stays the health gate (the exit code); the coherence sweep, the trend lookback,
+and the regret accrual are all additive and best-effort — their failure never
+fails the patrol.
 
 Design (Banked Fire):
 - Per-CHECK revive, not per-node: a node can be up while one of its services is
@@ -60,6 +64,7 @@ DEFAULT_SNAPSHOT_PATH = _REPO_ROOT / "hearth" / "var" / "mechnet_watchdog_patrol
 SNAPSHOT_CONTRACT_VERSION = "mechnet-watchdog-patrol-snapshot.v1"
 SNAPSHOT_CAP = 12   # ~1h buffer at a 5-min cadence
 TREND_WINDOW = 3    # "the 3 stamps before it" -- one 15-min cycle's worth of 5-min ticks
+HINDSIGHT_LIMIT = 20  # ADR-0008: a 20-run hindsight replay per 15-min pass
 
 
 def _default_snapshot_doc() -> dict:
@@ -295,6 +300,63 @@ def _record_patrol_trend(trend: dict, ledger=None) -> Optional[str]:
         return None
 
 
+def _record_hindsight(outcome: dict, ledger=None) -> Optional[str]:
+    """Append one hearth-event carrying the ADR-0008 regret accrual ("the regret
+    summary rides the patrol's own ledger event"). Best-effort like every other
+    _record*. UNLIKE the others, the summary rides `args`, not just `result`:
+    the ledger stores result *digests* only, while args keeps a 400-char
+    canonical-JSON preview — the regret numbers must live there or the trend
+    series the H1 gate needs would not be recoverable from the ledger."""
+    try:
+        from hearth.kernel.ledger import Ledger, new_event
+        led = ledger or Ledger()
+        return led.append(new_event(
+            WATCHDOG_CALLER, "mechnet_watchdog.hindsight",
+            args=outcome.get("summary"),
+            result=outcome.get("summary"),
+            ok=bool(outcome.get("ok")),
+            error=outcome.get("error"),
+        ))
+    except Exception as exc:  # audit is best-effort; never break the 15-min pass
+        print(f"[watchdog] hindsight ledger append failed: {type(exc).__name__}: {exc}",
+              file=sys.stderr)
+        return None
+
+
+def run_hindsight_accrual(write_ledger: bool, hindsight_fn=None, ledger=None) -> dict:
+    """Regret accrual (ADR-0008): replay the last HINDSIGHT_LIMIT completed runs
+    through the shadow scheduler and ledger the regret summary, once per 15-min
+    pass. Read-only against the fleet (schedule_hindsight is advisory: gather
+    over SSH, solve, compare — no dispatch). Best-effort like run_watchfire: a
+    failure (conductor unreachable, import error) is captured, still ledgered
+    as ok=False so the trend series shows the hole, and never fails the patrol.
+    `hindsight_fn` is injectable so tests run without SSH or OR-Tools."""
+    try:
+        if hindsight_fn is None:
+            from hearth.toolsurface.scheduler import schedule_hindsight as hindsight_fn
+        result = hindsight_fn(limit=HINDSIGHT_LIMIT)
+    except Exception as exc:  # never let the accrual break the patrol
+        result = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+
+    # Compact, bounded summary: exactly the fields the trend needs, small enough
+    # that its canonical JSON always fits the ledger's 400-char args preview.
+    report = result.get("report") or {}
+    outcome = {
+        "ok": bool(result.get("ok")),
+        "error": result.get("error"),
+        "summary": {
+            "limit": HINDSIGHT_LIMIT,
+            "n_runs": report.get("n_runs"),
+            "actual": report.get("actual"),
+            "proposed": report.get("proposed"),
+            "regret": report.get("regret"),
+        },
+    }
+    if write_ledger:
+        outcome["ledger_event_id"] = _record_hindsight(outcome, ledger=ledger)
+    return outcome
+
+
 def run_watchfire(dry_run: bool, write_ledger: bool, masters_pet_fn=None, ledger=None) -> dict:
     """Coherence sweep: auto-heal the obvious+reversible run-coherence gaps.
 
@@ -380,13 +442,14 @@ def run_pass(inventory_path: Path, timeout: float, dry_run: bool,
              runner: Callable[[str], dict] = _run_command,
              include_watchfire: bool = True, masters_pet_fn=None,
              include_patrol_trend: bool = True,
+             include_hindsight: bool = True, hindsight_fn=None,
              snapshot_path: Path = DEFAULT_SNAPSHOT_PATH, ledger=None) -> dict:
     """One patrol pass: liveness heal + (optional) Watchfire coherence sweep +
-    (optional) patrol-trend lookback.
+    (optional) patrol-trend lookback + (optional) ADR-0008 regret accrual.
 
     Returns a JSON-serializable report. `healthy` reflects LIVENESS only — the
-    coherence sweep and the patrol-trend check are both additive and never
-    flip the health verdict.
+    coherence sweep, the patrol-trend check, and the regret accrual are all
+    additive and never flip the health verdict.
     """
     inv = load_inventory(inventory_path)
     rows = collect_checks(inv["nodes"], timeout, prober=prober)
@@ -418,6 +481,9 @@ def run_pass(inventory_path: Path, timeout: float, dry_run: bool,
     if include_patrol_trend:
         report["patrol_trend"] = run_patrol_trend(write_ledger, snapshot_path=snapshot_path,
                                                   ledger=ledger)
+    if include_hindsight:
+        report["hindsight"] = run_hindsight_accrual(write_ledger, hindsight_fn=hindsight_fn,
+                                                    ledger=ledger)
     return report
 
 
@@ -429,6 +495,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("--no-ledger", action="store_true", help="skip the ledger audit write")
     ap.add_argument("--no-watchfire", action="store_true", help="liveness only, skip the coherence sweep")
     ap.add_argument("--no-patrol-trend", action="store_true", help="skip the 3-sample patrol trend check")
+    ap.add_argument("--no-hindsight", action="store_true",
+                    help="skip the ADR-0008 regret accrual (20-run hindsight replay + ledger)")
     ap.add_argument("--patrol-only", action="store_true",
                     help="5-min cadence: cheap patrol(refresh=False) snapshot only "
                          "-- no liveness probe, no masters_pet, no inventory load")
@@ -454,6 +522,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                       write_ledger=not args.no_ledger,
                       include_watchfire=not args.no_watchfire,
                       include_patrol_trend=not args.no_patrol_trend,
+                      include_hindsight=not args.no_hindsight,
                       snapshot_path=args.snapshot_path)
 
     if args.json:
@@ -489,6 +558,16 @@ def main(argv: Optional[list[str]] = None) -> int:
             else:
                 print(f"patrol-trend: {len(trend['persistent'])} persistent, "
                       f"{len(trend['new'])} new, {len(trend['resolved'])} resolved")
+        hs = report.get("hindsight")
+        if hs is not None:
+            if not hs.get("ok"):
+                print(f"hindsight: replay failed — {hs.get('error')}")
+            else:
+                summary = hs["summary"]
+                regret = summary.get("regret") or {}
+                print(f"hindsight: n_runs={summary.get('n_runs')} "
+                      f"tokens_saved={regret.get('tokens_saved')} "
+                      f"span_delta_s={regret.get('span_delta_s')}")
         print("verdict: " + ("HEALTHY" if report["healthy"] else "DEGRADED"))
 
     return 0 if report["healthy"] else 1

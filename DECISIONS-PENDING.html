@@ -1,0 +1,290 @@
+<title>commandcenter — Decisions Register</title>
+<style>
+  :root{
+    --bg:#0a0e13; --bg2:#070a0e;
+    --glass:rgba(18,27,37,.66); --glass2:rgba(25,36,49,.5);
+    --line:rgba(122,162,192,.16); --line-soft:rgba(122,162,192,.08);
+    --ink:#e8eef4; --slate:#93a2b3; --faint:#5f6b7a;
+    --cyan:#63d3e6; --cyan-deep:#3fa9bd;
+    --good:#5ed09a; --amber:#e6b74d; --rust:#e0684a;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+    --mono:"Cascadia Code","JetBrains Mono","SF Mono",Consolas,"Liberation Mono",monospace;
+  }
+  html{background:linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);min-height:100%}
+  body{margin:0;font-family:var(--sans);color:var(--ink);
+    background:
+      radial-gradient(120% 80% at 50% -10%,rgba(63,169,189,.10) 0%,transparent 55%),
+      radial-gradient(90% 60% at 100% 0%,rgba(94,208,154,.05) 0%,transparent 50%);
+  }
+  .shell{max-width:1080px;margin:0 auto;padding:28px 20px 64px}
+  .kicker{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--cyan);margin:0 0 6px}
+  h1{font-family:var(--serif);font-weight:600;font-size:clamp(24px,4vw,34px);line-height:1.15;margin:0 0 4px;text-wrap:balance}
+  h1 em{font-style:italic;color:var(--cyan)}
+  .sub{color:var(--slate);font-size:14px;margin:0 0 22px}
+  .sub code{font-family:var(--mono);font-size:12px;color:var(--ink);background:var(--glass2);padding:1px 6px;border-radius:4px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px}
+  .card{background:var(--glass);border:1px solid var(--line);border-radius:10px;padding:14px 16px;backdrop-filter:blur(6px)}
+  .card .lbl{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:6px}
+  .card .big{font-family:var(--serif);font-size:26px;font-variant-numeric:tabular-nums}
+  .card .note{color:var(--slate);font-size:12.5px;margin-top:4px;line-height:1.45}
+  .derek{border-color:rgba(230,183,77,.4)}
+  .derek .big{font-size:16px;font-family:var(--sans);color:var(--amber);line-height:1.4}
+  .rail{display:flex;gap:8px;overflow-x:auto;padding:4px 0 10px;margin-bottom:8px}
+  .bk{min-width:150px;flex:1;background:var(--glass2);border:1px solid var(--line);border-radius:9px;padding:11px 13px;cursor:pointer;position:relative}
+  .bk:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+  .bk .id{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+  .bk .nm{font-size:13px;line-height:1.3;margin:4px 0 6px;color:var(--ink);font-family:var(--serif)}
+  .bk .ct{font-family:var(--mono);font-size:22px;font-variant-numeric:tabular-nums}
+  .bk[data-b=actionable]{border-color:var(--cyan);box-shadow:0 0 14px rgba(99,211,230,.12)} .bk[data-b=actionable] .ct{color:var(--cyan)}
+  .bk[data-b=pinned] .ct{color:var(--amber)} .bk[data-b=pinned]{border-color:rgba(230,183,77,.4)}
+  .bk[data-b=resolved] .ct{color:var(--good)} .bk[data-b=resolved]{border-color:rgba(94,208,154,.4)}
+  .bk[aria-selected=true]{outline:2px solid var(--cyan);outline-offset:1px}
+  .chip{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.06em;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--slate);white-space:nowrap}
+  .chip.resolved{color:var(--good);border-color:rgba(94,208,154,.4)}
+  .chip.actionable{color:var(--cyan);border-color:rgba(99,211,230,.45)}
+  .chip.pinned{color:var(--amber);border-color:rgba(230,183,77,.4)}
+  section{background:var(--glass);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:14px 0}
+  section>h2{font-family:var(--serif);font-size:19px;font-weight:600;margin:0 0 4px}
+  section>.h2sub{color:var(--slate);font-size:12.5px;margin:0 0 14px}
+  .dlist{display:grid;gap:10px}
+  .d{display:grid;grid-template-columns:12px 1fr;gap:12px;align-items:start;background:var(--glass2);border:1px solid var(--line-soft);border-radius:9px;padding:12px 14px}
+  .d .dot{width:10px;height:10px;border-radius:50%;margin-top:6px;flex:none}
+  .d[data-b=actionable] .dot{background:var(--cyan);box-shadow:0 0 8px rgba(99,211,230,.5)}
+  .d[data-b=pinned] .dot{background:var(--amber)}
+  .d[data-b=resolved] .dot{background:var(--good)}
+  .d .top{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:3px}
+  .d .ttl{font-size:14px;font-weight:600;color:var(--ink);line-height:1.35}
+  .d .date{font-family:var(--mono);font-size:10.5px;color:var(--faint);white-space:nowrap}
+  .d .body{color:var(--slate);font-size:12.8px;line-height:1.55;margin:2px 0 0}
+  .d .body b{color:var(--ink);font-weight:600}
+  .d .src{font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:6px}
+  .d .src code{color:var(--cyan-deep)}
+  .d .where{color:var(--good);font-size:12px;margin-top:6px;line-height:1.5}
+  .d .where code{font-family:var(--mono);font-size:11px;color:var(--good)}
+  .d.hide{display:none}
+  details{margin-top:8px} summary{cursor:pointer;color:var(--cyan);font-size:13px}
+  summary:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+  footer{color:var(--faint);font-size:11.5px;font-family:var(--mono);margin-top:26px;line-height:1.6}
+  @media (prefers-reduced-motion:no-preference){ .bk{transition:border-color .15s ease} }
+</style>
+<div class="shell">
+  <p class="kicker">commandcenter · Decisions Register</p>
+  <h1>Open decisions, <em>one ratified call at a time.</em></h1>
+  <p class="sub" id="sub"></p>
+
+  <div class="cards" id="cards"></div>
+  <div class="rail" id="rail" role="tablist" aria-label="Decision buckets"></div>
+
+  <section>
+    <h2 id="listTitle"></h2>
+    <p class="h2sub" id="listSub"></p>
+    <div class="dlist" id="dlist"></div>
+  </section>
+
+  <footer id="foot"></footer>
+</div>
+<script>
+const S = {
+  "register": "commandcenter — Decisions pending",
+  "updated": "2026-07-10",
+  "source": "DECISIONS-PENDING.md",
+  "appended_by": "/retro (Phase 2e)",
+  "rule": "One register for open decisions accumulated across retros, ADRs, and review docs. Check off with a link to where it was decided.",
+  "decisions": [
+    {
+      "id": "D-guard",
+      "date": "2026-07-03",
+      "bucket": "actionable",
+      "title": "known_good / known_bad_models.json guard coverage",
+      "body": "Guard-test coverage for the model allow/deny lists. Flagged in DECISION-NEEDED-A2, then re-flagged by the CQRS review — the oldest open item, and the only one that is neither resolved nor deliberately pinned. It has simply been sitting.",
+      "source": "DECISION-NEEDED-A2.md · CQRS review",
+      "where": ""
+    },
+    {
+      "id": "D-harvest",
+      "date": "2026-07-05",
+      "bucket": "actionable",
+      "title": "Harvest the 24-pour idle campaign; land the JS5 + assay-acceptance branches",
+      "body": "The substantive open work item. Three sub-tasks, all still pending: <b>harvest + synthesize</b> the 24-pour all-local idle campaign, then <b>curate/land the JS5 actuation branch</b> and <b>the assay-acceptance branch</b> — both branch-only right now.",
+      "source": "SESSION-RETRO-2026-07-05.md",
+      "where": ""
+    },
+    {
+      "id": "D-repo-localgen",
+      "date": "2026-07-09",
+      "bucket": "pinned",
+      "title": "Repo-aware local_generate — gateway-side context assembly",
+      "body": "A <code>paths</code>/glob param packing scope-guarded files into the local_generate prompt, proposed for the \"point a local model at a repo\" bootstrap gap. <b>Pinned on purpose</b> — not waiting on execution but on evidence: collect the OTHER use cases (feeding knowledge/, repo-grounded experiment briefs) first, then decide extend-vs-enhance on those findings.",
+      "source": "PINNED — decide after use-case discovery",
+      "where": ""
+    },
+    {
+      "id": "D-nonconductor-repo",
+      "date": "2026-07-09",
+      "bucket": "pinned",
+      "title": "Fleet builds targeting a non-conductor repo",
+      "body": "Trigger: the Valheim fieldlab wanted mechnet help, but CCMETA has no repo concept — <code>task_lane.py</code> is hardwired to the conductor repo. Candidate: an optional CCMETA <code>repo</code> field (conductor-side, concurrently-owned code — coordinate). <b>Interim coverage already live</b> via comfy_gateway (:8720, HEARTH_SCOPE=C:\\work\\comfy) for the interactive slice. Gather concrete use cases before implementing.",
+      "source": "PINNED — decide after use-case discovery",
+      "where": "Interim: comfy_gateway :8720 covers the interactive slice"
+    },
+    {
+      "id": "D-adr0015-build",
+      "date": "2026-07-09",
+      "bucket": "resolved",
+      "title": "BUILD: fold patrol / watchdog / drain / perception into the gateway",
+      "body": "Shrink Task Scheduler to two headless boot entries; deregister the superseded tasks. Slice 1 shipped: <code>hearth/kernel/timers.py</code> + 291 tests green; gateway arms patrol/watchdog/drain; live cutover verified (all three ticked exit 0 with ledger ids); 3 superseded tasks deregistered. Boot entries re-registered LogonType=S4U.",
+      "source": "ADR-0015",
+      "where": "DONE 2026-07-09 — ADR-0015 end state complete; proof = next OMEN reboot"
+    },
+    {
+      "id": "D-conductor-logout",
+      "date": "2026-07-09",
+      "bucket": "resolved",
+      "title": "Confirm nothing human-facing rides cc-conductor's tailnet identity → logout",
+      "body": "Verify the dashboard :8080 isn't consumed via the conductor's tailnet identity, then <code>tailscale logout</code> on the conductor.",
+      "source": "ADR-0014 consequences",
+      "where": "DONE 2026-07-09 (Derek) — conductor off the tailnet, confirmed via tailscale status from OMEN; cc-builder-4 rogue node also removed; inventory.toml updated"
+    },
+    {
+      "id": "D-tailscale-hygiene",
+      "date": "2026-07-09",
+      "bucket": "resolved",
+      "title": "Tailscale admin hygiene for the remaining human lanes",
+      "body": "Disable key expiry on server nodes (OMEN, AM4); flip the SSH ACL check→accept.",
+      "source": "ADR-0014 consequences",
+      "where": "DONE 2026-07-09 (Derek, separate session)"
+    },
+    {
+      "id": "D-tailscale-loop",
+      "date": "2026-07-09",
+      "bucket": "resolved",
+      "title": "Tailscale in the machine loop (browser re-auth blocked the conductor lane)",
+      "body": "Decided + shipped same day: machine lanes moved to mshome/LAN, Tailscale = humans + Funnel only; conductor stays a Hyper-V VM (WSL/AM4 relocation rejected).",
+      "source": "ADR-0014",
+      "where": "DONE 2026-07-09 — ADR-0014, verified live"
+    },
+    {
+      "id": "D-gateway-reload",
+      "date": "2026-07-05",
+      "bucket": "resolved",
+      "title": "Reload the HEARTH gateway (guard fix 80c41d6 + commander door tools)",
+      "body": "Carries both the knowledge-guard fix and the commander door tools refine_idea / refine_result; CLI + unit tests already green.",
+      "source": "ADR-0012",
+      "where": "DONE 2026-07-09 — gateway restarted for the ADR-0014 lane change; 35 tools live, both aboard"
+    },
+    {
+      "id": "D-guard-bug",
+      "date": "2026-07-05",
+      "bucket": "resolved",
+      "title": "Fix the knowledge-guard bug (read tools refused on knowledge/ paths)",
+      "body": "am4/scheduler read tools added to EXTRA_KNOWLEDGE_READERS; 11 guard tests green.",
+      "source": "commit 80c41d6",
+      "where": "DONE — code + tested; went live on the gateway reload"
+    },
+    {
+      "id": "D-b70-bringup",
+      "date": "2026-07-05",
+      "bucket": "resolved",
+      "title": "Canonical AM4 B70 bring-up (2 per-B70 ports)",
+      "body": "Resolved: AM4 is native Ubuntu; only the :8080 planner slot has Linux backing, :8081 critic slot unbacked. Planner woken; pilot + confirmation sweep ran cross-machine.",
+      "source": "DECISIONS-PENDING register",
+      "where": "RESOLVED 2026-07-05"
+    },
+    {
+      "id": "D-cqrs-briefs",
+      "date": "2026-07-04",
+      "bucket": "resolved",
+      "title": "Green-light fleet briefs for CQRS plan steps 2–4",
+      "body": "Atomic writes + capacity.json guard, Ledger.reindex, canonical Corpus enumerator.",
+      "source": "docs/CQRS-ES-STANDARDIZATION.md",
+      "where": "DONE 2026-07-04 — merged f1f2b8b / bd636d5 / ad486d6 (bfaaf9f)"
+    },
+    {
+      "id": "D-double-write",
+      "date": "2026-07-04",
+      "bucket": "resolved",
+      "title": "record_event double-write: keep + document vs special-case the wrapper",
+      "body": "Reviewers' lean prevailed: keep + document.",
+      "source": "docs/CQRS-ES-STANDARDIZATION.md",
+      "where": "DONE 2026-07-04 (\"make it so\") — ADR-0011"
+    },
+    {
+      "id": "D-two-ledgers",
+      "date": "2026-07-04",
+      "bucket": "resolved",
+      "title": "Ratify \"two ledgers = two bounded contexts; one door ≠ one store\"",
+      "body": "Ratify as an ADR-0005 amendment or new ADR.",
+      "source": "docs/CQRS-ES-STANDARDIZATION.md",
+      "where": "DONE 2026-07-04 (\"make it so\") — ADR-0010"
+    }
+  ]
+};
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// selectively allow the inline <b>/<code> we author in bodies, escape the rest
+const rich = (s) => esc(s)
+  .replace(/&lt;(\/?)(b|code)&gt;/g, '<$1$2>');
+
+const D = S.decisions;
+const buckets = [
+  {b:"actionable", nm:"Actionable now", desc:"Unblocked, undecided — real work waiting"},
+  {b:"pinned",     nm:"Pinned",         desc:"Deliberately parked pending use-case discovery"},
+  {b:"resolved",   nm:"Resolved",       desc:"Decided + shipped, kept for the paper trail"},
+];
+const count = b => D.filter(d=>d.bucket===b).length;
+
+$('sub').innerHTML = `Updated <code>${esc(S.updated)}</code> · source <code>${esc(S.source)}</code> · appended by <code>${esc(S.appended_by)}</code>`;
+
+const actionable = D.filter(d=>d.bucket==='actionable');
+$('cards').innerHTML = `
+  <div class="card derek"><div class="lbl">Needs Derek right now</div>
+    <div class="big">${actionable.length} actionable · ${count('pinned')} pinned</div>
+    <div class="note">${actionable.map(d=>esc(d.title)).join(' · ')}. The two pinned items wait on use-case evidence, not execution.</div></div>
+  <div class="card"><div class="lbl">Register</div><div class="big">${count('resolved')}<span style="color:var(--faint)">/${D.length}</span> <span style="font-size:15px;color:var(--slate)">resolved</span></div>
+    <div class="note">${count('actionable')} open &amp; actionable · ${count('pinned')} pinned by choice</div></div>
+  <div class="card"><div class="lbl">Momentum</div><div class="big" style="color:var(--good)">ADR-0014/0015<span style="font-size:14px;color:var(--slate)"> closed</span></div>
+    <div class="note">The whole tailnet + ops-loops-into-gateway arc is fully landed. Only the model guard &amp; the campaign harvest remain unblocked.</div></div>`;
+
+let activeBucket = 'actionable';
+
+$('rail').innerHTML = buckets.map(k=>`
+  <div class="bk" role="tab" tabindex="0" data-b="${k.b}" aria-selected="${k.b===activeBucket}" aria-label="${esc(k.nm)}, ${count(k.b)} items">
+    <div class="id">${esc(k.b)}</div>
+    <div class="nm">${esc(k.nm)}</div>
+    <div class="ct">${count(k.b)}</div>
+  </div>`).join('');
+
+function render(bucket){
+  activeBucket = bucket;
+  const meta = buckets.find(k=>k.b===bucket);
+  $('listTitle').textContent = meta.nm;
+  $('listSub').textContent = meta.desc;
+  const rows = D.filter(d=>d.bucket===bucket);
+  $('dlist').innerHTML = rows.map(d=>`
+    <div class="d" data-b="${d.bucket}">
+      <div class="dot"></div>
+      <div>
+        <div class="top">
+          <span class="ttl">${esc(d.title)}</span>
+          <span class="chip ${d.bucket}">${esc(d.bucket)}</span>
+          <span class="date">${esc(d.date)}</span>
+        </div>
+        <p class="body">${rich(d.body)}</p>
+        <div class="src">source: ${rich(d.source)}</div>
+        ${d.where ? `<div class="where">↳ ${rich(d.where)}</div>` : ''}
+      </div>
+    </div>`).join('');
+  document.querySelectorAll('.bk').forEach(el=>el.setAttribute('aria-selected', el.dataset.b===bucket));
+}
+render(activeBucket);
+
+document.querySelectorAll('.bk').forEach(el=>{
+  const open = ()=>render(el.dataset.b);
+  el.addEventListener('click', open);
+  el.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();open();} });
+});
+
+$('foot').innerHTML = `mirrors <b>${esc(S.source)}</b> · check off an item there with a link to where it was decided, then update this page's <code>S.decisions</code> in the same slice · ${esc(S.rule)}`;
+</script>

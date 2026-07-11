@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scheduler Strategy — living doc</title>
+<style>
+  :root{
+    --bg:#0b1017; --card:#101823; --card2:#0d141d; --line:#1e2a38;
+    --ink:#dce6f0; --dim:#8fa1b3; --faint:#5c6e80;
+    --cyan:#7fd4e4; --amber:#e8b95f; --green:#6fce9a; --red:#e08484;
+    --mono:'Consolas','JetBrains Mono',monospace;
+    --serif:Georgia,'Times New Roman',serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,'Segoe UI',sans-serif;
+       max-width:960px;margin:0 auto;padding:40px 24px 80px}
+  a{color:var(--cyan);text-decoration:none} a:hover{text-decoration:underline}
+  .kicker{font-family:var(--mono);font-size:12px;letter-spacing:.25em;color:var(--cyan);
+          text-transform:uppercase;margin-bottom:10px}
+  h1{font-family:var(--serif);font-size:34px;font-weight:700;line-height:1.2;margin-bottom:8px}
+  h1 em{color:var(--cyan);font-style:italic}
+  h2{font-family:var(--serif);font-size:24px;margin:48px 0 12px}
+  h3{font-size:16px;margin:20px 0 6px}
+  .meta{color:var(--dim);font-size:14px;margin-bottom:6px}
+  .meta code, td code, li code, p code{font-family:var(--mono);font-size:.85em;background:#161f2b;
+        border:1px solid var(--line);border-radius:4px;padding:1px 6px;color:var(--ink)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:14px 0}
+  .card.amber{border-color:#4d3d1e} .card.green{border-color:#1e4d33} .card.cyan{border-color:#1e4250}
+  .label{font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--faint);margin-bottom:8px}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:12px 0}
+  th{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+     color:var(--faint);text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+  td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  .pill{font-family:var(--mono);font-size:11px;padding:2px 10px;border-radius:999px;border:1px solid;white-space:nowrap}
+  .todo{color:var(--amber);border-color:#4d3d1e}
+  .done{color:var(--green);border-color:#1e4d33}
+  .blocked{color:var(--red);border-color:#4d1e1e}
+  .gated{color:var(--dim);border-color:var(--line)}
+  .step{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 22px;margin:16px 0}
+  .step .head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .step h3{font-family:var(--serif);font-size:19px;margin:0}
+  .step .facts{font-family:var(--mono);font-size:12px;color:var(--dim);margin:8px 0 12px}
+  .step .facts b{color:var(--ink);font-weight:600}
+  .block{margin:10px 0}
+  .block .bt{font-family:var(--mono);font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--faint)}
+  pre{background:var(--card2);border:1px solid var(--line);border-radius:6px;padding:10px 14px;
+      font-family:var(--mono);font-size:13px;overflow-x:auto;margin:6px 0;color:#b8ccdd}
+  .accept{border-left:3px solid var(--green);padding-left:12px;margin:8px 0}
+  .human{border-left:3px solid var(--amber);padding-left:12px;margin:8px 0}
+  .human b{color:var(--amber)}
+  .accept b{color:var(--green)}
+  ul,ol{padding-left:22px;margin:8px 0} li{margin:4px 0}
+  .rule{color:var(--dim)} .rule b{color:var(--ink)}
+  .foot{color:var(--faint);font-size:13px;margin-top:40px;border-top:1px solid var(--line);padding-top:16px}
+</style>
+</head>
+<body>
+
+<div class="kicker">Commandcenter · Scheduler Strategy · Living Doc</div>
+<h1>Close the loop: <em>propose → act.</em></h1>
+<div class="meta">Updated <code>2026-07-11</code> · source of truth for the scheduler lane ·
+maintained by whoever touches it (see <a href="#protocol">pickup protocol</a>)</div>
+<div class="meta">North star: <a href="https://www.linkedin.com/pulse/solving-job-shop-problem-derek-ciula/">Derek's 2019 job-shop article</a>
+— the fleet <b>is</b> the job shop. Nodes are machines, pours are jobs, model residency is sequence-dependent setup time.
+JS1–JS7 built the CP-SAT solver + two-economies objective + hindsight assay. What remains is the last mile:
+the solver <b>proposes</b> but does not yet <b>act</b>, and per
+<a href="docs/adr/0008-scheduler-advisory-first.md">ADR-0008</a> it must earn actuation with regret evidence.</div>
+
+<!-- ============================================================ -->
+<h2 id="protocol">Agent pickup protocol</h2>
+<div class="card cyan">
+  <div class="label">Any agent, any point — start here</div>
+  <ol>
+    <li><b>Orient.</b> Read this file top to bottom. Then run the <i>state check</i> command in each step below.
+        Live checks beat the <a href="#state">state table</a> — if they disagree, fix the table first. That edit <i>is</i> the living part.</li>
+    <li><b>Pick work.</b> Take the first step whose status ≠ DONE and whose dependencies are all DONE.
+        S2 has no dependencies and may always be taken in parallel.</li>
+    <li><b>Respect token tiers.</b> Fable = brief/review/judgment. Sonnet = builds. Local qwen via
+        <code>mcp__hearth__local_generate</code> = drafts, triage, summarization. Each step names its tier.</li>
+    <li><b>Update on every state change.</b> Edit the state table + changelog in this file, then commit.
+        Doc-only changes go straight to master (standing directive); code changes go branch → tests green → land.</li>
+  </ol>
+  <div class="label" style="margin-top:14px">Hard rules — do not improvise around these</div>
+  <ul class="rule">
+    <li><b>JS5 stays inert</b> until ADR-0016 is ratified by Derek (H1). Landing actuation <i>code</i> is in scope; turning it <i>on</i> is not.</li>
+    <li><b>Never dispatch new work to fleet builders without Derek's cue.</b> Everything below is executable locally (OMEN + reads from cc-conductor).</li>
+    <li><b>No new tooling.</b> This doc, existing scripts, and existing HEARTH door tools are the entire toolkit. If a step seems to need a new dashboard/script/service, it doesn't — write a committed report file instead.</li>
+    <li>Machine lane is mshome/LAN (<a href="docs/adr/0014-machine-lanes-off-the-tailnet.md">ADR-0014</a>): conductor = <code>claude@cc-conductor.mshome.net</code>, repo <code>~/work/commandcenter</code>.</li>
+  </ul>
+</div>
+
+<!-- ============================================================ -->
+<h2>Goals → objectives</h2>
+<div class="card">
+  <table>
+    <tr><th style="width:34%">Goal</th><th>Measurable objectives</th></tr>
+    <tr><td><b>G1 — Scheduler closes the loop.</b> From shadow proposals to evidence-gated actuation (the article's ending).</td>
+        <td>O1 harvest complete · O2 JS5 branch landed inert · O3 regret readout exists &amp; repeatable · O6 actuation decision recorded as ADR-0016</td></tr>
+    <tr><td><b>G2 — Trustworthy reps.</b> Wins measured by an acceptance oracle, not raw completion (closes the <a href="docs/adr/0001-assay-acceptance-gap.md">ADR-0001</a> gap).</td>
+        <td>O4 assay-acceptance branch landed with a null-action regression test</td></tr>
+    <tr><td><b>G3 — Register hygiene.</b> Both actionable items in <a href="DECISIONS-PENDING.md">DECISIONS-PENDING.md</a> cleared.</td>
+        <td>O5 model-guard tests green · O1/O2/O4 close the harvest item</td></tr>
+  </table>
+  <p class="rule" style="font-size:14px">An objective counts only when its acceptance test passes. Every test below is a command or a file-exists check — nothing requires judgment to verify.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2>Why this order — the weighted matrix</h2>
+<div class="card">
+  <div class="label">Weights: unblocks .25 · longer value .25 · token cost .20 · testability .15 · moving parts .15 (scored 2026-07-11)</div>
+  <table>
+    <tr><th>Item</th><th>Parts</th><th>Tokens</th><th>Test</th><th>Unblocks</th><th>Value</th><th>Score</th></tr>
+    <tr><td>S1 Harvest the 23 pours</td><td>5</td><td>5</td><td>5</td><td>5</td><td>3</td><td><b>4.50</b></td></tr>
+    <tr><td>S6 Flip actuation on <span class="pill gated">gated</span></td><td>2</td><td>4</td><td>3</td><td>5</td><td>5</td><td><b>4.05</b></td></tr>
+    <tr><td>S3 Curate + land JS5 branch</td><td>3</td><td>3</td><td>4</td><td>4</td><td>5</td><td><b>3.90</b></td></tr>
+    <tr><td>S5 Regret-trend readout</td><td>4</td><td>4</td><td>3</td><td>4</td><td>4</td><td><b>3.85</b></td></tr>
+    <tr><td>S2 Model-guard test coverage</td><td>5</td><td>5</td><td>5</td><td>2</td><td>3</td><td><b>3.75</b></td></tr>
+    <tr><td>S4 Land assay-acceptance branch</td><td>3</td><td>3</td><td>4</td><td>3</td><td>5</td><td><b>3.65</b></td></tr>
+    <tr><td>S7 Synthesize the 20 spec briefs</td><td>4</td><td>2</td><td>2</td><td>3</td><td>3</td><td><b>2.80</b></td></tr>
+  </table>
+  <p class="rule" style="font-size:14px">S1 (harvest) wins under <i>any</i> plausible re-weighting — top or near-top on every axis — so harvest-first is dominant, not a preference. S2 is the zero-opportunity-cost sleeper: cheap, simple, fully parallel. S7 is deliberately last: costly to read, fuzzy to test.</p>
+  <p class="rule" style="font-size:14px"><b>Sequence:</b> S1 → S3 + S4 → S5 → H1 (Derek) → S6, with S2 in parallel from minute one and S7 opportunistic.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2>Steps</h2>
+
+<div class="step">
+  <div class="head"><h3>S1 — Harvest the 24-pour campaign</h3><span class="pill todo">TODO</span></div>
+  <div class="facts">deps: <b>none</b> · tier: <b>any agent</b> (mechanical) · est: <b>&lt; 1 hr</b> · unblocks: S3 S4 S7</div>
+  <div class="block"><span class="bt">What</span>
+    <p>All 23 pours are DONE on the conductor, zero harvested. Pull every <code>runs/&lt;plan_id&gt;/result.json</code> into <code>campaign/harvest/&lt;plan_id&gt;.json</code> in this repo and commit.</p></div>
+  <div class="block"><span class="bt">How</span>
+<pre>./fleet-worker-node/.venv-omen/Scripts/python.exe -m campaign.status   # lists all 23 done plan_ids
+ssh claude@cc-conductor.mshome.net 'ls ~/work/commandcenter/runs/'     # verify the runs dir first
+# then per plan_id (loop it):
+scp claude@cc-conductor.mshome.net:~/work/commandcenter/runs/&lt;plan_id&gt;/result.json campaign/harvest/&lt;plan_id&gt;.json</pre>
+    <p class="rule">If the runs dir isn't at that path, <code>campaign/status.py:60</code> and the conductor's task-lane code are the ground truth — find it, then correct this doc. Two standalone plan_ids matter most: <code>hearth-js5-actuation-bc96bebb</code> and <code>hearth-assay-stream-acceptance-8d04d66a</code> (see <code>campaign/status.py:22-26</code>).</p></div>
+  <div class="accept"><b>Accepts when:</b> <code>python -c "import glob;print(len(glob.glob('campaign/harvest/*.json')))"</code> prints <b>23</b>, every file parses as JSON, and the directory is committed to master.</div>
+  <div class="human"><b>Derek:</b> nothing.</div>
+</div>
+
+<div class="step">
+  <div class="head"><h3>S2 — Model-guard test coverage <span class="rule" style="font-size:13px">(parallel lane — take anytime)</span></h3><span class="pill todo">TODO</span></div>
+  <div class="facts">deps: <b>none</b> · tier: <b>Sonnet build</b> (or local-draft + review) · est: <b>&lt; 2 hrs</b> · closes register item of 2026-07-03</div>
+  <div class="block"><span class="bt">What</span>
+    <p>Guard-test coverage for <code>knowledge/known_good_models.json</code> / <code>known_bad_models.json</code> — the oldest open register item. The consumers are <code>hearth/toolsurface/knowledge.py</code> and <code>hearth/projection/rebuild.py</code>; existing tests live in <code>hearth/tests/toolsurface/test_knowledge.py</code>.</p></div>
+  <div class="block"><span class="bt">How</span>
+    <p>Extend <code>test_knowledge.py</code>: a known-bad model id is rejected everywhere the lists are consulted; a known-good id passes; the allowlist-overrides-exclusion rule (<a href="docs/adr/0003-allowlist-overrides-exclusion.md">ADR-0003</a>) is pinned by an explicit test; malformed/missing list files fail loud, not silent.</p></div>
+  <div class="accept"><b>Accepts when:</b> <code>./fleet-worker-node/.venv-omen/Scripts/python.exe -m pytest hearth/tests -q</code> is green including the new tests, and temporarily inverting a guard condition makes at least one new test fail (proof the tests bite).</div>
+  <div class="human"><b>Derek:</b> nothing.</div>
+</div>
+
+<div class="step">
+  <div class="head"><h3>S3 — Curate + land the JS5 actuation branch</h3><span class="pill todo">TODO</span></div>
+  <div class="facts">deps: <b>S1</b> · tier: <b>Fable review</b>, Sonnet for any fixups · est: <b>half day</b> · unblocks: S6</div>
+  <div class="block"><span class="bt">What</span>
+    <p>The idle campaign built JS5 actuation <i>branch-only</i> with an explicit "stays inert" brief. Locate the branch (the harvested <code>hearth-js5-actuation-bc96bebb</code> result.json names it; workers push to the conductor repo — see the <code>pour-c2/*</code> remote pattern), review it against the invariant, land it on master.</p></div>
+  <div class="block"><span class="bt">Review invariant — the only thing that matters</span>
+    <ul>
+      <li>Actuation code may exist; <b>no code path dispatches real work by default</b>. Default behavior must remain advisory (ADR-0008).</li>
+      <li>If no test proves inertness, <b>add one during curation</b>: call the actuation entry point in its default state and assert nothing is dispatched.</li>
+      <li>Grep for production callers of the actuation entry point — there must be none.</li>
+    </ul></div>
+  <div class="accept"><b>Accepts when:</b> branch merged to master, full suite green (<code>python -m pytest hearth/tests -q</code> via the venv), the inertness test exists and passes, and <code>git log --oneline -5</code> shows the merge.</div>
+  <div class="human"><b>Derek:</b> optional diff review before merge. Default per ADR-0009: tests green = integrated.</div>
+</div>
+
+<div class="step">
+  <div class="head"><h3>S4 — Land the assay-acceptance branch</h3><span class="pill todo">TODO</span></div>
+  <div class="facts">deps: <b>S1</b> · tier: <b>Fable review</b>, Sonnet fixups · est: <b>half day</b> · closes the ADR-0001 gap</div>
+  <div class="block"><span class="bt">What</span>
+    <p>Same mechanics as S3 for <code>hearth-assay-stream-acceptance-8d04d66a</code>. This is the stream-scoped acceptance assay — the fix for the null-action-winner exploit (a candidate that does nothing must not be able to win).</p></div>
+  <div class="accept"><b>Accepts when:</b> merged to master, suite green, and a regression test exists in which a null-action candidate is scored and <b>rejected</b>.</div>
+  <div class="human"><b>Derek:</b> optional diff review, same default as S3.</div>
+</div>
+
+<div class="step">
+  <div class="head"><h3>S5 — Regret-trend readout (the evidence for the gate)</h3><span class="pill todo">TODO</span></div>
+  <div class="facts">deps: <b>none</b> (JS4 already shipped) · tier: <b>Fable judgment</b> on thin data, script does the math · est: <b>half day</b> · unblocks: H1 → S6</div>
+  <div class="block"><span class="bt">What</span>
+    <p><code>hearth/scheduler/hindsight.py</code> (JS4) already replays history through the CP-SAT solver and computes regret (<code>tokens_saved</code>, <code>span_delta_s</code>). Its own docstring names it "the evidence gate that decides whether the shadow scheduler ever earns actuation power." Nobody has written down what it currently says. Produce that readout as a committed report — <b>a document, not a dashboard</b>.</p></div>
+  <div class="block"><span class="bt">How</span>
+    <ol>
+      <li>Read <a href="docs/adr/0008-scheduler-advisory-first.md">ADR-0008</a> first and quote its promotion condition verbatim in the report.</li>
+      <li>Run the replay via the HEARTH door tool <code>mcp__hearth__schedule_hindsight</code> (or directly via <code>hearth.scheduler.hindsight.replay</code> with records from the toolsurface provider). Record the exact invocation in the report so it's reproducible.</li>
+      <li>Report: <code>n_runs</code>, aggregate regret, regret split across time windows (is the trend improving?), and one explicit verdict line: <code>GATE: sufficient | insufficient — &lt;one sentence why&gt;</code>.</li>
+      <li>Commit as <code>docs/REGRET-TREND-2026-07.md</code>.</li>
+    </ol>
+    <p class="rule">If there are too few completed runs for a trend, that IS the finding — the verdict becomes "insufficient: need N more scheduled-class runs," which converts H1 from a judgment call into a countdown. Do not pad thin data into a story.</p></div>
+  <div class="accept"><b>Accepts when:</b> <code>docs/REGRET-TREND-2026-07.md</code> exists on master, contains the reproduction command, and re-running that command reproduces the reported numbers.</div>
+  <div class="human"><b>Derek:</b> read it — 5 minutes. It exists to make H1 easy.</div>
+</div>
+
+<div class="step">
+  <div class="head"><h3>S6 — The actuation decision (ADR-0016)</h3><span class="pill gated">GATED · S3 + S5 + H1</span></div>
+  <div class="facts">deps: <b>S3, S5, H1</b> · tier: <b>Derek decides, Fable drafts the ADR</b> · est: <b>1 hr after H1</b></div>
+  <div class="block"><span class="bt">What</span>
+    <p>Derek reads the S5 report and ratifies one of: <b>GO</b> (flip actuation on the smallest surface), <b>NO-GO</b> (stays advisory, record why), or <b>WAIT</b> (name the condition that reopens it). Any of the three is a successful outcome — the failure mode is the question continuing to sit unanswered. Record it as <code>docs/adr/0016-scheduler-actuation-decision.md</code> (0016 is next free — verify at write time) and update <a href="DECISIONS-PENDING.md">the register</a>.</p></div>
+  <div class="block"><span class="bt">If GO</span>
+    <p>Flip the flag on the narrowest actuation surface available. The first actuated schedule must appear in the ledger with a receipt, and JS4 hindsight must then compare that actuated batch against its own proposal — the loop measuring itself is the finish line of the whole lane.</p></div>
+  <div class="accept"><b>Accepts when:</b> the ADR file exists on master and the register item is checked off. If GO: additionally one actuated schedule with a ledgered receipt + its hindsight regret record.</div>
+  <div class="human"><b>Derek: this is the decision. The only hard blocker in the plan.</b></div>
+</div>
+
+<div class="step">
+  <div class="head"><h3>S7 — Synthesize the 20 speculative briefs <span class="rule" style="font-size:13px">(opportunistic — lowest priority)</span></h3><span class="pill todo">TODO</span></div>
+  <div class="facts">deps: <b>S1</b> · tier: <b>local-first</b> (qwen triage), Fable reads top 3–5 only · est: <b>flexible</b></div>
+  <div class="block"><span class="bt">What</span>
+    <p>The other 20 harvested results are speculative planning briefs. Do <b>not</b> frontier-read all 20. Use <code>mcp__hearth__local_generate</code> to summarize/rank each by value and feasibility, then have Fable read only the top 3–5 and write a shortlist to <code>docs/SPEC-HARVEST-2026-07.md</code>. Note: <code>spec:scheduler-imagegen-inference</code> and <code>spec:fleet-model-residency-planner</code> feed this very lane — surface them explicitly.</p></div>
+  <div class="accept"><b>Accepts when:</b> the shortlist doc exists on master with a ranking rationale and a note of what was triaged locally vs read at frontier tier.</div>
+  <div class="human"><b>Derek:</b> pick winners for future builds — no urgency, paces the fleet on his cue.</div>
+</div>
+
+<!-- ============================================================ -->
+<h2>Human queue — everything Derek personally must do</h2>
+<div class="card amber">
+  <table>
+    <tr><th style="width:8%">ID</th><th>Action</th><th style="width:22%">When</th></tr>
+    <tr><td><b>H1</b></td><td><b>Ratify the actuation decision</b> (GO / NO-GO / WAIT) after reading the S5 regret report. Everything else in this plan exists to make this a 5-minute read + a one-word call.</td><td>after S3 + S5</td></tr>
+    <tr><td>H2</td><td>Optional: review S3/S4 diffs before merge. Default is ADR-0009 (tests green = integrated) — silence means proceed.</td><td>during S3/S4</td></tr>
+    <tr><td>H3</td><td>Pick winners from the S7 spec shortlist, if/when it lands.</td><td>whenever</td></tr>
+  </table>
+  <p class="rule" style="font-size:14px">H1 is the only item where the plan halts on Derek. Agents: never simulate or assume this answer.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="state">State table — the living part</h2>
+<div class="card green">
+  <div class="label">Update this table + the changelog on every state change, then commit to master</div>
+  <table>
+    <tr><th>Step</th><th>Status</th><th>Evidence / receipt</th><th>Last update · by</th></tr>
+    <tr><td>S1 Harvest</td><td><span class="pill todo">TODO</span></td><td>—</td><td>2026-07-11 · doc created</td></tr>
+    <tr><td>S2 Guard tests</td><td><span class="pill todo">TODO</span></td><td>—</td><td>2026-07-11 · doc created</td></tr>
+    <tr><td>S3 JS5 land</td><td><span class="pill todo">TODO</span></td><td>—</td><td>2026-07-11 · doc created</td></tr>
+    <tr><td>S4 Assay-acceptance land</td><td><span class="pill todo">TODO</span></td><td>—</td><td>2026-07-11 · doc created</td></tr>
+    <tr><td>S5 Regret readout</td><td><span class="pill todo">TODO</span></td><td>—</td><td>2026-07-11 · doc created</td></tr>
+    <tr><td>S6 ADR-0016 decision</td><td><span class="pill gated">GATED</span></td><td>needs S3 + S5 + H1</td><td>2026-07-11 · doc created</td></tr>
+    <tr><td>S7 Spec synthesis</td><td><span class="pill todo">TODO</span></td><td>—</td><td>2026-07-11 · doc created</td></tr>
+  </table>
+  <p class="rule" style="font-size:14px">Status vocabulary: <span class="pill todo">TODO</span> <span class="pill done">DONE</span> <span class="pill blocked">BLOCKED</span> <span class="pill gated">GATED</span> — add IN-PROGRESS with your session id if you take a step, so concurrent agents don't collide (a second agent may still take any parallel-safe step).</p>
+</div>
+
+<h2>Changelog</h2>
+<div class="card">
+  <ul>
+    <li><code>2026-07-11</code> — Doc created (Fable session, OMEN). Weighted matrix scored, sequence fixed as S1 → S3+S4 → S5 → H1 → S6, with S2 parallel and S7 opportunistic. All facts verified against repo state: 23/23 pours DONE unharvested (<code>campaign/status.py</code>), guard lists at <code>knowledge/</code>, next ADR = 0016.</li>
+  </ul>
+</div>
+
+<div class="foot">
+  Companion docs: <a href="DECISIONS-PENDING.md">DECISIONS-PENDING.md</a> (register) ·
+  <a href="docs/adr/0008-scheduler-advisory-first.md">ADR-0008 advisory-first</a> ·
+  <a href="hearth/scheduler/hindsight.py">hindsight.py (JS4)</a> ·
+  <a href="campaign/status.py">campaign/status.py (reap loop)</a>.
+  Tooling budget for this whole plan: this HTML file, existing scripts, existing HEARTH tools. Nothing else.
+</div>
+
+</body>
+</html>

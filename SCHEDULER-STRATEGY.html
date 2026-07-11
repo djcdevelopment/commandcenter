@@ -221,6 +221,7 @@ scp claude@cc-conductor.mshome.net:~/work/commandcenter/runs/&lt;plan_id&gt;/res
     <tr><th style="width:8%">ID</th><th>Action</th><th style="width:22%">When</th></tr>
     <tr><td><b>H1</b></td><td><b>Ratify the actuation decision</b> (GO / NO-GO / WAIT) after reading the S5 regret report. Everything else in this plan exists to make this a 5-minute read + a one-word call.</td><td>after S3 + S5</td></tr>
     <tr><td>H2</td><td>Optional: review S3/S4 diffs before merge. Default is ADR-0009 (tests green = integrated) — silence means proceed.</td><td>during S3/S4</td></tr>
+    <tr><td><b>H1b</b></td><td><b>JS5 build decision</b> (added 2026-07-11): the campaign pour never actually built JS5 — both laps were empty and the "winner" was an empty diff (the null-action exploit, live). Choose: <b>re-pour</b> to the fleet (your dispatch cue) or <b>direct build</b> (Sonnet, locally, branch → green → land inert). O2 is unreachable until this is decided.</td><td>before S6 can unGATE</td></tr>
     <tr><td>H3</td><td>Pick winners from the S7 spec shortlist, if/when it lands.</td><td>whenever</td></tr>
   </table>
   <p class="rule" style="font-size:14px">H1 is the only item where the plan halts on Derek. Agents: never simulate or assume this answer.</p>
@@ -234,8 +235,8 @@ scp claude@cc-conductor.mshome.net:~/work/commandcenter/runs/&lt;plan_id&gt;/res
     <tr><th>Step</th><th>Status</th><th>Evidence / receipt</th><th>Last update · by</th></tr>
     <tr><td>S1 Harvest</td><td><span class="pill done">DONE</span></td><td><code>campaign/harvest/</code> — 23/23 files, all parse clean (single tar-over-ssh pull)</td><td>2026-07-11 · Fable session cdcabbd4</td></tr>
     <tr><td>S2 Guard tests</td><td><span class="pill todo">IN-PROGRESS</span></td><td>Sonnet subagent, isolated worktree; lands after Fable review</td><td>2026-07-11 · Fable session cdcabbd4</td></tr>
-    <tr><td>S3 JS5 land</td><td><span class="pill todo">TODO</span></td><td>—</td><td>2026-07-11 · doc created</td></tr>
-    <tr><td>S4 Assay-acceptance land</td><td><span class="pill todo">TODO</span></td><td>—</td><td>2026-07-11 · doc created</td></tr>
+    <tr><td>S3 JS5 land</td><td><span class="pill blocked">BLOCKED</span></td><td><b>Premise falsified by harvest:</b> both builders produced empty laps (sonnet timeout, vllama rc 3), winner had an empty diff — <b>no JS5 branch exists to curate</b>. Needs Derek: re-pour to fleet (his cue) or direct local build (scope change). See H1b below.</td><td>2026-07-11 · Fable session cdcabbd4</td></tr>
+    <tr><td>S4 Assay-acceptance land</td><td><span class="pill done">DONE</span></td><td>Cherry-picked <code>57f3fef</code> → master <code>9e01612</code>; suite 710 green; null-action regression test added during curation (<code>test_null_action_lap_with_tied_score_is_rejected</code>)</td><td>2026-07-11 · Fable session cdcabbd4</td></tr>
     <tr><td>S5 Regret readout</td><td><span class="pill todo">TODO</span></td><td>—</td><td>2026-07-11 · doc created</td></tr>
     <tr><td>S6 ADR-0016 decision</td><td><span class="pill gated">GATED</span></td><td>needs S3 + S5 + H1</td><td>2026-07-11 · doc created</td></tr>
     <tr><td>S7 Spec synthesis</td><td><span class="pill todo">TODO</span></td><td>—</td><td>2026-07-11 · doc created</td></tr>
@@ -246,6 +247,7 @@ scp claude@cc-conductor.mshome.net:~/work/commandcenter/runs/&lt;plan_id&gt;/res
 <h2>Changelog</h2>
 <div class="card">
   <ul>
+    <li><code>2026-07-11</code> — S4 DONE: acceptance gate cherry-picked from the farm branch (<code>ccfarm/…/cc-builder-1/lap1</code>, farmer-repo on cc-conductor) to master <code>9e01612</code>, 710 tests green, null-action regression pinned. S3 BLOCKED: harvest revealed the JS5 pour produced <b>zero code</b> on both builders — the empty lap "won" with score 70/B, which is the ADR-0001 null-action exploit demonstrating itself on the very pour meant to close the lane. New H1b decision added. Farm-remote path documented: workers push to <code>~/work/commandcenter-ontology/farmer-repo</code> (bare repos at <code>~/work/commandcenter.git</code> and the working clone do NOT carry pour branches).</li>
     <li><code>2026-07-11</code> — Sortie GO ratified by Derek (as proposed). S1 DONE: 23/23 results harvested to <code>campaign/harvest/</code>, acceptance green. S2 dispatched to a Sonnet subagent (worktree-isolated). Pre-flight: mechnet 10-up, HEARTH door HEALTHY.</li>
     <li><code>2026-07-11</code> — Amended same session: S5 notes the U3 patrol tick has been ledgering <code>schedule_hindsight</code> regret since 2026-07-04 (the trend series already exists); cross-linked <a href="JOB-SHOP-SCHEDULER-PLAN.html">JOB-SHOP-SCHEDULER-PLAN.html</a>.</li>
     <li><code>2026-07-11</code> — Doc created (Fable session, OMEN). Weighted matrix scored, sequence fixed as S1 → S3+S4 → S5 → H1 → S6, with S2 parallel and S7 opportunistic. All facts verified against repo state: 23/23 pours DONE unharvested (<code>campaign/status.py</code>), guard lists at <code>knowledge/</code>, next ADR = 0016.</li>

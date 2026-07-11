@@ -13,8 +13,13 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       capacity.json guard, Ledger.reindex, canonical Corpus enumerator)
       (source: [docs/CQRS-ES-STANDARDIZATION.md](docs/CQRS-ES-STANDARDIZATION.md))
       — DONE 2026-07-04, merged f1f2b8b/bd636d5/ad486d6 (bfaaf9f)
-- [ ] 2026-07-03 — known_good/known_bad_models.json guard coverage
+- [x] 2026-07-03 — known_good/known_bad_models.json guard coverage
       (source: DECISION-NEEDED-A2.md, flagged again by the CQRS review)
+      — DONE 2026-07-11 (S2 of [SCHEDULER-STRATEGY.html](SCHEDULER-STRATEGY.html)): 12 tests
+      landed in `hearth/tests/toolsurface/test_knowledge.py` (`2ad68e0`), mutation-checked
+      (inverted guard → 4 tests fail). Note: real classification logic lives in
+      `tools/workflow/project_capacity.py`; the A2 watermark gap itself stays deferred
+      (option 1 "leave unguarded" still in effect, now with the contract pinned by tests).
 - [x] 2026-07-05 — Canonical AM4 B70 bring-up (2 per-B70 ports). RESOLVED: AM4 is native
       Ubuntu; only the :8080 planner slot has Linux backing (`~/baseline/relaunch-qwen3-baseline.sh`),
       :8081 critic slot unbacked. Planner woken; pilot + confirmation sweep ran cross-machine.
@@ -28,6 +33,11 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       (commander tools + guard fix confirmed aboard).
 - [ ] 2026-07-05 — Harvest + synthesize the 24-pour idle campaign; curate/land the JS5 +
       assay-acceptance branches (source: [SESSION-RETRO-2026-07-05.md](SESSION-RETRO-2026-07-05.md))
+      — 2026-07-11 PARTIAL: harvest DONE (23/23 → `campaign/harvest/`, `0fff65f`);
+      assay-acceptance branch LANDED (`9e01612`, null-action regression pinned). JS5 CANNOT
+      be curated: the pour produced empty laps on both builders (the null-action exploit,
+      live) — remaining sub-decision is H1b in SCHEDULER-STRATEGY.html (re-pour vs direct
+      build). Synthesis = S7, in flight.
 - [x] 2026-07-09 — Tailscale in the machine loop (browser re-auth blocked the conductor
       lane). DECIDED + SHIPPED same day: machine lanes moved to mshome/LAN, Tailscale =
       humans + Funnel only; conductor stays a Hyper-V VM (WSL/AM4 relocation rejected)

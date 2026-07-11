@@ -18,11 +18,13 @@ from __future__ import annotations
 
 from hearth.scheduler.ontology import (
     DEFAULT_DURATIONS_S,
+    FALLBACK_RUNNER_CLASSES,
     Job,
     Machine,
     ScheduleProposal,
     load_capacity,
     load_machines,
+    load_runner_classes,
     lookup_duration_s,
 )
 from hearth.scheduler.solve import solve_schedule
@@ -30,11 +32,13 @@ from hearth.scheduler.decision import build_scheduler_decision, validate_decisio
 
 __all__ = [
     "DEFAULT_DURATIONS_S",
+    "FALLBACK_RUNNER_CLASSES",
     "Job",
     "Machine",
     "ScheduleProposal",
     "load_capacity",
     "load_machines",
+    "load_runner_classes",
     "lookup_duration_s",
     "solve_schedule",
     "build_scheduler_decision",

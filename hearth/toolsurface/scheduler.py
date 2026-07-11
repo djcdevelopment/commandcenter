@@ -24,7 +24,13 @@ from hearth.toolsurface._scope import resolve_in_scope, scope_root
 from hearth.toolsurface.task_lane import CONDUCTOR_REPO, _run_ssh
 from hearth.scheduler.decision import build_scheduler_decision, validate_decision
 from hearth.scheduler.hindsight import render_table, replay
-from hearth.scheduler.ontology import Job, load_am4_catalog, load_capacity, load_machines
+from hearth.scheduler.ontology import (
+    Job,
+    load_am4_catalog,
+    load_capacity,
+    load_machines,
+    load_runner_classes,
+)
 from hearth.scheduler.solve import solve_schedule
 
 DEFAULT_CAPACITY_PATH = "knowledge/capacity.json"
@@ -212,9 +218,10 @@ def schedule_hindsight(records: Optional[list[dict]] = None, limit: int = 50,
     inventory_path = str(root / _INVENTORY_REL)
     backends_path = str(root / _BACKENDS_REL)
     machines = load_machines(inventory_path, backends_path)
+    runner_classes = load_runner_classes(inventory_path)
     capacity = load_capacity(str(resolve_in_scope(capacity_path)))
 
-    report = replay(records, machines, capacity)
+    report = replay(records, machines, capacity, runner_classes=runner_classes)
     return {
         "ok": True,
         "report": report,

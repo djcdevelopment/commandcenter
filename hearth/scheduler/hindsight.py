@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from hearth.scheduler.ontology import (
     DEFAULT_DURATIONS_S,
+    FALLBACK_RUNNER_CLASSES,
     Job,
     Machine,
     lookup_duration_s,
@@ -31,16 +32,27 @@ from hearth.scheduler.solve import solve_schedule
 # measurement. Kept coarse and visible, matching DEFAULT_DURATIONS_S's spirit.
 DEFAULT_EST_TOKENS = 2000
 
-_LOCAL_BUILDER_NAMES = {"am4-worker-1", "cc-builder-1", "cc-builder-2"}
 
+def _is_local_winner(winner: str | None, machines_by_name: dict[str, Machine],
+                     runner_classes: dict[str, str]) -> bool:
+    """Did this historical win spend local (free) or metered (frontier) tokens?
 
-def _is_local_winner(winner: str | None, machines_by_name: dict[str, Machine]) -> bool:
+    The runner-class registry (fleet/inventory.toml runner_class fields via
+    load_runner_classes, else FALLBACK_RUNNER_CLASSES) is consulted first — it
+    covers builders that aren't in the solver's eligible-machine pool (e.g.
+    omen-worker-1) and is the truth source for the ACTUAL side of the regret
+    comparison. Machine kind is the secondary source; an unknown winner charges
+    as metered (conservative).
+    """
     if winner is None:
         return False
+    runner_class = runner_classes.get(winner)
+    if runner_class is not None:
+        return runner_class == "local"
     machine = machines_by_name.get(winner)
     if machine is not None:
         return machine.kind == "local"
-    return winner in _LOCAL_BUILDER_NAMES
+    return False
 
 
 def _estimate_tokens_for_record(record: dict, capacity: dict | None) -> int:
@@ -73,6 +85,7 @@ def build_jobs_from_history(
     records: list[dict],
     machines: list[Machine] | None = None,
     capacity: dict | None = None,
+    runner_classes: dict[str, str] | None = None,
 ) -> list[dict]:
     """Turn completed, successful historical run records into job specs.
 
@@ -82,9 +95,12 @@ def build_jobs_from_history(
     happened" signal and are excluded. Each returned dict carries both the
     scheduler-shaped job fields (plan_id, task_class, est_tokens) AND the
     hindsight-only actual-outcome fields (actual_machine, actual_s,
-    actual_tokens) needed later for regret comparison.
+    actual_tokens) needed later for regret comparison. `runner_classes` maps
+    builder name -> "local"|"frontier" (see ontology.load_runner_classes);
+    None falls back to the declared FALLBACK_RUNNER_CLASSES.
     """
     machines_by_name = {m.name: m for m in (machines or [])}
+    classes = FALLBACK_RUNNER_CLASSES if runner_classes is None else runner_classes
     jobs: list[dict] = []
     for record in records:
         if record.get("status") not in (None, "ok"):
@@ -100,7 +116,7 @@ def build_jobs_from_history(
         if not isinstance(duration_s, (int, float)) or duration_s < 0:
             duration_s = DEFAULT_DURATIONS_S.get(task_class, DEFAULT_DURATIONS_S["default"])
 
-        is_local = _is_local_winner(winner, machines_by_name)
+        is_local = _is_local_winner(winner, machines_by_name, classes)
         actual_tokens = 0 if is_local else _estimate_tokens_for_record(record, capacity)
 
         jobs.append({
@@ -142,7 +158,8 @@ def render_table(report: dict) -> str:
     return "\n".join(lines)
 
 
-def replay(records: list[dict], machines: list[Machine], capacity: dict | None) -> dict:
+def replay(records: list[dict], machines: list[Machine], capacity: dict | None,
+           runner_classes: dict[str, str] | None = None) -> dict:
     """Replay historical run `records` through the CP-SAT scheduler as a batch.
 
     Returns a regret report:
@@ -157,7 +174,8 @@ def replay(records: list[dict], machines: list[Machine], capacity: dict | None) 
     solver's batch makespan, since the whole point of batching is parallelism
     the actual sequential/ad-hoc dispatch didn't necessarily exploit).
     """
-    job_history = build_jobs_from_history(records, machines=machines, capacity=capacity)
+    job_history = build_jobs_from_history(records, machines=machines, capacity=capacity,
+                                          runner_classes=runner_classes)
 
     actual_span_s = sum(j["actual_s"] for j in job_history)
     actual_tokens = sum(j["actual_tokens"] for j in job_history)

@@ -9,7 +9,7 @@ from unittest import TestCase
 from unittest.mock import patch
 
 from hearth.scheduler.hindsight import build_jobs_from_history, render_table, replay
-from hearth.scheduler.ontology import Machine
+from hearth.scheduler.ontology import Machine, load_runner_classes
 from hearth.toolsurface.scheduler import get_tools, schedule_hindsight
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -64,12 +64,71 @@ class BuildJobsFromHistoryTests(TestCase):
         jobs = build_jobs_from_history(records, machines=_machines())
         self.assertEqual(jobs[0]["actual_tokens"], 4321)
 
-    def test_unrecognized_winner_name_defaults_to_local_builder_name_set(self) -> None:
-        # No Machine objects passed -> falls back to the declared local-builder name set.
-        records = [{"plan_id": "r1", "status": "ok", "winner": "cc-builder-1",
+    def test_omen_worker_1_win_charges_zero_metered_tokens(self) -> None:
+        # omen-worker-1 is a LOCAL builder (openai runner -> OMEN Ollama
+        # qwen3-coder:30b). The pre-fix name set omitted it, phantom-charging
+        # its wins DEFAULT_EST_TOKENS each (REGRET-TREND-2026-07.md, Finding 2).
+        records = [{"plan_id": "r1", "status": "ok", "winner": "omen-worker-1",
                     "task_class": "build", "duration_s": 30}]
         jobs = build_jobs_from_history(records)
         self.assertEqual(jobs[0]["actual_tokens"], 0)
+
+    def test_cc_builder_1_claude_runner_win_charges_metered_tokens(self) -> None:
+        # cc-builder-1 runs the FRONTIER claude/sonnet runner (no runner.json ->
+        # claude default). The pre-fix name set counted its wins as free.
+        records = [{"plan_id": "r1", "status": "ok", "winner": "cc-builder-1",
+                    "task_class": "build", "duration_s": 30}]
+        jobs = build_jobs_from_history(records)
+        self.assertGreater(jobs[0]["actual_tokens"], 0)
+
+    def test_registry_runner_classes_win_over_machine_kind(self) -> None:
+        # The ACTUAL side classifies by the runner-class registry even when the
+        # solver's machine pool disagrees (the pool is the PROPOSED-side view).
+        machines = [Machine(name="cc-builder-1", kind="local", token_cost_weight=0.0)]
+        records = [{"plan_id": "r1", "status": "ok", "winner": "cc-builder-1",
+                    "task_class": "build", "duration_s": 30}]
+        jobs = build_jobs_from_history(
+            records, machines=machines,
+            runner_classes={"cc-builder-1": "frontier"})
+        self.assertGreater(jobs[0]["actual_tokens"], 0)
+
+    def test_unknown_winner_charges_metered_conservatively(self) -> None:
+        records = [{"plan_id": "r1", "status": "ok", "winner": "mystery-builder",
+                    "task_class": "build", "duration_s": 30}]
+        jobs = build_jobs_from_history(records)
+        self.assertGreater(jobs[0]["actual_tokens"], 0)
+
+
+class LoadRunnerClassesTests(TestCase):
+    def test_missing_inventory_yields_corrected_fallback(self) -> None:
+        classes = load_runner_classes("/no/such/inventory.toml")
+        self.assertEqual(classes["omen-worker-1"], "local")
+        self.assertEqual(classes["cc-builder-1"], "frontier")
+        self.assertEqual(classes["cc-builder-2"], "local")
+        self.assertEqual(classes["am4-worker-1"], "local")
+
+    def test_real_inventory_declares_builder_locality(self) -> None:
+        classes = load_runner_classes(str(REPO_ROOT / "fleet" / "inventory.toml"))
+        self.assertEqual(classes["cc-builder-1"], "frontier")
+        for local in ("am4-worker-1", "omen-worker-1", "cc-builder-2", "cc-builder-3"):
+            self.assertEqual(classes[local], "local", local)
+
+    def test_inventory_declaration_wins_over_fallback(self) -> None:
+        # If a node's runner.json flips (say cc-builder-1 gets repointed at a
+        # local backend), editing inventory.toml alone must flip classification.
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "inventory.toml"
+            path.write_text(
+                '[[node]]\nname = "cc-builder-1"\nrunner_class = "local"\n'
+                '[[node]]\nname = "new-builder"\nrunner_class = "frontier"\n'
+                '[[node]]\nname = "bad-builder"\nrunner_class = "warp"\n',
+                encoding="utf-8")
+            classes = load_runner_classes(str(path))
+        self.assertEqual(classes["cc-builder-1"], "local")
+        self.assertEqual(classes["new-builder"], "frontier")
+        # An unrecognized runner_class value is ignored, not propagated.
+        self.assertNotIn("bad-builder", classes)
 
 
 class ReplayHandComputedTests(TestCase):

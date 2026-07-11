@@ -16,8 +16,17 @@
 #     services should answer on which ports). It changes rarely.
 # Different jobs. Don't fold one into the other.
 #
-# Consumed by: fleet/fleet_ping.py (health sweep CLI). Parsed with stdlib tomllib
-# (Python 3.11+); no PyYAML dependency by design (repo is stdlib-only).
+# Consumed by: fleet/fleet_ping.py (health sweep CLI) and hearth/scheduler
+# (builder locality, see below). Parsed with stdlib tomllib (Python 3.11+); no
+# PyYAML dependency by design (repo is stdlib-only).
+#
+# `runner_class` (optional, per builder node): "local" | "frontier" — which token
+# economy the node's build runner spends (2026-07-11). This is the OMEN-reachable
+# projection of each node's ~/fleet-worker-node/runner.json (openai -> a local
+# backend = "local"; no runner.json -> the worker defaults to the metered claude
+# runner = "frontier"). hearth/scheduler derives machine kinds and the hindsight
+# regret assay's local-vs-metered classification from it — keep it in sync when a
+# node's runner.json changes.
 #
 # Addressing model (Derek, 2026-07-02): VMs never join the tailnet -- only physical
 # hosts hold tailnet identities. Same-host VMs are reached via mshome.net sibling DNS;
@@ -34,7 +43,7 @@
 [meta]
 tailnet = "tail8e749c.ts.net"
 hyperv_host = "omen"
-updated = "2026-07-09"
+updated = "2026-07-11"
 ssh_user = "claude"          # default ssh user for reachability/health probes
 
 # --- Physical hosts (tailnet members) ---------------------------------------
@@ -106,6 +115,7 @@ address = "claudefarm1.mshome.net"
 via = "mshome"
 host = "omen"
 expect = "up"
+runner_class = "local"   # runner.json: openai -> OMEN Ollama
 purpose = "Original golden-image VM. Worker + (temp) assay shell; hosts the omen-worker-1 builder."
 note = "2026-07-04 RECOVERED. Root cause was a MAC-ADDRESS COLLISION: cc-builder-4 was stood up (2026-07-03) with a static MAC identical to this VM's golden-image MAC (both 00155D0CC700). Two VMs, same static MAC on the Default Switch -> cc-builder-4 won, claudefarm1 was knocked off the network (no lease, unreachable). Its Hyper-V DISPLAY name had also been changed to 'cc-worker-1' (guest hostname stayed 'claudefarm1'), which hid it. Fix: Stop-VM, Set-VMNetworkAdapter -StaticMacAddress 00155D0CC70A (unique), Start-VM -> got fresh lease 172.21.189.98, mshome DNS updated, sshd up, conductor reachable, omen-worker-1 UP. hv-kvp-daemon is inactive in the guest (cosmetic: host can't read guest IP via KVP, but reachability is fine). NOTE: cc-builder-4 still holds the original golden MAC 00155D0CC700 - future clones off the golden image must regenerate their MAC (see [[project-fleet-vm-provisioning]])."
 checks = [
@@ -119,6 +129,7 @@ address = "cc-builder-1.mshome.net"
 via = "mshome"
 host = "omen"
 expect = "up"
+runner_class = "frontier"   # no runner.json on the node -> worker defaults to the metered claude runner
 purpose = "Frontier builder VM (claude/sonnet runner)."
 checks = [
   { service = "ssh", port = 22 },
@@ -131,6 +142,7 @@ address = "cc-builder-2.mshome.net"
 via = "mshome"
 host = "omen"
 expect = "up"
+runner_class = "local"   # runner.json: openai -> AM4 vllama-planner
 purpose = "Builder VM (local oxen-planner runner)."
 checks = [
   { service = "ssh", port = 22 },
@@ -143,6 +155,7 @@ address = "cc-builder-3.mshome.net"
 via = "mshome"
 host = "omen"
 expect = "up"
+runner_class = "local"   # runner.json: openai -> OMEN Ollama qwen2.5:14b
 purpose = "Builder + assay VM (rebuilt 2026-07-01, standalone disk). Current assay node while claudefarm1 is down."
 checks = [
   { service = "ssh", port = 22 },
@@ -155,6 +168,7 @@ address = "cc-builder-4.mshome.net"
 via = "mshome"
 host = "omen"
 expect = "optional"
+runner_class = "local"   # runner.json: openai -> OMEN Ollama mixtral 8x22b
 purpose = "OMEN-local Ollama MoE critic (mixtral 8x22b q2_K). exploratory-perspective only; excluded from default build pool."
 note = "2026-07-09: address moved off the drift-prone NAT IP to sibling DNS (verified reachable). Found ON the tailnet (policy violation, 'Duplicate node key' badge, ts 1.98.8 = fresh install — likely a reachability workaround for the drifted NAT IP) -> removed from tailnet via admin console per VMs-never-join policy + ADR-0014. tailscaled may still run in-guest (claude has no passwordless sudo to disable it) but is inert once the node is deleted server-side."
 checks = [
@@ -172,6 +186,7 @@ rides_on = "am4"
 model_backend = "127.0.0.1:8090"   # oxen (dual B70 Qwen3-30B), local to AM4
 via = "lan"
 expect = "up"
+runner_class = "local"   # openai runner -> oxen (dual B70), AM4-local
 purpose = "AM4 local-model builder: openai runner -> oxen. Shell on AM4; farmer via cc-farmer tunnel."
 checks = [
   { service = "ssh", port = 22, host = "192.168.12.233" },
@@ -184,6 +199,7 @@ rides_on = "claudefarm1"
 model_backend = "omen.mshome.net:11434"   # Ollama qwen3-coder:30b, on OMEN
 via = "mshome"
 expect = "up"
+runner_class = "local"   # openai runner -> OMEN Ollama qwen3-coder:30b
 purpose = "OMEN Ollama qwen3-coder:30b builder (54.6 tok/s). Shell rides claudefarm1 -- so it dies when claudefarm1 is down, even though its model backend (OMEN) is fine."
 note = "Coupling to claudefarm1 is a fragility: OMEN's Ollama is reachable independently. Candidate to re-home its shell off claudefarm1 (see CONDUCTOR-FOLLOWUPS)."
 checks = [

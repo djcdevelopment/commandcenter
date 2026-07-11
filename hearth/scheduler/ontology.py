@@ -27,23 +27,63 @@ DEFAULT_DURATIONS_S: dict[str, float] = {
     "default": 600.0,
 }
 
-# Local builders eligible for async fleet tasks today (token cost ~= free). A
-# hypothetical frontier builder carries a high token-cost weight so the token
-# objective only reaches for it when deadlines force parallelism it cannot avoid.
-# Used only when inventory/backends files are absent.
+# Builders eligible for async fleet tasks today. A hypothetical frontier builder
+# carries a high token-cost weight so the token objective only reaches for it when
+# deadlines force parallelism it cannot avoid. Used only when inventory/backends
+# files are absent.
 _DEFAULT_MACHINES: tuple[dict, ...] = (
     {"name": "am4-worker-1", "kind": "local", "token_cost_weight": 0.0,
      "tags": ["local", "code", "big-context"], "available": True},
-    {"name": "cc-builder-1", "kind": "local", "token_cost_weight": 0.0,
-     "tags": ["local", "code"], "available": True},
+    {"name": "cc-builder-1", "kind": "frontier", "token_cost_weight": 1.0,
+     "tags": ["code", "frontier"], "available": True},
     {"name": "cc-builder-2", "kind": "local", "token_cost_weight": 0.0,
      "tags": ["local", "code"], "available": True},
     {"name": "frontier-builder", "kind": "frontier", "token_cost_weight": 1.0,
      "tags": ["frontier"], "available": True},
 )
 
-# Logical/local builder names the scheduler treats as async-eligible local machines.
-_LOCAL_BUILDER_NAMES = {"am4-worker-1", "cc-builder-1", "cc-builder-2"}
+# Builder names the scheduler treats as async-eligible machines (pool membership;
+# their local-vs-frontier kind comes from the runner-class registry below).
+_POOL_BUILDER_NAMES = {"am4-worker-1", "cc-builder-1", "cc-builder-2"}
+
+# Declared builder locality, used when fleet/inventory.toml (or its runner_class
+# fields) is absent. Corrected 2026-07-11 against each node's live runner.json:
+# cc-builder-1 carries NO runner.json, so its worker defaults to the metered
+# claude runner (frontier); every other builder is an openai runner pointed at a
+# local backend (oxen / OMEN Ollama). The old set treated cc-builder-1 as local
+# and omitted omen-worker-1 entirely — wrong in both directions (see
+# docs/REGRET-TREND-2026-07.md, Finding 2).
+FALLBACK_RUNNER_CLASSES: dict[str, str] = {
+    "am4-worker-1": "local",
+    "omen-worker-1": "local",
+    "cc-builder-2": "local",
+    "cc-builder-3": "local",
+    "cc-builder-4": "local",
+    "claudefarm1": "local",
+    "cc-builder-1": "frontier",
+    "frontier-builder": "frontier",
+}
+
+
+def load_runner_classes(inventory_path: str) -> dict[str, str]:
+    """Map builder name -> "local" | "frontier" from the fleet inventory.
+
+    Reads each node's structured ``runner_class`` field (the OMEN-reachable
+    projection of that node's runner.json). Starts from the declared
+    FALLBACK_RUNNER_CLASSES so a winner the inventory no longer names still
+    classifies; inventory declarations win over the fallback. A missing or
+    unreadable inventory yields the fallback map alone.
+    """
+    classes = dict(FALLBACK_RUNNER_CLASSES)
+    inventory = _read_toml(Path(inventory_path))
+    if inventory is None:
+        return classes
+    for node in inventory.get("node", []):
+        name = node.get("name")
+        runner_class = node.get("runner_class")
+        if name and runner_class in ("local", "frontier"):
+            classes[name] = runner_class
+    return classes
 
 
 @dataclass
@@ -155,16 +195,21 @@ def _read_toml(path: Path) -> Optional[dict]:
 def load_machines(inventory_path: str, backends_path: str) -> list[Machine]:
     """Build the machine list from the fleet inventory + backend pool.
 
-    Async-eligible LOCAL builders come from the inventory's logical/builder nodes
-    (am4-worker-1, cc-builder-1, cc-builder-2); a single hypothetical frontier
-    builder is always appended so deadline-forced parallelism has somewhere to go.
-    Backend tags (hearth/etc/backends.toml) enrich local machine tags where a
-    backend rides the same node. Missing files -> declared defaults.
+    Async-eligible builders come from the inventory's logical/builder nodes
+    (am4-worker-1, cc-builder-1, cc-builder-2), each kinded local-vs-frontier by
+    the runner-class registry (load_runner_classes) — a frontier-runner builder
+    like cc-builder-1 is a real machine the solver may use, but at metered token
+    weight. A single hypothetical frontier builder is always appended so
+    deadline-forced parallelism has somewhere to go. Backend tags
+    (hearth/etc/backends.toml) enrich local machine tags where a backend rides
+    the same node. Missing files -> declared defaults.
     """
     inventory = _read_toml(Path(inventory_path))
     backends = _read_toml(Path(backends_path))
     if inventory is None:
         return [Machine(**spec) for spec in _DEFAULT_MACHINES]
+
+    runner_classes = load_runner_classes(inventory_path)
 
     # Collect backend tags keyed loosely by node hint (best-effort enrichment).
     backend_tags: list[str] = []
@@ -175,23 +220,24 @@ def load_machines(inventory_path: str, backends_path: str) -> list[Machine]:
     machines: list[Machine] = []
     for node in inventory.get("node", []):
         name = node.get("name")
-        if name not in _LOCAL_BUILDER_NAMES:
+        if name not in _POOL_BUILDER_NAMES:
             continue
         expect = node.get("expect", "up")
-        tags = ["local"]
+        kind = "frontier" if runner_classes.get(name) == "frontier" else "local"
+        tags = [kind]
         tags.extend(tag for tag in ("code",) if tag in backend_tags or True)
         machines.append(Machine(
             name=name,
-            kind="local",
-            token_cost_weight=0.0,
+            kind=kind,
+            token_cost_weight=1.0 if kind == "frontier" else 0.0,
             tags=sorted(set(tags)),
             available=(expect == "up"),
         ))
 
-    if not machines:
+    if not any(m.kind == "local" for m in machines):
         # Inventory present but named no known local builders — fall back so the
         # scheduler always has a local option.
-        machines = [Machine(**spec) for spec in _DEFAULT_MACHINES if spec["kind"] == "local"]
+        machines += [Machine(**spec) for spec in _DEFAULT_MACHINES if spec["kind"] == "local"]
 
     # Always offer one frontier builder (metered tokens; high weight).
     machines.append(Machine(

@@ -195,6 +195,18 @@ class LoadMachinesTests(TestCase):
         frontier = next(m for m in machines if m.kind == "frontier")
         self.assertGreater(frontier.token_cost_weight, 0)
 
+    def test_real_inventory_kinds_cc_builder_1_as_frontier(self) -> None:
+        # cc-builder-1 runs the metered claude/sonnet runner; the solver must
+        # charge for it, not treat it as a free local machine (the pre-fix pool
+        # hardcoded all three builders as kind="local").
+        machines = load_machines(str(REPO_ROOT / "fleet" / "inventory.toml"),
+                                 str(REPO_ROOT / "hearth" / "etc" / "backends.toml"))
+        by_name = {m.name: m for m in machines}
+        self.assertEqual(by_name["cc-builder-1"].kind, "frontier")
+        self.assertGreater(by_name["cc-builder-1"].token_cost_weight, 0)
+        self.assertEqual(by_name["cc-builder-2"].kind, "local")
+        self.assertEqual(by_name["am4-worker-1"].kind, "local")
+
 
 class DecisionRecordTests(TestCase):
     def test_decision_record_validates_against_schema(self) -> None:

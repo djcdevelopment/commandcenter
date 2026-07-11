@@ -185,7 +185,7 @@ scp claude@cc-conductor.mshome.net:~/work/commandcenter/runs/&lt;plan_id&gt;/res
   <div class="block"><span class="bt">How</span>
     <ol>
       <li>Read <a href="docs/adr/0008-scheduler-advisory-first.md">ADR-0008</a> first and quote its promotion condition verbatim in the report.</li>
-      <li>Run the replay via the HEARTH door tool <code>mcp__hearth__schedule_hindsight</code> (or directly via <code>hearth.scheduler.hindsight.replay</code> with records from the toolsurface provider). Record the exact invocation in the report so it's reproducible.</li>
+      <li><b>The trend data already exists:</b> since the U3 upgrade (2026-07-04), every 15-minute watchdog patrol tick ledgers a <code>schedule_hindsight</code> regret record. Query the HEARTH ledger for those events first — a week of ticks is the trend series. Supplement with a fresh replay via the door tool <code>mcp__hearth__schedule_hindsight</code> (or directly via <code>hearth.scheduler.hindsight.replay</code>). Record the exact invocation in the report so it's reproducible.</li>
       <li>Report: <code>n_runs</code>, aggregate regret, regret split across time windows (is the trend improving?), and one explicit verdict line: <code>GATE: sufficient | insufficient — &lt;one sentence why&gt;</code>.</li>
       <li>Commit as <code>docs/REGRET-TREND-2026-07.md</code>.</li>
     </ol>
@@ -246,12 +246,14 @@ scp claude@cc-conductor.mshome.net:~/work/commandcenter/runs/&lt;plan_id&gt;/res
 <h2>Changelog</h2>
 <div class="card">
   <ul>
+    <li><code>2026-07-11</code> — Amended same session: S5 notes the U3 patrol tick has been ledgering <code>schedule_hindsight</code> regret since 2026-07-04 (the trend series already exists); cross-linked <a href="JOB-SHOP-SCHEDULER-PLAN.html">JOB-SHOP-SCHEDULER-PLAN.html</a>.</li>
     <li><code>2026-07-11</code> — Doc created (Fable session, OMEN). Weighted matrix scored, sequence fixed as S1 → S3+S4 → S5 → H1 → S6, with S2 parallel and S7 opportunistic. All facts verified against repo state: 23/23 pours DONE unharvested (<code>campaign/status.py</code>), guard lists at <code>knowledge/</code>, next ADR = 0016.</li>
   </ul>
 </div>
 
 <div class="foot">
-  Companion docs: <a href="DECISIONS-PENDING.md">DECISIONS-PENDING.md</a> (register) ·
+  Companion docs: <a href="JOB-SHOP-SCHEDULER-PLAN.html">JOB-SHOP-SCHEDULER-PLAN.html</a> (the original JS1–JS7 slice plan — this doc supersedes its sequencing for the remaining work) ·
+  <a href="DECISIONS-PENDING.md">DECISIONS-PENDING.md</a> (register) ·
   <a href="docs/adr/0008-scheduler-advisory-first.md">ADR-0008 advisory-first</a> ·
   <a href="hearth/scheduler/hindsight.py">hindsight.py (JS4)</a> ·
   <a href="campaign/status.py">campaign/status.py (reap loop)</a>.

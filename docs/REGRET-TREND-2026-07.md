@@ -87,17 +87,33 @@ Verified: a second invocation during this session returned identical aggregates.
 
 ADR-0016 can be ratified as **GO** only after, in order:
 
-1. **Fix locality classification** in `hearth/scheduler/hindsight.py` — derive local-vs-metered
-   from the machine/runner registry instead of the stale hardcoded set (small diff, testable:
-   omen-worker-1 runs must charge 0, cc-builder-1 claude/sonnet runs must charge > 0).
-2. **Wire the accrual ADR-0008 designed:** a 15-minute pass that runs
-   `schedule_hindsight(limit=20)` and ledgers the regret summary (the `refresh=True` leg
-   already exists in `hearth/toolsurface/patrol.py`; no new tooling — it needs a caller).
+1. ✅ **DONE 2026-07-11 (`5245a31`) — locality classification fixed.** Locality now derives from
+   the machine/runner registry: `fleet/inventory.toml` stamps a structured `runner_class` on
+   every builder node (verified against each node's live `~/fleet-worker-node/runner.json`;
+   cc-builder-1 carries none → the worker defaults to the metered claude runner = frontier,
+   every other builder is an openai runner on a local backend = local),
+   `ontology.load_runner_classes()` reads it (corrected declared fallback when absent), and both
+   the solver pool's machine kinds and `hindsight._is_local_winner` consume it. Pinned by the
+   two named tests: an omen-worker-1 win charges 0; a cc-builder-1 claude-runner win charges > 0.
+   Re-run on this report's exact 50-run window: `actual.metered_tokens` 4,000 → 16,000
+   (8 cc-builder-1 wins × `DEFAULT_EST_TOKENS`), omen-worker-1's phantom charge gone — the
+   inversion this report predicted.
+2. ✅ **DONE 2026-07-11 (`3bcaae5`) — the accrual is wired.** The 15-minute watchdog pass (what
+   the ADR-0015 in-gateway `watchdog` timer runs) gained a fourth best-effort leg:
+   `schedule_hindsight(limit=20)`, ledgered as one `mechnet_watchdog.hindsight` event per pass.
+   The compact regret summary rides the event's **args** — deliberately, because ledger events
+   store result *digests* only, while `args_preview` keeps 400 chars of canonical JSON; the
+   summary is sized to always fit un-truncated, so the trend series is queryable
+   (`Ledger.query(tool="mechnet_watchdog.hindsight")` → `json.loads(event["args_preview"])`).
+   Failures ledger as ok=False — a visible hole in the series, not a silent gap. No timer-spec
+   change was needed: the timer spawns a fresh subprocess per tick, so the leg armed on the
+   first 15-min tick after landing.
 3. **Accrue ≥ 7 days of ledgered replays** including ≥ 1 frontier-mixed dispatch that carries a
-   real `tokens_out`, so token regret can be nonzero for a true reason.
+   real `tokens_out`, so token regret can be nonzero for a true reason. (Clock starts at the
+   first `mechnet_watchdog.hindsight` event after `3bcaae5` landed, 2026-07-11.)
 
-Until all three: **WAIT** is the self-evident H1 answer — recorded evidence, named condition,
-no judgment required.
+Until item 3 completes: **WAIT** remains the self-evident H1 answer — recorded evidence, named
+condition, no judgment required.
 
 ## Session receipts
 

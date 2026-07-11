@@ -287,3 +287,32 @@ class RankWithAcceptanceTests(TestCase):
         # the 85-point lap is excluded; the 70-point complete lap wins
         self.assertEqual(result["winner"], "cc-builder-1")
         self.assertEqual(result["rejected"][0]["worker"], "cc-builder-2")
+
+    # -----------------------------------------------------------------------
+    # Null-action shape (ADR-0001 regression)
+    # -----------------------------------------------------------------------
+
+    def test_null_action_lap_with_tied_score_is_rejected(self) -> None:
+        """A lap that changed nothing must not win, even on a score tie.
+
+        Live shape from the js5-actuation pour (bc96bebb, 2026-07-05): an
+        empty-diff lap scored 70/B — identical to a real lap, because the
+        baseline suite passes on an unchanged tree — and was crowned by the
+        order fallback.  Here the null lap is listed first, so a plain stable
+        sort would crown it; acceptance must reject it on missing deliverables.
+        """
+        board = [
+            _entry("cc-builder-1", 70),  # null-action: empty diff, baseline files only
+            _entry("cc-builder-2", 70),  # real lap: ships both deliverables
+        ]
+        files = {
+            "ccfarm/pour-c2/cc-builder-1/lap1": ["RETRO.md"],  # nothing required present
+            "ccfarm/pour-c2/cc-builder-2/lap1": _COMPLETE_FILES,
+        }
+        result = rank_with_acceptance(board, _REQUIRES_CORPUS, list_files_fn=_files_fn(files))
+        self.assertEqual(result["outcome"], "winner_selected")
+        self.assertEqual(result["winner"], "cc-builder-2")
+        self.assertEqual(result["rejected"][0]["worker"], "cc-builder-1")
+        self.assertTrue(result["rejected"][0]["acceptance_failed"])
+        self.assertEqual(sorted(result["rejected"][0]["missing_globs"]),
+                         sorted(_REQUIRES_CORPUS))

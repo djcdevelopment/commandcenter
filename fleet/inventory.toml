@@ -47,9 +47,10 @@ alt = ["100.124.12.37"]   # tailnet identity stays (i5/phone reach it from anoth
 via = "mshome"
 expect = "up"
 purpose = "Hyper-V hypervisor + Ollama backend (:11434) + HEARTH gateway (:8710). Hosts all builder VMs. THIS box."
-# `revive` (optional, per-check): a shell command the mechnet-watchdog runs when
-# this service is down on an expect="up" node. The gateway revive is the proven
-# doorcheck --revive (kill/revive round-trip verified 2026-07-04, 322ab7d).
+# `revive` (optional, per-check): a shell command the watchdog runs when this
+# service is down on an expect="up" node. Since ADR-0015 the watchdog is an
+# in-gateway daemon timer (the old mechnet-watchdog scheduled task is deregistered).
+# The gateway revive is the proven doorcheck --revive (verified 2026-07-04, 322ab7d).
 checks = [
   { service = "ollama", port = 11434, host = "omen.mshome.net" },
   { service = "hearth-gateway", port = 8710, host = "127.0.0.1", revive = "C:\\work\\commandcenter\\fleet-worker-node\\.venv-omen\\Scripts\\python.exe -m hearth.callers.doorcheck --revive" },
@@ -59,9 +60,8 @@ checks = [
 name = "cc-conductor"
 kind = "physical-host"
 address = "cc-conductor.mshome.net"
-alt = ["100.74.110.91", "cc-conductor.tail8e749c.ts.net"]   # tailnet identity now UNUSED by
-   # HEARTH/mechnet (ADR-0014); candidate for `tailscale logout` once Derek confirms nothing
-   # human-facing (e.g. dashboard :8080 from phone) still rides it.
+# tailnet identity REMOVED 2026-07-09 (post-ADR-0014 cleanup): node no longer appears in
+# `tailscale status` — the old alts 100.74.110.91 / cc-conductor.tail8e749c.ts.net are dead.
 via = "mshome"
 expect = "up"
 purpose = "Fleet orchestration engine: conductor daemon + api/dashboard (:8080)."
@@ -151,12 +151,12 @@ checks = [
 [[node]]
 name = "cc-builder-4"
 kind = "vm"
-address = "172.21.182.65"
-via = "nat-ip"
+address = "cc-builder-4.mshome.net"
+via = "mshome"
 host = "omen"
 expect = "optional"
 purpose = "OMEN-local Ollama MoE critic (mixtral 8x22b q2_K). exploratory-perspective only; excluded from default build pool."
-note = "NAT IP drifts on OMEN reboots (fleet_rediscover re-sweeps). Update address if a sweep re-homes it."
+note = "2026-07-09: address moved off the drift-prone NAT IP to sibling DNS (verified reachable). Found ON the tailnet (policy violation, 'Duplicate node key' badge, ts 1.98.8 = fresh install — likely a reachability workaround for the drifted NAT IP) -> removed from tailnet via admin console per VMs-never-join policy + ADR-0014. tailscaled may still run in-guest (claude has no passwordless sudo to disable it) but is inert once the node is deleted server-side."
 checks = [
   { service = "ssh", port = 22 },
 ]

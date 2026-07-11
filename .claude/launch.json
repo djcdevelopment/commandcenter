@@ -6,6 +6,12 @@
       "runtimeExecutable": "C:/work/commandcenter/fleet-worker-node/.venv-omen/Scripts/python.exe",
       "runtimeArgs": ["-m", "http.server", "8099"],
       "port": 8099
+    },
+    {
+      "name": "steppe-site",
+      "runtimeExecutable": "C:/work/commandcenter/fleet-worker-node/.venv-omen/Scripts/python.exe",
+      "runtimeArgs": ["-m", "http.server", "4291", "--directory", "C:/work/steppeintegrations-site/site"],
+      "port": 4291
     }
   ]
 }

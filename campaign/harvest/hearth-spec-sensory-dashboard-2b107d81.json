@@ -1,0 +1,130 @@
+{
+  "plan_id": "hearth-spec-sensory-dashboard-2b107d81",
+  "trace_id": "5d68e0db08e4c98d0e5bd694e605233f",
+  "routing": {
+    "error": "route-disabled-temporarily"
+  },
+  "builds": {
+    "cc-builder-2": {
+      "ok": false,
+      "branch": "ccfarm/hearth-spec-sensory-dashboard-2b107d81/cc-builder-2/lap1",
+      "push_ok": true,
+      "runner": "openai",
+      "runner_model": "vllama-planner",
+      "committed": false,
+      "pushed": true,
+      "commits_ahead": 0,
+      "empty_build": true,
+      "done_signal": true,
+      "agent_rc": 3,
+      "agent_timed_out": false,
+      "status": "empty",
+      "reason": "agent produced nothing"
+    },
+    "omen-worker-1": {
+      "ok": true,
+      "branch": "ccfarm/hearth-spec-sensory-dashboard-2b107d81/omen-worker-1/lap1",
+      "push_ok": true,
+      "runner": "openai",
+      "runner_model": "qwen3-coder:30b",
+      "committed": true,
+      "pushed": true,
+      "commits_ahead": 1,
+      "empty_build": false,
+      "done_signal": true,
+      "agent_rc": 0,
+      "agent_timed_out": false,
+      "status": "ok",
+      "reason": "ok"
+    }
+  },
+  "assay": {
+    "plan_id": "hearth-spec-sensory-dashboard-2b107d81",
+    "lap": 1,
+    "grader": "claudefarm1",
+    "winner": "cc-builder-2",
+    "scoreboard": [
+      {
+        "worker": "cc-builder-2",
+        "branch": "ccfarm/hearth-spec-sensory-dashboard-2b107d81/cc-builder-2/lap1",
+        "score": 70,
+        "grade": "B",
+        "risk_score": 0.3,
+        "assay_mode": "behavior",
+        "static_score": 100,
+        "behavior_score": 70,
+        "tests_found": 162,
+        "tests_passed": 162,
+        "tests_failed": 0,
+        "imports_ok": 0,
+        "imports_failed": 0,
+        "assay_summary": "pytest: 162/162 passed; imports: 0/0 ok; score=70; isolation=docker",
+        "file_count": 203,
+        "code_files": 174,
+        "has_retro": true,
+        "has_result": true,
+        "has_tests": true,
+        "retro_excerpt": "# Session Retro \u2014 2026-06-29 (context-download + adversarial-vetting session)\n\n> One-line: A cold-start onboarding \u2014 new agent on the new OMEN box \u2014 where Derek downloaded his full worldview/thesis/identity as the baseline before building, and we stress-tested it. Almost no code; this was about getting the *whole* held accurately before the first build rep. The real test of it all is **resumption** \u2014 whether the next session picks up without re-explaining.\n\n---\n\n## What this session was\n- **Cold"
+      },
+      {
+        "worker": "omen-worker-1",
+        "branch": "ccfarm/hearth-spec-sensory-dashboard-2b107d81/omen-worker-1/lap1",
+        "score": 70,
+        "grade": "B",
+        "risk_score": 0.3,
+        "assay_mode": "behavior",
+        "static_score": 100,
+        "behavior_score": 70,
+        "tests_found": 162,
+        "tests_passed": 162,
+        "tests_failed": 0,
+        "imports_ok": 0,
+        "imports_failed": 0,
+        "assay_summary": "pytest: 162/162 passed; imports: 0/0 ok; score=70; isolation=docker",
+        "file_count": 204,
+        "code_files": 175,
+        "has_retro": true,
+        "has_result": true,
+        "has_tests": true,
+        "retro_excerpt": "# Retro (hearth-spec-sensory-dashboard-2b107d81-omen-worker-1)\n\nBuilt by agent_openai on model qwen3-coder:30b (completion: max_steps, 24 steps, 157s).\n.claude/\n.git/\n.gitignore\nALIGNMENT-REVIEW-2026-06-29.md\nASSAY-ACCEPTANCE-GAP-2026-07-03.html\nBUILD-NOTES-A1.md\nBUILD-NOTES-A2.md\nBUILD-NOTES-B1.md\nBUILD-NOTES-B2.md\nBUILD-NOTES-C1.md\nCAPABILITY-ROADMAP.html\nCODEX-POUR-ORCHESTRATOR.md\nCONSTELLATION-BASELINE-2026-06-28.md\nCONSTELLATION-WAVE2-2026-06-28.md\nCONSTITUTIONAL-REVIEW-2026-07-02.html\nDECI"
+      }
+    ],
+    "tiebreak": {
+      "tied": [
+        "cc-builder-2",
+        "omen-worker-1"
+      ],
+      "method": "am4-critic-debiased",
+      "winner": null,
+      "why": null,
+      "critic_model": "vllama-critic",
+      "bias_detected": false,
+      "fallback": "order"
+    }
+  },
+  "winner": "cc-builder-2",
+  "questions": [],
+  "promotion": {
+    "promoted": false,
+    "mode": "up-to-date",
+    "target": "main",
+    "commit": "97d23883d7435f4138e2bc96a313b25fce419b08",
+    "notes": "target already contains winner",
+    "risk": {
+      "score": 55,
+      "level": "medium",
+      "factors": [
+        "empty diff vs target \u2014 winner changed nothing",
+        "builder cc-builder-2 recent fail rate 100%"
+      ],
+      "files_changed": 0,
+      "computed_at": "2026-07-05T10:17:24Z"
+    }
+  },
+  "target": {
+    "builders": [
+      "omen-worker-1",
+      "cc-builder-2"
+    ]
+  }
+}

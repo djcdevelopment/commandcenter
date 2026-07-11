@@ -232,8 +232,8 @@ scp claude@cc-conductor.mshome.net:~/work/commandcenter/runs/&lt;plan_id&gt;/res
   <div class="label">Update this table + the changelog on every state change, then commit to master</div>
   <table>
     <tr><th>Step</th><th>Status</th><th>Evidence / receipt</th><th>Last update · by</th></tr>
-    <tr><td>S1 Harvest</td><td><span class="pill todo">TODO</span></td><td>—</td><td>2026-07-11 · doc created</td></tr>
-    <tr><td>S2 Guard tests</td><td><span class="pill todo">TODO</span></td><td>—</td><td>2026-07-11 · doc created</td></tr>
+    <tr><td>S1 Harvest</td><td><span class="pill done">DONE</span></td><td><code>campaign/harvest/</code> — 23/23 files, all parse clean (single tar-over-ssh pull)</td><td>2026-07-11 · Fable session cdcabbd4</td></tr>
+    <tr><td>S2 Guard tests</td><td><span class="pill todo">IN-PROGRESS</span></td><td>Sonnet subagent, isolated worktree; lands after Fable review</td><td>2026-07-11 · Fable session cdcabbd4</td></tr>
     <tr><td>S3 JS5 land</td><td><span class="pill todo">TODO</span></td><td>—</td><td>2026-07-11 · doc created</td></tr>
     <tr><td>S4 Assay-acceptance land</td><td><span class="pill todo">TODO</span></td><td>—</td><td>2026-07-11 · doc created</td></tr>
     <tr><td>S5 Regret readout</td><td><span class="pill todo">TODO</span></td><td>—</td><td>2026-07-11 · doc created</td></tr>
@@ -246,6 +246,7 @@ scp claude@cc-conductor.mshome.net:~/work/commandcenter/runs/&lt;plan_id&gt;/res
 <h2>Changelog</h2>
 <div class="card">
   <ul>
+    <li><code>2026-07-11</code> — Sortie GO ratified by Derek (as proposed). S1 DONE: 23/23 results harvested to <code>campaign/harvest/</code>, acceptance green. S2 dispatched to a Sonnet subagent (worktree-isolated). Pre-flight: mechnet 10-up, HEARTH door HEALTHY.</li>
     <li><code>2026-07-11</code> — Amended same session: S5 notes the U3 patrol tick has been ledgering <code>schedule_hindsight</code> regret since 2026-07-04 (the trend series already exists); cross-linked <a href="JOB-SHOP-SCHEDULER-PLAN.html">JOB-SHOP-SCHEDULER-PLAN.html</a>.</li>
     <li><code>2026-07-11</code> — Doc created (Fable session, OMEN). Weighted matrix scored, sequence fixed as S1 → S3+S4 → S5 → H1 → S6, with S2 parallel and S7 opportunistic. All facts verified against repo state: 23/23 pours DONE unharvested (<code>campaign/status.py</code>), guard lists at <code>knowledge/</code>, next ADR = 0016.</li>
   </ul>

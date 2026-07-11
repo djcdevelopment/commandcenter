@@ -1,0 +1,106 @@
+{
+  "plan_id": "hearth-spec-belief-recency-decay-11e434ec",
+  "trace_id": "5dcfc31c7f615d659b1ef865a0286f5b",
+  "routing": {
+    "error": "route-disabled-temporarily"
+  },
+  "builds": {
+    "am4-worker-1": {
+      "ok": false,
+      "branch": "ccfarm/hearth-spec-belief-recency-decay-11e434ec/am4-worker-1/lap1",
+      "push_ok": true,
+      "runner": "openai",
+      "runner_model": "vllama-planner",
+      "committed": false,
+      "pushed": true,
+      "commits_ahead": 0,
+      "empty_build": true,
+      "done_signal": true,
+      "agent_rc": 3,
+      "agent_timed_out": false,
+      "status": "empty",
+      "reason": "agent produced nothing"
+    },
+    "omen-worker-1": {
+      "ok": true,
+      "branch": "ccfarm/hearth-spec-belief-recency-decay-11e434ec/omen-worker-1/lap1",
+      "push_ok": true,
+      "runner": "openai",
+      "runner_model": "qwen3-coder:30b",
+      "committed": true,
+      "pushed": true,
+      "commits_ahead": 1,
+      "empty_build": false,
+      "done_signal": true,
+      "agent_rc": 0,
+      "agent_timed_out": false,
+      "status": "ok",
+      "reason": "ok"
+    }
+  },
+  "assay": {
+    "plan_id": "hearth-spec-belief-recency-decay-11e434ec",
+    "lap": 1,
+    "grader": "claudefarm1",
+    "winner": "omen-worker-1",
+    "scoreboard": [
+      {
+        "worker": "omen-worker-1",
+        "branch": "ccfarm/hearth-spec-belief-recency-decay-11e434ec/omen-worker-1/lap1",
+        "score": 100,
+        "grade": "A",
+        "risk_score": 0.0,
+        "assay_mode": "behavior",
+        "static_score": 100,
+        "behavior_score": 100,
+        "tests_found": 166,
+        "tests_passed": 166,
+        "tests_failed": 0,
+        "imports_ok": 1,
+        "imports_failed": 0,
+        "assay_summary": "pytest: 166/166 passed; imports: 1/1 ok; score=100; isolation=docker",
+        "file_count": 207,
+        "code_files": 178,
+        "has_retro": true,
+        "has_result": true,
+        "has_tests": true,
+        "retro_excerpt": "# Retro (hearth-spec-belief-recency-decay-11e434ec-omen-worker-1)\n\nBuilt by agent_openai on model qwen3-coder:30b (completion: max_steps, 24 steps, 165s).\nexit=0\nInvalid belief rejected: {'belief': ''}\nInvalid belief rejected: {'invalid_key': 'test'}\n....\n----------------------------------------------------------------------\nRan 4 tests in 0.004s\n\nOK\n\n\n<!-- agent_openai completion: reason=max_steps steps=24 elapsed_s=164.5 model=qwen3-coder:30b -->\n"
+      },
+      {
+        "worker": "am4-worker-1",
+        "branch": "ccfarm/hearth-spec-belief-recency-decay-11e434ec/am4-worker-1/lap1",
+        "score": 70,
+        "grade": "B",
+        "risk_score": 0.3,
+        "assay_mode": "behavior",
+        "static_score": 100,
+        "behavior_score": 70,
+        "tests_found": 162,
+        "tests_passed": 162,
+        "tests_failed": 0,
+        "imports_ok": 0,
+        "imports_failed": 0,
+        "assay_summary": "pytest: 162/162 passed; imports: 0/0 ok; score=70; isolation=docker",
+        "file_count": 203,
+        "code_files": 174,
+        "has_retro": true,
+        "has_result": true,
+        "has_tests": true,
+        "retro_excerpt": "# Session Retro \u2014 2026-06-29 (context-download + adversarial-vetting session)\n\n> One-line: A cold-start onboarding \u2014 new agent on the new OMEN box \u2014 where Derek downloaded his full worldview/thesis/identity as the baseline before building, and we stress-tested it. Almost no code; this was about getting the *whole* held accurately before the first build rep. The real test of it all is **resumption** \u2014 whether the next session picks up without re-explaining.\n\n---\n\n## What this session was\n- **Cold"
+      }
+    ]
+  },
+  "winner": "omen-worker-1",
+  "questions": [],
+  "promotion": {
+    "promoted": false,
+    "error": "refused: main (97d23883d7435f4138e2bc96a313b25fce419b08) and ccfarm/hearth-spec-belief-recency-decay-11e434ec/omen-worker-1/lap1 (c51565dd29a5309ca018f6d215aaede9937639fd) have diverged; ff-only canno",
+    "winner_branch": "ccfarm/hearth-spec-belief-recency-decay-11e434ec/omen-worker-1/lap1"
+  },
+  "target": {
+    "builders": [
+      "omen-worker-1",
+      "am4-worker-1"
+    ]
+  }
+}

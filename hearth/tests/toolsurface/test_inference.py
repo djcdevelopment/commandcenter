@@ -187,11 +187,13 @@ class GeminiRoutingTests(TestCase):
             "GOOGLE_CLOUD_PROJECT": "trial-project",
             "GOOGLE_CLOUD_LOCATION": "global",
         }, clear=True):
-            with patch("subprocess.run", return_value=auth) as auth_mock:
-                with patch("urllib.request.urlopen",
-                           return_value=_FakeResponse(GEMINI_REPLY)) as mocked:
-                    result = local_generate("spend this carefully", backend="gcp-gemini",
-                                            system="be exact", max_tokens=128)
+            with patch("hearth.toolsurface.inference._gcloud_executable",
+                       return_value="gcloud"):
+                with patch("subprocess.run", return_value=auth) as auth_mock:
+                    with patch("urllib.request.urlopen",
+                               return_value=_FakeResponse(GEMINI_REPLY)) as mocked:
+                        result = local_generate("spend this carefully", backend="gcp-gemini",
+                                                system="be exact", max_tokens=128)
 
         self.assertTrue(result["ok"])
         self.assertEqual(result["text"], "cloud answer")

@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import time
 import urllib.error
@@ -53,6 +54,12 @@ class _Target(NamedTuple):
     settings: dict            # backend-specific provider settings
 
 
+def _gcloud_executable() -> str:
+    # Windows ships gcloud as gcloud.cmd; CreateProcess resolves bare names
+    # without PATHEXT, so subprocess needs the shutil.which-resolved path.
+    return shutil.which("gcloud") or "gcloud"
+
+
 def _google_access_token(auth_env: Optional[str]) -> tuple[Optional[str], Optional[str]]:
     """Return a Google OAuth access token from env or local ADC via gcloud."""
     if auth_env:
@@ -61,7 +68,7 @@ def _google_access_token(auth_env: Optional[str]) -> tuple[Optional[str], Option
             return value.strip(), None
     try:
         proc = subprocess.run(
-            ["gcloud", "auth", "print-access-token"],
+            [_gcloud_executable(), "auth", "print-access-token"],
             capture_output=True,
             text=True,
             timeout=15,

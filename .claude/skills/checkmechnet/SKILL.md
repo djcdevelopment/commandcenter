@@ -1,14 +1,15 @@
 ---
 name: checkmechnet
-description: Health-sweep the whole mechnet — every physical host, builder VM, logical builder, and the HEARTH door. Use for "fleet status", "is <node> reachable", "check the mechnet", or before dispatching fleet work.
+description: Health-sweep the whole mechnet — every physical host, builder VM, logical builder, cloud backend, and the HEARTH door. Use for "fleet status", "is <node> reachable", "check the mechnet", or before dispatching fleet work.
 ---
 
 # checkmechnet — sweep the mechnet
 
-The mechnet = the ecosystem of distributed builders and VMs: physical hosts
-(omen, cc-conductor, am4, i5-laptop), OMEN Hyper-V VMs (claudefarm1,
-cc-builder-1..4), and logical builders (omen-worker-1, am4-worker-1).
-Canonical node map: [fleet/inventory.toml](../../fleet/inventory.toml).
+The mechnet = the ecosystem of distributed builders, VMs, and cloud backends:
+physical hosts (omen, cc-conductor, am4, i5-laptop), OMEN Hyper-V VMs
+(claudefarm1, cc-builder-1..4), logical builders (omen-worker-1,
+am4-worker-1), and cloud backends (gcp-gemini — Vertex overflow lane on GCP
+trial credits). Canonical node map: [fleet/inventory.toml](../../fleet/inventory.toml).
 
 Run both, from the repo root (`C:\work\commandcenter`):
 
@@ -35,6 +36,20 @@ Run both, from the repo root (`C:\work\commandcenter`):
 - **cc-conductor down** — the dashboard/API on :8080 and ssh on :22 are
   separate checks; one down without the other points at the service, not the
   network.
+- **vertex-egress down** — a DNS/egress problem on OMEN reaching
+  aiplatform.googleapis.com, NOT an auth failure; auth/quota truth lives in
+  /checkmcp's backends layer (doorcheck reads hearth/etc/backends.toml). The
+  node is `expect="optional"`, so it never fails the sweep — treat a down as a
+  network diagnostic, not an incident.
+
+## Routing economics (where to send work)
+
+| tier | cost | send it |
+|---|---|---|
+| qwen3-coder:30b on OMEN | sunk | drafts, summaries, commit messages, triage |
+| gcp-gemini (Vertex) | GCP trial credits — near-free while they last | infra tests, integration proofs, self-contained builds; pin `backend="gcp-gemini"` |
+| Sonnet agents | metered | multi-file builds against a written brief |
+| Fable | scarce | briefs, review, judgment — never grunt work |
 
 ## Reporting
 

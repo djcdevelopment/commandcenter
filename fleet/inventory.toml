@@ -206,3 +206,19 @@ checks = [
   { service = "ssh", port = 22, host = "claudefarm1.mshome.net" },
   { service = "ollama", port = 11434, host = "omen.mshome.net" },
 ]
+
+# --- Cloud backends (no machine of our own; check host = the API endpoint) --
+# First cloud-backend node on the mechnet (2026-07-12). Not a machine we own --
+# no address/ssh, just an inference endpoint. The TCP check proves egress/DNS
+# reachability from OMEN only; auth and quota are doorcheck's job (/checkmcp
+# reads hearth/etc/backends.toml's gcp-gemini entry for the deep check).
+
+[[node]]
+name = "gcp-gemini"
+kind = "cloud-backend"
+via  = "internet"
+expect = "optional"
+model_backend = "gemini-3.5-flash"
+purpose = "Vertex AI overflow lane (GCP trial credits) — backends.toml gcp-gemini"
+note = "TCP probe = egress/DNS only; auth+quota truth lives in /checkmcp's backends layer (doorcheck)"
+checks = [{ service = "vertex-egress", host = "aiplatform.googleapis.com", port = 443 }]

@@ -57,7 +57,19 @@ class _Target(NamedTuple):
 def _gcloud_executable() -> str:
     # Windows ships gcloud as gcloud.cmd; CreateProcess resolves bare names
     # without PATHEXT, so subprocess needs the shutil.which-resolved path.
-    return shutil.which("gcloud") or "gcloud"
+    # Callers like doorcheck run in shells whose PATH lacks the Cloud SDK
+    # (only gateway.cmd appends it), so fall back to the default install dirs.
+    found = shutil.which("gcloud")
+    if found:
+        return found
+    for base in (os.environ.get("LOCALAPPDATA"), os.environ.get("ProgramFiles")):
+        if not base:
+            continue
+        candidate = os.path.join(base, "Google", "Cloud SDK",
+                                 "google-cloud-sdk", "bin", "gcloud.cmd")
+        if os.path.isfile(candidate):
+            return candidate
+    return "gcloud"
 
 
 def _google_access_token(auth_env: Optional[str]) -> tuple[Optional[str], Optional[str]]:

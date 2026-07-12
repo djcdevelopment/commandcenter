@@ -3,9 +3,31 @@ from __future__ import annotations
 import inspect
 from unittest import TestCase
 
-from hearth.toolsurface import am4, fs, git, inference, knowledge, scheduler, summon, task_lane, testing
+from hearth.toolsurface import (
+    am4,
+    build_requests,
+    fs,
+    git,
+    inference,
+    knowledge,
+    scheduler,
+    summon,
+    task_lane,
+    testing,
+)
 
-PROVIDERS = (fs, git, testing, knowledge, summon, inference, task_lane, scheduler, am4)
+PROVIDERS = (
+    fs,
+    git,
+    testing,
+    knowledge,
+    summon,
+    inference,
+    task_lane,
+    scheduler,
+    am4,
+    build_requests,
+)
 
 
 class ProviderContractTests(TestCase):

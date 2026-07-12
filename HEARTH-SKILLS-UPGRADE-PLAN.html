@@ -45,8 +45,26 @@
 <h1>HEARTH Skills Upgrade Plan</h1>
 <div class="sub">
   Build-request lane + gcp-gemini activation &rarr; <code>/checkmcp</code> v2, <code>/checkmechnet</code> v2, memory refresh.<br>
-  2026-07-12 &nbsp;·&nbsp; <span class="tag draft">DRAFT-READY — execution on Derek's cue</span>
-  <span class="tag gap">ACTIVATION GAP FOUND: door serving 35/41 tools</span>
+  2026-07-12 &nbsp;·&nbsp; <span class="tag draft" style="background:#14321c;color:#4cba6b;border-color:#1e5a2e;">EXECUTED 2026-07-12 — all phases complete</span>
+</div>
+
+<div class="callout ok">
+  <b class="good">Execution log (2026-07-12, same day).</b>
+  <b>Phase 0</b> ✅ door bounced to <b>41/41 tools</b>; durable start already existed as <code>HearthGatewayBoot</code>
+  (boot trigger, S4U, RL HIGHEST) — D5 superseded; new on-demand <code>HearthGatewayRestart</code> task registered
+  (RL HIGHEST) so any medium-integrity caller bounces the door UAC-free; GCP env wired
+  (<code>gateway.cmd</code>: project + Cloud SDK PATH; user-scope <code>GOOGLE_CLOUD_PROJECT</code>);
+  live Vertex generate through the door: <code>pinned:gcp-gemini</code>, 1.5s.
+  Two real bugs found+fixed en route: gcloud unresolvable from Python on Windows
+  (<code>e49186e</code> shutil.which; <code>06bf3ab</code> install-dir fallback).
+  <b>Phase 1</b> ✅ <code>01e8bc1</code> (Sonnet-built): doorcheck v2 — toolsurface manifest 41/41, backends layer,
+  <code>--restart</code> (proven live, <code>saw_down=True</code>), <code>--probe-cloud</code>
+  (<code>auth ok (adc); probe ok tokens_out=4 938ms</code>), build-reqs ledger line; 437 tests pass.
+  <b>Phase 2</b> ✅ <code>5bae830</code> (Sonnet-built): gcp-gemini cloud-backend node live in inventory
+  (vertex-egress up 66ms), <b>zero</b> fleet_ping code change; checkmechnet SKILL.md v2.
+  <b>Phase 3</b> ✅ CLAUDE.md backend rungs + build-request lane; memory updated.
+  <b>Phase 4</b> ✅ dogfood receipt <code>br-20260712-082117-8c657e69</code> closed <b>done</b> through the
+  evidence gate (3/3 criteria passed). Decisions: D2/D3/D4 as recommended; D1 executed at rest; D5 superseded per above.
 </div>
 
 <h2>0 · Situation (verified during recon, 2026-07-12)</h2>

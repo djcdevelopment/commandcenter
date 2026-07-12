@@ -22,6 +22,19 @@ has a task lane: `submit_task` dispatches to the fleet via the conductor's inbox
 fleet workers do have read-only source at `~/commandcenter-src`, so a git range
 they can inspect themselves is fair game.
 
+**Backend rungs** (hearth/etc/backends.toml; pass `backend="name"` to pin):
+`omen-ollama` qwen (sunk — the default), `am4-oxen` (banked fire, big context),
+`gcp-gemini` (Vertex `gemini-3.5-flash` on **GCP trial credits** — near-free
+frontier-class while they last: prefer it over spending metered Sonnet/frontier
+tokens for self-contained reasoning, drafting, and integration proofs).
+
+For **auditable infra builds** (checkable acceptance criteria, receipt wanted),
+use the door's **build-request lane**: `create/get/list/update/execute/
+close_build_request`; receipts + ledger at
+`C:\work\comfy\fieldlab\runs\build-requests`. `close(status="done")` is rejected
+unless every criterion has a `passed` row with evidence — write criteria you can
+prove. See hearth/BUILD-REQUESTS.md.
+
 **Rules:**
 - The local model has **no repo access** — pass every bit of context it needs in
   the prompt. It cannot read files, run tools, or see this conversation.

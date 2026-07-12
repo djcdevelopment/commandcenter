@@ -71,3 +71,29 @@ auth_env = "GOOGLE_OAUTH_ACCESS_TOKEN"
 [backend.settings]
 project_env  = "GOOGLE_CLOUD_PROJECT"
 location_env = "GOOGLE_CLOUD_LOCATION"       # defaults to "global" when unset
+
+[[backend]]
+name     = "gcp-gemini-pro"                   # premium sibling of gcp-gemini: same
+                                              # Vertex endpoint/auth, bigger model.
+                                              # Explicitly pin it — it is NOT tagged
+                                              # for opportunistic routing, so the near-
+                                              # free flash rung stays the trial-credit
+                                              # default and pro is a deliberate reach.
+endpoint = "https://aiplatform.googleapis.com"
+api      = "gemini"                          # /v1/projects/.../models/{model}:generateContent
+models   = ["gemini-3.1-pro-preview"]        # Gemini 3.1 Pro Preview — 1M-token context,
+                                              # frontier agentic/coding, THINKING model.
+                                              # NB: it spends the token budget on hidden
+                                              # reasoning first, so give max_tokens real
+                                              # headroom (>=256) or `text` comes back empty
+                                              # even though ok:true. Verified live via the
+                                              # build-request lane 2026-07-12.
+tags     = ["gemini-pro"]                    # unique tag only; deliberately NOT "frontier"/
+                                              # "cloud-overflow" so tag-routing keeps landing
+                                              # on the cheap flash rung. Pin by name to use.
+# Auth uses `gcloud auth print-access-token` by default, unless this env var is
+# set in the gateway process (same convention as gcp-gemini).
+auth_env = "GOOGLE_OAUTH_ACCESS_TOKEN"
+[backend.settings]
+project_env  = "GOOGLE_CLOUD_PROJECT"
+location_env = "GOOGLE_CLOUD_LOCATION"       # defaults to "global" when unset

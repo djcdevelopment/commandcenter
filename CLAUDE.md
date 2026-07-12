@@ -26,7 +26,12 @@ they can inspect themselves is fair game.
 `omen-ollama` qwen (sunk — the default), `am4-oxen` (banked fire, big context),
 `gcp-gemini` (Vertex `gemini-3.5-flash` on **GCP trial credits** — near-free
 frontier-class while they last: prefer it over spending metered Sonnet/frontier
-tokens for self-contained reasoning, drafting, and integration proofs).
+tokens for self-contained reasoning, drafting, and integration proofs),
+`gcp-gemini-pro` (Vertex `gemini-3.1-pro-preview`, same trial credits — the
+premium reach: 1M-token context + frontier agentic/coding for the hard,
+large-context sub-tasks flash can't carry. It is a **thinking** model, so give
+`max_tokens` real headroom (>=256) or `text` returns empty. Pin it by name; it
+is deliberately untagged so opportunistic routing stays on the cheaper flash rung).
 
 For **auditable infra builds** (checkable acceptance criteria, receipt wanted),
 use the door's **build-request lane**: `create/get/list/update/execute/

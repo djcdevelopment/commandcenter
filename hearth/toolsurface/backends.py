@@ -48,7 +48,7 @@ _FALLBACK_BACKENDS = [
     }
 ]
 
-_VALID_APIS = ("ollama", "openai")
+_VALID_APIS = ("ollama", "openai", "gemini")
 
 
 class BackendConfigError(ValueError):
@@ -66,6 +66,7 @@ class Backend:
     auth_env: Optional[str] = None
     revive: Optional[str] = None
     occupancy: dict = field(default_factory=dict)
+    settings: dict = field(default_factory=dict)
 
     def token(self) -> Optional[str]:
         """The bearer token for this backend from its ``auth_env`` var, or None.
@@ -128,6 +129,7 @@ def _coerce_backend(raw: dict) -> Backend:
         auth_env=raw.get("auth_env"),
         revive=raw.get("revive"),
         occupancy=dict(raw.get("occupancy") or {}),
+        settings=dict(raw.get("settings") or {}),
     )
 
 

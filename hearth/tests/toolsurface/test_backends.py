@@ -31,6 +31,15 @@ _POOL_TOML = textwrap.dedent("""
     models = ["qwen3-30b"]
     tags = ["research", "big-context"]
     occupancy = { conductor_worker = "am4-worker-1" }
+
+    [[backend]]
+    name = "gcp-gemini"
+    endpoint = "https://aiplatform.googleapis.com"
+    api = "gemini"
+    auth_env = "GOOGLE_OAUTH_ACCESS_TOKEN"
+    models = ["gemini-3.5-flash"]
+    tags = ["frontier", "cloud-overflow"]
+    settings = { project_env = "GOOGLE_CLOUD_PROJECT", location_env = "GOOGLE_CLOUD_LOCATION" }
 """)
 
 
@@ -47,12 +56,16 @@ class LoadPoolTests(TestCase):
     def test_loads_declared_backends(self) -> None:
         pool = load_pool(_write_pool(self.tmp))
         self.assertEqual(pool.default, "omen-ollama")
-        self.assertEqual(len(pool.backends), 2)
+        self.assertEqual(len(pool.backends), 3)
         oxen = pool.by_name("am4-oxen")
         self.assertEqual(oxen.api, "openai")
         self.assertEqual(oxen.auth_env, "AM4_OXEN_TOKEN")
         self.assertEqual(oxen.models, ("qwen3-30b",))
         self.assertEqual(oxen.occupancy, {"conductor_worker": "am4-worker-1"})
+        gemini = pool.by_name("gcp-gemini")
+        self.assertEqual(gemini.api, "gemini")
+        self.assertEqual(gemini.auth_env, "GOOGLE_OAUTH_ACCESS_TOKEN")
+        self.assertEqual(gemini.settings["project_env"], "GOOGLE_CLOUD_PROJECT")
 
     def test_missing_file_falls_back_to_omen_ollama(self) -> None:
         pool = load_pool(self.tmp / "does-not-exist.toml")
@@ -63,7 +76,7 @@ class LoadPoolTests(TestCase):
         declared = _write_pool(self.tmp)
         with patch.dict(os.environ, {"HEARTH_BACKENDS": str(declared)}):
             pool = load_pool()  # no arg -> env wins
-        self.assertEqual(len(pool.backends), 2)
+        self.assertEqual(len(pool.backends), 3)
 
     def test_by_endpoint_is_trailing_slash_insensitive(self) -> None:
         pool = load_pool(_write_pool(self.tmp))
@@ -140,6 +153,11 @@ class SelectBackendTests(TestCase):
         self.assertEqual(chosen.name, "am4-oxen")
         self.assertEqual(reason, "tag:big-context")
 
+    def test_frontier_tag_routes_to_gemini(self) -> None:
+        chosen, reason, occ = select_backend(self.pool, task="cloud-overflow")
+        self.assertEqual(chosen.name, "gcp-gemini")
+        self.assertEqual(reason, "tag:cloud-overflow")
+
 
 class OccupancySkipTests(TestCase):
     """P2: a tag-routed candidate that is busy (or unknown) is skipped."""
@@ -189,7 +207,7 @@ class OccupancySkipTests(TestCase):
 
 
 class PackagedPoolTests(TestCase):
-    """The real hearth/etc/backends.toml must parse and declare the two backends."""
+    """The real hearth/etc/backends.toml must parse and declare the packaged backends."""
 
     def test_packaged_pool_is_valid(self) -> None:
         pool = load_pool()  # no env, no arg -> packaged default
@@ -197,4 +215,6 @@ class PackagedPoolTests(TestCase):
         names = {b.name for b in pool.backends}
         self.assertIn("omen-ollama", names)
         self.assertIn("am4-oxen", names)
+        self.assertIn("gcp-gemini", names)
         self.assertEqual(pool.by_name("am4-oxen").api, "openai")
+        self.assertEqual(pool.by_name("gcp-gemini").api, "gemini")

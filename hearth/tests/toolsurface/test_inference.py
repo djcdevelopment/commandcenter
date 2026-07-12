@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import urllib.error
 from unittest import TestCase
 from unittest.mock import patch
@@ -113,6 +114,13 @@ OPENAI_REPLY = {
     "usage": {"prompt_tokens": 20, "completion_tokens": 40},
 }
 
+GEMINI_REPLY = {
+    "candidates": [
+        {"content": {"parts": [{"text": "cloud "}, {"text": "answer"}]}}
+    ],
+    "usageMetadata": {"promptTokenCount": 30, "candidatesTokenCount": 50},
+}
+
 
 class BankedFireRoutingTests(TestCase):
     """P1: task/backend routing to the OpenAI-shaped oxen backend."""
@@ -164,6 +172,87 @@ class BankedFireRoutingTests(TestCase):
         result = local_generate("q", backend="ghost")
         self.assertFalse(result["ok"])
         self.assertIn("routing failed", result["error"])
+
+
+class GeminiRoutingTests(TestCase):
+    """GCP Gemini provider calls native generateContent with ADC-derived auth."""
+
+    def setUp(self) -> None:
+        self.enterContext(_ALWAYS_AVAILABLE)
+
+    def test_pinned_gemini_backend_uses_generate_content(self) -> None:
+        auth = subprocess.CompletedProcess(
+            args=["gcloud"], returncode=0, stdout="ya29.token\n", stderr="")
+        with patch.dict(os.environ, {
+            "GOOGLE_CLOUD_PROJECT": "trial-project",
+            "GOOGLE_CLOUD_LOCATION": "global",
+        }, clear=True):
+            with patch("subprocess.run", return_value=auth) as auth_mock:
+                with patch("urllib.request.urlopen",
+                           return_value=_FakeResponse(GEMINI_REPLY)) as mocked:
+                    result = local_generate("spend this carefully", backend="gcp-gemini",
+                                            system="be exact", max_tokens=128)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["text"], "cloud answer")
+        self.assertEqual(result["backend"], "gcp-gemini")
+        self.assertEqual(result["model"], "gemini-3.5-flash")
+        self.assertEqual(result["tokens_in"], 30)
+        self.assertEqual(result["tokens_out"], 50)
+        auth_mock.assert_called_once_with(
+            ["gcloud", "auth", "print-access-token"],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+
+        sent = mocked.call_args[0][0]
+        self.assertEqual(
+            sent.full_url,
+            "https://aiplatform.googleapis.com/v1/projects/trial-project/locations/global/"
+            "publishers/google/models/gemini-3.5-flash:generateContent",
+        )
+        self.assertEqual(sent.headers.get("Authorization"), "Bearer ya29.token")
+        body = json.loads(sent.data.decode("utf-8"))
+        self.assertEqual(body["contents"][0]["parts"][0]["text"], "spend this carefully")
+        self.assertEqual(body["systemInstruction"]["parts"][0]["text"], "be exact")
+        self.assertEqual(body["generationConfig"]["maxOutputTokens"], 128)
+
+    def test_gemini_can_use_auth_env_without_gcloud(self) -> None:
+        with patch.dict(os.environ, {
+            "GOOGLE_CLOUD_PROJECT": "trial-project",
+            "GOOGLE_OAUTH_ACCESS_TOKEN": "env-token",
+        }, clear=True):
+            with patch("subprocess.run") as auth_mock:
+                with patch("urllib.request.urlopen",
+                           return_value=_FakeResponse(GEMINI_REPLY)) as mocked:
+                    result = local_generate("q", backend="gcp-gemini")
+        self.assertTrue(result["ok"])
+        auth_mock.assert_not_called()
+        self.assertEqual(mocked.call_args[0][0].headers.get("Authorization"),
+                         "Bearer env-token")
+
+    def test_gemini_missing_project_is_clean_error(self) -> None:
+        auth = subprocess.CompletedProcess(
+            args=["gcloud"], returncode=0, stdout="ya29.token\n", stderr="")
+        with patch.dict(os.environ, {}, clear=True):
+            with patch("subprocess.run", return_value=auth):
+                with patch("urllib.request.urlopen") as mocked:
+                    result = local_generate("q", backend="gcp-gemini")
+        self.assertFalse(result["ok"])
+        self.assertIn("GOOGLE_CLOUD_PROJECT", result["error"])
+        mocked.assert_not_called()
+
+    def test_gemini_auth_failure_is_clean_error(self) -> None:
+        auth = subprocess.CompletedProcess(
+            args=["gcloud"], returncode=1, stdout="", stderr="not logged in")
+        with patch.dict(os.environ, {"GOOGLE_CLOUD_PROJECT": "trial-project"}, clear=True):
+            with patch("subprocess.run", return_value=auth):
+                with patch("urllib.request.urlopen") as mocked:
+                    result = local_generate("q", backend="gcp-gemini")
+        self.assertFalse(result["ok"])
+        self.assertIn("gcloud auth print-access-token failed", result["error"])
+        mocked.assert_not_called()
 
 
 class OccupancyRoutingTests(TestCase):

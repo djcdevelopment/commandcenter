@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HEARTH Skills Upgrade Plan — build-request lane + gcp-gemini</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel2: #1d2129; --line: #2a2f3a;
+    --fg: #d7dae0; --dim: #8b93a1; --accent: #e8a33d; --good: #4cba6b;
+    --warn: #e0b341; --bad: #e05d5d; --link: #6ea8d8; --mono: Consolas, "Cascadia Mono", monospace;
+  }
+  body { background: var(--bg); color: var(--fg); font: 15px/1.55 "Segoe UI", system-ui, sans-serif; margin: 0; padding: 2rem 1rem 4rem; }
+  main { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 1.6rem; margin: 0 0 .2rem; color: #fff; }
+  h2 { font-size: 1.15rem; margin: 2.2rem 0 .6rem; color: var(--accent); border-bottom: 1px solid var(--line); padding-bottom: .3rem; }
+  h3 { font-size: 1rem; margin: 1.2rem 0 .4rem; color: #fff; }
+  .sub { color: var(--dim); margin-bottom: 1.4rem; }
+  .tag { display: inline-block; font: 600 .72rem/1 var(--mono); padding: .25rem .5rem; border-radius: 4px; margin-right: .4rem; vertical-align: middle; }
+  .tag.draft { background: #3a2f14; color: var(--warn); border: 1px solid #5a4a1e; }
+  .tag.gap { background: #3a1a1a; color: var(--bad); border: 1px solid #5a2a2a; }
+  .tag.owner { background: #16283a; color: var(--link); border: 1px solid #24405c; }
+  .callout { background: var(--panel); border-left: 3px solid var(--bad); padding: .8rem 1rem; margin: 1rem 0; border-radius: 0 6px 6px 0; }
+  .callout.ok { border-left-color: var(--good); }
+  .callout.note { border-left-color: var(--warn); }
+  table { border-collapse: collapse; width: 100%; margin: .8rem 0 1.2rem; font-size: .92rem; }
+  th, td { border: 1px solid var(--line); padding: .45rem .6rem; text-align: left; vertical-align: top; }
+  th { background: var(--panel2); color: #fff; font-weight: 600; }
+  td { background: var(--panel); }
+  code, pre { font-family: var(--mono); font-size: .86em; }
+  code { background: var(--panel2); padding: .1em .35em; border-radius: 3px; }
+  pre { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: .8rem 1rem; overflow-x: auto; line-height: 1.45; }
+  pre code { background: none; padding: 0; }
+  ul { padding-left: 1.3rem; } li { margin: .25rem 0; }
+  .good { color: var(--good); } .warn { color: var(--warn); } .bad { color: var(--bad); } .dim { color: var(--dim); }
+  .phase { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.2rem; margin: 1rem 0; }
+  .phase h3 { margin-top: 0; }
+  .accept { font-size: .88rem; color: var(--dim); border-top: 1px dashed var(--line); margin-top: .8rem; padding-top: .6rem; }
+  .accept b { color: var(--good); }
+</style>
+</head>
+<body>
+<main>
+
+<h1>HEARTH Skills Upgrade Plan</h1>
+<div class="sub">
+  Build-request lane + gcp-gemini activation &rarr; <code>/checkmcp</code> v2, <code>/checkmechnet</code> v2, memory refresh.<br>
+  2026-07-12 &nbsp;·&nbsp; <span class="tag draft">DRAFT-READY — execution on Derek's cue</span>
+  <span class="tag gap">ACTIVATION GAP FOUND: door serving 35/41 tools</span>
+</div>
+
+<h2>0 · Situation (verified during recon, 2026-07-12)</h2>
+<ul>
+  <li><b>What landed:</b> <code>49d35e8</code> build-request workflow — 6 new door tools
+      (<code>create / get / list / update / execute / close_build_request</code>), receipts at
+      <code>C:\work\comfy\fieldlab\runs\build-requests\</code> (override <code>HEARTH_BUILD_REQUEST_DIR</code>),
+      append-only <code>&lt;id&gt;.events.jsonl</code> + shared <code>ledger.jsonl</code>;
+      <code>close(status="done")</code> is <b>rejected</b> unless every acceptance criterion has a
+      <code>passed</code> row with non-empty evidence — a real acceptance gate, cousin of the S4 assay gate.</li>
+  <li><b><code>cb27d22</code> gcp-gemini backend</b> — Vertex AI (<code>aiplatform.googleapis.com</code>),
+      model <code>gemini-3.5-flash</code>, tags <code>frontier, deep-reasoning, long-context, cloud-overflow</code>.
+      Auth: <code>GOOGLE_OAUTH_ACCESS_TOKEN</code> env, else <code>gcloud auth print-access-token</code> (ADC);
+      needs <code>GOOGLE_CLOUD_PROJECT</code>. Routing: pinned name &rarr; <code>pinned:gcp-gemini</code>;
+      tag match &rarr; <code>tag:&lt;t&gt;</code>; else pool default <code>omen-ollama</code>.</li>
+  <li><b>Economics:</b> GCP <b>trial credits</b> make gcp-gemini a near-free frontier-class rung while they last —
+      a new tier between sunk-cost qwen and metered Sonnet. Good for infra tests, integration proofs, and
+      self-contained builds.</li>
+</ul>
+
+<div class="callout">
+  <b class="bad">Activation gap.</b> The live door answers with <b>35 tools</b>; the provider list in
+  <code>start-hearth-gateway.cmd</code> now sums to <b>41</b> (build_requests = exactly the 6 missing).
+  The running gateway process predates the commits — the proof-of-life receipt
+  (<code>br-20260712-064812-50076f9d</code>, done, <code>pinned:gcp-gemini</code>) was created via the
+  <b>Python API</b>, not through MCP. One controlled bounce activates the lane.
+</div>
+
+<div class="callout note">
+  <b class="warn">Why /checkmcp missed it.</b> <code>doorcheck</code> reports a raw tool <i>count</i> and compares it
+  to nothing — verdict today: HEALTHY while 6 tools are dark. The skill doc still says "~21 tools" (double-stale).
+  Also: <code>check_occupancy()</code> returns <code>available</code> unconditionally for gcp-gemini — no real
+  liveness/auth probe exists for the cloud backend. These are the two holes the upgrade closes.
+</div>
+
+<h2>Phase 0 · Activate the lane <span class="tag owner">owner: Derek + Fable · ~5 min · needs cue (bounce interrupts concurrent door callers)</span></h2>
+<div class="phase">
+  <ol>
+    <li><b>Bounce the door</b> — revive only fires when :8710 is down, so stop the listener first:
+<pre><code>Get-Process -Id (Get-NetTCPConnection -LocalPort 8710 -State Listen).OwningProcess | Stop-Process
+./fleet-worker-node/.venv-omen/Scripts/python.exe -m hearth.callers.doorcheck --revive</code></pre></li>
+    <li><b>Verify 41 tools</b> — rerun <code>doorcheck</code>; then call <code>list_build_requests</code> through the
+        door (should return the 2 existing receipts).</li>
+    <li><b>Durable start</b> — <code>schtasks /Query /TN HearthGateway</code>. The cmd header describes a logon task
+        but the 2026-07-12 builder session found none registered; if absent, register it so the door survives
+        reboot, not just console close.</li>
+    <li><b>Cloud auth under the gateway's env</b> — confirm the gitignored <code>hearth\var\gateway.cmd</code> exports
+        <code>GOOGLE_CLOUD_PROJECT</code> (+ token path works as OMEN\derek:
+        <code>gcloud auth print-access-token</code>).</li>
+  </ol>
+  <div class="accept"><b>Done when:</b> doorcheck reports 41 tools · a build-request tool answers over MCP · logon task registered · gcloud token acquisition succeeds.</div>
+</div>
+
+<h2>Phase 1 · /checkmcp v2 <span class="tag owner">builder: Sonnet subagent · ~1 session</span></h2>
+<div class="phase">
+  <ol>
+    <li><b>Toolsurface manifest check</b> — parse the <code>--providers</code> list out of
+        <code>start-hearth-gateway.cmd</code> (single source of truth), import each provider's
+        <code>get_tools()</code> names + the 2 kernel builtins, diff against live
+        <code>list_tools_sync()</code> names. New layer line:
+        <code>toolsurface: 41/41 match</code> or <code class="bad">STALE: 6 missing (create_build_request, …)</code>.
+        Mismatch &rArr; DEGRADED (exit 1). <span class="dim">This check would have caught today's gap the moment it opened.</span></li>
+    <li><b><code>--restart</code> flag</b> — controlled bounce (kill :8710 listener &rarr; revive &rarr; wait &rarr; re-verify manifest),
+        so a STALE verdict is one command from fixed.</li>
+    <li><b>Backends layer</b> — read <code>hearth/etc/backends.toml</code>; per backend:
+        <code>omen-ollama</code> &rarr; existing :11434 version check;
+        <code>gcp-gemini</code> &rarr; <b>auth-only</b> check by default (env token present or gcloud token acquisition
+        succeeds — free). Real 1-token generate ping only behind <code>--probe-cloud</code> (spends a hair of credit).
+        Cloud-backend failure &rArr; <span class="warn">WARN</span>, not DEGRADED (the door still works locally).</li>
+    <li><b>Build-request lane line</b> — newest <code>ledger.jsonl</code> entry: age / status / backend
+        (mirrors the existing events-ledger staleness line).</li>
+    <li><b>SKILL.md rewrite</b> — drop the magic "~21"; manifest is the authority. New triggers:
+        <i>after any commit touching <code>hearth/toolsurface/*</code> or <code>start-hearth-gateway.cmd</code>, run
+        /checkmcp — it now detects a stale door</i>; and <i>before pinning <code>backend="gcp-gemini"</code></i>.
+        Reporting: one verdict line + one line per layer, unchanged style.</li>
+  </ol>
+  <div class="accept"><b>Accept when:</b> doorcheck against a stale door exits 1 naming the missing tools · <code>--restart</code> heals it end-to-end · new tests pass in <code>hearth/tests/</code> · skill doc matches observed behavior exactly.</div>
+</div>
+
+<h2>Phase 2 · /checkmechnet v2 <span class="tag owner">builder: Sonnet subagent · ~half session</span></h2>
+<div class="phase">
+  <ol>
+    <li><b>Inventory gains the cloud lane</b> — new node in <code>fleet/inventory.toml</code>:
+<pre><code>[[node]]
+name = "gcp-gemini"
+kind = "cloud-backend"          # new kind label; fleet_ping treats kind as informational
+via  = "internet"
+expect = "optional"             # D4: flip to "up" if trial-credit lane becomes load-bearing
+model_backend = "gemini-3.5-flash"
+purpose = "Vertex AI overflow lane (GCP trial credits)"
+note = "TCP probe = egress/DNS only; auth+quota truth lives in doorcheck's backends layer"
+checks = [{ service = "vertex-egress", host = "aiplatform.googleapis.com", port = 443 }]</code></pre>
+        Near-zero code: per-check <code>host</code> + TCP probing already exist. Verify <code>kind</code> flows
+        through <code>--json</code>.</li>
+    <li><b>(cheap, optional)</b> group fleet_ping output by tier: physical / vm / logical / cloud.</li>
+    <li><b>SKILL.md rewrite</b> — mechnet definition now includes cloud backends; "interpreting downs" gains:
+        <i>vertex-egress down = DNS/egress problem, NOT auth — auth shows in /checkmcp's backends layer</i>.
+        Add the routing-economics table (below) so the skill teaches <i>where to send work</i>, not just what's up.</li>
+  </ol>
+  <div class="accept"><b>Accept when:</b> <code>fleet_ping --all-services</code> shows vertex-egress green from OMEN · optional-node exit semantics unchanged · skill doc renders the 4-tier table.</div>
+</div>
+
+<h2>Phase 3 · Memories + CLAUDE.md <span class="tag owner">owner: Fable · cheap · memory slice already done 2026-07-12</span></h2>
+<div class="phase">
+  <ul>
+    <li><b>CLAUDE.md</b> (HEARTH section) — add the build-request lane to the offload ladder: minutes-scale infra
+        builds with checkable acceptance criteria &rarr; <code>create_build_request</code> (receipts = observability;
+        the done-gate forces evidence); backend pinning guidance; gcp-gemini rung while trial credits last.</li>
+    <li><b>Memory</b> — new topic file for the build-request lane + gcp-gemini (paths, auth, routing reasons,
+        activation state) with index line; token-tier delegation memory gains the trial-credit rung;
+        fleet-ping reference gains the cloud lane after Phase 2 lands.</li>
+  </ul>
+</div>
+
+<h2>Phase 4 · Verify + dogfood <span class="tag owner">owner: Fable review · runs after 1–2 land</span></h2>
+<div class="phase">
+  <ol>
+    <li>Upgraded <code>/checkmcp</code> &rarr; HEALTHY, <code>toolsurface 41/41</code>, ollama ✓, gcp-gemini auth ✓, build-request ledger fresh.</li>
+    <li><code>/checkmechnet</code> &rarr; all expected nodes up including vertex-egress.</li>
+    <li><b>Dogfood:</b> wrap one Phase-1/2 slice in a real Hearth build request pinned
+        <code>backend="gcp-gemini"</code> — create &rarr; execute &rarr; close with per-criterion evidence. One receipt
+        exercises <i>infrastructure + integration + build</i> on trial credits, and the close-gate rejection path is
+        the acceptance-oracle test we care about.</li>
+  </ol>
+</div>
+
+<h2>Build assignment matrix (token economics)</h2>
+<table>
+  <tr><th>Tier</th><th>Cost</th><th>Gets</th></tr>
+  <tr><td><b>Fable</b> (frontier)</td><td>scarce</td><td>This plan, slice briefs, reviews, memory. No build typing.</td></tr>
+  <tr><td><b>Sonnet subagents</b></td><td>metered</td><td>Phase 1 (doorcheck code + tests), Phase 2 (inventory + skill docs). Each slice brief is self-contained; this document is the contract.</td></tr>
+  <tr><td><b>gcp-gemini</b> (Vertex)</td><td class="good">trial $$ — burn while it lasts</td><td>SKILL.md prose first-drafts via <code>local_generate</code> pinned backend; the Phase-4 dogfood receipt; any self-contained reasoning/drafting subtask a builder would otherwise spend Sonnet tokens on.</td></tr>
+  <tr><td><b>qwen3-coder:30b</b> (OMEN)</td><td class="good">sunk</td><td>Commit-message drafts, summaries, triage — unchanged.</td></tr>
+</table>
+
+<h2>Decisions for Derek</h2>
+<table>
+  <tr><th>#</th><th>Question</th><th>Recommendation</th></tr>
+  <tr><td>D1</td><td>When to bounce the door (Phase 0)? Concurrent sessions ride it.</td><td>Next quiet window; it's a &lt;10s outage and timers re-arm on start.</td></tr>
+  <tr><td>D2</td><td>Toolsurface mismatch &rArr; exit 1 (DEGRADED)?</td><td><b>Yes</b> — it is precisely today's silent failure mode.</td></tr>
+  <tr><td>D3</td><td>Cloud probe cost policy?</td><td>Auth-only check free every run; real generate ping only behind <code>--probe-cloud</code>.</td></tr>
+  <tr><td>D4</td><td>gcp-gemini <code>expect</code> = optional or up?</td><td>Optional until the trial-credit lane is load-bearing.</td></tr>
+  <tr><td>D5</td><td>Register the HearthGateway logon task now?</td><td><b>Yes</b> — revive currently dies with reboot; the task is the durable fix the skill has been promising.</td></tr>
+</table>
+
+<p class="dim">Recon sources: hearth/callers/doorcheck.py · fleet/fleet_ping.py · fleet/inventory.toml ·
+hearth/toolsurface/{build_requests,backends,inference,occupancy}.py · hearth/etc/{start-hearth-gateway.cmd,backends.toml} ·
+hearth/BUILD-REQUESTS.md · live doorcheck probe 2026-07-12 (35 tools, HEALTHY) · build-request ledger
+(br-20260712-064812-50076f9d done via Python API). Sonnet recon agents did the reading; briefs on file.</p>
+
+</main>
+</body>
+</html>

@@ -83,11 +83,6 @@ endpoint = "https://aiplatform.googleapis.com"
 api      = "gemini"                          # /v1/projects/.../models/{model}:generateContent
 models   = ["gemini-3.1-pro-preview"]        # Gemini 3.1 Pro Preview — 1M-token context,
                                               # frontier agentic/coding, THINKING model.
-                                              # NB: it spends the token budget on hidden
-                                              # reasoning first, so give max_tokens real
-                                              # headroom (>=256) or `text` comes back empty
-                                              # even though ok:true. Verified live via the
-                                              # build-request lane 2026-07-12.
 tags     = ["gemini-pro"]                    # unique tag only; deliberately NOT "frontier"/
                                               # "cloud-overflow" so tag-routing keeps landing
                                               # on the cheap flash rung. Pin by name to use.
@@ -97,3 +92,10 @@ auth_env = "GOOGLE_OAUTH_ACCESS_TOKEN"
 [backend.settings]
 project_env  = "GOOGLE_CLOUD_PROJECT"
 location_env = "GOOGLE_CLOUD_LOCATION"       # defaults to "global" when unset
+# Default output budget for this rung when a caller omits max_tokens. A THINKING
+# model spends tokens on hidden reasoning before any visible text, so a stingy
+# budget returns EMPTY text (ok:true, tokens burned on thought). 16384 gives real
+# headroom for reasoning + a long answer. It is a CAP, not a charge — small calls
+# still cost small; only tokens actually produced bill. Callers may override per
+# call. The router (inference.local_generate) reads this when max_tokens is unset.
+max_tokens   = 16384

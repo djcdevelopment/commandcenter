@@ -279,7 +279,7 @@ def _generate_gemini(target: _Target, prompt: str, model: str, system: Optional[
 
 def local_generate(prompt: str, model: str | None = None,
                    endpoint: str = DEFAULT_ENDPOINT, system: str | None = None,
-                   max_tokens: int = 1024, timeout_s: int = 120,
+                   max_tokens: int | None = None, timeout_s: int = 120,
                    task: str | None = None, backend: str | None = None) -> dict:
     """Generate text from a configured inference backend.
 
@@ -294,8 +294,8 @@ def local_generate(prompt: str, model: str | None = None,
         raise ValueError("prompt must be a non-empty string")
     if model is not None and (not isinstance(model, str) or not model.strip()):
         raise ValueError("model must be a non-empty string")
-    if max_tokens <= 0:
-        raise ValueError("max_tokens must be positive")
+    if max_tokens is not None and (not isinstance(max_tokens, int) or max_tokens <= 0):
+        raise ValueError("max_tokens must be a positive integer")
     if timeout_s <= 0:
         raise ValueError("timeout_s must be positive")
 
@@ -305,12 +305,28 @@ def local_generate(prompt: str, model: str | None = None,
         return {"ok": False, "error": f"routing failed: {exc}",
                 "endpoint": endpoint, "model": model}
 
+    # Resolve the backend record once for both model and output-budget defaults.
+    pool_backend = load_pool().by_name(target.backend) if target.backend else None
+
     # Model default: caller's explicit model wins; else the backend's first
     # declared model; else the historical qwen3-coder default.
     if model is None:
-        pool_backend = load_pool().by_name(target.backend) if target.backend else None
         model = (pool_backend.models[0] if pool_backend and pool_backend.models
                  else "qwen3-coder:30b")
+
+    # Output-budget default: caller's explicit max_tokens wins; else the
+    # backend's declared settings.max_tokens; else the historical 1024. A
+    # thinking model (e.g. the gcp-gemini-pro rung) can burn a small budget
+    # entirely on hidden reasoning and return EMPTY text, so a rung sets a
+    # generous floor here rather than relying on the caller to remember it.
+    if max_tokens is None:
+        setting = pool_backend.settings.get("max_tokens") if pool_backend else None
+        try:
+            max_tokens = int(setting) if setting is not None else 1024
+        except (TypeError, ValueError):
+            max_tokens = 1024
+        if max_tokens <= 0:
+            max_tokens = 1024
 
     if target.api == "openai":
         result = _generate_openai(target, prompt, model, system, max_tokens, timeout_s)
@@ -322,6 +338,7 @@ def local_generate(prompt: str, model: str | None = None,
     result["backend"] = target.backend
     result["routed_by"] = target.routed_by
     result["occupancy"] = target.occupancy
+    result["max_tokens"] = max_tokens
     # JS1: thread the resolved model_id to the gateway wrapper for the ledger
     # event's `model` field via the _ledger_model convention (see gateway.py);
     # the wrapper pops this key before returning the result to the caller.

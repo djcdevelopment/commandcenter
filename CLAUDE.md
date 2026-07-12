@@ -29,9 +29,12 @@ frontier-class while they last: prefer it over spending metered Sonnet/frontier
 tokens for self-contained reasoning, drafting, and integration proofs),
 `gcp-gemini-pro` (Vertex `gemini-3.1-pro-preview`, same trial credits — the
 premium reach: 1M-token context + frontier agentic/coding for the hard,
-large-context sub-tasks flash can't carry. It is a **thinking** model, so give
-`max_tokens` real headroom (>=256) or `text` returns empty. Pin it by name; it
-is deliberately untagged so opportunistic routing stays on the cheaper flash rung).
+large-context sub-tasks flash can't carry. It is a **thinking** model that burns
+tokens on hidden reasoning before any visible text, so the rung sets a generous
+default output budget (`settings.max_tokens = 16384`, a cap not a charge) that
+the router applies when you omit `max_tokens` — no more empty `text`. Pin it by
+name; it is deliberately untagged so opportunistic routing stays on the cheaper
+flash rung).
 
 For **auditable infra builds** (checkable acceptance criteria, receipt wanted),
 use the door's **build-request lane**: `create/get/list/update/execute/

@@ -1,0 +1,282 @@
+# mechnet Software Constellation Registry
+#
+# commandcenter's authoritative SOFTWARE registry: the logical organs and
+# cross-repo contracts of the "mechnet" constellation.
+#
+# The Two-Registry Doctrine (ADR-0016):
+#   1. Machines / reachability      -> fleet/inventory.toml
+#   2. Model backends / rungs       -> hearth/etc/backends.toml
+#   3. Software organs + contracts  -> THIS FILE
+# Do not duplicate physical facts or backend allocations here. No double-truth.
+#
+# Schema inherited from constellation-manifest (AM4 seed intake 2026-07-16,
+# ADR-0016; exemplar: registry/seed/constellation-gad-2026-06-22.yaml).
+# Hand-enrolled v0.1; conformance "reduced" = vocab adapted to mechnet,
+# unverified fields omitted rather than guessed (honest-placeholder invariant).
+
+[meta]
+schema_version = 1
+name = "mechnet"
+description = "Derek's hybrid compute fleet + the software organs commandcenter conducts"
+archetype = "engine"
+topology = "centered"          # commandcenter is the centerpiece; other repos rotate around it
+conformance = "reduced"
+enrolled = "2026-07-16"
+enrolled_by = "claude (AM4 seed intake)"
+
+# --- OMEN-side organs --------------------------------------------------------
+
+[[repos]]
+name = "commandcenter"
+kind = "git"
+role = "the brain — HEARTH always-on MCP gateway (:8710, single writer, ledger), conductor fleet dispatch, CP-SAT scheduler, belief spine"
+producer_type = "engine"
+host = "omen"
+local_path = 'C:\work\commandcenter'
+github = "djcdevelopment/commandcenter"
+visibility = "private"
+lifecycle = "active"
+primary = true
+
+  [[repos.surfaces]]
+  name = "hearth-gateway"
+  kind = "mcp-gateway"
+  lifecycle = "active"
+
+  [[repos.surfaces]]
+  name = "conductor-dashboard"
+  kind = "web-app"
+  lifecycle = "active"
+  notes = "runs on the cc-conductor VM, :8080"
+
+  [[repos.surfaces]]
+  name = "fleet-cli"
+  kind = "cli"
+  lifecycle = "active"
+
+[[repos]]
+name = "comfy"
+kind = "git"
+role = "fieldlab — Valheim NetworkSense mod + comfy_gateway (second HEARTH door, :8720 localhost-only)"
+producer_type = "research_harness"
+host = "omen"
+local_path = 'C:\work\comfy'
+github = "djcdevelopment/comfy"
+lifecycle = "active"
+primary = false
+
+  [[repos.surfaces]]
+  name = "comfy_gateway"
+  kind = "mcp-gateway"
+  lifecycle = "active"
+
+[[repos]]
+name = "windtunnel"
+kind = "git"
+role = "public local-testing lab (Pages on); judge-diversity finding: repeated judges are near-deterministic — gates must diversify lenses"
+producer_type = "research_harness"
+host = "omen"
+local_path = 'C:\work\windtunnel'
+github = "djcdevelopment/windtunnel"
+visibility = "public"
+lifecycle = "active"
+primary = false
+
+[[repos]]
+name = "writing"
+kind = "git"
+role = "ADDP writing factory + portfolio catalog"
+producer_type = "artifact_synthesis"
+host = "omen"
+local_path = 'C:\work\writing'
+lifecycle = "active"
+primary = false
+notes = "GitHub name is desire-trace; remote not configured on the OMEN checkout"
+
+[[repos]]
+name = "steppeintegrations-site"
+kind = "git"
+role = "public consulting site, Azure SWA, push-main-to-publish"
+producer_type = "presence_surface"
+host = "omen"
+local_path = 'C:\work\steppeintegrations-site'
+github = "djcdevelopment/steppeintegrations-site"
+lifecycle = "active"
+primary = false
+
+[[repos]]
+name = "omen-perception"
+kind = "filesystem"
+role = "CPU image scoring loop (aesthetic+CLIP) over AM4 gallery output; stays a scheduled task per ADR-0015"
+producer_type = "telemetry_ingest"
+host = "omen"
+local_path = 'C:\work\omen-perception'
+lifecycle = "active"
+primary = false
+
+# --- AM4-side organs ---------------------------------------------------------
+
+[[repos]]
+name = "vllama"
+kind = "git"
+role = "B70 model-lifecycle layer + OpenAI-compatible oxen facade (:8090); doctrine: ready = can serve"
+producer_type = "substrate"
+host = "am4"
+local_path = '/mnt/win/work/vllama'
+github = "djcdevelopment/vllama"
+visibility = "private"
+lifecycle = "active"
+primary = false
+
+  [[repos.surfaces]]
+  name = "oxen-facade"
+  kind = "web-app"
+  lifecycle = "active"
+
+[[repos]]
+name = "b70tools"
+kind = "git"
+role = "Windows-native dual-B70 telemetry + residency verdicts"
+producer_type = "research_harness"
+host = "am4"
+local_path = '/mnt/win/work/b70tools'
+github = "djcdevelopment/b70tools"
+visibility = "public"
+lifecycle = "active"
+primary = false
+
+[[repos]]
+name = "denning"
+kind = "git"
+role = "KV-residency control plane; ships zero-dep safing_watchdog.py/preflight.py (gate on commit charge; device 0 = hard hang)"
+producer_type = "research_harness"
+host = "am4"
+local_path = '/mnt/win/work/denning'
+github = "djcdevelopment/denning"
+visibility = "public"
+lifecycle = "active"
+primary = false
+depends_on = ["b70tools", "battlemage"]
+
+[[repos]]
+name = "battlemage"
+kind = "filesystem"
+role = "Arc B70 research notebook + inference harness + weights"
+producer_type = "research_harness"
+host = "am4"
+local_path = '/mnt/win/work/battlemage'
+lifecycle = "active"
+primary = false
+notes = "~145G with weights — never traverse blindly"
+
+[[repos]]
+name = "xpu-train"
+kind = "git"
+role = "on-rig LoRA fine-tune -> GGUF re-entering denning's serving path (self-improving loop, training half)"
+producer_type = "dev_tooling"
+host = "am4"
+local_path = '/mnt/win/work/xpu-train'
+github = "djcdevelopment/xpu-train"
+visibility = "private"
+lifecycle = "active"
+primary = false
+depends_on = ["battlemage"]
+
+# --- Seeds (AM4 intake 2026-07-16; lifecycle "reference" = read-only donors) --
+
+[[repos]]
+name = "manifest"
+kind = "git"
+role = "SEED: schema donor for THIS registry; Pydantic framework retired to read-only reference"
+producer_type = "dev_tooling"
+host = "am4"
+local_path = '/mnt/win/work/manifest'
+lifecycle = "reference"
+primary = false
+notes = "local mirror C:\\work\\am4-harvest\\manifest; archive of record = AM4 4TB"
+
+[[repos]]
+name = "ember"
+kind = "git"
+role = "SEED: pattern donor — critic-verdict loop + soft gate, Reflect dual-judge + XML-cite, overnight planner (ADR-0016 slices); .NET code not ported"
+producer_type = "dev_tooling"
+host = "am4"
+local_path = '/mnt/win/work/ember'
+github = "djcdevelopment/ember"
+visibility = "public"
+lifecycle = "reference"
+primary = false
+notes = "local mirror C:\\work\\am4-harvest\\ember; archive of record = AM4 4TB"
+
+[[repos]]
+name = "gad"
+kind = "git"
+role = "SEED: donor of constellation.yaml + atomic digest cards + glance pattern; the guild product itself is out of scope"
+producer_type = "dev_tooling"
+host = "am4"
+local_path = '/mnt/win/work/gad'
+lifecycle = "reference"
+primary = false
+notes = "local mirror C:\\work\\am4-harvest\\gad; archive of record = AM4 4TB"
+
+[[repos]]
+name = "am4-harvest"
+kind = "filesystem"
+role = "read-only local mirror of the three AM4 seeds, HEARTH-packable; archive of record stays the AM4 4TB"
+producer_type = "dev_tooling"
+host = "omen"
+local_path = 'C:\work\am4-harvest'
+lifecycle = "reference"
+primary = false
+
+# --- Cross-repo contracts ------------------------------------------------------
+# Telemetry export (OTLP -> Jaeger on AM4) is carried by [telemetry] below, not
+# enrolled as a contract: its consumer is a service (Jaeger), not a repo.
+
+[[contracts]]
+name = "hearth-mcp-door"
+producer_repo = "commandcenter"
+consumer_repos = ["comfy", "windtunnel", "writing", "steppeintegrations-site"]
+scope = "cross-repo"
+stability = "stable"
+notes = "MCP door :8710; mcp__hearth__* tools; files= packing for any repo under C:\\work via multi-root HEARTH_SCOPE"
+
+[[contracts]]
+name = "conductor-inbox-brief"
+producer_repo = "commandcenter"
+consumer_repos = ["commandcenter"]
+scope = "intra-repo-cross-machine"
+stability = "stable"
+notes = "submit_task (gateway, OMEN) writes inbox/<plan_id>.md with CCMETA builder-pin header; conductor serve loop (cc-conductor VM) consumes. Both ends are commandcenter code — enrolled because it is a real wire contract"
+
+[[contracts]]
+name = "oxen-openai-facade"
+producer_repo = "vllama"
+consumer_repos = ["commandcenter"]
+scope = "cross-repo"
+stability = "stable"
+notes = "/v1 on :8090; am4-oxen backend rung + wake_am4 serve-truth + cc-builder-2 runner"
+
+[[contracts]]
+name = "finetuned-gguf-handoff"
+producer_repo = "xpu-train"
+consumer_repos = ["denning"]
+scope = "cross-repo"
+stability = "experimental"
+notes = "first declared cross-repo contract, inherited from the GAD manifest (declared 2026-06-22)"
+
+[telemetry]
+otel_collector_endpoint = "http://192.168.12.233:4317"
+otel_protocol = "grpc"
+service_name_prefix = "mechnet"
+sensitive_data_in_spans = false
+# exporters today: commandcenter (+ comfy fieldlab); Jaeger UI at 192.168.12.233:16686
+
+[registries]
+machines = "fleet/inventory.toml"
+model_backends = "hearth/etc/backends.toml"
+software = "registry/constellation.toml"
+
+# Consumer slice (tomllib + dataclasses loader, fleet/inventory.toml-style) is a
+# planned build (ADR-0016). Until it lands, this file is the declarative truth
+# for humans and agents.

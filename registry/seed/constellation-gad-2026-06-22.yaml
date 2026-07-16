@@ -1,0 +1,375 @@
+# GAD Constellation Manifest
+#
+# Hand-enrolled 2026-05-24 against schema_version: 1 (post-spec-hardening pass).
+# Spec reference: pm/manifest/MANIFEST-SCHEMA.md + pm/manifest/SCHEMA-EXTENSIONS-v1.md
+# Scope reference: pm/manifest/SCOPE-V1.md (this manifest is a v0.1 acceptance fixture)
+#
+# This is GAD's authoritative declarative manifest. The pm/repos/*.md files remain
+# the prose summaries; this YAML is the structured projection a validator can check.
+
+schema_version: 1
+
+# Top-level structural classification
+archetype: presence            # has Discord + ADO + saga thread
+topology: centered             # Tempo is the centerpiece; others rotate around it
+conformance: canonical         # all required fields present, vocab matches recommended
+
+constellation:
+  name: GAD
+  description: "Goats After Dark — WoW guild software constellation"
+  root_path: D:\work\gad
+  pm_workspace: pm/
+
+identity:
+  github_org: djcdevelopment                                    # personal account per 2026-05-20 ADR
+  ado_org: https://dev.azure.com/steppeintegrations
+  ado_project: GAD
+  ado_area_path_root: GAD
+  ado_team: "GAD Team"
+
+discord:
+  guild_name: "Goats After Dark"
+  bot_account: GoatHerder
+  token_file: D:\work\Guild\.env.local                          # NOT the token; path only
+  channels:
+    pm: flapski-pm
+    build_log: build-log
+    additional: [start-here, feedback, a-builders-journey]
+  embed_palette:
+    saga: 0xe0843c                                              # firelight amber
+    build_log: 0x8c7853                                         # log brown
+  # reaction_legend: inherits framework defaults (✅ ❌ 💬)
+
+repos:
+  - name: tempo
+    kind: git
+    role: "centerpiece — Windows-native, local-first WoW raid-leader tool (.NET 9)"
+    producer_type: engine
+    github: djcdevelopment/tempo
+    area_path: GAD\tempo
+    visibility: private
+    local_path: D:\World of Warcraft\Tempo
+    summary_doc: repos/tempo.md
+    primary: true
+    audience: "raid leaders — bandwidth amplification, in-flight"
+    lifecycle: active
+    surfaces:
+      - name: MainWindow
+        kind: peer-tab
+        lifecycle: active
+      - name: RaidView
+        kind: react-bundle
+        lifecycle: active
+      - name: Lantern (peer tab)
+        kind: peer-tab
+        lifecycle: active
+
+  - name: raidui
+    kind: git
+    role: "web viewer — legacy src/ + active newui/ cloud face"
+    producer_type: operational_viewer
+    github: djcdevelopment/raidui
+    area_path: GAD\raidui
+    visibility: private
+    local_path: D:\work\raidui
+    summary_doc: repos/raidui.md
+    primary: false
+    lifecycle: deprecating
+    aliases: [newui]
+    surfaces:
+      - name: src (legacy)
+        kind: react-bundle
+        lifecycle: maintenance
+      - name: newui (active cloud face)
+        kind: web-app
+        deployment_url: https://app.goatsafterdark.org/newui/
+        lifecycle: active
+
+  - name: lantern
+    kind: git
+    role: "player-first chronicle viewer — peer tab inside Tempo + cloud prerender"
+    producer_type: operational_viewer
+    github: djcdevelopment/lantern
+    area_path: GAD\lantern
+    visibility: public
+    local_path: D:\work\lantern
+    summary_doc: repos/lantern.md
+    primary: false
+    audience: "individual raiders — post-raid personal lens"
+    lifecycle: active
+    depends_on: [tempo]
+
+  - name: ember
+    kind: git
+    role: "Claude↔GPT planning bot (build hand-off) + constellation-awareness host (graph context + nightly Reflect recap)"
+    producer_type: artifact_synthesis                # closest existing vocab; dev_tooling candidate
+    github: djcdevelopment/ember
+    area_path: GAD\ember
+    visibility: public
+    local_path: D:\work\ember
+    summary_doc: repos/ember.md
+    primary: false
+    audience: "Derek (internal dev tooling, not user-facing)"
+    lifecycle: active                                # constellation-awareness host; Arc local inference via llama.cpp Vulkan (ADR 12, not vLLM)
+    depends_on: [vllama, b70tools]                    # Reflect judges run on the vllama facade; b70tools captures cost during recaps
+    surfaces:
+      - name: /plan (planner/critic build hand-off)
+        kind: bot-daemon
+        lifecycle: active
+      - name: GraphContext (constellation perception in round-1 context)
+        kind: bot-daemon
+        lifecycle: active                            # R1, ADR 13 (2026-06-11)
+      - name: Reflect (nightly dual-judge recap)
+        kind: bot-daemon
+        lifecycle: active                            # R2, ADR 14 — shipped disabled-by-default
+
+  - name: hearth
+    kind: git
+    role: "guild-memory website (Next.js + Postgres) + production GoatHerder Discord bot"
+    producer_type: presence_surface
+    github: djcdevelopment/goatsafterdark
+    area_path: GAD\hearth
+    visibility: private
+    local_path: D:\work\guild
+    summary_doc: repos/hearth.md
+    primary: false
+    aliases: [goatsafterdark]
+    lifecycle: active
+    depends_on: [campfire, raidui, lantern]
+    surfaces:
+      - name: hearth (web app)
+        kind: web-app
+        deployment_url: https://goatsafterdark.org
+        lifecycle: active
+      - name: GoatHerder (production bot)
+        kind: bot-daemon
+        lifecycle: active
+
+  - name: campfire
+    kind: git
+    role: "BYOH substrate (guild-data API; 7-package pnpm monorepo)"
+    producer_type: telemetry_ingest                  # closest fit; substrate candidate
+    github: djcdevelopment/campfire
+    area_path: GAD\campfire
+    visibility: private
+    local_path: D:\work\campfire
+    summary_doc: repos/campfire.md
+    primary: false
+    lifecycle: shipped                               # 10 phases done, operational mode
+
+  - name: battlemage
+    kind: filesystem                                 # NOT git-tracked; research notebook + harness
+    role: "Intel Arc Pro B70 research notebook + inference harness"
+    producer_type: artifact_synthesis                # closest fit; research-harness candidate
+    # github: omitted — kind != git
+    # visibility: omitted — kind != git
+    area_path: GAD\battlemage
+    local_path: D:\work\battlemage
+    summary_doc: repos/battlemage.md
+    primary: false
+    audience: "infra/platform that gates AI work for tempo + ember"
+    lifecycle: active
+    surfaces:
+      - name: intel_ollama (single-card, IPEX-LLM fallback)
+        kind: hardware-harness
+        lifecycle: maintenance
+      - name: vulkan (dual-card, Vulkan production target)
+        kind: hardware-harness
+        lifecycle: active
+
+  - name: b70tools
+    kind: git
+    role: "Windows-native telemetry and observability tool for dual Intel Arc Pro B70 inference"
+    producer_type: research_harness
+    github: djcdevelopment/b70tools
+    area_path: GAD\b70tools
+    visibility: public
+    local_path: D:\work\b70tools
+    summary_doc: repos/b70tools.md
+    primary: false
+    audience: "Derek and agents measuring local inference cost, GPU binding, and WoW impact"
+    lifecycle: active
+    depends_on: [battlemage]
+    surfaces:
+      - name: b70tools.exe
+        kind: hardware-harness
+        lifecycle: active
+
+  - name: vllama
+    kind: git
+    role: "Vulkan llama.cpp lifecycle wrapper and OpenAI-compatible facade for resident local models"
+    producer_type: substrate
+    github: djcdevelopment/vllama
+    area_path: GAD\vllama
+    visibility: private
+    local_path: D:\work\vllama
+    summary_doc: repos/vllama.md
+    primary: false
+    audience: "local agent/runtime infrastructure; Hermes and GAD AI tooling consumers"
+    lifecycle: active
+    default_branch: master
+    depends_on: [b70tools]
+    # visibility + default_branch verified live via gh api 2026-06-07 (djcdevelopment/vllama): private, master. The connector 404 was access lag, not repo state.
+    notes: "Visibility (private) and default branch (master) verified live via gh api on 2026-06-07. The 2026-06-07 GitHub-connector 404 was access lag, not repo state."
+    surfaces:
+      - name: vllama.exe
+        kind: cli
+        lifecycle: active
+      - name: OpenAI-compatible facade
+        kind: web-app
+        lifecycle: active
+
+  - name: discoverlay
+    kind: git
+    role: "Game overlay and Discord presence bridge for live B70, host, combat, and inference streams"
+    producer_type: operational_viewer
+    github: djcdevelopment/discoverlay
+    area_path: GAD\discoverlay
+    visibility: private
+    local_path: D:\work\discoverlay
+    summary_doc: repos/discoverlay.md
+    primary: false
+    audience: "Derek during WoW sessions; live signal-beside-cost research HUD"
+    lifecycle: active
+    default_branch: research-gauge/discoverlay
+    depends_on: [b70tools, tempo, leopard]   # leopard added 2026-06-09: discoverlay tails live-insight.jsonl
+    # visibility + default_branch verified live via gh api 2026-06-07 (djcdevelopment/discoverlay): private, remote default branch research-gauge/discoverlay. The connector 404 was access lag, not repo state.
+    notes: "Visibility (private) and default branch (research-gauge/discoverlay) verified live via gh api on 2026-06-07 — the remote default branch genuinely is the research-gauge branch. The 2026-06-07 GitHub-connector 404 was access lag, not repo state."
+    surfaces:
+      - name: hud.exe
+        kind: cli
+        lifecycle: active
+      - name: discoverlay.exe
+        kind: cli
+        lifecycle: active
+
+  - name: leopard
+    kind: git
+    role: "Local WoW raid-log reflection product; consumes Tempo parser/projections in-process"
+    producer_type: operational_viewer
+    github: djcdevelopment/leopard
+    area_path: GAD\leopard
+    visibility: public
+    local_path: D:\work\leopard
+    summary_doc: repos/leopard.md
+    primary: false
+    audience: "raid leaders and individual raiders asking grounded questions of their own logs"
+    lifecycle: active
+    default_branch: master
+    depends_on: [tempo]
+    surfaces:
+      - name: Leopard host
+        kind: web-app
+        lifecycle: active
+      - name: Live (between-pull insight + jsonl bridge)
+        kind: web-app
+        lifecycle: active
+        # 7th surface (2026-06-09); emits live-insight.jsonl, tailed by discoverlay
+
+  - name: denning
+    kind: git
+    role: "KV-residency control plane over an unmodified llama.cpp Vulkan engine -- live-VidMm-budget admission + lifetime-class KV residency/swap"
+    producer_type: research_harness
+    github: djcdevelopment/denning
+    area_path: GAD\denning
+    visibility: public
+    local_path: D:\work\denning
+    summary_doc: repos/denning.md
+    primary: false
+    audience: "Derek + agents researching KV residency on memory-inverted consumer GPUs (Arc/Windows)"
+    lifecycle: active
+    depends_on: [b70tools, battlemage]   # watchdog consults b70tools verdict; experiments use battlemage's models
+    surfaces:
+      - name: denning (control plane + experiment harness)
+        kind: library
+        lifecycle: active
+
+  - name: xpu-train
+    kind: git
+    role: "On-rig LoRA fine-tuning of the dev model via torch-xpu on the Arc B70 -- train -> merge -> GGUF -> serve under denning (the self-improving loop's training half)"
+    producer_type: dev_tooling
+    github: djcdevelopment/xpu-train
+    area_path: GAD\xpu-train
+    visibility: private
+    local_path: D:\work\xpu-train
+    summary_doc: repos/xpu-train.md
+    primary: false
+    audience: "Derek -- llama.cpp serves the dev model; only this path changes its weights"
+    lifecycle: active
+    depends_on: [battlemage]   # trains on the Arc substrate; exports GGUFs (see finetuned-gguf-handoff contract)
+    surfaces:
+      - name: phase pipeline (env -> gates -> memory envelope -> fine-tune -> export bridge)
+        kind: cli
+        lifecycle: active
+
+# Cross-repo contract handshakes. Empty for v0.1 — Tempo's internal contracts
+# (Tempo.Contracts namespace, EVIDENCE-{sha8(id)} tokens, ParserPipeline) are
+# intra-repo and don't fit the schema's producer/consumer cross-repo model.
+# Hearth's consumption of campfire's /v1 API is a real cross-repo contract; so is
+# leopard -> discoverlay via live-insight.jsonl (file bus, versioned v-per-line,
+# 2026-06-09; declared today via discoverlay.depends_on). Populating contracts: is
+# a v0.2 refinement once the schema's intra-repo vs cross-repo distinction (and a
+# file-bus contract kind) is clarified. FIRST contract declared 2026-06-22:
+# xpu-train -> denning (finetuned-gguf-handoff). The hearth<->campfire + leopard->discoverlay
+# F-002 contracts remain pending the L1 catch-up patch.
+contracts:
+  - name: finetuned-gguf-handoff
+    producer_repo: xpu-train
+    consumer_repos: [denning]
+    contract_doc: repos/xpu-train.md
+    contract_version: null
+    stability: experimental
+    scope: cross-repo
+
+# External data inputs (non-git directories the constellation depends on).
+# None for GAD today — WoW combat logs are read live from D:\World of Warcraft\_retail_\Logs
+# by Tempo, but that's a runtime input, not an enrolled data source. Could
+# surface in a future refinement if we want explicit declaration.
+data_sources: []
+
+# Locally-installed pipeline tools.
+pipeline_tools:
+  - name: ollama
+    role: "Local LLM inference — qwen2.5:14b-instruct production, qwen2.5:32b option"
+    install_target: local
+    version_pin: null                                # OS-tracked; not pinned by manifest
+  - name: llama-cpp-vulkan
+    role: "Dual-Arc-B70 inference — production path per battlemage/vulkan workspace"
+    install_target: local
+    version_pin: null
+
+  - name: b70tools
+    role: "Dual-B70 telemetry, residency verdicts, and WoW/inference impact capture"
+    install_target: local
+    version_pin: null
+  - name: vllama
+    role: "Resident Vulkan llama.cpp model lifecycle and OpenAI-compatible local facade"
+    install_target: local
+    version_pin: null
+  - name: codebase-memory-mcp
+    role: "Constellation perception layer — persistent code knowledge graphs over all 11 repos (tree-sitter -> SQLite, git-watcher); ember GraphContext + Reflect consume it. Graphs local-only on D:."
+    install_target: local
+    version_pin: "0.7.0"                             # via npm; R0 2026-06-11 (the README winget id is absent)
+
+# workflow: inherits all defaults (branch convention, Fixes AB#<id>, etc.)
+
+telemetry:
+  otel_collector_endpoint: http://localhost:4317
+  otel_protocol: grpc
+  service_name_prefix: gad-pm
+  sensitive_data_in_spans: false
+
+build_handoff:
+  bot: ember
+  command: /plan
+  repo: djcdevelopment/ember
+
+saga:
+  active_epic_ids: [79, 80, 81, 95, 103]
+  delivery_plan_url: https://dev.azure.com/steppeintegrations/GAD/_apps/hub/ms.vss-plans.delivery-plans-hub
+
+# Model pins for any framework-driven agent. Empty until v1.1+ ships agent execution.
+agents: []
+
+# Per-constellation overrides to framework defaults. Empty = inherit everything.
+framework_defaults_override: {}

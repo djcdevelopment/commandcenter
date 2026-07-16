@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AM4 Seed Intake — manifest · ember · gad (2026-07-16)</title>
+<style>
+  :root{
+    --bg:#12100d; --panel:#1c1915; --panel2:#242019; --ink:#e8e0d2; --dim:#9a8f7c;
+    --ember:#e0843c; --gold:#c9a227; --green:#7fa650; --red:#c05b4d; --line:#3a332a;
+    --mono:Consolas,'Cascadia Mono',monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 'Segoe UI',system-ui,sans-serif;padding:2rem 1rem 4rem}
+  .wrap{max-width:1000px;margin:0 auto}
+  h1{font-size:1.6rem;margin:.2rem 0 .3rem;color:var(--ember)}
+  h2{font-size:1.15rem;margin:2.2rem 0 .6rem;color:var(--gold);border-bottom:1px solid var(--line);padding-bottom:.3rem}
+  .sub{color:var(--dim);margin-bottom:1.4rem}
+  .badge{display:inline-block;padding:.1rem .55rem;border-radius:1rem;font-size:.72rem;font-weight:600;letter-spacing:.04em;vertical-align:middle}
+  .b-landed{background:#2d3a22;color:#a4c97e}
+  .b-adopted{background:#3a2f18;color:#e0b34c}
+  .b-slice{background:#1e2f3a;color:#7ab8d9}
+  .b-skip{background:#3a221e;color:#d98b7a}
+  .b-ref{background:#2a2620;color:var(--dim)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:1rem}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:1rem 1.1rem}
+  .card h3{margin:.1rem 0 .5rem;font-size:1rem;color:var(--ink)}
+  .card .path{font-family:var(--mono);font-size:.78rem;color:var(--dim)}
+  table{width:100%;border-collapse:collapse;margin:.6rem 0;font-size:.88rem}
+  th{color:var(--dim);text-align:left;font-weight:600;padding:.35rem .5rem;border-bottom:1px solid var(--line)}
+  td{padding:.4rem .5rem;border-bottom:1px solid var(--panel2);vertical-align:top}
+  code{font-family:var(--mono);font-size:.84em;background:var(--panel2);padding:.08rem .35rem;border-radius:4px}
+  .ruling{background:var(--panel);border-left:3px solid var(--gold);border-radius:0 8px 8px 0;padding:.7rem 1rem;margin:.6rem 0}
+  .ruling b{color:var(--gold)}
+  .slice{background:var(--panel);border-left:3px solid #5b95b5;border-radius:0 8px 8px 0;padding:.7rem 1rem;margin:.6rem 0}
+  .slice b{color:#7ab8d9}
+  .note{color:var(--dim);font-size:.85rem}
+  .proof{font-family:var(--mono);font-size:.8rem;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:.7rem .9rem;color:#a4c97e}
+  a{color:var(--ember)}
+</style>
+</head>
+<body><div class="wrap">
+
+<h1>AM4 Seed Intake</h1>
+<div class="sub">manifest · ember · gad — pulled off the 4TB, assessed by the mechnet, baked into commandcenter · 2026-07-16 · ruling: <b>ADR-0016</b></div>
+
+<h2>What landed today</h2>
+<table>
+  <tr><th>Artifact</th><th>What it is</th><th></th></tr>
+  <tr><td><code>registry/constellation.toml</code></td><td>mechnet <b>software registry</b> — 15 organs (OMEN + AM4), 4 declared contracts. The software twin of <code>fleet/inventory.toml</code>.</td><td><span class="badge b-landed">LANDED</span></td></tr>
+  <tr><td><code>registry/seed/constellation-gad-2026-06-22.yaml</code></td><td>verbatim donor artifact (gad@6186d08 — the commit that declared the first cross-repo contract)</td><td><span class="badge b-landed">LANDED</span></td></tr>
+  <tr><td><code>docs/adr/0016-…-am4-seed-intake.md</code></td><td>the six intake rulings</td><td><span class="badge b-landed">LANDED</span></td></tr>
+  <tr><td><code>docs/intake/AM4-SEED-INTAKE-2026-07-16.md</code></td><td>full intake record: provenance, harvest/skip maps, stale-assumption list</td><td><span class="badge b-landed">LANDED</span></td></tr>
+  <tr><td><code>C:\work\am4-harvest\</code></td><td>read-only local mirror of all three seeds (tree + .git), HEARTH-packable; the 4TB stays archive of record</td><td><span class="badge b-ref">MIRROR</span></td></tr>
+</table>
+
+<div class="proof">tomllib parse: OK · repos: 15 · contracts: 4 · dangling refs: NONE<br>
+deep reads: 3× gcp-gemini-pro via the door, files= packed, ~135K tok in / ~5K out — trial credits, zero frontier spend<br>
+"dirty tree" scare on AM4 (136 files in manifest) = ntfs3 mode-bit phantoms; manifest + ember are clean at HEAD</div>
+
+<h2>The rulings (decided, in force)</h2>
+<div class="ruling"><b>D1 — Two registries, distinct.</b> Machines in <code>fleet/inventory.toml</code>, model rungs in <code>hearth/etc/backends.toml</code>, software organs + contracts in <code>registry/constellation.toml</code>. The scheduler is the bridge. No double-truth.</div>
+<div class="ruling"><b>D2 — TOML-native, stdlib-only.</b> The constellation-manifest <i>schema</i> is inherited; the Pydantic framework (249 tests) retires to read-only reference. Loader slice = tomllib + dataclasses, the inventory.toml pattern.</div>
+<div class="ruling"><b>D3 — ember donates patterns, not code.</b> Its execution half is superseded by conductor + HEARTH. If a Discord front door is ever built: stateless edge client, HEARTH stays pure.</div>
+<div class="ruling"><b>D4 — XML-cite grounding is doctrine</b> for evidence lanes (build-requests, refine, future Reflect). Basis: gad EXP-0001 — cite-first cut cross-repo hallucinations 3/3 → 0/3.</div>
+<div class="ruling"><b>D5 — Atomic digest cards</b> (✅/❌/💬, one decision per card, 1-line header) = the interaction contract for DECISIONS-PENDING and any future approval surface.</div>
+<div class="ruling"><b>D6 — Mirror discipline.</b> Seeds enrolled <code>lifecycle="reference"</code>; mine them, don't build on them.</div>
+
+<h2>Build slices — draft-ready, awaiting your cue</h2>
+<div class="slice"><b>E1 — Critic-verdict loop + soft gate</b> into the commander refine lane. Strict verdict schema <code>{assessment, issues:[{severity, summary, fix}]}</code>, iterate-until-no-blocking, human-vetoable gate before the conductor inbox. <span class="note">(ember ADR-0005 · effort M)</span></div>
+<div class="slice"><b>E2 — Reflect nightly recap</b> as a gateway patrol job: dual <b>lens-diverse</b> judges + XML-cite + comparer for contradictions/omissions, feeding the belief spine. Ember's dual-judge evidence + windtunnel's judge-determinism finding converge here. <span class="note">(ember ADR-0014/0016/0018 · effort M)</span></div>
+<div class="slice"><b>E3 — Overnight backlog planner</b>: objective state → planner/critic synthesis → tiered reconciliation, auto-apply only safe/reversible stubs. <span class="note">(ember ADR-0019 · effort M)</span></div>
+<div class="slice"><b>R1 — Registry loader + CI import check</b>: tomllib + dataclasses loader, and a check that something actually imports the registry — the corpus's #1 documented unforced error is a source-of-truth nobody imports. <span class="note">(effort S)</span></div>
+
+<h2>The three seeds</h2>
+<div class="grid">
+  <div class="card">
+    <h3>manifest <span class="badge b-landed">schema donor</span></h3>
+    <div class="path">/mnt/win/work/manifest · 3d93bf6 · 2026-06-05</div>
+    <p>Typed constellation schema + ontology (producer_type, topology, conformance ladder) → became <code>registry/constellation.toml</code>. Pydantic framework, MAF workflow, ADO provisioning: retired.</p>
+  </div>
+  <div class="card">
+    <h3>ember <span class="badge b-slice">pattern donor</span></h3>
+    <div class="path">/mnt/win/work/ember · e12c016 · 2026-06-17</div>
+    <p>19 ADRs mined. Harvest: critic loop + soft gate (E1), Reflect dual-judge + XML-cite (E2), overnight planner (E3), fails-closed boot posture. Skipped: all execution C# — conductor owns that now.</p>
+  </div>
+  <div class="card">
+    <h3>gad <span class="badge b-adopted">registry + UX donor</span></h3>
+    <div class="path">/mnt/win/work/gad · 6186d08 · 2026-06-22</div>
+    <p>Canonical constellation.yaml (imported verbatim), atomic digest cards (adopted), glance pattern + experiments-ledger pattern (noted). Guild product: out of scope.</p>
+  </div>
+</div>
+
+<h2>Not inherited (stale by design)</h2>
+<p class="note">"ember is the brain" · ADO Boards as tracker · Pydantic contract enforcement · <code>framework load --json</code> subprocess seam · single-machine <code>D:\work</code> worldview · "builder gets no push credentials". Full list in the intake record.</p>
+
+<p class="note" style="margin-top:2.5rem">Intake executed offload-first: pull via tar-over-SSH, deep reads on gcp-gemini-pro, registry draft on gcp-gemini flash, decisions + verification frontier-side. Every offload ledgered.</p>
+
+</div></body>
+</html>

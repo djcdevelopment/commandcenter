@@ -44,8 +44,12 @@ unless every criterion has a `passed` row with evidence — write criteria you c
 prove. See hearth/BUILD-REQUESTS.md.
 
 **Rules:**
-- The local model has **no repo access** — pass every bit of context it needs in
-  the prompt. It cannot read files, run tools, or see this conversation.
+- The model cannot run tools or see this conversation — but don't paste repo
+  file contents: pass `files=["repo/relative/path", ...]` and the door packs the
+  scope-guarded contents into the prompt door-side (256 KiB/file, 1 MiB total;
+  the `files_packed` manifest rides the result). Pair with `gcp-gemini-pro` for
+  subsystem-scale reads. Only context from outside the repo still travels in
+  the prompt body.
 - If it returns `ok:false` (cold/unreachable) or the output is unusable, do the
   task yourself. One retry max — never loop on a cold worker.
 - If the door itself is down, run the `/checkmcp` skill (doorcheck `--revive`) once.

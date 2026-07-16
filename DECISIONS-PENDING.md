@@ -63,11 +63,16 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       `HearthGatewayBoot` + `OllamaBoot` re-registered `LogonType=S4U` ("run whether
       user is logged on or not", no stored password — needed UAC only, not the
       password). ADR-0015 end state complete; proof = next OMEN reboot.
-- [ ] 2026-07-09 — PINNED (decide after use-case discovery): repo-aware `local_generate`
+- [x] 2026-07-09 — PINNED (decide after use-case discovery): repo-aware `local_generate`
       — gateway-side context assembly (a `paths`/glob param packing scope-guarded files
       into the prompt) was proposed for the "point a local model at a repo" bootstrap
       gap. Before building: collect the OTHER use cases (feeding knowledge/, repo-grounded
       experiment briefs, …) and decide extend-vs-enhance on those findings.
+      — DECIDED + BUILT 2026-07-16: un-pinned by the offload-first strategy
+      ([HEARTH-OFFLOAD-STRATEGY.html](HEARTH-OFFLOAD-STRATEGY.html) WP1.1 — the use-case
+      evidence accumulated). `files=` param landed on branch `feat/repo-aware-intake`,
+      drafted by the door's own gcp-gemini-pro rung and live-proven post-restart
+      (receipt br-20260716-070602-756035bd; 445 tests green).
 - [ ] 2026-07-09 — PINNED (decide after use-case discovery): fleet builds targeting a
       NON-conductor repo (trigger: Valheim fieldlab mod wanted mechnet help; today
       CCMETA has no repo concept — [task_lane.py](hearth/toolsurface/task_lane.py) is

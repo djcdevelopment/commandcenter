@@ -71,6 +71,9 @@ auth_env = "GOOGLE_OAUTH_ACCESS_TOKEN"
 [backend.settings]
 project_env  = "GOOGLE_CLOUD_PROJECT"
 location_env = "GOOGLE_CLOUD_LOCATION"       # defaults to "global" when unset
+# Same thinking-budget protection the pro rung has: modern Gemini models can burn
+# a stingy budget on hidden reasoning and return empty text; a cap not a charge.
+max_tokens   = 8192
 
 [[backend]]
 name     = "gcp-gemini-pro"                   # premium sibling of gcp-gemini: same

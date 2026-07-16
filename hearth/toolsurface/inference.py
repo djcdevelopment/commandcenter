@@ -34,11 +34,47 @@ import urllib.parse
 import urllib.request
 from typing import Callable, NamedTuple, Optional
 
+from hearth.toolsurface._scope import resolve_in_scope, scope_root
 from hearth.toolsurface.backends import BackendConfigError, load_pool, select_backend
 from hearth.toolsurface.occupancy import check_occupancy
 
 DEFAULT_ENDPOINT = "http://127.0.0.1:11434"
 ENDPOINT_ENV_VAR = "HEARTH_OLLAMA"
+
+# Door-side file packing caps (bytes). Module globals so tests (and a future
+# per-rung setting) can tune them without touching the packing logic.
+FILES_PER_FILE_CAP = 256 * 1024
+FILES_TOTAL_CAP = 1024 * 1024
+
+
+def _pack_files(files: list[str]) -> tuple[str, list[dict]]:
+    """Resolve scope-guarded paths and pack their contents into <file> blocks.
+
+    Caps are enforced on os.stat sizes BEFORE reading; any bad path (escape,
+    missing, over-cap) raises ValueError so the caller's dispatch never starts.
+    """
+    root = scope_root()
+    packed_blocks = []
+    files_packed = []
+    total_bytes = 0
+    for path in files:
+        resolved = resolve_in_scope(path, root)
+        if not resolved.is_file():
+            raise ValueError(f"path is not an existing regular file: {path}")
+
+        size = resolved.stat().st_size
+        if size > FILES_PER_FILE_CAP:
+            raise ValueError(f"file {path} size {size} exceeds cap {FILES_PER_FILE_CAP}")
+        if total_bytes + size > FILES_TOTAL_CAP:
+            raise ValueError(f"files total size {total_bytes + size} exceeds total cap {FILES_TOTAL_CAP}")
+
+        total_bytes += size
+        content = resolved.read_text(encoding="utf-8", errors="replace")
+        rel = resolved.relative_to(root).as_posix()
+        packed_blocks.append(f'<file path="{rel}">\n{content}\n</file>')
+        files_packed.append({"path": rel, "bytes": size})
+
+    return "\n\n".join(packed_blocks), files_packed
 
 
 class _Target(NamedTuple):
@@ -280,7 +316,8 @@ def _generate_gemini(target: _Target, prompt: str, model: str, system: Optional[
 def local_generate(prompt: str, model: str | None = None,
                    endpoint: str = DEFAULT_ENDPOINT, system: str | None = None,
                    max_tokens: int | None = None, timeout_s: int = 120,
-                   task: str | None = None, backend: str | None = None) -> dict:
+                   task: str | None = None, backend: str | None = None,
+                   files: list[str] | None = None) -> dict:
     """Generate text from a configured inference backend.
 
     Routing (Banked Fire): pass ``task`` (e.g. "research") to prefer a tagged
@@ -289,6 +326,12 @@ def local_generate(prompt: str, model: str | None = None,
     occupancy) is skipped in favor of the pool default (P2); a name-pinned
     backend is never occupancy-skipped. The chosen backend, routing reason, and
     occupancy-at-decision all ride in the result.
+
+    File packing (repo-aware): pass ``files`` (repo-relative paths) to have the
+    door pack their contents into <file path="..."> blocks ahead of the prompt —
+    no need to paste file contents. Paths are scope-guarded by the HEARTH_SCOPE
+    sandbox; capped at 256 KiB per file and 1 MiB total. The packed manifest
+    rides the result as ``files_packed``/``files_bytes``.
     """
     if not isinstance(prompt, str) or not prompt.strip():
         raise ValueError("prompt must be a non-empty string")
@@ -298,6 +341,16 @@ def local_generate(prompt: str, model: str | None = None,
         raise ValueError("max_tokens must be a positive integer")
     if timeout_s <= 0:
         raise ValueError("timeout_s must be positive")
+
+    files_packed_list = None
+    files_bytes = 0
+    if files is not None:
+        if not isinstance(files, list) or not all(isinstance(f, str) and f for f in files):
+            raise ValueError("files must be a list of non-empty path strings")
+        if files:
+            packed_block, files_packed_list = _pack_files(files)
+            prompt = f"{packed_block}\n\n{prompt}"
+            files_bytes = sum(f["bytes"] for f in files_packed_list)
 
     try:
         target = _resolve_target(endpoint, task, backend)
@@ -339,6 +392,9 @@ def local_generate(prompt: str, model: str | None = None,
     result["routed_by"] = target.routed_by
     result["occupancy"] = target.occupancy
     result["max_tokens"] = max_tokens
+    if files_packed_list is not None:
+        result["files_packed"] = files_packed_list
+        result["files_bytes"] = files_bytes
     # JS1: thread the resolved model_id to the gateway wrapper for the ledger
     # event's `model` field via the _ledger_model convention (see gateway.py);
     # the wrapper pops this key before returning the result to the caller.

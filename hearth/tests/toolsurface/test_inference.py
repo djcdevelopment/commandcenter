@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import tempfile
 import urllib.error
+from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
 
@@ -312,3 +314,93 @@ class OccupancyRoutingTests(TestCase):
                 result = local_generate("q", endpoint="http://127.0.0.1:9999")
         occ_mock.assert_not_called()
         self.assertEqual(result["occupancy"], "available")
+
+
+class FilesPackingTests(TestCase):
+    """Repo-aware intake: files= packs scope-guarded content door-side, and any
+    bad path raises BEFORE dispatch (no POST, no auth, no occupancy probe)."""
+
+    def setUp(self) -> None:
+        self.enterContext(_ALWAYS_AVAILABLE)
+        self.temp_dir = self.enterContext(tempfile.TemporaryDirectory())
+        self.enterContext(patch.dict(os.environ, {"HEARTH_SCOPE": self.temp_dir}, clear=True))
+
+    def test_files_content_packed_and_reported(self) -> None:
+        notes_path = Path(self.temp_dir) / "notes.txt"
+        notes_path.write_text("EMBER-SENTINEL-77", encoding="utf-8")
+
+        with patch("urllib.request.urlopen", return_value=_FakeResponse(OLLAMA_REPLY)) as mocked:
+            result = local_generate("what is the sentinel?", files=["notes.txt"])
+
+        self.assertTrue(result.get("ok"), result.get("error"))
+        payload = json.loads(mocked.call_args[0][0].data.decode("utf-8"))
+        prompt = payload["prompt"]
+        self.assertIn("EMBER-SENTINEL-77", prompt)
+        self.assertIn('<file path="notes.txt">', prompt)
+        self.assertIn("what is the sentinel?", prompt)
+
+        self.assertEqual(result.get("files_packed"), [{"path": "notes.txt", "bytes": 17}])
+        self.assertEqual(result.get("files_bytes"), 17)
+
+    def test_files_escape_rejected(self) -> None:
+        with patch("urllib.request.urlopen") as mocked:
+            with self.assertRaises(ValueError):
+                local_generate("q", files=["../evil.txt"])
+            mocked.assert_not_called()
+
+    def test_files_missing_rejected(self) -> None:
+        with patch("urllib.request.urlopen") as mocked:
+            with self.assertRaisesRegex(ValueError, "not an existing regular file"):
+                local_generate("q", files=["ghost.txt"])
+            mocked.assert_not_called()
+
+    def test_files_over_cap_rejected(self) -> None:
+        big_path = Path(self.temp_dir) / "big.txt"
+        big_path.write_bytes(b"A" * 15)
+
+        with patch("hearth.toolsurface.inference.FILES_TOTAL_CAP", 10):
+            with patch("urllib.request.urlopen") as mocked:
+                with self.assertRaisesRegex(ValueError, "exceeds"):
+                    local_generate("q", files=["big.txt"])
+                mocked.assert_not_called()
+
+    def test_files_bad_type_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            local_generate("q", files="notes.txt")
+
+    def test_no_files_leaves_result_shape_unchanged(self) -> None:
+        with patch("urllib.request.urlopen", return_value=_FakeResponse(OLLAMA_REPLY)):
+            result = local_generate("q")
+        self.assertNotIn("files_packed", result)
+        self.assertNotIn("files_bytes", result)
+
+
+class GeminiDefaultBudgetTests(TestCase):
+    """Per-rung output budgets: omitted max_tokens resolves from backend settings
+    (the thinking-budget protection) on BOTH Gemini rungs."""
+
+    def setUp(self) -> None:
+        self.enterContext(_ALWAYS_AVAILABLE)
+        self.enterContext(patch.dict(os.environ, {
+            "GOOGLE_CLOUD_PROJECT": "trial-project",
+            "GOOGLE_OAUTH_ACCESS_TOKEN": "env-token",
+        }, clear=True))
+
+    def test_flash_default_budget_is_8192(self) -> None:
+        with patch("urllib.request.urlopen", return_value=_FakeResponse(GEMINI_REPLY)) as mocked:
+            result = local_generate("q", backend="gcp-gemini")
+
+        self.assertTrue(result.get("ok"), result.get("error"))
+        payload = json.loads(mocked.call_args[0][0].data.decode("utf-8"))
+        self.assertEqual(payload["generationConfig"]["maxOutputTokens"], 8192)
+        self.assertEqual(result["max_tokens"], 8192)
+
+    def test_pro_default_budget_is_16384(self) -> None:
+        with patch("urllib.request.urlopen", return_value=_FakeResponse(GEMINI_REPLY)) as mocked:
+            result = local_generate("q", backend="gcp-gemini-pro")
+
+        self.assertTrue(result.get("ok"), result.get("error"))
+        payload = json.loads(mocked.call_args[0][0].data.decode("utf-8"))
+        self.assertEqual(payload["generationConfig"]["maxOutputTokens"], 16384)
+        self.assertEqual(result["max_tokens"], 16384)
+        self.assertEqual(result["model"], "gemini-3.1-pro-preview")

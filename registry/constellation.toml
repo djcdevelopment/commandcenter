@@ -3,14 +3,14 @@
 # commandcenter's authoritative SOFTWARE registry: the logical organs and
 # cross-repo contracts of the "mechnet" constellation.
 #
-# The Two-Registry Doctrine (ADR-0016):
+# The Two-Registry Doctrine (ADR-0017):
 #   1. Machines / reachability      -> fleet/inventory.toml
 #   2. Model backends / rungs       -> hearth/etc/backends.toml
 #   3. Software organs + contracts  -> THIS FILE
 # Do not duplicate physical facts or backend allocations here. No double-truth.
 #
 # Schema inherited from constellation-manifest (AM4 seed intake 2026-07-16,
-# ADR-0016; exemplar: registry/seed/constellation-gad-2026-06-22.yaml).
+# ADR-0017; exemplar: registry/seed/constellation-gad-2026-06-22.yaml).
 # Hand-enrolled v0.1; conformance "reduced" = vocab adapted to mechnet,
 # unverified fields omitted rather than guessed (honest-placeholder invariant).
 
@@ -198,7 +198,7 @@ notes = "local mirror C:\\work\\am4-harvest\\manifest; archive of record = AM4 4
 [[repos]]
 name = "ember"
 kind = "git"
-role = "SEED: pattern donor — critic-verdict loop + soft gate, Reflect dual-judge + XML-cite, overnight planner (ADR-0016 slices); .NET code not ported"
+role = "SEED: pattern donor — critic-verdict loop + soft gate, Reflect dual-judge + XML-cite, overnight planner (ADR-0017 slices); .NET code not ported"
 producer_type = "dev_tooling"
 host = "am4"
 local_path = '/mnt/win/work/ember'
@@ -278,5 +278,5 @@ model_backends = "hearth/etc/backends.toml"
 software = "registry/constellation.toml"
 
 # Consumer slice (tomllib + dataclasses loader, fleet/inventory.toml-style) is a
-# planned build (ADR-0016). Until it lands, this file is the declarative truth
+# planned build (ADR-0017). Until it lands, this file is the declarative truth
 # for humans and agents.

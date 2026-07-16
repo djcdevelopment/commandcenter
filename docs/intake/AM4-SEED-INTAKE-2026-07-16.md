@@ -1,7 +1,7 @@
 # AM4 Seed Intake — manifest, ember, gad (2026-07-16)
 
 Cue: Derek — "old work on AM4 we should bake into commandcenter; it's on the 4TB."
-Ruling: [ADR-0016](../adr/0016-software-constellation-registry-am4-seed-intake.md).
+Ruling: [ADR-0017](../adr/0017-software-constellation-registry-am4-seed-intake.md).
 Operator surface: `AM4-SEED-INTAKE.html` (repo root).
 
 ## Provenance
@@ -26,7 +26,7 @@ packing (~135K tokens in / ~5K out, trial credits; verified via result metadata)
   contracts; tomllib-parse + referential-integrity proven.
 - `registry/seed/constellation-gad-2026-06-22.yaml` — verbatim donor artifact.
 - `registry/README.md` — two-registry doctrine + provenance.
-- ADR-0016 — the six intake rulings.
+- ADR-0017 — the six intake rulings.
 
 ## Harvest map (condensed from the three assessments)
 
@@ -75,7 +75,7 @@ packing (~135K tokens in / ~5K out, trial credits; verified via result metadata)
 - Ember's "builder gets no push credentials" — workers push via gateway
   `git_commit_push`.
 
-## Assessor "one decision" verdicts (all three ruled, ADR-0016)
+## Assessor "one decision" verdicts (all three ruled, ADR-0017)
 
 1. manifest: vendor the Pydantic framework vs go stdlib-native → **stdlib-native** (D2).
 2. gad: merge software registry into fleet inventory vs keep distinct → **distinct** (D1).

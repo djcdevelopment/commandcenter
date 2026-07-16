@@ -3,7 +3,7 @@
 `constellation.toml` is commandcenter's **software** registry: the organs of the
 mechnet (repos across OMEN and AM4) and the cross-repo contracts between them.
 
-## Two-registry doctrine (ADR-0016)
+## Two-registry doctrine (ADR-0017)
 
 | Question | Source of truth |
 |---|---|
@@ -33,7 +33,7 @@ May–June 2026), whose canonical instance was the GAD manifest maintained in
   loader is dataclasses + `__post_init__` checks, same pattern as
   `fleet/inventory.toml`.
 
-Full intake record: `docs/intake/AM4-SEED-INTAKE-2026-07-16.md`. Ruling: ADR-0016.
+Full intake record: `docs/intake/AM4-SEED-INTAKE-2026-07-16.md`. Ruling: ADR-0017.
 
 ## Conventions
 

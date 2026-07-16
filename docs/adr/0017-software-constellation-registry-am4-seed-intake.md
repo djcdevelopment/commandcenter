@@ -1,4 +1,4 @@
-# ADR-0016 — Software constellation registry + the AM4 seed intake rulings
+# ADR-0017 — Software constellation registry + the AM4 seed intake rulings
 
 **Status:** Accepted (2026-07-16) — registry landed same day (`registry/constellation.toml`).
 

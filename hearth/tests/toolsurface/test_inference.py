@@ -342,6 +342,25 @@ class FilesPackingTests(TestCase):
         self.assertEqual(result.get("files_packed"), [{"path": "notes.txt", "bytes": 17}])
         self.assertEqual(result.get("files_bytes"), 17)
 
+    def test_files_absolute_from_secondary_root_packed(self) -> None:
+        """Multi-root scope: an absolute path under a secondary HEARTH_SCOPE root
+        packs fine and is labeled by absolute path (not repo-relative)."""
+        other_dir = Path(self.enterContext(tempfile.TemporaryDirectory())).resolve()
+        other = other_dir / "other.txt"
+        other.write_text("CROSS-REPO-99", encoding="utf-8")
+        scope = os.pathsep.join([self.temp_dir, str(other_dir)])
+        self.enterContext(patch.dict(os.environ, {"HEARTH_SCOPE": scope}))
+
+        with patch("urllib.request.urlopen", return_value=_FakeResponse(OLLAMA_REPLY)) as mocked:
+            result = local_generate("q", files=[str(other)])
+
+        self.assertTrue(result.get("ok"), result.get("error"))
+        payload = json.loads(mocked.call_args[0][0].data.decode("utf-8"))
+        self.assertIn("CROSS-REPO-99", payload["prompt"])
+        self.assertIn(f'<file path="{other.as_posix()}">', payload["prompt"])
+        self.assertEqual(result.get("files_packed"),
+                         [{"path": other.as_posix(), "bytes": 13}])
+
     def test_files_escape_rejected(self) -> None:
         with patch("urllib.request.urlopen") as mocked:
             with self.assertRaises(ValueError):

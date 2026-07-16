@@ -9,7 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
-from hearth.toolsurface._scope import resolve_in_scope, scope_root
+from hearth.toolsurface._scope import in_any_scope, resolve_in_scope, scope_root, scope_roots
 
 
 def read_file(path: str, max_bytes: int = 200_000) -> dict:
@@ -77,14 +77,20 @@ def glob_files(pattern: str, root: str = ".") -> dict:
     base = resolve_in_scope(root)
     if not base.is_dir():
         raise ValueError(f"root is not a directory: {root}")
-    sandbox = scope_root()
+    roots = scope_roots()
+    primary = scope_root()
     matches = []
     for hit in sorted(base.glob(pattern)):
         resolved = hit.resolve()
-        if resolved != sandbox and not resolved.is_relative_to(sandbox):
+        if not in_any_scope(resolved, roots):
             continue  # a symlinked match must not leak paths outside the sandbox
         if resolved.is_file():
-            matches.append(str(resolved.relative_to(sandbox)))
+            # Primary-root matches stay repo-relative (unchanged shape); matches
+            # under a secondary root are reported by absolute path.
+            if resolved.is_relative_to(primary):
+                matches.append(str(resolved.relative_to(primary)))
+            else:
+                matches.append(str(resolved))
     return {"root": str(base), "pattern": pattern, "count": len(matches), "matches": matches}
 
 

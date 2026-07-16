@@ -53,12 +53,12 @@ def _pack_files(files: list[str]) -> tuple[str, list[dict]]:
     Caps are enforced on os.stat sizes BEFORE reading; any bad path (escape,
     missing, over-cap) raises ValueError so the caller's dispatch never starts.
     """
-    root = scope_root()
+    primary = scope_root()
     packed_blocks = []
     files_packed = []
     total_bytes = 0
     for path in files:
-        resolved = resolve_in_scope(path, root)
+        resolved = resolve_in_scope(path)
         if not resolved.is_file():
             raise ValueError(f"path is not an existing regular file: {path}")
 
@@ -70,9 +70,15 @@ def _pack_files(files: list[str]) -> tuple[str, list[dict]]:
 
         total_bytes += size
         content = resolved.read_text(encoding="utf-8", errors="replace")
-        rel = resolved.relative_to(root).as_posix()
-        packed_blocks.append(f'<file path="{rel}">\n{content}\n</file>')
-        files_packed.append({"path": rel, "bytes": size})
+        # Primary-root (repo) files keep their repo-relative label; files from a
+        # secondary scope root are labeled by absolute path so the model (and the
+        # manifest reader) can see which repo they came from.
+        if resolved.is_relative_to(primary):
+            label = resolved.relative_to(primary).as_posix()
+        else:
+            label = resolved.as_posix()
+        packed_blocks.append(f'<file path="{label}">\n{content}\n</file>')
+        files_packed.append({"path": label, "bytes": size})
 
     return "\n\n".join(packed_blocks), files_packed
 
@@ -327,11 +333,12 @@ def local_generate(prompt: str, model: str | None = None,
     backend is never occupancy-skipped. The chosen backend, routing reason, and
     occupancy-at-decision all ride in the result.
 
-    File packing (repo-aware): pass ``files`` (repo-relative paths) to have the
-    door pack their contents into <file path="..."> blocks ahead of the prompt —
-    no need to paste file contents. Paths are scope-guarded by the HEARTH_SCOPE
-    sandbox; capped at 256 KiB per file and 1 MiB total. The packed manifest
-    rides the result as ``files_packed``/``files_bytes``.
+    File packing (repo-aware): pass ``files`` — repo-relative paths, or absolute
+    paths under any HEARTH_SCOPE root (e.g. other repos beneath C:\\work) — to
+    have the door pack their contents into <file path="..."> blocks ahead of the
+    prompt — no need to paste file contents. Paths are scope-guarded by the
+    HEARTH_SCOPE sandbox; capped at 256 KiB per file and 1 MiB total. The packed
+    manifest rides the result as ``files_packed``/``files_bytes``.
     """
     if not isinstance(prompt, str) or not prompt.strip():
         raise ValueError("prompt must be a non-empty string")

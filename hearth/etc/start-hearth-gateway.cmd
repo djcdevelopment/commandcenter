@@ -2,7 +2,9 @@
 rem HEARTH gateway login-start wrapper (same posture as OmenOllamaTracingProxy).
 rem Registered as scheduled task "HearthGateway" (logon trigger, user OMEN\derek).
 cd /d C:\work\commandcenter
-set HEARTH_SCOPE=C:\work\commandcenter
+rem Multi-root sandbox: first root is primary (repo-relative paths resolve there);
+rem C:\work widens containment so files= can pack from any repo by absolute path.
+set HEARTH_SCOPE=C:\work\commandcenter;C:\work
 rem Secrets (e.g. Banked Fire's AM4_OXEN_TOKEN) live in this gitignored batch
 rem fragment so they stay out of git but load on every gateway start/restart.
 rem MUST be .cmd (not .env): `call` only executes .bat/.cmd as batch — calling a

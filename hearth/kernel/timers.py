@@ -28,6 +28,7 @@ Public API: ``TIMERS`` (the registry, importable for inspection) and
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import threading
@@ -93,6 +94,14 @@ TIMERS: list[TimerSpec] = [
         argv_builder=lambda: [sys.executable, "-m", "fleet.bankedfire_drain", "--json"],
         log_path=VAR_DIR / "bankedfire-drain-task.log",
         stagger_s=_stagger_for(2),
+    ),
+    TimerSpec(
+        name="ollama-sentinel",
+        interval_s=120.0,
+        argv_builder=lambda: [sys.executable, "-m", "fleet.ollama_sentinel",
+                              "--json", "--exclude-pid", str(os.getpid())],
+        log_path=VAR_DIR / "ollama-sentinel-task.log",
+        stagger_s=_stagger_for(3),
     ),
 ]
 

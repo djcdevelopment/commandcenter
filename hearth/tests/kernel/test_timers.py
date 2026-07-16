@@ -5,6 +5,7 @@ of a second) keep the suite fast."""
 
 from __future__ import annotations
 
+import os
 import subprocess
 import tempfile
 import threading
@@ -217,16 +218,23 @@ class StartTimersTests(unittest.TestCase):
 
     def test_registry_argv_matches_adr_contract(self):
         names = {t.name: t for t in timers_mod.TIMERS}
-        self.assertEqual(set(names), {"patrol", "watchdog", "drain"})
+        self.assertEqual(set(names), {"patrol", "watchdog", "drain", "ollama-sentinel"})
         self.assertEqual(names["patrol"].interval_s, 300.0)
         self.assertEqual(names["watchdog"].interval_s, 900.0)
         self.assertEqual(names["drain"].interval_s, 1800.0)
+        self.assertEqual(names["ollama-sentinel"].interval_s, 120.0)
         self.assertEqual(names["patrol"].argv_builder()[1:],
                          ["-m", "fleet.mechnet_watchdog", "--patrol-only", "--json"])
         self.assertEqual(names["watchdog"].argv_builder()[1:],
                          ["-m", "fleet.mechnet_watchdog", "--json"])
         self.assertEqual(names["drain"].argv_builder()[1:],
                          ["-m", "fleet.bankedfire_drain", "--json"])
+        # The sentinel's exclude-pid is the gateway's own pid, resolved at
+        # tick time — assert the shape, then the dynamic tail.
+        sentinel_argv = names["ollama-sentinel"].argv_builder()
+        self.assertEqual(sentinel_argv[1:5],
+                         ["-m", "fleet.ollama_sentinel", "--json", "--exclude-pid"])
+        self.assertEqual(sentinel_argv[5], str(os.getpid()))
 
 
 if __name__ == "__main__":

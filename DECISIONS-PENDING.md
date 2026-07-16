@@ -73,6 +73,16 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       evidence accumulated). `files=` param landed on branch `feat/repo-aware-intake`,
       drafted by the door's own gcp-gemini-pro rung and live-proven post-restart
       (receipt br-20260716-070602-756035bd; 445 tests green).
+- [ ] 2026-07-16 — PINNED (decide after sentinel data accrues): full per-request
+      interception of direct Ollama traffic — a ledgering proxy owning :11434 (Ollama
+      moves to :11435) would capture every bypass with content digests, but puts a
+      moving piece in front of a production serving lane the fleet uses directly.
+      Slice 0 shipped instead: the ollama-sentinel gateway timer (fleet/ollama_sentinel.py,
+      120s netstat sampling, hearth/var/sentinel/ollama-direct.ndjson) — sampling can
+      miss short calls between ticks. Revisit when the ndjson shows how much direct
+      traffic exists and from whom. Also open: same sentinel pattern for AM4 oxen :8090
+      (facade is our code — could ledger natively) and Vertex-direct (only GCP audit
+      logs can see it).
 - [ ] 2026-07-09 — PINNED (decide after use-case discovery): fleet builds targeting a
       NON-conductor repo (trigger: Valheim fieldlab mod wanted mechnet help; today
       CCMETA has no repo concept — [task_lane.py](hearth/toolsurface/task_lane.py) is

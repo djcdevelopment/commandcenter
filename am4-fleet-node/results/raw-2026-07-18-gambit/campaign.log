@@ -1,0 +1,149 @@
+[07:47:18] gambit mode=all out=/home/derek/o1/gambit
+[07:47:21] calibrated: target 1000 -> actual 737 (chars/token now 2.95)
+[07:47:21] === sweep_A ===
+[07:47:21] wave A.c1.r0: c=1 p~800 out=128
+[07:47:27] wave A.c1.r1: c=1 p~800 out=128
+[07:47:33] wave A.c2.r0: c=2 p~800 out=128
+[07:47:45] wave A.c2.r1: c=2 p~800 out=128
+[07:47:58] wave A.c3.r0: c=3 p~800 out=128
+[07:48:13] wave A.c3.r1: c=3 p~800 out=128
+[07:48:29] wave A.c4.r0: c=4 p~800 out=128
+[07:48:48] wave A.c4.r1: c=4 p~800 out=128
+[07:49:07] wave A.c6.r0: c=6 p~800 out=128
+[07:49:38] wave A.c6.r1: c=6 p~800 out=128
+[07:50:08] wave A.c8.r0: c=8 p~800 out=128
+[07:50:46] wave A.c8.r1: c=8 p~800 out=128
+[07:51:25] wave A.c12.r0: c=12 p~800 out=128
+[07:52:23] wave A.c12.r1: c=12 p~800 out=128
+[07:53:18] wave A.c16.r0: c=16 p~800 out=128
+[07:54:35] wave A.c16.r1: c=16 p~800 out=128
+[07:55:52] === sweep_B ===
+[07:55:52] wave B.p512: c=4 p~512 out=128
+[07:56:10] wave B.p2048: c=4 p~2048 out=128
+[07:56:35] wave B.p4096: c=4 p~4096 out=128
+[07:57:16] wave B.p8192: c=4 p~8192 out=128
+[07:58:19] wave B.p12288: c=4 p~12288 out=128
+[07:59:47] wave B.p15000: c=4 p~15000 out=128
+[08:01:32] B: over-limit failure-mode cell (expect clean per-request error)
+[08:01:32] wave B.overlimit.p17500: c=1 p~17500 out=128
+[08:02:03] B: prompt-cache pair (identical prompt, sequential)
+[08:02:19] === sweep_C ===
+[08:02:19] wave C.out256: c=4 p~256 out=256
+[08:02:46] wave C.out1024: c=4 p~256 out=1024
+[08:03:12] wave C.c8.out512: c=8 p~256 out=512
+[08:04:21] === sweep_F ===
+[08:04:21] wave F.burst32: c=32 p~400 out=96
+[08:06:06] === sweep_E ===
+[08:06:06] wave E.soak.0: c=4 p~800 out=128
+[08:06:26] wave E.soak.1: c=4 p~800 out=128
+[08:06:45] wave E.soak.2: c=4 p~800 out=128
+[08:07:04] wave E.soak.3: c=4 p~800 out=128
+[08:07:24] wave E.soak.4: c=4 p~800 out=128
+[08:07:43] wave E.soak.5: c=4 p~800 out=128
+[08:08:02] wave E.soak.6: c=4 p~800 out=128
+[08:08:22] wave E.soak.7: c=4 p~800 out=128
+[08:08:41] wave E.soak.8: c=4 p~800 out=128
+[08:09:00] wave E.soak.9: c=4 p~800 out=128
+[08:09:20] wave E.soak.10: c=4 p~800 out=128
+[08:09:40] wave E.soak.11: c=4 p~800 out=128
+[08:09:59] wave E.soak.12: c=4 p~800 out=128
+[08:10:18] wave E.soak.13: c=4 p~800 out=128
+[08:10:37] wave E.soak.14: c=4 p~800 out=128
+[08:10:56] wave E.soak.15: c=4 p~800 out=128
+[08:11:16] wave E.soak.16: c=4 p~800 out=128
+[08:11:33] wave E.soak.17: c=4 p~800 out=128
+[08:11:53] wave E.soak.18: c=4 p~800 out=128
+[08:12:12] wave E.soak.19: c=4 p~800 out=128
+[08:12:30] wave E.soak.20: c=4 p~800 out=128
+[08:12:50] wave E.soak.21: c=4 p~800 out=128
+[08:13:09] wave E.soak.22: c=4 p~800 out=128
+[08:13:28] wave E.soak.23: c=4 p~800 out=128
+[08:13:47] wave E.soak.24: c=4 p~800 out=128
+[08:14:06] wave E.soak.25: c=4 p~800 out=128
+[08:14:25] wave E.soak.26: c=4 p~800 out=128
+[08:14:44] wave E.soak.27: c=4 p~800 out=128
+[08:15:04] wave E.soak.28: c=4 p~800 out=128
+[08:15:23] wave E.soak.29: c=4 p~800 out=128
+[08:15:43] wave E.soak.30: c=4 p~800 out=128
+[08:16:02] wave E.soak.31: c=4 p~800 out=128
+[08:16:22] gambit done
+[08:17:58] gambit mode=D out=/home/derek/o1/gambit
+[08:18:01] calibrated: target 1000 -> actual 728 (chars/token now 2.91)
+[08:18:01] wave D.load.0: c=2 p~600 out=128
+[08:18:12] wave D.load.1: c=2 p~600 out=128
+[08:18:24] wave D.load.2: c=2 p~600 out=128
+[08:18:36] wave D.load.3: c=2 p~600 out=128
+[08:18:48] wave D.load.4: c=2 p~600 out=128
+[08:18:59] wave D.load.5: c=2 p~600 out=128
+[08:19:10] wave D.load.6: c=2 p~600 out=128
+[08:19:22] wave D.load.7: c=2 p~600 out=128
+[08:19:45] wave D.load.8: c=2 p~600 out=128
+[08:19:59] wave D.load.9: c=2 p~600 out=128
+[08:20:12] wave D.load.10: c=2 p~600 out=128
+[08:20:24] wave D.load.11: c=2 p~600 out=128
+[08:20:36] wave D.load.12: c=2 p~600 out=128
+[08:20:47] wave D.load.13: c=2 p~600 out=128
+[08:20:59] wave D.load.14: c=2 p~600 out=128
+[08:21:11] wave D.load.15: c=2 p~600 out=128
+[08:21:22] wave D.load.16: c=2 p~600 out=128
+[08:21:35] wave D.load.17: c=2 p~600 out=128
+[08:21:47] wave D.load.18: c=2 p~600 out=128
+[08:21:58] wave D.load.19: c=2 p~600 out=128
+[08:22:10] wave D.load.20: c=2 p~600 out=128
+[08:22:21] wave D.load.21: c=2 p~600 out=128
+[08:22:33] wave D.load.22: c=2 p~600 out=128
+[08:22:52] wave D.load.23: c=2 p~600 out=128
+[08:23:04] wave D.load.24: c=2 p~600 out=128
+[08:23:16] wave D.load.25: c=2 p~600 out=128
+[08:23:27] wave D.load.26: c=2 p~600 out=128
+[08:23:39] wave D.load.27: c=2 p~600 out=128
+[08:23:51] wave D.load.28: c=2 p~600 out=128
+[08:24:03] wave D.load.29: c=2 p~600 out=128
+[08:24:17] wave D.load.30: c=2 p~600 out=128
+[08:24:29] wave D.load.31: c=2 p~600 out=128
+[08:24:41] wave D.load.32: c=2 p~600 out=128
+[08:24:53] wave D.load.33: c=2 p~600 out=128
+[08:25:05] wave D.load.34: c=2 p~600 out=128
+[08:25:16] wave D.load.35: c=2 p~600 out=128
+[08:25:27] wave D.load.36: c=2 p~600 out=128
+[08:25:39] wave D.load.37: c=2 p~600 out=128
+[08:25:49] wave D.load.38: c=2 p~600 out=128
+[08:26:01] wave D.load.39: c=2 p~600 out=128
+[08:26:15] wave D.load.40: c=2 p~600 out=128
+[08:26:33] wave D.load.41: c=2 p~600 out=128
+[08:26:46] wave D.load.42: c=2 p~600 out=128
+[08:26:58] wave D.load.43: c=2 p~600 out=128
+[08:27:10] wave D.load.44: c=2 p~600 out=128
+[08:27:22] wave D.load.45: c=2 p~600 out=128
+[08:27:34] wave D.load.46: c=2 p~600 out=128
+[08:27:46] wave D.load.47: c=2 p~600 out=128
+[08:27:58] wave D.load.48: c=2 p~600 out=128
+[08:28:09] wave D.load.49: c=2 p~600 out=128
+[08:28:21] wave D.load.50: c=2 p~600 out=128
+[08:28:33] wave D.load.51: c=2 p~600 out=128
+[08:28:44] wave D.load.52: c=2 p~600 out=128
+[08:28:56] wave D.load.53: c=2 p~600 out=128
+[08:29:08] wave D.load.54: c=2 p~600 out=128
+[08:29:19] wave D.load.55: c=2 p~600 out=128
+[08:29:30] wave D.load.56: c=2 p~600 out=128
+[08:29:41] wave D.load.57: c=2 p~600 out=128
+[08:29:52] wave D.load.58: c=2 p~600 out=128
+  File "<string>", line 1
+    import sys; sys.argv=[\x27x\x27,\x27D\x27]; exec(open(\x27moe_gambit.py\x27).read())
+                           ^
+SyntaxError: unexpected character after line continuation character
+[08:30:04] wave D.load.59: c=2 p~600 out=128
+[08:30:16] wave D.load.60: c=2 p~600 out=128
+[08:30:35] wave D.load.61: c=2 p~600 out=128
+[08:30:55] wave D.load.62: c=2 p~600 out=128
+[08:31:07] wave D.load.63: c=2 p~600 out=128
+[08:31:19] wave D.load.64: c=2 p~600 out=128
+[08:31:31] wave D.load.65: c=2 p~600 out=128
+[08:31:43] wave D.load.66: c=2 p~600 out=128
+[08:31:54] wave D.load.67: c=2 p~600 out=128
+[08:32:06] wave D.load.68: c=2 p~600 out=128
+[08:32:17] wave D.load.69: c=2 p~600 out=128
+[08:32:28] wave D.load.70: c=2 p~600 out=128
+[08:32:40] wave D.load.71: c=2 p~600 out=128
+[08:32:52] wave D.load.72: c=2 p~600 out=128
+[08:33:04] gambit done

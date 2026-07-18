@@ -52,7 +52,7 @@
 
 <h1>MECHNET Autonomy Plan — see · steer · re-baseline</h1>
 <div class="meta">
-  2026-07-18 · <span class="status draft" style="color: var(--good)">v2.0 — gpt-oss-120b RESIDENT on oxen as the am4-moe rung: the always-warm big-MoE router/worker, slot/KV goodput-routed · O1 bench DONE · swap landed</span> ·
+  2026-07-18 · <span class="status draft" style="color: var(--good)">v2.1 — gambit RUN on the resident moe: 453/453 ok, no breaking point found (26 tok/s goodput ceiling, 18 GiB pressure-immune, one silent-truncation trap → door budget is load-bearing)</span> ·
   SEE S1–S6 + STEER A1–A4 + A6 <strong class="good">LIVE</strong> · G3 (A5) queue-and-forget
   <strong class="good">LIVE</strong> on <code>master</code> (<span class="kpi">de072b6</span>, gateway 47/47) ·
   <strong class="good">NEW — fleet-harvest LIVE</strong>: <code>harvest_fleet_run</code>/<code>list_fleet_runs</code>
@@ -518,6 +518,24 @@ staged-load one-liner) — parked verbatim in the O-track briefs; verify on node
       <code>am4-fleet-node/results/2026-07-18-oxen-moe-gpt-oss-120b.md</code>; receipt
       <span class="kpi">br-20260718-064639-50a1d2f7 done 6/6</span>. Follow-ups: /metrics KV+queue-depth
       telemetry, slot save/restore session parking, mechnet modes for imagegen windows, capacity facts → O5.</li>
+  <li><strong class="good">NEW (v2.1) — the GAMBIT: multi-axis stress characterization of the resident moe
+      (Derek: "find out if it breaks before we build things with it").</strong> Six sweeps, 453 requests,
+      <span class="kpi">0 failures · 0 restarts · no OOM · no thermal drift</span> — <strong>no breaking point
+      found in any tested dimension</strong>; the limits are latency curves + one policy trap.
+      Concurrency 1→16: goodput saturates at <span class="kpi">~26 tok/s</span> at c=4 and holds FLAT to c=16
+      (queue costs ~4.4 s TTFT per queued request, never throughput); 32-burst (8× slots) drained linearly,
+      all complete, max wall 105 s. Context depth: prefill ~190 tok/s flat to 15k; deep-KV decode −40% at 15k.
+      <strong class="warn">THE TRAP:</strong> a 17.5k over-limit prompt did NOT error — llama-server
+      <em>silently truncates</em> → the rung's door-side <code>context_bytes=57344</code> budget is
+      load-bearing, not advisory (A1 enforcement validated). Prompt-cache pair: TTFT
+      <span class="kpi">11.8 s cold → 0.17 s warm (68×)</span> — session parking economics confirmed.
+      10-min soak: −2% drift, GPU die max <span class="kpi">78 °C</span>. Pressure (denning-style, hog
+      OOMScoreAdjust=1000, steps 6/10/14/18 GiB vs live decode): <span class="kpi">≤4% decode loss at
+      18 GiB</span> (~48G demand vs 30G physical, 19.3 GiB swap peak) — hot experts win LRU, zram pri-100
+      absorbs first + 16G file backstops (D2 architecture proven under fire; zram best-case caveat noted —
+      hog pages compress ~perfectly). Results + rerunnable instruments:
+      <code>am4-fleet-node/results/2026-07-18-oxen-moe-gambit.md</code> + <code>raw-2026-07-18-gambit/</code>;
+      capacity facts table feeds O5. Receipt <span class="kpi">br-20260718-074554-fe90b0be done 6/6</span>.</li>
 </ul></div>
 
 </main>

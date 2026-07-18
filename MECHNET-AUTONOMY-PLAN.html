@@ -52,13 +52,13 @@
 
 <h1>MECHNET Autonomy Plan — see · steer · re-baseline</h1>
 <div class="meta">
-  2026-07-17 · <span class="status draft" style="color: var(--good)">v1.5 — G2 on master · D1/D3 decided · G3 built inline (branch) · O1-prereq handed to Derek</span> ·
-  SEE S1–S6 + STEER A1–A4 + A6 all <strong class="good">LIVE</strong> on <code>master</code>
-  (<span class="kpi">3ef550c</span>) · O0 <strong class="good">DONE</strong>, D2 decided ·
-  G3 (A5) <strong class="good">built + 506 tests green</strong> on <code>feat/g3-queue-and-forget</code>
-  (<span class="kpi">0c83dcf</span>), awaiting merge+restart · O1 swap/zram prereq blocked on the fleet
-  (needs root) → vetted <code>setup-swap.sh</code> handed to Derek to run; <code>/mnt/win</code> preflight
-  passed. See §9.<br>
+  2026-07-17 · <span class="status draft" style="color: var(--good)">v1.6 — G3 + fleet-harvest LIVE on master · 47/47 tools · fleet builds un-stranded to GitHub</span> ·
+  SEE S1–S6 + STEER A1–A4 + A6 <strong class="good">LIVE</strong> · G3 (A5) queue-and-forget
+  <strong class="good">LIVE</strong> on <code>master</code> (<span class="kpi">de072b6</span>, gateway 47/47) ·
+  <strong class="good">NEW — fleet-harvest LIVE</strong>: <code>harvest_fleet_run</code>/<code>list_fleet_runs</code>
+  mirror stranded fleet branches to private GitHub via OMEN (both tonight's runs proven on
+  <code>origin fleet/…</code>) · O0 <strong class="good">DONE</strong>, D1/D2/D3 decided · O1 swap/zram
+  prereq: vetted <code>setup-swap.sh</code> with Derek to run (fleet can't — needs root). See §9.<br>
   Builds on <code>HEARTH-OFFLOAD-STRATEGY.html</code> (2026-07-15) — that doc makes offload <em>ergonomic</em>;
   this one makes it <em>autonomous</em> and adds the oxen re-baseline campaign. Execution log in §9.
 </div>
@@ -417,6 +417,28 @@ staged-load one-liner) — parked verbatim in the O-track briefs; verify on node
       rungs) — not a fleet-builder name or a free-form "fleet:..." tag. Fleet routing goes in the
       <code>evidence</code> string instead; the receipt is an audit wrapper around whichever lane actually
       executes (<code>manual</code>/<code>agent</code>/<code>delegate</code>), not an executor itself.</li>
+  <li><strong>Follow-on wave ("get the tooling up"):</strong> merged <code>feat/g3-queue-and-forget</code> →
+      <code>master</code> (<span class="kpi">de072b6</span>) and restarted the gateway — G3's three tools are now
+      <strong class="good">LIVE</strong> (doorcheck <span class="kpi">47/47 tools</span>, up from 43; the manifest
+      auto-picked them up from <code>get_tools()</code> — no count edit, exactly as designed). Live-proven through
+      the door: <code>queue_status()</code> → <span class="kpi">queued 0 / running 2 / done 179</span>;
+      <code>task_status(out_file=)</code> wrote a 4.3 KB result to a scoped file and returned only
+      <span class="kpi">winner:cc-builder-1</span> + byte count (no blob inline).</li>
+  <li><strong class="good">NEW — fleet-harvest un-strands fleet builds to GitHub.</strong> Root cause found by
+      tracing tonight's stranded runs: workers build <code>ccfarm/&lt;plan_id&gt;/&lt;worker&gt;/lap1</code> into
+      the conductor's <em>farmer-repo</em> (the running one is
+      <code>commandcenter-ontology/farmer-repo</code>, verified from <code>/proc</code> — the default path was
+      07-09-stale), whose only remote is a dead-end local bare; the conductor has no GitHub path (no HTTPS creds,
+      SSH host-key unverified). So fleet CODE never reached the central remote — you had to SSH-hop to read a
+      build. <strong>Fix = OMEN as the bridge</strong> (it already has GitHub push + SSH to the conductor):
+      provider <code>hearth/toolsurface/fleet_harvest.py</code> — <code>harvest_fleet_run(plan_id)</code> fetches a
+      run's branches (read-only on the conductor) and pushes them to the <em>private</em> origin under
+      <code>fleet/&lt;plan_id&gt;/&lt;worker&gt;/lap1</code> (non-force; <code>master</code> never touched);
+      <code>list_fleet_runs()</code> discovers harvestable runs. The harvest is a manifested door call, so it lands
+      on the ledger — the point is to keep fleet work <em>on</em> the front door (centralized-capture principle).
+      <span class="kpi">+12 tests; hearth/tests 518 green</span>. Both tonight's runs proven on
+      <code>origin fleet/…</code>; a plain <code>git fetch origin</code> then pulled am4-worker-1's QUESTION.md
+      with zero SSH-hop. The residual capture gap (fleet code stranded on nodes) is <strong class="good">closed</strong>.</li>
 </ul></div>
 
 </main>

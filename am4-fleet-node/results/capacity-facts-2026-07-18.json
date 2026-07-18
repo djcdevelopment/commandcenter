@@ -1,0 +1,45 @@
+{
+  "generated": "2026-07-18",
+  "purpose": "O5 seed — machine-readable capacity facts for the HEARTH router cost model",
+  "sources": [
+    "am4-fleet-node/results/2026-07-18-o1-ze-peer-p2p.md",
+    "am4-fleet-node/results/2026-07-18-oxen-moe-gpt-oss-120b.md",
+    "am4-fleet-node/results/2026-07-18-oxen-moe-gambit.md"
+  ],
+  "extraction": {
+    "primary": "gcp-gemini (gemini-3.5-flash), 29.8s, 28 facts",
+    "cross_check": "am4-moe (gpt-oss-120b), 88.5s, 15-fact terse subset — values agreed; every number verified by hand against the source docs",
+    "note": "am4-moe conflated the 16k server truncation ceiling with the 14k door budget; both kept as separate facts below"
+  },
+  "facts": [
+    {"backend": "am4-moe", "metric": "aggregate_decode_ceiling", "value": 26, "unit": "tok/s", "conditions": "batched, offered load >= 4; flat to 16-way oversubscription", "source": "2026-07-18-oxen-moe-gambit.md"},
+    {"backend": "am4-moe", "metric": "solo_decode_rate", "value": 29, "unit": "tok/s", "conditions": "single stream", "source": "2026-07-18-oxen-moe-gambit.md"},
+    {"backend": "am4-moe", "metric": "concurrent_decode_per_stream", "value": 9.4, "unit": "tok/s", "conditions": "4 slots saturated", "source": "2026-07-18-oxen-moe-gambit.md"},
+    {"backend": "am4-moe", "metric": "prefill_rate", "value": 190, "unit": "tok/s", "conditions": "4-way concurrent, roughly flat to 15k depth (221 solo warm)", "source": "2026-07-18-oxen-moe-gambit.md"},
+    {"backend": "am4-moe", "metric": "ttft_base", "value": 1.4, "unit": "s", "conditions": "idle slot, short prompt", "source": "2026-07-18-oxen-moe-gambit.md"},
+    {"backend": "am4-moe", "metric": "ttft_prompt_coefficient", "value": 0.005, "unit": "s/token", "conditions": "= prompt_tokens / 200", "source": "2026-07-18-oxen-moe-gambit.md"},
+    {"backend": "am4-moe", "metric": "ttft_queue_cost", "value": 4.4, "unit": "s/queue_position", "conditions": "at 800-prompt/128-out shape", "source": "2026-07-18-oxen-moe-gambit.md"},
+    {"backend": "am4-moe", "metric": "cache_hit_ttft", "value": 0.17, "unit": "s", "conditions": "identical 8k prompt back-to-back (68x vs 11.8s cold)", "source": "2026-07-18-oxen-moe-gambit.md"},
+    {"backend": "am4-moe", "metric": "deep_context_decode_penalty", "value": 40, "unit": "%", "conditions": "at 15k depth (9 -> 5.4 tok/s per stream)", "source": "2026-07-18-oxen-moe-gambit.md"},
+    {"backend": "am4-moe", "metric": "door_payload_budget", "value": 14000, "unit": "tokens", "conditions": "context_bytes=57344; LOAD-BEARING — server does not refuse over-limit", "source": "2026-07-18-oxen-moe-gambit.md"},
+    {"backend": "am4-moe", "metric": "server_truncation_ceiling", "value": 16384, "unit": "tokens", "conditions": "per-slot n_ctx; prompts above are SILENTLY truncated, no error", "source": "2026-07-18-oxen-moe-gambit.md"},
+    {"backend": "am4-moe", "metric": "overload_burst_tolerance", "value": 32, "unit": "concurrent", "conditions": "8x slots, linear drain, 0 errors, max wall 105s", "source": "2026-07-18-oxen-moe-gambit.md"},
+    {"backend": "am4-moe", "metric": "cold_load_time", "value": 3.2, "unit": "min", "conditions": "ntfs3 mmap -> VRAM, to health-OK", "source": "2026-07-18-oxen-moe-gpt-oss-120b.md"},
+    {"backend": "am4-moe", "metric": "first_request_prefill_warmup", "value": 8.4, "unit": "tok/s", "conditions": "one-time SYCL kernel compile; NOT steady state", "source": "2026-07-18-oxen-moe-gpt-oss-120b.md"},
+    {"backend": "am4-moe", "metric": "practical_output_ceiling_per_call", "value": 3000, "unit": "tokens", "conditions": "client tooling: 300s MCP idle timeout / ~27 tok/s incl. reasoning; larger outputs -> flash or raise client timeout", "source": "session 2026-07-18 (timeout physics, first real workload)"},
+    {"backend": "am4-host", "metric": "host_ram_pressure_tolerance", "value": 18, "unit": "GiB", "conditions": "co-tenant hog, <=4% decode loss; zram best-case-compressibility caveat", "source": "2026-07-18-oxen-moe-gambit.md"},
+    {"backend": "am4-host", "metric": "swap_peak_observed", "value": 19.3, "unit": "GiB", "conditions": "zram 8G pri100 first + swapfile backstop 11.4G", "source": "2026-07-18-oxen-moe-gambit.md"},
+    {"backend": "am4-host", "metric": "zram_capacity", "value": 8, "unit": "GiB", "conditions": "priority 100", "source": "2026-07-18-o1-ze-peer-p2p.md"},
+    {"backend": "am4-host", "metric": "swapfile_capacity", "value": 16, "unit": "GiB", "conditions": "priority 10, main NVMe (separate disk from model store)", "source": "2026-07-18-o1-ze-peer-p2p.md"},
+    {"backend": "am4-host", "metric": "vram_per_card", "value": 31023, "unit": "MiB", "conditions": "Arc Pro B70, enumerated", "source": "2026-07-18-oxen-moe-gpt-oss-120b.md"},
+    {"backend": "am4-host", "metric": "gpu_thermal_max_sustained", "value": 78, "unit": "C", "conditions": "10-min 4-way soak (idle ~50; box proven to 92 under imagegen)", "source": "2026-07-18-oxen-moe-gambit.md"},
+    {"backend": "b70-link", "metric": "p2p_uni_write_bw", "value": 14.3, "unit": "GB/s", "conditions": "256MB, compute engine, symmetric both directions", "source": "2026-07-18-o1-ze-peer-p2p.md"},
+    {"backend": "b70-link", "metric": "p2p_uni_read_bw", "value": 13.1, "unit": "GB/s", "conditions": "256MB, compute engine", "source": "2026-07-18-o1-ze-peer-p2p.md"},
+    {"backend": "b70-link", "metric": "p2p_bidi_write_bw_aggregate", "value": 16.7, "unit": "GB/s", "conditions": "256MB, root-complex contention", "source": "2026-07-18-o1-ze-peer-p2p.md"},
+    {"backend": "b70-link", "metric": "p2p_bidi_read_bw_aggregate", "value": 20.9, "unit": "GB/s", "conditions": "256MB", "source": "2026-07-18-o1-ze-peer-p2p.md"},
+    {"backend": "b70-link", "metric": "p2p_copy_engine_bw", "value": 14.3, "unit": "GB/s", "conditions": "== compute engine; blitter transfers free alongside compute", "source": "2026-07-18-o1-ze-peer-p2p.md"},
+    {"backend": "b70-link", "metric": "p2p_write_latency_floor", "value": 6.1, "unit": "us", "conditions": "8B, compute engine", "source": "2026-07-18-o1-ze-peer-p2p.md"},
+    {"backend": "b70-link", "metric": "p2p_read_latency_floor", "value": 7.8, "unit": "us", "conditions": "8B", "source": "2026-07-18-o1-ze-peer-p2p.md"},
+    {"backend": "b70-link", "metric": "p2p_bw_saturation_threshold", "value": 1, "unit": "MB", "conditions": ">=92% of plateau at 1MB transfers", "source": "2026-07-18-o1-ze-peer-p2p.md"}
+  ]
+}

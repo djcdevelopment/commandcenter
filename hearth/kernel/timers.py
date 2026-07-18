@@ -110,6 +110,14 @@ TIMERS: list[TimerSpec] = [
         log_path=VAR_DIR / "knowledge-rebuild-task.log",
         stagger_s=_stagger_for(4),
     ),
+    TimerSpec(
+        name="fleet_harvest",
+        interval_s=1800.0,
+        argv_builder=lambda: [sys.executable, "-m", "hearth.toolsurface.fleet_harvest",
+                              "--sweep", "--json"],
+        log_path=VAR_DIR / "fleet-harvest-task.log",
+        stagger_s=_stagger_for(5),
+    ),
 ]
 
 

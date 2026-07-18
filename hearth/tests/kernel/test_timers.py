@@ -219,12 +219,13 @@ class StartTimersTests(unittest.TestCase):
     def test_registry_argv_matches_adr_contract(self):
         names = {t.name: t for t in timers_mod.TIMERS}
         self.assertEqual(set(names), {"patrol", "watchdog", "drain", "ollama-sentinel",
-                                      "knowledge_rebuild"})
+                                      "knowledge_rebuild", "fleet_harvest"})
         self.assertEqual(names["patrol"].interval_s, 300.0)
         self.assertEqual(names["watchdog"].interval_s, 900.0)
         self.assertEqual(names["drain"].interval_s, 1800.0)
         self.assertEqual(names["ollama-sentinel"].interval_s, 120.0)
         self.assertEqual(names["knowledge_rebuild"].interval_s, 21600.0)
+        self.assertEqual(names["fleet_harvest"].interval_s, 1800.0)
         self.assertEqual(names["patrol"].argv_builder()[1:],
                          ["-m", "fleet.mechnet_watchdog", "--patrol-only", "--json"])
         self.assertEqual(names["watchdog"].argv_builder()[1:],
@@ -233,6 +234,9 @@ class StartTimersTests(unittest.TestCase):
                          ["-m", "fleet.bankedfire_drain", "--json"])
         self.assertEqual(names["knowledge_rebuild"].argv_builder()[1:],
                          ["-m", "hearth.projection.rebuild"])
+        self.assertEqual(names["fleet_harvest"].argv_builder()[1:],
+                         ["-m", "hearth.toolsurface.fleet_harvest", "--sweep", "--json"])
+        self.assertEqual(names["fleet_harvest"].log_path.name, "fleet-harvest-task.log")
         # The sentinel's exclude-pid is the gateway's own pid, resolved at
         # tick time — assert the shape, then the dynamic tail.
         sentinel_argv = names["ollama-sentinel"].argv_builder()

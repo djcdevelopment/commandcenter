@@ -52,14 +52,17 @@
 
 <h1>MECHNET Autonomy Plan — see · steer · re-baseline</h1>
 <div class="meta">
-  2026-07-18 · <span class="status draft" style="color: var(--good)">v1.8 — O1 swap/zram LANDED on AM4 (Derek's hand) · oxen re-baseline unblocked · fleet-harvest auto-sweep armed</span> ·
+  2026-07-18 · <span class="status draft" style="color: var(--good)">v1.9 — O1 ze_peer P2P microbench DONE: full x8 wire speed, no P2P penalty, copy engine free · swap landed · auto-sweep armed</span> ·
   SEE S1–S6 + STEER A1–A4 + A6 <strong class="good">LIVE</strong> · G3 (A5) queue-and-forget
   <strong class="good">LIVE</strong> on <code>master</code> (<span class="kpi">de072b6</span>, gateway 47/47) ·
   <strong class="good">NEW — fleet-harvest LIVE</strong>: <code>harvest_fleet_run</code>/<code>list_fleet_runs</code>
   mirror stranded fleet branches to private GitHub via OMEN (both tonight's runs proven on
   <code>origin fleet/…</code>) · O0 <strong class="good">DONE</strong>, D1/D2/D3 decided · O1 swap/zram
   prereq <strong class="good">DONE</strong> 2026-07-18: <span class="kpi">zram0 8G pri=100 + /swap.img 16G pri=10</span>
-  live on AM4, 4TB swap-free, receipt <span class="kpi">br-…4d91410a done 5/5</span>. See §9.<br>
+  live on AM4, 4TB swap-free, receipt <span class="kpi">br-…4d91410a done 5/5</span> · O1 ze_peer bench
+  <strong class="good">DONE</strong> same night: <span class="kpi">14.3 GB/s uni · 16.7/20.9 bidi · ~6 µs floor</span>,
+  results in <code>am4-fleet-node/results/2026-07-18-o1-ze-peer-p2p.md</code>, receipt
+  <span class="kpi">br-…4f780d5d done 5/5</span>. See §9.<br>
   Builds on <code>HEARTH-OFFLOAD-STRATEGY.html</code> (2026-07-15) — that doc makes offload <em>ergonomic</em>;
   this one makes it <em>autonomous</em> and adds the oxen re-baseline campaign. Execution log in §9.
 </div>
@@ -474,6 +477,25 @@ staged-load one-liner) — parked verbatim in the O-track briefs; verify on node
       back clipped (47 tokens mid-sentence) — likely my <code>max_tokens=1200</code> override starved the
       thinking budget; one-retry rule, written inline. Lesson: omit <code>max_tokens</code> on gemini rungs and
       let the rung default apply.</li>
+  <li><strong class="good">NEW (v1.9) — O1 ze_peer P2P microbench DONE (same night, Derek's "make it so").</strong>
+      Preflight over SSH: cards idle (<code>b70-planner</code>/<code>critic</code> both inactive, zero GPU
+      procs — nothing stopped, nothing to restore), new swap live (<span class="kpi">zram 311M used /
+      swapfile 0B</span>), and the O0 <strong>10Gi-shared anomaly GONE</strong> (shared 6.7Mi — it had already
+      cleared before the swap run). Built <code>level-zero-tests</code> @ <span class="kpi">26e0fab</span>
+      zero-sudo on AM4: local libpng 1.6.50 under <code>~/o1/prefix</code> (top-level hard-requires PNG) +
+      <code>BUILD_ZE_PERF_TESTS_ONLY=ON</code> (skips gtest; missing boost only drops ze_nano/ze_image_copy) +
+      <code>CMAKE_POLICY_VERSION_MINIMUM=3.5</code> for cmake 4.2.3. Three sweeps (uni default, <code>-b</code>,
+      copy-engine <code>-u 1</code>): <span class="kpi">14.3 GB/s write / 13.1 read</span> unidirectional,
+      symmetric both directions to two decimals — <strong>full PCIe 4.0 x8 wire speed, NO P2P penalty</strong>
+      (AM4 x16 bifurcated x8/x8); bidi aggregate <span class="kpi">16.7 write / 20.9 read</span> (root-complex
+      contention, reads overlap better); <strong>copy engine == compute engine</strong> → blitter P2P is free
+      alongside compute; latency floor <span class="kpi">~6.1 µs write / ~7.8 µs read</span> → TP decode is
+      latency-dominated (16 KB all-reduce ≈ the floor). Results + raw logs (force-added past the
+      <code>*.log</code> gitignore): <code>am4-fleet-node/results/2026-07-18-o1-ze-peer-p2p.md</code>; receipt
+      <span class="kpi">br-20260718-060412-4f780d5d done 5/5</span>. Doc draft offloaded to flash
+      (<code>files=</code> the 3 raw logs, NO max_tokens override — 2.3k tokens clean, every table number
+      verified exact; 3 fabricated context claims fixed in review). Feeds O2 (link budget for the placement
+      matrix), O5 (capacity facts → router), O4 (Linux-side baseline for the Windows-delta article).</li>
 </ul></div>
 
 </main>

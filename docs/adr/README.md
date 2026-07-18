@@ -26,6 +26,7 @@ record with its status changed and a pointer to the ADR that replaced it.
 | [0015](0015-ops-loops-fold-into-the-gateway.md) | Repeating ops loops fold into the always-on gateway; no interactive scheduled tasks | Accepted (2026-07-09), build pending |
 | [0016](0016-scheduler-actuation.md) | *(reserved — scheduler actuation decision, H1; see SCHEDULER-STRATEGY.html)* | Pending Derek |
 | [0017](0017-software-constellation-registry-am4-seed-intake.md) | Software constellation registry + the AM4 seed intake rulings (manifest/ember/gad) | Accepted (2026-07-16), registry landed |
+| [0018](0018-resident-moe-steady-state-tenant.md) | The resident big-MoE is oxen's steady-state tenant: goodput-routed, budget-enforced | Accepted (2026-07-18), live |
 
 ## Historical note
 The "ADR-0001" referenced in `SESSION-RETRO-2026-06-29.md` (which orchestrator is

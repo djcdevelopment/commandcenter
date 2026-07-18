@@ -90,3 +90,11 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       (conductor-side change, coordinate — concurrently-owned code). Interim: the
       comfy_gateway (:8720, HEARTH_SCOPE=C:\work\comfy) covers the interactive slice.
       Gather concrete use cases before an implementation decision.
+- [ ] 2026-07-18 — Set `.mcp.json` hearth server `"timeout": 600000` so deliberate long moe
+      calls survive the client idle cap (source: [SESSION-RETRO-2026-07-18.md](SESSION-RETRO-2026-07-18.md))
+- [ ] 2026-07-18 — Review/apply the tracker sync recommendations (items 5 superseded, 8 done,
+      13 done) (source: [docs/DECISIONS-PENDING-SYNC-2026-07-18.md](docs/DECISIONS-PENDING-SYNC-2026-07-18.md))
+- [ ] 2026-07-18 — D4: edit + publish call on the O4 Windows-delta draft
+      (source: [docs/drafts/o4-windows-delta-draft.md](docs/drafts/o4-windows-delta-draft.md))
+- [ ] 2026-07-18 — Optional: remount `/mnt/win` ro (`sudo mount -o remount,ro /mnt/win`) —
+      resident serving is ro-mmap safe (source: [SESSION-RETRO-2026-07-18.md](SESSION-RETRO-2026-07-18.md))

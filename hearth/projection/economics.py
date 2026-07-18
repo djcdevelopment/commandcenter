@@ -18,6 +18,7 @@ DEFAULT_LEDGER = Path("hearth/var/ledger/events.ndjson")
 COST_CLASS_MAP = {
     "omen-ollama": "sunk",
     "am4-oxen": "sunk",
+    "am4-moe": "sunk",   # resident gpt-oss-120b on the dual B70s (2026-07-18)
     "gcp-gemini": "trial",
     "gcp-gemini-pro": "trial",
 }

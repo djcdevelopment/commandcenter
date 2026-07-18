@@ -68,6 +68,18 @@ class Backend:
     occupancy: dict = field(default_factory=dict)
     settings: dict = field(default_factory=dict)
 
+    def context_bytes(self) -> Optional[int]:
+        """The declared context_bytes setting as a positive int, or None (unlimited)."""
+        val = self.settings.get("context_bytes")
+        if val is not None:
+            try:
+                ival = int(val)
+                if ival > 0:
+                    return ival
+            except (TypeError, ValueError):
+                pass
+        return None
+
     def token(self) -> Optional[str]:
         """The bearer token for this backend from its ``auth_env`` var, or None.
 
@@ -166,7 +178,9 @@ def load_pool(path: Optional[Path | str] = None) -> Pool:
 def select_backend(pool: Pool, *, backend: Optional[str] = None,
                    task: Optional[str] = None,
                    tags: Optional[list[str]] = None,
-                   occupancy_check: Optional[Callable[[str], dict]] = None) -> tuple[Backend, str, dict]:
+                   occupancy_check: Optional[Callable[[str], dict]] = None,
+                   payload_bytes: Optional[int] = None,
+                   exclude: Optional[set[str]] = None) -> tuple[Backend, str, dict]:
     """Pick a backend and return (backend, reason, occupancy).
 
     `backend` pins by name (error if unknown) — a pin is a deliberate operator
@@ -208,6 +222,14 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
     for tag in wanted:
         for candidate in pool.backends:
             if tag in candidate.tags:
+                if exclude and candidate.name in exclude:
+                    continue
+                if payload_bytes is not None:
+                    c_bytes = candidate.context_bytes()
+                    if c_bytes is not None and payload_bytes > c_bytes:
+                        # A1: the payload cannot fit this rung's declared context —
+                        # skip it exactly like a busy candidate.
+                        continue
                 occ = _occ(candidate.name)
                 occupancy = occ.get("occupancy", "available")
                 if occupancy == "busy" or (occupancy == "unknown"):
@@ -217,4 +239,33 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
                 return candidate, f"tag:{tag}", occ
 
     default = pool.default_backend()
+    d_exclude = bool(exclude and default.name in exclude)
+    d_overflow = False
+    if payload_bytes is not None:
+        c_bytes = default.context_bytes()
+        if c_bytes is not None and payload_bytes > c_bytes:
+            d_overflow = True
+
+    if d_exclude or d_overflow:
+        # A1/A2: the default can't take this call (payload too big, or it just
+        # failed and is excluded). Walk the ladder: big-context first (sunk),
+        # then cloud-overflow (trial). Fail-open: nothing qualifies -> default
+        # anyway, with a reason that says so.
+        for f_tag in ("big-context", "cloud-overflow"):
+            for candidate in pool.backends:
+                if f_tag in candidate.tags:
+                    if exclude and candidate.name in exclude:
+                        continue
+                    if payload_bytes is not None:
+                        c_bytes = candidate.context_bytes()
+                        if c_bytes is not None and payload_bytes > c_bytes:
+                            continue
+                    occ = _occ(candidate.name)
+                    occupancy = occ.get("occupancy", "available")
+                    if occupancy == "busy" or occupancy == "unknown":
+                        continue
+                    reason_prefix = "fallback" if d_exclude else "payload"
+                    return candidate, f"{reason_prefix}:{f_tag}:{candidate.name}", occ
+        return default, "default:overflow", {"occupancy": "available"}
+
     return default, "default", {"occupancy": "available"}

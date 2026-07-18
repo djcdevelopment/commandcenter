@@ -138,7 +138,9 @@ def _google_access_token(auth_env: Optional[str]) -> tuple[Optional[str], Option
     return token, None
 
 
-def _resolve_target(endpoint: str, task: Optional[str], backend: Optional[str]) -> _Target:
+def _resolve_target(endpoint: str, task: Optional[str], backend: Optional[str],
+                    payload_bytes: Optional[int] = None,
+                    exclude: Optional[set[str]] = None) -> _Target:
     """Apply the Banked Fire routing policy and return the dispatch target.
 
     Precedence: (1) an explicitly-passed endpoint wins outright, unchanged; then
@@ -161,10 +163,25 @@ def _resolve_target(endpoint: str, task: Optional[str], backend: Optional[str]) 
         return _Target(endpoint.rstrip("/"), "ollama", None, None, None, None,
                        "pinned-endpoint", "available", {})
 
-    # (2) Route by backend name or task tag; occupancy consulted for tag routes.
-    if backend or task:
+    # (1b) Legacy escape hatch: HEARTH_OLLAMA redirects the default path. An
+    # operator env override is as deliberate as a pin, so it wins over payload
+    # routing — but only when no explicit backend/task signal was given.
+    if not backend and not task:
+        env_endpoint = os.environ.get(ENDPOINT_ENV_VAR)
+        if env_endpoint and env_endpoint.rstrip("/") != DEFAULT_ENDPOINT:
+            resolved = env_endpoint.rstrip("/")
+            named = pool.by_endpoint(resolved)
+            return _Target(resolved, "ollama", None, None, None,
+                           named.name if named else None, "default", "available", {})
+
+    # (2) Route by backend name or task tag — or consult the pool for any call
+    # carrying a payload size or an exclude set (A1/A2); occupancy consulted
+    # for tag routes.
+    if backend or task or payload_bytes is not None or exclude:
         chosen, reason, occ = select_backend(pool, backend=backend, task=task,
-                                             occupancy_check=check_occupancy)
+                                             occupancy_check=check_occupancy,
+                                             payload_bytes=payload_bytes,
+                                             exclude=exclude)
         token, error = _google_access_token(chosen.auth_env) if chosen.api == "gemini" else (chosen.token(), None)
         return _Target(chosen.endpoint.rstrip("/"), chosen.api, token, error,
                        chosen.auth_env, chosen.name, reason, occ.get("occupancy", "available"),
@@ -359,53 +376,89 @@ def local_generate(prompt: str, model: str | None = None,
             prompt = f"{packed_block}\n\n{prompt}"
             files_bytes = sum(f["bytes"] for f in files_packed_list)
 
+    # A1: the payload size the router decides with — computed AFTER packing, so
+    # a files= call is judged by what actually ships, not the bare prompt.
+    payload_bytes = len(prompt.encode("utf-8"))
+
+    def _apply_defaults(t: _Target, m: Optional[str], mt: Optional[int]) -> tuple[str, int]:
+        # Model default: caller's explicit model wins; else the backend's first
+        # declared model; else the historical qwen3-coder default. Output-budget
+        # default: caller's explicit max_tokens wins; else the backend's declared
+        # settings.max_tokens; else the historical 1024. A thinking model (e.g.
+        # the gcp-gemini-pro rung) can burn a small budget entirely on hidden
+        # reasoning and return EMPTY text, so a rung sets a generous floor here
+        # rather than relying on the caller to remember it. Shared by the first
+        # attempt and the A2 escalation retry so both default identically.
+        pool_backend = load_pool().by_name(t.backend) if t.backend else None
+        rm = m
+        if rm is None:
+            rm = (pool_backend.models[0] if pool_backend and pool_backend.models
+                  else "qwen3-coder:30b")
+        rmt = mt
+        if rmt is None:
+            setting = pool_backend.settings.get("max_tokens") if pool_backend else None
+            try:
+                rmt = int(setting) if setting is not None else 1024
+            except (TypeError, ValueError):
+                rmt = 1024
+            if rmt <= 0:
+                rmt = 1024
+        return rm, rmt
+
+    def _execute(t: _Target, m: str, mt: int) -> dict:
+        if t.api == "openai":
+            return _generate_openai(t, prompt, m, system, mt, timeout_s)
+        if t.api == "gemini":
+            return _generate_gemini(t, prompt, m, system, mt, timeout_s)
+        return _generate_ollama(t, prompt, m, system, mt, timeout_s)
+
     try:
-        target = _resolve_target(endpoint, task, backend)
+        target = _resolve_target(endpoint, task, backend, payload_bytes=payload_bytes)
     except BackendConfigError as exc:
         return {"ok": False, "error": f"routing failed: {exc}",
                 "endpoint": endpoint, "model": model}
 
-    # Resolve the backend record once for both model and output-budget defaults.
-    pool_backend = load_pool().by_name(target.backend) if target.backend else None
-
-    # Model default: caller's explicit model wins; else the backend's first
-    # declared model; else the historical qwen3-coder default.
-    if model is None:
-        model = (pool_backend.models[0] if pool_backend and pool_backend.models
-                 else "qwen3-coder:30b")
-
-    # Output-budget default: caller's explicit max_tokens wins; else the
-    # backend's declared settings.max_tokens; else the historical 1024. A
-    # thinking model (e.g. the gcp-gemini-pro rung) can burn a small budget
-    # entirely on hidden reasoning and return EMPTY text, so a rung sets a
-    # generous floor here rather than relying on the caller to remember it.
-    if max_tokens is None:
-        setting = pool_backend.settings.get("max_tokens") if pool_backend else None
-        try:
-            max_tokens = int(setting) if setting is not None else 1024
-        except (TypeError, ValueError):
-            max_tokens = 1024
-        if max_tokens <= 0:
-            max_tokens = 1024
-
-    if target.api == "openai":
-        result = _generate_openai(target, prompt, model, system, max_tokens, timeout_s)
-    elif target.api == "gemini":
-        result = _generate_gemini(target, prompt, model, system, max_tokens, timeout_s)
-    else:
-        result = _generate_ollama(target, prompt, model, system, max_tokens, timeout_s)
+    resolved_model, resolved_max_tokens = _apply_defaults(target, model, max_tokens)
+    result = _execute(target, resolved_model, resolved_max_tokens)
 
     result["backend"] = target.backend
     result["routed_by"] = target.routed_by
     result["occupancy"] = target.occupancy
-    result["max_tokens"] = max_tokens
+    result["max_tokens"] = resolved_max_tokens
+
+    # A2: ladder escalation — one climb max. A failed non-pinned dispatch
+    # excludes the failed rung and re-routes once; a pin (endpoint or name) is
+    # a deliberate operator choice and never escalates.
+    if result.get("ok") is False and not target.routed_by.startswith("pinned"):
+        exclude_set = {target.backend} if target.backend else set()
+        try:
+            second_target = _resolve_target(endpoint, task, backend,
+                                            payload_bytes=payload_bytes,
+                                            exclude=exclude_set)
+            if second_target.backend != target.backend:
+                second_model, second_max_tokens = _apply_defaults(second_target, model, max_tokens)
+                second_result = _execute(second_target, second_model, second_max_tokens)
+
+                first_name = target.backend or "default"
+                second_name = second_target.backend or "default"
+                second_result["backend"] = second_target.backend
+                second_result["routed_by"] = f"escalation:{first_name}->{second_name}"
+                second_result["occupancy"] = second_target.occupancy
+                second_result["max_tokens"] = second_max_tokens
+                second_result["escalation"] = {"from": first_name, "error": result.get("error")}
+
+                result = second_result
+                resolved_model = second_model
+        except BackendConfigError:
+            pass  # escalation could not route -> the original failure stands
+
     if files_packed_list is not None:
         result["files_packed"] = files_packed_list
         result["files_bytes"] = files_bytes
     # JS1: thread the resolved model_id to the gateway wrapper for the ledger
     # event's `model` field via the _ledger_model convention (see gateway.py);
     # the wrapper pops this key before returning the result to the caller.
-    result["_ledger_model"] = result.get("model", model)
+    result["_ledger_model"] = result.get("model", resolved_model)
     return result
 
 

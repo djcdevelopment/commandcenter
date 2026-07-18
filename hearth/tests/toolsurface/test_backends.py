@@ -7,11 +7,13 @@ from unittest import TestCase
 from unittest.mock import patch
 
 from hearth.toolsurface.backends import (
+    Backend,
     BackendConfigError,
     Pool,
     load_pool,
     select_backend,
 )
+from hearth.toolsurface.inference import local_generate
 
 _POOL_TOML = textwrap.dedent("""
     default = "omen-ollama"
@@ -222,3 +224,160 @@ class PackagedPoolTests(TestCase):
         self.assertEqual(pool.by_name("gcp-gemini-pro").api, "gemini")
         self.assertEqual(pool.by_name("gcp-gemini").settings.get("max_tokens"), 8192)
         self.assertEqual(pool.by_name("gcp-gemini-pro").settings.get("max_tokens"), 16384)
+        # A1: every packaged rung declares a payload budget.
+        for name in ("omen-ollama", "am4-oxen", "gcp-gemini", "gcp-gemini-pro"):
+            self.assertIsNotNone(pool.by_name(name).context_bytes(), name)
+
+
+class ContextBytesTests(TestCase):
+    def test_context_bytes_valid(self) -> None:
+        b = Backend("test", "ep", "ollama", settings={"context_bytes": 100})
+        self.assertEqual(b.context_bytes(), 100)
+
+    def test_context_bytes_missing(self) -> None:
+        b = Backend("test", "ep", "ollama")
+        self.assertIsNone(b.context_bytes())
+
+    def test_context_bytes_malformed(self) -> None:
+        b = Backend("test", "ep", "ollama", settings={"context_bytes": "foo"})
+        self.assertIsNone(b.context_bytes())
+        b2 = Backend("test", "ep", "ollama", settings={"context_bytes": -10})
+        self.assertIsNone(b2.context_bytes())
+
+
+_SIZED_POOL_TOML = textwrap.dedent("""
+    default = "omen-ollama"
+
+    [[backend]]
+    name = "omen-ollama"
+    endpoint = "http://127.0.0.1:11434"
+    api = "ollama"
+    tags = ["default", "code"]
+    settings = { context_bytes = 1000 }
+
+    [[backend]]
+    name = "am4-oxen"
+    endpoint = "http://10.0.0.1:8090"
+    api = "openai"
+    tags = ["research", "big-context"]
+    settings = { context_bytes = 5000 }
+
+    [[backend]]
+    name = "gcp-gemini"
+    endpoint = "https://aiplatform.googleapis.com"
+    api = "gemini"
+    tags = ["frontier", "cloud-overflow"]
+    settings = { context_bytes = 10000 }
+""")
+
+
+class PayloadAwareRoutingTests(TestCase):
+    def setUp(self) -> None:
+        self.tmp = Path(self.enterContext(__import__("tempfile").TemporaryDirectory()))
+        self.pool = load_pool(_write_pool(self.tmp, _SIZED_POOL_TOML))
+
+    def test_size_skip_tag_candidate(self) -> None:
+        chosen, reason, occ = select_backend(self.pool, task="code", payload_bytes=2000)
+        self.assertEqual(chosen.name, "am4-oxen")
+        self.assertEqual(reason, "payload:big-context:am4-oxen")
+
+    def test_default_overflow_to_big_context(self) -> None:
+        chosen, reason, occ = select_backend(self.pool, payload_bytes=2000)
+        self.assertEqual(chosen.name, "am4-oxen")
+        self.assertEqual(reason, "payload:big-context:am4-oxen")
+
+    def test_default_overflow_big_context_busy_to_cloud_overflow(self) -> None:
+        def occ_check(name: str) -> dict:
+            return {"occupancy": "busy"} if name == "am4-oxen" else {"occupancy": "available"}
+        chosen, reason, occ = select_backend(self.pool, payload_bytes=2000, occupancy_check=occ_check)
+        self.assertEqual(chosen.name, "gcp-gemini")
+        self.assertEqual(reason, "payload:cloud-overflow:gcp-gemini")
+
+    def test_default_overflow_nothing_fits(self) -> None:
+        chosen, reason, occ = select_backend(self.pool, payload_bytes=20000)
+        self.assertEqual(chosen.name, "omen-ollama")
+        self.assertEqual(reason, "default:overflow")
+
+    def test_exclude_candidate(self) -> None:
+        chosen, reason, occ = select_backend(self.pool, task="code", exclude={"omen-ollama"})
+        self.assertEqual(chosen.name, "am4-oxen")
+        self.assertEqual(reason, "fallback:big-context:am4-oxen")
+
+    def test_small_payload_still_routes_default(self) -> None:
+        chosen, reason, occ = select_backend(self.pool, payload_bytes=500)
+        self.assertEqual(chosen.name, "omen-ollama")
+        self.assertEqual(reason, "default")
+
+    def test_backward_compat_no_context_bytes(self) -> None:
+        toml = textwrap.dedent("""
+            default = "omen-ollama"
+            [[backend]]
+            name = "omen-ollama"
+            endpoint = "http://127.0.0.1:11434"
+            api = "ollama"
+            tags = ["default"]
+        """)
+        pool = load_pool(_write_pool(self.tmp, toml))
+        chosen, reason, occ = select_backend(pool, payload_bytes=999999)
+        self.assertEqual(chosen.name, "omen-ollama")
+        self.assertEqual(reason, "default")
+
+
+class EscalationTests(TestCase):
+    def setUp(self) -> None:
+        self.tmp = Path(self.enterContext(__import__("tempfile").TemporaryDirectory()))
+        toml = textwrap.dedent("""
+            default = "b1"
+            [[backend]]
+            name = "b1"
+            endpoint = "http://b1"
+            api = "ollama"
+            models = ["m1"]
+            tags = ["code"]
+            [[backend]]
+            name = "b2"
+            endpoint = "http://b2"
+            api = "ollama"
+            models = ["m2"]
+            tags = ["cloud-overflow"]
+        """)
+        self.pool_path = _write_pool(self.tmp, toml)
+        os.environ["HEARTH_BACKENDS"] = str(self.pool_path)
+
+    def tearDown(self) -> None:
+        os.environ.pop("HEARTH_BACKENDS", None)
+
+    @patch("hearth.toolsurface.inference._post")
+    def test_non_pinned_failure_escalates(self, mock_post) -> None:
+        mock_post.side_effect = [
+            (None, "connection error b1"),
+            ({"response": "ok b2", "model": "m2"}, None),
+        ]
+        res = local_generate("test prompt", task="code")
+        self.assertTrue(res.get("ok"))
+        self.assertEqual(res["backend"], "b2")
+        self.assertEqual(res["routed_by"], "escalation:b1->b2")
+        self.assertEqual(res["escalation"], {"from": "b1", "error": "connection error b1"})
+        self.assertEqual(res["model"], "m2")
+
+    @patch("hearth.toolsurface.inference._post")
+    def test_pinned_failure_does_not_escalate(self, mock_post) -> None:
+        mock_post.side_effect = [(None, "connection error b1")]
+        res = local_generate("test prompt", backend="b1")
+        self.assertFalse(res.get("ok"))
+        self.assertEqual(res["backend"], "b1")
+        self.assertEqual(res["routed_by"], "pinned:b1")
+        self.assertNotIn("escalation", res)
+
+    @patch("hearth.toolsurface.inference._post")
+    def test_double_failure(self, mock_post) -> None:
+        mock_post.side_effect = [
+            (None, "error b1"),
+            (None, "error b2"),
+        ]
+        res = local_generate("test prompt")
+        self.assertFalse(res.get("ok"))
+        self.assertEqual(res["backend"], "b2")
+        self.assertEqual(res["routed_by"], "escalation:b1->b2")
+        self.assertEqual(res["error"], "error b2")
+        self.assertEqual(res["escalation"], {"from": "b1", "error": "error b1"})

@@ -32,6 +32,10 @@ api      = "ollama"                          # /api/generate
 models   = ["qwen3-coder:30b"]
 tags     = ["default", "code"]
 revive   = "start_ollama"                    # HEARTH summon tool (consumed in P4)
+[backend.settings]
+# A1 payload budget: ≈24k tokens of a 32k config, conservative. Payloads over
+# this route past the default to a big-context/cloud rung (select_backend).
+context_bytes = 98304
 
 [[backend]]
 name     = "am4-oxen"                          # the banked fire — dual-B70 Qwen3-30B
@@ -58,6 +62,9 @@ revive   = "wake_am4"                          # LIVE HEARTH summon tool: idempo
 # over SSH — hearth.toolsurface.occupancy.check_occupancy, keyed by backend
 # name "am4-oxen"), per the strategy doc's ground truth over conductor-FS demotion.
 occupancy = { conductor_worker = "am4-worker-1" }
+[backend.settings]
+# A1 payload budget: ≈28k of the single-card 32k ctx (see B70-CARD-MANAGEMENT.md).
+context_bytes = 114688
 
 [[backend]]
 name     = "gcp-gemini"
@@ -74,6 +81,8 @@ location_env = "GOOGLE_CLOUD_LOCATION"       # defaults to "global" when unset
 # Same thinking-budget protection the pro rung has: modern Gemini models can burn
 # a stingy budget on hidden reasoning and return empty text; a cap not a charge.
 max_tokens   = 8192
+# A1 payload budget: effectively unlimited vs the 1 MiB files= pack cap.
+context_bytes = 2097152
 
 [[backend]]
 name     = "gcp-gemini-pro"                   # premium sibling of gcp-gemini: same
@@ -102,3 +111,5 @@ location_env = "GOOGLE_CLOUD_LOCATION"       # defaults to "global" when unset
 # still cost small; only tokens actually produced bill. Callers may override per
 # call. The router (inference.local_generate) reads this when max_tokens is unset.
 max_tokens   = 16384
+# A1 payload budget: the 1M-ctx rung — effectively unlimited for door payloads.
+context_bytes = 4194304

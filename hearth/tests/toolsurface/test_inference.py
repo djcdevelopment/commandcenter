@@ -162,9 +162,12 @@ class BankedFireRoutingTests(TestCase):
         self.assertEqual(body["messages"][0], {"role": "system", "content": "be terse"})
 
     def test_openai_backend_without_token_is_clean_error(self) -> None:
+        # Pinned so the clean error surfaces un-escalated: since A2, an
+        # UNPINNED token failure climbs one rung instead (EscalationTests in
+        # test_backends.py cover that path); a pin never escalates.
         with patch.dict(os.environ, {}, clear=True):
             with patch("urllib.request.urlopen") as mocked:
-                result = local_generate("q", task="research")
+                result = local_generate("q", backend="am4-oxen")
         self.assertFalse(result["ok"])
         self.assertIn("AM4_OXEN_TOKEN", result["error"])
         self.assertEqual(result["backend"], "am4-oxen")

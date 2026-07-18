@@ -9,6 +9,7 @@ from hearth.toolsurface.occupancy import (
     OccupancyCache,
     acquire_lease,
     check_occupancy,
+    probe_moe_slots,
     probe_render_owners,
     resolve_for_lane,
 )
@@ -59,6 +60,67 @@ class ProbeRenderOwnersTests(TestCase):
             return _completed(stdout="", stderr="ssh: connect failed", returncode=255)
         result = probe_render_owners(runner=runner)
         self.assertEqual(result["occupancy"], "unknown")
+
+
+def _moe_slot(is_processing: bool = False, n_past: int = 0, n_ctx: int = 16384) -> dict:
+    return {"id": 0, "is_processing": is_processing, "n_past": n_past, "n_ctx": n_ctx}
+
+
+class ProbeMoeSlotsTests(TestCase):
+    def test_available_when_slots_idle(self) -> None:
+        def fetch(url, timeout_s):
+            return [_moe_slot(), _moe_slot(), _moe_slot(True), _moe_slot()], None
+        result = probe_moe_slots(fetch=fetch)
+        self.assertEqual(result["occupancy"], "available")
+        self.assertEqual(result["detail"]["slots_total"], 4)
+        self.assertEqual(result["detail"]["slots_busy"], 1)
+        self.assertEqual(result["detail"]["slots_idle"], 3)
+
+    def test_busy_when_all_slots_processing(self) -> None:
+        def fetch(url, timeout_s):
+            return [_moe_slot(True), _moe_slot(True)], None
+        result = probe_moe_slots(fetch=fetch)
+        self.assertEqual(result["occupancy"], "busy")
+
+    def test_busy_under_kv_pressure_even_with_idle_slots(self) -> None:
+        def fetch(url, timeout_s):
+            return [_moe_slot(True, n_past=16000), _moe_slot(False, n_past=15500)], None
+        result = probe_moe_slots(fetch=fetch)
+        self.assertEqual(result["occupancy"], "busy")
+        self.assertGreater(result["detail"]["kv_used_frac"], 0.9)
+
+    def test_kv_frac_none_when_build_lacks_fields(self) -> None:
+        def fetch(url, timeout_s):
+            return [{"id": 0, "is_processing": False}], None
+        result = probe_moe_slots(fetch=fetch)
+        self.assertEqual(result["occupancy"], "available")
+        self.assertIsNone(result["detail"]["kv_used_frac"])
+
+    def test_older_builds_numeric_state_field(self) -> None:
+        def fetch(url, timeout_s):
+            return [{"id": 0, "state": 1}], None
+        self.assertEqual(probe_moe_slots(fetch=fetch)["occupancy"], "busy")
+
+        def fetch_idle(url, timeout_s):
+            return [{"id": 0, "state": 0}], None
+        self.assertEqual(probe_moe_slots(fetch=fetch_idle)["occupancy"], "available")
+
+    def test_unknown_on_http_error(self) -> None:
+        def fetch(url, timeout_s):
+            return None, "HTTP 503"
+        result = probe_moe_slots(fetch=fetch)
+        self.assertEqual(result["occupancy"], "unknown")
+        self.assertIn("503", result["detail"])
+
+    def test_unknown_on_network_error(self) -> None:
+        def fetch(url, timeout_s):
+            return None, "URLError: connection refused"
+        self.assertEqual(probe_moe_slots(fetch=fetch)["occupancy"], "unknown")
+
+    def test_unknown_on_unexpected_shape(self) -> None:
+        def fetch(url, timeout_s):
+            return {"error": "not a list"}, None
+        self.assertEqual(probe_moe_slots(fetch=fetch)["occupancy"], "unknown")
 
 
 class OccupancyCacheTests(TestCase):
@@ -114,6 +176,11 @@ class OccupancyCacheTests(TestCase):
 
 
 class CheckOccupancyTests(TestCase):
+    def test_am4_moe_uses_the_injected_cache_and_probe(self) -> None:
+        cache = OccupancyCache(ttl_s=60.0, probe=lambda: {"occupancy": "busy", "detail": "x"})
+        result = check_occupancy("am4-moe", cache=cache)
+        self.assertEqual(result["occupancy"], "busy")
+
     def test_only_am4_oxen_has_a_live_probe(self) -> None:
         result = check_occupancy("omen-ollama")
         self.assertEqual(result["occupancy"], "available")

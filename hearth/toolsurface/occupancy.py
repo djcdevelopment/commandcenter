@@ -35,8 +35,12 @@ through the same probe + cache so there is exactly one occupancy truth.
 
 from __future__ import annotations
 
+import json
+import os
 import subprocess
 import time
+import urllib.error
+import urllib.request
 from dataclasses import dataclass, field
 from typing import Callable, Literal, Optional
 
@@ -90,6 +94,86 @@ def probe_render_owners(runner: Callable[..., subprocess.CompletedProcess] = sub
     return {"occupancy": "busy" if busy else "available", "detail": output.strip()}
 
 
+# --- am4-moe: HTTP slot/KV goodput probe -----------------------------------
+# The resident gpt-oss-120b llama-server holds BOTH render nodes by design, so
+# the fuser probe above would read it permanently busy. Its real occupancy
+# signal is llama-server's own /slots endpoint: how many parallel slots are
+# processing, and (best-effort, field names vary by build) how full the KV
+# cache is. Goodput policy: saturated slots OR KV past the pressure ceiling
+# reports "busy" so opportunistic traffic steers away; pinned calls still
+# dispatch and wait in llama-server's internal request queue.
+
+MOE_SLOTS_URL = "http://192.168.12.233:8082/slots"  # LAN, not tailnet (ADR-0014)
+MOE_TOKEN_ENV = "AM4_OXEN_TOKEN"  # llama-server --api-key uses the same bearer
+MOE_HTTP_TIMEOUT_S = 4.0
+MOE_KV_PRESSURE_MAX = 0.90
+
+
+def _http_get_json(url: str, timeout_s: float) -> tuple[Optional[object], Optional[str]]:
+    """GET `url` and parse JSON. Returns (data, error); error is None on success.
+
+    Sends the moe bearer token when the env var is present (the /slots endpoint
+    sits behind llama-server's --api-key along with the inference routes).
+    """
+    request = urllib.request.Request(url)
+    token = os.environ.get(MOE_TOKEN_ENV)
+    if token:
+        request.add_header("Authorization", f"Bearer {token}")
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_s) as response:
+            return json.loads(response.read().decode("utf-8", "replace")), None
+    except urllib.error.HTTPError as exc:
+        return None, f"HTTP {exc.code}"
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
+        return None, f"{type(exc).__name__}: {exc}"
+
+
+def _slot_is_processing(slot: dict) -> bool:
+    # Recent llama-server builds report `is_processing`; older ones a numeric
+    # `state` where 0 means idle. Default to idle when neither field exists.
+    if "is_processing" in slot:
+        return bool(slot["is_processing"])
+    return bool(slot.get("state", 0))
+
+
+def probe_moe_slots(fetch: Callable[[str, float], tuple[Optional[object], Optional[str]]] = _http_get_json,
+                    timeout_s: float = MOE_HTTP_TIMEOUT_S) -> dict:
+    """Probe the resident moe llama-server's slot/KV state over HTTP.
+
+    Returns {"occupancy": ..., "detail": {...}} where detail carries the goodput
+    signal (slots_total/slots_busy/slots_idle, kv_used_frac when the build
+    exposes per-slot n_past/n_ctx). Fail-open discipline matches the SSH probe:
+    unreachable, still-loading (HTTP 503), or unparseable all report "unknown" —
+    opportunistic traffic skips, a pin proceeds.
+    """
+    data, error = fetch(MOE_SLOTS_URL, timeout_s)
+    if error is not None:
+        return {"occupancy": "unknown", "detail": error}
+    if not isinstance(data, list) or not data:
+        return {"occupancy": "unknown", "detail": f"unexpected /slots shape: {type(data).__name__}"}
+
+    slots_total = len(data)
+    slots_busy = sum(1 for slot in data if isinstance(slot, dict) and _slot_is_processing(slot))
+    kv_used = kv_capacity = 0
+    for slot in data:
+        if isinstance(slot, dict):
+            used, cap = slot.get("n_past"), slot.get("n_ctx")
+            if isinstance(used, int) and isinstance(cap, int) and cap > 0:
+                kv_used += used
+                kv_capacity += cap
+    kv_used_frac = round(kv_used / kv_capacity, 4) if kv_capacity else None
+
+    saturated = slots_busy >= slots_total
+    kv_pressure = kv_used_frac is not None and kv_used_frac > MOE_KV_PRESSURE_MAX
+    detail = {
+        "slots_total": slots_total,
+        "slots_busy": slots_busy,
+        "slots_idle": slots_total - slots_busy,
+        "kv_used_frac": kv_used_frac,
+    }
+    return {"occupancy": "busy" if (saturated or kv_pressure) else "available", "detail": detail}
+
+
 @dataclass
 class _CacheEntry:
     result: dict
@@ -140,14 +224,29 @@ def default_cache() -> OccupancyCache:
     return _default_cache
 
 
+# Which backends have a live occupancy probe, and which. Everything else
+# reports "available" (no probe declared — nothing is known to contend for it),
+# so the skip-busy logic only ever engages where a real occupancy signal exists.
+_PROBES: dict[str, Callable[[], dict]] = {
+    "am4-oxen": probe_render_owners,   # SSH render-node fuser (someone else's GPU?)
+    "am4-moe": probe_moe_slots,        # HTTP slot/KV goodput on the resident server
+}
+
+
 def check_occupancy(backend_name: str, cache: Optional[OccupancyCache] = None,
                     probe: Optional[Callable[[], dict]] = None) -> dict:
-    """Cached occupancy check for a named backend. Only ``am4-oxen`` has a live
-    probe today; any other backend name reports "available" (no probe declared —
-    nothing is known to contend for it), so the skip-busy logic only ever engages
-    where a real occupancy signal exists."""
-    if backend_name != "am4-oxen":
+    """Cached occupancy check for a named backend, via the ``_PROBES`` registry.
+
+    Probe precedence: an explicit ``probe`` arg wins; otherwise an injected
+    ``cache`` keeps its own probe (the test/Lease.renew contract — never
+    override a caller-owned cache); only the default-cache path resolves the
+    backend's declared registry probe.
+    """
+    declared = _PROBES.get(backend_name)
+    if probe is None and declared is None:
         return {"occupancy": "available", "detail": "no occupancy probe declared for this backend"}
+    if probe is None and cache is None:
+        probe = declared
     return (cache or default_cache()).get(backend_name, probe=probe)
 
 

@@ -223,15 +223,23 @@ class PackagedPoolTests(TestCase):
         names = {b.name for b in pool.backends}
         self.assertIn("omen-ollama", names)
         self.assertIn("am4-oxen", names)
+        self.assertIn("am4-moe", names)
         self.assertIn("gcp-gemini", names)
         self.assertIn("gcp-gemini-pro", names)
         self.assertEqual(pool.by_name("am4-oxen").api, "openai")
+        self.assertEqual(pool.by_name("am4-moe").api, "openai")
         self.assertEqual(pool.by_name("gcp-gemini").api, "gemini")
         self.assertEqual(pool.by_name("gcp-gemini-pro").api, "gemini")
         self.assertEqual(pool.by_name("gcp-gemini").settings.get("max_tokens"), 8192)
         self.assertEqual(pool.by_name("gcp-gemini-pro").settings.get("max_tokens"), 16384)
+        self.assertEqual(pool.by_name("am4-moe").settings.get("max_tokens"), 8192)
+        # The residency handover: the resident moe carries the opportunistic
+        # tags; the single-card planner rung is pin-only (no shared tags left).
+        self.assertIn("big-context", pool.by_name("am4-moe").tags)
+        self.assertNotIn("big-context", pool.by_name("am4-oxen").tags)
+        self.assertEqual(pool.by_name("am4-oxen").revive, None)
         # A1: every packaged rung declares a payload budget.
-        for name in ("omen-ollama", "am4-oxen", "gcp-gemini", "gcp-gemini-pro"):
+        for name in ("omen-ollama", "am4-oxen", "am4-moe", "gcp-gemini", "gcp-gemini-pro"):
             self.assertIsNotNone(pool.by_name(name).context_bytes(), name)
 
 

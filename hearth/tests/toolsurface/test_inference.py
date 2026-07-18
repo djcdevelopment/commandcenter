@@ -132,7 +132,10 @@ class BankedFireRoutingTests(TestCase):
         # "available" so they never make a live SSH probe to AM4.
         self.enterContext(_ALWAYS_AVAILABLE)
 
-    def test_task_research_routes_to_oxen_openai(self) -> None:
+    def test_task_research_routes_to_moe_openai(self) -> None:
+        # Residency handover: research/big-context/second-opinion now land on
+        # the resident gpt-oss-120b rung (am4-moe, :8082); the single-card
+        # planner (am4-oxen) is pin-only.
         with patch.dict(os.environ, {"AM4_OXEN_TOKEN": "sk-oxen"}):
             with patch("urllib.request.urlopen",
                        return_value=_FakeResponse(OPENAI_REPLY)) as mocked:
@@ -140,18 +143,18 @@ class BankedFireRoutingTests(TestCase):
 
         self.assertTrue(result["ok"])
         self.assertEqual(result["text"], "the banked answer")
-        self.assertEqual(result["backend"], "am4-oxen")
+        self.assertEqual(result["backend"], "am4-moe")
         self.assertEqual(result["routed_by"], "tag:research")
         self.assertEqual(result["tokens_in"], 20)
         self.assertEqual(result["tokens_out"], 40)
 
         sent = mocked.call_args[0][0]
-        self.assertEqual(sent.full_url, "http://192.168.12.233:8090/v1/chat/completions")
+        self.assertEqual(sent.full_url, "http://192.168.12.233:8082/v1/chat/completions")
         self.assertEqual(sent.headers.get("Authorization"), "Bearer sk-oxen")
         body = json.loads(sent.data.decode("utf-8"))
         self.assertEqual(body["messages"][-1], {"role": "user",
                                                 "content": "what is banked in the coals?"})
-        self.assertEqual(body["model"], "oxen")  # backend's declared default model
+        self.assertEqual(body["model"], "gpt-oss-120b")  # backend's declared default model
 
     def test_system_prompt_becomes_openai_system_message(self) -> None:
         with patch.dict(os.environ, {"AM4_OXEN_TOKEN": "sk-oxen"}):
@@ -410,14 +413,14 @@ class OccupancyRoutingTests(TestCase):
                 result = local_generate("q", task="research")
         self.assertEqual(result["backend"], "omen-ollama")
 
-    def test_available_oxen_routes_and_reports_occupancy(self) -> None:
+    def test_available_moe_routes_and_reports_occupancy(self) -> None:
         with patch.dict(os.environ, {"AM4_OXEN_TOKEN": "sk-oxen"}):
             with patch("hearth.toolsurface.inference.check_occupancy",
                        return_value={"occupancy": "available"}):
                 with patch("urllib.request.urlopen",
                            return_value=_FakeResponse(OPENAI_REPLY)):
                     result = local_generate("q", task="research")
-        self.assertEqual(result["backend"], "am4-oxen")
+        self.assertEqual(result["backend"], "am4-moe")
         self.assertEqual(result["occupancy"], "available")
 
     def test_pinned_backend_busy_still_dispatches_there(self) -> None:

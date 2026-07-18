@@ -1,0 +1,123 @@
+================================================================================
+Single Process Unidirectional tests
+================================================================================
+--------------------------------------------------------------------------------
+Bandwidth Write : Device( 0 )->Device( 1 )
+BW [GBPS]:    8  B:     0.00
+BW [GBPS]:   16  B:     0.00
+BW [GBPS]:   32  B:     0.01
+BW [GBPS]:   64  B:     0.01
+BW [GBPS]:  128  B:     0.02
+BW [GBPS]:  256  B:     0.04
+BW [GBPS]:  512  B:     0.09
+BW [GBPS]:    1 KB:     0.16
+BW [GBPS]:    2 KB:     0.33
+BW [GBPS]:    4 KB:     0.61
+BW [GBPS]:    8 KB:     1.27
+BW [GBPS]:   16 KB:     2.29
+BW [GBPS]:   32 KB:     4.42
+BW [GBPS]:   64 KB:     6.60
+BW [GBPS]:  128 KB:     8.90
+BW [GBPS]:  256 KB:    11.10
+BW [GBPS]:  512 KB:    12.46
+BW [GBPS]:    1 MB:    13.24
+BW [GBPS]:    2 MB:    13.81
+BW [GBPS]:    4 MB:    14.03
+BW [GBPS]:    8 MB:    14.17
+BW [GBPS]:   16 MB:    14.23
+BW [GBPS]:   32 MB:    14.26
+BW [GBPS]:   64 MB:    14.28
+BW [GBPS]:  128 MB:    14.28
+BW [GBPS]:  256 MB:    14.29
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+Bandwidth Read : Device( 0 )<-Device( 1 )
+BW [GBPS]:    8  B:     0.00
+BW [GBPS]:   16  B:     0.00
+BW [GBPS]:   32  B:     0.00
+BW [GBPS]:   64  B:     0.01
+BW [GBPS]:  128  B:     0.02
+BW [GBPS]:  256  B:     0.03
+BW [GBPS]:  512  B:     0.07
+BW [GBPS]:    1 KB:     0.13
+BW [GBPS]:    2 KB:     0.26
+BW [GBPS]:    4 KB:     0.54
+BW [GBPS]:    8 KB:     0.98
+BW [GBPS]:   16 KB:     1.80
+BW [GBPS]:   32 KB:     3.44
+BW [GBPS]:   64 KB:     5.19
+BW [GBPS]:  128 KB:     7.63
+BW [GBPS]:  256 KB:     9.43
+BW [GBPS]:  512 KB:    11.01
+BW [GBPS]:    1 MB:    11.81
+BW [GBPS]:    2 MB:    12.46
+BW [GBPS]:    4 MB:    12.76
+BW [GBPS]:    8 MB:    12.91
+BW [GBPS]:   16 MB:    12.98
+BW [GBPS]:   32 MB:    13.02
+BW [GBPS]:   64 MB:    13.04
+BW [GBPS]:  128 MB:    13.05
+BW [GBPS]:  256 MB:    13.05
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+Bandwidth Write : Device( 1 )->Device( 0 )
+BW [GBPS]:    8  B:     0.00
+BW [GBPS]:   16  B:     0.00
+BW [GBPS]:   32  B:     0.00
+BW [GBPS]:   64  B:     0.01
+BW [GBPS]:  128  B:     0.01
+BW [GBPS]:  256  B:     0.03
+BW [GBPS]:  512  B:     0.05
+BW [GBPS]:    1 KB:     0.11
+BW [GBPS]:    2 KB:     0.22
+BW [GBPS]:    4 KB:     0.39
+BW [GBPS]:    8 KB:     0.85
+BW [GBPS]:   16 KB:     1.66
+BW [GBPS]:   32 KB:     3.20
+BW [GBPS]:   64 KB:     4.80
+BW [GBPS]:  128 KB:     8.09
+BW [GBPS]:  256 KB:    10.38
+BW [GBPS]:  512 KB:    11.82
+BW [GBPS]:    1 MB:    12.74
+BW [GBPS]:    2 MB:    13.78
+BW [GBPS]:    4 MB:    14.05
+BW [GBPS]:    8 MB:    14.17
+BW [GBPS]:   16 MB:    14.23
+BW [GBPS]:   32 MB:    14.27
+BW [GBPS]:   64 MB:    14.28
+BW [GBPS]:  128 MB:    14.29
+BW [GBPS]:  256 MB:    14.30
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+Bandwidth Read : Device( 1 )<-Device( 0 )
+BW [GBPS]:    8  B:     0.00
+BW [GBPS]:   16  B:     0.00
+BW [GBPS]:   32  B:     0.00
+BW [GBPS]:   64  B:     0.01
+BW [GBPS]:  128  B:     0.02
+BW [GBPS]:  256  B:     0.03
+BW [GBPS]:  512  B:     0.06
+BW [GBPS]:    1 KB:     0.13
+BW [GBPS]:    2 KB:     0.26
+BW [GBPS]:    4 KB:     0.52
+BW [GBPS]:    8 KB:     1.01
+BW [GBPS]:   16 KB:     1.71
+BW [GBPS]:   32 KB:     3.36
+BW [GBPS]:   64 KB:     5.14
+BW [GBPS]:  128 KB:     7.31
+BW [GBPS]:  256 KB:     9.73
+BW [GBPS]:  512 KB:    11.04
+BW [GBPS]:    1 MB:    11.97
+BW [GBPS]:    2 MB:    12.52
+BW [GBPS]:    4 MB:    12.80
+BW [GBPS]:    8 MB:    12.95
+BW [GBPS]:   16 MB:    13.03
+BW [GBPS]:   32 MB:    13.06
+BW [GBPS]:   64 MB:    13.08
+BW [GBPS]:  128 MB:    13.09
+BW [GBPS]:  256 MB:    13.10
+
+--------------------------------------------------------------------------------

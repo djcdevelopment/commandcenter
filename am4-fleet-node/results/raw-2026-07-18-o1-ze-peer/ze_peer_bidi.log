@@ -1,0 +1,243 @@
+================================================================================
+Single Process Bidirectional tests
+================================================================================
+--------------------------------------------------------------------------------
+Bandwidth Write : Device( 0 )<->Device( 1 )
+BW [GBPS]:    8  B:     0.00
+BW [GBPS]:   16  B:     0.00
+BW [GBPS]:   32  B:     0.01
+BW [GBPS]:   64  B:     0.01
+BW [GBPS]:  128  B:     0.02
+BW [GBPS]:  256  B:     0.06
+BW [GBPS]:  512  B:     0.11
+BW [GBPS]:    1 KB:     0.23
+BW [GBPS]:    2 KB:     0.46
+BW [GBPS]:    4 KB:     0.88
+BW [GBPS]:    8 KB:     1.79
+BW [GBPS]:   16 KB:     3.21
+BW [GBPS]:   32 KB:     5.57
+BW [GBPS]:   64 KB:    11.53
+BW [GBPS]:  128 KB:    14.19
+BW [GBPS]:  256 KB:    14.89
+BW [GBPS]:  512 KB:    15.86
+BW [GBPS]:    1 MB:    16.08
+BW [GBPS]:    2 MB:    16.29
+BW [GBPS]:    4 MB:    16.40
+BW [GBPS]:    8 MB:    16.44
+BW [GBPS]:   16 MB:    16.47
+BW [GBPS]:   32 MB:    16.48
+BW [GBPS]:   64 MB:    16.75
+BW [GBPS]:  128 MB:    16.88
+BW [GBPS]:  256 MB:    16.61
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+Bandwidth Read : Device( 0 )<->Device( 1 )
+BW [GBPS]:    8  B:     0.00
+BW [GBPS]:   16  B:     0.00
+BW [GBPS]:   32  B:     0.01
+BW [GBPS]:   64  B:     0.02
+BW [GBPS]:  128  B:     0.04
+BW [GBPS]:  256  B:     0.08
+BW [GBPS]:  512  B:     0.15
+BW [GBPS]:    1 KB:     0.30
+BW [GBPS]:    2 KB:     0.58
+BW [GBPS]:    4 KB:     1.15
+BW [GBPS]:    8 KB:     2.30
+BW [GBPS]:   16 KB:     4.27
+BW [GBPS]:   32 KB:     6.99
+BW [GBPS]:   64 KB:     9.97
+BW [GBPS]:  128 KB:    13.34
+BW [GBPS]:  256 KB:    16.36
+BW [GBPS]:  512 KB:    18.31
+BW [GBPS]:    1 MB:    19.61
+BW [GBPS]:    2 MB:    20.23
+BW [GBPS]:    4 MB:    20.58
+BW [GBPS]:    8 MB:    20.74
+BW [GBPS]:   16 MB:    20.82
+BW [GBPS]:   32 MB:    20.86
+BW [GBPS]:   64 MB:    20.88
+BW [GBPS]:  128 MB:    20.92
+BW [GBPS]:  256 MB:    20.92
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+Latency Write : Device( 0 )<->Device( 1 )
+Latency [us]:    8  B:     5.07
+Latency [us]:   16  B:     4.73
+Latency [us]:   32  B:     4.75
+Latency [us]:   64  B:     4.98
+Latency [us]:  128  B:     4.90
+Latency [us]:  256  B:     5.11
+Latency [us]:  512  B:     4.64
+Latency [us]:    1 KB:     5.02
+Latency [us]:    2 KB:     5.36
+Latency [us]:    4 KB:     5.08
+Latency [us]:    8 KB:     5.29
+Latency [us]:   16 KB:     6.23
+Latency [us]:   32 KB:     7.89
+Latency [us]:   64 KB:    11.37
+Latency [us]:  128 KB:    19.17
+Latency [us]:  256 KB:    34.86
+Latency [us]:  512 KB:    66.61
+Latency [us]:    1 MB:   132.18
+Latency [us]:    2 MB:   257.38
+Latency [us]:    4 MB:   511.73
+Latency [us]:    8 MB:  1020.19
+Latency [us]:   16 MB:  2036.94
+Latency [us]:   32 MB:  4071.48
+Latency [us]:   64 MB:  8014.49
+Latency [us]:  128 MB: 16001.39
+Latency [us]:  256 MB: 32200.94
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+Latency Read : Device( 0 )<->Device( 1 )
+Latency [us]:    8  B:     6.67
+Latency [us]:   16  B:     6.29
+Latency [us]:   32  B:     6.52
+Latency [us]:   64  B:     6.29
+Latency [us]:  128  B:     6.65
+Latency [us]:  256  B:     6.41
+Latency [us]:  512  B:     6.59
+Latency [us]:    1 KB:     6.50
+Latency [us]:    2 KB:     6.58
+Latency [us]:    4 KB:     6.75
+Latency [us]:    8 KB:     7.62
+Latency [us]:   16 KB:     8.36
+Latency [us]:   32 KB:     9.36
+Latency [us]:   64 KB:    12.98
+Latency [us]:  128 KB:    19.46
+Latency [us]:  256 KB:    32.01
+Latency [us]:  512 KB:    57.01
+Latency [us]:    1 MB:   106.99
+Latency [us]:    2 MB:   207.38
+Latency [us]:    4 MB:   408.01
+Latency [us]:    8 MB:   809.05
+Latency [us]:   16 MB:  1611.62
+Latency [us]:   32 MB:  3217.12
+Latency [us]:   64 MB:  6427.34
+Latency [us]:  128 MB: 12848.89
+Latency [us]:  256 MB: 25691.56
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+Bandwidth Write : Device( 1 )<->Device( 0 )
+BW [GBPS]:    8  B:     0.00
+BW [GBPS]:   16  B:     0.01
+BW [GBPS]:   32  B:     0.01
+BW [GBPS]:   64  B:     0.02
+BW [GBPS]:  128  B:     0.05
+BW [GBPS]:  256  B:     0.10
+BW [GBPS]:  512  B:     0.19
+BW [GBPS]:    1 KB:     0.37
+BW [GBPS]:    2 KB:     0.77
+BW [GBPS]:    4 KB:     1.48
+BW [GBPS]:    8 KB:     2.78
+BW [GBPS]:   16 KB:     5.10
+BW [GBPS]:   32 KB:     8.94
+BW [GBPS]:   64 KB:    11.08
+BW [GBPS]:  128 KB:    14.32
+BW [GBPS]:  256 KB:    14.80
+BW [GBPS]:  512 KB:    15.80
+BW [GBPS]:    1 MB:    15.99
+BW [GBPS]:    2 MB:    16.26
+BW [GBPS]:    4 MB:    16.39
+BW [GBPS]:    8 MB:    16.44
+BW [GBPS]:   16 MB:    16.46
+BW [GBPS]:   32 MB:    16.48
+BW [GBPS]:   64 MB:    16.68
+BW [GBPS]:  128 MB:    16.77
+BW [GBPS]:  256 MB:    16.80
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+Bandwidth Read : Device( 1 )<->Device( 0 )
+BW [GBPS]:    8  B:     0.00
+BW [GBPS]:   16  B:     0.00
+BW [GBPS]:   32  B:     0.01
+BW [GBPS]:   64  B:     0.02
+BW [GBPS]:  128  B:     0.03
+BW [GBPS]:  256  B:     0.08
+BW [GBPS]:  512  B:     0.15
+BW [GBPS]:    1 KB:     0.31
+BW [GBPS]:    2 KB:     0.61
+BW [GBPS]:    4 KB:     1.10
+BW [GBPS]:    8 KB:     2.25
+BW [GBPS]:   16 KB:     3.80
+BW [GBPS]:   32 KB:     6.98
+BW [GBPS]:   64 KB:    10.48
+BW [GBPS]:  128 KB:    14.03
+BW [GBPS]:  256 KB:    16.46
+BW [GBPS]:  512 KB:    18.38
+BW [GBPS]:    1 MB:    19.63
+BW [GBPS]:    2 MB:    20.26
+BW [GBPS]:    4 MB:    20.59
+BW [GBPS]:    8 MB:    20.76
+BW [GBPS]:   16 MB:    20.83
+BW [GBPS]:   32 MB:    20.87
+BW [GBPS]:   64 MB:    20.89
+BW [GBPS]:  128 MB:    20.86
+BW [GBPS]:  256 MB:    20.90
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+Latency Write : Device( 1 )<->Device( 0 )
+Latency [us]:    8  B:     5.07
+Latency [us]:   16  B:     4.60
+Latency [us]:   32  B:     4.63
+Latency [us]:   64  B:     4.66
+Latency [us]:  128  B:     4.56
+Latency [us]:  256  B:     4.66
+Latency [us]:  512  B:     4.81
+Latency [us]:    1 KB:     4.65
+Latency [us]:    2 KB:     4.72
+Latency [us]:    4 KB:     4.79
+Latency [us]:    8 KB:     5.28
+Latency [us]:   16 KB:     6.28
+Latency [us]:   32 KB:     8.13
+Latency [us]:   64 KB:    10.65
+Latency [us]:  128 KB:    19.67
+Latency [us]:  256 KB:    34.73
+Latency [us]:  512 KB:    66.59
+Latency [us]:    1 MB:   130.79
+Latency [us]:    2 MB:   257.98
+Latency [us]:    4 MB:   512.18
+Latency [us]:    8 MB:  1021.35
+Latency [us]:   16 MB:  2036.24
+Latency [us]:   32 MB:  4069.85
+Latency [us]:   64 MB:  8010.36
+Latency [us]:  128 MB: 16067.73
+Latency [us]:  256 MB: 32404.33
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+Latency Read : Device( 1 )<->Device( 0 )
+Latency [us]:    8  B:     6.55
+Latency [us]:   16  B:     6.32
+Latency [us]:   32  B:     6.20
+Latency [us]:   64  B:     6.28
+Latency [us]:  128  B:     6.78
+Latency [us]:  256  B:     6.46
+Latency [us]:  512  B:     6.23
+Latency [us]:    1 KB:     6.25
+Latency [us]:    2 KB:     6.46
+Latency [us]:    4 KB:     6.99
+Latency [us]:    8 KB:     7.79
+Latency [us]:   16 KB:     8.21
+Latency [us]:   32 KB:     9.79
+Latency [us]:   64 KB:    13.15
+Latency [us]:  128 KB:    19.41
+Latency [us]:  256 KB:    31.55
+Latency [us]:  512 KB:    56.90
+Latency [us]:    1 MB:   106.91
+Latency [us]:    2 MB:   207.11
+Latency [us]:    4 MB:   407.76
+Latency [us]:    8 MB:   809.67
+Latency [us]:   16 MB:  1613.60
+Latency [us]:   32 MB:  3221.50
+Latency [us]:   64 MB:  6437.30
+Latency [us]:  128 MB: 12868.48
+Latency [us]:  256 MB: 25686.29
+
+--------------------------------------------------------------------------------

@@ -262,6 +262,129 @@ class GeminiRoutingTests(TestCase):
         mocked.assert_not_called()
 
 
+_TRIAL_POOL_TOML = """
+default = "omen-ollama"
+
+[trial]
+budget_tokens = 1000
+reserve_tokens = 100
+
+[[backend]]
+name = "omen-ollama"
+endpoint = "http://127.0.0.1:11434"
+api = "ollama"
+tags = ["default"]
+
+[[backend]]
+name = "gcp-gemini"
+endpoint = "https://aiplatform.googleapis.com"
+api = "gemini"
+auth_env = "GOOGLE_OAUTH_ACCESS_TOKEN"
+tags = ["cloud-overflow"]
+settings = { cost_class = "trial" }
+"""
+
+
+class TrialSuppressionTests(TestCase):
+    """A4: trial rungs leave opportunistic routing when the runway is spent."""
+
+    def setUp(self) -> None:
+        self.enterContext(_ALWAYS_AVAILABLE)
+        self.temp_dir = self.enterContext(tempfile.TemporaryDirectory())
+        self.enterContext(patch.dict(os.environ, {"HEARTH_SCOPE": self.temp_dir}))
+
+        pool_path = Path(self.temp_dir) / "backends.toml"
+        pool_path.write_text(_TRIAL_POOL_TOML, encoding="utf-8")
+        self.enterContext(patch.dict(os.environ, {"HEARTH_BACKENDS": str(pool_path)}))
+
+        self.knowledge_dir = Path(self.temp_dir) / "knowledge"
+        self.knowledge_dir.mkdir()
+        self.offload = self.knowledge_dir / "offload.json"
+
+    def test_suppression_healthy_burn_routes_gemini(self) -> None:
+        self.offload.write_text(json.dumps(
+            {"per_class": {"trial": {"tokens_in": 500, "tokens_out": 100}}}), encoding="utf-8")
+        with patch.dict(os.environ, {"GOOGLE_OAUTH_ACCESS_TOKEN": "token",
+                                     "GOOGLE_CLOUD_PROJECT": "p"}):
+            with patch("urllib.request.urlopen", return_value=_FakeResponse(GEMINI_REPLY)):
+                result = local_generate("q", task="cloud-overflow")
+        self.assertEqual(result["backend"], "gcp-gemini")
+
+    def test_suppression_high_burn_skips_gemini(self) -> None:
+        self.offload.write_text(json.dumps(
+            {"per_class": {"trial": {"tokens_in": 500, "tokens_out": 500}}}), encoding="utf-8")
+        with patch.dict(os.environ, {"GOOGLE_OAUTH_ACCESS_TOKEN": "token",
+                                     "GOOGLE_CLOUD_PROJECT": "p"}):
+            with patch("urllib.request.urlopen", return_value=_FakeResponse(OLLAMA_REPLY)):
+                result = local_generate("q", task="cloud-overflow")
+        self.assertEqual(result["backend"], "omen-ollama")
+        self.assertEqual(result["routed_by"], "default")
+
+    def test_suppression_missing_offload_routes_gemini(self) -> None:
+        with patch.dict(os.environ, {"GOOGLE_OAUTH_ACCESS_TOKEN": "token",
+                                     "GOOGLE_CLOUD_PROJECT": "p"}):
+            with patch("urllib.request.urlopen", return_value=_FakeResponse(GEMINI_REPLY)):
+                result = local_generate("q", task="cloud-overflow")
+        self.assertEqual(result["backend"], "gcp-gemini")
+
+    def test_suppression_pinned_bypasses_suppression(self) -> None:
+        self.offload.write_text(json.dumps(
+            {"per_class": {"trial": {"tokens_in": 9999, "tokens_out": 9999}}}), encoding="utf-8")
+        with patch.dict(os.environ, {"GOOGLE_OAUTH_ACCESS_TOKEN": "token",
+                                     "GOOGLE_CLOUD_PROJECT": "p"}):
+            with patch("urllib.request.urlopen", return_value=_FakeResponse(GEMINI_REPLY)):
+                result = local_generate("q", backend="gcp-gemini")
+        self.assertEqual(result["backend"], "gcp-gemini")
+
+
+class QualityRoutingTests(TestCase):
+    """A3: quality tiers — good prefers flash, best asks instead of dispatching."""
+
+    def setUp(self) -> None:
+        self.enterContext(_ALWAYS_AVAILABLE)
+
+    def test_quality_best_returns_ask(self) -> None:
+        with patch("urllib.request.urlopen") as mocked:
+            result = local_generate("q", quality="best")
+        mocked.assert_not_called()
+        self.assertTrue(result["ask"])
+        self.assertIsNone(result["backend"])
+        self.assertEqual(result["routed_by"], "ask:quality-best")
+        self.assertEqual(result["recommendation"]["backend"], "gcp-gemini-pro")
+
+    def test_quality_good_routes_to_cloud_overflow(self) -> None:
+        with patch.dict(os.environ, {"GOOGLE_OAUTH_ACCESS_TOKEN": "token",
+                                     "GOOGLE_CLOUD_PROJECT": "p"}):
+            with patch("urllib.request.urlopen", return_value=_FakeResponse(GEMINI_REPLY)):
+                result = local_generate("q", quality="good")
+        self.assertEqual(result["backend"], "gcp-gemini")
+        self.assertEqual(result["routed_by"], "quality-good:tag:cloud-overflow")
+
+    def test_quality_good_suppressed_routes_to_default(self) -> None:
+        temp_dir = self.enterContext(tempfile.TemporaryDirectory())
+        self.enterContext(patch.dict(os.environ, {"HEARTH_SCOPE": temp_dir}))
+
+        pool_path = Path(temp_dir) / "backends.toml"
+        pool_path.write_text(_TRIAL_POOL_TOML.replace("reserve_tokens = 100",
+                                                      "reserve_tokens = 0"), encoding="utf-8")
+        self.enterContext(patch.dict(os.environ, {"HEARTH_BACKENDS": str(pool_path)}))
+
+        knowledge_dir = Path(temp_dir) / "knowledge"
+        knowledge_dir.mkdir()
+        (knowledge_dir / "offload.json").write_text(json.dumps(
+            {"per_class": {"trial": {"tokens_in": 1000}}}), encoding="utf-8")
+
+        with patch("urllib.request.urlopen", return_value=_FakeResponse(OLLAMA_REPLY)):
+            result = local_generate("q", quality="good")
+
+        self.assertEqual(result["backend"], "omen-ollama")
+        self.assertEqual(result["routed_by"], "quality-good:default")
+
+    def test_invalid_quality_raises(self) -> None:
+        with self.assertRaises(ValueError):
+            local_generate("q", quality="terrible")
+
+
 class OccupancyRoutingTests(TestCase):
     """P2: local_generate consults occupancy for tag-routed calls; a busy or
     unknown oxen backend is skipped in favor of omen-ollama, and every result

@@ -18,6 +18,10 @@ from hearth.toolsurface.inference import local_generate
 _POOL_TOML = textwrap.dedent("""
     default = "omen-ollama"
 
+    [trial]
+    budget_tokens = 5000000
+    reserve_tokens = 500000
+
     [[backend]]
     name = "omen-ollama"
     endpoint = "http://127.0.0.1:11434"
@@ -41,7 +45,7 @@ _POOL_TOML = textwrap.dedent("""
     auth_env = "GOOGLE_OAUTH_ACCESS_TOKEN"
     models = ["gemini-3.5-flash"]
     tags = ["frontier", "cloud-overflow"]
-    settings = { project_env = "GOOGLE_CLOUD_PROJECT", location_env = "GOOGLE_CLOUD_LOCATION" }
+    settings = { project_env = "GOOGLE_CLOUD_PROJECT", location_env = "GOOGLE_CLOUD_LOCATION", cost_class = "trial" }
 """)
 
 
@@ -68,6 +72,8 @@ class LoadPoolTests(TestCase):
         self.assertEqual(gemini.api, "gemini")
         self.assertEqual(gemini.auth_env, "GOOGLE_OAUTH_ACCESS_TOKEN")
         self.assertEqual(gemini.settings["project_env"], "GOOGLE_CLOUD_PROJECT")
+        self.assertEqual(gemini.cost_class(), "trial")
+        self.assertEqual(pool.trial["budget_tokens"], 5000000)
 
     def test_missing_file_falls_back_to_omen_ollama(self) -> None:
         pool = load_pool(self.tmp / "does-not-exist.toml")

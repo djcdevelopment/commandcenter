@@ -68,6 +68,11 @@ class Backend:
     occupancy: dict = field(default_factory=dict)
     settings: dict = field(default_factory=dict)
 
+    def cost_class(self) -> Optional[str]:
+        """The declared cost_class setting (e.g. "trial"), or None."""
+        val = self.settings.get("cost_class")
+        return str(val) if val is not None else None
+
     def context_bytes(self) -> Optional[int]:
         """The declared context_bytes setting as a positive int, or None (unlimited)."""
         val = self.settings.get("context_bytes")
@@ -97,6 +102,7 @@ class Pool:
     """The resolved backend pool: backends plus the name of the default."""
     backends: tuple[Backend, ...]
     default: str
+    trial: dict = field(default_factory=dict)
 
     def by_name(self, name: str) -> Optional[Backend]:
         for backend in self.backends:
@@ -153,12 +159,13 @@ def load_pool(path: Optional[Path | str] = None) -> Pool:
     """
     resolved = Path(path) if path else Path(os.environ.get(ENV_VAR, DEFAULT_POOL_PATH))
     if not resolved.is_file():
-        raw_backends, default = _FALLBACK_BACKENDS, _FALLBACK_DEFAULT
+        raw_backends, default, trial = _FALLBACK_BACKENDS, _FALLBACK_DEFAULT, {}
     else:
         with open(resolved, "rb") as fh:
             data = tomllib.load(fh)
         raw_backends = data.get("backend") or []
         default = data.get("default")
+        trial = dict(data.get("trial") or {})
         if not raw_backends:
             raise BackendConfigError(f"{resolved}: no [[backend]] entries declared")
 
@@ -172,7 +179,7 @@ def load_pool(path: Optional[Path | str] = None) -> Pool:
     if default not in names:
         raise BackendConfigError(
             f"default {default!r} names no declared backend (have: {', '.join(names)})")
-    return Pool(backends=backends, default=default)
+    return Pool(backends=backends, default=default, trial=trial)
 
 
 def select_backend(pool: Pool, *, backend: Optional[str] = None,

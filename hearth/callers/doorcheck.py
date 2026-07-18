@@ -319,6 +319,36 @@ def _age_str(iso_ts: str | None) -> str:
     return f"{int(seconds // 86400)}d ago"
 
 
+def _trial_burn_report() -> str:
+    """A4: one line of trial-credit runway truth, tolerant of every failure mode."""
+    try:
+        pool = backends_mod.load_pool()
+        budget = pool.trial.get("budget_tokens")
+        if not budget:
+            return "trial-burn: none configured"
+        try:
+            budget_int = int(budget)
+            reserve_int = int(pool.trial.get("reserve_tokens", 0))
+        except (TypeError, ValueError):
+            return "trial-burn: invalid budget config"
+
+        offload_path = inference_mod.resolve_in_scope("knowledge/offload.json")
+        if not offload_path.is_file():
+            return "trial-burn: no data"
+        with open(offload_path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+
+        trial_data = (data.get("per_class") or {}).get("trial") or {}
+        burn = int(trial_data.get("tokens_in") or 0) + int(trial_data.get("tokens_out") or 0)
+
+        line = f"trial-burn: {burn:,} / {budget_int:,} tokens (reserve {reserve_int:,})"
+        if burn >= budget_int - reserve_int:
+            line += " [SUPPRESSED]"
+        return line
+    except Exception as exc:
+        return f"trial-burn: ERROR - {type(exc).__name__}: {exc}"
+
+
 def _build_request_lane() -> dict:
     root = Path(os.environ.get("HEARTH_BUILD_REQUEST_DIR", str(DEFAULT_RECEIPT_DIR)))
     ledger_path = root / "ledger.jsonl"
@@ -425,6 +455,7 @@ def check(revive: bool = False, probe_cloud: bool = False) -> dict:
 
     report["last_ledger_event"] = _last_ledger_event()
     report["build_requests"] = _build_request_lane()
+    report["trial_burn_line"] = _trial_burn_report()
 
     report["ok"] = (
         report["gateway"] == "up"
@@ -470,6 +501,7 @@ def main(argv: list[str]) -> int:
             print(entry["line"])
         print(f"ledger   : last event {report['last_ledger_event'] or 'none'}")
         print(report["build_requests"]["line"])
+        print(report["trial_burn_line"])
         print("verdict  : " + ("HEALTHY" if report["ok"] else "DEGRADED"))
     return 0 if report["ok"] else 1
 

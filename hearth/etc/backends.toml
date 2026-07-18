@@ -22,8 +22,18 @@
 # 30s cache, fail-open to "unknown" -> busy for opportunistic/tag-routed calls).
 # ============================================================================
 
-# Name of the backend used when nothing else matches.
+# Name of the backend used when nothing else matches. (Top-level keys MUST
+# precede any [table] header — TOML swallows later bare keys into the table.)
 default = "omen-ollama"
+
+# A4: shared GCP trial-credit runway. Burn is measured from
+# knowledge/offload.json (per_class.trial, input+output); when burn crosses
+# budget - reserve, every cost_class="trial" rung leaves opportunistic routing
+# (tag/fallback) until credits are topped up. Pins still work — a pin is
+# deliberate. Both are operational knobs; tune as the trial pool changes.
+[trial]
+budget_tokens  = 200000000
+reserve_tokens = 20000000
 
 [[backend]]
 name     = "omen-ollama"
@@ -78,6 +88,7 @@ auth_env = "GOOGLE_OAUTH_ACCESS_TOKEN"
 [backend.settings]
 project_env  = "GOOGLE_CLOUD_PROJECT"
 location_env = "GOOGLE_CLOUD_LOCATION"       # defaults to "global" when unset
+cost_class   = "trial"                       # A4: counts against [trial] runway
 # Same thinking-budget protection the pro rung has: modern Gemini models can burn
 # a stingy budget on hidden reasoning and return empty text; a cap not a charge.
 max_tokens   = 8192
@@ -104,6 +115,7 @@ auth_env = "GOOGLE_OAUTH_ACCESS_TOKEN"
 [backend.settings]
 project_env  = "GOOGLE_CLOUD_PROJECT"
 location_env = "GOOGLE_CLOUD_LOCATION"       # defaults to "global" when unset
+cost_class   = "trial"                       # A4: counts against [trial] runway
 # Default output budget for this rung when a caller omits max_tokens. A THINKING
 # model spends tokens on hidden reasoning before any visible text, so a stingy
 # budget returns EMPTY text (ok:true, tokens burned on thought). 16384 gives real

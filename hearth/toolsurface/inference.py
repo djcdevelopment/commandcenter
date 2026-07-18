@@ -35,7 +35,7 @@ import urllib.request
 from typing import Callable, NamedTuple, Optional
 
 from hearth.toolsurface._scope import resolve_in_scope, scope_root
-from hearth.toolsurface.backends import BackendConfigError, load_pool, select_backend
+from hearth.toolsurface.backends import BackendConfigError, Pool, load_pool, select_backend
 from hearth.toolsurface.occupancy import check_occupancy
 
 DEFAULT_ENDPOINT = "http://127.0.0.1:11434"
@@ -45,6 +45,48 @@ ENDPOINT_ENV_VAR = "HEARTH_OLLAMA"
 # per-rung setting) can tune them without touching the packing logic.
 FILES_PER_FILE_CAP = 256 * 1024
 FILES_TOTAL_CAP = 1024 * 1024
+
+
+def _trial_suppressed(pool: Pool) -> set[str]:
+    """A4: the names of trial rungs that should leave opportunistic routing.
+
+    Burn is read from knowledge/offload.json (per_class.trial, input+output —
+    kept fresh by the knowledge_rebuild timer). No budget configured, no data,
+    or unreadable data all fail OPEN (empty set): suppression only ever engages
+    on positive evidence that the runway is nearly spent. Pins are unaffected
+    (the caller never sees this set on the pinned path).
+    """
+    budget_val = pool.trial.get("budget_tokens")
+    if not budget_val:
+        return set()
+    try:
+        budget = int(budget_val)
+    except (TypeError, ValueError):
+        return set()
+    try:
+        reserve = int(pool.trial.get("reserve_tokens", 0))
+    except (TypeError, ValueError):
+        reserve = 0
+
+    try:
+        offload_path = resolve_in_scope("knowledge/offload.json")
+    except (ValueError, OSError):
+        return set()
+    if not offload_path.is_file():
+        return set()
+    try:
+        with open(offload_path, "r", encoding="utf-8") as fh:
+            offload_data = json.load(fh)
+    except (OSError, json.JSONDecodeError):
+        return set()
+
+    per_class = offload_data.get("per_class") or {}
+    trial_data = per_class.get("trial") or {}
+    burn = int(trial_data.get("tokens_in") or 0) + int(trial_data.get("tokens_out") or 0)
+
+    if burn >= budget - reserve:
+        return {b.name for b in pool.backends if b.cost_class() == "trial"}
+    return set()
 
 
 def _pack_files(files: list[str]) -> tuple[str, list[dict]]:
@@ -140,7 +182,8 @@ def _google_access_token(auth_env: Optional[str]) -> tuple[Optional[str], Option
 
 def _resolve_target(endpoint: str, task: Optional[str], backend: Optional[str],
                     payload_bytes: Optional[int] = None,
-                    exclude: Optional[set[str]] = None) -> _Target:
+                    exclude: Optional[set[str]] = None,
+                    tags: Optional[list[str]] = None) -> _Target:
     """Apply the Banked Fire routing policy and return the dispatch target.
 
     Precedence: (1) an explicitly-passed endpoint wins outright, unchanged; then
@@ -174,11 +217,18 @@ def _resolve_target(endpoint: str, task: Optional[str], backend: Optional[str],
             return _Target(resolved, "ollama", None, None, None,
                            named.name if named else None, "default", "available", {})
 
-    # (2) Route by backend name or task tag — or consult the pool for any call
-    # carrying a payload size or an exclude set (A1/A2); occupancy consulted
-    # for tag routes.
-    if backend or task or payload_bytes is not None or exclude:
+    # A4: trial rungs past their credit runway leave opportunistic routing.
+    # Pins bypass (the pinned branch above never reads exclude).
+    suppressed = _trial_suppressed(pool)
+    if not backend and suppressed:
+        exclude = (exclude or set()) | suppressed
+
+    # (2) Route by backend name, task tag, or quality tags — or consult the
+    # pool for any call carrying a payload size or an exclude set (A1/A2);
+    # occupancy consulted for tag routes.
+    if backend or task or tags or payload_bytes is not None or exclude:
         chosen, reason, occ = select_backend(pool, backend=backend, task=task,
+                                             tags=tags,
                                              occupancy_check=check_occupancy,
                                              payload_bytes=payload_bytes,
                                              exclude=exclude)
@@ -340,7 +390,8 @@ def local_generate(prompt: str, model: str | None = None,
                    endpoint: str = DEFAULT_ENDPOINT, system: str | None = None,
                    max_tokens: int | None = None, timeout_s: int = 120,
                    task: str | None = None, backend: str | None = None,
-                   files: list[str] | None = None) -> dict:
+                   files: list[str] | None = None,
+                   quality: str | None = None) -> dict:
     """Generate text from a configured inference backend.
 
     Routing (Banked Fire): pass ``task`` (e.g. "research") to prefer a tagged
@@ -349,6 +400,12 @@ def local_generate(prompt: str, model: str | None = None,
     occupancy) is skipped in favor of the pool default (P2); a name-pinned
     backend is never occupancy-skipped. The chosen backend, routing reason, and
     occupancy-at-decision all ride in the result.
+
+    Quality tiers (A3): ``quality="fast"`` (or omitted) uses the sunk-first
+    ladder (default behavior); ``"good"`` prefers the near-free flash rung
+    while trial credits last; ``"best"`` does NOT dispatch — it returns an
+    ``ask:true`` result recommending the pro rung, which auto-routing never
+    selects (deliberate pin only).
 
     File packing (repo-aware): pass ``files`` — repo-relative paths, or absolute
     paths under any HEARTH_SCOPE root (e.g. other repos beneath C:\\work) — to
@@ -365,6 +422,24 @@ def local_generate(prompt: str, model: str | None = None,
         raise ValueError("max_tokens must be a positive integer")
     if timeout_s <= 0:
         raise ValueError("timeout_s must be positive")
+    if quality is not None and quality not in ("fast", "good", "best"):
+        raise ValueError("quality must be 'fast', 'good', or 'best'")
+
+    if quality == "best":
+        # A3 ASK: quality=best maps to the pro rung, which auto-routing never
+        # selects (D3). Zero network calls, zero tokens — the caller decides.
+        return {
+            "ok": True, "ask": True,
+            "recommendation": {
+                "backend": "gcp-gemini-pro",
+                "reason": "quality=best maps to the pro rung, which auto-routing "
+                          "never selects (deliberate pin only; finite trial credits)",
+            },
+            "text": 'ASK: quality=best requires the gcp-gemini-pro rung. Re-call with '
+                    'backend="gcp-gemini-pro" to confirm, or quality="good" for the flash rung.',
+            "backend": None, "routed_by": "ask:quality-best", "occupancy": "n/a",
+            "max_tokens": 0,
+        }
 
     files_packed_list = None
     files_bytes = 0
@@ -412,8 +487,11 @@ def local_generate(prompt: str, model: str | None = None,
             return _generate_gemini(t, prompt, m, system, mt, timeout_s)
         return _generate_ollama(t, prompt, m, system, mt, timeout_s)
 
+    call_tags = ["cloud-overflow"] if quality == "good" else None
+
     try:
-        target = _resolve_target(endpoint, task, backend, payload_bytes=payload_bytes)
+        target = _resolve_target(endpoint, task, backend, payload_bytes=payload_bytes,
+                                 tags=call_tags)
     except BackendConfigError as exc:
         return {"ok": False, "error": f"routing failed: {exc}",
                 "endpoint": endpoint, "model": model}
@@ -422,7 +500,8 @@ def local_generate(prompt: str, model: str | None = None,
     result = _execute(target, resolved_model, resolved_max_tokens)
 
     result["backend"] = target.backend
-    result["routed_by"] = target.routed_by
+    result["routed_by"] = (f"quality-{quality}:{target.routed_by}"
+                           if quality is not None else target.routed_by)
     result["occupancy"] = target.occupancy
     result["max_tokens"] = resolved_max_tokens
 
@@ -434,7 +513,8 @@ def local_generate(prompt: str, model: str | None = None,
         try:
             second_target = _resolve_target(endpoint, task, backend,
                                             payload_bytes=payload_bytes,
-                                            exclude=exclude_set)
+                                            exclude=exclude_set,
+                                            tags=call_tags)
             if second_target.backend != target.backend:
                 second_model, second_max_tokens = _apply_defaults(second_target, model, max_tokens)
                 second_result = _execute(second_target, second_model, second_max_tokens)

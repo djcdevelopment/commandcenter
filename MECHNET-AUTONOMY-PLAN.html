@@ -253,16 +253,18 @@ managed units, never crudely kill oxen; benchmark windows are occupancy-gated.</
   <li><strong>O2/O3 destabilize AM4</strong> — staged protocol, preflight gates, occupancy-gated windows, imagegen units managed not killed.</li>
   <li><strong>D1</strong>: dashboard serving — gateway-served page + written HTML artifact (recommended) vs artifact only.</li>
   <li><strong>D2 <span class="good">DECIDED 07-17</span></strong> (Derek's hardware truth: 2× B70 @ 32 GB VRAM;
-      32 GB DDR4; 550 GB main NVMe with &lt;150 GB free; slower 4 TB drive currently unmounted, ~1.25 TB free):
-      <strong>hybrid</strong> — (a) <code>zram</code> 8 GB lz4 at high priority as the fast first line for load-burst
-      spikes; (b) grow the NVMe swapfile 8 → 16 GB at low priority as the backstop (fits the free space;
-      today's 8 G runs 100% full in steady state); (c) <strong>no swap on the 4 TB</strong> (slow swap under
-      pressure = stalls) — instead mount it as the <em>model zoo + benchmark artifact store</em>, relieving the
-      NVMe squeeze (each 30B-class gguf ≈ 13–20 GB; hot dailies stay on NVMe, the O2 matrix models live on
-      the 4 TB; cold load is slower once, warm serving is VRAM-resident and unaffected). O3 also must identify
-      the suspicious <span class="kpi">10 Gi "shared"</span> memory O0 observed — reclaiming leaked shm may be
-      worth more than any swap tuning. Verify the 4 TB mount state at the O1 window (runbook says
-      <code>/mnt/win</code>; currently not mounted per Derek).</li>
+      32 GB DDR4; 550 GB main NVMe with &lt;150 GB free; slower <em>NVMe</em> 4 TB — not a spindle — mounted at
+      <code>/mnt/win</code>, ~1.25 TB free): <strong>hybrid</strong> — (a) <code>zram</code> 8 GB lz4 at high
+      priority as the fast first line for load-burst spikes; (b) grow the swapfile 8 → 16 GB on the
+      <em>main</em> NVMe at low priority as the backstop (the faster drive with room; today's 8 G runs 100%
+      full in steady state); (c) the 4 TB stays swap-free and serves as the <em>model zoo + benchmark artifact
+      store</em>, relieving the main-NVMe squeeze (each 30B-class gguf ≈ 13–20 GB; hot dailies stay on main
+      NVMe; slow-NVMe cold loads are a mild one-time cost, warm serving is VRAM-resident and unaffected).
+      O3 also must identify the suspicious <span class="kpi">10 Gi "shared"</span> memory O0 observed —
+      reclaiming leaked shm may be worth more than any swap tuning.
+      <strong>O1 preflight check:</strong> some agent contexts report <code>/mnt/win</code> as invisible even
+      though it is mounted — verify visibility from the exact user/service context the benchmarks run as
+      (systemd --user units can sandbox mounts), not just an interactive shell.</li>
   <li><strong>D3</strong>: may <code>route="auto"</code> ever pick <code>gcp-gemini-pro</code>? Recommended: no — pro stays pin/ASK.</li>
   <li><strong>D4</strong>: O4 article — publish target and timing (windtunnel vs steppeintegrations), on cue as always.</li>
 </ul>

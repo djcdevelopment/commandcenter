@@ -48,6 +48,32 @@ revive   = "start_ollama"                    # HEARTH summon tool (consumed in P
 context_bytes = 98304
 
 [[backend]]
+name     = "am4-moe"                          # the resident big MoE — gpt-oss-120b across
+                                              # BOTH B70s (llama-server layer-split, :8082).
+                                              # Steady-state tenant of the cards: replaces
+                                              # b70-planner/critic residency (those become
+                                              # deliberate pin-and-wake only; see am4-oxen).
+endpoint = "http://192.168.12.233:8082"       # AM4 over LAN (ADR-0014); llama-server binds
+                                              # 0.0.0.0:8082 with --api-key bearer auth.
+api      = "openai"                           # /v1/chat/completions
+auth_env = "AM4_OXEN_TOKEN"                   # same token the facade lane already uses
+models   = ["gpt-oss-120b"]                   # served via --alias gpt-oss-120b
+tags     = ["big-context", "research", "second-opinion", "reasoning"]
+# Occupancy: HTTP slot/KV probe (occupancy.probe_moe_slots) — NOT the render-node
+# fuser probe: this rung's own llama-server always holds both cards, so "someone
+# holds the render nodes" would read permanently busy. Goodput policy: all slots
+# processing (or KV cache past the pressure ceiling) -> opportunistic traffic
+# skips to omen/flash; pinned calls still dispatch and WAIT IN LINE in
+# llama-server's internal request queue.
+[backend.settings]
+# A1 payload budget: -np 4 slots over -c 65536 => 16k tokens per slot; ≈14k of
+# that as payload at the ≈4 bytes/token convention the other rungs use.
+context_bytes = 57344
+# gpt-oss is a reasoning-format model (harmony channels): same generous-output
+# protection the gemini rungs get — a cap, not a charge.
+max_tokens = 8192
+
+[[backend]]
 name     = "am4-oxen"                          # the banked fire — dual-B70 Qwen3-30B
 endpoint = "http://192.168.12.233:8090"       # AM4 over LAN (ufw 8090 ALLOW 192.168.12.0/24,
                                               # added 2026-07-09) — machine lanes stay off the
@@ -61,11 +87,14 @@ auth_env = "AM4_OXEN_TOKEN"                   # SAME name the fleet already uses
 models   = ["oxen"]                           # facade-advertised id (GET /v1/models);
                                               # dual-B70 Qwen3-30B behind the oxen alias.
                                               # (was "qwen3-30b" — not a real id → 404.)
-tags     = ["big-context", "research", "second-opinion"]
-revive   = "wake_am4"                          # LIVE HEARTH summon tool: idempotent
-                                              # (facade backend.ok short-circuits),
-                                              # imagegen-occupancy-gated, starts the
-                                              # managed b70-planner --user unit.
+tags     = ["oxen-planner"]                   # DEMOTED from opportunistic routing —
+                                              # big-context/research/second-opinion moved
+                                              # to am4-moe (gpt-oss-120b now holds both
+                                              # cards steady-state). Pin by name for a
+                                              # deliberate planner run: stop b70-moe
+                                              # first, then wake_am4.
+# revive removed (was wake_am4): an auto-revive would start b70-planner INTO the
+# resident moe's VRAM. wake_am4 stays available as a standalone summon tool.
 # `conductor_worker`: metadata only — which conductor worker rides this backend
 # (useful for humans cross-referencing fleet.json). The LIVE P2 occupancy probe
 # does NOT read this field: it goes straight to AM4 serve-truth (render_owners

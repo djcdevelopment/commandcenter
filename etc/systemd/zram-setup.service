@@ -1,0 +1,12 @@
+[Unit]
+Description=Configure zram swap
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/sbin/modprobe zram
+ExecStart=/bin/sh -c 'echo lz4 > /sys/block/zram0/comp_algorithm && echo 8589934592 > /sys/block/zram0/disksize && mkswap /dev/zram0 && swapon /dev/zram0 -p 100'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -2,12 +2,18 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import subprocess
+import tempfile
+from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
 
 from hearth.toolsurface.task_lane import (
     DEFAULT_BUILDERS,
+    get_tools,
+    queue_status,
+    submit_batch,
     submit_task,
     task_status,
 )
@@ -168,3 +174,162 @@ class TaskStatusTests(TestCase):
     def test_empty_plan_id_rejected(self) -> None:
         with self.assertRaises(ValueError):
             task_status("")
+
+    def test_out_file_must_be_non_empty_when_given(self) -> None:
+        with self.assertRaises(ValueError):
+            task_status("hearth-abc123", out_file="   ")
+
+
+class TaskStatusOutFileTests(TestCase):
+    """out_file lands the full result in a scoped file and returns only an ACK."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.scope = Path(self._tmp.name).resolve()
+        self._prev = os.environ.get("HEARTH_SCOPE")
+        os.environ["HEARTH_SCOPE"] = str(self.scope)
+
+    def tearDown(self) -> None:
+        if self._prev is None:
+            os.environ.pop("HEARTH_SCOPE", None)
+        else:
+            os.environ["HEARTH_SCOPE"] = self._prev
+        self._tmp.cleanup()
+
+    def test_done_result_written_to_out_file_and_only_ack_returned(self) -> None:
+        payload = {"plan_id": "hearth-abc123", "winner": "am4-worker-1", "ok": True,
+                   "big": "x" * 5000}
+        with patch("subprocess.run", return_value=_completed(stdout=json.dumps(payload))):
+            result = task_status("hearth-abc123", out_file="runs/out/abc.json")
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["done"])
+        # The big blob must NOT come back inline — only an ACK.
+        self.assertNotIn("result", result)
+        self.assertIn("out_file", result)
+        self.assertEqual(result["bytes_written"], len(json.dumps(payload).encode("utf-8")))
+        # Cheap scalars lifted for the caller.
+        self.assertEqual(result["winner"], "am4-worker-1")
+        self.assertTrue(result["result_ok"])
+        self.assertTrue(result["parse_ok"])
+        # File is inside the sandbox and holds the full result text.
+        written = Path(result["out_file"])
+        self.assertTrue(written.is_relative_to(self.scope))
+        self.assertEqual(json.loads(written.read_text(encoding="utf-8")), payload)
+
+    def test_out_file_not_written_when_run_unfinished(self) -> None:
+        target = self.scope / "runs" / "out" / "pending.json"
+        with patch("subprocess.run", return_value=_completed(stdout="__HEARTH_NO_RESULT__\n")):
+            result = task_status("hearth-pending", out_file="runs/out/pending.json")
+        self.assertTrue(result["ok"])
+        self.assertFalse(result["done"])
+        self.assertFalse(target.exists())
+
+    def test_out_file_escaping_sandbox_is_rejected(self) -> None:
+        with patch("subprocess.run", return_value=_completed(stdout='{"ok": true}')):
+            with self.assertRaises(ValueError):
+                task_status("hearth-abc123", out_file="../escape.json")
+
+    def test_out_file_written_even_when_result_not_json(self) -> None:
+        # A completed-but-unparseable result still lands as full text; parse_ok flags it.
+        with patch("subprocess.run", return_value=_completed(stdout="{not json")):
+            result = task_status("hearth-abc123", out_file="runs/out/raw.txt")
+        self.assertTrue(result["done"])
+        self.assertFalse(result["parse_ok"])
+        self.assertEqual(Path(result["out_file"]).read_text(encoding="utf-8"), "{not json")
+
+
+class QueueStatusTests(TestCase):
+    def test_parses_counts_from_conductor(self) -> None:
+        with patch("subprocess.run",
+                   return_value=_completed(stdout="queued=2 running=1 done=5 hearth_queued=1\n")):
+            result = queue_status()
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["queued"], 2)
+        self.assertEqual(result["running"], 1)
+        self.assertEqual(result["done"], 5)
+        self.assertEqual(result["hearth_queued"], 1)
+
+    def test_one_ssh_round_trip(self) -> None:
+        calls = {"n": 0}
+
+        def runner(args, **kw):
+            calls["n"] += 1
+            return _completed(stdout="queued=0 running=0 done=0 hearth_queued=0\n")
+
+        with patch("subprocess.run", side_effect=runner):
+            queue_status()
+        self.assertEqual(calls["n"], 1)
+
+    def test_ssh_failure_is_clean_result(self) -> None:
+        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="ssh", timeout=15)):
+            result = queue_status()
+        self.assertFalse(result["ok"])
+        self.assertIn("error", result)
+
+    def test_garbled_output_defaults_to_zero(self) -> None:
+        with patch("subprocess.run", return_value=_completed(stdout="unexpected\n")):
+            result = queue_status()
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["queued"], 0)
+
+
+class SubmitBatchTests(TestCase):
+    def test_fans_out_each_item_via_submit_task(self) -> None:
+        writes = {"n": 0}
+
+        def runner(args, **kw):
+            writes["n"] += 1
+            return _completed(stdout="written\n")
+
+        manifest = [
+            {"prompt": "brief one", "plan_id_hint": "one"},
+            {"prompt": "brief two", "builders": ["cc-builder-1", "cc-builder-2"],
+             "task_class": "research"},
+        ]
+        with patch("subprocess.run", side_effect=runner):
+            result = submit_batch(manifest)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["count"], 2)
+        self.assertEqual(len(result["plan_ids"]), 2)
+        # One inbox write per item — the same single-submit mechanism, N times.
+        self.assertEqual(writes["n"], 2)
+        for pid in result["plan_ids"]:
+            self.assertTrue(pid.startswith("hearth-"))
+        # Per-item builders forwarded.
+        self.assertEqual(result["submitted"][1]["builders"], ["cc-builder-1", "cc-builder-2"])
+
+    def test_partial_failure_is_visible_per_task(self) -> None:
+        with patch("subprocess.run",
+                   return_value=_completed(stdout="", stderr="denied", returncode=255)):
+            result = submit_batch([{"prompt": "a"}, {"prompt": "b"}])
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["plan_ids"], [])
+        self.assertFalse(result["submitted"][0]["ok"])
+
+    def test_empty_manifest_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            submit_batch([])
+
+    def test_non_list_manifest_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            submit_batch({"prompt": "x"})  # type: ignore[arg-type]
+
+    def test_item_without_prompt_rejected_before_any_write(self) -> None:
+        # A malformed item must abort the whole batch before any inbox write.
+        with patch("subprocess.run", return_value=_completed(stdout="written\n")) as m:
+            with self.assertRaises(ValueError):
+                submit_batch([{"prompt": "ok one"}, {"builders": ["am4-worker-1"]}])
+        m.assert_not_called()
+
+    def test_bad_builders_type_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            submit_batch([{"prompt": "x", "builders": "not-a-list"}])
+
+
+class GetToolsTests(TestCase):
+    def test_exposes_all_four_task_lane_tools(self) -> None:
+        names = {fn.__name__ for fn in get_tools()}
+        self.assertEqual(
+            names, {"submit_task", "task_status", "queue_status", "submit_batch"})

@@ -52,7 +52,7 @@
 
 <h1>MECHNET Autonomy Plan — see · steer · re-baseline</h1>
 <div class="meta">
-  2026-07-18 · <span class="status draft" style="color: var(--good)">v2.3 — the oxen brain is a working colleague: gambit found no breaking point · first real workload routed organically · porcelain delta landed from the chip session · retro + ADR-0018 close the arc</span> ·
+  2026-07-18 · <span class="status draft" style="color: var(--good)">v2.4 — audit pass: two instruments were lying (offload ratio read 0.66 because a committed fix sat live-inert behind an in-process gateway; the "broken" drain was never broken) · O5 first cut lands per-rung <code>timeout_s</code>, closing a silent sunk→trial leak · Track OXEN descoped (D5) — overtaken by its own success</span> ·
   SEE S1–S6 + STEER A1–A4 + A6 <strong class="good">LIVE</strong> · G3 (A5) queue-and-forget
   <strong class="good">LIVE</strong> on <code>master</code> (<span class="kpi">de072b6</span>, gateway 47/47) ·
   <strong class="good">NEW — fleet-harvest LIVE</strong>: <code>harvest_fleet_run</code>/<code>list_fleet_runs</code>
@@ -208,28 +208,50 @@ managed units, never crudely kill oxen; benchmark windows are occupancy-gated.</
   <code>level-zero-tests</code> (build once on node): uni/bi-directional bandwidth + latency device 0↔1;
   <code>xpumcli top</code> during runs. <span class="who">AC: GB/s + µs recorded; "P2P active on this platform:
   yes/no" is settled fact. · fleet</span></div>
-<div class="wp"><strong>O2 · Placement matrix.</strong> Models <span class="kpi">M1 ~14B · M2 ~24B · M3 qwen3-30B</span>
+<div class="wp"><strong>O2 · Placement matrix.</strong> <span class="status draft" style="color: var(--bad)">DESCOPED 07-18 → O2′ (see D5)</span>
+  <em>Superseded by events: this matrix was specced for a BARE node, and the node now has a resident 63.4 GB MoE
+  holding both cards as mechnet's brain. Running the 36-cell matrix as written means evicting the brain for hours,
+  and its two headline questions have already been answered by better evidence — Q1 by O1 (full x8 wire, no P2P
+  penalty) plus the MoE running layer-split in production, Q3 by the GAMBIT pressure test. What survives is
+  <strong>O2′</strong>: only the matched-config cells O4's Windows-delta needs (Q2), runnable on ONE card while the
+  MoE holds the other — no eviction. Original spec retained below for the record.</em><br>
+  <span style="opacity:.6">Models <span class="kpi">M1 ~14B · M2 ~24B · M3 qwen3-30B</span>
   × placements <span class="kpi">P1 single · P2 dual-independent · P3 tensor-split (-sm tensor) · P4 layer-split
   (-sm layer)</span> × context <span class="kpi">8k/16k/32k</span>. High-value cells first:
   <strong>M3-P4-16k vs M3-P1-16k</strong> (the Q1 headline), <strong>M1-P2 staged-vs-parallel load</strong> (the Q3
   headline), <strong>M2-P1-32k</strong> (single-card sweet spot). Skip guaranteed-OOM cells (M3 dual × 64k).
   Protocol: evict imagegen tenants via managed units; pin CPU governor + GPU frequency; cold = caches dropped, warm =
-  discard rep 1, average reps 2–5. <span class="who">AC: ladder results md per cell group; protocol section reproducible
-  by a zero-context builder. · fleet, dedicated windows</span></div>
-<div class="wp"><strong>O3 · RAM envelope.</strong> Watermark capture (RSS/swap/VRAM @100 ms) during every O2 load;
+  discard rep 1, average reps 2–5.</span> <span class="who">AC (O2′): matched-config cells vs the Windows-era
+  baselines, single-card, MoE undisturbed. · fleet, no dedicated window needed</span></div>
+<div class="wp"><strong>O3 · RAM envelope.</strong> <span class="status draft" style="color: var(--good)">ANSWERED 07-18 by the GAMBIT (D5)</span>
+  <em>The pressure sweep answered Q3 better than this WP would have: an 18 GiB co-tenant hog against live decode cost
+  <span class="kpi">≤4% decode loss</span> (~48G demand vs 30G physical, 19.3 GiB swap peak), with hot experts winning
+  LRU and the D2 zram+file architecture proven under fire. That is the production config under adversarial load, not a
+  synthetic ladder — strictly stronger evidence. Residual: the zram best-case-compressibility caveat (hog pages
+  compress ~perfectly) means the envelope is optimistic by an unmeasured margin. Original spec retained.</em><br>
+  <span style="opacity:.6">Watermark capture (RSS/swap/VRAM @100 ms) during every O2 load;
   mmap vs <code>--no-mmap</code>; staged-load rule (big model first, health-gate, then second); swap sizing.
   Output: <strong>safe dual-card operating envelope</strong> — max combined model bytes, load order, required swap
-  headroom, per-card context ceilings — wired into the preflight script.
-  <span class="who">AC: dual-card load passes 3× consecutively with zero host OOM; envelope doc committed. ·
-  fleet · Derek decision D2: swapfile vs zram</span></div>
+  headroom, per-card context ceilings — wired into the preflight script.</span>
+  <span class="who">AC: superseded — see <code>2026-07-18-oxen-moe-gambit.md</code> §pressure. · D2 decided + landed</span></div>
 <div class="wp"><strong>O4 · Windows delta writeup.</strong> Matched-config comparison vs the Windows-era numbers;
   "what Linux netted the oxen" — denning/b70tools lineage, natural windtunnel/steppe article. Draft via flash, edit,
   <strong>publish only on cue</strong>. <span class="who">AC: delta table + draft parked in C:\work\writing. · rung-drafted, Fable edit</span></div>
-<div class="wp"><strong>O5 · Capacity facts → the router.</strong> Campaign numbers land as machine-readable facts:
+<div class="wp"><strong>O5 · Capacity facts → the router.</strong> <span class="status draft" style="color: var(--good)">FIRST CUT LANDED 07-18</span> ·
+  The seed artifact exists (<code>am4-fleet-node/results/capacity-facts-2026-07-18.json</code>, 28 facts) and its first
+  fact is now <em>consumed</em>: am4-moe's <code>timeout_s=420</code> is derived from the measured decode rate, with a
+  drift-guard test binding the rung's wall-clock budget to its declared output budget (see §9 v2.4). The rung's
+  <code>context_bytes=57344</code> was already fact-derived and is load-bearing (the GAMBIT silent-truncation trap).
+  <strong>Remaining O5:</strong> (a) promote the facts file from a dead artifact to a <em>consumed contract</em> — a
+  loader + test asserting <code>backends.toml</code> agrees with the measured <code>door_payload_budget</code>, so a
+  server-side <code>-np</code>/<code>-c</code> change can't silently drift the door; (b) give the router a per-rung
+  throughput estimate so the v2.2 doctrine ("moe = reasoning-dense/short-output; flash = bulk long-form") moves out of
+  prose and into the door — the last piece of ladder doctrine A6 didn't flip. Original spec:<br>
+  <span style="opacity:.6">Campaign numbers land as machine-readable facts:
   per-profile (<code>single-card-isolation</code> vs <code>dual-tensor</code>) max context, tok/s, load times, RAM
   watermark — served by the facade or committed beside <code>backends.toml</code>; <code>am4-oxen</code> gains
-  <code>context_bytes</code> + profile awareness. This is where Track OXEN feeds Track STEER.
-  <span class="who">AC: A1/A3 route to oxen using measured facts, not lore. · Sonnet, after A1</span></div>
+  <code>context_bytes</code> + profile awareness. This is where Track OXEN feeds Track STEER.</span>
+  <span class="who">AC: A1/A3 route to oxen using measured facts, not lore. · first cut done; (a)+(b) open</span></div>
 
 <h2>6 · Sequencing, KPIs, risks</h2>
 <h3>6.1 Gates</h3>
@@ -281,6 +303,20 @@ managed units, never crudely kill oxen; benchmark windows are occupancy-gated.</
       future change needs a deliberate revert, not silent drift. The premium rung's ceiling is the finite
       trial-credit runway (A4); auto-selecting it under load trades a shared scarce resource for one
       session's convenience. A3's ASK-on-"best" behavior already implements this — no code change needed.</li>
+  <li><strong>D5 <span class="good">DECIDED 07-18</span> — Track OXEN is descoped; it was overtaken by its own
+      success.</strong> §5 was written for a <em>bare</em> dual-B70 node. That node now runs a resident 63.4 GB MoE
+      across both cards as mechnet's brain, so O2-as-written (36 cells × load/unload) would mean evicting the brain for
+      hours. And the campaign's questions have been answered by stronger evidence than the matrix would have produced:
+      <strong>Q1</strong> (P2P dividend) by O1 — <span class="kpi">14.3 GB/s, full x8 wire, no P2P penalty</span> —
+      plus the MoE running layer-split in production at 27 tok/s, which <em>is</em> the dual-card answer under real
+      load; <strong>Q3</strong> (32 GB envelope) by the GAMBIT pressure sweep — <span class="kpi">≤4% decode loss at
+      an 18 GiB co-tenant hog</span>, the production config under adversarial pressure rather than a synthetic ladder.
+      <strong>Q2 (driver delta) is the only one still genuinely open</strong>, and it is exactly what O4 needs.
+      So: O2 → <strong>O2′</strong>, just the matched-config cells for the Windows delta, single-card, MoE undisturbed;
+      O3 → closed against the GAMBIT results. This converts ~36 cells and a dedicated eviction window into a handful of
+      runs with no window at all, and unblocks D4. <em>Rationale for the record: the plan's own §5 premise —
+      "the router can only trust am4-oxen with big work if its capacity is data" — has been satisfied by a different
+      route than the one specced. Keeping the original matrix open would have been measuring for its own sake.</em></li>
   <li><strong>D4</strong>: O4 article — publish target and timing (windtunnel vs steppeintegrations), on cue
       as always (Derek's call, not delegated). <strong>Not yet decidable</strong>: O4 needs the measured
       Linux-vs-Windows delta numbers, which need O2/O3, which need the O1 AM4 window. Revisit once the
@@ -360,7 +396,9 @@ staged-load one-liner) — parked verbatim in the O-track briefs; verify on node
       Ollama auto-update (07-16 04:58) deleted the <code>lib\ollama\</code> runtime (llama-server.exe gone).
       Server answers /api/tags, no model can load. Repair = reinstall Ollama (chip filed — Derek's click).
       Until then every small offload escalates to flash: functional, but trial credits absorb sunk-rung
-      traffic — repair soon. The bankedfire drain's 573×ok:0.0 tick history likely shares this root cause.</li>
+      traffic — repair soon. <del>The bankedfire drain's 573×ok:0.0 tick history likely shares this root cause.</del>
+      <strong class="bad">RETRACTED v2.4</strong> — it does not. The drain records <code>ok=True</code> only when a tick
+      <em>dispatched</em>; ~99% no-op is correct behavior for an idle drain. See the v2.4 entry (Finding B).</li>
   <li><strong>Session wave ("work through the list"):</strong> Derek handed over thinking/deciding, routed
       execution to Hearth/mechnet throughout. Working tree triaged file-by-file before touching anything —
       13 modified <code>knowledge/*.json</code> + new <code>offload.json</code> verified as pure-addition
@@ -558,6 +596,59 @@ staged-load one-liner) — parked verbatim in the O-track briefs; verify on node
       <strong>moe = reasoning-dense/short-output; flash = bulk long-form</strong>. Recommend
       <code>.mcp.json</code> hearth server gets <code>"timeout": 600000</code> (Derek's config, his call).</li>
   <li><strong class="good">NEW (v2.3) — fleet_harvest --porcelain LANDED</strong> (the v2.2 moe design, flag mapping corrected: <code>*</code>=new/space=ff count as pushed, <code>=</code>=up-to-date): <code>harvest_fleet_run</code> returns <code>push:{pushed,up_to_date,rejected,raw}</code>, --sweep gains <code>branches_new</code> — the true new-vs-noop delta v1.7 deferred; tests <span class="kpi">527→537 green</span>; merged <span class="kpi">635254e</span>, gateway restarted, live re-harvest proof <span class="kpi">up_to_date:2/pushed:0</span> (real output shows <code>=</code> on repeats — the correction was load-bearing).</li>
+  <li><strong class="good">NEW (v2.4) — two instruments were lying; both fixed.</strong>
+      <strong>(Finding A — the stale-gateway class of bug.)</strong> <code>knowledge/offload.json</code> bucketed
+      <code>am4-moe</code> as <code>cost_class:"unknown"</code> instead of <code>"sunk"</code>, so every call to the
+      resident sunk-silicon brain counted as NOT offloaded — the more the free local brain got used, the worse the
+      <span class="kpi">≥80%</span> KPI looked. It was reading <span class="kpi">0.66 and falling</span>. The fix was
+      <em>already committed</em> at <code>hearth/projection/economics.py</code> L21 in <span class="kpi">eb6fed0</span>
+      (09:38 UTC) — but a from-zero <code>rebuild_knowledge</code> at <span class="kpi">13:07 UTC</span>, hours later,
+      still emitted <code>unknown</code>. <strong>Root cause: the gateway holds projection modules in-process.</strong>
+      Timers that spawn a subprocess per tick (the drain) pick up new code for free; the knowledge rebuild does not — so
+      a committed projection fix is <em>live-inert</em> until the door is bounced, and nothing tells you. Bounced via
+      <code>doorcheck --restart</code> (<span class="kpi">saw_down=True → up=True, 47/47</span>); same raw data, only the
+      classification corrected: <code>offload_ratio</code> <span class="kpi">0.6617→1.0</span>,
+      <code>est_usd_saved</code> <span class="kpi">$1.0097→$1.3383</span>, sunk calls <span class="kpi">30→40</span>,
+      sunk <code>tokens_out</code> <span class="kpi">154→16,100</span>; <code>unknown</code> now holds only the 4 legacy
+      zero-token <code>model:</code> rows.
+      <strong>(Finding B — a falsified hypothesis, retracted.)</strong> This plan claimed the bankedfire drain's
+      ~573 <code>ok:0.0</code> ticks "likely shares this root cause" with the 07-16 <code>omen-ollama</code> outage.
+      <strong class="bad">False.</strong> omen-ollama is repaired (<span class="kpi">ok_rate 1.0</span>, last real call
+      07-18T07:33Z) yet drain ticks still recorded failure at 09:03Z. Real cause:
+      <code>fleet/bankedfire_drain.py</code> L268 sets <code>ok=reason.startswith("dispatched")</code> — <code>ok=True</code>
+      <em>only</em> when a tick actually dispatched work, while <code>disarmed</code>/<code>in-flight</code>/<code>busy</code>/
+      outside-window all ledger as <code>ok=False</code>. The drain is armed (since 07-04) and
+      <span class="kpi">593 ticks at ~99% no-op</span> is <em>correct behavior</em> for an idle drain firing every 30 min.
+      The real defect is semantic: <strong><code>ok</code> is overloaded</strong> — "action taken" for timer ticks vs
+      "succeeded" for inference calls, both landing in the same <code>capacity.json</code> the router reads. The metric
+      was lying, not the drain.</li>
+  <li><strong class="good">NEW (v2.4) — O5 first cut: per-rung <code>timeout_s</code>.</strong> Found while scoping O5.
+      An asymmetry in <code>hearth/toolsurface/inference.py</code>: a rung could declare a default <code>max_tokens</code>
+      in its settings, but <code>timeout_s</code> was a hardcoded 120s parameter default — <strong>a rung could declare
+      how much output it may produce, but never how long it needs.</strong> <code>am4-moe</code> declares
+      <code>max_tokens=8192</code>; at the measured <span class="kpi">~21 tok/s p50</span> (incl. reasoning tokens) a
+      full-budget answer needs <span class="kpi">~390s</span> against a 120s ceiling — provisioned for ~3× more output
+      than it had wall-clock to deliver. <strong class="bad">Not benign:</strong> a timeout returns
+      <code>ok:false</code>, and <code>ok:false</code> on a tag-routed call triggers A2 escalation — so a healthy MoE
+      answer that merely ran long was <em>silently rerouted to a trial-credit rung</em>, inverting the sunk-first ladder
+      for exactly the slow, reasoning-dense work this rung exists to absorb. It surfaced as "oxen failed", not "we
+      didn't wait". Smoking gun in <code>capacity.json</code>: p50 <span class="kpi">88,032ms</span>, p90
+      <span class="kpi">120,042ms</span> — <strong>the p90 WAS the timeout</strong>, i.e. the ceiling was clipping, not
+      the model; the max <span class="kpi">277,612ms</span> only exists because a caller hand-passed
+      <code>timeout_s</code>. Fix: resolves caller → rung settings → <code>DEFAULT_TIMEOUT_S</code>(120), mirroring
+      <code>max_tokens</code>; signature default became <code>None</code> so an omitted budget is distinguishable from an
+      explicit 120; first dispatch and A2 retry resolve independently so an escalated rung gets its own budget; result
+      carries <code>timeout_s</code> for provenance. <code>backends.toml</code>: am4-moe
+      <span class="kpi">timeout_s=420</span> (390s implied + queue headroom at ~4.4s/position). Drift-guard test asserts
+      a rung must be allowed the wall-clock to emit the output budget it declares. Tests
+      <span class="kpi">537→541 green</span>, committed <span class="kpi">79a73c8</span>; live-proven post-restart — an
+      unpinned <code>task="reasoning"</code> call returned <span class="kpi">backend=am4-moe · routed_by=tag:reasoning ·
+      timeout_s=420</span> with no caller override. <strong class="warn">CAVEAT: the push to origin FAILED twice</strong>
+      on a network timeout reaching <code>github.com:443</code> from OMEN (~21s each) — the commit is <em>local-only</em>
+      until that clears, and the <code>fleet_harvest</code> timer's pushes are presumably failing for the same reason
+      (unverified). This also makes the outstanding <code>.mcp.json</code> <code>"timeout": 600000</code> recommendation
+      <em>load-bearing rather than optional</em>: the door-side budget must stay below the MCP client's idle timeout, so
+      600s client &gt; 420s door is the nesting that has to hold. Still Derek's config to apply.</li>
 </ul></div>
 
 </main>

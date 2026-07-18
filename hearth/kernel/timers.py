@@ -103,6 +103,13 @@ TIMERS: list[TimerSpec] = [
         log_path=VAR_DIR / "ollama-sentinel-task.log",
         stagger_s=_stagger_for(3),
     ),
+    TimerSpec(
+        name="knowledge_rebuild",
+        interval_s=21600.0,
+        argv_builder=lambda: [sys.executable, "-m", "hearth.projection.rebuild"],
+        log_path=VAR_DIR / "knowledge-rebuild-task.log",
+        stagger_s=_stagger_for(4),
+    ),
 ]
 
 

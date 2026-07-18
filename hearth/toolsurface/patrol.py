@@ -17,7 +17,8 @@ import base64
 import json
 from typing import Callable, Optional
 
-from hearth.health.gaps import gaps_as_dicts, load_capacity_document, scan_runs, summarize
+from hearth.health.gaps import (gaps_as_dicts, load_capacity_document, scan_knowledge,
+                                scan_runs, summarize)
 from hearth.toolsurface.task_lane import CONDUCTOR_REPO, _run_ssh
 
 # Lazy-imported refresh callees; imported at function-call time in patrol(),
@@ -123,7 +124,7 @@ def patrol(capacity_path: str = DEFAULT_CAPACITY_PATH, refresh: bool = True) -> 
         return {"ok": False, "error": error}
     records = payload.get("records", [])
     capacity = load_capacity_document(capacity_path)
-    gaps = scan_runs(records, capacity=capacity)
+    gaps = scan_runs(records, capacity=capacity) + scan_knowledge(capacity_path)
     result = {
         "ok": True,
         "scanned": payload.get("scanned", len(records)),

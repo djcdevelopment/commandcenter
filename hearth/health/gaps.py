@@ -18,6 +18,11 @@ from dataclasses import dataclass, asdict
 # No result.json this long after dispatch => phantom/stalled run holding occupancy.
 PHANTOM_AGE_S = 1800  # 30 minutes
 
+# knowledge_stale (S3): the ledger-native projection older than this means the
+# knowledge_rebuild gateway timer (6h cadence) has been failing long enough to
+# blow the freshness SLO.
+KNOWLEDGE_STALE_AGE_S = 86400  # 24 hours
+
 # schedule_divergence (JS6): actual duration this many times over the bucket's
 # p90 counts as "far longer than the capacity envelope predicts". Strictly
 # greater-than — exactly 2x is still within the envelope, not a divergence.
@@ -163,6 +168,35 @@ def scan_runs(records, phantom_age_s: int = PHANTOM_AGE_S, capacity: "dict | Non
                     gaps.append(Gap("schedule_divergence", "info", pid,
                         f"actual {round(actual_ms)}ms vs bucket p90 {round(p90_ms)}ms "
                         f"(bucket {used}@{node}) — ran {round(actual_ms / p90_ms, 1)}x envelope"))
+    return gaps
+
+
+def scan_knowledge(capacity_path, stale_age_s: int = KNOWLEDGE_STALE_AGE_S) -> "list[Gap]":
+    """Spell: knowledge_stale — knowledge/capacity.json is missing or older than
+    the freshness SLO. Detection only, per the patrol/heal split: the 6h
+    knowledge_rebuild gateway timer is the heal path, so this gap firing means
+    that timer has been failing for >24h. IO lives here, not in scan_runs, so
+    the run-record spells stay pure; import is local to avoid a
+    toolsurface->health import at module load time (same as
+    load_capacity_document).
+    """
+    from hearth.toolsurface._scope import resolve_in_scope
+
+    import time
+
+    gaps: "list[Gap]" = []
+    try:
+        resolved = resolve_in_scope(capacity_path)
+    except (ValueError, OSError):
+        return gaps
+    if not resolved.is_file():
+        gaps.append(Gap("knowledge_stale", "warn", "system",
+                        "knowledge/capacity.json is missing"))
+        return gaps
+    age_s = time.time() - resolved.stat().st_mtime
+    if age_s > stale_age_s:
+        gaps.append(Gap("knowledge_stale", "warn", "system",
+                        f"knowledge/capacity.json is stale ({int(age_s // 3600)}h old)"))
     return gaps
 
 

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from unittest import TestCase
+from unittest.mock import patch
 
-from hearth.health.gaps import PHANTOM_AGE_S, Gap, scan_runs, summarize
+from hearth.health.gaps import PHANTOM_AGE_S, Gap, scan_knowledge, scan_runs, summarize
 
 
 def _kinds(gaps):
@@ -163,3 +164,51 @@ class ScanRunsTests(TestCase):
         self.assertEqual(s["total"], 3)
         self.assertEqual(s["by_severity"], {"warn": 1, "high": 2})
         self.assertEqual(s["by_kind"], {"phantom_in_flight": 1, "crashed_isolated": 2})
+
+
+class ScanKnowledgeTests(TestCase):
+    @patch("hearth.toolsurface._scope.resolve_in_scope")
+    def test_knowledge_stale_fires_when_capacity_is_old(self, mock_resolve):
+        import os
+        import tempfile
+        import time
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cap_path = Path(tmpdir) / "capacity.json"
+            cap_path.write_text("{}")
+            old_time = time.time() - 86405
+            os.utime(cap_path, (old_time, old_time))
+            mock_resolve.return_value = cap_path
+
+            gaps = scan_knowledge("fake/path")
+            self.assertEqual(_kinds(gaps), ["knowledge_stale"])
+            self.assertEqual(gaps[0].severity, "warn")
+            self.assertIn("stale (24h old)", gaps[0].detail)
+
+    @patch("hearth.toolsurface._scope.resolve_in_scope")
+    def test_knowledge_stale_fires_when_capacity_is_missing(self, mock_resolve):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cap_path = Path(tmpdir) / "capacity.json"
+            mock_resolve.return_value = cap_path
+
+            gaps = scan_knowledge("fake/path")
+            self.assertEqual(_kinds(gaps), ["knowledge_stale"])
+            self.assertEqual(gaps[0].severity, "warn")
+            self.assertIn("missing", gaps[0].detail)
+
+    @patch("hearth.toolsurface._scope.resolve_in_scope")
+    def test_knowledge_stale_silent_when_capacity_is_fresh(self, mock_resolve):
+        import os
+        import tempfile
+        import time
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cap_path = Path(tmpdir) / "capacity.json"
+            cap_path.write_text("{}")
+            fresh_time = time.time() - 3600  # 1h old
+            os.utime(cap_path, (fresh_time, fresh_time))
+            mock_resolve.return_value = cap_path
+
+            self.assertEqual(scan_knowledge("fake/path"), [])

@@ -252,7 +252,17 @@ managed units, never crudely kill oxen; benchmark windows are occupancy-gated.</
   <li><strong>Trial credits end mid-era</strong> — A4 makes degradation automatic (flash tags treated absent), not a 3 a.m. surprise.</li>
   <li><strong>O2/O3 destabilize AM4</strong> — staged protocol, preflight gates, occupancy-gated windows, imagegen units managed not killed.</li>
   <li><strong>D1</strong>: dashboard serving — gateway-served page + written HTML artifact (recommended) vs artifact only.</li>
-  <li><strong>D2</strong>: AM4 swap strategy for the envelope — NVMe swapfile (flash's draft assumed 16 GB) vs zram; measured in O3 either way.</li>
+  <li><strong>D2 <span class="good">DECIDED 07-17</span></strong> (Derek's hardware truth: 2× B70 @ 32 GB VRAM;
+      32 GB DDR4; 550 GB main NVMe with &lt;150 GB free; slower 4 TB drive currently unmounted, ~1.25 TB free):
+      <strong>hybrid</strong> — (a) <code>zram</code> 8 GB lz4 at high priority as the fast first line for load-burst
+      spikes; (b) grow the NVMe swapfile 8 → 16 GB at low priority as the backstop (fits the free space;
+      today's 8 G runs 100% full in steady state); (c) <strong>no swap on the 4 TB</strong> (slow swap under
+      pressure = stalls) — instead mount it as the <em>model zoo + benchmark artifact store</em>, relieving the
+      NVMe squeeze (each 30B-class gguf ≈ 13–20 GB; hot dailies stay on NVMe, the O2 matrix models live on
+      the 4 TB; cold load is slower once, warm serving is VRAM-resident and unaffected). O3 also must identify
+      the suspicious <span class="kpi">10 Gi "shared"</span> memory O0 observed — reclaiming leaked shm may be
+      worth more than any swap tuning. Verify the 4 TB mount state at the O1 window (runbook says
+      <code>/mnt/win</code>; currently not mounted per Derek).</li>
   <li><strong>D3</strong>: may <code>route="auto"</code> ever pick <code>gcp-gemini-pro</code>? Recommended: no — pro stays pin/ASK.</li>
   <li><strong>D4</strong>: O4 article — publish target and timing (windtunnel vs steppeintegrations), on cue as always.</li>
 </ul>
@@ -276,7 +286,9 @@ staged-load one-liner) — parked verbatim in the O-track briefs; verify on node
   <li><del>Open G0 as build-requests</del> <span class="good">DONE 07-17</span> — S1+S4 / S2 / S3 all closed <code>done</code> with evidence.</li>
   <li>O0 <span class="good">DONE 07-17</span> (<code>am4-fleet-node/results/2026-07-17-linux-rebaseline-o0-inventory.md</code>);
       <strong>O1 next</strong> — needs a dedicated AM4 window (build <code>level-zero-tests</code>; both render nodes currently held; swap saturated).</li>
-  <li>Decisions D1–D4 whenever convenient; <strong>D2 (swapfile vs zram) now blocks O1/O2 windows too</strong> — the 8G swapfile runs 100% full in steady state.</li>
+  <li>Decisions: <strong>D2 decided 07-17</strong> (hybrid zram + 16 G swapfile + 4 TB model zoo — see §6.3) —
+      <strong>the O-track is unblocked</strong>; the swap/zram/mount setup is the first step of the next AM4
+      window, then O1 <code>ze_peer</code>. D1/D3/D4 still open (recommendations stand).</li>
   <li>Next build wave on cue: G1 (A1 payload-aware routing + A2 escalation), then S5 dashboard.</li>
   <li>Merge <code>feat/autonomy-g0</code> → master when satisfied (3 commits, receipts br-…65e75ea3 / …3b3e324f / …146388c0).</li>
 </ol>

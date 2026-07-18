@@ -52,10 +52,11 @@
 
 <h1>MECHNET Autonomy Plan — see · steer · re-baseline</h1>
 <div class="meta">
-  2026-07-17 · <span class="status draft" style="color: var(--good)">v1.3 — G0+G1 on master · G2 EXECUTED + LIVE</span> ·
-  SEE S1–S6 + STEER A1–A4 + A6 all <strong class="good">LIVE</strong> (6 receipts closed done; G2 on
-  <code>feat/autonomy-g2</code>) · O0 <strong class="good">DONE</strong>, D2 decided ·
-  omen-ollama <span class="good">REPAIRED</span> (chip session reinstalled; pinned probe 344 ms).<br>
+  2026-07-17 · <span class="status draft" style="color: var(--good)">v1.4 — G2 merged to master · D1/D3 decided · G3 + O1-prereq dispatched</span> ·
+  SEE S1–S6 + STEER A1–A4 + A6 all <strong class="good">LIVE</strong> on <code>master</code>
+  (<span class="kpi">3ef550c</span>, 8 receipts closed done) · O0 <strong class="good">DONE</strong>, D2 decided ·
+  omen-ollama <span class="good">REPAIRED</span> (chip session reinstalled; pinned probe 344 ms) ·
+  G3 (A5) and the O1 swap/zram prereq are running on the fleet — see §9.<br>
   Builds on <code>HEARTH-OFFLOAD-STRATEGY.html</code> (2026-07-15) — that doc makes offload <em>ergonomic</em>;
   this one makes it <em>autonomous</em> and adds the oxen re-baseline campaign. Execution log in §9.
 </div>
@@ -298,13 +299,16 @@ staged-load one-liner) — parked verbatim in the O-track briefs; verify on node
   <li><del><code>rebuild_knowledge</code></del> <span class="good">DONE 07-17</span> — and now owned by the 6h in-gateway timer.</li>
   <li><del>Open G0 as build-requests</del> <span class="good">DONE 07-17</span> — S1+S4 / S2 / S3 all closed <code>done</code> with evidence.</li>
   <li>O0 <span class="good">DONE 07-17</span> (<code>am4-fleet-node/results/2026-07-17-linux-rebaseline-o0-inventory.md</code>);
-      <strong>O1 next</strong> — needs a dedicated AM4 window (build <code>level-zero-tests</code>; both render nodes currently held; swap saturated).</li>
+      <strong>O1 prereq dispatched 07-17</strong> — window confirmed open (Derek), D2's zram+swapfile config
+      and the <code>/mnt/win</code> visibility preflight running on the fleet (<code>am4-worker-1</code>);
+      <code>level-zero-tests</code>/<code>ze_peer</code> itself still not yet built — that's the next dispatch
+      once this prereq closes.</li>
   <li>Decisions: <strong>D2 decided 07-17</strong> (hybrid zram + 16 G swapfile + 4 TB model zoo — see §6.3) —
-      <strong>the O-track is unblocked</strong>; the swap/zram/mount setup is the first step of the next AM4
-      window, then O1 <code>ze_peer</code>. <strong>D1 + D3 decided 07-17</strong> (§6.3). D4 stays open,
+      <strong>the O-track is unblocked</strong>. <strong>D1 + D3 decided 07-17</strong> (§6.3). D4 stays open,
       blocked on O-track numbers and Derek's publish cue.</li>
-  <li>Next build wave on cue: G1 (A1 payload-aware routing + A2 escalation), then S5 dashboard.</li>
-  <li>Merge <code>feat/autonomy-g0</code> → master when satisfied (3 commits, receipts br-…65e75ea3 / …3b3e324f / …146388c0).</li>
+  <li>G3 (A5, queue-and-forget) <span class="good">dispatched 07-17</span> to the fleet — see §9.</li>
+  <li><del>Merge <code>feat/autonomy-g0</code> → master</del> <span class="good">DONE</span>, and G1/G2 have
+      since fast-forwarded on top (<span class="kpi">3ef550c</span>).</li>
 </ol>
 
 <h2>9 · Execution log — 2026-07-17 ("make it so")</h2>
@@ -351,6 +355,43 @@ staged-load one-liner) — parked verbatim in the O-track briefs; verify on node
       Server answers /api/tags, no model can load. Repair = reinstall Ollama (chip filed — Derek's click).
       Until then every small offload escalates to flash: functional, but trial credits absorb sunk-rung
       traffic — repair soon. The bankedfire drain's 573×ok:0.0 tick history likely shares this root cause.</li>
+  <li><strong>Session wave ("work through the list"):</strong> Derek handed over thinking/deciding, routed
+      execution to Hearth/mechnet throughout. Working tree triaged file-by-file before touching anything —
+      13 modified <code>knowledge/*.json</code> + new <code>offload.json</code> verified as pure-addition
+      provenance stamps (<code>corpus_digest</code>/<code>corpus_event_count</code>) plus real S2 usage data,
+      not corruption; <code>local_generate</code> itself refused to touch <code>knowledge/offload.json</code>
+      (guarded to the knowledge-tool family — caught a would-be misroute); <code>HEARTH-DASHBOARD.html</code>,
+      <code>HEARTH-OFFLOAD-STRATEGY.html</code>, and the three <code>rejudge_*.py</code> experiment scripts
+      triaged commit-worthy by <code>gcp-gemini</code> (good-tier). <code>diana-payton-prep-2026-07-10.html</code>,
+      <code>docs/Architecting_Agentic_Systems.pdf</code>, and <code>todo.txt</code> left untouched — unrelated
+      to this plan and not mine to decide onto the repo. 321 tests green pre-merge.</li>
+  <li><strong>Merge:</strong> <span class="kpi">feat/autonomy-g2</span> was a clean 3-commit fast-forward (no
+      master-side drift) — committed session state (<span class="kpi">3ef550c</span>), fast-forwarded
+      <code>master</code>, pushed both.</li>
+  <li><strong>D1 + D3 decided</strong> (§6.3): D1 — dashboard serves both ways (gateway route alongside the
+      written artifact), implementation not yet dispatched. D3 — confirmed <code>route="auto"</code> never
+      picks <code>gcp-gemini-pro</code>, promoted default→policy (A3 already behaves this way). D4 left
+      explicitly undecided — publishing is Derek's call on his cue, and O4's numbers don't exist yet.</li>
+  <li><strong>AM4 window:</strong> fleet_ping + doorcheck both green (11 up / 0 down / 1 expected-offline;
+      trial-burn 109,103/200,000,000). No tool surfaced live render-tenant occupancy, so rather than guess
+      against shared inference infra, asked Derek directly — confirmed free. Dispatched via
+      <code>submit_task</code> to <code>am4-worker-1</code>+<code>cc-builder-2</code>
+      (<span class="kpi">hearth-o1-prereq-swap-zram-c8523ab0</span>), audited as build-request
+      <span class="kpi">br-…5a44c322</span>: zram 8G lz4 high-priority, swapfile 8→16G low-priority on main
+      NVMe, 4TB stays swap-free, plus the O1 <code>/mnt/win</code>-visibility-from-service-context preflight.
+      Scoped to prereq only — <code>ze_peer</code> build/benchmark is the next dispatch once this closes.
+      <strong>Running, not yet closed as of this entry.</strong></li>
+  <li><strong>G3 (A5) dispatched:</strong> <code>submit_task</code> to <code>cc-builder-1</code>+<code>cc-builder-2</code>
+      (<span class="kpi">hearth-g3-queue-and-forget-91adaa10</span>), audited as build-request
+      <span class="kpi">br-…39919920</span>: <code>out_file=</code> on <code>task_status</code>, a queue-depth
+      probe tool, <code>submit_batch</code> over the existing single-submit inbox mechanism (no second
+      scheduler), and ledger logging for batch completions — brief points at the exact files/tools to extend.
+      <strong>Running, not yet closed as of this entry.</strong></li>
+  <li><strong>Learned along the way:</strong> <code>create_build_request</code>/<code>execute_build_request</code>'s
+      <code>backend</code> field only accepts a registered inference backend (<code>backends.toml</code>
+      rungs) — not a fleet-builder name or a free-form "fleet:..." tag. Fleet routing goes in the
+      <code>evidence</code> string instead; the receipt is an audit wrapper around whichever lane actually
+      executes (<code>manual</code>/<code>agent</code>/<code>delegate</code>), not an executor itself.</li>
 </ul></div>
 
 </main>

@@ -1,0 +1,1 @@
+I don't have sudo privileges on this system, which is required to configure zram and modify swap settings. How should I proceed with the D2 hybrid swap plan without sudo access?

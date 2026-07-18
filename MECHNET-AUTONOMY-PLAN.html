@@ -52,13 +52,14 @@
 
 <h1>MECHNET Autonomy Plan — see · steer · re-baseline</h1>
 <div class="meta">
-  2026-07-18 · <span class="status draft" style="color: var(--good)">v1.7 — fleet-harvest AUTO-SWEEP TIMER armed · builds never strand · backlog of 145 branches un-stranded</span> ·
+  2026-07-18 · <span class="status draft" style="color: var(--good)">v1.8 — O1 swap/zram LANDED on AM4 (Derek's hand) · oxen re-baseline unblocked · fleet-harvest auto-sweep armed</span> ·
   SEE S1–S6 + STEER A1–A4 + A6 <strong class="good">LIVE</strong> · G3 (A5) queue-and-forget
   <strong class="good">LIVE</strong> on <code>master</code> (<span class="kpi">de072b6</span>, gateway 47/47) ·
   <strong class="good">NEW — fleet-harvest LIVE</strong>: <code>harvest_fleet_run</code>/<code>list_fleet_runs</code>
   mirror stranded fleet branches to private GitHub via OMEN (both tonight's runs proven on
   <code>origin fleet/…</code>) · O0 <strong class="good">DONE</strong>, D1/D2/D3 decided · O1 swap/zram
-  prereq: vetted <code>setup-swap.sh</code> with Derek to run (fleet can't — needs root). See §9.<br>
+  prereq <strong class="good">DONE</strong> 2026-07-18: <span class="kpi">zram0 8G pri=100 + /swap.img 16G pri=10</span>
+  live on AM4, 4TB swap-free, receipt <span class="kpi">br-…4d91410a done 5/5</span>. See §9.<br>
   Builds on <code>HEARTH-OFFLOAD-STRATEGY.html</code> (2026-07-15) — that doc makes offload <em>ergonomic</em>;
   this one makes it <em>autonomous</em> and adds the oxen re-baseline campaign. Execution log in §9.
 </div>
@@ -455,6 +456,24 @@ staged-load one-liner) — parked verbatim in the O-track briefs; verify on node
       make) caught in review. Receipt <span class="kpi">br-20260718-041414</span> done 6/6; merged
       <span class="kpi">14aa9d5</span>, gateway restarted, armed. Only <code>fleet_harvest</code> was outstanding
       from v1.6's follow-on list — <code>sudo bash ~/setup-swap.sh</code> on AM4 remains Derek's.</li>
+  <li><strong class="good">NEW (v1.8) — O1 swap/zram prereq LANDED on AM4 (Derek's hand).</strong> Derek ran
+      <code>sudo bash ~/setup-swap.sh</code> exactly as handed off; console output confirms the full D2 hybrid
+      shape. Idempotency held: Step 1 <span class="kpi">SKIP</span> (zram0 8G pri=100 already active from the
+      script's earlier arming). Guard <strong class="good">PASSED</strong> — <code>/mnt/win</code> backing device
+      <code>/dev/nvme1n1p2</code> carries zero swap; the 4TB stays swap-free. <code>/swap.img</code> grown
+      8192→16384 MiB via dd (<span class="kpi">~872 MB/s, ~20 s</span>, 62 GiB free on <code>/</code>), fstab now
+      <code>/swap.img none swap pri=10 0 0</code> (backup <code>/etc/fstab.bak.*</code>). AFTER:
+      <span class="kpi">zram0 8G pri=100</span> above <span class="kpi">/swap.img 16G pri=10</span>, swap total
+      23Gi, 19Gi RAM still available; reboot-persistence via <code>zram-swap.service</code> + fstab. Receipt
+      truth: <span class="kpi">br-…5a44c322</span> stays <span class="kpi">blocked</span> — closed receipts are
+      <strong>immutable</strong> (close(done) returned <code>duplicate_close</code> without applying; update
+      refused "already closed") — so the manual apply is audited on successor receipt
+      <span class="kpi">br-20260718-054624-4d91410a done 5/5</span> (BEFORE/AFTER swapon/free as evidence — the
+      criterion written for exactly this proof; the lane audits <code>manual</code> executions too). Clears the
+      last open v1.6 follow-on: the oxen re-baseline (O1 runs) is unblocked. Log-draft offload to flash came
+      back clipped (47 tokens mid-sentence) — likely my <code>max_tokens=1200</code> override starved the
+      thinking budget; one-retry rule, written inline. Lesson: omit <code>max_tokens</code> on gemini rungs and
+      let the rung default apply.</li>
 </ul></div>
 
 </main>

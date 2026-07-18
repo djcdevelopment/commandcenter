@@ -9,6 +9,16 @@ self-contained sub-task, delegate it to the local model. Every such call also
 lands on the HEARTH ledger and feeds the learning loop — so offloading is both a
 token saving and an assay observation.
 
+**The door routes itself (A1/A2/A3/A4, live 2026-07-17): just call
+`local_generate` — pin only with cause.** The router weighs the packed payload
+against each rung's declared context budget, skips rungs that can't fit or are
+busy, climbs one rung automatically on failure (`routed_by:"escalation:a->b"`),
+and pulls trial rungs out of opportunistic routing when the GCP credit runway
+is low. Optional `quality=` tier: `"fast"` (default, sunk-first), `"good"`
+(prefer near-free flash while credits last), `"best"` (does NOT dispatch —
+returns `ask:true` recommending a deliberate `backend="gcp-gemini-pro"` pin).
+Trust `routed_by` on the result; the ledger records every decision.
+
 **Reach for `local_generate` — don't reason inline — when the sub-task is:**
 - summarizing / condensing a file, log, or diff you have already read
 - extracting structured data (fields, lists, JSON) from unstructured text
@@ -53,8 +63,9 @@ prove. See hearth/BUILD-REQUESTS.md.
   repo** (labeled by absolute path in the manifest). Pair with `gcp-gemini-pro`
   for subsystem-scale reads. Only context from outside `C:\work` still travels
   in the prompt body.
-- If it returns `ok:false` (cold/unreachable) or the output is unusable, do the
-  task yourself. One retry max — never loop on a cold worker.
+- The door already retries once (A2 auto-escalation) — if the result still
+  comes back `ok:false` or unusable, do the task yourself; never loop on a
+  cold worker.
 - If the door itself is down, run the `/checkmcp` skill (doorcheck `--revive`) once.
 - First call after a boot pays a ~12s model-load tax; calls after that run at
   ~54 tok/s. Don't treat the cold-start latency as a failure.

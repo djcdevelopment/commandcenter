@@ -153,6 +153,11 @@ overwriting.) Match the house style. Required sections:
 - **Provenance** — one line: git range, what was offloaded vs frontier (incl. the
   draft `edit_verdict`), `--fleet` plan_id if used. (Honesty per the
   report-faithfully rule.)
+- **Offload scorecard (S6)** — call `mcp__hearth__query_offload` and report one
+  line: the offload_ratio, per-class token totals (sunk/trial), and est_usd_saved
+  from `knowledge/offload.json`. If the projection is stale (>6 h) run
+  `project_offload_knowledge` first; if the door is down, note "scorecard
+  unavailable". Every retro closes with the number the doctrine optimizes.
 
 ### 2b. ADRs — `docs/adr/000N-<slug>.md`
 For each durable *decision* (not just a lesson): write a new ADR or update an

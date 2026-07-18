@@ -52,10 +52,10 @@
 
 <h1>MECHNET Autonomy Plan — see · steer · re-baseline</h1>
 <div class="meta">
-  2026-07-17 · <span class="status draft" style="color: var(--good)">v1.2 — G0 MERGED to master · G1 EXECUTED + LIVE</span> ·
-  SEE S1–S4 + STEER A1–A2 <strong class="good">LIVE</strong> (4 receipts closed done; G1 on
-  <code>feat/autonomy-g1</code>) · O0 <strong class="good">DONE</strong> ·
-  <span class="bad">⚠ omen-ollama rung DOWN (llama-server.exe missing since 07-16 partial update — repair chip filed); the A2 ladder is routing around it</span>.<br>
+  2026-07-17 · <span class="status draft" style="color: var(--good)">v1.3 — G0+G1 on master · G2 EXECUTED + LIVE</span> ·
+  SEE S1–S6 + STEER A1–A4 + A6 all <strong class="good">LIVE</strong> (6 receipts closed done; G2 on
+  <code>feat/autonomy-g2</code>) · O0 <strong class="good">DONE</strong>, D2 decided ·
+  omen-ollama <span class="good">REPAIRED</span> (chip session reinstalled; pinned probe 344 ms).<br>
   Builds on <code>HEARTH-OFFLOAD-STRATEGY.html</code> (2026-07-15) — that doc makes offload <em>ergonomic</em>;
   this one makes it <em>autonomous</em> and adds the oxen re-baseline campaign. Execution log in §9.
 </div>
@@ -324,6 +324,16 @@ staged-load one-liner) — parked verbatim in the O-track briefs; verify on node
       a 134 KB unpinned pack → <span class="kpi">routed_by: payload:cloud-overflow:gcp-gemini</span> (the door
       decided, 2.5 s); and an <em>organic</em> A2 proof — a plain small call auto-climbed with
       <span class="kpi">routed_by: escalation:omen-ollama→gcp-gemini</span>, original error preserved.</li>
+  <li><strong>G2 wave ("onward"):</strong> G1 merged to master; omen-ollama verified repaired (pinned probe
+      344 ms, warm). A3+A4 (<span class="kpi">56c9ff2</span>, br-…ea04130b done 6/6) — <code>quality=</code>
+      tiers live: <span class="kpi">ask:quality-best</span> returned a zero-token recommendation,
+      <span class="kpi">quality-good:tag:cloud-overflow</span> routed flash, doorcheck prints
+      <span class="kpi">trial-burn: 93,374 / 200,000,000</span>; trial rungs auto-suppress below reserve.
+      S5+A6+S6 (<span class="kpi">1ff6ecd</span>, br-…6f91c825 done 5/5) — <code>HEARTH-DASHBOARD.html</code>
+      lives at repo root (rendered by the rebuild timer, 5-min self-refresh); CLAUDE.md flipped to
+      "the door routes itself — pin only with cause"; /retro now closes with the offload scorecard.
+      Fixed en route: a TOML table-placement bug the existing suite caught (top-level keys must precede
+      table headers). 490 tests green.</li>
   <li><strong class="bad">Outage found by the ladder itself:</strong> omen-ollama has been 500ing since a partial
       Ollama auto-update (07-16 04:58) deleted the <code>lib\ollama\</code> runtime (llama-server.exe gone).
       Server answers /api/tags, no model can load. Repair = reinstall Ollama (chip filed — Derek's click).

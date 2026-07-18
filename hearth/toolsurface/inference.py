@@ -39,6 +39,9 @@ from hearth.toolsurface.backends import BackendConfigError, Pool, load_pool, sel
 from hearth.toolsurface.occupancy import check_occupancy
 
 DEFAULT_ENDPOINT = "http://127.0.0.1:11434"
+# O5: the historical wall-clock budget, now only the FLOOR — a rung may declare
+# settings.timeout_s to match its own measured decode rate (see _apply_defaults).
+DEFAULT_TIMEOUT_S = 120
 ENDPOINT_ENV_VAR = "HEARTH_OLLAMA"
 
 # Door-side file packing caps (bytes). Module globals so tests (and a future
@@ -388,7 +391,7 @@ def _generate_gemini(target: _Target, prompt: str, model: str, system: Optional[
 
 def local_generate(prompt: str, model: str | None = None,
                    endpoint: str = DEFAULT_ENDPOINT, system: str | None = None,
-                   max_tokens: int | None = None, timeout_s: int = 120,
+                   max_tokens: int | None = None, timeout_s: int | None = None,
                    task: str | None = None, backend: str | None = None,
                    files: list[str] | None = None,
                    quality: str | None = None) -> dict:
@@ -420,7 +423,7 @@ def local_generate(prompt: str, model: str | None = None,
         raise ValueError("model must be a non-empty string")
     if max_tokens is not None and (not isinstance(max_tokens, int) or max_tokens <= 0):
         raise ValueError("max_tokens must be a positive integer")
-    if timeout_s <= 0:
+    if timeout_s is not None and timeout_s <= 0:
         raise ValueError("timeout_s must be positive")
     if quality is not None and quality not in ("fast", "good", "best"):
         raise ValueError("quality must be 'fast', 'good', or 'best'")
@@ -455,7 +458,8 @@ def local_generate(prompt: str, model: str | None = None,
     # a files= call is judged by what actually ships, not the bare prompt.
     payload_bytes = len(prompt.encode("utf-8"))
 
-    def _apply_defaults(t: _Target, m: Optional[str], mt: Optional[int]) -> tuple[str, int]:
+    def _apply_defaults(t: _Target, m: Optional[str],
+                        mt: Optional[int]) -> tuple[str, int, int]:
         # Model default: caller's explicit model wins; else the backend's first
         # declared model; else the historical qwen3-coder default. Output-budget
         # default: caller's explicit max_tokens wins; else the backend's declared
@@ -464,6 +468,13 @@ def local_generate(prompt: str, model: str | None = None,
         # reasoning and return EMPTY text, so a rung sets a generous floor here
         # rather than relying on the caller to remember it. Shared by the first
         # attempt and the A2 escalation retry so both default identically.
+        #
+        # O5: the wall-clock budget resolves the SAME way (caller -> rung ->
+        # 120s). A rung's max_tokens and its measured decode rate together imply
+        # how long a full-budget answer takes; without a per-rung timeout the
+        # two disagree and a healthy-but-slow rung gets cut off mid-answer and
+        # escalated (see backends.toml am4-moe: 8192 tok at ~21 tok/s needs far
+        # more than the historical 120s default).
         pool_backend = load_pool().by_name(t.backend) if t.backend else None
         rm = m
         if rm is None:
@@ -478,14 +489,23 @@ def local_generate(prompt: str, model: str | None = None,
                 rmt = 1024
             if rmt <= 0:
                 rmt = 1024
-        return rm, rmt
+        rts = timeout_s
+        if rts is None:
+            setting = pool_backend.settings.get("timeout_s") if pool_backend else None
+            try:
+                rts = int(setting) if setting is not None else DEFAULT_TIMEOUT_S
+            except (TypeError, ValueError):
+                rts = DEFAULT_TIMEOUT_S
+            if rts <= 0:
+                rts = DEFAULT_TIMEOUT_S
+        return rm, rmt, rts
 
-    def _execute(t: _Target, m: str, mt: int) -> dict:
+    def _execute(t: _Target, m: str, mt: int, ts: int) -> dict:
         if t.api == "openai":
-            return _generate_openai(t, prompt, m, system, mt, timeout_s)
+            return _generate_openai(t, prompt, m, system, mt, ts)
         if t.api == "gemini":
-            return _generate_gemini(t, prompt, m, system, mt, timeout_s)
-        return _generate_ollama(t, prompt, m, system, mt, timeout_s)
+            return _generate_gemini(t, prompt, m, system, mt, ts)
+        return _generate_ollama(t, prompt, m, system, mt, ts)
 
     call_tags = ["cloud-overflow"] if quality == "good" else None
 
@@ -496,14 +516,16 @@ def local_generate(prompt: str, model: str | None = None,
         return {"ok": False, "error": f"routing failed: {exc}",
                 "endpoint": endpoint, "model": model}
 
-    resolved_model, resolved_max_tokens = _apply_defaults(target, model, max_tokens)
-    result = _execute(target, resolved_model, resolved_max_tokens)
+    resolved_model, resolved_max_tokens, resolved_timeout_s = _apply_defaults(
+        target, model, max_tokens)
+    result = _execute(target, resolved_model, resolved_max_tokens, resolved_timeout_s)
 
     result["backend"] = target.backend
     result["routed_by"] = (f"quality-{quality}:{target.routed_by}"
                            if quality is not None else target.routed_by)
     result["occupancy"] = target.occupancy
     result["max_tokens"] = resolved_max_tokens
+    result["timeout_s"] = resolved_timeout_s
 
     # A2: ladder escalation — one climb max. A failed non-pinned dispatch
     # excludes the failed rung and re-routes once; a pin (endpoint or name) is
@@ -516,8 +538,10 @@ def local_generate(prompt: str, model: str | None = None,
                                             exclude=exclude_set,
                                             tags=call_tags)
             if second_target.backend != target.backend:
-                second_model, second_max_tokens = _apply_defaults(second_target, model, max_tokens)
-                second_result = _execute(second_target, second_model, second_max_tokens)
+                second_model, second_max_tokens, second_timeout_s = _apply_defaults(
+                    second_target, model, max_tokens)
+                second_result = _execute(second_target, second_model, second_max_tokens,
+                                         second_timeout_s)
 
                 first_name = target.backend or "default"
                 second_name = second_target.backend or "default"
@@ -525,6 +549,7 @@ def local_generate(prompt: str, model: str | None = None,
                 second_result["routed_by"] = f"escalation:{first_name}->{second_name}"
                 second_result["occupancy"] = second_target.occupancy
                 second_result["max_tokens"] = second_max_tokens
+                second_result["timeout_s"] = second_timeout_s
                 second_result["escalation"] = {"from": first_name, "error": result.get("error")}
 
                 result = second_result

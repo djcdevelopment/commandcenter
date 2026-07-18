@@ -72,6 +72,19 @@ context_bytes = 57344
 # gpt-oss is a reasoning-format model (harmony channels): same generous-output
 # protection the gemini rungs get — a cap, not a charge.
 max_tokens = 8192
+# O5 (capacity facts -> router, 2026-07-18): the wall-clock budget that MATCHES
+# the output budget above. Measured aggregate decode incl. reasoning tokens is
+# ~21 tok/s p50 (capacity.json) / 26-29 tok/s solo (gambit), so a full 8192-token
+# answer needs ~390s. The historical 120s default cut healthy answers off
+# mid-flight and — because a timeout is an ok:false — silently ESCALATED them to
+# a trial-credit rung (A2), inverting the sunk-first ladder for exactly the slow,
+# reasoning-dense work this rung exists to absorb. Live evidence at the time of
+# writing: p50 88s, p90 120,042ms — the p90 WAS the timeout, i.e. the ceiling was
+# clipping, not the model. 420s = the 390s implied budget plus queue headroom
+# (a queued request costs ~4.4s per position).
+# NOTE this must stay BELOW the MCP client's idle timeout or the client gives up
+# first; see .mcp.json ("timeout": 600000 recommended).
+timeout_s = 420
 
 [[backend]]
 name     = "am4-oxen"                          # the banked fire — dual-B70 Qwen3-30B

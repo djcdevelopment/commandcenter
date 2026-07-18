@@ -9,7 +9,8 @@ from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
 
-from hearth.toolsurface.inference import local_generate
+from hearth.toolsurface.backends import load_pool
+from hearth.toolsurface.inference import DEFAULT_TIMEOUT_S, local_generate
 
 # P1 test intent predates occupancy (P2): every pre-existing test in this file
 # exercises routing, not occupancy, so force "available" everywhere here to keep
@@ -552,3 +553,62 @@ class GeminiDefaultBudgetTests(TestCase):
         self.assertEqual(payload["generationConfig"]["maxOutputTokens"], 16384)
         self.assertEqual(result["max_tokens"], 16384)
         self.assertEqual(result["model"], "gemini-3.1-pro-preview")
+
+
+class RungTimeoutBudgetTests(TestCase):
+    """O5 — per-rung WALL-CLOCK budgets resolve like max_tokens does
+    (caller -> rung settings -> DEFAULT_TIMEOUT_S).
+
+    Why this exists: a timeout is an ok:false, and an ok:false on a tag-routed
+    call triggers A2 escalation. So a too-short budget does not merely fail —
+    it silently reroutes slow-but-healthy sunk work onto a trial-credit rung,
+    inverting the sunk-first ladder exactly where it matters most.
+    """
+
+    # Measured aggregate decode for the resident MoE, INCLUDING reasoning
+    # tokens: ~21 tok/s p50 (knowledge/capacity.json, 2026-07-18), 26-29 tok/s
+    # solo (2026-07-18-oxen-moe-gambit.md). The p50 is the honest planning
+    # number for a full-budget answer, so the invariant below uses it.
+    MOE_DECODE_TOK_S = 21
+
+    def setUp(self) -> None:
+        self.enterContext(_ALWAYS_AVAILABLE)
+        self.enterContext(patch.dict(os.environ, {"AM4_OXEN_TOKEN": "sk-oxen"}, clear=True))
+
+    def test_moe_timeout_comes_from_rung_settings(self) -> None:
+        with patch("urllib.request.urlopen", return_value=_FakeResponse(OPENAI_REPLY)) as mocked:
+            result = local_generate("q", backend="am4-moe")
+
+        self.assertTrue(result.get("ok"), result.get("error"))
+        self.assertEqual(mocked.call_args.kwargs["timeout"], 420)
+        self.assertEqual(result["timeout_s"], 420)
+
+    def test_rung_without_declared_timeout_falls_back_to_default(self) -> None:
+        with patch("urllib.request.urlopen", return_value=_FakeResponse(OLLAMA_REPLY)) as mocked:
+            result = local_generate("q", backend="omen-ollama")
+
+        self.assertTrue(result.get("ok"), result.get("error"))
+        self.assertEqual(mocked.call_args.kwargs["timeout"], DEFAULT_TIMEOUT_S)
+        self.assertEqual(result["timeout_s"], DEFAULT_TIMEOUT_S)
+
+    def test_explicit_caller_timeout_overrides_rung_setting(self) -> None:
+        with patch("urllib.request.urlopen", return_value=_FakeResponse(OPENAI_REPLY)) as mocked:
+            result = local_generate("q", backend="am4-moe", timeout_s=30)
+
+        self.assertEqual(mocked.call_args.kwargs["timeout"], 30)
+        self.assertEqual(result["timeout_s"], 30)
+
+    def test_moe_timeout_budget_covers_its_own_output_budget(self) -> None:
+        """The invariant the 120s default violated: a rung must be allowed
+        enough wall-clock to actually emit the output budget it declares."""
+        moe = load_pool().by_name("am4-moe")
+        max_tokens = int(moe.settings["max_tokens"])
+        timeout_s = int(moe.settings["timeout_s"])
+
+        implied_s = max_tokens / self.MOE_DECODE_TOK_S
+        self.assertGreaterEqual(
+            timeout_s, implied_s,
+            f"am4-moe declares max_tokens={max_tokens}, which needs ~{implied_s:.0f}s "
+            f"at the measured {self.MOE_DECODE_TOK_S} tok/s, but only allows {timeout_s}s. "
+            "Raise timeout_s, lower max_tokens, or re-measure the decode rate.",
+        )

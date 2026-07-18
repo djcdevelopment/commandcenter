@@ -557,6 +557,7 @@ staged-load one-liner) — parked verbatim in the O-track briefs; verify on node
       thinking-burn clips ~2k-token expansions at the 8192 cap — two-pass or budget up). Doctrine settled:
       <strong>moe = reasoning-dense/short-output; flash = bulk long-form</strong>. Recommend
       <code>.mcp.json</code> hearth server gets <code>"timeout": 600000</code> (Derek's config, his call).</li>
+  <li><strong class="good">NEW (v2.3) — fleet_harvest --porcelain LANDED</strong> (the v2.2 moe design, flag mapping corrected: <code>*</code>=new/space=ff count as pushed, <code>=</code>=up-to-date): <code>harvest_fleet_run</code> returns <code>push:{pushed,up_to_date,rejected,raw}</code>, --sweep gains <code>branches_new</code> — the true new-vs-noop delta v1.7 deferred; tests <span class="kpi">527→537 green</span>; merged <span class="kpi">635254e</span>, gateway restarted, live re-harvest proof <span class="kpi">up_to_date:2/pushed:0</span> (real output shows <code>=</code> on repeats — the correction was load-bearing).</li>
 </ul></div>
 
 </main>

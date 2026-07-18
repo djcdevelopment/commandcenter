@@ -52,11 +52,13 @@
 
 <h1>MECHNET Autonomy Plan — see · steer · re-baseline</h1>
 <div class="meta">
-  2026-07-17 · <span class="status draft" style="color: var(--good)">v1.4 — G2 merged to master · D1/D3 decided · G3 + O1-prereq dispatched</span> ·
+  2026-07-17 · <span class="status draft" style="color: var(--good)">v1.5 — G2 on master · D1/D3 decided · G3 built inline (branch) · O1-prereq handed to Derek</span> ·
   SEE S1–S6 + STEER A1–A4 + A6 all <strong class="good">LIVE</strong> on <code>master</code>
-  (<span class="kpi">3ef550c</span>, 8 receipts closed done) · O0 <strong class="good">DONE</strong>, D2 decided ·
-  omen-ollama <span class="good">REPAIRED</span> (chip session reinstalled; pinned probe 344 ms) ·
-  G3 (A5) and the O1 swap/zram prereq are running on the fleet — see §9.<br>
+  (<span class="kpi">3ef550c</span>) · O0 <strong class="good">DONE</strong>, D2 decided ·
+  G3 (A5) <strong class="good">built + 506 tests green</strong> on <code>feat/g3-queue-and-forget</code>
+  (<span class="kpi">0c83dcf</span>), awaiting merge+restart · O1 swap/zram prereq blocked on the fleet
+  (needs root) → vetted <code>setup-swap.sh</code> handed to Derek to run; <code>/mnt/win</code> preflight
+  passed. See §9.<br>
   Builds on <code>HEARTH-OFFLOAD-STRATEGY.html</code> (2026-07-15) — that doc makes offload <em>ergonomic</em>;
   this one makes it <em>autonomous</em> and adds the oxen re-baseline campaign. Execution log in §9.
 </div>
@@ -379,14 +381,37 @@ staged-load one-liner) — parked verbatim in the O-track briefs; verify on node
       (<span class="kpi">hearth-o1-prereq-swap-zram-c8523ab0</span>), audited as build-request
       <span class="kpi">br-…5a44c322</span>: zram 8G lz4 high-priority, swapfile 8→16G low-priority on main
       NVMe, 4TB stays swap-free, plus the O1 <code>/mnt/win</code>-visibility-from-service-context preflight.
-      Scoped to prereq only — <code>ze_peer</code> build/benchmark is the next dispatch once this closes.
-      <strong>Running, not yet closed as of this entry.</strong></li>
+      <strong class="bad">Outcome — fleet can't do this:</strong> privileged live config needs root and the
+      build-agents run without it (am4-worker-1 filed a QUESTION.md "I don't have sudo privileges";
+      cc-builder-2 hit "Failed to enable unit: Interactive authentication required"). Ground-truthed on AM4
+      afterward: <code>/swap.img</code> still 8G/8G/100%, no zram, the 10Gi "shared" still present — nothing
+      applied. The fleet build-lane is a <em>code</em> pipeline (build→commit→docker-assay→grade); it was the
+      wrong tool for privileged system config. <strong>Pivot:</strong> Claude authored + self-reviewed
+      <code>setup-swap.sh</code> (zram comes up <em>first</em> so the 100%-full swapfile has an eviction
+      target before <code>swapoff</code>; grows the file 8→16G low-pri; backs up fstab; BEFORE/AFTER;
+      idempotent), placed + syntax-checked at <code>am4:~/setup-swap.sh</code> — Derek runs
+      <code>sudo bash ~/setup-swap.sh</code> (system settings = his hand, not the agent's). The O1
+      <code>/mnt/win</code> preflight <strong class="good">PASSED</strong> — visible from root, interactive,
+      and <code>systemd --user</code> scope (the benchmark-adjacent <code>b70-planner</code> is a
+      <code>--user</code> unit). Receipt <span class="kpi">br-…5a44c322 → blocked</span>.</li>
   <li><strong>G3 (A5) dispatched:</strong> <code>submit_task</code> to <code>cc-builder-1</code>+<code>cc-builder-2</code>
       (<span class="kpi">hearth-g3-queue-and-forget-91adaa10</span>), audited as build-request
       <span class="kpi">br-…39919920</span>: <code>out_file=</code> on <code>task_status</code>, a queue-depth
       probe tool, <code>submit_batch</code> over the existing single-submit inbox mechanism (no second
       scheduler), and ledger logging for batch completions — brief points at the exact files/tools to extend.
-      <strong>Running, not yet closed as of this entry.</strong></li>
+      <strong class="bad">Outcome — fleet build came back weak:</strong> cc-builder-1 (sonnet) timed out;
+      cc-builder-2 (vllama-planner) budget-exhausted with a thin change; the passing "162/162, grade B" rode
+      the <em>existing</em> repo suite in docker + a stale 2026-06-29 retro the assay happened to pick up;
+      neither branch promoted. <strong>Rebuilt inline instead</strong> (Derek's call) on
+      <code>feat/g3-queue-and-forget</code> (<span class="kpi">0c83dcf</span>): <code>task_status(out_file=)</code>
+      lands the result in a scoped file + returns an ACK; <code>queue_status()</code> one-SSH queue-depth probe;
+      <code>submit_batch(manifest)</code> fans out over the existing <code>submit_task</code> inbox. Reading the
+      real code corrected two brief assumptions the fleet would have chased: doorcheck's manifest
+      <em>auto-derives</em> from <code>get_tools()</code> (no hardcoded count to edit), and ledger visibility
+      rides the gateway wrapper (a parallel <code>record_event</code> stream would double-count). <span class="kpi">+18
+      tests; full hearth/tests tree 506 green</span>. Receipt <span class="kpi">br-…39919920 → cancelled</span>
+      (superseded). <strong>Awaiting Derek's cue</strong> to merge → master + restart the gateway to serve the two
+      new tools live (same build→merge→restart flow as G0/G1/G2).</li>
   <li><strong>Learned along the way:</strong> <code>create_build_request</code>/<code>execute_build_request</code>'s
       <code>backend</code> field only accepts a registered inference backend (<code>backends.toml</code>
       rungs) — not a fleet-builder name or a free-form "fleet:..." tag. Fleet routing goes in the

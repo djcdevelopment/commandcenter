@@ -4,6 +4,13 @@ Pure read, mcp-free. Buckets ledger events by (task_class, node, model, tool) an
 computes duration/token distributions the CP-SAT job-shop scheduler consumes as its
 processing-time estimates. Contract: hearth/contracts/capacity.v1.schema.json.
 
+`ok` on a ledger event is not a uniform signal: for an inference call it means
+"succeeded", but a timer-driven tool may report it as "took action". This
+projection therefore reads ok ONLY where the event names its failure, and counts
+the incoherent ok:false/error:null shape as indeterminate instead (see
+_is_indeterminate). Emitters split the two meanings via the event's `outcome`
+field; ok answers "did it do its job", outcome answers "which branch".
+
 A parallel effort is adding optional `task_class` and `model` fields to ledger events;
 most historical events predate that and will not carry them. Missing values fall back
 to `None` in the bucket key rather than being dropped — every event is still counted
@@ -39,10 +46,34 @@ def _empty_accumulator() -> dict:
     return {
         "calls": 0,
         "ok": 0,
+        "determinate": 0,  # calls whose ok flag is trustworthy (see _is_indeterminate)
+        "indeterminate": 0,
         "durations_ms": [],  # only from ok:true events
         "tokens_out_per_s": [],
         "last_seen": None,
     }
+
+
+def _is_indeterminate(event: dict) -> bool:
+    """True when an event reports failure but names no failure.
+
+    `ok:false` with `error:null` is structurally incoherent: the emitter claimed
+    something went wrong while declining to say what. Historically this shape had
+    exactly one source -- bankedfire_drain.tick, which keyed `ok` on "did this
+    timer dispatch work" rather than "did this timer do its job", so 592 healthy
+    idle no-ops projected as failures and dragged the bucket to ok_rate 0.0084.
+    Across the other ~7,900 ledger events every ok:false carried a real error
+    (SSH TimeoutExpired, ImportError, ...), so this predicate isolates that one
+    defect without suppressing a single genuine fault.
+
+    Ledger events are immutable, so the 592 bad records cannot be repaired in
+    place; reinterpreting them at projection time is the CQRS/ES-correct repair
+    (the read model is derived, the event log is not rewritten). Emission is
+    fixed going forward -- ledger.new_event now refuses to persist this shape --
+    so this predicate is a historical-corpus rule, not a licence for new
+    emitters to keep omitting errors.
+    """
+    return not event.get("ok") and not event.get("error")
 
 
 def _bucket_key(event: dict) -> BucketKey:
@@ -61,6 +92,10 @@ def build_capacity_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
     Rules:
     - ok:false events count toward calls/ok_rate but are excluded from duration
       percentiles and token-rate samples.
+    - EXCEPT ok:false events that name no error (see _is_indeterminate): those
+      report a failure they cannot describe, so they count toward `calls` and
+      `indeterminate` but are excluded from the ok_rate denominator entirely.
+      A bucket with no determinate calls gets ok_rate null, never 0.0.
     - Missing task_class/model on an event yields a null in that bucket's key
       rather than dropping the event.
     - Malformed (non-JSON) lines are skipped; they do not raise and are not
@@ -95,6 +130,11 @@ def build_capacity_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
                 if acc["last_seen"] is None or ts > acc["last_seen"]:
                     acc["last_seen"] = ts
 
+            if _is_indeterminate(event):
+                acc["indeterminate"] += 1
+                continue
+
+            acc["determinate"] += 1
             ok = bool(event.get("ok"))
             if ok:
                 acc["ok"] += 1
@@ -130,7 +170,13 @@ def build_capacity_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
             "model": model,
             "tool": tool,
             "calls": acc["calls"],
-            "ok_rate": round(acc["ok"] / acc["calls"], 4) if acc["calls"] else 0.0,
+            # Rate over DETERMINATE calls only. A bucket with no determinate
+            # evidence gets null rather than 0.0 -- "we never learned" must not
+            # render as "it always failed" (same null-means-no-samples
+            # convention duration_ms/tokens_out_per_s_p50 already use).
+            "ok_rate": (round(acc["ok"] / acc["determinate"], 4)
+                        if acc["determinate"] else None),
+            "indeterminate": acc["indeterminate"],
             "duration_ms": duration_summary,
             "tokens_out_per_s_p50": tokens_out_per_s_p50,
             "last_seen": acc["last_seen"],

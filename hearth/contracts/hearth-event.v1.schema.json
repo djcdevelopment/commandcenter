@@ -63,6 +63,10 @@
     "backend": { "type": ["string", "null"] },
     "routed_by": { "type": ["string", "null"] },
     "occupancy": { "type": ["string", "null"] },
-    "error_code": { "type": ["string", "null"] }
+    "error_code": { "type": ["string", "null"] },
+    "outcome": {
+      "description": "WHICH branch a call took, when `ok` alone cannot say. `ok` answers 'did this call do its job without error'; for a timer-driven tool a benign no-op IS doing its job, so such ticks are ok:true and name their branch here (e.g. dispatched | disarmed | busy | no-budget | no-candidates | in-flight). Keeps activity-vs-health separable in the capacity projection instead of overloading `ok`. Optional/additive.",
+      "type": ["string", "null"]
+    }
   }
 }

@@ -43,7 +43,14 @@
           "model": { "type": ["string", "null"] },
           "tool": { "type": "string", "minLength": 1 },
           "calls": { "type": "integer", "minimum": 0 },
-          "ok_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+          "ok_rate": {
+            "description": "ok/determinate for this bucket, or null when the bucket has no determinate evidence at all. Null means 'never learned', NOT 'always failed'.",
+            "type": ["number", "null"], "minimum": 0, "maximum": 1
+          },
+          "indeterminate": {
+            "description": "Calls excluded from ok_rate because they reported ok:false while naming no error -- a structurally incoherent shape that ledger.new_event now refuses to persist, retained here so historical corpora stay auditable rather than silently reweighted. Optional/additive.",
+            "type": "integer", "minimum": 0
+          },
           "duration_ms": {
             "type": "object",
             "additionalProperties": false,

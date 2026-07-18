@@ -7,6 +7,8 @@ from unittest import TestCase
 
 from hearth.projection.capacity import _percentile, build_capacity_document
 
+_UNSET = object()  # "caller said nothing about error", distinct from an explicit None
+
 
 def make_event(
     tool: str,
@@ -19,7 +21,16 @@ def make_event(
     runner_class: str = "local",
     task_class: str | None = None,
     model: str | None = None,
+    error: str | None = _UNSET,
 ) -> dict:
+    # A real emitter that reports ok:false always names the failure -- across the
+    # whole production ledger every genuine failure carries an error string, and
+    # ledger.new_event now refuses to persist one that does not. So a failure
+    # fixture defaults to a named error; pass error=None explicitly to build the
+    # legacy "reports failure, names none" shape the projection treats as
+    # indeterminate.
+    if error is _UNSET:
+        error = None if ok else "boom"
     event = {
         "schema": "hearth-event.v1",
         "event_id": f"he_{tool}_{duration_ms}_{ts}",
@@ -27,6 +38,7 @@ def make_event(
         "caller": {"id": f"{runner_class}-1", "runner_class": runner_class, "node": node},
         "tool": tool,
         "ok": ok,
+        "error": error,
         "duration_ms": duration_ms,
         "cost": {"tokens_in": 10, "tokens_out": tokens_out, "watt_s": None},
         "task_id": None,
@@ -99,8 +111,52 @@ class BuildCapacityDocumentTests(TestCase):
         bucket = document["buckets"][0]
         self.assertEqual(bucket["calls"], 2)
         self.assertEqual(bucket["ok_rate"], 0.5)
+        self.assertEqual(bucket["indeterminate"], 0)
         self.assertEqual(bucket["duration_ms"]["p50"], 1000.0)
         self.assertEqual(bucket["duration_ms"]["max"], 1000.0)
+
+    def test_ok_false_naming_no_error_is_indeterminate_not_a_failure(self) -> None:
+        """The bankedfire_drain defect: 592 healthy idle no-op ticks emitted
+        ok:false with error:null and dragged the bucket to ok_rate 0.0084,
+        reading as a catastrophic outage. Such an event claims a failure while
+        naming none, so it is evidence of nothing -- excluded from the rate
+        rather than counted against it. Those events are immutable, so this
+        projection-time reinterpretation is the only available repair."""
+        self.write_ledger([
+            make_event("bankedfire_drain.tick", True, 0, None),
+            *[make_event("bankedfire_drain.tick", False, 0, None, error=None)
+              for _ in range(9)],
+        ])
+        bucket = build_capacity_document(self.ledger)["buckets"][0]
+        self.assertEqual(bucket["calls"], 10)      # liveness still visible
+        self.assertEqual(bucket["indeterminate"], 9)
+        self.assertEqual(bucket["ok_rate"], 1.0)   # NOT 0.1
+
+    def test_a_named_failure_is_never_suppressed_as_indeterminate(self) -> None:
+        """Guard on the predicate's blast radius: the watchdog's SSH timeouts
+        name their error, so they must keep counting as the real failures they
+        are. Only the unnamed shape is reinterpreted."""
+        self.write_ledger([
+            make_event("mechnet_watchdog.patrol_snapshot", True, 500, None),
+            make_event("mechnet_watchdog.patrol_snapshot", False, 0, None,
+                       error="TimeoutExpired: ssh claude@100.74.110.91"),
+        ])
+        bucket = build_capacity_document(self.ledger)["buckets"][0]
+        self.assertEqual(bucket["ok_rate"], 0.5)
+        self.assertEqual(bucket["indeterminate"], 0)
+
+    def test_bucket_with_only_indeterminate_calls_reports_null_not_zero(self) -> None:
+        """No determinate evidence must render as "never learned" (null), not as
+        "always failed" (0.0) -- rendering it 0.0 is the very misreading this
+        whole change exists to remove."""
+        self.write_ledger([
+            make_event("bankedfire_drain.tick", False, 0, None, error=None)
+            for _ in range(4)
+        ])
+        bucket = build_capacity_document(self.ledger)["buckets"][0]
+        self.assertEqual(bucket["calls"], 4)
+        self.assertEqual(bucket["indeterminate"], 4)
+        self.assertIsNone(bucket["ok_rate"])
 
     def test_malformed_lines_are_skipped_and_do_not_raise(self) -> None:
         self.write_ledger(

@@ -251,7 +251,11 @@ managed units, never crudely kill oxen; benchmark windows are occupancy-gated.</
     "Claude keeps" boundary + ASK on novel classes; every auto decision ledgered for audit.</li>
   <li><strong>Trial credits end mid-era</strong> — A4 makes degradation automatic (flash tags treated absent), not a 3 a.m. surprise.</li>
   <li><strong>O2/O3 destabilize AM4</strong> — staged protocol, preflight gates, occupancy-gated windows, imagegen units managed not killed.</li>
-  <li><strong>D1</strong>: dashboard serving — gateway-served page + written HTML artifact (recommended) vs artifact only.</li>
+  <li><strong>D1 <span class="good">DECIDED 07-17</span></strong>: dashboard serves both ways — a gateway-served
+      live route reading the same artifact the timer regenerates, <em>alongside</em> the written
+      <code>HEARTH-DASHBOARD.html</code>, not instead of it. The static file already satisfies "Derek reads
+      HTML not markdown" at zero new surface; a gateway route is additive and removes rebuild-commit lag for
+      anyone hitting the door directly. Implementation tracked as a follow-on build, not yet dispatched.</li>
   <li><strong>D2 <span class="good">DECIDED 07-17</span></strong> (Derek's hardware truth: 2× B70 @ 32 GB VRAM;
       32 GB DDR4; 550 GB main NVMe with &lt;150 GB free; slower <em>NVMe</em> 4 TB — not a spindle — mounted at
       <code>/mnt/win</code>, ~1.25 TB free): <strong>hybrid</strong> — (a) <code>zram</code> 8 GB lz4 at high
@@ -265,8 +269,15 @@ managed units, never crudely kill oxen; benchmark windows are occupancy-gated.</
       <strong>O1 preflight check:</strong> some agent contexts report <code>/mnt/win</code> as invisible even
       though it is mounted — verify visibility from the exact user/service context the benchmarks run as
       (systemd --user units can sandbox mounts), not just an interactive shell.</li>
-  <li><strong>D3</strong>: may <code>route="auto"</code> ever pick <code>gcp-gemini-pro</code>? Recommended: no — pro stays pin/ASK.</li>
-  <li><strong>D4</strong>: O4 article — publish target and timing (windtunnel vs steppeintegrations), on cue as always.</li>
+  <li><strong>D3 <span class="good">DECIDED 07-17</span></strong>: confirmed no — <code>route="auto"</code> stays
+      permanently excluded from <code>gcp-gemini-pro</code>, promoted from default behavior to policy so a
+      future change needs a deliberate revert, not silent drift. The premium rung's ceiling is the finite
+      trial-credit runway (A4); auto-selecting it under load trades a shared scarce resource for one
+      session's convenience. A3's ASK-on-"best" behavior already implements this — no code change needed.</li>
+  <li><strong>D4</strong>: O4 article — publish target and timing (windtunnel vs steppeintegrations), on cue
+      as always (Derek's call, not delegated). <strong>Not yet decidable</strong>: O4 needs the measured
+      Linux-vs-Windows delta numbers, which need O2/O3, which need the O1 AM4 window. Revisit once the
+      O-track lands.</li>
 </ul>
 
 <h2>7 · Receipts — this plan was built offload-first</h2>
@@ -290,7 +301,8 @@ staged-load one-liner) — parked verbatim in the O-track briefs; verify on node
       <strong>O1 next</strong> — needs a dedicated AM4 window (build <code>level-zero-tests</code>; both render nodes currently held; swap saturated).</li>
   <li>Decisions: <strong>D2 decided 07-17</strong> (hybrid zram + 16 G swapfile + 4 TB model zoo — see §6.3) —
       <strong>the O-track is unblocked</strong>; the swap/zram/mount setup is the first step of the next AM4
-      window, then O1 <code>ze_peer</code>. D1/D3/D4 still open (recommendations stand).</li>
+      window, then O1 <code>ze_peer</code>. <strong>D1 + D3 decided 07-17</strong> (§6.3). D4 stays open,
+      blocked on O-track numbers and Derek's publish cue.</li>
   <li>Next build wave on cue: G1 (A1 payload-aware routing + A2 escalation), then S5 dashboard.</li>
   <li>Merge <code>feat/autonomy-g0</code> → master when satisfied (3 commits, receipts br-…65e75ea3 / …3b3e324f / …146388c0).</li>
 </ol>

@@ -1,0 +1,132 @@
+{
+  "contract_version": "offload.v1",
+  "evidence_watermark": "2026-07-18T02:40:07.081490Z",
+  "bucket_count": 8,
+  "totals": {
+    "calls": 189,
+    "tokens_in": 89670,
+    "tokens_out": 19467
+  },
+  "per_class": {
+    "sunk": {
+      "calls": 28,
+      "tokens_in": 26,
+      "tokens_out": 8
+    },
+    "trial": {
+      "calls": 158,
+      "tokens_in": 89644,
+      "tokens_out": 19459
+    },
+    "unknown": {
+      "calls": 3,
+      "tokens_in": 0,
+      "tokens_out": 0
+    }
+  },
+  "offload_ratio": 1.0,
+  "est_usd_saved": {
+    "reference": "claude-sonnet",
+    "input_per_mtok": 3.0,
+    "output_per_mtok": 15.0,
+    "usd": 0.561015
+  },
+  "buckets": [
+    {
+      "backend": "gcp-gemini",
+      "cost_class": "trial",
+      "models": [
+        "gemini-3.5-flash"
+      ],
+      "calls": 4,
+      "ok_rate": 1.0,
+      "tokens_in": 36580,
+      "tokens_out": 19,
+      "last_seen": "2026-07-18T02:35:20.369282Z"
+    },
+    {
+      "backend": "gcp-gemini-pro",
+      "cost_class": "trial",
+      "models": [
+        "gemini-3.1-pro-preview"
+      ],
+      "calls": 3,
+      "ok_rate": 1.0,
+      "tokens_in": 53064,
+      "tokens_out": 19440,
+      "last_seen": "2026-07-18T02:40:07.081490Z"
+    },
+    {
+      "backend": "model:",
+      "cost_class": "unknown",
+      "models": [],
+      "calls": 3,
+      "ok_rate": 0.3333,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "last_seen": "2026-07-18T02:35:04.970009Z"
+    },
+    {
+      "backend": "model:/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
+      "cost_class": "sunk",
+      "models": [
+        "/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf"
+      ],
+      "calls": 11,
+      "ok_rate": 1.0,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "last_seen": "2026-07-16T09:45:43.566795Z"
+    },
+    {
+      "backend": "model:gemini-3.1-pro-preview",
+      "cost_class": "trial",
+      "models": [
+        "gemini-3.1-pro-preview"
+      ],
+      "calls": 101,
+      "ok_rate": 1.0,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "last_seen": "2026-07-18T01:15:55.311065Z"
+    },
+    {
+      "backend": "model:gemini-3.5-flash",
+      "cost_class": "trial",
+      "models": [
+        "gemini-3.5-flash"
+      ],
+      "calls": 50,
+      "ok_rate": 1.0,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "last_seen": "2026-07-18T00:49:24.135678Z"
+    },
+    {
+      "backend": "model:qwen3-coder:30b",
+      "cost_class": "sunk",
+      "models": [
+        "qwen3-coder:30b"
+      ],
+      "calls": 15,
+      "ok_rate": 1.0,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "last_seen": "2026-07-16T09:42:24.778986Z"
+    },
+    {
+      "backend": "omen-ollama",
+      "cost_class": "sunk",
+      "models": [
+        "qwen3-coder:30b"
+      ],
+      "calls": 2,
+      "ok_rate": 1.0,
+      "tokens_in": 26,
+      "tokens_out": 8,
+      "last_seen": "2026-07-18T02:26:05.072434Z"
+    }
+  ],
+  "corpus_digest": "sha256:5ba95dac709410ffd9048cd4f5699dc113cdb3a587342616a26ae02238190689",
+  "corpus_event_count": 8176
+}

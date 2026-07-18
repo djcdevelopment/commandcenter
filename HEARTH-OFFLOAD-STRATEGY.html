@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HEARTH × mechnet — Offload-First Strategy (2026-07-15)</title>
+<style>
+  :root {
+    --bg: #faf8f4; --fg: #22211e; --muted: #6b6760; --accent: #b4541e;
+    --card: #ffffff; --border: #e2ddd3; --good: #2e7d32; --warn: #b26a00; --bad: #c62828;
+    --code-bg: #f0ece4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1b18; --fg: #e8e4dc; --muted: #a09a8e; --accent: #e8925a;
+      --card: #262420; --border: #3a372f; --good: #81c784; --warn: #ffb74d; --bad: #ef9a9a;
+      --code-bg: #2e2b25;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 2rem 1rem 4rem; background: var(--bg); color: var(--fg);
+         font: 16px/1.55 Georgia, "Times New Roman", serif; }
+  main { max-width: 62rem; margin: 0 auto; }
+  h1 { font-size: 1.7rem; margin: 0 0 .2rem; }
+  h2 { font-size: 1.25rem; margin: 2.2rem 0 .6rem; border-bottom: 2px solid var(--accent); padding-bottom: .25rem; }
+  h3 { font-size: 1.05rem; margin: 1.4rem 0 .4rem; color: var(--accent); }
+  .meta { color: var(--muted); font-size: .9rem; margin-bottom: 1.4rem; }
+  .status { display: inline-block; padding: .1rem .55rem; border-radius: 999px; font-size: .78rem;
+            font-family: Consolas, monospace; border: 1px solid var(--border); }
+  .draft { background: var(--code-bg); color: var(--warn); }
+  table { border-collapse: collapse; width: 100%; margin: .6rem 0 1rem; font-size: .88rem; }
+  .scrollwrap { overflow-x: auto; }
+  th, td { border: 1px solid var(--border); padding: .4rem .55rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); font-family: Consolas, monospace; font-size: .8rem; }
+  code { background: var(--code-bg); padding: .06rem .3rem; border-radius: 3px;
+         font: .85em Consolas, "Courier New", monospace; }
+  .good { color: var(--good); font-weight: bold; } .warn { color: var(--warn); font-weight: bold; }
+  .bad { color: var(--bad); font-weight: bold; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+          padding: .9rem 1.1rem; margin: .8rem 0; }
+  .kpi { font-family: Consolas, monospace; font-size: .85rem; }
+  ul, ol { padding-left: 1.4rem; } li { margin: .25rem 0; }
+  .wp { border-left: 4px solid var(--accent); padding-left: .8rem; margin: .9rem 0; }
+  .wp .who { color: var(--muted); font-size: .82rem; font-family: Consolas, monospace; }
+  .ladder td:first-child { white-space: nowrap; font-family: Consolas, monospace; font-size: .82rem; }
+  blockquote { margin: .8rem 0; padding: .5rem 1rem; border-left: 4px solid var(--border);
+               color: var(--muted); font-style: italic; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>HEARTH × mechnet — Offload-First Strategy</h1>
+<div class="meta">
+  2026-07-15 · <span class="status draft">DRAFT v1 — for Derek's review</span> ·
+  All work packages are <strong>draft-ready, none dispatched</strong> (fleet pacing is Derek's call).<br>
+  Companions: <code>HEARTH-BANKED-FIRE-STRATEGY.html</code> · <code>HEARTH-SKILLS-UPGRADE-PLAN.html</code> · <code>hearth/BUILD-REQUESTS.md</code> · ADR-0005/0008/0010/0012/0014/0015
+</div>
+
+<blockquote>Objective: invert the default. Claude's frontier tokens go to <strong>intent, decomposition,
+briefs, judgment, and integration</strong>. Everything else — reading, drafting, extracting, summarizing,
+scoring, building — runs on HEARTH rungs and mechnet lanes, and every one of those runs feeds the ledger.</blockquote>
+
+<h2>1 · Current position</h2>
+
+<h3>1.1 The rungs (all four live; router clean)</h3>
+<div class="scrollwrap"><table>
+<tr><th>rung</th><th>compute economics</th><th>model</th><th>tags (opportunistic)</th><th>default budget</th><th>state</th></tr>
+<tr><td><code>omen-ollama</code></td><td>sunk (free forever)</td><td>qwen3-coder:30b</td><td>default, code</td><td>1024</td><td class="good">LIVE, default</td></tr>
+<tr><td><code>am4-oxen</code></td><td>sunk (banked fire)</td><td>oxen (dual-B70 Qwen3-30B)</td><td>big-context, research, second-opinion</td><td>1024</td><td class="warn">LIVE, flaky (see §2)</td></tr>
+<tr><td><code>gcp-gemini</code></td><td>trial credits (near-free, finite)</td><td>gemini-3.5-flash</td><td>frontier, deep-reasoning, long-context, cloud-overflow</td><td class="warn">1024 (no thinking budget!)</td><td class="good">LIVE</td></tr>
+<tr><td><code>gcp-gemini-pro</code></td><td>trial credits (premium reach)</td><td>gemini-3.1-pro-preview (1M ctx, thinking)</td><td>pin-only by design</td><td>16384</td><td class="good">LIVE, untested</td></tr>
+</table></div>
+<p>Router (<code>hearth/toolsurface/backends.py</code> + <code>inference.py</code>): pinned endpoint &gt; pinned
+name &gt; tag match (occupancy-gated) &gt; default. Per-rung output budgets land via
+<code>settings.max_tokens</code>. Every call is ledgered with the resolved <code>model</code>.
+Live ledger already shows real multi-rung traffic: <span class="kpi">gemini-pro ×16 · qwen ×11 · flash ×3</span>.</p>
+
+<h3>1.2 The lanes (maturity order)</h3>
+<div class="scrollwrap"><table>
+<tr><th>lane</th><th>entry</th><th>state</th><th>gap</th></tr>
+<tr><td>Sync generate</td><td><code>local_generate</code></td><td class="good">most mature, multi-rung traffic</td><td>caller must ferry all context in the prompt; no temperature/seed knob</td></tr>
+<tr><td>Build-request</td><td><code>*_build_request</code> ×6</td><td class="good">live, 4 receipts, acceptance-gated close</td><td>records/audits the work; the calling agent still executes it</td></tr>
+<tr><td>Commander refine</td><td><code>refine_idea/-result</code></td><td class="good">live (REFINE only)</td><td>per-turn author/critic calls not individually ledgered (ADR-0012 gap); BUILD/BOTH deferred</td></tr>
+<tr><td>Ledger / learning loop</td><td>kernel ledger → projections</td><td class="warn">ledger live; knowledge STALE since 07-04</td><td>economics view can't tell Gemini offloads from local (buckets by caller, not executor)</td></tr>
+<tr><td>Experiments harness</td><td><code>hearth/experiments/</code></td><td class="warn">panel-judging pattern proven; partly stalled</td><td>3 untracked rejudge scripts; <code>rejudge_oxen.py</code> stalled 120/192 on AM4 failures, premise likely stale</td></tr>
+<tr><td>Async task lane</td><td><code>submit_task/task_status</code></td><td class="bad">works only via client-side fan-out workaround</td><td>conductor FanOutEdgeGroup ≥2 bug unfixed (box owned by another agent); phantom runs hold occupancy</td></tr>
+</table></div>
+
+<h3>1.3 Seams left by the multi-agent Gemini build-out</h3>
+<ul>
+  <li><span class="bad">Zero test coverage</span> for the pro rung and the per-rung budget mechanism
+      (<code>inference.py:316-329</code>); the packaged-pool guard doesn't assert <code>gcp-gemini-pro</code> exists.</li>
+  <li><span class="warn">Flash never got the thinking-budget fix</span> — it silently defaults to 1024 and can
+      return empty text exactly the way pro did before <code>a2e1ac3</code>.</li>
+  <li><code>/checkmcp --probe-cloud</code> live-probes <strong>flash only</strong>; pro gets an auth line, never an
+      end-to-end probe. <code>fleet/inventory.toml</code> has a flash cloud-backend node but no pro node, so
+      <code>/checkmechnet</code> is blind to pro too.</li>
+  <li>Test fixture drift: <code>test_backends.py</code> still declares the old <em>tailnet</em> AM4 address, stale
+      model id and tags (ADR-0014 made LAN canonical).</li>
+  <li><code>GOOGLE_CLOUD_PROJECT_ID</code> fallback accepted in code but documented nowhere.</li>
+  <li>Every Gemini call with unset <code>GOOGLE_OAUTH_ACCESS_TOKEN</code> shells <code>gcloud auth print-access-token</code>
+      afresh (no in-process token cache).</li>
+  <li>Model-string pairing (<code>gemini-3.5-flash</code> vs <code>gemini-3.1-pro-preview</code>) chosen by two
+      different agents — plausibly correct (different preview tracks) but unconfirmed.</li>
+  <li><code>rejudge_oxen.py</code> duplicates a leg <code>rejudge_panel.py</code> already reports complete (192/192)
+      — built on a stale failure assumption, itself now stalled.</li>
+</ul>
+
+<h2>2 · Assessment — what actually blocks the goal</h2>
+<p>The plumbing is <strong>done</strong>. Four rungs, one door, clean routing, everything ledgered.
+What's missing is not another backend — it's the four things that turn plumbing into an operating mode:</p>
+<div class="card"><ol>
+  <li><strong>The ferrying tax.</strong> <code>local_generate</code> makes Claude paste every byte of context into
+      the prompt. For "summarize what I already read" that's fine; for "read these five files and draft X" Claude
+      pays frontier tokens to read them first, which defeats the point. The door already has <code>fs</code> tools —
+      the rungs just can't use them. <em>This is the single biggest ergonomic lever.</em></li>
+  <li><strong>Verification capacity.</strong> If Claude offloads the doing, Claude's job becomes specify + verify.
+      Verification must itself be mostly offloaded (judge panels, acceptance criteria, tests) or Claude becomes the
+      bottleneck again. The rejudge experiments already proved the pattern and calibrated the noise
+      (within-cell σ≈0.44 vs concise-effect≈3.0 → small panels suffice) — it just isn't packaged as a tool.</li>
+  <li><strong>The learning loop is half-open.</strong> Knowledge projections frozen at 2026-07-04 — eleven days of
+      ledger (including the whole Gemini era) undigested. And the economics view buckets by <em>caller</em>, so it
+      literally cannot see the offload ratio we're trying to maximize.</li>
+  <li><strong>Policy is prose, not mechanics.</strong> CLAUDE.md says "offload the grunt work" but nothing measures
+      whether a session did. No KPI, no trial-credit burn-down, no per-session readout. What isn't measured
+      won't invert.</li>
+</ol></div>
+<p>Plus one reliability drag: <strong>AM4/oxen instability</strong> is the recurring failure across the harness
+(502 on the critic card, <code>wake_am4</code> revives only the planner slot, 8-consecutive-failure stalls) — and
+the task lane survives on a workaround for a conductor bug this repo doesn't own.</p>
+
+<h2>3 · Doctrine — the rung ladder</h2>
+<p>Default routing per task class. Escalate only when the cheaper rung's output fails the check.
+<strong>Claude keeps:</strong> architecture, multi-file logic, judgment calls, brief-writing, final integration,
+anything needing live repo-wide context or this conversation.</p>
+<div class="scrollwrap"><table class="ladder">
+<tr><th>route to</th><th>task class</th><th>why</th></tr>
+<tr><td>omen-ollama</td><td>extract/classify/label · boilerplate · commit-message drafts · short summaries</td><td>sunk, always warm, 54 tok/s</td></tr>
+<tr><td>am4-oxen</td><td>big-context summarize/research · second opinions · judge-panel seats</td><td>sunk, big context; occupancy-gated so it yields to imagegen</td></tr>
+<tr><td>gcp-gemini (flash)</td><td>self-contained reasoning · drafting to edit · integration proofs · file-slice Q&amp;A · <em>default cloud judge</em></td><td>near-free frontier-class while credits last; tag-routable</td></tr>
+<tr><td>gcp-gemini-pro (pin)</td><td>hard single-shot reasoning · whole-subsystem analysis (1M ctx) · gnarly drafts flash flubs</td><td>premium reach, deliberate pin only</td></tr>
+<tr><td>submit_task (fleet)</td><td>minutes-scale parallel builds/research with a self-contained brief</td><td>fleet has read-only source; conductor pipeline + assay</td></tr>
+<tr><td>build-request lane</td><td>auditable infra with provable acceptance criteria</td><td>receipt-gated close; the delegation contract</td></tr>
+<tr><td><strong>Claude inline</strong></td><td>only what's left (see "Claude keeps")</td><td>metered — the scarce resource</td></tr>
+</table></div>
+<p>Session operating loop: <strong>brief → route → verify (panel/criteria/tests) → integrate</strong>.
+One retry max on a cold rung, then either climb one rung or do it inline — never loop on a cold worker.</p>
+
+<h2>4 · The plan</h2>
+<p>Five phases, ordered by leverage. Work packages sized for the token-tier split
+(<span class="kpi">Fable briefs/reviews · Sonnet/fleet builds · rungs draft</span>). Each WP is written so it can
+become a build-request with checkable criteria.</p>
+
+<h3>Phase 0 — Trust the rungs (hygiene; mostly fleet-dispatchable)</h3>
+<div class="wp"><strong>WP0.1 Test the Gemini-era surface.</strong> Packaged-pool guard asserts
+<code>gcp-gemini-pro</code>; budget-resolution tests (caller &gt; settings &gt; 1024, coercion, ≤0 guard); a pro-pin
+routing test. <span class="who">AC: deleting the pro rung fails a test; pytest green. · fleet/Sonnet</span></div>
+<div class="wp"><strong>WP0.2 Flash thinking budget.</strong> <code>settings.max_tokens = 8192</code> on
+<code>gcp-gemini</code> — same empty-text protection pro got. <span class="who">AC: omitted max_tokens on flash
+resolves 8192 (test). · fleet</span></div>
+<div class="wp"><strong>WP0.3 Probe parity.</strong> <code>doorcheck --probe-cloud</code> probes both Gemini rungs;
+add a <code>gcp-gemini-pro</code> cloud-backend node to <code>fleet/inventory.toml</code> so
+<code>/checkmechnet</code> sees it. <span class="who">AC: both rungs get live probe lines. · fleet</span></div>
+<div class="wp"><strong>WP0.4 Drift cleanup.</strong> Sync <code>test_backends.py</code> fixture to LAN reality (or add
+a fixture-mirrors-packaged-pool test); document or remove <code>GOOGLE_CLOUD_PROJECT_ID</code>; confirm the
+flash-3.5/pro-3.1 model-string pairing; optional in-process gcloud-token cache (~50 min TTL).
+<span class="who">AC: fixture matches pool; env vars documented in backends.toml. · fleet</span></div>
+<div class="wp"><strong>WP0.5 Experiments closeout.</strong> Land or delete the three untracked
+<code>rejudge_*</code> scripts; write the findings digest (cross-model vs cross-rubric vs sampling variance);
+retire <code>rejudge_oxen.py</code> unless its premise survives a check of <code>panel_rejudge.jsonl</code>.
+<span class="who">AC: git status clean of stale experiments; findings doc committed. · Fable review + rung-drafted digest</span></div>
+
+<h3>Phase 1 — Cut the ferrying tax (the big lever)</h3>
+<div class="wp"><strong>WP1.1 <code>files=</code> on local_generate — un-pins register item ③.</strong> Door-side
+context packing: caller passes repo-relative paths (or a glob), the door inlines contents into the prompt under
+per-file and total byte caps, records bytes-packed on the ledger event. Pairs with pro's 1M context: "read this
+subsystem, answer X" becomes a one-line offload. This is <em>not</em> a new idea — it is the "repo-aware
+<code>local_generate</code>" decision pinned in <code>DECISIONS-PENDING.md</code> on 2026-07-09 awaiting use-case
+discovery. The use cases have now accumulated: the original bootstrap gap, feeding <code>knowledge/</code>,
+repo-grounded experiment briefs, panel judging over repo artifacts, and the pro rung's 1M context making
+subsystem-scale reads viable. The evidence bar the pin asked for is met — this WP is the un-pin.
+<span class="who">AC: files call answers from content Claude never read; over-cap → clean error; ledger row carries
+sizes; register item ③ checked off with a link here. · Sonnet build, Fable review (router core)</span></div>
+<div class="wp"><strong>WP1.2 Sampling knobs.</strong> <code>temperature/seed/top_p</code> passthrough on all three
+adapters — kills the raw-POST bypass <code>rejudge_variance.py</code> needed, restoring the one-boundary rule
+(every inference through the door, every rep on the ledger). <span class="who">AC: variance harness reruns via
+local_generate only. · fleet</span></div>
+<div class="wp"><strong>WP1.3 (optional) <code>expect="json"</code>.</strong> Door validates parse, one retry, then
+<code>ok:false</code> with the parse error — makes extraction offloads trustworthy without Claude eyeballing.
+<span class="who">AC: malformed output retried once then surfaced. · fleet</span></div>
+
+<h3>Phase 2 — Measure the objective</h3>
+<div class="wp"><strong>WP2.1 Executor-aware economics.</strong> New projection keyed by backend/model for
+inference rows with a cost-class map (<code>sunk / trial / metered</code>) → <code>knowledge/offload.json</code>
++ query tool. This is where the <strong>offload ratio</strong> becomes computable — today the economics view
+buckets by caller and cannot see it. <span class="who">AC: ratio + per-rung token totals from live ledger;
+Gemini vs local distinguishable. · Sonnet</span></div>
+<div class="wp"><strong>WP2.2 Knowledge freshness.</strong> Run <code>rebuild_knowledge</code> now (stale since
+07-04), then fold a rebuild timer into the gateway per ADR-0015. <span class="who">AC: mtimes current;
+timer visible to patrol. · fleet</span></div>
+<div class="wp"><strong>WP2.3 Credit-burn watch.</strong> Cumulative Gemini tokens from the ledger surfaced as a
+<code>/checkmcp</code> line; credit note + expiry in backends.toml; a one-paragraph degradation runbook (when
+credits lapse: strip flash's tags so opportunistic routing falls back to oxen/omen; pro stays pin-only).
+<span class="who">AC: burn line visible; runbook committed. · fleet</span></div>
+
+<h3>Phase 3 — Make offload the default motion</h3>
+<div class="wp"><strong>WP3.1 CLAUDE.md rewrite.</strong> Replace the prose guidance with the §3 ladder — a decision
+table with trigger phrases, context-size thresholds, and the "Claude keeps" list. <span class="who">AC: table in
+CLAUDE.md; doc-only → straight to master. · Fable (doctrine text)</span></div>
+<div class="wp"><strong>WP3.2 <code>panel_judge</code> tool.</strong> Promote the rejudge pattern into the
+toolsurface: one call fans a rubric across N judge seats (qwen + oxen + flash by default), returns votes + spread,
+quorum-tolerant to one dead seat; K defaults from the variance study's estimator. Claude reads the verdict
+distribution instead of doing the judging. <span class="who">AC: one call → panel verdict with per-seat ledger
+events. · Sonnet build, Fable review</span></div>
+<div class="wp"><strong>WP3.3 Skill upgrades.</strong> Audit repo skills for inline drafting that should route
+through the door (retro already offloads; extend the pattern), and add the offload-ratio readout to the /retro
+template so every session closes with the number. <span class="who">AC: retro reports ratio. · fleet</span></div>
+
+<h3>Phase 4 — Strengthen the async lanes</h3>
+<div class="wp"><strong>WP4.1 Oxen warm-keeping: scheduled weight loading + critic revive.</strong> Derek's flagged
+(never-executed) intent — "Oxen, schedule loading weights — fix" — lands here. Two parts: (a) extend
+<code>wake_am4</code> to the b70-critic unit (or a target param), removing the recurring 502 and unlocking the
+second panel seat; (b) an ADR-0015 in-gateway timer (<code>hearth/kernel/timers.py</code> already carries
+patrol/watchdog/drain) that pre-loads and keeps the B70 weights warm — <em>gated by the existing imagegen occupancy
+probe</em> so it never competes with the imagegen pipeline, per standing directive. Warm weights turn oxen from the
+harness's recurring bottleneck (8-consecutive-failure stalls) into a dependable panel seat.
+<span class="who">AC: both units revivable via the door; a panel sweep after ≥1h idle hits no cold-start 502s;
+timer visible to patrol and yields to imagegen occupancy. · Sonnet</span></div>
+<div class="wp"><strong>WP4.2 Conductor fan-out fix + repo targeting (register item ④).</strong> The
+FanOutEdgeGroup ≥2 crash is conductor-side and the box is concurrently owned — needs coordination, on Derek's cue;
+client workaround stands until then. Same coordination window should decide pinned register item ④ (fleet builds
+targeting a non-conductor repo via an optional CCMETA <code>repo</code> field — the Valheim fieldlab trigger;
+comfy_gateway :8720 covers the interactive slice meanwhile). <span class="who">AC: single-builder submit completes
+without padding; ④ decided (build or re-pin with rationale). · coordinate</span></div>
+<div class="wp"><strong>WP4.3 (deferred) Agent lane.</strong> A door-side bounded agentic loop on flash/pro with
+read-only fs tools — only if WP1.1 file-packing proves insufficient for multi-file offloads. Park it; don't build
+speculatively. <span class="who">experiment, gated on Phase 1 evidence</span></div>
+
+<h2>5 · KPIs</h2>
+<ul class="kpi">
+  <li><strong>Offload ratio</strong>: generation tokens executed on sunk/trial rungs ÷ all door generation tokens — target ≥ 80% (WP2.1 makes it computable).</li>
+  <li><strong>Metered-token trend</strong>: Claude's per-session metered output for comparable work, trending down (Derek reads this from usage; /retro cross-references).</li>
+  <li><strong>Knowledge freshness</strong>: projection mtime lag &lt; 24 h (vs 11 days today).</li>
+  <li><strong>Rung reliability</strong>: am4-oxen ok_rate ≥ 95% on panel duty; task-lane phantom runs = 0.</li>
+  <li><strong>Trial-credit runway</strong>: burn line visible every /checkmcp; degradation runbook ready before exhaustion.</li>
+</ul>
+
+<h2>6 · Risks &amp; contingencies</h2>
+<ul>
+  <li><strong>Trial credits end</strong> → flash starts failing mid-tag-route. Mitigation: WP2.3 burn watch + re-tag
+      runbook; the ladder degrades gracefully to oxen/omen (sunk rungs are the floor, not the ceiling).</li>
+  <li><strong>AM4 flakiness mid-panel</strong> → panels quorum-tolerant (N−1 votes accepted); WP4.1 revive fix.</li>
+  <li><strong>Over-offloading judgment</strong> → the ladder's "Claude keeps" list is a hard boundary; panel votes
+      are advisory input to Claude's decision, never binding.</li>
+  <li><strong>One-boundary erosion</strong> → WP1.2 removes the last legitimate reason to bypass the door; policy:
+      all inference through HEARTH, no raw POSTs.</li>
+  <li><strong>Conductor ownership</strong> → task-lane fix stays coordination-gated; nothing in this plan writes to
+      cc-conductor.</li>
+</ul>
+
+<h2>7 · Immediate next actions (on cue)</h2>
+<ol>
+  <li>Run <code>rebuild_knowledge</code> — one call, closes the 11-day staleness immediately.</li>
+  <li>Open Phase 0 as build-requests (WP0.1–WP0.5 have checkable criteria as written).</li>
+  <li>WP1.1 brief to Sonnet — the ferrying-tax fix is the highest-leverage single change in this document,
+      and it un-pins register item ③.</li>
+  <li>WP3.1 CLAUDE.md ladder — doc-only, cheap, and starts shifting session behavior now.</li>
+  <li>Sync the decisions register — <code>DECISIONS-PENDING.md</code> + its HTML tracker predate 2026-07-11's
+      landings (guard coverage done, harvest partial); un-pin ③ → WP1.1, annotate ④ → WP4.2, and add the
+      offload-first adoption decision itself as a register row.</li>
+</ol>
+
+</main>
+</body>
+</html>

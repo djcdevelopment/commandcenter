@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="refresh" content="300">
+<title>HEARTH Dashboard</title>
+<style>
+:root {
+  --bg: #faf8f4; --fg: #22211e; --muted: #6b6760; --accent: #b4541e;
+  --card: #ffffff; --border: #e2ddd3; --good: #2e7d32; --warn: #b26a00; --bad: #c62828; --code-bg: #f0ece4;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1b18; --fg: #e8e4dc; --muted: #a09a8e; --accent: #e8925a;
+    --card: #262420; --border: #3a372f; --good: #81c784; --warn: #ffb74d; --bad: #ef9a9a; --code-bg: #2e2b25;
+  }
+}
+body { background: var(--bg); color: var(--fg); font-family: system-ui, sans-serif; padding: 20px; line-height: 1.5; margin: 0; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 15px; margin-bottom: 20px; }
+table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9em; }
+th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
+th { color: var(--muted); font-weight: normal; }
+.bar-bg { background: var(--border); border-radius: 4px; overflow: hidden; height: 20px; width: 100%; margin-top: 8px; }
+.bar-fg { background: var(--accent); height: 100%; }
+.metric { font-size: 2em; margin-top: 8px; font-weight: 500; }
+h1, h2, h3 { margin-top: 0; font-weight: 500; }
+h3 { color: var(--muted); font-size: 0.9em; text-transform: uppercase; letter-spacing: 0.5px; }
+</style>
+</head>
+<body>
+<h1>HEARTH Dashboard</h1>
+<div style="color: var(--muted); margin-bottom: 24px; font-size: 0.9em;">
+Generated at: 2026-07-18 02:42:29 UTC &bull; Capacity watermark: 2026-07-18T02:42:22.613117Z &bull; Offload watermark: 2026-07-18T02:40:07.081490Z
+</div>
+<div class="card" style="display: flex; gap: 20px; flex-wrap: wrap;">
+<div style="flex: 1; min-width: 200px;">
+<h3>Offload Ratio</h3>
+<div class="metric">1.0</div>
+</div>
+<div style="flex: 1; min-width: 200px;">
+<h3>Est. USD Saved</h3>
+<div class="metric" style="color: var(--good);">$0.56</div>
+</div>
+<div style="flex: 1; min-width: 200px;">
+<h3>Trial Burn</h3>
+<div class="metric" style="font-size: 1.2em; margin-bottom: 4px;">109,103 / 200,000,000</div>
+<div class="bar-bg"><div class="bar-fg" style="width: 0%;"></div></div>
+</div>
+<div style="flex: 1; min-width: 200px;">
+<h3>24h Events</h3>
+<div class="metric">414</div>
+</div>
+</div>
+<div class="card" style="display: flex; gap: 20px; flex-wrap: wrap;">
+<div style="flex: 1; min-width: 150px;">
+<h3>Escalations (24h)</h3>
+<div class="metric">1</div>
+</div>
+<div style="flex: 1; min-width: 150px;">
+<h3>Asks (24h)</h3>
+<div class="metric">1</div>
+</div>
+<div style="flex: 1; min-width: 150px;">
+<h3>Payload Routes (24h)</h3>
+<div class="metric">1</div>
+</div>
+<div style="flex: 1; min-width: 150px;">
+<h3>Quality Calls (24h)</h3>
+<div class="metric">1</div>
+</div>
+</div>
+<div class="card">
+<h2>All-Time Buckets (offload.json)</h2>
+<table>
+<tr><th>Backend</th><th>Cost Class</th><th>Calls</th><th>OK Rate</th><th>Tokens In</th><th>Tokens Out</th><th>Last Seen</th></tr>
+<tr>
+<td>gcp-gemini</td>
+<td>trial</td>
+<td>4</td>
+<td>1.0</td>
+<td>36,580</td>
+<td>19</td>
+<td>2026-07-18T02:35:20.369282Z</td>
+</tr>
+<tr>
+<td>gcp-gemini-pro</td>
+<td>trial</td>
+<td>3</td>
+<td>1.0</td>
+<td>53,064</td>
+<td>19,440</td>
+<td>2026-07-18T02:40:07.081490Z</td>
+</tr>
+<tr>
+<td>model:</td>
+<td>unknown</td>
+<td>3</td>
+<td>0.3333</td>
+<td>0</td>
+<td>0</td>
+<td>2026-07-18T02:35:04.970009Z</td>
+</tr>
+<tr>
+<td>model:/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf</td>
+<td>sunk</td>
+<td>11</td>
+<td>1.0</td>
+<td>0</td>
+<td>0</td>
+<td>2026-07-16T09:45:43.566795Z</td>
+</tr>
+<tr>
+<td>model:gemini-3.1-pro-preview</td>
+<td>trial</td>
+<td>101</td>
+<td>1.0</td>
+<td>0</td>
+<td>0</td>
+<td>2026-07-18T01:15:55.311065Z</td>
+</tr>
+<tr>
+<td>model:gemini-3.5-flash</td>
+<td>trial</td>
+<td>50</td>
+<td>1.0</td>
+<td>0</td>
+<td>0</td>
+<td>2026-07-18T00:49:24.135678Z</td>
+</tr>
+<tr>
+<td>model:qwen3-coder:30b</td>
+<td>sunk</td>
+<td>15</td>
+<td>1.0</td>
+<td>0</td>
+<td>0</td>
+<td>2026-07-16T09:42:24.778986Z</td>
+</tr>
+<tr>
+<td>omen-ollama</td>
+<td>sunk</td>
+<td>2</td>
+<td>1.0</td>
+<td>26</td>
+<td>8</td>
+<td>2026-07-18T02:26:05.072434Z</td>
+</tr>
+</table>
+</div>
+<div style="display: flex; gap: 20px; flex-wrap: wrap;">
+<div class="card" style="flex: 1; min-width: 300px;">
+<h2>24h Local Generate</h2>
+<table>
+<tr><th>Backend</th><th>Calls</th><th>OK</th></tr>
+<tr>
+<td>gcp-gemini</td>
+<td>4</td>
+<td>4</td>
+</tr>
+<tr>
+<td>gcp-gemini-pro</td>
+<td>3</td>
+<td>3</td>
+</tr>
+<tr>
+<td>omen-ollama</td>
+<td>2</td>
+<td>2</td>
+</tr>
+<tr>
+<td>unknown</td>
+<td>22</td>
+<td>21</td>
+</tr>
+</table>
+</div>
+<div class="card" style="flex: 1; min-width: 300px;">
+<h2>24h Error Codes</h2>
+<table>
+<tr><th>Error Code</th><th>Count</th></tr>
+<tr><td colspan="2">No errors in last 24h.</td></tr>
+</table>
+</div>
+</div>
+</body>
+</html>

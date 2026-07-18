@@ -924,5 +924,7 @@
       "confidence": "medium",
       "last_observed": "2026-07-04T04:18:00+00:00"
     }
-  ]
+  ],
+  "corpus_digest": "sha256:9166d8234ea4ccb48351f8ca57ffc293b829f6a8ec9e1d16dc36f248de748e16",
+  "corpus_event_count": 20
 }

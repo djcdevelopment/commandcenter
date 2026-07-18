@@ -8,5 +8,9 @@
       "PowerShell(Set-Location C:\\\\work\\\\commandcenter; python -m tools.workflow.reference_runner fixtures/workflow/sample-work-item.md \"$env:TEMP\\\\cc-dispatch-demo2\" --scenario policy-experiment --policy fixtures/workflow/policy/policy.json > $null; python -c \"import json; d=json.load\\(open\\(r'$env:TEMP\\\\cc-dispatch-demo2\\\\sample-work-item\\\\artifacts\\\\decisions\\\\dec_assign_001.json'\\)\\); print\\(json.dumps\\({'selected': d['selected'], 'reason': d['decision_reason'], 'ram_prediction': d['predictions']['expected_peak_ram_mb'], 'influence': d['policy_influence']}, indent=2\\)\\)\")",
       "PowerShell(Remove-Item *)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "hearth",
+    "comfy_gateway"
+  ]
 }

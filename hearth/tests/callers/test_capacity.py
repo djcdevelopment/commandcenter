@@ -184,3 +184,105 @@ class BuildCapacityDocumentTests(TestCase):
         ])
         document = build_capacity_document(self.ledger)
         self.assertEqual(document["evidence_watermark"], "2026-07-03T00:00:00+00:00")
+
+    def test_resolved_outage_ages_out_of_the_windowed_rate(self) -> None:
+        """The patrol_snapshot defect: 547 real SSH failures to the conductor's
+        old tailnet address ended on 2026-07-09 when ADR-0014/0015 moved machine
+        lanes off the tailnet, yet held the lifetime rate near 0.88 forever.
+        These name real errors, so unlike the drain no-ops they must KEEP
+        counting -- the trailing window is what stops a fixed outage from
+        reading as a present-tense fault."""
+        self.write_ledger([
+            *[make_event("mechnet_watchdog.patrol_snapshot", False, 0, None,
+                         ts=f"2026-06-0{d}T00:00:00+00:00",
+                         error="TimeoutExpired: ssh claude@100.74.110.91")
+              for d in range(1, 10)],
+            *[make_event("mechnet_watchdog.patrol_snapshot", True, 500, None,
+                         ts=f"2026-07-1{d}T00:00:00+00:00")
+              for d in range(0, 9)],
+        ])
+        bucket = build_capacity_document(self.ledger)["buckets"][0]
+        self.assertEqual(bucket["calls"], 18)
+        self.assertEqual(bucket["ok_rate"], 0.5)     # lifetime still carries it
+        self.assertEqual(bucket["indeterminate"], 0)  # never reinterpreted
+        self.assertEqual(bucket["calls_7d"], 7)
+        self.assertEqual(bucket["ok_rate_7d"], 1.0)  # healthy today
+        self.assertEqual(bucket["ok_rate_30d"], 1.0)
+
+    def test_windows_anchor_to_the_corpus_watermark_not_wall_clock(self) -> None:
+        """Every event here is years stale, so a wall-clock anchor would put the
+        whole corpus outside every window and rate it null. Anchoring to the
+        watermark keeps the projection a pure function of its corpus: one ledger
+        must project one document today and next year, or corpus_digest and
+        guard_write's stability assumption breaks and a merely quiet ledger
+        becomes indistinguishable from a broken one."""
+        self.write_ledger([
+            make_event("run_tests", True, 100, 10, ts="2020-01-01T00:00:00+00:00"),
+            make_event("run_tests", False, 0, None, ts="2020-01-02T00:00:00+00:00"),
+        ])
+        bucket = build_capacity_document(self.ledger)["buckets"][0]
+        self.assertEqual(bucket["calls_7d"], 2)
+        self.assertEqual(bucket["ok_rate_7d"], 0.5)
+
+    def test_bucket_with_no_calls_in_window_rates_null_not_zero(self) -> None:
+        """A tool that has not run lately has no recent evidence, which must read
+        as null ("nothing to say") and never 0.0 ("it always fails") -- consumers
+        fall back to the lifetime rate. Same convention the lifetime rate uses
+        for a bucket with no determinate evidence."""
+        self.write_ledger([
+            make_event("retired_tool", True, 100, 10, ts="2026-05-01T00:00:00+00:00"),
+            make_event("active_tool", True, 100, 10, ts="2026-07-18T00:00:00+00:00"),
+        ])
+        buckets = {b["tool"]: b for b in build_capacity_document(self.ledger)["buckets"]}
+        retired = buckets["retired_tool"]
+        self.assertEqual(retired["ok_rate"], 1.0)    # lifetime remembers
+        self.assertEqual(retired["calls_7d"], 0)
+        self.assertIsNone(retired["ok_rate_7d"])
+        self.assertIsNone(retired["ok_rate_30d"])
+
+    def test_windowed_rate_excludes_indeterminate_like_the_lifetime_rate(self) -> None:
+        """The two repairs compose: adding recency must not quietly re-admit the
+        ok:false/error:null shape the lifetime rate already refuses to count."""
+        self.write_ledger([
+            make_event("bankedfire_drain.tick", True, 0, None,
+                       ts="2026-07-18T00:00:00+00:00"),
+            *[make_event("bankedfire_drain.tick", False, 0, None, error=None,
+                         ts="2026-07-18T00:00:00+00:00") for _ in range(5)],
+        ])
+        bucket = build_capacity_document(self.ledger)["buckets"][0]
+        self.assertEqual(bucket["calls_7d"], 6)      # volume stays visible
+        self.assertEqual(bucket["ok_rate_7d"], 1.0)  # NOT 0.1667
+
+    def test_window_boundary_is_half_open_on_the_old_side(self) -> None:
+        """(watermark - N days, watermark]: an event exactly N days old falls
+        outside, so adjacent windows of one width never double-count a call."""
+        self.write_ledger([
+            make_event("run_tests", False, 0, None, ts="2026-07-11T00:00:00+00:00"),
+            make_event("run_tests", True, 100, 10, ts="2026-07-18T00:00:00+00:00"),
+        ])
+        bucket = build_capacity_document(self.ledger)["buckets"][0]
+        self.assertEqual(bucket["calls_7d"], 1)      # boundary event excluded
+        self.assertEqual(bucket["ok_rate_7d"], 1.0)
+        self.assertEqual(bucket["calls_30d"], 2)     # but inside the wider window
+        self.assertEqual(bucket["ok_rate_30d"], 0.5)
+
+    def test_unparseable_timestamp_counts_lifetime_but_lands_in_no_window(self) -> None:
+        """A stamp we cannot place in time is still evidence the call happened;
+        it just cannot be windowed. It must neither raise nor silently vanish.
+
+        Defense in depth, not a live shape: ledger.new_event's ts pattern rejects
+        this on write, so it only arrives via a hand-edited or foreign-written
+        ledger -- which the projection still may not crash on. Deliberately does
+        NOT assert evidence_watermark: that is picked by lexical string max, so
+        this fixture poisons it ('n' > '2'). Pre-existing and separate from
+        windowing, which is exactly why the windows track their own parsed
+        newest_moment instead of reusing newest_ts."""
+        self.write_ledger([
+            make_event("run_tests", True, 100, 10, ts="2026-07-18T00:00:00+00:00"),
+            make_event("run_tests", False, 0, None, ts="not-a-timestamp"),
+        ])
+        bucket = build_capacity_document(self.ledger)["buckets"][0]
+        self.assertEqual(bucket["calls"], 2)
+        self.assertEqual(bucket["ok_rate"], 0.5)     # lifetime counts both
+        self.assertEqual(bucket["calls_7d"], 1)      # only the placeable one
+        self.assertEqual(bucket["ok_rate_7d"], 1.0)

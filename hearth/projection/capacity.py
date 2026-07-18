@@ -11,6 +11,16 @@ the incoherent ok:false/error:null shape as indeterminate instead (see
 _is_indeterminate). Emitters split the two meanings via the event's `outcome`
 field; ok answers "did it do its job", outcome answers "which branch".
 
+`ok_rate` is cumulative over the whole ledger, so a RESOLVED outage depresses a bucket
+forever. mechnet_watchdog.patrol_snapshot read 0.8775 lifetime against 0.9957 since
+2026-07-10 on the strength of 547 SSH failures to the conductor's old tailnet address,
+which stopped for good on 2026-07-09 when ADR-0014/0015 moved machine lanes off the
+tailnet. Unlike the drain no-ops above, those are GENUINE failures naming real errors,
+so the repair is recency, not reinterpretation: the trailing `ok_rate_<N>d` fields let a
+fixed outage age out, while lifetime `ok_rate` stays exactly as it was — it is still the
+right denominator for "how has this ever behaved". The two repairs compose; the windowed
+rates are computed over determinate calls too.
+
 A parallel effort is adding optional `task_class` and `model` fields to ledger events;
 most historical events predate that and will not carry them. Missing values fall back
 to `None` in the bucket key rather than being dropped — every event is still counted
@@ -23,10 +33,16 @@ import argparse
 import hashlib
 import json
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 DEFAULT_LEDGER = Path("hearth/var/ledger/events.ndjson")
+
+# Trailing windows (days) reported beside the lifetime rate as `calls_<N>d` /
+# `ok_rate_<N>d`. Both field families derive from this tuple so a window can
+# never gain a count without its rate; the schema names the results explicitly.
+WINDOW_DAYS: tuple[int, ...] = (7, 30)
 
 BucketKey = tuple[Any, Any, Any, Any, str]
 
@@ -51,7 +67,28 @@ def _empty_accumulator() -> dict:
         "durations_ms": [],  # only from ok:true events
         "tokens_out_per_s": [],
         "last_seen": None,
+        # (moment, ok) per timestamped call, replayed into the trailing windows once
+        # the corpus watermark is known. ok is None for an indeterminate call, so a
+        # window can count it as volume without letting it touch the rate.
+        "window_samples": [],
     }
+
+
+def _parse_ts(ts: Any) -> "datetime | None":
+    """Parse a ledger ISO timestamp to an aware datetime, or None if unusable.
+
+    Never raises: a bad stamp costs an event its place in the trailing windows,
+    not the whole projection — the same posture the loop takes toward malformed
+    lines. Naive stamps are read as UTC (the ledger writes `...Z` exclusively)
+    so window arithmetic cannot blow up on a mixed-offset corpus.
+    """
+    if not isinstance(ts, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(ts)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
 
 
 def _is_indeterminate(event: dict) -> bool:
@@ -86,6 +123,47 @@ def _bucket_key(event: dict) -> BucketKey:
     return (task_class, node, model, runner_class, tool)
 
 
+def _window_fields(samples: list, newest_moment: "datetime | None") -> dict:
+    """Per-window call volume and success rate for one bucket's samples.
+
+    Windows are anchored to the corpus watermark — the newest event in the ledger —
+    and deliberately NOT to wall-clock now. A projection has to be a pure function of
+    its corpus: anchoring to now would make one unchanged ledger yield a different
+    document every run, break the corpus_digest/guard_write regression comparison that
+    assumes re-projection is stable, and slowly decay every rate to null as a ledger
+    ages, rendering "nothing ran lately" identically to "the tool broke". Staleness is
+    already covered elsewhere and better: gaps.py's knowledge_stale spell fires when
+    capacity.json itself goes unrebuilt past its 24h SLO.
+
+    A window is the half-open interval (watermark - N days, watermark], so the newest
+    event lands in every window and no event falls in two adjacent windows of a width.
+
+    `calls_<N>d` counts every call in the window, mirroring lifetime `calls`, while
+    `ok_rate_<N>d` divides by the DETERMINATE subset, mirroring lifetime `ok_rate`.
+    A window holding no determinate call rates null rather than 0.0 — the same "we
+    never learned" is not "it always failed" convention the lifetime rate follows.
+    """
+    fields: dict[str, Any] = {}
+    for days in WINDOW_DAYS:
+        calls = determinate = ok = 0
+        # No parseable timestamp anywhere in the corpus means no window can be
+        # placed at all; every count stays 0 and every rate stays null.
+        if newest_moment is not None:
+            cutoff = newest_moment - timedelta(days=days)
+            for moment, sample_ok in samples:
+                if moment <= cutoff:
+                    continue
+                calls += 1
+                if sample_ok is None:  # indeterminate: volume yes, rate no
+                    continue
+                determinate += 1
+                if sample_ok:
+                    ok += 1
+        fields[f"calls_{days}d"] = calls
+        fields[f"ok_rate_{days}d"] = round(ok / determinate, 4) if determinate else None
+    return fields
+
+
 def build_capacity_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
     """Read the ledger at ledger_path and return a capacity.v1 document (dict).
 
@@ -96,15 +174,21 @@ def build_capacity_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
       report a failure they cannot describe, so they count toward `calls` and
       `indeterminate` but are excluded from the ok_rate denominator entirely.
       A bucket with no determinate calls gets ok_rate null, never 0.0.
+    - Alongside the lifetime rate, each bucket carries a trailing `calls_<N>d` /
+      `ok_rate_<N>d` pair per WINDOW_DAYS entry, so a resolved outage ages out of
+      the health signal instead of depressing it forever. Windows are anchored to
+      the corpus watermark, not wall-clock now (see _window_fields).
     - Missing task_class/model on an event yields a null in that bucket's key
       rather than dropping the event.
     - Malformed (non-JSON) lines are skipped; they do not raise and are not
-      counted into any bucket.
+      counted into any bucket. An event whose timestamp will not parse still
+      counts toward every lifetime figure, but cannot be placed in a window.
     - tokens_out_per_s is only sampled when both tokens_out and duration_ms are
       present and duration_ms > 0.
     """
     accumulators: dict[BucketKey, dict] = {}
     newest_ts: str | None = None
+    newest_moment: datetime | None = None
     line_count = 0
 
     if ledger_path.exists():
@@ -130,12 +214,26 @@ def build_capacity_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
                 if acc["last_seen"] is None or ts > acc["last_seen"]:
                     acc["last_seen"] = ts
 
+            # Tracked separately from newest_ts: that one is a lexical max over raw
+            # strings, which only orders correctly while every stamp shares a format.
+            # Window arithmetic needs real instants, so take the max of what parsed.
+            moment = _parse_ts(ts)
+            if moment is not None and (newest_moment is None or moment > newest_moment):
+                newest_moment = moment
+
             if _is_indeterminate(event):
                 acc["indeterminate"] += 1
+                if moment is not None:
+                    acc["window_samples"].append((moment, None))
                 continue
 
             acc["determinate"] += 1
             ok = bool(event.get("ok"))
+            # Windows read the SAME two decisions the lifetime counters just made
+            # (indeterminate above, ok here) rather than re-deriving health from the
+            # raw event — one rule change moves both scopes together, forever.
+            if moment is not None:
+                acc["window_samples"].append((moment, ok))
             if ok:
                 acc["ok"] += 1
                 duration_ms = event.get("duration_ms")
@@ -163,6 +261,8 @@ def build_capacity_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
         token_rates = sorted(acc["tokens_out_per_s"])
         tokens_out_per_s_p50 = _percentile(token_rates, 0.50) if token_rates else None
 
+        window_fields = _window_fields(acc["window_samples"], newest_moment)
+
         buckets.append({
             "task_class": task_class,
             "node": node,
@@ -177,6 +277,7 @@ def build_capacity_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
             "ok_rate": (round(acc["ok"] / acc["determinate"], 4)
                         if acc["determinate"] else None),
             "indeterminate": acc["indeterminate"],
+            **window_fields,
             "duration_ms": duration_summary,
             "tokens_out_per_s_p50": tokens_out_per_s_p50,
             "last_seen": acc["last_seen"],

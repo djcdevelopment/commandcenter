@@ -51,6 +51,22 @@
             "description": "Calls excluded from ok_rate because they reported ok:false while naming no error -- a structurally incoherent shape that ledger.new_event now refuses to persist, retained here so historical corpora stay auditable rather than silently reweighted. Optional/additive.",
             "type": "integer", "minimum": 0
           },
+          "calls_7d": {
+            "description": "Calls in the trailing 7-day window, counted like lifetime `calls` (indeterminate included). Window is the half-open interval (evidence_watermark - 7d, evidence_watermark] -- anchored to the corpus, never to wall-clock now, so re-projecting an unchanged ledger is stable. Optional/additive.",
+            "type": "integer", "minimum": 0
+          },
+          "ok_rate_7d": {
+            "description": "ok/determinate within the trailing 7-day window, or null when that window holds no determinate call. Null means 'no recent evidence', NOT 'always failed' -- consumers should fall back to lifetime ok_rate. Prefer this over ok_rate when asking 'is this healthy NOW': a resolved outage ages out here but depresses the lifetime rate forever. Optional/additive.",
+            "type": ["number", "null"], "minimum": 0, "maximum": 1
+          },
+          "calls_30d": {
+            "description": "Calls in the trailing 30-day window; see calls_7d. Optional/additive.",
+            "type": "integer", "minimum": 0
+          },
+          "ok_rate_30d": {
+            "description": "ok/determinate within the trailing 30-day window; see ok_rate_7d. The steadier of the two windows -- prefer it when 7d holds too few calls to be worth reading. Optional/additive.",
+            "type": ["number", "null"], "minimum": 0, "maximum": 1
+          },
           "duration_ms": {
             "type": "object",
             "additionalProperties": false,

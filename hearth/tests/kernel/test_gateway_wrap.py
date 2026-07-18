@@ -25,13 +25,15 @@ def fake_boom(message: str) -> str:
 
 
 def fake_tool_with_fields(message: str) -> dict[str, Any]:
-    """Returns a routed-inference-shaped result: ok:false + provenance fields."""
+    """Returns a routed-inference-shaped result: ok:false + provenance + tokens."""
     return {
         "ok": False,
         "error": "HTTPConnectionPool... Read timed out",
         "backend": "b70",
         "routed_by": "pinned",
         "occupancy": "busy",
+        "tokens_in": 123,
+        "tokens_out": 45,
     }
 
 
@@ -130,6 +132,8 @@ class GatewayWrapTest(unittest.TestCase):
         self.assertEqual(event["routed_by"], "pinned")
         self.assertEqual(event["occupancy"], "busy")
         self.assertEqual(event["error_code"], "timeout")
+        self.assertEqual(event["cost"]["tokens_in"], 123)
+        self.assertEqual(event["cost"]["tokens_out"], 45)
         self.assertTrue(event["ok"])
 
 

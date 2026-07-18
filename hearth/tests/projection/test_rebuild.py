@@ -88,6 +88,8 @@ class RebuildBasicTests(RebuildScopedTestCase):
         self.assertTrue(result["ok"])
         capacity = json.loads((self.scope / "knowledge" / "capacity.json").read_text(encoding="utf-8-sig"))
         self.assertEqual(capacity["bucket_count"], 0)
+        offload = json.loads((self.scope / "knowledge" / "offload.json").read_text(encoding="utf-8-sig"))
+        self.assertEqual(offload["bucket_count"], 0)
 
 
 class RebuildDeterminismTests(RebuildScopedTestCase):
@@ -132,6 +134,8 @@ class RebuildDeterminismTests(RebuildScopedTestCase):
         project_result = project(out=incremental_out)
         self.assertTrue(project_result["ok"], project_result)
         project_capacity_knowledge(ledger_path="hearth/var/ledger/events.ndjson", out=incremental_out)
+        from hearth.toolsurface.knowledge import project_offload_knowledge
+        project_offload_knowledge(ledger_path="hearth/var/ledger/events.ndjson", out=incremental_out)
 
         rebuilt_dir = self.scope / rebuild_out
         incremental_dir = self.scope / incremental_out

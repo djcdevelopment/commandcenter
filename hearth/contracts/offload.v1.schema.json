@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "offload.v1.schema.json",
+  "title": "offload.v1",
+  "description": "Executor-aware economics summary over the HEARTH ledger.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version", "evidence_watermark", "bucket_count", "totals",
+    "per_class", "offload_ratio", "est_usd_saved", "buckets"
+  ],
+  "properties": {
+    "contract_version": { "const": "offload.v1" },
+    "evidence_watermark": { "type": ["string", "null"] },
+    "bucket_count": { "type": "integer", "minimum": 0 },
+    "corpus_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "corpus_event_count": { "type": "integer", "minimum": 0 },
+    "totals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["calls", "tokens_in", "tokens_out"],
+      "properties": {
+        "calls": { "type": "integer", "minimum": 0 },
+        "tokens_in": { "type": "integer", "minimum": 0 },
+        "tokens_out": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "per_class": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sunk", "trial", "unknown"],
+      "properties": {
+        "sunk": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["calls", "tokens_in", "tokens_out"],
+          "properties": {
+            "calls": { "type": "integer", "minimum": 0 },
+            "tokens_in": { "type": "integer", "minimum": 0 },
+            "tokens_out": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "trial": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["calls", "tokens_in", "tokens_out"],
+          "properties": {
+            "calls": { "type": "integer", "minimum": 0 },
+            "tokens_in": { "type": "integer", "minimum": 0 },
+            "tokens_out": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "unknown": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["calls", "tokens_in", "tokens_out"],
+          "properties": {
+            "calls": { "type": "integer", "minimum": 0 },
+            "tokens_in": { "type": "integer", "minimum": 0 },
+            "tokens_out": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "offload_ratio": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "est_usd_saved": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reference", "input_per_mtok", "output_per_mtok", "usd"],
+      "properties": {
+        "reference": { "type": "string" },
+        "input_per_mtok": { "type": "number" },
+        "output_per_mtok": { "type": "number" },
+        "usd": { "type": "number", "minimum": 0 }
+      }
+    },
+    "buckets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "backend", "cost_class", "models", "calls", "ok_rate",
+          "tokens_in", "tokens_out", "last_seen"
+        ],
+        "properties": {
+          "backend": { "type": ["string", "null"] },
+          "cost_class": { "type": "string", "enum": ["sunk", "trial", "unknown"] },
+          "models": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "calls": { "type": "integer", "minimum": 0 },
+          "ok_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+          "tokens_in": { "type": "integer", "minimum": 0 },
+          "tokens_out": { "type": "integer", "minimum": 0 },
+          "last_seen": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

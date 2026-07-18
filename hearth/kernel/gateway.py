@@ -211,6 +211,7 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
         result, ok, error, model = None, True, None, None
         event_task_class = task_class
         backend, routed_by, occupancy, error_code = None, None, None, None
+        cost = None
         try:
             result = fn(**kwargs)
             model = _lift_ledger_model(result)
@@ -225,6 +226,14 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
                     v if isinstance(v, str) else None for v in raw)
                 if result.get("ok") is False and isinstance(result.get("error"), str):
                     error_code = classify_error(result["error"])
+                # S2: token counts ride the result dict too (inference results carry
+                # tokens_in/tokens_out); lift them into the event's cost so per-rung
+                # token economics are computable. Numbers only.
+                tokens = {key: result.get(key) for key in ("tokens_in", "tokens_out")}
+                tokens = {key: v for key, v in tokens.items()
+                          if isinstance(v, (int, float)) and not isinstance(v, bool)}
+                if tokens:
+                    cost = tokens
             return result
         except Exception as exc:
             ok, error = False, f"{type(exc).__name__}: {exc}"
@@ -233,7 +242,7 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
         finally:
             hearth.ledger.append(new_event(
                 caller.as_dict(), tool_name, args=kwargs, result=result,
-                ok=ok, error=error, duration_ms=elapsed_ms(),
+                ok=ok, error=error, duration_ms=elapsed_ms(), cost=cost,
                 task_id=task_id, task_class=event_task_class, model=model,
                 backend=backend, routed_by=routed_by, occupancy=occupancy,
                 error_code=error_code,

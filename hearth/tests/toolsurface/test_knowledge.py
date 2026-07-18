@@ -10,10 +10,12 @@ from unittest import TestCase
 from hearth.toolsurface.knowledge import (
     project,
     project_capacity_knowledge,
+    project_offload_knowledge,
     query_beliefs_summary,
     query_capabilities,
     query_capacity,
     query_findings,
+    query_offload,
     record_event,
 )
 from hearth.toolsurface.knowledge import _restamp_written_file as _knowledge_restamp
@@ -330,6 +332,63 @@ class CorpusProvenanceTests(KnowledgeScopedTestCase):
         digest_before = content["corpus_digest"]
         project_capacity_knowledge(ledger_path="hearth/var/ledger/events.ndjson")
         self.assertEqual(query_capacity()["content"]["corpus_digest"], digest_before)
+
+
+class OffloadKnowledgeTests(KnowledgeScopedTestCase):
+    """Mirror CapacityKnowledgeTests for offload.json (S2 executor economics)."""
+
+    def _write_ledger(self, relative_path: str = "hearth/var/ledger/events.ndjson") -> Path:
+        ledger = self.scope / relative_path
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        events = [
+            {
+                "schema": "hearth-event.v1",
+                "event_id": "he_a",
+                "ts": "2026-07-04T00:00:00+00:00",
+                "caller": {"id": "local-1", "runner_class": "local", "node": "omen"},
+                "tool": "local_generate",
+                "task_class": "inference",
+                "backend": "omen-ollama",
+                "model": "qwen2",
+                "ok": True,
+                "duration_ms": 1000,
+                "cost": {"tokens_in": 10, "tokens_out": 50, "watt_s": None},
+                "task_id": None,
+            },
+        ]
+        with ledger.open("w", encoding="utf-8", newline="\n") as handle:
+            for event in events:
+                handle.write(json.dumps(event) + "\n")
+        return ledger
+
+    def test_query_before_projection_reports_unavailable(self) -> None:
+        self.assertFalse(query_offload()["available"])
+
+    def test_project_then_query_round_trips_offload_json(self) -> None:
+        self._write_ledger()
+        result = project_offload_knowledge(ledger_path="hearth/var/ledger/events.ndjson")
+        self.assertEqual(result["bucket_count"], 1)
+        self.assertEqual(result["evidence_watermark"], "2026-07-04T00:00:00+00:00")
+
+        queried = query_offload()
+        self.assertTrue(queried["available"])
+        self.assertIsNotNone(queried["mtime"])
+        content = queried["content"]
+        self.assertEqual(content["contract_version"], "offload.v1")
+        self.assertEqual(len(content["buckets"]), 1)
+        self.assertEqual(content["buckets"][0]["backend"], "omen-ollama")
+
+    def test_regression_over_offload_json_is_refused_by_guard(self) -> None:
+        big_ledger = self._write_ledger("hearth/var/ledger/events.ndjson")
+        project_offload_knowledge(ledger_path="hearth/var/ledger/events.ndjson")
+        before = (self.scope / "knowledge" / "offload.json").read_text(encoding="utf-8")
+
+        big_ledger.write_text("", encoding="utf-8")
+        with self.assertRaises(CorpusRegressionError):
+            project_offload_knowledge(ledger_path="hearth/var/ledger/events.ndjson")
+
+        after = (self.scope / "knowledge" / "offload.json").read_text(encoding="utf-8")
+        self.assertEqual(before, after)
 
 
 class ModelGuardListTests(KnowledgeScopedTestCase):

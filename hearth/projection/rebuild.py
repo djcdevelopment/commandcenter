@@ -45,6 +45,7 @@ from tools.workflow.project_policy import materialize_policy  # noqa: E402
 
 from hearth.projection.capacity import DEFAULT_LEDGER as _CAPACITY_DEFAULT_LEDGER
 from hearth.projection.capacity import build_capacity_document
+from hearth.projection.economics import build_offload_document
 
 DEFAULT_SOURCES = ["runs"]
 DEFAULT_OUT = "knowledge"
@@ -68,11 +69,12 @@ _WRITTEN_FILES: dict[str, tuple[str, ...]] = {
     "experiments": ("experiment_candidates.json", "experiment_results.json"),
     "policy": ("policy.json",),
     "capacity_json": ("capacity.json",),
+    "offload_json": ("offload.json",),
 }
 
 # Every file a from-zero rebuild is expected to produce, in a stable order.
 EXPECTED_FILES: tuple[str, ...] = tuple(
-    name for kind in (*_PROJECTION_KINDS, "capacity_json") for name in _WRITTEN_FILES[kind]
+    name for kind in (*_PROJECTION_KINDS, "capacity_json", "offload_json") for name in _WRITTEN_FILES[kind]
 )
 
 
@@ -158,6 +160,14 @@ def _run_capacity_json(staging_dir: Path, ledger_path: Path) -> None:
         json.dumps(document, indent=2) + "\n", encoding="utf-8")
 
 
+def _run_offload_json(staging_dir: Path, ledger_path: Path) -> None:
+    """The ledger-native offload.json (S2), materialized straight into staging."""
+    document = build_offload_document(ledger_path)
+    staging_dir.mkdir(parents=True, exist_ok=True)
+    (staging_dir / "offload.json").write_text(
+        json.dumps(document, indent=2) + "\n", encoding="utf-8")
+
+
 def _validate_staged(staging_dir: Path) -> None:
     """Every expected file must exist, parse as JSON, and carry a contract_version."""
     missing = [name for name in EXPECTED_FILES if not (staging_dir / name).is_file()]
@@ -205,6 +215,7 @@ def rebuild_knowledge(sources: list[str] | None = None, out: str = DEFAULT_OUT,
     try:
         _run_projections(staging_dir, event_files, corpus)
         _run_capacity_json(staging_dir, ledger)
+        _run_offload_json(staging_dir, ledger)
         _validate_staged(staging_dir)
 
         # Validation passed for every staged file: only now do we touch the live dir.

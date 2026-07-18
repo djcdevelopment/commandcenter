@@ -76,3 +76,32 @@ class EconomicsTests(TestCase):
         summary = summarize(self.ledger)  # never written
         self.assertEqual(summary["events"], 0)
         self.assertEqual(summary["frontier_vs_local"]["frontier"]["calls"], 0)
+
+    def test_build_offload_document(self) -> None:
+        from hearth.projection.economics import build_offload_document
+
+        events = [
+            {"schema": "hearth-event.v1", "ts": "2026-07-04T00:00:00Z", "task_class": "inference", "tool": "local_generate", "backend": "omen-ollama", "model": "qwen", "ok": True, "cost": {"tokens_in": 1000, "tokens_out": 2000}},
+            {"schema": "hearth-event.v1", "ts": "2026-07-04T01:00:00Z", "task_class": "inference", "tool": "local_generate", "backend": None, "model": "gemini-1.5", "ok": True, "cost": {"tokens_in": 500, "tokens_out": 1000}},
+            {"schema": "hearth-event.v1", "ts": "2026-07-04T02:00:00Z", "task_class": "inference", "tool": "local_generate", "backend": None, "model": "qwen2", "ok": False, "cost": {"tokens_in": None, "tokens_out": None}},
+            {"schema": "hearth-event.v1", "ts": "2026-07-04T03:00:00Z", "task_class": "inference", "tool": "local_generate", "backend": "unknown-backend", "model": "gpt-4", "ok": True, "cost": {"tokens_in": 100, "tokens_out": 200}},
+            # non-inference event to skip
+            {"schema": "hearth-event.v1", "ts": "2026-07-04T04:00:00Z", "task_class": "other", "tool": "local_generate", "backend": "omen-ollama", "model": "qwen", "ok": True, "cost": {"tokens_in": 999, "tokens_out": 999}},
+        ]
+        self.write_ledger(events)
+
+        doc = build_offload_document(self.ledger)
+        self.assertEqual(doc["totals"]["calls"], 4)
+        self.assertEqual(doc["totals"]["tokens_in"], 1600)
+        self.assertEqual(doc["totals"]["tokens_out"], 3200)
+
+        self.assertEqual(doc["per_class"]["sunk"]["tokens_out"], 2000)
+        self.assertEqual(doc["per_class"]["trial"]["tokens_out"], 1000)
+        self.assertEqual(doc["per_class"]["unknown"]["tokens_out"], 200)
+
+        self.assertEqual(doc["offload_ratio"], round(3000 / 3200, 4))
+
+        expected_usd = (1500 * 3.0 + 3000 * 15.0) / 1000000.0
+        self.assertEqual(doc["est_usd_saved"]["usd"], round(expected_usd, 6))
+
+        self.assertEqual(len(doc["buckets"]), 4)

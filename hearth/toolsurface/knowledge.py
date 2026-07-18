@@ -41,6 +41,7 @@ from tools.workflow.project_findings import materialize_findings  # noqa: E402
 from tools.workflow.project_policy import materialize_policy  # noqa: E402
 from tools.workflow.validate_events import ValidationError  # noqa: E402
 
+from hearth.projection.economics import build_offload_document  # noqa: E402
 from hearth.projection.rebuild import rebuild_knowledge as _rebuild_knowledge  # noqa: E402
 
 DEFAULT_EVENTS_PATH = "runs/hearth/events.jsonl"
@@ -306,6 +307,35 @@ def query_capacity(knowledge_dir: str = DEFAULT_OUT) -> dict:
     return _query_knowledge_file("capacity.json", knowledge_dir)
 
 
+def project_offload_knowledge(
+    ledger_path: str = str(_CAPACITY_DEFAULT_LEDGER), out: str = DEFAULT_OUT,
+) -> dict:
+    """Project the HEARTH ledger into knowledge/offload.json (S2 executor economics).
+
+    Buckets inference-class local_generate events by executor backend with a
+    sunk/trial/unknown cost-class map, making the offload ratio and $-saved
+    estimate queryable. Read-only over the ledger; the only write is
+    offload.json inside the sandboxed knowledge dir, corpus-guarded like
+    capacity.json.
+    """
+    ledger = resolve_in_scope(ledger_path)
+    document = build_offload_document(ledger)
+    out_dir = resolve_in_scope(out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    target = out_dir / "offload.json"
+    guard_write(target, document, make_extractor("bucket_count"))
+    return {
+        "path": str(target),
+        "evidence_watermark": document["evidence_watermark"],
+        "bucket_count": len(document["buckets"]),
+    }
+
+
+def query_offload(knowledge_dir: str = DEFAULT_OUT) -> dict:
+    """Return the materialized offload.json (with file mtime) from the sandbox."""
+    return _query_knowledge_file("offload.json", knowledge_dir)
+
+
 def rebuild_knowledge(sources: list[str] | None = None, out: str = DEFAULT_OUT,
                       ledger_path: str = str(_CAPACITY_DEFAULT_LEDGER),
                       allow_fixture_sources: bool = False) -> dict:
@@ -326,5 +356,6 @@ def rebuild_knowledge(sources: list[str] | None = None, out: str = DEFAULT_OUT,
 def get_tools() -> list[Callable]:
     return [
         record_event, project, query_capabilities, query_findings, query_beliefs_summary,
-        project_capacity_knowledge, query_capacity, rebuild_knowledge,
+        project_capacity_knowledge, query_capacity, project_offload_knowledge, query_offload,
+        rebuild_knowledge,
     ]

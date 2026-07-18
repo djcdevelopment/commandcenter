@@ -52,7 +52,7 @@
 
 <h1>MECHNET Autonomy Plan — see · steer · re-baseline</h1>
 <div class="meta">
-  2026-07-17 · <span class="status draft" style="color: var(--good)">v1.6 — G3 + fleet-harvest LIVE on master · 47/47 tools · fleet builds un-stranded to GitHub</span> ·
+  2026-07-18 · <span class="status draft" style="color: var(--good)">v1.7 — fleet-harvest AUTO-SWEEP TIMER armed · builds never strand · backlog of 145 branches un-stranded</span> ·
   SEE S1–S6 + STEER A1–A4 + A6 <strong class="good">LIVE</strong> · G3 (A5) queue-and-forget
   <strong class="good">LIVE</strong> on <code>master</code> (<span class="kpi">de072b6</span>, gateway 47/47) ·
   <strong class="good">NEW — fleet-harvest LIVE</strong>: <code>harvest_fleet_run</code>/<code>list_fleet_runs</code>
@@ -439,6 +439,22 @@ staged-load one-liner) — parked verbatim in the O-track briefs; verify on node
       <span class="kpi">+12 tests; hearth/tests 518 green</span>. Both tonight's runs proven on
       <code>origin fleet/…</code>; a plain <code>git fetch origin</code> then pulled am4-worker-1's QUESTION.md
       with zero SSH-hop. The residual capture gap (fleet code stranded on nodes) is <strong class="good">closed</strong>.</li>
+  <li><strong class="good">NEW (v1.7) — fleet-harvest is now AUTOMATIC (builds never strand).</strong> A gateway
+      timer (<code>fleet_harvest</code>, 1800s, mirrors <code>drain</code> in <code>hearth/kernel/timers.py</code>)
+      fires <code>python -m hearth.toolsurface.fleet_harvest --sweep --json</code>: lists every run and harvests
+      each, per-run failure recorded and skipped (never aborts the sweep). The first tick drains whatever
+      accumulated; every tick after is a cheap no-op (immutable branches, non-force push). <strong>The v1.6 manual
+      harvest had only done tonight's 2 runs</strong> — the first live drain mirrored
+      <span class="kpi">64 runs / 145 branches</span> to origin, 0 errors, so <strong>~62 runs were still
+      stranded</strong>. Idempotent re-sweep left origin unchanged (<span class="kpi">145→145</span>); the first
+      armed in-gateway tick reproduced it (0 errors, ~69s, well under the 600s tick cap because the backlog was
+      drained first). Honest reporting: <code>branches_mirrored</code> (ensured-present), <em>not</em> a
+      <code>branches_pushed</code> that would report the same non-zero count every sweep — a true new-vs-noop delta
+      would need <code>git push --porcelain</code> surfaced from the core (clean follow-up). Draft offloaded to
+      <code>gcp-gemini-pro</code>; the one correctness slip (assumed a pushed-vs-present distinction the core can't
+      make) caught in review. Receipt <span class="kpi">br-20260718-041414</span> done 6/6; merged
+      <span class="kpi">14aa9d5</span>, gateway restarted, armed. Only <code>fleet_harvest</code> was outstanding
+      from v1.6's follow-on list — <code>sudo bash ~/setup-swap.sh</code> on AM4 remains Derek's.</li>
 </ul></div>
 
 </main>

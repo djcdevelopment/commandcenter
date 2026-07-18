@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MECHNET Autonomy Plan — see · steer · re-baseline (2026-07-17)</title>
+<style>
+  :root {
+    --bg: #faf8f4; --fg: #22211e; --muted: #6b6760; --accent: #b4541e;
+    --card: #ffffff; --border: #e2ddd3; --good: #2e7d32; --warn: #b26a00; --bad: #c62828;
+    --code-bg: #f0ece4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1b18; --fg: #e8e4dc; --muted: #a09a8e; --accent: #e8925a;
+      --card: #262420; --border: #3a372f; --good: #81c784; --warn: #ffb74d; --bad: #ef9a9a;
+      --code-bg: #2e2b25;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 2rem 1rem 4rem; background: var(--bg); color: var(--fg);
+         font: 16px/1.55 Georgia, "Times New Roman", serif; }
+  main { max-width: 62rem; margin: 0 auto; }
+  h1 { font-size: 1.7rem; margin: 0 0 .2rem; }
+  h2 { font-size: 1.25rem; margin: 2.2rem 0 .6rem; border-bottom: 2px solid var(--accent); padding-bottom: .25rem; }
+  h3 { font-size: 1.05rem; margin: 1.4rem 0 .4rem; color: var(--accent); }
+  .meta { color: var(--muted); font-size: .9rem; margin-bottom: 1.4rem; }
+  .status { display: inline-block; padding: .1rem .55rem; border-radius: 999px; font-size: .78rem;
+            font-family: Consolas, monospace; border: 1px solid var(--border); }
+  .draft { background: var(--code-bg); color: var(--warn); }
+  table { border-collapse: collapse; width: 100%; margin: .6rem 0 1rem; font-size: .88rem; }
+  .scrollwrap { overflow-x: auto; }
+  th, td { border: 1px solid var(--border); padding: .4rem .55rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); font-family: Consolas, monospace; font-size: .8rem; }
+  code { background: var(--code-bg); padding: .06rem .3rem; border-radius: 3px;
+         font: .85em Consolas, "Courier New", monospace; }
+  .good { color: var(--good); font-weight: bold; } .warn { color: var(--warn); font-weight: bold; }
+  .bad { color: var(--bad); font-weight: bold; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+          padding: .9rem 1.1rem; margin: .8rem 0; }
+  .kpi { font-family: Consolas, monospace; font-size: .85rem; }
+  ul, ol { padding-left: 1.4rem; } li { margin: .25rem 0; }
+  .wp { border-left: 4px solid var(--accent); padding-left: .8rem; margin: .9rem 0; }
+  .wp .who { color: var(--muted); font-size: .82rem; font-family: Consolas, monospace; }
+  .ladder td:first-child { white-space: nowrap; font-family: Consolas, monospace; font-size: .82rem; }
+  blockquote { margin: .8rem 0; padding: .5rem 1rem; border-left: 4px solid var(--border);
+               color: var(--muted); font-style: italic; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>MECHNET Autonomy Plan — see · steer · re-baseline</h1>
+<div class="meta">
+  2026-07-17 · <span class="status draft">DRAFT v1 — for Derek's review</span> ·
+  All work packages are <strong>draft-ready, none dispatched</strong> (fleet pacing is Derek's call).<br>
+  Builds on <code>HEARTH-OFFLOAD-STRATEGY.html</code> (2026-07-15) — that doc makes offload <em>ergonomic</em>;
+  this one makes it <em>autonomous</em> and adds the oxen re-baseline campaign.
+</div>
+
+<blockquote>North star: start a Claude Code session, point it at HEARTH/mechnet, and walk away.
+The session queues work; <strong>the door decides</strong> — or asks with a confident recommendation — whether each
+sub-task runs on local GPU compute or an online API; and everything that happened is readable afterwards
+on one page. Derek leaves the per-call loop.</blockquote>
+
+<h2>1 · Delta since the strategy doc (evidence, 2026-07-17)</h2>
+<p>Checked live through the door this morning. The strategy's biggest lever (WP1.1 <code>files=</code>) has
+<span class="good">SHIPPED</span> — both offloads that produced this plan's raw material used it. What blocks
+autonomy now is specific and small:</p>
+<div class="scrollwrap"><table>
+<tr><th>#</th><th>finding</th><th>evidence</th><th>blocks</th></tr>
+<tr><td>E1</td><td>Ledger <span class="bad">drops routing provenance</span> — <code>inference.py</code> returns
+  <code>backend / routed_by / occupancy</code> to the caller, but <code>ledger.py::new_event</code> has no fields for
+  them</td><td>gemini-pro code read (receipt §7)</td><td>can't ask "how often did routing fall back, and why" — the
+  autonomy feedback loop has no data</td></tr>
+<tr><td>E2</td><td>Economics projection <span class="bad">buckets by caller, ignores <code>model</code></span> —
+  cannot distinguish a Vertex offload from a local one</td><td><code>projection/economics.py</code></td><td>offload
+  ratio and $-saved are uncomputable (already WP2.1; re-confirmed)</td></tr>
+<tr><td>E3</td><td>Knowledge projections <span class="warn">13 days stale</span> (capacity/beliefs mtime 2026-07-04;
+  <code>tokens_out_per_s_p50 = null</code> in every bucket; capabilities count still 0)</td><td>live
+  <code>query_capacity</code> / <code>query_beliefs_summary</code></td><td>router has no fresh history to route by;
+  rebuild is on-demand only, nothing owns freshness</td></tr>
+<tr><td>E4</td><td>Router decides <span class="warn">before it knows the payload size</span> —
+  <code>local_generate</code> resolves the backend, then packs files; no <code>context</code> capacity declared per
+  rung; no escalation on failure (one <code>ok:false</code> ends the call)</td><td>gemini-pro code read</td><td>the
+  two cheapest autonomy wins: size-aware routing + ladder-climb retry</td></tr>
+<tr><td>E5</td><td>Task lane is <span class="warn">pull-only and ferries results through context</span> —
+  <code>task_status</code> returns full result text; no queue-depth probe; no batch; single-prompt only</td>
+  <td>gemini-pro code read</td><td>queue-and-forget</td></tr>
+<tr><td>E6</td><td>Oxen capacity is <span class="warn">lore, not data</span> — dual-B70 node runs one card most days
+  (32 GB host-RAM OOM fear); no Linux P2P numbers exist; June-29 ladders (<code>am4-fleet-node/results/</code>)
+  cover single-card + dual-independent only</td><td>Derek + results corpus</td><td>router can't trust the
+  <code>am4-oxen</code> rung with big work; the Linux migration's headroom is unmeasured</td></tr>
+</table></div>
+
+<h2>2 · Target behavior — "ask or know", made mechanical</h2>
+<p>Autonomy is a policy, not a vibe. The door routes on four inputs it can own end-to-end:
+<strong>payload size</strong> (it packs the files, it knows), <strong>task class history</strong>
+(capacity/findings projections), <strong>rung state</strong> (occupancy, warmth, credit runway), and a caller-declared
+<strong>quality tier</strong>. The contract:</p>
+<div class="card"><div class="scrollwrap"><table>
+<tr><th>condition</th><th>door behavior</th></tr>
+<tr><td>payload fits a rung + task class has known-good history + quota/occupancy OK</td>
+    <td><span class="good">KNOW</span> — route silently, return result with <code>routed_by</code> proof</td></tr>
+<tr><td>chosen rung fails (cold, 5xx, timeout)</td>
+    <td><span class="good">KNOW</span> — climb one rung, once; <code>routed_by:"escalation:oxen→flash"</code></td></tr>
+<tr><td>novel task class, or quality tier "best", or trial-credit reserve breached</td>
+    <td><span class="warn">ASK</span> — return a recommendation + reason instead of burning; caller (agent or Derek) decides</td></tr>
+<tr><td>architecture, multi-file judgment, whole-conversation context ("Claude keeps" list)</td>
+    <td><span class="bad">NEVER ROUTED</span> — unchanged hard boundary from the strategy doc §3</td></tr>
+</table></div>
+<p style="margin:.2rem 0 0"><code>gcp-gemini-pro</code> stays out of auto-routing's reach (recommend: pin/ASK only —
+it's the premium reach and the trial credits are finite). Flash remains the opportunistic ceiling; sunk rungs the floor.</p></div>
+<p>Queue-and-forget, defined: a session submits N self-contained briefs in one motion, gets a manifest back, and
+collects <em>file paths</em> — never result text — when it (or a later session) checks in. Progress is visible on the
+dashboard, not by polling from frontier context.</p>
+
+<h2>3 · Track SEE — observability first (you can't steer what you can't see)</h2>
+<p>Ordered first deliberately: every routing decision Track STEER makes is trained on this data, and every WP here
+is a small diff.</p>
+<div class="wp"><strong>S1 · Routing provenance → ledger.</strong> Add optional <code>backend</code>,
+  <code>routed_by</code>, <code>occupancy</code> to <code>ledger.py::new_event</code> + event schema; gateway wrap
+  extracts them from inference results. <span class="who">AC: events.ndjson rows carry routed_by; "flash because oxen
+  busy" is countable by query. · fleet/Sonnet · fixes E1</span></div>
+<div class="wp"><strong>S2 · Executor-aware economics</strong> (subsumes strategy WP2.1). Per-model buckets + static
+  cost-class map (<code>sunk / trial / metered</code>) → <code>knowledge/offload.json</code> + query tool; $-saved
+  estimated against a metered-frontier reference price. <span class="who">AC: offload ratio + per-rung token totals
+  from live ledger; Gemini vs local distinguishable. · Sonnet · fixes E2</span></div>
+<div class="wp"><strong>S3 · Freshness owned by a timer</strong> (subsumes WP2.2). In-gateway rebuild timer
+  (<code>kernel/timers.py</code> already carries patrol/watchdog/drain per ADR-0015) + a patrol gap "projections
+  &gt; 24 h stale" with auto-heal = rebuild (Watchfire policy: obvious + reversible).
+  <span class="who">AC: projection mtime lag &lt; 24 h sustained; patrol shows the gap when induced. · fleet · fixes E3</span></div>
+<div class="wp"><strong>S4 · Failure taxonomy.</strong> Structured <code>error_code</code> on ledger events
+  (<code>occupancy_skip / cold_start / timeout / auth_expired / parse_error / quota</code>) replacing regex-on-strings.
+  <span class="who">AC: failure counts by code queryable; escalation stats join against them. · fleet</span></div>
+<div class="wp"><strong>S5 · HEARTH dashboard (the one page).</strong> Living HTML regenerated by the S3 timer and
+  served by the gateway (also written to <code>HEARTH-DASHBOARD.html</code>): offload ratio trend, tokens by rung,
+  trial-credit burn-down, failure taxonomy, task-lane queue depth, oxen occupancy/warmth, projection freshness.
+  Derek consumes HTML — this is the walk-away observability surface. <span class="who">AC: page self-refreshes with
+  live ledger numbers; zero frontier tokens involved in producing it. · Sonnet</span></div>
+<div class="wp"><strong>S6 · /retro offload scorecard</strong> (subsumes WP3.3 readout). Session-window ledger slice →
+  ratio + rung table in every retro. <span class="who">AC: retro reports the number without being asked. · fleet</span></div>
+
+<h2>4 · Track STEER — the door decides</h2>
+<div class="wp"><strong>A1 · Payload-aware routing.</strong> Compute <code>files_bytes + len(prompt)</code>
+  <em>before</em> resolving the target; pass <code>payload_bytes</code> into <code>select_backend</code>; declare
+  <code>context_bytes</code> per rung in <code>backends.toml</code>; skip rungs the payload can't fit.
+  <span class="who">AC: a 40 KB pack lands on a big-context rung with no pin. · Sonnet build, Fable review (router core) · fixes E4a</span></div>
+<div class="wp"><strong>A2 · Ladder escalation.</strong> Tag-routed call returns <code>ok:false</code> → exclude that
+  rung, re-select once, stamp <code>routed_by:"escalation:&lt;from&gt;→&lt;to&gt;"</code>. Name-pinned calls never
+  escalate (a pin is deliberate). One climb max — the "never loop on a cold worker" rule, mechanized.
+  <span class="who">AC: oxen killed mid-call → same call returns a flash result with escalation provenance. · Sonnet · fixes E4b</span></div>
+<div class="wp"><strong>A3 · <code>route="auto"</code> — the ask-or-know contract.</strong> New mode on
+  <code>local_generate</code>: caller passes <code>task_class</code> + quality tier (<code>fast/good/best</code>);
+  router consults payload size (A1), capacity history (S3 keeps it fresh), rung state, and credit runway (A4);
+  returns either a result with <code>routed_by:"auto:&lt;reason&gt;"</code> or — below confidence / "best" tier /
+  reserve breached — <code>ask:true</code> with a recommendation and reason. The §2 policy table is the spec.
+  <span class="who">AC: known task class routes silently with explanation; novel class returns a recommendation,
+  not a guess. · Fable brief + Sonnet build; policy table Fable/Derek</span></div>
+<div class="wp"><strong>A4 · Credit runway as a router input</strong> (extends WP2.3). Configured trial-credit budget
+  in <code>backends.toml</code>; cumulative Gemini tokens from the ledger → remaining; below reserve, flash's tags are
+  treated as absent (graceful degradation to sunk rungs); burn line on <code>/checkmcp</code> and the S5 dashboard.
+  <span class="who">AC: setting the budget artificially low flips tag-routing to sunk rungs, no code change. · fleet</span></div>
+<div class="wp"><strong>A5 · Queue-and-forget task lane.</strong> (a) <code>out_file=</code> on
+  <code>task_status</code> — results land as scoped files, never ferried through context; (b) queue-depth probe tool;
+  (c) <code>submit_batch</code> with a manifest of briefs; (d) completion recorded as a ledger event the dashboard
+  surfaces. Conductor fan-out bug (FanOutEdgeGroup ≥2) stays coordination-gated per WP4.2 — nothing here writes to
+  cc-conductor. <span class="who">AC: submit N briefs in one call; collect N file paths later; zero result text
+  through frontier context. · Sonnet · fixes E5</span></div>
+<div class="wp"><strong>A6 · Doctrine flip.</strong> Once A3 lands, CLAUDE.md's ladder prose becomes one line —
+  "call <code>route="auto"</code>; pin only with cause" — plus the unchanged "Claude keeps" list. The decision table
+  moves out of prose and into the door, where it's measured. <span class="who">AC: doc-only → straight to master;
+  session behavior shifts without new skill surface. · Fable</span></div>
+
+<h2>5 · Track OXEN — dual-B70 Linux re-baseline (parallel lane, runs on AM4)</h2>
+<p>Why it's in this plan: the router can only trust <code>am4-oxen</code> with big work if its capacity is
+<em>data</em> (E6). The campaign's output is literally A1/A3's routing table for that rung — plus the unmeasured
+Linux dividend (P2P between cards, driver gains) and a safe answer to the 32 GB OOM fear. Methodology drafted by
+flash through the door (receipt §7), edited here. Respects the standing directive: drive the imagegen pipeline's
+managed units, never crudely kill oxen; benchmark windows are occupancy-gated.</p>
+
+<h3>5.1 Campaign questions</h3>
+<ol>
+  <li><strong>Q1 — What does Linux P2P net us?</strong> Windows had no cross-card path; Linux/Level-Zero may. Measure
+    card↔card bandwidth/latency, then the end-to-end effect: single card vs two-independent vs tensor-split vs
+    layer-split, same model+quant.</li>
+  <li><strong>Q2 — What did the drivers net us?</strong> Prefill tok/s, decode tok/s, TTFT, load time at matched
+    model+quant+context vs the Windows-era baselines (denning / b70tools corpus).</li>
+  <li><strong>Q3 — What is the safe dual-card envelope under 32 GB host RAM?</strong> mmap vs no-mmap, quant level,
+    staged load order, swap headroom → a preflight number, not a fear.</li>
+</ol>
+
+<h3>5.2 Work packages</h3>
+<div class="wp"><strong>O0 · Inventory sweep.</strong> One SSH session: kernel/driver/Level-Zero/firmware versions,
+  <code>sycl-ls</code>, <code>xpumcli discovery</code>, P2P capability query. Commit to
+  <code>am4-fleet-node/results/</code> (same format as the June-29 ladders).
+  <span class="who">AC: versions + P2P capability doc committed. · fleet · cheap, do anytime</span></div>
+<div class="wp"><strong>O1 · P2P microbench.</strong> <code>ze_peer</code> from
+  <code>level-zero-tests</code> (build once on node): uni/bi-directional bandwidth + latency device 0↔1;
+  <code>xpumcli top</code> during runs. <span class="who">AC: GB/s + µs recorded; "P2P active on this platform:
+  yes/no" is settled fact. · fleet</span></div>
+<div class="wp"><strong>O2 · Placement matrix.</strong> Models <span class="kpi">M1 ~14B · M2 ~24B · M3 qwen3-30B</span>
+  × placements <span class="kpi">P1 single · P2 dual-independent · P3 tensor-split (-sm tensor) · P4 layer-split
+  (-sm layer)</span> × context <span class="kpi">8k/16k/32k</span>. High-value cells first:
+  <strong>M3-P4-16k vs M3-P1-16k</strong> (the Q1 headline), <strong>M1-P2 staged-vs-parallel load</strong> (the Q3
+  headline), <strong>M2-P1-32k</strong> (single-card sweet spot). Skip guaranteed-OOM cells (M3 dual × 64k).
+  Protocol: evict imagegen tenants via managed units; pin CPU governor + GPU frequency; cold = caches dropped, warm =
+  discard rep 1, average reps 2–5. <span class="who">AC: ladder results md per cell group; protocol section reproducible
+  by a zero-context builder. · fleet, dedicated windows</span></div>
+<div class="wp"><strong>O3 · RAM envelope.</strong> Watermark capture (RSS/swap/VRAM @100 ms) during every O2 load;
+  mmap vs <code>--no-mmap</code>; staged-load rule (big model first, health-gate, then second); swap sizing.
+  Output: <strong>safe dual-card operating envelope</strong> — max combined model bytes, load order, required swap
+  headroom, per-card context ceilings — wired into the preflight script.
+  <span class="who">AC: dual-card load passes 3× consecutively with zero host OOM; envelope doc committed. ·
+  fleet · Derek decision D2: swapfile vs zram</span></div>
+<div class="wp"><strong>O4 · Windows delta writeup.</strong> Matched-config comparison vs the Windows-era numbers;
+  "what Linux netted the oxen" — denning/b70tools lineage, natural windtunnel/steppe article. Draft via flash, edit,
+  <strong>publish only on cue</strong>. <span class="who">AC: delta table + draft parked in C:\work\writing. · rung-drafted, Fable edit</span></div>
+<div class="wp"><strong>O5 · Capacity facts → the router.</strong> Campaign numbers land as machine-readable facts:
+  per-profile (<code>single-card-isolation</code> vs <code>dual-tensor</code>) max context, tok/s, load times, RAM
+  watermark — served by the facade or committed beside <code>backends.toml</code>; <code>am4-oxen</code> gains
+  <code>context_bytes</code> + profile awareness. This is where Track OXEN feeds Track STEER.
+  <span class="who">AC: A1/A3 route to oxen using measured facts, not lore. · Sonnet, after A1</span></div>
+
+<h2>6 · Sequencing, KPIs, risks</h2>
+<h3>6.1 Gates</h3>
+<div class="scrollwrap"><table class="ladder">
+<tr><th>gate</th><th>contains</th><th>proof it's passed</th></tr>
+<tr><td>G0 SEE</td><td>rebuild now + S1 S2 S3 (S4 rides along)</td><td>dashboard-grade numbers from live ledger; freshness &lt; 24 h; provenance on events</td></tr>
+<tr><td>G1 STEER-mech</td><td>A1 A2</td><td>big pack auto-routes; induced failure climbs one rung with provenance</td></tr>
+<tr><td>G2 STEER-contract</td><td>A3 A4 A6 + S5 S6</td><td>a session runs on <code>route="auto"</code> end-to-end; dashboard live; retro reports ratio</td></tr>
+<tr><td>G3 QUEUE</td><td>A5</td><td>N briefs queued in one motion, collected as files by a later session</td></tr>
+<tr><td>G-OX (parallel)</td><td>O0→O1→O2/O3→O5 (O4 on cue)</td><td>envelope doc + oxen capacity facts consumed by the router</td></tr>
+</table></div>
+
+<h3>6.2 KPIs</h3>
+<ul class="kpi">
+  <li><strong>Offload ratio</strong> ≥ 80% (unchanged from strategy; S2 makes it real).</li>
+  <li><strong>Autonomy share</strong>: <code>routed_by:auto*</code> ÷ all inference calls, trending toward pins-with-cause only.</li>
+  <li><strong>Babysit count</strong>: human routing interventions per session → ~0 for routine work (ASK events are the residue, and they're counted).</li>
+  <li><strong>Knowledge freshness</strong> &lt; 24 h, held by timer not by remembering.</li>
+  <li><strong>Oxen trust</strong>: dual-card OOM incidents = 0 post-envelope; am4-oxen ok_rate ≥ 95%.</li>
+  <li><strong>Credit runway</strong>: burn-down visible on every /checkmcp and the dashboard.</li>
+</ul>
+
+<h3>6.3 Risks &amp; open decisions for Derek</h3>
+<ul>
+  <li><strong>Auto-routing quality drift</strong> — weak rung gets quality-critical work. Mitigation: quality tiers +
+    "Claude keeps" boundary + ASK on novel classes; every auto decision ledgered for audit.</li>
+  <li><strong>Trial credits end mid-era</strong> — A4 makes degradation automatic (flash tags treated absent), not a 3 a.m. surprise.</li>
+  <li><strong>O2/O3 destabilize AM4</strong> — staged protocol, preflight gates, occupancy-gated windows, imagegen units managed not killed.</li>
+  <li><strong>D1</strong>: dashboard serving — gateway-served page + written HTML artifact (recommended) vs artifact only.</li>
+  <li><strong>D2</strong>: AM4 swap strategy for the envelope — NVMe swapfile (flash's draft assumed 16 GB) vs zram; measured in O3 either way.</li>
+  <li><strong>D3</strong>: may <code>route="auto"</code> ever pick <code>gcp-gemini-pro</code>? Recommended: no — pro stays pin/ASK.</li>
+  <li><strong>D4</strong>: O4 article — publish target and timing (windtunnel vs steppeintegrations), on cue as always.</li>
+</ul>
+
+<h2>7 · Receipts — this plan was built offload-first</h2>
+<div class="scrollwrap"><table>
+<tr><th>rung</th><th>work</th><th>proof</th></tr>
+<tr><td><code>gcp-gemini-pro</code></td><td>current-state gap analysis over 10 packed files (strategy doc + router/ledger/task-lane/projection code, 120 KB)</td>
+    <td class="kpi">ok:true · routed_by pinned · 33.4k in / 1.8k out · 60 s · files_packed ×10 · findings E1/E2/E4/E5 + the 5 smallest-diff changes</td></tr>
+<tr><td><code>gcp-gemini</code></td><td>B70 benchmark methodology draft over 4 packed files (runbook + June-29 ladders, 25 KB)</td>
+    <td class="kpi">ok:true · routed_by pinned · 10.2k in / 4.5k out · 34 s · matrix/protocol/schema drafted, edited into §5</td></tr>
+<tr><td>Fable (this session)</td><td>evidence checks via door query tools, gap→track architecture, §2 policy contract, sequencing, this document</td>
+    <td class="kpi">the "Claude keeps" list, kept</td></tr>
+</table></div>
+<p class="kpi">Flash's raw draft included candidate commands (ze_peer build, xpumcli locks, watermark script,
+staged-load one-liner) — parked verbatim in the O-track briefs; verify on node before trusting flags.</p>
+
+<h2>8 · Immediate next actions (on cue)</h2>
+<ol>
+  <li><code>rebuild_knowledge</code> — one door call, closes the now-13-day staleness (held pending your cue since the strategy doc).</li>
+  <li>Open G0 as build-requests — S1/S2/S3 criteria above are written to be provable.</li>
+  <li>O0+O1 any idle AM4 window — cheap, independent, and settles the P2P question that shapes O2.</li>
+  <li>Decisions D1–D4 whenever convenient; only D2 blocks a WP (O3).</li>
+</ol>
+
+</main>
+</body>
+</html>

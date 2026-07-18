@@ -24,6 +24,17 @@ def fake_boom(message: str) -> str:
     raise RuntimeError(f"boom: {message}")
 
 
+def fake_tool_with_fields(message: str) -> dict[str, Any]:
+    """Returns a routed-inference-shaped result: ok:false + provenance fields."""
+    return {
+        "ok": False,
+        "error": "HTTPConnectionPool... Read timed out",
+        "backend": "b70",
+        "routed_by": "pinned",
+        "occupancy": "busy",
+    }
+
+
 class GatewayWrapTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -106,6 +117,20 @@ class GatewayWrapTest(unittest.TestCase):
         self.assertEqual(len(ceremony), 1)
         self.assertEqual(ceremony[0]["caller"]["id"], "claude")
         self.assertEqual(len(self.ledger.query(tool="kernel_change")), 1)
+
+    def test_wrapper_extracts_new_fields_and_classifies_error(self):
+        wrapped = make_wrapper(fake_tool_with_fields, self.hearth, self.auth,
+                               self.guards, lambda: "good-key")
+        result = wrapped(message="x")
+        self.assertEqual(result["backend"], "b70")
+        events = self.ledger.query(tool="fake_tool_with_fields")
+        self.assertEqual(len(events), 1)
+        event = events[0]
+        self.assertEqual(event["backend"], "b70")
+        self.assertEqual(event["routed_by"], "pinned")
+        self.assertEqual(event["occupancy"], "busy")
+        self.assertEqual(event["error_code"], "timeout")
+        self.assertTrue(event["ok"])
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@ from pathlib import Path
 from hearth.kernel.ledger import (
     Ledger,
     LedgerValidationError,
+    classify_error,
     new_event,
     sha256_digest,
     validate_event,
@@ -89,6 +90,42 @@ class LedgerTest(unittest.TestCase):
         event["surprise"] = 1
         with self.assertRaises(LedgerValidationError):
             self.ledger.append(event)
+
+    def test_new_fields_persist_and_validate(self):
+        event = new_event(
+            CALLER, "ping",
+            backend="omen-ollama",
+            routed_by="task-route",
+            occupancy="available",
+            error_code="quota",
+        )
+        validate_event(event)
+        self.assertEqual(event["backend"], "omen-ollama")
+        self.assertEqual(event["routed_by"], "task-route")
+        self.assertEqual(event["occupancy"], "available")
+        self.assertEqual(event["error_code"], "quota")
+
+        self.ledger.append(event)
+        rows = self.ledger.query()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["backend"], "omen-ollama")
+        self.assertEqual(rows[0]["routed_by"], "task-route")
+        self.assertEqual(rows[0]["occupancy"], "available")
+        self.assertEqual(rows[0]["error_code"], "quota")
+
+
+class ClassifyErrorTest(unittest.TestCase):
+    def test_classify_error(self):
+        self.assertEqual(classify_error("HTTPConnectionPool... Read timed out"), "timeout")
+        self.assertEqual(classify_error("[WinError 10061] No connection could be made"), "cold_start")
+        self.assertEqual(classify_error("429 RESOURCE_EXHAUSTED"), "quota")
+        self.assertEqual(classify_error("Expecting value: line 1 column 1 (char 0)"), "parse_error")
+        self.assertEqual(classify_error("Backend busy with 2 tasks"), "occupancy_skip")
+        self.assertEqual(classify_error("Failed to establish a new connection"), "cold_start")
+        self.assertEqual(classify_error("403 Forbidden"), "auth_expired")
+        self.assertEqual(classify_error("Invalid credentials"), "auth_expired")
+        self.assertEqual(classify_error("Unknown error occurred"), "other")
+        self.assertEqual(classify_error(""), "other")
 
 
 if __name__ == "__main__":

@@ -65,13 +65,38 @@ def sha256_digest(value: Any) -> str:
     return "sha256:" + hashlib.sha256(payload).hexdigest()
 
 
+def classify_error(error: str) -> str:
+    """Taxonomy for gateway/provider errors (S4): first match wins."""
+    if not error:
+        return "other"
+    lower = error.lower()
+    if "occupancy" in lower or "busy" in lower:
+        return "occupancy_skip"
+    if "timed out" in lower or "timeout" in lower:
+        return "timeout"
+    if any(x in lower for x in ("connection refused", "connect error", "unreachable",
+                                "failed to establish", "no connection could be made")):
+        return "cold_start"
+    if any(x in lower for x in ("401", "403", "unauthorized", "token", "credentials")):
+        return "auth_expired"
+    if any(x in lower for x in ("429", "quota", "resource exhausted", "rate limit")):
+        return "quota"
+    if any(x in lower for x in ("json", "parse", "decode", "expecting value")):
+        return "parse_error"
+    return "other"
+
+
 def new_event(caller: Mapping[str, str], tool: str, *,
               args: Any = None, result: Any = None, ok: bool = True,
               error: Optional[str] = None, duration_ms: float = 0,
               cost: Optional[Mapping[str, Any]] = None,
               task_id: Optional[str] = None,
               task_class: Optional[str] = None,
-              model: Optional[str] = None) -> dict:
+              model: Optional[str] = None,
+              backend: Optional[str] = None,
+              routed_by: Optional[str] = None,
+              occupancy: Optional[str] = None,
+              error_code: Optional[str] = None) -> dict:
     """Build a schema-complete hearth-event.v1 dict for `append`.
 
     `args` and `result` are the raw python values; digests and the 400-char args
@@ -107,6 +132,10 @@ def new_event(caller: Mapping[str, str], tool: str, *,
         "task_id": task_id,
         "task_class": task_class,
         "model": model,
+        "backend": backend,
+        "routed_by": routed_by,
+        "occupancy": occupancy,
+        "error_code": error_code,
     }
 
 
@@ -118,7 +147,7 @@ def _validate_stdlib(event: Any) -> None:
     required = {"schema", "event_id", "ts", "caller", "tool", "args_digest",
                 "args_preview", "result_digest", "ok", "error", "duration_ms",
                 "cost", "task_id"}
-    optional = {"task_class", "model"}
+    optional = {"task_class", "model", "backend", "routed_by", "occupancy", "error_code"}
     keys = set(event)
     if not required.issubset(keys) or not keys.issubset(required | optional):
         missing, extra = sorted(required - keys), sorted(keys - (required | optional))
@@ -158,7 +187,7 @@ def _validate_stdlib(event: Any) -> None:
             raise LedgerValidationError(f"cost.{field} must be a number or null")
     if event["task_id"] is not None and not isinstance(event["task_id"], str):
         raise LedgerValidationError("task_id must be a string or null")
-    for optional_field in ("task_class", "model"):
+    for optional_field in ("task_class", "model", "backend", "routed_by", "occupancy", "error_code"):
         if optional_field in event and event[optional_field] is not None \
                 and not isinstance(event[optional_field], str):
             raise LedgerValidationError(f"{optional_field} must be a string or null")
@@ -227,7 +256,11 @@ class Ledger:
                 " offset INTEGER NOT NULL,"
                 " length INTEGER NOT NULL,"
                 " task_class TEXT,"
-                " model TEXT)"
+                " model TEXT,"
+                " backend TEXT,"
+                " routed_by TEXT,"
+                " occupancy TEXT,"
+                " error_code TEXT)"
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts)")
             # Migration: a DB created before JS1 lacks task_class/model columns.
@@ -236,6 +269,9 @@ class Ledger:
                 conn.execute("ALTER TABLE events ADD COLUMN task_class TEXT")
             if "model" not in existing:
                 conn.execute("ALTER TABLE events ADD COLUMN model TEXT")
+            for col in ("backend", "routed_by", "occupancy", "error_code"):
+                if col not in existing:
+                    conn.execute(f"ALTER TABLE events ADD COLUMN {col} TEXT")
 
     @staticmethod
     def _insert_event_row(conn: sqlite3.Connection, event: dict, offset: int, length: int) -> None:
@@ -243,13 +279,16 @@ class Ledger:
         two paths can never drift apart on which columns are written."""
         conn.execute(
             "INSERT INTO events (event_id, ts, caller_id, runner_class, tool,"
-            " ok, duration_ms, offset, length, task_class, model)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            " ok, duration_ms, offset, length, task_class, model,"
+            " backend, routed_by, occupancy, error_code)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (event["event_id"], event["ts"], event["caller"]["id"],
              event["caller"]["runner_class"], event["tool"],
              1 if event["ok"] else 0, float(event["duration_ms"]),
              offset, length,
-             event.get("task_class"), event.get("model")),
+             event.get("task_class"), event.get("model"),
+             event.get("backend"), event.get("routed_by"),
+             event.get("occupancy"), event.get("error_code")),
         )
 
     def append(self, event: dict) -> str:

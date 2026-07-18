@@ -44,7 +44,7 @@ from mcp.server.fastmcp import FastMCP
 from hearth.kernel.auth import HEADER_NAME, AuthRegistry
 from hearth.kernel.context import HearthContext
 from hearth.kernel.guards import GuardRejection, GuardStack
-from hearth.kernel.ledger import REPO_ROOT, Ledger, hearth_root, new_event
+from hearth.kernel.ledger import REPO_ROOT, Ledger, classify_error, hearth_root, new_event
 from hearth.kernel.timers import start_timers
 
 DEFAULT_HOST = "127.0.0.1"
@@ -210,21 +210,33 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
 
         result, ok, error, model = None, True, None, None
         event_task_class = task_class
+        backend, routed_by, occupancy, error_code = None, None, None, None
         try:
             result = fn(**kwargs)
             model = _lift_ledger_model(result)
             lifted = _lift_ledger_task_class(result)
             if lifted:
                 event_task_class = lifted
+            if isinstance(result, dict):
+                # S1: routing provenance rides the result dict; only strings are
+                # ledgered (some tools return occupancy as a nested dict).
+                raw = (result.get("backend"), result.get("routed_by"), result.get("occupancy"))
+                backend, routed_by, occupancy = (
+                    v if isinstance(v, str) else None for v in raw)
+                if result.get("ok") is False and isinstance(result.get("error"), str):
+                    error_code = classify_error(result["error"])
             return result
         except Exception as exc:
             ok, error = False, f"{type(exc).__name__}: {exc}"
+            error_code = classify_error(error)
             raise
         finally:
             hearth.ledger.append(new_event(
                 caller.as_dict(), tool_name, args=kwargs, result=result,
                 ok=ok, error=error, duration_ms=elapsed_ms(),
                 task_id=task_id, task_class=event_task_class, model=model,
+                backend=backend, routed_by=routed_by, occupancy=occupancy,
+                error_code=error_code,
             ))
 
     wrapper.__name__ = tool_name

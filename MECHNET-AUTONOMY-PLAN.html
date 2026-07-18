@@ -643,10 +643,14 @@ staged-load one-liner) — parked verbatim in the O-track briefs; verify on node
       a rung must be allowed the wall-clock to emit the output budget it declares. Tests
       <span class="kpi">537→541 green</span>, committed <span class="kpi">79a73c8</span>; live-proven post-restart — an
       unpinned <code>task="reasoning"</code> call returned <span class="kpi">backend=am4-moe · routed_by=tag:reasoning ·
-      timeout_s=420</span> with no caller override. <strong class="warn">CAVEAT: the push to origin FAILED twice</strong>
-      on a network timeout reaching <code>github.com:443</code> from OMEN (~21s each) — the commit is <em>local-only</em>
-      until that clears, and the <code>fleet_harvest</code> timer's pushes are presumably failing for the same reason
-      (unverified). This also makes the outstanding <code>.mcp.json</code> <code>"timeout": 600000</code> recommendation
+      timeout_s=420</span> with no caller override. <strong class="warn">Transient:</strong> the push to origin failed
+      twice on a network timeout reaching <code>github.com:443</code> from OMEN (~21s each), then <strong class="good">recovered
+      and pushed clean</strong> — <span class="kpi">eb6fed0..79a73c8</span>, plan doc following as
+      <span class="kpi">a42cb3e</span>. Worth noting the blast radius while it lasted: OMEN is the <em>only</em> GitHub
+      bridge for the fleet (v1.6), so a github-unreachable window silently stalls <code>fleet_harvest</code> too and
+      builds re-strand until the next sweep drains them. The timer's idempotent re-sweep design absorbs this by
+      construction — but that property was load-bearing today, not theoretical.
+      This also makes the outstanding <code>.mcp.json</code> <code>"timeout": 600000</code> recommendation
       <em>load-bearing rather than optional</em>: the door-side budget must stay below the MCP client's idle timeout, so
       600s client &gt; 420s door is the nesting that has to hold. Still Derek's config to apply.</li>
 </ul></div>

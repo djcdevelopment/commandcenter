@@ -52,9 +52,10 @@
 
 <h1>MECHNET Autonomy Plan — see · steer · re-baseline</h1>
 <div class="meta">
-  2026-07-17 · <span class="status draft" style="color: var(--good)">v1.1 — G0 EXECUTED same day ("make it so")</span> ·
-  Track SEE S1–S4 <strong class="good">LIVE</strong> on <code>feat/autonomy-g0</code> (3 receipts closed done) ·
-  O0 <strong class="good">DONE</strong> · remaining WPs draft-ready on cue.<br>
+  2026-07-17 · <span class="status draft" style="color: var(--good)">v1.2 — G0 MERGED to master · G1 EXECUTED + LIVE</span> ·
+  SEE S1–S4 + STEER A1–A2 <strong class="good">LIVE</strong> (4 receipts closed done; G1 on
+  <code>feat/autonomy-g1</code>) · O0 <strong class="good">DONE</strong> ·
+  <span class="bad">⚠ omen-ollama rung DOWN (llama-server.exe missing since 07-16 partial update — repair chip filed); the A2 ladder is routing around it</span>.<br>
   Builds on <code>HEARTH-OFFLOAD-STRATEGY.html</code> (2026-07-15) — that doc makes offload <em>ergonomic</em>;
   this one makes it <em>autonomous</em> and adds the oxen re-baseline campaign. Execution log in §9.
 </div>
@@ -143,11 +144,11 @@ is a small diff.</p>
   ratio + rung table in every retro. <span class="who">AC: retro reports the number without being asked. · fleet</span></div>
 
 <h2>4 · Track STEER — the door decides</h2>
-<div class="wp"><strong>A1 · Payload-aware routing.</strong> Compute <code>files_bytes + len(prompt)</code>
+<div class="wp"><strong>A1 · Payload-aware routing.</strong> <span class="good">LIVE 07-17</span> · Compute <code>files_bytes + len(prompt)</code>
   <em>before</em> resolving the target; pass <code>payload_bytes</code> into <code>select_backend</code>; declare
   <code>context_bytes</code> per rung in <code>backends.toml</code>; skip rungs the payload can't fit.
   <span class="who">AC: a 40 KB pack lands on a big-context rung with no pin. · Sonnet build, Fable review (router core) · fixes E4a</span></div>
-<div class="wp"><strong>A2 · Ladder escalation.</strong> Tag-routed call returns <code>ok:false</code> → exclude that
+<div class="wp"><strong>A2 · Ladder escalation.</strong> <span class="good">LIVE 07-17</span> · Tag-routed call returns <code>ok:false</code> → exclude that
   rung, re-select once, stamp <code>routed_by:"escalation:&lt;from&gt;→&lt;to&gt;"</code>. Name-pinned calls never
   escalate (a pin is deliberate). One climb max — the "never loop on a cold worker" rule, mechanized.
   <span class="who">AC: oxen killed mid-call → same call returns a flash result with escalation provenance. · Sonnet · fixes E4b</span></div>
@@ -303,6 +304,17 @@ staged-load one-liner) — parked verbatim in the O-track briefs; verify on node
       <code>am4-fleet-node/results/</code>.</li>
   <li><strong>Commits</strong> (branch <code>feat/autonomy-g0</code>, pushed): <span class="kpi">04631c5</span> S1+S4 ·
       <span class="kpi">15e6791</span> S2 + token lift · <span class="kpi">300065a</span> S3 + test-discovery fix.</li>
+  <li><strong>G1 wave (same night, "merge to master and build g1"):</strong> G0 fast-forwarded to master;
+      A1+A2 built by pro through the door on <code>feat/autonomy-g1</code>
+      (<span class="kpi">24ea23a</span>, receipt br-…ba5ad737 done 5/5, 479 tests). Live proofs:
+      a 134 KB unpinned pack → <span class="kpi">routed_by: payload:cloud-overflow:gcp-gemini</span> (the door
+      decided, 2.5 s); and an <em>organic</em> A2 proof — a plain small call auto-climbed with
+      <span class="kpi">routed_by: escalation:omen-ollama→gcp-gemini</span>, original error preserved.</li>
+  <li><strong class="bad">Outage found by the ladder itself:</strong> omen-ollama has been 500ing since a partial
+      Ollama auto-update (07-16 04:58) deleted the <code>lib\ollama\</code> runtime (llama-server.exe gone).
+      Server answers /api/tags, no model can load. Repair = reinstall Ollama (chip filed — Derek's click).
+      Until then every small offload escalates to flash: functional, but trial credits absorb sunk-rung
+      traffic — repair soon. The bankedfire drain's 573×ok:0.0 tick history likely shares this root cause.</li>
 </ul></div>
 
 </main>

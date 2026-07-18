@@ -55,6 +55,34 @@ ORIGIN = "origin"
 _PLAN_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
+def _parse_push_porcelain(txt: str) -> dict:
+    """Parse ``git push --porcelain`` stdout into new-vs-noop counters.
+
+    Per-ref lines are ``<flag>\\t<from>:<to>\\t<summary>``. Flag chars (git-push
+    docs): ``*`` new ref, `` `` (space) fast-forward, ``+`` forced update — all
+    three landed commits, so all count as ``pushed``; ``=`` up to date (the
+    no-op re-mirror); ``!`` rejected; ``-`` deleted (never happens in this
+    non-force mirror lane, left uncounted). NB the flag mapping matters: on
+    this lane a first push shows ``*`` per ref and every repeat shows ``=`` —
+    ``+`` can only appear under --force, which we never pass. The ``To <url>``
+    header and trailing ``Done`` summary carry no tab and are skipped, as is
+    any malformed or unknown-flag line — bad lines never move the counters.
+    """
+    pushed = up_to_date = rejected = 0
+    for line in (txt or "").splitlines():
+        if "\t" not in line:
+            continue  # "To <url>" / "Done" / malformed — not a per-ref line
+        flag = line[0]
+        if flag in ("*", " ", "+"):
+            pushed += 1
+        elif flag == "=":
+            up_to_date += 1
+        elif flag == "!":
+            rejected += 1
+    return {"pushed": pushed, "up_to_date": up_to_date, "rejected": rejected,
+            "raw": txt or ""}
+
+
 def _git(args: list[str], timeout_s: float = 60,
          runner: Optional[Callable[..., subprocess.CompletedProcess]] = None
          ) -> tuple[Optional[str], Optional[str]]:
@@ -85,10 +113,12 @@ def harvest_fleet_run(plan_id: str) -> dict:
     Fetch (read-only on the conductor) → push (non-force, ``fleet/`` namespace) →
     clean up local staging refs. Idempotent: build branches are immutable, so a
     second harvest is a no-op push. Returns
-    ``{ok, plan_id, github_prefix, count, workers:[{worker_ref, sha, github_branch}]}``;
-    a run with no branches on the farmer-repo is ``ok:true`` with ``workers:[]`` and
-    a note (not an error). After this, ``git fetch origin`` retrieves the code
-    anywhere — no SSH-hop.
+    ``{ok, plan_id, github_prefix, count, workers:[{worker_ref, sha, github_branch}],
+    push:{pushed, up_to_date, rejected, raw}}`` — ``push`` is the parsed
+    ``--porcelain`` new-vs-noop delta (present only when a push actually ran and
+    the transport succeeded). A run with no branches on the farmer-repo is
+    ``ok:true`` with ``workers:[]`` and a note (not an error). After this,
+    ``git fetch origin`` retrieves the code anywhere — no SSH-hop.
     """
     if not isinstance(plan_id, str) or not _PLAN_ID_RE.match(plan_id or ""):
         raise ValueError("plan_id must match [A-Za-z0-9._-]+ (no slashes or glob chars)")
@@ -119,8 +149,10 @@ def harvest_fleet_run(plan_id: str) -> dict:
         return {"ok": True, "plan_id": plan_id, "workers": [], "count": 0, "pushed": False,
                 "note": f"no {SOURCE_PREFIX}/{plan_id} branches on the conductor farmer-repo"}
 
-    # 3. Push to origin under the fleet/ namespace (non-force — build branches are immutable).
-    _, perr = _git(["push", ORIGIN, f"{stage}:refs/heads/{DEST_PREFIX}/{plan_id}/*"], timeout_s=180)
+    # 3. Push to origin under the fleet/ namespace (non-force — build branches are
+    # immutable). --porcelain surfaces the per-ref new-vs-noop delta on stdout.
+    pout, perr = _git(["push", "--porcelain", ORIGIN,
+                       f"{stage}:refs/heads/{DEST_PREFIX}/{plan_id}/*"], timeout_s=180)
 
     # 4. Always clean up local staging refs, whether the push succeeded or not.
     for _sha, ref in staged:
@@ -141,6 +173,7 @@ def harvest_fleet_run(plan_id: str) -> dict:
         "ok": True, "plan_id": plan_id, "source": FARMER_URL,
         "github_prefix": f"{DEST_PREFIX}/{plan_id}", "pushed": True,
         "count": len(workers), "workers": workers,
+        "push": _parse_push_porcelain(pout or ""),
     }
 
 
@@ -187,13 +220,13 @@ def get_tools() -> list[Callable]:
 def _sweep(limit: int = 1000) -> dict:
     """Harvest every run list_fleet_runs can see. Never raises out of the
     per-run loop. Reports honest aggregates: ``branches_mirrored`` counts
-    branches ensured-present on origin (NOT newly-pushed — the harvest push is
-    a non-force no-op when the branch already exists, and we don't parse git's
-    per-ref output; a true new-vs-noop delta would need ``git push --porcelain``
-    surfaced from harvest_fleet_run, a clean follow-up)."""
+    branches ensured-present on origin (the non-force push is a no-op when a
+    branch already exists), while ``branches_new`` counts refs that actually
+    landed this pass — the sum of each run's ``push.pushed``, parsed from
+    ``git push --porcelain`` per-ref output in harvest_fleet_run."""
     report: dict = {
         "ok": True, "runs_seen": 0, "runs_mirrored": 0, "runs_empty": 0,
-        "branches_mirrored": 0, "errors": [],
+        "branches_mirrored": 0, "branches_new": 0, "errors": [],
     }
     listed = list_fleet_runs(limit=limit)
     if not listed.get("ok"):
@@ -221,6 +254,7 @@ def _sweep(limit: int = 1000) -> dict:
         if count > 0:
             report["runs_mirrored"] += 1
             report["branches_mirrored"] += count
+            report["branches_new"] += res.get("push", {}).get("pushed", 0)
         else:
             report["runs_empty"] += 1
     if report["errors"]:
@@ -251,7 +285,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     else:
         print(f"fleet_harvest sweep: seen={report['runs_seen']} "
               f"mirrored={report['runs_mirrored']} empty={report['runs_empty']} "
-              f"branches={report['branches_mirrored']} errors={len(report['errors'])}")
+              f"branches={report['branches_mirrored']} new={report['branches_new']} "
+              f"errors={len(report['errors'])}")
     # Exit 0 when the sweep ran, even with per-run errors (recorded, not fatal —
     # resilience); exit 1 only when enumeration itself failed.
     enumerate_failed = any(e.get("plan_id") == "*" for e in report["errors"])

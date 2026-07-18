@@ -254,20 +254,63 @@ def select_candidate(worth_path: Path = DEFAULT_CANDIDATE_WORTH_PATH,
 # Ledger
 # ---------------------------------------------------------------------------
 
+# Every no-op branch a healthy tick can take. Reaching one of these means the
+# drain evaluated its gates and correctly decided not to dispatch -- that IS the
+# tick doing its job, so it is ok:true. Only a malfunction is ok:false.
+BENIGN_OUTCOMES = frozenset({
+    "disarmed", "busy", "no-budget", "no-candidates", "in-flight",
+})
+
+
+def _outcome_for(reason: str) -> str:
+    """Map a tick `reason` onto its stable `outcome` label.
+
+    `reason` is human-facing and carries the plan_id on a dispatch
+    ("dispatched:hearth-drain-..."); `outcome` is the low-cardinality label the
+    projection buckets on, so it must not embed an id."""
+    if reason.startswith("dispatched"):
+        return "dispatched"
+    if reason == "no-op:dispatch-failed":
+        return "dispatch-failed"
+    return reason
+
+
 def _record_tick(reason: str, detail: dict, ledger=None) -> Optional[str]:
     """Append one bankedfire_drain event. Best-effort: a ledger hiccup must
     never crash the scheduled task (same discipline as mechnet_watchdog's
-    _record)."""
+    _record).
+
+    `ok` means "this tick did its job", NOT "this tick dispatched". The drain is
+    armed and fires every 1800s, and on an idle fleet with no unrun candidates
+    the overwhelmingly common branch is a benign no-op -- so keying ok on
+    "dispatched" made a perfectly healthy drain project an ok_rate of 0.0084
+    over 592 ticks and read as a catastrophic outage in knowledge/capacity.json.
+    Worse, those events set error=None, so they claimed a failure while naming
+    none: structurally indistinguishable from a real fault.
+
+    Which branch was taken now rides `outcome` (a top-level ledger field, NOT
+    `result`) because the ledger stores only a result *digest* -- anything put
+    in `result` is unrecoverable from history. This is the same reason
+    mechnet_watchdog._record_hindsight routes its summary through `args`.
+
+    NOTE on duration: this deliberately does not stamp a measured duration_ms.
+    Ticks land in a null-task_class bucket that sorts first, and
+    scheduler/ontology.py:_bucket_p90 matches the first bucket with p90 > 0 for
+    a job whose task_class is None -- a real duration here would silently enlist
+    the drain's heartbeat as a zero-cost machine estimate. Zero keeps it inert.
+    """
+    outcome = _outcome_for(reason)
+    ok = outcome == "dispatched" or outcome in BENIGN_OUTCOMES
     try:
         from hearth.kernel.ledger import Ledger, new_event
         led = ledger or Ledger()
         return led.append(new_event(
             DRAIN_CALLER, "bankedfire_drain.tick",
-            args={"backend": DRAIN_BACKEND},
+            args={"backend": DRAIN_BACKEND, "outcome": outcome},
             result={"reason": reason, **detail},
-            ok=reason.startswith("dispatched"),
-            error=None if reason.startswith("dispatched") or reason in
-                ("busy", "no-budget", "no-candidates", "in-flight") else reason,
+            ok=ok,
+            outcome=outcome,
+            error=None if ok else (detail.get("submit_error") or reason),
         ))
     except Exception as exc:  # pragma: no cover - audit is best-effort
         print(f"[bankedfire-drain] ledger append failed: {type(exc).__name__}: {exc}",

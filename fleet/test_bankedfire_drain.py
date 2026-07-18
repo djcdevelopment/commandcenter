@@ -168,7 +168,10 @@ class _FakeLease:
         self.occupancy_at_grant = occupancy
 
 
-class RunTickTests(TestCase):
+class _TickHarness(TestCase):
+    """Shared run_tick fixture. Holds no tests of its own so subclasses do not
+    re-run each other's."""
+
     def setUp(self) -> None:
         self.tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.arm_path = self.tmp / "arm.json"
@@ -194,6 +197,8 @@ class RunTickTests(TestCase):
         kwargs.update(overrides)
         return drain.run_tick(**kwargs)
 
+
+class RunTickTests(_TickHarness):
     def test_disarmed_is_noop(self) -> None:
         report = self._tick()
         self.assertEqual(report["reason"], "disarmed")
@@ -265,6 +270,103 @@ class RunTickTests(TestCase):
             "ok": False, "error": "ssh timeout",
         })
         self.assertEqual(report["reason"], "no-op:dispatch-failed")
+
+
+class LedgerSemanticsTests(_TickHarness):
+    """`ok` means "this tick did its job", NOT "this tick dispatched".
+
+    The drain is armed and fires every 1800s; on an idle fleet a benign no-op is
+    the overwhelmingly common branch. Keying ok on "dispatched" made 592 healthy
+    ticks project ok_rate 0.0084 into knowledge/capacity.json, which reads as a
+    catastrophic outage and already produced one wrong diagnosis."""
+
+    def _event(self):
+        self.assertEqual(len(self.ledger.events), 1)
+        return self.ledger.events[0]
+
+    def test_benign_noops_are_ok_true_and_name_their_branch(self) -> None:
+        cases = {
+            "disarmed": dict(),
+            "busy": dict(occupancy_check=lambda name: {"occupancy": "busy"}),
+            "in-flight": dict(task_status_fn=lambda plan_id: {"ok": True, "done": False}),
+        }
+        for outcome, overrides in cases.items():
+            with self.subTest(outcome=outcome):
+                self.setUp()
+                if outcome != "disarmed":
+                    drain.set_armed(True, "test", path=self.arm_path)
+                if outcome == "in-flight":
+                    state = drain.load_arm_state(self.arm_path)
+                    state["last_dispatch_plan_id"] = "hearth-prior-run"
+                    drain.save_arm_state(state, self.arm_path)
+                self._tick(**overrides)
+                event = self._event()
+                self.assertTrue(event["ok"], f"{outcome} is a healthy no-op")
+                self.assertEqual(event["outcome"], outcome)
+                self.assertIsNone(event["error"], "a benign no-op names no error")
+
+    def test_no_budget_and_no_candidates_are_ok_true(self) -> None:
+        drain.set_armed(True, "test", path=self.arm_path)
+        _write_json(self.budget_path, {**_GOOD_BUDGET, "suspended": True})
+        self._tick()
+        event = self._event()
+        self.assertTrue(event["ok"])
+        self.assertEqual(event["outcome"], "no-budget")
+
+        self.setUp()
+        drain.set_armed(True, "test", path=self.arm_path)
+        _write_json(self.results_path, {"results": [
+            {"candidate_id": "aaa_low"}, {"candidate_id": "bbb_high"},
+            {"candidate_id": "ccc_mid"},
+        ]})
+        self._tick()
+        event = self._event()
+        self.assertTrue(event["ok"])
+        self.assertEqual(event["outcome"], "no-candidates")
+
+    def test_dispatch_is_ok_true_with_an_id_free_outcome_label(self) -> None:
+        """`outcome` is what the projection buckets on, so it must stay
+        low-cardinality -- the plan_id belongs in `reason`, not here."""
+        drain.set_armed(True, "test", path=self.arm_path)
+        report = self._tick()
+        event = self._event()
+        self.assertTrue(event["ok"])
+        self.assertEqual(event["outcome"], "dispatched")
+        self.assertIn("bbb_high", report["reason"])
+        self.assertNotIn("bbb_high", event["outcome"])
+
+    def test_a_real_malfunction_is_still_ok_false_and_names_itself(self) -> None:
+        """The one branch that genuinely failed must stay legible as a failure,
+        otherwise this change would trade a false alarm for a blind spot."""
+        drain.set_armed(True, "test", path=self.arm_path)
+        self._tick(submit_task_fn=lambda prompt, plan_id_hint=None: {
+            "ok": False, "error": "ssh timeout",
+        })
+        event = self._event()
+        self.assertFalse(event["ok"])
+        self.assertEqual(event["outcome"], "dispatch-failed")
+        self.assertEqual(event["error"], "ssh timeout")
+
+    def test_no_tick_ever_emits_the_incoherent_ok_false_without_error(self) -> None:
+        """The precise defect signature: 592 of 597 historical drain events said
+        ok:false while naming no error. No branch may reproduce it."""
+        branches = [
+            dict(),
+            dict(occupancy_check=lambda name: {"occupancy": "busy"}),
+            dict(occupancy_check=lambda name: {"occupancy": "unknown"}),
+            dict(submit_task_fn=lambda prompt, plan_id_hint=None: {
+                "ok": False, "error": "ssh timeout"}),
+            dict(submit_task_fn=lambda prompt, plan_id_hint=None: {"ok": False}),
+        ]
+        for i, overrides in enumerate(branches):
+            with self.subTest(branch=i):
+                self.setUp()
+                drain.set_armed(True, "test", path=self.arm_path)
+                self._tick(**overrides)
+                event = self._event()
+                if not event["ok"]:
+                    self.assertTrue(event["error"],
+                                    "ok:false must always name its failure")
 
 
 class CLITests(TestCase):

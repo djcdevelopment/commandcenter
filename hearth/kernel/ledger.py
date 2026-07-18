@@ -96,7 +96,8 @@ def new_event(caller: Mapping[str, str], tool: str, *,
               backend: Optional[str] = None,
               routed_by: Optional[str] = None,
               occupancy: Optional[str] = None,
-              error_code: Optional[str] = None) -> dict:
+              error_code: Optional[str] = None,
+              outcome: Optional[str] = None) -> dict:
     """Build a schema-complete hearth-event.v1 dict for `append`.
 
     `args` and `result` are the raw python values; digests and the 400-char args
@@ -105,7 +106,23 @@ def new_event(caller: Mapping[str, str], tool: str, *,
     `task_class` and `model` are optional additive fields (JS1) so duration
     distributions can later be bucketed by (task_class x node x model); both
     default to None and are omitted from nothing — old readers simply see null.
+
+    `outcome` separates WHICH branch a call took from WHETHER it worked. `ok`
+    means "did its job without error"; a timer tool's benign no-op is ok:true
+    and names its branch in `outcome`. Without this split, tools whose no-op is
+    the common case project an ok_rate near zero and read as catastrophically
+    failing (bankedfire_drain.tick sat at 0.0084 for 592 healthy idle ticks).
+
+    Invariant enforced here: an ok:false event MUST name its failure. Emitting
+    ok:false with error=None is what made those 592 ticks indistinguishable
+    from real outages — the event claimed failure while naming none. Rather
+    than raise (every _record* caller wraps this in a best-effort try/except,
+    so raising would silently drop the audit line it is meant to protect), an
+    unnamed failure is stamped with a placeholder so the incoherent shape can
+    never reach the ledger.
     """
+    if not ok and not error:
+        error = "unspecified failure (emitter named no error)"
     cost = dict(cost) if cost else {}
     args_json = json_dumps_canonical(args)
     return {
@@ -136,6 +153,7 @@ def new_event(caller: Mapping[str, str], tool: str, *,
         "routed_by": routed_by,
         "occupancy": occupancy,
         "error_code": error_code,
+        "outcome": outcome,
     }
 
 
@@ -147,7 +165,8 @@ def _validate_stdlib(event: Any) -> None:
     required = {"schema", "event_id", "ts", "caller", "tool", "args_digest",
                 "args_preview", "result_digest", "ok", "error", "duration_ms",
                 "cost", "task_id"}
-    optional = {"task_class", "model", "backend", "routed_by", "occupancy", "error_code"}
+    optional = {"task_class", "model", "backend", "routed_by", "occupancy", "error_code",
+                "outcome"}
     keys = set(event)
     if not required.issubset(keys) or not keys.issubset(required | optional):
         missing, extra = sorted(required - keys), sorted(keys - (required | optional))
@@ -187,7 +206,8 @@ def _validate_stdlib(event: Any) -> None:
             raise LedgerValidationError(f"cost.{field} must be a number or null")
     if event["task_id"] is not None and not isinstance(event["task_id"], str):
         raise LedgerValidationError("task_id must be a string or null")
-    for optional_field in ("task_class", "model", "backend", "routed_by", "occupancy", "error_code"):
+    for optional_field in ("task_class", "model", "backend", "routed_by", "occupancy",
+                           "error_code", "outcome"):
         if optional_field in event and event[optional_field] is not None \
                 and not isinstance(event[optional_field], str):
             raise LedgerValidationError(f"{optional_field} must be a string or null")

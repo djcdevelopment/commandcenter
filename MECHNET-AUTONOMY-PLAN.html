@@ -52,7 +52,7 @@
 
 <h1>MECHNET Autonomy Plan — see · steer · re-baseline</h1>
 <div class="meta">
-  2026-07-18 · <span class="status draft" style="color: var(--good)">v1.9 — O1 ze_peer P2P microbench DONE: full x8 wire speed, no P2P penalty, copy engine free · swap landed · auto-sweep armed</span> ·
+  2026-07-18 · <span class="status draft" style="color: var(--good)">v2.0 — gpt-oss-120b RESIDENT on oxen as the am4-moe rung: the always-warm big-MoE router/worker, slot/KV goodput-routed · O1 bench DONE · swap landed</span> ·
   SEE S1–S6 + STEER A1–A4 + A6 <strong class="good">LIVE</strong> · G3 (A5) queue-and-forget
   <strong class="good">LIVE</strong> on <code>master</code> (<span class="kpi">de072b6</span>, gateway 47/47) ·
   <strong class="good">NEW — fleet-harvest LIVE</strong>: <code>harvest_fleet_run</code>/<code>list_fleet_runs</code>
@@ -496,6 +496,28 @@ staged-load one-liner) — parked verbatim in the O-track briefs; verify on node
       (<code>files=</code> the 3 raw logs, NO max_tokens override — 2.3k tokens clean, every table number
       verified exact; 3 fabricated context claims fixed in review). Feeds O2 (link budget for the placement
       matrix), O5 (capacity facts → router), O4 (Linux-side baseline for the Windows-delta article).</li>
+  <li><strong class="good">NEW (v2.0) — gpt-oss-120b RESIDENT on oxen, live as the am4-moe rung (Derek's
+      "make it so", same night).</strong> The endgoal from Derek's design question: oxen stays loaded with a
+      large MoE as mechnet's always-warm router/worker, concurrent requests wait in line, goodput managed by
+      slot/KV polling. Built end-to-end: <span class="kpi">63.4 GB</span> MXFP4 GGUF downloaded in
+      <span class="kpi">14 min @ ~68 MiB/s</span> (three Derek-hand gates surfaced and cleared: remount-rw on
+      the fstab-deliberate-ro 4TB, an NTFS-ACL grant on the model dir, ufw allow :8082 LAN-only);
+      <code>b70-moe.service</code> (enabled, linger) serves it layer-split across both cards —
+      <code>--n-cpu-moe 4</code> is a <em>fit requirement</em> (63.4 GB &gt; 60.6 GiB usable VRAM; host mmap
+      backstopped by the D2 swap landing). Soak: <span class="kpi">221.6 tok/s warm prefill · 26.6–28.7 tok/s
+      decode · 4×120 tok in 15.5 s concurrent · queued 5th request +4.5 s (wait-in-line proven) · 0
+      restarts · 18 Gi host RAM free</span>. First-request prefill 8.4 tok/s = one-time SYCL kernel warmup, not
+      steady state. HEARTH side merged <span class="kpi">384d9fb</span> (527 tests): <code>am4-moe</code> rung
+      + <code>probe_moe_slots</code> HTTP goodput probe (saturated slots → busy → opportunistic steers to
+      omen/flash; pins wait in llama-server's queue; this build's /slots lacks n_past → KV telemetry dormant,
+      /metrics enrichment is the seam). <strong>Residency handover decided:</strong> planner/critic tags moved
+      to am4-moe; am4-oxen pin-only, revive removed (auto-revive would start the planner into the moe's VRAM).
+      Live proof through the door: <span class="kpi">backend=am4-moe · routed_by=tag:research ·
+      occupancy=available · 163 tok / 6.4 s</span>. The ladder now reads <strong>am4-moe resident brain →
+      omen-ollama fast swaps → gemini credits → fleet backlog</strong>. Results:
+      <code>am4-fleet-node/results/2026-07-18-oxen-moe-gpt-oss-120b.md</code>; receipt
+      <span class="kpi">br-20260718-064639-50a1d2f7 done 6/6</span>. Follow-ups: /metrics KV+queue-depth
+      telemetry, slot save/restore session parking, mechnet modes for imagegen windows, capacity facts → O5.</li>
 </ul></div>
 
 </main>

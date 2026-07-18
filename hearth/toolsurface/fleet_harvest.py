@@ -30,6 +30,8 @@ Design guardrails:
 
 from __future__ import annotations
 
+import argparse
+import json
 import re
 import subprocess
 from typing import Callable, Optional
@@ -171,3 +173,90 @@ def list_fleet_runs(limit: int = 20) -> dict:
 
 def get_tools() -> list[Callable]:
     return [harvest_fleet_run, list_fleet_runs]
+
+
+# --- Sweep entrypoint (the fleet_harvest gateway timer fires this) ----------
+#
+# ``python -m hearth.toolsurface.fleet_harvest --sweep --json`` harvests EVERY
+# discoverable run in one pass so no build ever strands: the timer's first tick
+# drains whatever backlog has accumulated, and every tick after is a cheap
+# no-op re-mirror (branches are immutable, the push is non-force). Per-run
+# failure is recorded and skipped, never aborting the sweep — resilience, per
+# the kernel-timer contract (hearth/kernel/timers.py).
+
+def _sweep(limit: int = 1000) -> dict:
+    """Harvest every run list_fleet_runs can see. Never raises out of the
+    per-run loop. Reports honest aggregates: ``branches_mirrored`` counts
+    branches ensured-present on origin (NOT newly-pushed — the harvest push is
+    a non-force no-op when the branch already exists, and we don't parse git's
+    per-ref output; a true new-vs-noop delta would need ``git push --porcelain``
+    surfaced from harvest_fleet_run, a clean follow-up)."""
+    report: dict = {
+        "ok": True, "runs_seen": 0, "runs_mirrored": 0, "runs_empty": 0,
+        "branches_mirrored": 0, "errors": [],
+    }
+    listed = list_fleet_runs(limit=limit)
+    if not listed.get("ok"):
+        report["ok"] = False
+        report["errors"].append(
+            {"plan_id": "*", "error": listed.get("error", "list_fleet_runs failed")})
+        return report
+    runs = listed.get("runs", [])
+    report["runs_seen"] = len(runs)
+    for run in runs:
+        plan_id = run.get("plan_id")
+        if not plan_id:
+            continue
+        try:
+            res = harvest_fleet_run(plan_id)
+        except Exception as exc:  # one bad run must never abort the sweep
+            report["errors"].append(
+                {"plan_id": plan_id, "error": f"{type(exc).__name__}: {exc}"})
+            continue
+        if not res.get("ok"):
+            report["errors"].append(
+                {"plan_id": plan_id, "error": res.get("error", "harvest failed")})
+            continue
+        count = res.get("count", 0)
+        if count > 0:
+            report["runs_mirrored"] += 1
+            report["branches_mirrored"] += count
+        else:
+            report["runs_empty"] += 1
+    if report["errors"]:
+        report["ok"] = False
+    return report
+
+
+def main(argv: Optional[list[str]] = None) -> int:
+    ap = argparse.ArgumentParser(
+        prog="python -m hearth.toolsurface.fleet_harvest",
+        description="Sweep the conductor farmer-repo and mirror every fleet "
+                    "run's ccfarm/* branches to the private GitHub origin "
+                    "(idempotent).",
+    )
+    ap.add_argument("--sweep", action="store_true",
+                    help="harvest every discoverable run (the timer entrypoint)")
+    ap.add_argument("--json", action="store_true",
+                    help="emit the sweep report as one JSON object")
+    ap.add_argument("--limit", type=int, default=1000,
+                    help="max runs to enumerate (default 1000 — covers all)")
+    args = ap.parse_args(argv)
+    if not args.sweep:
+        ap.error("nothing to do: pass --sweep")
+
+    report = _sweep(limit=args.limit)
+    if args.json:
+        print(json.dumps(report, separators=(",", ":")))
+    else:
+        print(f"fleet_harvest sweep: seen={report['runs_seen']} "
+              f"mirrored={report['runs_mirrored']} empty={report['runs_empty']} "
+              f"branches={report['branches_mirrored']} errors={len(report['errors'])}")
+    # Exit 0 when the sweep ran, even with per-run errors (recorded, not fatal —
+    # resilience); exit 1 only when enumeration itself failed.
+    enumerate_failed = any(e.get("plan_id") == "*" for e in report["errors"])
+    return 1 if enumerate_failed else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

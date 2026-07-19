@@ -5,14 +5,25 @@ description: Check (and revive) the HEARTH gateway — the MCP door on OMEN :871
 
 # checkmcp — is the HEARTH door open?
 
-One command does the whole job (probe + auto-revive + verdict):
+One command does the whole job (probe + auto-revive + door verdict):
 
 ```
 ./fleet-worker-node/.venv-omen/Scripts/python.exe -m hearth.callers.doorcheck --revive
 ```
 
-Run it from the repo root (`C:\work\commandcenter`). It checks six layers and
-prints a verdict; exit 0 = HEALTHY, exit 1 = DEGRADED:
+Run it from the repo root (`C:\work\commandcenter`). It checks explicit health
+facets. Default exit 0 means the door facet is healthy; `--strict` requires all
+facets. Exit 1 means the requested facet is unhealthy; exit 2 means a hard
+configuration failure:
+
+- `process_listener` — TCP listener reachable.
+- `authentication` — an authenticated MCP tool call succeeds.
+- `mcp_surface` — MCP handshake and tool manifest match.
+- `backend_dependency` — the configured default backend is ready; `cold` is a
+  distinct advisory status in default mode.
+
+Machine-readable output uses `facets` with stable names and statuses. Existing
+top-level `gateway`, `mcp`, `toolsurface`, `backends`, and `ok` fields remain.
 
 - **gateway** — TCP :8710; with `--revive` it relaunches the gateway as a
   DETACHED process if down (safe: the start script is idempotent, one instance
@@ -30,7 +41,8 @@ prints a verdict; exit 0 = HEALTHY, exit 1 = DEGRADED:
   DEGRADED even though the port and handshake look fine.
 - **backends** — one line per backend declared in `hearth/etc/backends.toml`:
   - `omen-ollama` (api=ollama, the pool default) — real `/api/version` check;
-    this backend being up is part of the exit-code verdict, same as before.
+    `cold` is advisory for the default door check and fails `--strict` or an
+    explicit `--facet backend_dependency` check.
   - `am4-oxen` (api=openai) — TCP-only reachability, INFORMATIONAL. AM4 sleeps
     by design (banked fire); `asleep` is expected, not a failure, and never
     affects exit.
@@ -67,6 +79,18 @@ watchdog,bankedfire-drain}-task.log`.
   spends a trickle of GCP trial credit. Run this before pinning
   `backend="gcp-gemini"` for real work.
 - `--json` — machine-readable report with every field above.
+- `--facet {door,process_listener,authentication,mcp_surface,backend_dependency}`
+  — answer one requested facet; `door` is the default.
+- `--strict` — require every facet, including backend readiness, to pass.
+
+`GET /healthz` is unauthenticated and intentionally returns only
+`{"status":"ok"}`. It reveals no caller data, tools, backends, paths, secrets,
+or configuration.
+
+Path inputs containing `..` are refused outright rather than normalized away.
+This is an intentional hardening incompatibility: callers must provide direct
+paths inside their granted scope. Do not weaken this rule for speculative
+external consumers.
 
 ## Durable start (no stale claims here — this is the actual topology)
 

@@ -41,6 +41,8 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 from mcp.server.fastmcp import FastMCP
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from hearth.kernel.auth import HEADER_NAME, AuthRegistry
 from hearth.kernel.capabilities import assert_surface_complete, check_tool_access
@@ -437,6 +439,12 @@ def build_server(providers_spec: str = "", host: str = DEFAULT_HOST,
     mcp.settings.port = port
     key_provider = make_header_key_provider(mcp)
     task_id_provider = make_task_id_provider(mcp)
+
+    # Public liveness contract: intentionally static and unauthenticated. Do
+    # not add caller, tool, backend, path, or configuration data here.
+    @mcp.custom_route("/healthz", methods=["GET"], include_in_schema=False)
+    async def healthz(_request: Request) -> JSONResponse:
+        return JSONResponse({"status": "ok"})
 
     providers = load_providers(providers_spec)
     mounted = [BUILTIN_PROVIDER, *providers]

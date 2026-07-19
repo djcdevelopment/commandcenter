@@ -133,6 +133,36 @@ def _restrict_permissions(path: Path) -> Optional[str]:
         return f"{type(exc).__name__}: {exc}"
 
 
+def _acl_status(path: Path) -> dict[str, str]:
+    """Return a metadata-only ACL state for callerctl diagnostics.
+
+    ACL tightening remains best-effort. A failed or unverifiable lockdown is
+    deliberately visible to ``callerctl list`` rather than looking identical
+    to a secured registry.
+    """
+    if not path.exists():
+        return {"status": "unknown", "detail": "registry missing"}
+    try:
+        if os.name == "nt":
+            account = os.environ.get("USERNAME") or ""
+            if not account:
+                return {"status": "degraded", "detail": "USERNAME unset"}
+            completed = subprocess.run(
+                ["icacls", str(path)], capture_output=True, text=True, timeout=20)
+            if completed.returncode != 0:
+                return {"status": "degraded", "detail": "icacls query failed"}
+            output = (completed.stdout or "") + (completed.stderr or "")
+            if account.lower() in output.lower() and "(F)" in output:
+                return {"status": "secured", "detail": "current account has full control"}
+            return {"status": "degraded", "detail": "current account ACL not verified"}
+        mode = path.stat().st_mode & 0o777
+        return ({"status": "secured", "detail": "mode 600"}
+                if mode == 0o600 else
+                {"status": "degraded", "detail": f"mode {mode:03o}"})
+    except (OSError, subprocess.SubprocessError) as exc:
+        return {"status": "degraded", "detail": f"{type(exc).__name__}"}
+
+
 def _load_registry(path: Path) -> dict[str, dict]:
     if not path.exists():
         raise CallerCtlError(
@@ -318,6 +348,7 @@ def cmd_list(args: argparse.Namespace) -> int:
     """Metadata only. Secrets never appear here, in any output mode."""
     path = Path(args.registry)
     data = _load_registry(path)
+    acl = _acl_status(path)
     rows = []
     for key, entry in data.items():
         if not isinstance(entry, dict):
@@ -331,14 +362,19 @@ def cmd_list(args: argparse.Namespace) -> int:
             "file_scope": entry.get("file_scope", []),
             "repo_access": entry.get("repo_access", []),
             "key_fingerprint": _fingerprint(key),
+            "registry_acl_status": acl["status"],
+            "registry_acl_detail": acl["detail"],
         })
     rows.sort(key=lambda r: (r["id"] or ""))
 
     if args.json:
+        # Preserve the historical top-level JSON array shape; ACL state is
+        # additive metadata on every row.
         print(json.dumps(rows, indent=2))
         return 0
 
-    print(f"{path}  ({len(rows)} caller(s))\n")
+    print(f"{path}  ({len(rows)} caller(s))")
+    print(f"  registry_acl: {acl['status']} ({acl['detail']})\n")
     for row in rows:
         flag = "  [UNRESTRICTED]" if row["unrestricted"] else ""
         print(f"  {row['id']}{flag}")

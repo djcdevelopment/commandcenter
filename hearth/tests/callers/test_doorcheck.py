@@ -207,3 +207,79 @@ class BuildRequestLaneTests(TestCase):
         self.assertEqual(result["receipt_id"], "br-new")
         self.assertEqual(result["status"], "running")
         self.assertTrue(result["line"].startswith("build-reqs: br-new running ("))
+
+
+class FacetAndExitTests(TestCase):
+    """Phase 4 contract: door health is independent from backend readiness."""
+
+    def _check(self, *, listener=True, auth=True, surface=True, backend=True,
+               config_error=None, strict=False):
+        mcp = {"ok": True, "auth_ok": auth, "tools": 1,
+               "tool_names": ["kernel_status"], "handshake_ms": 1}
+        with patch.object(doorcheck, "_tcp_up", return_value=listener), \
+             patch.object(doorcheck, "_mcp_handshake", return_value=mcp), \
+             patch.object(doorcheck, "_toolsurface_report", return_value={"ok": surface, "line": "surface"}), \
+             patch.object(doorcheck, "_backends_report", return_value={
+                 "backends": [], "default_up": backend,
+                 "config_error": config_error}), \
+             patch.object(doorcheck, "_last_ledger_event", return_value=None), \
+             patch.object(doorcheck, "_build_request_lane", return_value={"ok": True, "line": "lane"}), \
+             patch.object(doorcheck, "_trial_burn_report", return_value="trial"):
+            return doorcheck.check(strict=strict)
+
+    def test_door_up_backend_cold_default_passes_strict_fails(self):
+        report = self._check(backend=False)
+        self.assertTrue(report["ok"])
+        self.assertEqual(report["facets"]["backend_dependency"], "cold")
+        strict = self._check(backend=False, strict=True)
+        self.assertFalse(strict["ok"])
+
+    def test_door_down_fails_process_facet(self):
+        report = self._check(listener=False)
+        self.assertFalse(report["ok"])
+        self.assertEqual(report["facets"]["process_listener"], "down")
+        self.assertEqual(report["facets"]["authentication"], "unknown")
+
+    def test_auth_failure_is_distinct(self):
+        report = self._check(auth=False)
+        self.assertFalse(report["ok"])
+        self.assertEqual(report["facets"]["authentication"], "failed")
+
+    def test_tool_surface_failure_is_distinct(self):
+        report = self._check(surface=False)
+        self.assertFalse(report["ok"])
+        self.assertEqual(report["facets"]["mcp_surface"], "degraded")
+
+    def test_fully_healthy(self):
+        report = self._check()
+        self.assertTrue(report["ok"])
+        self.assertTrue(all(v == "healthy" for v in report["facets"].values()))
+
+    def test_malformed_backend_configuration_is_hard_failure(self):
+        report = self._check(config_error="invalid TOML")
+        self.assertFalse(report["ok"])
+        self.assertEqual(report["facets"]["backend_dependency"], "failed")
+        self.assertTrue(report["hard_failure"])
+
+    def test_default_and_strict_cli_forward_distinct_contracts(self):
+        healthy = {
+            "gateway": "up", "revived": False, "mcp": {},
+            "toolsurface": {"line": "surface"}, "backends": [],
+            "last_ledger_event": None, "build_requests": {"line": "lane"},
+            "trial_burn_line": "trial", "facets": {
+                "process_listener": "healthy", "authentication": "healthy",
+                "mcp_surface": "healthy", "backend_dependency": "cold"},
+            "requested_facet": "door", "strict": False,
+            "hard_failure": False, "ok": True,
+        }
+        with patch.object(doorcheck, "check", return_value=healthy) as check_mock:
+            self.assertEqual(doorcheck.main([]), 0)
+        check_mock.assert_called_once_with(
+            revive=False, probe_cloud=False, facet="door", strict=False)
+
+        strict = dict(healthy)
+        strict.update({"requested_facet": "door", "strict": True, "ok": False})
+        with patch.object(doorcheck, "check", return_value=strict) as check_mock:
+            self.assertEqual(doorcheck.main(["--strict"]), 1)
+        check_mock.assert_called_once_with(
+            revive=False, probe_cloud=False, facet="door", strict=True)

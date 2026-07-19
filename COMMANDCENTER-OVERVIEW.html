@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>commandcenter — Mechnet Overview</title>
+<style>
+:root {
+  --bg: #faf8f4; --fg: #22211e; --muted: #6b6760; --accent: #b4541e; --accent-soft: #d98b5f;
+  --card: #ffffff; --border: #e2ddd3; --good: #2e7d32; --warn: #b26a00; --bad: #c62828; --code-bg: #f0ece4;
+  --meter-bg: #eae5db;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1b18; --fg: #e8e4dc; --muted: #a09a8e; --accent: #e8925a; --accent-soft: #b4541e;
+    --card: #262420; --border: #3a372f; --good: #81c784; --warn: #ffb74d; --bad: #ef9a9a; --code-bg: #2e2b25;
+    --meter-bg: #33302a;
+  }
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; padding: 20px; line-height: 1.5; }
+a { color: var(--accent); }
+h1, h2, h3, h4 { margin-top: 0; font-weight: 500; }
+h2 { border-bottom: 2px solid var(--accent); padding-bottom: 6px; margin-bottom: 4px; }
+h3 { color: var(--muted); font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+.sub { color: var(--muted); font-size: 0.9em; margin: 0 0 16px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 16px; margin-bottom: 16px; }
+.row { display: flex; gap: 16px; flex-wrap: wrap; }
+.row > .card { flex: 1; min-width: 260px; margin-bottom: 0; }
+section { margin-bottom: 36px; }
+.metric { font-size: 1.9em; font-weight: 500; line-height: 1.2; }
+.metric small { font-size: 0.5em; color: var(--muted); font-weight: 400; }
+.note { color: var(--muted); font-size: 0.85em; margin-top: 4px; }
+table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.9em; }
+th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--muted); font-weight: normal; font-size: 0.92em; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.tablewrap { overflow-x: auto; }
+tr:hover td { background: var(--code-bg); }
+.chip { display: inline-block; padding: 1px 9px; border-radius: 10px; font-size: 0.8em; border: 1px solid var(--border); white-space: nowrap; }
+.chip.good { color: var(--good); border-color: var(--good); }
+.chip.warn { color: var(--warn); border-color: var(--warn); }
+.chip.bad  { color: var(--bad);  border-color: var(--bad); }
+.chip.info { color: var(--muted); }
+.meter { background: var(--meter-bg); border-radius: 4px; overflow: hidden; height: 12px; width: 100%; margin-top: 4px; }
+.meter > div { height: 100%; border-radius: 4px 0 0 4px; background: var(--good); }
+.meter > div.warn { background: var(--warn); }
+.meter > div.bad { background: var(--bad); }
+.meter > div.acc { background: var(--accent); }
+.meterlabel { display: flex; justify-content: space-between; font-size: 0.82em; color: var(--muted); margin-top: 6px; }
+.hbar { display: grid; grid-template-columns: 130px 1fr 90px; gap: 10px; align-items: center; margin: 7px 0; font-size: 0.9em; }
+.hbar .track { background: var(--meter-bg); border-radius: 4px; height: 16px; overflow: hidden; }
+.hbar .track > div { height: 100%; background: var(--accent); border-radius: 4px 0 0 4px; min-width: 2px; }
+.hbar .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.spark { display: flex; align-items: flex-end; gap: 3px; height: 70px; margin-top: 10px; }
+.spark .col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 3px; min-width: 14px; }
+.spark .col > i { display: block; width: 100%; background: var(--accent); border-radius: 3px 3px 0 0; min-height: 1px; }
+.spark .col > b { font-size: 0.62em; color: var(--muted); font-weight: 400; transform: rotate(-45deg); transform-origin: center; white-space: nowrap; margin-top: 6px; }
+.spark .col.peak > i { background: var(--accent-soft); }
+nav.toc { position: sticky; top: 0; background: var(--bg); padding: 8px 0; z-index: 5; border-bottom: 1px solid var(--border); margin-bottom: 20px; font-size: 0.92em; }
+nav.toc a { margin-right: 18px; text-decoration: none; }
+.verdict { font-size: 1.08em; border-left: 3px solid var(--accent); padding: 6px 14px; margin: 14px 0; background: var(--card); border-radius: 0 6px 6px 0; }
+.verdict .who { display: block; color: var(--muted); font-size: 0.8em; margin-top: 4px; }
+.attn { display: grid; gap: 8px; }
+.attn .item { display: grid; grid-template-columns: 26px 90px 1fr; gap: 10px; align-items: baseline; padding: 8px 10px; background: var(--card); border: 1px solid var(--border); border-radius: 6px; font-size: 0.92em; }
+.attn .rank { color: var(--muted); font-variant-numeric: tabular-nums; }
+ul.compact { margin: 6px 0 0; padding-left: 20px; font-size: 0.92em; }
+ul.compact li { margin-bottom: 3px; }
+code { background: var(--code-bg); border-radius: 4px; padding: 1px 5px; font-size: 0.88em; }
+footer { color: var(--muted); font-size: 0.82em; border-top: 1px solid var(--border); padding-top: 14px; margin-top: 30px; }
+.models { font-size: 0.85em; color: var(--muted); line-height: 1.7; }
+.models b { color: var(--fg); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<h1>commandcenter — Mechnet Overview</h1>
+<p class="sub">Snapshot 2026-07-18 · assembled from the HEARTH ledger projections, fleet-ping, live SSH probes, and the git constellation ·
+regenerate by asking Claude for a fresh overview snapshot</p>
+
+<div class="verdict">
+  &ldquo;Mechnet operates with full fleet uptime and modest offload savings, but critical capability gaps and stale catalog pose immediate risks.&rdquo;
+  <span class="who">verdict by the oxen brain — gpt-oss-120b · <code>routed_by: pinned:am4-moe</code> · 93 s, 2,235 tokens</span>
+</div>
+
+<nav class="toc">
+  <a href="#attention">Attention</a>
+  <a href="#manifest">1 · Hearth Manifest</a>
+  <a href="#machines">2 · Machines</a>
+  <a href="#work">3 · Work</a>
+  <a href="#constellation">4 · Constellation</a>
+</nav>
+
+<!-- ================= ATTENTION ================= -->
+<section id="attention">
+  <h2>Attention</h2>
+  <p class="sub">Ranked by the oxen brain (am4-moe) from the full digest.</p>
+  <div class="attn">
+    <div class="item"><span class="rank">1</span><span class="chip bad">red</span>
+      <span><b>capabilities.json count = 0</b> — the first capability was never re-earned after the 2026-07-02 corpus overwrite; downstream consumers query an empty belief.</span></div>
+    <div class="item"><span class="rank">2</span><span class="chip bad">red</span>
+      <span><b>am4_catalog.json stale since 07-04 (14 days)</b> — it predates the resident gpt-oss-120b entirely; routing and the scheduler see a machine that no longer exists. <code>gather_am4_catalog</code> refresh due.</span></div>
+    <div class="item"><span class="rank">3</span><span class="chip bad">red</span>
+      <span><b>4 ledger events with unknown backend/cost-class, ok_rate 0.25</b> — accounting-integrity smell. They predate the 07-18 ledger-outcome split; verify the next knowledge rebuild clears the bucket.</span></div>
+    <div class="item"><span class="rank">4</span><span class="chip warn">amber</span>
+      <span><b>execute_build_request ok_rate 60%</b> (3/5) — the receipt lane's execute step fails often enough to slow deliveries.</span></div>
+    <div class="item"><span class="rank">5</span><span class="chip warn">amber</span>
+      <span><b>conductor VM has 2 GB RAM total</b> — the orchestration node runs at the memory floor; a busy queue is one allocation away from pressure.</span></div>
+  </div>
+  <p class="note">Watching, not on the strip: OMEN C: 18% free · AM4 root 18% free (both amber on the disk rule) · run_tests 89% · i5-laptop is up though normally offline.</p>
+</section>
+
+<!-- ================= MANIFEST ================= -->
+<section id="manifest">
+  <h2>1 · Hearth Manifest — the offload ledger</h2>
+  <p class="sub">Every call through the door lands on the ledger. Corpus: <b>8,535 events</b> since 2026-07-03 ·
+    projections rebuilt 2026-07-18 23:07 UTC · deep dive: <a href="HEARTH-DASHBOARD.html">HEARTH-DASHBOARD</a> ·
+    <a href="hearth/LEDGER-ACCESS.html">ledger access</a> · <a href="HEARTH-OVERVIEW.html">architecture</a></p>
+
+  <div class="row" style="margin-bottom:16px;">
+    <div class="card"><h3>Offload calls</h3><div class="metric">217</div><div class="note">routed inference calls, all backends</div></div>
+    <div class="card"><h3>Tokens in / out</h3><div class="metric">228.7k <small>in</small> · 49.2k <small>out</small></div><div class="note">prompt vs completion, ledger totals</div></div>
+    <div class="card"><h3>Offload ratio</h3><div class="metric">1.0</div><div class="note">every routable sub-task left the metered lane</div></div>
+    <div class="card"><h3>Est. saved</h3><div class="metric" style="color:var(--good);">$1.42</div><div class="note">vs claude-sonnet reference ($3/$15 per Mtok)</div></div>
+  </div>
+
+  <div class="row" style="margin-bottom:16px;">
+    <div class="card" style="flex:2;">
+      <h3>Cost-class split</h3>
+      <div class="hbar"><span>trial (GCP credits)</span><div class="track"><div style="width:79%"></div></div><span class="val">172 calls</span></div>
+      <div class="hbar"><span>sunk (own iron)</span><div class="track"><div style="width:19%"></div></div><span class="val">41 calls</span></div>
+      <div class="hbar"><span>unknown</span><div class="track"><div style="width:2%; background:var(--bad);"></div></div><span class="val">4 calls</span></div>
+      <div class="note">trial burn 229,604 of 200,000,000 token budget — <b>0.11%</b>, runway effectively untouched (reserve 20M)</div>
+      <div class="meter" title="trial credit runway burned: 0.11%"><div class="acc" style="width:0.2%"></div></div>
+    </div>
+    <div class="card" style="flex:3;">
+      <h3>Automation heartbeat (30d)</h3>
+      <div class="tablewrap"><table>
+        <tr><th>timer / tool</th><th class="num">ticks</th><th class="num">ok rate</th></tr>
+        <tr><td>patrol_snapshot (5-min rounds)</td><td class="num">3,447</td><td class="num">99.6% <span class="note">(7d)</span></td></tr>
+        <tr><td>watchfire coherence pass</td><td class="num">1,179</td><td class="num">99.4% <span class="note">(7d)</span></td></tr>
+        <tr><td>hindsight regret accrual</td><td class="num">555</td><td class="num">99.5%</td></tr>
+        <tr><td>bankedfire idle-drain</td><td class="num">599</td><td class="num">100%</td></tr>
+        <tr><td>git_commit_push</td><td class="num">38</td><td class="num">100%</td></tr>
+        <tr><td>run_tests</td><td class="num">28</td><td class="num" style="color:var(--warn);">89%</td></tr>
+      </table></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Backend rungs — economics &amp; measured pace</h3>
+    <div class="tablewrap"><table>
+      <tr><th>rung</th><th>model</th><th>class</th><th class="num">calls</th><th class="num">ok</th>
+          <th class="num">tokens in / out</th><th class="num">decode p50</th><th class="num">latency p50 / p90</th></tr>
+      <tr><td><b>am4-moe</b> <span class="chip info">the brain</span></td><td>gpt-oss-120b</td><td>sunk</td>
+          <td class="num">11</td><td class="num">100%</td><td class="num">29,917 / 16,116</td>
+          <td class="num">20.8 tok/s</td><td class="num">88 s / 131 s</td></tr>
+      <tr><td>gcp-gemini</td><td>gemini-3.5-flash</td><td>trial</td>
+          <td class="num">65</td><td class="num">100%</td><td class="num">112,841 / 11,518</td>
+          <td class="num">25.7 tok/s</td><td class="num">3.1 s / 30 s</td></tr>
+      <tr><td>gcp-gemini-pro</td><td>gemini-3.1-pro-preview</td><td>trial</td>
+          <td class="num">107</td><td class="num">100%</td><td class="num">83,856 / 21,389</td>
+          <td class="num">23.0 tok/s</td><td class="num">34 s / 112 s</td></tr>
+      <tr><td>omen-ollama</td><td>qwen3-coder:30b</td><td>sunk</td>
+          <td class="num">19</td><td class="num">100%</td><td class="num">2,118 / 154</td>
+          <td class="num">12.5 tok/s</td><td class="num">16 s / 31 s</td></tr>
+      <tr><td>am4-oxen <span class="chip info">pin-and-wake</span></td><td>qwen3-30b (oxen)</td><td>sunk</td>
+          <td class="num">11</td><td class="num">100%</td><td class="num">baseline runs</td>
+          <td class="num">—</td><td class="num">2.9 s / 4.3 s</td></tr>
+    </table></div>
+    <p class="note">Call counts merge routed buckets with pre-provenance model-keyed buckets (routing provenance landed 07-17, S1);
+      token columns are the routed buckets only. Perf columns from capacity.json inference buckets.</p>
+    <p class="note"><b>am4-moe under fire (GAMBIT, 07-18):</b> 453/453 ok with no breaking point · 221 tok/s warm prefill ·
+      ~26 tok/s goodput flat from c=4 to c=16 + 32-burst · ~4.4 s TTFT per queued request (cache-hit TTFT 68× faster) · GPU max 78 °C.</p>
+  </div>
+</section>
+
+<!-- ================= MACHINES ================= -->
+<section id="machines">
+  <h2>2 · Machines — fleet hardware capacity</h2>
+  <p class="sub">fleet-ping right now: <b>12/12 nodes up</b> (including i5-laptop, normally offline, and the GCP egress lane) ·
+    GPU pool: <b>76 GB VRAM</b> (2× Arc Pro B70 32 GB + RTX 5070 12 GB) ·
+    health thresholds set by the oxen brain: disk free ≥20% green / 10–20% amber / &lt;10% red; ok-rate ≥95% green.</p>
+
+  <div class="row" style="margin-bottom:16px;">
+    <div class="card">
+      <h3>OMEN — hypervisor · the door · Ollama <span class="chip good">up</span></h3>
+      <div class="note">Core Ultra 9 285K · Win11 · up since 07-16 · HEARTH :8710 · Ollama :11434 · hosts all builder VMs</div>
+      <div class="meterlabel"><span>RAM 128 GB</span><span>69 GB free (54%)</span></div>
+      <div class="meter"><div style="width:46%"></div></div>
+      <div class="meterlabel"><span>C: 953 GB</span><span style="color:var(--warn);">171 GB free (18%)</span></div>
+      <div class="meter"><div class="warn" style="width:82%"></div></div>
+      <div class="meterlabel"><span>RTX 5070 12 GB VRAM</span><span>29 °C idle · 2.5 GB used</span></div>
+      <div class="meter"><div style="width:21%"></div></div>
+      <div class="models" style="margin-top:10px;"><b>Models on tap (Ollama):</b>
+        mixtral 8x22b (52 GB) · qwen3-coder:30b (18 GB) · qwen2.5:14b (9 GB) · qwen2.5vl:7b (6 GB) ·
+        llama3.1:8b · qwen2.5:7b-instruct · llama3.2:3b · moondream</div>
+    </div>
+    <div class="card">
+      <h3>AM4 &ldquo;oxen&rdquo; — inference iron <span class="chip good">up 3 weeks</span></h3>
+      <div class="note">Ryzen 9 · Ubuntu · dual Intel Arc Pro B70 (2×32 GB) · Jaeger :16686 · zram+16G swap (D2, proven under fire)</div>
+      <div class="meterlabel"><span>RAM 30 GB</span><span>12 GB available (40%)</span></div>
+      <div class="meter"><div style="width:60%"></div></div>
+      <div class="meterlabel"><span>root 295 GB</span><span style="color:var(--warn);">54 GB free (18%)</span></div>
+      <div class="meter"><div class="warn" style="width:82%"></div></div>
+      <div class="meterlabel"><span>model zoo /mnt/win 3.7 TB</span><span>1.5 TB free (39%)</span></div>
+      <div class="meter"><div style="width:61%"></div></div>
+      <div class="models" style="margin-top:10px;">
+        <b>Resident:</b> gpt-oss-120b across both B70s (b70-moe :8082 — <span class="chip good">active · health ok</span>) · 78 °C max under GAMBIT<br>
+        <b>Pin-and-wake:</b> oxen qwen3-30b dual (:8090, stop moe first) ·
+        <b>catalog</b> <span class="chip warn">stale 07-04</span>: qwen3-30b-a3b-128k 81.7 t/s dual · qwen2.5-14b 46.8 · mistral-24b 27.3 · qwen2.5-32b 20.7</div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <h3>cc-conductor — orchestration VM <span class="chip good">up 1 wk</span></h3>
+      <div class="note">conductor daemon + dashboard <a href="http://cc-conductor.mshome.net:8080">:8080</a></div>
+      <div class="meterlabel"><span>RAM 2 GB</span><span style="color:var(--warn);">at the floor</span></div>
+      <div class="meter"><div class="warn" style="width:75%"></div></div>
+      <div class="meterlabel"><span>disk 42 GB</span><span>25 GB free (60%)</span></div>
+      <div class="meter"><div style="width:40%"></div></div>
+    </div>
+    <div class="card" style="flex:2;">
+      <h3>Builder pool — all reachable</h3>
+      <div class="tablewrap"><table>
+        <tr><th>node</th><th>runner</th><th>backend</th><th>role</th></tr>
+        <tr><td>cc-builder-1</td><td>frontier</td><td>claude/sonnet</td><td>metered builder</td></tr>
+        <tr><td>cc-builder-2</td><td>local</td><td>AM4 oxen</td><td>builder</td></tr>
+        <tr><td>cc-builder-3</td><td>local</td><td>OMEN qwen2.5:14b</td><td>builder + assay</td></tr>
+        <tr><td>cc-builder-4</td><td>local</td><td>OMEN mixtral 8x22b</td><td>critic (optional, off-pool)</td></tr>
+        <tr><td>claudefarm1</td><td>local</td><td>OMEN qwen3-coder:30b</td><td>golden image · hosts omen-worker-1</td></tr>
+        <tr><td>am4-worker-1 / omen-worker-1</td><td>local</td><td>oxen / OMEN Ollama</td><td>logical builders</td></tr>
+      </table></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= WORK ================= -->
+<section id="work">
+  <h2>3 · Work — done, running, planned</h2>
+
+  <div class="row" style="margin-bottom:16px;">
+    <div class="card"><h3>Conductor queue</h3><div class="metric">0 <small>queued</small> · 2 <small>running</small></div><div class="note">184 runs completed all-time</div></div>
+    <div class="card"><h3>Build receipts</h3><div class="metric">16<small>/18 done</small></div><div class="note">1 cancelled (G3 — built inline) · 1 blocked (superseded by a done successor)</div></div>
+    <div class="card"><h3>Active plans</h3><div class="metric">3</div><div class="note">Autonomy v2.4 · Scheduler 5/7 · Decisions register</div></div>
+  </div>
+
+  <div class="card">
+    <h3>Recent build-request receipts (auditable lane)</h3>
+    <div class="tablewrap"><table>
+      <tr><th>receipt</th><th>title</th><th>status</th></tr>
+      <tr><td><code>…fe90b0be</code></td><td>oxen-moe GAMBIT — multi-axis stress of resident gpt-oss-120b</td><td><span class="chip good">done 6/6</span></td></tr>
+      <tr><td><code>…50a1d2f7</code></td><td>gpt-oss-120b resident MoE + am4-moe rung with slot/KV goodput polling</td><td><span class="chip good">done 6/6</span></td></tr>
+      <tr><td><code>…4f780d5d</code></td><td>O1 — ze_peer P2P microbench on dual B70 (14.3 GB/s, full x8 wire)</td><td><span class="chip good">done 5/5</span></td></tr>
+      <tr><td><code>…4d91410a</code></td><td>O1 prereq — D2 hybrid swap applied on AM4 (Derek's hand)</td><td><span class="chip good">done 5/5</span></td></tr>
+      <tr><td><code>…ee98c85c</code></td><td>fleet_harvest auto-sweep timer — builds never strand</td><td><span class="chip good">done</span></td></tr>
+      <tr><td><code>…6f91c825</code></td><td>S5 — HEARTH living HTML dashboard from the projections</td><td><span class="chip good">done</span></td></tr>
+      <tr><td><code>…ea04130b</code></td><td>G2a — quality tiers + ASK contract + trial-credit runway</td><td><span class="chip good">done</span></td></tr>
+      <tr><td><code>…ba5ad737</code></td><td>G1 — payload-aware routing + ladder escalation</td><td><span class="chip good">done</span></td></tr>
+      <tr><td><code>…5a44c322</code></td><td>O1 prereq: D2 swap first attempt (fleet can't sudo)</td><td><span class="chip warn">blocked → superseded</span></td></tr>
+      <tr><td><code>…39919920</code></td><td>G3 queue-and-forget (delivered inline instead)</td><td><span class="chip info">cancelled</span></td></tr>
+    </table></div>
+    <p class="note">Receipts + ledger at <code>C:\work\comfy\fieldlab\runs\build-requests</code> · closed receipts are immutable — corrections ride successor receipts.</p>
+  </div>
+
+  <div class="card">
+    <h3>Plans &amp; projected work</h3>
+    <ul class="compact">
+      <li><a href="MECHNET-AUTONOMY-PLAN.html">MECHNET-AUTONOMY-PLAN</a> — <b>v2.4</b>, the live campaign: O5 capacity-facts first cut in; next: /metrics KV telemetry, slot save/restore parking, mechnet modes, O2/O5/O4; Track OXEN descoped (D5)</li>
+      <li><a href="SCHEDULER-STRATEGY.html">SCHEDULER-STRATEGY</a> — 5/7 sorties done; S3 blocked on H1b (empty JS5 pour → re-pour vs direct build); S5 verdict WAIT + countdown</li>
+      <li><a href="DECISIONS-PENDING.html">DECISIONS-PENDING</a> — the pending-decisions register (living tracker)</li>
+      <li><a href="JOB-SHOP-SCHEDULER-PLAN.html">JOB-SHOP-SCHEDULER-PLAN</a> · <a href="FLEET-WORK-PLAN.html">FLEET-WORK-PLAN</a> · <a href="MECHSUIT-MODERNIZATION-PLAN.html">MECHSUIT-MODERNIZATION-PLAN</a> — reference plans</li>
+      <li>Queued/running truth lives on the <a href="http://cc-conductor.mshome.net:8080">conductor dashboard</a> — 2 runs in flight at snapshot time</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ================= CONSTELLATION ================= -->
+<section id="constellation">
+  <h2>4 · Constellation — the physical drive</h2>
+  <p class="sub">C:\work as of tonight: <b>24 top-level directories · ~140 GB · 8 git repos</b> ·
+    formal intake lane: <a href="AM4-SEED-INTAKE.html">software constellation registry v0.1</a> (ADR-0016)</p>
+
+  <div class="row" style="margin-bottom:16px;">
+    <div class="card" style="flex:3;">
+      <h3>What the work was — 218 commits in 16 days (commandcenter)</h3>
+      <div class="hbar"><span>feature dev</span><div class="track"><div style="width:100%"></div></div><span class="val">106 · 49%</span></div>
+      <div class="hbar"><span>planning</span><div class="track"><div style="width:38%"></div></div><span class="val">40 · 18%</span></div>
+      <div class="hbar"><span>documentation</span><div class="track"><div style="width:29%"></div></div><span class="val">31 · 14%</span></div>
+      <div class="hbar"><span>bug fix</span><div class="track"><div style="width:20%"></div></div><span class="val">21 · 10%</span></div>
+      <div class="hbar"><span>R&amp;D</span><div class="track"><div style="width:12%"></div></div><span class="val">13 · 6%</span></div>
+      <div class="hbar"><span>QA</span><div class="track"><div style="width:7%"></div></div><span class="val">7 · 3%</span></div>
+      <p class="note">Rule-based classification of every commit subject (docs(plan)→planning, results/experiments→R&amp;D, tests/assays→QA…), with per-commit overrides where the prefix lies.</p>
+    </div>
+    <div class="card" style="flex:2;">
+      <h3>Commit cadence — per day</h3>
+      <div class="spark">
+        <div class="col" title="07-02: 11 commits"><i style="height:10px"></i><b>02</b></div>
+        <div class="col" title="07-03: 36 commits"><i style="height:33px"></i><b>03</b></div>
+        <div class="col peak" title="07-04: 66 commits — the HEARTH build blitz"><i style="height:60px"></i><b>04</b></div>
+        <div class="col" title="07-05: 7"><i style="height:6px"></i><b>05</b></div>
+        <div class="col" title="07-06: 5"><i style="height:5px"></i><b>06</b></div>
+        <div class="col" title="07-07: 9"><i style="height:8px"></i><b>07</b></div>
+        <div class="col" title="07-08: 2"><i style="height:2px"></i><b>08</b></div>
+        <div class="col" title="07-09: 10"><i style="height:9px"></i><b>09</b></div>
+        <div class="col" title="07-10: 2"><i style="height:2px"></i><b>10</b></div>
+        <div class="col" title="07-11: 15"><i style="height:14px"></i><b>11</b></div>
+        <div class="col" title="07-12: 9"><i style="height:8px"></i><b>12</b></div>
+        <div class="col" title="07-13: 0"><i style="height:1px"></i><b>13</b></div>
+        <div class="col" title="07-14: 0"><i style="height:1px"></i><b>14</b></div>
+        <div class="col" title="07-15: 0"><i style="height:1px"></i><b>15</b></div>
+        <div class="col" title="07-16: 5"><i style="height:5px"></i><b>16</b></div>
+        <div class="col" title="07-17: 26 — autonomy campaign"><i style="height:24px"></i><b>17</b></div>
+        <div class="col" title="07-18: 15 — oxen gets a brain"><i style="height:14px"></i><b>18</b></div>
+      </div>
+      <p class="note">Peak 66 on 07-04 (HEARTH goes live) · second wave 07-17/18 (autonomy campaign + resident moe). 13–15 dark: AM4 Linux migration ran off-repo.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Drive movers — size, repo coverage, last activity</h3>
+    <div class="tablewrap"><table>
+      <tr><th>directory</th><th class="num">size</th><th></th><th>repo</th><th>last activity</th><th>what it is</th></tr>
+      <tr><td>comfy</td><td class="num">119.8 GB</td><td style="width:24%"><div class="meter"><div class="acc" style="width:100%"></div></div></td><td><span class="chip good">git</span></td><td>07-18</td><td>fieldlab + build-request receipts + Valheim NetworkSense</td></tr>
+      <tr><td>iso</td><td class="num">11.2 GB</td><td><div class="meter"><div class="acc" style="width:9%"></div></div></td><td><span class="chip info">—</span></td><td>07-17</td><td>OS images (AM4 Linux migration)</td></tr>
+      <tr><td>Lumberjacks</td><td class="num">2.3 GB</td><td><div class="meter"><div class="acc" style="width:2%"></div></div></td><td><span class="chip good">git</span></td><td>07-18</td><td>Valheim mod lane</td></tr>
+      <tr><td><b>commandcenter</b></td><td class="num">2.1 GB</td><td><div class="meter"><div class="acc" style="width:2%"></div></div></td><td><span class="chip good">git</span></td><td>07-18</td><td>this repo — HEARTH, fleet, scheduler, knowledge</td></tr>
+      <tr><td>ComfyStewardView</td><td class="num">2.0 GB</td><td><div class="meter"><div class="acc" style="width:2%"></div></div></td><td><span class="chip good">git</span></td><td>07-04</td><td>imagegen steward UI</td></tr>
+      <tr><td>omen-perception</td><td class="num">1.5 GB</td><td><div class="meter"><div class="acc" style="width:1%"></div></div></td><td><span class="chip info">—</span></td><td>07-18</td><td>image scoring node (5-min loop, still ticking)</td></tr>
+      <tr><td>tools</td><td class="num">1.1 GB</td><td><div class="meter"><div class="acc" style="width:1%"></div></div></td><td><span class="chip info">—</span></td><td>07-04</td><td>shared tooling</td></tr>
+      <tr><td>steppeintegrations-site</td><td class="num">33 MB</td><td><div class="meter"><div class="acc" style="width:1%"></div></div></td><td><span class="chip good">git</span></td><td>07-10</td><td>public site (Azure SWA)</td></tr>
+      <tr><td>writing · windtunnel · articleblitz · tuning</td><td class="num">&lt;5 MB</td><td><div class="meter"><div class="acc" style="width:1%"></div></div></td><td><span class="chip good">3× git</span></td><td>07-11…16</td><td>publishing + public lab lanes</td></tr>
+    </table></div>
+    <p class="note">Grown this week: comfy (fieldlab runs), iso (+11 GB, migration media), omen-perception (score archive).
+      Moved: AM4's model zoo now lives on AM4's 4 TB NVMe (/mnt/win, 2.2 TB), not this drive.
+      Repo coverage 8/24 top-level dirs — the balance is media, venvs, SDKs, and archives that don't want history.</p>
+  </div>
+</section>
+
+<footer>
+  <b>Provenance.</b> offload.json + capacity.json (rebuilt 2026-07-18 23:07 UTC, corpus sha256:09c5873d…, 8,535 events) ·
+  queue_status + build-request receipts via the door · fleet_ping 12/12 · live SSH probes to AM4 and cc-conductor ·
+  <code>ollama list</code> + <code>nvidia-smi</code> on OMEN · am4_catalog.json (stale 07-04, flagged above) ·
+  C:\work sweep + git log, classified 2026-07-18.<br>
+  <b>Division of labor.</b> Editorial decisions (hero metrics, health thresholds, attention ranking, verdict): <b>gpt-oss-120b on oxen</b>, pinned via <code>am4-moe</code>.
+  Commit classification: Claude rule-set (two gemini-flash attempts returned reasoning-leak output — on the ledger as observations).
+  Assembly: Claude Fable 5. Every offload above is also an assay observation on the HEARTH ledger.
+</footer>
+
+</body>
+</html>

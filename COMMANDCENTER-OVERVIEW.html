@@ -98,10 +98,10 @@ regenerate by asking Claude for a fresh overview snapshot</p>
   <div class="attn">
     <div class="item"><span class="rank">1</span><span class="chip bad">red</span>
       <span><b>capabilities.json count = 0</b> — the first capability was never re-earned after the 2026-07-02 corpus overwrite; downstream consumers query an empty belief.</span></div>
-    <div class="item"><span class="rank">2</span><span class="chip bad">red</span>
-      <span><b>am4_catalog.json stale since 07-04 (14 days)</b> — it predates the resident gpt-oss-120b entirely; routing and the scheduler see a machine that no longer exists. <code>gather_am4_catalog</code> refresh due.</span></div>
-    <div class="item"><span class="rank">3</span><span class="chip bad">red</span>
-      <span><b>4 ledger events with unknown backend/cost-class, ok_rate 0.25</b> — accounting-integrity smell. They predate the 07-18 ledger-outcome split; verify the next knowledge rebuild clears the bucket.</span></div>
+    <div class="item"><span class="rank">2</span><span class="chip warn">amber</span>
+      <span><b>am4_catalog blind to the resident moe</b> — refreshed 07-19 02:46Z (staleness cleared), but the gather reads vllama's models.json + b70tools manifests only, so gpt-oss-120b (llama-server, the cards' actual steady-state tenant) is not in the contract the scheduler consumes. Catalog-scope gap, O5 territory.</span></div>
+    <div class="item"><span class="rank">3</span><span class="chip info">info</span>
+      <span><b>4 ledger events with unknown backend/cost-class, ok_rate 0.25</b> — verified 07-19: a from-zero rebuild replays them by design (append-only ledger); the bucket is frozen history from 02:56 on 07-18, pre-dating the outcome-split fix. Healthy = last_seen never advances.</span></div>
     <div class="item"><span class="rank">4</span><span class="chip warn">amber</span>
       <span><b>execute_build_request ok_rate 60%</b> (3/5) — the receipt lane's execute step fails often enough to slow deliveries.</span></div>
     <div class="item"><span class="rank">5</span><span class="chip warn">amber</span>
@@ -208,7 +208,7 @@ regenerate by asking Claude for a fresh overview snapshot</p>
       <div class="models" style="margin-top:10px;">
         <b>Resident:</b> gpt-oss-120b across both B70s (b70-moe :8082 — <span class="chip good">active · health ok</span>) · 78 °C max under GAMBIT<br>
         <b>Pin-and-wake:</b> oxen qwen3-30b dual (:8090, stop moe first) ·
-        <b>catalog</b> <span class="chip warn">stale 07-04</span>: qwen3-30b-a3b-128k 81.7 t/s dual · qwen2.5-14b 46.8 · mistral-24b 27.3 · qwen2.5-32b 20.7</div>
+        <b>catalog</b> <span class="chip good">refreshed 07-19</span> <span class="chip warn">vllama scope — moe not cataloged</span>: qwen3-30b-a3b-128k 81.7 t/s dual · qwen2.5-14b 46.8 · mistral-24b 27.3 · qwen2.5-32b 20.7</div>
     </div>
   </div>
 
@@ -341,8 +341,9 @@ regenerate by asking Claude for a fresh overview snapshot</p>
 <footer>
   <b>Provenance.</b> offload.json + capacity.json (rebuilt 2026-07-18 23:07 UTC, corpus sha256:09c5873d…, 8,535 events) ·
   queue_status + build-request receipts via the door · fleet_ping 12/12 · live SSH probes to AM4 and cc-conductor ·
-  <code>ollama list</code> + <code>nvidia-smi</code> on OMEN · am4_catalog.json (stale 07-04, flagged above) ·
-  C:\work sweep + git log, classified 2026-07-18.<br>
+  <code>ollama list</code> + <code>nvidia-smi</code> on OMEN · am4_catalog.json (re-gathered 07-19 02:46Z; vllama scope only — see attention #2) ·
+  C:\work sweep + git log, classified 2026-07-18.
+  <b>Post-snapshot actions (07-19 02:45–46Z):</b> from-zero knowledge rebuild ran clean (belief corpus 21 curated events @ its own watermark — a separate bounded context from the 8,6xx-event hearth ledger, ADR-0010); catalog re-gathered; ledger meanwhile advanced to 222 calls / $1.66 saved.<br>
   <b>Division of labor.</b> Editorial decisions (hero metrics, health thresholds, attention ranking, verdict): <b>gpt-oss-120b on oxen</b>, pinned via <code>am4-moe</code>.
   Commit classification: Claude rule-set (two gemini-flash attempts returned reasoning-leak output — on the ledger as observations).
   Assembly: Claude Fable 5. Every offload above is also an assay observation on the HEARTH ledger.

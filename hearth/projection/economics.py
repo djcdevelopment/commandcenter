@@ -3,6 +3,14 @@
 Pure read, mcp-free. The seed of the knowledge-per-local-hour metric and
 the naadam frontier-vs-local scoreboard: per runner_class and per tool,
 {calls, ok_rate, total_duration_ms, tokens_in, tokens_out}.
+
+Timestamps are ordered by parsed INSTANT, never by string: hearth-event.v1 admits
+several spellings of `ts` that mis-sort lexically (see _parse_ts). This module's
+`_parse_ts` is a deliberate twin of the one in hearth.projection.capacity -- a
+third copy of the same idea already lives in tools/workflow/corpus_guard.py -- and
+all three want one shared home. That hoist is held back only because capacity.py
+is under concurrent edit on another branch; once it lands, the three collapse into
+one import in a single mechanical move.
 """
 
 from __future__ import annotations
@@ -11,6 +19,7 @@ import argparse
 import hashlib
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 DEFAULT_LEDGER = Path("hearth/var/ledger/events.ndjson")
@@ -22,6 +31,41 @@ COST_CLASS_MAP = {
     "gcp-gemini": "trial",
     "gcp-gemini-pro": "trial",
 }
+
+
+def _parse_ts(ts: str) -> datetime | None:
+    """Parse a ledger `ts` into an aware UTC datetime; None if it will not parse.
+
+    Timestamps must be ordered by INSTANT, never by string. hearth-event.v1 admits
+    three spellings of the same field
+    (`^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|\\+00:00)$`), and 'Z'
+    (0x5A) sorts above both '+' (0x2B) and '.' (0x2E), so a lexical max is wrong
+    across a mixed-format ledger in two separate ways:
+
+        '2026-07-03T12:00:00Z' > '2026-07-03T12:00:00+00:00'  -> True (same instant)
+        '2026-07-03T12:00:00Z' > '2026-07-03T12:00:00.123Z'   -> True (EARLIER wins)
+
+    Comparing parsed instants is immune to the spelling. The ledger happens to be
+    uniform today (all 8,540 events carry the fractional-Z form, verified
+    2026-07-18), so this is a latent defect, not a live one -- it fires the first
+    time any emitter writes `+00:00` or omits fractional seconds, both of which
+    the contract permits.
+
+    Never raises: an unparseable ts returns None and is excluded from ordering
+    rather than being allowed to win by accident. A naive result (an off-contract
+    ts carrying no offset at all) is stamped UTC so every comparison is
+    aware-vs-aware and can never raise TypeError on mixed tzinfo.
+
+    Deliberately a twin of hearth.projection.capacity._parse_ts rather than an
+    import of it: that module is under concurrent edit on another branch, so the
+    two are kept textually interchangeable and hoisted to a shared home in one
+    move once both have landed (see the header note).
+    """
+    try:
+        moment = datetime.fromisoformat(ts)
+    except (TypeError, ValueError):
+        return None
+    return moment if moment.tzinfo is not None else moment.replace(tzinfo=timezone.utc)
 
 
 def _empty_bucket() -> dict:
@@ -99,6 +143,12 @@ def build_offload_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
     backend (S1 provenance field) with a model-name fallback for pre-S1 rows;
     cost classes sunk/trial/unknown make the offload ratio and the
     $-saved-vs-metered-frontier estimate computable.
+
+    `evidence_watermark` is the newest event's ts, and each bucket's `last_seen`
+    the newest ts in that bucket -- both chosen by parsed instant rather than by
+    string order (see _parse_ts), and both emitted verbatim in the winning event's
+    own format, so the document's timestamp spelling is whatever the ledger
+    recorded. An event whose ts does not parse cannot win either one.
     """
     totals = {"calls": 0, "tokens_in": 0, "tokens_out": 0}
     per_class = {
@@ -107,7 +157,8 @@ def build_offload_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
         "unknown": {"calls": 0, "tokens_in": 0, "tokens_out": 0},
     }
     buckets_data = {}
-    newest_ts = None
+    newest_ts: str | None = None
+    newest_moment: datetime | None = None
     line_count = 0
 
     if ledger_path.exists():
@@ -150,6 +201,9 @@ def build_offload_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
                 "tokens_in": 0,
                 "tokens_out": 0,
                 "last_seen": None,
+                # Internal ordering key only -- the emit loop below builds each
+                # bucket field-by-field, so this never reaches the document.
+                "last_seen_moment": None,
             })
 
             if model:
@@ -175,10 +229,15 @@ def build_offload_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
 
             ts = event.get("ts")
             if isinstance(ts, str):
-                if newest_ts is None or ts > newest_ts:
-                    newest_ts = ts
-                if acc["last_seen"] is None or ts > acc["last_seen"]:
-                    acc["last_seen"] = ts
+                # Order by parsed instant, emit the original string (see _parse_ts).
+                moment = _parse_ts(ts)
+                if moment is not None:
+                    if newest_moment is None or moment > newest_moment:
+                        newest_moment = moment
+                        newest_ts = ts
+                    if acc["last_seen_moment"] is None or moment > acc["last_seen_moment"]:
+                        acc["last_seen_moment"] = moment
+                        acc["last_seen"] = ts
 
     buckets = []
     for bk, acc in buckets_data.items():

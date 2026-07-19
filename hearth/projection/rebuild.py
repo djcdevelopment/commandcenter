@@ -85,7 +85,31 @@ class RebuildValidationError(RuntimeError):
 def _aggregate_corpus(source_paths: list[Path]) -> Corpus:
     """Mirror hearth.toolsurface.knowledge._aggregate_corpus: fold every source root
     into one Corpus (union of event files, summed counts, max watermark, and a
-    combined content-shaped digest independent of `sources` order)."""
+    combined content-shaped digest independent of `sources` order).
+
+    KNOWN, DELIBERATELY UNFIXED HERE: the watermark fold below is a lexical string
+    max, the same shape repaired in capacity.py/economics.py. It carries the same
+    exposure and, unlike the ledger, the runs corpus is ALREADY heterogeneous --
+    all four spellings are live in runs/**/events.jsonl today (`.ffffff+00:00`,
+    `.ffffffZ`, `+00:00`, `Z`). It is nonetheless not wrong right now: the lexical
+    max and the parsed-instant max agree on this corpus (both
+    2026-07-04T05:50:00+00:00, verified 2026-07-18), because a flip needs two
+    events sharing a second but spelled differently, and the winning second is
+    uncontested.
+
+    Left alone on purpose, for two reasons:
+    - Blast radius. This fold is REPORTED-only -- returned as result["watermark"]
+      and printed. It is never stamped into a document (only corpus_digest and
+      corpus_event_count are, via _restamp_written_file), so it never reaches
+      corpus_guard. The lexical maxes that DO feed a guarded evidence_watermark are
+      elsewhere: project_associations.evidence_watermark, project_learning.
+      _evidence_watermark, project_policy._watermark, and the origin at
+      tools/workflow/corpus.py. Repairing one site without those is theatre.
+    - Repairing them is not a drive-by. corpus_guard._watermark_regressed already
+      compares stored watermarks by parsed instant, so if any document currently
+      carries a lexically-too-NEW watermark, the corrected (instant-earlier) value
+      reads as a regression and BLOCKS the write. That needs a deliberate change
+      with an authored override, not a quiet edit inside a rebuild refactor."""
     per_root = [Corpus.enumerate(path) for path in source_paths]
     all_event_files = tuple(sorted(
         {f for corpus in per_root for f in corpus.event_files},

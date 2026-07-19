@@ -48,6 +48,15 @@ class Corpus:
         - Blank lines are skipped for both event_count and watermark parsing.
         - watermark is the lexical/ISO max of every parseable "timestamp" field
           found across all events; None if no event anywhere carries one.
+
+        The watermark max is LEXICAL, which orders correctly only while every
+        stamp shares one format -- and this corpus does not: all four spellings
+        (`.ffffff+00:00`, `.ffffffZ`, `+00:00`, `Z`) are live in runs/ today. It
+        happens to be right anyway (lexical max == parsed-instant max, verified
+        2026-07-18) because a flip needs two events sharing a second but spelled
+        differently. See hearth/projection/rebuild.py::_aggregate_corpus for the
+        full finding, the other affected sites, and why fixing them is its own
+        change rather than a drive-by.
         """
         root = Path(root)
         if root.is_dir():

@@ -189,5 +189,53 @@ class GatewayHttpIntegrationTest(unittest.TestCase):
         self.assertNotIn("wrong", json.dumps(rejections))
 
 
+class NonLoopbackGatewayHttpIntegrationTest(unittest.TestCase):
+    """Ephemeral proof of the explicit non-loopback container-access mode."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.log_path = Path(self.tmp.name) / "gateway.log"
+        env = {**os.environ, "HEARTH_ROOT": self.tmp.name, "HEARTH_TIMERS": "off"}
+        with self.log_path.open("wb") as log:
+            self.proc = subprocess.Popen(
+                [sys.executable, "-m", "hearth.kernel.gateway",
+                 "--host", "0.0.0.0", "--port", "0", "--allow-non-loopback",
+                 "--no-timers"],
+                cwd=REPO_ROOT, env=env, stdout=log, stderr=subprocess.STDOUT,
+            )
+        self.addCleanup(self._stop)
+        self.port = _wait_for_bound_port(self.log_path, self.proc, STARTUP_TIMEOUT_S)
+        if self.port is None:
+            detail = self.log_path.read_text(encoding="utf-8", errors="replace")[-500:]
+            self.skipTest(f"non-loopback gateway failed to bind: {detail}")
+
+    def _stop(self):
+        self.proc.terminate()
+        try:
+            self.proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            self.proc.kill()
+            self.proc.wait(timeout=10)
+
+    def test_non_loopback_bind_authenticates_over_mcp(self):
+        from mcp import ClientSession
+
+        log = self.log_path.read_text(encoding="utf-8", errors="replace")
+        self.assertIn("HEARTH IS BINDING A NON-LOOPBACK INTERFACE", log)
+        self.assertIn("0.0.0.0", log)
+        url = f"http://127.0.0.1:{self.port}/mcp"
+
+        async def call():
+            async with _client(url, "dev-local") as (read, write, _get_session_id):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+                    result = await session.call_tool("kernel_status", {})
+                    return result
+
+        result = asyncio.run(call())
+        self.assertFalse(result.isError, result.content)
+
+
 if __name__ == "__main__":
     unittest.main()

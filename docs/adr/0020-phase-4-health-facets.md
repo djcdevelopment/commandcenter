@@ -2,7 +2,7 @@
 
 ## Status
 
-Implemented in code and tests; live gateway restart intentionally deferred.
+Implemented in code and tests; the durable live gateway remains untouched.
 
 ## Contract
 
@@ -40,3 +40,10 @@ the rule must not be weakened for speculative external callers.
 `icacls` remains best-effort. `callerctl list` now exposes registry ACL state as
 `secured`, `degraded`, or `unknown` while preserving its historical JSON array
 shape. A successful registry write with failed lockdown is therefore visible.
+
+## Non-loopback proof
+
+`NonLoopbackGatewayHttpIntegrationTest` starts an ephemeral test-owned gateway
+with `--host 0.0.0.0 --allow-non-loopback`, verifies the warning and bind log,
+and completes an authenticated MCP call. It does not prove Docker Desktop's
+`host.docker.internal` path or firewall scoping; those remain deployment checks.

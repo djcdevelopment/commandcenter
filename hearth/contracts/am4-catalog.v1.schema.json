@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "am4-catalog.v1.schema.json",
   "title": "AM4 model catalog (JS7a)",
-  "description": "AM4 B70 model-lifecycle catalog: per-model VRAM fit, placement, measured warmup times, and host-RAM safety gates. Consumed by the CP-SAT scheduler. Shape is FROZEN: extra optional fields are fine, do not rename these.",
+  "description": "AM4 B70 model-lifecycle catalog: per-model VRAM fit, placement, measured warmup times, and host-RAM safety gates. Consumed by the CP-SAT scheduler. Shape is FROZEN: extra optional fields are fine, do not rename these. O5 extension (2026-07-19): models[] also carries llama-server-served residents (ADR-0018) via additive OPTIONAL fields — served_by, port, serving, slots, n_ctx, prefill_tps, goodput_tps — still am4-catalog.v1.",
   "type": "object",
   "required": ["contract_version", "gathered_at", "host", "gates", "cards", "models"],
   "properties": {
@@ -55,7 +55,14 @@
           "warmup_ms_p50": { "type": ["number", "null"] },
           "warmup_ms_max": { "type": ["number", "null"] },
           "sample_count": { "type": "integer" },
-          "notes": { "type": ["string", "null"] }
+          "notes": { "type": ["string", "null"] },
+          "served_by": { "enum": ["vllama", "llama-server"] },
+          "port": { "type": ["integer", "null"] },
+          "serving": { "type": ["boolean", "null"] },
+          "slots": { "type": ["integer", "null"] },
+          "n_ctx": { "type": ["integer", "null"] },
+          "prefill_tps": { "type": ["number", "null"] },
+          "goodput_tps": { "type": ["number", "null"] }
         }
       }
     }

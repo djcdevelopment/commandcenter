@@ -8,7 +8,8 @@ from tempfile import mkdtemp
 from unittest import TestCase
 from unittest.mock import patch
 
-from hearth.toolsurface.am4 import gather_am4_catalog, query_am4_catalog
+from hearth.toolsurface.am4 import (_probe_moe_models, gather_am4_catalog,
+                                    query_am4_catalog)
 
 MODELS_JSON = {
     "safety": {
@@ -42,8 +43,26 @@ def _completed(stdout="", stderr="", returncode=0):
                                        stdout=stdout, stderr=stderr)
 
 
-def _gather_stdout(models_json=MODELS_JSON, manifests=MANIFESTS):
+MOE_PAYLOAD = {
+    "unit_text": "# b70-moe.service\nExecStart=%h/baseline/serve-moe.sh\n",
+    "serve_script": ("llama-server -m gpt-oss-120b-MXFP4.gguf --alias gpt-oss-120b "
+                     "-dev SYCL0,SYCL1 -sm layer -c 65536 -np 4 --port 8082"),
+    "unit_active": "active",
+}
+
+CAPACITY_FACTS = {
+    "generated": "2026-07-18",
+    "facts": [
+        {"backend": "am4-moe", "metric": "solo_decode_rate", "value": 29, "unit": "tok/s"},
+        {"backend": "am4-host", "metric": "vram_per_card", "value": 31023, "unit": "MiB"},
+    ],
+}
+
+
+def _gather_stdout(models_json=MODELS_JSON, manifests=MANIFESTS, moe=None):
     payload = {"models_json": models_json, "manifests": manifests}
+    if moe is not None:
+        payload["moe"] = moe
     return f"noise line\nRESULT {json.dumps(payload)}\n"
 
 
@@ -52,14 +71,24 @@ class Am4ScopedTestCase(TestCase):
         self.scope = Path(mkdtemp()).resolve()
         self._previous_scope = os.environ.get("HEARTH_SCOPE")
         os.environ["HEARTH_SCOPE"] = str(self.scope)
+        # The moe probe keys off this token; keep it out of the test env so no
+        # test can ever reach for the real :8082 lane.
+        self._previous_token = os.environ.pop("AM4_OXEN_TOKEN", None)
 
     def tearDown(self) -> None:
         if self._previous_scope is None:
             os.environ.pop("HEARTH_SCOPE", None)
         else:
             os.environ["HEARTH_SCOPE"] = self._previous_scope
+        if self._previous_token is not None:
+            os.environ["AM4_OXEN_TOKEN"] = self._previous_token
         import shutil
         shutil.rmtree(self.scope, ignore_errors=True)
+
+    def write_capacity_facts(self, doc=CAPACITY_FACTS) -> None:
+        target = self.scope / "am4-fleet-node" / "results" / "capacity-facts-2026-07-18.json"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(doc), encoding="utf-8")
 
 
 class GatherAm4CatalogTests(Am4ScopedTestCase):
@@ -99,6 +128,76 @@ class GatherAm4CatalogTests(Am4ScopedTestCase):
         model = catalog["models"][0]
         self.assertEqual(model["sample_count"], 0)
         self.assertIsNone(model["warmup_ms_p50"])
+
+    def test_moe_signals_add_llama_server_entry(self) -> None:
+        self.write_capacity_facts()
+        stdout = _gather_stdout(moe=MOE_PAYLOAD)
+        api = {"object": "list", "data": [{"id": "gpt-oss-120b"}]}
+        with patch("subprocess.run", return_value=_completed(stdout=stdout)), \
+             patch("hearth.toolsurface.am4._probe_moe_models", return_value=api):
+            catalog = gather_am4_catalog()
+        by_id = {m["model_id"]: m for m in catalog["models"]}
+        self.assertIn("gpt-oss-120b", by_id)
+        moe = by_id["gpt-oss-120b"]
+        self.assertEqual(moe["served_by"], "llama-server")
+        self.assertEqual(moe["placement"], "dual")
+        self.assertEqual(moe["per_card_gb"], 30.3)
+        self.assertEqual(moe["expected_gen_tps"], 29.0)
+        self.assertTrue(moe["serving"])
+        self.assertEqual(moe["port"], 8082)
+        # the vllama entry is untouched alongside it
+        self.assertIn("qwen2.5-14b-q4", by_id)
+
+    def test_moe_signals_without_probe_or_facts_still_catalogs(self) -> None:
+        stdout = _gather_stdout(moe=MOE_PAYLOAD)
+        with patch("subprocess.run", return_value=_completed(stdout=stdout)):
+            catalog = gather_am4_catalog()  # no token in env -> probe skipped
+        by_id = {m["model_id"]: m for m in catalog["models"]}
+        moe = by_id["gpt-oss-120b"]
+        self.assertTrue(moe["serving"])  # from unit_active
+        self.assertIsNone(moe["expected_gen_tps"])  # no facts file in scope
+
+    def test_no_moe_block_keeps_catalog_vllama_only(self) -> None:
+        with patch("subprocess.run", return_value=_completed(stdout=_gather_stdout())):
+            catalog = gather_am4_catalog()
+        self.assertEqual([m["model_id"] for m in catalog["models"]], ["qwen2.5-14b-q4"])
+
+
+class ProbeMoeModelsTests(Am4ScopedTestCase):
+    def test_no_token_skips_probe_entirely(self) -> None:
+        opener_calls = []
+        result = _probe_moe_models(opener=lambda *a, **k: opener_calls.append(a))
+        self.assertIsNone(result)
+        self.assertEqual(opener_calls, [])
+
+    def test_token_present_returns_parsed_document(self) -> None:
+        import io
+        from contextlib import contextmanager
+
+        @contextmanager
+        def opener(request, timeout):
+            self.assertEqual(request.get_header("Authorization"), "Bearer sekret")
+            yield io.BytesIO(json.dumps({"data": [{"id": "gpt-oss-120b"}]}).encode())
+
+        os.environ["AM4_OXEN_TOKEN"] = "sekret"
+        try:
+            result = _probe_moe_models(opener=opener)
+        finally:
+            os.environ.pop("AM4_OXEN_TOKEN", None)
+        self.assertEqual(result, {"data": [{"id": "gpt-oss-120b"}]})
+
+    def test_unreachable_lane_returns_none(self) -> None:
+        import urllib.error
+
+        def opener(request, timeout):
+            raise urllib.error.URLError("down")
+
+        os.environ["AM4_OXEN_TOKEN"] = "sekret"
+        try:
+            result = _probe_moe_models(opener=opener)
+        finally:
+            os.environ.pop("AM4_OXEN_TOKEN", None)
+        self.assertIsNone(result)
 
 
 class QueryAm4CatalogTests(Am4ScopedTestCase):

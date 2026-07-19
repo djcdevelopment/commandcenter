@@ -1,19 +1,39 @@
 """INTEGRATION: real gateway subprocess + authenticated MCP call over
-streamable-http. Skips itself if the server cannot bind/start on this box."""
+streamable-http. Skips itself if the server cannot bind/start on this box.
+
+The gateway binds an OS-assigned ephemeral port (``--port 0``) and announces the
+actual bound port in its log; the test reads that number back rather than
+pre-probing a port and assuming it stays free. Pre-probing (bind :0, read the
+number, close, then hand it to the gateway) is a time-of-check/time-of-use race:
+on a busy box another process can occupy that port in the sub-second gap before
+the gateway binds it. A plain TCP connectivity probe cannot tell the two apart,
+so the client gets misdirected to the foreign listener while the test reads its
+own (empty) ledger root -- the intermittent failure this test used to exhibit.
+Binding :0 in the gateway itself closes the window: the gateway owns the port
+from the moment it binds, and the port the test learns is guaranteed to be its.
+"""
 
 import asyncio
 import json
 import os
-import socket
+import re
 import subprocess
 import sys
 import tempfile
 import time
 import unittest
 from pathlib import Path
+from typing import Callable, Optional
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 STARTUP_TIMEOUT_S = 30
+LEDGER_TIMEOUT_S = 5.0
+
+# uvicorn announces the real bound port once the socket is bound and the app has
+# finished starting: "Uvicorn running on http://127.0.0.1:54102 (Press ...)".
+# With --port 0 that number is the OS-assigned ephemeral port -- the source of
+# truth for where THIS gateway is listening.
+_LISTEN_RE = re.compile(r"Uvicorn running on https?://[^\s:]+:(\d+)")
 
 
 def _client(url: str, key: str):
@@ -27,43 +47,86 @@ def _client(url: str, key: str):
     return streamable_http_client(url, http_client=http)
 
 
-def _free_port() -> int:
-    with socket.socket() as sock:
-        sock.bind(("127.0.0.1", 0))
-        return sock.getsockname()[1]
+def _wait_for_bound_port(log_path: Path, proc: subprocess.Popen,
+                         timeout: float) -> Optional[int]:
+    """Return the port the gateway actually bound (read from its log), or None if
+    it exits or fails to announce one within ``timeout``.
 
-
-def _wait_for_port(port: int, proc: subprocess.Popen, timeout: float) -> bool:
+    Waiting for uvicorn's "Uvicorn running on ..." line -- emitted only after the
+    socket is bound AND application startup is complete -- is strictly stronger
+    than a TCP connectivity probe against an assumed port: the announced port is
+    guaranteed to belong to THIS gateway, so a foreign listener that transiently
+    grabbed some other ephemeral port can never be mistaken for it, and the
+    server is provably ready to serve MCP by the time the line appears."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
+        if log_path.exists():
+            match = _LISTEN_RE.search(
+                log_path.read_text(encoding="utf-8", errors="replace"))
+            if match:
+                return int(match.group(1))
         if proc.poll() is not None:
-            return False
+            return None  # exited before announcing a bound port
+        time.sleep(0.1)
+    return None
+
+
+def _read_ledger_events(events_path: Path) -> list[dict]:
+    """Parse events.ndjson into event dicts. Tolerates the file not existing yet
+    (returns []) and a torn final line from an in-flight append (skips it), so a
+    poller can retry rather than crash on a transient partial read."""
+    if not events_path.is_file():
+        return []
+    events = []
+    for line in events_path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = line.strip()
+        if not line:
+            continue
         try:
-            with socket.create_connection(("127.0.0.1", port), timeout=1):
-                return True
-        except OSError:
-            time.sleep(0.3)
-    return False
+            events.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue  # final line still being written; a later poll will see it
+    return events
+
+
+def _wait_for_events(events_path: Path, predicate: Callable[[list[dict]], bool],
+                     timeout: float = LEDGER_TIMEOUT_S) -> list[dict]:
+    """Poll the ledger until ``predicate(events)`` holds, then return the events
+    (or the last read once ``timeout`` elapses).
+
+    The gateway appends the event before the HTTP result/error is returned to the
+    caller, so the first read normally satisfies the predicate; the bounded poll
+    only guards against read/flush skew and a momentarily slow box, and keeps a
+    genuine "never written" case a clean assertion failure rather than a crash."""
+    deadline = time.monotonic() + timeout
+    while True:
+        events = _read_ledger_events(events_path)
+        if predicate(events) or time.monotonic() >= deadline:
+            return events
+        time.sleep(0.05)
 
 
 class GatewayHttpIntegrationTest(unittest.TestCase):
-    """End to end: subprocess gateway on a random port, dev-local key, one tool call."""
+    """End to end: subprocess gateway on an OS-assigned port, dev-local key, one
+    tool call. Timers are off so the subprocess is hermetic (no ops-loop
+    subprocesses, no network) and the only ledger writer is the call under test."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.port = _free_port()
         self.log_path = Path(self.tmp.name) / "gateway.log"
-        env = {**os.environ, "HEARTH_ROOT": self.tmp.name}
+        env = {**os.environ, "HEARTH_ROOT": self.tmp.name, "HEARTH_TIMERS": "off"}
         with self.log_path.open("wb") as log:
             self.proc = subprocess.Popen(
-                [sys.executable, "-m", "hearth.kernel.gateway", "--port", str(self.port)],
+                [sys.executable, "-m", "hearth.kernel.gateway",
+                 "--port", "0", "--no-timers"],
                 cwd=REPO_ROOT, env=env, stdout=log, stderr=subprocess.STDOUT,
             )
         self.addCleanup(self._stop)
-        if not _wait_for_port(self.port, self.proc, STARTUP_TIMEOUT_S):
+        self.port = _wait_for_bound_port(self.log_path, self.proc, STARTUP_TIMEOUT_S)
+        if self.port is None:
             detail = self.log_path.read_text(encoding="utf-8", errors="replace")[-500:]
-            self.skipTest(f"gateway failed to bind 127.0.0.1:{self.port}: {detail}")
+            self.skipTest(f"gateway failed to bind/announce a port: {detail}")
 
     def _stop(self):
         self.proc.terminate()
@@ -93,9 +156,9 @@ class GatewayHttpIntegrationTest(unittest.TestCase):
         self.assertFalse(result.isError, result.content)
 
         events_path = Path(self.tmp.name) / "var" / "ledger" / "events.ndjson"
+        events = _wait_for_events(events_path, lambda evs: any(
+            e.get("tool") == "kernel_status" for e in evs))
         self.assertTrue(events_path.is_file(), "ledger not written under HEARTH_ROOT")
-        events = [json.loads(line) for line in
-                  events_path.read_text(encoding="utf-8").splitlines()]
         status_events = [e for e in events if e["tool"] == "kernel_status"]
         self.assertEqual(len(status_events), 1)
         event = status_events[0]
@@ -119,9 +182,9 @@ class GatewayHttpIntegrationTest(unittest.TestCase):
         result = asyncio.run(call())
         self.assertTrue(result.isError)
         events_path = Path(self.tmp.name) / "var" / "ledger" / "events.ndjson"
-        events = [json.loads(line) for line in
-                  events_path.read_text(encoding="utf-8").splitlines()]
-        rejections = [e for e in events if e["tool"] == "__auth__" and not e["ok"]]
+        events = _wait_for_events(events_path, lambda evs: any(
+            e.get("tool") == "__auth__" and not e.get("ok") for e in evs))
+        rejections = [e for e in events if e.get("tool") == "__auth__" and not e.get("ok")]
         self.assertGreaterEqual(len(rejections), 1)
         self.assertNotIn("wrong", json.dumps(rejections))
 

@@ -45,5 +45,7 @@ shape. A successful registry write with failed lockdown is therefore visible.
 
 `NonLoopbackGatewayHttpIntegrationTest` starts an ephemeral test-owned gateway
 with `--host 0.0.0.0 --allow-non-loopback`, verifies the warning and bind log,
-and completes an authenticated MCP call. It does not prove Docker Desktop's
-`host.docker.internal` path or firewall scoping; those remain deployment checks.
+and completes an authenticated MCP call. The opt-in
+`hearth/tests/container_access_smoke.py` additionally reached `/healthz` from a
+temporary Docker container through `host.docker.internal`. Firewall scoping and
+durable-gateway deployment remain operator checks.

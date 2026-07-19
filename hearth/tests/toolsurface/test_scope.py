@@ -60,8 +60,20 @@ class MultiRootScopeTests(TestCase):
             shutil.rmtree(outside, ignore_errors=True)
 
     def test_parent_escape_from_primary_still_rejected(self) -> None:
-        with self.assertRaisesRegex(ValueError, "escapes"):
+        # ADR-0019 tightened this: '..' is now refused OUTRIGHT rather than
+        # normalized away and then containment-checked. Same security outcome,
+        # reached earlier and without depending on resolution order — so a
+        # traversal cannot be laundered through a symlinked parent.
+        with self.assertRaisesRegex(ValueError, r"must not contain '\.\.'"):
             resolve_in_scope("../evil.txt")
+
+    def test_parent_traversal_rejected_even_when_it_lands_in_scope(self) -> None:
+        # The stricter rule holds even for a '..' hop that would have resolved
+        # back inside the sandbox: the input shape is refused, not just the
+        # destination.
+        inside = self.primary / "pkg" / ".." / "ok.txt"
+        with self.assertRaisesRegex(ValueError, r"must not contain '\.\.'"):
+            resolve_in_scope(str(inside))
 
     def test_missing_listed_root_rejected(self) -> None:
         os.environ["HEARTH_SCOPE"] = os.pathsep.join(

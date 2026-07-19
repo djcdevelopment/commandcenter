@@ -12,14 +12,17 @@ import subprocess
 from pathlib import Path
 from typing import Callable
 
-from hearth.toolsurface._scope import resolve_in_scope
+from hearth.toolsurface._scope import resolve_repo
 
 _GIT_TIMEOUT_S = 60
 _PUSH_TIMEOUT_S = 300
 
 
 def _repo_path(repo: str) -> Path:
-    path = resolve_in_scope(repo)
+    # REPOSITORY authority, not filesystem (ADR-0019): a repo is a named grant.
+    # Falls back to filesystem containment when the caller declares no
+    # repo_access, which preserves pre-ADR-0019 behavior for legacy callers.
+    path = resolve_repo(repo)
     if not path.is_dir():
         raise ValueError(f"repo is not a directory: {repo}")
     return path

@@ -67,6 +67,10 @@
     "outcome": {
       "description": "WHICH branch a call took, when `ok` alone cannot say. `ok` answers 'did this call do its job without error'; for a timer-driven tool a benign no-op IS doing its job, so such ticks are ok:true and name their branch here (e.g. dispatched | disarmed | busy | no-budget | no-candidates | in-flight). Keeps activity-vs-health separable in the capacity projection instead of overloading `ok`. Optional/additive.",
       "type": ["string", "null"]
+    },
+    "profile": {
+      "description": "The capability profile the caller acted under (ADR-0019). A caller carrying no profile field reaches the full pre-ADR-0019 tool surface and is stamped 'legacy-unrestricted' here, so an unrestricted call is an explicit fact rather than an absence. Lives at top level, NOT on `caller`: that object is frozen at exactly {id, runner_class, node} with additionalProperties false. Optional/additive.",
+      "type": ["string", "null"]
     }
   }
 }

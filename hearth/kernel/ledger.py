@@ -97,7 +97,8 @@ def new_event(caller: Mapping[str, str], tool: str, *,
               routed_by: Optional[str] = None,
               occupancy: Optional[str] = None,
               error_code: Optional[str] = None,
-              outcome: Optional[str] = None) -> dict:
+              outcome: Optional[str] = None,
+              profile: Optional[str] = None) -> dict:
     """Build a schema-complete hearth-event.v1 dict for `append`.
 
     `args` and `result` are the raw python values; digests and the 400-char args
@@ -154,6 +155,7 @@ def new_event(caller: Mapping[str, str], tool: str, *,
         "occupancy": occupancy,
         "error_code": error_code,
         "outcome": outcome,
+        "profile": profile,
     }
 
 
@@ -166,7 +168,7 @@ def _validate_stdlib(event: Any) -> None:
                 "args_preview", "result_digest", "ok", "error", "duration_ms",
                 "cost", "task_id"}
     optional = {"task_class", "model", "backend", "routed_by", "occupancy", "error_code",
-                "outcome"}
+                "outcome", "profile"}
     keys = set(event)
     if not required.issubset(keys) or not keys.issubset(required | optional):
         missing, extra = sorted(required - keys), sorted(keys - (required | optional))
@@ -207,7 +209,7 @@ def _validate_stdlib(event: Any) -> None:
     if event["task_id"] is not None and not isinstance(event["task_id"], str):
         raise LedgerValidationError("task_id must be a string or null")
     for optional_field in ("task_class", "model", "backend", "routed_by", "occupancy",
-                           "error_code", "outcome"):
+                           "error_code", "outcome", "profile"):
         if optional_field in event and event[optional_field] is not None \
                 and not isinstance(event[optional_field], str):
             raise LedgerValidationError(f"{optional_field} must be a string or null")

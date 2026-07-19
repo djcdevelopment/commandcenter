@@ -1,6 +1,7 @@
 # 0019 — Container access is capability-profiled: explicit non-loopback bind, profile-gated tool surface
 
-**Status:** Proposed (2026-07-18) — supersedes nothing; extends
+**Status:** Accepted (2026-07-19) — Phase 4 implementation in `e2fd1fc` and
+non-loopback proof in `9dba046`; supersedes nothing; extends
 [0005](0005-one-boundary-three-planes.md) (one boundary, three planes) and
 [0014](0014-machine-lanes-off-the-tailnet.md) (machine lanes ride local networks).
 
@@ -143,10 +144,12 @@ fleet reach: SSH keys, `inventory.toml`, and worker shells stay host-side, and t
 unledgered path. v1 withholds dispatch from `research` anyway — a notebook helps a human reason;
 it does not queue fleet work.
 
-**6. Health separates into independent facets.** `doorcheck` reports `gateway`, `auth`,
-`tool_registry`, `mechnet`, `local_backends`, and `external_backends` separately. The top-level
-verdict and exit code become **door-only** (`gateway ∧ auth ∧ tool_registry`); backend
-degradation is reported as an advisory, with `--strict` restoring the old all-inclusive verdict.
+**6. Health separates into independent facets.** `doorcheck` reports stable
+`process_listener`, `authentication`, `mcp_surface`, and `backend_dependency` facets
+(the `door` aggregate is the first three). The top-level verdict and default exit code
+are **door-only**; backend degradation is advisory, with `--strict` restoring the old
+all-inclusive requirement. See [ADR-0020](0020-phase-4-health-facets.md) for the exact
+status and compatibility contract.
 A cold inference backend must never read as "HEARTH unavailable." An unauthenticated
 `GET /healthz` liveness route is added via FastMCP's `custom_route` (verified present in the
 installed SDK) returning a static payload with no fleet detail — Compose healthchecks need a

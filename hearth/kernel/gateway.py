@@ -337,6 +337,7 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
         result, ok, error, model = None, True, None, None
         event_task_class = task_class
         backend, routed_by, occupancy, error_code = None, None, None, None
+        routing_refusal = None
         cost = None
         try:
             # Both authority domains are in force for the duration of the call
@@ -358,6 +359,8 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
                     v if isinstance(v, str) else None for v in raw)
                 if result.get("ok") is False and isinstance(result.get("error"), str):
                     error_code = classify_error(result["error"])
+                if isinstance(result.get("routing_refusal"), dict):
+                    routing_refusal = result["routing_refusal"]
                 # S2: token counts ride the result dict too (inference results carry
                 # tokens_in/tokens_out); lift them into the event's cost so per-rung
                 # token economics are computable. Numbers only.
@@ -378,6 +381,7 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
                 task_id=task_id, task_class=event_task_class, model=model,
                 backend=backend, routed_by=routed_by, occupancy=occupancy,
                 error_code=error_code, profile=caller.ledger_profile,
+                routing_refusal=routing_refusal,
             ))
 
     wrapper.__name__ = tool_name
@@ -462,6 +466,40 @@ def wire_knowledge_guards(guards: GuardStack, providers: dict[str, list[Callable
     guards.register_knowledge_tools(EXTRA_KNOWLEDGE_READERS)
 
 
+def register_profile_filtered_list_tools(mcp: FastMCP, auth: AuthRegistry,
+                                         key_provider: KeyProvider) -> None:
+    """Make DISCOVERY mirror AUTHORIZATION: a caller lists only what it may call.
+
+    Without this, capability enforcement happens at invocation while the tool
+    list still advertises the whole surface — so a restricted caller could
+    enumerate all 47 tools, names and schemas included, and learn exactly what
+    exists to probe. Tool names are not credentials, but an otherwise
+    deny-by-default model should not hand out a map of everything it denies.
+
+    Three cases, matching the authorization model exactly:
+      * unresolvable key -> [] (it can call nothing, so it advertises nothing)
+      * legacy caller    -> the full surface, unchanged
+      * profiled caller  -> only tools its capabilities grant
+
+    Registered AFTER build_server's tool loop, replacing FastMCP's own handler.
+    Uses `auth.lookup`, not `auth.resolve`: discovery must not write rejection
+    events, or a misconfigured client re-listing on every session init would
+    flood the ledger.
+    """
+    unfiltered = mcp.list_tools
+
+    @mcp._mcp_server.list_tools()
+    async def list_tools() -> list:
+        tools = await unfiltered()
+        caller = auth.lookup(key_provider())
+        if caller is None:
+            return []
+        profile = auth.profile_for(caller)
+        if profile is None:
+            return tools
+        return [tool for tool in tools if check_tool_access(profile, tool.name)[0]]
+
+
 def build_server(providers_spec: str = "", host: str = DEFAULT_HOST,
                  port: int = DEFAULT_PORT,
                  callers_path: Optional[Path | str] = None,
@@ -504,6 +542,10 @@ def build_server(providers_spec: str = "", host: str = DEFAULT_HOST,
     # new provider cannot introduce a tool that silently lands inside somebody's
     # profile. This raises — a door that half-knows its own policy stays shut.
     assert_surface_complete(registered)
+
+    # Discovery mirrors authorization (see the function's docstring). Must run
+    # after the tool loop so it wraps the fully-populated handler.
+    register_profile_filtered_list_tools(mcp, auth, key_provider)
 
     log.info("hearth gateway: %d tools from %d providers", len(registered), len(providers))
 

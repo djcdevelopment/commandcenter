@@ -207,6 +207,17 @@ class AuthRegistry:
             return None
         return self.profiles[caller.profile]
 
+    def lookup(self, key: Optional[str]) -> Optional[Caller]:
+        """Resolve a key WITHOUT recording a rejection.
+
+        For read-only decisions that happen outside a tool dispatch — notably
+        filtering the advertised tool list, which a client re-requests on every
+        session init. Using `resolve` there would fill the ledger with rejection
+        events for what is merely discovery. An unauthenticated caller that goes
+        on to actually CALL something still lands in the ledger via `resolve`.
+        """
+        return self._callers.get(key) if key is not None else None
+
     def resolve(self, key: Optional[str]) -> Optional[Caller]:
         """Return the Caller for `key`, or None after recording the rejection.
 

@@ -24,7 +24,7 @@ record with its status changed and a pointer to the ADR that replaced it.
 | [0013](0013-wake-am4-live-serve-truth-single-claimant.md) | wake_am4 goes live: serve-truth idempotency, queue-gated occupancy, one systemd claimant per port | Accepted (2026-07-07) |
 | [0014](0014-machine-lanes-off-the-tailnet.md) | Machine lanes ride local networks; Tailscale is for humans and the Funnel | Accepted (2026-07-09) |
 | [0015](0015-ops-loops-fold-into-the-gateway.md) | Repeating ops loops fold into the always-on gateway; no interactive scheduled tasks | Accepted (2026-07-09), build pending |
-| [0016](0016-scheduler-actuation.md) | *(reserved — scheduler actuation decision, H1; see SCHEDULER-STRATEGY.html)* | Pending Derek |
+| 0016 | *(reserved — pending ratification, no file yet; scheduler actuation decision, H1 — see SCHEDULER-STRATEGY.html)* | Pending Derek |
 | [0017](0017-software-constellation-registry-am4-seed-intake.md) | Software constellation registry + the AM4 seed intake rulings (manifest/ember/gad) | Accepted (2026-07-16), registry landed |
 | [0018](0018-resident-moe-steady-state-tenant.md) | The resident big-MoE is oxen's steady-state tenant: goodput-routed, budget-enforced | Accepted (2026-07-18), live |
 | [0019](0019-container-access-capability-profiles.md) | Container access is capability-profiled: explicit non-loopback bind, profile-gated tool surface | Accepted (2026-07-19), Phase 4 complete |

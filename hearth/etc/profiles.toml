@@ -140,7 +140,9 @@ capabilities = [
 # deliberate, separately-authorized act, not a convenience available to whatever
 # terminal happens to hold this key.
 #
-# Assigned to: dev-local (Derek's hands-on local key).
+# Currently UNASSIGNED — no caller carries this profile. dev-local (Derek's
+# hands-on local key) holds `probe` — a status-only liveness key — in the
+# deployed registry (hearth/var/callers.json; verify with `callerctl list`).
 [profile.operator]
 inherits = "orchestrator"
 capabilities = [

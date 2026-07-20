@@ -114,9 +114,12 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       Verification + rollback in the "Revised gate" section of
       [phase-5-deployment-preflight.md](docs/operations/phase-5-deployment-preflight.md).
       ⚠ After this restart, a mounted tool with no capability mapping REFUSES startup by design.
-- [ ] 2026-07-19 — Push / land `hearth-container-access-adr-0019`: 13 commits and 2372 lines of
-      security work sit on a local branch with no remote tracking branch. Decide push-only vs
-      merge to master (source: [SESSION-RETRO-2026-07-19.md](SESSION-RETRO-2026-07-19.md) L-5)
+- [x] 2026-07-19 — Push / land `hearth-container-access-adr-0019`: 13 commits and 2372 lines of
+      security work sat on a local branch with no remote tracking branch. DONE same day ("make
+      sure everything is merged and push to master"): merged `--no-ff` to master and pushed
+      (`6efc7e2`), along with the stranded twin fix `claude/upbeat-swirles-e6be44` (`288873e`)
+      that the branch sweep surfaced. Both local branches deleted after merge; 609 tests green.
+      (source: [SESSION-RETRO-2026-07-19.md](SESSION-RETRO-2026-07-19.md) L-5)
 - [ ] 2026-07-19 — Close the legacy fail-open: callers minted before ADR-0019 with no `profile`
       keep the full 47-tool surface. The gateway warns them by name at startup, but nothing closes
       the window. Decide: migrate each legacy caller to a profile (incl. `claude-frontier`), or

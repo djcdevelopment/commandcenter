@@ -145,6 +145,18 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       hands-on operator identity, mint a SEPARATE caller with a CSPRNG secret and assign the
       (already-defined, currently unassigned) `operator` role — do not widen `dev-local`
       (source: [ADR-0023](docs/adr/0023-authority-is-granted-never-assumed.md))
+- [ ] 2026-07-20 — **URGENT: logging is on the gateway's critical start path, so a stale log
+      handle makes the door unstartable.** `start-hearth-gateway.cmd`'s first action is
+      `echo ... >> hearth\var\gateway-task.log`. When the crashed gateway process survived holding
+      an exclusive handle on that file, the batch script failed on that line and exited **1 before
+      launching Python** — writing nothing, so the failure was invisible in the very log it could
+      not open. `HearthGatewayBoot` then failed identically on every retry. This converted a
+      30-second restart into a ~40-minute outage. Killing the orphaned PIDs did NOT release the
+      handle, and the file could not even be renamed. **The door is currently running from
+      `hearth/var/start-hearth-gateway-recover.cmd` (logs to `gateway-task2.log`) — the standard
+      boot task will still fail until the handle clears (a reboot will do it).** Fix: a service must
+      not depend on a log redirect to start — write a per-boot dated file, or tolerate redirect
+      failure and let the service run logless rather than not at all
 - [ ] 2026-07-20 — **The watchdog cannot revive the gateway, because it runs inside it.**
       The door died at ~08:17 (`WinError 64` on accept) and stayed down ~18 minutes until bounced
       by hand. `fleet/inventory.toml` carries `revive = doorcheck --revive` for `hearth-gateway`,

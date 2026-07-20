@@ -99,6 +99,13 @@ estimate-grade **by construction**, and the countdown as written cannot complete
   winner (`cc-builder-2`) and enters the hindsight window as 19–20 s of "real work" — the
   ADR-0001 exploit shape, now visible inside the regret evidence itself. The S4 acceptance gate
   landed 2026-07-11 but is not wired into this lane.
+  **Tagged 2026-07-20 (`babc172`, Derek's call):** drain runs are now labeled
+  `task_class="proofing"` at both ends — the drain dispatch stamps it via
+  `submit_task(task_class=)`, and the hindsight gather derives it from the drain lane's
+  `hearth-drain-` plan-id prefix, which retroactively tags these five historical records in
+  every future replay (live-verified 5/5 in the current window; an explicit `task_class` in
+  result.json wins). The tag *labels* proofing data; it does not exclude it — whether proofing
+  runs should count toward the regret trend at all is part of the H1 read.
 - **Span regret still measures placeholders** (Finding 2 below stands): all 20 replayed jobs
   carry `est_s = 600.0`, proposed span is a constant 6000.0, so `span_delta_s = −3673` says
   nothing about real packing quality.

@@ -98,14 +98,22 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       (source: [docs/drafts/o4-windows-delta-draft.md](docs/drafts/o4-windows-delta-draft.md))
 - [ ] 2026-07-18 — Optional: remount `/mnt/win` ro (`sudo mount -o remount,ro /mnt/win`) —
       resident serving is ro-mmap safe (source: [SESSION-RETRO-2026-07-18.md](SESSION-RETRO-2026-07-18.md))
-- [ ] 2026-07-19 — **Derek: the container-access deployment gate.** ADR-0019 is implemented and
-      tested (590 green) but NOT deployed: the gateway is unrestarted, the bind change is unmade,
-      and the minted `docker-open-notebook-facade` key is inert. Enabling it is one operator
-      window: confirm the Docker/WSL source subnet → create a narrowly scoped inbound TCP 8710
-      rule → set `HEARTH_GATEWAY_HOST=0.0.0.0` + `HEARTH_CONTAINER_ACCESS_ENABLED=1` → restart →
-      run the 6 verification checks. Rollback is one env var + restart, network-closure first.
-      (source: [phase-5-deployment-preflight.md](docs/operations/phase-5-deployment-preflight.md),
-      [ADR-0019](docs/adr/0019-container-access-capability-profiles.md))
+- [x] 2026-07-19 — **The container-access deployment gate — RESOLVED SMALLER, same day.**
+      Originally: confirm Docker subnet → firewall rule → `0.0.0.0` bind → restart. Investigation
+      falsified the premise: this host runs WSL2 `networkingMode=mirrored`, so containers already
+      reach the loopback bind, and the real blocker was the MCP SDK's DNS-rebinding allowlist —
+      which ADR-0019's bind mode could not influence (FastMCP was constructed before
+      `settings.host` was assigned), so the gate as written would have opened the LAN and still
+      returned 421. Fixed in `build_server` + `_transport_security()`; verified from a container
+      against a loopback-only gateway (200 on `/healthz`, 406 not 421 on `/mcp`); 609 tests green.
+      — [ADR-0022](docs/adr/0022-container-access-needs-no-exposure.md). **No firewall rule and no
+      bind change will be made.**
+- [ ] 2026-07-19 — **Derek: restart the durable gateway** (the only remaining live step). One
+      `HearthGatewayRestart` run on the unchanged `127.0.0.1:8710` bind activates Phase 4 facets,
+      ADR-0019 capability enforcement, the ADR-0022 allowlist, and the facade key together.
+      Verification + rollback in the "Revised gate" section of
+      [phase-5-deployment-preflight.md](docs/operations/phase-5-deployment-preflight.md).
+      ⚠ After this restart, a mounted tool with no capability mapping REFUSES startup by design.
 - [ ] 2026-07-19 — Push / land `hearth-container-access-adr-0019`: 13 commits and 2372 lines of
       security work sit on a local branch with no remote tracking branch. Decide push-only vs
       merge to master (source: [SESSION-RETRO-2026-07-19.md](SESSION-RETRO-2026-07-19.md) L-5)

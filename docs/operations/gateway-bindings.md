@@ -1,13 +1,21 @@
 # Gateway bindings and container access
 
+> **On THIS host, container access needs none of the bind/firewall machinery
+> below — see [ADR-0022](../adr/0022-container-access-needs-no-exposure.md).**
+> `.wslconfig` sets `networkingMode=mirrored`, so a container already reaches
+> the loopback bind through `host.docker.internal`. Keep the gateway on
+> `127.0.0.1:8710`, create no firewall rule, and set neither environment
+> variable. The rest of this page applies only to a host using Docker Desktop's
+> default NAT networking.
+
 The durable gateway remains loopback-only by default:
 
 ```text
 http://127.0.0.1:8710/mcp
 ```
 
-Container clients cannot use that host-loopback address. Container access is an
-explicit mode:
+Under NAT networking, container clients cannot use that host-loopback address
+and container access is an explicit mode:
 
 ```powershell
 $env:HEARTH_GATEWAY_HOST = '0.0.0.0'
@@ -15,7 +23,8 @@ $env:HEARTH_CONTAINER_ACCESS_ENABLED = '1'
 ```
 
 The gateway refuses a non-loopback host without explicit consent and never
-falls back silently. The client-facing container endpoint is:
+falls back silently. The client-facing container endpoint is the same either
+way:
 
 ```text
 http://host.docker.internal:8710/mcp
@@ -47,4 +56,11 @@ python hearth\tests\container_access_smoke.py
 
 This proves the host/container route and minimal health contract. It does not
 change the durable gateway, firewall, caller registry, or scheduled tasks.
+
+**Known gap (ADR-0022):** `/healthz` is registered via FastMCP's `custom_route`
+and therefore bypasses the transport-security middleware, so this smoke test
+cannot observe a Host-allowlist refusal. It was green while `/mcp` returned
+`421 Misdirected Request` to the same container. A container-access claim needs
+a probe that crosses the middleware — extend this test to an authenticated MCP
+call before trusting it as proof of reachability.
 

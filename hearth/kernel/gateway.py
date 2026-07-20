@@ -41,6 +41,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
@@ -60,6 +61,9 @@ DEFAULT_PORT = 8710
 HOST_ENV_VAR = "HEARTH_GATEWAY_HOST"
 PORT_ENV_VAR = "HEARTH_GATEWAY_PORT"
 CONTAINER_ACCESS_ENV_VAR = "HEARTH_CONTAINER_ACCESS_ENABLED"
+# ADR-0022: the hostname a Docker Desktop container uses to reach this host.
+# Load-bearing for the transport-security allowlist, not for binding.
+CONTAINER_HOST_ALIAS = "host.docker.internal"
 _TRUTHY = {"1", "true", "yes", "on"}
 KERNEL_DIR = Path(__file__).resolve().parent
 BUILTIN_PROVIDER = "hearth.kernel.gateway#builtin"
@@ -135,6 +139,40 @@ def is_loopback_host(host: str) -> bool:
         return ipaddress.ip_address(text.strip("[]")).is_loopback
     except ValueError:
         return False
+
+
+def _transport_security(host: str) -> TransportSecuritySettings:
+    """DNS-rebinding guard for the streamable-http transport, stated explicitly.
+
+    The SDK auto-enables this guard only when it sees a loopback host in its OWN
+    constructor (`mcp/server/fastmcp/server.py`). The gateway used to defeat that
+    twice over: it built `FastMCP()` with the default host and assigned
+    `settings.host` afterwards, so the allowlist was computed against 127.0.0.1
+    no matter what ADR-0019's bind mode resolved — a consented `0.0.0.0` bind
+    still served a loopback-only allowlist and answered every container with
+    421. Passing the settings in makes the policy ours, versioned, and true for
+    whatever we actually bind.
+
+    `host.docker.internal:*` is allowed unconditionally rather than gated on
+    container-access mode. Under WSL2 mirrored networking a container reaches
+    this host over the LOOPBACK bind (ADR-0022), so gating the alias behind
+    non-loopback mode would deny exactly the case that needs it. The relaxation
+    is bounded: `localhost:*` is already allowed, so a browser-driven rebind
+    gains no reach it did not already have, and every tool call still requires
+    an `X-Hearth-Key` header a page cannot supply.
+    """
+    allowed = ["127.0.0.1:*", "localhost:*", "[::1]:*", f"{CONTAINER_HOST_ALIAS}:*"]
+    text = (host or "").strip()
+    # A deliberate non-loopback bind must also accept its own address, or
+    # ADR-0019's container mode would 421 on the very interface it opened.
+    # 0.0.0.0/:: name no single reachable address, so there is nothing to add.
+    if text and text not in ("0.0.0.0", "::") and not is_loopback_host(text):
+        allowed.append(f"{text}:*")
+    return TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=list(allowed),
+        allowed_origins=[f"http://{entry}" for entry in allowed],
+    )
 
 
 def _resolve_bind_host(cli_value: Optional[str]) -> tuple[str, str]:
@@ -434,9 +472,8 @@ def build_server(providers_spec: str = "", host: str = DEFAULT_HOST,
     auth = AuthRegistry(callers_path=callers_path, ledger=ledger)
     guards = GuardStack(repo_root=REPO_ROOT)
 
-    mcp = FastMCP("hearth")
-    mcp.settings.host = host
-    mcp.settings.port = port
+    mcp = FastMCP("hearth", host=host, port=port,
+                  transport_security=_transport_security(host))
     key_provider = make_header_key_provider(mcp)
     task_id_provider = make_task_id_provider(mcp)
 

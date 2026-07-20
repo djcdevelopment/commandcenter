@@ -5,6 +5,15 @@ non-loopback proof in `9dba046`; supersedes nothing; extends
 [0005](0005-one-boundary-three-planes.md) (one boundary, three planes) and
 [0014](0014-machine-lanes-off-the-tailnet.md) (machine lanes ride local networks).
 
+> **Amended by [0022](0022-container-access-needs-no-exposure.md) (2026-07-19).**
+> The premise below — that a container cannot reach a loopback-bound host
+> service — does not hold on this host, which runs WSL2 `networkingMode=mirrored`.
+> Container access ships with **no** non-loopback bind and **no** firewall rule;
+> the real blocker was the MCP SDK's DNS-rebinding allowlist, which this ADR's
+> bind mode could not influence. **§1 (bind mode) and §7 (firewall scoping) are
+> amended, and the Phase 5 gate is reduced to a restart. The authorization model
+> in §2–§5 stands unchanged** and is what makes the container caller safe.
+
 ## Context
 
 Dockerized clients — Open Notebook first, other local workers after — need to reach HEARTH.

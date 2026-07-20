@@ -226,6 +226,44 @@ subtests. `--fleet` not used; no cc-conductor writes. No new ADR was needed — 
 [0019](docs/adr/0019-container-access-capability-profiles.md) and
 [0020](docs/adr/0020-phase-4-health-facets.md) itself and indexed both.
 
+## Addendum — walking the gate falsified it (same day, post-merge)
+
+After the merge and push, we went to work the Phase 5 gate. Confirming step 1
+("confirm the intended Docker/WSL source subnet") turned up that there **is** no such
+subnet on this host: `.wslconfig` sets `networkingMode=mirrored`. The follow-on probes
+found that a container already reaches the loopback-bound gateway, and that the real
+blocker was the MCP SDK's DNS-rebinding allowlist returning `421 Misdirected Request` —
+something the bind change could not have fixed, because
+[gateway.py](hearth/kernel/gateway.py) constructed `FastMCP()` *before* assigning
+`settings.host`, so the guard was computed against `127.0.0.1` no matter what
+ADR-0019's bind mode resolved.
+
+Running the gate as written would have created a firewall rule, exposed port 8710 on
+Wi-Fi and Tailscale, restarted the door — and still answered every container `421`.
+
+Fixed by passing `host=`/`port=`/`transport_security=` into the constructor
+([ADR-0022](docs/adr/0022-container-access-needs-no-exposure.md)); verified from a
+container against a loopback-only gateway (200 on `/healthz`, 406 not 421 on `/mcp`);
+609 tests green. The deployment shrank from an exposure decision to a single restart.
+
+Two lessons this adds, both sharper than anything in the original list:
+
+10. **L-2026-07-19-9 — Verify the premise at the gate, not the conclusion.** ADR-0019's
+    opening sentence was a true general fact about Docker Desktop and a false fact about
+    *this host*. It survived design, implementation, 590 tests, an ADR review, and a
+    merge — because everything downstream was checked against the premise rather than
+    the premise against the machine. The five-minute probe that falsified it was
+    available the whole time. *(→ ADR-0022 + practice)*
+11. **L-2026-07-19-10 — A proof that cannot observe the failure is not a proof.**
+    ADR-0020's container smoke test passed by reaching `/healthz` — a `custom_route`
+    that *bypasses* the transport-security middleware, making it the one endpoint on the
+    gateway incapable of detecting the 421. Liveness reachability and MCP reachability
+    are different claims; the test asserted the first and the ADR credited the second.
+    *(→ ADR-0022; smoke test needs extending)*
+
+This also retires L-2026-07-19-4's framing ("ship the mechanism, gate the exposure") in
+the best possible way: there is no exposure left to gate.
+
 ## Offload scorecard (S6)
 
 Projection refreshed during this retro (watermark `2026-07-20T05:22Z`). Lifetime through the door:

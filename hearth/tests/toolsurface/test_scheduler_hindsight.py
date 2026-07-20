@@ -274,6 +274,65 @@ class ScheduleHindsightToolGatherTests(TestCase):
         self.assertIn("non-JSON", out["error"])
 
 
+class GatherTemplateProofingTagTests(TestCase):
+    """Execute the real remote-gather source against a temp runs/ dir.
+
+    Drain-lane runs are PROOFING data, not real work (the 2026-07-20 S5
+    close-out found five empty retest laps inside the regret window as 19-20s
+    "wins"). result.json carries no task_class today, so the gather derives the
+    tag from the plan-id prefix — the drain lane's one durable marker — which
+    retroactively tags the existing historical runs on every future replay."""
+
+    def _run_gather_source(self, tmp: Path) -> dict:
+        import contextlib
+        import io
+        from hearth.toolsurface.scheduler import _GATHER_SRC_TEMPLATE, _PROOFING_PLAN_PREFIX
+        src = (_GATHER_SRC_TEMPLATE
+               .replace("LIMIT_PLACEHOLDER", "10")
+               .replace("PROOFING_PREFIX_PLACEHOLDER", _PROOFING_PLAN_PREFIX))
+        cwd = os.getcwd()
+        buf = io.StringIO()
+        os.chdir(tmp)
+        try:
+            with contextlib.redirect_stdout(buf):
+                exec(compile(src, "<gather>", "exec"), {})
+        finally:
+            os.chdir(cwd)
+        return json.loads(buf.getvalue())
+
+    def test_prefix_constant_matches_the_drain_lane(self) -> None:
+        # One authored prefix, two consumers — drift here would silently untag.
+        from fleet.bankedfire_drain import PLAN_ID_PREFIX
+        from hearth.toolsurface.scheduler import _PROOFING_PLAN_PREFIX
+        self.assertEqual(_PROOFING_PLAN_PREFIX, PLAN_ID_PREFIX)
+
+    def test_drain_prefix_runs_are_tagged_proofing(self) -> None:
+        import shutil
+        tmp = Path(mkdtemp())
+        try:
+            fixtures = [
+                ("hearth-drain-known-bad-retest-x-11112222", {"winner": "cc-builder-2"}),
+                ("hearth-real-build-33334444", {"winner": "cc-builder-2"}),
+                ("hearth-drain-explicit-55556666",
+                 {"winner": "cc-builder-2", "task_class": "build"}),
+            ]
+            for name, result in fixtures:
+                d = tmp / "runs" / name
+                d.mkdir(parents=True)
+                (d / "nodes.json").write_text("{}", encoding="utf-8")
+                (d / "result.json").write_text(json.dumps(result), encoding="utf-8")
+            payload = self._run_gather_source(tmp)
+            by_id = {r["plan_id"]: r for r in payload["records"]}
+            self.assertEqual(set(by_id), {name for name, _ in fixtures})
+            self.assertEqual(
+                by_id["hearth-drain-known-bad-retest-x-11112222"]["task_class"], "proofing")
+            self.assertEqual(by_id["hearth-real-build-33334444"]["task_class"], "unknown")
+            # An explicit task_class in result.json wins over the prefix rule.
+            self.assertEqual(by_id["hearth-drain-explicit-55556666"]["task_class"], "build")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
 class GetToolsTests(TestCase):
     def test_get_tools_exposes_both_scheduler_tools(self) -> None:
         tools = get_tools()

@@ -188,7 +188,7 @@ class _TickHarness(TestCase):
             results_path=self.results_path,
             occupancy_check=lambda name: {"occupancy": "available"},
             acquire_lease=lambda name, pinned=False: _FakeLease(True),
-            submit_task_fn=lambda prompt, plan_id_hint=None: {
+            submit_task_fn=lambda prompt, plan_id_hint=None, task_class=None: {
                 "ok": True, "plan_id": f"hearth-{plan_id_hint}-abcd1234",
             },
             task_status_fn=lambda plan_id: {"ok": True, "done": True},
@@ -266,10 +266,25 @@ class RunTickTests(_TickHarness):
 
     def test_dispatch_failure_reported_as_noop(self) -> None:
         drain.set_armed(True, "test", path=self.arm_path)
-        report = self._tick(submit_task_fn=lambda prompt, plan_id_hint=None: {
+        report = self._tick(submit_task_fn=lambda prompt, plan_id_hint=None, task_class=None: {
             "ok": False, "error": "ssh timeout",
         })
         self.assertEqual(report["reason"], "no-op:dispatch-failed")
+
+    def test_dispatch_is_tagged_as_a_proofing_run(self) -> None:
+        # Drain dispatches are retests/experiments on idle sunk compute, not
+        # production work — the task_class tag is what lets ledger consumers
+        # (capacity buckets, scheduler hindsight) keep them out of real-work data.
+        drain.set_armed(True, "test", path=self.arm_path)
+        seen: dict = {}
+
+        def capture(prompt, plan_id_hint=None, task_class=None):
+            seen["task_class"] = task_class
+            return {"ok": True, "plan_id": f"hearth-{plan_id_hint}-abcd1234"}
+
+        report = self._tick(submit_task_fn=capture)
+        self.assertTrue(report["reason"].startswith("dispatched:"))
+        self.assertEqual(seen["task_class"], "proofing")
 
 
 class LedgerSemanticsTests(_TickHarness):
@@ -339,7 +354,7 @@ class LedgerSemanticsTests(_TickHarness):
         """The one branch that genuinely failed must stay legible as a failure,
         otherwise this change would trade a false alarm for a blind spot."""
         drain.set_armed(True, "test", path=self.arm_path)
-        self._tick(submit_task_fn=lambda prompt, plan_id_hint=None: {
+        self._tick(submit_task_fn=lambda prompt, plan_id_hint=None, task_class=None: {
             "ok": False, "error": "ssh timeout",
         })
         event = self._event()
@@ -354,9 +369,9 @@ class LedgerSemanticsTests(_TickHarness):
             dict(),
             dict(occupancy_check=lambda name: {"occupancy": "busy"}),
             dict(occupancy_check=lambda name: {"occupancy": "unknown"}),
-            dict(submit_task_fn=lambda prompt, plan_id_hint=None: {
+            dict(submit_task_fn=lambda prompt, plan_id_hint=None, task_class=None: {
                 "ok": False, "error": "ssh timeout"}),
-            dict(submit_task_fn=lambda prompt, plan_id_hint=None: {"ok": False}),
+            dict(submit_task_fn=lambda prompt, plan_id_hint=None, task_class=None: {"ok": False}),
         ]
         for i, overrides in enumerate(branches):
             with self.subTest(branch=i):

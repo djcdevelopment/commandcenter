@@ -38,6 +38,14 @@ DEFAULT_AM4_CATALOG_PATH = "knowledge/am4_catalog.json"
 _INVENTORY_REL = "fleet/inventory.toml"
 _BACKENDS_REL = "hearth/etc/backends.toml"
 
+# Idle-drain retest runs are PROOFING data, not real work (2026-07-20: five empty
+# "agent produced nothing" retest laps entered the regret window as 19-20s wins).
+# Their plan ids carry the drain lane's authored prefix — the one durable marker
+# these historical records have, since result.json carries no task_class today —
+# so the gather derives the tag from the run-dir name. An explicit task_class in
+# result.json wins. Must equal fleet/bankedfire_drain.py PLAN_ID_PREFIX (test-pinned).
+_PROOFING_PLAN_PREFIX = "hearth-drain-"
+
 # Runs on the conductor's python3; same shape as patrol.py's _GATHER_SRC (imitated,
 # not re-invented) but filtered to completed ("ok") runs, newest first, bounded to
 # `limit`. hindsight only wants runs whose actual outcome is knowable.
@@ -64,7 +72,10 @@ for name in names:
         r = json.load(open(res))
         rec["status"] = r.get("status")
         rec["winner"] = r.get("winner")
-        rec["task_class"] = r.get("task_class") or r.get("workflow_id") or "unknown"
+        if name.startswith("PROOFING_PREFIX_PLACEHOLDER"):
+            rec["task_class"] = r.get("task_class") or "proofing"
+        else:
+            rec["task_class"] = r.get("task_class") or r.get("workflow_id") or "unknown"
     except Exception as e:
         rec["parse_error"] = str(e)[:120]
         rec["status"] = None
@@ -81,7 +92,9 @@ print(json.dumps({"records": records, "scanned": len(records)}))
 def _gather_completed_runs(limit: int, runner: Optional[Callable] = None):
     """Gather recent completed ('ok') run records from the conductor. Returns
     (payload, error), imitating hearth/toolsurface/patrol.py's gather mechanism."""
-    src = _GATHER_SRC_TEMPLATE.replace("LIMIT_PLACEHOLDER", str(int(limit)))
+    src = (_GATHER_SRC_TEMPLATE
+           .replace("LIMIT_PLACEHOLDER", str(int(limit)))
+           .replace("PROOFING_PREFIX_PLACEHOLDER", _PROOFING_PLAN_PREFIX))
     b64 = base64.b64encode(src.encode("utf-8")).decode("ascii")
     remote = f"cd {CONDUCTOR_REPO} && echo {b64} | base64 -d | python3 -"
     stdout, error = _run_ssh(remote, runner=runner)

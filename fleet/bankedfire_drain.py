@@ -85,6 +85,11 @@ from tools.workflow.validate_budget import ValidationError, validate_budget  # n
 DRAIN_CALLER = {"id": "bankedfire-drain", "runner_class": "human", "node": "omen"}
 DRAIN_BACKEND = "am4-oxen"
 PLAN_ID_PREFIX = "hearth-drain-"
+# Drain dispatches are PROOFING runs (retests/experiments on sunk idle compute),
+# not production build work. The tag rides submit_task(task_class=) so ledger
+# consumers — capacity buckets, scheduler hindsight — can separate them from
+# real jobs instead of reading an empty retest lap as a 20s "build".
+DRAIN_TASK_CLASS = "proofing"
 
 DEFAULT_ARM_STATE_PATH = _REPO_ROOT / "hearth" / "var" / "bankedfire_drain_arm.json"
 DEFAULT_BUDGET_PATH = _REPO_ROOT / "knowledge" / "operating-budget.json"
@@ -386,6 +391,7 @@ def run_tick(arm_state_path: Path = DEFAULT_ARM_STATE_PATH,
     )
     submit_result = submit_task_fn(
         prompt, plan_id_hint=f"drain-{candidate['candidate_id'][:40]}",
+        task_class=DRAIN_TASK_CLASS,
     )
     if not submit_result.get("ok"):
         return _finish("no-op:dispatch-failed", {"submit_error": submit_result.get("error")})

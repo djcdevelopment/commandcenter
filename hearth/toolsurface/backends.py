@@ -55,6 +55,32 @@ class BackendConfigError(ValueError):
     """Raised when the pool declaration is structurally invalid."""
 
 
+class BackendRoutingRefusal(BackendConfigError):
+    """A request was refused because no safe backend qualified."""
+
+    reason_code = "payload_over_budget_no_eligible_backend"
+
+    def __init__(self, *, payload_bytes: int, required_context_bytes: int,
+                 attempted: list[dict], default_backend: str,
+                 default_context_bytes: Optional[int]) -> None:
+        self.payload_bytes = payload_bytes
+        self.required_context_bytes = required_context_bytes
+        self.attempted = attempted
+        self.default_backend = default_backend
+        self.default_context_bytes = default_context_bytes
+        super().__init__(self.reason_code)
+
+    def as_dict(self) -> dict:
+        return {
+            "reason": self.reason_code,
+            "payload_bytes": self.payload_bytes,
+            "required_context_bytes": self.required_context_bytes,
+            "default_backend": self.default_backend,
+            "default_context_bytes": self.default_context_bytes,
+            "attempted": self.attempted,
+        }
+
+
 @dataclass(frozen=True)
 class Backend:
     """One declared inference backend."""
@@ -208,7 +234,13 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
     def _occ(name: str) -> dict:
         if occupancy_check is None:
             return {"occupancy": "available"}
-        return occupancy_check(name)
+        checked = occupancy_check(name)
+        if not isinstance(checked, dict):
+            return {"occupancy": "unknown"}
+        result = dict(checked)
+        if result.get("occupancy") not in {"available", "busy", "unknown"}:
+            result["occupancy"] = "unknown"
+        return result
 
     if backend is not None:
         chosen = pool.by_name(backend)
@@ -217,7 +249,7 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
                 f"no backend named {backend!r} (have: "
                 f"{', '.join(b.name for b in pool.backends)})")
         occ = _occ(chosen.name)
-        occ["occupancy"] = occ.get("occupancy", "available")
+        occ["occupancy"] = occ.get("occupancy", "unknown")
         # Pinned calls resolve unknown -> available (fail-open for a deliberate pin).
         return chosen, f"pinned:{backend}", occ
 
@@ -238,7 +270,7 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
                         # skip it exactly like a busy candidate.
                         continue
                 occ = _occ(candidate.name)
-                occupancy = occ.get("occupancy", "available")
+                occupancy = occ.get("occupancy", "unknown")
                 if occupancy == "busy" or (occupancy == "unknown"):
                     # Opportunistic (tag-routed) call: unknown resolves to busy —
                     # skip this candidate and keep looking, same as a hard busy.
@@ -256,8 +288,13 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
     if d_exclude or d_overflow:
         # A1/A2: the default can't take this call (payload too big, or it just
         # failed and is excluded). Walk the ladder: big-context first (sunk),
-        # then cloud-overflow (trial). Fail-open: nothing qualifies -> default
-        # anyway, with a reason that says so.
+        # then cloud-overflow (trial). No qualifying rung is a hard refusal.
+        attempted: list[dict] = [{
+            "name": default.name,
+            "context_bytes": default.context_bytes(),
+            "occupancy": "not_checked",
+            "rejection_reason": "excluded" if d_exclude and not d_overflow else "payload_over_budget",
+        }]
         for f_tag in ("big-context", "cloud-overflow"):
             for candidate in pool.backends:
                 if f_tag in candidate.tags:
@@ -266,13 +303,33 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
                     if payload_bytes is not None:
                         c_bytes = candidate.context_bytes()
                         if c_bytes is not None and payload_bytes > c_bytes:
+                            attempted.append({
+                                "name": candidate.name,
+                                "context_bytes": c_bytes,
+                                "occupancy": "not_checked",
+                                "rejection_reason": "payload_over_budget",
+                                "ladder": f_tag,
+                            })
                             continue
                     occ = _occ(candidate.name)
-                    occupancy = occ.get("occupancy", "available")
+                    occupancy = occ.get("occupancy", "unknown")
                     if occupancy == "busy" or occupancy == "unknown":
+                        attempted.append({
+                            "name": candidate.name,
+                            "context_bytes": candidate.context_bytes(),
+                            "occupancy": occupancy,
+                            "rejection_reason": "occupancy_unavailable",
+                            "ladder": f_tag,
+                        })
                         continue
                     reason_prefix = "fallback" if d_exclude else "payload"
                     return candidate, f"{reason_prefix}:{f_tag}:{candidate.name}", occ
-        return default, "default:overflow", {"occupancy": "available"}
+        raise BackendRoutingRefusal(
+            payload_bytes=payload_bytes if payload_bytes is not None else 0,
+            required_context_bytes=payload_bytes if payload_bytes is not None else 0,
+            attempted=attempted,
+            default_backend=default.name,
+            default_context_bytes=default.context_bytes(),
+        )
 
-    return default, "default", {"occupancy": "available"}
+    return default, "default", _occ(default.name)

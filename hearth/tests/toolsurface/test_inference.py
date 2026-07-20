@@ -403,7 +403,7 @@ class OccupancyRoutingTests(TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["backend"], "omen-ollama")
         self.assertEqual(result["routed_by"], "default")
-        self.assertEqual(result["occupancy"], "available")
+        self.assertEqual(result["occupancy"], "busy")
         self.assertEqual(mocked.call_args[0][0].full_url, "http://127.0.0.1:11434/api/generate")
 
     def test_unknown_oxen_skipped_falls_back_to_ollama(self) -> None:

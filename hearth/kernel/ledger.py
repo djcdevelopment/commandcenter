@@ -70,6 +70,8 @@ def classify_error(error: str) -> str:
     if not error:
         return "other"
     lower = error.lower()
+    if "routing_refusal" in lower or "payload_over_budget_no_eligible_backend" in lower:
+        return "routing_refusal"
     if "occupancy" in lower or "busy" in lower:
         return "occupancy_skip"
     if "timed out" in lower or "timeout" in lower:
@@ -98,7 +100,8 @@ def new_event(caller: Mapping[str, str], tool: str, *,
               occupancy: Optional[str] = None,
               error_code: Optional[str] = None,
               outcome: Optional[str] = None,
-              profile: Optional[str] = None) -> dict:
+              profile: Optional[str] = None,
+              routing_refusal: Optional[Mapping[str, Any]] = None) -> dict:
     """Build a schema-complete hearth-event.v1 dict for `append`.
 
     `args` and `result` are the raw python values; digests and the 400-char args
@@ -126,7 +129,7 @@ def new_event(caller: Mapping[str, str], tool: str, *,
         error = "unspecified failure (emitter named no error)"
     cost = dict(cost) if cost else {}
     args_json = json_dumps_canonical(args)
-    return {
+    event = {
         "schema": SCHEMA_ID,
         "event_id": str(uuid.uuid4()),
         "ts": utc_now_iso(),
@@ -157,6 +160,9 @@ def new_event(caller: Mapping[str, str], tool: str, *,
         "outcome": outcome,
         "profile": profile,
     }
+    if routing_refusal is not None:
+        event["routing_refusal"] = dict(routing_refusal)
+    return event
 
 
 def _validate_stdlib(event: Any) -> None:
@@ -168,7 +174,7 @@ def _validate_stdlib(event: Any) -> None:
                 "args_preview", "result_digest", "ok", "error", "duration_ms",
                 "cost", "task_id"}
     optional = {"task_class", "model", "backend", "routed_by", "occupancy", "error_code",
-                "outcome", "profile"}
+                "outcome", "profile", "routing_refusal"}
     keys = set(event)
     if not required.issubset(keys) or not keys.issubset(required | optional):
         missing, extra = sorted(required - keys), sorted(keys - (required | optional))

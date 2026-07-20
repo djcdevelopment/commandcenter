@@ -29,6 +29,7 @@ record with its status changed and a pointer to the ADR that replaced it.
 | [0018](0018-resident-moe-steady-state-tenant.md) | The resident big-MoE is oxen's steady-state tenant: goodput-routed, budget-enforced | Accepted (2026-07-18), live |
 | [0019](0019-container-access-capability-profiles.md) | Container access is capability-profiled: explicit non-loopback bind, profile-gated tool surface | Accepted (2026-07-19), Phase 4 complete |
 | [0020](0020-phase-4-health-facets.md) | Phase 4 health facets and compatibility | Implemented (2026-07-19) |
+| [0021](0021-fail-closed-payload-routing.md) | Payload budgeting is fail-closed at the inference router | Accepted (2026-07-20) |
 | [0022](0022-container-access-needs-no-exposure.md) | Container access needs no network exposure: mirrored WSL + an explicit transport-security allowlist | Accepted (2026-07-19), amends 0019 |
 
 ## Historical note

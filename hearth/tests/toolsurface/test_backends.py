@@ -9,6 +9,7 @@ from unittest.mock import patch
 from hearth.toolsurface.backends import (
     Backend,
     BackendConfigError,
+    BackendRoutingRefusal,
     Pool,
     load_pool,
     select_backend,
@@ -303,14 +304,34 @@ class PayloadAwareRoutingTests(TestCase):
     def test_default_overflow_big_context_busy_to_cloud_overflow(self) -> None:
         def occ_check(name: str) -> dict:
             return {"occupancy": "busy"} if name == "am4-oxen" else {"occupancy": "available"}
-        chosen, reason, occ = select_backend(self.pool, payload_bytes=2000, occupancy_check=occ_check)
+        chosen, reason, occ = select_backend(self.pool, payload_bytes=8000, occupancy_check=occ_check)
         self.assertEqual(chosen.name, "gcp-gemini")
         self.assertEqual(reason, "payload:cloud-overflow:gcp-gemini")
 
     def test_default_overflow_nothing_fits(self) -> None:
-        chosen, reason, occ = select_backend(self.pool, payload_bytes=20000)
-        self.assertEqual(chosen.name, "omen-ollama")
-        self.assertEqual(reason, "default:overflow")
+        with self.assertRaises(BackendRoutingRefusal) as ctx:
+            select_backend(self.pool, payload_bytes=20000)
+        refusal = ctx.exception.as_dict()
+        self.assertEqual(refusal["reason"], "payload_over_budget_no_eligible_backend")
+        self.assertEqual(refusal["payload_bytes"], 20000)
+        self.assertEqual(refusal["required_context_bytes"], 20000)
+        self.assertEqual(refusal["default_backend"], "omen-ollama")
+        self.assertNotEqual(refusal["reason"], "default:overflow")
+
+    def test_default_overflow_all_qualifying_rungs_unknown_is_refused(self) -> None:
+        def occ_check(name: str) -> dict:
+            return {"occupancy": "unknown"}
+
+        with self.assertRaises(BackendRoutingRefusal) as ctx:
+            select_backend(self.pool, payload_bytes=2000, occupancy_check=occ_check)
+        attempted = ctx.exception.as_dict()["attempted"]
+        self.assertIn("am4-oxen", {row["name"] for row in attempted})
+        self.assertIn("gcp-gemini", {row["name"] for row in attempted})
+        self.assertTrue(all(row["occupancy"] != "available" for row in attempted))
+
+    def test_default_is_never_selected_after_context_failure(self) -> None:
+        with self.assertRaises(BackendRoutingRefusal):
+            select_backend(self.pool, payload_bytes=20000)
 
     def test_exclude_candidate(self) -> None:
         chosen, reason, occ = select_backend(self.pool, task="code", exclude={"omen-ollama"})

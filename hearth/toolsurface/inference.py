@@ -35,7 +35,8 @@ import urllib.request
 from typing import Callable, NamedTuple, Optional
 
 from hearth.toolsurface._scope import resolve_in_scope, scope_root
-from hearth.toolsurface.backends import BackendConfigError, Pool, load_pool, select_backend
+from hearth.toolsurface.backends import (BackendConfigError, BackendRoutingRefusal,
+                                         Pool, load_pool, select_backend)
 from hearth.toolsurface.occupancy import check_occupancy
 
 DEFAULT_ENDPOINT = "http://127.0.0.1:11434"
@@ -512,6 +513,15 @@ def local_generate(prompt: str, model: str | None = None,
     try:
         target = _resolve_target(endpoint, task, backend, payload_bytes=payload_bytes,
                                  tags=call_tags)
+    except BackendRoutingRefusal as exc:
+        refusal = exc.as_dict()
+        return {"ok": False,
+                "error": f"routing refused: {exc.reason_code}",
+                "error_code": "routing_refusal",
+                "routing_refusal": refusal,
+                "payload_bytes": refusal["payload_bytes"],
+                "required_context_bytes": refusal["required_context_bytes"],
+                "endpoint": endpoint, "model": model}
     except BackendConfigError as exc:
         return {"ok": False, "error": f"routing failed: {exc}",
                 "endpoint": endpoint, "model": model}

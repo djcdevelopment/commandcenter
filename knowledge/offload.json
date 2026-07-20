@@ -1,25 +1,25 @@
 {
   "contract_version": "offload.v1",
-  "evidence_watermark": "2026-07-18T22:58:44.620628Z",
+  "evidence_watermark": "2026-07-20T05:22:32.915593Z",
   "bucket_count": 9,
   "totals": {
-    "calls": 217,
-    "tokens_in": 228732,
-    "tokens_out": 49177
+    "calls": 230,
+    "tokens_in": 344927,
+    "tokens_out": 65099
   },
   "per_class": {
     "sunk": {
-      "calls": 41,
-      "tokens_in": 32035,
-      "tokens_out": 16270
+      "calls": 44,
+      "tokens_in": 39959,
+      "tokens_out": 22563
     },
     "trial": {
-      "calls": 172,
-      "tokens_in": 196697,
-      "tokens_out": 32907
+      "calls": 181,
+      "tokens_in": 304968,
+      "tokens_out": 42536
     },
     "unknown": {
-      "calls": 4,
+      "calls": 5,
       "tokens_in": 0,
       "tokens_out": 0
     }
@@ -29,7 +29,7 @@
     "reference": "claude-sonnet",
     "input_per_mtok": 3.0,
     "output_per_mtok": 15.0,
-    "usd": 1.423851
+    "usd": 2.011266
   },
   "buckets": [
     {
@@ -38,11 +38,11 @@
       "models": [
         "gpt-oss-120b"
       ],
-      "calls": 11,
+      "calls": 14,
       "ok_rate": 1.0,
-      "tokens_in": 29917,
-      "tokens_out": 16116,
-      "last_seen": "2026-07-18T13:16:08.951724Z"
+      "tokens_in": 37841,
+      "tokens_out": 22409,
+      "last_seen": "2026-07-19T05:54:17.071634Z"
     },
     {
       "backend": "gcp-gemini",
@@ -50,11 +50,11 @@
       "models": [
         "gemini-3.5-flash"
       ],
-      "calls": 15,
+      "calls": 18,
       "ok_rate": 1.0,
-      "tokens_in": 112841,
-      "tokens_out": 11518,
-      "last_seen": "2026-07-18T13:19:03.980809Z"
+      "tokens_in": 143230,
+      "tokens_out": 12169,
+      "last_seen": "2026-07-19T01:56:07.822784Z"
     },
     {
       "backend": "gcp-gemini-pro",
@@ -62,21 +62,21 @@
       "models": [
         "gemini-3.1-pro-preview"
       ],
-      "calls": 6,
+      "calls": 12,
       "ok_rate": 1.0,
-      "tokens_in": 83856,
-      "tokens_out": 21389,
-      "last_seen": "2026-07-18T22:58:44.620628Z"
+      "tokens_in": 161738,
+      "tokens_out": 30367,
+      "last_seen": "2026-07-20T05:22:32.915593Z"
     },
     {
       "backend": "model:",
       "cost_class": "unknown",
       "models": [],
-      "calls": 4,
-      "ok_rate": 0.25,
+      "calls": 5,
+      "ok_rate": 0.4,
       "tokens_in": 0,
       "tokens_out": 0,
-      "last_seen": "2026-07-18T02:56:48.068255Z"
+      "last_seen": "2026-07-19T05:45:36.605439Z"
     },
     {
       "backend": "model:/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
@@ -139,6 +139,6 @@
       "last_seen": "2026-07-18T07:33:17.290745Z"
     }
   ],
-  "corpus_digest": "sha256:09c5873de5e01c0101bfec72efe29d00b14b845b4f26f6b1421c6016f95ec73e",
-  "corpus_event_count": 8535
+  "corpus_digest": "sha256:8fdf0c64062e7ae4c0f1b94def4089999729946657e3c29bfd2739814870b6e5",
+  "corpus_event_count": 9167
 }

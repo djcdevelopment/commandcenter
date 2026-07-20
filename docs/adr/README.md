@@ -27,6 +27,8 @@ record with its status changed and a pointer to the ADR that replaced it.
 | [0016](0016-scheduler-actuation.md) | *(reserved — scheduler actuation decision, H1; see SCHEDULER-STRATEGY.html)* | Pending Derek |
 | [0017](0017-software-constellation-registry-am4-seed-intake.md) | Software constellation registry + the AM4 seed intake rulings (manifest/ember/gad) | Accepted (2026-07-16), registry landed |
 | [0018](0018-resident-moe-steady-state-tenant.md) | The resident big-MoE is oxen's steady-state tenant: goodput-routed, budget-enforced | Accepted (2026-07-18), live |
+| [0019](0019-container-access-capability-profiles.md) | Container access is capability-profiled: explicit non-loopback bind, profile-gated tool surface | Accepted (2026-07-19), Phase 4 complete |
+| [0020](0020-phase-4-health-facets.md) | Phase 4 health facets and compatibility | Implemented (2026-07-19) |
 
 ## Historical note
 The "ADR-0001" referenced in `SESSION-RETRO-2026-06-29.md` (which orchestrator is

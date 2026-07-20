@@ -14,8 +14,10 @@ interpreter (needs the mcp SDK for the live handshake).
     python -m hearth.callers.doorcheck --probe-cloud   # also fire one real gcp-gemini
                                                         # generate (spends trial credit)
 
-Exit code: 0 = gateway healthy AND default-ollama backend up AND toolsurface
-manifest matches. 1 = degraded, down, or stale.
+Exit code: default mode answers the door facet (listener + authentication + MCP
+surface); a cold backend is advisory. ``--strict`` requires every facet,
+including the default backend dependency, to be healthy. Exit 1 means the
+requested facet is unhealthy; exit 2 means a hard configuration/auth failure.
 
 The --revive launch uses DETACHED_PROCESS so the gateway does NOT die with the
 console that started it — the failure mode that killed it on 2026-07-03.
@@ -67,6 +69,8 @@ RESTART_TASK = "HearthGatewayRestart"
 # (not imported) because hearth.kernel.gateway imports the mcp SDK at module
 # level — importing it here would break doorcheck under a plain system python.
 KERNEL_BUILTIN_TOOLS = ("kernel_status", "kernel_change")
+FACETS = ("door", "process_listener", "authentication", "mcp_surface",
+          "backend_dependency")
 
 _PROVIDERS_RE = re.compile(r"--providers\s+(\S+)")
 
@@ -84,10 +88,14 @@ def _mcp_handshake() -> dict:
     from hearth.callers.client import HearthClient  # lazy: needs mcp SDK
 
     t0 = time.monotonic()
-    tools = HearthClient(key=CALLER_KEY).list_tools_sync()
+    client = HearthClient(key=CALLER_KEY)
+    tools = client.list_tools_sync()
     names = sorted(tool["name"] for tool in tools)
+    auth_probe = client.call_sync("kernel_status")
     return {
         "ok": True,
+        "auth_ok": bool(auth_probe.get("ok")),
+        "auth_error": auth_probe.get("text") if not auth_probe.get("ok") else None,
         "tools": len(tools),
         "tool_names": names,
         "handshake_ms": round((time.monotonic() - t0) * 1000),
@@ -268,6 +276,7 @@ def _backends_report(probe_cloud: bool) -> dict:
             "backends": [{"name": None, "api": None, "up": False,
                          "line": f"backends: config error - {exc}"}],
             "default_up": False,
+            "config_error": str(exc),
         }
 
     entries = []
@@ -278,7 +287,7 @@ def _backends_report(probe_cloud: bool) -> dict:
         if entry["default"]:
             default_up = bool(entry.get("up"))
         entries.append(entry)
-    return {"backends": entries, "default_up": default_up}
+    return {"backends": entries, "default_up": default_up, "config_error": None}
 
 
 # ---------------------------------------------------------------------------
@@ -429,12 +438,52 @@ def _restart(timeout_s: float = 25.0) -> dict:
 # check() + CLI
 # ---------------------------------------------------------------------------
 
-def check(revive: bool = False, probe_cloud: bool = False) -> dict:
+def _facet_statuses(report: dict) -> dict[str, str]:
+    """Stable machine-facing facet names and statuses; prose is separate."""
+    listener = bool(report.get("listener_up"))
+    mcp = report.get("mcp") or {}
+    if not listener:
+        surface_status = "down"
+        auth_status = "unknown"
+    elif not mcp.get("ok"):
+        surface_status = "failed"
+        auth_status = "unknown"
+    else:
+        auth_status = "healthy" if mcp.get("auth_ok") else "failed"
+        surface_status = "healthy" if report["toolsurface"]["ok"] else "degraded"
+
+    if report.get("backend_config_error"):
+        backend_status = "failed"
+    elif report.get("default_backend_up"):
+        backend_status = "healthy"
+    else:
+        backend_status = "cold"
+
+    return {
+        "process_listener": "healthy" if listener else "down",
+        "authentication": auth_status,
+        "mcp_surface": surface_status,
+        "backend_dependency": backend_status,
+    }
+
+
+def _requested_facet_ok(statuses: dict[str, str], facet: str, strict: bool) -> bool:
+    required = set(statuses) if strict else (
+        {"process_listener", "authentication", "mcp_surface"}
+        if facet == "door" else {facet})
+    return all(statuses[name] == "healthy" for name in required)
+
+
+def check(revive: bool = False, probe_cloud: bool = False,
+          *, facet: str = "door", strict: bool = False) -> dict:
+    if facet not in FACETS:
+        raise ValueError(f"unknown facet {facet!r}; choose one of {', '.join(FACETS)}")
     report: dict = {"gateway": "down", "revived": False}
     up = _tcp_up(GATEWAY_HOST, GATEWAY_PORT)
 
     if not up and revive:
         report["revived"] = up = _revive()
+    report["listener_up"] = up
 
     live_names: set[str] | None = None
     if up:
@@ -452,16 +501,19 @@ def check(revive: bool = False, probe_cloud: bool = False) -> dict:
     backend_health = _backends_report(probe_cloud)
     report["backends"] = backend_health["backends"]
     report["default_backend_up"] = backend_health["default_up"]
+    report["backend_config_error"] = backend_health.get("config_error")
 
     report["last_ledger_event"] = _last_ledger_event()
     report["build_requests"] = _build_request_lane()
     report["trial_burn_line"] = _trial_burn_report()
 
-    report["ok"] = (
-        report["gateway"] == "up"
-        and report["default_backend_up"]
-        and report["toolsurface"]["ok"]
-    )
+    report["facets"] = _facet_statuses(report)
+    report["requested_facet"] = facet
+    report["strict"] = strict
+    report["hard_failure"] = bool(report["backend_config_error"])
+    report["ok"] = _requested_facet_ok(report["facets"], facet, strict)
+    if report["hard_failure"]:
+        report["ok"] = False
     return report
 
 
@@ -475,11 +527,16 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--probe-cloud", action="store_true",
                     help="fire one real gcp-gemini generate (spends trial credit); "
                          "off by default")
+    ap.add_argument("--facet", choices=FACETS, default="door",
+                    help="facet to answer (default: door; --strict checks all facets)")
+    ap.add_argument("--strict", action="store_true",
+                    help="require every health facet, including backend readiness")
     args = ap.parse_args(argv)
 
     restart_result = _restart() if args.restart else None
 
-    report = check(revive=args.revive, probe_cloud=args.probe_cloud)
+    report = check(revive=args.revive, probe_cloud=args.probe_cloud,
+                   facet=args.facet, strict=args.strict)
     if restart_result is not None:
         report["restart"] = restart_result
 
@@ -502,8 +559,12 @@ def main(argv: list[str]) -> int:
         print(f"ledger   : last event {report['last_ledger_event'] or 'none'}")
         print(report["build_requests"]["line"])
         print(report["trial_burn_line"])
-        print("verdict  : " + ("HEALTHY" if report["ok"] else "DEGRADED"))
-    return 0 if report["ok"] else 1
+        for name, status in report["facets"].items():
+            print(f"facet[{name}] : {status}")
+        verdict = "HEALTHY" if report["ok"] else "DEGRADED"
+        print(f"verdict  : {verdict} ({report['requested_facet']}"
+              + (", strict" if report["strict"] else ", default") + ")")
+    return 2 if report["hard_failure"] else (0 if report["ok"] else 1)
 
 
 if __name__ == "__main__":

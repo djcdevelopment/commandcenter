@@ -1,0 +1,106 @@
+# HEARTH capability profiles (ADR-0019) — POLICY, checked into git.
+#
+# This file answers "which roles exist and what may each do". It is deliberately
+# version-controlled and readable: authorization policy should be auditable and
+# reviewable in a diff. Only the key registry (hearth/var/callers.json) is secret.
+#
+# The indirection is:  caller -> profile -> capability set -> tool routing
+#
+# A caller is NOT denied because of what product it is; it is GRANTED a role.
+# Adding an integration should be a caller record pointing at an existing
+# profile, not a new special case in the gateway.
+#
+# The tool -> capability TAXONOMY lives in code (hearth/kernel/capabilities.py,
+# TOOL_CAPABILITY), next to the TOOL_CLASS precedent in the gateway. That split
+# is intentional: the taxonomy must stay exhaustive against the actually-mounted
+# tool surface (a startup check and a test enforce it), while the policy below
+# is meant to be edited by a human deciding who gets what.
+#
+# FAIL-CLOSED RULES (all are startup errors, never warnings):
+#   - unknown `inherits` parent
+#   - inheritance cycle
+#   - capability name not in the taxonomy
+#   - duplicate profile declaration (tomllib rejects duplicate keys outright)
+#   - a tool mounted with no TOOL_CAPABILITY entry
+#
+# A profile declaring `capabilities = []` is a REAL profile that grants nothing.
+# That is not the same as a caller with no `profile` field at all, which is a
+# legacy caller and keeps the full pre-ADR-0019 surface. See ADR-0019 §3/§5.
+
+# --- research -----------------------------------------------------------------
+# The Research Agent: reads, queries, and reasons. Open Notebook authenticates
+# as this. It can investigate a repository credibly -- including working-tree
+# state and history -- but cannot mutate anything, dispatch fleet work, or reach
+# the key registry / fleet inventory (that last one is enforced by the caller's
+# `scope`, not by this list; see ADR-0019 §4).
+[profile.research]
+capabilities = [
+    # --- filesystem authority (bounded by the caller's file_scope) ---
+    "read",           # read_file, list_dir, glob_files
+    # --- gateway authority (capability gate only) ---
+    "query",          # the query_* family (read-only belief/capacity/catalog reads)
+    "generate",       # local_generate
+    "status",         # kernel_status
+    # --- repository authority (bounded by the caller's repo_access) ---
+    "repo_metadata",  # git_status, git_log -- branch, changed paths, commit
+                      # sha/author/date/subject. Repository FACTS with no file
+                      # contents, which is what makes them safe to grant next to
+                      # a narrowed file_scope.
+    #
+    # NOT granted: "repo_content" (git_diff). It materializes the contents of
+    # any changed file in the repo, including files this profile's file_scope
+    # denies -- a laundering path between two authority domains. The loader
+    # REFUSES the combination (see auth.py _assert_authority_coherence) rather
+    # than leaving it to whoever edits this file to notice. Grant it only to a
+    # profile whose file_scope already covers the repositories it can reach.
+]
+
+# --- generation-proxy ---------------------------------------------------------
+# A component that ONLY relays inference through the door and holds no other
+# authority: it reads nothing, writes nothing, dispatches nothing. The Open
+# Notebook OpenAI-compatible facade is the first of these -- it calls exactly
+# one tool, local_generate, so granting it the research role would hand it
+# twelve tools it never invokes.
+#
+# Deliberately NOT a sub-role of research. A proxy is not an investigator: it
+# has no filesystem or repository authority at all, so file_scope/repo_access
+# are meaningless for it and should be omitted from its caller record. If Open
+# Notebook later speaks MCP directly to inspect sources, THAT caller is a
+# separate identity carrying `research` -- one component, one identity, one role.
+[profile.generation-proxy]
+capabilities = [
+    "generate",   # local_generate -- the whole job
+    "status",     # kernel_status -- so the proxy can report door reachability
+                  # without conflating it with backend health (ADR-0020)
+]
+
+# --- builder ------------------------------------------------------------------
+# DEFINED BUT UNASSIGNED in v1. No caller carries this profile yet; it is the
+# documented growth path so the next integration is a config entry rather than
+# another security review. Adds the ability to queue fleet work and run tests.
+# Note that dispatch still holds NO fleet credential of its own -- submit_task
+# runs over the gateway host's SSH identity and is ledgered (ADR-0019 §5).
+[profile.builder]
+inherits = "research"
+capabilities = [
+    "dispatch",       # submit_task, task_status, submit_batch
+    "test",           # run_tests, lint_digest
+    "write",          # write_file
+    "repo_content",   # git_diff
+    "repo_write",     # git_commit_push
+]
+# NOTE: because this profile holds repo_content, any caller assigned it must
+# EITHER declare no file_scope (full HEARTH_SCOPE) or declare one that covers
+# every repository in its repo_access. The loader enforces that; a builder
+# narrowed to a subtree while able to diff a wider repo is refused at startup.
+
+# --- orchestrator -------------------------------------------------------------
+# DEFINED BUT UNASSIGNED in v1. Fleet-shaping reach: queue inspection, scheduler
+# advice, run harvesting.
+[profile.orchestrator]
+inherits = "builder"
+capabilities = [
+    "queue",      # queue_status
+    "schedule",   # propose_schedule, schedule_hindsight
+    "harvest",    # harvest_fleet_run, list_fleet_runs
+]

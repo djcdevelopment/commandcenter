@@ -98,3 +98,23 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       (source: [docs/drafts/o4-windows-delta-draft.md](docs/drafts/o4-windows-delta-draft.md))
 - [ ] 2026-07-18 — Optional: remount `/mnt/win` ro (`sudo mount -o remount,ro /mnt/win`) —
       resident serving is ro-mmap safe (source: [SESSION-RETRO-2026-07-18.md](SESSION-RETRO-2026-07-18.md))
+- [ ] 2026-07-19 — **Derek: the container-access deployment gate.** ADR-0019 is implemented and
+      tested (590 green) but NOT deployed: the gateway is unrestarted, the bind change is unmade,
+      and the minted `docker-open-notebook-facade` key is inert. Enabling it is one operator
+      window: confirm the Docker/WSL source subnet → create a narrowly scoped inbound TCP 8710
+      rule → set `HEARTH_GATEWAY_HOST=0.0.0.0` + `HEARTH_CONTAINER_ACCESS_ENABLED=1` → restart →
+      run the 6 verification checks. Rollback is one env var + restart, network-closure first.
+      (source: [phase-5-deployment-preflight.md](docs/operations/phase-5-deployment-preflight.md),
+      [ADR-0019](docs/adr/0019-container-access-capability-profiles.md))
+- [ ] 2026-07-19 — Push / land `hearth-container-access-adr-0019`: 13 commits and 2372 lines of
+      security work sit on a local branch with no remote tracking branch. Decide push-only vs
+      merge to master (source: [SESSION-RETRO-2026-07-19.md](SESSION-RETRO-2026-07-19.md) L-5)
+- [ ] 2026-07-19 — Close the legacy fail-open: callers minted before ADR-0019 with no `profile`
+      keep the full 47-tool surface. The gateway warns them by name at startup, but nothing closes
+      the window. Decide: migrate each legacy caller to a profile (incl. `claude-frontier`), or
+      record an explicit accept-with-expiry (source: [ADR-0019](docs/adr/0019-container-access-capability-profiles.md)
+      consequences, [SESSION-RETRO-2026-07-19.md](SESSION-RETRO-2026-07-19.md) L-6)
+- [ ] 2026-07-19 — Low priority: fix the offload projection's legacy bucket keys — 182 of 229
+      lifetime calls sit in `model:<name>`-shaped buckets with zero token counts, so
+      `est_usd_saved` undercounts. Decide backfill vs alias-map vs leave-and-annotate
+      (source: [SESSION-RETRO-2026-07-19.md](SESSION-RETRO-2026-07-19.md) L-7)

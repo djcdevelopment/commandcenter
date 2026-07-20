@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import inspect
+import ipaddress
 import json
 import logging
 import os
@@ -40,15 +41,26 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 from mcp.server.fastmcp import FastMCP
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from hearth.kernel.auth import HEADER_NAME, AuthRegistry
+from hearth.kernel.capabilities import assert_surface_complete, check_tool_access
 from hearth.kernel.context import HearthContext
 from hearth.kernel.guards import GuardRejection, GuardStack
 from hearth.kernel.ledger import REPO_ROOT, Ledger, classify_error, hearth_root, new_event
 from hearth.kernel.timers import start_timers
+from hearth.toolsurface._scope import caller_repo_access, caller_scope
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8710
+# ADR-0019 container access. Precedence for both host and port is CLI > env >
+# default, so an operator can flip the mode from a launcher script without
+# editing code, and a deliberate command line still wins over the environment.
+HOST_ENV_VAR = "HEARTH_GATEWAY_HOST"
+PORT_ENV_VAR = "HEARTH_GATEWAY_PORT"
+CONTAINER_ACCESS_ENV_VAR = "HEARTH_CONTAINER_ACCESS_ENABLED"
+_TRUTHY = {"1", "true", "yes", "on"}
 KERNEL_DIR = Path(__file__).resolve().parent
 BUILTIN_PROVIDER = "hearth.kernel.gateway#builtin"
 KNOWLEDGE_MODULE_SUFFIX = ".knowledge"
@@ -97,6 +109,55 @@ TOOL_CLASS_PREFIXES: tuple[tuple[str, str], ...] = (
 # before returning the result to the caller, so the public tool contract is
 # unchanged.
 LEDGER_MODEL_KEY = "_ledger_model"
+
+
+def _env_flag(name: str) -> bool:
+    """True when an env var is set to an affirmative value. Anything else — unset,
+    empty, '0', 'false', a typo — is False: consent must be stated, not guessed."""
+    return os.environ.get(name, "").strip().lower() in _TRUTHY
+
+
+def is_loopback_host(host: str) -> bool:
+    """True only for addresses that cannot be reached from off this machine.
+
+    Fails CLOSED: an unresolvable or unrecognized hostname is treated as
+    non-loopback, so a typo produces a refusal to start rather than an
+    unnoticed exposure. Note that 0.0.0.0 and :: are 'unspecified', not
+    loopback — binding them means every interface, which is exactly the case
+    this gate exists for.
+    """
+    text = (host or "").strip()
+    if not text:
+        return False
+    if text.lower() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(text.strip("[]")).is_loopback
+    except ValueError:
+        return False
+
+
+def _resolve_bind_host(cli_value: Optional[str]) -> tuple[str, str]:
+    """(host, where it came from) — CLI > env > default."""
+    if cli_value is not None:
+        return cli_value, "--host"
+    from_env = os.environ.get(HOST_ENV_VAR, "").strip()
+    if from_env:
+        return from_env, f"${HOST_ENV_VAR}"
+    return DEFAULT_HOST, "default"
+
+
+def _resolve_bind_port(cli_value: Optional[int]) -> tuple[int, str]:
+    """(port, where it came from) — CLI > env > default."""
+    if cli_value is not None:
+        return cli_value, "--port"
+    from_env = os.environ.get(PORT_ENV_VAR, "").strip()
+    if from_env:
+        try:
+            return int(from_env), f"${PORT_ENV_VAR}"
+        except ValueError as exc:
+            raise SystemExit(f"{PORT_ENV_VAR} is not an integer: {from_env!r}") from exc
+    return DEFAULT_PORT, "default"
 
 
 def _task_class_for(tool_name: str) -> Optional[str]:
@@ -187,16 +248,42 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
 
     def wrapper(**kwargs: Any) -> Any:
         started = time.perf_counter()
+
+        def elapsed_ms() -> float:
+            return (time.perf_counter() - started) * 1000.0
+
         caller = auth.resolve(key_provider())
         if caller is None:
             raise PermissionError(
                 f"unknown or missing {HEADER_NAME} key; rejection recorded in the ledger"
             )
-        hearth.caller = caller
         task_id = task_id_provider()
 
-        def elapsed_ms() -> float:
-            return (time.perf_counter() - started) * 1000.0
+        # ADR-0019: authorization sits between authentication and everything
+        # else. It runs BEFORE the guard stack and before any argument
+        # inspection, so a caller that may not reach this tool cannot learn
+        # anything from how its arguments were handled. The denial event names
+        # the identity, profile, tool and mapped capability — and deliberately
+        # carries args=None, because a refused call must not write the arguments
+        # it was refused for into the audit trail.
+        profile = auth.profile_for(caller)
+        allowed, capability = check_tool_access(profile, tool_name)
+        if not allowed:
+            denial = (
+                f"capability: profile {caller.ledger_profile!r} does not grant "
+                f"{capability!r} (required by tool {tool_name!r})" if capability else
+                f"capability: tool {tool_name!r} has no capability mapping; "
+                f"profiled caller {caller.id!r} is denied fail-closed"
+            )
+            hearth.ledger.append(new_event(
+                caller.as_dict(), tool_name, args=None,
+                ok=False, error=denial, duration_ms=elapsed_ms(),
+                task_id=task_id, task_class=task_class,
+                profile=caller.ledger_profile,
+            ))
+            raise PermissionError(denial)
+
+        hearth.caller = caller
 
         try:
             guards.check(tool_name, kwargs)
@@ -205,6 +292,7 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
                 caller.as_dict(), tool_name, args=kwargs,
                 ok=False, error=str(exc), duration_ms=elapsed_ms(),
                 task_id=task_id, task_class=task_class,
+                profile=caller.ledger_profile,
             ))
             raise
 
@@ -213,7 +301,13 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
         backend, routed_by, occupancy, error_code = None, None, None, None
         cost = None
         try:
-            result = fn(**kwargs)
+            # Both authority domains are in force for the duration of the call
+            # and reset on the way out, so a raising tool cannot leak one
+            # caller's grants into the next call on this thread. Filesystem and
+            # repository authority are pushed independently: neither implies the
+            # other (ADR-0019).
+            with caller_scope(caller.file_scope), caller_repo_access(caller.repo_access):
+                result = fn(**kwargs)
             model = _lift_ledger_model(result)
             lifted = _lift_ledger_task_class(result)
             if lifted:
@@ -245,7 +339,7 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
                 ok=ok, error=error, duration_ms=elapsed_ms(), cost=cost,
                 task_id=task_id, task_class=event_task_class, model=model,
                 backend=backend, routed_by=routed_by, occupancy=occupancy,
-                error_code=error_code,
+                error_code=error_code, profile=caller.ledger_profile,
             ))
 
     wrapper.__name__ = tool_name
@@ -346,6 +440,12 @@ def build_server(providers_spec: str = "", host: str = DEFAULT_HOST,
     key_provider = make_header_key_provider(mcp)
     task_id_provider = make_task_id_provider(mcp)
 
+    # Public liveness contract: intentionally static and unauthenticated. Do
+    # not add caller, tool, backend, path, or configuration data here.
+    @mcp.custom_route("/healthz", methods=["GET"], include_in_schema=False)
+    async def healthz(_request: Request) -> JSONResponse:
+        return JSONResponse({"status": "ok"})
+
     providers = load_providers(providers_spec)
     mounted = [BUILTIN_PROVIDER, *providers]
     providers[BUILTIN_PROVIDER] = builtin_get_tools(hearth, mounted)
@@ -361,7 +461,24 @@ def build_server(providers_spec: str = "", host: str = DEFAULT_HOST,
             mcp.add_tool(make_wrapper(fn, hearth, auth, guards, key_provider,
                                       task_id_provider))
             registered.add(fn.__name__)
+
+    # ADR-0019 §3: fail closed on an unclassified tool. Checked against the
+    # tools ACTUALLY registered above rather than a hand-maintained list, so a
+    # new provider cannot introduce a tool that silently lands inside somebody's
+    # profile. This raises — a door that half-knows its own policy stays shut.
+    assert_surface_complete(registered)
+
     log.info("hearth gateway: %d tools from %d providers", len(registered), len(providers))
+
+    # ADR-0019 §6: legacy callers reach the full surface. That is the deliberate
+    # compatibility path, but it must never be quiet.
+    legacy = auth.legacy_caller_ids
+    if legacy:
+        log.warning(
+            "%d caller(s) carry NO capability profile and reach all %d tools "
+            "unrestricted: %s - ledgered as 'legacy-unrestricted'. Assign a profile "
+            "with `callerctl rotate --profile <name>` when convenient.",
+            len(legacy), len(registered), ", ".join(legacy))
     return mcp
 
 
@@ -369,8 +486,14 @@ def main(argv: Optional[list[str]] = None) -> None:
     parser = argparse.ArgumentParser(description="HEARTH kernel gateway daemon")
     parser.add_argument("--providers", default="",
                         help="comma-separated provider modules, e.g. hearth.toolsurface.fs,hearth.toolsurface.git")
-    parser.add_argument("--host", default=DEFAULT_HOST)
-    parser.add_argument("--port", type=int, default=DEFAULT_PORT)
+    parser.add_argument("--host", default=None,
+                        help=f"bind address (default {DEFAULT_HOST}; env {HOST_ENV_VAR}). "
+                             f"A non-loopback address additionally requires --allow-non-loopback "
+                             f"or {CONTAINER_ACCESS_ENV_VAR}=1")
+    parser.add_argument("--port", type=int, default=None,
+                        help=f"bind port (default {DEFAULT_PORT}; env {PORT_ENV_VAR})")
+    parser.add_argument("--allow-non-loopback", action="store_true", default=False,
+                        help="consent to binding a non-loopback interface (container access, ADR-0019)")
     parser.add_argument("--callers", default=None,
                         help="path to callers.json (default hearth/etc/callers.json)")
     parser.add_argument("--ledger-dir", default=None,
@@ -379,8 +502,42 @@ def main(argv: Optional[list[str]] = None) -> None:
                         help="don't start the in-process ops-loop timers (ADR-0015)")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
-    mcp = build_server(providers_spec=args.providers, host=args.host, port=args.port,
+
+    host, host_source = _resolve_bind_host(args.host)
+    port, port_source = _resolve_bind_port(args.port)
+    container_access = args.allow_non_loopback or _env_flag(CONTAINER_ACCESS_ENV_VAR)
+
+    # ADR-0019 §1: a non-loopback bind is an explicit, consented act. Refuse —
+    # never quietly fall back to loopback, because a gateway that binds narrower
+    # than it was asked to is indistinguishable from a container networking
+    # fault, and that ambiguity costs hours.
+    if not is_loopback_host(host) and not container_access:
+        parser.exit(2, (
+            f"\nREFUSING TO START: asked to bind {host}:{port} ({host_source}), which is not a\n"
+            f"loopback address, without explicit container access.\n\n"
+            f"  Loopback-only is HEARTH's secure default and is doing real containment work.\n"
+            f"  To bind beyond loopback deliberately, set {CONTAINER_ACCESS_ENV_VAR}=1 or pass\n"
+            f"  --allow-non-loopback, and pair it with a firewall rule scoped to the Docker/WSL\n"
+            f"  subnet (docs/operations/gateway-bindings.md).\n\n"
+            f"  Not falling back to loopback: you asked for something specific and did not get it.\n"))
+
+    mcp = build_server(providers_spec=args.providers, host=host, port=port,
                        callers_path=args.callers, ledger_dir=args.ledger_dir)
+
+    log.info("hearth gateway binding %s:%d (host from %s, port from %s)",
+             host, port, host_source, port_source)
+    if not is_loopback_host(host):
+        for line in (
+            "=" * 72,
+            "HEARTH IS BINDING A NON-LOOPBACK INTERFACE (container access mode)",
+            f"  bind        : {host}:{port}",
+            "  reachable by: anything that can route to this address, not just this host",
+            "  auth        : X-Hearth-Key over PLAINTEXT HTTP — the key is the only control",
+            "  required    : a firewall rule scoping inbound to the Docker/WSL subnet",
+            "  rollback    : unset the container-access flag and restart (loopback-only)",
+            "=" * 72,
+        ):
+            log.warning(line)
 
     timers_enabled = not args.no_timers and os.environ.get("HEARTH_TIMERS", "").lower() != "off"
     handles = start_timers(timers_enabled)

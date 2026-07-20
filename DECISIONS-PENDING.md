@@ -124,13 +124,27 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       (`6efc7e2`), along with the stranded twin fix `claude/upbeat-swirles-e6be44` (`288873e`)
       that the branch sweep surfaced. Both local branches deleted after merge; 609 tests green.
       (source: [SESSION-RETRO-2026-07-19.md](SESSION-RETRO-2026-07-19.md) L-5)
-- [ ] 2026-07-19 — Close the legacy fail-open: callers minted before ADR-0019 with no `profile`
-      keep the full 47-tool surface. **Now the only open item from this arc, and confirmed live on
-      the restarted door: `claude-frontier`, `dev-local`, `omen-worker-1` all report
-      `legacy-unrestricted`** (the gateway names them at every startup). Decide: migrate each to a
-      profile via `callerctl rotate --profile <name>`, or record an explicit accept-with-expiry
-      (source: [ADR-0019](docs/adr/0019-container-access-capability-profiles.md)
-      consequences, [SESSION-RETRO-2026-07-19.md](SESSION-RETRO-2026-07-19.md) L-6)
+- [x] 2026-07-19 — Close the legacy fail-open — **DONE 2026-07-20, live and verified**
+      ([ADR-0023](docs/adr/0023-authority-is-granted-never-assumed.md)). Roles were **authored from
+      intent, not derived from the ledger** — Derek's call: the network had been used
+      opportunistically to build other things, so observed usage records how the door happened to
+      be reached, not what an identity is for. v1 roster live on the door: `claude-frontier` →
+      `unrestricted` (47/47, dated review), `omen-worker-1` → `builder` (21/47), `dev-local` →
+      `probe` (1/47), `docker-open-notebook-facade` → `generation-proxy` (2/47). An absent profile
+      now DENIES. New `callerctl assign` changes a role **without rotating the secret**, so policy
+      no longer costs a credential change. 628 tests green; all four doorcheck facets healthy.
+- [ ] 2026-10-20 — **Role review (ADR-0023).** With `profile`-attributed events from intentional
+      usage, decide whether `unrestricted` has earned a narrower role for `claude-frontier`, and
+      whether `builder` should keep `dispatch` (a worker that can queue fleet work is defensible
+      but was never separately argued). If a role is too tight to flip safely, build report-only
+      enforcement rather than guessing again
+      (source: [ADR-0023](docs/adr/0023-authority-is-granted-never-assumed.md))
+- [ ] 2026-07-20 — Optional: `dev-local`'s secret is the literal string `dev-local`, checked into
+      git at `hearth/etc/callers.json`. It is held to `probe` (1 tool) for exactly that reason, and
+      `doorcheck --probe-cloud` now needs `generate` so it requires a real key. If you want a
+      hands-on operator identity, mint a SEPARATE caller with a CSPRNG secret and assign the
+      (already-defined, currently unassigned) `operator` role — do not widen `dev-local`
+      (source: [ADR-0023](docs/adr/0023-authority-is-granted-never-assumed.md))
 - [ ] 2026-07-19 — Low priority: fix the offload projection's legacy bucket keys — 182 of 229
       lifetime calls sit in `model:<name>`-shaped buckets with zero token counts, so
       `est_usd_saved` undercounts. Decide backfill vs alias-map vs leave-and-annotate

@@ -47,7 +47,12 @@ DEFAULT_PROFILES_PATH = Path(__file__).resolve().parents[1] / "etc" / "profiles.
 # it can never be named in profiles.toml (load rejects it) and cannot be
 # assigned by the caller CLI. It exists so "this call ran unrestricted" is an
 # explicit, greppable fact in the ledger rather than an absence.
-LEGACY_PROFILE = "legacy-unrestricted"
+# ADR-0023: a caller with no `profile` field. The ledger label changed with the
+# semantics — before 2026-07-20 an unprofiled caller reached everything and was
+# ledgered "legacy-unrestricted"; it is now denied everything. Events keep the
+# label they were written with, so the string itself dates the policy in force
+# at the time of the call. Do not retro-label old events.
+LEGACY_PROFILE = "unprofiled"
 
 
 class ProfileError(ValueError):
@@ -287,14 +292,24 @@ def load_profiles(path: Optional[Path | str] = None) -> dict[str, Profile]:
 def check_tool_access(profile: Optional[Profile], tool: str) -> tuple[bool, Optional[str]]:
     """Decide whether `profile` may invoke `tool`.
 
-    Returns (allowed, capability). `profile is None` means a legacy caller with
-    no profile field and is allowed everything — the documented compatibility
-    path. A profiled caller is denied any tool whose capability is unmapped
+    Returns (allowed, capability). `profile is None` means a caller with no
+    profile field, and as of ADR-0023 it is denied EVERYTHING. Authority is
+    granted by naming a role, never by omitting one: an absent field is a
+    caller nobody has authorized yet, and the safe reading of "nobody said"
+    is "no". A caller that genuinely needs the whole surface says so by
+    carrying the `unrestricted` profile, which is reviewable in a diff and
+    dated in policy.
+
+    This inverts the pre-2026-07-20 compatibility path, where absence meant the
+    full 47-tool surface. Three callers relied on that silence; they were
+    assigned explicit roles before the default flipped.
+
+    A profiled caller is denied any tool whose capability is unmapped
     (fail-closed) or ungranted.
     """
     capability = capability_for(tool)
     if profile is None:
-        return True, capability
+        return False, capability
     if capability is None:
         return False, None
     return profile.grants(capability), capability

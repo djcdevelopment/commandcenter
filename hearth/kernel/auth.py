@@ -199,9 +199,11 @@ class AuthRegistry:
     def profile_for(self, caller: Caller) -> Optional[Profile]:
         """The resolved Profile for a caller, or None for a legacy caller.
 
-        None means "no restriction" and is the ONLY value that means that. A
-        caller naming a profile that grants nothing gets a real Profile with an
-        empty capability set, which denies everything.
+        None means the caller named no role, and as of ADR-0023 that DENIES
+        everything rather than permitting it. A caller naming a profile that
+        grants nothing gets a real Profile with an empty capability set, which
+        also denies everything — the two are now equivalent in effect and differ
+        only in whether a human stated the intent.
         """
         if caller.profile is None:
             return None

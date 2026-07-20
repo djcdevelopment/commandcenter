@@ -5,15 +5,28 @@ provider-resolved model into the ledger event via the _ledger_model convention.
 import json
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 from typing import Any
 
+from hearth.kernel import capabilities
 from hearth.kernel.auth import AuthRegistry
 from hearth.kernel.context import HearthContext
 from hearth.kernel.gateway import (LEDGER_MODEL_KEY, LEDGER_TASK_CLASS_KEY,
                                    _task_class_for, make_wrapper)
 from hearth.kernel.guards import GuardStack
 from hearth.kernel.ledger import Ledger
+
+# ADR-0023: synthetic fixtures must be mapped like real tools. Every MOUNTED
+# tool is guaranteed a capability by assert_surface_complete at startup, so an
+# unmapped tool is a state production cannot reach; before the fail-open was
+# inverted these fixtures rode the profile-less "allow everything" path instead.
+# Mapping them here models the production guarantee rather than a hole in it.
+def _map_fixture_tools(test, **tools):
+    patcher = mock.patch.dict(capabilities.TOOL_CAPABILITY, tools)
+    patcher.start()
+    test.addCleanup(patcher.stop)
+
 
 
 def local_generate(prompt: str) -> dict[str, Any]:
@@ -73,8 +86,10 @@ class WrapperStampsTaskClassAndModelTest(unittest.TestCase):
         self.ledger = Ledger(root / "ledger")
         callers = root / "callers.json"
         callers.write_text(json.dumps({
-            "good-key": {"id": "claude", "runner_class": "frontier", "node": "omen"},
+            "good-key": {"id": "claude", "runner_class": "frontier", "node": "omen",
+                         "profile": "unrestricted"},
         }), encoding="utf-8")
+        _map_fixture_tools(self, fake_mystery_tool="status")
         self.auth = AuthRegistry(callers_path=callers, ledger=self.ledger)
         self.guards = GuardStack(repo_root=root)
         self.hearth = HearthContext(repo_root=root, ledger=self.ledger)

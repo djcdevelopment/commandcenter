@@ -46,7 +46,8 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from hearth.kernel.auth import HEADER_NAME, AuthRegistry
-from hearth.kernel.capabilities import assert_surface_complete, check_tool_access
+from hearth.kernel.capabilities import (LEGACY_PROFILE, assert_surface_complete,
+                                        check_tool_access)
 from hearth.kernel.context import HearthContext
 from hearth.kernel.guards import GuardRejection, GuardStack
 from hearth.kernel.ledger import REPO_ROOT, Ledger, classify_error, hearth_root, new_event
@@ -549,15 +550,18 @@ def build_server(providers_spec: str = "", host: str = DEFAULT_HOST,
 
     log.info("hearth gateway: %d tools from %d providers", len(registered), len(providers))
 
-    # ADR-0019 §6: legacy callers reach the full surface. That is the deliberate
-    # compatibility path, but it must never be quiet.
+    # ADR-0023: an unprofiled caller is now DENIED every tool, not granted every
+    # tool. It stays loud, but the warning means the opposite of what it used to:
+    # this caller is broken, not over-privileged. Deliberately a per-caller
+    # denial rather than a startup refusal — one malformed registry row must not
+    # take the whole lab's door down while every other caller is fine.
     legacy = auth.legacy_caller_ids
     if legacy:
         log.warning(
-            "%d caller(s) carry NO capability profile and reach all %d tools "
-            "unrestricted: %s - ledgered as 'legacy-unrestricted'. Assign a profile "
-            "with `callerctl rotate --profile <name>` when convenient.",
-            len(legacy), len(registered), ", ".join(legacy))
+            "%d caller(s) carry NO capability profile and are DENIED all %d tools "
+            "(ADR-0023; ledgered as '%s'): %s - assign a role with "
+            "`callerctl assign --id <id> --profile <name>` (does NOT rotate the secret).",
+            len(legacy), len(registered), LEGACY_PROFILE, ", ".join(legacy))
     return mcp
 
 

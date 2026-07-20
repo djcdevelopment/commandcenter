@@ -15,7 +15,7 @@ import subprocess
 import tempfile
 import textwrap
 from pathlib import Path
-from unittest import TestCase
+from unittest import TestCase, mock
 from unittest.mock import patch
 
 from hearth.callers import doorcheck
@@ -53,7 +53,21 @@ class ManifestParserTests(TestCase):
 class ToolsurfaceReportTests(TestCase):
     """Stale-door detection: a live tool-name set that is missing tools (the
     2026-07-12 incident shape — build_requests landed in the launcher but the
-    running process predated it) must report not-ok with the gap named."""
+    running process predated it) must report not-ok with the gap named.
+
+    Profile filtering is stubbed out here on purpose. These cases are about
+    detecting a STALE DOOR, and letting them resolve the real caller registry
+    would couple them to whatever role dev-local happens to hold — the test
+    would start failing for policy reasons that have nothing to do with
+    staleness. Filtering has its own tests below.
+    """
+
+    def setUp(self) -> None:
+        patcher = mock.patch.object(
+            doorcheck, "_visible_to",
+            side_effect=lambda expected, key: (expected, "test-stub", []))
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def test_matching_live_set_reports_match(self) -> None:
         expected, _ = doorcheck._expected_manifest()
@@ -283,3 +297,54 @@ class FacetAndExitTests(TestCase):
             self.assertEqual(doorcheck.main(["--strict"]), 1)
         check_mock.assert_called_once_with(
             revive=False, probe_cloud=False, facet="door", strict=True)
+
+
+class ManifestIsScopedToTheCallerTests(TestCase):
+    """ADR-0023: discovery mirrors authorization, so the manifest a caller
+    receives is its granted subset. Comparing that against the full mounted
+    surface reported doorcheck's OWN restrictions as a broken door — the door
+    read DEGRADED forever the moment its probe identity stopped being
+    unrestricted."""
+
+    def test_narrow_profile_expects_only_what_it_may_see(self) -> None:
+        from hearth.kernel import capabilities as caps
+        profiles = caps.load_profiles()
+        probe = profiles["probe"]
+        expected = {"kernel_status", "kernel_change", "read_file", "local_generate"}
+        visible = {t for t in expected if caps.check_tool_access(probe, t)[0]}
+        self.assertEqual(visible, {"kernel_status"})
+
+    def test_unresolvable_policy_reports_the_wider_set(self) -> None:
+        """Fail-open is correct HERE and only here: a doorcheck that cannot read
+        policy must over-report the expected surface, because under-reporting
+        would hide a genuinely stale door behind an apparent restriction."""
+        with mock.patch.object(doorcheck, "START_CMD", Path("does-not-exist.cmd")):
+            expected = {"kernel_status", "read_file"}
+            got, profile, notes = doorcheck._visible_to(expected, "dev-local")
+        self.assertEqual(got, expected)
+        self.assertIsNone(profile)
+        self.assertTrue(notes)
+
+
+class ProviderStalenessTests(TestCase):
+    """The half of staleness that must NOT narrow with the caller: a provider
+    that failed to import is invisible in a narrow caller's tool list, so it is
+    checked against kernel_status's mounted-provider list instead."""
+
+    def test_missing_provider_is_stale(self) -> None:
+        expected = doorcheck._providers_from_start_cmd()
+        live = [m for m in expected if m != expected[0]] + [doorcheck.BUILTIN_PROVIDER]
+        report = doorcheck._provider_report(live)
+        self.assertFalse(report["ok"])
+        self.assertIn(expected[0], report["missing"])
+        self.assertIn("STALE", report["line"])
+
+    def test_all_providers_loaded_is_ok(self) -> None:
+        live = doorcheck._providers_from_start_cmd() + [doorcheck.BUILTIN_PROVIDER]
+        report = doorcheck._provider_report(live)
+        self.assertTrue(report["ok"])
+        self.assertEqual(report["missing"], [])
+
+    def test_no_handshake_is_unknown_not_failure(self) -> None:
+        report = doorcheck._provider_report(None)
+        self.assertIsNone(report["ok"])

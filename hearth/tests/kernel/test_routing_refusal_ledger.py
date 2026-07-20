@@ -38,7 +38,8 @@ class RoutingRefusalLedgerTest(unittest.TestCase):
             """), encoding="utf-8")
             callers = root / "callers.json"
             callers.write_text(json.dumps({
-                "key": {"id": "test", "runner_class": "local", "node": "omen"},
+                "key": {"id": "test", "runner_class": "local", "node": "omen",
+                        "profile": "unrestricted"},
             }), encoding="utf-8")
             ledger = Ledger(root / "ledger")
             hearth = HearthContext(repo_root=root, ledger=ledger)

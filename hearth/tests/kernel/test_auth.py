@@ -42,9 +42,16 @@ class AuthTest(unittest.TestCase):
                          self.ledger.events_path.read_text(encoding="utf-8"))
 
     def test_shipped_dev_local_key(self):
+        """The checked-in default registry carries a PUBLIC secret — it is in
+        git. ADR-0023 gives it the `probe` role (kernel_status only); before
+        that it had no profile and therefore the whole 47-tool surface, so
+        starting the gateway without --callers put the lab one known string
+        away from full authority. The profile assertion is the guard on that."""
         registry = AuthRegistry()
         caller = registry.resolve("dev-local")
-        self.assertEqual(caller, Caller(id="dev-local", runner_class="human", node="omen"))
+        self.assertEqual(caller, Caller(id="dev-local", runner_class="human",
+                                        node="omen", profile="probe"))
+        self.assertFalse(caller.is_legacy)
 
     def test_bad_runner_class_in_registry_refused(self):
         self.callers_path.write_text(json.dumps({

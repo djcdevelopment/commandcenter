@@ -152,7 +152,11 @@ class GatewayHttpIntegrationTest(unittest.TestCase):
         tools, result = asyncio.run(call())
         tool_names = {tool.name for tool in tools.tools}
         self.assertIn("kernel_status", tool_names)
-        self.assertIn("kernel_change", tool_names)
+        # End-to-end proof that discovery mirrors authorization: the shipped
+        # dev-local key carries `probe` (status only), so kernel_change must not
+        # even be ADVERTISED to it. A caller should not learn the shape of a
+        # surface it cannot reach.
+        self.assertNotIn("kernel_change", tool_names)
         self.assertFalse(result.isError, result.content)
 
         events_path = Path(self.tmp.name) / "var" / "ledger" / "events.ndjson"

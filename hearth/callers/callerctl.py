@@ -322,6 +322,57 @@ def cmd_rotate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_assign(args: argparse.Namespace) -> int:
+    """Change a caller's ROLE without touching its secret.
+
+    Rotation was the only way to set a profile, which made every policy decision
+    cost a credential change: re-key the client, update every config that holds
+    it, and accept a window where a live agent cannot reach the door. That is a
+    strong incentive to leave authorization alone, which is exactly backwards.
+
+    Assignment is a policy edit, so it is deliberately NOT a rotation. The secret
+    is preserved byte-for-byte and never read, printed, or re-derived here; only
+    the grant fields change. Coherence is re-checked against the NEW grants, so
+    an assignment can no more produce an incoherent caller than a mint can.
+    """
+    path = Path(args.registry)
+    _validate_profile(args.profile, args.profiles)
+    file_scope = _validate_scope(args.file_scope or [], "--file-scope")
+    repo_access = _validate_scope(args.repo_access or [], "--repo-access")
+    if args.profile is None and not file_scope and not repo_access:
+        raise CallerCtlError(
+            "assign needs something to assign: pass --profile and/or "
+            "--file-scope/--repo-access")
+
+    with _RegistryLock(path):
+        data = _load_registry(path)
+        key = _find(data, args.id)
+        if key is None:
+            raise CallerCtlError(f"no caller with id {args.id!r} to assign")
+        entry = dict(data[key])
+        before = entry.get("profile") or "(none — denied as of ADR-0023)"
+        if args.profile is not None:
+            entry["profile"] = args.profile
+        if file_scope:
+            entry["file_scope"] = file_scope
+        if repo_access:
+            entry["repo_access"] = repo_access
+        _assert_entry_coherent(entry, args.profiles)
+        data[key] = entry          # same secret, same slot
+        notes = _write_registry(path, data)
+
+    print(f"assigned {args.id}: profile {before} -> {entry.get('profile')}")
+    print(f"  secret UNCHANGED (fingerprint {_fingerprint(key)}) — no client reconfiguration needed.")
+    if file_scope:
+        print(f"  file_scope  -> {file_scope}")
+    if repo_access:
+        print(f"  repo_access -> {repo_access}")
+    for note in notes or []:
+        print(f"  note: {note}")
+    print("  takes effect on the next gateway restart.")
+    return 0
+
+
 def cmd_revoke(args: argparse.Namespace) -> int:
     path = Path(args.registry)
     with _RegistryLock(path):
@@ -432,8 +483,9 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--profile", default=None,
                        help="capability profile to grant (see hearth/etc/profiles.toml)")
         p.add_argument("--legacy-unrestricted", action="store_true", default=False,
-                       help="deliberately create/keep a caller with NO profile, reaching "
-                            "the full tool surface. Must be stated explicitly.")
+                       help="REMOVED (ADR-0023). A caller with no profile is now DENIED "
+                            "everything, so this flag no longer grants anything. Use "
+                            "`--profile unrestricted` to state full authority out loud.")
         p.add_argument("--file-scope", action="append", default=None, dest="file_scope",
                        help="FILESYSTEM authority: narrow this caller's file reach "
                             "(read_file/write_file/glob/list); repeatable. Must be inside "
@@ -457,6 +509,12 @@ def build_parser() -> argparse.ArgumentParser:
     add_grant_flags(rotate)
     rotate.set_defaults(func=cmd_rotate)
 
+    assign = sub.add_parser(
+        "assign", help="change a caller's profile/scope WITHOUT rotating its secret")
+    assign.add_argument("--id", required=True)
+    add_grant_flags(assign)
+    assign.set_defaults(func=cmd_assign)
+
     revoke = sub.add_parser("revoke", help="remove a caller identity")
     revoke.add_argument("--id", required=True)
     revoke.add_argument("--require-present", action="store_true", default=False,
@@ -475,15 +533,22 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     # No default profile, ever. An unrestricted caller must be asked for by name
     # so it cannot be created by forgetting a flag (ADR-0019 §3/§6).
-    if args.command in ("mint", "rotate"):
-        if args.profile is None and not args.legacy_unrestricted:
-            if args.command == "mint":
-                parser.error(
-                    "mint requires --profile <name>, or --legacy-unrestricted to "
-                    "deliberately create a caller with the full tool surface. There is "
-                    "no default profile.")
-        if args.profile is not None and args.legacy_unrestricted:
-            parser.error("--profile and --legacy-unrestricted are mutually exclusive")
+    if args.command in ("mint", "rotate", "assign"):
+        # ADR-0023: the escape hatch is gone. It used to create a caller with no
+        # profile, which meant full authority; absence now means denial, so the
+        # flag would quietly mint a caller that can do NOTHING. Refuse it rather
+        # than let it mean something new -- a flag whose meaning silently
+        # inverted is worse than a flag that was removed.
+        if args.legacy_unrestricted:
+            parser.error(
+                "--legacy-unrestricted was removed (ADR-0023). A caller with no profile "
+                "is now DENIED every tool, so this flag no longer grants anything. "
+                "State full authority explicitly: --profile unrestricted")
+        if args.profile is None and args.command == "mint":
+            parser.error(
+                "mint requires --profile <name>. There is no default profile, and "
+                "omitting one now produces a caller that is denied everything. "
+                "Available roles are in hearth/etc/profiles.toml.")
 
     try:
         return int(args.func(args))

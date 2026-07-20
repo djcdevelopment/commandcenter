@@ -25,6 +25,20 @@ configuration failure:
 Machine-readable output uses `facets` with stable names and statuses. Existing
 top-level `gateway`, `mcp`, `toolsurface`, `backends`, and `ok` fields remain.
 
+**ADR-0023 changed what `toolsurface` means.** Tool discovery mirrors
+authorization, so the manifest doorcheck receives is the subset its own caller
+may reach — it runs as `dev-local`, which holds `probe` (one tool). The
+comparison is therefore scoped to the calling profile and reports `as_profile`;
+`toolsurface: 1/1 match` is HEALTHY, not a broken door. Staleness detection that
+must not narrow with the caller moved to a separate top-level `providers` block,
+checked against the mounted-provider list from `kernel_status` (server-side
+truth): `providers: STALE - N failed to load` is the real "a provider didn't
+import" alarm, and it degrades `mcp_surface`. If doorcheck cannot read policy it
+compares against the full surface and says so in `toolsurface.errors`.
+
+`--probe-cloud` needs the `generate` capability, which `probe` does not hold —
+it requires a properly-secured key, not the shipped `dev-local` one.
+
 - **gateway** — TCP :8710; with `--revive` it relaunches the gateway as a
   DETACHED process if down (safe: the start script is idempotent, one instance
   binds the port). "revived just now" in the output means it WAS down.

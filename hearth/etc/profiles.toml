@@ -24,8 +24,15 @@
 #   - a tool mounted with no TOOL_CAPABILITY entry
 #
 # A profile declaring `capabilities = []` is a REAL profile that grants nothing.
-# That is not the same as a caller with no `profile` field at all, which is a
-# legacy caller and keeps the full pre-ADR-0019 surface. See ADR-0019 §3/§5.
+# As of ADR-0023 that is also what a caller with NO `profile` field gets: the
+# absent field no longer means "everything", it means DENIED. Authority is
+# granted by naming a role, never by omitting one.
+#
+# INTENT IS PART OF THE POLICY. Each role below states what the identity it
+# describes EXISTS TO DO, not merely which tools it has been observed calling.
+# Grants drift; intent is the thing that tells a future reader whether a drift
+# is a correction or a mistake. When you add a role, write its purpose first and
+# derive the capability list from that sentence.
 
 # --- research -----------------------------------------------------------------
 # The Research Agent: reads, queries, and reasons. Open Notebook authenticates
@@ -74,6 +81,22 @@ capabilities = [
                   # without conflating it with backend health (ADR-0020)
 ]
 
+# --- probe ---------------------------------------------------------------------
+# PURPOSE: confirm the door is alive, and nothing else.
+#
+# This exists for the checked-in default registry (hearth/etc/callers.json),
+# whose secret is public by construction — it is in git. Before ADR-0023 that
+# caller had no profile and therefore the full 47-tool surface, so anyone who
+# started the gateway without an explicit --callers was one known string away
+# from the whole lab. It now holds exactly one capability.
+#
+# If a test needs more than liveness, it should mint its own fixture caller in a
+# temp registry rather than widen this role.
+[profile.probe]
+capabilities = [
+    "status",   # kernel_status — is the door up
+]
+
 # --- builder ------------------------------------------------------------------
 # DEFINED BUT UNASSIGNED in v1. No caller carries this profile yet; it is the
 # documented growth path so the next integration is a config entry rather than
@@ -103,4 +126,56 @@ capabilities = [
     "queue",      # queue_status
     "schedule",   # propose_schedule, schedule_hindsight
     "harvest",    # harvest_fleet_run, list_fleet_runs
+]
+
+# --- operator -----------------------------------------------------------------
+# PURPOSE: a human working the lab by hand from a terminal. Runs experiments,
+# drives the fleet, closes receipts, wakes hardware, rebuilds projections --
+# every kind of WORK, and deliberately not the one thing that is not work:
+# changing the door itself.
+#
+# The single withheld capability is `kernel_admin` (kernel_change). That is the
+# boundary this role encodes: an operator acts THROUGH the gateway, it does not
+# reconfigure the gateway mid-flight. Anything that mutates the boundary is a
+# deliberate, separately-authorized act, not a convenience available to whatever
+# terminal happens to hold this key.
+#
+# Assigned to: dev-local (Derek's hands-on local key).
+[profile.operator]
+inherits = "orchestrator"
+capabilities = [
+    "build_request",    # create/get/list/update/execute/close_build_request
+    "catalog_write",    # gather_am4_catalog
+    "commander",        # refine_idea, refine_result
+    "dream",            # dream
+    "health",           # masters_pet, patrol
+    "knowledge_write",  # project*, rebuild_knowledge, record_event
+    "summon",           # checkpoint_vm, start_ollama, wake_am4
+]
+
+# --- unrestricted -------------------------------------------------------------
+# PURPOSE: the frontier operator/architect identity -- the agent that designs,
+# implements, commits, dispatches, closes receipts, and administers the door.
+# It holds every capability in the taxonomy, on purpose.
+#
+# This role exists so that "holds everything" is a DECLARED, reviewable fact
+# rather than the accident of an empty field. Before ADR-0023 three callers had
+# the full surface because nobody had said otherwise; that is the thing being
+# fixed. Breadth is not the defect -- silence was.
+#
+# Assigned to: claude-frontier.
+# GRANTED: 2026-07-20.  REVIEW BY: 2026-10-20.
+# At review, check the ledger's per-caller capability usage (now attributable,
+# because every event carries `profile`) and decide whether this identity has
+# earned a narrower role or genuinely still needs the whole surface.
+#
+# The list is written out rather than wildcarded so that widening the taxonomy
+# cannot silently widen this role. `test_profiles_v1` asserts it stays complete,
+# so a new capability fails a test instead of surprising the operator in prod.
+[profile.unrestricted]
+capabilities = [
+    "build_request", "catalog_write", "commander", "dispatch", "dream",
+    "generate", "harvest", "health", "kernel_admin", "knowledge_write",
+    "query", "queue", "read", "repo_content", "repo_metadata", "repo_write",
+    "schedule", "status", "summon", "test", "write",
 ]

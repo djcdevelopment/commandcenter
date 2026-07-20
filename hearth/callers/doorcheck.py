@@ -69,6 +69,9 @@ RESTART_TASK = "HearthGatewayRestart"
 # (not imported) because hearth.kernel.gateway imports the mcp SDK at module
 # level — importing it here would break doorcheck under a plain system python.
 KERNEL_BUILTIN_TOOLS = ("kernel_status", "kernel_change")
+# Mirrors hearth.kernel.gateway.BUILTIN_PROVIDER (hardcoded for the same
+# reason as the tool names above: importing the gateway pulls in the mcp SDK).
+BUILTIN_PROVIDER = "hearth.kernel.gateway#builtin"
 FACETS = ("door", "process_listener", "authentication", "mcp_surface",
           "backend_dependency")
 
@@ -92,12 +95,29 @@ def _mcp_handshake() -> dict:
     tools = client.list_tools_sync()
     names = sorted(tool["name"] for tool in tools)
     auth_probe = client.call_sync("kernel_status")
+    # kernel_status reports the MOUNTED provider list — server-side truth, not
+    # the caller-filtered view list_tools returns. That distinction is what lets
+    # a minimally-privileged doorcheck still detect a provider that silently
+    # failed to load: tool VISIBILITY narrows with the caller's profile, but the
+    # set of providers the gateway actually loaded does not.
+    providers: list[str] = []
+    payload = auth_probe.get("json") or auth_probe.get("result") or {}
+    if isinstance(payload, dict) and isinstance(payload.get("providers"), list):
+        providers = [str(p) for p in payload["providers"]]
+    elif isinstance(auth_probe.get("text"), str):
+        try:
+            parsed = json.loads(auth_probe["text"])
+            if isinstance(parsed.get("providers"), list):
+                providers = [str(p) for p in parsed["providers"]]
+        except (ValueError, AttributeError):
+            pass
     return {
         "ok": True,
         "auth_ok": bool(auth_probe.get("ok")),
         "auth_error": auth_probe.get("text") if not auth_probe.get("ok") else None,
         "tools": len(tools),
         "tool_names": names,
+        "providers": providers,
         "handshake_ms": round((time.monotonic() - t0) * 1000),
     }
 
@@ -148,9 +168,83 @@ def _expected_manifest() -> tuple[set[str], list[str]]:
     return names, errors
 
 
-def _toolsurface_report(live_names: set[str] | None) -> dict:
+_CALLERS_RE = re.compile(r"--callers\s+(\S+)")
+
+
+def _visible_to(expected: set[str], key: str) -> tuple[set[str], str | None, list[str]]:
+    """Narrow the expected manifest to what THIS caller is entitled to see.
+
+    Discovery mirrors authorization: the gateway advertises only the tools a
+    caller's profile grants. So the mounted surface and the manifest a caller
+    receives are different sets, and comparing the second against the first
+    reports a profiled caller's own restrictions as a STALE door. doorcheck runs
+    as `dev-local`, which holds `probe` — one tool of forty-seven — so the naive
+    comparison would report the door permanently broken.
+
+    Registry path comes from the launcher, the same source `_expected_manifest`
+    uses for providers, so this cannot drift from what the gateway actually
+    loaded. Any failure here degrades to the unfiltered set with a note: a
+    doorcheck that cannot resolve policy should over-report, never under-report.
+    """
+    notes: list[str] = []
+    try:
+        from hearth.kernel.auth import AuthRegistry
+        from hearth.kernel.capabilities import check_tool_access
+
+        text = START_CMD.read_text(encoding="utf-8", errors="ignore")
+        match = _CALLERS_RE.search(text)
+        registry = REPO_ROOT / match.group(1).replace("\\", "/") if match else None
+        auth = AuthRegistry(callers_path=registry)
+        caller = auth.resolve(key)
+        if caller is None:
+            return expected, None, [f"caller for key fingerprint is not in {registry}"]
+        profile = auth.profile_for(caller)
+        granted = {t for t in expected if check_tool_access(profile, t)[0]}
+        return granted, caller.profile, notes
+    except Exception as exc:  # policy unreadable — report the wider set, say so
+        return expected, None, [f"could not resolve caller profile ({type(exc).__name__}); "
+                                f"manifest compared against the full mounted surface"]
+
+
+def _provider_report(live_providers: list[str] | None) -> dict:
+    """Provider-level staleness, independent of who is asking.
+
+    This is the half of the old toolsurface check that must NOT depend on the
+    caller's profile. A provider that fails to import leaves the door serving a
+    quietly smaller surface — the exact failure the manifest check exists to
+    catch — and once discovery mirrors authorization, a narrow caller can no
+    longer see that in the tool list. Providers come from kernel_status, which
+    reports what the gateway loaded rather than what this caller may reach.
+    """
+    try:
+        # The gateway always mounts its own builtin provider alongside the
+        # launcher's list, so it is part of "should be loaded" too.
+        expected = set(_providers_from_start_cmd()) | {BUILTIN_PROVIDER}
+    except (OSError, ValueError) as exc:
+        return {"ok": None, "missing": [], "line": f"providers: unknown ({exc})"}
+    if live_providers is None:
+        return {"ok": None, "expected": len(expected), "missing": [],
+                "line": "providers: unknown - no handshake"}
+    live = set(live_providers)
+    missing = sorted(expected - live)
+    return {
+        "ok": not missing,
+        "expected": len(expected),
+        "live": len(live),
+        "missing": missing,
+        "line": (f"providers: {len(live)}/{len(expected)} loaded" if not missing
+                 else f"providers: STALE - {len(missing)} failed to load: "
+                      f"{', '.join(missing)}"),
+    }
+
+
+def _toolsurface_report(live_names: set[str] | None,
+                        key: str = "dev-local") -> dict:
     expected, errors = _expected_manifest()
-    result: dict = {"expected": len(expected), "errors": errors}
+    expected, profile, notes = _visible_to(expected, key)
+    errors = list(errors) + notes
+    result: dict = {"expected": len(expected), "errors": errors,
+                    "as_profile": profile}
 
     if live_names is None:
         result.update({
@@ -450,7 +544,13 @@ def _facet_statuses(report: dict) -> dict[str, str]:
         auth_status = "unknown"
     else:
         auth_status = "healthy" if mcp.get("auth_ok") else "failed"
-        surface_status = "healthy" if report["toolsurface"]["ok"] else "degraded"
+        # Two independent staleness signals: the caller-visible tool manifest,
+        # and the provider list from kernel_status. The second is what survives a
+        # narrow caller -- a provider that failed to import must degrade the
+        # facet even when the asking profile could never have seen its tools.
+        surface_ok = report["toolsurface"]["ok"]
+        providers_ok = (report.get("providers") or {}).get("ok")
+        surface_status = "healthy" if surface_ok and providers_ok is not False else "degraded"
 
     if report.get("backend_config_error"):
         backend_status = "failed"
@@ -486,6 +586,7 @@ def check(revive: bool = False, probe_cloud: bool = False,
     report["listener_up"] = up
 
     live_names: set[str] | None = None
+    mcp_report: dict | None = None
     if up:
         try:
             mcp_report = _mcp_handshake()
@@ -497,6 +598,8 @@ def check(revive: bool = False, probe_cloud: bool = False,
             report["mcp"] = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
 
     report["toolsurface"] = _toolsurface_report(live_names)
+    report["providers"] = _provider_report(
+        mcp_report.get("providers") if isinstance(mcp_report, dict) else None)
 
     backend_health = _backends_report(probe_cloud)
     report["backends"] = backend_health["backends"]

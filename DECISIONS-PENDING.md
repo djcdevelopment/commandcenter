@@ -145,6 +145,22 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       hands-on operator identity, mint a SEPARATE caller with a CSPRNG secret and assign the
       (already-defined, currently unassigned) `operator` role — do not widen `dev-local`
       (source: [ADR-0023](docs/adr/0023-authority-is-granted-never-assumed.md))
+- [ ] 2026-07-20 — **The watchdog cannot revive the gateway, because it runs inside it.**
+      The door died at ~08:17 (`WinError 64` on accept) and stayed down ~18 minutes until bounced
+      by hand. `fleet/inventory.toml` carries `revive = doorcheck --revive` for `hearth-gateway`,
+      but since [ADR-0015](docs/adr/0015-ops-loops-fold-into-the-gateway.md) the watchdog is an
+      **in-gateway daemon timer** — so it dies with the thing it is meant to revive. Confirmed:
+      the only registered tasks are `HearthGatewayBoot` (boot trigger), `HearthGatewayRestart`
+      (no trigger, manual), `OllamaBoot`, `OmenOllamaTracingProxy` — **nothing periodic**. Decide:
+      grant the gateway's own liveness check an explicit exception to ADR-0015 (a small external
+      task running `doorcheck --revive` on a timer), or accept manual revive and say so in the ADR.
+      Everything else folding inward was right; this is the one loop that cannot
+- [ ] 2026-07-20 — **Record mirrored-WSL fate-sharing as a cost of [ADR-0022](docs/adr/0022-container-access-needs-no-exposure.md).**
+      `networkingMode=mirrored` is what makes container→loopback access free, and the same shared
+      network namespace means a Docker/WSL lifecycle event can tear the accept socket out from
+      under the door's loopback listener. The 08:17 death coincided with a container image rebuild.
+      The ADR records the benefit and not this cost; a reader deciding whether to keep mirrored
+      mode needs both
 - [ ] 2026-07-20 — **Exercise the chunker against a real multi-chunk source.** Every generation
       through the facade so far has been single-chunk, so 3-ary hierarchical reduction,
       resume-after-partial-failure, and the plan-time ceiling are unit-tested but never run on real

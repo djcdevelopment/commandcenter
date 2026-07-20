@@ -58,6 +58,35 @@ def _percentile(sorted_values: list[float], fraction: float) -> float:
     return sorted_values[index]
 
 
+def _parse_ts(ts: str) -> datetime | None:
+    """Parse a ledger `ts` into an aware UTC datetime; None if it will not parse.
+
+    Timestamps must be ordered by INSTANT, never by string. hearth-event.v1 admits
+    three spellings of the same field
+    (`^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|\\+00:00)$`), and 'Z'
+    (0x5A) sorts above both '+' (0x2B) and '.' (0x2E), so a lexical max is wrong
+    across a mixed-format ledger in two separate ways:
+
+        '2026-07-03T12:00:00Z' > '2026-07-03T12:00:00+00:00'  -> True (same instant)
+        '2026-07-03T12:00:00Z' > '2026-07-03T12:00:00.123Z'   -> True (EARLIER wins)
+
+    Comparing parsed instants is immune to the spelling. The ledger happens to be
+    uniform today (all 8,530 events carry the fractional-Z form), so this is a
+    latent defect, not a live one -- it fires the first time any emitter writes
+    `+00:00` or omits fractional seconds, both of which the contract permits.
+
+    Never raises: an unparseable ts returns None and is excluded from ordering
+    rather than being allowed to win by accident. A naive result (an off-contract
+    ts carrying no offset at all) is stamped UTC so every comparison is
+    aware-vs-aware and can never raise TypeError on mixed tzinfo.
+    """
+    try:
+        moment = datetime.fromisoformat(ts)
+    except (TypeError, ValueError):
+        return None
+    return moment if moment.tzinfo is not None else moment.replace(tzinfo=timezone.utc)
+
+
 def _empty_accumulator() -> dict:
     return {
         "calls": 0,
@@ -71,6 +100,11 @@ def _empty_accumulator() -> dict:
         # the corpus watermark is known. ok is None for an indeterminate call, so a
         # window can count it as volume without letting it touch the rate.
         "window_samples": [],
+        # Parsed instant of the event that currently holds last_seen. Ordering
+        # happens on this; `last_seen` carries the winner's ORIGINAL string so the
+        # emitted document's timestamp format is unchanged. Internal to the
+        # accumulator -- never copied into the emitted bucket.
+        "last_seen_moment": None,
     }
 
 
@@ -185,6 +219,10 @@ def build_capacity_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
       counts toward every lifetime figure, but cannot be placed in a window.
     - tokens_out_per_s is only sampled when both tokens_out and duration_ms are
       present and duration_ms > 0.
+    - evidence_watermark and each bucket's last_seen are the CHRONOLOGICALLY newest
+      ts, chosen by parsed instant rather than by string order (see _parse_ts), and
+      emitted verbatim in the winning event's own format. An event whose ts does not
+      parse cannot win either one.
     """
     accumulators: dict[BucketKey, dict] = {}
     newest_ts: str | None = None
@@ -209,17 +247,15 @@ def build_capacity_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
 
             ts = event.get("ts")
             if isinstance(ts, str):
-                if newest_ts is None or ts > newest_ts:
-                    newest_ts = ts
-                if acc["last_seen"] is None or ts > acc["last_seen"]:
-                    acc["last_seen"] = ts
-
-            # Tracked separately from newest_ts: that one is a lexical max over raw
-            # strings, which only orders correctly while every stamp shares a format.
-            # Window arithmetic needs real instants, so take the max of what parsed.
-            moment = _parse_ts(ts)
-            if moment is not None and (newest_moment is None or moment > newest_moment):
-                newest_moment = moment
+                # Order by parsed instant, emit the original string (see _parse_ts).
+                moment = _parse_ts(ts)
+                if moment is not None:
+                    if newest_moment is None or moment > newest_moment:
+                        newest_moment = moment
+                        newest_ts = ts
+                    if acc["last_seen_moment"] is None or moment > acc["last_seen_moment"]:
+                        acc["last_seen_moment"] = moment
+                        acc["last_seen"] = ts
 
             if _is_indeterminate(event):
                 acc["indeterminate"] += 1

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest import TestCase
 
@@ -286,3 +287,122 @@ class BuildCapacityDocumentTests(TestCase):
         self.assertEqual(bucket["ok_rate"], 0.5)     # lifetime counts both
         self.assertEqual(bucket["calls_7d"], 1)      # only the placeable one
         self.assertEqual(bucket["ok_rate_7d"], 1.0)
+
+
+class TimestampOrderingTests(TestCase):
+    """evidence_watermark / last_seen must be ordered by INSTANT, not by string.
+
+    hearth-event.v1 permits three spellings of `ts`
+    (`...:00Z`, `...:00+00:00`, `...:00.123Z`), and 'Z' (0x5A) sorts above both
+    '+' (0x2B) and '.' (0x2E). Precisely which mixtures go wrong is worth stating,
+    because the two hazards are not equally severe:
+
+    - Suffix alone (`Z` vs `+00:00`) is a TIE, not a wrong answer: a lexical
+      compare only reaches the suffix when every character before it is equal, and
+      an equal date+time+fraction IS the same instant. Lexical order breaks that
+      tie arbitrarily; either answer names the right moment.
+    - The fractional-second boundary is where ordering genuinely FLIPS:
+      '...12:00:00Z' > '...12:00:00.123Z' lexically, so the strictly EARLIER
+      instant wins. This holds across suffixes too
+      ('...12:00:00Z' > '...12:00:00.123+00:00'), which is the combined case.
+
+    So the tests that would fail on the old lexical code all involve fractional
+    seconds; the suffix-only case is pinned below as an invariant rather than as a
+    bug repro. evidence_watermark is load-bearing either way
+    (corpus_guard.guard_write regression-guards on it, dashboard.py renders it).
+
+    The live ledger is uniform today (8,530 events, all fractional-Z), so this is a
+    LATENT defect: it fires the first time any emitter omits fractional seconds.
+    """
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.ledger = Path(self.tmp.name) / "events.ndjson"
+
+    def write_ledger(self, events: list[dict]) -> None:
+        with self.ledger.open("w", encoding="utf-8", newline="\n") as handle:
+            for event in events:
+                handle.write(json.dumps(event) + "\n")
+
+    def test_bare_z_must_not_beat_a_later_fractional_offset_ts(self) -> None:
+        """Both hazards at once, and the sharpest case: a bare `Z` second beats a
+        `.123+00:00` ts on BOTH the '.' and the '+' comparison, yet names the
+        earlier instant. Fails on the old lexical code."""
+        self.write_ledger([
+            make_event("run_tests", True, 100, 10, ts="2026-07-03T12:00:00Z"),
+            make_event("run_tests", True, 100, 10, ts="2026-07-03T12:00:00.123+00:00"),
+        ])
+        document = build_capacity_document(self.ledger)
+        self.assertEqual(document["evidence_watermark"], "2026-07-03T12:00:00.123+00:00")
+        self.assertEqual(document["buckets"][0]["last_seen"], "2026-07-03T12:00:00.123+00:00")
+
+    def test_identical_instant_spelled_two_ways_resolves_to_that_instant(self) -> None:
+        """Suffix-only mixture: the pair from the report. These are the SAME
+        instant, so this pins an invariant rather than reproducing a flip --
+        whichever spelling is emitted must parse back to that instant. (Passes on
+        the old code too; kept so a future "normalize the format" change that
+        shifted the instant would be caught.)"""
+        self.write_ledger([
+            make_event("run_tests", True, 100, 10, ts="2026-07-03T12:00:00Z"),
+            make_event("run_tests", True, 100, 10, ts="2026-07-03T12:00:00+00:00"),
+        ])
+        watermark = build_capacity_document(self.ledger)["evidence_watermark"]
+        self.assertEqual(
+            datetime.fromisoformat(watermark.replace("Z", "+00:00")),
+            datetime(2026, 7, 3, 12, 0, 0, tzinfo=timezone.utc),
+        )
+
+    def test_fractional_seconds_beat_a_bare_earlier_second(self) -> None:
+        """Hazard 2: '...12:00:00Z' > '...12:00:00.123Z' lexically, so the EARLIER
+        instant wins. Fractional seconds are a strictly later instant within the
+        same second and must be picked."""
+        self.write_ledger([
+            make_event("run_tests", True, 100, 10, ts="2026-07-03T12:00:00Z"),
+            make_event("run_tests", True, 100, 10, ts="2026-07-03T12:00:00.123Z"),
+        ])
+        document = build_capacity_document(self.ledger)
+        self.assertEqual(document["evidence_watermark"], "2026-07-03T12:00:00.123Z")
+        self.assertEqual(document["buckets"][0]["last_seen"], "2026-07-03T12:00:00.123Z")
+
+    def test_per_bucket_last_seen_orders_independently_of_the_document(self) -> None:
+        """last_seen is tracked per bucket, so each bucket must resolve its own
+        mixed-format max -- not inherit the document watermark. Both buckets are
+        built so the fractional ts is the one that loses lexically."""
+        self.write_ledger([
+            make_event("alpha", True, 100, 10, ts="2026-07-03T12:00:00Z"),
+            make_event("alpha", True, 100, 10, ts="2026-07-03T12:00:00.500Z"),
+            make_event("beta", True, 100, 10, ts="2026-07-06T09:00:00Z"),
+            make_event("beta", True, 100, 10, ts="2026-07-06T09:00:00.250+00:00"),
+        ])
+        document = build_capacity_document(self.ledger)
+        last_seen = {b["tool"]: b["last_seen"] for b in document["buckets"]}
+        self.assertEqual(last_seen["alpha"], "2026-07-03T12:00:00.500Z")
+        self.assertEqual(last_seen["beta"], "2026-07-06T09:00:00.250+00:00")
+        self.assertEqual(document["evidence_watermark"], "2026-07-06T09:00:00.250+00:00")
+
+    def test_emitted_timestamp_is_the_winners_original_string(self) -> None:
+        """The fix must not normalize the format -- the winning event's ts is
+        emitted verbatim, so consumers see exactly what the ledger recorded."""
+        self.write_ledger([
+            make_event("run_tests", True, 100, 10, ts="2026-07-03T12:00:00.123456Z"),
+        ])
+        document = build_capacity_document(self.ledger)
+        self.assertEqual(document["evidence_watermark"], "2026-07-03T12:00:00.123456Z")
+
+    def test_unparseable_ts_cannot_win_the_watermark(self) -> None:
+        """A ts that will not parse must be excluded from ordering, not allowed to
+        win by sorting high as a string ('9' beats '2')."""
+        self.write_ledger([
+            make_event("run_tests", True, 100, 10, ts="2026-07-03T12:00:00Z"),
+            make_event("run_tests", True, 100, 10, ts="99-not-a-timestamp"),
+        ])
+        document = build_capacity_document(self.ledger)
+        self.assertEqual(document["evidence_watermark"], "2026-07-03T12:00:00Z")
+        self.assertEqual(document["buckets"][0]["last_seen"], "2026-07-03T12:00:00Z")
+        self.assertEqual(document["buckets"][0]["calls"], 2)  # still counted
+
+    def test_internal_ordering_key_does_not_leak_into_the_bucket(self) -> None:
+        self.write_ledger([make_event("run_tests", True, 100, 10)])
+        bucket = build_capacity_document(self.ledger)["buckets"][0]
+        self.assertNotIn("last_seen_moment", bucket)

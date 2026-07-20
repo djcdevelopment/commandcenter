@@ -145,6 +145,13 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       hands-on operator identity, mint a SEPARATE caller with a CSPRNG secret and assign the
       (already-defined, currently unassigned) `operator` role — do not widen `dev-local`
       (source: [ADR-0023](docs/adr/0023-authority-is-granted-never-assumed.md))
+- [ ] 2026-07-20 — **Exercise the chunker against a real multi-chunk source.** Every generation
+      through the facade so far has been single-chunk, so 3-ary hierarchical reduction,
+      resume-after-partial-failure, and the plan-time ceiling are unit-tested but never run on real
+      data. First candidate: a >45,000-byte source through the Open Notebook UI (the measured
+      `FLEET-WORK-PLAN.html` at 108,716 bytes plans to exactly 3 chunks + 1 reducer). Watch
+      `routed_by` — anything other than `tag:research` on a chunked run means sizing is wrong and
+      trial credits are being spent (source: [SESSION-RETRO-2026-07-20.md](SESSION-RETRO-2026-07-20.md) L-2026-07-20-5)
 - [ ] 2026-07-19 — Low priority: fix the offload projection's legacy bucket keys — 182 of 229
       lifetime calls sit in `model:<name>`-shaped buckets with zero token counts, so
       `est_usd_saved` undercounts. Decide backfill vs alias-map vs leave-and-annotate

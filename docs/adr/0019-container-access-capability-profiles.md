@@ -176,6 +176,19 @@ environment and is applied by the client before calling. HEARTH does no path rew
 learns nothing about container mounts — server-side inference would be guessing. Callers are
 steered to send text content directly when translation is not actually needed.
 
+**9. Discovery mirrors authorization** *(amendment, 2026-07-20, `27bbfe0`)*. Enforcing capability
+at invocation while `tools/list` still advertised the whole surface let a caller granted two tools
+enumerate all forty-seven, names and schemas included. Tool names are not credentials, but a
+deny-by-default model should not hand a restricted caller a map of everything it is denied. The
+advertised list now matches the three authorization cases exactly: unresolvable key → nothing
+(it can call nothing, so it advertises nothing); legacy caller → the full surface, unchanged;
+profiled caller → only what its capabilities grant. Filtering uses a non-ledgering
+`AuthRegistry.lookup` rather than `resolve`, because a client re-lists on every session init and
+ledgering *discovery* would flood the audit trail with rejections for what is not a tool call — an
+unauthenticated caller that goes on to actually invoke something still lands in the ledger
+unchanged. Verified live from the container: `generation-proxy` sees 2 tools, `doorcheck`
+(legacy `dev-local`) still sees 47/47.
+
 ## Consequences
 
 - Existing callers are untouched: no `profile` field means today's behavior, and the default

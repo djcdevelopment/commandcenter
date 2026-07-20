@@ -173,13 +173,22 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       under the door's loopback listener. The 08:17 death coincided with a container image rebuild.
       The ADR records the benefit and not this cost; a reader deciding whether to keep mirrored
       mode needs both
-- [ ] 2026-07-20 — **Exercise the chunker against a real multi-chunk source.** Every generation
-      through the facade so far has been single-chunk, so 3-ary hierarchical reduction,
-      resume-after-partial-failure, and the plan-time ceiling are unit-tested but never run on real
-      data. First candidate: a >45,000-byte source through the Open Notebook UI (the measured
-      `FLEET-WORK-PLAN.html` at 108,716 bytes plans to exactly 3 chunks + 1 reducer). Watch
-      `routed_by` — anything other than `tag:research` on a chunked run means sizing is wrong and
-      trial credits are being spent (source: [SESSION-RETRO-2026-07-20.md](SESSION-RETRO-2026-07-20.md) L-2026-07-20-5)
+- [ ] 2026-07-20 — **Transformation outputs are truncated at their token caps, not completing
+      naturally.** The first real multi-chunk run (verified in the ledger) succeeded, but the map
+      call stopped at EXACTLY 2,250 tokens and the reducer at EXACTLY 3,000 — the signature of
+      hitting the ceiling, not natural stopping. The caps are correctly ENFORCED (Bug 2 fix
+      working); the problem is the prompts ask for more than the budget allows, so summaries are
+      clipped mid-thought. Fix is prompt-side in the notebook repo: instruct the map/reducer to
+      produce output that fits WITHIN the cap with headroom (e.g. "~1,500 tokens" for maps), so the
+      model finishes on its own. Quality issue, not a failure — decide whether summary completeness
+      matters enough to tune the prompts (source: SESSION-RETRO-2026-07-20 verify-reports directive,
+      4th catch)
+- [x] 2026-07-20 — **Exercise the chunker against a real multi-chunk source. DONE + verified
+      2026-07-20.** 108 KB source → 3 chunks, resume isolation confirmed (recomputed chunk 0, reused
+      1 & 2 from checkpoints = 2 model calls, matched by ledger), map 2,250 / reducer 3,000 tokens
+      both `max_completion_tokens` on am4-moe/tag:research, zero trial-credit routing, zero refusals,
+      ~4m15s. Hierarchical reduction, durable checkpoints, and budget enforcement all exercised
+      against live compute for the first time. Follow-on quality item registered above.
 - [ ] 2026-07-19 — Low priority: fix the offload projection's legacy bucket keys — 182 of 229
       lifetime calls sit in `model:<name>`-shaped buckets with zero token counts, so
       `est_usd_saved` undercounts. Decide backfill vs alias-map vs leave-and-annotate

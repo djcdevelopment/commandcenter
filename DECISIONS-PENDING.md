@@ -108,12 +108,16 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       against a loopback-only gateway (200 on `/healthz`, 406 not 421 on `/mcp`); 609 tests green.
       — [ADR-0022](docs/adr/0022-container-access-needs-no-exposure.md). **No firewall rule and no
       bind change will be made.**
-- [ ] 2026-07-19 — **Derek: restart the durable gateway** (the only remaining live step). One
-      `HearthGatewayRestart` run on the unchanged `127.0.0.1:8710` bind activates Phase 4 facets,
-      ADR-0019 capability enforcement, the ADR-0022 allowlist, and the facade key together.
-      Verification + rollback in the "Revised gate" section of
-      [phase-5-deployment-preflight.md](docs/operations/phase-5-deployment-preflight.md).
-      ⚠ After this restart, a mounted tool with no capability mapping REFUSES startup by design.
+- [x] 2026-07-19 — **Restart the durable gateway — DONE 2026-07-20 00:01, verified.** Preflighted
+      first with a full-provider dry-run on a spare port against the real caller registry (startup
+      capability-completeness + authority coherence both passed) so a refusal could not take the
+      door down. `HearthGatewayRestart` bounced it cleanly. Evidence: `/healthz` 200 from host
+      **and** container (was 404); container `/mcp` **406, not 421**; bind still `127.0.0.1` only;
+      **zero firewall rules for 8710**; doorcheck all four facets healthy
+      (`process_listener`/`authentication`/`mcp_surface`/`backend_dependency`); authenticated
+      `local_generate` through the door returned `ok:true` via `gcp-gemini`;
+      `docker-open-notebook-facade` live under the `generation-proxy` profile. ADR-0019 + 0020 +
+      0022 are now in force on the live door with **no network exposure created**.
 - [x] 2026-07-19 — Push / land `hearth-container-access-adr-0019`: 13 commits and 2372 lines of
       security work sat on a local branch with no remote tracking branch. DONE same day ("make
       sure everything is merged and push to master"): merged `--no-ff` to master and pushed
@@ -121,9 +125,11 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       that the branch sweep surfaced. Both local branches deleted after merge; 609 tests green.
       (source: [SESSION-RETRO-2026-07-19.md](SESSION-RETRO-2026-07-19.md) L-5)
 - [ ] 2026-07-19 — Close the legacy fail-open: callers minted before ADR-0019 with no `profile`
-      keep the full 47-tool surface. The gateway warns them by name at startup, but nothing closes
-      the window. Decide: migrate each legacy caller to a profile (incl. `claude-frontier`), or
-      record an explicit accept-with-expiry (source: [ADR-0019](docs/adr/0019-container-access-capability-profiles.md)
+      keep the full 47-tool surface. **Now the only open item from this arc, and confirmed live on
+      the restarted door: `claude-frontier`, `dev-local`, `omen-worker-1` all report
+      `legacy-unrestricted`** (the gateway names them at every startup). Decide: migrate each to a
+      profile via `callerctl rotate --profile <name>`, or record an explicit accept-with-expiry
+      (source: [ADR-0019](docs/adr/0019-container-access-capability-profiles.md)
       consequences, [SESSION-RETRO-2026-07-19.md](SESSION-RETRO-2026-07-19.md) L-6)
 - [ ] 2026-07-19 — Low priority: fix the offload projection's legacy bucket keys — 182 of 229
       lifetime calls sit in `model:<name>`-shaped buckets with zero token counts, so

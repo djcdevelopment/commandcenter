@@ -1,22 +1,22 @@
 {
   "contract_version": "offload.v1",
-  "evidence_watermark": "2026-07-20T05:22:32.915593Z",
+  "evidence_watermark": "2026-07-20T07:36:13.009517Z",
   "bucket_count": 9,
   "totals": {
-    "calls": 230,
-    "tokens_in": 344927,
-    "tokens_out": 65099
+    "calls": 238,
+    "tokens_in": 352033,
+    "tokens_out": 68065
   },
   "per_class": {
     "sunk": {
-      "calls": 44,
-      "tokens_in": 39959,
-      "tokens_out": 22563
+      "calls": 46,
+      "tokens_in": 40127,
+      "tokens_out": 22679
     },
     "trial": {
-      "calls": 181,
-      "tokens_in": 304968,
-      "tokens_out": 42536
+      "calls": 187,
+      "tokens_in": 311906,
+      "tokens_out": 45386
     },
     "unknown": {
       "calls": 5,
@@ -29,7 +29,7 @@
     "reference": "claude-sonnet",
     "input_per_mtok": 3.0,
     "output_per_mtok": 15.0,
-    "usd": 2.011266
+    "usd": 2.077074
   },
   "buckets": [
     {
@@ -38,11 +38,11 @@
       "models": [
         "gpt-oss-120b"
       ],
-      "calls": 14,
+      "calls": 16,
       "ok_rate": 1.0,
-      "tokens_in": 37841,
-      "tokens_out": 22409,
-      "last_seen": "2026-07-19T05:54:17.071634Z"
+      "tokens_in": 38009,
+      "tokens_out": 22525,
+      "last_seen": "2026-07-20T07:22:57.904549Z"
     },
     {
       "backend": "gcp-gemini",
@@ -50,11 +50,11 @@
       "models": [
         "gemini-3.5-flash"
       ],
-      "calls": 18,
+      "calls": 21,
       "ok_rate": 1.0,
-      "tokens_in": 143230,
-      "tokens_out": 12169,
-      "last_seen": "2026-07-19T01:56:07.822784Z"
+      "tokens_in": 143299,
+      "tokens_out": 12214,
+      "last_seen": "2026-07-20T07:36:13.009517Z"
     },
     {
       "backend": "gcp-gemini-pro",
@@ -62,11 +62,11 @@
       "models": [
         "gemini-3.1-pro-preview"
       ],
-      "calls": 12,
+      "calls": 15,
       "ok_rate": 1.0,
-      "tokens_in": 161738,
-      "tokens_out": 30367,
-      "last_seen": "2026-07-20T05:22:32.915593Z"
+      "tokens_in": 168607,
+      "tokens_out": 33172,
+      "last_seen": "2026-07-20T07:33:35.687525Z"
     },
     {
       "backend": "model:",
@@ -139,6 +139,6 @@
       "last_seen": "2026-07-18T07:33:17.290745Z"
     }
   ],
-  "corpus_digest": "sha256:8fdf0c64062e7ae4c0f1b94def4089999729946657e3c29bfd2739814870b6e5",
-  "corpus_event_count": 9167
+  "corpus_digest": "sha256:1b2f283084d97a4cb0384252a56c4c3e41c5b9a0f838ce3712bbcc3a3c5b52af",
+  "corpus_event_count": 9261
 }

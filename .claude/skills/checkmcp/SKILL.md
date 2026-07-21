@@ -5,13 +5,28 @@ description: Check (and revive) the HEARTH gateway — the MCP door on OMEN :871
 
 # checkmcp — is the HEARTH door open?
 
-One command does the whole job (probe + auto-revive + door verdict):
+One command does the whole job (probe + auto-revive + door verdict). `hearth`
+is a bare directory package (no pip install in the venv), so `-m
+hearth.callers.doorcheck` only resolves when the process's cwd is the repo
+root — set `PYTHONPATH` instead of relying on cwd, and it runs unchanged from
+any repo this skill is junctioned into:
 
 ```
-./fleet-worker-node/.venv-omen/Scripts/python.exe -m hearth.callers.doorcheck --revive
+PYTHONPATH=C:\work\commandcenter C:\work\commandcenter\fleet-worker-node\.venv-omen\Scripts\python.exe -m hearth.callers.doorcheck --revive
 ```
 
-Run it from the repo root (`C:\work\commandcenter`). It checks explicit health
+PowerShell:
+
+```
+$env:PYTHONPATH = "C:\work\commandcenter"; & "C:\work\commandcenter\fleet-worker-node\.venv-omen\Scripts\python.exe" -m hearth.callers.doorcheck --revive
+```
+
+(If already sitting in `C:\work\commandcenter`, the bare relative form
+`./fleet-worker-node/.venv-omen/Scripts/python.exe -m hearth.callers.doorcheck
+--revive` still works — `PYTHONPATH` is only load-bearing when cwd is
+somewhere else.)
+
+It checks explicit health
 facets. Default exit 0 means the door facet is healthy; `--strict` requires all
 facets. Exit 1 means the requested facet is unhealthy; exit 2 means a hard
 configuration failure:

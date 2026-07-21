@@ -11,12 +11,26 @@ physical hosts (omen, cc-conductor, am4, i5-laptop), OMEN Hyper-V VMs
 am4-worker-1), and cloud backends (gcp-gemini — Vertex overflow lane on GCP
 trial credits). Canonical node map: [fleet/inventory.toml](../../fleet/inventory.toml).
 
-Run both, from the repo root (`C:\work\commandcenter`):
+Run both. `fleet` and `hearth` are bare directory packages (no pip install in
+the venv), so they only import when the process's cwd is the repo root — set
+`PYTHONPATH` instead of relying on cwd, and this runs unchanged from any repo
+this skill is junctioned into:
 
 ```
-./fleet-worker-node/.venv-omen/Scripts/python.exe -m fleet.fleet_ping --all-services --no-color
-./fleet-worker-node/.venv-omen/Scripts/python.exe -m hearth.callers.doorcheck --revive
+PYTHONPATH=C:\work\commandcenter C:\work\commandcenter\fleet-worker-node\.venv-omen\Scripts\python.exe -m fleet.fleet_ping --all-services --no-color
+PYTHONPATH=C:\work\commandcenter C:\work\commandcenter\fleet-worker-node\.venv-omen\Scripts\python.exe -m hearth.callers.doorcheck --revive
 ```
+
+PowerShell:
+
+```
+$env:PYTHONPATH = "C:\work\commandcenter"
+& "C:\work\commandcenter\fleet-worker-node\.venv-omen\Scripts\python.exe" -m fleet.fleet_ping --all-services --no-color
+& "C:\work\commandcenter\fleet-worker-node\.venv-omen\Scripts\python.exe" -m hearth.callers.doorcheck --revive
+```
+
+(If already sitting in `C:\work\commandcenter`, the bare relative forms still
+work — `PYTHONPATH` is only load-bearing when cwd is somewhere else.)
 
 - `fleet_ping` = reachability (TCP) of every declared service on every node.
   Exit 1 means some `expect="up"` node is down. `--json` for machine-readable;

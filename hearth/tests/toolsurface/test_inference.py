@@ -535,14 +535,14 @@ class GeminiDefaultBudgetTests(TestCase):
             "GOOGLE_OAUTH_ACCESS_TOKEN": "env-token",
         }, clear=True))
 
-    def test_flash_default_budget_is_8192(self) -> None:
+    def test_flash_default_budget_is_16384(self) -> None:
         with patch("urllib.request.urlopen", return_value=_FakeResponse(GEMINI_REPLY)) as mocked:
             result = local_generate("q", backend="gcp-gemini")
 
         self.assertTrue(result.get("ok"), result.get("error"))
         payload = json.loads(mocked.call_args[0][0].data.decode("utf-8"))
-        self.assertEqual(payload["generationConfig"]["maxOutputTokens"], 8192)
-        self.assertEqual(result["max_tokens"], 8192)
+        self.assertEqual(payload["generationConfig"]["maxOutputTokens"], 16384)
+        self.assertEqual(result["max_tokens"], 16384)
 
     def test_pro_default_budget_is_16384(self) -> None:
         with patch("urllib.request.urlopen", return_value=_FakeResponse(GEMINI_REPLY)) as mocked:

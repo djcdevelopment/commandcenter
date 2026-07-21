@@ -231,9 +231,9 @@ class PackagedPoolTests(TestCase):
         self.assertEqual(pool.by_name("am4-moe").api, "openai")
         self.assertEqual(pool.by_name("gcp-gemini").api, "gemini")
         self.assertEqual(pool.by_name("gcp-gemini-pro").api, "gemini")
-        self.assertEqual(pool.by_name("gcp-gemini").settings.get("max_tokens"), 8192)
+        self.assertEqual(pool.by_name("gcp-gemini").settings.get("max_tokens"), 16384)
         self.assertEqual(pool.by_name("gcp-gemini-pro").settings.get("max_tokens"), 16384)
-        self.assertEqual(pool.by_name("am4-moe").settings.get("max_tokens"), 8192)
+        self.assertEqual(pool.by_name("am4-moe").settings.get("max_tokens"), 12288)
         # The residency handover: the resident moe carries the opportunistic
         # tags; the single-card planner rung is pin-only (no shared tags left).
         self.assertIn("big-context", pool.by_name("am4-moe").tags)

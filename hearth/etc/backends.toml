@@ -138,7 +138,9 @@ location_env = "GOOGLE_CLOUD_LOCATION"       # defaults to "global" when unset
 cost_class   = "trial"                       # A4: counts against [trial] runway
 # Same thinking-budget protection the pro rung has: modern Gemini models can burn
 # a stingy budget on hidden reasoning and return empty text; a cap not a charge.
-max_tokens   = 8192
+# Matched to gcp-gemini-pro's 16384 (2026-07-21) so both gemini rungs share one
+# base output budget instead of flash silently getting half the headroom.
+max_tokens   = 16384
 # A1 payload budget: effectively unlimited vs the 1 MiB files= pack cap.
 context_bytes = 2097152
 

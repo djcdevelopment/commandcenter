@@ -42,7 +42,12 @@ from hearth.toolsurface.occupancy import check_occupancy
 DEFAULT_ENDPOINT = "http://127.0.0.1:11434"
 # O5: the historical wall-clock budget, now only the FLOOR — a rung may declare
 # settings.timeout_s to match its own measured decode rate (see _apply_defaults).
-DEFAULT_TIMEOUT_S = 120
+# Flat 1000s baseline (2026-07-21): premature cutoffs were costing more in
+# wasted orchestration tokens/time than a generous ceiling costs in worst-case
+# wait, and trial-credit usage is nowhere near the runway limit. Revisit once
+# a few days of real duration_ms data (knowledge/capacity.json) show per-rung
+# p90/p99 so this can go back to being individually tuned instead of uniform.
+DEFAULT_TIMEOUT_S = 1000
 ENDPOINT_ENV_VAR = "HEARTH_OLLAMA"
 
 # Door-side file packing caps (bytes). Module globals so tests (and a future

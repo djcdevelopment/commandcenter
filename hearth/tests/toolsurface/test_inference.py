@@ -580,8 +580,8 @@ class RungTimeoutBudgetTests(TestCase):
             result = local_generate("q", backend="am4-moe")
 
         self.assertTrue(result.get("ok"), result.get("error"))
-        self.assertEqual(mocked.call_args.kwargs["timeout"], 420)
-        self.assertEqual(result["timeout_s"], 420)
+        self.assertEqual(mocked.call_args.kwargs["timeout"], 1000)
+        self.assertEqual(result["timeout_s"], 1000)
 
     def test_rung_without_declared_timeout_falls_back_to_default(self) -> None:
         with patch("urllib.request.urlopen", return_value=_FakeResponse(OLLAMA_REPLY)) as mocked:

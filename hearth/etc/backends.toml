@@ -70,21 +70,26 @@ tags     = ["big-context", "research", "second-opinion", "reasoning"]
 # that as payload at the ≈4 bytes/token convention the other rungs use.
 context_bytes = 57344
 # gpt-oss is a reasoning-format model (harmony channels): same generous-output
-# protection the gemini rungs get — a cap, not a charge.
-max_tokens = 8192
+# protection the gemini rungs get — a cap, not a charge. Raised 2026-07-20 from
+# 8192: at ~21 tok/s p50 that budget left too little room for the reasoning
+# channel on genuinely large jobs, which came back ok:true with empty text
+# (the harmony channel ate the whole cap before emitting visible output).
+max_tokens = 12288
 # O5 (capacity facts -> router, 2026-07-18): the wall-clock budget that MATCHES
-# the output budget above. Measured aggregate decode incl. reasoning tokens is
-# ~21 tok/s p50 (capacity.json) / 26-29 tok/s solo (gambit), so a full 8192-token
-# answer needs ~390s. The historical 120s default cut healthy answers off
-# mid-flight and — because a timeout is an ok:false — silently ESCALATED them to
-# a trial-credit rung (A2), inverting the sunk-first ladder for exactly the slow,
-# reasoning-dense work this rung exists to absorb. Live evidence at the time of
-# writing: p50 88s, p90 120,042ms — the p90 WAS the timeout, i.e. the ceiling was
-# clipping, not the model. 420s = the 390s implied budget plus queue headroom
-# (a queued request costs ~4.4s per position).
-# NOTE this must stay BELOW the MCP client's idle timeout or the client gives up
-# first; see .mcp.json ("timeout": 600000 recommended).
-timeout_s = 420
+# the output budget above. A too-short timeout is an ok:false, and on a
+# tag-routed call that silently ESCALATES to a trial-credit rung (A2),
+# inverting the sunk-first ladder for exactly the slow, reasoning-dense work
+# this rung exists to absorb.
+# Flat 1000s baseline (2026-07-21, matches DEFAULT_TIMEOUT_S in inference.py):
+# set explicitly here — rather than left to fall through to the default — so
+# it stays self-documenting even if the global default is retuned later.
+# Superseded the individually-calculated 600s (585s implied @ ~21 tok/s p50
+# for the 12288 max_tokens above); revisit both together once a few days of
+# duration_ms p90/p99 (knowledge/capacity.json) give a real per-rung number.
+# NOTE this must stay BELOW the MCP client's idle timeout or the client gives
+# up first; .mcp.json ("hearth" server) timeout was raised to 1300000 (1300s)
+# alongside this change — 300s headroom over this budget for queueing.
+timeout_s = 1000
 
 [[backend]]
 name     = "am4-oxen"                          # the banked fire — dual-B70 Qwen3-30B

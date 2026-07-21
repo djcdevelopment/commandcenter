@@ -1,0 +1,47 @@
+That "on-ramp" is probably worth treating as its own product.
+
+Imagine bootstrapping a fresh machine:
+
+Connect to MCP.
+Discover available GPUs.
+Discover available models.
+Discover available agents.
+Discover available workflows.
+Verify credentials.
+Run health checks.
+Present capabilities.
+
+After that, every model—whether it's a tiny local Haiku-equivalent, a GPT Mini, or a frontier model—has the same entry point into your ecosystem.
+
+That's a much more resilient architecture than hard-coding assumptions about which machine is running what.
+
+The pattern I see across everything you've built is that you're gradually replacing "tribal knowledge in your head" with executable systems. Every time you hit one of these friction points, you don't just fix the immediate problem—you end up designing a more general capability. That's exactly how MechNet seems to have evolved, and this feels like the next iteration: making your own infrastructure discoverable enough that even a modest local model can take over the operational work when the expensive reasoning models are unavailable.
+
+----------------------------
+
+
+This folder answers one operational question: “From OMEN, which fleet nodes and services are reachable right now?”
+
+
+---------------------------
+
+TODO (2026-07-21): retune HEARTH rung timeouts from real data.
+
+Set DEFAULT_TIMEOUT_S and am4-moe's timeout_s to a flat 1000s baseline
+(hearth/toolsurface/inference.py, hearth/etc/backends.toml) instead of
+per-rung tuning, because premature cutoffs were wasting more orchestration
+tokens/time than a generous ceiling costs, and we're barely touching the
+GCP trial-token runway for agentic use vs. Claude — there's room to be
+generous while we get a real baseline.
+
+Follow up once a few days of duration_ms land in knowledge/capacity.json:
+- Compute real p50/p90/p99 per rung (omen-ollama, am4-oxen, am4-moe,
+  gcp-gemini, gcp-gemini-pro) instead of the flat 1000s.
+- Re-derive timeout_s the old way: max_tokens / measured tok/s + queue
+  headroom (see the am4-moe comment history in backends.toml for the
+  pattern this replaces).
+- Look at whether better naming/classification of calls (task/tags) would
+  make routing + capacity data more useful for this tuning, per Derek's
+  aside when this was set up.
+---------------------------
+

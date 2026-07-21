@@ -85,14 +85,18 @@ cannot read a high-integrity process's `CommandLine`) and fragile to quote insid
   (`doorcheck --facet door` returns exit 1 when the listener is down, per doorcheck.py:670; the
   restart task revives a down door, seen repeatedly) rather than by a single staged kill, because
   the test shell runs at lower integrity than the gateway and cannot kill it to stage the outage.
-- **No visible window.** First registered in the interactive session, the task flashed a console
-  every 3 minutes. The task action now runs `hearth/etc/watchdog-launch.vbs`, which launches the
-  tick with window style 0 (hidden) — the no-elevation fix. The cleaner posture is S4U (session 0,
-  no desktop, and watching survives logoff), matching HearthGatewayBoot/Restart, but converting an
-  existing task's principal to S4U needs elevation. Registration (interactive, hidden launcher):
-  `schtasks /Create /TN HearthGatewayWatchdog /TR "wscript.exe \"C:\work\commandcenter\hearth\etc\watchdog-launch.vbs\"" /SC MINUTE /MO 3 /F`.
-  S4U upgrade (one elevated command):
-  `$p = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType S4U -RunLevel Limited; Set-ScheduledTask -TaskName HearthGatewayWatchdog -Principal $p`.
+- **No visible window (two independent mechanisms).** First registered in the interactive session,
+  the task flashed a console every 3 minutes. It is now **S4U** (LogonType "run whether logged on
+  or not", RunLevel Limited) — session 0, no desktop, and the watch survives logoff, exactly
+  matching HearthGatewayBoot/Restart. Applied via an elevated
+  `Set-ScheduledTaskPrincipal ... -LogonType S4U -RunLevel Limited` (2026-07-20), verified live in
+  session 0 (tick runs, healthy door → no-op, task result 0). The task action *also* runs
+  `hearth/etc/watchdog-launch.vbs` (launches the tick with window style 0). Under S4U the vbs is
+  redundant, but it is kept deliberately as belt-and-suspenders: if a future rebuild re-registers
+  the task interactively without S4U, the hidden launcher still prevents the popup, so the
+  no-window property does not depend on the principal alone. Full registration to reproduce:
+  `schtasks /Create /TN HearthGatewayWatchdog /TR "wscript.exe \"C:\work\commandcenter\hearth\etc\watchdog-launch.vbs\"" /SC MINUTE /MO 3 /F`
+  then the elevated S4U principal set.
 - **Why OMEN, not AM4.** The revive action is inherently OMEN-local — the gateway only runs on
   OMEN, so only an OMEN task can restart it, and if OMEN's scheduler is alive to run a watchdog it
   is alive to run the gateway. A watchdog on AM4 would need a remote trigger into OMEN (crossing

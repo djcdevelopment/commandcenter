@@ -191,3 +191,25 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       lifetime calls sit in `model:<name>`-shaped buckets with zero token counts, so
       `est_usd_saved` undercounts. Decide backfill vs alias-map vs leave-and-annotate
       (source: [SESSION-RETRO-2026-07-19.md](SESSION-RETRO-2026-07-19.md) L-7)
+- [ ] 2026-07-21 — **Full Track 2 build or not.** Track 1 (live benchmark: `am4-moe` 93.8 vs
+      `gcp-gemini` 89.2 vs `gcp-gemini-pro` 90.6, gemini ~4-5x faster) and Track 2.0 (minimal
+      Studio-hosted ADK agent proven live over HEARTH MCP via Funnel+Caddy) both landed; whether
+      to invest in the full docx Agent-1 build (`repo_search`/`git_show`/`ledger_query`/
+      `manifest_query` tools, a dedicated `cloud-steward` profile, `baseline` registry
+      enrollment, the 8-scenario eval harness) is explicitly left to Derek
+      (source: [Hearth_Google_Agent_Implementation_Plan.docx](hearth/Hearth_Google_Agent_Implementation_Plan.docx),
+      this session's plan file, SESSION-RETRO-2026-07-21.md session 2).
+- [ ] 2026-07-21 — Commit or discard this session's new, currently-uncommitted files:
+      `hearth/experiments/doc_adr_bench.py`, `hearth/experiments/run_doc_adr_bench.py`,
+      `hearth/projection/gemini_pricing.py`, `hearth/etc/caddy/Caddyfile`,
+      `hearth/etc/start-hearth-funnel-proxy.cmd` (not asked for this session — see
+      SESSION-RETRO-2026-07-21.md session 2, Operator/SRE).
+- [ ] 2026-07-21 — Fill real Vertex AI per-Mtok pricing into `hearth/projection/gemini_pricing.py`
+      (`gemini-3.5-flash`, `gemini-3.1-pro-preview` currently deliberately `None`/unpriced —
+      honest-unknown, not a bug) once current rates are confirmed against Google's pricing page.
+- [ ] 2026-07-21 — Revisit [ADR-0025](docs/adr/0025-funnel-caddy-stamps-identity-until-studio-can.md)'s
+      Caddy-stamped-key auth once Google Agent Platform Studio ships MCP Server API-key auth
+      (currently "Coming soon") — switch to a real per-request header and drop the stamp. Also
+      revisit `callerctl`'s `--runner-class` taxonomy (no "cloud" value; `gcp-adk-test` used
+      `frontier` as a placeholder fit) if more cloud-hosted callers get minted, and consider a
+      custom `xcaddy` build with `caddy-ratelimit` if this proxy sees traffic beyond one test caller.

@@ -142,3 +142,202 @@ correction, and this retro are frontier.
 claude-sonnet reference. Zero calls added this session (see Provenance). Legacy zero-token buckets
 (`model:<name>`-shaped) still stand at 167 of 309 lifetime calls — the pre-existing, already-tracked
 undercount noted in the follow-through table above.
+
+---
+
+# Session Retro — 2026-07-21, session 2 (GCP trial-credit benchmark and the first cloud agent behind HEARTH)
+
+> **The benchmark's own result undercut the reason to build the thing it was measuring.**
+> `am4-moe` — the $0 sunk-cost local rig — scored *highest* (93.8) of the three backends on the
+> exact documentation-consistency task class GCP trial credits were being evaluated for, beating
+> both Gemini rungs (89.2, 90.6). The case for spending the credits turned out to be speed
+> (~4-5x), not quality. Then, entirely separately, the session produced the first real MCP
+> connection from an external, cloud-hosted agent into this lab — and found, live, that the
+> platform meant to hold that connection (Google's Agent Platform Studio) can't yet send the
+> header HEARTH's authorization model requires at all.
+
+## What this session was
+
+A **benchmark-then-build** session that changed shape twice on real evidence: started as "plan
+a 3-agent ADK build," narrowed to "run the cheap benchmark first" after exploration found the
+docx's assumed tooling didn't exist, then narrowed again mid-build (a live user correction —
+"start simple," prove session continuity, not the full eval harness) into a minimal connectivity
+test that ended up surfacing two genuine infrastructure bugs and one real, consciously-accepted
+security tradeoff.
+
+## What shipped
+
+No commits this session (see Provenance) — the git range is empty by choice, not omission. What
+shipped is real, live-verified infrastructure and a benchmark result:
+
+**New files (uncommitted — see Operator/SRE and [DECISIONS-PENDING.md](DECISIONS-PENDING.md)):**
+[`hearth/experiments/doc_adr_bench.py`](hearth/experiments/doc_adr_bench.py),
+[`hearth/experiments/run_doc_adr_bench.py`](hearth/experiments/run_doc_adr_bench.py),
+[`hearth/projection/gemini_pricing.py`](hearth/projection/gemini_pricing.py),
+[`hearth/etc/caddy/Caddyfile`](hearth/etc/caddy/Caddyfile),
+[`hearth/etc/start-hearth-funnel-proxy.cmd`](hearth/etc/start-hearth-funnel-proxy.cmd).
+
+**Live infrastructure changes (outside git):** Caddy installed on OMEN (`winget`); Tailscale
+Funnel enabled on OMEN for the first time (`https://omen.tail8e749c.ts.net` → Caddy `:8711` →
+gateway `:8710`); HEARTH caller `gcp-adk-test` minted (`probe` → `research` profile, scoped to
+`commandcenter`); the HEARTH gateway restarted twice via `HearthGatewayRestart`; a real Google
+Agent Platform Studio agent (project `lumberjacks-exp-20260711-djc`) wired to HEARTH over MCP,
+safety-hardened, and redeployed.
+
+**New durable artifact:** [ADR-0025](docs/adr/0025-funnel-caddy-stamps-identity-until-studio-can.md).
+
+## The team retro — our collaboration across the seats
+
+**Architect.** The load-bearing call was to stop treating the docx
+(`Hearth_Google_Agent_Implementation_Plan.docx`) as documentation of a system to extend, and
+start treating it as a design draft to verify — three parallel Explore agents confirmed its
+assumed tool surface (`manifest.query`, `ledger.query`, `repo.search`) and its whole
+ADK/Agent-Runtime/Memory-Bank stack don't exist in HEARTH at all. That reframing produced the
+two-track plan (cheap benchmark gates the expensive build) before a line of new code was written.
+The second architectural call came mid-build, from Derek, not me: when he said the goal was
+"maintain its own context a bit longer... start simple," Track 2's heavy new-tools/new-profile/
+eval-harness design got explicitly deferred behind a Track 2.0 that reused HEARTH's *existing*
+`probe`/`research` profiles instead of inventing a `cloud-steward` role up front — the right
+sequencing call, but not one I originated.
+
+**Implementer.** Track 1 (`doc_adr_bench.py`, `run_doc_adr_bench.py`, `gemini_pricing.py`) went in
+cleanly and ran live on the first real attempt after fixing one `HEARTH_SCOPE` env-var oversight.
+Track 2.0's infrastructure work surfaced two real bugs neither of us predicted: (1) Funnel's
+default Host-header passthrough collided with ADR-0022's existing DNS-rebinding allowlist —
+`421 Invalid Host header` on the very first live test, fixed with a `header_up Host` rewrite;
+(2) Studio's native MCP Server tool turned out to only support `Authentication: None` (`OAuth`/
+`API key` both "Coming soon"), a hard connectivity blocker discovered only by actually trying to
+add the tool, not by reading docs beforehand. Both were root-caused and fixed the same session,
+verified live, not asserted.
+
+**Reviewer / QA.** Every claim in this session has a corresponding real check, not a self-report:
+the benchmark numbers came from the actual ledger (`routed_by: "pinned:<backend>"` confirmed on
+every row); the Funnel fix was confirmed with `curl -v` showing the exact `421` before and `406`
+after; the auth-stamp workaround was confirmed with a real MCP client sending *zero* headers,
+matching Studio's actual behavior, not a plausible guess at it; the ADK agent's own final answer
+(the ADR-vs-`capabilities.py` comparison) was independently checked against the real files and
+found accurate — verbatim, correctly-elided, not fabricated. The one gap: the agent's answer to
+an earlier "what is OMEN?" turn, built partly on two `local_generate` calls made without the
+required `files=` parameter (a real footgun — naming a path in prompt text gives the delegated
+model nothing to read), was never independently checked because the conversation was closed
+before it could be reviewed. Flagged as unverified, not asserted as either good or bad.
+
+**Operator / SRE.** This session leaves the repo in an unusual, worth-naming state: **zero
+commits, but real, live operational changes** — new software installed on the host, a public
+network exposure enabled for the first time, a new credential minted into the live (gitignored)
+caller registry, the production gateway bounced twice, and real GCP trial-credit dollars spent
+(the Studio banner's balance moved from $196.72 to $183.42 over the session). None of that shows
+up in `git log`. This is a different failure shape than [L-2026-07-21-3](#lessons-learned)'s
+unpushed-commit pattern from earlier today — not drift, but a session that correctly followed
+"don't commit unless asked" and, as a side effect, left real infrastructure state that git cannot
+see at all. Also notable: I made a real security mistake mid-session and caught it myself before
+it landed — writing the live Caddy secret directly into a git-tracked file — restructured to the
+repo's existing gitignored-secret convention before ever staging it. And, separately, early in the
+session I wasted several tool calls spawning throwaway "placeholder" sub-agents while waiting on
+a background research task, for no reason — a pure process error, not a security one, caught and
+stopped without prompting.
+
+**Product / planning.** Derek drove every real pivot this session: the initial scope-narrowing
+answers (full docx build, `commandcenter`+`baseline`, gemini-vs-`am4-moe` not vs-Claude), the
+mid-benchmark decision to run the full sweep rather than stop at the smoke test, the "narrow
+reverse-proxy not bare port" and "stock Caddy, skip rate-limiting" infrastructure calls, the
+explicit "let it ride" acceptance of the Caddy-stamped-key tradeoff once the alternative dead-
+ended, and the closing instinct to add a safety prompt before calling it done. My job across all
+of it was instrumenting each choice with a real test rather than a plausible-sounding plan —
+the recurring shape of this whole session was propose → verify live → report exactly what the
+evidence showed, including when it undercut the premise (the benchmark result) or the plan
+(Studio's auth ceiling).
+
+### Two seats, two views
+
+**From Claude's seat.** The most valuable thing I did this session was refuse to guess twice: I
+would not hardcode a Gemini per-Mtok price I didn't have (leaving `gemini_pricing.py` honestly
+unpriced rather than inventing a plausible number), and I would not ship a Caddy directive for a
+placeholder syntax I could not confirm existed (the query-param-to-header idea), saying so
+plainly instead. Both times the honest "I don't know" turned out to matter — the alternative in
+each case would have been a confidently wrong answer sitting in production config. Where I'd
+tighten: the placeholder-agent-spam mistake early in the session was avoidable — I should have
+recognized immediately that "waiting" doesn't require a tool call at all, rather than discovering
+that after three wasted ones.
+
+**From Derek's seat** *(my reconstruction — correct me where wrong)*. The session likely read as
+satisfying in the way a good instrument-then-decide loop should: he set the direction and made
+every real tradeoff call (Studio vs raw ADK, proxy shape, rate-limiting, the auth workaround), and
+I did the work of turning each choice into something proven rather than asserted. The mid-session
+correction ("start simple... maintain its own context") reads as him steering scope down the
+moment it started drifting toward the full docx build's weight — consistent with pacing releases
+deliberately rather than letting momentum decide scope. He'd probably want the uncommitted-files
+state named plainly (it is, above) without me either committing unasked or treating it as an
+emergency.
+
+## Last time's lessons — follow-through
+
+| Lesson | Status |
+| --- | --- |
+| L-2026-07-21-1 — A "works anywhere" memory is a claim about the day it was written | pending — no occasion this session |
+| L-2026-07-21-2 — `python -m pkg` resolves against process cwd, not interpreter path | pending — no occasion this session |
+| L-2026-07-21-3 — Unpushed/unattached git state is a recurring failure shape | **recurred in a new shape** — this session made zero commits at all (not drift, deliberate), yet left real, git-invisible infrastructure changes (installed software, a live public exposure, a minted credential, real spend) — see the new lesson below and Operator/SRE |
+
+## Lessons learned
+
+1. **L-2026-07-21-4 — A benchmark can invalidate the premise of the build it's gating, and that's
+   the benchmark working, not failing.** `am4-moe` beat both Gemini rungs on quality for the exact
+   task class the credits were being justified against. The two-track plan (cheap benchmark gates
+   the expensive build) only pays off if the team is actually willing to let the result say "the
+   expensive thing isn't obviously worth it yet" — which it did, honestly, without either side
+   spinning it. *(→ practice: keep gating expensive builds on cheap, real measurements)*
+2. **L-2026-07-21-5 — A platform's documented capability and its actual UI state can disagree, and
+   only trying it live catches the gap.** Studio's MCP Server tool visibly offers "API key" auth
+   in the dropdown — greyed out, "Coming soon." Planning against the docs alone would have shipped
+   a design assuming header auth existed. *(→ practice: for any new external platform, exercise
+   the actual UI/API before designing around its documented capability)*
+3. **L-2026-07-21-6 — Git-invisible operational state is a real gap for a session that correctly
+   follows "don't commit unless asked."** New software installed, a public network path opened, a
+   credential minted, real money spent — none of it is in `git log`. Not a process violation (the
+   no-auto-commit rule is correct), but worth a retro naming it explicitly every time it happens,
+   the same way unpushed commits already get named. *(→ practice, tracked in
+   [DECISIONS-PENDING.md](DECISIONS-PENDING.md))*
+4. **L-2026-07-21-7 — Refusing to guess a credential-shaped or config-shaped unknown is worth the
+   friction it causes.** Twice this session (Gemini pricing, a Caddy placeholder syntax) the
+   honest "I don't have this confirmed" was slower than asserting a plausible value, and correct
+   both times. *(→ practice; matches [[feedback-untested-not-impossible]]'s spirit in the opposite
+   direction — enumerate what's uncertain rather than assert past it)*
+5. **L-2026-07-21-8 — A new, less-trusted external caller earns a deliberate safety preamble, not
+   just a capability grant.** The profile system (ADR-0019/0023) already bounds what `gcp-adk-test`
+   can *do*; it says nothing about how the model *behaves* within that grant. Adding explicit
+   evidence-discipline and tool-usage guardrails to the agent's own instructions, on the first
+   occasion a genuinely external surface got real access, was the right instinct and should be
+   the default for the next one too. *(→ practice, and candidate for the eventual Agent-1
+   system-instruction template if the full Track 2 build happens)*
+
+## Provenance
+
+Git range for this session's own work: **none — zero commits** (advisory/infrastructure session;
+per the skill's own guidance, an empty range is normal and does not mean nothing happened — see
+"What shipped" above). Working tree carries five new, uncommitted files (listed above) plus
+pre-existing unrelated modifications (`knowledge/*.json`, `HEARTH-DASHBOARD.html` — background
+projection writes, not from this session). One `local_generate` offload attempt this session (see
+below); everything else — the benchmark design, the Caddy/Funnel debugging, the ADR, this retro —
+is frontier, because the judgment and live-debugging work in this session (root-causing two real
+bugs from symptom to fix, verifying every claim against a real system) was not draftable prose.
+
+**Offload**: one `mcp__hearth__local_generate` call (`gcp-gemini`/`gemini-3.5-flash`,
+`quality="good"`, 2,674 in / 581 out tokens, 23.9s) drafting a first pass of three of the five
+role-read sections above (Architect/Implementer/Reviewer-QA) from a full factsheet plus a style
+exemplar. **Edit verdict: minor-fixes** — the draft was directionally accurate but contained one
+real inaccuracy (attributed the stock-Caddy-over-xcaddy choice to "minimizing host footprint";
+the real reason was skipping rate-limiting complexity) and cut off mid-sentence before covering
+Operator/SRE, Product/planning, the two-seats section, or lessons — all of which were written
+frontier. No `--fleet` second opinion dispatched.
+
+## Offload scorecard (S6)
+
+`offload_ratio` **1.0** · 353 lifetime calls — **sunk** 112 calls (325,267 in / 138,821 out),
+**trial** 235 calls (2,015,435 in / 131,557 out), unknown 6 · `est_usd_saved` **$11.08** vs
+claude-sonnet reference (up from $5.43 pre-session — this session's Track 1 benchmark and the
+ADK agent's own `local_generate` delegation account for most of the growth). Separately, and more
+concretely: **real GCP trial-credit balance dropped $13.30 this session** ($196.72 → $183.42 per
+the Studio billing banner) — actual observed cloud spend, not an estimate, the first time this
+session's own offload doctrine has a real-dollar number to sit next to the usual
+claude-sonnet-equivalent estimate. Legacy zero-token buckets (`model:<name>`-shaped) unchanged at
+167 of 353 lifetime calls — same pre-existing, already-tracked undercount.

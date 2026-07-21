@@ -1,0 +1,48 @@
+## HEARTH Funnel-facing reverse proxy (Track 2.0 minimal test case).
+#
+# HEARTH's gateway serves exactly one HTTP path (/mcp, streamable-http; see
+# hearth/kernel/gateway.py's module docstring) and binds 127.0.0.1:8710 only.
+# This proxy sits between Tailscale Funnel and the gateway so Funnel never
+# exposes the bare gateway port directly to the internet: `tailscale funnel`
+# targets THIS port, not 8710.
+#
+# KNOWN TRADEOFF (accepted 2026-07-21, trial-credit stakes): Google Agent
+# Platform Studio's native "MCP Server" tool only offers Authentication: None
+# today ("OAuth"/"API key" are both greyed out "Coming soon"), and sends no
+# custom header at all. Since HEARTH requires X-Hearth-Key to identify ANY
+# caller, this proxy stamps a FIXED key on every request that reaches THIS
+# URL, so the secret HEARTH checks lives in a value only Studio's Endpoint URL
+# field carries -- the Funnel URL itself is now the de facto shared secret,
+# not a per-request header. Bounded by design: the caller this key resolves
+# to (gcp-adk-test) is scoped to profile `research` (read-only) on
+# `commandcenter` only -- worst case of the URL leaking is read access to
+# public-ish docs/code, not a mutate path. Revisit once Studio ships API-key
+# auth (then switch back to a real per-request header and drop this stamp).
+#
+# Also adds path narrowing (only /mcp is forwarded; everything else 404s) as
+# defense in depth. No rate limiting yet (stock Caddy has none built in;
+# deferred -- see the implementation plan's Track 2.0 §1 open decision).
+#
+# Run: caddy run --config hearth/etc/caddy/Caddyfile --adapter caddyfile
+
+:8711 {
+	handle /mcp* {
+		reverse_proxy 127.0.0.1:8710 {
+			# HEARTH's gateway allowlists Host by value (loopback only,
+			# ADR-0022's DNS-rebinding guard in gateway.py's
+			# _transport_security) -- rewrite so the public Funnel hostname
+			# the client actually sent doesn't get rejected as untrusted.
+			header_up Host 127.0.0.1:8710
+			# Stamped caller identity -- see KNOWN TRADEOFF above. Gitignored
+			# snippet (same convention as start-hearth-gateway.cmd's
+			# hearth/var/gateway.cmd): one `header_up X-Hearth-Key <value>`
+			# line. This Caddyfile stays secret-free and tracked in git; only
+			# the imported file under hearth/var/ carries the real key.
+			# Rotate via `callerctl rotate` and update that file together.
+			import ../../var/caddy-funnel-secret.caddy
+		}
+	}
+	handle {
+		respond 404
+	}
+}

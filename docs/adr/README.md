@@ -33,6 +33,7 @@ record with its status changed and a pointer to the ADR that replaced it.
 | [0022](0022-container-access-needs-no-exposure.md) | Container access needs no network exposure: mirrored WSL + an explicit transport-security allowlist | Accepted (2026-07-19), amends 0019 |
 | [0023](0023-authority-is-granted-never-assumed.md) | Authority is granted by naming a role, never by omitting one | Accepted (2026-07-20), closes 0019's fail-open |
 | [0024](0024-gateway-liveness-lives-outside-the-gateway.md) | The gateway's own liveness watch lives outside the gateway | Accepted (2026-07-20), amends 0015 |
+| [0025](0025-funnel-caddy-stamps-identity-until-studio-can.md) | A Funnel-facing Caddy proxy stamps caller identity until Google Agent Platform Studio can send one itself | Accepted (2026-07-21), first external cloud caller |
 
 ## Historical note
 The "ADR-0001" referenced in `SESSION-RETRO-2026-06-29.md` (which orchestrator is

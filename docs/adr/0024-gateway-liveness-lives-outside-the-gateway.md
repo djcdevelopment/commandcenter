@@ -85,8 +85,20 @@ cannot read a high-integrity process's `CommandLine`) and fragile to quote insid
   (`doorcheck --facet door` returns exit 1 when the listener is down, per doorcheck.py:670; the
   restart task revives a down door, seen repeatedly) rather than by a single staged kill, because
   the test shell runs at lower integrity than the gateway and cannot kill it to stage the outage.
-- **Follow-ups:** (a) the watchdog runs in the logged-on user context to match the door's
-  login-start model; making it S4U (run whether logged on or not) to exactly match the door needs
-  elevation and is deferred. (b) The mirrored-WSL fate-sharing that *causes* the listener death
-  (ADR-0022) is mitigated here, not removed — the facade's per-call reconnect and this watchdog
-  together make it survivable, but a door that never loses its socket would be better still.
+- **No visible window.** First registered in the interactive session, the task flashed a console
+  every 3 minutes. The task action now runs `hearth/etc/watchdog-launch.vbs`, which launches the
+  tick with window style 0 (hidden) — the no-elevation fix. The cleaner posture is S4U (session 0,
+  no desktop, and watching survives logoff), matching HearthGatewayBoot/Restart, but converting an
+  existing task's principal to S4U needs elevation. Registration (interactive, hidden launcher):
+  `schtasks /Create /TN HearthGatewayWatchdog /TR "wscript.exe \"C:\work\commandcenter\hearth\etc\watchdog-launch.vbs\"" /SC MINUTE /MO 3 /F`.
+  S4U upgrade (one elevated command):
+  `$p = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType S4U -RunLevel Limited; Set-ScheduledTask -TaskName HearthGatewayWatchdog -Principal $p`.
+- **Why OMEN, not AM4.** The revive action is inherently OMEN-local — the gateway only runs on
+  OMEN, so only an OMEN task can restart it, and if OMEN's scheduler is alive to run a watchdog it
+  is alive to run the gateway. A watchdog on AM4 would need a remote trigger into OMEN (crossing
+  the ADR-0014 machine lanes) for no availability gain in any failure mode that matters. The watch
+  is external to the gateway *process* (which is what ADR-0015 required); it does not need to be
+  external to the *host*.
+- **Follow-up:** the mirrored-WSL fate-sharing that *causes* the listener death (ADR-0022) is
+  mitigated here, not removed — the facade's per-call reconnect and this watchdog together make it
+  survivable, but a door that never loses its socket would be better still.

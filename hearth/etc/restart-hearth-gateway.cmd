@@ -14,6 +14,13 @@ rem (local = ephemeral port) never match. Seen live 2026-07-16.
 for /f "tokens=2,5" %%a in ('netstat -ano ^| findstr ":8710"') do (
   if "%%a"=="127.0.0.1:8710" taskkill /PID %%b /T /F >nul 2>&1
 )
+rem A socketless zombie (accept loop AND socket dead, python still alive holding
+rem the boot log handle) has no :8710 row for the scan above and survives here.
+rem That is deliberately NOT chased with a command-line-matched kill: matching is
+rem unreliable across integrity levels and fragile to quote in batch. Correctness
+rem does not need it -- the boot's log-fallback (start-hearth-gateway.cmd) lets the
+rem door come up regardless of a stale log handle, and the zombie is reaped by the
+rem next reboot. Reaping it live is hygiene, not correctness; left deferred.
 timeout /t 2 /nobreak >nul
 schtasks /End /TN HearthGatewayBoot >nul 2>&1
 schtasks /Run /TN HearthGatewayBoot

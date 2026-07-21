@@ -145,34 +145,30 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       hands-on operator identity, mint a SEPARATE caller with a CSPRNG secret and assign the
       (already-defined, currently unassigned) `operator` role — do not widen `dev-local`
       (source: [ADR-0023](docs/adr/0023-authority-is-granted-never-assumed.md))
-- [ ] 2026-07-20 — **URGENT: logging is on the gateway's critical start path, so a stale log
-      handle makes the door unstartable.** `start-hearth-gateway.cmd`'s first action is
-      `echo ... >> hearth\var\gateway-task.log`. When the crashed gateway process survived holding
-      an exclusive handle on that file, the batch script failed on that line and exited **1 before
-      launching Python** — writing nothing, so the failure was invisible in the very log it could
-      not open. `HearthGatewayBoot` then failed identically on every retry. This converted a
-      30-second restart into a ~40-minute outage. Killing the orphaned PIDs did NOT release the
-      handle, and the file could not even be renamed. **The door is currently running from
-      `hearth/var/start-hearth-gateway-recover.cmd` (logs to `gateway-task2.log`) — the standard
-      boot task will still fail until the handle clears (a reboot will do it).** Fix: a service must
-      not depend on a log redirect to start — write a per-boot dated file, or tolerate redirect
-      failure and let the service run logless rather than not at all
-- [ ] 2026-07-20 — **The watchdog cannot revive the gateway, because it runs inside it.**
-      The door died at ~08:17 (`WinError 64` on accept) and stayed down ~18 minutes until bounced
-      by hand. `fleet/inventory.toml` carries `revive = doorcheck --revive` for `hearth-gateway`,
-      but since [ADR-0015](docs/adr/0015-ops-loops-fold-into-the-gateway.md) the watchdog is an
-      **in-gateway daemon timer** — so it dies with the thing it is meant to revive. Confirmed:
-      the only registered tasks are `HearthGatewayBoot` (boot trigger), `HearthGatewayRestart`
-      (no trigger, manual), `OllamaBoot`, `OmenOllamaTracingProxy` — **nothing periodic**. Decide:
-      grant the gateway's own liveness check an explicit exception to ADR-0015 (a small external
-      task running `doorcheck --revive` on a timer), or accept manual revive and say so in the ADR.
-      Everything else folding inward was right; this is the one loop that cannot
-- [ ] 2026-07-20 — **Record mirrored-WSL fate-sharing as a cost of [ADR-0022](docs/adr/0022-container-access-needs-no-exposure.md).**
-      `networkingMode=mirrored` is what makes container→loopback access free, and the same shared
-      network namespace means a Docker/WSL lifecycle event can tear the accept socket out from
-      under the door's loopback listener. The 08:17 death coincided with a container image rebuild.
-      The ADR records the benefit and not this cost; a reader deciding whether to keep mirrored
-      mode needs both
+- [x] 2026-07-20 — **Logging on the gateway's critical start path made the door unstartable.
+      FIXED + verified 2026-07-20** ([ADR-0024](docs/adr/0024-gateway-liveness-lives-outside-the-gateway.md)).
+      `start-hearth-gateway.cmd` now probes the primary log, retries a few times (a bounce leaves
+      the old wrapper's handle open ~1-2s), and only if it is genuinely wedged falls back to a
+      unique per-launch file — so the door boots regardless of a stale log handle. The retry sleep
+      is `ping`, not `timeout` (which aborts under the `stdin=DEVNULL` that `doorcheck --revive`
+      uses). Verified across repeated live bounces: door returns clean, 0 fallback files on a
+      normal restart; a genuinely-locked primary falls back and still boots (staged-lock test).
+      Recovery wrapper already retired (door back on the normal boot task).
+- [x] 2026-07-20 — **The gateway had no external liveness watch. FIXED + verified 2026-07-20**
+      ([ADR-0024](docs/adr/0024-gateway-liveness-lives-outside-the-gateway.md)). New scheduled task
+      `HearthGatewayWatchdog` (`hearth/etc/watchdog-gateway.cmd`, MINUTE/3) runs
+      `doorcheck --json --facet door` and, on two consecutive failed probes, triggers
+      `HearthGatewayRestart` (the high-integrity S4U path — preserves Hyper-V admin, no UAC). The
+      one deliberate ADR-0015 exception: a loop that cannot fold into the thing it watches.
+      Up-path verified live (healthy door → no-op, PID unchanged); down→revive verified by
+      component (doorcheck.py:670 returns exit 1 when the listener is down; the restart task
+      revives, seen repeatedly) since the test shell cannot kill the higher-integrity door to stage
+      a full outage. Rollback: `schtasks /Delete /TN HearthGatewayWatchdog /F`.
+- [x] 2026-07-20 — **Mirrored-WSL fate-sharing recorded as a cost of ADR-0022.** Now documented in
+      [ADR-0024](docs/adr/0024-gateway-liveness-lives-outside-the-gateway.md) Context (the
+      `WinError 64` listener death) and Consequences (mitigated by the facade's per-call reconnect
+      + the external watchdog, not removed). A reader weighing mirrored mode now sees both the
+      benefit (ADR-0022) and the cost (ADR-0024).
 - [x] 2026-07-20 — **Transformation outputs were truncated at their token caps. FIXED + verified
       2026-07-20.** The first run landed on EXACTLY 2,250 / 3,000 (truncation). The builder raised
       the token caps to 3,600 / 3,600 / 4,700 (keeping the 9,000-byte map-output validation as the

@@ -11,6 +11,27 @@ rem MUST be .cmd (not .env): `call` only executes .bat/.cmd as batch — calling
 rem .env silently opens it in the file's associated editor instead of running it.
 rem Format: one `set NAME=value` per line. Optional.
 if exist hearth\var\gateway.cmd call hearth\var\gateway.cmd
-echo [%date% %time%] HearthGateway task starting >> hearth\var\gateway-task.log
-C:\work\commandcenter\fleet-worker-node\.venv-omen\Scripts\python.exe -m hearth.kernel.gateway --callers hearth\var\callers.json --providers hearth.toolsurface.fs,hearth.toolsurface.git,hearth.toolsurface.testing,hearth.toolsurface.knowledge,hearth.toolsurface.summon,hearth.toolsurface.inference,hearth.toolsurface.task_lane,hearth.toolsurface.fleet_harvest,hearth.toolsurface.patrol,hearth.toolsurface.masters_pet,hearth.toolsurface.dream,hearth.toolsurface.scheduler,hearth.toolsurface.am4,hearth.toolsurface.commander,hearth.toolsurface.build_requests >> hearth\var\gateway-task.log 2>&1
-echo [%date% %time%] HearthGateway exited with %errorlevel% >> hearth\var\gateway-task.log
+rem Boot-safe logging (2026-07-20). A stale EXCLUSIVE handle on the primary log
+rem -- e.g. a socketless zombie gateway that survived a WinError-64 accept death
+rem while still holding this file open -- must NEVER stop the door from starting.
+rem The old code redirected the python launch straight to a fixed path; when that
+rem path was locked, cmd could not open it, python never launched, and the task
+rem exited 1 having written NOTHING to the very log meant to explain it. That was
+rem an invisible ~40-minute outage (2026-07-20). Probe the primary log; a bounce
+rem leaves the OLD wrapper's handle open for a second or two, so retry a few times
+rem (that consolidates normal restarts onto the primary), and only if it is still
+rem locked -- a genuinely wedged handle -- fall back to a unique per-launch file
+rem so the launch redirect below can always open something and the door always
+rem comes up. The sleep is `ping`, not `timeout`: doorcheck --revive launches this
+rem script with stdin=DEVNULL, and `timeout` aborts under redirected stdin
+rem ("Input redirection is not supported").
+set "GWLOG=hearth\var\gateway-task.log"
+set "_LOGTRY=0"
+:hearth_trylog
+(echo [%date% %time%] HearthGateway task starting)>> "%GWLOG%" 2>nul && goto hearth_gotlog
+set /a _LOGTRY+=1
+if %_LOGTRY% lss 6 (ping -n 2 127.0.0.1 >nul & goto hearth_trylog)
+set "GWLOG=hearth\var\gateway-task-%RANDOM%%RANDOM%.log"
+:hearth_gotlog
+C:\work\commandcenter\fleet-worker-node\.venv-omen\Scripts\python.exe -m hearth.kernel.gateway --callers hearth\var\callers.json --providers hearth.toolsurface.fs,hearth.toolsurface.git,hearth.toolsurface.testing,hearth.toolsurface.knowledge,hearth.toolsurface.summon,hearth.toolsurface.inference,hearth.toolsurface.task_lane,hearth.toolsurface.fleet_harvest,hearth.toolsurface.patrol,hearth.toolsurface.masters_pet,hearth.toolsurface.dream,hearth.toolsurface.scheduler,hearth.toolsurface.am4,hearth.toolsurface.commander,hearth.toolsurface.build_requests >> "%GWLOG%" 2>&1
+echo [%date% %time%] HearthGateway exited with %errorlevel% >> "%GWLOG%"

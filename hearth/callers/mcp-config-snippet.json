@@ -3,6 +3,7 @@
     "hearth": {
       "type": "http",
       "url": "http://127.0.0.1:8710/mcp",
+      "timeout": 1300000,
       "headers": {
         "X-Hearth-Key": "dev-local"
       }

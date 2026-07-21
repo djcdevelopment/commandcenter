@@ -90,8 +90,11 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       (conductor-side change, coordinate — concurrently-owned code). Interim: the
       comfy_gateway (:8720, HEARTH_SCOPE=C:\work\comfy) covers the interactive slice.
       Gather concrete use cases before an implementation decision.
-- [ ] 2026-07-18 — Set `.mcp.json` hearth server `"timeout": 600000` so deliberate long moe
-      calls survive the client idle cap (source: [SESSION-RETRO-2026-07-18.md](SESSION-RETRO-2026-07-18.md))
+- [x] 2026-07-18 — Set `.mcp.json` hearth server timeout so deliberate long moe
+      calls survive the client idle cap (source: [SESSION-RETRO-2026-07-18.md](SESSION-RETRO-2026-07-18.md)).
+      DONE, superseded: 600000 → 900000 (am4-moe timeout_s=600 headroom) → 1300000
+      (2026-07-21, alongside the flat 1000s rung-timeout baseline) — local `.mcp.json`
+      updated directly; the tracked template is [hearth/callers/mcp-config-snippet.json](hearth/callers/mcp-config-snippet.json).
 - [ ] 2026-07-18 — Review/apply the tracker sync recommendations (items 5 superseded, 8 done,
       13 done) (source: [docs/DECISIONS-PENDING-SYNC-2026-07-18.md](docs/DECISIONS-PENDING-SYNC-2026-07-18.md))
 - [ ] 2026-07-18 — D4: edit + publish call on the O4 Windows-delta draft

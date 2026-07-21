@@ -173,16 +173,15 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       under the door's loopback listener. The 08:17 death coincided with a container image rebuild.
       The ADR records the benefit and not this cost; a reader deciding whether to keep mirrored
       mode needs both
-- [ ] 2026-07-20 — **Transformation outputs are truncated at their token caps, not completing
-      naturally.** The first real multi-chunk run (verified in the ledger) succeeded, but the map
-      call stopped at EXACTLY 2,250 tokens and the reducer at EXACTLY 3,000 — the signature of
-      hitting the ceiling, not natural stopping. The caps are correctly ENFORCED (Bug 2 fix
-      working); the problem is the prompts ask for more than the budget allows, so summaries are
-      clipped mid-thought. Fix is prompt-side in the notebook repo: instruct the map/reducer to
-      produce output that fits WITHIN the cap with headroom (e.g. "~1,500 tokens" for maps), so the
-      model finishes on its own. Quality issue, not a failure — decide whether summary completeness
-      matters enough to tune the prompts (source: SESSION-RETRO-2026-07-20 verify-reports directive,
-      4th catch)
+- [x] 2026-07-20 — **Transformation outputs were truncated at their token caps. FIXED + verified
+      2026-07-20.** The first run landed on EXACTLY 2,250 / 3,000 (truncation). The builder raised
+      the token caps to 3,600 / 3,600 / 4,700 (keeping the 9,000-byte map-output validation as the
+      hard backstop) and matched the map prompt to the 9,000-byte target. Re-run on a 49,095-byte
+      source, ledger-verified: map 1,160 & 1,550, reduce 2,205 — all STRICTLY under cap, finish
+      reason "stop", am4-moe/tag:research, zero trial, zero refusal, final output a complete
+      conclusion. Note (not a concern): the token cap (3,600) is now looser than the 9,000-byte
+      cap (~2,380 tokens), so the byte validation is the binding constraint and a very dense map
+      that naturally runs long would fail-and-retry rather than clip — the intended backstop.
 - [x] 2026-07-20 — **Exercise the chunker against a real multi-chunk source. DONE + verified
       2026-07-20.** 108 KB source → 3 chunks, resume isolation confirmed (recomputed chunk 0, reused
       1 & 2 from checkpoints = 2 model calls, matched by ledger), map 2,250 / reducer 3,000 tokens

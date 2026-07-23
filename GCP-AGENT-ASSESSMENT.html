@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GCP Agent Platform — Integration Assessment &amp; Paths Forward (2026-07-23)</title>
+<style>
+  :root{--bg:#0f1115;--panel:#171a21;--panel2:#1d2129;--ink:#d8dee9;--dim:#8892a4;--line:#2a2f3a;
+        --good:#4cc38a;--warn:#e5b567;--bad:#e06c75;--accent:#61afef;--gold:#d4a373}
+  *{box-sizing:border-box}
+  body{margin:0;padding:2rem clamp(1rem,4vw,3rem);background:var(--bg);color:var(--ink);
+       font:15px/1.55 "Segoe UI",system-ui,sans-serif;max-width:1100px;margin-inline:auto}
+  h1{font-size:1.5rem;margin:.2rem 0 .3rem;color:#fff}
+  h2{font-size:1.05rem;margin:2rem 0 .6rem;color:var(--accent);text-transform:uppercase;letter-spacing:.06em}
+  h3{font-size:.95rem;margin:1rem 0 .4rem;color:var(--gold)}
+  .sub{color:var(--dim);margin-bottom:1.4rem}
+  .verdicts{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:.7rem;margin:1rem 0}
+  .v{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);
+     border-radius:8px;padding:.7rem .9rem}
+  .v b{display:block;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;color:var(--dim);margin-bottom:.25rem}
+  .v.good{border-left-color:var(--good)} .v.warn{border-left-color:var(--warn)} .v.bad{border-left-color:var(--bad)}
+  table{border-collapse:collapse;width:100%;margin:.6rem 0;font-size:.9rem}
+  th,td{border:1px solid var(--line);padding:.45rem .6rem;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:var(--dim);font-weight:600}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  code{background:var(--panel2);padding:.1em .35em;border-radius:4px;font-size:.85em;color:#c8d3f5}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding: .9rem 1.1rem;margin:.7rem 0}
+  .tag{display:inline-block;font-size:.72rem;padding:.1rem .5rem;border-radius:999px;border:1px solid var(--line);
+       color:var(--dim);margin-right:.35rem;vertical-align:middle}
+  .tag.live{color:var(--good);border-color:var(--good)}
+  .tag.hot{color:var(--bad);border-color:var(--bad)}
+  .tag.wait{color:var(--warn);border-color:var(--warn)}
+  ul{margin:.4rem 0 .4rem 1.2rem;padding:0}
+  li{margin:.3rem 0}
+  a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+  .foot{color:var(--dim);font-size:.8rem;border-top:1px solid var(--line);margin-top:2.2rem;padding-top:.8rem}
+</style>
+</head>
+<body>
+
+<h1>GCP Agent Platform — Integration Assessment &amp; Paths Forward</h1>
+<div class="sub">2026-07-23 · project <code>lumberjacks-exp-20260711-djc</code> · evidence: HEARTH ledger, doc-adr benchmark artifacts, ADR-0025, read-only Monitoring API queries · companion register: <a href="DECISIONS-PENDING.md">DECISIONS-PENDING.md</a></div>
+
+<div class="verdicts">
+  <div class="v good"><b>Integration</b>PROVEN — first external caller through the door: 14/14 calls ok, profile-bounded, fully ledgered</div>
+  <div class="v good"><b>Quality</b>Local won — am4-moe 93.8 beat gemini-pro 90.6 &amp; flash 89.2 on the doc-adr task class</div>
+  <div class="v warn"><b>Latency</b>Gemini won — 19.8–28.1s vs 105.2s local (4–5×). The credits buy speed, not quality</div>
+  <div class="v bad"><b>The $36</b>Standing compute, not monitoring — 2 idle Reasoning Engines + the VM are billing <em>right now</em></div>
+</div>
+
+<h2>1 · What's proven</h2>
+
+<h3>Inbound — the first cloud citizen <span class="tag live">live 2026-07-21</span></h3>
+<div class="panel">
+  Studio ADK agent → Tailscale Funnel <code>omen.tail8e749c.ts.net</code> → Caddy <code>:8711</code>
+  (Host rewrite + key stamp) → HEARTH <code>:8710</code>. Caller <code>gcp-adk-test</code>, read-only
+  <code>research</code> profile, scoped to commandcenter (<a href="docs/adr/0025-funnel-caddy-stamps-identity-until-studio-can.md">ADR-0025</a>).
+  <ul>
+    <li><b>14 ledgered calls, 100% ok</b>: kernel_status ×4, read_file ×3, glob_files ×2, list_dir, git_status, <b>local_generate ×3</b>.</li>
+    <li>The 3 delegations fanned out to <code>am4-moe</code> (gpt-oss-120b), <code>omen-ollama</code> (qwen3-coder:30b), and <code>gcp-gemini</code> (flash) — a cloud agent borrowing home GPUs through the audited boundary. The three-plane doctrine held under a genuinely external caller.</li>
+    <li>Authorization model held: no header → denied until the stamp; identity resolved; absent-profile-denies untouched.</li>
+  </ul>
+</div>
+
+<h3>Outbound — the gemini rungs, measured <span class="tag live">benchmarked</span></h3>
+<table>
+  <tr><th>Backend</th><th>Model</th><th class="num">Quality (mean, 15-cell)</th><th class="num">Latency</th><th class="num">$ cost</th></tr>
+  <tr><td>am4-moe (sunk)</td><td>gpt-oss-120b</td><td class="num"><b>93.8</b></td><td class="num">105.2s</td><td class="num">0.00</td></tr>
+  <tr><td>gcp-gemini-pro (trial)</td><td>gemini-3.1-pro-preview</td><td class="num">90.6</td><td class="num">28.1s</td><td class="num">unpriced (honest-null)</td></tr>
+  <tr><td>gcp-gemini (trial)</td><td>gemini-3.5-flash</td><td class="num">89.2</td><td class="num">19.8s</td><td class="num">unpriced (honest-null)</td></tr>
+</table>
+<div class="sub">Source: <code>hearth/var/experiments/doc-adr-bench-20260721T161359Z-sweep/summary.json</code> — every dispatch pinned (<code>routed_by:"pinned:*"</code>) for a controlled comparison. The benchmark undercut the premise of the build it was gating — that's it working (L-2026-07-21-4).</div>
+
+<h2>2 · The $36 — diagnosed</h2>
+<div class="panel">
+  <p>Suspicion was "cloud monitoring exploding." The read-only Monitoring API says otherwise:</p>
+  <table>
+    <tr><th>Component</th><th>Evidence (2026-07-23 queries)</th><th>Dollar verdict</th></tr>
+    <tr><td>Logging ingest</td><td>287 MB / 7 days (docker stdout 136K entries/3d, Data-Access audit logs 41K/3d, syslog 25K/3d)</td><td>≈ $0 — inside 50 GiB/mo free tier</td></tr>
+    <tr><td>Monitoring ingest</td><td>130K <code>CreateTimeSeries</code> calls/3d (Ops Agent), <b>0 chargeable samples</b></td><td>≈ $0 — agent system metrics are free</td></tr>
+    <tr><td><b>Agent Engine standing compute</b></td><td><b>2 ReasoningEngines live in us-west1 since 2026-07-21 06:41 UTC</b>: <code>baseline</code> + <code>AGENT_DESIGNER_GENERATED_DO_NOT_DELETE</code> — billing vCPU/GiB-hrs while idle</td><td>~est $3.5/day <em>each</em>, still accruing</td></tr>
+    <tr><td>Compute Engine VM</td><td><code>comfy-lumberjacks-p7</code> (e2-medium, us-west1-b) since ~07-11 (Lumberjacks migration, separate experiment)</td><td>~est $1/day</td></tr>
+    <tr><td>Agent-session drawdown</td><td>$13.30 observed 07-21 ($196.72→$183.42, Studio banner)</td><td>$13.30 — component of the total</td></tr>
+  </table>
+  <p><b>Reconciliation ≈ $36–38. The meter runs on what's deployed, not what's thinking.</b>
+  Registered in the new spend ledger: <a href="knowledge/cloud_spend.json">knowledge/cloud_spend.json</a>
+  (<a href="contracts/cloud-spend.v1.schema.json">cloud-spend.v1</a>) — the first real-dollar artifact
+  beside the token-based ledger and <code>est_usd_saved</code>. All funded by trial credits so far; no out-of-pocket spend.</p>
+</div>
+
+<h3>Burn-stop actions <span class="tag hot">awaiting your go — billing continues until then</span></h3>
+<ul>
+  <li><b>Delete/undeploy both ReasoningEngines</b> (verify the Studio-generated <code>AGENT_DESIGNER…DO_NOT_DELETE</code> in the console first — the name is boilerplate, not a covenant). Redeploying later is cheap; ADR-0025's Caddy/Funnel path is independent of them.</li>
+    <li><b>Stop <code>comfy-lumberjacks-p7</code></b> when not actively integrating (restart is one gcloud command).</li>
+  <li>Optional hygiene (free-tier today, noise regardless): disable Data-Access audit logs (the "interim identity logging"), exclude docker stdout from the Ops Agent config.</li>
+</ul>
+
+<h2>3 · Paths forward — HEARTH</h2>
+<table>
+  <tr><th>Decision</th><th>Status</th><th>Assessment</th></tr>
+  <tr>
+    <td><b>Full three-agent build</b> (docx: Baseline Integration Steward → Release Evidence Auditor → GCP Ops Agent; shared foundation, read-only-first, fail-closed, sequential acceptance gates)</td>
+    <td><span class="tag wait">go/no-go — yours</span></td>
+    <td>The docx plan is architecturally sound and HEARTH-respecting ("Hearth remains the authority"). But the benchmark says quality isn't the cloud's edge, and the $36 says idle deployments are the cost shape. If built: <b>deploy-per-campaign, tear down after</b> — never standing. The cheaper alternative: keep the Track 2.0 pattern (thin Studio agent, session-scoped) and spend the effort on HEARTH-side tools (<code>repo_search</code>, <code>ledger_query</code>) that ANY caller benefits from, cloud or local.</td>
+  </tr>
+  <tr><td>URL-as-secret (ADR-0025 stamp)</td><td><span class="tag wait">revisit</span></td><td>Replace the Caddy stamp the day Studio ships MCP API-key auth ("Coming soon"). Until then: acceptable for read-only research profile only — do not widen the profile while the stamp stands.</td></tr>
+  <tr><td>Rate limiting on the Funnel path</td><td><span class="tag wait">deferred</span></td><td>Stock Caddy lacks it; xcaddy+caddy-ratelimit build was deferred. Fine at one test caller; required before a second cloud caller or any standing agent.</td></tr>
+  <tr><td>Real Vertex pricing in <code>gemini_pricing.py</code></td><td><span class="tag wait">open (DECISIONS-PENDING 07-21)</span></td><td>Now more valuable: with cloud_spend.json live, confirmed per-Mtok rates would let est-vs-real USD reconcile automatically instead of by hand.</td></tr>
+  <tr><td>Spend visibility</td><td><span class="tag live">seeded today</span></td><td>cloud-spend.v1 ledger created. Candidate next step: surface it on HEARTH-DASHBOARD next to <code>est_usd_saved</code>; a weekly billing-console glance beats building a billing-export pipeline at this scale.</td></tr>
+</table>
+
+<h2>4 · Paths forward — mechnet</h2>
+<ul>
+  <li><b>Routing policy is now evidence-backed</b>: quality-critical work stays on sunk local rungs (am4-moe earned top rank on a real task class); gemini rungs are the <em>latency</em> and <em>overflow</em> lane. Current backends.toml tagging (flash routable, pro pin-only) already encodes this — no change needed, the benchmark ratified it.</li>
+  <li><b>Trial runway healthy</b>: 2.17M / 200M tokens (1%). The binding constraint on GCP experiments is standing infrastructure, not token burn — the runway math should now include deployment-hours, which cloud_spend.json makes visible.</li>
+  <li><b>Cloud caller: citizen or experiment?</b> Recommendation: keep <code>gcp-adk-test</code> an experiment until (a) Studio ships real auth and (b) a recurring job exists that needs cloud-side session continuity. The moment it becomes standing, it needs: rate limiting, a dedicated profile (the docx's <code>cloud-steward</code>), and a teardown-by-default deployment habit.</li>
+  <li><b>Manifest gap</b>: the constellation-manifest schema (AM4) has no cost field — if spend should ever roll up constellation-level, that's a schema addition to make there. For now commandcenter's cloud_spend.json is the single home.</li>
+  <li><b>Identity logging, properly</b>: the "interim identity logging" (project-wide Data-Access audit logs) was the right instinct pointed at the wrong layer — HEARTH's ledger already captures caller identity for everything that crosses the door. GCP-side audit logging only adds value for <em>bypass</em> detection (Vertex-direct calls), which is exactly the sentinel gap already pinned in DECISIONS-PENDING (2026-07-16). Scope audit logs to that question or turn them off.</li>
+</ul>
+
+<h2>5 · Artifacts</h2>
+<ul>
+  <li><a href="knowledge/cloud_spend.json">knowledge/cloud_spend.json</a> + <a href="contracts/cloud-spend.v1.schema.json">contracts/cloud-spend.v1.schema.json</a> — NEW: real-dollar spend ledger (validated)</li>
+  <li><a href="docs/adr/0025-funnel-caddy-stamps-identity-until-studio-can.md">ADR-0025</a> · <a href="SESSION-RETRO-2026-07-21.md">SESSION-RETRO-2026-07-21</a> · <code>hearth/var/experiments/doc-adr-bench-*</code></li>
+  <li><a href="hearth/Hearth_Google_Agent_Implementation_Plan.docx">Hearth_Google_Agent_Implementation_Plan.docx</a> — the three-agent build plan (untracked; the go/no-go input)</li>
+  <li>LinkedIn article draft — <code>C:\work\writing\gcp-agent-behind-hearth-linkedin-2026-07-23.md</code> (awaiting your edit + publish cue)</li>
+</ul>
+
+<div class="foot">Generated 2026-07-23 by Claude (frontier) with HEARTH offload for the article first-pass (gcp-gemini). Diagnosis method: read-only Monitoring API timeSeries queries (bytes_ingested, samples_ingested, api/request_count, log_entry_count) + aiplatform reasoningEngines.list. No GCP configuration was changed.</div>
+
+</body>
+</html>

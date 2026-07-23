@@ -1,0 +1,37 @@
+{
+  "contract_version": "cloud-spend.v1",
+  "entries": [
+    {
+      "entry_id": "spend_gcp_2026_07_21_agent_session",
+      "date": "2026-07-21",
+      "provider": "gcp",
+      "project": "lumberjacks-exp-20260711-djc",
+      "amount_usd": 13.30,
+      "amount_kind": "observed",
+      "period_start": "2026-07-21",
+      "period_end": "2026-07-21",
+      "attribution": "Agent Platform Studio session — trial-credit drawdown during the first cloud-agent-behind-HEARTH session (ADR-0025 shakedown + doc-adr benchmark day).",
+      "evidence": "Studio billing banner: $196.72 -> $183.42, recorded in SESSION-RETRO-2026-07-21.md L336-341.",
+      "funded_by": "trial-credits",
+      "supersedes": null,
+      "notes": "First real-dollar observation to sit beside the est_usd_saved projection. Per-token Gemini pricing remains deliberately unverified (gemini_pricing.py honest-null).",
+      "authored_by": "derek via claude (registered 2026-07-23)"
+    },
+    {
+      "entry_id": "spend_gcp_2026_07_23_project_total",
+      "date": "2026-07-23",
+      "provider": "gcp",
+      "project": "lumberjacks-exp-20260711-djc",
+      "amount_usd": 36.00,
+      "amount_kind": "observed",
+      "period_start": "2026-07-11",
+      "period_end": "2026-07-23",
+      "attribution": "Cumulative project spend through the GCP agent-platform integration + shakedown period. Initially suspected to be Cloud Monitoring/logging ingest; diagnosis 2026-07-23 shows monitoring/logging is near-zero-dollar (0 chargeable samples, ~287 MB logs over 7d, inside free tier) and the dollars are standing compute: two Agent Engine ReasoningEngines deployed 2026-07-21 06:41/06:43 UTC ('baseline', 'AGENT_DESIGNER_GENERATED_DO_NOT_DELETE') billing vCPU/GiB-hours while idle (~est $13), the e2-medium VM comfy-lumberjacks-p7 since ~2026-07-11 (~est $12), and the $13.30 agent-session drawdown (see spend_gcp_2026_07_21_agent_session; that entry is a component of this total, not additive).",
+      "evidence": "Derek's console observation (~$36). Reconciliation via read-only Monitoring API queries 2026-07-23: serviceruntime request counts, logging.googleapis.com/billing/bytes_ingested, monitoring.googleapis.com/billing/samples_ingested (0 series), aiplatform reasoningEngines.list (2 live in us-west1).",
+      "funded_by": "trial-credits",
+      "supersedes": null,
+      "notes": "Estimated component split pending confirmation against the console billing report (no billing export exists for API-side SKU truth). Telemetry noise observed but not the cost driver: docker-container stdout 136K entries/3d via Ops Agent, Data Access audit logs enabled 41K entries/3d (the 'interim identity logging'), Ops Agent CreateTimeSeries 130K calls/3d. Remediations proposed in GCP-AGENT-ASSESSMENT.html.",
+      "authored_by": "derek via claude (registered 2026-07-23)"
+    }
+  ]
+}

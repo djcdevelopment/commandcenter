@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://commandcenter.local/contracts/cloud-spend.v1.schema.json",
+  "title": "CloudSpend v1",
+  "description": "Hand-authored ledger of REAL cloud dollar observations. Companion to the token-based HEARTH ledger and the est_usd_saved projection: this file records what a billing surface actually showed, never a figure derived from unverified per-token prices (the gemini_pricing.py honest-null convention). Append-only in spirit — corrections add a new entry that supersedes, they do not rewrite history. Every entry names its evidence and its author.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "entries"],
+  "properties": {
+    "contract_version": {
+      "const": "cloud-spend.v1"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "entry_id",
+          "date",
+          "provider",
+          "project",
+          "amount_usd",
+          "amount_kind",
+          "attribution",
+          "evidence",
+          "authored_by"
+        ],
+        "properties": {
+          "entry_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Stable unique id, e.g. spend_gcp_2026_07_23_monitoring."
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "Date the amount was observed (not necessarily incurred)."
+          },
+          "provider": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Cloud provider, e.g. gcp, azure, aws."
+          },
+          "project": {
+            "type": ["string", "null"],
+            "description": "Provider-side project/subscription id. Null if account-level."
+          },
+          "amount_usd": {
+            "type": "number",
+            "description": "Dollar amount as observed. Positive = spend/drawdown."
+          },
+          "amount_kind": {
+            "type": "string",
+            "enum": ["observed", "estimated"],
+            "description": "observed = read off a billing surface; estimated = reconstructed from rates or deltas. Estimates must say so."
+          },
+          "period_start": {
+            "type": ["string", "null"],
+            "format": "date",
+            "description": "Start of the period the amount covers, if known. Null = point observation."
+          },
+          "period_end": {
+            "type": ["string", "null"],
+            "format": "date",
+            "description": "End of the period the amount covers, if known."
+          },
+          "attribution": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What the money bought — service/category, best current understanding."
+          },
+          "evidence": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Where the number was seen (console page, banner, API query) — enough for someone else to re-check."
+          },
+          "funded_by": {
+            "type": ["string", "null"],
+            "description": "trial-credits | out-of-pocket | null when unknown."
+          },
+          "supersedes": {
+            "type": ["string", "null"],
+            "description": "entry_id this entry corrects/refines. Null for originals."
+          },
+          "notes": {
+            "type": ["string", "null"],
+            "description": "Free-form context: reconciliation math, open questions."
+          },
+          "authored_by": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Person or process that recorded this entry."
+          }
+        }
+      }
+    }
+  }
+}

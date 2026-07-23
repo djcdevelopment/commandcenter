@@ -207,6 +207,19 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
 - [ ] 2026-07-21 — Fill real Vertex AI per-Mtok pricing into `hearth/projection/gemini_pricing.py`
       (`gemini-3.5-flash`, `gemini-3.1-pro-preview` currently deliberately `None`/unpriced —
       honest-unknown, not a bug) once current rates are confirmed against Google's pricing page.
+- [ ] 2026-07-23 — **Stop the GCP standing-compute burn (the real "$36").** Diagnosis (read-only
+      Monitoring API, 2026-07-23) reconciled Derek's ~$36 console figure: NOT monitoring/logging
+      ingest (0 chargeable samples; ~287 MB logs/7d, inside free tier) — the dollars are standing
+      compute: **two Agent Engine ReasoningEngines live in us-west1 since 2026-07-21 06:41 UTC**
+      (`baseline` + `AGENT_DESIGNER_GENERATED_DO_NOT_DELETE`, billing vCPU/GiB-hours while idle,
+      ~est $3.5/day each) + the `comfy-lumberjacks-p7` e2-medium VM since ~07-11 (~est $1/day) +
+      the $13.30 agent-session drawdown. Decisions: (a) delete/undeploy the two ReasoningEngines
+      (the Studio-generated one despite its name — verify in console first), (b) stop the VM when
+      not integrating, (c) optionally disable the Data Access audit logs (41K entries/3d — the
+      "interim identity logging") and Ops Agent docker-stdout ingestion (136K entries/3d) — free-tier
+      today, noise regardless. Registered in the new spend ledger
+      [knowledge/cloud_spend.json](knowledge/cloud_spend.json) ([cloud-spend.v1](contracts/cloud-spend.v1.schema.json));
+      full findings in [GCP-AGENT-ASSESSMENT.html](GCP-AGENT-ASSESSMENT.html).
 - [ ] 2026-07-21 — Revisit [ADR-0025](docs/adr/0025-funnel-caddy-stamps-identity-until-studio-can.md)'s
       Caddy-stamped-key auth once Google Agent Platform Studio ships MCP Server API-key auth
       (currently "Coming soon") — switch to a real per-request header and drop the stamp. Also

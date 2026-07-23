@@ -204,17 +204,28 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       `hearth/projection/gemini_pricing.py`, `hearth/etc/caddy/Caddyfile`,
       `hearth/etc/start-hearth-funnel-proxy.cmd` (not asked for this session — see
       SESSION-RETRO-2026-07-21.md session 2, Operator/SRE).
-- [ ] 2026-07-21 — Fill real Vertex AI per-Mtok pricing into `hearth/projection/gemini_pricing.py`
-      (`gemini-3.5-flash`, `gemini-3.1-pro-preview` currently deliberately `None`/unpriced —
-      honest-unknown, not a bug) once current rates are confirmed against Google's pricing page.
+- [x] 2026-07-21 — Fill real Vertex AI per-Mtok pricing into `hearth/projection/gemini_pricing.py`
+      — DONE 2026-07-23, verified against Google's Vertex pricing page (Global/Standard, <=200K):
+      flash $1.50/$9.00, pro-preview $2.00/$12.00 (pro tiers to $4/$18 above 200K prompt tokens —
+      noted in the module, flat table carries the <=200K rates that match observed usage).
+      Cross-check: the pro rung's entire lifetime tokens (1.79M in / 119K out) price out to
+      ~$5.02 — corroborates the 2026-07-23 finding that the ~$36 was standing compute, not inference.
 - [ ] 2026-07-23 — **Stop the GCP standing-compute burn (the real "$36").** Diagnosis (read-only
       Monitoring API, 2026-07-23) reconciled Derek's ~$36 console figure: NOT monitoring/logging
       ingest (0 chargeable samples; ~287 MB logs/7d, inside free tier) — the dollars are standing
       compute: **two Agent Engine ReasoningEngines live in us-west1 since 2026-07-21 06:41 UTC**
       (`baseline` + `AGENT_DESIGNER_GENERATED_DO_NOT_DELETE`, billing vCPU/GiB-hours while idle,
       ~est $3.5/day each) + the `comfy-lumberjacks-p7` e2-medium VM since ~07-11 (~est $1/day) +
-      the $13.30 agent-session drawdown. Decisions: (a) delete/undeploy the two ReasoningEngines
-      (the Studio-generated one despite its name — verify in console first), (b) stop the VM when
+      the $13.30 agent-session drawdown. ⚠ 2026-07-23 engine inspection: `baseline` IS the deployed
+      ADK demo agent (`agentFramework: google-adk`) — deleting it deletes the Track 2.0 demo — and
+      it runs with `GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY=true` +
+      `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` (full message content into Cloud
+      Trace/Logging — the actual source of the 50K trace calls and the "identity logging" bloat;
+      also a privacy consideration: prompt/response bodies land in GCP logs). Corroboration: real
+      per-Mtok pricing (now in gemini_pricing.py) prices the pro rung's ENTIRE lifetime inference
+      at ~$5.02. Decisions: (a) delete/undeploy the two ReasoningEngines
+      (the Studio-generated one despite its name — verify in console first; accept losing the
+      standing demo, redeploy-per-campaign later), (b) stop the VM when
       not integrating, (c) optionally disable the Data Access audit logs (41K entries/3d — the
       "interim identity logging") and Ops Agent docker-stdout ingestion (136K entries/3d) — free-tier
       today, noise regardless. Registered in the new spend ledger

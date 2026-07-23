@@ -74,6 +74,18 @@
         "usd": { "type": "number", "minimum": 0 }
       }
     },
+    "real_usd_spent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pricing_source", "usd", "priced_calls", "unpriced_calls"],
+      "description": "Real $ over TRIAL calls priced by gemini_pricing (verified rates). Optional: absent on documents built before 2026-07-23. usd is a floor -- unpriced_calls counts trial calls that could not be priced (unlisted model or null tokens).",
+      "properties": {
+        "pricing_source": { "type": "string" },
+        "usd": { "type": "number", "minimum": 0 },
+        "priced_calls": { "type": "integer", "minimum": 0 },
+        "unpriced_calls": { "type": "integer", "minimum": 0 }
+      }
+    },
     "buckets": {
       "type": "array",
       "items": {
@@ -94,6 +106,7 @@
           "ok_rate": { "type": "number", "minimum": 0, "maximum": 1 },
           "tokens_in": { "type": "integer", "minimum": 0 },
           "tokens_out": { "type": "integer", "minimum": 0 },
+          "real_usd": { "type": ["number", "null"], "minimum": 0 },
           "last_seen": { "type": ["string", "null"] }
         }
       }

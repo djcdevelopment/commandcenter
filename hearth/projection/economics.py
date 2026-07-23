@@ -22,7 +22,13 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from hearth.projection.gemini_pricing import cost_usd
+
 DEFAULT_LEDGER = Path("hearth/var/ledger/events.ndjson")
+
+# Rides offload.v1's real_usd_spent block so a reader knows which price table
+# produced the number without opening gemini_pricing.py.
+REAL_PRICING_SOURCE = "vertex-ai-pricing verified 2026-07-23 (global/standard, <=200K tier)"
 
 COST_CLASS_MAP = {
     "omen-ollama": "sunk",
@@ -156,6 +162,11 @@ def build_offload_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
         "trial": {"calls": 0, "tokens_in": 0, "tokens_out": 0},
         "unknown": {"calls": 0, "tokens_in": 0, "tokens_out": 0},
     }
+    # Real-dollar accounting over TRIAL calls only: sunk is $0 by definition and
+    # unknown is unpriceable. unpriced_calls counts trial calls cost_usd could
+    # not price (unlisted model, or null token counts -- the legacy zero-token
+    # buckets land here), so the usd figure is honestly a floor, not a total.
+    real = {"usd": 0.0, "priced_calls": 0, "unpriced_calls": 0}
     buckets_data = {}
     newest_ts: str | None = None
     newest_moment: datetime | None = None
@@ -200,6 +211,7 @@ def build_offload_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
                 "ok": 0,
                 "tokens_in": 0,
                 "tokens_out": 0,
+                "real_usd": None,
                 "last_seen": None,
                 # Internal ordering key only -- the emit loop below builds each
                 # bucket field-by-field, so this never reaches the document.
@@ -227,6 +239,19 @@ def build_offload_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
             per_class[cost_class]["tokens_in"] += tokens_in
             per_class[cost_class]["tokens_out"] += tokens_out
 
+            if cost_class == "trial":
+                # Raw (possibly-null) token counts on purpose: cost_usd returns
+                # None for an unpriceable call, and that must count as unpriced
+                # rather than silently pricing null as zero tokens.
+                call_usd = cost_usd(backend, model or None,
+                                    cost.get("tokens_in"), cost.get("tokens_out"))
+                if call_usd is None:
+                    real["unpriced_calls"] += 1
+                else:
+                    real["usd"] += call_usd
+                    real["priced_calls"] += 1
+                    acc["real_usd"] = (acc["real_usd"] or 0.0) + call_usd
+
             ts = event.get("ts")
             if isinstance(ts, str):
                 # Order by parsed instant, emit the original string (see _parse_ts).
@@ -241,6 +266,14 @@ def build_offload_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
 
     buckets = []
     for bk, acc in buckets_data.items():
+        # real_usd semantics: sunk -> 0.0 (known free), trial -> priced sum or
+        # None when nothing in the bucket was priceable, unknown -> None.
+        if acc["cost_class"] == "sunk":
+            bucket_real_usd = 0.0
+        elif acc["real_usd"] is not None:
+            bucket_real_usd = round(acc["real_usd"], 6)
+        else:
+            bucket_real_usd = None
         buckets.append({
             "backend": acc["backend"],
             "cost_class": acc["cost_class"],
@@ -249,6 +282,7 @@ def build_offload_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
             "ok_rate": round(acc["ok"] / acc["calls"], 4) if acc["calls"] else 0.0,
             "tokens_in": acc["tokens_in"],
             "tokens_out": acc["tokens_out"],
+            "real_usd": bucket_real_usd,
             "last_seen": acc["last_seen"],
         })
 
@@ -276,6 +310,12 @@ def build_offload_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
             "input_per_mtok": 3.0,
             "output_per_mtok": 15.0,
             "usd": round(usd, 6)
+        },
+        "real_usd_spent": {
+            "pricing_source": REAL_PRICING_SOURCE,
+            "usd": round(real["usd"], 6),
+            "priced_calls": real["priced_calls"],
+            "unpriced_calls": real["unpriced_calls"],
         },
         "buckets": buckets,
         "corpus_digest": corpus_digest,

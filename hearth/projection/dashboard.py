@@ -188,6 +188,19 @@ def build_dashboard_html(knowledge_dir: Path, ledger_path: Path, now_iso: str | 
     html_lines.append('</div>')
 
     html_lines.append('<div style="flex: 1; min-width: 200px;">')
+    html_lines.append('<h3>Real USD Spent (trial)</h3>')
+    real_block = offload.get("real_usd_spent") or {}
+    real_usd = real_block.get("usd")
+    if isinstance(real_usd, (float, int)):
+        unpriced = real_block.get("unpriced_calls")
+        suffix = f' <span style="font-size: 0.5em; color: var(--muted);">({_fmt_num(unpriced)} unpriced)</span>' if unpriced else ""
+        real_str = f"${real_usd:.2f}{suffix}"
+    else:
+        real_str = "—"
+    html_lines.append(f'<div class="metric" style="color: var(--warn, var(--muted));">{real_str}</div>')
+    html_lines.append('</div>')
+
+    html_lines.append('<div style="flex: 1; min-width: 200px;">')
     html_lines.append('<h3>Trial Burn</h3>')
     html_lines.append(f'<div class="metric" style="font-size: 1.2em; margin-bottom: 4px;">{burn_str}</div>')
     html_lines.append(bar_html)

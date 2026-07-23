@@ -122,6 +122,41 @@ class EconomicsTests(TestCase):
 
         self.assertEqual(len(doc["buckets"]), 4)
 
+    def test_real_usd_spent_prices_trial_calls_and_counts_unpriceable(self) -> None:
+        """real_usd_spent is a floor over TRIAL calls only: a listed model with
+        token counts is priced from GEMINI_PRICING_USD_PER_MTOK; an unlisted
+        model or null tokens counts as unpriced rather than pricing as $0; sunk
+        buckets report real_usd 0.0 (known free), never None (unknown)."""
+        from hearth.projection.economics import build_offload_document
+        from hearth.projection.gemini_pricing import GEMINI_PRICING_USD_PER_MTOK
+
+        rates = GEMINI_PRICING_USD_PER_MTOK["gemini-3.5-flash"]
+        events = [
+            # trial, priced: listed model with real token counts
+            {"schema": "hearth-event.v1", "ts": "2026-07-23T00:00:00Z", "task_class": "inference", "tool": "local_generate", "backend": "gcp-gemini", "model": "gemini-3.5-flash", "ok": True, "cost": {"tokens_in": 1_000_000, "tokens_out": 100_000}},
+            # trial, unpriced: legacy model-fallback bucket, model not in the table
+            {"schema": "hearth-event.v1", "ts": "2026-07-23T01:00:00Z", "task_class": "inference", "tool": "local_generate", "backend": None, "model": "gemini-1.5", "ok": True, "cost": {"tokens_in": 500, "tokens_out": 1000}},
+            # trial, unpriced: listed model but null token counts (legacy zero-token row)
+            {"schema": "hearth-event.v1", "ts": "2026-07-23T02:00:00Z", "task_class": "inference", "tool": "local_generate", "backend": "gcp-gemini", "model": "gemini-3.5-flash", "ok": True, "cost": {"tokens_in": None, "tokens_out": None}},
+            # sunk: never enters real accounting, bucket reports 0.0
+            {"schema": "hearth-event.v1", "ts": "2026-07-23T03:00:00Z", "task_class": "inference", "tool": "local_generate", "backend": "omen-ollama", "model": "qwen", "ok": True, "cost": {"tokens_in": 1000, "tokens_out": 2000}},
+        ]
+        self.write_ledger(events)
+
+        doc = build_offload_document(self.ledger)
+
+        expected = round((1_000_000 * rates["input"] + 100_000 * rates["output"]) / 1_000_000.0, 6)
+        real = doc["real_usd_spent"]
+        self.assertEqual(real["usd"], expected)
+        self.assertEqual(real["priced_calls"], 1)
+        self.assertEqual(real["unpriced_calls"], 2)
+        self.assertIn("pricing_source", real)
+
+        by_backend = {b["backend"]: b for b in doc["buckets"]}
+        self.assertEqual(by_backend["gcp-gemini"]["real_usd"], expected)
+        self.assertIsNone(by_backend["model:gemini-1.5"]["real_usd"])
+        self.assertEqual(by_backend["omen-ollama"]["real_usd"], 0.0)
+
 
 class TimestampOrderingTests(TestCase):
     """evidence_watermark / last_seen must be ordered by INSTANT, not by string.

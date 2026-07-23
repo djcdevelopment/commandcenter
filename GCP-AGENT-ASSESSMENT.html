@@ -105,8 +105,8 @@
   </tr>
   <tr><td>URL-as-secret (ADR-0025 stamp)</td><td><span class="tag wait">revisit</span></td><td>Replace the Caddy stamp the day Studio ships MCP API-key auth ("Coming soon"). Until then: acceptable for read-only research profile only — do not widen the profile while the stamp stands.</td></tr>
   <tr><td>Rate limiting on the Funnel path</td><td><span class="tag wait">deferred</span></td><td>Stock Caddy lacks it; xcaddy+caddy-ratelimit build was deferred. Fine at one test caller; required before a second cloud caller or any standing agent.</td></tr>
-  <tr><td>Real Vertex pricing in <code>gemini_pricing.py</code></td><td><span class="tag wait">open (DECISIONS-PENDING 07-21)</span></td><td>Now more valuable: with cloud_spend.json live, confirmed per-Mtok rates would let est-vs-real USD reconcile automatically instead of by hand.</td></tr>
-  <tr><td>Spend visibility</td><td><span class="tag live">seeded today</span></td><td>cloud-spend.v1 ledger created. Candidate next step: surface it on HEARTH-DASHBOARD next to <code>est_usd_saved</code>; a weekly billing-console glance beats building a billing-export pipeline at this scale.</td></tr>
+  <tr><td>Real Vertex pricing in <code>gemini_pricing.py</code></td><td><span class="tag live">DONE 07-23</span></td><td>Verified against Google's pricing page (Global/Standard ≤200K): flash $1.50/$9.00, pro $2.00/$12.00 per Mtok. Cross-check: the pro rung's entire lifetime inference prices at ~$5.02 — corroborates the standing-compute diagnosis.</td></tr>
+  <tr><td>Spend visibility</td><td><span class="tag live">DONE 07-23</span></td><td>cloud-spend.v1 hand ledger + automatic <code>real_usd_spent</code> in the offload projection (live-ledger floor: <b>$5.53</b> across 88 priced trial calls, 152 legacy unpriced counted honestly) — real inference cost now renders on the dashboard beside <code>est_usd_saved</code> ($11.20). Effective in knowledge/ on next gateway-side rebuild.</td></tr>
 </table>
 
 <h2>4 · Paths forward — mechnet</h2>

@@ -43,7 +43,7 @@
 [meta]
 tailnet = "tail8e749c.ts.net"
 hyperv_host = "omen"
-updated = "2026-07-11"
+updated = "2026-07-23"
 ssh_user = "claude"          # default ssh user for reachability/health probes
 
 # --- Physical hosts (tailnet members) ---------------------------------------
@@ -101,7 +101,8 @@ address = "100.125.141.110"
 alt = ["i5-laptop.tail8e749c.ts.net"]
 via = "tailnet"
 expect = "optional"
-purpose = "Portable demo/edge node. Normally offline -- not part of the SPINE baseline."
+purpose = "Portable demo/edge node + second Valheim test client (baseline deploy target). Normally offline -- not part of the SPINE baseline."
+note = "2026-07-23: push-deploy lane LIVE from C:\\work\\baseline (tools\\i5): ssh alias `i5` in OMEN ~/.ssh/config -> i5-laptop.tail8e749c.ts.net as user admin, key = OMEN id_ed25519 (already authorized on the node; host = DESKTOP-T685KEI). Deploy-ToI5.ps1 = SHA256-verified push; staging root C:\\deploy\\baseline on the node; -ValheimPlugins targets the live BepInEx plugins dir. Tailnet is the SANCTIONED lane here -- ADR-0014 reserves Tailscale for human/roaming access and names the i5 as that roamer; this is operator dev tooling, not the machine control loop. Offline stays a normal state: probe, report, never retry-loop."
 checks = [
   { service = "ssh", port = 22 },
 ]

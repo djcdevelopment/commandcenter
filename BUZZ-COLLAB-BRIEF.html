@@ -160,6 +160,25 @@ router → <b>am4 rungs</b> (gpt-oss-120b :8082)</div>
 </table>
 <blockquote>"A community is only as private as its membership is trustworthy." … consent panel: "prompts from other members run on your hardware."<span class="who">— VISION_MESH.md, stating the trust model honestly: membership <em>is</em> the security boundary</span></blockquote>
 
+<h2>5.5 · The operational envelope — what mesh-llm leaves to us</h2>
+<div class="panel verdict">
+  <p><b>Key reframe (surfaced 2026-07-24): mesh-llm is a capacity provider, not a scheduler.</b> Read-only inspection of its full runtime surface shows it exposes <em>placement</em> levers and deliberately <em>nothing</em> for lifecycle, priority, or multi-tenant isolation. That missing layer is exactly what our fleet already is (job-shop scheduler + ADR-0018 tenancy + offload router). So the integration is <b>not "run mesh-llm and join" — it's "our scheduler owns the envelope; mesh-llm serves inside it."</b></p>
+</div>
+<table>
+  <tr><th>Axis (nobody asked)</th><th>What mesh-llm exposes</th><th>Who owns it → our answer</th></tr>
+  <tr><td><b>Context size</b></td><td><code>--ctx-size</code>; default <b>auto-scales to fill VRAM</b> (why E1 grabbed 131k / 6.5 GB KV unasked)</td><td>Operator. Pin a sane ceiling per contributed model — don't let it greedily eat the card.</td></tr>
+  <tr><td><b>VRAM envelope</b></td><td><code>--max-vram</code> (GB cap on planning + <b>mesh advertisement</b>) · <code>--device</code> (single-card pin) · <code>--flavor vulkan</code> · <code>--no-enumerate-host</code> (don't broadcast our hw)</td><td>Ours. These are the co-existence knobs — see tenancy row.</td></tr>
+  <tr><td><b>Reset / KV lifecycle</b></td><td><span class="tag t-bad">nothing</span> — 4 lanes, no per-caller isolation, no eviction/reset surface</td><td>Unowned risk. In a shared node, guests share slots with no tenant boundary. Mitigate by not co-mingling our callers with guests on one node.</td></tr>
+  <tr><td><b>When/how to load</b></td><td><code>load</code>/<code>unload</code> = manual imperative; <span class="tag t-warn">no lazy/on-demand/pin/TTL policy</span>; 6.7-min cold load for big models</td><td>Ours. <b>Preload during a scheduled window</b>, never lazy-load on a guest request. Load latency is a scheduler input, not a runtime surprise.</td></tr>
+  <tr><td><b>Priority / preemption</b></td><td><span class="tag t-bad">nothing</span> — no priority, fairness, queue, or preemption; assumes the node is dedicated</td><td>Ours entirely. <b>Guest work never preempts resident work</b> → mesh = pin-only idle-window tenant, same class as <code>oxen</code>.</td></tr>
+</table>
+<h3>Tenancy options, now concrete</h3>
+<ul>
+  <li><b>Pin-only window (default):</b> stop the 120B (it needs <em>both</em> cards — cannot co-reside), give the whole box to mesh for a scheduled window, restore. Proven by E1/E4.</li>
+  <li><b>Single-card co-residency (new, via <code>--device</code>):</b> a single-card tenant (e.g. <code>b70-critic</code> on one card) keeps serving while mesh-llm takes the other card capped by <code>--max-vram</code>. Untested but the flags exist.</li>
+  <li><b>Proxy-in-place (unverified, high value):</b> advanced help leaked a config <code>url = "http://gpu-box:8000/v1"</code> + "client-only mode" — mesh-llm may be able to <b>front our running 120B at <code>:8082</code></b> as a mesh capacity source with <b>zero card allocation and nothing stopped</b>. This would overturn the research finding that mesh-llm can't proxy an external endpoint. <span class="tag t-ember">verify next — it could dissolve the tenancy conflict entirely</span></li>
+</ul>
+
 <h2>6 · Open questions for your friend</h2>
 <ol>
   <li><span class="qnum">Q1</span><b>Which shape is live?</b> Full Buzz Mesh (relay-gated) or standalone mesh-llm with invite tokens? What did fleet testing show about the difference?</li>
@@ -169,6 +188,9 @@ router → <b>am4 rungs</b> (gpt-oss-120b :8082)</div>
   <li><span class="qnum">Q5</span>Has anyone in your swarm run a <b>non-Metal node</b>? (We'd be the first Arc/Vulkan node anyone's documented — worth coordinating the writeup.)</li>
   <li><span class="qnum">Q6</span>What are your Mac agents consuming through <code>localhost:9337</code> — goose? Claude Code? — and would a <b>boring Lane-A endpoint</b> (120B MoE behind a personal key) be useful as the reliable fallback while the mesh is experimental?</li>
   <li><span class="qnum">Q7</span><b>Contribution windows:</b> our cards are a scheduled resource (resident 120B tenant). Which hours/days actually matter for your testing so windows land where they help?</li>
+  <li><span class="qnum">Q8</span><b>Context &amp; KV under sharing (operator-grade):</b> mesh-llm auto-scales context to fill VRAM and gives no per-caller KV reset. In your fleet, who sets the context ceiling, and have you hit cache-bleed or slot contention when multiple consumers hit one node? How do you cap it?</li>
+  <li><span class="qnum">Q9</span><b>Priority &amp; load policy:</b> mesh-llm has no preemption/queue and manual load only. You run cloud swarms — how do you keep guest inference from starving owner work, and do you preload or lazy-load? (This is the layer we'd wrap with our scheduler; want to compare notes.)</li>
+  <li><span class="qnum">Q10</span><b>Proxy path:</b> can a node advertise an <em>existing</em> OpenAI-compatible endpoint into the mesh (the <code>url = …/v1</code> config), or must it host its own GGUF? If proxy works, we contribute our running 120B with zero downtime.</li>
 </ol>
 
 <h2>7 · Recommended sequence</h2>

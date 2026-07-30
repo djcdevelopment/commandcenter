@@ -2,6 +2,17 @@
 Description=B70 MoE - gpt-oss-120b dual-card SYCL0+SYCL1 :8082 (resident mechnet asset)
 After=default.target
 
+# The gguf lives on /mnt/win, whose fstab entry is `nofail` -- so NOTHING waits
+# for it and this unit loses the race at every boot. Measured 2026-07-30:
+#   14:45:41 Mounting mnt-win.mount
+#   14:45:42 b70-moe Started
+#   14:45:43 gguf_init_from_file: No such file or directory -> status 6/ABRT
+#   14:45:45 Mounted mnt-win.mount   (2 s too late)
+# That burned one of only 3 allowed starts on every single boot. This pulls in
+# Requires= + After= on mnt-win.mount, so a missing disk cleanly declines to
+# start instead of core-dumping.
+RequiresMountsFor=/mnt/win
+
 # --- EXCLUSIVE CARD CLAIM (added 2026-07-30) --------------------------------
 # gpt-oss-120b needs ~26 GiB on EACH card. A resident planner (Qwen3-30B,
 # 17.3 GiB on SYCL0) or critic makes this load impossible. On 2026-07-30 the

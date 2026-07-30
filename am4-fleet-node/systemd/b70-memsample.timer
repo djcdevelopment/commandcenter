@@ -1,0 +1,11 @@
+[Unit]
+Description=Sample AM4 host-memory attribution every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Unit=b70-memsample.service
+
+[Install]
+WantedBy=timers.target

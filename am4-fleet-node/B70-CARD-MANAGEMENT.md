@@ -95,6 +95,50 @@ Measured on this box: critic at **32k ctx = 7.8 GiB host RSS**; dropping it to *
 - OOM signature: `journalctl --user -u b70-planner | grep -i oom-kill`. Gate-refusal loop signature:
   `journalctl --user -u b70-planner | grep NOTIMPLEMENTED` (status=3 = the preflight exit).
 
+### Where the memory actually is — and how to prove it (2026-07-30)
+
+**`free` and RSS cannot answer this question**, and comparing them is what produced the "~18 GiB
+unaccounted" reading. Two traps:
+
+1. **The ggufs are `mmap`'d.** Model bytes land in **page cache** (`Cached`), not in RSS and not in
+   `AnonPages`. A healthy loaded MoE shows `used` ≈ 2 GiB with `Cached` ≈ 27 GiB. Summing RSS and
+   comparing it to `used` compares two things that were never meant to match.
+2. **Kernel/driver memory is in neither.** GPU-driver pinned pages and zram's compressed pages are
+   invisible to RSS *and* excluded from `Cached` — they just inflate `used` with no owner.
+
+The honest metric is **`used` minus everything nameable**:
+
+```
+used         = MemTotal - MemFree - Buffers - Cached - SReclaimable
+unattributed = used - AnonPages - SUnreclaim - KernelStack - PageTables
+                    - SecPageTables - Percpu - zram_mem_used
+```
+
+`scripts/b70-memsample.sh` computes exactly this every 5 min (`b70-memsample.timer`) into
+`~/baseline/b70-memsample.log`, and shouts into journal tag `b70-alert` above 6 GiB.
+
+| | healthy baseline (2026-07-30 post-reboot) | the incident |
+| --- | --- | --- |
+| `used` | 2.1 GiB | ~25 GiB |
+| `unattributed` | **1.27 GiB** | **~18 GiB** |
+
+**A ~1.2 GiB unattributed pool is normal on this box.** Sustained growth beyond that is the signal.
+Prime suspect for the incident: host memory pinned by **SIGKILL'd SYCL/Level-Zero contexts** — 82
+OOM-killed loads in one afternoon, each dying by SIGKILL with GPU contexts open. A **reboot cleared it
+completely**, which is itself evidence it was kernel/driver-side rather than a process leak. The
+`Conflicts=` + start-limit hardening above is therefore also the primary *prevention*: that loop can
+now run at most 3 times instead of 82.
+
+⚠ **zram is NOT the phantom.** It is **demand-allocated, not a reservation** — an 8 GiB zram device
+consumes only what is actually swapped into it, compressed. Measured here: 340 MB of data compressed
+to 129 MB, **142 MiB of real RAM** for an 8 GiB device. It also does not reduce `MemTotal`; it adds
+8 GiB to `SwapTotal` (alongside the 16 GiB `/swap.img`). Read it straight:
+
+```bash
+zramctl                          # DATA vs COMPR vs TOTAL (TOTAL = real RAM consumed)
+awk '{print $3}' /sys/block/zram0/mm_stat    # mem_used, bytes
+```
+
 ## Launch recipe (SYCL llama-server)
 
 **Always `source /opt/intel/oneapi/setvars.sh` first** — the SYCL build needs the oneAPI runtime
@@ -163,6 +207,27 @@ lock a unit out with "start request repeated too quickly". The escape hatch:
 ```bash
 systemctl --user reset-failed b70-moe
 ```
+
+### The `/mnt/win` boot race (fixed 2026-07-30)
+
+`b70-moe` and `b70-critic` load their ggufs from **`/mnt/win`**, whose fstab entry is `nofail` — so
+**nothing waits for it** and the units lost the race on every boot. Caught within minutes of the
+`OnFailure` hook going in:
+
+```
+14:45:41  Mounting mnt-win.mount...
+14:45:42  Started b70-moe.service
+14:45:43  gguf_init_from_file: failed to open ... (No such file or directory)  -> status 6/ABRT
+14:45:45  Mounted mnt-win.mount          <-- 2 s too late
+```
+
+It self-healed on the 15 s restart, which is exactly why it went unnoticed for so long — but it burned
+one of only **3** allowed starts at every boot. Fix: **`RequiresMountsFor=/mnt/win`** on both units
+(pulls in `Requires=` + `After=` on `mnt-win.mount`), so a missing disk cleanly declines to start
+instead of core-dumping. `b70-planner` does **not** need it — its model is on `~/baseline`.
+
+⚠ **A failing unit that a restart papers over is still a failing unit.** Nothing was watching
+`NRestarts`, so a guaranteed-every-boot crash was invisible. That is the gap `b70-alert` closes.
 Manage them:
 ```bash
 systemctl --user status  b70-planner b70-critic
@@ -252,9 +317,28 @@ Implications for the fleet's monitoring — **no card contention exists, so noth
 
 ```bash
 curl -s :8080/health ; curl -s :8081/health            # per-slot serve-truth
+curl -s :8082/health                                   # the MoE
 curl -s :8090/v1/models -H "Authorization: Bearer $AM4_OXEN_TOKEN"   # facade aliases + ready
 clinfo | grep -iE 'Device Name|Global memory'          # card totals
 tr '\0' ' ' < /proc/$(pgrep -x llama-server)/cmdline   # which -dev SYCL<n> a server uses
-# per-card free VRAM appears in the llama-server startup log: "SYCL0 … MiB free"
+```
+
+⚠ **Port-open ≠ model-ready.** `llama-server` binds its port *before* loading the model, so a TCP
+probe goes green while the model is still loading — this is why monitoring stayed green through the
+2026-07-30 incident. **`/health` is the honest check**: it returns `503 {"error":{"message":"Loading
+model"}}` until the weights are actually resident. A 120b load off the `/mnt/win` ntfs3 mount takes
+**several minutes**; that is normal, not a hang.
+
+**Live per-card VRAM (corrected 2026-07-30):** drm fdinfo **does** see SYCL/Level-Zero allocations
+under the `xe` driver — the earlier "fdinfo is blind to SYCL" note was wrong (it was likely read
+before the load finished, when the counters legitimately show ~65 MiB). Verified against a loaded
+gpt-oss-120b: 28.10 GiB + 24.44 GiB across the two pdevs. This is a live probe; the startup log only
+tells you what was free *before* loading.
+
+```bash
+p=$(pgrep -x llama-server | head -1)
+for f in /proc/$p/fdinfo/*; do grep -q '^drm-driver' "$f" || continue
+  awk '/^drm-pdev:/{d=$2} /^drm-resident-vram0:/{if($2>0) printf "  %s  %.2f GiB\n", d, $2/1048576}' "$f"
+done
 ```
 `AM4_OXEN_TOKEN` lives in OMEN `hearth/var/gateway.cmd` and AM4 `~/.config/am4-fleet/oxen.env`.

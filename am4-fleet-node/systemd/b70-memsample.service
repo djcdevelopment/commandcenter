@@ -1,0 +1,10 @@
+[Unit]
+Description=Sample attributed host-memory breakdown on AM4
+# Read-only forensics for the 2026-07-30 phantom-RAM incident. Driven by
+# b70-memsample.timer; no [Install] -- enable the TIMER, not this.
+
+[Service]
+Type=oneshot
+ExecStart=/home/derek/baseline/b70-memsample.sh
+Nice=10
+IOSchedulingClass=idle

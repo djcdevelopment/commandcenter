@@ -37,9 +37,43 @@ param(
 )
 
 $ErrorActionPreference = 'Continue'
-$repoRoot  = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$installer = Join-Path $env:LOCALAPPDATA 'Ollama\OllamaSetup.exe'
-$problems  = New-Object System.Collections.Generic.List[string]
+$repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$problems = New-Object System.Collections.Generic.List[string]
+
+function Find-CachedInstaller {
+    <#
+      Ollama's updater stages the real payload under updates_v2\<sha256>\OllamaSetup.exe --
+      NOT at the top of %LOCALAPPDATA%\Ollama, which is where a stale copy can sit. The
+      first version of this script pointed at the stale copy; running it deleted itself and
+      installed nothing, which cost a round trip. Prefer the staging area, newest first.
+    #>
+    $candidates = @()
+    $staging = Join-Path $env:LOCALAPPDATA 'Ollama\updates_v2'
+    if (Test-Path $staging) {
+        $candidates += Get-ChildItem -Path $staging -Filter 'OllamaSetup.exe' -Recurse -ErrorAction SilentlyContinue
+    }
+    $topLevel = Join-Path $env:LOCALAPPDATA 'Ollama\OllamaSetup.exe'
+    if (Test-Path $topLevel) { $candidates += Get-Item $topLevel }
+    return $candidates | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+}
+
+function Test-InstallerTrust($file) {
+    <#
+      Refuse to launch an unsigned or incomplete payload. An interrupted download is the
+      leading suspect for how lib\ollama got emptied in the first place, so running a
+      half-file is exactly the failure this is meant to end, not repeat.
+    #>
+    $sig = Get-AuthenticodeSignature $file.FullName
+    $okSig  = ($sig.Status -eq 'Valid')
+    $okSize = ($file.Length -gt 500MB)   # real payload is ~1.5 GB; a stub is not it
+    return [pscustomobject]@{
+        Ok      = ($okSig -and $okSize)
+        Status  = $sig.Status
+        Signer  = $sig.SignerCertificate.Subject
+        Version = $file.VersionInfo.FileVersion
+        SizeGb  = [math]::Round($file.Length / 1GB, 3)
+    }
+}
 
 function Say-Check($ok, $label, $detail) {
     $mark = if ($ok -eq $true) { '  [ ok ]' } elseif ($ok -eq $false) { '  [FAIL]' } else { '  [ -- ]' }
@@ -137,26 +171,41 @@ $before = Test-OllamaPosture
 
 if ($Repair) {
     Write-Host ''
-    if (-not (Test-Path $installer)) {
-        Write-Host "Cannot repair: no cached installer at $installer" -ForegroundColor Red
-        Write-Host 'Either install from ollama.com, or: winget upgrade --id Ollama.Ollama'
+    $installer = Find-CachedInstaller
+    if (-not $installer) {
+        Write-Host 'Cannot repair: no cached OllamaSetup.exe found under %LOCALAPPDATA%\Ollama' -ForegroundColor Red
+        Write-Host 'Fall back to winget (downloads fresh):'
+        Write-Host '  winget upgrade --id Ollama.Ollama --accept-source-agreements' -ForegroundColor Cyan
         exit 1
     }
-    $sizeGb = [math]::Round((Get-Item $installer).Length / 1GB, 2)
-    Write-Host "Repairing from the cached payload ($sizeGb GB, nothing downloaded):" -ForegroundColor Yellow
-    Write-Host "  $installer"
-    Write-Host '  Let it finish -- an interrupted update is the leading suspect for how'
-    Write-Host '  lib\ollama was emptied in the first place.'
+    $trust = Test-InstallerTrust $installer
+    Write-Host 'Cached payload found (nothing will be downloaded):' -ForegroundColor Yellow
+    Write-Host "  path      : $($installer.FullName)"
+    Write-Host "  version   : $($trust.Version)   size: $($trust.SizeGb) GB"
+    Write-Host "  signature : $($trust.Status)"
+    if (-not $trust.Ok) {
+        Write-Host ''
+        Write-Host 'REFUSING to launch it: signature or size does not check out. An interrupted' -ForegroundColor Red
+        Write-Host 'download is the leading suspect for how lib\ollama was emptied, so running a' -ForegroundColor Red
+        Write-Host 'half-file would repeat the failure rather than fix it. Use winget instead:' -ForegroundColor Red
+        Write-Host '  winget upgrade --id Ollama.Ollama --accept-source-agreements' -ForegroundColor Cyan
+        exit 1
+    }
+    Write-Host "  signer    : $($trust.Signer.Split(',')[0])"
     Write-Host ''
-    Start-Process -FilePath $installer -Wait
-    Write-Host 'Installer exited. Re-checking...' -ForegroundColor Yellow
-    Start-Sleep -Seconds 5
+    Write-Host 'Launching. Let it run to completion -- a cancelled install is what leaves the' -ForegroundColor Yellow
+    Write-Host 'runtime half-removed. Accept the UAC prompt if one appears.' -ForegroundColor Yellow
+    Write-Host ''
+    Start-Process -FilePath $installer.FullName -Wait
+    Write-Host 'Installer exited. Giving the service a moment, then re-checking...' -ForegroundColor Yellow
+    Start-Sleep -Seconds 8
     $after = Test-OllamaPosture
     if ($after) {
         Write-Host 'REPAIRED: Ollama is serviceable.' -ForegroundColor Green
         exit 0
     }
     Write-Host "STILL BROKEN: $($problems -join '; ')" -ForegroundColor Red
+    Write-Host 'Next: winget upgrade --id Ollama.Ollama --accept-source-agreements' -ForegroundColor Cyan
     exit 1
 }
 

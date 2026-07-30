@@ -1,0 +1,47 @@
+[Unit]
+Description=B70 MoE - gpt-oss-120b dual-card SYCL0+SYCL1 :8082 (resident mechnet asset)
+After=default.target
+
+# --- EXCLUSIVE CARD CLAIM (added 2026-07-30) --------------------------------
+# gpt-oss-120b needs ~26 GiB on EACH card. A resident planner (Qwen3-30B,
+# 17.3 GiB on SYCL0) or critic makes this load impossible. On 2026-07-30 the
+# planner was resident and this unit OOM-crash-looped 82 times over 5h17m.
+# Conflicts= makes that collision impossible to express: starting this unit
+# stops the other two first.
+#
+# It is a SAFETY NET, not a topology selector. systemd resolves conflicts when
+# it builds a transaction, so two conflicting units both sitting in
+# default.target.wants race at boot and one job is dropped nondeterministically.
+# Keep exactly ONE of the three `enabled`. See B70-CARD-MANAGEMENT.md.
+Conflicts=b70-planner.service b70-critic.service
+
+# --- FAIL LOUD, FAIL FAST ---------------------------------------------------
+# The systemd default (5 starts / 10 s) is UNREACHABLE here: RestartSec=15 puts
+# every restart outside the 10 s window, so the counter resets every cycle and
+# the limit never trips -- 85 restarts / 0 start-limit hits on 2026-07-30.
+#
+# The window must be wider than burst x per-attempt-cycle or it fails the same
+# way. A doomed 120b load takes ~3.7 min to reach the OOM kill, so 3 attempts
+# span ~11 min: a 600 s window would age out and never trip. 1800 s trips on
+# the 4th attempt, bounding a doomed load to ~11 min instead of 5+ hours.
+# If you change RestartSec or the model, re-check this arithmetic.
+#
+# Escape hatch after a legitimate hands-on restart burst:
+#   systemctl --user reset-failed b70-moe
+StartLimitIntervalSec=1800
+StartLimitBurst=3
+
+# Off-box visibility: err-priority journal entry tagged b70-alert, plus a JSON
+# line in ~/baseline/b70-alerts.log. The HEARTH gateway is loopback-only on
+# OMEN (127.0.0.1:8710) and ADR-0014 keeps machine lanes off the tailnet, so
+# the log file is the harvest point -- not a curl from this box.
+OnFailure=b70-alert@%n.service
+
+[Service]
+Type=simple
+ExecStart=/home/derek/baseline/serve-moe.sh
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=default.target

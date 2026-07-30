@@ -27,6 +27,27 @@ Field mapping (hearth-event.v1 -> workflow event):
 Idempotent: hearth/var/projection_cursor.json records the last processed
 event_id + line; re-runs process only new ledger lines (the ledger is
 append-only, so line positions are stable).
+
+SELF-MONITORING IS FILTERED OUT BY DEFAULT. 96% of the live ledger (19,295 of
+20,110 rows on 2026-07-30) is the lab watching itself: the watchdog's
+patrol_snapshot/watchfire/patrol_trend/hindsight/dream loop, bankedfire_drain
+ticks, and kernel_status liveness probes. Bridging all of it produced an 18 MB
+git-tracked file of heartbeat and left `corpus_event_count` dominated by rows no
+projector can learn anything from.
+
+The filter keys on `caller.id` and `profile`, NOT on tool names: caller identity
+is a durable declared fact about who produced the row, while tool names
+proliferate (`mechnet_watchdog.*` is already five distinct tools and growing).
+Deciding what counts as evidence is the authored residue the constitution
+reserves for the operator -- the instrumentation decision -- so it lives here as
+named, overridable constants rather than as a silent heuristic.
+
+Filtered rows still ADVANCE THE CURSOR: they are deliberately excluded, not
+failed, so they are never reconsidered. Consequence to know about: widening the
+filter later does not retroactively bridge rows already skipped past. Re-bridging
+them needs a cursor reset (delete the cursor file) -- safe in itself, but
+append_event does not deduplicate, so reset the TARGET stream too rather than
+double-pouring into it.
 """
 
 from __future__ import annotations
@@ -46,6 +67,17 @@ DEFAULT_TARGET = Path("runs/hearth-gateway/events.jsonl")
 
 WORKFLOW_ID = "wf-hearth-gateway"
 RUN_ID = "hearth-gateway"
+
+# Autonomous self-monitoring loops. These callers exist to watch the lab, so their
+# rows describe the observer, not the work observed; 14,804 of 20,110 rows on
+# 2026-07-30. Keyed on caller identity because that is what the loops declare about
+# themselves and it does not churn as their tool surfaces grow.
+HEARTBEAT_CALLER_IDS = frozenset({"mechnet-watchdog", "bankedfire-drain"})
+
+# Liveness probes (4,491 kernel_status calls on 2026-07-30). `profile` is the
+# gateway's own label for the call's authorization shape; "probe" means exactly
+# "this call was a reachability check", which is the definition of not-evidence.
+HEARTBEAT_PROFILES = frozenset({"probe"})
 
 _ACTOR_TYPE_BY_RUNNER_CLASS = {
     "frontier": "builder",
@@ -138,17 +170,30 @@ def _start_line(lines: list[str], cursor: dict) -> int:
     return 0
 
 
+def is_heartbeat(hearth_event: dict,
+                 caller_ids: frozenset[str] = HEARTBEAT_CALLER_IDS,
+                 profiles: frozenset[str] = HEARTBEAT_PROFILES) -> bool:
+    """True when the row is the lab observing itself rather than doing work."""
+    caller = hearth_event.get("caller") or {}
+    return caller.get("id") in caller_ids or hearth_event.get("profile") in profiles
+
+
 def project_ledger(
     ledger_path: Path = DEFAULT_LEDGER,
     target_path: Path = DEFAULT_TARGET,
     cursor_path: Path = DEFAULT_CURSOR,
     dry_run: bool = False,
+    filter_heartbeat: bool = True,
+    caller_ids: frozenset[str] = HEARTBEAT_CALLER_IDS,
+    profiles: frozenset[str] = HEARTBEAT_PROFILES,
 ) -> dict:
     """Project new ledger events into the workflow store.
 
-    Returns {"processed": int, "skipped": int, "errors": [str]}.
+    Returns {"processed", "skipped", "filtered", "errors"}. `skipped` counts rows
+    the cursor was already past; `filtered` counts self-monitoring rows this run
+    deliberately declined to bridge (see the module docstring).
     """
-    summary = {"processed": 0, "skipped": 0, "errors": []}
+    summary = {"processed": 0, "skipped": 0, "filtered": 0, "errors": []}
     if not ledger_path.exists():
         summary["errors"].append(f"ledger not found: {ledger_path}")
         return summary
@@ -164,15 +209,23 @@ def project_ledger(
         line_number = index + 1
         try:
             hearth_event = json.loads(lines[index])
-            workflow_event = map_event(hearth_event)
-            if dry_run:
-                validate_event(workflow_event)
+            # Filtered rows advance the cursor below without being appended: an
+            # excluded row is a decision, not a failure, so it must not be
+            # reconsidered on the next run.
+            if filter_heartbeat and is_heartbeat(hearth_event, caller_ids, profiles):
+                summary["filtered"] += 1
             else:
-                append_event(target_path, workflow_event)
+                workflow_event = map_event(hearth_event)
+                if dry_run:
+                    validate_event(workflow_event)
+                else:
+                    append_event(target_path, workflow_event)
+                summary["processed"] += 1
         except (json.JSONDecodeError, ValidationError) as exc:
             summary["errors"].append(f"{ledger_path}:{line_number}: {exc}")
             continue
-        summary["processed"] += 1
+        # A malformed row keeps the cursor where it is (the `continue` above), so a
+        # later fix can re-attempt it; a mapped or filtered row moves it forward.
         last_event_id = hearth_event["event_id"]
         last_line = line_number
 
@@ -190,9 +243,13 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--target", type=Path, default=DEFAULT_TARGET)
     parser.add_argument("--cursor", type=Path, default=DEFAULT_CURSOR)
     parser.add_argument("--dry-run", action="store_true", help="validate mapping, write nothing")
+    parser.add_argument("--no-filter-heartbeat", action="store_true",
+                        help="Bridge self-monitoring rows too (watchdog/drain callers and "
+                             "probe-profile calls), which the default excludes")
     args = parser.parse_args(argv[1:])
 
-    summary = project_ledger(args.ledger, args.target, args.cursor, dry_run=args.dry_run)
+    summary = project_ledger(args.ledger, args.target, args.cursor, dry_run=args.dry_run,
+                             filter_heartbeat=not args.no_filter_heartbeat)
     print(json.dumps(summary, indent=2))
     return 0 if not summary["errors"] else 1
 

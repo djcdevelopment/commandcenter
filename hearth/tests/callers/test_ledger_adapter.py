@@ -97,7 +97,7 @@ class ProjectLedgerTests(TestCase):
 
         summary = project_ledger(self.ledger, self.target, self.cursor, dry_run=True)
 
-        self.assertEqual(summary, {"processed": 2, "skipped": 0, "errors": []})
+        self.assertEqual(summary, {"processed": 2, "skipped": 0, "filtered": 0, "errors": []})
         self.assertFalse(self.target.exists())
         self.assertFalse(self.cursor.exists())
 
@@ -116,13 +116,13 @@ class ProjectLedgerTests(TestCase):
         project_ledger(self.ledger, self.target, self.cursor)
 
         second = project_ledger(self.ledger, self.target, self.cursor)
-        self.assertEqual(second, {"processed": 0, "skipped": 2, "errors": []})
+        self.assertEqual(second, {"processed": 0, "skipped": 2, "filtered": 0, "errors": []})
 
         # ledger grows append-only; only the new event is processed
         with self.ledger.open("a", encoding="utf-8", newline="\n") as handle:
             handle.write(json.dumps(make_hearth_event("he_103")) + "\n")
         third = project_ledger(self.ledger, self.target, self.cursor)
-        self.assertEqual(third, {"processed": 1, "skipped": 2, "errors": []})
+        self.assertEqual(third, {"processed": 1, "skipped": 2, "filtered": 0, "errors": []})
 
         lines = self.target.read_text(encoding="utf-8").splitlines()
         self.assertEqual(len(lines), 3)
@@ -144,3 +144,95 @@ class ProjectLedgerTests(TestCase):
         summary = project_ledger(self.ledger, self.target, self.cursor)
         self.assertEqual(summary["processed"], 0)
         self.assertEqual(len(summary["errors"]), 1)
+
+
+class HeartbeatFilterTests(TestCase):
+    """96% of the live ledger is the lab watching itself. Bridging it poured an
+    18 MB git-tracked heartbeat file into the evidence corpus and left
+    corpus_event_count meaningless; these pin the filter that stops that."""
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp()).resolve()
+        self.ledger = self.tmp / "ledger.ndjson"
+        self.target = self.tmp / "runs" / "hearth-gateway" / "events.jsonl"
+        self.cursor = self.tmp / "cursor.json"
+
+    def test_watchdog_and_drain_callers_are_filtered(self) -> None:
+        write_ndjson(self.ledger, [
+            make_hearth_event("he_1", caller={"id": "mechnet-watchdog",
+                                              "runner_class": "human", "node": "omen"},
+                              tool="mechnet_watchdog.patrol_snapshot"),
+            make_hearth_event("he_2", caller={"id": "bankedfire-drain",
+                                              "runner_class": "human", "node": "omen"},
+                              tool="bankedfire_drain.tick"),
+            make_hearth_event("he_3"),  # real work: claude-code-derek
+        ])
+
+        summary = project_ledger(self.ledger, self.target, self.cursor)
+
+        self.assertEqual(summary["processed"], 1)
+        self.assertEqual(summary["filtered"], 2)
+        landed = [json.loads(line)["payload"]["hearth_event_id"]
+                  for line in self.target.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(landed, ["he_3"])
+
+    def test_probe_profile_is_filtered_regardless_of_caller(self) -> None:
+        write_ndjson(self.ledger, [
+            make_hearth_event("he_1", tool="kernel_status", profile="probe"),
+            make_hearth_event("he_2", tool="local_generate", profile="unrestricted"),
+        ])
+
+        summary = project_ledger(self.ledger, self.target, self.cursor)
+
+        self.assertEqual((summary["processed"], summary["filtered"]), (1, 1))
+
+    def test_filtered_rows_advance_the_cursor_so_they_are_never_reconsidered(self) -> None:
+        """A filtered row is a decision, not a failure. If the cursor stalled on
+        one, every later run would re-scan the whole heartbeat backlog."""
+        write_ndjson(self.ledger, [
+            make_hearth_event("he_1"),
+            make_hearth_event("he_2", caller={"id": "mechnet-watchdog",
+                                              "runner_class": "human", "node": "omen"}),
+            make_hearth_event("he_3", caller={"id": "mechnet-watchdog",
+                                              "runner_class": "human", "node": "omen"}),
+        ])
+
+        first = project_ledger(self.ledger, self.target, self.cursor)
+        self.assertEqual((first["processed"], first["filtered"]), (1, 2))
+        self.assertEqual(json.loads(self.cursor.read_text(encoding="utf-8"))["line"], 3)
+
+        second = project_ledger(self.ledger, self.target, self.cursor)
+        self.assertEqual((second["processed"], second["filtered"], second["skipped"]), (0, 0, 3))
+
+    def test_malformed_row_does_not_advance_cursor_past_itself(self) -> None:
+        """Filtering must not have made bad lines un-retryable: the cursor still
+        stops at the last row that mapped or was deliberately filtered."""
+        self.ledger.parent.mkdir(parents=True, exist_ok=True)
+        with self.ledger.open("w", encoding="utf-8", newline="\n") as handle:
+            handle.write(json.dumps(make_hearth_event("he_1")) + "\n")
+            handle.write("not json\n")
+
+        summary = project_ledger(self.ledger, self.target, self.cursor)
+
+        self.assertEqual(summary["processed"], 1)
+        self.assertEqual(len(summary["errors"]), 1)
+        self.assertEqual(json.loads(self.cursor.read_text(encoding="utf-8"))["line"], 1)
+
+    def test_filter_can_be_disabled_for_full_fidelity(self) -> None:
+        write_ndjson(self.ledger, [
+            make_hearth_event("he_1", caller={"id": "mechnet-watchdog",
+                                              "runner_class": "human", "node": "omen"}),
+            make_hearth_event("he_2", profile="probe"),
+        ])
+
+        summary = project_ledger(self.ledger, self.target, self.cursor,
+                                 filter_heartbeat=False)
+
+        self.assertEqual((summary["processed"], summary["filtered"]), (2, 0))
+        self.assertEqual(validate_file(self.target), [])
+
+    def test_filtered_events_that_do_get_bridged_still_validate(self) -> None:
+        write_ndjson(self.ledger, [make_hearth_event("he_1", tool="local_generate",
+                                                     profile="unrestricted")])
+        project_ledger(self.ledger, self.target, self.cursor)
+        self.assertEqual(validate_file(self.target), [])

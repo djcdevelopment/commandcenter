@@ -46,10 +46,17 @@ from tools.workflow.project_policy import materialize_policy  # noqa: E402
 from hearth.projection.capacity import DEFAULT_LEDGER as _CAPACITY_DEFAULT_LEDGER
 from hearth.projection.capacity import build_capacity_document
 from hearth.projection.economics import build_offload_document
+from hearth.projection.freshness import DEFAULT_MAX_LAG_HOURS as _DEFAULT_MAX_LAG_HOURS
 
 DEFAULT_SOURCES = ["runs"]
 DEFAULT_OUT = "knowledge"
 DEFAULT_LEDGER_PATH = str(_CAPACITY_DEFAULT_LEDGER)
+
+# Write-side bridge defaults, mirrored from hearth.projection.ledger_adapter so the
+# timer path can advance the corpus before replaying it (see main()).
+DEFAULT_BRIDGE_TARGET = "runs/hearth-gateway/events.jsonl"
+DEFAULT_BRIDGE_CURSOR = "hearth/var/projection_cursor.json"
+DEFAULT_MAX_LAG_HOURS = _DEFAULT_MAX_LAG_HOURS
 
 STAGING_DIRNAME = ".staging-rebuild"
 
@@ -271,7 +278,51 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", default=DEFAULT_OUT)
     parser.add_argument("--ledger", default=DEFAULT_LEDGER_PATH)
     parser.add_argument("--allow-fixture-sources", action="store_true")
+    parser.add_argument("--skip-bridge", action="store_true",
+                        help="Do not advance the ledger->corpus bridge before replaying. "
+                             "Replays whatever the corpus already holds.")
+    parser.add_argument("--bridge-target", default=DEFAULT_BRIDGE_TARGET,
+                        help="Run stream the bridge appends mapped ledger events to")
+    parser.add_argument("--bridge-cursor", default=DEFAULT_BRIDGE_CURSOR)
+    parser.add_argument("--max-lag-hours", type=float, default=DEFAULT_MAX_LAG_HOURS,
+                        help="Freshness threshold; exceeding it fails the run")
+    parser.add_argument("--skip-freshness", action="store_true",
+                        help="Skip the post-rebuild freshness guard (not recommended)")
     args = parser.parse_args(argv)
+
+    # Advance the write side FIRST, or the replay below faithfully reproduces a
+    # frozen corpus and reports ok. This is the step whose absence froze five
+    # projections for 26 days: `ledger_adapter` was reachable only as a hand-run
+    # CLI, and its cursor sat at line 3 of a 20,110-line ledger. It lives here in
+    # main() rather than inside rebuild_knowledge() on purpose -- rebuild_knowledge
+    # is a pure read-side replay with a byte-untouched-on-failure contract, and
+    # appending to the event store is a write-side concern (ADR-0010's direction:
+    # the adapter is the one sanctioned bridge between the two bounded contexts).
+    bridge_failed = False
+    if args.skip_bridge:
+        print("bridge: SKIPPED (--skip-bridge)")
+    else:
+        try:
+            from hearth.projection.ledger_adapter import project_ledger
+            bridge = project_ledger(
+                ledger_path=resolve_in_scope(args.ledger),
+                target_path=resolve_in_scope(args.bridge_target),
+                cursor_path=resolve_in_scope(args.bridge_cursor),
+            )
+            print(f"bridge: {bridge['processed']} projected, "
+                  f"{bridge.get('filtered', 0)} self-monitoring filtered, "
+                  f"{bridge['skipped']} already current, {len(bridge['errors'])} error(s)")
+            for message in bridge["errors"][:10]:
+                print(f"  bridge error: {message}")
+            if len(bridge["errors"]) > 10:
+                print(f"  ... {len(bridge['errors']) - 10} more bridge error(s)")
+            bridge_failed = bool(bridge["errors"])
+        except Exception as exc:
+            # Never silent: a dead bridge means the rebuild below is about to
+            # replay a stale corpus, which is exactly the failure mode this
+            # whole path exists to prevent.
+            print(f"bridge: FAILED {exc}")
+            bridge_failed = True
 
     result = rebuild_knowledge(sources=args.sources, out=args.out, ledger_path=args.ledger,
                                allow_fixture_sources=args.allow_fixture_sources)
@@ -291,6 +342,36 @@ def main(argv: list[str] | None = None) -> int:
         print(f"dashboard: OK {dash_res['path']} ({dash_res['bytes']} bytes)")
     except Exception as exc:
         print(f"dashboard: FAILED {exc}")
+
+    # The guard that makes the 26-day freeze impossible to repeat quietly. A
+    # from-zero rebuild cannot self-detect staleness (replaying a frozen corpus
+    # succeeds), so the check has to come from outside the replay and compare
+    # against something that moves: the ledger head.
+    stale = False
+    if args.skip_freshness:
+        print("freshness: SKIPPED (--skip-freshness)")
+    else:
+        try:
+            from hearth.projection.freshness import check_freshness, format_report
+            report = check_freshness(
+                knowledge_dir=resolve_in_scope(args.out),
+                ledger_path=resolve_in_scope(args.ledger),
+                sources=[resolve_in_scope(raw) for raw in (args.sources or DEFAULT_SOURCES)],
+                cursor_path=resolve_in_scope(args.bridge_cursor),
+                max_lag_hours=args.max_lag_hours,
+            )
+            print(format_report(report))
+            stale = not report["ok"]
+        except Exception as exc:
+            print(f"freshness: FAILED {exc}")
+            stale = True
+
+    if bridge_failed or stale:
+        reasons = [name for name, failed in
+                   (("bridge", bridge_failed), ("freshness", stale)) if failed]
+        print(f"rebuild: COMPLETED WITH STALENESS ({', '.join(reasons)}) -- "
+              f"knowledge/ was swapped, but do not treat it as current belief")
+        return 1
 
     return 0
 

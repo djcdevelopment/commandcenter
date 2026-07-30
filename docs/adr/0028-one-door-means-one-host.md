@@ -85,10 +85,25 @@ whose blast radius grew when the work moved out of comfy.
   loopback shows up as off-loopback peers in `ollama-direct.ndjson`, which the sentinel
   already records and labels by source (`lan`, `tailnet`, `hyperv-nat`).
 
+## Remediation status (2026-07-30)
+
+| Step | State |
+|---|---|
+| 1. Repair Ollama (`lib/ollama` runtime) | **OPEN — operator.** Reinstalling is downloading and executing an installer. |
+| 2. comfy_gateway container → native | **DONE.** Container stopped (`unless-stopped`, so it stays stopped and `docker compose start comfy-gateway` reverts). Native gateway healthy, bound `127.0.0.1:8720` — the container had published `0.0.0.0:8720`. |
+| 2b. Persistence for the native gateway | **DONE.** Docker's restart policy was its persistence; going native removed that. `comfy/fieldlab/scripts/start-comfy-gateway.cmd` (mirrors the HEARTH wrapper, boot-safe logging included) + scheduled task `ComfyGatewayBoot` (logon trigger, Interactive, RunLevel Limited — it binds loopback and needs no elevation, unlike `HearthGatewayBoot`'s S4U/Highest, which is why that shape was refused). Verified: task start → healthz → loopback bind → log written. |
+| 3. Unset `OLLAMA_HOST` | **DONE.** Removed from the User environment; `OLLAMA_KEEP_ALIVE=30m` left alone. The running Ollama still holds the old value, so the loopback bind lands when step 1 restarts it. |
+| 4. Remove the two blanket `ollama.exe` rules | **OPEN — operator.** Firewall rules are security settings. |
+| 5. Verify the surface off-box | **BLOCKED on 1 and 4.** |
+
+Until step 1 lands, `python -m fleet.ollama_sentinel` correctly reports
+`serviceable=False`: the runtime is still missing. That is the guard doing its job, not
+noise.
+
 ## Remediation runbook
 
-Ordered so nothing breaks mid-sequence. Steps 2–5 change system or security settings and are
-the operator's to run.
+Ordered so nothing breaks mid-sequence. Steps 1 and 4 change system state (installing
+software; security settings) and are the operator's to run.
 
 1. **Repair Ollama** (fixes the outage; independent of the rest). Reinstall over the top
    from ollama.com — it restores `lib/ollama/`. Verify:

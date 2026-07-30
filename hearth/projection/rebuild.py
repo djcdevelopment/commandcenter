@@ -292,6 +292,22 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:
         print(f"dashboard: FAILED {exc}")
 
+    # Keep the aggregate boundary-traffic view on the same six-hour freshness
+    # cadence. It reads the canonical ledger directly and never affects the
+    # projection swap; like the main dashboard, rendering failure is non-fatal.
+    try:
+        from hearth.projection.call_mix_dashboard import write_dashboard as write_call_mix
+        mix_out = resolve_in_scope("HEARTH-CALL-MIX.html")
+        ledger = resolve_in_scope(args.ledger)
+        sentinel = resolve_in_scope("hearth/var/sentinel/ollama-direct.ndjson")
+        mix_res = write_call_mix(mix_out, ledger, sentinel)
+        print(
+            f"call-mix dashboard: OK {mix_res['path']} "
+            f"({mix_res['bytes']} bytes, {mix_res['events']} events)"
+        )
+    except Exception as exc:
+        print(f"call-mix dashboard: FAILED {exc}")
+
     return 0
 
 

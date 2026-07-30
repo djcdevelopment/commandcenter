@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>B70 Vertical Trace — 2026-07-30</title>
+<style>
+  :root {
+    --bg: #0f1216; --panel: #171c22; --panel2: #1d242c; --ink: #d8dee6; --dim: #8b96a3;
+    --accent: #e8a33d; --red: #e05d5d; --green2: #57b787; --blue: #5b9dd9;
+    --border: #2a333d; --mono: 'Cascadia Code', Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.55 'Segoe UI', system-ui, sans-serif; margin: 0; padding: 2rem 1rem 4rem; }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 1.6rem; margin: 0 0 .2rem; } h2 { font-size: 1.15rem; margin: 2.2rem 0 .6rem; color: var(--accent); }
+  h3 { font-size: 1rem; margin: 1.2rem 0 .4rem; }
+  .sub { color: var(--dim); margin-bottom: 1.4rem; }
+  .banner { background: #2b1a1a; border: 1px solid var(--red); border-left: 6px solid var(--red); padding: .9rem 1.1rem; border-radius: 6px; margin: 1.2rem 0; }
+  .banner b { color: var(--red); }
+  .ok-banner { background: #17231c; border: 1px solid #2f5c42; border-left: 6px solid var(--green2); padding: .9rem 1.1rem; border-radius: 6px; margin: 1.2rem 0; }
+  table { border-collapse: collapse; width: 100%; margin: .6rem 0 1rem; font-size: .92rem; }
+  th, td { border: 1px solid var(--border); padding: .45rem .6rem; text-align: left; vertical-align: top; }
+  th { background: var(--panel2); color: var(--ink); }
+  td.num { text-align: right; font-family: var(--mono); }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.2rem; margin: .8rem 0; }
+  code, .mono { font-family: var(--mono); font-size: .88em; background: var(--panel2); padding: .08em .35em; border-radius: 4px; }
+  .tag { display: inline-block; font-size: .75rem; padding: .1em .55em; border-radius: 10px; margin-right: .3em; }
+  .t-live { background: #1d3a2a; color: #7fd8a5; } .t-loop { background: #3a1d1d; color: #f09a9a; }
+  .t-armed { background: #3a301d; color: #e8c47d; } .t-dorm { background: #232a32; color: #93a1b0; }
+  .t-ext { background: #1d2a3a; color: #8fc1ee; }
+  .bars { display: flex; gap: 1.5rem; flex-wrap: wrap; margin: 1rem 0; }
+  .card { flex: 1 1 320px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+  .bar { background: #10151a; border: 1px solid var(--border); border-radius: 5px; height: 34px; position: relative; overflow: hidden; margin: .5rem 0; }
+  .fill { position: absolute; top: 0; left: 0; bottom: 0; }
+  .lbl { position: relative; z-index: 2; font-size: .8rem; padding: .45rem .6rem; font-family: var(--mono); white-space: nowrap; }
+  .foot { color: var(--dim); font-size: .8rem; margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 1rem; }
+  .rec-do { border-left: 4px solid var(--red); padding-left: .8rem; margin: .8rem 0; }
+  .rec-guard { border-left: 4px solid var(--accent); padding-left: .8rem; margin: .8rem 0; }
+  .rec-later { border-left: 4px solid var(--blue); padding-left: .8rem; margin: .8rem 0; }
+  .small { font-size: .85rem; color: var(--dim); }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f5f6f8; --panel: #ffffff; --panel2: #eef1f4; --ink: #22282e; --dim: #5c6773; --border: #d4dae1; }
+    .banner { background: #fbeaea; } .ok-banner { background: #eaf6ee; }
+    .t-live{background:#dff2e6;color:#1c6b3d}.t-loop{background:#f9dede;color:#a02c2c}.t-armed{background:#f6ecd4;color:#8a6410}.t-dorm{background:#e8ecf0;color:#4a5865}.t-ext{background:#deebf9;color:#2a5f96}
+    .bar { background: #e9edf1; }
+  }
+</style>
+</head>
+<body><div class="wrap">
+
+<h1>B70 Vertical Trace — real headroom on AM4</h1>
+<div class="sub">Both-direction audit of every claimant of the two Arc Pro B70s · 2026-07-30 · evidence: live box (SSH), systemd journal, repo configs, ADRs, result receipts</div>
+
+<div class="ok-banner">
+<b>RESOLVED 2026-07-30 ~15:00Z (Derek-approved sequence, executed same session).</b>
+Stop + disable <code>b70-planner</code>/<code>b70-critic</code> freed VRAM but not the phantom RAM (23 Gi still held) → <b>reboot</b> (first in 33 days) cleared it: <b>2.5 Gi used / 27 Gi available</b>. Post-boot: one instant load-fail from a boot race with the <code>/mnt/win</code> ntfs3 mount, plus restart interleaving with the concurrent unit-hardening session (commit <code>309b7fc</code>: <code>Conflicts=</code> verified live on-box, <code>StartLimitBurst=3</code>/30 min, <code>b70-alert</code>). Final restart: <b>model loaded, all slots idle, /health 200 at t+290 s</b>. Door-proof: pinned <code>local_generate</code> → <code>ok:true · routed_by: pinned:am4-moe · gpt-oss-120b · 15.2 s</code> (first-call SYCL warmup; obs <code>f4e66596</code> on the ledger). <code>lj-workbench</code> segfaulted (139) at boot; manual <code>docker start</code> restored it.
+<b>Remaining:</b> <s><code>RequiresMountsFor=/mnt/win</code></s> — landed (<code>bbba891</code>, verified on-box; the boot race was silently burning a restart at <i>every</i> boot, caught by the new OnFailure hook); phantom-watch now live (<code>b70-memsample.timer</code>, 5-min samples, shouts above 6 GiB unattributed; healthy baseline 1.27 GiB); <s>moe-return-after-pour</s> — <b>dissolved by ADR-0029</b> (Derek, same day): planner/critic CUT from service, the moe serves both roles, pours ride its 4 slots + queue; unit files retired to <code>~/.config/systemd/user/retired/</code> (start = "Unit not found"), <code>wake_am4</code> retargeted to b70-moe + /health :8082 (18 tests green). Watch lj-workbench on next boot (139-at-boot unexplained); oxen facade :8090 now fronts a dead port — disposition after the in-flight ctx fix lands (dispatch-filtered ledger query first); monitoring fixes (health-not-port in inventory.toml, <code>am4_status</code> glance) still open; long-term arc = JSP-style scheduling of load/active/swap (coefficients measured today; SCHEDULER-STRATEGY gate).
+</div>
+
+<div class="banner">
+<b>INCIDENT (as found, 13:40–14:40Z): the box was in a tenancy standoff, not a working co-load.</b>
+<code>b70-moe</code> (gpt-oss-120b) has been <b>OOM-crash-looping — 81 restarts today</b> — because <code>b70-planner</code> (Qwen3-30B) holds 17.3&nbsp;GiB of SYCL0 and the moe needs ~26&nbsp;GiB <i>per card</i>. At 09:25 UTC the planner itself was the OOM victim (14.7&nbsp;G host peak). They are taking turns dying. <b>SYCL1 (31&nbsp;GiB) sits completely empty.</b> Every dashboard stayed green throughout: llama-server binds its port <i>before</i> loading the model, fleet-ping only checks <code>ssh</code>+<code>jaeger</code> on am4, and NRestarts is visible to nothing.
+</div>
+
+<h2>1 · The cards, right now</h2>
+<div class="bars">
+  <div class="card"><b>SYCL0</b> — 31,023 MiB (30.3 GiB usable)
+    <div class="bar"><div class="fill" style="width:56%;background:#7c5a1e"></div><div class="lbl">b70-planner · Qwen3-30B-A3B Q4 · 17.3 GiB</div></div>
+    <div class="bar"><div class="lbl" style="color:var(--dim)">13.7 GiB free — moe needs 26 GiB here → alloc fails</div></div>
+  </div>
+  <div class="card"><b>SYCL1</b> — 31,023 MiB (30.3 GiB usable)
+    <div class="bar"><div class="lbl" style="color:var(--dim)">EMPTY — 31 GiB idle while the moe crash-loops</div></div>
+  </div>
+</div>
+<div class="panel small">
+<b>Host RAM (the true constraint):</b> 31.7 GiB total · ~25 GiB used · 6.5 GiB available · swap touched (zram 8G + 16G file).
+<b>~18 GiB is unaccounted</b> — sum of ALL process RSS = 6.3 GiB, cache 6.6, slab 0.5, docker ~0.1. Suspected: driver-side/pinned allocations stranded by 81 SIGKILL'd SYCL loads (journal also shows <code>UR_RESULT_ERROR_DEVICE_LOST</code>). July-18 healthy baseline was <b>12 GiB used / 18 available</b>. If stopping the loop doesn't reclaim it, a reboot will; if it recurs in normal ops, instrument it.
+</div>
+
+<h2>2 · Incident anatomy</h2>
+<table>
+<tr><th>Evidence</th><th>Fact</th></tr>
+<tr><td><code>NRestarts</code> (b70-moe)</td><td><b>81</b> — <code>Restart=on-failure</code>, no <code>StartLimit*</code>, so the loop is silent and eternal</td></tr>
+<tr><td>Failure A</td><td><code>failed to allocate SYCL0 buffer of size 26012134784</code> — planner owns the card's space</td></tr>
+<tr><td>Failure B</td><td>kernel OOM-kill mid-load (~5–6.5 G peak against ~6 G available) — the phantom 18 GiB starves the load</td></tr>
+<tr><td>09:25:34</td><td><code>b70-planner</code> OOM-killed (14.7 G host peak, 1 G swap peak) → auto-restarted 5 s later — the standoff cuts both ways</td></tr>
+<tr><td>Root condition</td><td><b>All three units are <code>enabled</code></b> (planner + moe + critic). The July-18 residency handover (ADR <code>commandcenter/docs/adr#0018</code>) moved HEARTH's routing tags but left the planner's unit armed; mutual exclusion exists only as a comment in <code>serve-moe.sh</code>. <code>wake_am4</code>'s sanctioned action is <code>systemctl --user start b70-planner</code> — the documented hazard ("reviving the planner into the moe's VRAM would crash both") is exactly what the box is living.</td></tr>
+<tr><td>Precedent</td><td>Same failure class as the 2026-07-07 zombie-unit lesson (am4-planner/critic: <b>58,922</b> restarts). The lesson was recorded; the enforcement never was.</td></tr>
+</table>
+
+<h2>3 · Tenant registry (the vertical trace, both directions)</h2>
+<h3>Running now → accounted for?</h3>
+<table>
+<tr><th>Tenant</th><th>Resource</th><th>Declared where</th><th>Status</th></tr>
+<tr><td><span class="tag t-loop">LOOP</span><code>b70-moe.service</code> · gpt-oss-120b :8082</td><td>wants 26 GiB × both cards + ~6.5 G RAM load-peak</td><td>backends.toml <code>am4-moe</code> · ADR-0018 · July-18 receipt</td><td>the ratified steady-state tenant, currently failing</td></tr>
+<tr><td><span class="tag t-live">LIVE</span><code>b70-planner.service</code> · Qwen3-30B :8080 (loopback)</td><td>17.3 GiB SYCL0 · up to ~14.7 G host peak</td><td>runbook "designed layout"; <b>contradicts ADR-0018 residency</b></td><td>the usurper (by enablement, not malice)</td></tr>
+<tr><td><span class="tag t-live">LIVE</span><code>am4-oxen-facade</code> :8090 → 127.0.0.1:8080</td><td>CPU only</td><td>backends.toml <code>am4-oxen</code> · inventory</td><td>fronts the PLANNER today; HEARTH pins to "oxen" actually hit Qwen3-30B @ 16k ctx</td></tr>
+<tr><td><span class="tag t-live">LIVE</span>OTel stack (grafana/jaeger/otelcol/prometheus, docker)</td><td>CPU + ~0.1 G RAM</td><td>inventory (jaeger :16686 check)</td><td>fine</td></tr>
+<tr><td><span class="tag t-live">LIVE</span><code>lj-workbench</code> container :4000 (tailscale-bound)</td><td>CPU + RAM</td><td>Lumberjacks/fieldlab world</td><td>game-dev tenant, no GPU — but shares the scarce RAM</td></tr>
+<tr><td><span class="tag t-live">LIVE</span><code>am4bot</code> :8200 · caddy :8190/:443 · gallery-refresh timer (2 min)</td><td>CPU</td><td>gallery memory/runbook</td><td>fine</td></tr>
+</table>
+<h3>Armed (starts at boot / on call) → would fit?</h3>
+<table>
+<tr><th>Claimant</th><th>Trigger</th><th>Consequence</th></tr>
+<tr><td><span class="tag t-armed">ARMED</span><code>b70-critic.service</code> · Qwen2.5-14B, SYCL1 :8081, 8.4 GiB</td><td>enabled → next boot</td><td>fits SYCL1 alone; three-way boot race with planner+moe guarantees a crash loop <b>on every reboot</b> as enablement stands</td></tr>
+<tr><td><span class="tag t-armed">ARMED</span><code>wake_am4</code> (HEARTH summon)</td><td>any caller</td><td>starts b70-planner — re-triggers the standoff whenever moe is resident</td></tr>
+<tr><td><span class="tag t-armed">ARMED</span>ComfyUI (imagegen pipeline)</td><td>manual / imagegen runs</td><td>not running today (runbook's "holds render nodes 24/7" is stale); when active it needs a card freed — "two LLM cards leave none for imagegen"</td></tr>
+<tr><td><span class="tag t-armed">ARMED</span><code>relaunch-qwen3-baseline.sh</code> · <code>restore-oxen-team.sh</code></td><td>manual</td><td>grab one or both cards outside systemd — documented experiment modes, no guard</td></tr>
+<tr><td><span class="tag t-dorm">DORMANT</span><code>pto-llama</code>, <code>am4-planner</code>, <code>am4-critic</code> (disabled) · vllama/b70tools/xpu-train/torch-xpu trees · Vulkan build</td><td>—</td><td>historical; reference only</td></tr>
+</table>
+<h3>External callers → what they believe</h3>
+<table>
+<tr><th>Caller</th><th>Belief</th><th>Reality</th></tr>
+<tr><td><span class="tag t-ext">EXT</span>HEARTH router (<code>backends.toml</code>)</td><td>am4-moe :8082 up, tags big-context/research; am4-oxen :8090 = 28k-token budget</td><td>moe flapping (port answers while loading, then dies); oxen = planner at 16k ctx → <b>declared 114688 context_bytes is ~2× reality</b></td></tr>
+<tr><td><span class="tag t-ext">EXT</span>occupancy probes</td><td>am4-moe /slots · am4-oxen via render-node fuser</td><td>moe probe correct-ish (503→unknown); oxen fuser probe reads <b>busy forever</b> while any llama holds the nodes — dead signal</td></tr>
+<tr><td><span class="tag t-ext">EXT</span>fleet-ping (inventory.toml)</td><td>am4 healthy = ssh + jaeger</td><td><b>no inference port is checked at all</b></td></tr>
+<tr><td><span class="tag t-ext">EXT</span>doorcheck backends facet</td><td>":8082 live" this morning</td><td>TCP-open during a load window of a crash loop</td></tr>
+<tr><td><span class="tag t-ext">EXT</span>conductor <code>am4-worker-1</code> · Buzz Lane B (future Vulkan mesh tenant)</td><td>cards available per fleet.json / brief</td><td>subject to the same missing tenancy arbiter ("mechnet modes" — planned July 18, unbuilt)</td></tr>
+</table>
+
+<h2>4 · Real headroom — the three viable topologies</h2>
+<table>
+<tr><th>Topology</th><th>SYCL0</th><th>SYCL1</th><th>Host RAM</th><th>Notes</th></tr>
+<tr><td><b>A · moe-alone</b> (ADR-0018 steady state)</td><td class="num">~26 / 30.3 GiB</td><td class="num">~26 / 30.3 GiB</td><td class="num">~12 GiB steady, ~6.5 G load-peak</td><td>proven July-18: 221 tok/s warm prefill, 26–29 tok/s decode, 4 slots + queue; ~4–5 GiB VRAM headroom per card, no room for any second GPU tenant</td></tr>
+<tr><td><b>B · team</b> (planner 16k + critic 8k)</td><td class="num">17.3 GiB</td><td class="num">8.4 GiB</td><td class="num">"marginal on 32 GB" (runbook)</td><td>~13 + ~22 GiB VRAM spare; host RAM is the ceiling — contexts capped by RAM not VRAM</td></tr>
+<tr><td><b>C · single + imagegen</b></td><td class="num">one model</td><td class="num">ComfyUI</td><td class="num">safe</td><td>the imagegen window mode; proven 1000-job/7h stable</td></tr>
+</table>
+<div class="panel small">
+<b>Concurrency truth (corrects the remembered baseline):</b> the June-29 ladder's ~1% was <b>single-card vs layer-split placement</b>, not 4-vs-16 slots. Its actual concurrency finding: at ~14k-token prompts, batch time scales <b>linearly</b> with client count (1→22.9s, 2→45.3s, 4→91s, 8→181.5s) — prefill serializes everything. More slots only help decode-heavy small-prompt traffic; for door-sized payloads the next lever is scheduling/prompt-caching/admission control, not <code>-np</code>. Raising moe slots would also shrink per-slot context (<code>-np</code> divides <code>-c</code>) or cost KV VRAM the cards don't have spare under topology A.
+</div>
+
+<h2>5 · Recommendations (advise-only — nothing was changed)</h2>
+<div class="rec-do"><b>NOW — pick the tenant and end the loop (Derek's call, one command each).</b> Per ADR-0018 the default is A: <code>systemctl --user stop b70-planner && systemctl --user disable b70-planner b70-critic</code>, then <code>systemctl --user restart b70-moe</code> and watch <code>journalctl --user -u b70-moe -f</code> for health-OK (~3.2 min). If the load still OOMs, the phantom 18 GiB is holding — <b>reboot AM4</b> (only after the disables, or the boot re-races). If you want the team era back instead: stop/disable b70-moe, re-point HEARTH tags — but that reverses a ratified ADR; say so in the record.</div>
+<div class="rec-guard"><b>GUARDRAILS — make the rules the kernel's problem, not a comment's.</b>
+(1) <code>Conflicts=b70-planner.service b70-critic.service</code> in b70-moe.service and mirror-image — systemd-enforced single-tenancy, 2 lines.
+(2) <code>StartLimitIntervalSec=600</code> / <code>StartLimitBurst=3</code> + <code>OnFailure=</code> notifier on all three — a doomed load fails loud in minutes, not silently 81 times.
+(3) VRAM preflight beside the RAM preflight: refuse launch when the target card's free MiB &lt; the model's need.
+(4) Neuter the wake_am4 footgun: wake must check what's resident before starting the planner.
+</div>
+<div class="rec-guard"><b>MONITORING — close the "green while dead" gap (this is the Step-1/2 metrics case, proven by incident).</b>
+(5) inventory.toml am4 checks: add llama <code>/health</code> (503-aware) for :8082/:8090 — port-open ≠ model-ready.
+(6) backends.toml: <code>am4-oxen context_bytes 114688 → ~57344</code> (live ctx is 16k); retire the dead fuser probe for oxen in favor of facade health.
+(7) Build the <code>am4_status</code> glance tool — this audit is its spec: per-card VRAM free, RAM + phantom-gap, unit states + NRestarts, /health per lane, GPU-holder list, docker tenants. One SSH round-trip; surfaces in /checkmechnet.
+</div>
+<div class="rec-later"><b>ARC — the real fix is the scheduler.</b> "Mechnet modes" (moe ↔ team ↔ imagegen windows) was already Follow-up #3 on the July-18 receipt; today is its justification. Fold in the operator/assay flag from the utilization discussion. Consult SCHEDULER-STRATEGY.html before building.</div>
+
+<h2>6 · Evidence channels & blind spots</h2>
+<table>
+<tr><th>Channel</th><th>What it showed</th><th>What it cannot see</th></tr>
+<tr><td>Live SSH sweeps (procs, fdinfo, units, ports, meminfo, docker)</td><td>tenancy standoff, phantom RAM, enablement</td><td>CORRECTED post-resolution: fdinfo under xe <i>does</i> report real per-card VRAM (28.8 + 25.8 GiB verified on the loaded moe) — the audit's ~0.5 GiB sample was taken mid-load, when counters legitimately read near-zero. fdinfo = the live per-card probe; device_info startup lines = free-before-load only</td></tr>
+<tr><td>systemd journal</td><td>81 restarts, both OOM signatures, device-lost, planner 09:25 kill</td><td>who/what first started the planner post-July-18 (wake_am4 vs manual — deeper journal dig would date it)</td></tr>
+<tr><td>Repo configs + ADRs + receipts (read directly)</td><td>ratified topology, measured footprints, ceremony rules</td><td>box-side drift — serve-moe.sh exists only on AM4, not in am4-fleet-node/scripts</td></tr>
+<tr><td>gemini-flash extraction (2 calls)</td><td>two usable crumbs (60.6 GB footprint, ceremony list)</td><td>failed strict-JSON extraction (known reasoning-leak mode) — core docs re-read directly instead</td></tr>
+<tr><td>Not checked</td><td colspan="2">AM4-side <code>/mnt/win/work</code> legacy trees (reference-only per runbook); Windows-era vllama configs; ComfyUI internals; Lumberjacks container contents</td></tr>
+</table>
+
+<div class="foot">Generated by Claude (Fable) · 2026-07-30 · session: B70 vertical trace · Sources: live am4 SSH (4 sweeps), journalctl b70-moe/b70-planner, hearth/etc/backends.toml, hearth/toolsurface/{backends,occupancy,inference}.py, fleet/inventory.toml, am4-fleet-node/{B70-CARD-MANAGEMENT.md, node.json, scripts/*, results/2026-06-29-service-path-concurrency-ladder.md, results/2026-07-18-oxen-moe-gpt-oss-120b.md}, docs/adr/0018 · Audit phase touched nothing; resolution phase (Derek-approved) stopped/disabled planner+critic, rebooted AM4, remounted nothing (fstab held), restarted b70-moe, restarted lj-workbench.</div>
+</div></body>
+</html>

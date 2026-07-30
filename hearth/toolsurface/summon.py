@@ -6,23 +6,20 @@ topology). wake_am4 is live (H3); start_ollama / checkpoint_vm still return
 the correct tool shapes now.
 
 Command provenance:
-- wake_am4 / oxen backend (LIVE, ground-truthed on AM4 2026-07-07): AM4 is native
-  Ubuntu. The always-on facade am4-oxen-facade.service (:8090,
-  am4-fleet-node/scripts/oxen-facade.py) proxies a llama.cpp SYCL backend on
-  127.0.0.1:8080; its /health reports backend.ok — the serve-truth this tool keys on.
-  The managed backend is the systemd --user slot unit b70-planner.service
-  (Qwen3-30B-A3B, single-card SYCL0; enabled + lingered — see
-  am4-fleet-node/B70-CARD-MANAGEMENT.md), so waking = `systemctl --user start
-  b70-planner`. Deliberately NOT `nohup ~/baseline/relaunch-qwen3-baseline.sh &`
-  over SSH: runbook gotcha #2 (SSH-detach swallow) rules nohup out, and the relaunch
-  script's dual-card split (-dev SYCL0,SYCL1, 131k ctx) is an experiment throughput
-  mode that grabs BOTH cards — it would stomp the critic slot (:8081) and imagegen;
-  its ad-hoc lane is `systemd-run --user` per the runbook.
-  Why no dedicated banked-fire unit for the dual-card baseline: :8080 already has a
-  systemd claimant (b70-planner); a second latent claimant invites unit-vs-unit
-  races — the zombie am4-planner/am4-critic units crash-looped 58,922 times against
-  a deleted start-hermes-backend.sh before being disabled (2026-07-07). Fewer latent
-  launchers on a shared-GPU box is the lesson.
+- wake_am4 / resident moe (retargeted 2026-07-30, ADR-0029): planner/critic are CUT
+  from service — gpt-oss-120b (b70-moe.service, dual-card, :8082) serves every AM4
+  LLM role, so waking AM4 means `systemctl --user start b70-moe`. Serve-truth is
+  llama-server's own /health on :8082 (auth-exempt; 503 while loading, 200 when the
+  model is resident — the port binds BEFORE the load, so port-open is NOT readiness;
+  see B70-VERTICAL-TRACE.html for the incident that taught this). The unit carries
+  Conflicts=b70-planner/b70-critic (hardened 309b7fc), so a wake also enforces the
+  single-tenant topology. A cold load off the ntfs3 mount takes ~3–5 min — hence the
+  generous default wait. Historical: the pre-0029 wake started b70-planner via the
+  :8090 facade's backend.ok (ground-truthed 2026-07-07); that lane's disposition is
+  an ADR-0029 follow-up. Still deliberately NOT `nohup … &` over SSH: runbook
+  gotcha #2 (SSH-detach swallow), and fewer latent launchers on a shared-GPU box is
+  the standing lesson (zombie am4-planner/critic units crash-looped 58,922× in the
+  hermes era; the 2026-07-30 standoff was the same class).
 - start_ollama: omen-worker-1 runs Ollama (login-start today; service-ification is the
   Δ4 decision). `ollama serve` starts the daemon; hitting /api/generate with the model
   loads it resident.
@@ -35,6 +32,7 @@ from __future__ import annotations
 
 import json
 import time
+import urllib.error
 import urllib.request
 from typing import Callable, Optional
 
@@ -43,9 +41,9 @@ from typing import Callable, Optional
 from hearth.toolsurface import occupancy as _occupancy
 
 AM4_SSH = "ssh derek@192.168.12.233"                    # LAN, not tailnet (ADR-0014)
-AM4_OXEN_HEALTH = "http://192.168.12.233:8090/health"   # facade IP = backends.toml endpoint
-AM4_PLANNER_UNIT = "b70-planner.service"
-WAKE_AM4_CMD = f"systemctl --user start {AM4_PLANNER_UNIT}"
+AM4_MOE_HEALTH = "http://192.168.12.233:8082/health"    # llama-server serve-truth (auth-exempt)
+AM4_WAKE_UNIT = "b70-moe.service"                       # the sole LLM tenant (ADR-0029)
+WAKE_AM4_CMD = f"systemctl --user start {AM4_WAKE_UNIT}"
 WAKE_POLL_INTERVAL_S = 5.0
 OLLAMA_DEFAULT_ENDPOINT = "http://127.0.0.1:11434"
 
@@ -53,9 +51,9 @@ OLLAMA_DEFAULT_ENDPOINT = "http://127.0.0.1:11434"
 # ComfyUI holds BOTH render nodes even when idle (runbook: "it holds renderD128/
 # renderD129 even when idle"), so holder-presence alone cannot refuse a wake —
 # _imagegen_active supplies the in-flight truth. A holder matching only "llama" is
-# one of our own slot units (the critic resident on SYCL1, or the planner itself
-# mid-load) — starting the managed planner unit alongside those is the designed
-# layout and idempotent, so it never refuses.
+# our own moe mid-load (or a deliberately revived planner/critic — in which case
+# starting b70-moe swaps tenancy via Conflicts=, which is the wake's whole point),
+# so llama-only holders never refuse.
 _IMAGEGEN_MARKERS = ("python", "ComfyUI")
 _COMFYUI_QUEUE_CMD = "curl -s -m 3 http://127.0.0.1:8188/queue"
 
@@ -63,19 +61,31 @@ _sleep = time.sleep  # module seam so tests don't wait out real poll intervals
 
 
 def _fetch_health(timeout_s: float = 5.0) -> dict:
-    """GET the oxen facade /health. backend.ok is the serve-truth for :8080."""
+    """GET the moe llama-server /health on :8082. HTTP 200 = model resident (the
+    server 503s while loading — port-open alone is never readiness)."""
     try:
-        with urllib.request.urlopen(AM4_OXEN_HEALTH, timeout=timeout_s) as response:
-            payload = json.loads(response.read().decode("utf-8"))
+        with urllib.request.urlopen(AM4_MOE_HEALTH, timeout=timeout_s) as response:
+            code = response.status
+            try:
+                body = json.loads(response.read().decode("utf-8"))
+            except ValueError:
+                body = {}
+    except urllib.error.HTTPError as exc:  # 503 "Loading model" lands here
+        return {"reachable": True, "backend_ok": False,
+                "backend": {"ok": False, "status": exc.code}}
     except Exception as exc:  # noqa: BLE001 - reported to the caller, never raised
         return {"reachable": False, "backend_ok": False,
                 "error": f"{type(exc).__name__}: {exc}"}
-    backend = payload.get("backend") or {}
-    return {"reachable": True, "backend_ok": bool(backend.get("ok")), "backend": backend}
+    ok = code == 200
+    return {"reachable": True, "backend_ok": ok,
+            "backend": {"ok": ok, "status": code, **({"body": body} if body else {})}}
 
 
 def _check_occupancy() -> dict:
-    return _occupancy.check_occupancy("am4-oxen")
+    # Render-node serve-truth, probed DIRECTLY (not via the _PROBES registry, whose
+    # "am4-oxen" entry is being repointed post-ADR-0029): the wake gate's question
+    # is exactly "who holds the cards", which is what fuser answers.
+    return _occupancy.probe_render_owners()
 
 
 def _ssh(command: str) -> tuple[Optional[str], Optional[str]]:
@@ -105,16 +115,17 @@ def _imagegen_active() -> dict:
             "detail": f"queue_running={len(running)} queue_pending={len(pending)}"}
 
 
-def wake_am4(force: bool = False, wait_s: int = 120) -> dict:
-    """Wake AM4's oxen inference backend (idempotent, occupancy-gated).
+def wake_am4(force: bool = False, wait_s: int = 360) -> dict:
+    """Wake AM4's resident moe (gpt-oss-120b, ADR-0029 — idempotent, occupancy-gated).
 
-    Serve-truth first: if the always-on facade (:8090) already reports backend.ok
-    for :8080, this is a no-op. Otherwise the B70 render nodes are checked for
-    imagegen ownership; an in-flight (or unverifiable) ComfyUI job refuses the wake
-    unless force=True — idle ComfyUI merely holding the nodes does not block. Then
-    the managed planner slot is started over SSH (systemctl --user start
-    b70-planner) and the facade health is polled until the backend answers or
-    wait_s elapses (wait_s=0 = fire-and-forget).
+    Serve-truth first: if llama-server's /health on :8082 already answers 200, this
+    is a no-op (the port binds before the load, so only /health 200 is readiness).
+    Otherwise the B70 render nodes are checked for imagegen ownership; an in-flight
+    (or unverifiable) ComfyUI job refuses the wake unless force=True — idle ComfyUI
+    merely holding the nodes does not block. Then b70-moe is started over SSH
+    (Conflicts= swaps out any revived planner/critic automatically) and /health is
+    polled until 200 or wait_s elapses (wait_s=0 = fire-and-forget). A cold load
+    off the ntfs3 mount takes ~3-5 min — the default wait covers it.
     """
     if wait_s < 0:
         raise ValueError("wait_s must be >= 0")
@@ -136,7 +147,7 @@ def wake_am4(force: bool = False, wait_s: int = 120) -> dict:
             return {"ok": False, "node": "am4", "action": "refused",
                     "reason": ("imagegen holds the B70 render nodes and the ComfyUI "
                                "queue is " + ("busy" if queue["active"] else "unverifiable")
-                               + "; pass force=True to wake the planner slot anyway"),
+                               + "; pass force=True to wake the moe anyway"),
                     "comfyui_queue": queue, "occupancy": occupation}
     # busy-with-only-llama holders are our own slot units, and "unknown" proceeds
     # too: a summon is a deliberate, pinned-style action (occupancy.resolve_for_lane).
@@ -152,12 +163,12 @@ def wake_am4(force: bool = False, wait_s: int = 120) -> dict:
         health = _fetch_health()
         if health["backend_ok"]:
             return {"ok": True, "node": "am4", "action": "woken",
-                    "unit": AM4_PLANNER_UNIT, "health": health["backend"]}
+                    "unit": AM4_WAKE_UNIT, "health": health["backend"]}
     return {"ok": False, "node": "am4", "action": "started-not-ready",
-            "unit": AM4_PLANNER_UNIT,
-            "note": (f"unit start dispatched but the facade did not report backend.ok "
-                     f"within {wait_s}s; inspect: "
-                     f"{AM4_SSH} 'journalctl --user -u {AM4_PLANNER_UNIT} -n 50'"),
+            "unit": AM4_WAKE_UNIT,
+            "note": (f"unit start dispatched but /health did not reach 200 within "
+                     f"{wait_s}s (a cold 120b load takes ~3-5 min); inspect: "
+                     f"{AM4_SSH} 'journalctl --user -u {AM4_WAKE_UNIT} -n 50'"),
             "health": health}
 
 

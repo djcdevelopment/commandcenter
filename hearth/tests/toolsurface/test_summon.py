@@ -21,8 +21,9 @@ QUEUE_UNKNOWN = {"active": None, "detail": "empty response from :8188"}
 
 
 class WakeAm4Tests(TestCase):
-    """wake_am4 is LIVE: idempotent via facade serve-truth, imagegen-occupancy-gated,
-    wakes the managed b70-planner unit (never nohup — runbook gotcha #2)."""
+    """wake_am4 is LIVE: idempotent via llama-server /health serve-truth (:8082),
+    imagegen-occupancy-gated, wakes the resident moe unit b70-moe (ADR-0029;
+    never nohup — runbook gotcha #2)."""
 
     def _wake(self, health_seq: list[dict], occupancy: dict = OCC_FREE,
               ssh: tuple = ("", None), queue: dict = QUEUE_IDLE,
@@ -75,8 +76,8 @@ class WakeAm4Tests(TestCase):
         ssh_mock.assert_called_once()
 
     def test_own_llama_slots_do_not_block_the_wake(self) -> None:
-        # busy-with-only-llama = our own slot units (critic resident / planner
-        # mid-load); starting the managed unit is idempotent, so proceed.
+        # busy-with-only-llama = our own moe mid-load (or a revived planner/critic,
+        # which Conflicts= swaps out); starting the managed unit proceeds.
         result, ssh_mock = self._wake([HEALTH_DOWN, HEALTH_UP], occupancy=OCC_OWN_LLAMA)
         self.assertTrue(result["ok"])
         ssh_mock.assert_called_once()
@@ -86,10 +87,10 @@ class WakeAm4Tests(TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["action"], "woken")
 
-    def test_wake_starts_the_managed_planner_unit_no_sudo_no_nohup(self) -> None:
+    def test_wake_starts_the_resident_moe_unit_no_sudo_no_nohup(self) -> None:
         _, ssh_mock = self._wake([HEALTH_DOWN, HEALTH_UP])
         command = ssh_mock.call_args[0][0]
-        self.assertEqual(command, "systemctl --user start b70-planner.service")
+        self.assertEqual(command, "systemctl --user start b70-moe.service")
         self.assertNotIn("sudo", command)
         self.assertNotIn("nohup", command)
 
@@ -103,7 +104,7 @@ class WakeAm4Tests(TestCase):
         result, _ = self._wake([HEALTH_DOWN, HEALTH_DOWN, HEALTH_DOWN], wait_s=10)
         self.assertFalse(result["ok"])
         self.assertEqual(result["action"], "started-not-ready")
-        self.assertIn("journalctl --user -u b70-planner.service", result["note"])
+        self.assertIn("journalctl --user -u b70-moe.service", result["note"])
 
     def test_facade_unreachable_still_attempts_wake_and_reports(self) -> None:
         result, ssh_mock = self._wake([HEALTH_FACADE_GONE, HEALTH_FACADE_GONE], wait_s=5)

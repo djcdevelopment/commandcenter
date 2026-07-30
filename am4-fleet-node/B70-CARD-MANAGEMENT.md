@@ -1,5 +1,13 @@
 # AM4 B70 card management — runbook
 
+> **TOPOLOGY (2026-07-30, `commandcenter/docs/adr#0029`): the resident MoE serves ALL LLM
+> roles.** `b70-planner`/`b70-critic` are retired from service — unit files live in
+> `~/.config/systemd/user/retired/` (start = "Unit not found"; revival is a deliberate
+> ceremony: mv back + daemon-reload + stop b70-moe first). `wake_am4` wakes `b70-moe` and
+> keys on llama-server `/health` :8082. Sections below describing the planner/critic pair
+> are **revival reference**, not current operations. Incident that forced the clarity:
+> `B70-VERTICAL-TRACE.html` (repo root).
+
 How to run and manage the two Intel Arc Pro **B70** (Battlemage) GPUs on **AM4**, learned the
 hard way 2026-07-05/06. AM4 is **native Ubuntu** now (it *was* Windows — the `vllama.exe`/`D:\work`
 heritage in old docs is dead; only the config contract survived). SSH in as `derek@100.116.82.60`

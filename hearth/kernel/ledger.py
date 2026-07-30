@@ -65,27 +65,14 @@ def sha256_digest(value: Any) -> str:
     return "sha256:" + hashlib.sha256(payload).hexdigest()
 
 
-def classify_error(error: str) -> str:
-    """Taxonomy for gateway/provider errors (S4): first match wins."""
-    if not error:
-        return "other"
-    lower = error.lower()
-    if "routing_refusal" in lower or "payload_over_budget_no_eligible_backend" in lower:
-        return "routing_refusal"
-    if "occupancy" in lower or "busy" in lower:
-        return "occupancy_skip"
-    if "timed out" in lower or "timeout" in lower:
-        return "timeout"
-    if any(x in lower for x in ("connection refused", "connect error", "unreachable",
-                                "failed to establish", "no connection could be made")):
-        return "cold_start"
-    if any(x in lower for x in ("401", "403", "unauthorized", "token", "credentials")):
-        return "auth_expired"
-    if any(x in lower for x in ("429", "quota", "resource exhausted", "rate limit")):
-        return "quota"
-    if any(x in lower for x in ("json", "parse", "decode", "expecting value")):
-        return "parse_error"
-    return "other"
+# classify_error is RE-EXPORTED here, not defined here. hearth.observation.emit needs the
+# same taxonomy to tell a capability failure (timeout) from infrastructure (cold_start,
+# quota, ...) that ADR-0002 excludes from the belief layer — and providers may not import
+# hearth.kernel at all, which test_provider_contract enforces by grepping their source
+# text. Duplicating the table would give the lab two drifting definitions of one fact, so
+# it lives in hearth/errortax.py and both sides name it. Importers of
+# hearth.kernel.ledger.classify_error are unaffected.
+from hearth.errortax import classify_error  # noqa: E402,F401
 
 
 def new_event(caller: Mapping[str, str], tool: str, *,

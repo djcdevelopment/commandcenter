@@ -57,6 +57,32 @@ class ProviderContractTests(TestCase):
             source = inspect.getsource(module)
             self.assertNotIn("hearth.kernel", source, module.__name__)
 
+    def test_observation_modules_are_kernel_free(self) -> None:
+        """inference imports hearth.observation.emit, which must not become a laundering
+        route around the contract above. hearth/errortax.py exists for exactly that
+        reason: the error taxonomy is needed on both sides of the boundary, so it lives
+        outside the kernel rather than being duplicated or reached into.
+
+        Checked on the IMPORT GRAPH, not on source text. These modules discuss the kernel
+        boundary in their docstrings — explaining why it exists is the opposite of
+        crossing it — and a substring grep cannot tell the difference.
+        """
+        import ast
+
+        from hearth import errortax
+        from hearth.observation import emit, identity
+
+        for module in (errortax, emit, identity):
+            imported: list[str] = []
+            for node in ast.walk(ast.parse(inspect.getsource(module))):
+                if isinstance(node, ast.Import):
+                    imported.extend(alias.name for alias in node.names)
+                elif isinstance(node, ast.ImportFrom) and node.module:
+                    imported.append(node.module)
+            offenders = [name for name in imported
+                         if name == "hearth.kernel" or name.startswith("hearth.kernel.")]
+            self.assertEqual(offenders, [], f"{module.__name__} imports {offenders}")
+
     def test_tool_names_are_unique_across_the_surface(self) -> None:
         names = [tool.__name__ for module in PROVIDERS for tool in module.get_tools()]
         self.assertEqual(len(names), len(set(names)), names)

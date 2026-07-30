@@ -52,6 +52,7 @@ from hearth.kernel.context import HearthContext
 from hearth.kernel.guards import GuardRejection, GuardStack
 from hearth.kernel.ledger import REPO_ROOT, Ledger, classify_error, hearth_root, new_event
 from hearth.kernel.timers import start_timers
+from hearth.observation.identity import DispatchIdentity, dispatch_identity
 from hearth.toolsurface._scope import caller_repo_access, caller_scope
 
 DEFAULT_HOST = "127.0.0.1"
@@ -346,7 +347,16 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
             # caller's grants into the next call on this thread. Filesystem and
             # repository authority are pushed independently: neither implies the
             # other (ADR-0019).
-            with caller_scope(caller.file_scope), caller_repo_access(caller.repo_access):
+            # A third push beside the two authority grants, and the same shape: WHO is
+            # asking, for the duration of one call. The observation emitter reads it to
+            # stamp workflow_id on dispatch evidence (ADR-0027). The wrapper stays
+            # generic — it pushes caller identity, which it already does twice, and knows
+            # nothing about inference or observations.
+            with caller_scope(caller.file_scope), caller_repo_access(caller.repo_access), \
+                    dispatch_identity(DispatchIdentity(
+                        caller_id=caller.id, runner_class=caller.runner_class,
+                        node=caller.node, task_id=task_id,
+                        profile=caller.ledger_profile)):
                 result = fn(**kwargs)
             model = _lift_ledger_model(result)
             lifted = _lift_ledger_task_class(result)

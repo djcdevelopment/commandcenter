@@ -34,6 +34,7 @@ import urllib.parse
 import urllib.request
 from typing import Callable, NamedTuple, Optional
 
+from hearth.observation.emit import record_dispatch
 from hearth.toolsurface._scope import resolve_in_scope, scope_root
 from hearth.toolsurface.backends import (BackendConfigError, BackendRoutingRefusal,
                                          Pool, load_pool, select_backend)
@@ -545,6 +546,8 @@ def local_generate(prompt: str, model: str | None = None,
     # A2: ladder escalation — one climb max. A failed non-pinned dispatch
     # excludes the failed rung and re-routes once; a pin (endpoint or name) is
     # a deliberate operator choice and never escalates.
+    final_target = target
+    first_observation = None
     if result.get("ok") is False and not target.routed_by.startswith("pinned"):
         exclude_set = {target.backend} if target.backend else set()
         try:
@@ -567,8 +570,21 @@ def local_generate(prompt: str, model: str | None = None,
                 second_result["timeout_s"] = second_timeout_s
                 second_result["escalation"] = {"from": first_name, "error": result.get("error")}
 
+                # One observation per ATTEMPT (ADR-0027). The escalated result carries the
+                # SECOND rung's backend, so recording only the final attempt would
+                # attribute a rescued call entirely to the rescuer and make local-rung
+                # failures systematically invisible -- a success bias in the evidence.
+                # Most first-attempt failures classify as infra and are excluded anyway,
+                # but they are excluded on the record, for a stated reason.
+                first_observation = record_dispatch(
+                    result=result, endpoint=target.endpoint, backend=target.backend,
+                    model=result.get("model", resolved_model), settings=target.settings,
+                    task=task, payload_bytes=payload_bytes,
+                    resolved_max_tokens=resolved_max_tokens)
+
                 result = second_result
                 resolved_model = second_model
+                final_target = second_target
         except BackendConfigError:
             pass  # escalation could not route -> the original failure stands
 
@@ -579,6 +595,21 @@ def local_generate(prompt: str, model: str | None = None,
     # event's `model` field via the _ledger_model convention (see gateway.py);
     # the wrapper pops this key before returning the result to the caller.
     result["_ledger_model"] = result.get("model", resolved_model)
+
+    # ADR-0027 option B: record the dispatch as capability evidence. This lives in the
+    # tool, not the gateway wrapper, because local_generate is also called in-process --
+    # refine, doorcheck, and the hearth/experiments backend x task matrices, which are the
+    # richest varied-axis evidence in the repo. No caller identity in force means no
+    # observation and nothing counted; record_dispatch never raises.
+    observation = record_dispatch(
+        result=result, endpoint=final_target.endpoint, backend=result.get("backend"),
+        model=result.get("model", resolved_model), settings=final_target.settings,
+        task=task, payload_bytes=payload_bytes,
+        resolved_max_tokens=result.get("max_tokens"))
+    if observation is not None:
+        result["_observation"] = observation
+    if first_observation is not None:
+        result["_observation_first_attempt"] = first_observation
     return result
 
 

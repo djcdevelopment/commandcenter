@@ -155,3 +155,64 @@ class GatewayWrapTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DispatchIdentityPushTest(unittest.TestCase):
+    """The wrapper pushes WHO is asking, beside the two authority grants. The observation
+    emitter reads it from that ContextVar to stamp workflow_id on dispatch evidence
+    (ADR-0027), so identity must be in force during the call and gone afterwards."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        root = Path(self.tmp.name)
+        (root / "knowledge").mkdir()
+        self.ledger = Ledger(root / "ledger")
+        callers = root / "callers.json"
+        callers.write_text(json.dumps({
+            "k": {"id": "claude-frontier", "runner_class": "frontier", "node": "omen",
+                  "profile": "unrestricted"},
+        }), encoding="utf-8")
+        self.auth = AuthRegistry(callers_path=callers, ledger=self.ledger)
+        self.guards = GuardStack(repo_root=root)
+        self.hearth = HearthContext(repo_root=root, ledger=self.ledger)
+
+    def _wrap(self, fn, tool_name: str):
+        _map_fixture_tools(self, **{tool_name: "status"})
+        return make_wrapper(fn, self.hearth, self.auth, self.guards,
+                            lambda: "k", lambda: "task-9")
+
+    def test_identity_is_in_force_during_the_call(self):
+        from hearth.observation.identity import current_identity
+
+        seen = {}
+
+        def capture() -> dict:
+            identity = current_identity()
+            seen["identity"] = identity
+            return {"ok": True}
+
+        capture.__doc__ = "Capture the ambient dispatch identity."
+        self._wrap(capture, "capture")()
+
+        identity = seen["identity"]
+        self.assertIsNotNone(identity)
+        self.assertEqual(identity.caller_id, "claude-frontier")
+        self.assertEqual(identity.runner_class, "frontier")
+        self.assertEqual(identity.node, "omen")
+        self.assertEqual(identity.task_id, "task-9")
+
+    def test_identity_does_not_leak_after_the_call(self):
+        from hearth.observation.identity import current_identity
+
+        self._wrap(fake_echo, "fake_echo")(message="x")
+        self.assertIsNone(current_identity())
+
+    def test_identity_does_not_leak_when_the_tool_raises(self):
+        """Mirrors the caller_scope finally-reset guarantee: a raising tool must not leak
+        one caller's identity into the next call on this thread."""
+        from hearth.observation.identity import current_identity
+
+        with self.assertRaises(RuntimeError):
+            self._wrap(fake_boom, "fake_boom")(message="x")
+        self.assertIsNone(current_identity())

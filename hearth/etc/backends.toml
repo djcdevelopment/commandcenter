@@ -43,6 +43,14 @@ models   = ["qwen3-coder:30b"]
 tags     = ["default", "code"]
 revive   = "start_ollama"                    # HEARTH summon tool (consumed in P4)
 [backend.settings]
+# ADR-0027: `node` is the machine that EXECUTES a dispatch, stamped as builder_id on
+# capacity observations. Distinct from the caller (which becomes workflow_id) on purpose:
+# the association engine counts distinct workflows for independence and distinct
+# builders/models for variation, so feeding both the same field collapses two gates into
+# one. `hardware_profile_id` keeps a capability from silently spanning a hardware change;
+# bump it BY HAND when the box changes.
+node                = "omen"
+hardware_profile_id = "omen-rtx5070-2026H2"
 # A1 payload budget: ≈24k tokens of a 32k config, conservative. Payloads over
 # this route past the default to a big-context/cloud rung (select_backend).
 context_bytes = 98304
@@ -66,6 +74,14 @@ tags     = ["big-context", "research", "second-opinion", "reasoning"]
 # skips to omen/flash; pinned calls still dispatch and WAIT IN LINE in
 # llama-server's internal request queue.
 [backend.settings]
+# ADR-0027: `node` is the machine that EXECUTES a dispatch, stamped as builder_id on
+# capacity observations. Distinct from the caller (which becomes workflow_id) on purpose:
+# the association engine counts distinct workflows for independence and distinct
+# builders/models for variation, so feeding both the same field collapses two gates into
+# one. `hardware_profile_id` keeps a capability from silently spanning a hardware change;
+# bump it BY HAND when the box changes.
+node                = "am4"
+hardware_profile_id = "am4-dual-b70-2026H2"
 # A1 payload budget: -np 4 slots over -c 65536 => 16k tokens per slot; ≈14k of
 # that as payload at the ≈4 bytes/token convention the other rungs use.
 context_bytes = 57344
@@ -120,6 +136,14 @@ tags     = ["oxen-planner"]                   # DEMOTED from opportunistic routi
 # name "am4-oxen"), per the strategy doc's ground truth over conductor-FS demotion.
 occupancy = { conductor_worker = "am4-worker-1" }
 [backend.settings]
+# ADR-0027: `node` is the machine that EXECUTES a dispatch, stamped as builder_id on
+# capacity observations. Distinct from the caller (which becomes workflow_id) on purpose:
+# the association engine counts distinct workflows for independence and distinct
+# builders/models for variation, so feeding both the same field collapses two gates into
+# one. `hardware_profile_id` keeps a capability from silently spanning a hardware change;
+# bump it BY HAND when the box changes.
+node                = "am4"
+hardware_profile_id = "am4-dual-b70-2026H2"
 # A1 payload budget: ≈28k of the single-card 32k ctx (see B70-CARD-MANAGEMENT.md).
 context_bytes = 114688
 
@@ -133,6 +157,16 @@ tags     = ["frontier", "deep-reasoning", "long-context", "cloud-overflow"]
 # set in the gateway process.
 auth_env = "GOOGLE_OAUTH_ACCESS_TOKEN"
 [backend.settings]
+# ADR-0027: `node` is the machine that EXECUTES a dispatch, stamped as builder_id on
+# capacity observations. Distinct from the caller (which becomes workflow_id) on purpose:
+# the association engine counts distinct workflows for independence and distinct
+# builders/models for variation, so feeding both the same field collapses two gates into
+# one. `hardware_profile_id` keeps a capability from silently spanning a hardware change;
+# bump it BY HAND when the box changes.
+node                = "gcp-vertex"
+# Null on purpose: Google does not tell us which hardware served the call, so
+# there is no honest profile to pin. Capabilities formed on these rungs cannot
+# distinguish pre- and post-hardware-change evidence, and should not pretend to.
 project_env  = "GOOGLE_CLOUD_PROJECT"
 location_env = "GOOGLE_CLOUD_LOCATION"       # defaults to "global" when unset
 cost_class   = "trial"                       # A4: counts against [trial] runway
@@ -162,6 +196,16 @@ tags     = ["gemini-pro"]                    # unique tag only; deliberately NOT
 # set in the gateway process (same convention as gcp-gemini).
 auth_env = "GOOGLE_OAUTH_ACCESS_TOKEN"
 [backend.settings]
+# ADR-0027: `node` is the machine that EXECUTES a dispatch, stamped as builder_id on
+# capacity observations. Distinct from the caller (which becomes workflow_id) on purpose:
+# the association engine counts distinct workflows for independence and distinct
+# builders/models for variation, so feeding both the same field collapses two gates into
+# one. `hardware_profile_id` keeps a capability from silently spanning a hardware change;
+# bump it BY HAND when the box changes.
+node                = "gcp-vertex"
+# Null on purpose: Google does not tell us which hardware served the call, so
+# there is no honest profile to pin. Capabilities formed on these rungs cannot
+# distinguish pre- and post-hardware-change evidence, and should not pretend to.
 project_env  = "GOOGLE_CLOUD_PROJECT"
 location_env = "GOOGLE_CLOUD_LOCATION"       # defaults to "global" when unset
 cost_class   = "trial"                       # A4: counts against [trial] runway

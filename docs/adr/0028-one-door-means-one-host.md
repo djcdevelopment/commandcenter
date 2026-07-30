@@ -89,12 +89,29 @@ whose blast radius grew when the work moved out of comfy.
 
 | Step | State |
 |---|---|
-| 1. Repair Ollama (`lib/ollama` runtime) | **OPEN — operator.** Reinstalling is downloading and executing an installer. |
+| 1. Repair Ollama (`lib/ollama` runtime) | **DONE** (2026-07-30, operator used the tray's own "restart to upgrade"). Runtime restored, `serviceable=True`, 0.32.5 on disk. The blanket firewall rules did NOT return through the upgrade. |
 | 2. comfy_gateway container → native | **DONE.** Container stopped (`unless-stopped`, so it stays stopped and `docker compose start comfy-gateway` reverts). Native gateway healthy, bound `127.0.0.1:8720` — the container had published `0.0.0.0:8720`. |
 | 2b. Persistence for the native gateway | **DONE.** Docker's restart policy was its persistence; going native removed that. `comfy/fieldlab/scripts/start-comfy-gateway.cmd` (mirrors the HEARTH wrapper, boot-safe logging included) + scheduled task `ComfyGatewayBoot` (logon trigger, Interactive, RunLevel Limited — it binds loopback and needs no elevation, unlike `HearthGatewayBoot`'s S4U/Highest, which is why that shape was refused). Verified: task start → healthz → loopback bind → log written. |
 | 3. Unset `OLLAMA_HOST` | **DONE.** Removed from the User environment; `OLLAMA_KEEP_ALIVE=30m` left alone. The running Ollama still holds the old value, so the loopback bind lands when step 1 restarts it. |
 | 4. Remove the two blanket `ollama.exe` rules | **OPEN — operator.** Firewall rules are security settings. |
 | 5. Verify the surface off-box | **BLOCKED on 1 and 4.** |
+
+### Environment inheritance is why "just restart it" did not work
+
+Worth recording, because it cost two rounds. A process keeps the environment it was
+*started* with, and `explorer.exe` caches the user environment at ITS start. So after
+`OLLAMA_HOST` was removed:
+
+- the running server kept binding `0.0.0.0` — it predated the change;
+- the tray's own upgrade restarted the tray app but NOT the elevated server process, so
+  the bind never moved (and the server stayed 0.32.1 in memory while 0.32.5 landed on disk);
+- anything relaunched from the Start menu or the tray would have inherited the stale value
+  again, because explorer still holds it.
+
+Only a launch from a process with a cleaned environment binds loopback — or a reboot. The
+posture script reports this case as "stale process, restart pending" rather than as a
+regression, precisely so the next reader does not go hunting for a drift that is already
+fixed.
 
 Until step 1 lands, `python -m fleet.ollama_sentinel` correctly reports
 `serviceable=False`: the runtime is still missing. That is the guard doing its job, not

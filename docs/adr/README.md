@@ -34,6 +34,7 @@ record with its status changed and a pointer to the ADR that replaced it.
 | [0023](0023-authority-is-granted-never-assumed.md) | Authority is granted by naming a role, never by omitting one | Accepted (2026-07-20), closes 0019's fail-open |
 | [0024](0024-gateway-liveness-lives-outside-the-gateway.md) | The gateway's own liveness watch lives outside the gateway | Accepted (2026-07-20), amends 0015 |
 | [0025](0025-funnel-caddy-stamps-identity-until-studio-can.md) | A Funnel-facing Caddy proxy stamps caller identity until Google Agent Platform Studio can send one itself | Accepted (2026-07-21), first external cloud caller |
+| [0027](0027-gateway-dispatches-are-not-observations-yet.md) | Gateway dispatches are not observations until we say what they observe | **Proposed (2026-07-30)** — awaiting Derek; explains `capability_count: 0` |
 
 ## Historical note
 The "ADR-0001" referenced in `SESSION-RETRO-2026-06-29.md` (which orchestrator is

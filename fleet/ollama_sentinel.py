@@ -232,6 +232,152 @@ def run_once(netstat_text: str, exclude_pids: set[int], var_dir: Path, now: floa
     }
 
 
+# --- serviceability: can Ollama actually SERVE, not merely answer? ------------
+#
+# 2026-07-30 cost ~30 minutes of silent failure. `ollama.exe` was up and answering
+# /api/tags and /api/version with {"version":"0.32.1"} -- so every liveness signal
+# in the lab read green -- while its `lib/ollama/` runtime directory had been
+# emptied down to a single shortcut, so EVERY generate returned HTTP 500
+# "llama-server binary not found". A reachability probe cannot see that. Only
+# asking "can you run a model?" can.
+#
+# Two checks, because they trade off differently:
+#   runtime  -- filesystem: is the llama-server binary present at all? Free, runs
+#               every tick, and catches exactly the 2026-07-30 failure mode.
+#   generate -- a real minimal completion. Ground truth, and the only thing that
+#               catches a present-but-broken runtime (bad GPU driver, corrupt
+#               binary). NOT free: it loads a model, and with OLLAMA_KEEP_ALIVE=30m
+#               a probe every 120s would pin a probe-sized model in VRAM that the
+#               real working set wants. So it is throttled, and opt-in.
+
+LLAMA_SERVER_NAMES = ("llama-server.exe", "llama-server")
+
+# Where Ollama unpacks its runtime, relative to the install dir. Ollama has moved
+# this between releases, so all known layouts are checked rather than assuming one.
+RUNTIME_SUBDIRS = (
+    "lib/ollama",
+    ".",
+    "lib",
+    "build/lib/ollama",
+    "dist/windows-amd64/lib/ollama",
+)
+
+DEFAULT_GENERATE_PROBE_INTERVAL_S = 1800  # 30 min: often enough to be honest, rare
+                                          # enough not to hold VRAM hostage
+
+
+def ollama_install_dir(env: Optional[dict] = None) -> Optional[Path]:
+    """Ollama's install directory: $OLLAMA_INSTALL_DIR, else the Windows default."""
+    environ = env if env is not None else os.environ
+    override = environ.get("OLLAMA_INSTALL_DIR")
+    if override:
+        return Path(override)
+    local_appdata = environ.get("LOCALAPPDATA")
+    if local_appdata:
+        return Path(local_appdata) / "Programs" / "Ollama"
+    return None
+
+
+def find_llama_runtime(install_dir: Optional[Path]) -> Optional[Path]:
+    """The llama-server binary, or None when the runtime is missing."""
+    if install_dir is None:
+        return None
+    for subdir in RUNTIME_SUBDIRS:
+        for name in LLAMA_SERVER_NAMES:
+            try:
+                candidate = install_dir / subdir / name
+                if candidate.is_file():
+                    return candidate
+            except OSError:
+                continue
+    return None
+
+
+def check_runtime(install_dir: Optional[Path]) -> dict:
+    """Free check: the inference runtime exists on disk."""
+    if install_dir is None:
+        return {"ok": False,
+                "reason": "cannot locate the Ollama install dir (set OLLAMA_INSTALL_DIR)"}
+    if not install_dir.exists():
+        return {"ok": False, "reason": f"install dir missing: {install_dir}"}
+    found = find_llama_runtime(install_dir)
+    if found is None:
+        return {"ok": False, "install_dir": str(install_dir),
+                "reason": (f"llama-server binary not found under {install_dir} -- Ollama "
+                           "will answer /api/tags but every generate will fail. Repair "
+                           "or reinstall Ollama.")}
+    return {"ok": True, "runtime": str(found)}
+
+
+def check_generate(generate_probe: Callable[[], "tuple[bool, str]"]) -> dict:
+    """Ground truth: a real minimal completion succeeded. The probe is injected so
+    this is testable without a live server."""
+    try:
+        ok, detail = generate_probe()
+    except Exception as exc:  # a sentinel never fails on its own probe
+        return {"ok": False, "reason": f"{type(exc).__name__}: {exc}"}
+    return {"ok": True} if ok else {"ok": False, "reason": detail}
+
+
+def check_serviceability(install_dir: Optional[Path],
+                         generate_probe: Optional[Callable[[], "tuple[bool, str]"]] = None
+                         ) -> dict:
+    """Combined verdict. A SKIPPED generate probe never counts as a pass — it
+    reports ok:None, and `serviceable` reflects only the checks that actually ran."""
+    runtime = check_runtime(install_dir)
+    report = {"runtime": runtime}
+    if generate_probe is None:
+        report["generate"] = {"ok": None, "reason": "not probed this tick (throttled)"}
+    else:
+        report["generate"] = check_generate(generate_probe)
+    report["serviceable"] = bool(runtime["ok"]) and report["generate"]["ok"] is not False
+    return report
+
+
+def http_generate_probe(endpoint: str, model: str, timeout_s: int = 120
+                        ) -> Callable[[], "tuple[bool, str]"]:
+    """A one-token completion against `model` — the smallest unit of real work that
+    still requires llama-server to start."""
+    def probe() -> "tuple[bool, str]":
+        import urllib.error
+        import urllib.request
+        payload = json.dumps({
+            "model": model, "prompt": "hi", "stream": False,
+            "options": {"num_predict": 1},
+        }).encode("utf-8")
+        request = urllib.request.Request(
+            f"{endpoint.rstrip('/')}/api/generate", data=payload,
+            headers={"Content-Type": "application/json"}, method="POST")
+        try:
+            with urllib.request.urlopen(request, timeout=timeout_s) as response:
+                body = json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")[:300]
+            return False, f"HTTP {exc.code}: {detail}"
+        except Exception as exc:
+            return False, f"{type(exc).__name__}: {exc}"
+        if "response" not in body:
+            return False, f"no completion in response: {str(body)[:200]}"
+        return True, "ok"
+    return probe
+
+
+def generate_probe_is_due(state_path: Path, now: float,
+                          interval_s: int = DEFAULT_GENERATE_PROBE_INTERVAL_S) -> bool:
+    """Unreadable or absent state means due — a lost throttle file must not
+    silently suppress the check."""
+    try:
+        last = json.loads(state_path.read_text(encoding="utf-8")).get("last_generate_probe", 0)
+        return (now - float(last)) >= interval_s
+    except Exception:
+        return True
+
+
+def record_generate_probe(state_path: Path, now: float) -> None:
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.write_text(json.dumps({"last_generate_probe": now}), encoding="utf-8")
+
+
 class ProcessLookup:
     """PID -> process name via tasklist, cached per tick; failures resolve to
     None rather than raising (a sentinel never fails on attribution)."""
@@ -266,6 +412,17 @@ def main(argv: Optional[list[str]] = None) -> None:
     parser.add_argument("--exclude-pid", action="append", type=int, default=[])
     parser.add_argument("--netstat-file", type=Path)
     parser.add_argument("--var-dir", type=Path, default=VAR_DIR)
+    parser.add_argument("--endpoint", default="http://127.0.0.1:11434",
+                        help="Ollama endpoint for the generate probe")
+    parser.add_argument("--probe-model", default="llama3.2:3b",
+                        help="Smallest resident model to probe with")
+    parser.add_argument("--probe-generate", action="store_true",
+                        help="Force a real one-token generate this tick, ignoring the "
+                             "throttle (the runtime check always runs)")
+    parser.add_argument("--generate-interval-s", type=int,
+                        default=DEFAULT_GENERATE_PROBE_INTERVAL_S)
+    parser.add_argument("--no-serviceability", action="store_true",
+                        help="Bypass detection only; skip the serviceability checks")
     args = parser.parse_args(argv)
 
     excludes = set(args.exclude_pid)
@@ -292,11 +449,37 @@ def main(argv: Optional[list[str]] = None) -> None:
     now = datetime.now(timezone.utc).timestamp()
     summary = run_once(text, excludes, args.var_dir, now, ProcessLookup(), args.port)
 
+    # Serviceability is a separate concern from bypass detection: the tick above asks
+    # "who is talking to Ollama", this asks "can Ollama do anything". On 2026-07-30 the
+    # first answered fine while the second was broken for half an hour.
+    if not args.no_serviceability:
+        state_path = args.var_dir / "ollama-probe-state.json"
+        probe = None
+        if args.probe_generate or generate_probe_is_due(state_path, now,
+                                                        args.generate_interval_s):
+            probe = http_generate_probe(args.endpoint, args.probe_model)
+            record_generate_probe(state_path, now)
+        summary["serviceability"] = check_serviceability(ollama_install_dir(), probe)
+
     if args.json:
         print(json.dumps(summary))
     else:
-        print(f"ok=True inbound={summary['inbound_seen']} new_direct={summary['new_direct']}")
-    sys.exit(0)
+        line = (f"ok=True inbound={summary['inbound_seen']} "
+                f"new_direct={summary['new_direct']}")
+        service = summary.get("serviceability")
+        if service is not None:
+            line += f" serviceable={service['serviceable']}"
+        print(line)
+        if service is not None and not service["serviceable"]:
+            for name in ("runtime", "generate"):
+                check = service[name]
+                if check["ok"] is False:
+                    print(f"  {name}: {check['reason']}")
+
+    # Non-zero when Ollama is up but cannot serve. The gateway timer logs the exit
+    # code, so this is what turns a silent half-hour into a visible one.
+    service = summary.get("serviceability")
+    sys.exit(1 if service is not None and not service["serviceable"] else 0)
 
 
 if __name__ == "__main__":

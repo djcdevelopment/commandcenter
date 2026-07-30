@@ -8,10 +8,12 @@ source IP. TIME_WAIT rows carry pid 0 on both sides.
 """
 
 import json
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
 
+from fleet import ollama_sentinel as sentinel
 from fleet.ollama_sentinel import (
     attribute, label_for, parse_netstat, run_once,
 )
@@ -171,3 +173,128 @@ class TestOllamaSentinel(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ServiceabilityTests(unittest.TestCase):
+    """Pins the 2026-07-30 failure mode: ollama.exe up and answering /api/tags with a
+    version, while lib/ollama had been emptied to a single shortcut so every generate
+    returned HTTP 500. Reachability read green for half an hour."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp()).resolve()
+        self.install = self.root / "Ollama"
+        self.install.mkdir()
+
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def _place_runtime(self, subdir: str, name: str = "llama-server.exe") -> Path:
+        target = self.install / subdir / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"MZ")
+        return target
+
+    # --- runtime discovery --------------------------------------------------
+
+    def test_finds_runtime_in_the_standard_layout(self):
+        expected = self._place_runtime("lib/ollama")
+        self.assertEqual(sentinel.find_llama_runtime(self.install), expected)
+
+    def test_finds_runtime_in_alternate_layouts(self):
+        for subdir in ("*", "build/lib/ollama", "dist/windows-amd64/lib/ollama"):
+            with self.subTest(subdir=subdir):
+                root = Path(tempfile.mkdtemp()).resolve()
+                self.addCleanup(shutil.rmtree, root, True)
+                install = root / "Ollama"
+                place = install if subdir == "*" else install / subdir
+                place.mkdir(parents=True)
+                (place / "llama-server.exe").write_bytes(b"MZ")
+                self.assertIsNotNone(sentinel.find_llama_runtime(install))
+
+    def test_a_shortcut_is_not_a_runtime(self):
+        """The exact 2026-07-30 shape: lib/ exists and holds only Ollama.lnk."""
+        (self.install / "lib").mkdir()
+        (self.install / "lib" / "Ollama.lnk").write_bytes(b"shortcut")
+
+        self.assertIsNone(sentinel.find_llama_runtime(self.install))
+        verdict = sentinel.check_runtime(self.install)
+        self.assertFalse(verdict["ok"])
+        self.assertIn("llama-server binary not found", verdict["reason"])
+        self.assertIn("reinstall", verdict["reason"])
+
+    def test_missing_install_dir_is_not_ok(self):
+        verdict = sentinel.check_runtime(self.root / "absent")
+        self.assertFalse(verdict["ok"])
+        self.assertIn("install dir missing", verdict["reason"])
+
+    def test_unlocatable_install_dir_is_not_ok(self):
+        verdict = sentinel.check_runtime(None)
+        self.assertFalse(verdict["ok"])
+        self.assertIn("OLLAMA_INSTALL_DIR", verdict["reason"])
+
+    def test_install_dir_honours_the_env_override(self):
+        self.assertEqual(
+            sentinel.ollama_install_dir({"OLLAMA_INSTALL_DIR": str(self.install)}),
+            self.install)
+
+    def test_install_dir_falls_back_to_localappdata(self):
+        got = sentinel.ollama_install_dir({"LOCALAPPDATA": str(self.root)})
+        self.assertEqual(got, self.root / "Programs" / "Ollama")
+
+    # --- combined verdict ---------------------------------------------------
+
+    def test_skipped_generate_probe_is_never_counted_as_a_pass(self):
+        self._place_runtime("lib/ollama")
+
+        report = sentinel.check_serviceability(self.install, generate_probe=None)
+
+        self.assertIsNone(report["generate"]["ok"])
+        self.assertIn("throttled", report["generate"]["reason"])
+        self.assertTrue(report["serviceable"])  # runtime present, generate not claimed
+
+    def test_missing_runtime_makes_it_unserviceable(self):
+        report = sentinel.check_serviceability(self.install, generate_probe=None)
+        self.assertFalse(report["serviceable"])
+
+    def test_failing_generate_makes_it_unserviceable_even_with_a_runtime_present(self):
+        """Catches present-but-broken: bad GPU driver, corrupt binary."""
+        self._place_runtime("lib/ollama")
+
+        report = sentinel.check_serviceability(
+            self.install, generate_probe=lambda: (False, "HTTP 500: kaboom"))
+
+        self.assertFalse(report["serviceable"])
+        self.assertIn("kaboom", report["generate"]["reason"])
+
+    def test_everything_healthy_is_serviceable(self):
+        self._place_runtime("lib/ollama")
+        report = sentinel.check_serviceability(self.install,
+                                              generate_probe=lambda: (True, "ok"))
+        self.assertTrue(report["serviceable"])
+
+    def test_a_raising_probe_is_a_failure_not_a_crash(self):
+        def boom():
+            raise RuntimeError("probe exploded")
+
+        verdict = sentinel.check_generate(boom)
+
+        self.assertFalse(verdict["ok"])
+        self.assertIn("probe exploded", verdict["reason"])
+
+    # --- throttle -----------------------------------------------------------
+
+    def test_absent_throttle_state_means_due(self):
+        self.assertTrue(sentinel.generate_probe_is_due(self.root / "none.json", 1000.0, 100))
+
+    def test_unreadable_throttle_state_means_due(self):
+        """A lost throttle file must not silently suppress the check."""
+        path = self.root / "bad.json"
+        path.write_text("{ truncated", encoding="utf-8")
+        self.assertTrue(sentinel.generate_probe_is_due(path, 1000.0, 100))
+
+    def test_recent_probe_is_not_due_and_stale_probe_is(self):
+        path = self.root / "state.json"
+        sentinel.record_generate_probe(path, 1000.0)
+
+        self.assertFalse(sentinel.generate_probe_is_due(path, 1050.0, 100))
+        self.assertTrue(sentinel.generate_probe_is_due(path, 1101.0, 100))

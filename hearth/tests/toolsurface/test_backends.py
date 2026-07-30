@@ -242,6 +242,13 @@ class PackagedPoolTests(TestCase):
         # A1: every packaged rung declares a payload budget.
         for name in ("omen-ollama", "am4-oxen", "am4-moe", "gcp-gemini", "gcp-gemini-pro"):
             self.assertIsNotNone(pool.by_name(name).context_bytes(), name)
+        # Both AM4 rungs serve 16k tokens per slot (oxen: -c 16384 -np 1; moe:
+        # -c 65536 -np 4), so both budget ≈14k of it as payload. Pinned to catch
+        # drift back to 114688, which claimed a 32k single-card ctx that the
+        # server behind the :8090 facade does not run — a ~20k-token payload
+        # routed as "fits" and then failed at the server (2026-07-30).
+        self.assertEqual(pool.by_name("am4-oxen").context_bytes(), 57344)
+        self.assertEqual(pool.by_name("am4-moe").context_bytes(), 57344)
 
 
 class ContextBytesTests(TestCase):

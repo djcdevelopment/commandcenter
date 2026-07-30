@@ -18,8 +18,10 @@
 #   3. tag match (task="research" -> a backend tagged "research"), occupancy-checked (P2):
 #      a busy or unknown-occupancy candidate is skipped, next tag/candidate tried
 #   4. fall back to `default` (never itself occupancy-gated)
-# Occupancy probe: hearth.toolsurface.occupancy (SSH render-node check on AM4,
-# 30s cache, fail-open to "unknown" -> busy for opportunistic/tag-routed calls).
+# Occupancy probe: hearth.toolsurface.occupancy — one probe declared PER RUNG
+# (am4-moe: llama-server /slots; am4-oxen: :8090 facade /health; everything else:
+# no probe, always "available"), 30s cache, fail-open to "unknown" -> busy for
+# opportunistic/tag-routed calls.
 # ============================================================================
 
 # Name of the backend used when nothing else matches. (Top-level keys MUST
@@ -123,17 +125,27 @@ models   = ["oxen"]                           # facade-advertised id (GET /v1/mo
                                               # (was "qwen3-30b" — not a real id → 404.)
 tags     = ["oxen-planner"]                   # DEMOTED from opportunistic routing —
                                               # big-context/research/second-opinion moved
-                                              # to am4-moe (gpt-oss-120b now holds both
-                                              # cards steady-state). Pin by name for a
-                                              # deliberate planner run: stop b70-moe
-                                              # first, then wake_am4.
+                                              # to am4-moe (gpt-oss-120b holds both cards
+                                              # steady-state per ADR-0018). Pin by name
+                                              # for a deliberate planner run.
+# TENANCY, verified live 2026-07-30 (B70-VERTICAL-TRACE.html): this rung and
+# am4-moe are rival tenants of the same two cards, and mutual exclusion is NOT
+# enforced anywhere — both were found running at once, with moe OOM-looping.
+# Whatever holds 127.0.0.1:8080 is what a pinned oxen call actually reaches, so
+# check what is resident before pinning; there is no ceremony that guarantees
+# the planner is there. (The previous note here — "stop b70-moe first, then
+# wake_am4" — described a handover that neither systemd nor this file enforces.)
 # revive removed (was wake_am4): an auto-revive would start b70-planner INTO the
 # resident moe's VRAM. wake_am4 stays available as a standalone summon tool.
 # `conductor_worker`: metadata only — which conductor worker rides this backend
-# (useful for humans cross-referencing fleet.json). The LIVE P2 occupancy probe
-# does NOT read this field: it goes straight to AM4 serve-truth (render_owners
-# over SSH — hearth.toolsurface.occupancy.check_occupancy, keyed by backend
-# name "am4-oxen"), per the strategy doc's ground truth over conductor-FS demotion.
+# (useful for humans cross-referencing fleet.json). The LIVE occupancy probe does
+# NOT read this field: it goes straight to AM4 serve-truth
+# (hearth.toolsurface.occupancy.check_occupancy, keyed by backend name
+# "am4-oxen"), per the strategy doc's ground-truth-over-conductor-FS demotion.
+# That probe is an HTTP health check of the :8090 facade as of 2026-07-30. It
+# was the render-node fuser probe, which read BUSY FOREVER: whichever
+# llama-server is resident holds both render nodes by design, so "someone holds
+# a render node" is always true here (same reason am4-moe probes /slots).
 occupancy = { conductor_worker = "am4-worker-1" }
 [backend.settings]
 # ADR-0027: `node` is the machine that EXECUTES a dispatch, stamped as builder_id on
@@ -144,8 +156,14 @@ occupancy = { conductor_worker = "am4-worker-1" }
 # bump it BY HAND when the box changes.
 node                = "am4"
 hardware_profile_id = "am4-dual-b70-2026H2"
-# A1 payload budget: ≈28k of the single-card 32k ctx (see B70-CARD-MANAGEMENT.md).
-context_bytes = 114688
+# A1 payload budget: the facade fronts b70-planner at `-c 16384 -np 1` => 16k
+# tokens for the ONE slot, ≈14k of it as payload at the ≈4 bytes/token convention
+# — the same arithmetic as am4-moe above, which reaches the same number from
+# -c 65536 across -np 4. Corrected 2026-07-30 from 114688: that claimed ≈28k of a
+# single-card 32k ctx this server does not run, so a pinned ~20k-token payload
+# routed as "fits" and then failed at the server (B70-VERTICAL-TRACE.html).
+# Re-derive this whenever the resident model or its -c/-np changes.
+context_bytes = 57344
 
 [[backend]]
 name     = "gcp-gemini"

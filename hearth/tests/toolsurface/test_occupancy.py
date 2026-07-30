@@ -3,13 +3,16 @@ from __future__ import annotations
 import os
 import subprocess
 from unittest import TestCase
+from unittest.mock import patch
 
 from hearth.toolsurface.occupancy import (
+    _PROBES,
     Lease,
     OccupancyCache,
     acquire_lease,
     check_occupancy,
     probe_moe_slots,
+    probe_oxen_facade,
     probe_render_owners,
     resolve_for_lane,
 )
@@ -123,6 +126,130 @@ class ProbeMoeSlotsTests(TestCase):
         self.assertEqual(probe_moe_slots(fetch=fetch)["occupancy"], "unknown")
 
 
+def _facade_health(backend: dict, status: str = "ok") -> dict:
+    """A payload shaped like the real oxen-facade /health (verified 2026-07-30)."""
+    return {
+        "status": status,
+        "node": "am4",
+        "facade": "up",
+        "backend": backend,
+        "aliases": ["oxen-planner", "oxen"],
+        "backend_base_url": "http://127.0.0.1:8080",
+        "time": 1785422219,
+    }
+
+
+class ProbeOxenFacadeTests(TestCase):
+    def test_available_when_backend_reports_ok(self) -> None:
+        def fetch(url, timeout_s):
+            return _facade_health({"ok": True, "status": 200, "body": {"status": "ok"}}), None
+        result = probe_oxen_facade(fetch=fetch)
+        self.assertEqual(result["occupancy"], "available")
+        self.assertTrue(result["detail"]["backend_ok"])
+        self.assertEqual(result["detail"]["backend_base_url"], "http://127.0.0.1:8080")
+
+    def test_unknown_while_the_model_is_still_loading(self) -> None:
+        """llama-server answers 503 "Loading model" during a load — the exact
+        window the crash loop lived in on 2026-07-30."""
+        def fetch(url, timeout_s):
+            body = {"error": {"message": "Loading model", "code": 503}}
+            return _facade_health({"ok": False, "status": 503, "body": body}), None
+        result = probe_oxen_facade(fetch=fetch)
+        self.assertEqual(result["occupancy"], "unknown")
+        self.assertFalse(result["detail"]["backend_ok"])
+        self.assertEqual(result["detail"]["backend_status"], 503)
+
+    def test_unknown_when_facade_cannot_reach_its_backend(self) -> None:
+        def fetch(url, timeout_s):
+            return _facade_health({"ok": False, "error": "ConnectionRefusedError: [Errno 111]"}), None
+        result = probe_oxen_facade(fetch=fetch)
+        self.assertEqual(result["occupancy"], "unknown")
+        self.assertIn("ConnectionRefused", result["detail"]["reason"])
+
+    def test_hardcoded_top_level_status_does_not_mask_a_dead_backend(self) -> None:
+        """The facade sets {"status": "ok"} whenever the facade PROCESS is up, so
+        a probe that trusted the top-level field would call a dead model ready."""
+        def fetch(url, timeout_s):
+            return _facade_health({"ok": False, "status": 503}, status="ok"), None
+        result = probe_oxen_facade(fetch=fetch)
+        self.assertEqual(result["occupancy"], "unknown")
+
+    def test_unknown_on_transport_error(self) -> None:
+        def fetch(url, timeout_s):
+            return None, "URLError: connection refused"
+        result = probe_oxen_facade(fetch=fetch)
+        self.assertEqual(result["occupancy"], "unknown")
+        self.assertIn("URLError", result["detail"])
+
+    def test_unknown_on_unexpected_shape(self) -> None:
+        def fetch(url, timeout_s):
+            return ["not", "a", "dict"], None
+        self.assertEqual(probe_oxen_facade(fetch=fetch)["occupancy"], "unknown")
+
+    def test_unknown_when_payload_carries_no_backend_readiness(self) -> None:
+        def fetch(url, timeout_s):
+            return {"status": "ok", "facade": "up"}, None
+        result = probe_oxen_facade(fetch=fetch)
+        self.assertEqual(result["occupancy"], "unknown")
+        self.assertIn("no backend readiness", result["detail"])
+
+
+class ProbeRegistryTests(TestCase):
+    def test_each_am4_rung_probes_a_signal_that_can_go_both_ways(self) -> None:
+        """Regression guard (2026-07-30, B70-VERTICAL-TRACE.html): am4-oxen was
+        registered against the render-node fuser probe, but every resident
+        llama-server holds both render nodes by design — so it read busy forever
+        and every ledger event carried a dead signal."""
+        self.assertIs(_PROBES["am4-oxen"], probe_oxen_facade)
+        self.assertIs(_PROBES["am4-moe"], probe_moe_slots)
+        self.assertNotIn(probe_render_owners, _PROBES.values())
+
+
+class RegistryResolutionTests(TestCase):
+    """A cache with no probe installed must resolve the registry PER KEY.
+
+    It used to fall back to a class-level default of probe_render_owners for
+    every key, so the cache-carrying paths (acquire_lease, Lease.renew — the
+    Banked Fire drain lane leases am4-oxen) probed AM4's render nodes no matter
+    which backend they asked about.
+    """
+
+    def test_cache_without_a_probe_resolves_the_declared_probe(self) -> None:
+        calls = []
+
+        def fake():
+            calls.append(1)
+            return {"occupancy": "available", "detail": "fake"}
+
+        with patch.dict(_PROBES, {"am4-oxen": fake}):
+            result = check_occupancy("am4-oxen", cache=OccupancyCache(ttl_s=30.0))
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(result["detail"], "fake")
+
+    def test_acquire_lease_resolves_the_declared_probe(self) -> None:
+        calls = []
+
+        def fake():
+            calls.append(1)
+            return {"occupancy": "busy"}
+
+        with patch.dict(_PROBES, {"am4-oxen": fake}):
+            lease = acquire_lease("am4-oxen", pinned=False, cache=OccupancyCache(ttl_s=30.0))
+        self.assertEqual(len(calls), 1)
+        self.assertFalse(lease.granted)
+
+    def test_an_installed_cache_probe_still_wins(self) -> None:
+        """The Lease.renew/test contract: never override a probe a caller
+        deliberately handed us."""
+        def registry_probe():
+            raise AssertionError("registry probe must not be consulted")
+
+        cache = OccupancyCache(ttl_s=30.0, probe=lambda: {"occupancy": "busy"})
+        with patch.dict(_PROBES, {"am4-oxen": registry_probe}):
+            result = check_occupancy("am4-oxen", cache=cache)
+        self.assertEqual(result["occupancy"], "busy")
+
+
 class OccupancyCacheTests(TestCase):
     def test_caches_within_ttl(self) -> None:
         calls = []
@@ -181,7 +308,7 @@ class CheckOccupancyTests(TestCase):
         result = check_occupancy("am4-moe", cache=cache)
         self.assertEqual(result["occupancy"], "busy")
 
-    def test_only_am4_oxen_has_a_live_probe(self) -> None:
+    def test_backend_without_a_declared_probe_reports_available(self) -> None:
         result = check_occupancy("omen-ollama")
         self.assertEqual(result["occupancy"], "available")
         self.assertIn("no occupancy probe declared", result["detail"])
@@ -275,3 +402,17 @@ class LiveProbeTests(TestCase):
             self.skipTest(f"AM4 unreachable from this environment: {result.get('detail')}")
         self.assertIn(result["occupancy"], ("available", "busy"))
         self.assertIsInstance(result["detail"], str)
+
+    def test_real_facade_probe_reads_backend_readiness(self) -> None:
+        """The am4-oxen probe against the live :8090 facade. "unknown" is a
+        legitimate live answer (facade down, or a model mid-load), so it skips
+        rather than fails — what this asserts is that a REACHABLE facade yields
+        a parsed readiness detail, not a stuck reading."""
+        if os.environ.get("HEARTH_SKIP_LIVE_PROBES"):
+            self.skipTest("HEARTH_SKIP_LIVE_PROBES set")
+        result = probe_oxen_facade(timeout_s=4)
+        if result["occupancy"] == "unknown" and not isinstance(result["detail"], dict):
+            self.skipTest(f"oxen facade unreachable from this environment: {result.get('detail')}")
+        self.assertIn(result["occupancy"], ("available", "unknown"))
+        self.assertIsInstance(result["detail"], dict)
+        self.assertIn("backend_ok", result["detail"])

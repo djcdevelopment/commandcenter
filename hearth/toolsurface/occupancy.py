@@ -1,20 +1,30 @@
 """Banked Fire — occupancy probe + lease helper (P2 · Yield).
 
 "Mechnet jobs always win" (design principle #4) needs a serve-truth answer to
-one question: does a backend's underlying hardware already belong to someone
-else? For ``am4-oxen`` the truth is not the conductor's filesystem (a plan can
-be queued without a GPU actually being held) — it's the render nodes on AM4
-itself: ``/dev/dri/renderD128`` and ``renderD129``. Whoever holds those via
-``fuser`` owns the B70s, full stop. That's what ``render_owners`` on the
-AM4-MCP surface reports, and it's what this probe replicates over a one-shot
-SSH command (we do not speak MCP-over-stdio to AM4 from the gateway; a plain
-SSH call emitting the same signal is sufficient and has no extra moving parts).
+one question: can this backend take work right now, or is its hardware already
+spoken for? The answer is never the conductor's filesystem (a plan can be
+queued without a GPU actually being held) — it is always AM4 itself. But there
+is no single signal that is honest for every rung, so each one declares its own
+in the ``_PROBES`` registry at the bottom of this module:
 
-Fail-open discipline: SSH hiccups happen. A probe failure must never be
-confused with "definitely free" (that would let opportunistic traffic land on
-a GPU someone else owns) NOR with "definitely busy forever" (that would wedge
-legitimate pinned calls). So an unreachable probe reports ``unknown``, and the
-caller decides what unknown means for their lane:
+  - ``am4-moe``  -> llama-server's own /slots (goodput: busy slots + KV pressure)
+  - ``am4-oxen`` -> the :8090 facade's /health (is a model loaded behind it at all?)
+
+``probe_render_owners`` — ``fuser`` on ``/dev/dri/renderD128``/``129`` over one
+SSH call, mirroring ``render_owners`` on the AM4-MCP surface — is deliberately
+NOT wired to either rung as of 2026-07-30. Both are served by a resident
+llama-server that holds both render nodes by design, so for them "someone holds
+a render node" is true forever and the probe reports busy forever
+(B70-VERTICAL-TRACE.html). It is kept because it is still the right question for
+a tenant that cannot share the cards at all (imagegen/ComfyUI), and it is the
+only probe that sees a NON-HTTP holder of the GPUs.
+
+Fail-open discipline: probes fail — SSH hiccups, a facade restart, a model
+mid-load. A probe failure must never be confused with "definitely free" (that
+would let opportunistic traffic land on a GPU someone else owns) NOR with
+"definitely busy forever" (that would wedge legitimate pinned calls). So a
+probe that cannot get a definite reading reports ``unknown``, and the caller
+decides what unknown means for their lane:
 
   - opportunistic (routed by tag/default, no explicit backend pin): unknown
     treated as BUSY — skip and fall back to omen-ollama. Conservative: never
@@ -104,7 +114,7 @@ def probe_render_owners(runner: Callable[..., subprocess.CompletedProcess] = sub
 # dispatch and wait in llama-server's internal request queue.
 
 MOE_SLOTS_URL = "http://192.168.12.233:8082/slots"  # LAN, not tailnet (ADR-0014)
-MOE_TOKEN_ENV = "AM4_OXEN_TOKEN"  # llama-server --api-key uses the same bearer
+AM4_TOKEN_ENV = "AM4_OXEN_TOKEN"  # both AM4 rungs share this bearer name (backends.toml auth_env)
 MOE_HTTP_TIMEOUT_S = 4.0
 MOE_KV_PRESSURE_MAX = 0.90
 
@@ -112,11 +122,12 @@ MOE_KV_PRESSURE_MAX = 0.90
 def _http_get_json(url: str, timeout_s: float) -> tuple[Optional[object], Optional[str]]:
     """GET `url` and parse JSON. Returns (data, error); error is None on success.
 
-    Sends the moe bearer token when the env var is present (the /slots endpoint
-    sits behind llama-server's --api-key along with the inference routes).
+    Sends the AM4 bearer token when the env var is present: llama-server's /slots
+    sits behind --api-key along with the inference routes. (The oxen facade
+    leaves /health open, so the header is merely harmless there.)
     """
     request = urllib.request.Request(url)
-    token = os.environ.get(MOE_TOKEN_ENV)
+    token = os.environ.get(AM4_TOKEN_ENV)
     if token:
         request.add_header("Authorization", f"Bearer {token}")
     try:
@@ -174,6 +185,65 @@ def probe_moe_slots(fetch: Callable[[str, float], tuple[Optional[object], Option
     return {"occupancy": "busy" if (saturated or kv_pressure) else "available", "detail": detail}
 
 
+# --- am4-oxen: facade health probe ------------------------------------------
+# The :8090 facade proxies to whichever llama-server is resident on
+# 127.0.0.1:8080, and that server holds the render nodes, so the fuser probe is
+# blind here (see module docstring). What the facade CAN answer is whether a
+# model is actually loaded and serving behind it — the failure this rung really
+# suffers, per the 2026-07-30 trace: the port answers during a crash loop while
+# nothing can serve a request.
+#
+# Read `backend.ok`, never the top-level "status": the facade hardcodes
+# {"status": "ok"} whenever the facade process itself is up, so top-level status
+# stays "ok" with a dead model behind it. The honest field is:
+#   {"backend": {"ok": true,  "status": 200, "body": {"status": "ok"}}}   ready
+#   {"backend": {"ok": false, "status": 503, "body": {...}}}              loading
+#   {"backend": {"ok": false, "error": "<connect error>"}}                gone
+#
+# Note this is a READINESS signal, not a contention one: the planner runs
+# -np 1, so a second concurrent call queues behind the first rather than being
+# refused, and this probe still reads "available". That is accepted — it is
+# strictly better than the fuser probe's permanent "busy", and pinned calls
+# (this rung is pin-only) bypass occupancy anyway.
+
+OXEN_HEALTH_URL = "http://192.168.12.233:8090/health"  # LAN, not tailnet (ADR-0014)
+OXEN_HTTP_TIMEOUT_S = 4.0
+
+
+def probe_oxen_facade(fetch: Callable[[str, float], tuple[Optional[object], Optional[str]]] = _http_get_json,
+                      timeout_s: float = OXEN_HTTP_TIMEOUT_S) -> dict:
+    """Probe the am4-oxen facade's health endpoint over HTTP.
+
+    Returns {"occupancy": ..., "detail": {...}} where detail carries the
+    readiness signal (facade state, backend_ok/backend_status, and which
+    backend URL the facade is fronting). Fail-open discipline matches the other
+    probes: an unreachable facade, an unparseable payload, or a backend that is
+    loading/absent all report "unknown" — opportunistic traffic skips, a pin
+    proceeds. A not-ready backend is deliberately NOT "busy": we cannot tell a
+    model mid-load from a card someone else took, and "busy" would refuse even a
+    deliberate operator lease.
+    """
+    data, error = fetch(OXEN_HEALTH_URL, timeout_s)
+    if error is not None:
+        return {"occupancy": "unknown", "detail": error}
+    if not isinstance(data, dict):
+        return {"occupancy": "unknown", "detail": f"unexpected /health shape: {type(data).__name__}"}
+    backend = data.get("backend")
+    if not isinstance(backend, dict):
+        return {"occupancy": "unknown", "detail": "no backend readiness in /health payload"}
+
+    detail = {
+        "facade": data.get("facade"),
+        "backend_ok": bool(backend.get("ok")),
+        "backend_status": backend.get("status"),
+        "backend_base_url": data.get("backend_base_url"),
+    }
+    if not backend.get("ok"):
+        detail["reason"] = backend.get("error") or backend.get("body")
+        return {"occupancy": "unknown", "detail": detail}
+    return {"occupancy": "available", "detail": detail}
+
+
 @dataclass
 class _CacheEntry:
     result: dict
@@ -186,10 +256,16 @@ class OccupancyCache:
     A plain instance-level dict (not a module global) so tests get isolation for
     free; the gateway module holds one process-wide instance (see
     ``default_cache()``).
+
+    ``probe`` is optional: with none installed, each key resolves the probe
+    declared for that backend in ``_PROBES``. That default used to be
+    ``probe_render_owners`` for every key, which meant any cache-carrying path
+    (``acquire_lease``, ``Lease.renew``) silently probed AM4's render nodes no
+    matter which backend it was asked about.
     """
 
     def __init__(self, ttl_s: float = CACHE_TTL_S,
-                probe: Callable[[], dict] = probe_render_owners,
+                probe: Optional[Callable[[], dict]] = None,
                 clock: Callable[[], float] = time.monotonic) -> None:
         self.ttl_s = ttl_s
         self._probe = probe
@@ -202,7 +278,7 @@ class OccupancyCache:
         entry = self._entries.get(key)
         if entry is not None and entry.expires_at > now:
             return {**entry.result, "cached": True}
-        result = (probe or self._probe)()
+        result = (probe or self._probe or _registry_probe(key))()
         self._entries[key] = _CacheEntry(result=result, expires_at=now + self.ttl_s)
         return {**result, "cached": False}
 
@@ -224,29 +300,42 @@ def default_cache() -> OccupancyCache:
     return _default_cache
 
 
-# Which backends have a live occupancy probe, and which. Everything else
+_NO_PROBE_DETAIL = "no occupancy probe declared for this backend"
+
+# Which backends have a live occupancy probe, and which one. Everything else
 # reports "available" (no probe declared — nothing is known to contend for it),
 # so the skip-busy logic only ever engages where a real occupancy signal exists.
+# Each entry must be a probe that can actually go BOTH ways for that rung: a
+# signal that is pinned to one answer by the rung's own design is not a probe,
+# it is decoration on every ledger event (which is what "am4-oxen" ->
+# probe_render_owners had become — see the module docstring).
 _PROBES: dict[str, Callable[[], dict]] = {
-    "am4-oxen": probe_render_owners,   # SSH render-node fuser (someone else's GPU?)
+    "am4-oxen": probe_oxen_facade,     # HTTP /health on the :8090 facade (is a model loaded?)
     "am4-moe": probe_moe_slots,        # HTTP slot/KV goodput on the resident server
 }
+
+
+def _registry_probe(backend_name: str) -> Callable[[], dict]:
+    """The probe declared for `backend_name`, or a stub reporting "available"."""
+    declared = _PROBES.get(backend_name)
+    if declared is not None:
+        return declared
+    return lambda: {"occupancy": "available", "detail": _NO_PROBE_DETAIL}
 
 
 def check_occupancy(backend_name: str, cache: Optional[OccupancyCache] = None,
                     probe: Optional[Callable[[], dict]] = None) -> dict:
     """Cached occupancy check for a named backend, via the ``_PROBES`` registry.
 
-    Probe precedence: an explicit ``probe`` arg wins; otherwise an injected
-    ``cache`` keeps its own probe (the test/Lease.renew contract — never
-    override a caller-owned cache); only the default-cache path resolves the
-    backend's declared registry probe.
+    Probe precedence: an explicit ``probe`` arg wins; then a cache's own probe
+    if one was installed (the test/Lease.renew contract — never override a probe
+    a caller deliberately handed us); then the backend's declared registry
+    probe. A cache with no probe installed — including the process-wide default
+    — resolves the registry per key, so ``acquire_lease``/``Lease.renew`` reach
+    the same probe a direct call does.
     """
-    declared = _PROBES.get(backend_name)
-    if probe is None and declared is None:
-        return {"occupancy": "available", "detail": "no occupancy probe declared for this backend"}
-    if probe is None and cache is None:
-        probe = declared
+    if probe is None and _PROBES.get(backend_name) is None:
+        return {"occupancy": "available", "detail": _NO_PROBE_DETAIL}
     return (cache or default_cache()).get(backend_name, probe=probe)
 
 

@@ -288,6 +288,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="Freshness threshold; exceeding it fails the run")
     parser.add_argument("--skip-freshness", action="store_true",
                         help="Skip the post-rebuild freshness guard (not recommended)")
+    parser.add_argument("--no-acknowledge", action="store_true",
+                        help="Ignore knowledge/freshness_ack.json: report every stale "
+                             "document and fail on it, the strict audit view")
     args = parser.parse_args(argv)
 
     # Advance the write side FIRST, or the replay below faithfully reproduces a
@@ -365,6 +368,8 @@ def main(argv: list[str] | None = None) -> int:
     # succeeds), so the check has to come from outside the replay and compare
     # against something that moves: the ledger head.
     stale = False
+    acknowledged: list[str] = []
+    earliest_expiry = None
     if args.skip_freshness:
         print("freshness: SKIPPED (--skip-freshness)")
     else:
@@ -376,9 +381,17 @@ def main(argv: list[str] | None = None) -> int:
                 sources=[resolve_in_scope(raw) for raw in (args.sources or DEFAULT_SOURCES)],
                 cursor_path=resolve_in_scope(args.bridge_cursor),
                 max_lag_hours=args.max_lag_hours,
+                honor_acks=not args.no_acknowledge,
             )
             print(format_report(report))
             stale = not report["ok"]
+            acknowledged = report.get("acknowledged") or []
+            expiries = sorted(
+                check["ack"]["expires_at_ledger_head"]
+                for check in report["checks"]
+                if check.get("acknowledged") and check["ack"].get("expires_at_ledger_head")
+            )
+            earliest_expiry = expiries[0] if expiries else None
         except Exception as exc:
             print(f"freshness: FAILED {exc}")
             stale = True
@@ -389,6 +402,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"rebuild: COMPLETED WITH STALENESS ({', '.join(reasons)}) -- "
               f"knowledge/ was swapped, but do not treat it as current belief")
         return 1
+
+    if acknowledged:
+        # Exit 0 on purpose. The six-hour timer treats non-zero as failure, so a
+        # permanently non-zero acknowledged run is a permanently ignored alarm -- the
+        # exact rot this guard exists to prevent. The mandatory expiry on every
+        # acknowledgement is what keeps this zero honest.
+        print(f"rebuild: COMPLETED WITH ACKNOWLEDGED STALENESS "
+              f"({len(acknowledged)} document(s): {', '.join(acknowledged)}"
+              + (f"; earliest expiry at ledger head {earliest_expiry}" if earliest_expiry else "")
+              + f") -- stale on purpose; see {args.out}/freshness_ack.json")
 
     return 0
 

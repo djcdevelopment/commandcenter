@@ -60,6 +60,26 @@ DEFAULT_CURSOR = Path("hearth/var/projection_cursor.json")
 DEFAULT_KNOWLEDGE = Path("knowledge")
 DEFAULT_SOURCES = (Path("runs"),)
 
+ACK_FILE = "freshness_ack.json"
+
+# Authored control/config files that live in knowledge/ but are not derived documents.
+# A file no projector produces has no watermark to lag, so reporting it as an
+# unverifiable projection is noise -- and the ack file in particular would otherwise be
+# scanned as a document and reported STALE for the very watermark it acknowledges,
+# because _document_watermark matches any key containing "watermark".
+CONTROL_FILES = frozenset({
+    ACK_FILE,
+    "corpus_regression_override.json",
+    "policy_overrides.json",
+    "operating-budget.json",
+})
+
+# Checks that can never be acknowledged. `bridge` is the exact failure that froze eleven
+# projections for 26 days, and `corpus` is the transitive vouch for every document that
+# stamps no watermark of its own -- acking it would silently un-cover all of them. An
+# operator reaching for either must get a refusal, not silence.
+UNACKABLE_CHECKS = frozenset({"bridge", "corpus", "ledger"})
+
 
 class StaleProjectionError(RuntimeError):
     """Raised when a projection has fallen further behind the ledger than allowed."""
@@ -158,14 +178,102 @@ def _document_watermark(document: dict) -> tuple[str | None, datetime | None]:
     return None, None
 
 
+def load_acks(ack_path: Path) -> tuple[list[dict], list[str]]:
+    """Read the acknowledgement file. Returns (entries, errors).
+
+    Fails CLOSED: an unreadable or malformed file yields an error, never an empty
+    pass. An inactive file (`active: false`, the landed template) yields no entries
+    and no errors.
+    """
+    path = Path(ack_path)
+    if not path.is_file():
+        return [], []
+    try:
+        document = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (json.JSONDecodeError, OSError) as exc:
+        return [], [f"{path.name} is unreadable: {exc}"]
+    if not isinstance(document, dict):
+        return [], [f"{path.name} is not a JSON object"]
+    if not document.get("active"):
+        return [], []
+
+    entries, errors = [], []
+    raw_entries = document.get("acknowledged")
+    if not isinstance(raw_entries, list):
+        return [], [f"{path.name} is active but 'acknowledged' is not a list"]
+    for index, entry in enumerate(raw_entries):
+        if not isinstance(entry, dict):
+            errors.append(f"{path.name}[{index}] is not an object")
+            continue
+        name = entry.get("name")
+        if not isinstance(name, str) or not name.strip():
+            errors.append(f"{path.name}[{index}] names no document")
+            continue
+        if name in UNACKABLE_CHECKS:
+            errors.append(
+                f"{path.name}[{index}] tries to acknowledge '{name}', which is never "
+                f"ackable -- run the bridge / fix the corpus instead of silencing it")
+            continue
+        entries.append(entry)
+    return entries, errors
+
+
+def _ack_applies(entry: dict, check: dict, head: datetime) -> tuple[bool, str]:
+    """Does this acknowledgement still cover this check? (applies, note).
+
+    The pin is EXACT parsed-instant equality against the watermark the ack was taken
+    at. Any movement -- forward but still stale, or backwards (the corpus_guard-bypass
+    case a from-zero rebuild allows) -- means the situation changed and must be
+    re-decided rather than silently kept quiet. Equality is on parsed instants, so a
+    `Z` spelling in the ack matches a `+00:00` spelling in the document; a guard that
+    can be fooled by a timestamp format is not a guard.
+    """
+    pinned = parse_instant(entry.get("watermark"))
+    actual = parse_instant(check.get("watermark"))
+    if pinned is None:
+        return False, "acknowledgement names no parseable watermark to pin against"
+    if actual is None:
+        return False, "document stamps no parseable watermark"
+    if pinned != actual:
+        return False, (f"acknowledgement was taken at {pinned.isoformat()}; the document "
+                       f"now stamps {actual.isoformat()} -- re-decide, do not re-ack blindly")
+    expiry = parse_instant(entry.get("expires_at_ledger_head"))
+    if expiry is None:
+        return False, ("acknowledgement declares no expires_at_ledger_head; there is no "
+                       "non-expiring acknowledgement")
+    if head > expiry:
+        return False, f"acknowledgement expired at ledger head {expiry.isoformat()}"
+    return True, entry.get("reason") or "(no reason given)"
+
+
 def check_freshness(knowledge_dir: Path = DEFAULT_KNOWLEDGE,
                     ledger_path: Path = DEFAULT_LEDGER,
                     sources: tuple[Path, ...] | list[Path] = DEFAULT_SOURCES,
                     cursor_path: Path = DEFAULT_CURSOR,
                     max_lag_hours: float = DEFAULT_MAX_LAG_HOURS,
-                    max_bridge_backlog: int = DEFAULT_MAX_BRIDGE_BACKLOG) -> dict:
+                    max_bridge_backlog: int = DEFAULT_MAX_BRIDGE_BACKLOG,
+                    ack_path: Path | None = None,
+                    honor_acks: bool = True) -> dict:
     """Compare the bridge, the corpus, and every knowledge document against the
-    ledger head. Reports; never raises. `ok` is False iff something is stale."""
+    ledger head. Reports; never raises. `ok` is False iff something is stale and
+    unacknowledged, or the acknowledgement file itself is unusable.
+
+    A document with a live acknowledgement keeps `stale: True` on its own check -- it
+    IS stale, and this report never claims otherwise -- but its name lands in
+    `acknowledged` rather than `stale`. That is the whole point: "stale, known cause,
+    tracked, expires on this date" has to be sayable, or the guard goes permanently red
+    and gets ignored, which is how the 26-day freeze survived in the first place.
+
+    DELIBERATELY SIDE-EFFECT-FREE, and so deliberately unlike
+    corpus_guard's override file, which auto-deactivates itself because `guard_write`
+    is already a write path. A read-side reporter that rewrites knowledge/ would be a
+    new class of surprise and would make this function non-idempotent under test.
+    Acknowledgements that no longer apply are reported in `ack_expired` and pruned by
+    hand.
+
+    `honor_acks=False` is the strict audit view: show the truth without the
+    acknowledgements.
+    """
     head, ledger_lines = ledger_head(Path(ledger_path))
     report: dict = {
         "ok": True,
@@ -177,6 +285,9 @@ def check_freshness(knowledge_dir: Path = DEFAULT_KNOWLEDGE,
         "checks": [],
         "stale": [],
         "unchecked": [],
+        "acknowledged": [],
+        "ack_expired": [],
+        "ack_errors": [],
     }
 
     if head is None:
@@ -189,6 +300,16 @@ def check_freshness(knowledge_dir: Path = DEFAULT_KNOWLEDGE,
         })
         report["stale"].append("ledger")
         return report
+
+    # Loaded after the no-head early return above: with no reference instant there is
+    # nothing an acknowledgement could mean, so a missing ledger is never ackable.
+    acks: list[dict] = []
+    if honor_acks:
+        resolved_ack_path = Path(ack_path) if ack_path is not None \
+            else Path(knowledge_dir) / ACK_FILE
+        acks, ack_errors = load_acks(resolved_ack_path)
+        report["ack_errors"].extend(ack_errors)
+    acks_by_name = {entry["name"]: entry for entry in acks}
 
     backlog, cursor_line = bridge_backlog(Path(cursor_path), ledger_lines)
     bridge_stale = backlog > max_bridge_backlog
@@ -222,6 +343,8 @@ def check_freshness(knowledge_dir: Path = DEFAULT_KNOWLEDGE,
             report["stale"].append("corpus")
 
     for path in sorted(Path(knowledge_dir).glob("*.json")):
+        if path.name in CONTROL_FILES:
+            continue
         try:
             document = json.loads(path.read_text(encoding="utf-8-sig"))
         except (json.JSONDecodeError, OSError) as exc:
@@ -243,35 +366,84 @@ def check_freshness(knowledge_dir: Path = DEFAULT_KNOWLEDGE,
             continue
         lag = _lag_hours(head, watermark)
         stale = lag > max_lag_hours
-        report["checks"].append({
+        check = {
             "name": path.name, "kind": "document", "checked": True, "stale": stale,
             "watermark_field": field_name, "watermark": watermark.isoformat(),
             "lag_hours": lag,
             "note": f"{field_name} lags ledger head by {lag}h" if stale
                     else f"fresh ({lag}h behind ledger head)",
-        })
-        if stale:
+        }
+        report["checks"].append(check)
+        if not stale:
+            continue
+
+        entry = acks_by_name.get(path.name)
+        if entry is None:
+            report["stale"].append(path.name)
+            continue
+        applies, note = _ack_applies(entry, check, head)
+        if applies:
+            # `stale` stays True on the check itself -- the document IS stale. Only the
+            # bucket its name lands in changes, so the report says "stale, acknowledged"
+            # and never "fresh".
+            check["acknowledged"] = True
+            check["ack"] = {
+                "reason": note,
+                "expires_at_ledger_head": entry.get("expires_at_ledger_head"),
+                "blocked_on": entry.get("blocked_on"),
+            }
+            report["acknowledged"].append(path.name)
+        else:
+            check["ack_expired"] = note
+            report["ack_expired"].append({"name": path.name, "note": note})
             report["stale"].append(path.name)
 
-    report["ok"] = not report["stale"]
+    report["ok"] = not report["stale"] and not report["ack_errors"]
     return report
 
 
 def format_report(report: dict) -> str:
-    """Human-readable lines for the rebuild/CLI output."""
+    """Human-readable lines for the rebuild/CLI output.
+
+    An acknowledged run must never be visually indistinguishable from a clean one --
+    that indistinguishability is the failure mode the whole ack mechanism guards
+    against -- so the header states the acknowledged count and never reads a bare OK
+    while acknowledgements are in force.
+    """
+    acknowledged = report.get("acknowledged") or []
+    if not report["ok"]:
+        headline = "STALE"
+    elif acknowledged:
+        headline = f"OK WITH {len(acknowledged)} ACKNOWLEDGED STALE"
+    else:
+        headline = "OK"
     lines = [
-        f"freshness: {'OK' if report['ok'] else 'STALE'} "
+        f"freshness: {headline} "
         f"(ledger head {report['ledger_head']}, {report['ledger_lines']} line(s), "
         f"threshold {report['max_lag_hours']}h)"
     ]
     for check in report["checks"]:
-        if check["stale"]:
+        if check.get("acknowledged"):
+            mark = "ACK"
+        elif check["stale"]:
             mark = "STALE"
         elif check["checked"]:
             mark = "ok"
         else:
             mark = "--"
         lines.append(f"  [{mark:>5}] {check['name']}: {check['note']}")
+        if check.get("acknowledged"):
+            ack = check["ack"]
+            lines.append(f"          -- acknowledged: {ack['reason']}")
+            lines.append(f"             (expires at ledger head "
+                         f"{ack['expires_at_ledger_head']}"
+                         + (f", blocked on {ack['blocked_on']}" if ack.get("blocked_on") else "")
+                         + ")")
+        elif check.get("ack_expired"):
+            lines.append(f"          -- acknowledgement NO LONGER APPLIES: "
+                         f"{check['ack_expired']}")
+    for message in report.get("ack_errors") or []:
+        lines.append(f"  [ERROR] {message}")
     return "\n".join(lines)
 
 
@@ -299,13 +471,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--sources", nargs="+", type=Path, default=list(DEFAULT_SOURCES))
     parser.add_argument("--max-lag-hours", type=float, default=DEFAULT_MAX_LAG_HOURS)
     parser.add_argument("--max-bridge-backlog", type=int, default=DEFAULT_MAX_BRIDGE_BACKLOG)
+    parser.add_argument("--ack", type=Path, default=None,
+                        help=f"Acknowledgement file (default: <knowledge>/{ACK_FILE})")
+    parser.add_argument("--no-acknowledge", action="store_true",
+                        help="Ignore the acknowledgement file: the strict audit view")
     parser.add_argument("--json", action="store_true", help="emit the raw report")
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
 
     report = check_freshness(
         knowledge_dir=args.knowledge, ledger_path=args.ledger, sources=args.sources,
         cursor_path=args.cursor, max_lag_hours=args.max_lag_hours,
-        max_bridge_backlog=args.max_bridge_backlog)
+        max_bridge_backlog=args.max_bridge_backlog,
+        ack_path=args.ack, honor_acks=not args.no_acknowledge)
     print(json.dumps(report, indent=2) if args.json else format_report(report))
     return 0 if report["ok"] else 1
 

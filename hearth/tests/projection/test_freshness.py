@@ -38,7 +38,11 @@ def _workflow_line(event_id: str, ts: str) -> str:
     })
 
 
-class FreshnessTestCase(TestCase):
+class _FreshnessFixture:
+    """Shared temp-dir fixture. Deliberately NOT a TestCase: the cases below mix it in
+    beside TestCase so each runs only its own tests, instead of re-running an
+    inherited suite."""
+
     def setUp(self) -> None:
         self.root = Path(mkdtemp()).resolve()
         self.ledger = self.root / "ledger.ndjson"
@@ -68,6 +72,8 @@ class FreshnessTestCase(TestCase):
         kwargs.update(overrides)
         return check_freshness(**kwargs)
 
+
+class FreshnessTestCase(_FreshnessFixture, TestCase):
     # --- primitives ---------------------------------------------------------
 
     def test_parse_instant_accepts_every_spelling_live_in_the_repo(self) -> None:
@@ -207,3 +213,251 @@ class FreshnessTestCase(TestCase):
         report = enforce_freshness(knowledge_dir=self.knowledge, ledger_path=self.ledger,
                                    sources=[self.runs], cursor_path=self.cursor)
         self.assertTrue(report["ok"])
+
+
+class AckTestCase(_FreshnessFixture, TestCase):
+    """A permanently-red guard is a guard nobody reads -- which is how eleven
+    projections stayed frozen for 26 days while the rebuild reported ok. These pin the
+    mechanism that lets the guard say "stale, known cause, tracked, expires on this
+    date" WITHOUT going quiet about anything new."""
+
+    ACK_EXPIRY = "2026-08-31T00:00:00Z"     # after LEDGER_HEAD_TS
+    EARLY_EXPIRY = "2026-07-20T00:00:00Z"   # before LEDGER_HEAD_TS
+
+    def _ack(self, entries: list[dict], active: bool = True) -> None:
+        (self.knowledge / "freshness_ack.json").write_text(json.dumps({
+            "contract_version": "freshness-ack.v1", "active": active,
+            "author": "derek", "created": "2026-07-30", "acknowledged": entries,
+        }), encoding="utf-8")
+
+    def _stale_doc_setup(self) -> None:
+        """The real situation: bridge and corpus current, one document 26 days stale."""
+        self.cursor.write_text(json.dumps({"last_event_id": "e2", "line": 3}), encoding="utf-8")
+        self._write_corpus(LEDGER_HEAD_TS)
+        self._write_doc("policy.json", {"evidence_watermark": STALE_TS})
+
+    def _entry(self, **overrides) -> dict:
+        entry = {
+            "name": "policy.json",
+            "watermark": STALE_TS,
+            "reason": "Structurally stale until ADR-0027 option B lands",
+            "blocked_on": "docs/adr/0027-gateway-dispatches-are-not-observations-yet.md",
+            "expires_at_ledger_head": self.ACK_EXPIRY,
+        }
+        entry.update(overrides)
+        return entry
+
+    # --- the load-bearing properties ----------------------------------------
+
+    def test_matching_ack_moves_document_from_stale_to_acknowledged(self) -> None:
+        self._stale_doc_setup()
+        self._ack([self._entry()])
+
+        report = self._check()
+
+        self.assertTrue(report["ok"], format_report(report))
+        self.assertEqual(report["acknowledged"], ["policy.json"])
+        self.assertNotIn("policy.json", report["stale"])
+        check = next(c for c in report["checks"] if c["name"] == "policy.json")
+        # The document IS stale; only the bucket its name lands in changes.
+        self.assertTrue(check["stale"])
+        self.assertTrue(check["acknowledged"])
+
+    def test_ack_does_not_mask_new_drift(self) -> None:
+        """THE load-bearing test. An ack pinned to one watermark must stop applying the
+        moment the document stamps a different one -- even another stale one."""
+        self._stale_doc_setup()
+        self._ack([self._entry()])
+        self._write_doc("policy.json", {"evidence_watermark": "2026-07-11T00:00:00+00:00"})
+
+        report = self._check()
+
+        self.assertFalse(report["ok"])
+        self.assertIn("policy.json", report["stale"])
+        self.assertEqual(report["acknowledged"], [])
+        self.assertIn("re-decide", report["ack_expired"][0]["note"])
+
+    def test_ack_does_not_mask_a_regressed_watermark(self) -> None:
+        """A from-zero rebuild bypasses corpus_guard, so a document CAN regress. The
+        ack must not keep quiet about that either."""
+        self._stale_doc_setup()
+        self._ack([self._entry()])
+        self._write_doc("policy.json", {"evidence_watermark": "2026-06-01T00:00:00+00:00"})
+
+        report = self._check()
+
+        self.assertFalse(report["ok"])
+        self.assertIn("policy.json", report["stale"])
+
+    def test_ack_pin_compares_parsed_instants_not_strings(self) -> None:
+        self._stale_doc_setup()  # document stamps 2026-07-04T05:50:00+00:00
+        self._ack([self._entry(watermark="2026-07-04T05:50:00Z")])
+
+        self.assertTrue(self._check()["ok"])
+
+    def test_ack_expires_against_ledger_head_not_wall_clock(self) -> None:
+        """Proven by moving the LEDGER HEAD across the boundary while the ack file
+        stays byte-identical -- no wall-clock dependence is possible."""
+        self._stale_doc_setup()
+        self._ack([self._entry(expires_at_ledger_head=self.EARLY_EXPIRY)])
+
+        report = self._check()
+        self.assertFalse(report["ok"])
+        self.assertIn("expired", report["ack_expired"][0]["note"])
+
+        # Rewind only the ledger to before the expiry; the ack file is untouched.
+        self.ledger.write_text(_ledger_line("e0", "2026-07-15T00:00:00Z") + "\n",
+                               encoding="utf-8")
+        self.cursor.write_text(json.dumps({"last_event_id": "e0", "line": 1}), encoding="utf-8")
+        self._write_corpus("2026-07-15T00:00:00Z")
+        self.assertTrue(self._check()["ok"])
+
+    # --- fail-closed properties ---------------------------------------------
+
+    def test_ack_without_expiry_is_refused(self) -> None:
+        self._stale_doc_setup()
+        entry = self._entry()
+        del entry["expires_at_ledger_head"]
+        self._ack([entry])
+
+        report = self._check()
+
+        self.assertFalse(report["ok"])
+        self.assertIn("no expires_at_ledger_head", report["ack_expired"][0]["note"])
+
+    def test_inactive_ack_does_not_apply(self) -> None:
+        self._stale_doc_setup()
+        self._ack([self._entry()], active=False)
+
+        report = self._check()
+
+        self.assertFalse(report["ok"])
+        self.assertIn("policy.json", report["stale"])
+
+    def test_ack_of_bridge_is_a_hard_error(self) -> None:
+        self._stale_doc_setup()
+        self._ack([self._entry(name="bridge")])
+
+        report = self._check()
+
+        self.assertFalse(report["ok"])
+        self.assertTrue(report["ack_errors"])
+        self.assertIn("never", report["ack_errors"][0])
+
+    def test_ack_of_corpus_is_a_hard_error(self) -> None:
+        self._stale_doc_setup()
+        self._ack([self._entry(name="corpus")])
+
+        report = self._check()
+
+        self.assertFalse(report["ok"])
+        self.assertTrue(report["ack_errors"])
+
+    def test_unreadable_ack_fails_closed_even_when_nothing_is_stale(self) -> None:
+        self.cursor.write_text(json.dumps({"last_event_id": "e2", "line": 3}), encoding="utf-8")
+        self._write_corpus(LEDGER_HEAD_TS)
+        (self.knowledge / "freshness_ack.json").write_text("{ truncated", encoding="utf-8")
+
+        report = self._check()
+
+        self.assertFalse(report["ok"])
+        self.assertTrue(report["ack_errors"])
+        self.assertEqual(report["stale"], [])
+
+    def test_missing_ledger_ignores_any_ack_file(self) -> None:
+        self._stale_doc_setup()
+        self._ack([self._entry()])
+
+        report = self._check(ledger_path=self.root / "absent.ndjson")
+
+        self.assertFalse(report["ok"])
+        self.assertIn("ledger", report["stale"])
+        self.assertEqual(report["acknowledged"], [])
+
+    # --- hygiene ------------------------------------------------------------
+
+    def test_ack_file_is_not_itself_scanned_as_a_document(self) -> None:
+        """Each entry carries a 'watermark' key, so _document_watermark would other-
+        wise report the ack file stale for the very watermark it acknowledges."""
+        self._stale_doc_setup()
+        self._ack([self._entry()])
+
+        report = self._check()
+
+        self.assertNotIn("freshness_ack.json", [c["name"] for c in report["checks"]])
+        self.assertNotIn("freshness_ack.json", report["stale"])
+        self.assertNotIn("freshness_ack.json", report["unchecked"])
+
+    def test_control_files_are_not_reported_unchecked(self) -> None:
+        self._stale_doc_setup()
+        self._write_doc("corpus_regression_override.json", {"active": False})
+        self._write_doc("policy_overrides.json", {})
+
+        report = self._check()
+
+        self.assertNotIn("corpus_regression_override.json", report["unchecked"])
+        self.assertNotIn("policy_overrides.json", report["unchecked"])
+
+    def test_absent_ack_file_changes_nothing(self) -> None:
+        self._stale_doc_setup()
+
+        report = self._check()
+
+        self.assertFalse(report["ok"])
+        self.assertEqual(report["acknowledged"], [])
+        self.assertEqual(report["ack_errors"], [])
+
+    def test_honor_acks_false_is_the_strict_audit_view(self) -> None:
+        self._stale_doc_setup()
+        self._ack([self._entry()])
+
+        self.assertTrue(self._check()["ok"])
+        strict = self._check(honor_acks=False)
+        self.assertFalse(strict["ok"])
+        self.assertIn("policy.json", strict["stale"])
+
+    def test_format_report_never_says_bare_ok_while_acks_are_in_force(self) -> None:
+        self._stale_doc_setup()
+        self._ack([self._entry()])
+
+        text = format_report(self._check())
+
+        self.assertIn("ACKNOWLEDGED", text)
+        self.assertIn("ACK", text)
+        self.assertIn("ADR-0027", text)
+        self.assertIn(self.ACK_EXPIRY, text)
+        self.assertNotIn("freshness: OK (", text)
+
+    def test_check_freshness_writes_nothing(self) -> None:
+        """Pins the read-only-reporter property, and with it the deliberate divergence
+        from corpus_regression_override's auto-deactivation."""
+        self._stale_doc_setup()
+        self._ack([self._entry()])
+        before = {p.name: (p.stat().st_size, p.stat().st_mtime_ns, p.read_bytes())
+                  for p in sorted(self.knowledge.iterdir())}
+
+        self._check()
+
+        after = {p.name: (p.stat().st_size, p.stat().st_mtime_ns, p.read_bytes())
+                 for p in sorted(self.knowledge.iterdir())}
+        self.assertEqual(before, after)
+
+    def test_enforce_does_not_raise_when_all_staleness_is_acknowledged(self) -> None:
+        self._stale_doc_setup()
+        self._ack([self._entry()])
+
+        report = enforce_freshness(knowledge_dir=self.knowledge, ledger_path=self.ledger,
+                                   sources=[self.runs], cursor_path=self.cursor)
+
+        self.assertTrue(report["ok"])
+
+    def test_enforce_still_raises_on_unacknowledged_staleness(self) -> None:
+        self._stale_doc_setup()
+        self._write_doc("capabilities.json", {"evidence_watermark": STALE_TS})
+        self._ack([self._entry()])
+
+        with self.assertRaises(StaleProjectionError) as caught:
+            enforce_freshness(knowledge_dir=self.knowledge, ledger_path=self.ledger,
+                              sources=[self.runs], cursor_path=self.cursor)
+
+        self.assertIn("capabilities.json", str(caught.exception))

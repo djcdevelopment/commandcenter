@@ -239,3 +239,94 @@ class RebuildScopeTests(RebuildScopedTestCase):
     def test_sources_outside_scope_rejected(self) -> None:
         with self.assertRaises(ValueError):
             rebuild_knowledge(sources=["../escape"])
+
+
+class RebuildMainExitCodeTests(RebuildScopedTestCase):
+    """main() is the timer entry point (knowledge_rebuild, every 21600s). Its exit code
+    is the only staleness signal that leaves the process, so the acknowledged-vs-stale
+    distinction has to be pinned here."""
+
+    def _run_main(self, *extra: str) -> tuple[int, str]:
+        ledger = self._write_ledger()
+        argv = ["--out", "knowledge", "--ledger", str(ledger),
+                "--allow-fixture-sources", "--skip-bridge", *extra]
+        with patch("builtins.print") as printed:
+            code = rebuild_module.main(argv)
+        output = "\n".join(str(call.args[0]) for call in printed.call_args_list if call.args)
+        return code, output
+
+    def _ack_all_stale(self) -> dict[str, str]:
+        """Rebuild once, then acknowledge every document the guard calls stale, pinned
+        to the watermark the projection actually produced.
+
+        No artificial ageing: the fixture corpus is already far behind the synthetic
+        ledger head, and pinning to the real projected value is what the mechanism
+        does in production -- a hardcoded pin would silently stop matching the moment
+        the rebuild regenerated the document.
+        """
+        from hearth.projection.freshness import check_freshness
+        self._run_main()
+        report = check_freshness(
+            knowledge_dir=self.scope / "knowledge",
+            ledger_path=self._write_ledger(),
+            sources=[self.scope / "runs"],
+            cursor_path=self.scope / "hearth" / "var" / "projection_cursor.json",
+        )
+        stale = {check["name"]: check["watermark"] for check in report["checks"]
+                 if check["stale"] and check["kind"] == "document"}
+        self.assertTrue(stale, "fixture rebuild produced no stale document to acknowledge")
+        self._write_ack([
+            {"name": name, "watermark": watermark,
+             "reason": "structurally stale pending ADR-0027",
+             "expires_at_ledger_head": "2099-01-01T00:00:00Z"}
+            for name, watermark in stale.items()
+        ])
+        return stale
+
+    def _write_ack(self, entries: list[dict]) -> None:
+        (self.scope / "knowledge" / "freshness_ack.json").write_text(json.dumps({
+            "contract_version": "freshness-ack.v1", "active": True, "author": "derek",
+            "created": "2026-07-30", "acknowledged": entries,
+        }), encoding="utf-8")
+
+    def test_main_returns_one_on_unacknowledged_staleness(self) -> None:
+        self._run_main()
+
+        code, output = self._run_main()
+
+        self.assertEqual(code, 1)
+        self.assertIn("COMPLETED WITH STALENESS", output)
+
+    def test_main_returns_zero_when_all_staleness_is_acknowledged(self) -> None:
+        self._ack_all_stale()
+
+        code, output = self._run_main()
+
+        self.assertEqual(code, 0)
+        self.assertIn("ACKNOWLEDGED STALENESS", output)
+        self.assertNotIn("COMPLETED WITH STALENESS", output)
+
+    def test_no_acknowledge_flag_ignores_the_ack_file(self) -> None:
+        self._ack_all_stale()
+
+        code, output = self._run_main("--no-acknowledge")
+
+        self.assertEqual(code, 1)
+        self.assertIn("COMPLETED WITH STALENESS", output)
+
+    def test_bridge_failure_returns_one_even_when_staleness_is_acknowledged(self) -> None:
+        """A bridge failure is never ackable: it is the exact fault that froze eleven
+        projections for 26 days."""
+        self._ack_all_stale()
+        ledger = self._write_ledger()
+
+        with patch("hearth.projection.ledger_adapter.project_ledger",
+                   side_effect=RuntimeError("bridge is down")):
+            with patch("builtins.print") as printed:
+                code = rebuild_module.main(["--out", "knowledge", "--ledger", str(ledger),
+                                            "--allow-fixture-sources"])
+        output = "\n".join(str(call.args[0]) for call in printed.call_args_list if call.args)
+
+        self.assertEqual(code, 1)
+        self.assertIn("bridge: FAILED", output)
+        self.assertIn("COMPLETED WITH STALENESS", output)

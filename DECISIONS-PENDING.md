@@ -260,3 +260,39 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       legitimate outcome — the cost right now is retro noise, not lost work — but it should be a
       decision rather than a fourth observation. Source:
       [SESSION-RETRO-2026-07-29.md](SESSION-RETRO-2026-07-29.md).
+      **Update 2026-07-30:** the *symptom* is cleared — master pushed on request, now 0 ahead,
+      working tree clean. The *decision* (a/b/c) is still open and deliberately not closed here;
+      one push does not settle whether the habit needs a hook. See
+      [SESSION-RETRO-2026-07-30.md](SESSION-RETRO-2026-07-30.md).
+
+- [ ] 2026-07-30 — **Find what re-pushes deleted fleet branches.** 70 merged remote branches were
+      deleted; **61 reappeared within ~30 minutes** carrying Jul 5–18 commit dates (same branches
+      re-pushed, not new runs), while the 9 non-`fleet/*` ones stayed deleted. Nothing on OMEN
+      explains it: the local `conductor-mirror.git` holds only `main`, and no scheduled task pushes
+      to this repo. Most likely a clone on cc-conductor or a builder VM doing a `push --all`.
+      Pruning again is a treadmill until the source is found. Remote sits at 158 branches. Source:
+      [SESSION-RETRO-2026-07-30.md](SESSION-RETRO-2026-07-30.md).
+- [ ] 2026-07-30 — **Decide whether to pin Ollama's version and stop the auto-updater
+      half-applying.** `app.log` shows the updater looping hourly on "new update available /
+      already downloaded", and `repair-install-2026-07-17.log` (417 KB, "Installation process
+      succeeded") shows this exact break was already repaired once, 13 days before it recurred. The
+      pattern: it half-applies, deletes `lib/ollama`, and leaves Ollama answering `/api/tags` while
+      no generate can succeed. The sentinel now catches it inside 120 s, so this is about
+      prevention, not detection. Pinning means updating deliberately. Source:
+      [ADR-0028](docs/adr/0028-one-door-means-one-host.md).
+- [ ] 2026-07-30 — **Retire `comfy_gateway`'s duplicate `local_generate`** in favour of HEARTH's.
+      It is the surviving artifact of the Valheim-MCP-into-HEARTH merge and a second inference path;
+      right now it is kept honest only by both ends living on loopback. Changing it touches a tool
+      surface in active use. Source: [ADR-0028](docs/adr/0028-one-door-means-one-host.md) §Decision 4.
+- [ ] 2026-07-30 — **Decide whether `hearth/experiments/*` should push a `dispatch_identity`.**
+      Those runs are real backend × task matrices — the richest varied-axis evidence in the repo and
+      exactly what the association engine's gate 2 is starving for — but they currently emit no
+      observations. Opting them in is a curation question (which experiment runs count as evidence),
+      not plumbing. Source: [ADR-0027](docs/adr/0027-gateway-dispatches-are-not-observations-yet.md).
+- [ ] 2026-07-30 — **Name in the offload doctrine that the scorecard measures door traffic, not
+      offload.** In-process `local_generate` calls bypass the gateway wrapper and never reach the
+      kernel ledger, so this session's live dispatches appear in the observation artifacts but not
+      in `knowledge/offload.json` (and `omen-ollama` still reads `ok_rate 1.0` despite failed
+      in-process attempts). The doc change belongs in `CLAUDE.md`, which a **concurrent session is
+      editing** — deferred rather than conflicted. Source:
+      [SESSION-RETRO-2026-07-30.md](SESSION-RETRO-2026-07-30.md) L-2026-07-30-7.

@@ -93,8 +93,8 @@ whose blast radius grew when the work moved out of comfy.
 | 2. comfy_gateway container → native | **DONE.** Container stopped (`unless-stopped`, so it stays stopped and `docker compose start comfy-gateway` reverts). Native gateway healthy, bound `127.0.0.1:8720` — the container had published `0.0.0.0:8720`. |
 | 2b. Persistence for the native gateway | **DONE.** Docker's restart policy was its persistence; going native removed that. `comfy/fieldlab/scripts/start-comfy-gateway.cmd` (mirrors the HEARTH wrapper, boot-safe logging included) + scheduled task `ComfyGatewayBoot` (logon trigger, Interactive, RunLevel Limited — it binds loopback and needs no elevation, unlike `HearthGatewayBoot`'s S4U/Highest, which is why that shape was refused). Verified: task start → healthz → loopback bind → log written. |
 | 3. Unset `OLLAMA_HOST` | **DONE.** Removed from the User environment; `OLLAMA_KEEP_ALIVE=30m` left alone. The running Ollama still holds the old value, so the loopback bind lands when step 1 restarts it. |
-| 4. Remove the two blanket `ollama.exe` rules | **OPEN — operator.** Firewall rules are security settings. |
-| 5. Verify the surface off-box | **BLOCKED on 1 and 4.** |
+| 4. Remove the two blanket `ollama.exe` rules | **DONE** (2026-07-30, operator). Verified 0 remaining; the correctly-scoped `Ollama LLM (tailnet only)` rule survived intact, and also survived the 0.32.5 upgrade. |
+| 5. Verify the surface off-box | **PARTIAL.** Only one inbound allow rule for 11434 remains (`remote=100.64.0.0/10`), so LAN and internet are closed by absence of rules. The bind itself is still `::` on the surviving elevated pre-change server process — see the environment-inheritance note below; resolves on reboot or an elevated restart from a cleaned environment. |
 
 ### Environment inheritance is why "just restart it" did not work
 

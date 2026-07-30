@@ -10,7 +10,7 @@
 
   <rect x="0" y="0" width="1460" height="1040" fill="#fafaf9"/>
   <text x="30" y="34" font-size="21" font-weight="700" fill="#1e293b">mechnet network topology — post-ADR-0014</text>
-  <text x="30" y="54" font-size="12.5" fill="#64748b">2026-07-09 · machine lanes = mshome.net + LAN only · Tailscale = humans + Funnel · conductor &amp; cc-builder-4 removed from tailnet</text>
+  <text x="30" y="54" font-size="12.5" fill="#64748b">HISTORICAL SNAPSHOT · 2026-07-09 · machine-lane doctrine is durable; addresses, services, ingress, and tool counts are not current</text>
 
   <!-- ===== Internet band ===== -->
   <rect x="30" y="70" width="1400" height="120" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.4"/>

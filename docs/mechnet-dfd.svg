@@ -7,7 +7,7 @@
 
   <rect x="0" y="0" width="1460" height="1000" fill="#fafaf9"/>
   <text x="30" y="34" font-size="21" font-weight="700" fill="#1e293b">mechnet data flow diagram — communication channels, post-ADR-0014</text>
-  <text x="30" y="54" font-size="12.5" fill="#64748b">2026-07-09 · rectangles = external entities · rounded = processes · open bars = data stores · every arrow labeled with its channel</text>
+  <text x="30" y="54" font-size="12.5" fill="#64748b">HISTORICAL SNAPSHOT · 2026-07-09 · core boundary/store shape is durable; counts, backends, identity, ingress, and timers are not current</text>
 
   <!-- ===================== EXTERNAL ENTITIES ===================== -->
   <rect x="60" y="120" width="180" height="70" fill="#ffffff" stroke="#1e293b" stroke-width="2"/>

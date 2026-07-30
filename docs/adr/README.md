@@ -23,7 +23,7 @@ record with its status changed and a pointer to the ADR that replaced it.
 | [0012](0012-commander-intent-lane-frontier-out-of-loop.md) | The commander issues intent; mechnet carries it, no frontier in the run loop | Accepted (2026-07-05) |
 | [0013](0013-wake-am4-live-serve-truth-single-claimant.md) | wake_am4 goes live: serve-truth idempotency, queue-gated occupancy, one systemd claimant per port | Accepted (2026-07-07) |
 | [0014](0014-machine-lanes-off-the-tailnet.md) | Machine lanes ride local networks; Tailscale is for humans and the Funnel | Accepted (2026-07-09) |
-| [0015](0015-ops-loops-fold-into-the-gateway.md) | Repeating ops loops fold into the always-on gateway; no interactive scheduled tasks | Accepted (2026-07-09), build pending |
+| [0015](0015-ops-loops-fold-into-the-gateway.md) | Repeating ops loops fold into the always-on gateway; no interactive scheduled tasks | Implemented (2026-07-09), amended by 0024 |
 | 0016 | *(reserved — pending ratification, no file yet; scheduler actuation decision, H1 — see SCHEDULER-STRATEGY.html)* | Pending Derek |
 | [0017](0017-software-constellation-registry-am4-seed-intake.md) | Software constellation registry + the AM4 seed intake rulings (manifest/ember/gad) | Accepted (2026-07-16), registry landed |
 | [0018](0018-resident-moe-steady-state-tenant.md) | The resident big-MoE is oxen's steady-state tenant: goodput-routed, budget-enforced | Accepted (2026-07-18), live |
@@ -34,6 +34,7 @@ record with its status changed and a pointer to the ADR that replaced it.
 | [0023](0023-authority-is-granted-never-assumed.md) | Authority is granted by naming a role, never by omitting one | Accepted (2026-07-20), closes 0019's fail-open |
 | [0024](0024-gateway-liveness-lives-outside-the-gateway.md) | The gateway's own liveness watch lives outside the gateway | Accepted (2026-07-20), amends 0015 |
 | [0025](0025-funnel-caddy-stamps-identity-until-studio-can.md) | A Funnel-facing Caddy proxy stamps caller identity until Google Agent Platform Studio can send one itself | Accepted (2026-07-21), first external cloud caller |
+| [0026](0026-cloud-deployments-are-ephemeral-by-default.md) | Cloud deployments are ephemeral by default | Accepted (2026-07-23) |
 
 ## Historical note
 The "ADR-0001" referenced in `SESSION-RETRO-2026-06-29.md` (which orchestrator is

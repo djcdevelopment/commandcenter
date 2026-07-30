@@ -1,5 +1,15 @@
 # Workflow Ontology Design
 
+> **Freshness note (audited 2026-07-29):** This is the July 8 design and
+> discovery record, not a current implementation inventory. Its 19-event core
+> is implemented in `tools/workflow`, but the executable ontology and JSON
+> Schema now contain 21 events (`idle.observed` and `idle.ended` were added).
+> The reference runner implements question/answer/resume and promotion
+> approved/held scenarios, so passages below saying those paths are absent or
+> promotion is only manual describe the earlier checkout. The
+> event/state/artifact/command separation and OTel mapping remain the useful
+> architectural content.
+
 ## Executive Summary
 
 The current `commandcenter` vocabulary is fragmented across three layers:

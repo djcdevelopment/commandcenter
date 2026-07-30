@@ -1,12 +1,12 @@
 {
   "contract_version": "findings.v1",
-  "observation_count": 25,
+  "observation_count": 27,
   "decision_count": 0,
   "unresolved_refs": 0,
   "finding_counts": {
     "known_bad": 1,
-    "known_good": 12,
-    "recommendation": 2,
+    "known_good": 14,
+    "recommendation": 3,
     "uncertain": 2
   },
   "findings": [
@@ -78,6 +78,72 @@
       "recommendation": null,
       "first_observed": "2026-07-03T04:09:32.603190+00:00",
       "last_observed": "2026-07-04T05:50:00+00:00",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
+      "finding_id": "known_good:gcp-vertex|gemini-3.1-pro-preview|gcp-gemini",
+      "finding_type": "known_good",
+      "statement": "gcp-vertex + gemini-3.1-pro-preview + gcp-gemini works: 1/1 successful runs (success_rate 1.0), mean 0.3 tok/s",
+      "subject": {
+        "builder_id": "gcp-vertex",
+        "model_id": "gemini-3.1-pro-preview",
+        "backend": "gcp-gemini",
+        "task_kind": null,
+        "metric": null
+      },
+      "confidence": "low",
+      "confidence_score": 0.33,
+      "evidence": {
+        "samples": 1,
+        "successes": 1,
+        "failures": 0,
+        "summary": "1/1 success",
+        "observation_ids": [
+          "obs-offload-gcp-adk-test-202607300923287424790000-e19cb9e7"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": null,
+      "first_observed": "2026-07-30T09:23:28.742479+00:00",
+      "last_observed": "2026-07-30T09:23:28.742479+00:00",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
+      "finding_id": "known_good:gcp-vertex|gemini-3.5-flash|gcp-gemini",
+      "finding_type": "known_good",
+      "statement": "gcp-vertex + gemini-3.5-flash + gcp-gemini works: 1/1 successful runs (success_rate 1.0), mean 0.81 tok/s",
+      "subject": {
+        "builder_id": "gcp-vertex",
+        "model_id": "gemini-3.5-flash",
+        "backend": "gcp-gemini",
+        "task_kind": null,
+        "metric": null
+      },
+      "confidence": "low",
+      "confidence_score": 0.33,
+      "evidence": {
+        "samples": 1,
+        "successes": 1,
+        "failures": 0,
+        "summary": "1/1 success",
+        "observation_ids": [
+          "obs-offload-claude-frontier-202607300923253854780000-475d15fa"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": null,
+      "first_observed": "2026-07-30T09:23:25.385478+00:00",
+      "last_observed": "2026-07-30T09:23:25.385478+00:00",
       "derived_from": [
         "capacity-estimates.v1"
       ]
@@ -481,6 +547,39 @@
     },
     {
       "contract_version": "finding.v1",
+      "finding_id": "recommendation:task_kind=offload-generate",
+      "finding_type": "recommendation",
+      "statement": "for task_kind offload-generate, prefer gcp-vertex + gemini-3.5-flash + gcp-gemini (success rate 1.0 over 1 run(s), 0.81 tok/s)",
+      "subject": {
+        "builder_id": "gcp-vertex",
+        "model_id": "gemini-3.5-flash",
+        "backend": "gcp-gemini",
+        "task_kind": "offload-generate",
+        "metric": null
+      },
+      "confidence": "low",
+      "confidence_score": 0.33,
+      "evidence": {
+        "samples": 1,
+        "successes": null,
+        "failures": null,
+        "summary": "best of 2 known_good combo(s) observed on task_kind offload-generate",
+        "observation_ids": [
+          "obs-offload-claude-frontier-202607300923253854780000-475d15fa"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": "route task_kind offload-generate to gcp-vertex + gemini-3.5-flash + gcp-gemini",
+      "first_observed": "2026-07-30T09:23:25.385478+00:00",
+      "last_observed": "2026-07-30T09:23:25.385478+00:00",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
       "finding_id": "recommendation:task_kind=repo-build",
       "finding_type": "recommendation",
       "statement": "for task_kind repo-build, prefer omen-worker-1 + qwen3-coder:30b + ollama (success rate 1.0 over 2 run(s), 54.6 tok/s)",
@@ -583,6 +682,6 @@
       ]
     }
   ],
-  "corpus_digest": "sha256:85214ee53ba762463cb51a80b30ca30df3f40a107105642749fa5372b6f47fd1",
-  "corpus_event_count": 1013
+  "corpus_digest": "sha256:a77ac64b6181ba52fefbcb1eb11389ef2e08183263c8884265d04c5bd778835c",
+  "corpus_event_count": 1339
 }

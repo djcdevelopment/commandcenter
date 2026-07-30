@@ -1,11 +1,11 @@
 {
   "contract_version": "experiment-candidates.v1",
-  "source_findings": 17,
+  "source_findings": 20,
   "candidate_counts": {
     "backend_comparison": 3,
-    "coverage_probe": 27,
+    "coverage_probe": 31,
     "known_bad_retest": 1,
-    "prefer_validation": 12,
+    "prefer_validation": 14,
     "uncertain_resolution": 2
   },
   "candidates": [
@@ -128,6 +128,46 @@
       "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
       "confidence": null,
       "last_observed": "2026-07-02T10:31:56.771381Z"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=gemini-3.1-pro-preview",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does 'model_id=gemini-3.1-pro-preview' hold outside wf-hearth-offload-gcp-adk-test?",
+      "worth": "1 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-07-30T09:23:28.742479+00:00"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=gemini-3.5-flash",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does 'model_id=gemini-3.5-flash' hold outside wf-hearth-offload-claude-frontier?",
+      "worth": "1 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-07-30T09:23:25.385478+00:00"
     },
     {
       "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=mixtral:8x22b-instruct-v0.1-q2_K",
@@ -368,6 +408,46 @@
       "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
       "confidence": null,
       "last_observed": "2026-07-04T05:50:00+00:00"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:gcp-vertex|gemini-3.1-pro-preview|gcp-gemini",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "gcp-vertex",
+        "model_id": "gemini-3.1-pro-preview",
+        "backend": "gcp-gemini",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, ram_gb_peak, vram_gb_peak on gcp-vertex + gemini-3.1-pro-preview + gcp-gemini?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-30T09:23:28.742479+00:00"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:gcp-vertex|gemini-3.5-flash|gcp-gemini",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "gcp-vertex",
+        "model_id": "gemini-3.5-flash",
+        "backend": "gcp-gemini",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, ram_gb_peak, vram_gb_peak on gcp-vertex + gemini-3.5-flash + gcp-gemini?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-30T09:23:25.385478+00:00"
     },
     {
       "candidate_id": "coverage_probe:unmeasured_metrics:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-cuda",
@@ -655,6 +735,46 @@
       "last_observed": "2026-07-04T05:50:00+00:00"
     },
     {
+      "candidate_id": "prefer_validation:gcp-vertex|gemini-3.1-pro-preview|gcp-gemini",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "gcp-vertex",
+        "model_id": "gemini-3.1-pro-preview",
+        "backend": "gcp-gemini",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does gcp-vertex + gemini-3.1-pro-preview + gcp-gemini still hold up (1/1 success)?",
+      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
+      "target_finding_id": "known_good:gcp-vertex|gemini-3.1-pro-preview|gcp-gemini",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "low",
+      "last_observed": "2026-07-30T09:23:28.742479+00:00"
+    },
+    {
+      "candidate_id": "prefer_validation:gcp-vertex|gemini-3.5-flash|gcp-gemini",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "gcp-vertex",
+        "model_id": "gemini-3.5-flash",
+        "backend": "gcp-gemini",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does gcp-vertex + gemini-3.5-flash + gcp-gemini still hold up (1/1 success)?",
+      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
+      "target_finding_id": "known_good:gcp-vertex|gemini-3.5-flash|gcp-gemini",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "low",
+      "last_observed": "2026-07-30T09:23:25.385478+00:00"
+    },
+    {
       "candidate_id": "prefer_validation:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-cuda",
       "experiment_type": "prefer_validation",
       "subject": {
@@ -925,6 +1045,6 @@
       "last_observed": "2026-07-04T04:18:00+00:00"
     }
   ],
-  "corpus_digest": "sha256:85214ee53ba762463cb51a80b30ca30df3f40a107105642749fa5372b6f47fd1",
-  "corpus_event_count": 1013
+  "corpus_digest": "sha256:a77ac64b6181ba52fefbcb1eb11389ef2e08183263c8884265d04c5bd778835c",
+  "corpus_event_count": 1339
 }

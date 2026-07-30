@@ -1,0 +1,30 @@
+{
+  "contract_version": "capacity-observation.v1",
+  "observation_id": "obs-offload-gcp-adk-test-202607300923287424790000-e19cb9e7",
+  "decision_id": null,
+  "workflow_id": "wf-hearth-offload-gcp-adk-test",
+  "run_id": "hearth-offload-gcp-adk-test",
+  "timestamp": "2026-07-30T09:23:28.742479+00:00",
+  "builder_id": "gcp-vertex",
+  "model_id": "gemini-3.1-pro-preview",
+  "backend": "gcp-gemini",
+  "hardware_profile_id": null,
+  "workload_shape": {
+    "task_kind": "offload-generate",
+    "estimated_context_tokens": 8,
+    "requires_gpu": null,
+    "notes": "routed_by=pinned:gcp-gemini; occupancy=available; runtime_s is wall-clock"
+  },
+  "observed": {
+    "runtime_s": 3.359,
+    "ttft_s": null,
+    "tokens_per_s": 0.3,
+    "ram_gb_peak": null,
+    "vram_gb_peak": null,
+    "context_tokens": 7,
+    "physical": null
+  },
+  "outcome": "success",
+  "failure_class": null,
+  "promotion_status": null
+}

@@ -1,9 +1,71 @@
 {
   "contract_version": "capabilities.v1",
-  "evidence_watermark": "2026-07-04T05:50:00+00:00",
-  "capability_count": 0,
+  "evidence_watermark": "2026-07-30T09:23:28.742479+00:00",
+  "capability_count": 1,
   "requalification_due": 0,
-  "capabilities": [],
-  "corpus_digest": "sha256:85214ee53ba762463cb51a80b30ca30df3f40a107105642749fa5372b6f47fd1",
-  "corpus_event_count": 1013
+  "capabilities": [
+    {
+      "contract_version": "capability.v1",
+      "capability_id": "capability:task_kind=offload-generate|backend=gcp-gemini",
+      "name": "offload-generate on backend=gcp-gemini",
+      "statement": "the organization can perform task_kind=offload-generate work under backend=gcp-gemini using any of 2 qualified resource combination(s)",
+      "invariant": {
+        "task_kind": "offload-generate",
+        "backend": "gcp-gemini"
+      },
+      "derived_from_association": "success_invariant:task_backend:task_kind=offload-generate|backend=gcp-gemini",
+      "confidence": "medium",
+      "confidence_score": 0.5,
+      "qualified_resources": [
+        {
+          "builder_id": "gcp-vertex",
+          "model_id": "gemini-3.1-pro-preview",
+          "backend": "gcp-gemini"
+        },
+        {
+          "builder_id": "gcp-vertex",
+          "model_id": "gemini-3.5-flash",
+          "backend": "gcp-gemini"
+        }
+      ],
+      "operating_envelope": {
+        "max_context_tokens": 7,
+        "tokens_per_s_range": [
+          0.3,
+          0.81
+        ],
+        "max_ram_gb_peak": null,
+        "max_vram_gb_peak": null,
+        "requires_gpu": null
+      },
+      "failure_modes": [],
+      "evidence": {
+        "samples": 2,
+        "workflow_count": 2,
+        "observation_ids": [
+          "obs-offload-claude-frontier-202607300923253854780000-475d15fa",
+          "obs-offload-gcp-adk-test-202607300923287424790000-e19cb9e7"
+        ],
+        "workflows": [
+          "wf-hearth-offload-claude-frontier",
+          "wf-hearth-offload-gcp-adk-test"
+        ],
+        "summary": "2 observation(s) across 2 workflow(s), all success"
+      },
+      "supporting_findings": [
+        "known_good:gcp-vertex|gemini-3.1-pro-preview|gcp-gemini",
+        "known_good:gcp-vertex|gemini-3.5-flash|gcp-gemini"
+      ],
+      "first_observed": "2026-07-30T09:23:25.385478+00:00",
+      "last_validated": "2026-07-30T09:23:28.742479+00:00",
+      "evidence_watermark": "2026-07-30T09:23:28.742479+00:00",
+      "staleness_days": 0.0,
+      "qualification_status": "qualified",
+      "derived_from": [
+        "association.v1"
+      ]
+    }
+  ],
+  "corpus_digest": "sha256:a77ac64b6181ba52fefbcb1eb11389ef2e08183263c8884265d04c5bd778835c",
+  "corpus_event_count": 1339
 }

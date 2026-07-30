@@ -1,10 +1,10 @@
 {
   "contract_version": "associations.v1",
-  "observation_count": 25,
+  "observation_count": 27,
   "unresolved_refs": 0,
-  "evidence_watermark": "2026-07-04T05:50:00+00:00",
-  "association_count": 1,
-  "gated_bucket_count": 17,
+  "evidence_watermark": "2026-07-30T09:23:28.742479+00:00",
+  "association_count": 2,
+  "gated_bucket_count": 19,
   "associations": [
     {
       "contract_version": "association.v1",
@@ -56,6 +56,52 @@
         "capacity-observation.v1",
         "findings.v1"
       ]
+    },
+    {
+      "contract_version": "association.v1",
+      "association_id": "success_invariant:task_backend:task_kind=offload-generate|backend=gcp-gemini",
+      "association_type": "success_invariant",
+      "pattern": "task_backend",
+      "statement": "task_kind=offload-generate, backend=gcp-gemini succeeds independent of the particulars: held across 2 workflow(s) (2 model_id value(s))",
+      "invariant": {
+        "task_kind": "offload-generate",
+        "backend": "gcp-gemini"
+      },
+      "varied": {
+        "builder_id": [
+          "gcp-vertex"
+        ],
+        "model_id": [
+          "gemini-3.1-pro-preview",
+          "gemini-3.5-flash"
+        ]
+      },
+      "workflows": [
+        "wf-hearth-offload-claude-frontier",
+        "wf-hearth-offload-gcp-adk-test"
+      ],
+      "confidence": "medium",
+      "confidence_score": 0.5,
+      "evidence": {
+        "samples": 2,
+        "workflow_count": 2,
+        "observation_ids": [
+          "obs-offload-claude-frontier-202607300923253854780000-475d15fa",
+          "obs-offload-gcp-adk-test-202607300923287424790000-e19cb9e7"
+        ],
+        "failure_class": null,
+        "summary": "2 observation(s) across 2 workflow(s), all success"
+      },
+      "supporting_findings": [
+        "known_good:gcp-vertex|gemini-3.1-pro-preview|gcp-gemini",
+        "known_good:gcp-vertex|gemini-3.5-flash|gcp-gemini"
+      ],
+      "first_observed": "2026-07-30T09:23:25.385478+00:00",
+      "last_observed": "2026-07-30T09:23:28.742479+00:00",
+      "derived_from": [
+        "capacity-observation.v1",
+        "findings.v1"
+      ]
     }
   ],
   "gated_buckets": [
@@ -100,6 +146,34 @@
       ],
       "reasons": [
         "all 3 sample(s) come from one workflow (wf-vllm-moe-crash-omen-wsl-2026-07-02); no generalization from one workflow",
+        "nothing varied under the invariant; a repeated particular is a finding, not an abstraction"
+      ]
+    },
+    {
+      "pattern": "model_portability",
+      "invariant": {
+        "model_id": "gemini-3.1-pro-preview"
+      },
+      "samples": 1,
+      "workflows": [
+        "wf-hearth-offload-gcp-adk-test"
+      ],
+      "reasons": [
+        "all 1 sample(s) come from one workflow (wf-hearth-offload-gcp-adk-test); no generalization from one workflow",
+        "nothing varied under the invariant; a repeated particular is a finding, not an abstraction"
+      ]
+    },
+    {
+      "pattern": "model_portability",
+      "invariant": {
+        "model_id": "gemini-3.5-flash"
+      },
+      "samples": 1,
+      "workflows": [
+        "wf-hearth-offload-claude-frontier"
+      ],
+      "reasons": [
+        "all 1 sample(s) come from one workflow (wf-hearth-offload-claude-frontier); no generalization from one workflow",
         "nothing varied under the invariant; a repeated particular is a finding, not an abstraction"
       ]
     },
@@ -313,6 +387,6 @@
       ]
     }
   ],
-  "corpus_digest": "sha256:85214ee53ba762463cb51a80b30ca30df3f40a107105642749fa5372b6f47fd1",
-  "corpus_event_count": 1013
+  "corpus_digest": "sha256:a77ac64b6181ba52fefbcb1eb11389ef2e08183263c8884265d04c5bd778835c",
+  "corpus_event_count": 1339
 }

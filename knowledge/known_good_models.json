@@ -14,6 +14,30 @@
       "reason": "4/5 successful runs (success_rate 0.8)"
     },
     {
+      "builder_id": "gcp-vertex",
+      "model_id": "gemini-3.1-pro-preview",
+      "backend": "gcp-gemini",
+      "success_rate": 1.0,
+      "samples": 1,
+      "mean_tokens_per_s": 0.3,
+      "promotion_holds": 0,
+      "confidence": 0.33,
+      "last_observed": "2026-07-30T09:23:28.742479+00:00",
+      "reason": "1/1 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "gcp-vertex",
+      "model_id": "gemini-3.5-flash",
+      "backend": "gcp-gemini",
+      "success_rate": 1.0,
+      "samples": 1,
+      "mean_tokens_per_s": 0.81,
+      "promotion_holds": 0,
+      "confidence": 0.33,
+      "last_observed": "2026-07-30T09:23:25.385478+00:00",
+      "reason": "1/1 successful runs (success_rate 1.0)"
+    },
+    {
       "builder_id": "omen-5070",
       "model_id": "mixtral:8x22b-instruct-v0.1-q2_K",
       "backend": "ollama-cuda",
@@ -146,6 +170,6 @@
       "reason": "2/2 successful runs (success_rate 1.0)"
     }
   ],
-  "corpus_digest": "sha256:85214ee53ba762463cb51a80b30ca30df3f40a107105642749fa5372b6f47fd1",
-  "corpus_event_count": 1013
+  "corpus_digest": "sha256:a77ac64b6181ba52fefbcb1eb11389ef2e08183263c8884265d04c5bd778835c",
+  "corpus_event_count": 1339
 }

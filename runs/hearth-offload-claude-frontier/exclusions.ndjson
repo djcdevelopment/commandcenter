@@ -1,0 +1,2 @@
+{"backend": "omen-ollama", "caller_id": "claude-frontier", "error_code": null, "excluded": "unclassified:other", "model": "qwen3-coder:30b", "timestamp": "2026-07-30T09:21:11.881627+00:00"}
+{"backend": "am4-oxen", "caller_id": "claude-frontier", "error_code": null, "excluded": "infra:auth_expired", "model": "oxen-planner", "timestamp": "2026-07-30T09:22:31.517491+00:00"}

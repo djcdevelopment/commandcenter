@@ -1,8 +1,8 @@
 {
   "contract_version": "prediction-accuracy.v1",
   "decision_count": 0,
-  "observation_count": 25,
-  "comparison_count": 25,
+  "observation_count": 27,
+  "comparison_count": 27,
   "unresolved_decision_refs": 0,
   "comparisons": [
     {
@@ -804,24 +804,88 @@
           "matched": null
         }
       }
+    },
+    {
+      "decision_id": null,
+      "observation_id": "obs-offload-claude-frontier-202607300923253854780000-475d15fa",
+      "workflow_id": "wf-hearth-offload-claude-frontier",
+      "run_id": "hearth-offload-claude-frontier",
+      "builder_id": "gcp-vertex",
+      "model_id": "gemini-3.5-flash",
+      "backend": "gcp-gemini",
+      "workload_shape_key": "offload-generate|8|unknown",
+      "timestamp": "2026-07-30T09:23:25.385478+00:00",
+      "confidence": null,
+      "prediction_source": null,
+      "prediction_present": false,
+      "metrics": {
+        "expected_ttft_ms": null,
+        "expected_generation_tokens_per_second": null,
+        "expected_peak_ram_mb": null,
+        "expected_peak_vram_mb": null
+      },
+      "outcomes": {
+        "assay": {
+          "predicted": null,
+          "observed": "passed",
+          "matched": null
+        },
+        "promotion": {
+          "predicted": null,
+          "observed": null,
+          "matched": null
+        }
+      }
+    },
+    {
+      "decision_id": null,
+      "observation_id": "obs-offload-gcp-adk-test-202607300923287424790000-e19cb9e7",
+      "workflow_id": "wf-hearth-offload-gcp-adk-test",
+      "run_id": "hearth-offload-gcp-adk-test",
+      "builder_id": "gcp-vertex",
+      "model_id": "gemini-3.1-pro-preview",
+      "backend": "gcp-gemini",
+      "workload_shape_key": "offload-generate|8|unknown",
+      "timestamp": "2026-07-30T09:23:28.742479+00:00",
+      "confidence": null,
+      "prediction_source": null,
+      "prediction_present": false,
+      "metrics": {
+        "expected_ttft_ms": null,
+        "expected_generation_tokens_per_second": null,
+        "expected_peak_ram_mb": null,
+        "expected_peak_vram_mb": null
+      },
+      "outcomes": {
+        "assay": {
+          "predicted": null,
+          "observed": "passed",
+          "matched": null
+        },
+        "promotion": {
+          "predicted": null,
+          "observed": null,
+          "matched": null
+        }
+      }
     }
   ],
   "summary": {
     "overall": {
       "overall": {
-        "sample_count": 25,
-        "last_updated": "2026-07-04T05:50:00+00:00",
+        "sample_count": 27,
+        "last_updated": "2026-07-30T09:23:28.742479+00:00",
         "metrics": {},
         "outcomes": {
           "assay": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 25
+            "unknown": 27
           },
           "promotion": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 25
+            "unknown": 27
           }
         },
         "prediction_confidence": null
@@ -935,6 +999,24 @@
           }
         },
         "prediction_confidence": null
+      },
+      "gcp-vertex": {
+        "sample_count": 2,
+        "last_updated": "2026-07-30T09:23:28.742479+00:00",
+        "metrics": {},
+        "outcomes": {
+          "assay": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 2
+          },
+          "promotion": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 2
+          }
+        },
+        "prediction_confidence": null
       }
     },
     "per_model": {
@@ -1045,6 +1127,42 @@
           }
         },
         "prediction_confidence": null
+      },
+      "gemini-3.5-flash": {
+        "sample_count": 1,
+        "last_updated": "2026-07-30T09:23:25.385478+00:00",
+        "metrics": {},
+        "outcomes": {
+          "assay": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 1
+          },
+          "promotion": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 1
+          }
+        },
+        "prediction_confidence": null
+      },
+      "gemini-3.1-pro-preview": {
+        "sample_count": 1,
+        "last_updated": "2026-07-30T09:23:28.742479+00:00",
+        "metrics": {},
+        "outcomes": {
+          "assay": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 1
+          },
+          "promotion": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 1
+          }
+        },
+        "prediction_confidence": null
       }
     },
     "per_workload_shape": {
@@ -1101,9 +1219,27 @@
           }
         },
         "prediction_confidence": null
+      },
+      "offload-generate|8|unknown": {
+        "sample_count": 2,
+        "last_updated": "2026-07-30T09:23:28.742479+00:00",
+        "metrics": {},
+        "outcomes": {
+          "assay": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 2
+          },
+          "promotion": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 2
+          }
+        },
+        "prediction_confidence": null
       }
     }
   },
-  "corpus_digest": "sha256:85214ee53ba762463cb51a80b30ca30df3f40a107105642749fa5372b6f47fd1",
-  "corpus_event_count": 1013
+  "corpus_digest": "sha256:a77ac64b6181ba52fefbcb1eb11389ef2e08183263c8884265d04c5bd778835c",
+  "corpus_event_count": 1339
 }

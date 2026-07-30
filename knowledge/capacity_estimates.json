@@ -1,6 +1,6 @@
 {
   "contract_version": "capacity-estimates.v1",
-  "observation_count": 25,
+  "observation_count": 27,
   "unresolved_observation_refs": 0,
   "combos": {
     "am4-worker-1|vllama-planner|openai": {
@@ -56,6 +56,38 @@
       "mean_tokens_per_s": null,
       "success_rate": 0.8,
       "confidence": 0.71
+    },
+    "gcp-vertex|gemini-3.1-pro-preview|gcp-gemini": {
+      "builder_id": "gcp-vertex",
+      "model_id": "gemini-3.1-pro-preview",
+      "backend": "gcp-gemini",
+      "samples": 1,
+      "successes": 1,
+      "failures": 0,
+      "failure_classes": {},
+      "promotion_holds": 0,
+      "max_context_tokens": 7,
+      "max_vram_gb_peak": null,
+      "last_observed": "2026-07-30T09:23:28.742479+00:00",
+      "mean_tokens_per_s": 0.3,
+      "success_rate": 1.0,
+      "confidence": 0.33
+    },
+    "gcp-vertex|gemini-3.5-flash|gcp-gemini": {
+      "builder_id": "gcp-vertex",
+      "model_id": "gemini-3.5-flash",
+      "backend": "gcp-gemini",
+      "samples": 1,
+      "successes": 1,
+      "failures": 0,
+      "failure_classes": {},
+      "promotion_holds": 0,
+      "max_context_tokens": 7,
+      "max_vram_gb_peak": null,
+      "last_observed": "2026-07-30T09:23:25.385478+00:00",
+      "mean_tokens_per_s": 0.81,
+      "success_rate": 1.0,
+      "confidence": 0.33
     },
     "omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-cuda": {
       "builder_id": "omen-5070",
@@ -252,6 +284,6 @@
       "confidence": 0.6
     }
   },
-  "corpus_digest": "sha256:85214ee53ba762463cb51a80b30ca30df3f40a107105642749fa5372b6f47fd1",
-  "corpus_event_count": 1013
+  "corpus_digest": "sha256:a77ac64b6181ba52fefbcb1eb11389ef2e08183263c8884265d04c5bd778835c",
+  "corpus_event_count": 1339
 }

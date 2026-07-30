@@ -1,0 +1,2 @@
+{"backend": "omen-ollama", "caller_id": "gcp-adk-test", "error_code": null, "excluded": "unclassified:other", "model": "qwen2.5:7b-instruct", "timestamp": "2026-07-30T09:21:12.071375+00:00"}
+{"backend": "am4-oxen", "caller_id": "gcp-adk-test", "error_code": null, "excluded": "infra:auth_expired", "model": "oxen-critic", "timestamp": "2026-07-30T09:22:31.517491+00:00"}

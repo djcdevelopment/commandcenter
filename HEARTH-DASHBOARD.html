@@ -30,8 +30,9 @@ h3 { color: var(--muted); font-size: 0.9em; text-transform: uppercase; letter-sp
 <body>
 <h1>HEARTH Dashboard</h1>
 <div style="color: var(--muted); margin-bottom: 24px; font-size: 0.9em;">
-Generated at: 2026-07-20 08:39:23 UTC &bull; Capacity watermark: 2026-07-20T08:39:21.992449Z &bull; Offload watermark: 2026-07-20T08:22:46.300529Z
+Generated at: 2026-07-30 05:04:28 UTC &bull; Capacity watermark: 2026-07-30T05:02:04.074977Z &bull; Offload watermark: 2026-07-30T01:06:44.059579Z
 </div>
+<div class="card" style="border-color: var(--warn);"><strong>Generated snapshot, not a live query.</strong> The browser refresh reloads this file; it does not rebuild the capacity or offload projections. Use the displayed generation time and evidence watermarks when quoting a value.</div>
 <div class="card" style="display: flex; gap: 20px; flex-wrap: wrap;">
 <div style="flex: 1; min-width: 200px;">
 <h3>Offload Ratio</h3>
@@ -39,22 +40,26 @@ Generated at: 2026-07-20 08:39:23 UTC &bull; Capacity watermark: 2026-07-20T08:3
 </div>
 <div style="flex: 1; min-width: 200px;">
 <h3>Est. USD Saved</h3>
-<div class="metric" style="color: var(--good);">$3.02</div>
+<div class="metric" style="color: var(--good);">$11.65</div>
+</div>
+<div style="flex: 1; min-width: 200px;">
+<h3>Real USD Spent (trial)</h3>
+<div class="metric" style="color: var(--warn, var(--muted));">$5.79 <span style="font-size: 0.5em; color: var(--muted);">(152 unpriced)</span></div>
 </div>
 <div style="flex: 1; min-width: 200px;">
 <h3>Trial Burn</h3>
-<div class="metric" style="font-size: 1.2em; margin-bottom: 4px;">524,545 / 200,000,000</div>
-<div class="bar-bg"><div class="bar-fg" style="width: 0%;"></div></div>
+<div class="metric" style="font-size: 1.2em; margin-bottom: 4px;">2,247,894 / 200,000,000</div>
+<div class="bar-bg"><div class="bar-fg" style="width: 1%;"></div></div>
 </div>
 <div style="flex: 1; min-width: 200px;">
 <h3>24h Events</h3>
-<div class="metric">506</div>
+<div class="metric">1,131</div>
 </div>
 </div>
 <div class="card" style="display: flex; gap: 20px; flex-wrap: wrap;">
 <div style="flex: 1; min-width: 150px;">
 <h3>Escalations (24h)</h3>
-<div class="metric">0</div>
+<div class="metric">1</div>
 </div>
 <div style="flex: 1; min-width: 150px;">
 <h3>Asks (24h)</h3>
@@ -76,38 +81,38 @@ Generated at: 2026-07-20 08:39:23 UTC &bull; Capacity watermark: 2026-07-20T08:3
 <tr>
 <td>am4-moe</td>
 <td>sunk</td>
-<td>23</td>
+<td>85</td>
 <td>1.0</td>
-<td>86,797</td>
-<td>37,132</td>
-<td>2026-07-20T08:22:46.300529Z</td>
+<td>325,916</td>
+<td>140,126</td>
+<td>2026-07-29T23:33:46.428518Z</td>
 </tr>
 <tr>
 <td>gcp-gemini</td>
 <td>trial</td>
-<td>23</td>
+<td>39</td>
 <td>1.0</td>
-<td>167,169</td>
-<td>13,337</td>
-<td>2026-07-20T07:59:42.865186Z</td>
+<td>277,507</td>
+<td>23,835</td>
+<td>2026-07-30T01:06:44.059579Z</td>
 </tr>
 <tr>
 <td>gcp-gemini-pro</td>
 <td>trial</td>
-<td>16</td>
+<td>68</td>
 <td>1.0</td>
-<td>305,700</td>
-<td>38,339</td>
-<td>2026-07-20T07:57:18.953147Z</td>
+<td>1,819,544</td>
+<td>127,008</td>
+<td>2026-07-29T00:27:12.611724Z</td>
 </tr>
 <tr>
 <td>model:</td>
 <td>unknown</td>
-<td>5</td>
-<td>0.4</td>
+<td>6</td>
+<td>0.3333</td>
 <td>0</td>
 <td>0</td>
-<td>2026-07-19T05:45:36.605439Z</td>
+<td>2026-07-21T09:46:59.704670Z</td>
 </tr>
 <tr>
 <td>model:/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf</td>
@@ -139,20 +144,20 @@ Generated at: 2026-07-20 08:39:23 UTC &bull; Capacity watermark: 2026-07-20T08:3
 <tr>
 <td>model:qwen3-coder:30b</td>
 <td>sunk</td>
-<td>15</td>
+<td>16</td>
 <td>1.0</td>
-<td>0</td>
-<td>0</td>
-<td>2026-07-16T09:42:24.778986Z</td>
+<td>579</td>
+<td>18</td>
+<td>2026-07-21T03:54:45.599895Z</td>
 </tr>
 <tr>
 <td>omen-ollama</td>
 <td>sunk</td>
-<td>4</td>
+<td>8</td>
 <td>1.0</td>
-<td>2,118</td>
-<td>154</td>
-<td>2026-07-18T07:33:17.290745Z</td>
+<td>2,175</td>
+<td>352</td>
+<td>2026-07-29T21:07:29.824991Z</td>
 </tr>
 </table>
 </div>
@@ -163,18 +168,18 @@ Generated at: 2026-07-20 08:39:23 UTC &bull; Capacity watermark: 2026-07-20T08:3
 <tr><th>Backend</th><th>Calls</th><th>OK</th></tr>
 <tr>
 <td>am4-moe</td>
-<td>9</td>
-<td>9</td>
+<td>5</td>
+<td>5</td>
 </tr>
 <tr>
 <td>gcp-gemini</td>
-<td>5</td>
-<td>5</td>
+<td>7</td>
+<td>7</td>
 </tr>
 <tr>
-<td>gcp-gemini-pro</td>
-<td>5</td>
-<td>5</td>
+<td>omen-ollama</td>
+<td>2</td>
+<td>2</td>
 </tr>
 </table>
 </div>
@@ -182,7 +187,10 @@ Generated at: 2026-07-20 08:39:23 UTC &bull; Capacity watermark: 2026-07-20T08:3
 <h2>24h Error Codes</h2>
 <table>
 <tr><th>Error Code</th><th>Count</th></tr>
-<tr><td colspan="2">No errors in last 24h.</td></tr>
+<tr>
+<td>other</td>
+<td>2</td>
+</tr>
 </table>
 </div>
 </div>

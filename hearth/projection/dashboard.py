@@ -172,6 +172,13 @@ def build_dashboard_html(knowledge_dir: Path, ledger_path: Path, now_iso: str | 
     html_lines.append('<div style="color: var(--muted); margin-bottom: 24px; font-size: 0.9em;">')
     html_lines.append(f'Generated at: {_escape(now_str)} &bull; Capacity watermark: {cap_wm} &bull; Offload watermark: {off_wm}')
     html_lines.append('</div>')
+    html_lines.append(
+        '<div class="card" style="border-color: var(--warn);">'
+        '<strong>Generated snapshot, not a live query.</strong> '
+        'The browser refresh reloads this file; it does not rebuild the capacity or offload projections. '
+        'Use the displayed generation time and evidence watermarks when quoting a value.'
+        '</div>'
+    )
 
     html_lines.append('<div class="card" style="display: flex; gap: 20px; flex-wrap: wrap;">')
 

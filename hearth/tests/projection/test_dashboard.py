@@ -69,6 +69,7 @@ class TestDashboard(DashboardScopedTestCase):
         self.assertIn("Escalations", rendered)
         self.assertIn("timeout", rendered)
         self.assertIn('<meta http-equiv="refresh" content="300">', rendered)
+        self.assertIn("Generated snapshot, not a live query.", rendered)
 
     def test_empty_sandbox_degrades_gracefully(self) -> None:
         k_dir = self.scope / "empty_knowledge"

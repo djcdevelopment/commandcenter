@@ -75,22 +75,27 @@ class TestRegistryParses(unittest.TestCase):
 
 
 class TestCheckerOnCurrentRepo(unittest.TestCase):
-    """Checker exits 0 on the current repo state (waiver covers the failing capability claim)."""
+    """Checker exits 0 on the current repo state, with no waiver in force."""
 
     def test_checker_exits_zero(self):
         out = io.StringIO()
         rc = run_checks(out=out)
         self.assertEqual(rc, 0, f"checker returned nonzero. output:\n{out.getvalue()}")
 
-    def test_roadmap_capability_is_waived(self):
+    def test_roadmap_capability_passes_on_its_own_evidence(self):
+        """Waived from 2026-07-02 — "capability lost in the knowledge/ overwrite;
+        re-derivation pending" — until 2026-07-30, when the first capability was re-earned
+        from real offload dispatches under ADR-0027 option B. The waiver is retired, so the
+        claim now stands on the evidence: if capability_count returns to 0 this fails,
+        which is the point of retiring it rather than leaving a permanent pass."""
         out = io.StringIO()
         run_checks(out=out)
         output = out.getvalue()
         self.assertIn("roadmap-first-capability", output)
-        # Should be WAIVED, not FAIL
         lines = [l for l in output.splitlines() if "roadmap-first-capability" in l]
         self.assertTrue(lines, "roadmap-first-capability not found in output")
-        self.assertIn("WAIVED", lines[0])
+        self.assertIn("PASS", lines[0])
+        self.assertNotIn("WAIVED", lines[0])
 
     def test_candidates_present_passes(self):
         out = io.StringIO()

@@ -1,8 +1,10 @@
 # ADR-0027 — Gateway dispatches are not observations until we say what they observe
 
-**Status:** Proposed (2026-07-30) — **awaiting ratification. Nothing in the belief layer
-changes until this is accepted.** The plumbing repair described under "Already fixed" has
-landed; the mapping proposed under "Decision needed" has deliberately NOT been built.
+**Status:** **Accepted (2026-07-30)** — option B ratified and implemented the same day. The
+amendment at the end records what was built, the evidence semantics it authors, and the
+first capability it produced. The title stands as the record of the question: a gateway
+dispatch is not an observation until someone says what it observes, and the amendment is
+where that is said.
 **Context sources:** ADR-0010 (two ledgers, two bounded contexts), ADR-0011 (double-write
 is intentional), `hearth/projection/ledger_adapter.py`, `hearth/projection/freshness.py`,
 `tools/workflow/project_associations.py`, `tools/workflow/project_capacity.py`,
@@ -178,3 +180,147 @@ recorded in the override audit trail at the moment of first write, not reconstru
   reset *and* a target-stream reset, since `append_event` does not deduplicate.
 - ADR-0010 is reinforced, not amended. This ADR records that the sanctioned bridge existing
   is not the same as the sanctioned bridge running, and that "connected" is not "learning".
+
+---
+
+## Amendment (2026-07-30) — option B, as built
+
+Option B was chosen and implemented. This section is the authored decision the ADR above
+said had to exist before code landed: it says what a dispatch observes.
+
+### Where the observation is born
+
+In `hearth/toolsurface/inference.py`, at the end of `local_generate` — **not** in the
+gateway wrapper. The wrapper-lift design (mirroring `_ledger_model`) was rejected on two
+counts. It would have put the birth of a domain fact in the kernel, which is what ADR-0010
+forbids the adapter from doing and what option B exists to avoid. And it would have emitted
+nothing for the dozen in-process callers that bypass the gateway entirely —
+`hearth/commander/refine.py`, `hearth/callers/doorcheck.py`, and the whole
+`hearth/experiments/` suite, whose backend × task matrices are the richest varied-axis
+evidence in the repo and exactly what the association engine's variation gate is starving
+for.
+
+Caller identity reaches the kernel-free toolsurface the way the two authority grants
+already do: a ContextVar pushed for the duration of one call
+(`hearth/observation/identity.py`, one line added beside `caller_scope` /
+`caller_repo_access` in `gateway.py`). **No identity in force means no observation** — a
+`doorcheck` probe or an ad-hoc script dispatch is not evidence about anything, and
+inventing a `workflow_id` for it would manufacture the very independence the
+≥2-distinct-workflow gate exists to test. A script that wants its dispatches recorded says
+so explicitly with `dispatch_identity(...)`.
+
+`classify_error` moved to a new kernel-free `hearth/errortax.py`, re-exported from
+`hearth/kernel/ledger.py`. Both sides of the boundary need one error taxonomy, and
+`test_provider_contract` forbids providers naming `hearth.kernel` at all; duplicating the
+table would have given the lab two definitions of one fact.
+
+### Workflow identity, and why `builder_id` is not the caller
+
+`workflow_id = wf-hearth-offload-<caller.id>`, `run_id = hearth-offload-<caller-slug>`.
+
+`builder_id` is the **executing node**, declared per rung as `settings.node` in
+`backends.toml` (with an endpoint-host fallback). This is load-bearing, not cosmetic: gate 1
+counts distinct `workflow_id` for independence and gate 2 requires variation in `builder_id`
+or `model_id`. Feed both the same field and two independent checks collapse into one, and a
+"capability" forms out of gate arithmetic rather than evidence — the same class of error as
+the fixture-poured capability the A3 hunt exposed. The executor reading is also the
+consistent one: in the existing corpus `builder_id` is always a logical fleet worker
+(`omen-worker-1`, `cc-builder-2`, `omen-5070`), never the requester.
+
+`task_kind` defaults to `offload-generate`, deliberately **not** `inference` — that string
+is already the kernel ledger's `task_class` for this tool, and two fields in two bounded
+contexts sharing a value invites the join ADR-0010 says must not exist.
+
+### What counts as evidence
+
+ADR-0002 governs: infra-caused failure must not enter the belief layer, and must be
+**counted** rather than dropped. Every exclusion is reported on the result as
+`_observation.excluded` and appended to `exclusions.ndjson` beside the artifacts.
+
+| dispatch state | observation |
+|---|---|
+| `quality="best"` ask, or routing refusal | none — nothing was dispatched |
+| ok, non-empty text | `success` |
+| ok, empty text | `error` / `failure_class=empty_output` — a real pathology (thinking models spending the whole budget on hidden reasoning), and it is about the rung |
+| ok, `tokens_out >= max_tokens` | `success` + note — truncation is the caller's budget choice, not a rung failure; scoring it otherwise would poison buckets with caller noise |
+| timeout | `timeout` — the rung could not do this workload inside its own declared budget |
+| `cold_start` / `occupancy_skip` / `auth_expired` / `quota` / `parse_error` | none — infra. Counted. |
+| unclassified (`other`) | none — cannot be asserted to be capability signal. Counted, so it stays reclassifiable. |
+| OOM | **never emitted** — not observable at the door. Its absence is not evidence of its non-occurrence. |
+
+**Escalation emits one observation per attempt.** A failed non-pinned dispatch re-routes
+once and returns the *second* rung's result, so recording only the final attempt would
+attribute a rescued call entirely to the rescuer and make local-rung failures systematically
+invisible — a success bias in the corpus. Most first attempts classify as infra and are
+excluded anyway, but they are excluded on the record, for a stated reason.
+
+### Costs accepted
+
+- **`hardware_profile_id` is null on the Vertex rungs.** Google does not say which hardware
+  served a call, so there is no honest profile to pin, and capabilities formed there cannot
+  distinguish pre- and post-hardware-change evidence. The local rungs declare one
+  (`omen-rtx5070-2026H2`, `am4-dual-b70-2026H2`), hand-bumped on hardware change.
+- **`ttft_s`, `ram_gb_peak`, `vram_gb_peak`, `physical` are null** — not measured at the
+  door. `observed.physical.model_residency` is DERIVED and must never be set by a producer.
+- **`runtime_s` is not comparable across rungs** without reading `workload_shape.notes`: the
+  ollama adapter prefers the server's own `total_duration`, the openai/gemini adapters
+  measure wall time around the POST. The note says which.
+- **The corpus has a before/after-instrumentation discontinuity.** The ~405 historical
+  `local_generate` rows were deliberately NOT backfilled: reconstructing domain facts from
+  audit telemetry is option A, which this ADR rejected, and it would be worse than option A
+  because `workflow_id` would be assigned after the fact over an unknown number of hardware
+  changes. `first_observed` on the resulting associations names the boundary honestly.
+- **`local_generate` is NOT excluded from the ledger adapter.** Verified: no belief
+  projector reads raw events as evidence — all five call `read_events` then immediately
+  `extract_observations`, so an event without `artifact_refs` contributes nothing. The only
+  double-count is `corpus_event_count`, which is not a `make_extractor` key anywhere and so
+  never reaches `corpus_guard`. Per ADR-0011 these are two facts, not one twice.
+
+### Gate 2 is the binding constraint, and it is a config fact
+
+Measured over the named-backend era: `local_generate` has **zero** failures, so gate 3
+(unanimous outcome) is satisfied everywhere today. The wall is gate 2. Every rung in
+`backends.toml` declares exactly one model and runs on one host, so `model_id` and
+`builder_id` are both functionally determined by `backend`, and "something must have varied"
+collapses to *"did more than one model ever hit this rung."*
+
+Consequence: **capability formation is driven by pool configuration, not evidence volume.**
+The rungs with 85 and 86 lifetime calls earn nothing; a rung with a handful earns a
+capability the moment a second model touches it. That is the gate working — there is no
+evidence those rungs are model-independent, because only one model has ever run on them —
+and `coverage.json` / `experiment_candidates.json` are where it should surface as a gap.
+`tests/workflow/test_offload_capability_formation.py` pins this arithmetic in executable
+form so it does not have to be rediscovered from the projector source.
+
+Expect also: `QUALIFICATION_WINDOW_DAYS = 7` measures against the *global* observation
+watermark, so once offload observations flow daily, any bucket without a recent dispatch
+flips to `requalification_due`. Correct behaviour; it will look like a bug.
+
+### Verified live
+
+Two real Vertex dispatches on one rung, two models, two caller identities, then a rebuild:
+
+- `capability_count` **0 → 1**: `capability:task_kind=offload-generate|backend=gcp-gemini`,
+  confidence medium/0.5, `qualified`, two qualified resource combinations.
+- `capabilities.evidence_watermark` **2026-07-04T05:50 → 2026-07-30T09:23:28Z** — off the
+  26-day freeze.
+- `observation_count` 25 → 27; `association_count` 1 → 2.
+
+This is the first capability re-earned since the 2026-07-02 corpus overwrite, and it was
+earned the way the A3 verdict required: from fresh real dispatches, not restored fixtures.
+
+The four freshness acknowledgements taken that morning were retired the same day, and the
+mechanism behaved correctly on the way out: they stopped applying the moment the watermarks
+moved, because the pinned value no longer matched, rather than lingering as stale permission.
+
+### Open, deliberately not done here
+
+- `hearth/experiments/*` do not yet push a `dispatch_identity`. They are the highest-value
+  evidence source in the repo (real backend × task matrices, genuinely varied axes) and
+  wiring them up is a separate change with its own curation question.
+- Adding a second model to a high-traffic rung to satisfy gate 2 there is a real experiment
+  — *"prove this rung is model-independent"* — not plumbing, and should be authored as one.
+- The pre-existing `repo-build`/`ollama` bucket remains one observation short of a second
+  capability: 2 samples across 2 workflows, passing gates 1, 3 and 4, blocked only by
+  "nothing varied" (both `omen-worker-1` + `qwen3-coder:30b`). One real fleet build with a
+  different builder or model unlocks it.

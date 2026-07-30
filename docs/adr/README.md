@@ -35,7 +35,7 @@ record with its status changed and a pointer to the ADR that replaced it.
 | [0024](0024-gateway-liveness-lives-outside-the-gateway.md) | The gateway's own liveness watch lives outside the gateway | Accepted (2026-07-20), amends 0015 |
 | [0025](0025-funnel-caddy-stamps-identity-until-studio-can.md) | A Funnel-facing Caddy proxy stamps caller identity until Google Agent Platform Studio can send one itself | Accepted (2026-07-21), first external cloud caller |
 | [0026](0026-cloud-deployments-are-ephemeral-by-default.md) | Cloud deployments are ephemeral by default | Accepted (2026-07-23) |
-| [0027](0027-gateway-dispatches-are-not-observations-yet.md) | Gateway dispatches are not observations until we say what they observe | **Proposed (2026-07-30)** — awaiting Derek; explains `capability_count: 0` |
+| [0027](0027-gateway-dispatches-are-not-observations-yet.md) | Gateway dispatches are not observations until we say what they observe | Accepted (2026-07-30), option B built; first capability re-earned |
 
 ## Historical note
 The "ADR-0001" referenced in `SESSION-RETRO-2026-06-29.md` (which orchestrator is

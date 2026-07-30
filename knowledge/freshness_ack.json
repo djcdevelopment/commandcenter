@@ -1,37 +1,18 @@
 {
   "contract_version": "freshness-ack.v1",
-  "active": true,
+  "active": false,
   "author": "derek",
   "created": "2026-07-30",
-  "reason": "Acknowledge a KNOWN, EXPLAINED document staleness so the freshness guard stays loud about everything else. A guard that is permanently red is a guard nobody reads -- that is exactly how eleven projections stayed frozen from 2026-07-04 to 2026-07-30 while the rebuild reported ok. Each entry MUST carry name, watermark, reason and expires_at_ledger_head. The watermark PINS the exact value the acknowledgement was taken at: if the document's watermark moves at all -- forward but still stale, or backwards -- the acknowledgement stops applying and the document reports stale again, so an ack can never mask NEW drift. Expiry is measured against the LEDGER HEAD, never the wall clock, because 'now' in this lab is the newest fact it holds; there is no non-expiring acknowledgement. Only document checks are ackable: an entry naming 'bridge', 'corpus' or 'ledger' is a hard error, because those are the mechanical checks whose whole job is to catch the freeze -- run the bridge or fix the corpus instead of silencing it. Unlike corpus_regression_override.json this file is never rewritten automatically; check_freshness is a read-side reporter and stays side-effect-free, so expired entries are reported in ack_expired and pruned by hand. This exists so nobody widens --max-lag-hours to silence a true positive (ADR-0027).",
-  "acknowledged": [
+  "reason": "Template (inactive). Acknowledge a KNOWN, EXPLAINED document staleness so the freshness guard stays loud about everything else. A guard that is permanently red is a guard nobody reads -- that is exactly how eleven projections stayed frozen from 2026-07-04 to 2026-07-30 while the rebuild reported ok. To use: set active:true and add entries to 'acknowledged'. Each entry MUST carry name, watermark, reason and expires_at_ledger_head. The watermark PINS the exact value the acknowledgement was taken at: if the document's watermark moves at all -- forward but still stale, or backwards -- the acknowledgement stops applying and the document reports stale again, so an ack can never mask NEW drift. Expiry is measured against the LEDGER HEAD, never the wall clock, because 'now' in this lab is the newest fact it holds; there is no non-expiring acknowledgement. Only document checks are ackable: an entry naming 'bridge', 'corpus' or 'ledger' is a hard error, because those are the mechanical checks whose whole job is to catch the freeze -- run the bridge or fix the corpus instead of silencing it. Unlike corpus_regression_override.json this file is never rewritten automatically; check_freshness is a read-side reporter and stays side-effect-free, so expired entries are reported in ack_expired and pruned by hand. This exists so nobody widens --max-lag-hours to silence a true positive (ADR-0027).",
+  "history": [
     {
-      "name": "associations.json",
+      "documents": ["associations.json", "capabilities.json", "coverage.json", "policy.json"],
       "watermark": "2026-07-04T05:50:00+00:00",
-      "reason": "Structurally stale until ADR-0027 option B lands. evidence_watermark is max(timestamp) over capacity_observation artifacts, and no gateway dispatch has ever written one, so no amount of bridging can move it.",
-      "blocked_on": "docs/adr/0027-gateway-dispatches-are-not-observations-yet.md",
-      "expires_at_ledger_head": "2026-08-31T00:00:00Z"
-    },
-    {
-      "name": "capabilities.json",
-      "watermark": "2026-07-04T05:50:00+00:00",
-      "reason": "Structurally stale until ADR-0027 option B lands. capability_count is 0 for the same reason, plus the adapter stamps a constant workflow_id against ASSOCIATION_MIN_WORKFLOWS = 2.",
-      "blocked_on": "docs/adr/0027-gateway-dispatches-are-not-observations-yet.md",
-      "expires_at_ledger_head": "2026-08-31T00:00:00Z"
-    },
-    {
-      "name": "coverage.json",
-      "watermark": "2026-07-04T05:50:00+00:00",
-      "reason": "Structurally stale until ADR-0027 option B lands. Gap analysis is derived from the same observation set.",
-      "blocked_on": "docs/adr/0027-gateway-dispatches-are-not-observations-yet.md",
-      "expires_at_ledger_head": "2026-08-31T00:00:00Z"
-    },
-    {
-      "name": "policy.json",
-      "watermark": "2026-07-04T05:50:00+00:00",
-      "reason": "Structurally stale until ADR-0027 option B lands. Policy rules are synthesized from findings over the same observation set.",
-      "blocked_on": "docs/adr/0027-gateway-dispatches-are-not-observations-yet.md",
-      "expires_at_ledger_head": "2026-08-31T00:00:00Z"
+      "reason": "Structurally stale pending ADR-0027 option B: evidence_watermark is max(timestamp) over capacity_observation artifacts, and no gateway dispatch had ever written one.",
+      "opened": "2026-07-30",
+      "closed": "2026-07-30",
+      "resolution": "Retired the same day. ADR-0027 option B landed, real dispatches began writing observations, and all four documents advanced to 2026-07-30 on their own. Note the mechanism worked as designed on the way out: the acknowledgements stopped applying the moment the watermarks moved, because the pin no longer matched, rather than lingering as stale permission. Kept as the record that it was exercised end to end."
     }
-  ]
+  ],
+  "acknowledged": []
 }

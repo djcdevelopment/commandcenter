@@ -1,25 +1,25 @@
 {
   "contract_version": "offload.v1",
-  "evidence_watermark": "2026-07-20T08:22:46.300529Z",
+  "evidence_watermark": "2026-07-30T07:29:06.778834Z",
   "bucket_count": 9,
   "totals": {
-    "calls": 248,
-    "tokens_in": 561784,
-    "tokens_out": 88962
+    "calls": 386,
+    "tokens_in": 2428769,
+    "tokens_out": 293114
   },
   "per_class": {
     "sunk": {
-      "calls": 53,
-      "tokens_in": 88915,
-      "tokens_out": 37286
+      "calls": 120,
+      "tokens_in": 328670,
+      "tokens_out": 140496
     },
     "trial": {
-      "calls": 190,
-      "tokens_in": 472869,
-      "tokens_out": 51676
+      "calls": 260,
+      "tokens_in": 2100099,
+      "tokens_out": 152618
     },
     "unknown": {
-      "calls": 5,
+      "calls": 6,
       "tokens_in": 0,
       "tokens_out": 0
     }
@@ -29,7 +29,13 @@
     "reference": "claude-sonnet",
     "input_per_mtok": 3.0,
     "output_per_mtok": 15.0,
-    "usd": 3.019782
+    "usd": 11.683017
+  },
+  "real_usd_spent": {
+    "pricing_source": "vertex-ai-pricing verified 2026-07-23 (global/standard, <=200K tier)",
+    "usd": 5.814496,
+    "priced_calls": 108,
+    "unpriced_calls": 152
   },
   "buckets": [
     {
@@ -38,11 +44,12 @@
       "models": [
         "gpt-oss-120b"
       ],
-      "calls": 23,
+      "calls": 85,
       "ok_rate": 1.0,
-      "tokens_in": 86797,
-      "tokens_out": 37132,
-      "last_seen": "2026-07-20T08:22:46.300529Z"
+      "tokens_in": 325916,
+      "tokens_out": 140126,
+      "real_usd": 0.0,
+      "last_seen": "2026-07-29T23:33:46.428518Z"
     },
     {
       "backend": "gcp-gemini",
@@ -50,11 +57,12 @@
       "models": [
         "gemini-3.5-flash"
       ],
-      "calls": 23,
+      "calls": 41,
       "ok_rate": 1.0,
-      "tokens_in": 167169,
-      "tokens_out": 13337,
-      "last_seen": "2026-07-20T07:59:42.865186Z"
+      "tokens_in": 280555,
+      "tokens_out": 25610,
+      "real_usd": 0.651324,
+      "last_seen": "2026-07-30T07:29:06.778834Z"
     },
     {
       "backend": "gcp-gemini-pro",
@@ -62,21 +70,23 @@
       "models": [
         "gemini-3.1-pro-preview"
       ],
-      "calls": 16,
+      "calls": 68,
       "ok_rate": 1.0,
-      "tokens_in": 305700,
-      "tokens_out": 38339,
-      "last_seen": "2026-07-20T07:57:18.953147Z"
+      "tokens_in": 1819544,
+      "tokens_out": 127008,
+      "real_usd": 5.163172,
+      "last_seen": "2026-07-29T00:27:12.611724Z"
     },
     {
       "backend": "model:",
       "cost_class": "unknown",
       "models": [],
-      "calls": 5,
-      "ok_rate": 0.4,
+      "calls": 6,
+      "ok_rate": 0.3333,
       "tokens_in": 0,
       "tokens_out": 0,
-      "last_seen": "2026-07-19T05:45:36.605439Z"
+      "real_usd": null,
+      "last_seen": "2026-07-21T09:46:59.704670Z"
     },
     {
       "backend": "model:/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
@@ -88,6 +98,7 @@
       "ok_rate": 1.0,
       "tokens_in": 0,
       "tokens_out": 0,
+      "real_usd": 0.0,
       "last_seen": "2026-07-16T09:45:43.566795Z"
     },
     {
@@ -100,6 +111,7 @@
       "ok_rate": 1.0,
       "tokens_in": 0,
       "tokens_out": 0,
+      "real_usd": null,
       "last_seen": "2026-07-18T01:15:55.311065Z"
     },
     {
@@ -112,6 +124,7 @@
       "ok_rate": 1.0,
       "tokens_in": 0,
       "tokens_out": 0,
+      "real_usd": null,
       "last_seen": "2026-07-18T00:49:24.135678Z"
     },
     {
@@ -120,25 +133,28 @@
       "models": [
         "qwen3-coder:30b"
       ],
-      "calls": 15,
+      "calls": 16,
       "ok_rate": 1.0,
-      "tokens_in": 0,
-      "tokens_out": 0,
-      "last_seen": "2026-07-16T09:42:24.778986Z"
+      "tokens_in": 579,
+      "tokens_out": 18,
+      "real_usd": 0.0,
+      "last_seen": "2026-07-21T03:54:45.599895Z"
     },
     {
       "backend": "omen-ollama",
       "cost_class": "sunk",
       "models": [
+        "qwen2.5:7b-instruct",
         "qwen3-coder:30b"
       ],
-      "calls": 4,
+      "calls": 8,
       "ok_rate": 1.0,
-      "tokens_in": 2118,
-      "tokens_out": 154,
-      "last_seen": "2026-07-18T07:33:17.290745Z"
+      "tokens_in": 2175,
+      "tokens_out": 352,
+      "real_usd": 0.0,
+      "last_seen": "2026-07-29T21:07:29.824991Z"
     }
   ],
-  "corpus_digest": "sha256:b3edd96a4cde02c7bd1c7e3feba4c0718722fc93fe3a3663e13a4bbfe08a717e",
-  "corpus_event_count": 9306
+  "corpus_digest": "sha256:c096c52788cd308338f30874a5ac39e1e5b7bb9eb1b7e6b194d376302f2ccb68",
+  "corpus_event_count": 20140
 }

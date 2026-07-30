@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Command Center / HEARTH / Mechnet — friend demo brief</title>
+<style>
+  :root {
+    --ink:#172033; --muted:#65718a; --paper:#f6f3ed; --card:#fffdf8; --line:#d9d4c9;
+    --hearth:#d65a31; --hearth2:#fff0e8; --sense:#4177c8; --sense2:#eaf2ff;
+    --act:#2f8b69; --act2:#e7f7f0; --learn:#7650b5; --learn2:#f2ebff;
+    --amber:#a96a00; --amber2:#fff5d9; --red:#b33a3a; --green:#267858;
+    --shadow:0 9px 30px rgba(28,35,51,.07);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink:#e9edf7; --muted:#aeb8cc; --paper:#141824; --card:#1c2231; --line:#343d52;
+      --hearth:#ff8158; --hearth2:#3a251f; --sense:#75a7f2; --sense2:#1e2d46;
+      --act:#68c6a2; --act2:#1c392f; --learn:#b798ea; --learn2:#302544;
+      --amber:#ffc05e; --amber2:#392e19; --red:#ff8d8d; --green:#6bd2aa;
+      --shadow:none;
+    }
+  }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body {
+    margin:0; color:var(--ink); background:var(--paper);
+    font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  main { max-width:1240px; margin:auto; padding:28px 26px 70px; }
+  header {
+    padding:28px 30px; border:1px solid var(--line); border-radius:16px;
+    background:linear-gradient(135deg,var(--card),var(--hearth2)); box-shadow:var(--shadow);
+  }
+  h1 { font-size:clamp(2rem,5vw,4.4rem); line-height:.95; letter-spacing:-.045em; margin:0 0 14px; }
+  h2 { font-size:1.65rem; margin:0 0 8px; letter-spacing:-.02em; }
+  h3 { font-size:1rem; margin:0 0 8px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); }
+  p { margin:8px 0; }
+  a { color:var(--hearth); }
+  code, pre { font-family:"Cascadia Mono","SFMono-Regular",Consolas,monospace; }
+  code { background:color-mix(in srgb,var(--ink) 7%, transparent); padding:.12em .35em; border-radius:4px; }
+  pre {
+    margin:10px 0 0; padding:14px 16px; overflow:auto; white-space:pre-wrap;
+    background:color-mix(in srgb,var(--ink) 7%, var(--card)); border:1px solid var(--line);
+    border-radius:10px; font-size:.88rem; line-height:1.48;
+  }
+  nav {
+    position:sticky; top:0; z-index:5; display:flex; gap:6px; flex-wrap:wrap;
+    padding:12px 0; margin:8px 0 24px; background:color-mix(in srgb,var(--paper) 92%, transparent);
+    backdrop-filter:blur(10px);
+  }
+  nav a {
+    color:var(--ink); text-decoration:none; padding:6px 10px; border-radius:999px;
+    border:1px solid var(--line); background:var(--card); font-size:.85rem;
+  }
+  section { margin:42px 0; scroll-margin-top:72px; }
+  .sub { color:var(--muted); max-width:82ch; }
+  .eyebrow { color:var(--hearth); font-weight:750; letter-spacing:.1em; text-transform:uppercase; font-size:.78rem; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:14px; margin-top:16px; }
+  .card {
+    border:1px solid var(--line); border-radius:12px; padding:17px 18px;
+    background:var(--card); box-shadow:var(--shadow);
+  }
+  .card p:last-child { margin-bottom:0; }
+  .metric { font-size:2rem; line-height:1; font-weight:760; letter-spacing:-.04em; margin:7px 0; }
+  .badge {
+    display:inline-block; border:1px solid currentColor; border-radius:999px;
+    padding:2px 8px; font-size:.72rem; line-height:1.35; font-weight:750; letter-spacing:.04em;
+    text-transform:uppercase; margin-right:4px;
+  }
+  .good { color:var(--green); }
+  .warn { color:var(--amber); }
+  .bad { color:var(--red); }
+  .verified { border-left:4px solid var(--green); }
+  .caution { border-left:4px solid var(--amber); background:var(--amber2); }
+  .diagram {
+    margin:16px 0 0; padding:10px; overflow:auto; border:1px solid var(--line);
+    background:var(--card); border-radius:14px; box-shadow:var(--shadow);
+  }
+  .diagram svg { display:block; min-width:920px; width:100%; height:auto; }
+  .legend { display:flex; gap:14px; flex-wrap:wrap; color:var(--muted); font-size:.82rem; margin-top:8px; }
+  .dot { width:.72em; height:.72em; display:inline-block; border-radius:3px; margin-right:4px; }
+  .steps { counter-reset:step; display:grid; gap:12px; margin-top:16px; }
+  .step {
+    counter-increment:step; display:grid; grid-template-columns:44px 1fr; gap:12px;
+    border:1px solid var(--line); border-radius:12px; padding:15px 17px; background:var(--card);
+  }
+  .step:before {
+    content:counter(step); display:grid; place-items:center; width:36px; height:36px;
+    border-radius:50%; color:white; background:var(--hearth); font-weight:800;
+  }
+  .step h3 { margin-top:4px; color:var(--ink); }
+  table { width:100%; border-collapse:collapse; margin-top:14px; font-size:.9rem; }
+  th,td { text-align:left; vertical-align:top; border-bottom:1px solid var(--line); padding:9px 8px; }
+  th { color:var(--muted); font-size:.78rem; text-transform:uppercase; letter-spacing:.05em; }
+  .callout {
+    border:1px solid var(--line); border-left:5px solid var(--hearth); border-radius:10px;
+    padding:13px 16px; background:var(--card); margin-top:14px;
+  }
+  .two { display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap:14px; margin-top:16px; }
+  footer { color:var(--muted); border-top:1px solid var(--line); padding-top:16px; margin-top:50px; }
+  @media print {
+    nav { display:none; } body { background:white; } main { max-width:none; padding:0; }
+    header,.card,.diagram,.step { box-shadow:none; break-inside:avoid; }
+    section { break-before:page; } section:first-of-type { break-before:auto; }
+  }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div class="eyebrow">Verified on OMEN · runtime probes 2026-07-29 14:35–14:55 PDT · references freshness-audited</div>
+  <h1>Command Center<br>HEARTH + Mechnet</h1>
+  <p style="font-size:1.15rem;max-width:76ch">
+    A local-first agent laboratory: one authenticated door routes synchronous model work and
+    asynchronous fleet builds, records every crossing, and turns the evidence into capacity,
+    policy, scheduling, and experiment decisions.
+  </p>
+  <p class="sub">This page is the short, current tour. It deliberately distinguishes what is live,
+    what is advisory, and what the older architecture pages now overstate or undercount.</p>
+</header>
+
+<nav>
+  <a href="#status">Status</a>
+  <a href="#map">System map</a>
+  <a href="#pour">Pour sequence</a>
+  <a href="#identity">Identity</a>
+  <a href="#stores">Contracts + stores</a>
+  <a href="#learning">Learning loop</a>
+  <a href="#demo">Demo plan</a>
+  <a href="#library">Existing material</a>
+</nav>
+
+<section id="status">
+  <h2>What is true right now</h2>
+  <p class="sub">Live probes, timestamped projections, repository contracts, and the full local test suites were checked. Snapshot values below retain their watermarks.</p>
+  <div class="grid">
+    <div class="card verified"><h3>HEARTH door</h3><div class="metric">Healthy</div><p>Loopback MCP gateway, auth, provider loading, and ledger writes are live.</p></div>
+    <div class="card verified"><h3>Tool surface</h3><div class="metric">47</div><p>Tools across 16 providers, governed by 21 tool-capability names and 7 profiles.</p></div>
+    <div class="card verified"><h3>Audit history</h3><div class="metric">19.6k+</div><p>Append-only kernel events; use the generated call-mix page for the exact moving watermark.</p></div>
+    <div class="card verified"><h3>Tests</h3><div class="metric">1,083</div><p>Full repository suite plus 86 subtests; all green at final verification.</p></div>
+    <div class="card verified"><h3>Fleet</h3><div class="metric">11 + 1</div><p>11 nodes reachable; the optional i5 demo laptop is offline.</p></div>
+    <div class="card verified"><h3>Conductor</h3><div class="metric">Ready</div><p>Daemon and dashboard active; real queues empty; local builders reachable.</p></div>
+    <div class="card verified"><h3>Economics snapshot</h3><div class="metric">$11.57</div><p>Estimated reference-model savings; $5.77 priced trial-credit inference spend. Dashboard generated 21:40 UTC; offload evidence watermark 15:42 UTC.</p></div>
+    <div class="card caution"><h3>Honest caveat</h3><div class="metric">0</div><p>Materialized capabilities remain empty and the workflow belief corpus is stale at 2026-07-04, even while the kernel ledger is current.</p></div>
+  </div>
+  <div class="callout caution">
+    <span class="badge warn">Demo note</span>
+    OMEN Ollama's port is up, but an interrupted upgrade removed <code>llama-server.exe</code>.
+    A real generation currently returns HTTP 500. The AM4 120B rung is proven and should be
+    pinned for the clean demo. An unpinned call demonstrates HEARTH's automatic
+    <code>omen-ollama → am4-moe</code> escalation, but do that only after the clean path.
+  </div>
+  <div class="callout caution">
+    <span class="badge warn">Dashboard note</span>
+    The conductor dashboard's run history is current, but its node-health cards are not.
+    Its two-minute generator still probes hardcoded July 1 <code>172.19.*</code> VM addresses
+    and AM4's retired tailnet path. Use OMEN's <code>fleet/fleet_ping.py</code> as the live
+    reachability truth; the current <code>*.mshome.net</code> builders and AM4 LAN endpoint
+    were verified reachable from the conductor.
+  </div>
+  <div class="callout">
+    <span class="badge ok">Reference audit</span>
+    Every document linked or named by this briefing was checked against its source dependencies.
+    The result is recorded in
+    <a href="BUDDY-DEMO-FRESHNESS-AUDIT-2026-07-29.md">BUDDY-DEMO-FRESHNESS-AUDIT-2026-07-29.md</a>.
+    “Historical” below means useful evidence or rationale, not current status.
+  </div>
+</section>
+
+<section id="map">
+  <h2>1 · System map</h2>
+  <p class="sub">One boundary, three planes: SENSE observes, ACT does work, and HEARTH is the authenticated/ledgered crossing between callers and both.</p>
+  <div class="diagram">
+  <svg viewBox="0 0 1200 570" role="img" aria-label="HEARTH and Mechnet system map">
+    <defs>
+      <marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0L9 4.5L0 9Z" fill="#65718a"/></marker>
+      <marker id="arrowh" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0L9 4.5L0 9Z" fill="#d65a31"/></marker>
+      <marker id="arrowl" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0L9 4.5L0 9Z" fill="#7650b5"/></marker>
+    </defs>
+    <style>
+      .t{font:14px system-ui;fill:var(--ink)} .s{font:12px system-ui;fill:var(--muted)}
+      .h{font:700 16px system-ui;fill:var(--ink)} .k{font:700 12px system-ui;letter-spacing:1px;fill:var(--muted)}
+      .b{rx:12;stroke-width:1.5}.a{fill:none;stroke:#65718a;stroke-width:2;marker-end:url(#arrow)}
+      .ah{fill:none;stroke:#d65a31;stroke-width:2.4;marker-end:url(#arrowh)}
+      .al{fill:none;stroke:#7650b5;stroke-width:2;stroke-dasharray:7 5;marker-end:url(#arrowl)}
+    </style>
+    <text class="k" x="38" y="32">CALLERS</text>
+    <rect class="b" x="35" y="52" width="210" height="72" fill="var(--card)" stroke="var(--line)"/>
+    <text class="h" x="55" y="79">Human / frontier agent</text><text class="s" x="55" y="101">Codex · Claude Code · operator</text>
+    <rect class="b" x="35" y="146" width="210" height="72" fill="var(--card)" stroke="var(--line)"/>
+    <text class="h" x="55" y="173">Local agent loop</text><text class="s" x="55" y="195">model uses MCP tools itself</text>
+    <rect class="b" x="35" y="240" width="210" height="72" fill="var(--card)" stroke="var(--line)"/>
+    <text class="h" x="55" y="267">Cloud / facade client</text><text class="s" x="55" y="289">GCP ADK · Open Notebook</text>
+
+    <text class="k" x="342" y="32">THE ONE BOUNDARY</text>
+    <rect class="b" x="320" y="52" width="290" height="260" fill="var(--hearth2)" stroke="var(--hearth)" stroke-width="3"/>
+    <text x="465" y="86" text-anchor="middle" style="font:800 23px system-ui;fill:var(--hearth)">HEARTH</text>
+    <text class="s" x="465" y="107" text-anchor="middle">FastMCP · 127.0.0.1:8710/mcp</text>
+    <text class="t" x="348" y="143">① authenticate caller key</text>
+    <text class="t" x="348" y="172">② profile → capability → scoped authority</text>
+    <text class="t" x="348" y="201">③ guard and route the typed tool call</text>
+    <text class="t" x="348" y="230">④ time + digest args/result</text>
+    <text class="t" x="348" y="259">⑤ append a kernel ledger event</text>
+    <text class="s" x="348" y="286">47 tools · 16 providers · fail-closed discovery</text>
+    <path class="ah" d="M245 88H318"/><path class="ah" d="M245 182H318"/><path class="ah" d="M245 276H318"/>
+
+    <text class="k" x="704" y="32">ACT · MECHNET</text>
+    <rect class="b" x="680" y="52" width="220" height="108" fill="var(--act2)" stroke="var(--act)"/>
+    <text class="h" x="700" y="80">Synchronous inference</text>
+    <text class="t" x="700" y="105">OMEN Ollama · AM4 120B</text><text class="t" x="700" y="128">GCP Flash / Pro overflow</text>
+    <rect class="b" x="940" y="52" width="220" height="108" fill="var(--act2)" stroke="var(--act)"/>
+    <text class="h" x="960" y="80">Asynchronous pour</text>
+    <text class="t" x="960" y="105">conductor → builders</text><text class="t" x="960" y="128">assay → risk gate → branches</text>
+    <path class="a" d="M610 120H678"/><path class="a" d="M610 222C760 222 780 176 938 120"/>
+
+    <text class="k" x="704" y="206">SENSE</text>
+    <rect class="b" x="680" y="225" width="480" height="88" fill="var(--sense2)" stroke="var(--sense)"/>
+    <text class="h" x="700" y="254">Fleet probes · occupancy · OTel / Jaeger · Watchfire</text>
+    <text class="t" x="700" y="280">Reachability · resource ownership · traces · coherence gaps</text>
+    <text class="s" x="700" y="301">and recovery outcomes, without becoming a command path</text>
+    <path class="a" d="M680 269H612"/>
+
+    <text class="k" x="38" y="386">EVIDENCE + LEARNING</text>
+    <rect class="b" x="35" y="405" width="250" height="100" fill="var(--learn2)" stroke="var(--learn)"/>
+    <text class="h" x="55" y="434">Kernel ledger</text><text class="t" x="55" y="459">audit truth · digests · cost</text><text class="s" x="55" y="483">NDJSON + SQLite index</text>
+    <rect class="b" x="330" y="405" width="250" height="100" fill="var(--learn2)" stroke="var(--learn)"/>
+    <text class="h" x="350" y="434">Workflow ledgers</text><text class="t" x="350" y="459">domain truth · full payload</text><text class="s" x="350" y="483">runs/&lt;id&gt;/events.jsonl</text>
+    <rect class="b" x="625" y="405" width="250" height="100" fill="var(--learn2)" stroke="var(--learn)"/>
+    <text class="h" x="645" y="434">Knowledge projections</text><text class="t" x="645" y="459">capacity · findings · policy</text><text class="s" x="645" y="483">coverage · experiments · spend</text>
+    <rect class="b" x="920" y="405" width="240" height="100" fill="var(--learn2)" stroke="var(--learn)"/>
+    <text class="h" x="940" y="434">Advisory decisions</text><text class="t" x="940" y="459">scheduler · hindsight</text><text class="s" x="940" y="483">human/agent actuation gate</text>
+    <path class="al" d="M465 312C465 355 160 350 160 403"/><path class="al" d="M1050 160C1050 360 455 350 455 403"/>
+    <path class="al" d="M285 455H328"/><path class="al" d="M580 455H623"/><path class="al" d="M875 455H918"/>
+    <path class="al" d="M1040 405C1040 345 575 352 575 310"/>
+  </svg>
+  </div>
+  <div class="legend">
+    <span><i class="dot" style="background:var(--hearth)"></i>Boundary</span>
+    <span><i class="dot" style="background:var(--act)"></i>Act</span>
+    <span><i class="dot" style="background:var(--sense)"></i>Sense</span>
+    <span><i class="dot" style="background:var(--learn)"></i>Evidence / learning</span>
+  </div>
+</section>
+
+<section id="pour">
+  <h2>2 · What a “pour” actually does</h2>
+  <p class="sub">HEARTH does not become a second fleet scheduler. It submits through the conductor's existing inbox, preserves the two-builder minimum, and records the crossing.</p>
+  <div class="diagram">
+  <svg viewBox="0 0 1200 620" role="img" aria-label="Pour sequence through Hearth and the conductor">
+    <defs><marker id="seqarr" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0L9 4.5L0 9Z" fill="#65718a"/></marker></defs>
+    <style>
+      .q{font:13px system-ui;fill:var(--ink)}.qs{font:11px system-ui;fill:var(--muted)}
+      .qh{font:700 14px system-ui;fill:var(--ink)}.life{stroke:var(--line);stroke-width:2;stroke-dasharray:5 6}
+      .msg{stroke:#65718a;stroke-width:2;marker-end:url(#seqarr)}.box{rx:8;stroke-width:1.5}
+    </style>
+    <g text-anchor="middle">
+      <rect class="box" x="25" y="22" width="150" height="58" fill="var(--card)" stroke="var(--line)"/><text class="qh" x="100" y="56">Caller</text>
+      <rect class="box" x="225" y="22" width="150" height="58" fill="var(--hearth2)" stroke="var(--hearth)"/><text class="qh" x="300" y="56">HEARTH</text>
+      <rect class="box" x="425" y="22" width="150" height="58" fill="var(--sense2)" stroke="var(--sense)"/><text class="qh" x="500" y="56">Conductor</text>
+      <rect class="box" x="625" y="22" width="150" height="58" fill="var(--act2)" stroke="var(--act)"/><text class="qh" x="700" y="48">Builder A</text><text class="qs" x="700" y="65">local</text>
+      <rect class="box" x="825" y="22" width="150" height="58" fill="var(--act2)" stroke="var(--act)"/><text class="qh" x="900" y="48">Builder B</text><text class="qs" x="900" y="65">local</text>
+      <rect class="box" x="1025" y="22" width="150" height="58" fill="var(--learn2)" stroke="var(--learn)"/><text class="qh" x="1100" y="56">Assay / risk</text>
+    </g>
+    <g><path class="life" d="M100 80V585"/><path class="life" d="M300 80V585"/><path class="life" d="M500 80V585"/><path class="life" d="M700 80V585"/><path class="life" d="M900 80V585"/><path class="life" d="M1100 80V585"/></g>
+
+    <path class="msg" d="M100 118H292"/><text class="q" x="120" y="108">submit_task(prompt, builders, class, estimate)</text>
+    <rect class="box" x="225" y="134" width="150" height="52" fill="var(--hearth2)" stroke="var(--hearth)"/>
+    <text class="qs" x="240" y="156">auth + capability</text><text class="qs" x="240" y="174">append kernel event</text>
+    <path class="msg" d="M300 210H492"/><text class="q" x="330" y="200">SSH write inbox/&lt;plan_id&gt;.md + CCMETA</text>
+    <path class="msg" d="M500 258H692"/><text class="q" x="525" y="248">plan → isolated lap</text>
+    <path class="msg" d="M500 292H892"/><text class="q" x="625" y="282">same brief → competing lap</text>
+    <rect class="box" x="625" y="312" width="350" height="54" fill="var(--act2)" stroke="var(--act)"/>
+    <text class="q" x="645" y="335">Workers edit/test in isolation, write progress/questions,</text><text class="qs" x="645" y="353">and commit candidate branches in the conductor farmer repo.</text>
+    <path class="msg" d="M700 390H1092"/><path class="msg" d="M900 420H1092"/>
+    <text class="q" x="745" y="382">candidate + test evidence</text><text class="q" x="935" y="412">candidate + test evidence</text>
+    <rect class="box" x="1025" y="438" width="150" height="70" fill="var(--learn2)" stroke="var(--learn)"/>
+    <text class="qs" x="1040" y="460">score · acceptance</text><text class="qs" x="1040" y="478">risk · winner</text><text class="qs" x="1040" y="496">promotion hold/gate</text>
+    <path class="msg" d="M1092 525H508"/><text class="q" x="695" y="516">runs/&lt;plan_id&gt;/result.json + branches</text>
+    <path class="msg" d="M500 552H308"/><text class="q" x="338" y="543">task_status → compact result</text>
+    <path class="msg" d="M300 580H108"/><text class="q" x="142" y="571">winner / scoreboard / trace id</text>
+  </svg>
+  </div>
+  <div class="callout">
+    <strong>The assay is a regression gate, not an acceptance oracle.</strong>
+    A winner is still a candidate. Required deliverables and behavior need curation before landing;
+    infrastructure failures must not be learned as model-capability failures.
+  </div>
+</section>
+
+<section id="identity">
+  <h2>3 · Identity and authority</h2>
+  <p class="sub">Authentication says who crossed the door. Authorization says which capability that identity was explicitly granted, and which resource boundary applies.</p>
+  <div class="diagram">
+  <svg viewBox="0 0 1200 380" role="img" aria-label="HEARTH identity and capability chain">
+    <defs><marker id="ida" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0L9 4.5L0 9Z" fill="#65718a"/></marker></defs>
+    <style>.it{font:14px system-ui;fill:var(--ink)}.is{font:11.5px system-ui;fill:var(--muted)}.ih{font:700 16px system-ui;fill:var(--ink)}.ib{rx:11;stroke-width:1.5}.ia{stroke:#65718a;stroke-width:2;marker-end:url(#ida)}</style>
+    <rect class="ib" x="25" y="75" width="180" height="110" fill="var(--card)" stroke="var(--line)"/>
+    <text class="ih" x="45" y="105">Credential</text><text class="it" x="45" y="133">X-Hearth-Key</text><text class="is" x="45" y="158">raw key never ledgered</text>
+    <rect class="ib" x="255" y="75" width="180" height="110" fill="var(--hearth2)" stroke="var(--hearth)"/>
+    <text class="ih" x="275" y="105">Caller</text><text class="it" x="275" y="133">id · runner class · node</text><text class="is" x="275" y="158">identity on every event</text>
+    <rect class="ib" x="485" y="75" width="180" height="110" fill="var(--sense2)" stroke="var(--sense)"/>
+    <text class="ih" x="505" y="105">Profile</text><text class="it" x="505" y="133">named policy role</text><text class="is" x="505" y="158">unprofiled = deny all</text>
+    <rect class="ib" x="715" y="75" width="180" height="110" fill="var(--learn2)" stroke="var(--learn)"/>
+    <text class="ih" x="735" y="105">Capability</text><text class="it" x="735" y="133">one per mounted tool</text><text class="is" x="735" y="158">unknown mapping = deny</text>
+    <rect class="ib" x="945" y="75" width="230" height="110" fill="var(--act2)" stroke="var(--act)"/>
+    <text class="ih" x="965" y="105">Resource authority</text><text class="it" x="965" y="133">file scope · repo access</text><text class="is" x="965" y="158">then invoke typed tool</text>
+    <path class="ia" d="M205 130H253"/><path class="ia" d="M435 130H483"/><path class="ia" d="M665 130H713"/><path class="ia" d="M895 130H943"/>
+
+    <rect class="ib" x="25" y="235" width="1150" height="105" fill="var(--card)" stroke="var(--line)"/>
+    <text class="ih" x="45" y="265">Current identities</text>
+    <text class="it" x="45" y="292">claude-frontier → unrestricted</text><text class="it" x="305" y="292">dev-local → probe</text>
+    <text class="it" x="495" y="292">docker-open-notebook-facade → generation-proxy</text>
+    <text class="it" x="830" y="292">gcp-adk-test → research + file scope</text>
+    <text class="it" x="45" y="319">omen-worker-1 → builder</text>
+    <text class="is" x="305" y="319">Policy lives in profiles.toml; secrets live in the gitignored caller registry.</text>
+  </svg>
+  </div>
+  <div class="two">
+    <div class="card"><h3>Normal ingress</h3><p>Client presents its own key. The key resolves to a caller, the caller names a profile, and the profile grants capabilities.</p></div>
+    <div class="card caution"><h3>Temporary GCP ingress</h3><p>Studio cannot yet send an API-key header, so Funnel → Caddy stamps the scoped <code>gcp-adk-test</code> identity. The URL is effectively the shared secret; no write capability is granted.</p></div>
+  </div>
+</section>
+
+<section id="stores">
+  <h2>4 · Contracts and data stores</h2>
+  <p class="sub">The important distinction is “one door” versus “one store.” The audit and workflow ledgers are intentionally separate bounded contexts.</p>
+  <table>
+    <thead><tr><th>Layer</th><th>Contract</th><th>Store / implementation</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td>MCP call</td><td>Typed Python signature + JSON input schema</td><td>FastMCP provider surface</td><td>Stable callable boundary for agents.</td></tr>
+      <tr><td>Identity</td><td>caller → profile → capability → authority</td><td><code>callers.json</code> secret registry + tracked <code>profiles.toml</code></td><td>Fail-closed authentication and authorization.</td></tr>
+      <tr><td>Kernel event</td><td><code>hearth-event.v1</code></td><td><code>events.ndjson</code> + <code>index.sqlite</code></td><td>Append-only audit, timing, routing, tokens, cost, digests.</td></tr>
+      <tr><td>Workflow event</td><td><code>workflow-event.schema.json</code></td><td><code>runs/&lt;id&gt;/events.jsonl</code></td><td>Replayable domain truth with full payloads.</td></tr>
+      <tr><td>Scheduler</td><td><code>scheduler-decision.v1</code> + capacity observation</td><td>Run artifacts + knowledge projections</td><td>Predictions, choice provenance, and hindsight comparison.</td></tr>
+      <tr><td>Belief layer</td><td>finding, policy, capability, association, coverage, experiment schemas</td><td><code>knowledge/*.json</code></td><td>Derived, rebuildable read models—not hand-edited truth.</td></tr>
+      <tr><td>Fleet work</td><td>Markdown brief + CCMETA + DONE marker</td><td>Conductor <code>inbox/</code>, <code>runs/</code>, farmer git repo</td><td>Plan, competing isolated builds, assay, risk gate.</td></tr>
+      <tr><td>Observability</td><td>OTel identifiers + spans</td><td>Jaeger on AM4</td><td>Cross-machine trace correlation without becoming the domain store.</td></tr>
+      <tr><td>Build proof</td><td>Criteria + validation rows</td><td>Build-request receipts and event trails</td><td>Auditable infrastructure work; “done” requires evidence.</td></tr>
+    </tbody>
+  </table>
+  <div class="grid">
+    <div class="card"><h3>Repository schemas</h3><div class="metric">16</div><p>12 workflow/knowledge schemas plus 4 HEARTH-specific contracts.</p></div>
+    <div class="card"><h3>Why two ledgers?</h3><p>The kernel says a call happened and records compact audit facts. The workflow stream says a domain fact happened and retains replayable payloads.</p></div>
+    <div class="card"><h3>Why the “double write”?</h3><p><code>record_event</code> creates a workflow fact and a kernel fact about the call. That is two meanings, not duplicate storage.</p></div>
+  </div>
+</section>
+
+<section id="learning">
+  <h2>5 · The learning loops</h2>
+  <p class="sub">“Learning” here is evidence accumulation and policy projection, not hidden online weight updates. Every decision is meant to stay inspectable and reversible.</p>
+  <div class="diagram">
+  <svg viewBox="0 0 1200 520" role="img" aria-label="Evidence and learning loops">
+    <defs><marker id="loopa" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0 0L9 4.5L0 9Z" fill="#7650b5"/></marker></defs>
+    <style>.lt{font:14px system-ui;fill:var(--ink)}.ls{font:11.5px system-ui;fill:var(--muted)}.lh{font:700 16px system-ui;fill:var(--ink)}.lb{rx:12;stroke-width:1.5}.la{fill:none;stroke:#7650b5;stroke-width:2.4;marker-end:url(#loopa)}.ld{fill:none;stroke:#7650b5;stroke-width:2;stroke-dasharray:7 5;marker-end:url(#loopa)}</style>
+    <rect class="lb" x="40" y="70" width="210" height="100" fill="var(--hearth2)" stroke="var(--hearth)"/>
+    <text class="lh" x="60" y="100">1 · Work happens</text><text class="lt" x="60" y="126">generate · dispatch · test</text><text class="ls" x="60" y="149">health · git · human decisions</text>
+    <rect class="lb" x="300" y="70" width="210" height="100" fill="var(--learn2)" stroke="var(--learn)"/>
+    <text class="lh" x="320" y="100">2 · Evidence lands</text><text class="lt" x="320" y="126">kernel + workflow ledgers</text><text class="ls" x="320" y="149">identity, result, duration, cost</text>
+    <rect class="lb" x="560" y="70" width="260" height="100" fill="var(--learn2)" stroke="var(--learn)"/>
+    <text class="lh" x="580" y="100">3 · Projections reduce</text><text class="lt" x="580" y="126">capacity · offload · findings</text><text class="ls" x="580" y="149">policy · coverage · associations</text>
+    <rect class="lb" x="870" y="70" width="290" height="100" fill="var(--sense2)" stroke="var(--sense)"/>
+    <text class="lh" x="890" y="100">4 · Decisions are proposed</text><text class="lt" x="890" y="126">routing · schedule · next experiment</text><text class="ls" x="890" y="149">advisory until evidence earns actuation</text>
+    <path class="la" d="M250 120H298"/><path class="la" d="M510 120H558"/><path class="la" d="M820 120H868"/>
+    <path class="la" d="M1015 170C1015 255 145 225 145 172"/>
+    <text class="ls" x="560" y="218" text-anchor="middle">next action produces the next observation</text>
+
+    <rect class="lb" x="40" y="285" width="260" height="155" fill="var(--card)" stroke="var(--line)"/>
+    <text class="lh" x="60" y="315">Operational loop</text>
+    <text class="lt" x="60" y="342">patrol 5m · sentinel 2m</text><text class="lt" x="60" y="367">watchdog 15m · drain 30m</text>
+    <text class="lt" x="60" y="392">harvest 30m · rebuild 6h</text><text class="ls" x="60" y="418">external gateway liveness watch: 3m</text>
+    <rect class="lb" x="340" y="285" width="260" height="155" fill="var(--card)" stroke="var(--line)"/>
+    <text class="lh" x="360" y="315">Scheduler loop</text>
+    <text class="lt" x="360" y="342">capacity + model residency</text><text class="lt" x="360" y="367">two-economies objective</text>
+    <text class="lt" x="360" y="392">20-run hindsight regret</text><text class="ls" x="360" y="418">JS5 actuation deliberately unbuilt</text>
+    <rect class="lb" x="640" y="285" width="260" height="155" fill="var(--card)" stroke="var(--line)"/>
+    <text class="lh" x="660" y="315">Belief loop</text>
+    <text class="lt" x="660" y="342">17 findings · 3 policy rules</text><text class="lt" x="660" y="367">27 coverage gaps</text>
+    <text class="lt" x="660" y="392">45 experiment candidates</text><text class="ls" x="660" y="418">0 completed experiment results projected</text>
+    <rect class="lb" x="940" y="285" width="220" height="155" fill="var(--amber2)" stroke="var(--amber)"/>
+    <text class="lh" x="960" y="315">Current gap</text>
+    <text class="lt" x="960" y="342">capability count = 0</text><text class="lt" x="960" y="367">workflow watermark: 7/4</text>
+    <text class="ls" x="960" y="397">Do not claim the complete</text><text class="ls" x="960" y="415">belief loop is current.</text>
+    <path class="ld" d="M300 362H338"/><path class="ld" d="M600 362H638"/><path class="ld" d="M900 362H938"/>
+  </svg>
+  </div>
+</section>
+
+<section id="demo">
+  <h2>6 · The beer-table demo plan</h2>
+  <p class="sub">Lead with the 30-second story, prove one real crossing, then decide whether the room wants the fleet pour. The safe path takes about 12 minutes.</p>
+  <div class="steps">
+    <div class="step"><div>
+      <h3>Open this page and tell the story (2 minutes)</h3>
+      <p>“The lab has a sense plane, an act plane, and one authenticated door between agents and the machines. Every crossing is ledgered; projections turn the history into scheduling and policy evidence.”</p>
+    </div></div>
+    <div class="step"><div>
+      <h3>Show live reachability (1 minute)</h3>
+      <pre>cd C:\work\commandcenter
+python fleet/fleet_ping.py --all-services --no-color
+python -m hearth.callers.doorcheck --json --strict</pre>
+      <p class="sub">Explain that TCP health is necessary but not sufficient—the OMEN Ollama binary gap is the concrete example.</p>
+    </div></div>
+    <div class="step"><div>
+      <h3>Prove a real, scoped HEARTH generation (about 30 seconds)</h3>
+      <p>From the connected Codex/Claude session, call <code>local_generate</code> with:</p>
+      <pre>prompt = "Explain this decision to a technically curious visitor in three crisp bullets:
+the boundary, the three planes, and why the ledger matters. Do not invent claims."
+files = ["docs/adr/0005-one-boundary-three-planes.md"]
+backend = "am4-moe"
+max_tokens = 800
+timeout_s = 180</pre>
+      <p class="sub">Verified result: AM4’s resident <code>gpt-oss-120b</code>, file packed door-side, ~28 seconds, caller identity and cost/tokens ledgered.</p>
+    </div></div>
+    <div class="step"><div>
+      <h3>Show the receipt, not just the answer (2 minutes)</h3>
+      <p>Use the <code>local_generate</code> response for backend, routing reason, and
+      token/cost receipt; query <code>kernel_status</code> for caller scope and ledger
+      count. Open <a href="HEARTH-DASHBOARD.html">HEARTH-DASHBOARD.html</a> only for
+      its timestamped aggregate economics/capacity view, and quote its generation
+      time and evidence watermarks.</p>
+    </div></div>
+    <div class="step"><div>
+      <h3>Show Mechnet watching itself (2 minutes)</h3>
+      <pre>python -m fleet.mechnet_watchdog --dry-run --no-ledger --no-watchfire --no-patrol-trend --no-hindsight --json</pre>
+      <p class="sub">Then explain the unattended loops: patrol, coherence/heal, hindsight, idle drain, harvest, projection rebuild, and the external gateway liveness watchdog.</p>
+    </div></div>
+    <div class="step"><div>
+      <h3>Replay a proven fleet pour (3 minutes, no new work)</h3>
+      <p>Open <a href="http://cc-conductor.mshome.net:8080/fleet-dashboard.html">the conductor dashboard</a>
+      for its current run-history table and use run <code>hearth-retro-20260721-baseline-618dfd6e</code>:
+      two local builders, 162/162 tests on each, B/B scoreboard, cc-builder-2 selected, promotion held.
+      Ignore the node-health cards on that page; their generator still probes retired addresses.
+      The preceding OMEN <code>fleet_ping</code> output is the live health view.</p>
+    </div></div>
+    <div class="step"><div>
+      <h3>Optional: run a fresh read-only pour (allow 10–20 minutes)</h3>
+      <p>Use <code>submit_task</code> with the two proven local builders. It creates real fleet work but asks for no tracked edits:</p>
+      <pre>builders = ["am4-worker-1", "cc-builder-2"]
+plan_id_hint = "buddy-architecture-readout"
+task_class = "research"
+est_tokens = 2500
+
+prompt =
+"Read docs/adr/0005-one-boundary-three-planes.md and
+docs/adr/0010-two-ledgers-two-bounded-contexts.md from the source tree.
+Compare them in five concise bullets for a technical visitor.
+Do not edit any tracked repository file.
+When finished, append a line `## DONE: {task_id}` to ~/.comms/progress.md."</pre>
+      <p class="sub">Poll <code>task_status(plan_id)</code> and watch the dashboard. The task lane pads any single-builder request to two because the conductor requires fan-out.</p>
+    </div></div>
+  </div>
+  <div class="callout caution">
+    <strong>Do not start with a fresh pour.</strong> It is the slowest and most failure-prone part of the tour.
+    The file-packed 120B generation proves the boundary, routing, identity, scope, and ledger in under a minute;
+    the prior run proves the full plan/build/assay path. Run fresh work only if your buddy wants to stay on that thread.
+  </div>
+</section>
+
+<section id="library">
+  <h2>7 · Freshness-audited reference library</h2>
+  <p class="sub">Open “historical” artifacts for architectural rationale and provenance, never for live counts or machine health.</p>
+  <table>
+    <thead><tr><th>Artifact</th><th>Safe use</th><th>Audited status</th></tr></thead>
+    <tbody>
+      <tr><td><a href="HEARTH-OVERVIEW.html">HEARTH-OVERVIEW.html</a></td><td>July 8 architecture rationale, contracts, scheduler posture, and early decision trail.</td><td><span class="badge warn">HISTORICAL</span> 35 tools / 13 providers / 13 ADRs / old caller and watchdog model. Do not present as a current deep reference.</td></tr>
+      <tr><td><a href="docs/mechnet-dfd.svg">docs/mechnet-dfd.svg</a></td><td>Durable one-door, sense/act, two-ledger, conductor/build/assay shape.</td><td><span class="badge warn">STRUCTURE ONLY</span> July 9 service counts, inference routing, identity, cloud ingress, and timer inventory are stale.</td></tr>
+      <tr><td><a href="docs/network-topology.svg">docs/network-topology.svg</a></td><td>Durable doctrine: machine lanes use <code>mshome.net</code>/LAN; Tailscale is human/Funnel ingress.</td><td><span class="badge warn">STRUCTURE ONLY</span> July 9 VM IPs and AM4/OMEN service inventory are stale; GCP-to-HEARTH ingress is absent.</td></tr>
+      <tr><td><a href="HEARTH-DASHBOARD.html">HEARTH-DASHBOARD.html</a></td><td>Timestamped aggregate economics, capacity, routing, and recent ledger activity.</td><td><span class="badge ok">GENERATED SNAPSHOT</span> Browser auto-refresh only reloads the file. Quote generation time and both evidence watermarks.</td></tr>
+      <tr><td><a href="COMMANDCENTER-OVERVIEW.html">COMMANDCENTER-OVERVIEW.html</a></td><td>Provenance for the July 18 machine/work/constellation snapshot.</td><td><span class="badge warn">ARCHIVED</span> Its event count, economics, uptime, queue, and machine state are not current.</td></tr>
+      <tr><td><a href="docs/workflow-ontology-design.md">workflow-ontology-design.md</a></td><td>Event/state/artifact/command separation, identity propagation, and semantic telemetry rationale.</td><td><span class="badge warn">DESIGN HISTORY</span> Documents a 19-event proposal; current code/schema have 21 and implement paths the prose calls absent/manual.</td></tr>
+      <tr><td><a href="docs/adr/README.md">ADR index</a></td><td>The current “why” behind boundaries, ledgers, scheduler posture, authority, liveness, ingress, and cloud cost.</td><td><span class="badge ok">CURRENT INDEX</span> Audited and corrected through local accepted ADR-0026; 0016 remains deliberately reserved.</td></tr>
+      <tr><td><a href="docs/adr/0005-one-boundary-three-planes.md">ADR-0005</a> · <a href="docs/adr/0010-two-ledgers-two-bounded-contexts.md">ADR-0010</a></td><td>Current decisions for one HEARTH boundary and two bounded-context ledgers.</td><td><span class="badge ok">CURRENT DECISIONS</span> ADR-0005’s 2026-07-04 backend nouns are historical. ADR-0010 correctly leaves <code>stream_seq</code>/idempotent append as pending hardening.</td></tr>
+      <tr><td><a href="http://cc-conductor.mshome.net:8080/fleet-dashboard.html">Conductor dashboard</a></td><td>Current run-history table and trace links.</td><td><span class="badge warn">PARTIAL</span> Node cards and GPU probe are stale because the generator hardcodes retired addresses.</td></tr>
+      <tr><td><a href="HEARTH-CALL-MIX.html">HEARTH-CALL-MIX.html</a></td><td>Three aggregate charts: semantic call volume, daily traffic mix, and inference tokens in/out by backend.</td><td><span class="badge ok">GENERATED SNAPSHOT</span> Privacy-safe HEARTH-observed traffic only; refreshed by the six-hour rebuild timer. Direct/bypass activity is disclosed separately and never invented as a call count.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<footer>
+  Built from live read-only probes plus three intentional smoke generations. No fleet task was submitted.
+  The existing <code>OllamaBoot</code> task was started; OMEN Ollama is listening but inference remains broken
+  until the interrupted installation is repaired. AM4 inference and the conductor path are proven.
+</footer>
+</main>
+</body>
+</html>

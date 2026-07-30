@@ -231,9 +231,32 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       today, noise regardless. Registered in the new spend ledger
       [knowledge/cloud_spend.json](knowledge/cloud_spend.json) ([cloud-spend.v1](contracts/cloud-spend.v1.schema.json));
       full findings in [GCP-AGENT-ASSESSMENT.html](GCP-AGENT-ASSESSMENT.html).
+      → 2026-07-23 session 2 progress: engine specs captured pre-deletion to
+      hearth/gcp/engine-specs-2026-07-23.json (API exposes no agent source — rebuild is
+      repo-owned via hearth/gcp/adk_demo.py, staged); deletion/budget commands handed to
+      Derek in the burn-stop runbook (agent-side cloud mutations blocked by the permission
+      layer). CORRECTIONS to the diagnosis: the VM is n2-highmem-2 as of 2026-07-23 ~03:09
+      (manually downsized; it was n2-highmem-8 from 07-11 — the "e2-medium" in this item and
+      cloud_spend.json is wrong; ~$3.14/day at current size, ~$94/mo). Terraform defaults in
+      both checkouts now pinned to n2-highmem-2 so the next apply cannot silently resize back
+      up. The existing "Lumberjacks Stage 1 monthly budget" ($25) actually scopes the whole
+      project and has likely breached — rename/raise it rather than adding a duplicate.
+      Class-fix drafted as ADR-0026 (ephemeral-by-default, staged for docs/adr/).
 - [ ] 2026-07-21 — Revisit [ADR-0025](docs/adr/0025-funnel-caddy-stamps-identity-until-studio-can.md)'s
       Caddy-stamped-key auth once Google Agent Platform Studio ships MCP Server API-key auth
       (currently "Coming soon") — switch to a real per-request header and drop the stamp. Also
       revisit `callerctl`'s `--runner-class` taxonomy (no "cloud" value; `gcp-adk-test` used
       `frontier` as a placeholder fit) if more cloud-hosted callers get minted, and consider a
       custom `xcaddy` build with `caddy-ratelimit` if this proxy sees traffic beyond one test caller.
+- [ ] 2026-07-29 — **Decide on an actual fix for unpushed/unattached git state — the escalation
+      trigger has been hit.** [SESSION-RETRO-2026-07-21.md](SESSION-RETRO-2026-07-21.md)'s
+      L-2026-07-21-3 said "a fourth occurrence should trigger an actual fix." As of today
+      `master` is **10 commits ahead of `origin/master`** (from earlier sessions, incl. the Buzz
+      and i5 work), making this at least the fourth documented instance across 07-19, 07-20,
+      07-21 and now. Options to pick from: (a) a session-start `git status -sb` / `symbolic-ref`
+      habit baked into the retro or a `SessionStart` hook, (b) a pre-commit or post-commit hook
+      that warns on ahead-count > N, (c) accept it explicitly as normal for this repo (Derek
+      pushes in batches deliberately) and stop counting it in retros. Choosing (c) is a
+      legitimate outcome — the cost right now is retro noise, not lost work — but it should be a
+      decision rather than a fourth observation. Source:
+      [SESSION-RETRO-2026-07-29.md](SESSION-RETRO-2026-07-29.md).

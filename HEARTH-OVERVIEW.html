@@ -70,11 +70,22 @@
 <body>
 
 <h1>HEARTH</h1>
+<div class="panel gold">
+<span class="badge warn">HISTORICAL ARCHITECTURE SNAPSHOT</span>
+This page was generated from a 2026-07-08 source/test scan. The boundary, ledger split,
+and advisory-scheduler rationale remain useful, but its live counts, callers, inference
+ladder, authorization model, and watchdog/timer inventory are not current. As audited
+2026-07-29, HEARTH has 47 registered tools across 16 providers, capability-profiled
+identity, cloud inference/ingress, six in-gateway timers, and an external
+gateway-liveness watchdog. Use
+<a href="BUDDY-DEMO-2026-07-29.html">BUDDY-DEMO-2026-07-29.html</a> before presenting
+implementation details from this page.
+</div>
 <p class="sub">The always-on MCP door for the whole mechnet &mdash; one boundary, every crossing ledgered.
 &nbsp;<span class="badge verified">LIVE &mdash; OMEN :8710</span>
-&nbsp;<span class="badge gold">35 tools live &middot; 13 providers</span>
-&nbsp;<span class="badge verified">381 tests in hearth/ (784 repo-wide)</span>
-&nbsp;<span class="badge idea">13 ADRs &middot; 0001&ndash;0011 ratified 2026-07-04, 0012&ndash;0013 after</span></p>
+&nbsp;<span class="badge gold">2026-07-08 scan &middot; 35 tools &middot; 13 providers</span>
+&nbsp;<span class="badge verified">381 / 784 tests at that snapshot</span>
+&nbsp;<span class="badge idea">13 ADRs at that snapshot</span></p>
 
 <div class="topnav">
 <a href="#what-it-is">What it is</a>
@@ -96,8 +107,9 @@
 HEARTH is the single always-on <strong>MCP gateway</strong> that fronts every offload in the lab &mdash;
 local-model calls, fleet task dispatch, file/git/test operations, health checks, knowledge queries, and
 scheduling &mdash; so that <strong>every crossing lands on one ledger</strong>. It runs on <strong>OMEN</strong>
-at <code>127.0.0.1:8710</code> (FastMCP over streamable-http), started by a login/scheduled task and kept
-alive by its own guard dog. Three kinds of callers reach it: <strong>frontier Claude Code sessions</strong>
+at <code>127.0.0.1:8710</code> (FastMCP over streamable-http). At this July 8 snapshot it was described as
+kept alive by its own guard dog; ADR-0024 later moved the gateway's own liveness watch outside the process.
+The snapshot documented three caller kinds: <strong>frontier Claude Code sessions</strong>
 (this one included &mdash; native <code>mcp__hearth__*</code> tools via the repo's <code>.mcp.json</code>),
 the <strong>local model</strong> (qwen3-coder:30b, driven through a tool-calling loop), and the
 <strong>fleet</strong> (builder VMs dispatched through the async task lane).
@@ -135,7 +147,7 @@ out-of-band git push. If a tool is missing, that's a gap to name, not a door to 
   </g>
   <g fill="#e8e0d4">
     <text x="28" y="46">Claude Code &middot; frontier</text>
-    <text x="28" y="63" fill="#a89c8a" font-size="10.5">this session &mdash; native mcp__hearth__*</text>
+    <text x="28" y="63" fill="#a89c8a" font-size="10.5">July 8 scan &mdash; native mcp__hearth__*</text>
     <text x="28" y="120">Local model loop</text>
     <text x="28" y="137" fill="#a89c8a" font-size="10.5">qwen3-coder:30b via local_caller.py</text>
     <text x="28" y="194">Fleet builders</text>
@@ -221,7 +233,7 @@ caller can't get a partial contract. From <code>hearth/kernel/gateway.py::make_w
 </ol>
 
 <h2 id="tools">The tool surface</h2>
-<p class="dim">35 tools are live on the gateway process this session is actually connected to, across 13 mounted
+<p class="dim">At the July 8 scan, 35 tools were live on the gateway process, across 13 mounted
 providers (plus the always-on kernel builtin). Grouped by what they're for, not by file.</p>
 
 <h3>Inference &amp; dispatch</h3>

@@ -1,0 +1,72 @@
+﻿{
+    "reasoningEngines":  [
+                             {
+                                 "name":  "projects/994445285973/locations/us-west1/reasoningEngines/2356622854230900736",
+                                 "displayName":  "baseline",
+                                 "spec":  {
+                                              "deploymentSpec":  {
+                                                                     "env":  [
+                                                                                 {
+                                                                                     "name":  "GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY",
+                                                                                     "value":  "true"
+                                                                                 },
+                                                                                 {
+                                                                                     "name":  "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT",
+                                                                                     "value":  "true"
+                                                                                 },
+                                                                                 {
+                                                                                     "name":  "VERTEX_SESSION_ENDPOINT",
+                                                                                     "value":  "https://us-west1-aiplatform.googleapis.com/"
+                                                                                 },
+                                                                                 {
+                                                                                     "name":  "GOOGLE_API_PREVENT_AGENT_TOKEN_SHARING_FOR_GCP_SERVICES",
+                                                                                     "value":  "false"
+                                                                                 },
+                                                                                 {
+                                                                                     "name":  "GOOGLE_API_USE_MTLS_ENDPOINT",
+                                                                                     "value":  "never"
+                                                                                 }
+                                                                             ]
+                                                                 },
+                                              "agentFramework":  "google-adk",
+                                              "sourceCodeSpec":  {
+                                                                     "inlineSource":  {
+
+                                                                                      },
+                                                                     "pythonSpec":  {
+                                                                                        "entrypointModule":  "main",
+                                                                                        "entrypointObject":  "app"
+                                                                                    }
+                                                                 },
+                                              "effectiveIdentity":  "service-994445285973@gcp-sa-aiplatform-re.iam.gserviceaccount.com"
+                                          },
+                                 "createTime":  "2026-07-21T06:43:09.758478Z",
+                                 "updateTime":  "2026-07-21T06:47:57.598844Z",
+                                 "description":  "help me merge features from c:\\work\\comfy and c:\\work\\lumberjacks into an end to end experience c:\\work\\baseline ",
+                                 "contextSpec":  {
+                                                     "memoryBankConfig":  {
+                                                                              "generationConfig":  {
+                                                                                                       "model":  "gemini-3.5-flash"
+                                                                                                   }
+                                                                          }
+                                                 }
+                             },
+                             {
+                                 "name":  "projects/994445285973/locations/us-west1/reasoningEngines/50779845017206784",
+                                 "displayName":  "AGENT_DESIGNER_GENERATED_DO_NOT_DELETE",
+                                 "spec":  {
+                                              "identityType":  "AGENT_IDENTITY",
+                                              "effectiveIdentity":  "agents.global.proj-994445285973.system.id.goog/resources/aiplatform/projects/994445285973/locations/us-west1/reasoningEngines/50779845017206784"
+                                          },
+                                 "createTime":  "2026-07-21T06:41:43.915309Z",
+                                 "updateTime":  "2026-07-21T06:41:54.826510Z",
+                                 "contextSpec":  {
+                                                     "memoryBankConfig":  {
+                                                                              "generationConfig":  {
+                                                                                                       "model":  "gemini-3.5-flash"
+                                                                                                   }
+                                                                          }
+                                                 }
+                             }
+                         ]
+}

@@ -102,8 +102,21 @@ noise.
 
 ## Remediation runbook
 
-Ordered so nothing breaks mid-sequence. Steps 1 and 4 change system state (installing
-software; security settings) and are the operator's to run.
+**Use the script, not these steps.** `tools/ops/fix-ollama.ps1` reports all five checks and
+repairs from the cached installer with `-Repair`. It takes no arguments, needs no working
+directory, and quotes nothing — written because handing this over as pasted shell fragments
+failed repeatedly on paste (a `python -m` with no working directory; PowerShell one-liners
+with fragile escaping). It also distinguishes an off-loopback bind that is a genuine
+regression from one that is merely a process predating the env change and awaiting a restart.
+
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\work\commandcenter\tools\ops\fix-ollama.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\work\commandcenter\tools\ops\fix-ollama.ps1 -Repair
+```
+
+The manual sequence is kept below as the record of what the script automates. Ordered so
+nothing breaks mid-sequence. Steps 1 and 4 change system state (installing software;
+security settings) and are the operator's to run.
 
 1. **Repair Ollama** (fixes the outage; independent of the rest). Reinstall over the top
    from ollama.com — it restores `lib/ollama/`. Verify:

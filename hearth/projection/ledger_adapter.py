@@ -55,6 +55,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from tools.workflow.append_event import append_event
@@ -105,6 +106,15 @@ def map_event(hearth_event: dict) -> dict:
     ok = bool(hearth_event.get("ok"))
     cost = hearth_event.get("cost") or {}
 
+    mapped_refs = []
+    observation = build_capacity_observation(hearth_event)
+    if observation is not None:
+        mapped_refs = [{
+            "artifact_id": observation["observation_id"],
+            "artifact_type": "capacity_observation",
+            "path": observation_relative_path(observation),
+        }]
+
     return {
         "event_id": f"evt_hearth_{hearth_event['event_id']}",
         "event_type": "work.accepted",
@@ -134,7 +144,130 @@ def map_event(hearth_event: dict) -> dict:
                 "watt_s": cost.get("watt_s"),
             },
         },
+        # Without this the bridge was a write-only mirror: every learning projector
+        # extracts evidence ONLY through artifact_refs[].artifact_type
+        # (project_capacity.extract_observations / extract_scheduler_decisions), so
+        # 1,310 bridged rows produced observation_count 27 / decision_count 0 while the
+        # corpus grew 1339 -> 1644. Empty list for non-inference rows keeps the shape
+        # uniform for consumers.
+        "artifact_refs": mapped_refs,
     }
+
+
+def build_capacity_observation(hearth_event: dict) -> dict | None:
+    """A capacity-observation.v1 document for an inference-shaped ledger row, or None.
+
+    "Inference-shaped" == the row names a model. Those rows already carry everything an
+    observation needs (model, backend, duration, token cost, outcome); the ledger was
+    simply never read for it.
+
+    The observation_id is DERIVED from the hearth event_id, never generated, so the
+    bridge is idempotent: re-running over the same row rewrites the identical artifact
+    instead of minting a second one. No wall clock is read (D18).
+    """
+    model = hearth_event.get("model")
+    if not model:
+        return None
+
+    caller = hearth_event.get("caller") or {}
+    cost = hearth_event.get("cost") or {}
+    duration_ms = hearth_event.get("duration_ms")
+    runtime_s = round(duration_ms / 1000.0, 3) if isinstance(duration_ms, (int, float)) else None
+    tokens_out = cost.get("tokens_out")
+    tokens_per_s = None
+    if isinstance(tokens_out, (int, float)) and runtime_s:
+        tokens_per_s = round(tokens_out / runtime_s, 2)
+
+    ok = bool(hearth_event.get("ok"))
+    notes = (f"routed_by={hearth_event.get('routed_by')}; "
+             f"occupancy={hearth_event.get('occupancy')}; "
+             f"bridged from hearth-event.v1 {hearth_event['event_id']}")
+
+    return {
+        "contract_version": "capacity-observation.v1",
+        "observation_id": f"obs-ledger-{hearth_event['event_id']}",
+        "decision_id": None,
+        "workflow_id": WORKFLOW_ID,
+        "run_id": RUN_ID,
+        "timestamp": hearth_event["ts"],
+        # The caller is the builder here: capacity is a property of
+        # (who dispatched, which model, which rung). The dispatch-time producer records
+        # a provider name instead, so its combos stay distinct rather than merging.
+        "builder_id": caller.get("id") or "unknown",
+        "model_id": model,
+        "backend": hearth_event.get("backend"),
+        "hardware_profile_id": caller.get("node"),
+        "workload_shape": {
+            "task_kind": hearth_event.get("tool"),
+            "estimated_context_tokens": cost.get("tokens_in"),
+            "requires_gpu": None,
+            "notes": notes,
+        },
+        "observed": {
+            "runtime_s": runtime_s,
+            "ttft_s": None,
+            "tokens_per_s": tokens_per_s,
+            "ram_gb_peak": None,
+            "vram_gb_peak": None,
+            "context_tokens": cost.get("tokens_in"),
+            "physical": None,
+        },
+        "outcome": "success" if ok else "failure",
+        "failure_class": hearth_event.get("error_code") if not ok else None,
+        "promotion_status": None,
+    }
+
+
+def observation_relative_path(observation: dict) -> str:
+    """Path recorded in the artifact ref: '<run_id>/artifacts/<date>/<id>.json'.
+
+    project_capacity._resolve_artifact_path resolves everything after 'artifacts/'
+    against the directory holding events.jsonl, so this stays correct wherever the run
+    tree is rooted.
+    """
+    day = str(observation["timestamp"])[:10]
+    return f"{RUN_ID}/artifacts/{day}/{observation['observation_id']}.json"
+
+
+def _instant_key(raw: object) -> str | None:
+    """Normalize a timestamp to a comparable instant string.
+
+    The two producers spell the same moment differently -- the dispatch producer writes
+    `...+00:00`, the ledger writes `...Z` -- so a raw string compare silently fails to
+    dedupe. Comparing parsed instants is the only spelling-proof join available; there is
+    no shared id between the two producers.
+    """
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    try:
+        return datetime.fromisoformat(raw.strip().replace("Z", "+00:00")).isoformat()
+    except ValueError:
+        return None
+
+
+def dispatch_observation_keys(runs_root: Path) -> set[tuple]:
+    """(timestamp, model_id, backend) for observations the DISPATCH-time producer already
+    wrote under runs/hearth-offload-*/.
+
+    Two producers now describe the same call: this bridge (reading the ledger after the
+    fact) and hearth-offload-dispatch (writing at call time, with ttft/tokens_per_s the
+    ledger never sees). The richer one wins -- the bridge declines any row a dispatch
+    observation already covers, so capacity estimates count each call once.
+    """
+    keys: set[tuple] = set()
+    if not runs_root.is_dir():
+        return keys
+    for run_dir in runs_root.glob("hearth-offload-*"):
+        for artifact in run_dir.glob("artifacts/**/*.json"):
+            try:
+                document = json.loads(artifact.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+                continue
+            if document.get("contract_version") != "capacity-observation.v1":
+                continue
+            keys.add((_instant_key(document.get("timestamp")), document.get("model_id"),
+                      document.get("backend")))
+    return keys
 
 
 def load_cursor(cursor_path: Path) -> dict:
@@ -193,10 +326,14 @@ def project_ledger(
     the cursor was already past; `filtered` counts self-monitoring rows this run
     deliberately declined to bridge (see the module docstring).
     """
-    summary = {"processed": 0, "skipped": 0, "filtered": 0, "errors": []}
+    summary = {"processed": 0, "skipped": 0, "filtered": 0, "observations": 0,
+               "observations_deduped": 0, "errors": []}
     if not ledger_path.exists():
         summary["errors"].append(f"ledger not found: {ledger_path}")
         return summary
+
+    run_dir = target_path.parent
+    already_covered = dispatch_observation_keys(run_dir.parent)
 
     lines = [line for line in ledger_path.read_text(encoding="utf-8").splitlines() if line.strip()]
     cursor = load_cursor(cursor_path)
@@ -215,10 +352,32 @@ def project_ledger(
             if filter_heartbeat and is_heartbeat(hearth_event, caller_ids, profiles):
                 summary["filtered"] += 1
             else:
+                observation = build_capacity_observation(hearth_event)
+                if observation is not None and (
+                    _instant_key(observation["timestamp"]),
+                    observation["model_id"],
+                    observation["backend"],
+                ) in already_covered:
+                    # The dispatch-time producer already recorded this call, with
+                    # richer detail. Bridge the event, drop the duplicate evidence.
+                    observation = None
+                    summary["observations_deduped"] += 1
+
                 workflow_event = map_event(hearth_event)
+                if observation is None:
+                    workflow_event["artifact_refs"] = []
                 if dry_run:
                     validate_event(workflow_event)
                 else:
+                    if observation is not None:
+                        # The ref is only evidence if the file it names exists --
+                        # extract_observations counts an unresolvable ref as
+                        # `unresolved`, not as an observation. Write it first.
+                        artifact_path = run_dir / "artifacts" / Path(
+                            observation_relative_path(observation).split("artifacts/", 1)[1])
+                        artifact_path.parent.mkdir(parents=True, exist_ok=True)
+                        atomic_write_json(artifact_path, observation)
+                        summary["observations"] += 1
                     append_event(target_path, workflow_event)
                 summary["processed"] += 1
         except (json.JSONDecodeError, ValidationError) as exc:

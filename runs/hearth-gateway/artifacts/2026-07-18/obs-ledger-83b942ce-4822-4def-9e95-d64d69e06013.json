@@ -1,0 +1,30 @@
+{
+  "contract_version": "capacity-observation.v1",
+  "observation_id": "obs-ledger-83b942ce-4822-4def-9e95-d64d69e06013",
+  "decision_id": null,
+  "workflow_id": "wf-hearth-gateway",
+  "run_id": "hearth-gateway",
+  "timestamp": "2026-07-18T13:07:26.572935Z",
+  "builder_id": "claude-frontier",
+  "model_id": "gpt-oss-120b",
+  "backend": "am4-moe",
+  "hardware_profile_id": "omen",
+  "workload_shape": {
+    "task_kind": "local_generate",
+    "estimated_context_tokens": 7398,
+    "requires_gpu": null,
+    "notes": "routed_by=tag:reasoning; occupancy=available; bridged from hearth-event.v1 83b942ce-4822-4def-9e95-d64d69e06013"
+  },
+  "observed": {
+    "runtime_s": 131.17,
+    "ttft_s": null,
+    "tokens_per_s": 15.9,
+    "ram_gb_peak": null,
+    "vram_gb_peak": null,
+    "context_tokens": 7398,
+    "physical": null
+  },
+  "outcome": "success",
+  "failure_class": null,
+  "promotion_status": null
+}

@@ -1,0 +1,30 @@
+{
+  "contract_version": "capacity-observation.v1",
+  "observation_id": "obs-ledger-bcc5e421-6411-42f3-b11d-2b3b6cb4f058",
+  "decision_id": null,
+  "workflow_id": "wf-hearth-gateway",
+  "run_id": "hearth-gateway",
+  "timestamp": "2026-07-09T10:52:13.108025Z",
+  "builder_id": "dev-local",
+  "model_id": "qwen3-coder:30b",
+  "backend": null,
+  "hardware_profile_id": "omen",
+  "workload_shape": {
+    "task_kind": "local_generate",
+    "estimated_context_tokens": null,
+    "requires_gpu": null,
+    "notes": "routed_by=None; occupancy=None; bridged from hearth-event.v1 bcc5e421-6411-42f3-b11d-2b3b6cb4f058"
+  },
+  "observed": {
+    "runtime_s": 20.086,
+    "ttft_s": null,
+    "tokens_per_s": null,
+    "ram_gb_peak": null,
+    "vram_gb_peak": null,
+    "context_tokens": null,
+    "physical": null
+  },
+  "outcome": "success",
+  "failure_class": null,
+  "promotion_status": null
+}

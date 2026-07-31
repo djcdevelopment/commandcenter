@@ -97,7 +97,8 @@ class ProjectLedgerTests(TestCase):
 
         summary = project_ledger(self.ledger, self.target, self.cursor, dry_run=True)
 
-        self.assertEqual(summary, {"processed": 2, "skipped": 0, "filtered": 0, "errors": []})
+        self.assertEqual(summary, {"processed": 2, "skipped": 0, "filtered": 0, "observations": 0,
+                          "observations_deduped": 0, "errors": []})
         self.assertFalse(self.target.exists())
         self.assertFalse(self.cursor.exists())
 
@@ -116,13 +117,15 @@ class ProjectLedgerTests(TestCase):
         project_ledger(self.ledger, self.target, self.cursor)
 
         second = project_ledger(self.ledger, self.target, self.cursor)
-        self.assertEqual(second, {"processed": 0, "skipped": 2, "filtered": 0, "errors": []})
+        self.assertEqual(second, {"processed": 0, "skipped": 2, "filtered": 0, "observations": 0,
+                         "observations_deduped": 0, "errors": []})
 
         # ledger grows append-only; only the new event is processed
         with self.ledger.open("a", encoding="utf-8", newline="\n") as handle:
             handle.write(json.dumps(make_hearth_event("he_103")) + "\n")
         third = project_ledger(self.ledger, self.target, self.cursor)
-        self.assertEqual(third, {"processed": 1, "skipped": 2, "filtered": 0, "errors": []})
+        self.assertEqual(third, {"processed": 1, "skipped": 2, "filtered": 0, "observations": 0,
+                         "observations_deduped": 0, "errors": []})
 
         lines = self.target.read_text(encoding="utf-8").splitlines()
         self.assertEqual(len(lines), 3)
@@ -236,3 +239,114 @@ class HeartbeatFilterTests(TestCase):
                                                      profile="unrestricted")])
         project_ledger(self.ledger, self.target, self.cursor)
         self.assertEqual(validate_file(self.target), [])
+
+
+class CapacityObservationBridgeTests(TestCase):
+    """The bridge must emit EVIDENCE, not just mirror rows.
+
+    Every learning projector reads evidence exclusively through
+    artifact_refs[].artifact_type (project_capacity.extract_observations), and counts a
+    ref it cannot resolve on disk as `unresolved` rather than as an observation. Before
+    this, map_event emitted no artifact_refs at all: 1,310 bridged rows yielded
+    observation_count 27 and decision_count 0 while the corpus grew 1339 -> 1644.
+    """
+
+    def _inference_event(self, event_id: str = "he_inf", **overrides: object) -> dict:
+        return make_hearth_event(
+            event_id,
+            tool="local_generate",
+            model="qwen3-coder:30b",
+            backend="omen-ollama",
+            routed_by="pinned:omen-ollama",
+            duration_ms=2000,
+            cost={"tokens_in": 100, "tokens_out": 50, "watt_s": None},
+            **overrides,
+        )
+
+    def test_inference_row_gains_a_resolvable_capacity_observation(self) -> None:
+        from hearth.projection.ledger_adapter import build_capacity_observation
+
+        workflow_event = map_event(self._inference_event())
+        validate_event(workflow_event)
+        refs = workflow_event["artifact_refs"]
+        self.assertEqual(len(refs), 1)
+        self.assertEqual(refs[0]["artifact_type"], "capacity_observation")
+        self.assertIn("artifacts/", refs[0]["path"])
+
+        observation = build_capacity_observation(self._inference_event())
+        self.assertEqual(observation["contract_version"], "capacity-observation.v1")
+        self.assertEqual(observation["model_id"], "qwen3-coder:30b")
+        self.assertEqual(observation["backend"], "omen-ollama")
+        self.assertEqual(observation["observed"]["runtime_s"], 2.0)
+        self.assertEqual(observation["observed"]["tokens_per_s"], 25.0)
+        self.assertEqual(observation["outcome"], "success")
+
+    def test_non_inference_row_emits_no_observation(self) -> None:
+        from hearth.projection.ledger_adapter import build_capacity_observation
+
+        self.assertIsNone(build_capacity_observation(make_hearth_event("he_plain")))
+        self.assertEqual(map_event(make_hearth_event("he_plain"))["artifact_refs"], [])
+
+    def test_observation_id_is_derived_so_reruns_are_idempotent(self) -> None:
+        from hearth.projection.ledger_adapter import build_capacity_observation
+
+        first = build_capacity_observation(self._inference_event("he_x"))
+        second = build_capacity_observation(self._inference_event("he_x"))
+        self.assertEqual(first["observation_id"], second["observation_id"])
+        self.assertEqual(first, second)
+
+    def test_bridge_writes_the_artifact_file_the_ref_names(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ledger = root / "ledger.ndjson"
+            target = root / "runs" / "hearth-gateway" / "events.jsonl"
+            write_ndjson(ledger, [self._inference_event("he_1"), make_hearth_event("he_2")])
+
+            summary = project_ledger(ledger, target, root / "cursor.json")
+            self.assertEqual(summary["errors"], [])
+            self.assertEqual(summary["processed"], 2)
+            self.assertEqual(summary["observations"], 1)
+
+            events = [json.loads(line) for line in target.read_text(encoding="utf-8").splitlines() if line.strip()]
+            refs = [ref for event in events for ref in (event.get("artifact_refs") or [])]
+            self.assertEqual(len(refs), 1)
+
+            # The ref must resolve exactly the way project_capacity does.
+            from tools.workflow.project_capacity import extract_observations
+            observations, unresolved = extract_observations(events, target)
+            self.assertEqual(unresolved, 0)
+            self.assertEqual(len(observations), 1)
+            self.assertEqual(observations[0]["model_id"], "qwen3-coder:30b")
+
+    def test_dispatch_time_observation_wins_and_is_not_double_counted(self) -> None:
+        """Two producers describe the same call. The richer dispatch-time artifact wins;
+        the bridge must decline that row even though the two spell the instant
+        differently (`...Z` vs `...+00:00`)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ledger = root / "ledger.ndjson"
+            target = root / "runs" / "hearth-gateway" / "events.jsonl"
+            write_ndjson(ledger, [self._inference_event("he_dup", ts="2026-07-03T12:00:00Z")])
+
+            dispatch = root / "runs" / "hearth-offload-claude" / "artifacts" / "2026-07-03" / "obs-d.json"
+            dispatch.parent.mkdir(parents=True, exist_ok=True)
+            dispatch.write_text(json.dumps({
+                "contract_version": "capacity-observation.v1",
+                "timestamp": "2026-07-03T12:00:00+00:00",
+                "model_id": "qwen3-coder:30b",
+                "backend": "omen-ollama",
+            }), encoding="utf-8")
+
+            summary = project_ledger(ledger, target, root / "cursor.json")
+            self.assertEqual(summary["observations"], 0)
+            self.assertEqual(summary["observations_deduped"], 1)
+            events = [json.loads(line) for line in target.read_text(encoding="utf-8").splitlines() if line.strip()]
+            self.assertEqual(events[0]["artifact_refs"], [])
+
+    def test_failed_call_records_a_failure_observation(self) -> None:
+        from hearth.projection.ledger_adapter import build_capacity_observation
+
+        observation = build_capacity_observation(
+            self._inference_event("he_bad", ok=False, error_code="timeout"))
+        self.assertEqual(observation["outcome"], "failure")
+        self.assertEqual(observation["failure_class"], "timeout")

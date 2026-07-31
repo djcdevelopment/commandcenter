@@ -1,0 +1,30 @@
+{
+  "contract_version": "capacity-observation.v1",
+  "observation_id": "obs-ledger-9372ebc9-3057-4a75-92a8-7ff449265a84",
+  "decision_id": null,
+  "workflow_id": "wf-hearth-gateway",
+  "run_id": "hearth-gateway",
+  "timestamp": "2026-07-21T00:02:07.109804Z",
+  "builder_id": "docker-open-notebook-facade",
+  "model_id": "gpt-oss-120b",
+  "backend": "am4-moe",
+  "hardware_profile_id": "omen",
+  "workload_shape": {
+    "task_kind": "local_generate",
+    "estimated_context_tokens": 10667,
+    "requires_gpu": null,
+    "notes": "routed_by=tag:research; occupancy=available; bridged from hearth-event.v1 9372ebc9-3057-4a75-92a8-7ff449265a84"
+  },
+  "observed": {
+    "runtime_s": 191.365,
+    "ttft_s": null,
+    "tokens_per_s": 15.02,
+    "ram_gb_peak": null,
+    "vram_gb_peak": null,
+    "context_tokens": 10667,
+    "physical": null
+  },
+  "outcome": "success",
+  "failure_class": null,
+  "promotion_status": null
+}

@@ -1,0 +1,30 @@
+{
+  "contract_version": "capacity-observation.v1",
+  "observation_id": "obs-ledger-5c947420-aaf1-4453-abbb-b9b710458caa",
+  "decision_id": null,
+  "workflow_id": "wf-hearth-gateway",
+  "run_id": "hearth-gateway",
+  "timestamp": "2026-07-30T09:04:20.300770Z",
+  "builder_id": "claude-frontier",
+  "model_id": "gemini-3.1-pro-preview",
+  "backend": "gcp-gemini-pro",
+  "hardware_profile_id": "omen",
+  "workload_shape": {
+    "task_kind": "local_generate",
+    "estimated_context_tokens": 79,
+    "requires_gpu": null,
+    "notes": "routed_by=pinned:gcp-gemini-pro; occupancy=available; bridged from hearth-event.v1 5c947420-aaf1-4453-abbb-b9b710458caa"
+  },
+  "observed": {
+    "runtime_s": 10.899,
+    "ttft_s": null,
+    "tokens_per_s": 23.21,
+    "ram_gb_peak": null,
+    "vram_gb_peak": null,
+    "context_tokens": 79,
+    "physical": null
+  },
+  "outcome": "success",
+  "failure_class": null,
+  "promotion_status": null
+}

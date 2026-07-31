@@ -1,0 +1,30 @@
+{
+  "contract_version": "capacity-observation.v1",
+  "observation_id": "obs-ledger-c1bdabc6-e36e-4de2-a0cf-d0db40c67ce5",
+  "decision_id": null,
+  "workflow_id": "wf-hearth-gateway",
+  "run_id": "hearth-gateway",
+  "timestamp": "2026-07-30T09:25:25.205534Z",
+  "builder_id": "claude-frontier",
+  "model_id": "/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
+  "backend": "am4-oxen",
+  "hardware_profile_id": "omen",
+  "workload_shape": {
+    "task_kind": "local_generate",
+    "estimated_context_tokens": 199,
+    "requires_gpu": null,
+    "notes": "routed_by=pinned:am4-oxen; occupancy=busy; bridged from hearth-event.v1 c1bdabc6-e36e-4de2-a0cf-d0db40c67ce5"
+  },
+  "observed": {
+    "runtime_s": 0.515,
+    "ttft_s": null,
+    "tokens_per_s": 11.65,
+    "ram_gb_peak": null,
+    "vram_gb_peak": null,
+    "context_tokens": 199,
+    "physical": null
+  },
+  "outcome": "success",
+  "failure_class": null,
+  "promotion_status": null
+}

@@ -260,6 +260,7 @@ def _ledger_safe_args(tool_name: str, kwargs: dict[str, Any]) -> dict[str, Any]:
     """Remove prompt content while preserving stable audit correlation."""
     value = copy.deepcopy(kwargs)
     prompt: Optional[str] = None
+    metadata_target = value
     if tool_name == "local_generate":
         candidate = value.get("prompt")
         if isinstance(candidate, str):
@@ -270,9 +271,13 @@ def _ledger_safe_args(tool_name: str, kwargs: dict[str, Any]) -> dict[str, Any]:
         if isinstance(arguments, dict) and isinstance(arguments.get("prompt"), str):
             prompt = arguments["prompt"]
             arguments["prompt"] = None
+            # Keep metadata beside the redaction. The legacy ledger retains a
+            # 400-character canonical preview; a root-level field can fall
+            # beyond that preview when a fixed system message is present.
+            metadata_target = arguments
     if prompt is not None:
         encoded = prompt.encode("utf-8")
-        value["prompt_metadata"] = {
+        metadata_target["prompt_metadata"] = {
             "bytes": len(encoded),
             "sha256": hashlib.sha256(encoded).hexdigest(),
             "content": "redacted_to_execution_artifact",

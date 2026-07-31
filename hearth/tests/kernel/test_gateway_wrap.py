@@ -13,7 +13,7 @@ from hearth.kernel.auth import AUTH_TOOL, AuthRegistry
 from hearth.kernel.context import HearthContext
 from hearth.kernel.gateway import _ledger_safe_args, builtin_get_tools, make_wrapper
 from hearth.kernel.guards import GuardStack
-from hearth.kernel.ledger import Ledger, sha256_digest
+from hearth.kernel.ledger import Ledger, json_dumps_canonical, sha256_digest
 
 # ADR-0023: synthetic fixtures must be mapped like real tools. Every MOUNTED
 # tool is guaranteed a capability by assert_surface_complete at startup, so an
@@ -61,13 +61,14 @@ class LedgerSafeArgsTest(unittest.TestCase):
 
         self.assertIsNone(safe["arguments"]["prompt"])
         self.assertEqual(safe["arguments"]["model"], "gpt-oss-120b")
-        self.assertEqual(safe["prompt_metadata"]["bytes"], 11)
+        self.assertEqual(safe["arguments"]["prompt_metadata"]["bytes"], 11)
         self.assertEqual(
-            safe["prompt_metadata"]["sha256"],
+            safe["arguments"]["prompt_metadata"]["sha256"],
             "06ab2a8c60adfdefc20e9f26ac58a9151eb716c8c3d34b8cf034ae1a00b0a20a",
         )
         self.assertEqual(
-            safe["prompt_metadata"]["content"], "redacted_to_execution_artifact"
+            safe["arguments"]["prompt_metadata"]["content"],
+            "redacted_to_execution_artifact",
         )
         self.assertEqual(original["arguments"]["prompt"], "snowman \N{SNOWMAN}")
 
@@ -83,6 +84,22 @@ class LedgerSafeArgsTest(unittest.TestCase):
         self.assertIsNone(safe["arguments"]["prompt"])
         self.assertEqual(safe["principal"]["id"], "derek")
         self.assertNotIn("private", json.dumps(safe))
+
+    def test_prompt_metadata_survives_the_legacy_400_character_preview(self):
+        safe = _ledger_safe_args(
+            "submit_delegated_execution",
+            {
+                "arguments": {
+                    "prompt": "private",
+                    "system": "fixed system context " * 200,
+                },
+                "principal_id": "derek",
+            },
+        )
+        preview = json_dumps_canonical(safe)[:400]
+        self.assertIn('"prompt": null', preview)
+        self.assertIn('"prompt_metadata"', preview)
+        self.assertNotIn("private", preview)
 
     def test_non_sensitive_arguments_are_unchanged(self):
         original = {"job_id": "job_123"}

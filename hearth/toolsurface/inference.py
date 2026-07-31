@@ -613,5 +613,67 @@ def local_generate(prompt: str, model: str | None = None,
     return result
 
 
+def _execution_local_generate(
+    prompt: str,
+    model: str | None = None,
+    endpoint: str = DEFAULT_ENDPOINT,
+    system: str | None = None,
+    max_tokens: int | None = None,
+    timeout_s: int | None = None,
+    task: str | None = None,
+    backend: str | None = None,
+    files: list[str] | None = None,
+    quality: str | None = None,
+) -> dict:
+    """Compatibility projection of local_generate over the Execution Ledger.
+
+    The public gateway tool keeps its historical synchronous shape, while its
+    work now follows the same Request -> Job -> Invocation pipeline as IRC and
+    every other adapter. The module-level ``local_generate`` remains the raw
+    provider primitive used by the scheduler and by offline provider tests.
+    """
+    from hearth.execution.defaults import get_execution_service
+    from hearth.observation.identity import current_identity
+
+    identity = current_identity()
+    if identity is None:
+        raise PermissionError("local_generate gateway adapter requires caller identity")
+    arguments: dict = {"prompt": prompt}
+    for key, value in (
+        ("model", model),
+        ("system", system),
+        ("task", task),
+        ("backend", backend),
+        ("files", files),
+        ("quality", quality),
+    ):
+        if value is not None:
+            arguments[key] = value
+    if endpoint != DEFAULT_ENDPOINT:
+        arguments["endpoint"] = endpoint
+    policy = {
+        key: value
+        for key, value in (("max_tokens", max_tokens), ("deadline_s", timeout_s))
+        if value is not None
+    }
+    return get_execution_service().execute_sync(
+        operation_name="inference.generate",
+        arguments=arguments,
+        principal={
+            "type": "hearth_caller",
+            "id": identity.caller_id,
+            "authenticated": True,
+        },
+        source={"transport": "mcp", "adapter": identity.caller_id},
+        policy=policy,
+    )
+
+
+# FastMCP and the capability taxonomy see the compatibility tool's stable public
+# name. Direct Python imports continue to receive the provider primitive above.
+_execution_local_generate.__name__ = "local_generate"
+_execution_local_generate.__qualname__ = "local_generate"
+
+
 def get_tools() -> list[Callable]:
-    return [local_generate]
+    return [_execution_local_generate]

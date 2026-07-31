@@ -15,6 +15,7 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 from unittest import TestCase
+from unittest.mock import patch
 
 from hearth.kernel import gateway
 
@@ -65,8 +66,31 @@ class TransportSecurityPolicyTests(TestCase):
         settings = gateway._transport_security("192.168.12.194")
         self.assertEqual(
             settings.allowed_origins,
-            [f"http://{entry}" for entry in settings.allowed_hosts],
+            [
+                origin
+                for entry in settings.allowed_hosts
+                for origin in (f"http://{entry}", f"https://{entry}")
+            ],
         )
+
+    def test_exact_tailnet_proxy_hostname_can_be_opted_in(self) -> None:
+        with patch.dict(
+            "os.environ",
+            {gateway.TRUSTED_PROXY_HOSTS_ENV_VAR: "omen.tail8e749c.ts.net"},
+        ):
+            settings = gateway._transport_security("127.0.0.1")
+        self.assertIn("omen.tail8e749c.ts.net:*", settings.allowed_hosts)
+        self.assertIn("https://omen.tail8e749c.ts.net:*", settings.allowed_origins)
+
+    def test_proxy_hostname_refuses_wildcards_schemes_and_ports(self) -> None:
+        for invalid in ("*.ts.net", "https://omen.ts.net", "omen.ts.net:8443"):
+            with self.subTest(invalid=invalid):
+                with patch.dict(
+                    "os.environ",
+                    {gateway.TRUSTED_PROXY_HOSTS_ENV_VAR: invalid},
+                ):
+                    with self.assertRaises(ValueError):
+                        gateway._transport_security("127.0.0.1")
 
 
 class BuildServerWiringTests(TestCase):

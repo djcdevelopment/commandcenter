@@ -108,6 +108,9 @@ max_tokens = 12288
 # up first; .mcp.json ("hearth" server) timeout was raised to 1300000 (1300s)
 # alongside this change — 300s headroom over this budget for queueing.
 timeout_s = 1000
+# Verified live against llama.cpp /slots on 2026-07-30 (-np 4). The execution
+# scheduler uses this as the GLOBAL limit across every ingress adapter.
+parallel_slots = 4
 
 [[backend]]
 name     = "am4-oxen"                          # the banked fire — dual-B70 Qwen3-30B

@@ -37,6 +37,8 @@ record with its status changed and a pointer to the ADR that replaced it.
 | [0026](0026-cloud-deployments-are-ephemeral-by-default.md) | Cloud deployments are ephemeral by default | Accepted (2026-07-23) |
 | [0027](0027-gateway-dispatches-are-not-observations-yet.md) | Gateway dispatches are not observations until we say what they observe | Accepted (2026-07-30), option B built; first capability re-earned |
 | [0028](0028-one-door-means-one-host.md) | One door means one host: a containerized MCP must not become HEARTH's second mouth | Accepted (2026-07-30), amends 0005/0022; native + loopback done, Ollama repair + firewall pending operator |
+| [0029](0029-moe-serves-all-am4-llm-roles.md) | The resident MoE serves all AM4 LLM roles | Accepted (2026-07-30) |
+| [0030](0030-hearth-is-the-system-of-record-for-ai-execution.md) | HEARTH is the system of record for AI execution | Accepted and implemented (2026-07-30), amends 0014 |
 
 ## Historical note
 The "ADR-0001" referenced in `SESSION-RETRO-2026-06-29.md` (which orchestrator is

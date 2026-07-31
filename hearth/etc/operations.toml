@@ -1,0 +1,22 @@
+# Invocable work exposed by HEARTH's execution control plane.
+#
+# Operations describe what the caller wants. Providers and models remain in
+# backends.toml. Per-request policy (deadline, output budget, priority) is
+# constrained by these operation-level limits.
+
+[operation."llm.chat"]
+description = "Generate a conversational completion through the HEARTH model router."
+handler = "llm_chat"
+default_model = "gpt-oss-120b"
+max_prompt_bytes = 65536
+max_tokens_ceiling = 32768
+deadline_ceiling_s = 1200
+artifact_media_type = "text/markdown; charset=utf-8"
+
+[operation."inference.generate"]
+description = "Compatibility operation for HEARTH's historical local_generate tool."
+handler = "llm_chat"
+max_prompt_bytes = 1048576
+max_tokens_ceiling = 32768
+deadline_ceiling_s = 1200
+artifact_media_type = "text/plain; charset=utf-8"

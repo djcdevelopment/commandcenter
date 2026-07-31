@@ -1,0 +1,225 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hearth-execution-event.v1.schema.json",
+  "title": "HEARTH execution event",
+  "description": "One immutable Request, Job, Invocation, artifact, or delivery fact in the canonical Execution Ledger.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "sequence",
+    "event_id",
+    "timestamp",
+    "event_type",
+    "request_id",
+    "job_id",
+    "invocation_id",
+    "principal",
+    "source",
+    "operation",
+    "desired",
+    "observed",
+    "artifacts",
+    "reason"
+  ],
+  "properties": {
+    "schema": {
+      "const": "hearth-execution-event.v1"
+    },
+    "sequence": {
+      "oneOf": [
+        {
+          "type": "integer",
+          "minimum": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "event_id": {
+      "type": "string",
+      "pattern": "^evt_[a-f0-9]{32}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "event_type": {
+      "enum": [
+        "request.accepted",
+        "request.rejected",
+        "job.queued",
+        "job.dispatched",
+        "job.running",
+        "job.waiting_for_input",
+        "job.waiting_for_approval",
+        "job.cancellation_requested",
+        "job.succeeded",
+        "job.failed",
+        "job.cancelled",
+        "job.expired",
+        "invocation.started",
+        "invocation.succeeded",
+        "invocation.failed",
+        "invocation.cancelled",
+        "artifact.recorded",
+        "delivery.projected"
+      ]
+    },
+    "request_id": {
+      "type": "string",
+      "pattern": "^req_[a-f0-9]{32}$"
+    },
+    "job_id": {
+      "type": "string",
+      "pattern": "^job_[a-f0-9]{32}$"
+    },
+    "invocation_id": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^inv_[a-f0-9]{32}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "principal": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "id",
+            "authenticated"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "minLength": 1
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "authenticated": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "source": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "transport",
+            "adapter"
+          ],
+          "properties": {
+            "transport": {
+              "type": "string",
+              "minLength": 1
+            },
+            "adapter": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "operation": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "desired": {
+      "oneOf": [
+        {
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "observed": {
+      "oneOf": [
+        {
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "artifact_id",
+          "sha256",
+          "size",
+          "media_type",
+          "created_at"
+        ],
+        "properties": {
+          "artifact_id": {
+            "type": "string",
+            "pattern": "^art_[a-f0-9]{32}$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "media_type": {
+            "type": "string",
+            "minLength": 1
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "reason": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  }
+}

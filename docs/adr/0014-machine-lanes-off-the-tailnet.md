@@ -1,6 +1,8 @@
 # ADR-0014 — Machine lanes ride local networks; Tailscale is for humans and the Funnel
 
 **Status:** Accepted (2026-07-09) — implemented and verified live the same day.
+Amended by [ADR-0030](0030-hearth-is-the-system-of-record-for-ai-execution.md)
+for the authenticated AM4 BotHerder-to-OMEN HEARTH control-plane lane.
 
 ## Context
 

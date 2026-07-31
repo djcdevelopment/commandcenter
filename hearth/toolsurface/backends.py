@@ -144,6 +144,10 @@ class Pool:
                 return backend
         return None
 
+    def by_model(self, model: str) -> tuple[Backend, ...]:
+        """Return every declared provider for an exact model identifier."""
+        return tuple(backend for backend in self.backends if model in backend.models)
+
     def default_backend(self) -> Backend:
         backend = self.by_name(self.default)
         if backend is None:  # malformed default -> fall to the first declared
@@ -209,6 +213,7 @@ def load_pool(path: Optional[Path | str] = None) -> Pool:
 
 
 def select_backend(pool: Pool, *, backend: Optional[str] = None,
+                   model: Optional[str] = None,
                    task: Optional[str] = None,
                    tags: Optional[list[str]] = None,
                    occupancy_check: Optional[Callable[[str], dict]] = None,
@@ -248,10 +253,49 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
             raise BackendConfigError(
                 f"no backend named {backend!r} (have: "
                 f"{', '.join(b.name for b in pool.backends)})")
+        if model is not None and model not in chosen.models:
+            raise BackendConfigError(
+                f"backend {backend!r} does not provide model {model!r} "
+                f"(provides: {', '.join(chosen.models) or 'none'})"
+            )
         occ = _occ(chosen.name)
         occ["occupancy"] = occ.get("occupancy", "unknown")
         # Pinned calls resolve unknown -> available (fail-open for a deliberate pin).
         return chosen, f"pinned:{backend}", occ
+
+    if model is not None:
+        candidates = pool.by_model(model)
+        if not candidates:
+            declared = sorted({item for candidate in pool.backends for item in candidate.models})
+            raise BackendConfigError(
+                f"no provider declares model {model!r} "
+                f"(have: {', '.join(declared) or 'none'})"
+            )
+        for candidate in candidates:
+            if exclude and candidate.name in exclude:
+                continue
+            if payload_bytes is not None:
+                context = candidate.context_bytes()
+                if context is not None and payload_bytes > context:
+                    continue
+            occupancy = _occ(candidate.name)
+            if occupancy.get("occupancy") == "available":
+                return candidate, f"model:{model}", occupancy
+        raise BackendRoutingRefusal(
+            payload_bytes=payload_bytes or 0,
+            required_context_bytes=payload_bytes or 0,
+            attempted=[
+                {
+                    "name": candidate.name,
+                    "context_bytes": candidate.context_bytes(),
+                    "occupancy": _occ(candidate.name).get("occupancy", "unknown"),
+                    "rejection_reason": "provider_unavailable",
+                }
+                for candidate in candidates
+            ],
+            default_backend=pool.default,
+            default_context_bytes=pool.default_backend().context_bytes(),
+        )
 
     wanted: list[str] = []
     if task:

@@ -92,6 +92,13 @@ class LoadPoolTests(TestCase):
         self.assertEqual(pool.by_endpoint("http://127.0.0.1:11434/").name, "omen-ollama")
         self.assertIsNone(pool.by_endpoint("http://nope:1234"))
 
+    def test_by_model_returns_declared_providers(self) -> None:
+        pool = load_pool(_write_pool(self.tmp))
+        self.assertEqual(
+            ["am4-oxen"], [backend.name for backend in pool.by_model("qwen3-30b")]
+        )
+        self.assertEqual((), pool.by_model("missing"))
+
     def test_unknown_api_rejected(self) -> None:
         bad = _POOL_TOML.replace('api = "openai"', 'api = "grpc"')
         with self.assertRaises(BackendConfigError):
@@ -151,6 +158,19 @@ class SelectBackendTests(TestCase):
     def test_unknown_backend_name_raises(self) -> None:
         with self.assertRaises(BackendConfigError):
             select_backend(self.pool, backend="nope")
+
+    def test_explicit_model_routes_to_its_declared_provider(self) -> None:
+        chosen, reason, _ = select_backend(self.pool, model="qwen3-30b")
+        self.assertEqual("am4-oxen", chosen.name)
+        self.assertEqual("model:qwen3-30b", reason)
+
+    def test_unknown_model_fails_closed(self) -> None:
+        with self.assertRaisesRegex(BackendConfigError, "no provider declares"):
+            select_backend(self.pool, model="missing")
+
+    def test_pinned_backend_must_offer_requested_model(self) -> None:
+        with self.assertRaisesRegex(BackendConfigError, "does not provide"):
+            select_backend(self.pool, backend="am4-oxen", model="gemini-3.5-flash")
 
     def test_unmatched_tag_falls_back_to_default(self) -> None:
         chosen, reason, occ = select_backend(self.pool, task="does-not-exist")

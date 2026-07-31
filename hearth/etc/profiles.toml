@@ -47,6 +47,7 @@ capabilities = [
     # --- gateway authority (capability gate only) ---
     "query",          # the query_* family (read-only belief/capacity/catalog reads)
     "generate",       # local_generate
+    "execution",      # canonical operations, jobs, lifecycle, and artifacts
     "status",         # kernel_status
     # --- repository authority (bounded by the caller's repo_access) ---
     "repo_metadata",  # git_status, git_log -- branch, changed paths, commit
@@ -77,8 +78,19 @@ capabilities = [
 [profile.generation-proxy]
 capabilities = [
     "generate",   # local_generate -- the whole job
+    "execution",  # canonical execution pipeline and lifecycle
     "status",     # kernel_status -- so the proxy can report door reachability
                   # without conflating it with backend health (ADR-0020)
+]
+
+# --- IRC adapter --------------------------------------------------------------
+# A protocol adapter may submit only canonical execution work, observe its own
+# jobs, and delegate authenticated IRC account identity. It receives no file,
+# repository, fleet, kernel, or direct legacy-generation authority.
+[profile.irc-adapter]
+capabilities = [
+    "execution",
+    "status",
 ]
 
 # --- probe ---------------------------------------------------------------------
@@ -178,6 +190,7 @@ capabilities = [
 capabilities = [
     "build_request", "catalog_write", "commander", "dispatch", "dream",
     "generate", "harvest", "health", "kernel_admin", "knowledge_write",
+    "execution",
     "query", "queue", "read", "repo_content", "repo_metadata", "repo_write",
     "schedule", "status", "summon", "test", "write",
 ]

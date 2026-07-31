@@ -102,6 +102,16 @@ TOOL_CAPABILITY: dict[str, str] = {
     "git_commit_push": "repo_write",
     # generate: inference through the router
     "local_generate": "generate",
+    # execution: canonical Operations, Jobs, Invocations, events, and artifacts
+    "cancel_execution": "execution",
+    "get_execution": "execution",
+    "get_execution_artifact": "execution",
+    "list_execution_providers": "execution",
+    "list_operations": "execution",
+    "plan_execution": "execution",
+    "submit_delegated_execution": "execution",
+    "submit_execution": "execution",
+    "watch_execution": "execution",
     # status: cheap gateway self-report
     "kernel_status": "status",
     # kernel_admin: the kernel change ceremony

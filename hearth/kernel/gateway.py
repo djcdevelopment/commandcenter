@@ -26,6 +26,8 @@ Missing provider modules are logged and skipped, so the kernel runs standalone
 from __future__ import annotations
 
 import argparse
+import copy
+import hashlib
 import importlib
 import inspect
 import ipaddress
@@ -66,6 +68,7 @@ CONTAINER_ACCESS_ENV_VAR = "HEARTH_CONTAINER_ACCESS_ENABLED"
 # ADR-0022: the hostname a Docker Desktop container uses to reach this host.
 # Load-bearing for the transport-security allowlist, not for binding.
 CONTAINER_HOST_ALIAS = "host.docker.internal"
+TRUSTED_PROXY_HOSTS_ENV_VAR = "HEARTH_TRUSTED_PROXY_HOSTS"
 _TRUTHY = {"1", "true", "yes", "on"}
 KERNEL_DIR = Path(__file__).resolve().parent
 BUILTIN_PROVIDER = "hearth.kernel.gateway#builtin"
@@ -170,10 +173,36 @@ def _transport_security(host: str) -> TransportSecuritySettings:
     # 0.0.0.0/:: name no single reachable address, so there is nothing to add.
     if text and text not in ("0.0.0.0", "::") and not is_loopback_host(text):
         allowed.append(f"{text}:*")
+    # Loopback reverse proxies such as Tailscale Serve preserve the original
+    # public Host header. Exact proxy hostnames must be opted in explicitly;
+    # wildcards, schemes, paths, and embedded ports are refused.
+    for proxy_host in filter(
+        None,
+        (
+            item.strip().rstrip(".")
+            for item in os.environ.get(TRUSTED_PROXY_HOSTS_ENV_VAR, "").split(",")
+        ),
+    ):
+        if (
+            "*" in proxy_host
+            or "://" in proxy_host
+            or "/" in proxy_host
+            or ":" in proxy_host
+            or any(character.isspace() for character in proxy_host)
+        ):
+            raise ValueError(
+                f"{TRUSTED_PROXY_HOSTS_ENV_VAR} entries must be exact hostnames "
+                f"without schemes, ports, paths, or wildcards: {proxy_host!r}"
+            )
+        allowed.append(f"{proxy_host}:*")
     return TransportSecuritySettings(
         enable_dns_rebinding_protection=True,
         allowed_hosts=list(allowed),
-        allowed_origins=[f"http://{entry}" for entry in allowed],
+        allowed_origins=[
+            origin
+            for entry in allowed
+            for origin in (f"http://{entry}", f"https://{entry}")
+        ],
     )
 
 
@@ -225,6 +254,30 @@ def _lift_ledger_task_class(result: Any) -> Optional[str]:
     if isinstance(result, dict) and LEDGER_TASK_CLASS_KEY in result:
         return result.pop(LEDGER_TASK_CLASS_KEY)
     return None
+
+
+def _ledger_safe_args(tool_name: str, kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Remove prompt content while preserving stable audit correlation."""
+    value = copy.deepcopy(kwargs)
+    prompt: Optional[str] = None
+    if tool_name == "local_generate":
+        candidate = value.get("prompt")
+        if isinstance(candidate, str):
+            prompt = candidate
+            value["prompt"] = None
+    elif tool_name in {"submit_execution", "submit_delegated_execution"}:
+        arguments = value.get("arguments")
+        if isinstance(arguments, dict) and isinstance(arguments.get("prompt"), str):
+            prompt = arguments["prompt"]
+            arguments["prompt"] = None
+    if prompt is not None:
+        encoded = prompt.encode("utf-8")
+        value["prompt_metadata"] = {
+            "bytes": len(encoded),
+            "sha256": hashlib.sha256(encoded).hexdigest(),
+            "content": "redacted_to_execution_artifact",
+        }
+    return value
 
 
 log = logging.getLogger("hearth.gateway")
@@ -288,6 +341,7 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
 
     def wrapper(**kwargs: Any) -> Any:
         started = time.perf_counter()
+        ledger_kwargs = _ledger_safe_args(tool_name, kwargs)
 
         def elapsed_ms() -> float:
             return (time.perf_counter() - started) * 1000.0
@@ -329,7 +383,7 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
             guards.check(tool_name, kwargs)
         except GuardRejection as exc:
             hearth.ledger.append(new_event(
-                caller.as_dict(), tool_name, args=kwargs,
+                caller.as_dict(), tool_name, args=ledger_kwargs,
                 ok=False, error=str(exc), duration_ms=elapsed_ms(),
                 task_id=task_id, task_class=task_class,
                 profile=caller.ledger_profile,
@@ -387,7 +441,7 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
             raise
         finally:
             hearth.ledger.append(new_event(
-                caller.as_dict(), tool_name, args=kwargs, result=result,
+                    caller.as_dict(), tool_name, args=ledger_kwargs, result=result,
                 ok=ok, error=error, duration_ms=elapsed_ms(), cost=cost,
                 task_id=task_id, task_class=event_task_class, model=model,
                 backend=backend, routed_by=routed_by, occupancy=occupancy,

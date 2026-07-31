@@ -98,5 +98,5 @@ class RosterTests(TestCase):
     def test_v1_roles_all_resolve(self) -> None:
         profiles = caps.load_profiles(PROFILES)
         for name in ("research", "generation-proxy", "builder", "orchestrator",
-                     "operator", "unrestricted"):
+                     "operator", "irc-adapter", "unrestricted"):
             self.assertIn(name, profiles)

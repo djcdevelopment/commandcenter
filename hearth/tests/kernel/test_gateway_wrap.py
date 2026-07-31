@@ -11,7 +11,7 @@ from typing import Any
 from hearth.kernel import capabilities
 from hearth.kernel.auth import AUTH_TOOL, AuthRegistry
 from hearth.kernel.context import HearthContext
-from hearth.kernel.gateway import builtin_get_tools, make_wrapper
+from hearth.kernel.gateway import _ledger_safe_args, builtin_get_tools, make_wrapper
 from hearth.kernel.guards import GuardStack
 from hearth.kernel.ledger import Ledger, sha256_digest
 
@@ -48,6 +48,47 @@ def fake_tool_with_fields(message: str) -> dict[str, Any]:
         "tokens_in": 123,
         "tokens_out": 45,
     }
+
+
+class LedgerSafeArgsTest(unittest.TestCase):
+    def test_execution_prompt_is_replaced_with_metadata(self):
+        original = {
+            "operation": "llm.chat",
+            "arguments": {"prompt": "snowman \N{SNOWMAN}", "model": "gpt-oss-120b"},
+        }
+
+        safe = _ledger_safe_args("submit_execution", original)
+
+        self.assertIsNone(safe["arguments"]["prompt"])
+        self.assertEqual(safe["arguments"]["model"], "gpt-oss-120b")
+        self.assertEqual(safe["prompt_metadata"]["bytes"], 11)
+        self.assertEqual(
+            safe["prompt_metadata"]["sha256"],
+            "06ab2a8c60adfdefc20e9f26ac58a9151eb716c8c3d34b8cf034ae1a00b0a20a",
+        )
+        self.assertEqual(
+            safe["prompt_metadata"]["content"], "redacted_to_execution_artifact"
+        )
+        self.assertEqual(original["arguments"]["prompt"], "snowman \N{SNOWMAN}")
+
+    def test_delegated_execution_prompt_is_redacted(self):
+        safe = _ledger_safe_args(
+            "submit_delegated_execution",
+            {
+                "principal": {"type": "irc_account", "id": "derek"},
+                "arguments": {"prompt": "private"},
+            },
+        )
+
+        self.assertIsNone(safe["arguments"]["prompt"])
+        self.assertEqual(safe["principal"]["id"], "derek")
+        self.assertNotIn("private", json.dumps(safe))
+
+    def test_non_sensitive_arguments_are_unchanged(self):
+        original = {"job_id": "job_123"}
+        safe = _ledger_safe_args("get_execution", original)
+        self.assertEqual(safe, original)
+        self.assertIsNot(safe, original)
 
 
 class GatewayWrapTest(unittest.TestCase):

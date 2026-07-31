@@ -35,7 +35,12 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from tools.workflow.corpus import Corpus  # noqa: E402
-from tools.workflow.corpus_guard import check_fixture_taint  # noqa: E402
+from tools.workflow.corpus_guard import (  # noqa: E402
+    AUDIT_FILE,
+    OVERRIDE_FILE,
+    CorpusRegressionError,
+    check_fixture_taint,
+)
 from tools.workflow.project_associations import materialize_associations  # noqa: E402
 from tools.workflow.project_capacity import collect_event_files, materialize_knowledge  # noqa: E402
 from tools.workflow.project_coverage import materialize_coverage  # noqa: E402
@@ -84,9 +89,100 @@ EXPECTED_FILES: tuple[str, ...] = tuple(
     name for kind in (*_PROJECTION_KINDS, "capacity_json", "offload_json") for name in _WRITTEN_FILES[kind]
 )
 
+# Only the corpus-derived files carry a corpus_event_count comparable to
+# Corpus.event_count. capacity.json/offload.json are LEDGER-native and stamp their own
+# count from events.ndjson line numbers (~21k vs the runs corpus's ~1.6k), so folding
+# them into the regression comparison below would read every healthy run as a 13x
+# regression.
+_CORPUS_DERIVED_FILES: tuple[str, ...] = tuple(
+    name for kind in _PROJECTION_KINDS for name in _WRITTEN_FILES[kind]
+)
+
+# Scope sentinel that lets the authored corpus_regression_override.json permit a
+# whole-rebuild regression, distinct from corpus_guard's per-file scope entries.
+REBUILD_OVERRIDE_SCOPE = "__rebuild__"
+
 
 class RebuildValidationError(RuntimeError):
     """Raised when the staged knowledge set fails validation before the swap."""
+
+
+def _live_corpus_count(out_dir: Path) -> int | None:
+    """Largest corpus_event_count currently stamped into the live corpus-derived set.
+
+    Max rather than min: a partially-completed previous run can leave one file behind,
+    and the honest question is whether this corpus has ever seen MORE evidence than the
+    one about to be written. Missing/unparseable files and files without the key are
+    simply skipped; if none carry it, there is nothing to compare and the guard abstains.
+    """
+    counts: list[int] = []
+    for name in _CORPUS_DERIVED_FILES:
+        path = out_dir / name
+        if not path.is_file():
+            continue
+        try:
+            document = json.loads(path.read_text(encoding="utf-8-sig"))
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+            continue
+        if isinstance(document, dict) and isinstance(document.get("corpus_event_count"), int):
+            counts.append(document["corpus_event_count"])
+    return max(counts) if counts else None
+
+
+def _rebuild_override(out_dir: Path) -> dict | None:
+    """The authored override permitting a whole-rebuild corpus regression, or None."""
+    path = out_dir / OVERRIDE_FILE
+    if not path.is_file():
+        return None
+    try:
+        override = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+        return None
+    if not override.get("active"):
+        return None
+    if REBUILD_OVERRIDE_SCOPE not in override.get("scope", []):
+        return None
+    return override
+
+
+def _guard_corpus_regression(out_dir: Path, corpus: Corpus) -> None:
+    """Refuse a from-zero rebuild that would replace the live set with LESS evidence.
+
+    corpus_guard protects incremental `project()` writes, but it is bypassed by
+    construction on this path: `_run_projections` writes into an empty staging dir, so
+    there is no prior file for guard_write to compare against, and the swap in
+    `rebuild_knowledge` is an unconditional os.replace. That is deliberate for a
+    from-zero replay of the SAME corpus -- and it is exactly the hole through which a
+    rebuild reading a truncated corpus silently overwrites a healthy knowledge set while
+    printing `rebuild: OK`.
+
+    This closes it at the only place that can see both sides. Raised BEFORE any staging
+    work, so the live directory is untouched and no effort is wasted.
+    """
+    live_count = _live_corpus_count(out_dir)
+    if live_count is None or corpus.event_count >= live_count:
+        return
+
+    override = _rebuild_override(out_dir)
+    if override is None:
+        raise CorpusRegressionError(
+            f"corpus regression blocked the rebuild: the live knowledge set was built "
+            f"from {live_count} events, this replay sees only {corpus.event_count} "
+            f"(digest {corpus.corpus_digest}). Nothing was written. If the smaller "
+            f"corpus is correct, author an active {OVERRIDE_FILE} in {out_dir} whose "
+            f"scope includes {REBUILD_OVERRIDE_SCOPE!r} and states why."
+        )
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    with (out_dir / AUDIT_FILE).open("a", encoding="utf-8") as audit:
+        audit.write(json.dumps({
+            "event": "rebuild_corpus_regression_permitted",
+            "old_count": live_count,
+            "new_count": corpus.event_count,
+            "corpus_digest": corpus.corpus_digest,
+            "reason": override.get("reason"),
+            "author": override.get("author"),
+        }) + "\n")
 
 
 def _aggregate_corpus(source_paths: list[Path]) -> Corpus:
@@ -237,6 +333,7 @@ def rebuild_knowledge(sources: list[str] | None = None, out: str = DEFAULT_OUT,
     check_fixture_taint(source_paths + event_files, out_dir, allow=allow_fixture_sources)
 
     corpus = _aggregate_corpus(source_paths)
+    _guard_corpus_regression(out_dir, corpus)
 
     staging_dir = out_dir / STAGING_DIRNAME
     if staging_dir.exists():
@@ -327,8 +424,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"bridge: FAILED {exc}")
             bridge_failed = True
 
-    result = rebuild_knowledge(sources=args.sources, out=args.out, ledger_path=args.ledger,
-                               allow_fixture_sources=args.allow_fixture_sources)
+    try:
+        result = rebuild_knowledge(sources=args.sources, out=args.out, ledger_path=args.ledger,
+                                   allow_fixture_sources=args.allow_fixture_sources)
+    except CorpusRegressionError as exc:
+        # The whole point of this path: a shrinking corpus must never print OK. The
+        # live knowledge set is byte-untouched -- the guard raises before staging.
+        print(f"rebuild: BLOCKED {exc}")
+        return 1
     print(f"rebuild: OK, {len(result['files'])} file(s), "
           f"corpus_digest={result['corpus_digest']}, "
           f"corpus_event_count={result['corpus_event_count']}, "

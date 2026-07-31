@@ -330,3 +330,96 @@ class RebuildMainExitCodeTests(RebuildScopedTestCase):
         self.assertEqual(code, 1)
         self.assertIn("bridge: FAILED", output)
         self.assertIn("COMPLETED WITH STALENESS", output)
+
+
+class RebuildCorpusRegressionTests(RebuildScopedTestCase):
+    """A from-zero rebuild must not silently replace a healthy knowledge set with one
+    built from LESS evidence.
+
+    corpus_guard cannot see this: _run_projections writes into an empty staging dir, so
+    guard_write has no prior file to compare against, and the swap is an unconditional
+    os.replace. The 2026-07-30 incident shape is a timer replaying a truncated corpus
+    (33 events against a live 1339) while printing `rebuild: OK`.
+    """
+
+    def _rebuild_then_shrink_corpus(self) -> Path:
+        """Build a healthy knowledge set, then truncate the corpus behind it."""
+        self._write_ledger()
+        first = rebuild_knowledge(ledger_path="hearth/var/ledger/events.ndjson")
+        self.assertGreater(first["corpus_event_count"], 1)
+
+        # Drop every event file but one, leaving a strictly smaller corpus.
+        event_files = sorted((self.scope / "runs").rglob("events.jsonl"))
+        self.assertGreater(len(event_files), 1, "fixture corpus needs >1 event file")
+        for path in event_files[1:]:
+            path.unlink()
+        return self.scope / "knowledge"
+
+    def test_shrinking_corpus_is_blocked_and_leaves_knowledge_untouched(self) -> None:
+        knowledge_dir = self._rebuild_then_shrink_corpus()
+        before = {name: (knowledge_dir / name).read_bytes() for name in EXPECTED_FILES}
+
+        with self.assertRaises(rebuild_module.CorpusRegressionError) as caught:
+            rebuild_knowledge(ledger_path="hearth/var/ledger/events.ndjson")
+        self.assertIn("corpus regression blocked the rebuild", str(caught.exception))
+
+        for name in EXPECTED_FILES:
+            self.assertEqual(before[name], (knowledge_dir / name).read_bytes(),
+                             f"{name} was modified by a blocked rebuild")
+        self.assertFalse((knowledge_dir / STAGING_DIRNAME).exists())
+
+    def test_blocked_rebuild_exits_non_zero_without_printing_ok(self) -> None:
+        self._rebuild_then_shrink_corpus()
+        from io import StringIO
+        from contextlib import redirect_stdout
+
+        buffer = StringIO()
+        with redirect_stdout(buffer):
+            code = rebuild_module.main([
+                "--ledger", "hearth/var/ledger/events.ndjson",
+                "--skip-bridge", "--skip-freshness",
+            ])
+        output = buffer.getvalue()
+        self.assertEqual(code, 1)
+        self.assertIn("rebuild: BLOCKED", output)
+        self.assertNotIn("rebuild: OK", output)
+
+    def test_authored_override_permits_the_regression_and_audits_it(self) -> None:
+        knowledge_dir = self._rebuild_then_shrink_corpus()
+        (knowledge_dir / rebuild_module.OVERRIDE_FILE).write_text(json.dumps({
+            "active": True,
+            "author": "test",
+            "reason": "deliberate corpus reduction",
+            "scope": [rebuild_module.REBUILD_OVERRIDE_SCOPE],
+        }), encoding="utf-8")
+
+        result = rebuild_knowledge(ledger_path="hearth/var/ledger/events.ndjson")
+        self.assertTrue(result["ok"])
+
+        audit_lines = (knowledge_dir / rebuild_module.AUDIT_FILE).read_text(
+            encoding="utf-8").strip().splitlines()
+        record = json.loads(audit_lines[-1])
+        self.assertEqual(record["event"], "rebuild_corpus_regression_permitted")
+        self.assertGreater(record["old_count"], record["new_count"])
+        self.assertEqual(record["author"], "test")
+
+    def test_equal_and_growing_corpus_pass_untouched(self) -> None:
+        self._write_ledger()
+        first = rebuild_knowledge(ledger_path="hearth/var/ledger/events.ndjson")
+        # Same corpus: a determinism rerun must not be mistaken for a regression.
+        second = rebuild_knowledge(ledger_path="hearth/var/ledger/events.ndjson")
+        self.assertEqual(first["corpus_event_count"], second["corpus_event_count"])
+
+    def test_ledger_native_counts_do_not_trigger_the_guard(self) -> None:
+        """capacity.json/offload.json stamp a LEDGER count (much larger than the runs
+        corpus). If they were folded into the comparison, every healthy rebuild would
+        read as a regression."""
+        self._write_ledger()
+        rebuild_knowledge(ledger_path="hearth/var/ledger/events.ndjson")
+        knowledge_dir = self.scope / "knowledge"
+        capacity = json.loads((knowledge_dir / "capacity.json").read_text(encoding="utf-8-sig"))
+        capacity["corpus_event_count"] = 10_000_000
+        (knowledge_dir / "capacity.json").write_text(json.dumps(capacity, indent=2) + "\n",
+                                                     encoding="utf-8")
+        result = rebuild_knowledge(ledger_path="hearth/var/ledger/events.ndjson")
+        self.assertTrue(result["ok"])

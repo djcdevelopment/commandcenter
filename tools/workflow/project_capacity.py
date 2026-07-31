@@ -18,6 +18,20 @@ KNOWN_BAD_FILE = "known_bad_models.json"
 PREDICTION_ACCURACY_FILE = "prediction_accuracy.json"
 
 
+def evidence_watermark(observations: list[dict]) -> str | None:
+    """'Now' as the organization knows it: the newest fact in the corpus, never the wall
+    clock — so a rerun over an unchanged corpus stays byte-identical (D18).
+
+    Canonical home is this module, the leaf of the projector import graph (it pulls only
+    project_state/corpus/corpus_guard/fsio). project_associations re-exports it for the
+    modules that have always imported it from there; findings and capacity import it
+    from here directly, because project_associations imports BOTH of them and routing
+    through it would close an import cycle.
+    """
+    timestamps = [o["timestamp"] for o in observations if o.get("timestamp")]
+    return max(timestamps) if timestamps else None
+
+
 def _combo_key(observation: dict) -> str:
     return "|".join(
         [
@@ -388,10 +402,12 @@ def materialize_knowledge(event_files: list[Path], knowledge_dir: Path) -> dict:
         },
         KNOWN_GOOD_FILE: {
             "contract_version": "known-good-models.v1",
+            "evidence_watermark": evidence_watermark(observations),
             "entries": known_good,
         },
         KNOWN_BAD_FILE: {
             "contract_version": "known-bad-models.v1",
+            "evidence_watermark": evidence_watermark(observations),
             "entries": known_bad,
         },
         PREDICTION_ACCURACY_FILE: {
@@ -412,8 +428,14 @@ def materialize_knowledge(event_files: list[Path], knowledge_dir: Path) -> dict:
         target = knowledge_dir / file_name
         extractor = guarded.get(file_name)
         if extractor is None:
-            # known_good/known_bad_models.json carry neither a watermark nor a count, so there
-            # is no monotonic quantity to guard on — left unguarded; see DECISION-NEEDED-A2.md.
+            # known_good/known_bad_models.json carry no COUNT to guard on, so they stay
+            # unguarded here; see DECISION-NEEDED-A2.md, which is still open.
+            #
+            # They now DO stamp an evidence_watermark (added 2026-07-30) — enough for the
+            # freshness guard to check them directly instead of reporting them
+            # `checked: false`. That also makes `make_extractor(None)` a viable
+            # watermark-only guard for them if A2 resolves that way; not done here,
+            # because flipping a file from unguarded to guarded is the decision A2 owns.
             # Still routed through atomic_write_json so a crash mid-write can't torn-file it.
             atomic_write_json(target, content)
         else:

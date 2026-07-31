@@ -8,6 +8,7 @@ from pathlib import Path
 from tools.workflow.project_capacity import (
     _confidence,
     collect_event_files,
+    evidence_watermark,
     extract_observations,
     extract_scheduler_decisions,
 )
@@ -52,10 +53,11 @@ def _staleness_days(last_validated: str | None, watermark: str | None) -> float 
     return round((_parse_ts(watermark) - _parse_ts(last_validated)).total_seconds() / 86400, 2)
 
 
-def evidence_watermark(observations: list[dict]) -> str | None:
-    """'Now' as the organization knows it: the newest fact in the corpus, never the wall clock."""
-    timestamps = [o["timestamp"] for o in observations if o.get("timestamp")]
-    return max(timestamps) if timestamps else None
+# evidence_watermark moved to project_capacity (the import-graph leaf) on 2026-07-30 so
+# project_findings/project_capacity can stamp it without closing an import cycle through
+# this module. Re-exported here unchanged: every existing
+# `from tools.workflow.project_associations import evidence_watermark` keeps working.
+evidence_watermark = evidence_watermark
 
 
 def analyze_buckets(observations: list[dict]) -> list[dict]:

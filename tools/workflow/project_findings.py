@@ -8,6 +8,7 @@ from tools.workflow.project_capacity import (
     classify_known_bad,
     classify_known_good,
     collect_event_files,
+    evidence_watermark,
     extract_observations,
     extract_scheduler_decisions,
     reduce_capacity,
@@ -381,6 +382,13 @@ def materialize_findings(event_files: list[Path], knowledge_dir: Path,
 
     content = {
         "contract_version": "findings.v1",
+        # The newest fact this projection actually consumed -- never the wall clock, so
+        # a rerun over an unchanged corpus stays byte-identical (D18). Without it this
+        # document was reported `checked: false` by the freshness guard and covered only
+        # transitively by the corpus check, which cannot see a projector that stops
+        # extracting while the corpus keeps growing. That is precisely the 2026-07-30
+        # shape: corpus 1339 -> 1644 while observation_count stayed at 27.
+        "evidence_watermark": evidence_watermark(observations),
         "observation_count": len(observations),
         "decision_count": len(decisions),
         "unresolved_refs": unresolved_refs,

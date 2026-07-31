@@ -501,6 +501,10 @@ def materialize_experiments(event_files: list[Path], knowledge_dir: Path) -> dic
         },
         RESULTS_FILE: {
             "contract_version": "experiment-results.v1",
+            # Derived from the evidence consumed, not the wall clock (D18). Stamped so
+            # the freshness guard can check this document directly instead of leaving it
+            # `checked: false` and covered only by the transitive corpus check.
+            "evidence_watermark": evidence_watermark(observations),
             "plan_count": len(plans),
             "unresolved_refs": unresolved_refs,
             "beliefs_changed": sum(1 for result in results if result["belief_changed"]),

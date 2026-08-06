@@ -119,6 +119,8 @@ on GitHub and linked as such, the rest are local paths on this machine.</p>
       <li><a href="#moe-findings">Ollama MoE findings — a 52 GB Mixtral off system RAM</a></li>
       <li><a href="#capability-matrix">Hardware capability matrix — what role each model class can hold</a></li>
       <li><a href="#baseline-protocol">5070 baseline snapshot + rerunnable protocol</a></li>
+      <li><a href="#capbench-raw">The raw 5070 scenario matrix (what the derived docs flatten)</a></li>
+      <li><a href="#emberrnd">ember RnD — the planner/critic model matrix (on a 4070 Ti)</a></li>
     </ol>
   </li>
   <li><a href="#b70-windows">Intel Arc Pro B70 — the Windows / Vulkan era</a>
@@ -126,6 +128,10 @@ on GitHub and linked as such, the rest are local paths on this machine.</p>
       <li><a href="#b70tools">b70tools — is Task Manager lying to you?</a></li>
       <li><a href="#denning">denning — KV-cache and MoE experts as an OS-managed resource</a></li>
       <li><a href="#battlemage">battlemage — the original single/dual-card Win10 benchmarks</a></li>
+      <li><a href="#overnight70b">The overnight campaign — 14B / 32B / 70B on dual B70</a></li>
+      <li><a href="#xputrain">xpu-train — LoRA fine-tuning on the B70 (PRIVATE)</a></li>
+      <li><a href="#x16battery">denning single-card ×16 battery (HELD)</a></li>
+      <li><a href="#vllama">vllama — the lean serving substrate</a></li>
     </ol>
   </li>
   <li><a href="#b70-linux">Intel Arc Pro B70 — the Linux / SYCL era</a>
@@ -297,6 +303,86 @@ Sources: <span class="path">C:\work\tuning\ollama-backend-lab\hardware-baseline-
 <span class="path">Invoke-OllamaCapabilityBench.ps1</span> · <span class="path">Invoke-OllamaCrossServiceBench.ps1</span>
 </div>
 </div>
+
+<div class="card lab" id="capbench-raw">
+<h3>1.5 · The raw 5070 scenario matrix (what the derived docs flatten)</h3>
+<div class="chips">
+  <span class="chip hw">RTX 5070 12 GB · 128 GB DDR5</span>
+  <span class="chip">CUDA · Ollama</span>
+  <span class="chip">2026-07-02</span>
+  <span class="chip warn">expanded 2026-08-05 — first sweep read only the derived docs</span>
+</div>
+<p><strong>What the raw CSVs carry that the summaries don't.</strong> The capability bench is not a model matrix —
+it is a <strong>scenario matrix</strong>: 2 models × {baseline-single, concurrency2 (request-a / request-b),
+contention (foreground-short / background-long)}, with per-row <strong>GPU utilization, GPU memory and GPU power</strong>
+before and after each call, plus a response preview. The cross-service bench then runs the two models against each
+other in both orderings.</p>
+
+<div class="tablewrap">
+<table>
+<tr><th>Scenario</th><th>Model</th><th class="num">Load</th><th class="num">Prompt tok/s</th><th class="num">Output tok/s</th><th class="num">GPU mem before → after</th><th class="num">GPU power</th></tr>
+<tr><td>baseline-single</td><td>qwen2.5:14b</td><td class="num">4.52 s</td><td class="num">1015.63</td><td class="num">61.82</td><td class="num">1,723 → 10,969 MiB</td><td class="num">8.2 → 203.4 W</td></tr>
+<tr><td>concurrency2 (a)</td><td>qwen2.5:14b</td><td class="num">0.13 s</td><td class="num">7154.04</td><td class="num">62.00</td><td class="num">10,938 → 10,927 MiB</td><td class="num">29.9 → 203.8 W</td></tr>
+<tr><td>concurrency2 (b)</td><td>qwen2.5:14b</td><td class="num">0.12 s</td><td class="num">7366.91</td><td class="num">61.83</td><td class="num">10,938 → 10,927 MiB</td><td class="num">29.9 → 203.9 W</td></tr>
+<tr><td>contention, long</td><td>qwen2.5:14b @ 8k</td><td class="num">5.52 s</td><td class="num">2304.47</td><td class="num">54.13</td><td class="num">10,927 → 11,408 MiB</td><td class="num">22.0 → 216.2 W</td></tr>
+<tr><td>baseline-single</td><td>qwen3-coder:30b</td><td class="num">13.10 s</td><td class="num">294.37</td><td class="num">57.40</td><td class="num">11,438 → 11,485 MiB</td><td class="num">22.0 → 66.7 W</td></tr>
+<tr><td>contention, long</td><td>qwen3-coder:30b @ 8k</td><td class="num">10.27 s</td><td class="num">2154.12</td><td class="num">50.79</td><td class="num">11,485 → 11,471 MiB</td><td class="num">21.2 → 82.7 W</td></tr>
+</table>
+</div>
+
+<h4>What only the raw data shows</h4>
+<ul>
+  <li><strong>The 30B draws a third of the power the 14B does</strong> — 66.7 W vs 203.4 W at the same
+      generation rate (57.4 vs 61.8 tok/s). A 12 GB card running a 30B MoE is memory-bound and mostly idle on
+      compute; the 14B dense saturates it. That is a perf-per-watt argument for MoE that no derived doc states.</li>
+  <li><strong>Warm prompt throughput is 7× the cold figure</strong> (7154 vs 1015 tok/s at 128 tokens) — the
+      headline "1015 tok/s" understates the steady state badly.</li>
+  <li><strong>The cross-service pairing is brutal and asymmetric.</strong> Foreground 14B fell from 2.81 to
+      1.91 tok/s output under a co-resident 30B; the 30B fell from 9.72 to 4.12. Both survive; neither is pleasant.
+      Note the baseline row itself shows 2.81 tok/s — the cross-service harness runs a much heavier prompt shape
+      than the backend bench, so these are not comparable to the 59.9 tok/s headline.</li>
+</ul>
+<div class="src">Sources (raw, not the summaries): <span class="path">C:\work\tuning\ollama-backend-lab\results\20260702-064115-cuda-capability-bench.csv</span> ·
+<span class="path">20260702-091704-cuda-cross-service-qwen2.5_14b-vs-qwen3-coder_30b.csv</span> ·
+<span class="path">20260702-092223-cuda-cross-service-qwen3-coder_30b-vs-qwen2.5_14b.csv</span> ·
+<span class="path">20260702-092515-*.csv</span> (third pairing, unread)</div>
+</div>
+
+<div class="card lab" id="emberrnd">
+<h3>1.6 · ember RnD — the planner/critic model matrix (on a 4070 Ti)</h3>
+<div class="chips">
+  <span class="chip hw">RTX 4070 Ti 12 GB GDDR6X</span>
+  <span class="chip">Ollama / CUDA</span>
+  <span class="chip">runs 2026-06-05 →</span>
+  <span class="chip warn">added 2026-08-05 — missed in first sweep</span>
+</div>
+<p><strong>What it tested.</strong> Seven numbered research documents plus a run log, exercising a planner↔critic
+loop across <em>different model pairings</em> to find where it breaks. <strong>This is the closest thing in the
+corpus to a genuine multi-model matrix — and it ran on a 4070 Ti, not the 5070.</strong> Worth knowing if you
+remember "a decent matrix of models": the 5070 work is 2 models deep and scenario-wide; this is the model-wide one.</p>
+<ul>
+  <li><strong>Run 01 — qwen3:8b planner + llama3.2 (3B) critic:</strong> critic <em>approved</em> a plan in which
+      5 of 6 file paths did not exist. A false approval, caused by the planner getting only a README excerpt and a
+      top-level listing. Fixed by feeding the tracked-file tree to both roles.</li>
+  <li><strong>Run 02 — same models after the fix:</strong> paths all correct (the fix is model-agnostic — an 8B
+      planner grounds fine once it can see the tree), but the loop stalled on <strong>3B-critic noise</strong>,
+      degrading to bare noun-phrases by round 3.</li>
+  <li><strong>Run 03 — qwen3:8b planner + gpt-oss:20b critic:</strong> a strong critic is transformative — 7
+      specific grounded issues in round 1. But round 3 <em>regressed</em>, with the planner emitting a corrupted
+      path. Open question in the doc: planner weakness, or <strong>VRAM contention from co-running a 13.6 GB model
+      with the planner on a 12 GB card?</strong></li>
+  <li>Doc 01 also carries the hardware-target reasoning for both a dual-B70 production target and the 4070 Ti
+      rehearsal target, with quantization/VRAM budgets per role.</li>
+  <li>Doc 07 backfills the <strong>first planner/critic run on the B70s</strong> (2026-06-05) and one more durable
+      operating point: <strong>gaming-coexistent inference</strong> — a large-context model serving from card 1
+      while a game ran on card 0, with no measurable gaming impact.</li>
+</ul>
+<div class="src">Source: <span class="path">C:\work\am4-harvest\ember\RnD\</span> —
+<code>01-local-inference-landscape.md</code>, <code>02-critic-loop-and-evaluation.md</code>,
+<code>03-headless-builder-frontier.md</code>, <code>04-agent-observability-and-evals.md</code>,
+<code>05-discord-control-surface.md</code>, <code>06-ollama-rehearsal-runs.md</code>,
+<code>07-arc-dual-card.md</code></div>
+</div>
 </section>
 
 <hr>
@@ -408,8 +494,166 @@ down in <code>intel_ollama/</code> and <code>vulkan/</code>. It was also on the 
 which is no longer mounted on this machine; GitHub is now the readable copy. Treat the numbers as the earliest era,
 superseded by b70tools and denning for anything load-bearing.</div>
 <div class="src">Source: <a href="https://github.com/djcdevelopment/battlemage">github.com/djcdevelopment/battlemage</a> ·
+<strong>full local copy on the 4 TB drive at <span class="path">am4:/mnt/win/work/battlemage</span></strong> (the old <span class="path">D:\work</span>) ·
 context on its structure: <span class="path">C:\work\am4-harvest\manifest\experiments\opus-repo-analysis-2026-05-30\reports\REPORT-battlemage.md</span> ·
 bring-up plan: <span class="path">C:\work\am4-harvest\manifest\experiments\b70-bringup\PLAN.md</span> (2026-05-31)</div>
+</div>
+
+<div class="card lab" id="overnight70b">
+<h3>2.4 · The overnight campaign — 14B / 32B / 70B on dual B70, Windows Vulkan</h3>
+<div class="chips">
+  <span class="chip hw">2× Arc Pro B70 (32,630 MiB each)</span>
+  <span class="chip hw">~24 GB host RAM free</span>
+  <span class="chip">Windows / Vulkan · llama.cpp b9305</span>
+  <span class="chip">2026-05-24</span>
+  <span class="chip warn">added 2026-08-05 — missed in first sweep</span>
+</div>
+<p><strong>What it tested.</strong> 107 files of overnight bench: a phased ladder from 14B on each card
+individually, through 32B, up to Llama-3.3-70B Q4_K_M tensor-split across both cards, plus a context curve and
+an fp16-vs-q8 KV comparison. This is the campaign the public battlemage repo was written from, and it is the
+single richest raw dataset in the Windows era.</p>
+
+<div class="tablewrap">
+<table>
+<tr><th>Model</th><th>Placement</th><th class="num">Prompt tok/s</th><th class="num">Generate tok/s</th></tr>
+<tr><td>Qwen2.5-14B Q4_K_M</td><td>single card, Vulkan0</td><td class="num">1261.06</td><td class="num">42.37</td></tr>
+<tr><td>Qwen2.5-14B Q4_K_M</td><td>single card, Vulkan1</td><td class="num">1335.68</td><td class="num">50.09</td></tr>
+<tr><td>Qwen2.5-32B Q4_K_M</td><td>single card, Vulkan1</td><td class="num">591.88</td><td class="num">23.69</td></tr>
+<tr><td>Llama-3.3-70B Q4_K_M</td><td>dual, tensor-split 28/32, <strong>mmap ON</strong></td><td class="num">21.49</td><td class="num">—</td></tr>
+<tr><td>Llama-3.3-70B Q4_K_M</td><td>dual, tensor-split 28/32, <strong>mmap OFF</strong></td><td class="num"><strong>151.41</strong></td><td class="num">11.28</td></tr>
+</table>
+<p class="note" style="margin-top:4px">llama-bench, ngl=99, <code>-p 512 -n 128</code> (70B rows: <code>-p 256 -n 64</code>, <code>-fa 1</code>). Raw JSONL is UTF-16LE with PowerShell stderr tee'd in — decode before parsing.</p>
+</div>
+
+<h4>Findings</h4>
+<ul>
+  <li><strong>Disabling mmap was worth 7× on 70B prompt processing</strong> — 21.5 → 151.4 tok/s. The single
+      biggest configuration win anywhere in this corpus, and it costs one flag. The 70B is only serviceable at all
+      with mmap off.</li>
+  <li><strong>14B prompt throughput peaks mid-batch, not at the top:</strong> 128 tokens → 902.96 tok/s,
+      512 → 1254.08, 2048 → 1159.54. Generation is flat (45.09 at 32 tokens, 44.98 at 128).</li>
+  <li><strong>The two cards were NOT equal in this run</strong> — Vulkan1 generated 18% faster than Vulkan0 on the
+      identical 14B (50.09 vs 42.37). <em>Note the tension:</em> <a href="#b70tools">b70tools</a> concluded four days
+      later (2026-05-28) that both cards deliver identical throughput, after several experiments. Treat the 05-24
+      gap as pre-confirmation data, not a contradiction — but it is unresolved in the record.</li>
+  <li><strong>The q8-KV phase produced no results at all.</strong> Phase B ran for 221.2 s and emitted only the
+      loader banner; the deeper-context files (65k fp16, 131k q8) are error dumps of identical size. This is
+      <em>early corroboration</em> of what <a href="#denning">denning</a> isolated a month later — that quantized KV
+      forces flash attention, and FA is a pessimization on Vulkan/Arc.</li>
+  <li>70B fp16-KV prompt curve, where it did complete: 1024 → 186.08 tok/s, 4096 → 186.06, 16384 → 120.78.</li>
+</ul>
+<p class="note">Also in the directory: a real-log processing test (30 / 200 / 2000-line slices with results JSON),
+a 70B "coaching" probe, and per-server stdout/stderr for every launch.</p>
+<div class="src">Source: <span class="path">am4:/mnt/win/work/battlemage/bench-2026-05-24/</span> —
+<code>phase1a/1b-14b-vulkan{0,1}.jsonl</code>, <code>phase3-32b-vulkan1-fixed.jsonl</code>,
+<code>phase4-14b-vulkan0-scaling.jsonl</code>, <code>phase5-70b-tensor-split-bench.jsonl</code>,
+<code>phase5b-70b-no-mmap-bench.jsonl</code>, <code>overnight-{A,B}-70b-*.jsonl</code>,
+<code>overnight-context-curve.log</code>. Narrative: <span class="path">battlemage/arc-b70-dual-70b-windows-vulkan.md</span></div>
+</div>
+
+<div class="card lab" id="xputrain">
+<h3>2.5 · xpu-train — LoRA fine-tuning on the B70 <span class="chip bad">PRIVATE — do not publish</span></h3>
+<div class="chips">
+  <span class="chip hw">Arc Pro B70 32 GB</span>
+  <span class="chip">Windows · torch 2.12.1+xpu</span>
+  <span class="chip">2026-06-22</span>
+  <span class="chip good">loop closed</span>
+  <span class="chip warn">added 2026-08-05 — missed in first sweep</span>
+</div>
+<p><strong>What it tested.</strong> The half llama.cpp cannot do. llama.cpp <em>serves</em> a model; this path
+<em>changes its weights</em> — on-rig LoRA fine-tuning via torch-xpu on a consumer Intel card, on native Windows,
+then merged and re-served through the existing Vulkan serving path. <strong>The most significant lab absent from
+the first sweep</strong>, because it answers a different question from everything else here: not "can I run models
+locally" but "can I <em>train</em> on this hardware".</p>
+
+<h4>The discovery that opened it</h4>
+<p>A vLLM-viability probe refuted its own premise: the existing environment already had
+<strong>torch 2.12.1+xpu working on native Windows</strong> — <code>torch.xpu</code> sees the B70 and matmul runs at
+<strong>150 TFLOPS fp16 / 158 TFLOPS bf16</strong>, with XMX engaged and bf16 available (which the Vulkan path
+lacks). vLLM's real blocker on Windows was packaging, not XPU support.</p>
+
+<h4>The memory envelope (Phase 2, Qwen2.5-Coder-7B, bf16 LoRA r=16 all-linear)</h4>
+<div class="tablewrap">
+<table>
+<tr><th>seq · batch · grad-checkpointing</th><th class="num">Peak VRAM</th><th>Result</th></tr>
+<tr><td>1024 · 1 · off</td><td class="num">30.3 GiB</td><td>OK (barely)</td></tr>
+<tr><td>2048 · 1 · off</td><td class="num">~45 GiB</td><td>OOM</td></tr>
+<tr><td>4096 · 1 · off</td><td class="num">~43 GiB</td><td>OOM</td></tr>
+<tr><td>2048 · 4 · off</td><td class="num">~40 GiB</td><td>OOM</td></tr>
+<tr><td><strong>4096 · 1 · ON</strong></td><td class="num"><strong>27.3 GiB</strong></td><td><strong>OK — the envelope</strong></td></tr>
+<tr><td>8192 · 1 · ON</td><td class="num">~37 GiB</td><td>OOM</td></tr>
+</table>
+<p class="note" style="margin-top:4px">Peaks above 32 GiB spilled into shared system RAM before OOM — WDDM demotion again.</p>
+</div>
+
+<h4>Findings</h4>
+<ul>
+  <li><strong>Gradient checkpointing is mandatory, not tuning.</strong> Without it the 7B OOMs by seq-2048. With it,
+      seq-4096 at batch 1 fits in 27.3 GiB. Beyond that needs 4-bit QLoRA.</li>
+  <li><strong>A real fine-tune worked:</strong> 40.4M trainable params (0.53%), <strong>held-out loss 2.96 → 1.13</strong>
+      (train 2.33 → 0.91), peak 17.0 GiB, 60 updates in 108 s, 157 MB adapter.</li>
+  <li><strong>The loop closed end to end:</strong> merge → f16 GGUF (14.2 GB) → Q4_K_M (4.36 GB) →
+      <strong>served on Vulkan1 in ~6 s</strong> and generated correct code. Train on torch-xpu, serve on Vulkan.</li>
+  <li>Phase 1 gates: backward + AdamW drove loss 6.49 → 0.0; LoRA bf16 at 0.22% params drove 4.997 → 0.006.</li>
+</ul>
+<div class="callout bad"><strong>Publication status: PRIVATE.</strong> The README and the retro both mark this
+project private and explicitly "NOT in the public denning repo" — it narrates the dev-model / self-improving-loop
+stack. Do not publish these numbers without an explicit decision from Derek.</div>
+<div class="src">Source: <span class="path">am4:/mnt/win/work/xpu-train/</span> —
+<code>PLAN.md</code> (phased plan + locked envelope + status log), <code>phase1{a,b,c}_*.py</code>,
+<code>phase2_memceiling.py</code>, <code>phase3_validate.py</code>, <code>phase4_merge.py</code>,
+<code>retros/torch-xpu-finetune-loop-closed-2026-06-22.md</code>, artifacts in <code>out/</code></div>
+</div>
+
+<div class="card lab" id="x16battery">
+<h3>2.6 · denning single-card ×16 battery <span class="chip warn">HELD — uncommitted pending operator go</span></h3>
+<div class="chips">
+  <span class="chip hw">1× Arc Pro B70 at PCIe ×16</span>
+  <span class="chip">Windows / Vulkan</span>
+  <span class="chip">2026-06-21</span>
+  <span class="chip warn">added 2026-08-05 — missed in first sweep</span>
+</div>
+<p><strong>What it tested.</strong> After a thermal pull down to one card, a pre-registered six-row battery at
+PCIe ×16 — prefill, model load, rotation, restore-vs-re-prefill, a vLLM probe, and a 70B overcommit. Predictions
+locked by git tag <code>prereg-singlecard-x16-20260621</code> before the data.</p>
+<ul>
+  <li><strong>PCIe width is irrelevant to everything measured.</strong> The binding constraints are compute
+      (the decode cliff), host-RAM/commit (the RAM-under-VRAM inversion), and the storage tier — not link width.
+      That is a genuinely useful negative result for anyone worried about slot bifurcation.</li>
+  <li>The restore-vs-re-prefill keystone held at <strong>133–475×</strong> in this run.</li>
+  <li>The 70B overcommit <strong>spilled 7.5 GiB into shared system RAM</strong> — WDDM demotion confirmed again.</li>
+</ul>
+<div class="callout"><strong>Publication status: held.</strong> The results doc and charts were written but
+deliberately left <em>uncommitted</em> in the denning working tree pending Derek's go. They are therefore
+<strong>not</strong> in the public repo, and the published article does not cite them.</div>
+<div class="src">Source: narrated in <span class="path">am4:/mnt/win/work/xpu-train/retros/torch-xpu-finetune-loop-closed-2026-06-22.md</span>
+§1; underlying results in the denning working tree (tag <code>prereg-singlecard-x16-20260621</code>, commit <code>818f569</code>)</div>
+</div>
+
+<div class="card lab" id="vllama">
+<h3>2.7 · vllama — the lean serving substrate <span class="chip info">private repo</span></h3>
+<div class="chips">
+  <span class="chip hw">2× Arc Pro B70</span>
+  <span class="chip">Windows-native Vulkan · .NET 9</span>
+  <span class="chip">2026-06-06 → 06-17</span>
+  <span class="chip warn">added 2026-08-05 — missed in first sweep</span>
+</div>
+<p><strong>What it is.</strong> Derek's own replacement for Ollama on this box — "ollama eats up too much ram, I
+wrote this to be leaner." A Windows-native Vulkan dual-B70 inference substrate lifted from the b70tools harness:
+a single <code>vllama.exe</code> owning config, launch recipe, process lifecycle and structured status, plus the
+thinnest OpenAI-compatible facade. M1–M3 complete and proven on real hardware 2026-06-06.</p>
+<ul>
+  <li>Qwen3-30B-A3B runs <strong>dual-split at 128k context</strong> as the planner alias, alongside a Qwen2.5-14B
+      critic — the direct Windows-era ancestor of the Linux service-path work in section 3.</li>
+  <li><strong>12+ dated run directories</strong> with per-run <code>manifest.json</code>, server logs, telemetry and
+      verdicts: <code>qwen2.5-14b-q4</code> (×4 runs), <code>qwen2.5-32b-q4</code>,
+      <code>qwen3-30b-a3b-128k</code> (×5 runs across June 6, 16, 17), plus slot and VRAM-check runs. Unmined.</li>
+  <li>ADR-0007 is the one to read: <strong>readiness means "can serve", not "process up"</strong> — the same lesson
+      the 2026-07-30 standoff re-learned the hard way on Linux.</li>
+</ul>
+<div class="src">Source: <span class="path">am4:/mnt/win/work/vllama/</span> — <code>README.md</code>,
+<code>docs/adr/0001–0007</code>, <code>docs/vllama/parity-report.md</code>, <code>runs/</code>,
+<code>retros/vllama-m{1,2,3}-*.md</code></div>
 </div>
 </section>
 
@@ -921,7 +1165,13 @@ driver <span class="path">imagegen_250.py</span></div>
 
 <tr><td>2.1</td><td><a href="#b70tools">b70tools</a></td><td>2× Arc Pro B70 32 GB · 5900X · 32 GB DDR4 · Win10 Pro</td><td>2026-05-24 → 05-28</td><td><a href="https://github.com/djcdevelopment/b70tools">github.com/djcdevelopment/b70tools</a></td></tr>
 <tr><td>2.2</td><td><a href="#denning">denning</a></td><td>2× Arc Pro B70 31.87 GiB · 32 GB RAM · PCIe ×8 · Windows/Vulkan</td><td>2026-06-19 → 06-21</td><td><a href="https://github.com/djcdevelopment/denning">github.com/djcdevelopment/denning</a> · <span class="path">results/E1-SUMMARY.md</span></td></tr>
-<tr><td>2.3</td><td><a href="#battlemage">battlemage</a></td><td>1× and 2× Arc Pro B70 · Win10 / Vulkan</td><td>from 2026-05-24</td><td><a href="https://github.com/djcdevelopment/battlemage">github.com/djcdevelopment/battlemage</a></td></tr>
+<tr><td>2.3</td><td><a href="#battlemage">battlemage</a></td><td>1× and 2× Arc Pro B70 · Win10 / Vulkan</td><td>from 2026-05-24</td><td><a href="https://github.com/djcdevelopment/battlemage">github.com/djcdevelopment/battlemage</a> · full copy <span class="path">am4:/mnt/win/work/battlemage</span></td></tr>
+<tr><td>1.5</td><td><a href="#capbench-raw">Raw 5070 scenario matrix</a></td><td>OMEN · RTX 5070 · 128 GB DDR5</td><td>2026-07-02</td><td><span class="path">tuning\ollama-backend-lab\results\*capability-bench.csv</span> + <span class="path">*cross-service*.csv</span></td></tr>
+<tr><td>1.6</td><td><a href="#emberrnd">ember RnD planner/critic matrix</a></td><td><strong>RTX 4070 Ti 12 GB</strong> · Ollama/CUDA</td><td>from 2026-06-05</td><td><span class="path">C:\work\am4-harvest\ember\RnD\01–07</span></td></tr>
+<tr><td>2.4</td><td><a href="#overnight70b">Overnight 14B/32B/70B campaign</a></td><td>2× Arc Pro B70 · ~24 GB host RAM free · Win/Vulkan</td><td>2026-05-24</td><td><span class="path">am4:/mnt/win/work/battlemage/bench-2026-05-24/</span> (107 files)</td></tr>
+<tr><td>2.5</td><td><a href="#xputrain">xpu-train LoRA fine-tuning</a> <span class="chip bad">PRIVATE</span></td><td>Arc Pro B70 32 GB · torch 2.12.1+xpu · Windows</td><td>2026-06-22</td><td><span class="path">am4:/mnt/win/work/xpu-train/</span></td></tr>
+<tr><td>2.6</td><td><a href="#x16battery">denning ×16 battery</a> <span class="chip warn">HELD</span></td><td>1× Arc Pro B70 at PCIe ×16 · Windows</td><td>2026-06-21</td><td>denning working tree, uncommitted (tag <code>prereg-singlecard-x16-20260621</code>)</td></tr>
+<tr><td>2.7</td><td><a href="#vllama">vllama serving substrate</a></td><td>2× Arc Pro B70 · Windows Vulkan · .NET 9</td><td>2026-06-06 → 06-17</td><td><span class="path">am4:/mnt/win/work/vllama/</span> (12+ dated runs)</td></tr>
 
 <tr><td>3.1</td><td><a href="#sycl-ladder">SYCL context ladder</a></td><td>2× Arc Pro B70 · Ubuntu · SYCL</td><td>2026-06-29</td><td><span class="path">commandcenter\am4-fleet-node\results\2026-06-29-sycl-context-ladder.md</span></td></tr>
 <tr><td>3.2</td><td><a href="#service-path">Service-path matrix / ladder / concurrency</a></td><td>2× Arc Pro B70 · Ubuntu · llama-server</td><td>2026-06-29</td><td><span class="path">...\results\2026-06-29-service-path-{matrix,ladder,concurrency-ladder,single0}.md</span></td></tr>
@@ -951,8 +1201,28 @@ driver <span class="path">imagegen_250.py</span></div>
 <!-- ============================ GAPS ============================ -->
 <section id="gaps">
 <h2>8 · What is <em>not</em> measured</h2>
+
+<div class="callout"><strong>Sweep correction, 2026-08-05.</strong> The first pass of this index searched
+<span class="path">C:\work</span> and GitHub only. It missed the <strong>4 TB drive mounted on AM4 at
+<span class="path">/mnt/win/work</span></strong> — the old <span class="path">D:\work</span> dev drive, ~90
+directories — which holds the full battlemage bench corpus, the entire <code>xpu-train</code> fine-tuning project,
+<code>vllama</code>, and <code>infexp</code>. It also read the 5070 lab's <em>derived</em> documents rather than its
+raw CSVs, and missed <span class="path">ember\RnD\</span> on this machine. Entries 1.5, 1.6 and 2.4–2.7 were added
+in a second pass. <strong>Assume more remains:</strong> unswept on that drive are <code>herm/</code>,
+<code>campfire/</code>, <code>lantern/</code>, <code>img/</code>, <code>manifest/experiments</code>,
+<code>ai-systems-research/research/experiments</code>, <code>start/precheck*/experiments</code>,
+<code>llama.cpp-src/benches</code>, and <code>b70tools/runs/live-flush-bench-1</code>.</div>
+
 <p class="note">Stated so nobody cites this index for something it doesn't cover.</p>
 <ul>
+  <li><strong>The vllama run corpus is unmined.</strong> 12+ dated run directories with per-run manifests,
+      telemetry and verdicts across Qwen2.5-14B, Qwen2.5-32B and Qwen3-30B-A3B at 128k — indexed here, never read.</li>
+  <li><strong>The two-card equality question is unresolved in the record.</strong> The 2026-05-24 bench shows
+      Vulkan1 generating 18% faster than Vulkan0 on an identical 14B; b70tools concluded four days later that both
+      cards are identical. Nothing reconciles them.</li>
+  <li><strong>The third cross-service pairing CSV</strong> (<code>20260702-092515</code>) has not been read.</li>
+  <li><strong>Two labs are deliberately unpublishable</strong> and excluded from the public article:
+      <code>xpu-train</code> (marked PRIVATE) and the denning ×16 battery (held uncommitted pending Derek's go).</li>
   <li><strong>Qwen2.5-32B dense on the RTX 5070</strong> — named as an open cell in the capability matrix, never run.
       The 12 GB VRAM verdict for 32B dense remains <code>inferred</code>, not <code>measured</code>.</li>
   <li><strong>Qwen3-30B-A3B on the RTX 5070</strong> — measured extensively on the B70s, never on the NVIDIA card.

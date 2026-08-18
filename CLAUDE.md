@@ -46,6 +46,17 @@ the router applies when you omit `max_tokens` — no more empty `text`. Pin it b
 name; it is deliberately untagged so opportunistic routing stays on the cheaper
 flash rung).
 
+**A pin picks the rung, not the physics (ADR-0031).** Pinning still overrides
+occupancy — a busy rung serves you from its own queue — but a pin whose payload
+exceeds that rung's declared `context_bytes` is **refused at the door**
+(`ok:false`, `error_code:"routing_refusal"`, reason
+`payload_over_budget_for_pinned_backend`) instead of dispatching and dying at the
+server. This bites hardest on `files=` packs against the AM4 rungs, which hold
+**57344 bytes** (omen-ollama 98304; both gemini rungs are effectively unlimited
+at 2–4 MiB). If you are pinning a local rung for a big read, either drop the pin
+and let the router pick, or pin a gemini rung. `plan_execution` resolves a
+provider content-free if you want to check before spending anything.
+
 For **auditable infra builds** (checkable acceptance criteria, receipt wanted),
 use the door's **build-request lane**: `create/get/list/update/execute/
 close_build_request`; receipts + ledger at

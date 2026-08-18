@@ -13,7 +13,8 @@ in order:
 
   1. caller-pinned ``endpoint``  -> legacy behavior, handled by the caller, not here
   2. caller-pinned ``backend``   name -> exact match or error; NEVER occupancy-skipped
-     (a pin is a deliberate operator choice; fail-open resolves unknown -> available)
+     (a pin is a deliberate operator choice; fail-open resolves unknown -> available),
+     but still refused if the payload exceeds the rung's ``context_bytes`` (ADR-0031)
   3. ``task``/``tags`` tag match -> first candidate whose occupancy is NOT busy
      (busy or unknown -> skip, try the next tag/candidate)
   4. fall back to the pool's ``default`` backend (never itself occupancy-gated)
@@ -56,19 +57,43 @@ class BackendConfigError(ValueError):
 
 
 class BackendRoutingRefusal(BackendConfigError):
-    """A request was refused because no safe backend qualified."""
+    """A request was refused because no safe backend qualified.
+
+    ``reason_code`` names which way: the class default is the ladder's (nothing in
+    the pool could take the payload); a caller-pinned rung that cannot take it
+    raises ``payload_over_budget_for_pinned_backend`` with a single ``attempted``
+    row flagged ``pinned``. Both share the ``payload_over_budget`` prefix that
+    ``hearth.errortax`` classifies on — keep any new code inside that family.
+    """
 
     reason_code = "payload_over_budget_no_eligible_backend"
 
     def __init__(self, *, payload_bytes: int, required_context_bytes: int,
                  attempted: list[dict], default_backend: str,
-                 default_context_bytes: Optional[int]) -> None:
+                 default_context_bytes: Optional[int],
+                 reason_code: Optional[str] = None) -> None:
+        self.reason_code = reason_code or type(self).reason_code
         self.payload_bytes = payload_bytes
         self.required_context_bytes = required_context_bytes
         self.attempted = attempted
         self.default_backend = default_backend
         self.default_context_bytes = default_context_bytes
-        super().__init__(self.reason_code)
+        super().__init__(self.message())
+
+    def message(self) -> str:
+        """A one-line refusal that carries its numbers.
+
+        This is ``str(exc)``, so any boundary that flattens the exception —
+        ExecutionService admission, a bare log line — reports the payload and
+        every rung the router weighed without re-deriving them. Keeping it here
+        rather than at each boundary means one place knows the ``attempted`` row
+        shape, next to the code that builds those rows.
+        """
+        rungs = ", ".join(
+            f"{row['name']} ({row['context_bytes']} B, {row['rejection_reason']})"
+            for row in self.attempted
+        )
+        return f"{self.reason_code}: payload is {self.payload_bytes} bytes; rejected {rungs}"
 
     def as_dict(self) -> dict:
         return {
@@ -224,7 +249,13 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
     `backend` pins by name (error if unknown) — a pin is a deliberate operator
     choice and is NEVER skipped for occupancy (Banked Fire P2 fail-open policy:
     unknown/busy occupancy on a pinned call still routes there; the caller asked
-    for it by name). Otherwise `task` and any `tags` are matched against each
+    for it by name). A pin IS refused, however, when `payload_bytes` exceeds the
+    pinned rung's declared `context_bytes` — that raises `BackendRoutingRefusal`
+    with reason `payload_over_budget_for_pinned_backend`. A pin overrides
+    scheduling judgment, not arithmetic: a busy rung eventually serves you from
+    its own queue, whereas an over-budget payload never fits. Callers that pass
+    no `payload_bytes` keep the historical unconditional behavior. Otherwise
+    `task` and any `tags` are matched against each
     backend's declared tags in order; a tag match whose backend is BUSY is
     skipped and the next candidate (then the pool default) is tried instead —
     this is the P2 skip-busy behavior. With no signal, the pool default is
@@ -258,6 +289,28 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
                 f"backend {backend!r} does not provide model {model!r} "
                 f"(provides: {', '.join(chosen.models) or 'none'})"
             )
+        if payload_bytes is not None:
+            # Decided BEFORE _occ() so an unreachable rung costs no probe to
+            # refuse. Refusing here is what attributes the failure to the door
+            # rather than letting it surface as a server fault — which is how the
+            # am4-oxen ctx miscalculation (0eeb1df) stayed hidden for a month.
+            # Callers that pass no payload_bytes (build_requests) are untouched.
+            pinned_context = chosen.context_bytes()
+            if pinned_context is not None and payload_bytes > pinned_context:
+                raise BackendRoutingRefusal(
+                    payload_bytes=payload_bytes,
+                    required_context_bytes=payload_bytes,
+                    attempted=[{
+                        "name": chosen.name,
+                        "context_bytes": pinned_context,
+                        "occupancy": "not_checked",
+                        "rejection_reason": "payload_over_budget",
+                        "pinned": True,
+                    }],
+                    default_backend=pool.default,
+                    default_context_bytes=pool.default_backend().context_bytes(),
+                    reason_code="payload_over_budget_for_pinned_backend",
+                )
         occ = _occ(chosen.name)
         occ["occupancy"] = occ.get("occupancy", "unknown")
         # Pinned calls resolve unknown -> available (fail-open for a deliberate pin).

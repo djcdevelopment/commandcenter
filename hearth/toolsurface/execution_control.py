@@ -178,6 +178,52 @@ def get_execution_artifact(artifact_id: str) -> dict[str, Any]:
     return {**metadata, "content": content.decode("utf-8")}
 
 
+def list_owned_executions(
+    principal_type: str, principal_id: str, limit: int = 20
+) -> list[dict[str, Any]]:
+    """List redacted canonical executions for one delegated principal."""
+    identity = _identity()
+    if identity.profile not in _DELEGATING_PROFILES:
+        raise PermissionError(
+            f"profile {identity.profile!r} may not delegate execution identity"
+        )
+    if principal_type not in {"irc_account", "service_account"}:
+        raise ValueError("unsupported delegated principal_type")
+    if not isinstance(principal_id, str) or not principal_id.strip():
+        raise ValueError("principal_id must be a non-empty string")
+    if limit <= 0 or limit > 100:
+        raise ValueError("limit must be between 1 and 100")
+
+    result: list[dict[str, Any]] = []
+    for state in reversed(_get_service().ledger.list_jobs(limit=10000)):
+        principal = state.get("principal") or {}
+        if principal.get("type") != principal_type or principal.get("id") != principal_id:
+            continue
+        if not _may_access(identity, state):
+            continue
+        desired = state.get("desired") or {}
+        result.append({
+            "job_id": state.get("job_id"),
+            "request_id": state.get("request_id"),
+            "status": state.get("status"),
+            "submitted_at": state.get("submitted_at"),
+            "updated_at": state.get("updated_at"),
+            "operation": desired.get("operation"),
+            "artifacts": [
+                {
+                    key: artifact.get(key)
+                    for key in ("artifact_id", "role", "media_type", "size", "sha256")
+                    if artifact.get(key) is not None
+                }
+                for artifact in (state.get("artifacts") or [])
+                if isinstance(artifact, dict)
+            ],
+        })
+        if len(result) >= limit:
+            break
+    return result
+
+
 def list_operations() -> list[dict[str, Any]]:
     """List invocable Operations, not evidence-derived capabilities."""
     return [
@@ -194,7 +240,7 @@ def list_operations() -> list[dict[str, Any]]:
 
 
 def list_execution_providers() -> list[dict[str, Any]]:
-    """List declared Providers and their model inventory without credentials."""
+    """List declared Providers, models, and safe runtime metadata."""
     return [
         {
             "name": provider.name,
@@ -202,6 +248,11 @@ def list_execution_providers() -> list[dict[str, Any]]:
             "models": list(provider.models),
             "tags": list(provider.tags),
             "parallel_slots": provider.settings.get("parallel_slots"),
+            "node": provider.settings.get("node"),
+            "hardware_profile_id": provider.settings.get("hardware_profile_id"),
+            "context_bytes": provider.settings.get("context_bytes"),
+            "max_tokens": provider.settings.get("max_tokens"),
+            "timeout_s": provider.settings.get("timeout_s"),
         }
         for provider in load_pool().backends
     ]
@@ -216,6 +267,7 @@ def get_tools() -> list[Callable]:
         cancel_execution,
         watch_execution,
         get_execution_artifact,
+        list_owned_executions,
         list_operations,
         list_execution_providers,
     ]

@@ -182,6 +182,40 @@ class BankedFireRoutingTests(TestCase):
         self.assertFalse(result["ok"])
         self.assertIn("routing failed", result["error"])
 
+    # These run against the real hearth/etc/backends.toml, so the sizes are
+    # derived from the declared budget rather than hard-coded: a legitimate
+    # capacity re-declaration must not silently turn either test into a no-op.
+    @staticmethod
+    def _oxen_budget() -> int:
+        budget = load_pool().by_name("am4-oxen").context_bytes()
+        assert budget is not None, "am4-oxen must declare a context budget"
+        return budget
+
+    def test_pinned_payload_over_budget_is_refused_at_the_door(self) -> None:
+        # The failure this closes: an over-budget pin used to dispatch and die at
+        # llama-server, so an operator error read as a server fault.
+        oversized = self._oxen_budget() + 1
+        with patch.dict(os.environ, {"AM4_OXEN_TOKEN": "sk-oxen"}):
+            with patch("urllib.request.urlopen") as mocked:
+                result = local_generate("x" * oversized, backend="am4-oxen")
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error_code"], "routing_refusal")
+        refusal = result["routing_refusal"]
+        self.assertEqual(refusal["reason"], "payload_over_budget_for_pinned_backend")
+        self.assertEqual(refusal["attempted"][0]["name"], "am4-oxen")
+        self.assertTrue(refusal["attempted"][0]["pinned"])
+        self.assertEqual(result["payload_bytes"], oversized)
+        mocked.assert_not_called()  # refused before the round trip is paid for
+
+    def test_pinned_payload_exactly_at_budget_still_dispatches(self) -> None:
+        with patch.dict(os.environ, {"AM4_OXEN_TOKEN": "sk-oxen"}):
+            with patch("urllib.request.urlopen",
+                       return_value=_FakeResponse(OPENAI_REPLY)) as mocked:
+                result = local_generate("x" * self._oxen_budget(), backend="am4-oxen")
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["routed_by"], "pinned:am4-oxen")
+        mocked.assert_called_once()
+
 
 class GeminiRoutingTests(TestCase):
     """GCP Gemini provider calls native generateContent with ADC-derived auth."""

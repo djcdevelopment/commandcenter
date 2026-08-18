@@ -106,6 +106,7 @@ TOOL_CAPABILITY: dict[str, str] = {
     "cancel_execution": "execution",
     "get_execution": "execution",
     "get_execution_artifact": "execution",
+    "list_owned_executions": "execution",
     "list_execution_providers": "execution",
     "list_operations": "execution",
     "plan_execution": "execution",

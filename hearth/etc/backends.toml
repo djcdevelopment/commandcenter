@@ -15,6 +15,16 @@
 # Routing policy (see backends.py select_backend), in order:
 #   1. caller-pinned endpoint  -> unchanged legacy behavior, wins outright, no occupancy check
 #   2. caller-pinned backend name -> wins outright, no occupancy check (a pin is deliberate)
+#      BUT a pin is still REFUSED when the payload exceeds that rung's context_bytes
+#      below, and when it names a model the rung does not serve. A pin overrides
+#      SCHEDULING judgment, not arithmetic: a busy rung eventually serves you out of
+#      its own queue, whereas an over-budget payload never fits and dispatching it
+#      only buys a failure at the server that reads like a server fault. Refusal
+#      raises BackendRoutingRefusal (reason payload_over_budget_for_pinned_backend);
+#      on the execution plane that lands at admission, before a Job is created.
+#      => this makes every context_bytes value below load-bearing. A stale or
+#      over-conservative number now BLOCKS a pin that would have worked. Re-derive
+#      it whenever a rung's resident model or its -c/-np changes (ADR-0031).
 #   3. tag match (task="research" -> a backend tagged "research"), occupancy-checked (P2):
 #      a busy or unknown-occupancy candidate is skipped, next tag/candidate tried
 #   4. fall back to `default` (never itself occupancy-gated)

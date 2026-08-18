@@ -15,6 +15,7 @@ from hearth.toolsurface.backends import (
     select_backend,
 )
 from hearth.toolsurface.inference import local_generate
+from hearth.errortax import classify_error
 
 _POOL_TOML = textwrap.dedent("""
     default = "omen-ollama"
@@ -383,6 +384,112 @@ class PayloadAwareRoutingTests(TestCase):
         chosen, reason, occ = select_backend(pool, payload_bytes=999999)
         self.assertEqual(chosen.name, "omen-ollama")
         self.assertEqual(reason, "default")
+
+
+class PinnedPayloadBudgetTests(TestCase):
+    """A pin overrides occupancy, but not the rung's declared context budget."""
+
+    def setUp(self) -> None:
+        self.tmp = Path(self.enterContext(__import__("tempfile").TemporaryDirectory()))
+        self.pool = load_pool(_write_pool(self.tmp, _SIZED_POOL_TOML))
+
+    def test_pinned_over_budget_is_refused(self) -> None:
+        with self.assertRaises(BackendRoutingRefusal) as ctx:
+            select_backend(self.pool, backend="am4-oxen", payload_bytes=8000)
+        refusal = ctx.exception.as_dict()
+        self.assertEqual(refusal["reason"], "payload_over_budget_for_pinned_backend")
+        self.assertEqual(refusal["payload_bytes"], 8000)
+        # One refused rung, not a walked ladder.
+        self.assertEqual(refusal["attempted"], [{
+            "name": "am4-oxen",
+            "context_bytes": 5000,
+            "occupancy": "not_checked",
+            "rejection_reason": "payload_over_budget",
+            "pinned": True,
+        }])
+
+    def test_pin_refusal_does_not_leak_onto_the_class_default(self) -> None:
+        # reason_code shadows a class attribute; a pinned refusal must not
+        # rewrite the code every later ladder refusal reports.
+        with self.assertRaises(BackendRoutingRefusal):
+            select_backend(self.pool, backend="am4-oxen", payload_bytes=8000)
+        with self.assertRaises(BackendRoutingRefusal) as ladder:
+            select_backend(self.pool, payload_bytes=20000)
+        self.assertEqual(ladder.exception.as_dict()["reason"],
+                         "payload_over_budget_no_eligible_backend")
+
+    def test_both_refusal_codes_classify_as_routing_refusal(self) -> None:
+        # The gateway re-derives error_code from the message text rather than
+        # reading the result's own error_code, so a reason the taxonomy does not
+        # name would ledger a refusal as "other" and stop it being counted.
+        refusals = []
+        for kwargs in (dict(backend="am4-oxen", payload_bytes=8000),
+                       dict(payload_bytes=20000)):
+            with self.assertRaises(BackendRoutingRefusal) as ctx:
+                select_backend(self.pool, **kwargs)
+            refusals.append(ctx.exception)
+        self.assertEqual(
+            ["routing_refusal", "routing_refusal"],
+            [classify_error(str(exc)) for exc in refusals],
+        )
+        # str() carries the numbers, so a boundary that only flattens the
+        # exception still reports them (ExecutionService admission does exactly this).
+        self.assertIn("8000 bytes", str(refusals[0]))
+        self.assertIn("am4-oxen (5000 B", str(refusals[0]))
+
+    def test_pinned_exactly_at_budget_routes(self) -> None:
+        # The comparison is strictly greater-than: a payload equal to the
+        # declared budget is inside it.
+        chosen, reason, occ = select_backend(self.pool, backend="am4-oxen", payload_bytes=5000)
+        self.assertEqual(chosen.name, "am4-oxen")
+        self.assertEqual(reason, "pinned:am4-oxen")
+
+    def test_pin_without_payload_bytes_is_unconditional(self) -> None:
+        # build_requests routes pins without ever passing a payload size; that
+        # path must keep its historical behavior.
+        chosen, reason, occ = select_backend(self.pool, backend="am4-oxen")
+        self.assertEqual(chosen.name, "am4-oxen")
+        self.assertEqual(reason, "pinned:am4-oxen")
+
+    def test_pinned_rung_declaring_no_context_bytes_still_routes(self) -> None:
+        # _POOL_TOML (the _write_pool default) declares no settings block, so
+        # context_bytes() is None there — an undeclared budget stays unlimited.
+        pool = load_pool(_write_pool(self.tmp))
+        chosen, reason, occ = select_backend(pool, backend="omen-ollama", payload_bytes=999999)
+        self.assertEqual(chosen.name, "omen-ollama")
+        self.assertEqual(reason, "pinned:omen-ollama")
+
+    def test_over_budget_pin_is_refused_without_probing_occupancy(self) -> None:
+        # The payload is decided before the occupancy probe, so an unreachable
+        # rung costs no SSH/HTTP round trip to refuse.
+        probed: list[str] = []
+
+        def occ_check(name: str) -> dict:
+            probed.append(name)
+            return {"occupancy": "busy"}
+
+        with self.assertRaises(BackendRoutingRefusal):
+            select_backend(self.pool, backend="am4-oxen", payload_bytes=8000,
+                           occupancy_check=occ_check)
+        self.assertEqual(probed, [])
+
+    def test_busy_pin_within_budget_still_routes(self) -> None:
+        # The occupancy override itself is untouched: a busy pin still dispatches
+        # and waits in the provider's own queue.
+        chosen, reason, occ = select_backend(
+            self.pool, backend="am4-oxen", payload_bytes=4000,
+            occupancy_check=lambda name: {"occupancy": "busy"})
+        self.assertEqual(chosen.name, "am4-oxen")
+        self.assertEqual(occ["occupancy"], "busy")
+
+    def test_model_mismatch_is_raised_before_payload_budget(self) -> None:
+        with self.assertRaises(BackendConfigError) as ctx:
+            select_backend(self.pool, backend="omen-ollama", model="ghost",
+                           payload_bytes=999999)
+        # A wrong model is a plain config error, not a routing refusal — the
+        # caller's first problem is that the rung cannot serve that model at all.
+        self.assertNotIsInstance(ctx.exception, BackendRoutingRefusal)
+        self.assertIn("does not provide model", str(ctx.exception))
 
 
 class EscalationTests(TestCase):

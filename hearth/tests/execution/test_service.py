@@ -36,6 +36,19 @@ parallel_slots = 1
 max_tokens = 512
 timeout_s = 120
 context_bytes = 65536
+
+# A deliberately small rung, declared second so it never wins model/tag routing.
+# It exists so a payload can be inside llm.chat's max_prompt_bytes (65536) while
+# still being over a PINNED provider's context budget — the band where the
+# operation gate admits work the provider cannot hold.
+[[backend]]
+name = "small-provider"
+endpoint = "http://127.0.0.1:9998"
+api = "openai"
+models = ["gpt-oss-120b"]
+[backend.settings]
+parallel_slots = 1
+context_bytes = 4096
 """
 
 
@@ -271,6 +284,82 @@ class ExecutionServiceTest(unittest.TestCase):
         self.assertEqual(["failed", "succeeded"], [
             invocation["status"] for invocation in final["invocations"]
         ])
+
+    # -- pinned provider vs. declared context budget -----------------------
+    # llm.chat admits up to max_prompt_bytes (65536), which is larger than some
+    # providers can hold. Routing by model skips a provider that cannot fit; a
+    # pin must be refused for the same reason rather than dispatched to fail.
+
+    def test_pinned_over_budget_submit_is_refused_before_a_job_exists(self) -> None:
+        service = self.service(lambda **_kwargs: {"ok": True, "text": "unreachable"})
+
+        with self.assertRaises(ExecutionServiceError) as ctx:
+            service.submit(
+                operation_name="llm.chat",
+                arguments={
+                    "prompt": "x" * 8000,          # inside llm.chat's 65536 gate
+                    "backend": "small-provider",   # but over its 4096 budget
+                },
+                principal=self.principal,
+                source=self.source,
+            )
+
+        message = str(ctx.exception)
+        self.assertIn("payload_over_budget_for_pinned_backend", message)
+        self.assertIn("8000", message)             # the numbers survive the boundary
+        self.assertIn("small-provider", message)
+        self.assertIn("4096", message)
+        # No Job recorded means nothing was ever dispatched, either.
+        self.assertEqual([], service.ledger.list_jobs(limit=10))
+
+    def test_pinned_within_budget_submit_still_succeeds(self) -> None:
+        service = self.service(lambda **kwargs: {
+            "ok": True, "text": "ok", "model": kwargs["model"],
+            "backend": kwargs["backend"]})
+        submitted = service.submit(
+            operation_name="llm.chat",
+            arguments={"prompt": "x" * 8000, "backend": "test-provider"},
+            principal=self.principal,
+            source=self.source,
+        )
+        final = self.wait_final(service, submitted["job_id"])
+        self.assertEqual("succeeded", final["status"])
+
+    def test_endpoint_override_resolving_to_an_over_budget_provider_is_refused(self) -> None:
+        # An endpoint= argument is converted into a name pin before routing, so
+        # it must be refused on the same grounds.
+        service = self.service(lambda **_kwargs: {"ok": True, "text": "unreachable"})
+        with self.assertRaises(ExecutionServiceError) as ctx:
+            service.submit(
+                operation_name="llm.chat",
+                arguments={"prompt": "x" * 8000, "endpoint": "http://127.0.0.1:9998"},
+                principal=self.principal,
+                source=self.source,
+            )
+        self.assertIn("payload_over_budget_for_pinned_backend", str(ctx.exception))
+        self.assertEqual([], service.ledger.list_jobs(limit=10))
+
+    def test_plan_refuses_an_over_budget_pin_without_dispatching(self) -> None:
+        service = self.service(lambda **_kwargs: {"ok": True, "text": "unreachable"})
+        with self.assertRaises(ExecutionServiceError) as ctx:
+            service.plan(
+                operation_name="llm.chat",
+                model="gpt-oss-120b",
+                backend="small-provider",
+                prompt_bytes=8000,
+            )
+        self.assertIn("payload_over_budget_for_pinned_backend", str(ctx.exception))
+
+    def test_plan_resolves_a_pin_that_fits(self) -> None:
+        service = self.service(lambda **_kwargs: {"ok": True, "text": "unreachable"})
+        planned = service.plan(
+            operation_name="llm.chat",
+            model="gpt-oss-120b",
+            backend="small-provider",
+            prompt_bytes=1000,
+        )
+        self.assertEqual("small-provider", planned["provider"])
+        self.assertEqual("pinned:small-provider", planned["routed_by"])
 
 
 if __name__ == "__main__":

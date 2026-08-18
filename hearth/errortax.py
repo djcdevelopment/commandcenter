@@ -26,7 +26,13 @@ from __future__ import annotations
 # and `occupancy_skip` must be tested before `timeout`, or an "occupancy busy, timed out
 # waiting" string would be misread as a capability limit of the rung.
 _RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("routing_refusal", ("routing_refusal", "payload_over_budget_no_eligible_backend")),
+    # "payload_over_budget" is the FAMILY prefix, not one code: the router refuses
+    # both when no rung qualifies (..._no_eligible_backend) and when a caller-pinned
+    # rung cannot hold the payload (..._for_pinned_backend, ADR-0031). Matching the
+    # prefix keeps a new refusal reason from silently classifying as "other" — the
+    # gateway re-derives error_code from the message text (kernel/gateway.py), so a
+    # code this table does not name is a refusal the ledger cannot count as one.
+    ("routing_refusal", ("routing_refusal", "payload_over_budget")),
     ("occupancy_skip", ("occupancy", "busy")),
     ("timeout", ("timed out", "timeout")),
     ("cold_start", ("connection refused", "connect error", "unreachable",

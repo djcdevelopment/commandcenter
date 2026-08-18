@@ -1,9 +1,10 @@
 {
   "contract_version": "experiment-results.v1",
+  "evidence_watermark": "2026-07-31T00:12:53.800327Z",
   "plan_count": 0,
   "unresolved_refs": 0,
   "beliefs_changed": 0,
   "results": [],
-  "corpus_digest": "sha256:a77ac64b6181ba52fefbcb1eb11389ef2e08183263c8884265d04c5bd778835c",
-  "corpus_event_count": 1339
+  "corpus_digest": "sha256:3e8c42775bf3c0a5a2ae3e6ebc9b7f9b8a4f574ecde60147e651a0c0118b9e11",
+  "corpus_event_count": 53093
 }

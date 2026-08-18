@@ -1,6 +1,19 @@
 {
   "contract_version": "known-good-models.v1",
+  "evidence_watermark": "2026-07-31T00:12:53.800327Z",
   "entries": [
+    {
+      "builder_id": "am4",
+      "model_id": "gpt-oss-120b",
+      "backend": "am4-moe",
+      "success_rate": 1.0,
+      "samples": 1,
+      "mean_tokens_per_s": 6.7,
+      "promotion_holds": 0,
+      "confidence": 0.33,
+      "last_observed": "2026-07-30T14:58:23.491180+00:00",
+      "reason": "1/1 successful runs (success_rate 1.0)"
+    },
     {
       "builder_id": "cc-builder-2",
       "model_id": "vllama-planner",
@@ -12,6 +25,222 @@
       "confidence": 0.71,
       "last_observed": "2026-07-04T05:50:00+00:00",
       "reason": "4/5 successful runs (success_rate 0.8)"
+    },
+    {
+      "builder_id": "claude-frontier",
+      "model_id": "/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
+      "backend": "am4-oxen",
+      "success_rate": 1.0,
+      "samples": 226,
+      "mean_tokens_per_s": 61.81,
+      "promotion_holds": 0,
+      "confidence": 0.99,
+      "last_observed": "2026-07-30T09:38:02.654937Z",
+      "reason": "226/226 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "claude-frontier",
+      "model_id": "/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
+      "backend": "unknown",
+      "success_rate": 1.0,
+      "samples": 11,
+      "mean_tokens_per_s": null,
+      "promotion_holds": 0,
+      "confidence": 0.85,
+      "last_observed": "2026-07-16T09:45:43.566795Z",
+      "reason": "11/11 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "claude-frontier",
+      "model_id": "gemini-3.1-pro-preview",
+      "backend": "gcp-gemini-pro",
+      "success_rate": 1.0,
+      "samples": 177,
+      "mean_tokens_per_s": 21.22,
+      "promotion_holds": 0,
+      "confidence": 0.99,
+      "last_observed": "2026-07-30T14:54:15.391713Z",
+      "reason": "177/177 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "claude-frontier",
+      "model_id": "gemini-3.1-pro-preview",
+      "backend": "unknown",
+      "success_rate": 1.0,
+      "samples": 89,
+      "mean_tokens_per_s": null,
+      "promotion_holds": 0,
+      "confidence": 0.98,
+      "last_observed": "2026-07-18T01:15:55.311065Z",
+      "reason": "89/89 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "claude-frontier",
+      "model_id": "gemini-3.5-flash",
+      "backend": "gcp-gemini",
+      "success_rate": 1.0,
+      "samples": 228,
+      "mean_tokens_per_s": 14.63,
+      "promotion_holds": 0,
+      "confidence": 0.99,
+      "last_observed": "2026-07-31T00:12:53.800327Z",
+      "reason": "228/228 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "claude-frontier",
+      "model_id": "gemini-3.5-flash",
+      "backend": "unknown",
+      "success_rate": 1.0,
+      "samples": 49,
+      "mean_tokens_per_s": null,
+      "promotion_holds": 0,
+      "confidence": 0.96,
+      "last_observed": "2026-07-18T00:49:24.135678Z",
+      "reason": "49/49 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "claude-frontier",
+      "model_id": "gpt-oss-120b",
+      "backend": "am4-moe",
+      "success_rate": 1.0,
+      "samples": 173,
+      "mean_tokens_per_s": 20.6,
+      "promotion_holds": 0,
+      "confidence": 0.99,
+      "last_observed": "2026-07-30T14:58:23.494179Z",
+      "reason": "173/173 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "claude-frontier",
+      "model_id": "oxen",
+      "backend": "am4-oxen",
+      "success_rate": 1.0,
+      "samples": 106,
+      "mean_tokens_per_s": null,
+      "promotion_holds": 0,
+      "confidence": 0.98,
+      "last_observed": "2026-07-30T09:25:37.310607Z",
+      "reason": "106/106 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "claude-frontier",
+      "model_id": "qwen2.5:7b-instruct",
+      "backend": "omen-ollama",
+      "success_rate": 1.0,
+      "samples": 1,
+      "mean_tokens_per_s": null,
+      "promotion_holds": 0,
+      "confidence": 0.33,
+      "last_observed": "2026-07-29T21:07:29.824991Z",
+      "reason": "1/1 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "claude-frontier",
+      "model_id": "qwen3-coder:30b",
+      "backend": "omen-ollama",
+      "success_rate": 1.0,
+      "samples": 20,
+      "mean_tokens_per_s": 8.12,
+      "promotion_holds": 0,
+      "confidence": 0.91,
+      "last_observed": "2026-07-30T13:14:05.371007Z",
+      "reason": "20/20 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "claude-frontier",
+      "model_id": "qwen3-coder:30b",
+      "backend": "unknown",
+      "success_rate": 1.0,
+      "samples": 13,
+      "mean_tokens_per_s": 1.22,
+      "promotion_holds": 0,
+      "confidence": 0.87,
+      "last_observed": "2026-07-21T03:54:45.599895Z",
+      "reason": "13/13 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "dev-local",
+      "model_id": "gemini-3.1-pro-preview",
+      "backend": "unknown",
+      "success_rate": 1.0,
+      "samples": 12,
+      "mean_tokens_per_s": null,
+      "promotion_holds": 0,
+      "confidence": 0.86,
+      "last_observed": "2026-07-13T09:38:05.644567Z",
+      "reason": "12/12 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "dev-local",
+      "model_id": "gemini-3.5-flash",
+      "backend": "unknown",
+      "success_rate": 1.0,
+      "samples": 1,
+      "mean_tokens_per_s": null,
+      "promotion_holds": 0,
+      "confidence": 0.33,
+      "last_observed": "2026-07-12T10:22:59.322385Z",
+      "reason": "1/1 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "dev-local",
+      "model_id": "qwen3-coder:30b",
+      "backend": "unknown",
+      "success_rate": 1.0,
+      "samples": 3,
+      "mean_tokens_per_s": null,
+      "promotion_holds": 0,
+      "confidence": 0.6,
+      "last_observed": "2026-07-09T10:52:13.108025Z",
+      "reason": "3/3 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "docker-open-notebook-facade",
+      "model_id": "gpt-oss-120b",
+      "backend": "am4-moe",
+      "success_rate": 1.0,
+      "samples": 63,
+      "mean_tokens_per_s": 20.67,
+      "promotion_holds": 0,
+      "confidence": 0.97,
+      "last_observed": "2026-07-21T03:32:12.096022Z",
+      "reason": "63/63 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "gcp-adk-test",
+      "model_id": "gemini-3.5-flash",
+      "backend": "gcp-gemini",
+      "success_rate": 1.0,
+      "samples": 1,
+      "mean_tokens_per_s": 41.16,
+      "promotion_holds": 0,
+      "confidence": 0.33,
+      "last_observed": "2026-07-21T17:28:19.773081Z",
+      "reason": "1/1 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "gcp-adk-test",
+      "model_id": "gpt-oss-120b",
+      "backend": "am4-moe",
+      "success_rate": 1.0,
+      "samples": 1,
+      "mean_tokens_per_s": 27.6,
+      "promotion_holds": 0,
+      "confidence": 0.33,
+      "last_observed": "2026-07-21T17:26:43.043004Z",
+      "reason": "1/1 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "gcp-adk-test",
+      "model_id": "qwen3-coder:30b",
+      "backend": "omen-ollama",
+      "success_rate": 1.0,
+      "samples": 1,
+      "mean_tokens_per_s": 3.16,
+      "promotion_holds": 0,
+      "confidence": 0.33,
+      "last_observed": "2026-07-21T17:27:53.359893Z",
+      "reason": "1/1 successful runs (success_rate 1.0)"
     },
     {
       "builder_id": "gcp-vertex",
@@ -27,15 +256,27 @@
     },
     {
       "builder_id": "gcp-vertex",
+      "model_id": "gemini-3.1-pro-preview",
+      "backend": "gcp-gemini-pro",
+      "success_rate": 1.0,
+      "samples": 1,
+      "mean_tokens_per_s": 7.78,
+      "promotion_holds": 0,
+      "confidence": 0.33,
+      "last_observed": "2026-07-30T14:54:15.389605+00:00",
+      "reason": "1/1 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "gcp-vertex",
       "model_id": "gemini-3.5-flash",
       "backend": "gcp-gemini",
       "success_rate": 1.0,
-      "samples": 1,
-      "mean_tokens_per_s": 0.81,
+      "samples": 7,
+      "mean_tokens_per_s": 23.9,
       "promotion_holds": 0,
-      "confidence": 0.33,
-      "last_observed": "2026-07-30T09:23:25.385478+00:00",
-      "reason": "1/1 successful runs (success_rate 1.0)"
+      "confidence": 0.78,
+      "last_observed": "2026-07-31T00:12:53.797790+00:00",
+      "reason": "7/7 successful runs (success_rate 1.0)"
     },
     {
       "builder_id": "omen-5070",
@@ -170,6 +411,6 @@
       "reason": "2/2 successful runs (success_rate 1.0)"
     }
   ],
-  "corpus_digest": "sha256:a77ac64b6181ba52fefbcb1eb11389ef2e08183263c8884265d04c5bd778835c",
-  "corpus_event_count": 1339
+  "corpus_digest": "sha256:3e8c42775bf3c0a5a2ae3e6ebc9b7f9b8a4f574ecde60147e651a0c0118b9e11",
+  "corpus_event_count": 53093
 }

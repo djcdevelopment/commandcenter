@@ -1,14 +1,74 @@
 {
   "contract_version": "experiment-candidates.v1",
-  "source_findings": 20,
+  "source_findings": 42,
   "candidate_counts": {
-    "backend_comparison": 3,
-    "coverage_probe": 31,
+    "backend_comparison": 6,
+    "coverage_probe": 60,
     "known_bad_retest": 1,
-    "prefer_validation": 14,
+    "prefer_validation": 34,
     "uncertain_resolution": 2
   },
   "candidates": [
+    {
+      "candidate_id": "backend_comparison:/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf:am4-oxen+unknown",
+      "experiment_type": "backend_comparison",
+      "subject": {
+        "builder_id": null,
+        "model_id": "/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
+        "backend": null,
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "which backend serves /home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf best (am4-oxen=known_good, unknown=known_good)?",
+      "worth": "the model already runs on multiple backends but the beliefs were formed on different workloads; a controlled comparison replaces inference with measurement",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "the same workload shape run on each backend yields a per-task recommendation instead of a guess",
+      "risk_accepted": "one dispatch slot per backend; a gated backend must be opened with its own experiment",
+      "confidence": null,
+      "last_observed": "2026-07-30T09:38:02.654937Z"
+    },
+    {
+      "candidate_id": "backend_comparison:gemini-3.1-pro-preview:gcp-gemini+gcp-gemini-pro+unknown",
+      "experiment_type": "backend_comparison",
+      "subject": {
+        "builder_id": null,
+        "model_id": "gemini-3.1-pro-preview",
+        "backend": null,
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "which backend serves gemini-3.1-pro-preview best (gcp-gemini=known_good, gcp-gemini-pro=known_good, unknown=known_good)?",
+      "worth": "the model already runs on multiple backends but the beliefs were formed on different workloads; a controlled comparison replaces inference with measurement",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "the same workload shape run on each backend yields a per-task recommendation instead of a guess",
+      "risk_accepted": "one dispatch slot per backend; a gated backend must be opened with its own experiment",
+      "confidence": null,
+      "last_observed": "2026-07-30T14:54:15.389605+00:00"
+    },
+    {
+      "candidate_id": "backend_comparison:gemini-3.5-flash:gcp-gemini+unknown",
+      "experiment_type": "backend_comparison",
+      "subject": {
+        "builder_id": null,
+        "model_id": "gemini-3.5-flash",
+        "backend": null,
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "which backend serves gemini-3.5-flash best (gcp-gemini=known_good, unknown=known_good)?",
+      "worth": "the model already runs on multiple backends but the beliefs were formed on different workloads; a controlled comparison replaces inference with measurement",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "the same workload shape run on each backend yields a per-task recommendation instead of a guess",
+      "risk_accepted": "one dispatch slot per backend; a gated backend must be opened with its own experiment",
+      "confidence": null,
+      "last_observed": "2026-07-31T00:12:53.797790+00:00"
+    },
     {
       "candidate_id": "backend_comparison:mixtral:8x22b-instruct-v0.1-q2_K:ollama-cuda+ollama-vulkan-igpu+ollama-vulkan-mixed",
       "experiment_type": "backend_comparison",
@@ -50,7 +110,7 @@
       "last_observed": "2026-07-02T06:50:00Z"
     },
     {
-      "candidate_id": "backend_comparison:qwen3-coder:30b:ollama+ollama-cuda+ollama-cuda-contended",
+      "candidate_id": "backend_comparison:qwen3-coder:30b:ollama+ollama-cuda+ollama-cuda-contended+omen-ollama+unknown",
       "experiment_type": "backend_comparison",
       "subject": {
         "builder_id": null,
@@ -59,7 +119,7 @@
         "task_kind": null,
         "metric": null
       },
-      "question": "which backend serves qwen3-coder:30b best (ollama=known_good, ollama-cuda=known_good, ollama-cuda-contended=known_good)?",
+      "question": "which backend serves qwen3-coder:30b best (ollama=known_good, ollama-cuda=known_good, ollama-cuda-contended=known_good, omen-ollama=known_good, unknown=known_good)?",
       "worth": "the model already runs on multiple backends but the beliefs were formed on different workloads; a controlled comparison replaces inference with measurement",
       "target_finding_id": null,
       "target_capability_id": null,
@@ -67,7 +127,7 @@
       "evidence_sought": "the same workload shape run on each backend yields a per-task recommendation instead of a guess",
       "risk_accepted": "one dispatch slot per backend; a gated backend must be opened with its own experiment",
       "confidence": null,
-      "last_observed": "2026-07-04T05:50:00+00:00"
+      "last_observed": "2026-07-21T17:27:53.359893Z"
     },
     {
       "candidate_id": "coverage_probe:single_workflow_evidence:failure_signature:failure_class=agent_timeout_partial_deliverable|backend=claude",
@@ -130,7 +190,7 @@
       "last_observed": "2026-07-02T10:31:56.771381Z"
     },
     {
-      "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=gemini-3.1-pro-preview",
+      "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
       "experiment_type": "coverage_probe",
       "subject": {
         "builder_id": null,
@@ -139,35 +199,15 @@
         "task_kind": null,
         "metric": null
       },
-      "question": "does 'model_id=gemini-3.1-pro-preview' hold outside wf-hearth-offload-gcp-adk-test?",
-      "worth": "1 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "question": "does 'model_id=/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf' hold outside wf-hearth-gateway?",
+      "worth": "237 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
       "target_finding_id": null,
       "target_capability_id": null,
       "gate": null,
       "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
       "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
       "confidence": null,
-      "last_observed": "2026-07-30T09:23:28.742479+00:00"
-    },
-    {
-      "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=gemini-3.5-flash",
-      "experiment_type": "coverage_probe",
-      "subject": {
-        "builder_id": null,
-        "model_id": null,
-        "backend": null,
-        "task_kind": null,
-        "metric": null
-      },
-      "question": "does 'model_id=gemini-3.5-flash' hold outside wf-hearth-offload-claude-frontier?",
-      "worth": "1 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
-      "target_finding_id": null,
-      "target_capability_id": null,
-      "gate": null,
-      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
-      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
-      "confidence": null,
-      "last_observed": "2026-07-30T09:23:25.385478+00:00"
+      "last_observed": "2026-07-30T09:38:02.654937Z"
     },
     {
       "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=mixtral:8x22b-instruct-v0.1-q2_K",
@@ -190,6 +230,26 @@
       "last_observed": "2026-07-02T06:05:00Z"
     },
     {
+      "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=oxen",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does 'model_id=oxen' hold outside wf-hearth-gateway?",
+      "worth": "106 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-07-30T09:25:37.310607Z"
+    },
+    {
       "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=qwen2.5:14b",
       "experiment_type": "coverage_probe",
       "subject": {
@@ -208,6 +268,26 @@
       "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
       "confidence": null,
       "last_observed": "2026-07-02T06:50:00Z"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=qwen2.5:7b-instruct",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does 'model_id=qwen2.5:7b-instruct' hold outside wf-hearth-gateway?",
+      "worth": "1 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-07-29T21:07:29.824991Z"
     },
     {
       "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=qwen3-30b-a3b-awq",
@@ -350,6 +430,166 @@
       "last_observed": "2026-07-02T10:31:56.771381Z"
     },
     {
+      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=extraction|backend=gcp-gemini",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "gcp-gemini",
+        "task_kind": "extraction",
+        "metric": null
+      },
+      "question": "does 'task_kind=extraction, backend=gcp-gemini' hold outside wf-hearth-offload-claude-frontier?",
+      "worth": "1 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-07-30T17:49:36.575887+00:00"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=local_generate|backend=am4-moe",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "am4-moe",
+        "task_kind": "local_generate",
+        "metric": null
+      },
+      "question": "does 'task_kind=local_generate, backend=am4-moe' hold outside wf-hearth-gateway?",
+      "worth": "237 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-07-30T14:58:23.494179Z"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=local_generate|backend=am4-oxen",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "am4-oxen",
+        "task_kind": "local_generate",
+        "metric": null
+      },
+      "question": "does 'task_kind=local_generate, backend=am4-oxen' hold outside wf-hearth-gateway?",
+      "worth": "332 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-07-30T09:38:02.654937Z"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=local_generate|backend=gcp-gemini",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "gcp-gemini",
+        "task_kind": "local_generate",
+        "metric": null
+      },
+      "question": "does 'task_kind=local_generate, backend=gcp-gemini' hold outside wf-hearth-gateway?",
+      "worth": "229 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-07-31T00:12:53.800327Z"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=local_generate|backend=gcp-gemini-pro",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "gcp-gemini-pro",
+        "task_kind": "local_generate",
+        "metric": null
+      },
+      "question": "does 'task_kind=local_generate, backend=gcp-gemini-pro' hold outside wf-hearth-gateway?",
+      "worth": "177 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-07-30T14:54:15.391713Z"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=local_generate|backend=omen-ollama",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "omen-ollama",
+        "task_kind": "local_generate",
+        "metric": null
+      },
+      "question": "does 'task_kind=local_generate, backend=omen-ollama' hold outside wf-hearth-gateway?",
+      "worth": "22 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-07-30T13:14:05.371007Z"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=offload-generate|backend=am4-moe",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "am4-moe",
+        "task_kind": "offload-generate",
+        "metric": null
+      },
+      "question": "does 'task_kind=offload-generate, backend=am4-moe' hold outside wf-hearth-offload-claude-frontier?",
+      "worth": "1 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-07-30T14:58:23.491180+00:00"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=offload-generate|backend=gcp-gemini-pro",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "gcp-gemini-pro",
+        "task_kind": "offload-generate",
+        "metric": null
+      },
+      "question": "does 'task_kind=offload-generate, backend=gcp-gemini-pro' hold outside wf-hearth-offload-claude-frontier?",
+      "worth": "1 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-07-30T14:54:15.389605+00:00"
+    },
+    {
       "candidate_id": "coverage_probe:unmeasured_metrics:am4-worker-1|vllama-planner|openai",
       "experiment_type": "coverage_probe",
       "subject": {
@@ -368,6 +608,26 @@
       "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
       "confidence": null,
       "last_observed": "2026-07-03T05:55:23.332966+00:00"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:am4|gpt-oss-120b|am4-moe",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "am4",
+        "model_id": "gpt-oss-120b",
+        "backend": "am4-moe",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, ram_gb_peak, vram_gb_peak on am4 + gpt-oss-120b + am4-moe?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-30T14:58:23.491180+00:00"
     },
     {
       "candidate_id": "coverage_probe:unmeasured_metrics:cc-builder-1|sonnet|claude",
@@ -410,6 +670,366 @@
       "last_observed": "2026-07-04T05:50:00+00:00"
     },
     {
+      "candidate_id": "coverage_probe:unmeasured_metrics:claude-frontier|/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf|am4-oxen",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
+        "backend": "am4-oxen",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, ram_gb_peak, vram_gb_peak on claude-frontier + /home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf + am4-oxen?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-30T09:38:02.654937Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:claude-frontier|/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf|unknown",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
+        "backend": "unknown",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak on claude-frontier + /home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf + unknown?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-16T09:45:43.566795Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:claude-frontier|gemini-3.1-pro-preview|gcp-gemini-pro",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "gemini-3.1-pro-preview",
+        "backend": "gcp-gemini-pro",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, ram_gb_peak, vram_gb_peak on claude-frontier + gemini-3.1-pro-preview + gcp-gemini-pro?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-30T14:54:15.391713Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:claude-frontier|gemini-3.1-pro-preview|unknown",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "gemini-3.1-pro-preview",
+        "backend": "unknown",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak on claude-frontier + gemini-3.1-pro-preview + unknown?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-18T01:15:55.311065Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:claude-frontier|gemini-3.5-flash|gcp-gemini",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "gemini-3.5-flash",
+        "backend": "gcp-gemini",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, ram_gb_peak, vram_gb_peak on claude-frontier + gemini-3.5-flash + gcp-gemini?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-31T00:12:53.800327Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:claude-frontier|gemini-3.5-flash|unknown",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "gemini-3.5-flash",
+        "backend": "unknown",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak on claude-frontier + gemini-3.5-flash + unknown?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-18T00:49:24.135678Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:claude-frontier|gpt-oss-120b|am4-moe",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "gpt-oss-120b",
+        "backend": "am4-moe",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, ram_gb_peak, vram_gb_peak on claude-frontier + gpt-oss-120b + am4-moe?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-30T14:58:23.494179Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:claude-frontier|oxen|am4-oxen",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "oxen",
+        "backend": "am4-oxen",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak on claude-frontier + oxen + am4-oxen?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-30T09:25:37.310607Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:claude-frontier|qwen2.5:7b-instruct|omen-ollama",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "qwen2.5:7b-instruct",
+        "backend": "omen-ollama",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak on claude-frontier + qwen2.5:7b-instruct + omen-ollama?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-29T21:07:29.824991Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:claude-frontier|qwen3-coder:30b|omen-ollama",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "qwen3-coder:30b",
+        "backend": "omen-ollama",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, ram_gb_peak, vram_gb_peak on claude-frontier + qwen3-coder:30b + omen-ollama?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-30T13:14:05.371007Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:claude-frontier|qwen3-coder:30b|unknown",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "qwen3-coder:30b",
+        "backend": "unknown",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, ram_gb_peak, vram_gb_peak on claude-frontier + qwen3-coder:30b + unknown?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-21T03:54:45.599895Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:dev-local|gemini-3.1-pro-preview|unknown",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "dev-local",
+        "model_id": "gemini-3.1-pro-preview",
+        "backend": "unknown",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak on dev-local + gemini-3.1-pro-preview + unknown?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-13T09:38:05.644567Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:dev-local|gemini-3.5-flash|unknown",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "dev-local",
+        "model_id": "gemini-3.5-flash",
+        "backend": "unknown",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak on dev-local + gemini-3.5-flash + unknown?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-12T10:22:59.322385Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:dev-local|qwen3-coder:30b|unknown",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "dev-local",
+        "model_id": "qwen3-coder:30b",
+        "backend": "unknown",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak on dev-local + qwen3-coder:30b + unknown?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-09T10:52:13.108025Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:docker-open-notebook-facade|gpt-oss-120b|am4-moe",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "docker-open-notebook-facade",
+        "model_id": "gpt-oss-120b",
+        "backend": "am4-moe",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, ram_gb_peak, vram_gb_peak on docker-open-notebook-facade + gpt-oss-120b + am4-moe?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-21T03:32:12.096022Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:gcp-adk-test|gemini-3.5-flash|gcp-gemini",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "gcp-adk-test",
+        "model_id": "gemini-3.5-flash",
+        "backend": "gcp-gemini",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, ram_gb_peak, vram_gb_peak on gcp-adk-test + gemini-3.5-flash + gcp-gemini?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-21T17:28:19.773081Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:gcp-adk-test|gpt-oss-120b|am4-moe",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "gcp-adk-test",
+        "model_id": "gpt-oss-120b",
+        "backend": "am4-moe",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, ram_gb_peak, vram_gb_peak on gcp-adk-test + gpt-oss-120b + am4-moe?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-21T17:26:43.043004Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:gcp-adk-test|qwen3-coder:30b|omen-ollama",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "gcp-adk-test",
+        "model_id": "qwen3-coder:30b",
+        "backend": "omen-ollama",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, ram_gb_peak, vram_gb_peak on gcp-adk-test + qwen3-coder:30b + omen-ollama?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-21T17:27:53.359893Z"
+    },
+    {
       "candidate_id": "coverage_probe:unmeasured_metrics:gcp-vertex|gemini-3.1-pro-preview|gcp-gemini",
       "experiment_type": "coverage_probe",
       "subject": {
@@ -430,6 +1050,26 @@
       "last_observed": "2026-07-30T09:23:28.742479+00:00"
     },
     {
+      "candidate_id": "coverage_probe:unmeasured_metrics:gcp-vertex|gemini-3.1-pro-preview|gcp-gemini-pro",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "gcp-vertex",
+        "model_id": "gemini-3.1-pro-preview",
+        "backend": "gcp-gemini-pro",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, ram_gb_peak, vram_gb_peak on gcp-vertex + gemini-3.1-pro-preview + gcp-gemini-pro?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-07-30T14:54:15.389605+00:00"
+    },
+    {
       "candidate_id": "coverage_probe:unmeasured_metrics:gcp-vertex|gemini-3.5-flash|gcp-gemini",
       "experiment_type": "coverage_probe",
       "subject": {
@@ -447,7 +1087,7 @@
       "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
       "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
       "confidence": null,
-      "last_observed": "2026-07-30T09:23:25.385478+00:00"
+      "last_observed": "2026-07-31T00:12:53.797790+00:00"
     },
     {
       "candidate_id": "coverage_probe:unmeasured_metrics:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-cuda",
@@ -715,6 +1355,26 @@
       "last_observed": "2026-07-02T10:31:56.771381Z"
     },
     {
+      "candidate_id": "prefer_validation:am4|gpt-oss-120b|am4-moe",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "am4",
+        "model_id": "gpt-oss-120b",
+        "backend": "am4-moe",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does am4 + gpt-oss-120b + am4-moe still hold up (1/1 success)?",
+      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
+      "target_finding_id": "known_good:am4|gpt-oss-120b|am4-moe",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "low",
+      "last_observed": "2026-07-30T14:58:23.491180+00:00"
+    },
+    {
       "candidate_id": "prefer_validation:cc-builder-2|vllama-planner|openai",
       "experiment_type": "prefer_validation",
       "subject": {
@@ -733,6 +1393,366 @@
       "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
       "confidence": "medium",
       "last_observed": "2026-07-04T05:50:00+00:00"
+    },
+    {
+      "candidate_id": "prefer_validation:claude-frontier|/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf|am4-oxen",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
+        "backend": "am4-oxen",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does claude-frontier + /home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf + am4-oxen still hold up (226/226 success)?",
+      "worth": "the preference nudges every dispatch; it must keep earning that",
+      "target_finding_id": "known_good:claude-frontier|/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf|am4-oxen",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "high",
+      "last_observed": "2026-07-30T09:38:02.654937Z"
+    },
+    {
+      "candidate_id": "prefer_validation:claude-frontier|/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf|unknown",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
+        "backend": "unknown",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does claude-frontier + /home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf + unknown still hold up (11/11 success)?",
+      "worth": "the preference nudges every dispatch; it must keep earning that",
+      "target_finding_id": "known_good:claude-frontier|/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf|unknown",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "high",
+      "last_observed": "2026-07-16T09:45:43.566795Z"
+    },
+    {
+      "candidate_id": "prefer_validation:claude-frontier|gemini-3.1-pro-preview|gcp-gemini-pro",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "gemini-3.1-pro-preview",
+        "backend": "gcp-gemini-pro",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does claude-frontier + gemini-3.1-pro-preview + gcp-gemini-pro still hold up (177/177 success)?",
+      "worth": "the preference nudges every dispatch; it must keep earning that",
+      "target_finding_id": "known_good:claude-frontier|gemini-3.1-pro-preview|gcp-gemini-pro",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "high",
+      "last_observed": "2026-07-30T14:54:15.391713Z"
+    },
+    {
+      "candidate_id": "prefer_validation:claude-frontier|gemini-3.1-pro-preview|unknown",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "gemini-3.1-pro-preview",
+        "backend": "unknown",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does claude-frontier + gemini-3.1-pro-preview + unknown still hold up (89/89 success)?",
+      "worth": "the preference nudges every dispatch; it must keep earning that",
+      "target_finding_id": "known_good:claude-frontier|gemini-3.1-pro-preview|unknown",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "high",
+      "last_observed": "2026-07-18T01:15:55.311065Z"
+    },
+    {
+      "candidate_id": "prefer_validation:claude-frontier|gemini-3.5-flash|gcp-gemini",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "gemini-3.5-flash",
+        "backend": "gcp-gemini",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does claude-frontier + gemini-3.5-flash + gcp-gemini still hold up (228/228 success)?",
+      "worth": "the preference nudges every dispatch; it must keep earning that",
+      "target_finding_id": "known_good:claude-frontier|gemini-3.5-flash|gcp-gemini",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "high",
+      "last_observed": "2026-07-31T00:12:53.800327Z"
+    },
+    {
+      "candidate_id": "prefer_validation:claude-frontier|gemini-3.5-flash|unknown",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "gemini-3.5-flash",
+        "backend": "unknown",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does claude-frontier + gemini-3.5-flash + unknown still hold up (49/49 success)?",
+      "worth": "the preference nudges every dispatch; it must keep earning that",
+      "target_finding_id": "known_good:claude-frontier|gemini-3.5-flash|unknown",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "high",
+      "last_observed": "2026-07-18T00:49:24.135678Z"
+    },
+    {
+      "candidate_id": "prefer_validation:claude-frontier|gpt-oss-120b|am4-moe",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "gpt-oss-120b",
+        "backend": "am4-moe",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does claude-frontier + gpt-oss-120b + am4-moe still hold up (173/173 success)?",
+      "worth": "the preference nudges every dispatch; it must keep earning that",
+      "target_finding_id": "known_good:claude-frontier|gpt-oss-120b|am4-moe",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "high",
+      "last_observed": "2026-07-30T14:58:23.494179Z"
+    },
+    {
+      "candidate_id": "prefer_validation:claude-frontier|oxen|am4-oxen",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "oxen",
+        "backend": "am4-oxen",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does claude-frontier + oxen + am4-oxen still hold up (106/106 success)?",
+      "worth": "the preference nudges every dispatch; it must keep earning that",
+      "target_finding_id": "known_good:claude-frontier|oxen|am4-oxen",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "high",
+      "last_observed": "2026-07-30T09:25:37.310607Z"
+    },
+    {
+      "candidate_id": "prefer_validation:claude-frontier|qwen2.5:7b-instruct|omen-ollama",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "qwen2.5:7b-instruct",
+        "backend": "omen-ollama",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does claude-frontier + qwen2.5:7b-instruct + omen-ollama still hold up (1/1 success)?",
+      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
+      "target_finding_id": "known_good:claude-frontier|qwen2.5:7b-instruct|omen-ollama",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "low",
+      "last_observed": "2026-07-29T21:07:29.824991Z"
+    },
+    {
+      "candidate_id": "prefer_validation:claude-frontier|qwen3-coder:30b|omen-ollama",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "qwen3-coder:30b",
+        "backend": "omen-ollama",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does claude-frontier + qwen3-coder:30b + omen-ollama still hold up (20/20 success)?",
+      "worth": "the preference nudges every dispatch; it must keep earning that",
+      "target_finding_id": "known_good:claude-frontier|qwen3-coder:30b|omen-ollama",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "high",
+      "last_observed": "2026-07-30T13:14:05.371007Z"
+    },
+    {
+      "candidate_id": "prefer_validation:claude-frontier|qwen3-coder:30b|unknown",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "qwen3-coder:30b",
+        "backend": "unknown",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does claude-frontier + qwen3-coder:30b + unknown still hold up (13/13 success)?",
+      "worth": "the preference nudges every dispatch; it must keep earning that",
+      "target_finding_id": "known_good:claude-frontier|qwen3-coder:30b|unknown",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "high",
+      "last_observed": "2026-07-21T03:54:45.599895Z"
+    },
+    {
+      "candidate_id": "prefer_validation:dev-local|gemini-3.1-pro-preview|unknown",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "dev-local",
+        "model_id": "gemini-3.1-pro-preview",
+        "backend": "unknown",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does dev-local + gemini-3.1-pro-preview + unknown still hold up (12/12 success)?",
+      "worth": "the preference nudges every dispatch; it must keep earning that",
+      "target_finding_id": "known_good:dev-local|gemini-3.1-pro-preview|unknown",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "high",
+      "last_observed": "2026-07-13T09:38:05.644567Z"
+    },
+    {
+      "candidate_id": "prefer_validation:dev-local|gemini-3.5-flash|unknown",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "dev-local",
+        "model_id": "gemini-3.5-flash",
+        "backend": "unknown",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does dev-local + gemini-3.5-flash + unknown still hold up (1/1 success)?",
+      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
+      "target_finding_id": "known_good:dev-local|gemini-3.5-flash|unknown",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "low",
+      "last_observed": "2026-07-12T10:22:59.322385Z"
+    },
+    {
+      "candidate_id": "prefer_validation:dev-local|qwen3-coder:30b|unknown",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "dev-local",
+        "model_id": "qwen3-coder:30b",
+        "backend": "unknown",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does dev-local + qwen3-coder:30b + unknown still hold up (3/3 success)?",
+      "worth": "the preference nudges every dispatch; it must keep earning that",
+      "target_finding_id": "known_good:dev-local|qwen3-coder:30b|unknown",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "high",
+      "last_observed": "2026-07-09T10:52:13.108025Z"
+    },
+    {
+      "candidate_id": "prefer_validation:docker-open-notebook-facade|gpt-oss-120b|am4-moe",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "docker-open-notebook-facade",
+        "model_id": "gpt-oss-120b",
+        "backend": "am4-moe",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does docker-open-notebook-facade + gpt-oss-120b + am4-moe still hold up (63/63 success)?",
+      "worth": "the preference nudges every dispatch; it must keep earning that",
+      "target_finding_id": "known_good:docker-open-notebook-facade|gpt-oss-120b|am4-moe",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "high",
+      "last_observed": "2026-07-21T03:32:12.096022Z"
+    },
+    {
+      "candidate_id": "prefer_validation:gcp-adk-test|gemini-3.5-flash|gcp-gemini",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "gcp-adk-test",
+        "model_id": "gemini-3.5-flash",
+        "backend": "gcp-gemini",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does gcp-adk-test + gemini-3.5-flash + gcp-gemini still hold up (1/1 success)?",
+      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
+      "target_finding_id": "known_good:gcp-adk-test|gemini-3.5-flash|gcp-gemini",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "low",
+      "last_observed": "2026-07-21T17:28:19.773081Z"
+    },
+    {
+      "candidate_id": "prefer_validation:gcp-adk-test|gpt-oss-120b|am4-moe",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "gcp-adk-test",
+        "model_id": "gpt-oss-120b",
+        "backend": "am4-moe",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does gcp-adk-test + gpt-oss-120b + am4-moe still hold up (1/1 success)?",
+      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
+      "target_finding_id": "known_good:gcp-adk-test|gpt-oss-120b|am4-moe",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "low",
+      "last_observed": "2026-07-21T17:26:43.043004Z"
+    },
+    {
+      "candidate_id": "prefer_validation:gcp-adk-test|qwen3-coder:30b|omen-ollama",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "gcp-adk-test",
+        "model_id": "qwen3-coder:30b",
+        "backend": "omen-ollama",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does gcp-adk-test + qwen3-coder:30b + omen-ollama still hold up (1/1 success)?",
+      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
+      "target_finding_id": "known_good:gcp-adk-test|qwen3-coder:30b|omen-ollama",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "low",
+      "last_observed": "2026-07-21T17:27:53.359893Z"
     },
     {
       "candidate_id": "prefer_validation:gcp-vertex|gemini-3.1-pro-preview|gcp-gemini",
@@ -755,6 +1775,26 @@
       "last_observed": "2026-07-30T09:23:28.742479+00:00"
     },
     {
+      "candidate_id": "prefer_validation:gcp-vertex|gemini-3.1-pro-preview|gcp-gemini-pro",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "gcp-vertex",
+        "model_id": "gemini-3.1-pro-preview",
+        "backend": "gcp-gemini-pro",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does gcp-vertex + gemini-3.1-pro-preview + gcp-gemini-pro still hold up (1/1 success)?",
+      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
+      "target_finding_id": "known_good:gcp-vertex|gemini-3.1-pro-preview|gcp-gemini-pro",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "low",
+      "last_observed": "2026-07-30T14:54:15.389605+00:00"
+    },
+    {
       "candidate_id": "prefer_validation:gcp-vertex|gemini-3.5-flash|gcp-gemini",
       "experiment_type": "prefer_validation",
       "subject": {
@@ -764,15 +1804,15 @@
         "task_kind": null,
         "metric": null
       },
-      "question": "does gcp-vertex + gemini-3.5-flash + gcp-gemini still hold up (1/1 success)?",
-      "worth": "2 more clean run(s) reach high confidence and earn a prefer rule (1/1 success today)",
+      "question": "does gcp-vertex + gemini-3.5-flash + gcp-gemini still hold up (7/7 success)?",
+      "worth": "the preference nudges every dispatch; it must keep earning that",
       "target_finding_id": "known_good:gcp-vertex|gemini-3.5-flash|gcp-gemini",
       "target_capability_id": null,
       "gate": null,
       "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
       "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
-      "confidence": "low",
-      "last_observed": "2026-07-30T09:23:25.385478+00:00"
+      "confidence": "high",
+      "last_observed": "2026-07-31T00:12:53.797790+00:00"
     },
     {
       "candidate_id": "prefer_validation:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-cuda",
@@ -1045,6 +2085,6 @@
       "last_observed": "2026-07-04T04:18:00+00:00"
     }
   ],
-  "corpus_digest": "sha256:a77ac64b6181ba52fefbcb1eb11389ef2e08183263c8884265d04c5bd778835c",
-  "corpus_event_count": 1339
+  "corpus_digest": "sha256:3e8c42775bf3c0a5a2ae3e6ebc9b7f9b8a4f574ecde60147e651a0c0118b9e11",
+  "corpus_event_count": 53093
 }

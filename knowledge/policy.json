@@ -1,10 +1,11 @@
 {
   "contract_version": "policies.v1",
-  "source_findings": 20,
-  "evidence_watermark": "2026-07-30T09:23:28.742479+00:00",
+  "source_findings": 42,
+  "evidence_watermark": "2026-07-31T00:12:53.800327Z",
   "rule_counts": {
     "block": 1,
-    "exploratory_only": 2
+    "exploratory_only": 2,
+    "prefer": 14
   },
   "rules": [
     {
@@ -81,8 +82,316 @@
       "status": "active",
       "suspended_reason": null,
       "last_observed": "2026-07-04T04:18:00+00:00"
+    },
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "prefer:claude-frontier|/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf|am4-oxen|*|*",
+      "effect": "prefer",
+      "statement": "prefer claude-frontier + /home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf + am4-oxen when compatible: 226/226 success",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
+        "backend": "am4-oxen",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "known_good:claude-frontier|/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf|am4-oxen",
+      "finding_type": "known_good",
+      "confidence": "high",
+      "evidence_summary": "226/226 success",
+      "override": null,
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-07-30T09:38:02.654937Z"
+    },
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "prefer:claude-frontier|/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf|unknown|*|*",
+      "effect": "prefer",
+      "statement": "prefer claude-frontier + /home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf + unknown when compatible: 11/11 success",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
+        "backend": "unknown",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "known_good:claude-frontier|/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf|unknown",
+      "finding_type": "known_good",
+      "confidence": "high",
+      "evidence_summary": "11/11 success",
+      "override": null,
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-07-16T09:45:43.566795Z"
+    },
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "prefer:claude-frontier|gemini-3.1-pro-preview|gcp-gemini-pro|*|*",
+      "effect": "prefer",
+      "statement": "prefer claude-frontier + gemini-3.1-pro-preview + gcp-gemini-pro when compatible: 177/177 success",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "gemini-3.1-pro-preview",
+        "backend": "gcp-gemini-pro",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "known_good:claude-frontier|gemini-3.1-pro-preview|gcp-gemini-pro",
+      "finding_type": "known_good",
+      "confidence": "high",
+      "evidence_summary": "177/177 success",
+      "override": null,
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-07-30T14:54:15.391713Z"
+    },
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "prefer:claude-frontier|gemini-3.1-pro-preview|unknown|*|*",
+      "effect": "prefer",
+      "statement": "prefer claude-frontier + gemini-3.1-pro-preview + unknown when compatible: 89/89 success",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "gemini-3.1-pro-preview",
+        "backend": "unknown",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "known_good:claude-frontier|gemini-3.1-pro-preview|unknown",
+      "finding_type": "known_good",
+      "confidence": "high",
+      "evidence_summary": "89/89 success",
+      "override": null,
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-07-18T01:15:55.311065Z"
+    },
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "prefer:claude-frontier|gemini-3.5-flash|gcp-gemini|*|*",
+      "effect": "prefer",
+      "statement": "prefer claude-frontier + gemini-3.5-flash + gcp-gemini when compatible: 228/228 success",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "gemini-3.5-flash",
+        "backend": "gcp-gemini",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "known_good:claude-frontier|gemini-3.5-flash|gcp-gemini",
+      "finding_type": "known_good",
+      "confidence": "high",
+      "evidence_summary": "228/228 success",
+      "override": null,
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-07-31T00:12:53.800327Z"
+    },
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "prefer:claude-frontier|gemini-3.5-flash|unknown|*|*",
+      "effect": "prefer",
+      "statement": "prefer claude-frontier + gemini-3.5-flash + unknown when compatible: 49/49 success",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "gemini-3.5-flash",
+        "backend": "unknown",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "known_good:claude-frontier|gemini-3.5-flash|unknown",
+      "finding_type": "known_good",
+      "confidence": "high",
+      "evidence_summary": "49/49 success",
+      "override": null,
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-07-18T00:49:24.135678Z"
+    },
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "prefer:claude-frontier|gpt-oss-120b|am4-moe|*|*",
+      "effect": "prefer",
+      "statement": "prefer claude-frontier + gpt-oss-120b + am4-moe when compatible: 173/173 success",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "gpt-oss-120b",
+        "backend": "am4-moe",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "known_good:claude-frontier|gpt-oss-120b|am4-moe",
+      "finding_type": "known_good",
+      "confidence": "high",
+      "evidence_summary": "173/173 success",
+      "override": null,
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-07-30T14:58:23.494179Z"
+    },
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "prefer:claude-frontier|oxen|am4-oxen|*|*",
+      "effect": "prefer",
+      "statement": "prefer claude-frontier + oxen + am4-oxen when compatible: 106/106 success",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "oxen",
+        "backend": "am4-oxen",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "known_good:claude-frontier|oxen|am4-oxen",
+      "finding_type": "known_good",
+      "confidence": "high",
+      "evidence_summary": "106/106 success",
+      "override": null,
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-07-30T09:25:37.310607Z"
+    },
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "prefer:claude-frontier|qwen3-coder:30b|omen-ollama|*|*",
+      "effect": "prefer",
+      "statement": "prefer claude-frontier + qwen3-coder:30b + omen-ollama when compatible: 20/20 success",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "qwen3-coder:30b",
+        "backend": "omen-ollama",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "known_good:claude-frontier|qwen3-coder:30b|omen-ollama",
+      "finding_type": "known_good",
+      "confidence": "high",
+      "evidence_summary": "20/20 success",
+      "override": null,
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-07-30T13:14:05.371007Z"
+    },
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "prefer:claude-frontier|qwen3-coder:30b|unknown|*|*",
+      "effect": "prefer",
+      "statement": "prefer claude-frontier + qwen3-coder:30b + unknown when compatible: 13/13 success",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "qwen3-coder:30b",
+        "backend": "unknown",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "known_good:claude-frontier|qwen3-coder:30b|unknown",
+      "finding_type": "known_good",
+      "confidence": "high",
+      "evidence_summary": "13/13 success",
+      "override": null,
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-07-21T03:54:45.599895Z"
+    },
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "prefer:dev-local|gemini-3.1-pro-preview|unknown|*|*",
+      "effect": "prefer",
+      "statement": "prefer dev-local + gemini-3.1-pro-preview + unknown when compatible: 12/12 success",
+      "subject": {
+        "builder_id": "dev-local",
+        "model_id": "gemini-3.1-pro-preview",
+        "backend": "unknown",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "known_good:dev-local|gemini-3.1-pro-preview|unknown",
+      "finding_type": "known_good",
+      "confidence": "high",
+      "evidence_summary": "12/12 success",
+      "override": null,
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-07-13T09:38:05.644567Z"
+    },
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "prefer:dev-local|qwen3-coder:30b|unknown|*|*",
+      "effect": "prefer",
+      "statement": "prefer dev-local + qwen3-coder:30b + unknown when compatible: 3/3 success",
+      "subject": {
+        "builder_id": "dev-local",
+        "model_id": "qwen3-coder:30b",
+        "backend": "unknown",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "known_good:dev-local|qwen3-coder:30b|unknown",
+      "finding_type": "known_good",
+      "confidence": "high",
+      "evidence_summary": "3/3 success",
+      "override": null,
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-07-09T10:52:13.108025Z"
+    },
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "prefer:docker-open-notebook-facade|gpt-oss-120b|am4-moe|*|*",
+      "effect": "prefer",
+      "statement": "prefer docker-open-notebook-facade + gpt-oss-120b + am4-moe when compatible: 63/63 success",
+      "subject": {
+        "builder_id": "docker-open-notebook-facade",
+        "model_id": "gpt-oss-120b",
+        "backend": "am4-moe",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "known_good:docker-open-notebook-facade|gpt-oss-120b|am4-moe",
+      "finding_type": "known_good",
+      "confidence": "high",
+      "evidence_summary": "63/63 success",
+      "override": null,
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-07-21T03:32:12.096022Z"
+    },
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "prefer:gcp-vertex|gemini-3.5-flash|gcp-gemini|*|*",
+      "effect": "prefer",
+      "statement": "prefer gcp-vertex + gemini-3.5-flash + gcp-gemini when compatible: 7/7 success",
+      "subject": {
+        "builder_id": "gcp-vertex",
+        "model_id": "gemini-3.5-flash",
+        "backend": "gcp-gemini",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "known_good:gcp-vertex|gemini-3.5-flash|gcp-gemini",
+      "finding_type": "known_good",
+      "confidence": "high",
+      "evidence_summary": "7/7 success",
+      "override": null,
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-07-31T00:12:53.797790+00:00"
     }
   ],
-  "corpus_digest": "sha256:a77ac64b6181ba52fefbcb1eb11389ef2e08183263c8884265d04c5bd778835c",
-  "corpus_event_count": 1339
+  "corpus_digest": "sha256:3e8c42775bf3c0a5a2ae3e6ebc9b7f9b8a4f574ecde60147e651a0c0118b9e11",
+  "corpus_event_count": 53093
 }

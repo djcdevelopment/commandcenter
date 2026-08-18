@@ -1,7 +1,7 @@
 {
   "contract_version": "capacity.v1",
-  "evidence_watermark": "2026-07-30T09:29:45.583957Z",
-  "bucket_count": 93,
+  "evidence_watermark": "2026-08-18T09:25:24.313533Z",
+  "bucket_count": 103,
   "buckets": [
     {
       "task_class": null,
@@ -14,8 +14,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 1004,
-      "ok_rate_30d": 0.998,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 0.0,
         "p90": 0.0,
@@ -24,6 +24,204 @@
       },
       "tokens_out_per_s_p50": null,
       "last_seen": "2026-07-05T01:43:04.221033Z"
+    },
+    {
+      "task_class": null,
+      "node": "am4",
+      "runner_class": "local",
+      "model": null,
+      "tool": "get_execution",
+      "calls": 100,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
+      "calls_30d": 100,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 1.191,
+        "p90": 2.426,
+        "mean": 2.4161,
+        "max": 23.438
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-08-02T04:06:23.881974Z"
+    },
+    {
+      "task_class": null,
+      "node": "am4",
+      "runner_class": "local",
+      "model": null,
+      "tool": "get_execution_artifact",
+      "calls": 28,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
+      "calls_30d": 28,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 8.36,
+        "p90": 9.18,
+        "mean": 8.4787,
+        "max": 9.847
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-08-02T04:06:23.918446Z"
+    },
+    {
+      "task_class": null,
+      "node": "am4",
+      "runner_class": "local",
+      "model": null,
+      "tool": "kernel_status",
+      "calls": 12776,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 2802,
+      "ok_rate_7d": 1.0,
+      "calls_30d": 12776,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 451.019,
+        "p90": 742.179,
+        "mean": 491.7397,
+        "max": 31940.81
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-08-18T04:13:17.722419Z"
+    },
+    {
+      "task_class": null,
+      "node": "am4",
+      "runner_class": "local",
+      "model": null,
+      "tool": "list_execution_providers",
+      "calls": 12777,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 2802,
+      "ok_rate_7d": 1.0,
+      "calls_30d": 12777,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 0.944,
+        "p90": 1.125,
+        "mean": 0.9944,
+        "max": 32.476
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-08-18T04:13:16.047436Z"
+    },
+    {
+      "task_class": null,
+      "node": "am4",
+      "runner_class": "local",
+      "model": null,
+      "tool": "list_operations",
+      "calls": 12778,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 2802,
+      "ok_rate_7d": 1.0,
+      "calls_30d": 12778,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 0.068,
+        "p90": 0.086,
+        "mean": 0.0821,
+        "max": 37.818
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-08-18T04:13:15.983628Z"
+    },
+    {
+      "task_class": null,
+      "node": "am4",
+      "runner_class": "local",
+      "model": null,
+      "tool": "list_owned_executions",
+      "calls": 12770,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 2802,
+      "ok_rate_7d": 1.0,
+      "calls_30d": 12770,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 3.958,
+        "p90": 4.956,
+        "mean": 4.7459,
+        "max": 144.925
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-08-18T04:13:17.777649Z"
+    },
+    {
+      "task_class": null,
+      "node": "am4",
+      "runner_class": "local",
+      "model": null,
+      "tool": "plan_execution",
+      "calls": 28,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
+      "calls_30d": 28,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 1.439,
+        "p90": 1.582,
+        "mean": 6.2943,
+        "max": 136.117
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-07-31T14:47:57.008014Z"
+    },
+    {
+      "task_class": null,
+      "node": "am4",
+      "runner_class": "local",
+      "model": null,
+      "tool": "submit_delegated_execution",
+      "calls": 29,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
+      "calls_30d": 29,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 66.865,
+        "p90": 79.476,
+        "mean": 69.3192,
+        "max": 101.098
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-08-02T04:06:17.753570Z"
+    },
+    {
+      "task_class": null,
+      "node": "am4",
+      "runner_class": "local",
+      "model": null,
+      "tool": "watch_execution",
+      "calls": 100,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
+      "calls_30d": 100,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 48.71,
+        "p90": 10009.264,
+        "mean": 3651.1185,
+        "max": 10016.204
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-08-02T04:06:23.828374Z"
     },
     {
       "task_class": null,
@@ -58,8 +256,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 15,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 124.489,
         "p90": 156.899,
@@ -80,8 +278,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 18,
-      "ok_rate_30d": 0.8889,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 101.396,
         "p90": 124.737,
@@ -102,8 +300,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 5,
-      "ok_rate_30d": 0.6,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 3.233,
         "p90": 3.273,
@@ -124,8 +322,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 2,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 604.473,
         "p90": 777.929,
@@ -146,8 +344,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 2,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 22.498,
         "p90": 23.321,
@@ -168,8 +366,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 1,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 26.658,
         "p90": 26.658,
@@ -190,8 +388,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 3,
-      "ok_rate_30d": 0.6667,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 91.848,
         "p90": 97.015,
@@ -212,8 +410,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 1,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 970.97,
         "p90": 970.97,
@@ -229,21 +427,21 @@
       "runner_class": "frontier",
       "model": null,
       "tool": "kernel_status",
-      "calls": 15,
+      "calls": 16,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 1,
-      "ok_rate_7d": 1.0,
-      "calls_30d": 15,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
+      "calls_30d": 3,
       "ok_rate_30d": 1.0,
       "duration_ms": {
-        "p50": 20.15,
+        "p50": 38.591,
         "p90": 275.787,
-        "mean": 95.3705,
+        "mean": 98.4797,
         "max": 493.315
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-07-29T21:09:13.242134Z"
+      "last_seen": "2026-07-30T15:24:30.904161Z"
     },
     {
       "task_class": null,
@@ -256,8 +454,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 4,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 7.396,
         "p90": 9.203,
@@ -278,8 +476,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 3,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 0.749,
         "p90": 0.933,
@@ -300,8 +498,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 2,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 235.935,
         "p90": 244.32,
@@ -322,8 +520,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 8,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 10032.391,
         "p90": 16404.307,
@@ -338,7 +536,7 @@
       "node": "omen",
       "runner_class": "frontier",
       "model": null,
-      "tool": "project",
+      "tool": "plan_execution",
       "calls": 1,
       "ok_rate": 1.0,
       "indeterminate": 0,
@@ -346,6 +544,28 @@
       "ok_rate_7d": null,
       "calls_30d": 1,
       "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 2.983,
+        "p90": 2.983,
+        "mean": 2.983,
+        "max": 2.983
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-08-06T12:50:52.107545Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
+      "tool": "project",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 21.872,
         "p90": 21.872,
@@ -364,9 +584,9 @@
       "calls": 4,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 1,
-      "ok_rate_7d": 1.0,
-      "calls_30d": 4,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
+      "calls_30d": 3,
       "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 58.755,
@@ -388,8 +608,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 2,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 1.437,
         "p90": 2.393,
@@ -410,8 +630,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 2,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 0.552,
         "p90": 0.623,
@@ -432,8 +652,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 2,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 0.801,
         "p90": 0.854,
@@ -452,9 +672,9 @@
       "calls": 5,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 1,
-      "ok_rate_7d": 1.0,
-      "calls_30d": 5,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
+      "calls_30d": 1,
       "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 311.373,
@@ -476,8 +696,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 4,
-      "ok_rate_30d": 0.75,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 1.362,
         "p90": 2.442,
@@ -498,8 +718,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 7,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 161.576,
         "p90": 184.253,
@@ -515,21 +735,21 @@
       "runner_class": "frontier",
       "model": null,
       "tool": "record_event",
-      "calls": 25,
-      "ok_rate": 0.84,
+      "calls": 30,
+      "ok_rate": 0.8667,
       "indeterminate": 0,
-      "calls_7d": 6,
+      "calls_7d": 1,
       "ok_rate_7d": 1.0,
-      "calls_30d": 25,
-      "ok_rate_30d": 0.84,
+      "calls_30d": 19,
+      "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 10.204,
-        "p90": 14.547,
-        "mean": 9.8674,
-        "max": 16.812
+        "p90": 15.277,
+        "mean": 10.5012,
+        "max": 17.918
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-07-30T07:38:54.895116Z"
+      "last_seen": "2026-08-12T11:43:31.679089Z"
     },
     {
       "task_class": null,
@@ -542,8 +762,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 2,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 2179.401,
         "p90": 2241.382,
@@ -564,8 +784,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 2,
-      "ok_rate_30d": 0.5,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 10350.305,
         "p90": 10350.305,
@@ -581,21 +801,21 @@
       "runner_class": "frontier",
       "model": null,
       "tool": "start_ollama",
-      "calls": 1,
+      "calls": 2,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 1,
-      "ok_rate_7d": 1.0,
-      "calls_30d": 1,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
+      "calls_30d": 2,
       "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 0.462,
-        "p90": 0.462,
-        "mean": 0.462,
-        "max": 0.462
+        "p90": 1.29,
+        "mean": 0.876,
+        "max": 1.29
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-07-30T08:51:01.300774Z"
+      "last_seen": "2026-08-08T12:07:00.050826Z"
     },
     {
       "task_class": null,
@@ -608,8 +828,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 4,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 112.96,
         "p90": 124.747,
@@ -630,8 +850,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 12,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 111.192,
         "p90": 123.017,
@@ -652,8 +872,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 10,
-      "ok_rate_30d": 0.8,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 5.612,
         "p90": 6.446,
@@ -672,9 +892,9 @@
       "calls": 4,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 1,
-      "ok_rate_7d": 1.0,
-      "calls_30d": 4,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
+      "calls_30d": 1,
       "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 51073.402,
@@ -691,12 +911,12 @@
       "runner_class": "human",
       "model": null,
       "tool": "bankedfire_drain.tick",
-      "calls": 1136,
+      "calls": 1846,
       "ok_rate": 1.0,
       "indeterminate": 593,
-      "calls_7d": 336,
+      "calls_7d": 130,
       "ok_rate_7d": 1.0,
-      "calls_30d": 1136,
+      "calls_30d": 1227,
       "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 0.0,
@@ -705,7 +925,7 @@
         "max": 0.0
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-07-30T09:05:01.220648Z"
+      "last_seen": "2026-08-18T08:55:53.385227Z"
     },
     {
       "task_class": null,
@@ -718,8 +938,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 1,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 1746.91,
         "p90": 1746.91,
@@ -735,21 +955,21 @@
       "runner_class": "human",
       "model": null,
       "tool": "kernel_status",
-      "calls": 4531,
+      "calls": 11584,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 3369,
+      "calls_7d": 1286,
       "ok_rate_7d": 1.0,
-      "calls_30d": 4531,
+      "calls_30d": 11584,
       "ok_rate_30d": 1.0,
       "duration_ms": {
-        "p50": 104.885,
-        "p90": 173.78,
-        "mean": 124.8758,
-        "max": 2216.784
+        "p50": 243.732,
+        "p90": 669.941,
+        "mean": 344.5834,
+        "max": 28003.827
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-07-30T09:29:02.760366Z"
+      "last_seen": "2026-08-18T09:23:03.425511Z"
     },
     {
       "task_class": null,
@@ -762,8 +982,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 15,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 241.192,
         "p90": 2714.797,
@@ -779,13 +999,13 @@
       "runner_class": "human",
       "model": null,
       "tool": "mechnet_watchdog.hindsight",
-      "calls": 1617,
-      "ok_rate": 0.9957,
+      "calls": 3031,
+      "ok_rate": 0.87,
       "indeterminate": 0,
-      "calls_7d": 672,
+      "calls_7d": 258,
       "ok_rate_7d": 1.0,
-      "calls_30d": 1617,
-      "ok_rate_30d": 0.9957,
+      "calls_30d": 2437,
+      "ok_rate_30d": 0.84,
       "duration_ms": {
         "p50": 0.0,
         "p90": 0.0,
@@ -793,7 +1013,7 @@
         "max": 0.0
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-07-30T09:20:02.827865Z"
+      "last_seen": "2026-08-18T09:10:56.660026Z"
     },
     {
       "task_class": null,
@@ -801,13 +1021,13 @@
       "runner_class": "human",
       "model": null,
       "tool": "mechnet_watchdog.patrol_snapshot",
-      "calls": 6620,
-      "ok_rate": 0.935,
+      "calls": 10852,
+      "ok_rate": 0.8534,
       "indeterminate": 0,
-      "calls_7d": 2017,
-      "ok_rate_7d": 1.0,
-      "calls_30d": 6620,
-      "ok_rate_30d": 0.935,
+      "calls_7d": 774,
+      "ok_rate_7d": 0.9987,
+      "calls_30d": 7290,
+      "ok_rate_30d": 0.8398,
       "duration_ms": {
         "p50": 0.0,
         "p90": 0.0,
@@ -815,7 +1035,7 @@
         "max": 0.0
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-07-30T09:29:45.583957Z"
+      "last_seen": "2026-08-18T09:25:24.313533Z"
     },
     {
       "task_class": null,
@@ -823,12 +1043,12 @@
       "runner_class": "human",
       "model": null,
       "tool": "mechnet_watchdog.patrol_trend",
-      "calls": 2222,
+      "calls": 3636,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 672,
+      "calls_7d": 258,
       "ok_rate_7d": 1.0,
-      "calls_30d": 2222,
+      "calls_30d": 2437,
       "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 0.0,
@@ -837,7 +1057,7 @@
         "max": 0.0
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-07-30T09:19:52.271953Z"
+      "last_seen": "2026-08-18T09:10:46.105247Z"
     },
     {
       "task_class": null,
@@ -850,8 +1070,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 9,
-      "ok_rate_30d": 0.7778,
+      "calls_30d": 2,
+      "ok_rate_30d": 0.0,
       "duration_ms": {
         "p50": 0.0,
         "p90": 0.0,
@@ -867,13 +1087,13 @@
       "runner_class": "human",
       "model": null,
       "tool": "mechnet_watchdog.watchfire",
-      "calls": 2241,
-      "ok_rate": 0.9344,
+      "calls": 3655,
+      "ok_rate": 0.8539,
       "indeterminate": 0,
-      "calls_7d": 672,
+      "calls_7d": 258,
       "ok_rate_7d": 1.0,
-      "calls_30d": 2241,
-      "ok_rate_30d": 0.9344,
+      "calls_30d": 2437,
+      "ok_rate_30d": 0.84,
       "duration_ms": {
         "p50": 0.0,
         "p90": 0.0,
@@ -881,7 +1101,7 @@
         "max": 0.0
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-07-30T09:19:52.190858Z"
+      "last_seen": "2026-08-18T09:10:46.029803Z"
     },
     {
       "task_class": null,
@@ -894,8 +1114,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 1,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 177.702,
         "p90": 177.702,
@@ -916,8 +1136,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 1,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 69.43,
         "p90": 69.43,
@@ -938,8 +1158,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 39,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 108.017,
         "p90": 122.268,
@@ -960,8 +1180,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 1,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 31.187,
         "p90": 31.187,
@@ -1004,8 +1224,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 1,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 0.593,
         "p90": 0.593,
@@ -1026,8 +1246,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 1,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 0.99,
         "p90": 0.99,
@@ -1048,8 +1268,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 4,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 120.325,
         "p90": 341.326,
@@ -1070,8 +1290,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 5,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 118.802,
         "p90": 121.368,
@@ -1092,8 +1312,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 1,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 54.687,
         "p90": 54.687,
@@ -1114,8 +1334,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 1,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 114.747,
         "p90": 114.747,
@@ -1136,7 +1356,7 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 16,
+      "calls_30d": 2,
       "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 177.17,
@@ -1158,8 +1378,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 2,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 180.378,
         "p90": 355.923,
@@ -1180,8 +1400,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 3,
-      "ok_rate_30d": 0.3333,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 10644.924,
         "p90": 10644.924,
@@ -1202,8 +1422,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 2,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 104.871,
         "p90": 105.161,
@@ -1285,21 +1505,21 @@
       "runner_class": "frontier",
       "model": null,
       "tool": "local_generate",
-      "calls": 6,
-      "ok_rate": 0.3333,
+      "calls": 39,
+      "ok_rate": 0.8462,
       "indeterminate": 0,
-      "calls_7d": 0,
-      "ok_rate_7d": null,
-      "calls_30d": 6,
-      "ok_rate_30d": 0.3333,
+      "calls_7d": 10,
+      "ok_rate_7d": 1.0,
+      "calls_30d": 34,
+      "ok_rate_30d": 0.9118,
       "duration_ms": {
-        "p50": 0.966,
-        "p90": 4.429,
-        "mean": 2.6975,
-        "max": 4.429
+        "p50": 31027.305,
+        "p90": 90917.943,
+        "mean": 42921.7633,
+        "max": 218391.108
       },
-      "tokens_out_per_s_p50": null,
-      "last_seen": "2026-07-21T09:46:59.704670Z"
+      "tokens_out_per_s_p50": 47.29998497146777,
+      "last_seen": "2026-08-12T11:39:36.180668Z"
     },
     {
       "task_class": "inference",
@@ -1307,21 +1527,21 @@
       "runner_class": "frontier",
       "model": "/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
       "tool": "local_generate",
-      "calls": 87,
+      "calls": 237,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 76,
-      "ok_rate_7d": 1.0,
-      "calls_30d": 87,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
+      "calls_30d": 226,
       "ok_rate_30d": 1.0,
       "duration_ms": {
-        "p50": 488.182,
-        "p90": 5875.697,
-        "mean": 2527.031,
+        "p50": 128.55,
+        "p90": 4070.869,
+        "mean": 1059.9547,
         "max": 13343.377
       },
-      "tokens_out_per_s_p50": 66.63742024333764,
-      "last_seen": "2026-07-30T09:25:25.650665Z"
+      "tokens_out_per_s_p50": 63.50819255683983,
+      "last_seen": "2026-07-30T09:38:02.654937Z"
     },
     {
       "task_class": "inference",
@@ -1329,21 +1549,21 @@
       "runner_class": "frontier",
       "model": "gemini-3.1-pro-preview",
       "tool": "local_generate",
-      "calls": 265,
+      "calls": 266,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 116,
-      "ok_rate_7d": 1.0,
-      "calls_30d": 265,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
+      "calls_30d": 166,
       "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 18933.157,
         "p90": 58460.25,
-        "mean": 28848.542,
+        "mean": 29092.2173,
         "max": 240819.169
       },
       "tokens_out_per_s_p50": 17.35800659342243,
-      "last_seen": "2026-07-30T09:22:24.233654Z"
+      "last_seen": "2026-07-30T14:54:15.391713Z"
     },
     {
       "task_class": "inference",
@@ -1356,8 +1576,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 12,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 51924.615,
         "p90": 68424.546,
@@ -1373,21 +1593,21 @@
       "runner_class": "frontier",
       "model": "gemini-3.5-flash",
       "tool": "local_generate",
-      "calls": 271,
+      "calls": 277,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 194,
-      "ok_rate_7d": 1.0,
-      "calls_30d": 271,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
+      "calls_30d": 210,
       "ok_rate_30d": 1.0,
       "duration_ms": {
-        "p50": 4143.049,
-        "p90": 13841.934,
-        "mean": 6953.8284,
+        "p50": 4226.056,
+        "p90": 15163.791,
+        "mean": 7296.9967,
         "max": 45054.44
       },
-      "tokens_out_per_s_p50": 5.907665550511722,
-      "last_seen": "2026-07-30T09:21:34.928340Z"
+      "tokens_out_per_s_p50": 6.018411290850209,
+      "last_seen": "2026-07-31T00:12:53.800327Z"
     },
     {
       "task_class": "inference",
@@ -1400,8 +1620,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 1,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 1738.419,
         "p90": 1738.419,
@@ -1417,21 +1637,21 @@
       "runner_class": "frontier",
       "model": "gpt-oss-120b",
       "tool": "local_generate",
-      "calls": 21,
+      "calls": 173,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 5,
-      "ok_rate_7d": 1.0,
-      "calls_30d": 21,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
+      "calls_30d": 159,
       "ok_rate_30d": 1.0,
       "duration_ms": {
-        "p50": 75638.368,
-        "p90": 131169.892,
-        "mean": 79989.27,
+        "p50": 19.203,
+        "p90": 9439.245,
+        "mean": 9815.6919,
         "max": 297680.335
       },
       "tokens_out_per_s_p50": 21.500271251692414,
-      "last_seen": "2026-07-29T23:33:46.428518Z"
+      "last_seen": "2026-07-30T14:58:23.494179Z"
     },
     {
       "task_class": "inference",
@@ -1464,8 +1684,8 @@
       "calls": 106,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 106,
-      "ok_rate_7d": 1.0,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
       "calls_30d": 106,
       "ok_rate_30d": 1.0,
       "duration_ms": {
@@ -1486,8 +1706,8 @@
       "calls": 1,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 1,
-      "ok_rate_7d": 1.0,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
       "calls_30d": 1,
       "ok_rate_30d": 1.0,
       "duration_ms": {
@@ -1505,21 +1725,21 @@
       "runner_class": "frontier",
       "model": "qwen3-coder:30b",
       "tool": "local_generate",
-      "calls": 32,
+      "calls": 33,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 15,
-      "ok_rate_7d": 1.0,
-      "calls_30d": 32,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
+      "calls_30d": 17,
       "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 803.163,
-        "p90": 24953.835,
-        "mean": 8600.9965,
-        "max": 41608.173
+        "p90": 26926.34,
+        "mean": 11549.23,
+        "max": 105892.702
       },
       "tokens_out_per_s_p50": 5.65746948543039,
-      "last_seen": "2026-07-30T08:50:42.108126Z"
+      "last_seen": "2026-07-30T13:14:05.371007Z"
     },
     {
       "task_class": "inference",
@@ -1532,8 +1752,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 3,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 20086.082,
         "p90": 21424.627,
@@ -1554,8 +1774,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 1,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 191.664,
         "p90": 191.664,
@@ -1642,8 +1862,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 15,
-      "ok_rate_30d": 0.9333,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 32.909,
         "p90": 4149.563,
@@ -1664,8 +1884,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 3,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 1.433,
         "p90": 1.704,
@@ -1686,8 +1906,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 11,
-      "ok_rate_30d": 0.9091,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 1.055,
         "p90": 1.325,
@@ -1730,8 +1950,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 3,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 124.659,
         "p90": 128.575,
@@ -1747,21 +1967,21 @@
       "runner_class": "frontier",
       "model": null,
       "tool": "query_am4_catalog",
-      "calls": 2,
-      "ok_rate": 0.5,
+      "calls": 3,
+      "ok_rate": 0.6667,
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 2,
-      "ok_rate_30d": 0.5,
+      "calls_30d": 1,
+      "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 1.018,
-        "p90": 1.018,
-        "mean": 1.018,
-        "max": 1.018
+        "p90": 11.084,
+        "mean": 6.051,
+        "max": 11.084
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-07-19T01:47:19.656177Z"
+      "last_seen": "2026-08-08T12:46:30.074403Z"
     },
     {
       "task_class": "query",
@@ -1774,8 +1994,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 3,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 4.32,
         "p90": 10.987,
@@ -1791,21 +2011,21 @@
       "runner_class": "frontier",
       "model": null,
       "tool": "query_capabilities",
-      "calls": 4,
+      "calls": 5,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 2,
-      "ok_rate_7d": 1.0,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
       "calls_30d": 4,
       "ok_rate_30d": 1.0,
       "duration_ms": {
-        "p50": 1.352,
+        "p50": 1.24,
         "p90": 1.777,
-        "mean": 1.3468,
+        "mean": 1.2804,
         "max": 1.777
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-07-30T08:34:47.621107Z"
+      "last_seen": "2026-07-30T23:20:37.471919Z"
     },
     {
       "task_class": "query",
@@ -1813,21 +2033,21 @@
       "runner_class": "frontier",
       "model": null,
       "tool": "query_capacity",
-      "calls": 7,
+      "calls": 8,
       "ok_rate": 1.0,
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 7,
+      "calls_30d": 1,
       "ok_rate_30d": 1.0,
       "duration_ms": {
-        "p50": 1.396,
-        "p90": 1.512,
-        "mean": 1.5824,
+        "p50": 1.472,
+        "p90": 1.618,
+        "mean": 1.5869,
         "max": 2.986
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-07-19T01:47:18.664005Z"
+      "last_seen": "2026-07-30T23:20:37.503074Z"
     },
     {
       "task_class": "query",
@@ -1838,9 +2058,9 @@
       "calls": 2,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 1,
-      "ok_rate_7d": 1.0,
-      "calls_30d": 2,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
+      "calls_30d": 1,
       "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 1.27,
@@ -1857,21 +2077,21 @@
       "runner_class": "frontier",
       "model": null,
       "tool": "query_offload",
-      "calls": 13,
+      "calls": 14,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 2,
-      "ok_rate_7d": 1.0,
-      "calls_30d": 13,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
+      "calls_30d": 7,
       "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 1.031,
-        "p90": 1.316,
-        "mean": 1.1619,
-        "max": 2.023
+        "p90": 2.023,
+        "mean": 1.2896,
+        "max": 2.95
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-07-30T09:19:09.746871Z"
+      "last_seen": "2026-07-30T13:10:40.195693Z"
     },
     {
       "task_class": "research",
@@ -1884,7 +2104,7 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 2,
+      "calls_30d": 1,
       "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 176.611,
@@ -1906,8 +2126,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 1,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 355.23,
         "p90": 355.23,
@@ -1928,8 +2148,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 28,
-      "ok_rate_30d": 0.8929,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 16591.18,
         "p90": 20062.414,
@@ -1972,8 +2192,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 40,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 1587.172,
         "p90": 2024.961,
@@ -1994,8 +2214,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 2,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 29.868,
         "p90": 38.654,
@@ -2016,8 +2236,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 7,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 24.656,
         "p90": 25.577,
@@ -2038,8 +2258,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 11,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 29.385,
         "p90": 33.308,
@@ -2050,6 +2270,6 @@
       "last_seen": "2026-07-18T13:04:05.387290Z"
     }
   ],
-  "corpus_digest": "sha256:5808da5c96aec622c85a88f4613cd3e04215d6226ef4dc26319039d8796ad9d7",
-  "corpus_event_count": 20681
+  "corpus_digest": "sha256:87820ed55e92890543ebfdfa75ac548df3cbafda815f80e59f1e29305a40bcdd",
+  "corpus_event_count": 88659
 }

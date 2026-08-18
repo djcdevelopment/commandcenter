@@ -1,25 +1,25 @@
 {
   "contract_version": "offload.v1",
-  "evidence_watermark": "2026-07-30T09:25:37.310607Z",
+  "evidence_watermark": "2026-08-12T11:39:36.180668Z",
   "bucket_count": 10,
   "totals": {
-    "calls": 871,
-    "tokens_in": 2480160,
-    "tokens_out": 327095
+    "calls": 1214,
+    "tokens_in": 3014762,
+    "tokens_out": 375571
   },
   "per_class": {
     "sunk": {
-      "calls": 315,
-      "tokens_in": 339885,
-      "tokens_out": 154205
+      "calls": 618,
+      "tokens_in": 369098,
+      "tokens_out": 156741
     },
     "trial": {
-      "calls": 550,
-      "tokens_in": 2140275,
-      "tokens_out": 172890
+      "calls": 587,
+      "tokens_in": 2645664,
+      "tokens_out": 218830
     },
     "unknown": {
-      "calls": 6,
+      "calls": 9,
       "tokens_in": 0,
       "tokens_out": 0
     }
@@ -29,13 +29,13 @@
     "reference": "claude-sonnet",
     "input_per_mtok": 3.0,
     "output_per_mtok": 15.0,
-    "usd": 12.346905
+    "usd": 14.677851
   },
   "real_usd_spent": {
     "pricing_source": "vertex-ai-pricing verified 2026-07-23 (global/standard, <=200K tier)",
-    "usd": 6.087427,
-    "priced_calls": 397,
-    "unpriced_calls": 153
+    "usd": 6.266929,
+    "priced_calls": 404,
+    "unpriced_calls": 183
   },
   "buckets": [
     {
@@ -44,12 +44,12 @@
       "models": [
         "gpt-oss-120b"
       ],
-      "calls": 85,
+      "calls": 237,
       "ok_rate": 1.0,
-      "tokens_in": 325916,
-      "tokens_out": 140126,
+      "tokens_in": 326012,
+      "tokens_out": 140228,
       "real_usd": 0.0,
-      "last_seen": "2026-07-29T23:33:46.428518Z"
+      "last_seen": "2026-07-30T14:58:23.494179Z"
     },
     {
       "backend": "am4-oxen",
@@ -58,12 +58,12 @@
         "/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
         "oxen"
       ],
-      "calls": 182,
+      "calls": 332,
       "ok_rate": 1.0,
-      "tokens_in": 11215,
-      "tokens_out": 13709,
+      "tokens_in": 36970,
+      "tokens_out": 15431,
       "real_usd": 0.0,
-      "last_seen": "2026-07-30T09:25:37.310607Z"
+      "last_seen": "2026-07-30T09:38:02.654937Z"
     },
     {
       "backend": "gcp-gemini",
@@ -71,12 +71,12 @@
       "models": [
         "gemini-3.5-flash"
       ],
-      "calls": 223,
+      "calls": 246,
       "ok_rate": 1.0,
-      "tokens_in": 305677,
-      "tokens_out": 38305,
-      "real_usd": 0.803223,
-      "last_seen": "2026-07-30T09:21:34.928340Z"
+      "tokens_in": 507751,
+      "tokens_out": 63398,
+      "real_usd": 0.913247,
+      "last_seen": "2026-08-12T11:39:36.180668Z"
     },
     {
       "backend": "gcp-gemini-pro",
@@ -84,23 +84,23 @@
       "models": [
         "gemini-3.1-pro-preview"
       ],
-      "calls": 176,
+      "calls": 190,
       "ok_rate": 1.0,
-      "tokens_in": 1834598,
-      "tokens_out": 134585,
-      "real_usd": 5.284204,
-      "last_seen": "2026-07-30T09:22:24.233654Z"
+      "tokens_in": 2137913,
+      "tokens_out": 155432,
+      "real_usd": 5.353682,
+      "last_seen": "2026-08-12T05:02:59.140369Z"
     },
     {
       "backend": "model:",
       "cost_class": "unknown",
       "models": [],
-      "calls": 6,
+      "calls": 9,
       "ok_rate": 0.3333,
       "tokens_in": 0,
       "tokens_out": 0,
       "real_usd": null,
-      "last_seen": "2026-07-21T09:46:59.704670Z"
+      "last_seen": "2026-08-08T12:46:46.456160Z"
     },
     {
       "backend": "model:/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
@@ -161,14 +161,14 @@
         "qwen2.5:7b-instruct",
         "qwen3-coder:30b"
       ],
-      "calls": 21,
+      "calls": 22,
       "ok_rate": 1.0,
-      "tokens_in": 2175,
-      "tokens_out": 352,
+      "tokens_in": 5537,
+      "tokens_out": 1064,
       "real_usd": 0.0,
-      "last_seen": "2026-07-30T08:50:42.108126Z"
+      "last_seen": "2026-07-30T13:14:05.371007Z"
     }
   ],
-  "corpus_digest": "sha256:5808da5c96aec622c85a88f4613cd3e04215d6226ef4dc26319039d8796ad9d7",
-  "corpus_event_count": 20681
+  "corpus_digest": "sha256:87820ed55e92890543ebfdfa75ac548df3cbafda815f80e59f1e29305a40bcdd",
+  "corpus_event_count": 88659
 }

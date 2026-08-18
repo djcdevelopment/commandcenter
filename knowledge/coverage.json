@@ -1,12 +1,12 @@
 {
   "contract_version": "coverage.v1",
-  "observation_count": 27,
+  "observation_count": 1210,
   "decision_count": 0,
   "unresolved_refs": 0,
-  "evidence_watermark": "2026-07-30T09:23:28.742479+00:00",
+  "evidence_watermark": "2026-07-31T00:12:53.800327Z",
   "gap_counts": {
-    "single_workflow_evidence": 14,
-    "unmeasured_metrics": 17
+    "single_workflow_evidence": 23,
+    "unmeasured_metrics": 37
   },
   "gaps": [
     {
@@ -92,55 +92,29 @@
     },
     {
       "contract_version": "coverage-gap.v1",
-      "gap_id": "single_workflow_evidence:model_portability:model_id=gemini-3.1-pro-preview",
+      "gap_id": "single_workflow_evidence:model_portability:model_id=/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
       "gap_type": "single_workflow_evidence",
-      "statement": "'model_id=gemini-3.1-pro-preview' has 1 consistent sample(s) but all from wf-hearth-offload-gcp-adk-test; a second distinct workflow would let the association engine generalize it",
+      "statement": "'model_id=/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf' has 237 consistent sample(s) but all from wf-hearth-gateway; a second distinct workflow would let the association engine generalize it",
       "subject": {
         "builder_id": null,
         "model_id": null,
         "backend": null,
         "task_kind": null,
         "invariant": {
-          "model_id": "gemini-3.1-pro-preview"
+          "model_id": "/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf"
         },
         "missing_metrics": null,
         "capability_id": null
       },
       "evidence": {
-        "samples": 1,
+        "samples": 237,
         "workflows": [
-          "wf-hearth-offload-gcp-adk-test"
+          "wf-hearth-gateway"
         ],
-        "summary": "1 sample(s), 1 workflow (need 2)"
+        "summary": "237 sample(s), 1 workflow (need 2)"
       },
       "proposed_experiment_type": "coverage_probe",
-      "last_observed": "2026-07-30T09:23:28.742479+00:00"
-    },
-    {
-      "contract_version": "coverage-gap.v1",
-      "gap_id": "single_workflow_evidence:model_portability:model_id=gemini-3.5-flash",
-      "gap_type": "single_workflow_evidence",
-      "statement": "'model_id=gemini-3.5-flash' has 1 consistent sample(s) but all from wf-hearth-offload-claude-frontier; a second distinct workflow would let the association engine generalize it",
-      "subject": {
-        "builder_id": null,
-        "model_id": null,
-        "backend": null,
-        "task_kind": null,
-        "invariant": {
-          "model_id": "gemini-3.5-flash"
-        },
-        "missing_metrics": null,
-        "capability_id": null
-      },
-      "evidence": {
-        "samples": 1,
-        "workflows": [
-          "wf-hearth-offload-claude-frontier"
-        ],
-        "summary": "1 sample(s), 1 workflow (need 2)"
-      },
-      "proposed_experiment_type": "coverage_probe",
-      "last_observed": "2026-07-30T09:23:25.385478+00:00"
+      "last_observed": "2026-07-30T09:38:02.654937Z"
     },
     {
       "contract_version": "coverage-gap.v1",
@@ -170,6 +144,32 @@
     },
     {
       "contract_version": "coverage-gap.v1",
+      "gap_id": "single_workflow_evidence:model_portability:model_id=oxen",
+      "gap_type": "single_workflow_evidence",
+      "statement": "'model_id=oxen' has 106 consistent sample(s) but all from wf-hearth-gateway; a second distinct workflow would let the association engine generalize it",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": null,
+        "invariant": {
+          "model_id": "oxen"
+        },
+        "missing_metrics": null,
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 106,
+        "workflows": [
+          "wf-hearth-gateway"
+        ],
+        "summary": "106 sample(s), 1 workflow (need 2)"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-30T09:25:37.310607Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
       "gap_id": "single_workflow_evidence:model_portability:model_id=qwen2.5:14b",
       "gap_type": "single_workflow_evidence",
       "statement": "'model_id=qwen2.5:14b' has 5 consistent sample(s) but all from wf-omen-5070-hwbaseline-2026-07-02; a second distinct workflow would let the association engine generalize it",
@@ -193,6 +193,32 @@
       },
       "proposed_experiment_type": "coverage_probe",
       "last_observed": "2026-07-02T06:50:00Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "single_workflow_evidence:model_portability:model_id=qwen2.5:7b-instruct",
+      "gap_type": "single_workflow_evidence",
+      "statement": "'model_id=qwen2.5:7b-instruct' has 1 consistent sample(s) but all from wf-hearth-gateway; a second distinct workflow would let the association engine generalize it",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": null,
+        "invariant": {
+          "model_id": "qwen2.5:7b-instruct"
+        },
+        "missing_metrics": null,
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1,
+        "workflows": [
+          "wf-hearth-gateway"
+        ],
+        "summary": "1 sample(s), 1 workflow (need 2)"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-29T21:07:29.824991Z"
     },
     {
       "contract_version": "coverage-gap.v1",
@@ -384,6 +410,222 @@
     },
     {
       "contract_version": "coverage-gap.v1",
+      "gap_id": "single_workflow_evidence:task_backend:task_kind=extraction|backend=gcp-gemini",
+      "gap_type": "single_workflow_evidence",
+      "statement": "'task_kind=extraction, backend=gcp-gemini' has 1 consistent sample(s) but all from wf-hearth-offload-claude-frontier; a second distinct workflow would let the association engine generalize it",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "gcp-gemini",
+        "task_kind": "extraction",
+        "invariant": {
+          "task_kind": "extraction",
+          "backend": "gcp-gemini"
+        },
+        "missing_metrics": null,
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1,
+        "workflows": [
+          "wf-hearth-offload-claude-frontier"
+        ],
+        "summary": "1 sample(s), 1 workflow (need 2)"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-30T17:49:36.575887+00:00"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "single_workflow_evidence:task_backend:task_kind=local_generate|backend=am4-moe",
+      "gap_type": "single_workflow_evidence",
+      "statement": "'task_kind=local_generate, backend=am4-moe' has 237 consistent sample(s) but all from wf-hearth-gateway; a second distinct workflow would let the association engine generalize it",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "am4-moe",
+        "task_kind": "local_generate",
+        "invariant": {
+          "task_kind": "local_generate",
+          "backend": "am4-moe"
+        },
+        "missing_metrics": null,
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 237,
+        "workflows": [
+          "wf-hearth-gateway"
+        ],
+        "summary": "237 sample(s), 1 workflow (need 2)"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-30T14:58:23.494179Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "single_workflow_evidence:task_backend:task_kind=local_generate|backend=am4-oxen",
+      "gap_type": "single_workflow_evidence",
+      "statement": "'task_kind=local_generate, backend=am4-oxen' has 332 consistent sample(s) but all from wf-hearth-gateway; a second distinct workflow would let the association engine generalize it",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "am4-oxen",
+        "task_kind": "local_generate",
+        "invariant": {
+          "task_kind": "local_generate",
+          "backend": "am4-oxen"
+        },
+        "missing_metrics": null,
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 332,
+        "workflows": [
+          "wf-hearth-gateway"
+        ],
+        "summary": "332 sample(s), 1 workflow (need 2)"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-30T09:38:02.654937Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "single_workflow_evidence:task_backend:task_kind=local_generate|backend=gcp-gemini",
+      "gap_type": "single_workflow_evidence",
+      "statement": "'task_kind=local_generate, backend=gcp-gemini' has 229 consistent sample(s) but all from wf-hearth-gateway; a second distinct workflow would let the association engine generalize it",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "gcp-gemini",
+        "task_kind": "local_generate",
+        "invariant": {
+          "task_kind": "local_generate",
+          "backend": "gcp-gemini"
+        },
+        "missing_metrics": null,
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 229,
+        "workflows": [
+          "wf-hearth-gateway"
+        ],
+        "summary": "229 sample(s), 1 workflow (need 2)"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-31T00:12:53.800327Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "single_workflow_evidence:task_backend:task_kind=local_generate|backend=gcp-gemini-pro",
+      "gap_type": "single_workflow_evidence",
+      "statement": "'task_kind=local_generate, backend=gcp-gemini-pro' has 177 consistent sample(s) but all from wf-hearth-gateway; a second distinct workflow would let the association engine generalize it",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "gcp-gemini-pro",
+        "task_kind": "local_generate",
+        "invariant": {
+          "task_kind": "local_generate",
+          "backend": "gcp-gemini-pro"
+        },
+        "missing_metrics": null,
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 177,
+        "workflows": [
+          "wf-hearth-gateway"
+        ],
+        "summary": "177 sample(s), 1 workflow (need 2)"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-30T14:54:15.391713Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "single_workflow_evidence:task_backend:task_kind=local_generate|backend=omen-ollama",
+      "gap_type": "single_workflow_evidence",
+      "statement": "'task_kind=local_generate, backend=omen-ollama' has 22 consistent sample(s) but all from wf-hearth-gateway; a second distinct workflow would let the association engine generalize it",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "omen-ollama",
+        "task_kind": "local_generate",
+        "invariant": {
+          "task_kind": "local_generate",
+          "backend": "omen-ollama"
+        },
+        "missing_metrics": null,
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 22,
+        "workflows": [
+          "wf-hearth-gateway"
+        ],
+        "summary": "22 sample(s), 1 workflow (need 2)"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-30T13:14:05.371007Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "single_workflow_evidence:task_backend:task_kind=offload-generate|backend=am4-moe",
+      "gap_type": "single_workflow_evidence",
+      "statement": "'task_kind=offload-generate, backend=am4-moe' has 1 consistent sample(s) but all from wf-hearth-offload-claude-frontier; a second distinct workflow would let the association engine generalize it",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "am4-moe",
+        "task_kind": "offload-generate",
+        "invariant": {
+          "task_kind": "offload-generate",
+          "backend": "am4-moe"
+        },
+        "missing_metrics": null,
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1,
+        "workflows": [
+          "wf-hearth-offload-claude-frontier"
+        ],
+        "summary": "1 sample(s), 1 workflow (need 2)"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-30T14:58:23.491180+00:00"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "single_workflow_evidence:task_backend:task_kind=offload-generate|backend=gcp-gemini-pro",
+      "gap_type": "single_workflow_evidence",
+      "statement": "'task_kind=offload-generate, backend=gcp-gemini-pro' has 1 consistent sample(s) but all from wf-hearth-offload-claude-frontier; a second distinct workflow would let the association engine generalize it",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "gcp-gemini-pro",
+        "task_kind": "offload-generate",
+        "invariant": {
+          "task_kind": "offload-generate",
+          "backend": "gcp-gemini-pro"
+        },
+        "missing_metrics": null,
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1,
+        "workflows": [
+          "wf-hearth-offload-claude-frontier"
+        ],
+        "summary": "1 sample(s), 1 workflow (need 2)"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-30T14:54:15.389605+00:00"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
       "gap_id": "unmeasured_metrics:am4-worker-1|vllama-planner|openai",
       "gap_type": "unmeasured_metrics",
       "statement": "am4-worker-1 + vllama-planner + openai has run 2 time(s) but never reported: ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
@@ -408,6 +650,32 @@
       },
       "proposed_experiment_type": "coverage_probe",
       "last_observed": "2026-07-03T05:55:23.332966+00:00"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:am4|gpt-oss-120b|am4-moe",
+      "gap_type": "unmeasured_metrics",
+      "statement": "am4 + gpt-oss-120b + am4-moe has run 1 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "am4",
+        "model_id": "gpt-oss-120b",
+        "backend": "am4-moe",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1,
+        "workflows": null,
+        "summary": "3/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-30T14:58:23.491180+00:00"
     },
     {
       "contract_version": "coverage-gap.v1",
@@ -465,6 +733,482 @@
     },
     {
       "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:claude-frontier|/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf|am4-oxen",
+      "gap_type": "unmeasured_metrics",
+      "statement": "claude-frontier + /home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf + am4-oxen has run 226 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
+        "backend": "am4-oxen",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 226,
+        "workflows": null,
+        "summary": "3/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-30T09:38:02.654937Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:claude-frontier|/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf|unknown",
+      "gap_type": "unmeasured_metrics",
+      "statement": "claude-frontier + /home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf + unknown has run 11 time(s) but never reported: ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
+        "backend": "unknown",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "tokens_per_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 11,
+        "workflows": null,
+        "summary": "4/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-16T09:45:43.566795Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:claude-frontier|gemini-3.1-pro-preview|gcp-gemini-pro",
+      "gap_type": "unmeasured_metrics",
+      "statement": "claude-frontier + gemini-3.1-pro-preview + gcp-gemini-pro has run 177 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "gemini-3.1-pro-preview",
+        "backend": "gcp-gemini-pro",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 177,
+        "workflows": null,
+        "summary": "3/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-30T14:54:15.391713Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:claude-frontier|gemini-3.1-pro-preview|unknown",
+      "gap_type": "unmeasured_metrics",
+      "statement": "claude-frontier + gemini-3.1-pro-preview + unknown has run 89 time(s) but never reported: ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "gemini-3.1-pro-preview",
+        "backend": "unknown",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "tokens_per_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 89,
+        "workflows": null,
+        "summary": "4/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-18T01:15:55.311065Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:claude-frontier|gemini-3.5-flash|gcp-gemini",
+      "gap_type": "unmeasured_metrics",
+      "statement": "claude-frontier + gemini-3.5-flash + gcp-gemini has run 228 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "gemini-3.5-flash",
+        "backend": "gcp-gemini",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 228,
+        "workflows": null,
+        "summary": "3/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-31T00:12:53.800327Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:claude-frontier|gemini-3.5-flash|unknown",
+      "gap_type": "unmeasured_metrics",
+      "statement": "claude-frontier + gemini-3.5-flash + unknown has run 49 time(s) but never reported: ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "gemini-3.5-flash",
+        "backend": "unknown",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "tokens_per_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 49,
+        "workflows": null,
+        "summary": "4/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-18T00:49:24.135678Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:claude-frontier|gpt-oss-120b|am4-moe",
+      "gap_type": "unmeasured_metrics",
+      "statement": "claude-frontier + gpt-oss-120b + am4-moe has run 173 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "gpt-oss-120b",
+        "backend": "am4-moe",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 173,
+        "workflows": null,
+        "summary": "3/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-30T14:58:23.494179Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:claude-frontier|oxen|am4-oxen",
+      "gap_type": "unmeasured_metrics",
+      "statement": "claude-frontier + oxen + am4-oxen has run 106 time(s) but never reported: ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "oxen",
+        "backend": "am4-oxen",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "tokens_per_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 106,
+        "workflows": null,
+        "summary": "4/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-30T09:25:37.310607Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:claude-frontier|qwen2.5:7b-instruct|omen-ollama",
+      "gap_type": "unmeasured_metrics",
+      "statement": "claude-frontier + qwen2.5:7b-instruct + omen-ollama has run 1 time(s) but never reported: ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "qwen2.5:7b-instruct",
+        "backend": "omen-ollama",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "tokens_per_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1,
+        "workflows": null,
+        "summary": "4/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-29T21:07:29.824991Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:claude-frontier|qwen3-coder:30b|omen-ollama",
+      "gap_type": "unmeasured_metrics",
+      "statement": "claude-frontier + qwen3-coder:30b + omen-ollama has run 20 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "qwen3-coder:30b",
+        "backend": "omen-ollama",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 20,
+        "workflows": null,
+        "summary": "3/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-30T13:14:05.371007Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:claude-frontier|qwen3-coder:30b|unknown",
+      "gap_type": "unmeasured_metrics",
+      "statement": "claude-frontier + qwen3-coder:30b + unknown has run 13 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "qwen3-coder:30b",
+        "backend": "unknown",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 13,
+        "workflows": null,
+        "summary": "3/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-21T03:54:45.599895Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:dev-local|gemini-3.1-pro-preview|unknown",
+      "gap_type": "unmeasured_metrics",
+      "statement": "dev-local + gemini-3.1-pro-preview + unknown has run 12 time(s) but never reported: ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "dev-local",
+        "model_id": "gemini-3.1-pro-preview",
+        "backend": "unknown",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "tokens_per_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 12,
+        "workflows": null,
+        "summary": "4/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-13T09:38:05.644567Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:dev-local|gemini-3.5-flash|unknown",
+      "gap_type": "unmeasured_metrics",
+      "statement": "dev-local + gemini-3.5-flash + unknown has run 1 time(s) but never reported: ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "dev-local",
+        "model_id": "gemini-3.5-flash",
+        "backend": "unknown",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "tokens_per_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1,
+        "workflows": null,
+        "summary": "4/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-12T10:22:59.322385Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:dev-local|qwen3-coder:30b|unknown",
+      "gap_type": "unmeasured_metrics",
+      "statement": "dev-local + qwen3-coder:30b + unknown has run 3 time(s) but never reported: ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "dev-local",
+        "model_id": "qwen3-coder:30b",
+        "backend": "unknown",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "tokens_per_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 3,
+        "workflows": null,
+        "summary": "4/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-09T10:52:13.108025Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:docker-open-notebook-facade|gpt-oss-120b|am4-moe",
+      "gap_type": "unmeasured_metrics",
+      "statement": "docker-open-notebook-facade + gpt-oss-120b + am4-moe has run 63 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "docker-open-notebook-facade",
+        "model_id": "gpt-oss-120b",
+        "backend": "am4-moe",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 63,
+        "workflows": null,
+        "summary": "3/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-21T03:32:12.096022Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:gcp-adk-test|gemini-3.5-flash|gcp-gemini",
+      "gap_type": "unmeasured_metrics",
+      "statement": "gcp-adk-test + gemini-3.5-flash + gcp-gemini has run 1 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "gcp-adk-test",
+        "model_id": "gemini-3.5-flash",
+        "backend": "gcp-gemini",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1,
+        "workflows": null,
+        "summary": "3/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-21T17:28:19.773081Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:gcp-adk-test|gpt-oss-120b|am4-moe",
+      "gap_type": "unmeasured_metrics",
+      "statement": "gcp-adk-test + gpt-oss-120b + am4-moe has run 1 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "gcp-adk-test",
+        "model_id": "gpt-oss-120b",
+        "backend": "am4-moe",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1,
+        "workflows": null,
+        "summary": "3/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-21T17:26:43.043004Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:gcp-adk-test|qwen3-coder:30b|omen-ollama",
+      "gap_type": "unmeasured_metrics",
+      "statement": "gcp-adk-test + qwen3-coder:30b + omen-ollama has run 1 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "gcp-adk-test",
+        "model_id": "qwen3-coder:30b",
+        "backend": "omen-ollama",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1,
+        "workflows": null,
+        "summary": "3/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-21T17:27:53.359893Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
       "gap_id": "unmeasured_metrics:gcp-vertex|gemini-3.1-pro-preview|gcp-gemini",
       "gap_type": "unmeasured_metrics",
       "statement": "gcp-vertex + gemini-3.1-pro-preview + gcp-gemini has run 1 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
@@ -491,13 +1235,13 @@
     },
     {
       "contract_version": "coverage-gap.v1",
-      "gap_id": "unmeasured_metrics:gcp-vertex|gemini-3.5-flash|gcp-gemini",
+      "gap_id": "unmeasured_metrics:gcp-vertex|gemini-3.1-pro-preview|gcp-gemini-pro",
       "gap_type": "unmeasured_metrics",
-      "statement": "gcp-vertex + gemini-3.5-flash + gcp-gemini has run 1 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "statement": "gcp-vertex + gemini-3.1-pro-preview + gcp-gemini-pro has run 1 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
       "subject": {
         "builder_id": "gcp-vertex",
-        "model_id": "gemini-3.5-flash",
-        "backend": "gcp-gemini",
+        "model_id": "gemini-3.1-pro-preview",
+        "backend": "gcp-gemini-pro",
         "task_kind": null,
         "invariant": null,
         "missing_metrics": [
@@ -513,7 +1257,33 @@
         "summary": "3/4 metrics never measured"
       },
       "proposed_experiment_type": "coverage_probe",
-      "last_observed": "2026-07-30T09:23:25.385478+00:00"
+      "last_observed": "2026-07-30T14:54:15.389605+00:00"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:gcp-vertex|gemini-3.5-flash|gcp-gemini",
+      "gap_type": "unmeasured_metrics",
+      "statement": "gcp-vertex + gemini-3.5-flash + gcp-gemini has run 7 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "gcp-vertex",
+        "model_id": "gemini-3.5-flash",
+        "backend": "gcp-gemini",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 7,
+        "workflows": null,
+        "summary": "3/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-07-31T00:12:53.797790+00:00"
     },
     {
       "contract_version": "coverage-gap.v1",
@@ -817,6 +1587,6 @@
       "last_observed": "2026-07-02T10:31:56.771381Z"
     }
   ],
-  "corpus_digest": "sha256:a77ac64b6181ba52fefbcb1eb11389ef2e08183263c8884265d04c5bd778835c",
-  "corpus_event_count": 1339
+  "corpus_digest": "sha256:3e8c42775bf3c0a5a2ae3e6ebc9b7f9b8a4f574ecde60147e651a0c0118b9e11",
+  "corpus_event_count": 53093
 }

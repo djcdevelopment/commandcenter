@@ -1,0 +1,36 @@
+[Unit]
+Description=B70 critic - Qwen2.5-14B single-card SYCL1 :8081
+After=default.target
+
+# The Qwen2.5-14B gguf lives on /mnt/win, whose fstab entry is `nofail` -- so
+# nothing waits for it and this unit would lose the same boot race b70-moe
+# demonstrably lost on 2026-07-30 (gguf open -> status 6/ABRT, 2 s before the
+# mount landed). b70-planner does NOT need this: its model is on ~/baseline.
+RequiresMountsFor=/mnt/win
+
+# Mutually exclusive with the big MoE: gpt-oss-120b claims ~26 GiB on BOTH
+# cards, so any resident single-card tenant makes that load impossible (the
+# 2026-07-30 OOM loop). Declared on both sides per systemd convention.
+# NOTE: planner + critic are the DESIGNED co-resident pair (one model per
+# card, SYCL0/SYCL1) -- they deliberately do NOT conflict with each other.
+Conflicts=b70-moe.service
+
+# Bound a doomed load instead of looping silently. This unit's failure mode is
+# fast (preflight refusal exits 3 with RestartSec=5), so a gate-refusal loop
+# trips this limit in ~15 s. Precedents: the status=3 preflight crash-loop
+# (2026-07-06) and the 58,922-restart zombie unit (2026-07-07).
+# Escape hatch after a legitimate restart burst:
+#   systemctl --user reset-failed b70-critic
+StartLimitIntervalSec=1800
+StartLimitBurst=3
+
+OnFailure=b70-alert@%n.service
+
+[Service]
+Type=simple
+ExecStart=/home/derek/baseline/serve-critic.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

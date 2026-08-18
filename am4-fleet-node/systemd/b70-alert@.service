@@ -1,0 +1,8 @@
+[Unit]
+Description=Loud alert for failed B70 unit %i
+# Triggered by OnFailure=b70-alert@%n.service on b70-{moe,planner,critic}.
+# Never enabled directly and has no [Install] section on purpose.
+
+[Service]
+Type=oneshot
+ExecStart=/home/derek/baseline/b70-alert.sh %i

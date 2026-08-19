@@ -216,6 +216,33 @@ class StartTimersTests(unittest.TestCase):
                 for h in handles:
                     _stop_and_join(h)
 
+    def test_disabled_names_are_skipped_not_started(self):
+        specs = [
+            TimerSpec(name="a", interval_s=10.0, argv_builder=lambda: ["a"],
+                      log_path=self.root / "a.log", stagger_s=0.0, timeout_s=1.0),
+            TimerSpec(name="b", interval_s=10.0, argv_builder=lambda: ["b"],
+                      log_path=self.root / "b.log", stagger_s=0.0, timeout_s=1.0),
+        ]
+        hang_event = threading.Event()
+        with patch.object(timers_mod.subprocess, "Popen",
+                          return_value=_FakeProc(returncode=0, wait_event=hang_event,
+                                                 hang=True)):
+            handles = start_timers(True, timers=specs, cwd=self.root,
+                                   disabled={"a"})
+            try:
+                self.assertEqual([h.spec.name for h in handles], ["b"])
+            finally:
+                for h in handles:
+                    h.stop()
+                hang_event.set()
+                for h in handles:
+                    _stop_and_join(h)
+
+    def test_parse_disabled_tolerates_whitespace_and_empties(self):
+        self.assertEqual(timers_mod.parse_disabled(""), set())
+        self.assertEqual(timers_mod.parse_disabled("patrol, watchdog ,,drain"),
+                         {"patrol", "watchdog", "drain"})
+
     def test_registry_argv_matches_adr_contract(self):
         names = {t.name: t for t in timers_mod.TIMERS}
         self.assertEqual(set(names), {"patrol", "watchdog", "drain", "ollama-sentinel",

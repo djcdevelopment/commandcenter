@@ -53,7 +53,7 @@ from hearth.kernel.capabilities import (LEGACY_PROFILE, assert_surface_complete,
 from hearth.kernel.context import HearthContext
 from hearth.kernel.guards import GuardRejection, GuardStack
 from hearth.kernel.ledger import REPO_ROOT, Ledger, classify_error, hearth_root, new_event
-from hearth.kernel.timers import start_timers
+from hearth.kernel.timers import parse_disabled, start_timers
 from hearth.observation.identity import DispatchIdentity, dispatch_identity
 from hearth.toolsurface._scope import caller_repo_access, caller_scope
 
@@ -692,7 +692,10 @@ def main(argv: Optional[list[str]] = None) -> None:
             log.warning(line)
 
     timers_enabled = not args.no_timers and os.environ.get("HEARTH_TIMERS", "").lower() != "off"
-    handles = start_timers(timers_enabled)
+    timers_disabled = parse_disabled(os.environ.get("HEARTH_TIMERS_DISABLE", ""))
+    handles = start_timers(timers_enabled, disabled=timers_disabled)
+    if timers_enabled and timers_disabled:
+        print(f"hearth timers held by HEARTH_TIMERS_DISABLE: {', '.join(sorted(timers_disabled))}")
     if handles:
         armed = ", ".join(f"{h.spec.name}={int(h.spec.interval_s)}s" for h in handles)
         print(f"hearth timers armed: {armed}")

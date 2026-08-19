@@ -252,17 +252,29 @@ class TimerHandle:
                 return
 
 
+def parse_disabled(raw: str) -> set[str]:
+    """Parse a HEARTH_TIMERS_DISABLE value: comma-separated timer names,
+    whitespace-tolerant, empty entries dropped."""
+    return {name.strip() for name in raw.split(",") if name.strip()}
+
+
 def start_timers(enabled: bool, timers: Optional[list[TimerSpec]] = None,
-                 cwd: Optional[Path] = None) -> list[TimerHandle]:
+                 cwd: Optional[Path] = None,
+                 disabled: Optional[set[str]] = None) -> list[TimerHandle]:
     """Start one daemon thread per registered timer spec. Returns the started
     handles (empty list if disabled). ``timers``/``cwd`` are injectable for
-    tests; production callers (the gateway) use the defaults."""
+    tests; production callers (the gateway) use the defaults. ``disabled``
+    names timers to hold back (e.g. fleet-facing loops while a fleet host is
+    down) — they are skipped, not started-and-stopped."""
     if not enabled:
         return []
     specs = TIMERS if timers is None else timers
     repo_root = REPO_ROOT if cwd is None else cwd
+    skip = disabled or set()
     handles: list[TimerHandle] = []
     for spec in specs:
+        if spec.name in skip:
+            continue
         handle = TimerHandle(spec, cwd=repo_root, stop_event=threading.Event())
         handle.start()
         handles.append(handle)

@@ -241,6 +241,13 @@ def run_once(netstat_text: str, exclude_pids: set[int], var_dir: Path, now: floa
 # "llama-server binary not found". A reachability probe cannot see that. Only
 # asking "can you run a model?" can.
 #
+# Root cause of that emptied-runtime state (2026-07-17, 2026-07-30, 2026-08-13):
+# the tray app's silent self-updater aborting against the in-use ollama.exe that
+# OllamaBoot holds, whose Inno rollback uninstalls lib/ollama. Retired per
+# ADR-0032 -- the tray no longer autostarts and updates go through
+# fleet/update_ollama.ps1. These checks stay as the tripwire in case an ambient
+# updater ever comes back (any reinstall outside the script re-arms autostart).
+#
 # Two checks, because they trade off differently:
 #   runtime  -- filesystem: is the llama-server binary present at all? Free, runs
 #               every tick, and catches exactly the 2026-07-30 failure mode.

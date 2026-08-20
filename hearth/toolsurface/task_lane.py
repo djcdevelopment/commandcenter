@@ -273,12 +273,27 @@ def queue_status() -> dict:
     """Queue-depth probe (G3/A5): the conductor's backlog in ONE SSH round-trip,
     so a queue-and-forget caller can gauge load without polling each plan_id.
 
-    Returns ``{ok, queued, running, done, hearth_queued}``:
+    A run is a ``runs/<id>/`` directory and its ONLY terminal marker is
+    ``result.json`` (ADR-0033) — the same definition hearth.toolsurface.patrol
+    sweeps, so what reads busy here is exactly what the guard dog can reach and
+    masters_pet can heal. Corollaries worth knowing: a *directory rename* (the
+    hand-triage ``<id>.crashed`` gesture) releases nothing — nothing in this repo
+    or on the conductor reads that suffix, and renaming also breaks task_status
+    and the conductor's own checkpoint resume, so don't; write the result (or let
+    masters_pet stub it) instead.
+
+    Returns ``{ok, queued, running, running_undispatched, done, hearth_queued}``:
       - ``queued``   — ``inbox/*.md`` awaiting the conductor's next ~3s scan.
       - ``running``  — ``runs/<id>/`` dirs with no ``result.json`` yet. NOTE a
         crashed/phantom run that never wrote a result is indistinguishable from
         a live one by file presence alone, so a count that never falls is
-        suspect, not necessarily busy.
+        suspect, not necessarily busy — ``patrol``/``masters_pet`` are what tell
+        the two apart, and they now see every dir this counts.
+      - ``running_undispatched`` — the subset of ``running`` that has no
+        ``nodes.json``: the conductor made the dir but never pinned a builder
+        graph (e.g. its "no build workers available" abort). These can never
+        finish on their own; a non-zero count that persists is pure phantom
+        occupancy awaiting a heal.
       - ``done``     — ``runs/<id>/`` dirs that have a ``result.json``.
       - ``hearth_queued`` — the subset of ``queued`` whose id carries the
         ``hearth-`` provenance prefix (submitted through this door).
@@ -286,16 +301,18 @@ def queue_status() -> dict:
     snippet = (
         f'q=$(ls -1 {INBOX_DIR}/*.md 2>/dev/null | wc -l | tr -d " "); '
         f'hq=$(ls -1 {INBOX_DIR}/{PLAN_ID_PREFIX}*.md 2>/dev/null | wc -l | tr -d " "); '
-        f'r=0; d=0; '
+        f'r=0; d=0; u=0; '
         f'if [ -d {RUNS_DIR} ]; then '
         f'for x in {RUNS_DIR}/*/; do [ -e "$x" ] || continue; '
-        f'if [ -f "${{x}}result.json" ]; then d=$((d+1)); else r=$((r+1)); fi; done; fi; '
-        f'echo "queued=$q running=$r done=$d hearth_queued=$hq"'
+        f'if [ -f "${{x}}result.json" ]; then d=$((d+1)); '
+        f'else r=$((r+1)); [ -f "${{x}}nodes.json" ] || u=$((u+1)); fi; done; fi; '
+        f'echo "queued=$q running=$r done=$d hearth_queued=$hq running_undispatched=$u"'
     )
     stdout, error = _run_ssh(snippet)
     if error is not None:
         return {"ok": False, "error": error}
-    counts = {"queued": 0, "running": 0, "done": 0, "hearth_queued": 0}
+    counts = {"queued": 0, "running": 0, "running_undispatched": 0,
+              "done": 0, "hearth_queued": 0}
     for token in (stdout or "").split():
         key, sep, val = token.partition("=")
         if sep and key in counts:

@@ -27,7 +27,7 @@ import json
 from typing import Callable, Optional
 
 from hearth.health.gaps import gaps_as_dicts, scan_runs
-from hearth.toolsurface.patrol import _gather_runs
+from hearth.toolsurface.patrol import FINISHED_RECORD_CAP, _gather_runs
 from hearth.toolsurface.task_lane import CONDUCTOR_REPO, _run_ssh
 
 # Obvious + reversible only. Everything else stays flag-only.
@@ -85,19 +85,39 @@ def masters_pet(apply: bool = False) -> dict:
     ``apply=True`` it stubs each ``phantom_in_flight`` run — releasing its phantom
     occupancy — and returns the per-run ``healed`` actions. Reversible: each heal
     is a single stub file; delete it to undo.
+
+    Reports its own coverage, so "healable: []" can be read as "nothing to heal"
+    rather than "nothing I could see" (ADR-0033): ``scanned`` is every
+    ``runs/<id>/`` dir on the conductor — the same universe queue_status counts —
+    ``considered`` how many records this sweep actually examined, and
+    ``truncated`` how many *finished* records fell outside the
+    newest-``FINISHED_RECORD_CAP`` window, with a ``truncation_note`` spelling
+    out what that can and cannot hide.
+    Unfinished runs are swept unbounded, so a phantom is never truncated away.
     """
     payload, error = _gather_runs()
     if error is not None:
         return {"ok": False, "error": error}
-    gaps = scan_runs(payload.get("records", []))
+    records = payload.get("records", [])
+    gaps = scan_runs(records)
     healable = [g for g in gaps if g.kind in AUTO_HEAL_KINDS]
     flagged = [g for g in gaps if g.kind not in AUTO_HEAL_KINDS]
+    truncated = payload.get("truncated", 0)
     out = {
         "ok": True,
         "dry_run": not apply,
+        "scanned": payload.get("scanned", len(records)),
+        "considered": len(records),
+        "truncated": truncated,
         "healable": gaps_as_dicts(healable),
         "flagged": gaps_as_dicts(flagged),
     }
+    if truncated:
+        out["truncation_note"] = (
+            f"{truncated} finished run(s) older than the {FINISHED_RECORD_CAP} newest "
+            f"were not examined, so `flagged` is partial; every UNFINISHED run was "
+            f"examined, so no healable phantom is hidden by the cap."
+        )
     if apply and healable:
         heal_payload, heal_error = _apply_heal([g.plan_id for g in healable])
         if heal_error is not None:

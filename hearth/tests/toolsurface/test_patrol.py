@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import subprocess
+import time
+from pathlib import Path
+from tempfile import mkdtemp
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
-from hearth.toolsurface.patrol import patrol
+from hearth.toolsurface.patrol import FINISHED_RECORD_CAP, _GATHER_SRC, patrol
 
 
 def _completed(stdout="", stderr="", returncode=0):
@@ -13,8 +18,10 @@ def _completed(stdout="", stderr="", returncode=0):
                                        stdout=stdout, stderr=stderr)
 
 
-def _gather_payload(records, scanned=None):
-    return json.dumps({"records": records, "scanned": scanned if scanned is not None else len(records)})
+def _gather_payload(records, scanned=None, truncated=0, undispatched=0):
+    return json.dumps({"records": records,
+                       "scanned": scanned if scanned is not None else len(records),
+                       "truncated": truncated, "undispatched": undispatched})
 
 
 class PatrolTests(TestCase):
@@ -32,6 +39,7 @@ class PatrolTests(TestCase):
         self.assertTrue(out["ok"])
         self.assertEqual(out["scanned"], 143)
         self.assertEqual(out["considered"], 3)
+        self.assertEqual(out["truncated"], 0)
         kinds = sorted(g["kind"] for g in out["gaps"])
         self.assertEqual(kinds, ["crashed_isolated", "phantom_in_flight"])
         self.assertEqual(out["summary"]["total"], 2)
@@ -163,3 +171,126 @@ class PatrolTests(TestCase):
         self.assertTrue(out["ok"])
         self.assertFalse(out["refresh"]["hindsight"]["ok"])
         self.assertEqual(out["refresh"]["hindsight"]["error"], "ssh unreachable")
+
+
+class GatherSourceTests(TestCase):
+    """Execute the real remote-gather source against a temp runs/ dir.
+
+    The bug this pins (2026-08-20): the gather filtered on nodes.json, so 62 of
+    the conductor's 187 run dirs could never be seen — including two that held
+    queue_status at running=2 for 51 days with masters_pet returning
+    ``healable: []``. ONE definition of a run now: every runs/<id>/ dir.
+    """
+
+    def _run_gather_source(self, tmp) -> dict:
+        import contextlib
+        import io as _io
+        cwd = os.getcwd()
+        buf = _io.StringIO()
+        os.chdir(tmp)
+        try:
+            with contextlib.redirect_stdout(buf):
+                exec(compile(_GATHER_SRC, "<gather>", "exec"), {})
+        finally:
+            os.chdir(cwd)
+        return json.loads(buf.getvalue())
+
+    def _make_run(self, tmp, name, nodes=True, result=None):
+        d = Path(tmp) / "runs" / name
+        d.mkdir(parents=True)
+        if nodes:
+            (d / "nodes.json").write_text("{}", encoding="utf-8")
+        if result is not None:
+            (d / "result.json").write_text(json.dumps(result), encoding="utf-8")
+        return d
+
+    def test_run_dir_without_nodes_json_is_reported_not_skipped(self) -> None:
+        tmp = mkdtemp()
+        try:
+            self._make_run(tmp, "spine-hello", nodes=False)          # the 51-day phantom
+            self._make_run(tmp, "dispatched-live", nodes=True)
+            payload = self._run_gather_source(tmp)
+            by_id = {r["plan_id"]: r for r in payload["records"]}
+            self.assertEqual(set(by_id), {"spine-hello", "dispatched-live"})
+            self.assertFalse(by_id["spine-hello"]["dispatched"])
+            self.assertFalse(by_id["spine-hello"]["has_result"])
+            self.assertTrue(by_id["dispatched-live"]["dispatched"])
+            self.assertEqual(payload["scanned"], 2)
+            self.assertEqual(payload["undispatched"], 1)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_undispatched_phantom_is_healable_end_to_end(self) -> None:
+        # The whole point: an undispatched aged dir must reach the healer.
+        from hearth.health.gaps import PHANTOM_AGE_S, scan_runs
+        tmp = mkdtemp()
+        try:
+            d = self._make_run(tmp, "spine-hello", nodes=False)
+            old = time.time() - (PHANTOM_AGE_S + 600)
+            os.utime(d, (old, old))
+            payload = self._run_gather_source(tmp)
+            gaps = scan_runs(payload["records"])
+            self.assertEqual([g.kind for g in gaps], ["phantom_in_flight"])
+            self.assertIn("never dispatched", gaps[0].detail)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_unfinished_runs_are_never_truncated(self) -> None:
+        tmp = mkdtemp()
+        try:
+            for i in range(FINISHED_RECORD_CAP + 20):
+                self._make_run(tmp, f"done-{i:03d}", result={"status": "ok"})
+            for i in range(5):
+                self._make_run(tmp, f"pending-{i}", nodes=False)
+            payload = self._run_gather_source(tmp)
+            pending = [r for r in payload["records"] if not r["has_result"]]
+            finished = [r for r in payload["records"] if r["has_result"]]
+            self.assertEqual(len(pending), 5, "every unfinished run must survive the cap")
+            self.assertEqual(len(finished), FINISHED_RECORD_CAP)
+            self.assertEqual(payload["scanned"], FINISHED_RECORD_CAP + 25)
+            self.assertEqual(payload["truncated"], 20)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_stray_file_in_runs_is_ignored(self) -> None:
+        tmp = mkdtemp()
+        try:
+            (Path(tmp) / "runs").mkdir()
+            (Path(tmp) / "runs" / "README.md").write_text("not a run", encoding="utf-8")
+            self._make_run(tmp, "real", nodes=True, result={"status": "ok"})
+            payload = self._run_gather_source(tmp)
+            self.assertEqual([r["plan_id"] for r in payload["records"]], ["real"])
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_missing_runs_dir_is_empty_not_an_error(self) -> None:
+        tmp = mkdtemp()
+        try:
+            payload = self._run_gather_source(tmp)
+            self.assertEqual(payload["records"], [])
+            self.assertEqual(payload["scanned"], 0)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
+class PatrolCoverageTests(TestCase):
+    def test_truncation_and_undispatched_are_surfaced(self) -> None:
+        records = [{"plan_id": "pour-ok", "age_s": 9000, "has_result": True,
+                    "status": "ok", "winner": "x", "promoted": True,
+                    "winner_grade": "A", "winner_files": 100, "n_questions": 0}]
+        payload = _gather_payload(records, scanned=187, truncated=62, undispatched=3)
+        with patch("subprocess.run", return_value=_completed(stdout=payload)):
+            out = patrol(refresh=False)
+        self.assertEqual(out["scanned"], 187)
+        self.assertEqual(out["considered"], 1)
+        self.assertEqual(out["truncated"], 62)
+        self.assertEqual(out["undispatched"], 3)
+
+    def test_older_payload_without_new_keys_defaults_to_zero(self) -> None:
+        with patch("subprocess.run",
+                   return_value=_completed(stdout=json.dumps({"records": [], "scanned": 0}))):
+            out = patrol(refresh=False)
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["truncated"], 0)
+        self.assertEqual(out["undispatched"], 0)
+

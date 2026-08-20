@@ -27,6 +27,25 @@ class ScanRunsTests(TestCase):
         self.assertEqual(gaps[0].severity, "warn")
         self.assertEqual(gaps[0].plan_id, "hearth-old")
 
+    def test_undispatched_phantom_fires_and_names_the_stage(self):
+        # A run dir the conductor made but never pinned a builder graph for
+        # (its "no build workers available" abort) is still a phantom — same
+        # kind, same heal; the detail says which stage it died at (ADR-0033).
+        rec = {"plan_id": "spine-hello", "age_s": PHANTOM_AGE_S + 1,
+               "dispatched": False, "has_result": False}
+        gaps = scan_runs([rec])
+        self.assertEqual(_kinds(gaps), ["phantom_in_flight"])
+        self.assertIn("never dispatched", gaps[0].detail)
+
+    def test_dispatched_phantom_keeps_the_stalled_wording(self):
+        rec = {"plan_id": "hearth-x", "age_s": PHANTOM_AGE_S + 1,
+               "dispatched": True, "has_result": False}
+        gaps = scan_runs([rec])
+        self.assertIn("stalled/errored", gaps[0].detail)
+        # A record with no `dispatched` key (older payload) keeps the old wording.
+        legacy = scan_runs([{"plan_id": "y", "age_s": PHANTOM_AGE_S + 1, "has_result": False}])
+        self.assertIn("stalled/errored", legacy[0].detail)
+
     def test_crashed_isolated_from_stub_and_from_error(self):
         stub = {"plan_id": "a", "age_s": 10, "has_result": True, "stub": True,
                 "status": "errored", "error": "FanOutEdgeGroup ..."}

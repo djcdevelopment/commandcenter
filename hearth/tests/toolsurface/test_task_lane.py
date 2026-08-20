@@ -242,13 +242,46 @@ class TaskStatusOutFileTests(TestCase):
 class QueueStatusTests(TestCase):
     def test_parses_counts_from_conductor(self) -> None:
         with patch("subprocess.run",
-                   return_value=_completed(stdout="queued=2 running=1 done=5 hearth_queued=1\n")):
+                   return_value=_completed(
+                       stdout="queued=2 running=1 done=5 hearth_queued=1 "
+                              "running_undispatched=1\n")):
             result = queue_status()
         self.assertTrue(result["ok"])
         self.assertEqual(result["queued"], 2)
         self.assertEqual(result["running"], 1)
         self.assertEqual(result["done"], 5)
         self.assertEqual(result["hearth_queued"], 1)
+        self.assertEqual(result["running_undispatched"], 1)
+
+    def test_running_counts_every_run_dir_and_splits_out_the_undispatched(self) -> None:
+        # ONE definition of a run (ADR-0033): the occupancy universe is every
+        # runs/<id>/ dir keyed on result.json — the same universe patrol sweeps.
+        # nodes.json only splits the count; it never filters it.
+        captured = {}
+
+        def runner(args, **kw):
+            captured["cmd"] = args[-1]
+            return _completed(stdout="queued=0 running=0 done=0 hearth_queued=0 "
+                                     "running_undispatched=0\n")
+
+        with patch("subprocess.run", side_effect=runner):
+            queue_status()
+        cmd = captured["cmd"]
+        self.assertIn("result.json", cmd)
+        self.assertIn("nodes.json", cmd)
+        # nodes.json must never gate the sweep: the only `continue` is the
+        # nullglob guard, and the nodes.json test sits inside the else-branch
+        # (after result.json) where it can only sub-count what already counted.
+        self.assertEqual(cmd.count("continue"), 1)
+        self.assertLess(cmd.index("result.json"), cmd.index("nodes.json"))
+
+    def test_older_conductor_output_without_the_split_still_parses(self) -> None:
+        with patch("subprocess.run",
+                   return_value=_completed(stdout="queued=0 running=2 done=185 hearth_queued=0\n")):
+            result = queue_status()
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["running"], 2)
+        self.assertEqual(result["running_undispatched"], 0)
 
     def test_one_ssh_round_trip(self) -> None:
         calls = {"n": 0}

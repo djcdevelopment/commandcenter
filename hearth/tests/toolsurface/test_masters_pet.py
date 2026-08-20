@@ -13,8 +13,10 @@ def _completed(stdout="", stderr="", returncode=0):
                                        stdout=stdout, stderr=stderr)
 
 
-def _gather(records):
-    return json.dumps({"records": records, "scanned": len(records)})
+def _gather(records, scanned=None, truncated=0):
+    return json.dumps({"records": records,
+                       "scanned": scanned if scanned is not None else len(records),
+                       "truncated": truncated})
 
 
 # One phantom (auto-healable), one crashed + one stale-checkout (flag-only).
@@ -77,3 +79,36 @@ class MastersPetTests(TestCase):
             out = masters_pet(apply=True)
         self.assertFalse(out["ok"])
         self.assertIn("TimeoutExpired", out["error"])
+
+    def test_reports_its_own_coverage(self):
+        # "healable: []" must be readable as "nothing to heal", not "nothing I
+        # could see" — so the sweep reports what it looked at (ADR-0033).
+        with patch("subprocess.run",
+                   return_value=_completed(stdout=_gather(_RECORDS, scanned=187, truncated=0))):
+            out = masters_pet(apply=False)
+        self.assertEqual(out["scanned"], 187)
+        self.assertEqual(out["considered"], len(_RECORDS))
+        self.assertEqual(out["truncated"], 0)
+        self.assertNotIn("truncation_note", out)
+
+    def test_truncated_sweep_is_named_in_the_output(self):
+        with patch("subprocess.run",
+                   return_value=_completed(stdout=_gather(_RECORDS, scanned=187, truncated=62))):
+            out = masters_pet(apply=False)
+        self.assertEqual(out["truncated"], 62)
+        self.assertIn("truncation_note", out)
+        self.assertIn("62", out["truncation_note"])
+        # The note must say what truncation can and cannot hide.
+        self.assertIn("no healable phantom is hidden", out["truncation_note"])
+
+    def test_undispatched_aged_run_is_healable(self):
+        # The 51-day regression: runs/spine-hello had no nodes.json, so it was
+        # invisible to the sweep and masters_pet answered healable: [] while
+        # queue_status read running=2.
+        rec = [{"plan_id": "spine-hello", "age_s": 4406400,
+                "dispatched": False, "has_result": False}]
+        with patch("subprocess.run", return_value=_completed(stdout=_gather(rec))):
+            out = masters_pet(apply=False)
+        self.assertEqual([g["kind"] for g in out["healable"]], ["phantom_in_flight"])
+        self.assertIn("never dispatched", out["healable"][0]["detail"])
+

@@ -3,8 +3,10 @@
 Slice 0 of Watchfire/Flare (WATCHFIRE-FLARE-DESIGN-2026-07-04.html): a
 deterministic, rules-only gap detector — the guard dog's eyes, callable as a
 HEARTH tool. One patrol = "make the rounds now — anything out of place?" It
-gathers recent run records from the conductor over SSH (the same hop task_lane
-uses) and casts the coherence spells in hearth.health.gaps. The scheduled
+gathers run records from the conductor over SSH (the same hop task_lane uses)
+and casts the coherence spells in hearth.health.gaps. It sweeps the same
+universe queue_status counts — every ``runs/<id>/`` dir (ADR-0033) — so what
+reads busy at the door is exactly what the guard dog can reach. The scheduled
 watchdog runs a patrol on every 15-minute tick.
 
 No NPU and no learning yet — that is the earned upgrade once these rules have
@@ -43,11 +45,27 @@ def _ensure_refresh_imports():
 
 DEFAULT_CAPACITY_PATH = "knowledge/capacity.json"
 
-# Runs on the conductor's python3; emits a compact JSON summary of run dirs that
-# carry a nodes.json (i.e. were dispatched), newest first, bounded to 60. The
-# 60-cap is explicit, not silent: `scanned` reports the true total so a truncated
-# sweep is visible.
-_GATHER_SRC = r'''
+# ONE definition of a run (ADR-0033): a run is a `runs/<id>/` directory — the
+# same universe queue_status counts — and its ONLY terminal marker is
+# result.json. `nodes.json` records that the conductor got as far as pinning a
+# builder graph; its absence is reported as `dispatched: false` and NEVER used
+# to filter. Filtering on it is what let phantoms hide: conductor_maf.run_workflow
+# mkdirs the run dir and only then loads builders, so its "no build workers
+# available" abort leaves a dir with neither nodes.json nor result.json — a run
+# that holds occupancy in queue_status forever and was structurally invisible to
+# this sweep (62 of 187 dirs on 2026-08-20; runs/spine-hello held running=2 for
+# 51 days).
+#
+# Truncation is bounded on the EXPENSIVE half only. A finished record carries up
+# to ~800 chars of error/question text, so those stay capped at 60, newest first.
+# An unfinished record is four keys wide and is the only auto-healable class, so
+# unfinished runs are swept UNBOUNDED — one stat per dir. `scanned` reports the
+# true total and `truncated` how many finished records were dropped, so a partial
+# sweep is visible to the caller (patrol and masters_pet both surface it) instead
+# of reading as full coverage.
+FINISHED_RECORD_CAP = 60
+
+_GATHER_SRC_TEMPLATE = r'''
 import json, os, time
 now = time.time()
 runs = "runs"
@@ -58,11 +76,16 @@ except FileNotFoundError:
     names = []
 for name in names:
     d = os.path.join(runs, name)
-    nodes = os.path.join(d, "nodes.json")
-    if not os.path.isfile(nodes):
+    if not os.path.isdir(d):
         continue
+    nodes = os.path.join(d, "nodes.json")
+    dispatched = os.path.isfile(nodes)
     res = os.path.join(d, "result.json")
-    rec = {"plan_id": name, "age_s": round(now - os.path.getmtime(nodes)),
+    # Age from nodes.json when the run reached dispatch (when its graph was
+    # pinned); from the dir itself when it never got that far.
+    rec = {"plan_id": name,
+           "age_s": round(now - os.path.getmtime(nodes if dispatched else d)),
+           "dispatched": dispatched,
            "has_result": os.path.isfile(res)}
     if rec["has_result"]:
         try:
@@ -84,8 +107,17 @@ for name in names:
             rec["parse_error"] = str(e)[:120]
     records.append(rec)
 records.sort(key=lambda x: x["age_s"])
-print(json.dumps({"records": records[:60], "scanned": len(records)}))
+pending = [r for r in records if not r["has_result"]]
+finished = [r for r in records if r["has_result"]]
+kept = pending + finished[:FINISHED_CAP_PLACEHOLDER]
+kept.sort(key=lambda x: x["age_s"])
+print(json.dumps({"records": kept, "scanned": len(records),
+                  "truncated": len(finished) - len(finished[:FINISHED_CAP_PLACEHOLDER]),
+                  "undispatched": sum(1 for r in records if not r["dispatched"])}))
 '''
+
+_GATHER_SRC = _GATHER_SRC_TEMPLATE.replace(
+    "FINISHED_CAP_PLACEHOLDER", str(FINISHED_RECORD_CAP))
 
 
 def _gather_runs(runner: Optional[Callable] = None):
@@ -105,11 +137,16 @@ def _gather_runs(runner: Optional[Callable] = None):
 def patrol(capacity_path: str = DEFAULT_CAPACITY_PATH, refresh: bool = True) -> dict:
     """Make one round of the coherence watch: scan the fleet's runs, flag gaps.
 
-    Returns ``{ok, scanned, considered, gaps:[{kind,severity,plan_id,detail}],
-    summary, refresh: {...}}``. A gap is a place two sources disagree — a run that reads
-    in-flight but is stalled, a pass grade over an empty deliverable, a builder
-    reporting missing files, or a run taking far longer than capacity predicts.
-    Finds and names the gap; does not fix it.
+    Returns ``{ok, scanned, considered, truncated, undispatched,
+    gaps:[{kind,severity,plan_id,detail}], summary, refresh: {...}}``. A gap is a
+    place two sources disagree — a run that reads in-flight but is stalled, a pass
+    grade over an empty deliverable, a builder reporting missing files, or a run
+    taking far longer than capacity predicts. Finds and names the gap; does not fix it.
+
+    Scans the same universe queue_status counts: every ``runs/<id>/`` dir (ADR-0033).
+    ``undispatched`` is how many of them never got a nodes.json; ``truncated`` how many
+    *finished* records fell outside the newest-``FINISHED_RECORD_CAP`` window. Unfinished
+    runs are never truncated, so no phantom can hide behind the cap.
 
     When refresh=True, after the gap scan, attempts to refresh three knowledge sources:
     (1) project_capacity_knowledge(), (2) gather_am4_catalog(write=True), (3)
@@ -129,6 +166,8 @@ def patrol(capacity_path: str = DEFAULT_CAPACITY_PATH, refresh: bool = True) -> 
         "ok": True,
         "scanned": payload.get("scanned", len(records)),
         "considered": len(records),
+        "truncated": payload.get("truncated", 0),
+        "undispatched": payload.get("undispatched", 0),
         "gaps": gaps_as_dicts(gaps),
         "summary": summarize(gaps),
     }

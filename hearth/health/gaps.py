@@ -108,7 +108,8 @@ def scan_runs(records, phantom_age_s: int = PHANTOM_AGE_S, capacity: "dict | Non
     """Apply the coherence spells to a list of run records; return the gaps found.
 
     A record is a plain dict (shape produced by patrol._gather_runs):
-    ``plan_id``, ``age_s``, ``has_result`` and — when ``has_result`` is true —
+    ``plan_id``, ``age_s``, ``has_result``, ``dispatched`` and — when
+    ``has_result`` is true —
     ``status``, ``error``, ``stub``, ``winner``, ``winner_grade``,
     ``winner_files``, ``n_questions``, ``questions_text``, ``promoted``.
     """
@@ -118,11 +119,17 @@ def scan_runs(records, phantom_age_s: int = PHANTOM_AGE_S, capacity: "dict | Non
         age = r.get("age_s", 0) or 0
 
         # Spell: phantom_in_flight — claims running, produced nothing for too long.
+        # ``dispatched: False`` means the run dir never got a nodes.json: the
+        # conductor aborted before pinning a builder graph (its "no build workers
+        # available" path mkdirs first and returns), or the dir predates the
+        # convention. Same gap either way — it holds occupancy and will never
+        # produce a result — so only the wording differs; the heal is identical.
         if not r.get("has_result"):
             if age >= phantom_age_s:
+                stage = ("never dispatched (no nodes.json)" if r.get("dispatched") is False
+                         else "reads in-flight but is stalled/errored")
                 gaps.append(Gap("phantom_in_flight", "warn", pid,
-                    f"no result after {age // 60} min — reads in-flight but is stalled/errored; "
-                    f"holds phantom occupancy"))
+                    f"no result after {age // 60} min — {stage}; holds phantom occupancy"))
             continue
 
         # Spell: crashed_isolated — a terminal ERROR result. Key on the error

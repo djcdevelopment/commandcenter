@@ -43,7 +43,7 @@
 [meta]
 tailnet = "tail8e749c.ts.net"
 hyperv_host = "omen"
-updated = "2026-07-23"
+updated = "2026-08-20"
 ssh_user = "claude"          # default ssh user for reachability/health probes
 
 # --- Physical hosts (tailnet members) ---------------------------------------
@@ -55,14 +55,23 @@ address = "omen.mshome.net"
 alt = ["100.124.12.37"]   # tailnet identity stays (i5/phone reach it from another project)
 via = "mshome"
 expect = "up"
-purpose = "Hyper-V hypervisor + Ollama backend (:11434) + HEARTH gateway (:8710). Hosts all builder VMs. THIS box."
+purpose = "Hyper-V hypervisor + Ollama (:11434 loopback for the door, :11435 tracing proxy for the fleet) + HEARTH gateway (:8710). Hosts all builder VMs. THIS box."
 # `revive` (optional, per-check): a shell command the watchdog runs when this
 # service is down on an expect="up" node. Since ADR-0015 the watchdog is an
 # in-gateway daemon timer (the old mechnet-watchdog scheduled task is deregistered).
 # The gateway revive is the proven doorcheck --revive (verified 2026-07-04, 322ab7d).
+# Ollama has TWO lanes on OMEN and they are NOT interchangeable (verified 2026-08-20):
+#   :11434 is bound to 127.0.0.1 ONLY -- OllamaBoot runs `ollama.exe serve` with
+#     OLLAMA_HOST unset, so it defaults to loopback. This is the HEARTH door's own
+#     lane; the gateway runs on OMEN, so loopback is all it needs.
+#   :11435 is the FLEET-facing lane -- OmenOllamaTracingProxy (scheduled task,
+#     C:\Users\derek\omen-otel-proxy\proxy.py) listens on 0.0.0.0:11435 and fronts
+#     Ollama with OTel tracing. VMs MUST use :11435.
+# Probing omen.mshome.net:11434 only ever generates a false alarm -- it cannot answer.
 checks = [
-  { service = "ollama", port = 11434, host = "omen.mshome.net" },
+  { service = "ollama-fleet", port = 11435, host = "omen.mshome.net" },
   { service = "hearth-gateway", port = 8710, host = "127.0.0.1", revive = "C:\\work\\commandcenter\\fleet-worker-node\\.venv-omen\\Scripts\\python.exe -m hearth.callers.doorcheck --revive" },
+  { service = "ollama-local", port = 11434, host = "127.0.0.1" },
 ]
 
 [[node]]
@@ -118,7 +127,7 @@ host = "omen"
 expect = "up"
 runner_class = "local"   # runner.json: openai -> OMEN Ollama
 purpose = "Original golden-image VM. Worker + (temp) assay shell; hosts the omen-worker-1 builder."
-note = "2026-07-04 RECOVERED. Root cause was a MAC-ADDRESS COLLISION: cc-builder-4 was stood up (2026-07-03) with a static MAC identical to this VM's golden-image MAC (both 00155D0CC700). Two VMs, same static MAC on the Default Switch -> cc-builder-4 won, claudefarm1 was knocked off the network (no lease, unreachable). Its Hyper-V DISPLAY name had also been changed to 'cc-worker-1' (guest hostname stayed 'claudefarm1'), which hid it. Fix: Stop-VM, Set-VMNetworkAdapter -StaticMacAddress 00155D0CC70A (unique), Start-VM -> got fresh lease 172.21.189.98, mshome DNS updated, sshd up, conductor reachable, omen-worker-1 UP. hv-kvp-daemon is inactive in the guest (cosmetic: host can't read guest IP via KVP, but reachability is fine). NOTE: cc-builder-4 still holds the original golden MAC 00155D0CC700 - future clones off the golden image must regenerate their MAC (see [[project-fleet-vm-provisioning]])."
+note = "2026-07-04 RECOVERED. Root cause was a MAC-ADDRESS COLLISION: cc-builder-4 was stood up (2026-07-03) with a static MAC identical to this VM's golden-image MAC (both 00155D0CC700). Two VMs, same static MAC on the Default Switch -> cc-builder-4 won, claudefarm1 was knocked off the network (no lease, unreachable). Its Hyper-V DISPLAY name had also been changed to 'cc-worker-1' (guest hostname stayed 'claudefarm1'), which hid it. Fix: Stop-VM, Set-VMNetworkAdapter -StaticMacAddress 00155D0CC70A (unique), Start-VM -> got fresh lease 172.21.189.98, mshome DNS updated, sshd up, conductor reachable, omen-worker-1 UP. hv-kvp-daemon is inactive in the guest (cosmetic: host can't read guest IP via KVP, but reachability is fine). NOTE: cc-builder-4 still holds the original golden MAC 00155D0CC700 - future clones off the golden image must regenerate their MAC (see [[project-fleet-vm-provisioning]]). 2026-08-20 RENAMED + CORRECTION: the Hyper-V display name is now 'claudefarm1', matching the guest hostname (Rename-VM on the running VM -- display-name only, zero downtime, uptime preserved). The 2026-07-04 line above is wrong on one point: the display name was never *changed* to 'cc-worker-1'. HANDOFF-2026-06-27.md records the VM as cc-worker-1 from the start, and Hyper-V CreationTime is 2026-06-27 03:17 -- it was created under that label booting the golden image whose guest hostname is claudefarm1, so label and hostname never matched. That is the whole reason 'cc-worker-1.mshome.net' was always NXDOMAIN: mshome sibling DNS is registered by the GUEST over DHCP, so only 'claudefarm1' was ever registered -- there was no missing node and nothing to repair. Nothing in fleet.json, this file, or any scheduled task ever referenced 'cc-worker-1'; it existed only as a Hyper-V label. DISK (disambiguate by full path): boots C:/Users/derek/VMs/dev-vm/dev-vm.vhdx -- NOT the same-named C:/Users/derek/VMs/zen-deepseek-1/dev-vm.vhdx that cc-builder-4 boots."
 checks = [
   { service = "ssh", port = 22 },
 ]
@@ -165,13 +174,17 @@ checks = [
 [[node]]
 name = "cc-builder-4"
 kind = "vm"
+retired = true           # RETIRED 2026-08-20 (Derek's call). Block kept for history.
 address = "cc-builder-4.mshome.net"
 via = "mshome"
 host = "omen"
+# expect stays "optional", NOT "retired": fleet_ping.classify() only special-cases
+# "optional", so any other value renders a permanent red DOWN row. "optional" gives
+# the honest dim "offline" and never counts as a sweep failure.
 expect = "optional"
 runner_class = "local"   # runner.json: openai -> OMEN Ollama mixtral 8x22b
-purpose = "OMEN-local Ollama MoE critic (mixtral 8x22b q2_K). exploratory-perspective only; excluded from default build pool."
-note = "2026-07-09: address moved off the drift-prone NAT IP to sibling DNS (verified reachable). Found ON the tailnet (policy violation, 'Duplicate node key' badge, ts 1.98.8 = fresh install — likely a reachability workaround for the drifted NAT IP) -> removed from tailnet via admin console per VMs-never-join policy + ADR-0014. tailscaled may still run in-guest (claude has no passwordless sudo to disable it) but is inert once the node is deleted server-side."
+purpose = "RETIRED 2026-08-20. Was the OMEN-local Ollama MoE critic (mixtral 8x22b q2_K); exploratory-perspective only, never in the default build pool."
+note = "RETIRED 2026-08-20 (VM shut down gracefully, AutomaticStartAction set to Nothing so it does not return on the next OMEN boot; VHDX left untouched pending a separate call). DIAGNOSIS 2026-08-20 -- unreachable for weeks, and the cause was never the network fabric: the guest kernel was ALIVE the whole time (Hyper-V Heartbeat OK, clock time-synced) and the vNIC was attached to the same Default Switch as everyone else, Status Ok. What it did NOT have was any L3 presence: a full ping sweep of all 4064 addresses in 172.29.64.0/20 from cc-conductor found exactly 5 guests and its MAC 00155D0CC700 was not among them, and no candidate hostname (dev-vm, zen-deepseek-1, ...) resolved -- i.e. it was not asking for DHCP at all. Meanwhile cc-builder-4.mshome.net still answered 172.21.180.59 (forward AND reverse) and survived an ipconfig /flushdns, so that record is a STALE ICS registration from an earlier Default Switch subnet generation, pointing at an address with no host route (Test-NetConnection = False). The Windows Default Switch NAT prefix regenerates across host reboots -- this node drifted 172.30.10.170 -> 172.21.182.65 (fleet.json _readdressed) -> 172.21.180.59 (DNS) -> nothing, while the other five simply re-DHCPed onto 172.29.x each time. ROOT CAUSE (the part that made it different): its console shows an Ubuntu DESKTOP GDM login for user 'Derek' -- it is not the headless fleet server image at all. It boots C:/Users/derek/VMs/zen-deepseek-1/dev-vm.vhdx, a DIFFERENT file from the C:/Users/derek/VMs/dev-vm/dev-vm.vhdx that claudefarm1 boots -- always disambiguate these two by full path. zen-deepseek-node/node.json claims it was cloned from the claudefarm1 golden base on 2026-07-03, which the desktop target and the 'Derek' account contradict. Exact guest IPv4 config is unconfirmed: reading it needs a console login as Derek's account, which no agent should do. WHY NOT WORTH REPAIRING: mixtral 8x22b q2_K measured ~4.2-4.4 tok/s (overnight-critic role only), OMEN carries no B70s (RTX 5070 + 127 GB RAM after the 2026-08-19 board swap -- the dual B70s are on AM4), and commandcenter/docs/adr#0029 already cut the standalone critic role in favour of am4-moe serving all roles. HAZARD LEFT BEHIND: it still holds the original golden-image MAC 00155D0CC700, so a future clone off the golden image that does not regenerate its MAC will collide with it exactly as claudefarm1 did on 2026-07-03. HISTORY: 2026-07-09: address moved off the drift-prone NAT IP to sibling DNS (verified reachable). Found ON the tailnet (policy violation, 'Duplicate node key' badge, ts 1.98.8 = fresh install — likely a reachability workaround for the drifted NAT IP) -> removed from tailnet via admin console per VMs-never-join policy + ADR-0014. tailscaled may still run in-guest (claude has no passwordless sudo to disable it) but is inert once the node is deleted server-side."
 checks = [
   { service = "ssh", port = 22 },
 ]
@@ -197,7 +210,7 @@ checks = [
 name = "omen-worker-1"
 kind = "logical-builder"
 rides_on = "claudefarm1"
-model_backend = "omen.mshome.net:11434"   # Ollama qwen3-coder:30b, on OMEN
+model_backend = "omen.mshome.net:11435"   # Ollama qwen3-coder:30b, via the OTel tracing proxy
 via = "mshome"
 expect = "up"
 runner_class = "local"   # openai runner -> OMEN Ollama qwen3-coder:30b
@@ -205,7 +218,7 @@ purpose = "OMEN Ollama qwen3-coder:30b builder (54.6 tok/s). Shell rides claudef
 note = "Coupling to claudefarm1 is a fragility: OMEN's Ollama is reachable independently. Candidate to re-home its shell off claudefarm1 (see CONDUCTOR-FOLLOWUPS)."
 checks = [
   { service = "ssh", port = 22, host = "claudefarm1.mshome.net" },
-  { service = "ollama", port = 11434, host = "omen.mshome.net" },
+  { service = "ollama-fleet", port = 11435, host = "omen.mshome.net" },
 ]
 
 # --- Cloud backends (no machine of our own; check host = the API endpoint) --

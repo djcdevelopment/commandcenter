@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OMEN Limit Test — 2026-08</title>
+<style>
+:root { --bg:#12151a; --panel:#1a1f27; --ink:#d8dee8; --dim:#8b96a5; --line:#2a3240;
+        --good:#4cc38a; --warn:#e5b567; --bad:#e5675c; --accent:#5ea0ef; }
+body { background:var(--bg); color:var(--ink); font:15px/1.55 "Segoe UI",system-ui,sans-serif;
+       max-width:1080px; margin:2rem auto; padding:0 1.25rem; }
+h1 { font-size:1.55rem; border-bottom:2px solid var(--accent); padding-bottom:.4rem; }
+h2 { font-size:1.2rem; color:var(--accent); margin-top:2.2rem; }
+table { border-collapse:collapse; width:100%; margin:1rem 0; font-size:.92rem; }
+th,td { border:1px solid var(--line); padding:.45rem .7rem; text-align:left; vertical-align:top; }
+th { background:var(--panel); }
+code, .mono { font-family:Consolas,monospace; font-size:.88em; color:#a8c7f0; }
+.good { color:var(--good); font-weight:600; } .warn { color:var(--warn); font-weight:600; }
+.bad { color:var(--bad); font-weight:600; } .dim { color:var(--dim); }
+.pill { display:inline-block; padding:.05rem .55rem; border-radius:1rem; font-size:.8rem; font-weight:600; }
+.p-done { background:#173527; color:var(--good); } .p-run { background:#33301a; color:var(--warn); }
+.p-todo { background:#232a35; color:var(--dim); }
+.note { background:var(--panel); border-left:3px solid var(--accent); padding:.6rem .9rem; margin:.8rem 0; }
+</style>
+</head>
+<body>
+<h1>OMEN Limit Test — dual Arc Pro B70 burn-in → HEARTH rung</h1>
+<p class="dim"><b style="color:var(--good)">CAMPAIGN COMPLETE 2026-08-21</b> (reboot test pending) · Campaign of 2026-08-20 → 21 · artifacts: <code>E:\work\battlemage\burnin-2026-08\</code> ·
+plan approved 2026-08-20 · succeeds the battlemage/Win10 campaign (see <code>LOCAL-MODEL-LAB-INDEX.html</code>) · <a href="OMEN-LIMIT-TEST-CHARTS-2026-08.html" style="color:var(--accent)">📊 Chart Annex — every slice, drawn</a></p>
+
+<h2>The rig (rebuilt 2026-08-20)</h2>
+<table>
+<tr><th>CPU</th><td>Intel Core Ultra 9 285K (24C, NPU on package)</td></tr>
+<tr><th>RAM</th><td>128 GB DDR5 <span class="dim">(old campaign's binding constraint was 32 GB DDR4 — dissolution to be *measured*, not assumed)</span></td></tr>
+<tr><th>GPUs</th><td>2× Intel Arc Pro B70 · 32 GB each (31.79 GiB usable, ECC off on both) · PCI 04:00.0 + 09:00.0 · driver 32.0.101.8974 (2026-08-11)</td></tr>
+<tr><th>Display</th><td class="good">Desktop on the iGPU (4K), ASPEED BMC second head — <b>neither B70 drives a display</b>. The May-2026 retraction condition is gone.</td></tr>
+<tr><th>Board</th><td>Z890 ACE-SE-class · HWiNFO sensor tree: VRM temp/power, +12V/+5V rails, DIMM, 2× NVMe, W_PUMP + 4 chassis fans</td></tr>
+<tr><th>PSU</th><td>Corsair RM1000x — ~600–700 W projected finale draw (2× ~165 W GPU + 285K PL2 + platform), comfortable headroom. <span class="warn">Thermals, not power, are the open axis of this campaign</span> (Derek's call, and the VRAM readings agree).</td></tr>
+<tr><th>Storage</th><td>C: Samsung 1TB NVMe (boot) · E: Crucial P3 Plus 4TB NVMe — the old D:/AM4 drive, models + battlemage corpus aboard</td></tr>
+</table>
+
+<h2>Phase 0 — Preflight <span class="pill p-done">DONE 2026-08-20</span></h2>
+<table>
+<tr><th>Check</th><th>Result</th></tr>
+<tr><td>ReBAR</td><td class="good">ON — full 31.79 GiB device-local heap host-visible on both cards (b70tools Vulkan heap layout)</td></tr>
+<tr><td>Device enumeration</td><td class="warn">TRAP CONFIRMED: <code>Vulkan0</code> is now the <b>iGPU</b> (74 GB shared budget). B70s are Vulkan1/Vulkan2.
+Campaign rule: every harness sets <code>GGML_VK_VISIBLE_DEVICES='1,2'</code> + asserts the device banner (2× B70, no iGPU). Assert passing on both b9305 and b10549.</td></tr>
+<tr><td>DXGI live budget</td><td>33.33 GB/card (<code>vram.local.budget_bytes</code>) — the admission-control number. All three telemetry sources (DXGI, Vulkan budget ext, PDH) agree at idle.</td></tr>
+<tr><td>Instrument split</td><td><b>b70tools</b> (found built on E:, runs clean on new box) = GPU arm: <code>gpu.temperature_c</code>, <code>vram.temperature_c</code>, energy counters, fan, budgets, <code>gpu.rebar_active</code> — HWiNFO cannot see B70 temp/power on this driver.
+<b>HWiNFO</b> = board/CPU arm (701-column CSV: VRM, rails, DIMM, NVMe, fans, commit charge).
+<b>watch-abort.ps1</b> = event/health/floor arm (TDR 4101, WHEA, commit&gt;90%, NVMe&gt;70°C, /health ×3, tok/s &lt; 50% floor ×3).</td></tr>
+<tr><td>Binaries</td><td>b9305 (ADR-021 canonical, verified <code>63248fc3e</code>) vs freshly fetched <b>b10549</b> (<code>b2e5e9b28</code>). Flag drift noted: <code>-mmp/-dio</code> deprecated→<code>--load-mode</code> (still accepted), <code>-fa</code> gained <code>auto</code> default — harness pins FA explicitly per binary.</td></tr>
+<tr><td>PCIe link</td><td class="dim">Idle read degenerate (power-managed downshift); verify under load in Stage 1 via HWiNFO.</td></tr>
+<tr><td>Idle baseline</td><td>10-min dual-arm baseline: ~28 W idle/card (energy-counter delta), GPU 40–53 °C, VRAM 42–58 °C at rest. <span class="dim">HWiNFO CSV note: first session logs to <code>C:\work\commandcenter\docs\HWINFO.CSV</code>; relocating to E: at next logging restart.</span></td></tr>
+</table>
+
+<h2>Stage ladder</h2>
+<table>
+<tr><th>Stage</th><th>What</th><th>Status</th><th>Verdict</th></tr>
+<tr><td>1</td><td>Single-card sanity + binary A/B (14B Q4, both cards × both builds)</td><td><span class="pill p-done">DONE 2026-08-20</span></td><td>
+<span class="good">Cards symmetric (±1.6%)</span> — the old 18% two-card mystery was the ECC asymmetry, now resolved.
+<span class="good">Builds identical (±0.5%)</span> — b10549 adopted.
+<b class="good">COOPMAT UN-RETIRED: pp512 720 → 1451/1474 tok/s (2×), zero TDRs on driver 8974</b> — the ADR-021-era defense was costing half of prompt processing; +10% over the old box. Stage 3 soak = extended TDR trial.
+<span class="warn">tg 46.7/47.3 vs ≥48 floor (−1.5–2.7%)</span> — near-miss vs the old ECC-off card's 50.1 on driver 8801; bandwidth-bound, tracking not blocking.
+Load telemetry: GPU ≤74 °C, <span class="warn">VRAM ≤84 °C (single-card!)</span> — watch under dual sustained. Peak ~165 W/card. Event sweep clean.</td></tr>
+<tr><td>2</td><td>Canonical dual-70B reproduction + <code>-fit</code> spill control</td><td><span class="pill p-done">DONE 2026-08-20</span></td><td>
+<b class="good">pp1024 384.5 tok/s (2.5× the 151.4 floor)</b> · tg256 11.7 (floor 11.0, old 11.28).
+Server residency proven adapter-globally: 24.8+25.2 GiB committed dual-split, ~0.7 GiB non-local (no spill). Warm 1-token 0.09 s.
+<span class="good"><code>-fit on</code> control: identical placement + latency on b10549 at this headroom</span> — the old auto-fitter betrayal did not reproduce; F3 (load under commit pressure) is the spill mode that still bites. Event sweep clean.
+<span class="dim">Observer note: DXGI CurrentUsage is per-process — residency reads come from PDH adapter-global committed; probe fixed accordingly (the telemetry-triangulation lesson, again).</span></td></tr>
+<tr><td>3</td><td>FA crossover + context ladder (soak #1a)</td><td><span class="pill p-done">DONE 2026-08-21 04:49</span></td><td>
+<b>Crossover bracketed 16k–24k:</b> fa-off WINS below it (433/396/337 vs 346/265/180 at 4/8/16k — up to +87% pp) and <b class="bad">hard-hangs ≥24k</b> (zero rows in 50 min at 32k) — the old "dies past 25k" reproduces on 8974. fa-on full curve: 346/265/180/136/110/79/61 (4k→64k).
+<b class="good">q8-KV tax collapsed to ~5–6%</b> (104.5 @32k, 57.6 @64k vs 109.9/61.1 fp16) — the old 2–4× trap is gone; KV context per GB nearly doubles free.
+<b class="bad">128k q8-KV: empty result reproduced exactly</b> (75 min, loader banner then silence) — the ceiling stands.
+<span class="dim">Pattern: every ≥48k leg banks its rows then hangs in Vulkan teardown (upstream-reportable). COOPMAT-on TDR trial: ~6.5 h sustained dual-card, zero events.</span></td></tr>
+<tr><td>4</td><td>battlemage gates Q2/Q3/Q4 native-Windows (soak #1b)</td><td><span class="pill p-done">DONE 2026-08-21 05:00</span></td><td>
+<b class="good">Q2 PASS:</b> replica-per-card 14B aggregate 151.9/155.6/163.2 (floor 95.7, +64%); 30B-A3B single-stream ~95–105 tok/s server-side (floor 81.7).
+<b>Q3 — THE KNEE DID NOT MOVE:</b> ladder 37/71/110/144/164→<b>183 @ np=8</b>, then <b class="bad">cliff at np=10 (80.3, p95 6.4→22 s)</b>, np=12 stays down (90–97) — <b>with 78 GB commit free</b>. The old attribution (32 GB host commit) was incomplete: <b>N*=8 is card/driver-side, invariant across hosts</b>. Admission control at 8, unchanged.
+<b class="good">Q4 PASS:</b> 200 rows, mean 115.8 tok/s, CV 2.3% (&lt;10), no drift.
+Event sweep across the whole soak: <b class="good">CLEAN</b>.</td></tr>
+<tr><td>5</td><td>The un-retraction: symmetric two-server scaling</td><td><span class="pill p-done">DONE 2026-08-21 11:45</span></td><td>
+<b class="good">PASSES — 1.85× scaling</b> (single 46.7 → dual 86.5 tok/s mean, 3 rounds each, 24/24 served), <b class="good">zero 4101/WHEA</b>.
+The retracted 2026-05 1.96× is vindicated: the failure was the display adapter, not the architecture. On a box where neither B70 drives a display, symmetric replica serving just works. Formally supersedes the retraction.</td></tr>
+<tr><td>6</td><td>Rung bake-off: gpt-oss-120b vs Qwen3-30B-A3B vs 70B</td><td><span class="pill p-done">DONE 2026-08-21 12:15</span></td><td>
+All three served clean at their configs (events clean). <b>A</b> gpt-oss-120b @65k/np4: 14.7 tok/s single-stream, agg ~21.6, p95 25–32 s, <span class="warn">31.75 GiB on card 2 + 0.9 GiB non-local — riding the edge</span>. <b>B</b> Qwen3-30B-A3B @65k/np4: <b class="good">95.2 single-stream, 116.3 agg, p95 4.1 s, 23 GiB total</b>. <b>C</b> 70B @32k/np2: 10.7 / 16.1, p95 21.9 s.
+<b>Derek's call: B is the rung and door default; A registers as a second banked-fire rung (declared, pin-only, not resident); C stays a bench workload.</b></td></tr>
+<tr><td>7a</td><td>Two-runtime co-tenancy: torch-xpu LoRA + Vulkan serve</td><td><span class="pill p-done">DONE 2026-08-21 12:45</span></td><td>
+<b class="good">PASS — ratio 0.99</b> (serve 46.5 solo → 46.0 during training). torch-xpu 2.12.1 <b>fully revalidated on driver 8974/new platform</b> after a one-line venv repair (pyvenv.cfg pointed at the dead box's Python); phase1c LoRA converged loss 4.997→0.006 — the June gate numbers, reproduced. Sees <b>2 XPU devices</b> (multi-card training now enumerable — future work). Findings: <span class="warn">ZE_AFFINITY_MASK deadlocks Level-Zero init on 8974</span> (bare import hangs at 0 CPU); overlap window thin (1c is fast) — 7b carried the sustained verdict.</td></tr>
+<tr><td>7b</td><td>Compressed co-load soak: rung serve + CPU 70B bench + hash-verified disk loop (120 min)</td><td><span class="pill p-done">DONE 2026-08-21 14:47</span></td><td>
+<b class="good">PASS — 847 waves, mean 103.5 tok/s, CV 5.1%, zero events</b>, no drift, commit steady. Serve held ~89% of solo under co-load. CPU: ~36 bench passes (70B on the 285K: pp512 78, tg 1.2 tok/s — first Arrow-Lake datum). Disk: <b>157 verified copy passes ≈ 2.7 TB</b>, all hashes clean.
+<b class="good">F8 — THE SAIL:</b> Derek's cardboard duct (see F7 ambient note) landed mid-soak: peak VRAM by window-sixth = [82, 82, <b>70, 70, 70, 70</b>] — a 12 °C peak drop under triple load, GPU core 75→70. The finale's thermal margin problem is solved with tape.</td></tr>
+<tr><td>8</td><td>Finale: everything at once — case/board/PSU verdict</td><td><span class="pill p-done">DONE 2026-08-21 15:50</span></td><td>
+<b class="good">FINALE PASS.</b> 60 min of everything simultaneously: rung serve (4-way waves) + torch-xpu LoRA loop + CPU 70B bench (22 threads) + verified disk laps. Serve mean <b>101.7 tok/s, CV 5.2%</b>, xpu alive throughout, <b class="good">zero TDR/WHEA/Kernel-Power</b>.
+<b class="good">Peak thermals under maximum load: 70 °C VRAM / 66–70 °C GPU</b> — 24 °C below the pre-sail night peak. The case/board/PSU verdict: this build holds its own full output indefinitely. (Wattage note: IGCL energy deltas are jitter-limited at 2 s cadence; the clean per-card figure remains Stage 1's ~165 W.)</td></tr>
+<tr><td>R</td><td>HEARTH rung registration (<code>omen-arc</code>) + keep-alive triad + ADR-0034</td><td><span class="pill p-done">DONE 2026-08-21 16:0x</span></td><td>
+Landed to master (<code>5338936</code> + test-isolation follow-up <code>ce75657</code>; rebased over the concurrent fleet-forensics PRs — inventory merge kept their two-lane Ollama findings and added the :8082 check). <code>ArcServeBoot</code>/<code>ArcServeRestart</code> registered (S4U, PT0S, RestartCount 3 — the ADR-0032 shape). OllamaBoot: <b>stays disabled by ruling</b>. Fleet-timer hold retained (mechnet VMs deliberately off) with reason updated in gateway.cmd. Full suite 804+2skip green.</td></tr>
+<tr><td>V</td><td>Proof through the door + reboot test</td><td><span class="pill p-done">DONE 2026-08-21 16:00 (reboot pending)</span></td><td>
+Serviceability: real 1-token generate through the S4U task server ✓. doorcheck <b class="good">HEALTHY</b> (omen-arc awake, banked/tombstone rungs asleep-informational). Door proofs: pinned <code>local_generate(backend="omen-arc")</code> → <i>"the rung is lit"</i>, 266 ms; un-pinned <code>task="research"</code> → omen-arc, 437 ms; both ledgered with artifacts. <code>rebuild_knowledge</code>: 58,236 events replayed, 13 projections fresh.
+<span class="warn">Reboot test = Derek's move</span> (it takes this session with it): reboot → ArcServeBoot serves without login → <code>arc-serviceability.ps1</code> exit 0 → doorcheck HEALTHY.</td></tr>
+</table>
+
+
+<h2>The numbers so far (2026-08-21 morning)</h2>
+
+<h3>Old box vs new box — same two cards, different everything else</h3>
+<p class="dim">Old: AM4 R9 5900X · Win10 · driver 8801/8826 · 32 GB DDR4 · COOPMAT disabled. New: 285K · Win11 · 8974 · 128 GB DDR5 · COOPMAT on.</p>
+<table>
+<tr><th>Metric</th><th>Old box</th><th>New box</th><th>&#916;</th></tr>
+<tr><td>14B Q4 single-card pp512</td><td>1261 / 1336</td><td><b>1451 / 1474</b></td><td class="good">+10%</td></tr>
+<tr><td>14B Q4 single-card tg128</td><td>42.4 / 50.1 (ECC on/off)</td><td>46.7 / 47.3 (ECC off both)</td><td class="warn">&#8722;6% vs best; cards now &#177;1.3%</td></tr>
+<tr><td>70B Q4 dual pp1024</td><td>151.4</td><td><b>384.5</b></td><td class="good">+154%</td></tr>
+<tr><td>70B Q4 dual tg256</td><td>11.28</td><td>11.7</td><td class="good">+3.7%</td></tr>
+<tr><td>Qwen3-30B-A3B single-stream (server)</td><td>81.7</td><td>~95&#8211;105</td><td class="good">+16&#8211;28%</td></tr>
+<tr><td>Q2 replica-per-card aggregate (2&#215;14B)</td><td>95.7 floor (retracted result)</td><td><b>157 mean</b>, 3 clean rounds</td><td class="good">+64%, un-retracted</td></tr>
+<tr><td>Concurrency knee N*</td><td>8 (blamed on 32 GB commit)</td><td><b>8</b> (78 GB commit free)</td><td class="warn">unchanged &#8594; card/driver-side</td></tr>
+<tr><td>q8-KV tax @32k</td><td>2&#8211;4&#215; (the trap)</td><td><b>~5%</b></td><td class="good">trap retired</td></tr>
+<tr><td>128k q8-KV</td><td>empty result</td><td>empty result</td><td class="dim">ceiling stands</td></tr>
+<tr><td>Overnight stability</td><td>TDRs, BSOD history, empty overnights</td><td><b>0 events in ~6.5 h</b>, Q4 CV 2.3%</td><td class="good">clean</td></tr>
+</table>
+
+<h3>70B dual-card prompt processing vs context depth</h3>
+<svg viewBox="0 0 740 340" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="70B dual-card prompt processing versus context depth" style="max-width:100%;height:auto"><line x1="56" y1="290.0" x2="722" y2="290.0" stroke="#2a3240" stroke-width="1"/><text x="48" y="294.0" fill="#8b96a5" font-size="11" text-anchor="end">0</text><line x1="56" y1="232.2" x2="722" y2="232.2" stroke="#2a3240" stroke-width="1"/><text x="48" y="236.2" fill="#8b96a5" font-size="11" text-anchor="end">100</text><line x1="56" y1="174.4" x2="722" y2="174.4" stroke="#2a3240" stroke-width="1"/><text x="48" y="178.4" fill="#8b96a5" font-size="11" text-anchor="end">200</text><line x1="56" y1="116.7" x2="722" y2="116.7" stroke="#2a3240" stroke-width="1"/><text x="48" y="120.7" fill="#8b96a5" font-size="11" text-anchor="end">300</text><line x1="56" y1="58.9" x2="722" y2="58.9" stroke="#2a3240" stroke-width="1"/><text x="48" y="62.9" fill="#8b96a5" font-size="11" text-anchor="end">400</text><text x="56.0" y="308" fill="#8b96a5" font-size="11" text-anchor="middle">4k</text><text x="189.2" y="308" fill="#8b96a5" font-size="11" text-anchor="middle">8k</text><text x="322.4" y="308" fill="#8b96a5" font-size="11" text-anchor="middle">16k</text><text x="455.6" y="308" fill="#8b96a5" font-size="11" text-anchor="middle">32k</text><text x="588.8" y="308" fill="#8b96a5" font-size="11" text-anchor="middle">64k</text><text x="722.0" y="308" fill="#8b96a5" font-size="11" text-anchor="middle">128k</text><text x="16" y="18" fill="#8b96a5" font-size="11">pp tok/s</text><text x="389.0" y="332" fill="#8b96a5" font-size="11" text-anchor="middle">context depth (log scale)</text><rect x="322.4" y="30" width="77.9" height="260" fill="#8b96a5" opacity="0.10"/><text x="361.4" y="44" fill="#8b96a5" font-size="11" text-anchor="middle">crossover</text><polyline points="56.0,40.0 189.2,61.3 322.4,95.5" fill="none" stroke="#d95926" stroke-width="2.5"/><polyline points="56.0,90.0 189.2,137.1 322.4,185.9 400.3,211.3 455.6,226.5 533.5,244.5 588.8,254.7" fill="none" stroke="#3987e5" stroke-width="2.5"/><polyline points="455.6,229.6 588.8,256.7" fill="none" stroke="#199e70" stroke-width="2.5"/><path d="M 394.3 272.4 l 12 12 M 406.3 272.4 l -12 12" stroke="#e5675c" stroke-width="2.5" fill="none"><title>fa-off: hard hang, zero rows (24k and 32k)</title></path><text x="410.3" y="282.4" fill="#e5675c" font-size="11">fa-off hangs &#8805;24k</text><path d="M 716.0 272.4 l 12 12 M 728.0 272.4 l -12 12" stroke="#e5675c" stroke-width="2.5" fill="none"><title>q8-KV at 128k: empty result (75 min, loader banner then silence)</title></path><text x="712.0" y="282.4" fill="#e5675c" font-size="11" text-anchor="end">128k empty</text><circle cx="56.0" cy="40.0" r="4.5" fill="#d95926" stroke="#1a1f27" stroke-width="2"><title>fa-off / 4k ctx / 432.7 tok-s</title></circle><circle cx="189.2" cy="61.3" r="4.5" fill="#d95926" stroke="#1a1f27" stroke-width="2"><title>fa-off / 8k ctx / 395.9 tok-s</title></circle><circle cx="322.4" cy="95.5" r="4.5" fill="#d95926" stroke="#1a1f27" stroke-width="2"><title>fa-off / 16k ctx / 336.6 tok-s</title></circle><circle cx="56.0" cy="90.0" r="4.5" fill="#3987e5" stroke="#1a1f27" stroke-width="2"><title>fa-on / 4k ctx / 346.2 tok-s</title></circle><circle cx="189.2" cy="137.1" r="4.5" fill="#3987e5" stroke="#1a1f27" stroke-width="2"><title>fa-on / 8k ctx / 264.7 tok-s</title></circle><circle cx="322.4" cy="185.9" r="4.5" fill="#3987e5" stroke="#1a1f27" stroke-width="2"><title>fa-on / 16k ctx / 180.1 tok-s</title></circle><circle cx="400.3" cy="211.3" r="4.5" fill="#3987e5" stroke="#1a1f27" stroke-width="2"><title>fa-on / 24k ctx / 136.2 tok-s</title></circle><circle cx="455.6" cy="226.5" r="4.5" fill="#3987e5" stroke="#1a1f27" stroke-width="2"><title>fa-on / 32k ctx / 109.9 tok-s</title></circle><circle cx="533.5" cy="244.5" r="4.5" fill="#3987e5" stroke="#1a1f27" stroke-width="2"><title>fa-on / 48k ctx / 78.7 tok-s</title></circle><circle cx="588.8" cy="254.7" r="4.5" fill="#3987e5" stroke="#1a1f27" stroke-width="2"><title>fa-on / 64k ctx / 61.1 tok-s</title></circle><circle cx="455.6" cy="229.6" r="4.5" fill="#199e70" stroke="#1a1f27" stroke-width="2"><title>q8-KV (fa-on) / 32k ctx / 104.5 tok-s</title></circle><circle cx="588.8" cy="256.7" r="4.5" fill="#199e70" stroke="#1a1f27" stroke-width="2"><title>q8-KV (fa-on) / 64k ctx / 57.6 tok-s</title></circle><text x="64.0" y="32.0" fill="#d8dee8" font-size="12" font-weight="600">fa-off 433</text><text x="66.0" y="120.0" fill="#d8dee8" font-size="12" font-weight="600">fa-on 346</text><text x="447.6" y="247.6" fill="#d8dee8" font-size="12" font-weight="600" text-anchor="end">q8-KV 104.5</text><rect x="462" y="28" width="10" height="10" rx="2" fill="#3987e5"/><text x="476" y="37" fill="#8b96a5" font-size="11">fa-on</text><rect x="550" y="28" width="10" height="10" rx="2" fill="#d95926"/><text x="564" y="37" fill="#8b96a5" font-size="11">fa-off</text><rect x="638" y="28" width="10" height="10" rx="2" fill="#199e70"/><text x="652" y="37" fill="#8b96a5" font-size="11">q8-KV</text></svg>
+
+<table>
+<tr><th>Depth</th><th>fa-off</th><th>fa-on</th><th>q8-KV (fa-on)</th></tr>
+<tr><td>4k</td><td><b>432.7</b></td><td>346.2</td><td class="dim">&#8212;</td></tr>
+<tr><td>8k</td><td><b>395.9</b></td><td>264.7</td><td class="dim">&#8212;</td></tr>
+<tr><td>16k</td><td><b>336.6</b></td><td>180.1</td><td class="dim">&#8212;</td></tr>
+<tr><td>24k</td><td class="bad">hang (36 min, 0 rows)</td><td>136.2</td><td class="dim">&#8212;</td></tr>
+<tr><td>32k</td><td class="bad">hang (50 min, 0 rows)</td><td>109.9</td><td>104.5</td></tr>
+<tr><td>48k</td><td class="dim">&#8212;</td><td>78.7</td><td class="dim">&#8212;</td></tr>
+<tr><td>64k</td><td class="dim">&#8212;</td><td>61.1</td><td>57.6</td></tr>
+<tr><td>128k</td><td class="dim">&#8212;</td><td class="dim">&#8212;</td><td class="bad">empty (75 min)</td></tr>
+</table>
+<p class="dim">Read: below the crossover band fa-off is worth up to +87%; past it, only fa-on survives, and q8-KV rides fa-on at a ~5&#8211;6% tax. All values pp tok/s, llama.cpp b10549 Vulkan, layer-split -ts 1,1.</p>
+
+<h3>Concurrency ladder &#8212; the knee that would not move</h3>
+
+<svg viewBox="0 0 740 380" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Concurrency ladder: aggregate throughput and p95 latency versus parallel slots" style="max-width:100%;height:auto"><line x1="56" y1="208.0" x2="722" y2="208.0" stroke="#2a3240" stroke-width="1"/><text x="48" y="212.0" fill="#8b96a5" font-size="11" text-anchor="end">0</text><line x1="56" y1="163.0" x2="722" y2="163.0" stroke="#2a3240" stroke-width="1"/><text x="48" y="167.0" fill="#8b96a5" font-size="11" text-anchor="end">50</text><line x1="56" y1="118.0" x2="722" y2="118.0" stroke="#2a3240" stroke-width="1"/><text x="48" y="122.0" fill="#8b96a5" font-size="11" text-anchor="end">100</text><line x1="56" y1="73.0" x2="722" y2="73.0" stroke="#2a3240" stroke-width="1"/><text x="48" y="77.0" fill="#8b96a5" font-size="11" text-anchor="end">150</text><line x1="56" y1="28.0" x2="722" y2="28.0" stroke="#2a3240" stroke-width="1"/><text x="48" y="32.0" fill="#8b96a5" font-size="11" text-anchor="end">200</text><text x="16" y="18" fill="#8b96a5" font-size="11">aggregate tok/s</text><rect x="523.3" y="28" width="198.7" height="180" fill="#e5675c" opacity="0.08"/><rect x="523.3" y="254" width="198.7" height="90" fill="#e5675c" opacity="0.08"/><line x1="523.3" y1="28" x2="523.3" y2="344" stroke="#e5675c" stroke-width="1.5" stroke-dasharray="5 4"/><text x="287.0" y="44" fill="#e5675c" font-size="12" font-weight="600">the cliff: same knee as 2026-05, with 78 GB commit free</text><polyline points="93.6,172.2 147.3,143.6 254.7,106.4 362.1,77.9 469.6,51.8 577.0,137.8 684.4,123.9" fill="none" stroke="#3987e5" stroke-width="2.5"/><circle cx="93.6" cy="172.2" r="4.5" fill="#3987e5" stroke="#1a1f27" stroke-width="2"><title>np=1 / 39.8 tok-s aggregate</title></circle><circle cx="147.3" cy="143.6" r="4.5" fill="#3987e5" stroke="#1a1f27" stroke-width="2"><title>np=2 / 71.6 tok-s aggregate</title></circle><circle cx="254.7" cy="106.4" r="4.5" fill="#3987e5" stroke="#1a1f27" stroke-width="2"><title>np=4 / 112.9 tok-s aggregate</title></circle><circle cx="362.1" cy="77.9" r="4.5" fill="#3987e5" stroke="#1a1f27" stroke-width="2"><title>np=6 / 144.5 tok-s aggregate</title></circle><circle cx="469.6" cy="51.8" r="4.5" fill="#3987e5" stroke="#1a1f27" stroke-width="2"><title>np=8 / 173.5 tok-s aggregate</title></circle><circle cx="577.0" cy="137.8" r="4.5" fill="#3987e5" stroke="#1a1f27" stroke-width="2"><title>np=10 / 78.0 tok-s aggregate</title></circle><circle cx="684.4" cy="123.9" r="4.5" fill="#3987e5" stroke="#1a1f27" stroke-width="2"><title>np=12 / 93.4 tok-s aggregate</title></circle><text x="469.6" y="31.3" fill="#d8dee8" font-size="12" font-weight="600" text-anchor="middle">183 peak at N*=8</text><text x="577.0" y="157.8" fill="#d8dee8" font-size="12" text-anchor="middle">80</text><line x1="56" y1="344.0" x2="722" y2="344.0" stroke="#2a3240" stroke-width="1"/><text x="48" y="348.0" fill="#8b96a5" font-size="11" text-anchor="end">0</text><line x1="56" y1="309.4" x2="722" y2="309.4" stroke="#2a3240" stroke-width="1"/><text x="48" y="313.4" fill="#8b96a5" font-size="11" text-anchor="end">10</text><line x1="56" y1="274.8" x2="722" y2="274.8" stroke="#2a3240" stroke-width="1"/><text x="48" y="278.8" fill="#8b96a5" font-size="11" text-anchor="end">20</text><text x="16" y="244" fill="#8b96a5" font-size="11">p95 request latency (s)</text><polyline points="93.6,337.1 147.3,334.7 254.7,329.5 362.1,325.5 469.6,322.7 577.0,265.6 684.4,265.1" fill="none" stroke="#d95926" stroke-width="2.5"/><circle cx="93.6" cy="337.1" r="4.5" fill="#d95926" stroke="#1a1f27" stroke-width="2"><title>np=1 / p95 2.0s</title></circle><circle cx="147.3" cy="334.7" r="4.5" fill="#d95926" stroke="#1a1f27" stroke-width="2"><title>np=2 / p95 2.7s</title></circle><circle cx="254.7" cy="329.5" r="4.5" fill="#d95926" stroke="#1a1f27" stroke-width="2"><title>np=4 / p95 4.2s</title></circle><circle cx="362.1" cy="325.5" r="4.5" fill="#d95926" stroke="#1a1f27" stroke-width="2"><title>np=6 / p95 5.35s</title></circle><circle cx="469.6" cy="322.7" r="4.5" fill="#d95926" stroke="#1a1f27" stroke-width="2"><title>np=8 / p95 6.15s</title></circle><circle cx="577.0" cy="265.6" r="4.5" fill="#d95926" stroke="#1a1f27" stroke-width="2"><title>np=10 / p95 22.65s</title></circle><circle cx="684.4" cy="265.1" r="4.5" fill="#d95926" stroke="#1a1f27" stroke-width="2"><title>np=12 / p95 22.8s</title></circle><text x="577.0" y="255.6" fill="#d8dee8" font-size="12" text-anchor="middle">22.7 s</text><text x="93.6" y="362" fill="#8b96a5" font-size="11" text-anchor="middle">1</text><text x="147.3" y="362" fill="#8b96a5" font-size="11" text-anchor="middle">2</text><text x="254.7" y="362" fill="#8b96a5" font-size="11" text-anchor="middle">4</text><text x="362.1" y="362" fill="#8b96a5" font-size="11" text-anchor="middle">6</text><text x="469.6" y="362" fill="#8b96a5" font-size="11" text-anchor="middle">8</text><text x="577.0" y="362" fill="#8b96a5" font-size="11" text-anchor="middle">10</text><text x="684.4" y="362" fill="#8b96a5" font-size="11" text-anchor="middle">12</text><text x="389.0" y="374" fill="#8b96a5" font-size="11" text-anchor="middle">parallel slots (-np), Qwen3-30B-A3B dual-split</text></svg>
+<p class="dim">Aggregate climbs to N*=8, then collapses with p95 exploding 6&#8594;22 s &#8212; the same shape the 32 GB box produced, now with commit provably not the constraint. Admission control pins at 8.</p>
+
+<h2>Findings along the way</h2>
+<table>
+<tr><th>#</th><th>Finding</th></tr>
+<tr><td>F1</td><td><b class="good">COOPMAT un-retired</b> — the ADR-021-era <code>GGML_VK_DISABLE_COOPMAT=1</code> TDR defense cost 2× prompt processing on driver 8974 (720 → 1451/1474 pp tok/s), zero TDRs on retest. Default flipped to ON in the harness preamble; Stage 3's soak is the extended trial.</td></tr>
+<tr><td>F2</td><td><b class="warn">The commit thief</b> — OllamaBoot's serve (silently CPU-only since the 5070 left) held two resident model runners (17.4 + 48 GB private) from the boot sentinel probe onward: commit 92.1% with 75 GB physical free. Mechnet VMs were the visible suspect; the door's own default rung was the actual occupant. Stopped + disabled (elevated one-shot, ADR-0032 pattern). <b>Ruling (Derek, Phase R): OllamaBoot STAYS disabled</b> — its lifetime ledger reads net negative; pins require a deliberate start.</td></tr>
+<tr><td>F3</td><td><b class="bad">Poisoned-load demonstration (live, unplanned)</b> — the first Stage 2 dual-70B bench loaded while commit sat at 92%: pp1024 = <b>11.8 tok/s</b> vs the ≥150 floor (0.08×). Killing the co-tenant afterward did NOT recover it — placement decided at load time is permanent for the process. On the old 32 GB box this failure killed runs; on 128 GB it merely <i>degrades silently</i> — which makes the <b>pre-load admission probe</b> (DXGI budget + commit headroom) MORE load-bearing, not less. Adopted as a campaign convention: probe before every model load. Evidence: <code>results\stage2-bench70b-*-POISONED-cotenant-load.jsonl</code>. This is denning H1 reproduced on the new platform in the first two hours.</td></tr>
+<tr><td>F4</td><td><b>Commit, not free RAM, is still the wall</b> (old L2, re-confirmed on 128 GB) — watchdog rule switched from percent (90%) to headroom (&lt; 6 GB available commit) so honest no-mmap 70B loads don't false-abort.</td></tr>
+<tr><td>F5</td><td><b class="warn">The observer killed the experiment</b> — an msys <code>tail -f</code> on the soak's summary log intermittently held it without write-share; the driver's log write threw at 23:04 and the first soak launch died <i>while its bench ran on healthily</i>. Fixes: logging made weaker than the experiment (retry ×3 → console-only, never throw), and log readers use <code>Get-Content -Wait</code> (full share). The 2026-06 telemetry-disagreement lesson has a sibling: <i>instrument-vs-experiment interference is a real failure class on Windows file semantics</i>.</td></tr>
+<tr><td>F7</td><td><b class="warn">VRAM grazed the ceiling: 94 °C peak on one card (abort line = 95), the other 86 °C</b> — an 8 °C card-to-card delta under identical load is the airflow diagnostic Derek predicted. GPU cores stayed ≤81 °C. Before Stage 7/8 escalate: case fan curve / card spacing review, or the finale trips the watchdog. The hotter card is at PCI 04:00.0.
+<span class="dim">Ambient note (Derek, 2026-08-21): sustained load is heat-soaking the whole office — walls, desk. Room ambient is now a rising variable under the overnight numbers, and relocation to another room is on the table; the always-on rung makes this a permanent ~28 W idle / ~350 W loaded space heater.</span></td></tr>
+<tr><td>F6</td><td><b>Deep-context pp needs a time model</b> — pp49152 on the 70B ≈ 25 min/double-rep (the 60-min leg cap killed a healthy run mid-test; peaks that window: GPU 79 °C, VRAM 86 °C, watchdog clean). Stage 3 restructured: r=1 at ≥32k depth, <code>-n 0</code> (tg comes from Stage 4 servers), caps sized from the measured 4k–32k curve (346→110 pp tok/s). Bench legs are now resumable (stable filenames + skip-if-complete), so a killed night re-launches without re-spending finished legs.</td></tr>
+</table>
+
+<div class="note"><b>Old-box reference floors</b> (same cards, Win10, driver 8801/8826, 32 GB DDR4):
+14B single-card 42.4/50.1 gen tok/s · 32B 23.7 · Qwen3-30B-A3B dual 81.7 · 70B dual 151.4 pp / 11.28 gen · gpt-oss-120b ≥21 (AM4/Linux).
+No pooling on Windows (no P2P, 6.48 GB/s host-bounced); <code>-fit off</code> mandatory (auto-fitter silently spills to shared memory);
+demotion cliff = VidMm eviction at 0.19× decode, defense is admission control on the live DXGI budget.</div>
+
+<p class="dim">Generated during the campaign session of 2026-08-20; updated at every stage close.</p>
+</body>
+</html>

@@ -33,7 +33,8 @@ GEMINI_PRICING_USD_PER_MTOK: dict[str, dict[str, Optional[float]]] = {
 # Matches hearth.projection.economics.COST_CLASS_MAP's existing "sunk"
 # classification: these backends have $0 marginal cost, so no pricing lookup
 # is needed (or possible -- they aren't priced per-token at all).
-SUNK_BACKENDS: frozenset[str] = frozenset({"omen-ollama", "am4-oxen", "am4-moe"})
+SUNK_BACKENDS: frozenset[str] = frozenset(
+    {"omen-arc", "omen-arc-oss", "omen-ollama", "am4-oxen", "am4-moe"})
 
 
 def cost_usd(backend: Optional[str], model: Optional[str],

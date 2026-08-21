@@ -200,8 +200,12 @@ class ProbeRegistryTests(TestCase):
         registered against the render-node fuser probe, but every resident
         llama-server holds both render nodes by design — so it read busy forever
         and every ledger event carried a dead signal."""
-        self.assertIs(_PROBES["am4-oxen"], probe_oxen_facade)
-        self.assertIs(_PROBES["am4-moe"], probe_moe_slots)
+        # ADR-0034: the am4 rungs are tombstones and their probes are removed
+        # (a probe that can only answer "unreachable" is decoration); the live
+        # rung is omen-arc with the parametrized slots probe.
+        self.assertIn("omen-arc", _PROBES)
+        self.assertNotIn("am4-oxen", _PROBES)
+        self.assertNotIn("am4-moe", _PROBES)
         self.assertNotIn(probe_render_owners, _PROBES.values())
 
 
@@ -303,9 +307,9 @@ class OccupancyCacheTests(TestCase):
 
 
 class CheckOccupancyTests(TestCase):
-    def test_am4_moe_uses_the_injected_cache_and_probe(self) -> None:
+    def test_omen_arc_uses_the_injected_cache_and_probe(self) -> None:
         cache = OccupancyCache(ttl_s=60.0, probe=lambda: {"occupancy": "busy", "detail": "x"})
-        result = check_occupancy("am4-moe", cache=cache)
+        result = check_occupancy("omen-arc", cache=cache)
         self.assertEqual(result["occupancy"], "busy")
 
     def test_backend_without_a_declared_probe_reports_available(self) -> None:
@@ -313,10 +317,12 @@ class CheckOccupancyTests(TestCase):
         self.assertEqual(result["occupancy"], "available")
         self.assertIn("no occupancy probe declared", result["detail"])
 
-    def test_am4_oxen_uses_the_injected_cache_and_probe(self) -> None:
+    def test_tombstone_rung_with_injected_cache_reports_available(self) -> None:
+        # A name absent from the registry short-circuits to "available" even
+        # with a cache present (the no-probe guard) — the tombstones ride this.
         cache = OccupancyCache(ttl_s=30.0, probe=lambda: {"occupancy": "busy"})
         result = check_occupancy("am4-oxen", cache=cache)
-        self.assertEqual(result["occupancy"], "busy")
+        self.assertEqual(result["occupancy"], "available")
 
 
 class ResolveForLaneTests(TestCase):
@@ -336,18 +342,18 @@ class ResolveForLaneTests(TestCase):
 class LeaseTests(TestCase):
     def test_acquire_lease_opportunistic_busy_refused(self) -> None:
         cache = OccupancyCache(ttl_s=30.0, probe=lambda: {"occupancy": "busy"})
-        lease = acquire_lease("am4-oxen", pinned=False, cache=cache)
+        lease = acquire_lease("omen-arc", pinned=False, cache=cache)
         self.assertIsInstance(lease, Lease)
         self.assertFalse(lease.granted)
 
     def test_acquire_lease_available_granted(self) -> None:
         cache = OccupancyCache(ttl_s=30.0, probe=lambda: {"occupancy": "available"})
-        lease = acquire_lease("am4-oxen", pinned=False, cache=cache)
+        lease = acquire_lease("omen-arc", pinned=False, cache=cache)
         self.assertTrue(lease.granted)
 
     def test_acquire_lease_pinned_unknown_still_granted(self) -> None:
         cache = OccupancyCache(ttl_s=30.0, probe=lambda: {"occupancy": "unknown"})
-        lease = acquire_lease("am4-oxen", pinned=True, cache=cache)
+        lease = acquire_lease("omen-arc", pinned=True, cache=cache)
         self.assertTrue(lease.granted)
 
     def test_renew_reprobes_and_can_flip_to_refused(self) -> None:
@@ -357,7 +363,7 @@ class LeaseTests(TestCase):
             return {"occupancy": state["occupancy"]}
 
         cache = OccupancyCache(ttl_s=30.0, probe=probe)
-        lease = acquire_lease("am4-oxen", pinned=False, cache=cache)
+        lease = acquire_lease("omen-arc", pinned=False, cache=cache)
         self.assertTrue(lease.granted)
 
         state["occupancy"] = "busy"
@@ -376,7 +382,7 @@ class LeaseTests(TestCase):
             return {"occupancy": state["occupancy"]}
 
         cache = OccupancyCache(ttl_s=300.0, probe=probe, clock=lambda: clock["t"])
-        lease = acquire_lease("am4-oxen", pinned=False, cache=cache)
+        lease = acquire_lease("omen-arc", pinned=False, cache=cache)
         self.assertTrue(lease.granted)
 
         state["occupancy"] = "busy"

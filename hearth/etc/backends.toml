@@ -36,7 +36,10 @@
 
 # Name of the backend used when nothing else matches. (Top-level keys MUST
 # precede any [table] header — TOML swallows later bare keys into the table.)
-default = "omen-ollama"
+# 2026-08-21 (ADR-0034): omen-arc — the dual-B70 Qwen3-30B-A3B llama-server on
+# OMEN itself. Chosen by Derek from the OMEN-LIMIT-TEST-2026-08 bake-off
+# scorecard: 95 tok/s single-stream, 116 aggregate at -np 4, p95 4.1 s.
+default = "omen-arc"
 
 # A4: shared GCP trial-credit runway. Burn is measured from
 # knowledge/offload.json (per_class.trial, input+output); when burn crosses
@@ -48,12 +51,80 @@ budget_tokens  = 200000000
 reserve_tokens = 20000000
 
 [[backend]]
-name     = "omen-ollama"
+name     = "omen-arc"                         # THE DOOR DEFAULT (ADR-0034, 2026-08-21):
+                                              # Qwen3-30B-A3B-Instruct-2507 Q4_K_M dual-split
+                                              # across OMEN's two Arc Pro B70s, llama.cpp
+                                              # b10549 Vulkan, native Windows. Proven in the
+                                              # OMEN-LIMIT-TEST-2026-08 campaign: Q4 200-row
+                                              # CV 2.3%, zero TDR/WHEA over ~6.5 h soak.
+endpoint = "http://127.0.0.1:8082"            # loopback; port mirrors the old moe convention
+api      = "openai"                           # /v1/chat/completions
+auth_env = "OMEN_ARC_TOKEN"                   # REQUIRED even on loopback (inference.py gates
+                                              # api="openai" on a present bearer); set in
+                                              # hearth/var/gateway.cmd and passed to
+                                              # llama-server as --api-key by serve-arc.cmd.
+models   = ["qwen3-30b-a3b"]                  # served via --alias qwen3-30b-a3b
+tags     = ["default", "code", "big-context", "research", "second-opinion", "reasoning"]
+# Occupancy: llama-server /slots probe (occupancy.probe_omen_arc_slots), same
+# goodput policy as the old moe rung: all slots busy -> opportunistic traffic
+# skips; pinned calls wait in llama-server's own queue.
+[backend.settings]
+node                = "omen"
+hardware_profile_id = "omen-285k-dual-b70-2026H2"   # rebuilt box, 2026-08-20 (ADR-0027 hand-bump)
+# A1 payload budget: -np 4 slots over -c 65536 => 16k tokens per slot; ~14k of
+# that as payload at the ~4 bytes/token convention (same arithmetic as the old
+# am4-moe rung). Serving flags per the campaign: -sm layer -ts 1,1 -fa on
+# (rung ctx is past the 16-24k FA crossover) -fit off --no-mmap.
+context_bytes = 57344
+max_tokens = 8192
+timeout_s = 1000
+# Verified live in the Stage 6/7 waves (-np 4); Q3 knee study says 8 is the
+# aggregate peak — held at 4 for latency headroom, revisit with capacity data.
+parallel_slots = 4
+
+[[backend]]
+name     = "omen-arc-oss"                     # BANKED FIRE (pin-only, NOT resident):
+                                              # gpt-oss-120b MXFP4 dual-split on the same
+                                              # two B70s. No tags — light it deliberately
+                                              # (fleet/arcserve/serve-arc-oss.cmd), then pin
+                                              # backend="omen-arc-oss". Bake-off numbers:
+                                              # 14.7 tok/s single-stream, p95 25-32 s at
+                                              # -np 4 -c 65536 (0.9 GiB non-local — prefer
+                                              # q8-KV at 65k, tax measured at ~5-6%).
+                                              # MUTUAL EXCLUSION with omen-arc is NOT
+                                              # enforced (the am4 lesson): stop the resident
+                                              # rung first or both degrade.
+endpoint = "http://127.0.0.1:8083"
+api      = "openai"
+auth_env = "OMEN_ARC_TOKEN"
+models   = ["gpt-oss-120b"]
+tags     = []                                 # pin-only by design
+[backend.settings]
+node                = "omen"
+hardware_profile_id = "omen-285k-dual-b70-2026H2"
+context_bytes = 57344
+max_tokens = 12288                            # reasoning-format model (harmony channels):
+                                              # generous output cap, not a charge
+timeout_s = 1000
+parallel_slots = 4
+
+[[backend]]
+name     = "omen-ollama"                      # DEMOTED from routing 2026-08-21 (ADR-0034):
+                                              # the RTX 5070 left OMEN in the rebuild and
+                                              # stock Ollama on Arc silently serves CPU-only
+                                              # (proven May 2026, re-observed 2026-08-20 as
+                                              # the "commit thief": resident CPU runners
+                                              # holding 65 GB). Pin-only until an
+                                              # Arc-accelerated Ollama path is validated.
 endpoint = "http://127.0.0.1:11434"
 api      = "ollama"                          # /api/generate
 models   = ["qwen3-coder:30b"]
-tags     = ["default", "code"]
+tags     = []                                # was ["default", "code"] — stripped with the demotion
 revive   = "start_ollama"                    # HEARTH summon tool (consumed in P4)
+# NOTE 2026-08-21: OllamaBoot is DISABLED and STAYS disabled (Derek: "more
+# headaches than it's saved" — tray-updater wars, zombie installs, the 65 GB
+# commit thief). A pin needs a deliberate `Start-ScheduledTask OllamaBoot`
+# first; serving is CPU-only on this hardware regardless.
 [backend.settings]
 # ADR-0027: `node` is the machine that EXECUTES a dispatch, stamped as builder_id on
 # capacity observations. Distinct from the caller (which becomes workflow_id) on purpose:
@@ -62,23 +133,28 @@ revive   = "start_ollama"                    # HEARTH summon tool (consumed in P
 # one. `hardware_profile_id` keeps a capability from silently spanning a hardware change;
 # bump it BY HAND when the box changes.
 node                = "omen"
-hardware_profile_id = "omen-rtx5070-2026H2"
+hardware_profile_id = "omen-285k-dual-b70-2026H2"   # bumped 2026-08-21: the 5070-era box is gone
 # A1 payload budget: ≈24k tokens of a 32k config, conservative. Payloads over
 # this route past the default to a big-context/cloud rung (select_backend).
 context_bytes = 98304
 
 [[backend]]
-name     = "am4-moe"                          # the resident big MoE — gpt-oss-120b across
-                                              # BOTH B70s (llama-server layer-split, :8082).
-                                              # Steady-state tenant of the cards: replaces
-                                              # b70-planner/critic residency (those become
-                                              # deliberate pin-and-wake only; see am4-oxen).
+name     = "am4-moe"                          # ☠ DEAD 2026-08-20 (ADR-0034): the B70s and
+                                              # the model drive moved INTO OMEN in the
+                                              # rebuild — this endpoint can never serve
+                                              # again as declared. Kept as a tombstone
+                                              # (tags stripped so nothing routes here);
+                                              # AM4 returns later as a CUDA node with the
+                                              # RTX 5070. The gpt-oss-120b role lives on
+                                              # as omen-arc-oss; the config below is the
+                                              # historical record of the AM4 deployment.
 endpoint = "http://192.168.12.233:8082"       # AM4 over LAN (ADR-0014); llama-server binds
                                               # 0.0.0.0:8082 with --api-key bearer auth.
 api      = "openai"                           # /v1/chat/completions
 auth_env = "AM4_OXEN_TOKEN"                   # same token the facade lane already uses
 models   = ["gpt-oss-120b"]                   # served via --alias gpt-oss-120b
-tags     = ["big-context", "research", "second-opinion", "reasoning"]
+tags     = []                                 # was big-context/research/second-opinion/reasoning
+                                              # — all moved to omen-arc (ADR-0034)
 # Occupancy: HTTP slot/KV probe (occupancy.probe_moe_slots) — NOT the render-node
 # fuser probe: this rung's own llama-server always holds both cards, so "someone
 # holds the render nodes" would read permanently busy. Goodput policy: all slots
@@ -123,7 +199,9 @@ timeout_s = 1000
 parallel_slots = 4
 
 [[backend]]
-name     = "am4-oxen"                          # the banked fire — dual-B70 Qwen3-30B
+name     = "am4-oxen"                          # ☠ DEAD 2026-08-20 (ADR-0034): cards moved to
+                                               # OMEN; see am4-moe tombstone. Was: the banked
+                                               # fire — dual-B70 Qwen3-30B
 endpoint = "http://192.168.12.233:8090"       # AM4 over LAN (ufw 8090 ALLOW 192.168.12.0/24,
                                               # added 2026-07-09) — machine lanes stay off the
                                               # tailnet (ADR-0014)
@@ -136,7 +214,7 @@ auth_env = "AM4_OXEN_TOKEN"                   # SAME name the fleet already uses
 models   = ["oxen"]                           # facade-advertised id (GET /v1/models);
                                               # dual-B70 Qwen3-30B behind the oxen alias.
                                               # (was "qwen3-30b" — not a real id → 404.)
-tags     = ["oxen-planner"]                   # DEMOTED from opportunistic routing —
+tags     = []                                 # was ["oxen-planner"]; DEMOTED from opportunistic routing —
                                               # big-context/research/second-opinion moved
                                               # to am4-moe (gpt-oss-120b holds both cards
                                               # steady-state per ADR-0018). Pin by name

@@ -113,21 +113,24 @@ def probe_render_owners(runner: Callable[..., subprocess.CompletedProcess] = sub
 # reports "busy" so opportunistic traffic steers away; pinned calls still
 # dispatch and wait in llama-server's internal request queue.
 
-MOE_SLOTS_URL = "http://192.168.12.233:8082/slots"  # LAN, not tailnet (ADR-0014)
+MOE_SLOTS_URL = "http://192.168.12.233:8082/slots"  # LAN, not tailnet (ADR-0014); ☠ am4 tombstone
 AM4_TOKEN_ENV = "AM4_OXEN_TOKEN"  # both AM4 rungs share this bearer name (backends.toml auth_env)
+OMEN_ARC_SLOTS_URL = "http://127.0.0.1:8082/slots"  # the resident omen-arc llama-server (ADR-0034)
+OMEN_ARC_TOKEN_ENV = "OMEN_ARC_TOKEN"
 MOE_HTTP_TIMEOUT_S = 4.0
 MOE_KV_PRESSURE_MAX = 0.90
 
 
-def _http_get_json(url: str, timeout_s: float) -> tuple[Optional[object], Optional[str]]:
+def _http_get_json(url: str, timeout_s: float,
+                   token_env: str = AM4_TOKEN_ENV) -> tuple[Optional[object], Optional[str]]:
     """GET `url` and parse JSON. Returns (data, error); error is None on success.
 
-    Sends the AM4 bearer token when the env var is present: llama-server's /slots
+    Sends the named bearer token when the env var is present: llama-server's /slots
     sits behind --api-key along with the inference routes. (The oxen facade
     leaves /health open, so the header is merely harmless there.)
     """
     request = urllib.request.Request(url)
-    token = os.environ.get(AM4_TOKEN_ENV)
+    token = os.environ.get(token_env)
     if token:
         request.add_header("Authorization", f"Bearer {token}")
     try:
@@ -148,16 +151,20 @@ def _slot_is_processing(slot: dict) -> bool:
 
 
 def probe_moe_slots(fetch: Callable[[str, float], tuple[Optional[object], Optional[str]]] = _http_get_json,
-                    timeout_s: float = MOE_HTTP_TIMEOUT_S) -> dict:
-    """Probe the resident moe llama-server's slot/KV state over HTTP.
+                    timeout_s: float = MOE_HTTP_TIMEOUT_S,
+                    slots_url: str = MOE_SLOTS_URL) -> dict:
+    """Probe a llama-server's slot/KV state over HTTP (the goodput probe).
 
     Returns {"occupancy": ..., "detail": {...}} where detail carries the goodput
     signal (slots_total/slots_busy/slots_idle, kv_used_frac when the build
     exposes per-slot n_past/n_ctx). Fail-open discipline matches the SSH probe:
     unreachable, still-loading (HTTP 503), or unparseable all report "unknown" —
     opportunistic traffic skips, a pin proceeds.
+
+    Written for the am4-moe rung; kept name and defaults for the historical
+    tests, parametrized so omen-arc reuses the same body (ADR-0034).
     """
-    data, error = fetch(MOE_SLOTS_URL, timeout_s)
+    data, error = fetch(slots_url, timeout_s)
     if error is not None:
         return {"occupancy": "unknown", "detail": error}
     if not isinstance(data, list) or not data:
@@ -309,9 +316,22 @@ _NO_PROBE_DETAIL = "no occupancy probe declared for this backend"
 # signal that is pinned to one answer by the rung's own design is not a probe,
 # it is decoration on every ledger event (which is what "am4-oxen" ->
 # probe_render_owners had become — see the module docstring).
+def probe_omen_arc_slots() -> dict:
+    """Slot/KV goodput probe for the resident omen-arc llama-server (ADR-0034).
+
+    Same body as the moe probe, pointed at loopback :8082 with the OMEN token.
+    """
+    return probe_moe_slots(
+        fetch=lambda url, t: _http_get_json(url, t, token_env=OMEN_ARC_TOKEN_ENV),
+        slots_url=OMEN_ARC_SLOTS_URL,
+    )
+
+
 _PROBES: dict[str, Callable[[], dict]] = {
-    "am4-oxen": probe_oxen_facade,     # HTTP /health on the :8090 facade (is a model loaded?)
-    "am4-moe": probe_moe_slots,        # HTTP slot/KV goodput on the resident server
+    "omen-arc": probe_omen_arc_slots,  # HTTP slot/KV goodput on the resident rung (ADR-0034)
+    # am4-oxen / am4-moe probes removed 2026-08-21: those rungs are tombstones
+    # (cards moved into OMEN); a probe that can only ever answer "unreachable"
+    # is decoration, per this registry's own rule above.
 }
 
 

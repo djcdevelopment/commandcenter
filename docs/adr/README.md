@@ -42,6 +42,7 @@ record with its status changed and a pointer to the ADR that replaced it.
 | [0031](0031-a-pin-chooses-a-rung-not-a-waiver-of-arithmetic.md) | A pin chooses a rung; it does not waive arithmetic | Accepted and implemented (2026-08-06); makes every `context_bytes` load-bearing |
 | [0032](0032-ollama-updates-are-deliberate-not-ambient.md) | Ollama updates on OMEN are a deliberate act, not an ambient one | Accepted and implemented (2026-08-19); tray autostart retired, `fleet/update_ollama.ps1` is the lane |
 | [0033](0033-one-definition-of-a-run.md) | One definition of a run: the directory is the run, `result.json` is the only terminal marker | Accepted and implemented (2026-08-20); `nodes.json` no longer filters the guard dog's sweep |
+| [0034](0034-omen-dual-b70-rung.md) | The dual-B70 rung lives on OMEN itself: omen-arc is the door default | Accepted (2026-08-21); campaign-proven config, am4 rungs tombstoned, omen-ollama demoted |
 
 ## Historical note
 The "ADR-0001" referenced in `SESSION-RETRO-2026-06-29.md` (which orchestrator is

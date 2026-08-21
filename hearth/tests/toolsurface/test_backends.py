@@ -243,31 +243,34 @@ class PackagedPoolTests(TestCase):
         pool = load_pool()  # no env, no arg -> packaged default
         self.assertIsInstance(pool, Pool)
         names = {b.name for b in pool.backends}
-        self.assertIn("omen-ollama", names)
-        self.assertIn("am4-oxen", names)
-        self.assertIn("am4-moe", names)
-        self.assertIn("gcp-gemini", names)
-        self.assertIn("gcp-gemini-pro", names)
-        self.assertEqual(pool.by_name("am4-oxen").api, "openai")
-        self.assertEqual(pool.by_name("am4-moe").api, "openai")
+        for name in ("omen-arc", "omen-arc-oss", "omen-ollama",
+                     "am4-oxen", "am4-moe", "gcp-gemini", "gcp-gemini-pro"):
+            self.assertIn(name, names)
+        self.assertEqual(pool.by_name("omen-arc").api, "openai")
+        self.assertEqual(pool.by_name("omen-arc-oss").api, "openai")
         self.assertEqual(pool.by_name("gcp-gemini").api, "gemini")
         self.assertEqual(pool.by_name("gcp-gemini-pro").api, "gemini")
         self.assertEqual(pool.by_name("gcp-gemini").settings.get("max_tokens"), 16384)
         self.assertEqual(pool.by_name("gcp-gemini-pro").settings.get("max_tokens"), 16384)
-        self.assertEqual(pool.by_name("am4-moe").settings.get("max_tokens"), 12288)
-        # The residency handover: the resident moe carries the opportunistic
-        # tags; the single-card planner rung is pin-only (no shared tags left).
-        self.assertIn("big-context", pool.by_name("am4-moe").tags)
-        self.assertNotIn("big-context", pool.by_name("am4-oxen").tags)
+        # ADR-0034: omen-arc is the door default and carries the opportunistic
+        # tags; the banked-fire 120B and every tombstone rung are pin-only.
+        self.assertEqual(pool.default, "omen-arc")
+        self.assertIn("big-context", pool.by_name("omen-arc").tags)
+        self.assertIn("research", pool.by_name("omen-arc").tags)
+        self.assertEqual(pool.by_name("omen-arc-oss").tags, ())
+        self.assertEqual(pool.by_name("am4-moe").tags, ())     # ☠ tombstone
+        self.assertEqual(pool.by_name("am4-oxen").tags, ())    # ☠ tombstone
+        self.assertEqual(pool.by_name("omen-ollama").tags, ()) # demoted (CPU-only on Arc)
         self.assertEqual(pool.by_name("am4-oxen").revive, None)
         # A1: every packaged rung declares a payload budget.
-        for name in ("omen-ollama", "am4-oxen", "am4-moe", "gcp-gemini", "gcp-gemini-pro"):
+        for name in ("omen-arc", "omen-arc-oss", "omen-ollama",
+                     "am4-oxen", "am4-moe", "gcp-gemini", "gcp-gemini-pro"):
             self.assertIsNotNone(pool.by_name(name).context_bytes(), name)
-        # Both AM4 rungs serve 16k tokens per slot (oxen: -c 16384 -np 1; moe:
-        # -c 65536 -np 4), so both budget ≈14k of it as payload. Pinned to catch
-        # drift back to 114688, which claimed a 32k single-card ctx that the
-        # server behind the :8090 facade does not run — a ~20k-token payload
-        # routed as "fits" and then failed at the server (2026-07-30).
+        # omen-arc serves -c 65536 across -np 4 => 16k tokens/slot, ≈14k of it
+        # as payload at the ≈4 bytes/token convention (same arithmetic the old
+        # am4 rungs used; those pins stay to keep the tombstones honest).
+        self.assertEqual(pool.by_name("omen-arc").context_bytes(), 57344)
+        self.assertEqual(pool.by_name("omen-arc-oss").context_bytes(), 57344)
         self.assertEqual(pool.by_name("am4-oxen").context_bytes(), 57344)
         self.assertEqual(pool.by_name("am4-moe").context_bytes(), 57344)
 

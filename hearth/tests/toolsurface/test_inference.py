@@ -47,8 +47,10 @@ OLLAMA_REPLY = {
 
 class LocalGenerateTests(TestCase):
     def test_success_maps_ollama_fields(self) -> None:
+        # ADR-0034 moved the default to omen-arc (openai); ollama field mapping
+        # is now exercised via an explicit pin.
         with patch("urllib.request.urlopen", return_value=_FakeResponse(OLLAMA_REPLY)) as mocked:
-            result = local_generate("what burns at the center of the camp?")
+            result = local_generate("what burns at the center of the camp?", backend="omen-ollama")
 
         self.assertTrue(result["ok"])
         self.assertEqual(result["text"], "the answer")
@@ -66,7 +68,7 @@ class LocalGenerateTests(TestCase):
 
     def test_system_prompt_and_max_tokens_forwarded(self) -> None:
         with patch("urllib.request.urlopen", return_value=_FakeResponse(OLLAMA_REPLY)) as mocked:
-            local_generate("q", system="be brief", max_tokens=64)
+            local_generate("q", system="be brief", max_tokens=64, backend="omen-ollama")
         body = json.loads(mocked.call_args[0][0].data.decode("utf-8"))
         self.assertEqual(body["system"], "be brief")
         self.assertEqual(body["options"]["num_predict"], 64)
@@ -104,9 +106,15 @@ class LocalGenerateTests(TestCase):
             local_generate("ok", model="")
 
     def test_default_path_reports_backend_provenance(self) -> None:
-        with patch("urllib.request.urlopen", return_value=_FakeResponse(OLLAMA_REPLY)):
-            result = local_generate("hello")
-        self.assertEqual(result["backend"], "omen-ollama")
+        # ADR-0034: the pool default is the omen-arc llama-server (openai api).
+        # Unlike the old ollama default, this rung HAS a registry probe, so the
+        # occupancy reading is patched here to keep the test off the network.
+        with patch.dict(os.environ, {"OMEN_ARC_TOKEN": "sk-arc"}):
+            with patch("hearth.toolsurface.inference.check_occupancy",
+                       return_value={"occupancy": "available"}):
+                with patch("urllib.request.urlopen", return_value=_FakeResponse(OPENAI_REPLY)):
+                    result = local_generate("hello")
+        self.assertEqual(result["backend"], "omen-arc")
         self.assertEqual(result["routed_by"], "default")
         self.assertEqual(result["occupancy"], "available")
 
@@ -133,29 +141,29 @@ class BankedFireRoutingTests(TestCase):
         # "available" so they never make a live SSH probe to AM4.
         self.enterContext(_ALWAYS_AVAILABLE)
 
-    def test_task_research_routes_to_moe_openai(self) -> None:
-        # Residency handover: research/big-context/second-opinion now land on
-        # the resident gpt-oss-120b rung (am4-moe, :8082); the single-card
-        # planner (am4-oxen) is pin-only.
-        with patch.dict(os.environ, {"AM4_OXEN_TOKEN": "sk-oxen"}):
+    def test_task_research_routes_to_omen_arc_openai(self) -> None:
+        # ADR-0034: research/big-context/second-opinion land on the resident
+        # dual-B70 rung on OMEN itself (omen-arc, loopback :8082); the am4
+        # rungs are tombstones and omen-ollama is demoted (CPU-only on Arc).
+        with patch.dict(os.environ, {"OMEN_ARC_TOKEN": "sk-arc"}):
             with patch("urllib.request.urlopen",
                        return_value=_FakeResponse(OPENAI_REPLY)) as mocked:
                 result = local_generate("what is banked in the coals?", task="research")
 
         self.assertTrue(result["ok"])
         self.assertEqual(result["text"], "the banked answer")
-        self.assertEqual(result["backend"], "am4-moe")
+        self.assertEqual(result["backend"], "omen-arc")
         self.assertEqual(result["routed_by"], "tag:research")
         self.assertEqual(result["tokens_in"], 20)
         self.assertEqual(result["tokens_out"], 40)
 
         sent = mocked.call_args[0][0]
-        self.assertEqual(sent.full_url, "http://192.168.12.233:8082/v1/chat/completions")
-        self.assertEqual(sent.headers.get("Authorization"), "Bearer sk-oxen")
+        self.assertEqual(sent.full_url, "http://127.0.0.1:8082/v1/chat/completions")
+        self.assertEqual(sent.headers.get("Authorization"), "Bearer sk-arc")
         body = json.loads(sent.data.decode("utf-8"))
         self.assertEqual(body["messages"][-1], {"role": "user",
                                                 "content": "what is banked in the coals?"})
-        self.assertEqual(body["model"], "gpt-oss-120b")  # backend's declared default model
+        self.assertEqual(body["model"], "qwen3-30b-a3b")  # backend's declared default model
 
     def test_system_prompt_becomes_openai_system_message(self) -> None:
         with patch.dict(os.environ, {"AM4_OXEN_TOKEN": "sk-oxen"}):
@@ -424,38 +432,44 @@ class QualityRoutingTests(TestCase):
 
 
 class OccupancyRoutingTests(TestCase):
-    """P2: local_generate consults occupancy for tag-routed calls; a busy or
-    unknown oxen backend is skipped in favor of omen-ollama, and every result
-    carries the occupancy reading at decision time."""
+    """P2: local_generate consults occupancy for tag-routed calls. Post-ADR-0034
+    the default rung IS the tag-carrying rung (omen-arc), so a busy/unknown
+    reading no longer changes the destination — it falls through to the default
+    (never occupancy-gated) and waits in llama-server's own queue. The reading
+    still rides the result for the ledger."""
 
-    def test_busy_oxen_skipped_falls_back_to_ollama(self) -> None:
-        with patch("hearth.toolsurface.inference.check_occupancy",
-                   return_value={"occupancy": "busy"}):
-            with patch("urllib.request.urlopen",
-                       return_value=_FakeResponse(OLLAMA_REPLY)) as mocked:
-                result = local_generate("what is banked in the coals?", task="research")
+    def test_busy_arc_falls_through_to_default_same_rung(self) -> None:
+        with patch.dict(os.environ, {"OMEN_ARC_TOKEN": "sk-arc"}):
+            with patch("hearth.toolsurface.inference.check_occupancy",
+                       return_value={"occupancy": "busy"}):
+                with patch("urllib.request.urlopen",
+                           return_value=_FakeResponse(OPENAI_REPLY)) as mocked:
+                    result = local_generate("what is banked in the coals?", task="research")
         self.assertTrue(result["ok"])
-        self.assertEqual(result["backend"], "omen-ollama")
+        self.assertEqual(result["backend"], "omen-arc")
         self.assertEqual(result["routed_by"], "default")
         self.assertEqual(result["occupancy"], "busy")
-        self.assertEqual(mocked.call_args[0][0].full_url, "http://127.0.0.1:11434/api/generate")
+        self.assertEqual(mocked.call_args[0][0].full_url, "http://127.0.0.1:8082/v1/chat/completions")
 
-    def test_unknown_oxen_skipped_falls_back_to_ollama(self) -> None:
-        with patch("hearth.toolsurface.inference.check_occupancy",
-                   return_value={"occupancy": "unknown", "detail": "ssh timed out"}):
-            with patch("urllib.request.urlopen",
-                       return_value=_FakeResponse(OLLAMA_REPLY)):
-                result = local_generate("q", task="research")
-        self.assertEqual(result["backend"], "omen-ollama")
+    def test_unknown_arc_falls_through_to_default_same_rung(self) -> None:
+        with patch.dict(os.environ, {"OMEN_ARC_TOKEN": "sk-arc"}):
+            with patch("hearth.toolsurface.inference.check_occupancy",
+                       return_value={"occupancy": "unknown", "detail": "probe timed out"}):
+                with patch("urllib.request.urlopen",
+                           return_value=_FakeResponse(OPENAI_REPLY)):
+                    result = local_generate("q", task="research")
+        self.assertEqual(result["backend"], "omen-arc")
+        self.assertEqual(result["routed_by"], "default")
 
-    def test_available_moe_routes_and_reports_occupancy(self) -> None:
-        with patch.dict(os.environ, {"AM4_OXEN_TOKEN": "sk-oxen"}):
+    def test_available_arc_routes_by_tag_and_reports_occupancy(self) -> None:
+        with patch.dict(os.environ, {"OMEN_ARC_TOKEN": "sk-arc"}):
             with patch("hearth.toolsurface.inference.check_occupancy",
                        return_value={"occupancy": "available"}):
                 with patch("urllib.request.urlopen",
                            return_value=_FakeResponse(OPENAI_REPLY)):
                     result = local_generate("q", task="research")
-        self.assertEqual(result["backend"], "am4-moe")
+        self.assertEqual(result["backend"], "omen-arc")
+        self.assertEqual(result["routed_by"], "tag:research")
         self.assertEqual(result["occupancy"], "available")
 
     def test_pinned_backend_busy_still_dispatches_there(self) -> None:
@@ -494,7 +508,7 @@ class FilesPackingTests(TestCase):
         notes_path.write_text("EMBER-SENTINEL-77", encoding="utf-8")
 
         with patch("urllib.request.urlopen", return_value=_FakeResponse(OLLAMA_REPLY)) as mocked:
-            result = local_generate("what is the sentinel?", files=["notes.txt"])
+            result = local_generate("what is the sentinel?", files=["notes.txt"], backend="omen-ollama")
 
         self.assertTrue(result.get("ok"), result.get("error"))
         payload = json.loads(mocked.call_args[0][0].data.decode("utf-8"))
@@ -516,7 +530,7 @@ class FilesPackingTests(TestCase):
         self.enterContext(patch.dict(os.environ, {"HEARTH_SCOPE": scope}))
 
         with patch("urllib.request.urlopen", return_value=_FakeResponse(OLLAMA_REPLY)) as mocked:
-            result = local_generate("q", files=[str(other)])
+            result = local_generate("q", files=[str(other)], backend="omen-ollama")
 
         self.assertTrue(result.get("ok"), result.get("error"))
         payload = json.loads(mocked.call_args[0][0].data.decode("utf-8"))

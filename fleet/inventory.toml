@@ -55,7 +55,7 @@ address = "omen.mshome.net"
 alt = ["100.124.12.37"]   # tailnet identity stays (i5/phone reach it from another project)
 via = "mshome"
 expect = "up"
-purpose = "Hyper-V hypervisor + Ollama (:11434 loopback for the door, :11435 tracing proxy for the fleet) + HEARTH gateway (:8710). Hosts all builder VMs. THIS box."
+purpose = "Hyper-V hypervisor + HEARTH gateway (:8710) + omen-arc rung (llama-server :8082, dual Arc Pro B70, ADR-0034) + Ollama (:11434 loopback for the door, :11435 tracing proxy for the fleet; demoted CPU-only since the 5070 left in the 2026-08-20 rebuild). Hosts all builder VMs. THIS box."
 # `revive` (optional, per-check): a shell command the watchdog runs when this
 # service is down on an expect="up" node. Since ADR-0015 the watchdog is an
 # in-gateway daemon timer (the old mechnet-watchdog scheduled task is deregistered).
@@ -69,6 +69,7 @@ purpose = "Hyper-V hypervisor + Ollama (:11434 loopback for the door, :11435 tra
 #     Ollama with OTel tracing. VMs MUST use :11435.
 # Probing omen.mshome.net:11434 only ever generates a false alarm -- it cannot answer.
 checks = [
+  { service = "llama-server", port = 8082, host = "127.0.0.1" },
   { service = "ollama-fleet", port = 11435, host = "omen.mshome.net" },
   { service = "hearth-gateway", port = 8710, host = "127.0.0.1", revive = "C:\\work\\commandcenter\\fleet-worker-node\\.venv-omen\\Scripts\\python.exe -m hearth.callers.doorcheck --revive" },
   { service = "ollama-local", port = 11434, host = "127.0.0.1" },
@@ -96,8 +97,8 @@ alt = ["100.116.82.60", "am4.tail8e749c.ts.net"]   # tailscale STAYS on AM4 (gal
    # phone/i5 access) — but HEARTH/mechnet lanes use the LAN address (ADR-0014).
    # ufw: 22 + 8090 ALLOW from 192.168.12.0/24 (8090 rule added 2026-07-09).
 via = "lan"
-expect = "up"
-purpose = "AM4 inference + observability (OTel/Jaeger :16686). Local-model host. NOT a build VM."
+expect = "down"   # 2026-08-20: B70s + model drive moved into OMEN; box is dark
+purpose = "OFFLINE pending rebuild as a CUDA node (RTX 5070 incoming, Derek 2026-08-20). Was: AM4 inference + observability (OTel/Jaeger :16686). NOT a build VM."
 checks = [
   { service = "ssh", port = 22 },
   { service = "jaeger", port = 16686 },
@@ -197,9 +198,9 @@ checks = [
 name = "am4-worker-1"
 kind = "logical-builder"
 rides_on = "am4"
-model_backend = "127.0.0.1:8090"   # oxen (dual B70 Qwen3-30B), local to AM4
+model_backend = "127.0.0.1:8090"   # ☠ dead: oxen stack left with the cards (2026-08-20)
 via = "lan"
-expect = "up"
+expect = "down"   # pending the AM4 CUDA rebuild
 runner_class = "local"   # openai runner -> oxen (dual B70), AM4-local
 purpose = "AM4 local-model builder: openai runner -> oxen. Shell on AM4; farmer via cc-farmer tunnel."
 checks = [

@@ -116,6 +116,8 @@ MACRO_COLORS = {
     "Other": "#8b93a3",
 }
 BACKEND_COLORS = {
+    "omen-arc": "#3987e5",       # the door default (ADR-0034)
+    "omen-arc-oss": "#9085e9",   # banked-fire 120B, same cards
     "gcp-gemini-pro": "#49a4d5",
     "am4-moe": "#45b98b",
     "gcp-gemini": "#7eb1d1",

@@ -34,7 +34,7 @@ class PatrolTests(TestCase):
              "status": "ok", "winner": "am4-worker-1", "promoted": True,
              "winner_grade": "B", "winner_files": 205, "n_questions": 0},
         ]
-        with patch("subprocess.run", return_value=_completed(stdout=_gather_payload(records, scanned=143))):
+        with patch("subprocess.run", return_value=_completed(stdout=_gather_payload(records, scanned=143))),              patch("hearth.toolsurface.patrol.scan_knowledge", return_value=[]):
             out = patrol(refresh=False)
         self.assertTrue(out["ok"])
         self.assertEqual(out["scanned"], 143)
@@ -45,10 +45,13 @@ class PatrolTests(TestCase):
         self.assertEqual(out["summary"]["total"], 2)
 
     def test_clean_fleet_reports_no_gaps(self):
+        # scan_knowledge is patched out: it reads the REAL knowledge/capacity.json,
+        # whose age is an environment fact, not this test's subject (it bit on
+        # 2026-08-21 when the projection crossed 24h during the fleet hold).
         records = [{"plan_id": "pour-ok", "age_s": 9000, "has_result": True,
                     "status": "ok", "winner": "x", "promoted": True,
                     "winner_grade": "A", "winner_files": 100, "n_questions": 0}]
-        with patch("subprocess.run", return_value=_completed(stdout=_gather_payload(records))):
+        with patch("subprocess.run", return_value=_completed(stdout=_gather_payload(records))),              patch("hearth.toolsurface.patrol.scan_knowledge", return_value=[]):
             out = patrol(refresh=False)
         self.assertTrue(out["ok"])
         self.assertEqual(out["gaps"], [])

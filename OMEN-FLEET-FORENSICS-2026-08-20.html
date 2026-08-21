@@ -459,8 +459,8 @@
 
       <p>
         Everything below was re-verified after the board swap. OMEN now runs an Intel Core
-        Ultra 9 285K with 127 GB of RAM and an RTX 5070; it carries <strong>no B70s</strong> —
-        those are still on AM4. The six VMs were <em>saved</em> rather than shut down across the
+        Ultra 9 285K with 127 GB of RAM and <strong>both Intel Arc Pro B70s</strong>, which
+        moved here from AM4. The six VMs were <em>saved</em> rather than shut down across the
         swap (<code>AutomaticStopAction = Save</code> on all six) and auto-restored, which is
         why they all showed a fresh ~16 h uptime at 0% CPU while their guest clocks reached
         back to 2026-08-18. That idle window was the restore, not a hang.
@@ -818,9 +818,10 @@ real   0m22.514s   <span class="m">(includes cold model load)</span></pre>
       <h3>cc-builder-4 — no</h3>
       <p>
         Its only role was the mixtral 8x22b q2_K overnight critic at roughly 4.2–4.4 tok/s, and
-        it was already <code>exclude_from_build_pool</code>. The B70s live on AM4, not OMEN, and
+        it was already <code>exclude_from_build_pool</code>, and
         <code>commandcenter/docs/adr#0029</code> already cut the standalone critic role in
-        favour of <code>am4-moe</code> serving every role. The model itself is still on
+        favor of <code>am4-moe</code> serving every role. OMEN now holds both B70s itself, which
+        only makes a CPU-bound 4 tok/s critic VM more redundant, not less. The model is still on
         OMEN&rsquo;s Ollama if it is ever wanted; the VM adds nothing.
       </p>
     </div>
@@ -860,6 +861,21 @@ real   0m22.514s   <span class="m">(includes cold model load)</span></pre>
   <section>
     <div class="col">
       <h2>Left open</h2>
+
+      <div class="callout dead">
+        <span class="label">Correction, 2026-08-21</span>
+        <p>
+          An earlier version of this page said OMEN carried <em>no</em> B70s and an RTX 5070,
+          and that the B70s were still on AM4. That was wrong, and it is worth recording how:
+          it came from a single <code>Win32_VideoController</code> query that returned a partial
+          enumeration listing one Intel adapter and a stale NVIDIA entry. Re-checked against
+          <code>Get-PnpDevice</code>, both B70s report <code>Status OK</code> on distinct PCI
+          paths, and the RTX 5070 record is a ghost with <code>Present: False</code>. A second
+          source would have caught it immediately, which is the same lesson this page spends the
+          rest of its length arguing for.
+        </p>
+      </div>
+
 
       <div class="callout">
         <span class="label">Closed since this was written</span>

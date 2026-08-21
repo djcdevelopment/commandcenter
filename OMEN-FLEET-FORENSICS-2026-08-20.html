@@ -1,0 +1,907 @@
+<title>OMEN Fleet Forensics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+
+<style>
+  :root {
+    --ground:      #eef1f4;
+    --surface:     #ffffff;
+    --surface-2:   #f7f9fb;
+    --ink:         #141a21;
+    --ink-2:       #3d4a57;
+    --slate:       #5c6a78;
+    --rule:        #d7dee5;
+    --rule-soft:   #e6ebf0;
+    --accent:      #1a6b67;
+    --accent-soft: #e2efee;
+    --ok:          #2f6a4c;
+    --ok-soft:     #e2eee8;
+    --warn:        #8a5b12;
+    --warn-soft:   #f4ebda;
+    --dead:        #9b4230;
+    --dead-soft:   #f5e5e1;
+    --shadow:      0 1px 2px rgba(20,26,33,.05), 0 8px 24px -12px rgba(20,26,33,.18);
+
+    --f-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --f-serif: "Source Serif 4", ui-serif, Georgia, "Times New Roman", serif;
+    --f-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, "Cascadia Mono", Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #0e1319;
+      --surface:     #161d25;
+      --surface-2:   #1b232c;
+      --ink:         #e5ebf1;
+      --ink-2:       #b3bfcb;
+      --slate:       #8b9aa8;
+      --rule:        #2a353f;
+      --rule-soft:   #212b34;
+      --accent:      #56b3ac;
+      --accent-soft: #16302f;
+      --ok:          #6cb98f;
+      --ok-soft:     #16281f;
+      --warn:        #d1a24e;
+      --warn-soft:   #2b2415;
+      --dead:        #d98b76;
+      --dead-soft:   #2e1c17;
+      --shadow:      0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground:      #0e1319;
+    --surface:     #161d25;
+    --surface-2:   #1b232c;
+    --ink:         #e5ebf1;
+    --ink-2:       #b3bfcb;
+    --slate:       #8b9aa8;
+    --rule:        #2a353f;
+    --rule-soft:   #212b34;
+    --accent:      #56b3ac;
+    --accent-soft: #16302f;
+    --ok:          #6cb98f;
+    --ok-soft:     #16281f;
+    --warn:        #d1a24e;
+    --warn-soft:   #2b2415;
+    --dead:        #d98b76;
+    --dead-soft:   #2e1c17;
+    --shadow:      0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--f-serif);
+    font-size: 17px;
+    line-height: 1.62;
+    margin: 0;
+    padding: 0 20px 96px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  .col  { max-width: 660px; }
+
+  /* ---------- masthead ---------- */
+  .masthead {
+    padding: 56px 0 28px;
+    border-bottom: 2px solid var(--ink);
+    margin-bottom: 0;
+  }
+  .eyebrow {
+    font-family: var(--f-mono);
+    font-size: 11.5px;
+    font-weight: 500;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 18px;
+  }
+  h1 {
+    font-family: var(--f-sans);
+    font-weight: 700;
+    font-size: clamp(2.1rem, 5.2vw, 3.15rem);
+    line-height: 1.06;
+    letter-spacing: -.026em;
+    text-wrap: balance;
+    margin: 0 0 18px;
+    color: var(--ink);
+  }
+  .standfirst {
+    font-size: 1.16rem;
+    line-height: 1.5;
+    color: var(--ink-2);
+    max-width: 40em;
+    margin: 0 0 26px;
+  }
+  .meta {
+    font-family: var(--f-mono);
+    font-size: 12.5px;
+    color: var(--slate);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 22px;
+    margin: 0;
+  }
+
+  /* ---------- verdict strip ---------- */
+  .strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-top: none;
+    margin-bottom: 64px;
+  }
+  .strip-cell {
+    background: var(--surface);
+    padding: 18px 20px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .strip-cell .n {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: .12em;
+    color: var(--slate);
+  }
+  .strip-cell .what {
+    font-family: var(--f-sans);
+    font-size: 14.5px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--ink);
+  }
+
+  .chip {
+    align-self: flex-start;
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  .chip.ok   { background: var(--ok-soft);   color: var(--ok);   }
+  .chip.dead { background: var(--dead-soft); color: var(--dead); }
+  .chip.warn { background: var(--warn-soft); color: var(--warn); }
+  .chip.info { background: var(--accent-soft); color: var(--accent); }
+
+  /* ---------- sections ---------- */
+  section { margin-bottom: 68px; }
+
+  h2 {
+    font-family: var(--f-sans);
+    font-weight: 700;
+    font-size: 1.62rem;
+    letter-spacing: -.018em;
+    line-height: 1.2;
+    text-wrap: balance;
+    margin: 0 0 6px;
+    color: var(--ink);
+  }
+  .h2num {
+    font-family: var(--f-mono);
+    font-size: 11.5px;
+    font-weight: 500;
+    letter-spacing: .14em;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 10px;
+  }
+  h3 {
+    font-family: var(--f-sans);
+    font-weight: 600;
+    font-size: 1.05rem;
+    letter-spacing: -.005em;
+    margin: 34px 0 10px;
+    color: var(--ink);
+  }
+  p { margin: 0 0 17px; }
+  .col > p:last-child { margin-bottom: 0; }
+
+  strong { font-weight: 600; color: var(--ink); }
+  code {
+    font-family: var(--f-mono);
+    font-size: .86em;
+    background: var(--surface-2);
+    border: 1px solid var(--rule-soft);
+    border-radius: 3px;
+    padding: .08em .34em;
+    color: var(--ink);
+    word-break: break-word;
+  }
+
+  .lede {
+    font-size: 1.08rem;
+    color: var(--ink-2);
+    border-left: 2px solid var(--accent);
+    padding-left: 20px;
+    margin: 0 0 30px;
+  }
+
+  /* ---------- evidence ---------- */
+  figure {
+    margin: 26px 0;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  figcaption {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--slate);
+    padding: 11px 18px;
+    border-bottom: 1px solid var(--rule-soft);
+    background: var(--surface-2);
+  }
+  pre {
+    font-family: var(--f-mono);
+    font-size: 12.5px;
+    line-height: 1.66;
+    margin: 0;
+    padding: 16px 18px;
+    overflow-x: auto;
+    color: var(--ink-2);
+    tab-size: 2;
+  }
+  pre b { color: var(--ink); font-weight: 600; }
+  pre .g { color: var(--ok); font-weight: 600; }
+  pre .r { color: var(--dead); font-weight: 600; }
+  pre .m { color: var(--slate); }
+
+  /* ---------- data table ---------- */
+  .tablewrap { overflow-x: auto; margin: 26px 0; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 560px;
+    font-family: var(--f-mono);
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+  }
+  th {
+    text-align: left;
+    font-weight: 600;
+    font-size: 10.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--slate);
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--surface-2);
+    white-space: nowrap;
+  }
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--rule-soft);
+    color: var(--ink-2);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  td.name { color: var(--ink); font-weight: 500; }
+  td.dead { color: var(--dead); }
+  td.ok   { color: var(--ok); }
+
+  /* ---------- drift lanes ---------- */
+  .drift {
+    margin: 30px 0;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    padding: 24px 22px 20px;
+    box-shadow: var(--shadow);
+  }
+  .drift h4 {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: .11em;
+    text-transform: uppercase;
+    color: var(--slate);
+    margin: 0 0 20px;
+    font-weight: 500;
+  }
+  .lane {
+    display: grid;
+    grid-template-columns: 128px 1fr;
+    gap: 14px;
+    align-items: start;
+    padding: 13px 0;
+    border-top: 1px solid var(--rule-soft);
+  }
+  .lane:first-of-type { border-top: none; padding-top: 0; }
+  .lane-label {
+    font-family: var(--f-mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink);
+    padding-top: 3px;
+  }
+  .hops { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+  .hop {
+    font-family: var(--f-mono);
+    font-size: 11.5px;
+    padding: 4px 9px;
+    border-radius: 3px;
+    background: var(--surface-2);
+    border: 1px solid var(--rule);
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+  .hop.now  { background: var(--ok-soft);   border-color: var(--ok);   color: var(--ok);   font-weight: 600; }
+  .hop.lost { background: var(--dead-soft); border-color: var(--dead); color: var(--dead); font-weight: 600; }
+  .arrow { color: var(--slate); font-family: var(--f-mono); font-size: 12px; }
+
+  /* ---------- callout ---------- */
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 20px 22px;
+    margin: 28px 0;
+    box-shadow: var(--shadow);
+  }
+  .callout.dead { border-left-color: var(--dead); }
+  .callout.warn { border-left-color: var(--warn); }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout .label {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--slate);
+    display: block;
+    margin-bottom: 9px;
+  }
+
+  ul, ol { margin: 0 0 17px; padding-left: 22px; }
+  li { margin-bottom: 9px; }
+  li::marker { color: var(--slate); }
+
+  .actions { list-style: none; padding: 0; margin: 26px 0 0; }
+  .actions li {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 14px;
+    align-items: baseline;
+    padding: 15px 0;
+    border-top: 1px solid var(--rule);
+    margin: 0;
+  }
+  .actions li:last-child { border-bottom: 1px solid var(--rule); }
+
+  footer {
+    border-top: 2px solid var(--ink);
+    padding-top: 22px;
+    font-family: var(--f-mono);
+    font-size: 12px;
+    color: var(--slate);
+    line-height: 1.75;
+  }
+
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, [tabindex]:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  @media (max-width: 620px) {
+    body { font-size: 16px; padding: 0 16px 72px; }
+    .lane { grid-template-columns: 1fr; gap: 8px; }
+    .actions li { grid-template-columns: 1fr; gap: 7px; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="eyebrow">Mechnet · incident forensics · OMEN</p>
+    <h1>Two phantoms, and neither was the fault we went looking for</h1>
+    <p class="standfirst">
+      A stuck HEARTH queue and two unreachable Hyper-V VMs looked like one failure with one
+      cause. They were three unrelated faults, separated by seven weeks — and one of the
+      &ldquo;missing&rdquo; machines was never missing at all.
+    </p>
+    <p class="meta">
+      <span>2026-08-20</span>
+      <span>OMEN · post board-swap</span>
+      <span>fleet: 10 up / 0 down</span>
+    </p>
+  </header>
+
+  <div class="strip">
+    <div class="strip-cell">
+      <span class="n">01</span>
+      <span class="what">Two stale runs held <code>running=2</code></span>
+      <span class="chip ok">Crashed, not live</span>
+    </div>
+    <div class="strip-cell">
+      <span class="n">02</span>
+      <span class="what">cc-worker-1 has no DNS</span>
+      <span class="chip info">Never a real node</span>
+    </div>
+    <div class="strip-cell">
+      <span class="n">03</span>
+      <span class="what">cc-builder-4 on a dead subnet</span>
+      <span class="chip dead">Retired</span>
+    </div>
+    <div class="strip-cell">
+      <span class="n">04</span>
+      <span class="what">Ollama unreachable from VMs</span>
+      <span class="chip ok">Fixed &amp; proven</span>
+    </div>
+  </div>
+
+  <!-- ============================================= -->
+  <section>
+    <div class="col">
+      <p class="lede">
+        The working hypothesis was that the phantom queue entries and the unreachable VMs were
+        the same fault. They are not related in any way. The phantom runs predate the VM
+        problems by seven weeks, and the two VMs failed for completely different reasons —
+        one of which is not a failure at all.
+      </p>
+
+      <p>
+        Everything below was re-verified after the board swap. OMEN now runs an Intel Core
+        Ultra 9 285K with 127 GB of RAM and an RTX 5070; it carries <strong>no B70s</strong> —
+        those are still on AM4. The six VMs were <em>saved</em> rather than shut down across the
+        swap (<code>AutomaticStopAction = Save</code> on all six) and auto-restored, which is
+        why they all showed a fresh ~16 h uptime at 0% CPU while their guest clocks reached
+        back to 2026-08-18. That idle window was the restore, not a hang.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================================= -->
+  <section>
+    <div class="col">
+      <span class="h2num">Finding 01</span>
+      <h2>The phantom runs crashed on the conductor&rsquo;s first day</h2>
+
+      <p>
+        The two runs holding <code>running=2</code> are <code>spine-hello</code> and
+        <code>spine-verify.crashed</code>. Both are from <strong>2026-06-30</strong> — the
+        conductor&rsquo;s first-ever dispatch. Its own plan file says so:
+        <em>&ldquo;This is the first live task dispatched by cc-conductor.&rdquo;</em>
+      </p>
+
+      <p>
+        They are dead, and not by file-absence alone. <code>spine-verify</code>&rsquo;s
+        <code>dispatch.json</code> names <code>agent_pid 21313</code>; that PID is not present,
+        its log <code>~/.comms/run-spine-verify.log</code> no longer exists, and the conductor
+        has rebooted since (current boot 2026-08-18 03:25). No file inside either run directory
+        has been touched since 2026-06-30 04:51 — 51 days.
+      </p>
+    </div>
+
+    <figure>
+      <figcaption>cc-conductor · run directories with no result.json</figcaption>
+<pre><b>runs/spine-hello/</b>            plan.md + per-node dirs (cc-builder-1, cc-builder-2, claudefarm1)
+<b>runs/spine-verify.crashed/</b>   dispatch.json, error.txt, plan.md, progress.md
+
+<span class="m">$ cat runs/spine-verify.crashed/error.txt</span>
+<span class="r">ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)</span>
+
+<span class="m">$ ps -p 21313</span>
+<span class="r">PID 21313 NOT PRESENT</span>
+
+<span class="m">$ find runs/spine-* -type f -printf "%T+ %p\n" | sort | tail -1</span>
+2026-06-30+04:51:14  runs/spine-verify.crashed/error.txt</pre>
+    </figure>
+
+    <div class="col">
+      <h3>Why the count could never fall on its own</h3>
+
+      <p>
+        This is the part worth keeping. The repo already has a phantom detector and an
+        auto-healer — <code>patrol</code> and <code>masters_pet</code> — and they were
+        <em>structurally blind</em> to these two runs. Asked to dry-run, the healer returned
+        <code>healable: []</code>.
+      </p>
+
+      <p>
+        The reason is that two tools disagree about what a run <em>is</em>.
+        <code>queue_status</code> counts every <code>runs/*/</code> directory and calls it
+        running if there&rsquo;s no <code>result.json</code> — a universe of 187.
+        <code>patrol</code> only emits a record for a directory that contains a
+        <code>nodes.json</code> — a universe of 125 — and then keeps only the 60 newest. Both
+        phantoms predate the <code>nodes.json</code> convention entirely, so 62 run directories
+        are invisible to the healer while the counter still counts them.
+      </p>
+
+      <div class="callout warn">
+        <span class="label">Second, smaller convention gap</span>
+        <p>
+          <code>spine-verify.crashed</code> had already been hand-triaged — someone renamed the
+          directory with a <code>.crashed</code> suffix. But <code>queue_status</code> keys only
+          on <code>result.json</code>, so the rename never released the occupancy. The human
+          convention and the machine&rsquo;s completion signal have never agreed.
+        </p>
+      </div>
+
+      <p>
+        Both runs are now cleared with abandoned-stubs matching <code>masters_pet</code>&rsquo;s
+        own schema, each carrying honest provenance and the real cause. They are reversible:
+        delete the stub to restore the pre-heal state.
+      </p>
+    </div>
+
+    <figure>
+      <figcaption>mcp__hearth__queue_status · before → after</figcaption>
+<pre><span class="m">before</span>  { queued: 0, running: <span class="r">2</span>, done: 185 }
+<span class="m">after</span>   { queued: 0, running: <span class="g">0</span>, done: <span class="g">187</span> }</pre>
+    </figure>
+  </section>
+
+  <!-- ============================================= -->
+  <section>
+    <div class="col">
+      <span class="h2num">Finding 02</span>
+      <h2>cc-worker-1 was never a machine</h2>
+
+      <p>
+        <code>cc-worker-1.mshome.net</code> does not resolve because <strong>no guest has ever
+        been called that</strong>. The VM that Hyper-V displayed as <code>cc-worker-1</code> is
+        the guest <code>claudefarm1</code> — an active, healthy worker and assay node that also
+        hosts <code>omen-worker-1</code>&rsquo;s shell. It has been up and reachable this whole
+        time under its real name.
+      </p>
+
+      <p>
+        Two independent proofs. Its MAC, <code>00:15:5D:0C:C7:0A</code>, is exactly the address
+        assigned to claudefarm1 during the 2026-07-04 MAC-collision repair. And its console
+        banner reads <code>claudefarm1 login:</code>.
+      </p>
+    </div>
+
+    <figure>
+      <figcaption>Hyper-V console thumbnails · woken via Msvm_Keyboard</figcaption>
+<pre><span class="m">VM displayed as "cc-worker-1"</span>
+Ubuntu 24.04 LTS <b>claudefarm1</b> tty1
+<b>claudefarm1</b> login: _
+
+<span class="m">control: cc-builder-3</span>
+Ubuntu 24.04 LTS cc-builder-3 tty1
+cc-builder-3 login: _</pre>
+    </figure>
+
+    <div class="col">
+      <p>
+        mshome sibling DNS is registered by the <em>guest</em> over DHCP, so only
+        <code>claudefarm1</code> was ever published. Nothing in <code>fleet.json</code>,
+        <code>inventory.toml</code>, or any scheduled task referenced the name
+        <code>cc-worker-1</code> — it existed solely as a Hyper-V label.
+      </p>
+
+      <div class="callout">
+        <span class="label">Correction to the record</span>
+        <p>
+          <code>inventory.toml</code> states the display name &ldquo;had also been
+          <em>changed</em> to cc-worker-1&rdquo; during the 2026-07-04 incident. It was not.
+          <code>HANDOFF-2026-06-27.md</code> already calls the VM cc-worker-1, and Hyper-V
+          records <code>CreationTime 2026-06-27 03:17</code> — it was created under that label
+          booting the golden image whose hostname is claudefarm1. The label and the hostname
+          never matched, from day one. That note has been corrected in place.
+        </p>
+      </div>
+
+      <p>
+        The VM has been renamed to <code>claudefarm1</code>, restoring the name-equals-hostname
+        invariant every other VM already satisfies. Display-name only, on the running machine,
+        zero downtime.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================================= -->
+  <section>
+    <div class="col">
+      <span class="h2num">Finding 03</span>
+      <h2>cc-builder-4 was alive the whole time, and on no network at all</h2>
+
+      <p>
+        The guest kernel never died. Hyper-V reported <strong>Heartbeat OK</strong> and its
+        clock was correctly time-synced. Its vNIC sat on the same Default Switch as every other
+        VM, <code>Status Ok</code>. What it did not have was any presence at layer 3.
+      </p>
+
+      <p>
+        A full ping sweep of all 4,064 addresses in <code>172.29.64.0/20</code>, run from
+        cc-conductor on the same segment, found exactly five guests — and cc-builder-4&rsquo;s
+        MAC was not among them. No candidate hostname resolved either. It was not asking for
+        DHCP at all.
+      </p>
+    </div>
+
+    <figure>
+      <figcaption>cc-conductor · sweep of the live Default Switch subnet</figcaption>
+<pre><span class="m">$ ... | xargs -P128 -I{} sh -c "ping -c1 -W1 {} && echo ALIVE {}"</span>
+<span class="g">ALIVE</span> 172.29.68.49    00:15:5d:0c:73:03   cc-builder-3
+<span class="g">ALIVE</span> 172.29.68.169   00:15:5d:0c:c7:0a   claudefarm1
+<span class="g">ALIVE</span> 172.29.73.99    00:15:5d:0c:73:02   cc-conductor
+<span class="g">ALIVE</span> 172.29.78.206   00:15:5d:0c:c7:02   cc-builder-2
+<span class="g">ALIVE</span> 172.29.79.13    00:15:5d:0c:c7:01   cc-builder-1
+
+<span class="m">cc-builder-4's MAC 00:15:5d:0c:c7:00 —</span> <span class="r">absent from all 4,064 addresses</span></pre>
+    </figure>
+
+    <div class="col">
+      <h3>The 172.21 address is a ghost record</h3>
+
+      <p>
+        Meanwhile <code>cc-builder-4.mshome.net</code> still answered <code>172.21.180.59</code>
+        — forward <em>and</em> reverse — and kept answering after <code>ipconfig /flushdns</code>.
+        That makes it an authoritative but stale ICS registration left over from an earlier
+        Default Switch subnet generation, pointing at an address OMEN has no route to at all.
+      </p>
+
+      <p>
+        The Windows Default Switch regenerates its NAT prefix across host reboots. Every other
+        VM simply re-DHCPs onto the new subnet each time. cc-builder-4 drifted across four
+        addresses and then fell off entirely.
+      </p>
+    </div>
+
+    <div class="drift">
+      <h4>Subnet drift · recorded across the repo&rsquo;s own artifacts</h4>
+      <div class="lane">
+        <div class="lane-label">the fleet</div>
+        <div class="hops">
+          <span class="hop">172.29.x</span><span class="arrow">→</span>
+          <span class="hop">172.30.x</span><span class="arrow">→</span>
+          <span class="hop">172.21.x</span><span class="arrow">→</span>
+          <span class="hop now">172.29.x now</span>
+        </div>
+      </div>
+      <div class="lane">
+        <div class="lane-label">cc-builder-4</div>
+        <div class="hops">
+          <span class="hop">172.30.10.170</span><span class="arrow">→</span>
+          <span class="hop">172.21.182.65</span><span class="arrow">→</span>
+          <span class="hop">172.21.180.59</span><span class="arrow">→</span>
+          <span class="hop lost">no lease</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <h3>Root cause: it is not the fleet image</h3>
+
+      <p>
+        Waking its console settled it. cc-builder-4 boots to an Ubuntu <strong>desktop GDM
+        login screen for a user named &ldquo;Derek&rdquo;</strong> — not the headless server
+        image with a <code>claude</code> account that every other builder runs. That is also
+        why OMEN&rsquo;s key is refused there.
+      </p>
+
+      <p>
+        It boots <code>C:\Users\derek\VMs\zen-deepseek-1\dev-vm.vhdx</code>, a different file
+        from the <code>C:\Users\derek\VMs\dev-vm\dev-vm.vhdx</code> that claudefarm1 boots.
+        Its own manifest claims it was cloned from the claudefarm1 golden base on 2026-07-03 —
+        which the desktop target and the &ldquo;Derek&rdquo; account contradict.
+      </p>
+
+      <div class="callout dead">
+        <span class="label">Not confirmed — and deliberately so</span>
+        <p>
+          The exact guest IPv4 configuration (a pinned static address is the strong candidate)
+          could only be read by logging into the console as Derek&rsquo;s desktop account. No
+          agent should type that password, so it stays unconfirmed. It does not change the
+          disposition.
+        </p>
+      </div>
+
+      <div class="callout warn">
+        <span class="label">Hazard left behind</span>
+        <p>
+          cc-builder-4 still holds the original golden-image MAC <code>00155D0CC700</code>. A
+          future clone off the golden image that does not regenerate its MAC will collide with
+          it exactly as claudefarm1 did on 2026-07-03 — even now that the VM is off.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================= -->
+  <section>
+    <div class="col">
+      <span class="h2num">Finding 04</span>
+      <h2>A live break the sweep was hiding</h2>
+
+      <p>
+        Turned up on the way past, and unrelated to either VM. OMEN&rsquo;s Ollama is bound to
+        <code>127.0.0.1:11434</code> only — <code>OllamaBoot</code> runs <code>ollama.exe
+        serve</code> with <code>OLLAMA_HOST</code> unset. The fleet-facing lane is a separate
+        process, <code>OmenOllamaTracingProxy</code>, listening on <code>0.0.0.0:11435</code>.
+      </p>
+
+      <p>
+        But claudefarm1&rsquo;s runner configs still pointed at <code>:11434</code>, so
+        <code>omen-worker-1</code> and claudefarm1&rsquo;s worker shell were <strong>model-dead
+        with ConnectionRefused</strong>. The default sweep hid it: <code>fleet_ping</code>
+        probes only the first check per node unless given <code>--all-services</code>, and
+        omen-worker-1&rsquo;s first check is its SSH shell, which was green.
+      </p>
+
+      <p>
+        One config pointed at OMEN&rsquo;s <em>tailnet</em> address as well — also a standing
+        ADR-0014 violation, since machine lanes are never supposed to ride the tailnet. Both
+        are now repointed at the fleet lane and proven with a live generate.
+      </p>
+    </div>
+
+    <figure>
+      <figcaption>claudefarm1 · runner configs, before → after → proof</figcaption>
+<pre><span class="m">before</span>  runner.json                <span class="r">http://100.124.12.37:11434/v1</span>   <span class="m">(tailnet + dead port)</span>
+        runner-omen-worker-1.json  <span class="r">http://omen.mshome.net:11434/v1</span> <span class="m">(dead port)</span>
+
+<span class="m">after</span>   both                       <span class="g">http://omen.mshome.net:11435/v1</span>
+
+<span class="m">$ curl -X POST .../v1/chat/completions -d '{"model":"qwen3-coder:30b",...}'</span>
+model: qwen3-coder:30b
+text:  <span class="g">LANE OK</span>
+real   0m22.514s   <span class="m">(includes cold model load)</span></pre>
+    </figure>
+  </section>
+
+  <!-- ============================================= -->
+  <section>
+    <div class="col">
+      <h2>What changed</h2>
+      <p>Every step is reversible, and backups were taken before each config edit.</p>
+    </div>
+
+    <ul class="actions">
+      <li>
+        <span class="chip ok">Cleared</span>
+        <span>Abandoned-stubs written for <code>spine-hello</code> and
+        <code>spine-verify.crashed</code> on the conductor, matching
+        <code>masters_pet</code>&rsquo;s schema. <code>queue_status</code> now reads
+        <code>running=0, done=187</code>. Delete a stub to undo.</span>
+      </li>
+      <li>
+        <span class="chip ok">Renamed</span>
+        <span><code>Rename-VM cc-worker-1 → claudefarm1</code>. Running VM, display name only,
+        no downtime, uptime preserved.</span>
+      </li>
+      <li>
+        <span class="chip dead">Retired</span>
+        <span>cc-builder-4 gracefully shut down and <code>AutomaticStartAction</code> set to
+        <code>Nothing</code>, so it will not return on the next OMEN boot. 5.4 GB of assigned
+        RAM reclaimed. <strong>No VHDX touched.</strong></span>
+      </li>
+      <li>
+        <span class="chip info">Recorded</span>
+        <span>Retirement written into <em>both</em> views, kept separate as the repo requires:
+        <code>fleet.json</code> on the conductor (build pool — <code>retired: true</code>,
+        <code>auth_status: retired</code>, <code>mcp_ready: false</code>) and
+        <code>inventory.toml</code> on OMEN (reachability superset — full diagnosis, dim
+        <em>offline</em> rather than a permanent red DOWN).</span>
+      </li>
+      <li>
+        <span class="chip ok">Fixed</span>
+        <span>Both claudefarm1 runner configs repointed to <code>:11435</code>; inventory
+        checks corrected to probe the lane the fleet actually uses, with the two-lane
+        distinction documented so the false alarm cannot come back.</span>
+      </li>
+    </ul>
+  </section>
+
+  <!-- ============================================= -->
+  <section>
+    <div class="col">
+      <h2>Are they still needed?</h2>
+
+      <h3>claudefarm1 — yes, keep it</h3>
+      <p>
+        It is an active worker and assay node, and <code>omen-worker-1</code>&rsquo;s shell
+        rides on it. It needed a rename, not a retirement. (Its old coupling to omen-worker-1
+        remains a known fragility, unchanged by this work.)
+      </p>
+
+      <h3>cc-builder-4 — no</h3>
+      <p>
+        Its only role was the mixtral 8x22b q2_K overnight critic at roughly 4.2–4.4 tok/s, and
+        it was already <code>exclude_from_build_pool</code>. The B70s live on AM4, not OMEN, and
+        <code>commandcenter/docs/adr#0029</code> already cut the standalone critic role in
+        favour of <code>am4-moe</code> serving every role. The model itself is still on
+        OMEN&rsquo;s Ollama if it is ever wanted; the VM adds nothing.
+      </p>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>VM</th><th>State</th><th>Autostart</th><th>Boots</th><th>Disposition</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">cc-builder-1</td><td class="ok">Running</td><td>Start</td><td>cc-builder-1/cc-builder-1.vhdx</td><td>keep</td></tr>
+          <tr><td class="name">cc-builder-2</td><td class="ok">Running</td><td>Start</td><td>cc-builder-2/cc-builder-2.vhdx</td><td>keep</td></tr>
+          <tr><td class="name">cc-builder-3</td><td class="ok">Running</td><td>Start</td><td>cc-builder-3/cc-builder-3-solo.vhdx</td><td>keep</td></tr>
+          <tr><td class="name">cc-builder-4</td><td class="dead">Off</td><td class="dead">Nothing</td><td class="dead">zen-deepseek-1/dev-vm.vhdx &nbsp;25.8 GB</td><td class="dead">retired</td></tr>
+          <tr><td class="name">cc-conductor</td><td class="ok">Running</td><td>Start</td><td>cc-conductor/cc-conductor.vhdx</td><td>keep</td></tr>
+          <tr><td class="name">claudefarm1</td><td class="ok">Running</td><td>Start</td><td>dev-vm/dev-vm.vhdx &nbsp;20.6 GB</td><td>keep (renamed)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="col">
+      <div class="callout dead">
+        <span class="label">Awaiting your call — no disk was touched</span>
+        <p>
+          All six VHDX files are attached and in use; <strong>none is orphaned</strong>, so
+          there was no stale duplicate VM definition to clean up. cc-builder-4&rsquo;s
+          25.8 GB <code>zen-deepseek-1/dev-vm.vhdx</code> is now the only disk with no running
+          VM behind it. It holds a desktop profile for a &ldquo;Derek&rdquo; account and may
+          carry real work from the zen-deepseek experiment. Nothing will happen to it until you
+          say so.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================= -->
+  <section>
+    <div class="col">
+      <h2>Left open</h2>
+
+      <div class="callout">
+        <span class="label">Closed since this was written</span>
+        <p>
+          <strong>The detector gap is fixed.</strong> It was flagged here as its own task
+          rather than patched inline, and that task landed the same day as
+          <code>ADR-0033</code>, &ldquo;one definition of a run&rdquo;: the directory is the
+          run, and <code>result.json</code> is its only terminal marker. The 62-directory
+          blind spot is gone, and <code>queue_status</code> now also reports
+          <code>running_undispatched</code> so a dir that never got a builder graph is
+          visible as pure phantom occupancy rather than as work. Verified live against the
+          gateway, not just the repo.
+        </p>
+      </div>
+
+      <ul>
+        <li>
+          <strong>The stale DNS record.</strong> <code>cc-builder-4.mshome.net</code> still
+          resolves to the unroutable <code>172.21.180.59</code> and will until the Default
+          Switch DNS state is cleared. Harmless now that the VM is retired, but it is a trap
+          for anyone who pings the name and believes the answer.
+        </li>
+        <li>
+          <strong>SSH to AM4 as <code>claude</code>.</strong> Refused with publickey denied
+          from OMEN. <code>fleet_ping</code> reports AM4 up because it probes TCP, not auth —
+          so the sweep cannot see this. Not investigated; outside this scope.
+        </li>
+        <li>
+          <strong>Stale purpose string.</strong> cc-builder-3 is still described as the
+          &ldquo;current assay node while claudefarm1 is down&rdquo;. claudefarm1 is up. Left
+          alone as pre-existing and unrelated.
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    Verified 2026-08-20 on OMEN and cc-conductor · Hyper-V, ICS DNS, ARP and full-subnet sweep,
+    Msvm console thumbnails, live model generate<br>
+    Landed to master as <code>cdf1637</code> (PR #1), on top of <code>f19e7ee</code> ADR-0033<br>
+    Reversible: run stubs · <code>fleet.json.bak-20260820</code> ·
+    <code>runner*.json.bak-20260820</code> · <code>Start-VM cc-builder-4</code>
+  </footer>
+
+</div>

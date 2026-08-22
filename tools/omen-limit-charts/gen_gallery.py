@@ -333,8 +333,8 @@ for b in _dB:
     c11.append('<text x="%.1f" y="%d" fill="%s" font-size="11" text-anchor="middle">%d</text>' % (X11(b), p2T + p2H + 16, DIM, b))
 c11.append('<text x="%.1f" y="%d" fill="%s" font-size="12" text-anchor="middle" font-weight="600">threads in flight</text>' % ((L11 + W11 - R11) / 2, H11 - 24, INK))
 c11.append('<text x="%.1f" y="%d" fill="%s" font-size="11" text-anchor="middle">same card - same watts - one line of code</text>' % ((L11 + W11 - R11) / 2, H11 - 6, DIM))
-c11.append('<rect x="%d" y="%d" width="12" height="4" rx="2" fill="%s"/><text x="%d" y="%d" fill="%s" font-size="11">stock (limit 8)</text>' % (W11 - R11 - 330, p1T + 6, ORANGE, W11 - R11 - 314, p1T + 11, DIM))
-c11.append('<rect x="%d" y="%d" width="12" height="4" rx="2" fill="%s"/><text x="%d" y="%d" fill="%s" font-size="11">patched (limit 16)</text>' % (W11 - R11 - 330, p1T + 24, BLUE, W11 - R11 - 314, p1T + 29, DIM))
+c11.append('<rect x="%d" y="%d" width="12" height="4" rx="2" fill="%s"/><text x="%d" y="%d" fill="%s" font-size="11">stock (limit 8)</text>' % (L11 + 14, p1T + 8, ORANGE, L11 + 30, p1T + 13, DIM))
+c11.append('<rect x="%d" y="%d" width="12" height="4" rx="2" fill="%s"/><text x="%d" y="%d" fill="%s" font-size="11">patched (limit 16)</text>' % (L11 + 14, p1T + 26, BLUE, L11 + 30, p1T + 31, DIM))
 c11.append('</svg>')
 chart11 = "".join(c11)
 
@@ -347,7 +347,7 @@ if _os.path.exists(_f8p) and _os.path.exists(_f16p):
         return [_json.loads(x)["total_s"] for x in io.open(p, encoding="utf-8-sig") if x.strip()]
     _lat = {8: _fload(_f8p), 16: _fload(_f16p)}
     _ymax12 = max(max(_lat[8]), max(_lat[16])) * 1.08
-    W12, H12 = 760, 420; L12, R12 = 56, 20
+    W12, H12 = 760, 430; L12, R12 = 56, 20
     _pH = 150; _tops = {8: 44, 16: 44 + _pH + 62}
     c12 = [svg_open(W12, H12, "Frame pacing: per-request latency, stock versus patched, 10 threads in flight")]
     for lim, color, lbl in ((8, ORANGE, "stock (limit 8)"), (16, BLUE, "patched (limit 16)")):

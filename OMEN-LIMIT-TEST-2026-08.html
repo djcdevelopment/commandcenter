@@ -157,6 +157,54 @@ Serviceability: real 1-token generate through the S4U task server ✓. doorcheck
 No pooling on Windows (no P2P, 6.48 GB/s host-bounced); <code>-fit off</code> mandatory (auto-fitter silently spills to shared memory);
 demotion cliff = VidMm eviction at 0.19× decode, defense is admission control on the live DXGI budget.</div>
 
-<p class="dim">Generated during the campaign session of 2026-08-20; updated at every stage close.</p>
+<h2>Campaign 2 — the knee, moved (2026-08-22)</h2>
+<p>F9's testable prediction ran and passed. The constant was patched into a runtime knob
+(<code>GGML_VK_MMV_MAX_COLS</code>, default 8 = byte-identical stock, clamped 1..16, one file +24/−3,
+build at <code>E:\work\llamacpp-knee</code> master <code>e85caa8</code>) and the knee was proven causal by
+dose-response, then confirmed across a seven-model name-brand roster and translated into per-request
+experience numbers. Charts 9–12 of the annex carry the full picture; parsed data at
+<code>results\expZ-summary.csv</code>.</p>
+
+<table>
+<tr><th>experiment</th><th>result</th></tr>
+<tr><td>expY dose-response (Mistral-24B, limits 4/8/16)</td><td class="good">Cliff lands at the first batch past
+whatever the limit says — 4→6, 8→9, 16→24. Curves identical elsewhere. B9: 20→131 tok/s (×6.6); B16: 45→159 (×3.5);
+MMV@16 (159) beats matmul@32 (140). Replicated next day within 1%.</td></tr>
+<tr><td>expZ roster (7 vendors × stock/16)</td><td class="good">Every dense model: ×6.6–6.9 at B=9, ×3.5–3.7 at B=16
+(Phi-4, Gemma-3-27B, Qwen2.5-32B, Mistral-24B; Llama-70B dual ×3.5/×1.9). MoE models gain only their dense-attention
+share (gpt-oss-20b ×1.8, Qwen3-30B-A3B ×1.1) — the expert FFNs sit behind the separate MUL_MAT_ID gate. On Gemma-27B
+stock, B=32 (96.3) never re-attains the B=8 ceiling (106.8): past 8, adding threads can never win.</td></tr>
+<tr><td>expF frame pacing (200 req @ 10 conc)</td><td class="good">Stock past the cliff is uniformly broken, not
+stuttery: median 204 s/request, ~1.3 tok/s per stream (below reading speed). Patched: median 38 s, ~5.4 tok/s (×5.4).
+Ten threads in flow vs eight.</td></tr>
+<tr><td>Correctness</td><td class="good"><code>test-backend-ops -o MUL_MAT</code> all pass at 16; stock-identical at
+default (±3%); perplexity A/B env 8 vs 16: <code>PPL = 6.3139 ± 0.28430</code> — identical to every printed digit
+(and 1.6× faster per pass at 16).</td></tr>
+</table>
+
+<table>
+<tr><td>F10</td><td><b class="good">Causality by dose-response</b> — three runs of one binary with the limit at
+4/8/16 produced cliffs at exactly 6/9/24 (first sampled batch past each limit) and converged on the identical matmul
+floor past them. The knee is the constant; nothing else moves.</td></tr>
+<tr><td>F11</td><td><b class="warn">The benchmark lied twice before it told the truth</b> — gemma27's first expZ run
+was silently demoted by VidMm (rung co-resident, pp 8 tok/s instead of ~745); the rung-free re-run spilled again at
+65k because Gemma-3's KV wants ~42 GB total. A size-on-failure fallback cannot catch silent demotion. Fix now
+mechanical: harnesses watch <code>GPU Adapter Memory\Shared Usage</code> on the B70 LUIDs during every leg and kill
+anything &gt;2 GB shared on two consecutive probes (the F3 admission-control rule, enforced). Poisoned runs preserved
+in <code>results\quarantine-spilled\</code>. Corollary: gemma27 runs at 24k ctx, qwen32/llama70 at 32k — footnoted in
+all tables.</td></tr>
+<tr><td>F12</td><td><b>Ollama blobs are not llama.cpp GGUFs for gpt-oss</b> — the local Ollama blob declares arch
+<code>gptoss</code> (Ollama's fork); upstream wants <code>gpt-oss</code> and refuses the blob outright. The OpenAI
+roster slot required the official <code>ggml-org/gpt-oss-20b-GGUF</code> (MXFP4, 12.1 GB).</td></tr>
+<tr><td>—</td><td><b>Upstream lane</b> (verified open 2026-08-22): issue #25356 is AMD/MoE-only, stale since July;
+no PR claims the dense knob; CUDA merged the same shape as <code>GGML_CUDA_MMVQ_MAX</code> (#26079). Comment draft
+ready at <code>C:\work\writing\llamacpp-25356-comment-draft-2026-08-22.md</code> — Derek posts, AI disclosure
+included. Patch stays uncommitted until the PR branch is cut. Post-validation: the rung's <code>-np 4</code> was set
+under the old ceiling — <code>parallel_slots</code> can roughly double on the same silicon once the patched build
+serves.</td></tr>
+</table>
+
+<p class="dim">Generated during the campaign session of 2026-08-20; updated at every stage close. Campaign 2 section
+added 2026-08-22.</p>
 </body>
 </html>

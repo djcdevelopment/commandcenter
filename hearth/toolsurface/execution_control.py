@@ -240,7 +240,13 @@ def list_operations() -> list[dict[str, Any]]:
 
 
 def list_execution_providers() -> list[dict[str, Any]]:
-    """List declared Providers, models, and safe runtime metadata."""
+    """List declared Providers, models, and safe runtime metadata.
+
+    Retired rungs are withheld. This surface is projected verbatim into
+    outward-facing places — the IRC `!hardware`/`!catalog` views and the public
+    lab pages — so a tombstone listed here reads to a member as available
+    hardware. Routing still sees the full pool; only the projection is filtered.
+    """
     return [
         {
             "name": provider.name,
@@ -255,6 +261,7 @@ def list_execution_providers() -> list[dict[str, Any]]:
             "timeout_s": provider.settings.get("timeout_s"),
         }
         for provider in load_pool().backends
+        if not provider.retired
     ]
 
 

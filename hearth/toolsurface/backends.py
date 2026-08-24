@@ -108,7 +108,16 @@ class BackendRoutingRefusal(BackendConfigError):
 
 @dataclass(frozen=True)
 class Backend:
-    """One declared inference backend."""
+    """One declared inference backend.
+
+    ``retired`` marks a rung whose hardware is gone (a tombstone). The entry
+    stays in the pool so its history, ``revive`` wiring, and declared budgets
+    remain readable, and so a pin still fails with a specific error rather than
+    "unknown backend" — but it is withheld from outward-facing projections like
+    ``list_execution_providers``. Declaring capacity that cannot emit a token is
+    worse than declaring none: the IRC storefront advertised three dead rungs as
+    real hardware for four days after the 2026-08-20 rebuild.
+    """
     name: str
     endpoint: str
     api: str
@@ -116,6 +125,7 @@ class Backend:
     tags: tuple[str, ...] = ()
     auth_env: Optional[str] = None
     revive: Optional[str] = None
+    retired: bool = False
     occupancy: dict = field(default_factory=dict)
     settings: dict = field(default_factory=dict)
 
@@ -201,6 +211,7 @@ def _coerce_backend(raw: dict) -> Backend:
         tags=tuple(raw.get("tags") or ()),
         auth_env=raw.get("auth_env"),
         revive=raw.get("revive"),
+        retired=bool(raw.get("retired", False)),
         occupancy=dict(raw.get("occupancy") or {}),
         settings=dict(raw.get("settings") or {}),
     )

@@ -28,6 +28,12 @@
 #   3. tag match (task="research" -> a backend tagged "research"), occupancy-checked (P2):
 #      a busy or unknown-occupancy candidate is skipped, next tag/candidate tried
 #   4. fall back to `default` (never itself occupancy-gated)
+# `retired = true` marks a rung whose hardware is gone. It stays declared so its
+# history, revive wiring, and budgets remain readable, and so a pin still fails
+# with that rung's own error rather than "unknown backend" — but it is withheld
+# from list_execution_providers, which the IRC storefront and the public lab
+# pages project verbatim. Declaring capacity that cannot emit a token is worse
+# than declaring none.
 # Occupancy probe: hearth.toolsurface.occupancy — one probe declared PER RUNG
 # (am4-moe: llama-server /slots; am4-oxen: :8090 facade /health; everything else:
 # no probe, always "available"), 30s cache, fail-open to "unknown" -> busy for
@@ -138,6 +144,8 @@ api      = "ollama"                          # /api/generate
 models   = ["qwen3-coder:30b"]
 tags     = []                                # was ["default", "code"] — stripped with the demotion
 revive   = "start_ollama"                    # HEARTH summon tool (consumed in P4)
+# retired 2026-08-24: :11434 does not listen and OllamaBoot is Disabled for good.
+retired  = true
 # NOTE 2026-08-21: OllamaBoot is DISABLED and STAYS disabled (Derek: "more
 # headaches than it's saved" — tray-updater wars, zombie installs, the 65 GB
 # commit thief). A pin needs a deliberate `Start-ScheduledTask OllamaBoot`
@@ -172,6 +180,8 @@ auth_env = "AM4_OXEN_TOKEN"                   # same token the facade lane alrea
 models   = ["gpt-oss-120b"]                   # served via --alias gpt-oss-120b
 tags     = []                                 # was big-context/research/second-opinion/reasoning
                                               # — all moved to omen-arc (ADR-0034)
+# retired 2026-08-24: the B70s serving this rung are in OMEN; AM4:8082 is closed.
+retired  = true
 # Occupancy: HTTP slot/KV probe (occupancy.probe_moe_slots) — NOT the render-node
 # fuser probe: this rung's own llama-server always holds both cards, so "someone
 # holds the render nodes" would read permanently busy. Goodput policy: all slots
@@ -268,6 +278,8 @@ tags     = []                                 # was ["oxen-planner"]; DEMOTED fr
 # llama-server is resident holds both render nodes by design, so "someone holds
 # a render node" is always true here (same reason am4-moe probes /slots).
 occupancy = { conductor_worker = "am4-worker-1" }
+# retired 2026-08-24: the cards left AM4; :8090 answers but every model is ready:false.
+retired  = true
 [backend.settings]
 # ADR-0027: `node` is the machine that EXECUTES a dispatch, stamped as builder_id on
 # capacity observations. Distinct from the caller (which becomes workflow_id) on purpose:

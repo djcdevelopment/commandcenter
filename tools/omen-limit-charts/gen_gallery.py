@@ -234,25 +234,31 @@ for b in BS:
     c9.append('<text x="%.1f" y="%d" fill="%s" font-size="11" text-anchor="middle">%d</text>' % (X9(b), H9 - B9 + 18, DIM, b))
 c9.append('<text x="%.1f" y="%d" fill="%s" font-size="12" font-weight="600" text-anchor="middle">parallel sequences (threads in flight)</text>' % ((L9 + W9 - R9) / 2, H9 - B9 + 40, INK))
 c9.append('<text x="%d" y="%d" fill="%s" font-size="11">aggregate decode tok/s</text>' % (L9 - 40, T9 - 14, DIM))
-_curves9 = ((4, WARN, "limit 4"), (8, ORANGE, "limit 8 (stock)"), (16, BLUE, "limit 16"))
-for lim, color, lbl in _curves9:
+# The three configs measure IDENTICAL values wherever they share a path, so a
+# same-width overplot hides the lower curves entirely and reads as missing data.
+# Stepped widths keep every curve visible as a layered edge: wherever only the
+# thin blue core shows over an orange edge over a yellow halo, all three agreed.
+_curves9 = ((4, WARN, "limit 4", 7.0, 6.5), (8, ORANGE, "limit 8 (stock)", 4.5, 5.0), (16, BLUE, "limit 16", 2.2, 3.2))
+for lim, color, lbl, wdt, rad in _curves9:
     vals = expY[lim]
     pts = " ".join("%.1f,%.1f" % (X9(b), Y9(vals[b])) for b in BS if b in vals)
-    c9.append('<polyline points="%s" fill="none" stroke="%s" stroke-width="2.5" stroke-linejoin="round"/>' % (pts, color))
+    c9.append('<polyline points="%s" fill="none" stroke="%s" stroke-width="%s" stroke-linejoin="round" stroke-linecap="round"/>' % (pts, color, wdt))
+for lim, color, lbl, wdt, rad in _curves9:
+    vals = expY[lim]
     for b in BS:
         if b in vals:
-            c9.append('<circle cx="%.1f" cy="%.1f" r="3.5" fill="%s" stroke="%s" stroke-width="1.5"><title>%s, B=%d: %.1f tok/s</title></circle>' % (X9(b), Y9(vals[b]), color, PANEL, lbl, b, vals[b]))
-for lim, color, lbl in _curves9:
+            c9.append('<circle cx="%.1f" cy="%.1f" r="%s" fill="%s"><title>%s, B=%d: %.1f tok/s</title></circle>' % (X9(b), Y9(vals[b]), rad, color, lbl, b, vals[b]))
+for lim, color, lbl, wdt, rad in _curves9:
     x = X9(lim) + (X9(BS[BS.index(lim) + 1]) - X9(lim)) / 2
     c9.append('<line x1="%.1f" y1="%d" x2="%.1f" y2="%d" stroke="%s" stroke-width="1.5" stroke-dasharray="5 4"/>' % (x, T9, x, H9 - B9, color))
     c9.append('<text x="%.1f" y="%d" fill="%s" font-size="11" text-anchor="middle">cliff &gt;%d</text>' % (x, T9 - 4, color, lim))
 c9.append('<text x="%.1f" y="%.1f" fill="%s" font-size="13" font-weight="700">move the number, the cliff moves</text>' % (X9(9) + 8, Y9(160), INK))
-for i, (lim, color, lbl) in enumerate(_curves9):
+for i, (lim, color, lbl, wdt, rad) in enumerate(_curves9):
     c9.append('<rect x="%d" y="%d" width="12" height="4" rx="2" fill="%s"/><text x="%d" y="%d" fill="%s" font-size="11">%s</text>' % (L9 + 8 + i * 130, H9 - 10, color, L9 + 24 + i * 130, H9 - 5, DIM, lbl))
 c9.append('</svg>')
 chart9 = "".join(c9)
 t9 = "<tr><th>B</th>" + "".join("<th>%d</th>" % b for b in BS) + "</tr>"
-for lim, _c, lbl in _curves9:
+for lim, _c, lbl, _w, _r in _curves9:
     t9 += "<tr><td>%s</td>" % lbl + "".join("<td>%.1f</td>" % expY[lim][b] if b in expY[lim] else "<td>-</td>" for b in BS) + "</tr>"
 
 # ---- Chart 10: the name-brand roster (expZ, stock vs patched at B=16)
@@ -451,9 +457,10 @@ same card, only the env var moves.</p>
 
 <h2>9 · Dose-response — the cliff obeys the knob</h2>
 <figure>%%C9%%<figcaption>Three runs of the same binary on Mistral-Small-24B, one B70: limit 4, 8 (stock), 16. The
-curves are identical until each one's own limit, then each collapses at exactly the first batch past it — and past the
-cliff all three converge on the same matmul-path floor. Move the number, the cliff moves. That is causality, not
-correlation.</figcaption>
+line widths are stepped because the measurements are <b>identical</b> wherever curves share a path — wherever the thin
+blue core rides an orange edge over a yellow halo, all three configs produced the same number. Each curve collapses at
+exactly the first batch past its own limit, and past the cliff all three converge on the same matmul-path floor. Move
+the number, the cliff moves. That is causality, not correlation.</figcaption>
 <details><summary>data (aggregate tok/s, warm rep2)</summary><table>%%T9%%</table></details></figure>
 
 <h2>10 · Seven models everyone knows, one constant</h2>

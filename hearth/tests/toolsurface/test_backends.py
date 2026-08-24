@@ -556,3 +556,54 @@ class EscalationTests(TestCase):
         self.assertEqual(res["routed_by"], "escalation:b1->b2")
         self.assertEqual(res["error"], "error b2")
         self.assertEqual(res["escalation"], {"from": "b1", "error": "error b1"})
+
+
+_RETIRED_POOL_TOML = textwrap.dedent("""
+    default = "omen-arc"
+
+    [[backend]]
+    name = "omen-arc"
+    endpoint = "http://127.0.0.1:8082"
+    api = "openai"
+    models = ["qwen3-30b-a3b"]
+    tags = ["default"]
+
+    [[backend]]
+    name = "am4-moe"
+    endpoint = "http://100.116.82.60:8082"
+    api = "openai"
+    models = ["gpt-oss-120b"]
+    tags = []
+    retired = true
+""")
+
+
+class RetiredBackendTests(TestCase):
+    """A tombstone stays routable but stops being advertised."""
+
+    def setUp(self) -> None:
+        self.tmp = Path(self.enterContext(__import__("tempfile").TemporaryDirectory()))
+        self.pool_path = _write_pool(self.tmp, _RETIRED_POOL_TOML)
+
+    def test_retired_defaults_to_false_and_parses_when_declared(self) -> None:
+        pool = load_pool(self.pool_path)
+        self.assertFalse(pool.by_name("omen-arc").retired)
+        self.assertTrue(pool.by_name("am4-moe").retired)
+
+    def test_retired_rung_is_still_pinnable(self) -> None:
+        # The pin must keep reaching the rung so it fails with that rung's own
+        # error, not "unknown backend" — the tombstone is documentation, and an
+        # operator who pins it deliberately deserves the specific failure.
+        pool = load_pool(self.pool_path)
+        chosen, reason, _ = select_backend(pool, backend="am4-moe")
+        self.assertEqual(chosen.name, "am4-moe")
+        self.assertEqual(reason, "pinned:am4-moe")
+
+    def test_retired_rung_is_withheld_from_the_provider_projection(self) -> None:
+        from hearth.toolsurface import execution_control
+
+        with patch.object(
+            execution_control, "load_pool", lambda: load_pool(self.pool_path)
+        ):
+            names = [p["name"] for p in execution_control.list_execution_providers()]
+        self.assertEqual(names, ["omen-arc"])

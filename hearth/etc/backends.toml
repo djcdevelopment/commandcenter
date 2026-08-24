@@ -71,16 +71,26 @@ tags     = ["default", "code", "big-context", "research", "second-opinion", "rea
 [backend.settings]
 node                = "omen"
 hardware_profile_id = "omen-285k-dual-b70-2026H2"   # rebuilt box, 2026-08-20 (ADR-0027 hand-bump)
-# A1 payload budget: -np 4 slots over -c 65536 => 16k tokens per slot; ~14k of
+# A1 payload budget: -np 2 slots over -c 131072 => 64k tokens per slot; ~57k of
 # that as payload at the ~4 bytes/token convention (same arithmetic as the old
 # am4-moe rung). Serving flags per the campaign: -sm layer -ts 1,1 -fa on
 # (rung ctx is past the 16-24k FA crossover) -fit off --no-mmap.
-context_bytes = 57344
+#
+# 2026-08-24: widened 16k -> 64k per slot for Nous Hermes Agent, which refuses
+# any model offering under 64000 tokens per conversation. This MUST track
+# serve-arc.cmd's -c/-np: llama-server never rejects an over-long prompt, it
+# silently truncates it (measured 2026-07-18: a 17.5k request against a 16k slot
+# returned ok with normal timing), so context_bytes is the only real guard.
+# Slots halved 4 -> 2 because -c 262144 -np 4 SPILLED (10.24 GB shared, -22%
+# throughput); -c 131072 -np 2 is clean at 0.24 GB and 109.31 tok/s.
+context_bytes = 229376
 max_tokens = 8192
 timeout_s = 1000
-# Verified live in the Stage 6/7 waves (-np 4); Q3 knee study says 8 is the
-# aggregate peak — held at 4 for latency headroom, revisit with capacity data.
-parallel_slots = 4
+# 2 slots (was 4): 64k-deep slots cost more than the knee ladder predicted —
+# that ladder varied -c via -np at a fixed 8192/slot, so it never sampled slot
+# depth and is blind to attention compute buffers. Re-run the shared-usage
+# assert after any -c/-np change.
+parallel_slots = 2
 
 [[backend]]
 name     = "omen-arc-oss"                     # BANKED FIRE (pin-only, NOT resident):

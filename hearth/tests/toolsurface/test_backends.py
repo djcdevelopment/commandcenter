@@ -266,10 +266,13 @@ class PackagedPoolTests(TestCase):
         for name in ("omen-arc", "omen-arc-oss", "omen-ollama",
                      "am4-oxen", "am4-moe", "gcp-gemini", "gcp-gemini-pro"):
             self.assertIsNotNone(pool.by_name(name).context_bytes(), name)
-        # omen-arc serves -c 65536 across -np 4 => 16k tokens/slot, ≈14k of it
+        # omen-arc serves -c 131072 across -np 2 => 64k tokens/slot, ≈57k of it
         # as payload at the ≈4 bytes/token convention (same arithmetic the old
         # am4 rungs used; those pins stay to keep the tombstones honest).
-        self.assertEqual(pool.by_name("omen-arc").context_bytes(), 57344)
+        # Widened from 16k/slot on 2026-08-24 for Hermes Agent's 64000-token
+        # floor; must track serve-arc.cmd's -c/-np, since llama-server silently
+        # truncates over-long prompts rather than rejecting them.
+        self.assertEqual(pool.by_name("omen-arc").context_bytes(), 229376)
         self.assertEqual(pool.by_name("omen-arc-oss").context_bytes(), 57344)
         self.assertEqual(pool.by_name("am4-oxen").context_bytes(), 57344)
         self.assertEqual(pool.by_name("am4-moe").context_bytes(), 57344)

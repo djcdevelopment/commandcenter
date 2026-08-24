@@ -57,6 +57,12 @@ at 2–4 MiB). If you are pinning a local rung for a big read, either drop the p
 and let the router pick, or pin a gemini rung. `plan_execution` resolves a
 provider content-free if you want to check before spending anything.
 
+**Updated 2026-08-24:** `omen-arc` (the default) was widened to
+**`context_bytes = 229376`** — it now serves `-c 131072 -np 2`, i.e. 64k tokens
+per slot instead of 16k, to clear Hermes Agent's 64000-token floor. So the
+default rung now takes `files=` packs ~4x larger than before, at the cost of 2
+concurrent slots instead of 4. The other local rungs are unchanged at 57344.
+
 For **auditable infra builds** (checkable acceptance criteria, receipt wanted),
 use the door's **build-request lane**: `create/get/list/update/execute/
 close_build_request`; receipts + ledger at

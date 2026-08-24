@@ -1,25 +1,25 @@
 {
   "contract_version": "offload.v1",
-  "evidence_watermark": "2026-08-12T11:39:36.180668Z",
-  "bucket_count": 10,
+  "evidence_watermark": "2026-08-22T11:27:00.925098Z",
+  "bucket_count": 11,
   "totals": {
-    "calls": 1214,
-    "tokens_in": 3014762,
-    "tokens_out": 375571
+    "calls": 1222,
+    "tokens_in": 3025167,
+    "tokens_out": 377733
   },
   "per_class": {
     "sunk": {
-      "calls": 618,
-      "tokens_in": 369098,
-      "tokens_out": 156741
+      "calls": 623,
+      "tokens_in": 369680,
+      "tokens_out": 157684
     },
     "trial": {
-      "calls": 587,
-      "tokens_in": 2645664,
-      "tokens_out": 218830
+      "calls": 589,
+      "tokens_in": 2655487,
+      "tokens_out": 220049
     },
     "unknown": {
-      "calls": 9,
+      "calls": 10,
       "tokens_in": 0,
       "tokens_out": 0
     }
@@ -29,13 +29,13 @@
     "reference": "claude-sonnet",
     "input_per_mtok": 3.0,
     "output_per_mtok": 15.0,
-    "usd": 14.677851
+    "usd": 14.741496
   },
   "real_usd_spent": {
     "pricing_source": "vertex-ai-pricing verified 2026-07-23 (global/standard, <=200K tier)",
     "usd": 6.266929,
     "priced_calls": 404,
-    "unpriced_calls": 183
+    "unpriced_calls": 185
   },
   "buckets": [
     {
@@ -71,12 +71,12 @@
       "models": [
         "gemini-3.5-flash"
       ],
-      "calls": 246,
+      "calls": 248,
       "ok_rate": 1.0,
-      "tokens_in": 507751,
-      "tokens_out": 63398,
+      "tokens_in": 517574,
+      "tokens_out": 64617,
       "real_usd": 0.913247,
-      "last_seen": "2026-08-12T11:39:36.180668Z"
+      "last_seen": "2026-08-19T16:03:44.097980Z"
     },
     {
       "backend": "gcp-gemini-pro",
@@ -95,12 +95,12 @@
       "backend": "model:",
       "cost_class": "unknown",
       "models": [],
-      "calls": 9,
-      "ok_rate": 0.3333,
+      "calls": 10,
+      "ok_rate": 0.4,
       "tokens_in": 0,
       "tokens_out": 0,
       "real_usd": null,
-      "last_seen": "2026-08-08T12:46:46.456160Z"
+      "last_seen": "2026-08-19T12:31:25.059288Z"
     },
     {
       "backend": "model:/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
@@ -155,20 +155,31 @@
       "last_seen": "2026-07-21T03:54:45.599895Z"
     },
     {
+      "backend": "omen-arc",
+      "cost_class": "sunk",
+      "models": [],
+      "calls": 3,
+      "ok_rate": 1.0,
+      "tokens_in": 547,
+      "tokens_out": 932,
+      "real_usd": 0.0,
+      "last_seen": "2026-08-22T11:27:00.925098Z"
+    },
+    {
       "backend": "omen-ollama",
       "cost_class": "sunk",
       "models": [
         "qwen2.5:7b-instruct",
         "qwen3-coder:30b"
       ],
-      "calls": 22,
+      "calls": 24,
       "ok_rate": 1.0,
-      "tokens_in": 5537,
-      "tokens_out": 1064,
+      "tokens_in": 5572,
+      "tokens_out": 1075,
       "real_usd": 0.0,
-      "last_seen": "2026-07-30T13:14:05.371007Z"
+      "last_seen": "2026-08-21T04:51:37.712201Z"
     }
   ],
-  "corpus_digest": "sha256:87820ed55e92890543ebfdfa75ac548df3cbafda815f80e59f1e29305a40bcdd",
-  "corpus_event_count": 88659
+  "corpus_digest": "sha256:8d7031662e7795c2b630c7702abf8708db9f2cdf57a249297bf7d0253da16a3c",
+  "corpus_event_count": 106009
 }

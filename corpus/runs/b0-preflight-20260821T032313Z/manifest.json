@@ -1,0 +1,230 @@
+{
+  "contract_version": "run-manifest.v1",
+  "run_id": "b0-preflight-20260821T032313Z",
+  "kind": "b70tools",
+  "tag": null,
+  "started_utc": "2026-08-21T03:31:07.437249+00:00",
+  "finished_utc": "2026-08-21T03:31:07.472890+00:00",
+  "operator": "derek",
+  "hw_id": "hw-8bc78be7a37a",
+  "machine": {
+    "hostname": "OMEN",
+    "board": {
+      "vendor": "ASUSTeK COMPUTER INC.",
+      "product": "Pro WS Z890-ACE SE",
+      "version": "Rev 1.xx"
+    },
+    "bios": {
+      "version": "3305",
+      "vendor": "American Megatrends Inc."
+    },
+    "chassis": {
+      "vendor": "ASUS",
+      "model": "System Product Name"
+    },
+    "cpu": {
+      "model": "Intel(R) Core(TM) Ultra 9 285K",
+      "sockets": 1,
+      "cores": 24,
+      "threads": 24,
+      "max_clock_mhz": 3700
+    },
+    "memory": {
+      "total_bytes": 136658632704,
+      "dimms": [
+        {
+          "capacity_bytes": 34359738368,
+          "speed_mts": 4400,
+          "configured_mts": 4400,
+          "part_number": "HP60U40D8HA-32FRE"
+        },
+        {
+          "capacity_bytes": 34359738368,
+          "speed_mts": 4400,
+          "configured_mts": 4400,
+          "part_number": "HP60U40D8HA-32FRE"
+        },
+        {
+          "capacity_bytes": 34359738368,
+          "speed_mts": 4400,
+          "configured_mts": 4400,
+          "part_number": "HP60U40D8HA-32FRE"
+        },
+        {
+          "capacity_bytes": 34359738368,
+          "speed_mts": 4400,
+          "configured_mts": 4400,
+          "part_number": "HP60U40D8HA-32FRE"
+        }
+      ]
+    },
+    "gpus": [
+      {
+        "name": "Intel(R) Arc(TM) Pro B70 Graphics",
+        "vendor": "intel",
+        "vendor_id": "8086",
+        "device_id": "e223",
+        "subsys_id": "17018086",
+        "pci_address": "0000:09:00.0",
+        "pnp_device_id": "PCI\\VEN_8086&DEV_E223&SUBSYS_17018086&REV_00\\6&13DA5026&0&00080033",
+        "integrated": false,
+        "driver_version": "32.0.101.8974",
+        "driver_date": "2026-08-11",
+        "vram_bytes": 33285996544,
+        "shared_memory_bytes": null,
+        "vram_source": "registry:qwMemorySize",
+        "compute": true
+      },
+      {
+        "name": "ASPEED Graphics Family(WDDM)",
+        "vendor": "aspeed",
+        "vendor_id": "1a03",
+        "device_id": "2000",
+        "subsys_id": "20001a03",
+        "pci_address": "0000:86:00.0",
+        "pnp_device_id": "PCI\\VEN_1A03&DEV_2000&SUBSYS_20001A03&REV_52\\5&3CDA750&0&0000E7",
+        "integrated": false,
+        "driver_version": "9.0.10.116",
+        "driver_date": "2025-05-13",
+        "vram_bytes": null,
+        "shared_memory_bytes": null,
+        "vram_source": "registry:qwMemorySize",
+        "compute": false
+      },
+      {
+        "name": "Intel(R) Graphics",
+        "vendor": "intel",
+        "vendor_id": "8086",
+        "device_id": "7d67",
+        "subsys_id": "88ef1043",
+        "pci_address": "0000:00:02.0",
+        "pnp_device_id": "PCI\\VEN_8086&DEV_7D67&SUBSYS_88EF1043&REV_06\\3&11583659&0&10",
+        "integrated": true,
+        "driver_version": "32.0.101.8974",
+        "driver_date": "2026-08-11",
+        "vram_bytes": null,
+        "shared_memory_bytes": 77309411328,
+        "vram_source": null,
+        "compute": true
+      },
+      {
+        "name": "Intel(R) Arc(TM) Pro B70 Graphics",
+        "vendor": "intel",
+        "vendor_id": "8086",
+        "device_id": "e223",
+        "subsys_id": "17018086",
+        "pci_address": "0000:04:00.0",
+        "pnp_device_id": "PCI\\VEN_8086&DEV_E223&SUBSYS_17018086&REV_00\\6&370F7C1&0&00080030",
+        "integrated": false,
+        "driver_version": "32.0.101.8974",
+        "driver_date": "2026-08-11",
+        "vram_bytes": 33285996544,
+        "shared_memory_bytes": null,
+        "vram_source": "registry:qwMemorySize",
+        "compute": true
+      }
+    ],
+    "os": {
+      "system": "Windows",
+      "release": "11",
+      "version": "10.0.26200",
+      "machine": "AMD64"
+    },
+    "contract_version": "machine-fingerprint.v1",
+    "hw_id": "hw-8bc78be7a37a",
+    "hw_label": "pro-ws-z890-ace-se+intel-core-ultra-9-285k+128gb+2xintel-arc-pro-b70-graphics",
+    "hw_canonical": "board=ASUSTeK COMPUTER INC./Pro WS Z890-ACE SE|cpu=Intel(R) Core(TM) Ultra 9 285K|ram_gb=128|gpus=8086:7d67:88ef1043x1,8086:e223:17018086x2",
+    "ram_class_gb": 128,
+    "gpu_signature": [
+      "8086:7d67:88ef1043x1",
+      "8086:e223:17018086x2"
+    ]
+  },
+  "platform": "windows-vulkan",
+  "engine": {
+    "name": "llama.cpp",
+    "path": "E:\\work\\battlemage\\llamacpp-win-vulkan",
+    "build_commit": null,
+    "build_number": null,
+    "version": "usage: E:\\work\\battlemage\\llamacpp-win-vulkan\\llama-bench.exe [options]",
+    "backend": "Vulkan"
+  },
+  "devices": {
+    "selector": "all",
+    "visible_devices": null,
+    "resolved": [
+      {
+        "index": 0,
+        "name": "Intel(R) Graphics",
+        "total_mib": 74286,
+        "free_mib": 103494,
+        "vendor": "Intel Corporation",
+        "uma": true,
+        "fp16": true,
+        "bf16": false,
+        "matrix_cores": "none",
+        "is_b70": false,
+        "is_discrete": false
+      },
+      {
+        "index": 1,
+        "name": "Intel(R) Arc(TM) Pro B70 Graphics",
+        "total_mib": 32558,
+        "free_mib": 31789,
+        "vendor": "Intel Corporation",
+        "uma": false,
+        "fp16": true,
+        "bf16": false,
+        "matrix_cores": "KHR_coopmat",
+        "is_b70": true,
+        "is_discrete": true
+      },
+      {
+        "index": 2,
+        "name": "Intel(R) Arc(TM) Pro B70 Graphics",
+        "total_mib": 32558,
+        "free_mib": 31789,
+        "vendor": "Intel Corporation",
+        "uma": false,
+        "fp16": true,
+        "bf16": false,
+        "matrix_cores": "KHR_coopmat",
+        "is_b70": true,
+        "is_discrete": true
+      }
+    ],
+    "device_kind": "arc-pro-b70",
+    "device_count": 2
+  },
+  "models": [],
+  "flags": {
+    "ticks": 300,
+    "mode": "idle"
+  },
+  "environment": {},
+  "raw_paths": [
+    "enumerate/events.jsonl",
+    "enumerate/schema.json",
+    "idle-collector.log",
+    "idle/events.jsonl",
+    "idle/schema.json"
+  ],
+  "telemetry": {
+    "collector": "b70tools",
+    "path": "idle/events.jsonl",
+    "verdict": "broken",
+    "complete": false
+  },
+  "source_repo_commit": "f19e7eed74ef2f46f70c22dc6708bb04547ec548",
+  "notes": [
+    "B0 identity + idle baseline on the ASUS Pro WS Z890-ACE SE board.",
+    "PASS: enumerate reconciled 4 adapters, ambiguous=no. Both B70s LUID-distinct (0000:04:00.0 adapter_00016033, 0000:09:00.0 adapter_0001642d), DedicatedVideoMemory 34139537408 B (31.79 GiB) each. Vulkan device_local agrees with DXGI byte-for-byte.",
+    "FAIL (stale policy, not hardware): b70tools verdict returns status=broken because host RAM used 45.45 GB exceeds a compiled-in 26.00 GB safety threshold. That threshold was calibrated for AM4's 32 GB DDR4. This host has 128 GB DDR5; 45.45 GB is 36% utilisation. The gate must be recalibrated before it can gate B2/B4.",
+    "STALE REFERENCE: verdict.healthy_adapter_work names adapter_00011b4f with known=false -- an adapter LUID from the previous rig, baked into the tool.",
+    "CONCERN: 129 DisagreementReport events. IGCL_PowerTelemetry on adapter_00016033 (the bus-4 card) went silent 32 times for >=3 consecutive ticks and resumed 28 times. Power telemetry on that card is intermittent on this board, which directly threatens the telemetry-completeness-as-PASS flight rule for B2.",
+    "EXPECTED: impossible_heap_budget on adapter_00015ca3 is the iGPU conflating LOCAL/NON_LOCAL; it has no dedicated memory.",
+    "TRAP RECORDED: llama.cpp Vulkan enumeration order changed with the board. Vulkan0 is now the integrated GPU (reported as 74286 MiB total / 103494 MiB free); the B70s are Vulkan1 and Vulkan2. Every battlemage script hardcodes device indices 0 and 1 for 'the two cards'. Ported verbatim they would benchmark the iGPU under a B70 label without erroring. corpus/vkdevices.py resolves devices by hardware and refuses integrated devices; use it instead of bare indices."
+  ],
+  "status": "complete",
+  "failure": null
+}

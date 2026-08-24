@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "run-manifest.v1",
+  "title": "Benchmark run manifest",
+  "description": "Everything needed to reproduce or discount one benchmark run. Hardware identity is EMBEDDED, not referenced: a manifest must stay interpretable after the machine it describes has been rebuilt. Field set follows the manifest block mandated by E:\\work\\denning\\REPRODUCE.md.",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "run_id",
+    "kind",
+    "started_utc",
+    "hw_id",
+    "machine",
+    "engine",
+    "platform"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "contract_version": { "const": "run-manifest.v1" },
+    "run_id": {
+      "type": "string",
+      "description": "<kind>-<UTC compact>Z[-<tag>], matching the hearth/var/experiments convention.",
+      "pattern": "^[a-z0-9]+[a-z0-9-]*-[0-9]{8}T[0-9]{6}Z(-[a-z0-9-]+)?$"
+    },
+    "kind": {
+      "type": "string",
+      "description": "Harness family: llama-bench, b70tools, ollama-lab, denning-bench, hearth-experiment, gambit."
+    },
+    "tag": { "type": ["string", "null"] },
+    "started_utc": { "type": "string", "format": "date-time" },
+    "finished_utc": { "type": ["string", "null"], "format": "date-time" },
+    "operator": { "type": ["string", "null"] },
+
+    "hw_id": {
+      "type": "string",
+      "description": "Stable identity of the physical configuration. Join key for cross-board comparison.",
+      "pattern": "^hw-[0-9a-f]{12}$"
+    },
+    "machine": {
+      "type": "object",
+      "description": "Full machine-fingerprint.v1 record, embedded verbatim."
+    },
+    "platform": {
+      "type": "string",
+      "description": "os+backend pair that numbers may NOT be compared across without saying so.",
+      "examples": ["windows-vulkan", "linux-sycl", "windows-cuda", "linux-cuda", "windows-ollama"]
+    },
+
+    "engine": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "examples": ["llama.cpp", "ollama", "vllm"] },
+        "path": { "type": ["string", "null"] },
+        "build_commit": { "type": ["string", "null"] },
+        "build_number": { "type": ["integer", "null"] },
+        "version": { "type": ["string", "null"] },
+        "backend": { "type": ["string", "null"], "examples": ["Vulkan", "SYCL", "CUDA"] }
+      }
+    },
+
+    "devices": {
+      "type": "object",
+      "description": "Which physical devices the run was pointed at, and how that was resolved. Bare Vulkan indices are NOT portable across boards -- record the selector and the hardware it resolved to.",
+      "properties": {
+        "selector": { "type": ["string", "null"], "examples": ["b70:all", "b70:0"] },
+        "visible_devices": { "type": ["string", "null"] },
+        "resolved": { "type": "array", "items": { "type": "object" } },
+        "device_kind": { "type": ["string", "null"] },
+        "device_count": { "type": ["integer", "null"] }
+      }
+    },
+
+    "models": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "size_bytes"],
+        "properties": {
+          "name": { "type": ["string", "null"] },
+          "path": { "type": "string" },
+          "size_bytes": { "type": "integer" },
+          "sha256": { "type": ["string", "null"] },
+          "quant": { "type": ["string", "null"] },
+          "params": { "type": ["string", "null"] },
+          "architecture": { "type": ["string", "null"] }
+        }
+      }
+    },
+
+    "flags": {
+      "type": "object",
+      "description": "Engine flags that materially change the measurement: ngl, split mode, tensor split, flash attention, KV dtype, context, batch, threads."
+    },
+    "environment": {
+      "type": "object",
+      "description": "Env vars that steer the backend, e.g. GGML_VK_VISIBLE_DEVICES, GGML_VK_DISABLE_COOPMAT."
+    },
+
+    "raw_paths": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Raw artifacts this manifest describes, relative to the run directory."
+    },
+    "telemetry": {
+      "type": "object",
+      "description": "Concurrent physical telemetry, if any was collected.",
+      "properties": {
+        "collector": { "type": ["string", "null"] },
+        "path": { "type": ["string", "null"] },
+        "verdict": { "type": ["string", "null"] },
+        "complete": { "type": ["boolean", "null"] }
+      }
+    },
+
+    "source_repo_commit": { "type": ["string", "null"] },
+    "notes": { "type": "array", "items": { "type": "string" } },
+    "status": {
+      "type": "string",
+      "enum": ["running", "complete", "failed", "aborted"],
+      "default": "running"
+    },
+    "failure": {
+      "type": ["object", "null"],
+      "description": "A run that failed is still evidence. Record the mode rather than deleting the run.",
+      "properties": {
+        "mode": { "type": "string" },
+        "detail": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

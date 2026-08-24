@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bench-row.v1",
+  "title": "Normalised benchmark measurement row",
+  "description": "One measurement, from any harness, in one shape. Six source formats feed this: llama-bench JSONL, b70tools compact-v1, ollama-backend-lab CSV/JSON, denning bench JSONL, hearth experiment rows, and the AM4 gambit samples. The point of the shape is that hw_id + platform + model + workload make rows from different eras and different machines directly comparable -- which is what nothing in the estate could do before.",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "row_id",
+    "run_id",
+    "hw_id",
+    "platform",
+    "metric",
+    "value",
+    "source"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "contract_version": { "const": "bench-row.v1" },
+    "row_id": {
+      "type": "string",
+      "description": "Stable hash over (run_id, source path, source ordinal). Re-running backfill must not duplicate rows."
+    },
+    "run_id": { "type": "string" },
+
+    "hw_id": { "type": "string", "pattern": "^hw-[0-9a-f]{12}$" },
+    "hw_label": { "type": ["string", "null"] },
+    "host": { "type": ["string", "null"] },
+    "platform": {
+      "type": "string",
+      "description": "os+backend. Numbers do not carry across platforms; the lab index says so explicitly and this field is what enforces it in queries.",
+      "examples": ["windows-vulkan", "linux-sycl", "windows-cuda", "windows-ollama"]
+    },
+    "era": {
+      "type": ["string", "null"],
+      "description": "Human-facing grouping, e.g. 'am4-windows-vulkan', 'am4-linux-sycl', 'z890-windows-vulkan'."
+    },
+
+    "device_kind": {
+      "type": ["string", "null"],
+      "examples": ["arc-pro-b70", "rtx-5070", "rtx-4070-ti", "igpu", "cpu"]
+    },
+    "device_count": { "type": ["integer", "null"] },
+
+    "engine": { "type": ["string", "null"] },
+    "engine_build": { "type": ["string", "null"] },
+
+    "model": { "type": ["string", "null"] },
+    "model_quant": { "type": ["string", "null"] },
+    "model_params": { "type": ["string", "null"] },
+    "model_size_bytes": { "type": ["integer", "null"] },
+    "model_architecture": { "type": ["string", "null"] },
+
+    "workload": {
+      "type": ["string", "null"],
+      "enum": ["prefill", "decode", "prefill+decode", "load", "idle", "quality", null],
+      "description": "prefill and decode are the two regimes that behave completely differently; keeping them in one column with a discriminator is what allows the context-depth cliff to be plotted at all."
+    },
+    "n_prompt": { "type": ["integer", "null"] },
+    "n_gen": { "type": ["integer", "null"] },
+    "n_depth": {
+      "type": ["integer", "null"],
+      "description": "Context already resident when the measurement was taken. The single most important covariate for decode rate on this hardware."
+    },
+    "context_size": { "type": ["integer", "null"] },
+    "concurrency": { "type": ["integer", "null"] },
+
+    "split_mode": { "type": ["string", "null"] },
+    "tensor_split": { "type": ["string", "null"] },
+    "flash_attn": { "type": ["boolean", "null"] },
+    "kv_type": { "type": ["string", "null"] },
+    "n_gpu_layers": { "type": ["integer", "null"] },
+    "threads": { "type": ["integer", "null"] },
+
+    "metric": {
+      "type": "string",
+      "enum": [
+        "tokens_per_s",
+        "ttft_s",
+        "itl_ms",
+        "e2el_s",
+        "load_s",
+        "vram_bytes",
+        "host_ram_bytes",
+        "power_w",
+        "temperature_c",
+        "score",
+        "duration_ms"
+      ]
+    },
+    "value": { "type": "number" },
+    "unit": { "type": ["string", "null"] },
+    "stat": {
+      "type": ["string", "null"],
+      "enum": ["mean", "p50", "p90", "p99", "min", "max", "stddev", "single", null],
+      "description": "Which statistic `value` is. A point estimate with no distribution is recorded as 'single' and is honestly weaker evidence than a p50 -- do not silently promote one to the other."
+    },
+    "stddev": { "type": ["number", "null"] },
+    "n_runs": { "type": ["integer", "null"] },
+    "samples": { "type": ["array", "null"], "items": { "type": "number" } },
+
+    "timestamp": { "type": ["string", "null"], "format": "date-time" },
+
+    "source": {
+      "type": "object",
+      "required": ["adapter", "path"],
+      "description": "Provenance back to the original artifact. Every row must be traceable to the bytes it came from.",
+      "properties": {
+        "adapter": { "type": "string" },
+        "path": { "type": "string" },
+        "ordinal": { "type": ["integer", "null"] },
+        "note": { "type": ["string", "null"] }
+      }
+    },
+
+    "confidence": {
+      "type": ["string", "null"],
+      "enum": ["measured", "derived", "reported", null],
+      "description": "measured = read from raw instrument output; derived = computed here from raw rows; reported = transcribed from a prose document whose raw data is gone."
+    }
+  }
+}

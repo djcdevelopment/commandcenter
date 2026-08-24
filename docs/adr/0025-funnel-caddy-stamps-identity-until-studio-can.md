@@ -149,11 +149,21 @@ custom headers natively.
 - **`funnel-proxy` added to `fleet/inventory.toml`** with a revive command, so
   the sweep notices next time instead of four days of quiet 502s.
 
-### Consequence, stated plainly
+### Consequence, stated plainly — and it costs nothing
 
-**The GCP Studio lane goes dark** until Studio ships API-key auth for its MCP
-tool. That is precisely the trade this ADR pre-authorised. `gcp-adk-test`
-remains minted and rotated; it simply has no ingress that will stamp for it.
+The first draft of this amendment recorded "the GCP Studio lane goes dark" as
+the price of dropping the stamp. **That was wrong, and worth correcting rather
+than quietly deleting: the lane was already dead.** Derek killed the Studio
+agent long before this change because it burned roughly **$16/day** — a cost
+this ADR never weighed, having been written the day the integration was proven
+rather than after a month of billing.
+
+So the stamped-key mechanism had been maintained, and had been leaking its
+credential into a log file, for an integration that no longer existed. The
+trade this ADR pre-authorised turned out not to be a trade at all.
+
+`gcp-adk-test` remains minted and rotated but now has no purpose: no ingress
+stamps for it and the agent it served is gone. It should be revoked.
 
 ### Verified end to end, 2026-08-24
 

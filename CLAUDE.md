@@ -60,7 +60,7 @@ provider content-free if you want to check before spending anything.
 For **auditable infra builds** (checkable acceptance criteria, receipt wanted),
 use the door's **build-request lane**: `create/get/list/update/execute/
 close_build_request`; receipts + ledger at
-`C:\work\comfy\fieldlab\runs\build-requests`. `close(status="done")` is rejected
+`C:\work\baseline\fieldlab\runs\build-requests`. `close(status="done")` is rejected
 unless every criterion has a `passed` row with evidence — write criteria you can
 prove. See hearth/BUILD-REQUESTS.md.
 

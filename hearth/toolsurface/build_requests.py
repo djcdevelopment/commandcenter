@@ -24,9 +24,13 @@ from typing import Callable, Optional
 
 from hearth.toolsurface.backends import BackendConfigError, load_pool, select_backend
 
+# Receipts moved 2026-08-24: the comfy tree was retired and the old default
+# (C:\work\comfy\...) no longer resolved, so the lane would have recreated a
+# retired path and orphaned the existing ledger. The 57 receipts + ledger.jsonl
+# were moved to this path, which fieldlab/.gitignore keeps out of the repo.
 DEFAULT_RECEIPT_DIR = Path(os.environ.get(
     "HEARTH_BUILD_REQUEST_DIR",
-    r"C:\work\comfy\fieldlab\runs\build-requests",
+    r"C:\work\baseline\fieldlab\runs\build-requests",
 ))
 FINAL_STATUSES = {"done", "failed", "blocked", "cancelled"}
 OPEN_STATUSES = {"open", "running", *FINAL_STATUSES}

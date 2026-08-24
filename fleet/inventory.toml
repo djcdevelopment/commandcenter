@@ -38,12 +38,36 @@
 # HUMAN/roaming access (phone, i5) and the AM4 gallery Funnel — never in the
 # control loop. Trigger: Tailscale SSH "check" mode blocked the conductor lane
 # pending a browser re-auth (2026-07-09).
+#
+# --- FLEET HOLD (2026-08-24) ------------------------------------------------
+# ALL SIX Hyper-V VMs are Off on purpose -- Derek's campaign RAM reclaim, still
+# in force. The matching gateway-side hold is HEARTH_TIMERS_DISABLE in
+# hearth/var/gateway.cmd (patrol, watchdog, drain, fleet_harvest, ollama-sentinel).
+#
+# So cc-conductor / claudefarm1 / cc-builder-1..3 / omen-worker-1 are marked
+# expect="optional", NOT "up". They are parked, not broken, and `expect="up"` on a
+# deliberately-off node makes `fleet_ping` exit 1 forever -- which trains everyone
+# to ignore the one signal that is supposed to mean something. Same reasoning that
+# retired OMEN's dead ollama-local check.
+#
+# The gate still has teeth: `omen` (the door + the only live rung) and `am4` stay
+# expect="up", so the sweep goes red if the thing that actually serves dies.
+#
+# TO LIFT THE HOLD: start the VMs, flip those six back to expect="up", drop
+# HEARTH_TIMERS_DISABLE, and bounce the gateway (HearthGatewayRestart, UAC-free).
 # ============================================================================
 
 [meta]
 tailnet = "tail8e749c.ts.net"
 hyperv_host = "omen"
-updated = "2026-08-20"
+updated = "2026-08-24"
+# ssh_user: DOCUMENTATION ONLY -- nothing in this repo reads it (2026-08-24 audit).
+# fleet_ping probes TCP ports; the watchdog's `revive` is a shell command, not a
+# login. It records the convention for humans/agents who shell in by hand.
+# CAVEAT: after the 2026-08-20 AM4 rebuild the `claude` key is NOT installed there
+# -- `claude@192.168.12.233` gets "Permission denied (publickey)"; only `derek@`
+# works. Left as-is rather than repointed: the convention is still `claude` on the
+# VMs, and AM4 is the exception, not the new default.
 ssh_user = "claude"          # default ssh user for reachability/health probes
 
 # --- Physical hosts (tailnet members) ---------------------------------------
@@ -55,24 +79,29 @@ address = "omen.mshome.net"
 alt = ["100.124.12.37"]   # tailnet identity stays (i5/phone reach it from another project)
 via = "mshome"
 expect = "up"
-purpose = "Hyper-V hypervisor + HEARTH gateway (:8710) + omen-arc rung (llama-server :8082, dual Arc Pro B70, ADR-0034) + Ollama (:11434 loopback for the door, :11435 tracing proxy for the fleet; demoted CPU-only since the 5070 left in the 2026-08-20 rebuild). Hosts all builder VMs. THIS box."
+purpose = "Hyper-V hypervisor + HEARTH gateway (:8710) + omen-arc rung (llama-server :8082, dual Arc Pro B70, ADR-0034, -c 131072 -np 2). The whole live inference surface of the fleet as of 2026-08-24. Hosts all builder VMs (currently all Off). THIS box."
 # `revive` (optional, per-check): a shell command the watchdog runs when this
 # service is down on an expect="up" node. Since ADR-0015 the watchdog is an
 # in-gateway daemon timer (the old mechnet-watchdog scheduled task is deregistered).
 # The gateway revive is the proven doorcheck --revive (verified 2026-07-04, 322ab7d).
-# Ollama has TWO lanes on OMEN and they are NOT interchangeable (verified 2026-08-20):
-#   :11434 is bound to 127.0.0.1 ONLY -- OllamaBoot runs `ollama.exe serve` with
-#     OLLAMA_HOST unset, so it defaults to loopback. This is the HEARTH door's own
-#     lane; the gateway runs on OMEN, so loopback is all it needs.
+# OLLAMA ON OMEN IS RETIRED (2026-08-24). ADR-0034 disabled OllamaBoot for good
+# when omen-arc took over as the door default; `:11434` has not listened since.
+# The `ollama-local` check was dropped here -- it is a permanent red row under
+# --all-services, and a check that can never pass teaches you to ignore the sweep.
+# The old two-lane note is kept below because :11435 still runs and the
+# distinction still bites anyone who revives Ollama:
+#   :11434 was bound to 127.0.0.1 ONLY -- OllamaBoot ran `ollama.exe serve` with
+#     OLLAMA_HOST unset, so it defaulted to loopback: the HEARTH door's own lane.
 #   :11435 is the FLEET-facing lane -- OmenOllamaTracingProxy (scheduled task,
 #     C:\Users\derek\omen-otel-proxy\proxy.py) listens on 0.0.0.0:11435 and fronts
-#     Ollama with OTel tracing. VMs MUST use :11435.
+#     Ollama with OTel tracing. VMs MUST use :11435. The task is still Running, so
+#     the port answers even though there is no Ollama behind it -- this check
+#     proves the proxy, NOT a model. Do not read it as inference capacity.
 # Probing omen.mshome.net:11434 only ever generates a false alarm -- it cannot answer.
 checks = [
   { service = "llama-server", port = 8082, host = "127.0.0.1" },
   { service = "ollama-fleet", port = 11435, host = "omen.mshome.net" },
   { service = "hearth-gateway", port = 8710, host = "127.0.0.1", revive = "C:\\work\\commandcenter\\fleet-worker-node\\.venv-omen\\Scripts\\python.exe -m hearth.callers.doorcheck --revive" },
-  { service = "ollama-local", port = 11434, host = "127.0.0.1" },
 ]
 
 [[node]]
@@ -82,7 +111,7 @@ address = "cc-conductor.mshome.net"
 # tailnet identity REMOVED 2026-07-09 (post-ADR-0014 cleanup): node no longer appears in
 # `tailscale status` — the old alts 100.74.110.91 / cc-conductor.tail8e749c.ts.net are dead.
 via = "mshome"
-expect = "up"
+expect = "optional"   # PARKED 2026-08-24 (see FLEET HOLD note above); restore to "up" when the VMs restart
 purpose = "Fleet orchestration engine: conductor daemon + api/dashboard (:8080)."
 checks = [
   { service = "ssh", port = 22 },
@@ -97,11 +126,22 @@ alt = ["100.116.82.60", "am4.tail8e749c.ts.net"]   # tailscale STAYS on AM4 (gal
    # phone/i5 access) — but HEARTH/mechnet lanes use the LAN address (ADR-0014).
    # ufw: 22 + 8090 ALLOW from 192.168.12.0/24 (8090 rule added 2026-07-09).
 via = "lan"
-expect = "down"   # 2026-08-20: B70s + model drive moved into OMEN; box is dark
-purpose = "OFFLINE pending rebuild as a CUDA node (RTX 5070 incoming, Derek 2026-08-20). Was: AM4 inference + observability (OTel/Jaeger :16686). NOT a build VM."
+expect = "up"     # 2026-08-24: box is BACK (was "down" through the 08-20 teardown)
+purpose = "UP, but serves NO inference. Ubuntu 26.04, 30 GB RAM. Hosts the fleet's observability spine (Jaeger :16686, OTel collector :4317/:4318), the image gallery and IRC stack (loopback, published via its own tailscale Funnel), and the oxen facade :8090. The RTX 5070 is physically installed but there is NO NVIDIA driver and NO CUDA stack -- `nvidia-smi` is not present -- so nothing on this box can serve a model. NOT a build VM."
+# MEASURED 2026-08-24, not inferred: ping 1 ms, ssh:22 open, jaeger:16686 open,
+# 8090 answers (401 without a bearer, model list with one). The `expect="down"`
+# tombstone from the 08-20 teardown outlived the teardown -- AM4 came back as an
+# observability/services host without ever coming back as an inference host, and
+# the config only modelled the second thing.
+#
+# DO NOT read "up" here as capacity. Standing up a 5070 rung is deliberately out
+# of scope (Derek, 2026-08-24) and needs: NVIDIA driver + CUDA on 26.04, a CUDA
+# llama.cpp build, and a model that fits 12 GB VRAM against 30 GB host RAM (the
+# host RAM, not the VRAM, was the binding constraint on this box historically).
 checks = [
   { service = "ssh", port = 22 },
   { service = "jaeger", port = 16686 },
+  { service = "oxen-facade", port = 8090 },
 ]
 
 [[node]]
@@ -125,7 +165,7 @@ kind = "vm"
 address = "claudefarm1.mshome.net"
 via = "mshome"
 host = "omen"
-expect = "up"
+expect = "optional"   # PARKED 2026-08-24 (see FLEET HOLD note above); restore to "up" when the VMs restart
 runner_class = "local"   # runner.json: openai -> OMEN Ollama
 purpose = "Original golden-image VM. Worker + (temp) assay shell; hosts the omen-worker-1 builder."
 note = "2026-07-04 RECOVERED. Root cause was a MAC-ADDRESS COLLISION: cc-builder-4 was stood up (2026-07-03) with a static MAC identical to this VM's golden-image MAC (both 00155D0CC700). Two VMs, same static MAC on the Default Switch -> cc-builder-4 won, claudefarm1 was knocked off the network (no lease, unreachable). Its Hyper-V DISPLAY name had also been changed to 'cc-worker-1' (guest hostname stayed 'claudefarm1'), which hid it. Fix: Stop-VM, Set-VMNetworkAdapter -StaticMacAddress 00155D0CC70A (unique), Start-VM -> got fresh lease 172.21.189.98, mshome DNS updated, sshd up, conductor reachable, omen-worker-1 UP. hv-kvp-daemon is inactive in the guest (cosmetic: host can't read guest IP via KVP, but reachability is fine). NOTE: cc-builder-4 still holds the original golden MAC 00155D0CC700 - future clones off the golden image must regenerate their MAC (see [[project-fleet-vm-provisioning]]). 2026-08-20 RENAMED + CORRECTION: the Hyper-V display name is now 'claudefarm1', matching the guest hostname (Rename-VM on the running VM -- display-name only, zero downtime, uptime preserved). The 2026-07-04 line above is wrong on one point: the display name was never *changed* to 'cc-worker-1'. HANDOFF-2026-06-27.md records the VM as cc-worker-1 from the start, and Hyper-V CreationTime is 2026-06-27 03:17 -- it was created under that label booting the golden image whose guest hostname is claudefarm1, so label and hostname never matched. That is the whole reason 'cc-worker-1.mshome.net' was always NXDOMAIN: mshome sibling DNS is registered by the GUEST over DHCP, so only 'claudefarm1' was ever registered -- there was no missing node and nothing to repair. Nothing in fleet.json, this file, or any scheduled task ever referenced 'cc-worker-1'; it existed only as a Hyper-V label. DISK (disambiguate by full path): boots C:/Users/derek/VMs/dev-vm/dev-vm.vhdx -- NOT the same-named C:/Users/derek/VMs/zen-deepseek-1/dev-vm.vhdx that cc-builder-4 boots."
@@ -139,7 +179,7 @@ kind = "vm"
 address = "cc-builder-1.mshome.net"
 via = "mshome"
 host = "omen"
-expect = "up"
+expect = "optional"   # PARKED 2026-08-24 (see FLEET HOLD note above); restore to "up" when the VMs restart
 runner_class = "frontier"   # no runner.json on the node -> worker defaults to the metered claude runner
 purpose = "Frontier builder VM (claude/sonnet runner)."
 checks = [
@@ -152,7 +192,7 @@ kind = "vm"
 address = "cc-builder-2.mshome.net"
 via = "mshome"
 host = "omen"
-expect = "up"
+expect = "optional"   # PARKED 2026-08-24 (see FLEET HOLD note above); restore to "up" when the VMs restart
 runner_class = "local"   # runner.json: openai -> AM4 vllama-planner
 purpose = "Builder VM (local oxen-planner runner)."
 checks = [
@@ -165,7 +205,7 @@ kind = "vm"
 address = "cc-builder-3.mshome.net"
 via = "mshome"
 host = "omen"
-expect = "up"
+expect = "optional"   # PARKED 2026-08-24 (see FLEET HOLD note above); restore to "up" when the VMs restart
 runner_class = "local"   # runner.json: openai -> OMEN Ollama qwen2.5:14b
 purpose = "Builder + assay VM (rebuilt 2026-07-01, standalone disk). Current assay node while claudefarm1 is down."
 checks = [
@@ -198,11 +238,14 @@ checks = [
 name = "am4-worker-1"
 kind = "logical-builder"
 rides_on = "am4"
-model_backend = "127.0.0.1:8090"   # ☠ dead: oxen stack left with the cards (2026-08-20)
+model_backend = "127.0.0.1:8090"   # facade ANSWERS, but reports ready:false (2026-08-24)
 via = "lan"
-expect = "down"   # pending the AM4 CUDA rebuild
-runner_class = "local"   # openai runner -> oxen (dual B70), AM4-local
-purpose = "AM4 local-model builder: openai runner -> oxen. Shell on AM4; farmer via cc-farmer tunnel."
+# expect: "optional", not "down" -- fleet_ping's classify() only knows "up" and
+# "optional"; any other string behaves like a non-gating "up", so the old "down"
+# silently did nothing. This node CANNOT build and must never gate the sweep.
+expect = "optional"   # pending the AM4 CUDA rebuild (out of scope 2026-08-24)
+runner_class = "local"   # openai runner -> oxen; NOT dispatchable while oxen is empty
+purpose = "NOT DISPATCHABLE. AM4 local-model builder (openai runner -> oxen facade :8090). Its ssh check rides AM4, which is up again, so this row reports reachable -- that proves the SHELL, not the model. The oxen facade answers but every backend behind it is ready:false, and AM4 has no CUDA stack, so there is nothing to route work to. Shell on AM4; farmer via cc-farmer tunnel."
 checks = [
   { service = "ssh", port = 22, host = "192.168.12.233" },
 ]
@@ -213,7 +256,7 @@ kind = "logical-builder"
 rides_on = "claudefarm1"
 model_backend = "omen.mshome.net:11435"   # Ollama qwen3-coder:30b, via the OTel tracing proxy
 via = "mshome"
-expect = "up"
+expect = "optional"   # PARKED 2026-08-24 (see FLEET HOLD note above); restore to "up" when the VMs restart
 runner_class = "local"   # openai runner -> OMEN Ollama qwen3-coder:30b
 purpose = "OMEN Ollama qwen3-coder:30b builder (54.6 tok/s). Shell rides claudefarm1 -- so it dies when claudefarm1 is down, even though its model backend (OMEN) is fine."
 note = "Coupling to claudefarm1 is a fragility: OMEN's Ollama is reachable independently. Candidate to re-home its shell off claudefarm1 (see CONDUCTOR-FOLLOWUPS)."

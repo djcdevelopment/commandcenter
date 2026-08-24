@@ -126,6 +126,13 @@ name     = "omen-ollama"                      # DEMOTED from routing 2026-08-21 
                                               # the "commit thief": resident CPU runners
                                               # holding 65 GB). Pin-only until an
                                               # Arc-accelerated Ollama path is validated.
+# ⚠ NOT RUNNING, verified 2026-08-24: :11434 does not listen and the OllamaBoot
+# scheduled task is Disabled — for good, per ADR-0034, not pending a restart.
+# tags=[] keeps opportunistic routing off it, so this costs nothing day to day,
+# but an explicit backend="omen-ollama" PIN will fail at connect. Reviving it
+# means re-enabling OllamaBoot, and the ollama-sentinel entry in
+# HEARTH_TIMERS_DISABLE exists because its generate probe kept resurrecting the
+# 17.4 GB commit thief — lift that hold deliberately, together, or not at all.
 endpoint = "http://127.0.0.1:11434"
 api      = "ollama"                          # /api/generate
 models   = ["qwen3-coder:30b"]
@@ -212,6 +219,19 @@ parallel_slots = 4
 name     = "am4-oxen"                          # ☠ DEAD 2026-08-20 (ADR-0034): cards moved to
                                                # OMEN; see am4-moe tombstone. Was: the banked
                                                # fire — dual-B70 Qwen3-30B
+# ⚠ RE-MEASURED 2026-08-24 — this tombstone was HALF wrong, in the dangerous
+# direction. The facade did NOT die with the cards: AM4 is up again and :8090
+# still answers (401 bare, full model list with the bearer). What it returns is
+#     {"id":"oxen-planner", ..., "ready": false}
+#     {"id":"oxen-critic",  ..., "ready": false}
+# i.e. the facade is alive and every llama-server behind it (127.0.0.1:8080/:8081)
+# is gone. So a port probe, a /v1/models call, and a health check all SUCCEED
+# against a rung that cannot generate a single token.
+#
+# This is why the rung stays tags=[] — routing must never select it. But note a
+# PIN would also get past the door's checks and only fail at generate time, and
+# AM4 has no CUDA stack for the 5070, so there is no near-term fix. Treat "8090
+# is open" as evidence about the facade process, never about capacity.
 endpoint = "http://192.168.12.233:8090"       # AM4 over LAN (ufw 8090 ALLOW 192.168.12.0/24,
                                               # added 2026-07-09) — machine lanes stay off the
                                               # tailnet (ADR-0014)

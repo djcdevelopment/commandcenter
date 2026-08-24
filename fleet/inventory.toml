@@ -131,12 +131,14 @@ alt = ["100.116.82.60", "am4.tail8e749c.ts.net"]   # tailscale STAYS on AM4 (gal
    # phone/i5 access) — but HEARTH/mechnet lanes use the LAN address (ADR-0014).
    # ufw: 22 + 8090 ALLOW from 192.168.12.0/24 (8090 rule added 2026-07-09).
 via = "lan"
-expect = "optional"   # POWERED DOWN 2026-08-24 (deliberate, Derek) -- see cable note
-purpose = "POWERED DOWN. When up: Ubuntu 26.04, 30 GB RAM, serving NO inference -- it hosts the observability spine (Jaeger :16686, OTel :4317/:4318), the image gallery, the IRC stack (Ergo/TheLounge on loopback, published via its own tailscale Funnel), and the oxen facade :8090. The RTX 5070 is installed but has NO driver and NO CUDA (`nvidia-smi` absent), so it serves nothing even when powered. NOT a build VM."
-# CABLE, not failure (Derek, 2026-08-24): AM4 was running on fx99's network cable.
-# Derek took the cable back and shut AM4 down, so fx99 is up and AM4 is dark --
-# these two nodes have been trading one physical link. Verified after the swap:
-# AM4 100% packet loss, ssh:22 closed; fx99 2 ms, ssh + ollama answering.
+expect = "up"     # BACK UP 2026-08-24 (cable returned; serving the gallery to a real user)
+purpose = "UP and serving. Ubuntu 26.04, 30 GB RAM, serving NO inference -- it hosts the observability spine (Jaeger :16686, OTel :4317/:4318), the image gallery, the IRC stack (Ergo/TheLounge on loopback, published via its own tailscale Funnel), and the oxen facade :8090. The RTX 5070 is installed but has NO driver and NO CUDA (`nvidia-smi` absent), so it serves nothing even when powered. NOT a build VM."
+# ⚠ ONE CABLE, TWO BOXES (Derek, 2026-08-24 — it swapped TWICE in one session).
+# AM4 and fx99 share a single physical link. Whichever holds it is up; the other
+# is dark. Do not diagnose either as a fault before asking which box has the
+# cable. Current holder: AM4 (Derek pulled it from fx99 to serve the gallery).
+# Tell: the cable-less box may still answer ICMP from a stale ARP entry while
+# every port is closed — that is not a half-dead host, it is an absent one.
 #
 # WHAT GOES DARK WITH THIS BOX -- it is not just an inference tombstone:
 #   Jaeger :16686 + OTel collector :4317/:4318   the fleet's whole trace spine
@@ -159,8 +161,8 @@ kind = "physical-host"
 address = "192.168.12.220"                      # LAN = the machine lane (ADR-0014)
 alt = ["100.122.130.124", "fx99.tail8e749c.ts.net"]   # tailnet = human lane only
 via = "lan"
-expect = "up"     # ADDED 2026-08-24 -- first time this node has ever been in the file
-purpose = "NETWORK MONITORING NODE (intended role, Derek 2026-08-24). Deliberately NOT a fleet inference node and NOT a HEARTH rung. Hostname `ai-1`. Ubuntu 6.8.0-137, 15 GB RAM. It currently also holds an RTX 2070 SUPER 8 GB (driver 595.84) running Ollama 0.30.10 on :11434 with 12 resident models -- but that card is TRANSITIONAL, kept only so Derek can attach a monitor while hardware moves around."
+expect = "optional"   # DARK 2026-08-24: cable pulled and returned to AM4 (see am4)
+purpose = "NETWORK MONITORING NODE (intended role, Derek 2026-08-24). CURRENTLY DARK - AM4 has the shared network cable. Deliberately NOT a fleet inference node and NOT a HEARTH rung. Hostname `ai-1`. Ubuntu 6.8.0-137, 15 GB RAM. It currently also holds an RTX 2070 SUPER 8 GB (driver 595.84) running Ollama 0.30.10 on :11434 with 12 resident models -- but that card is TRANSITIONAL, kept only so Derek can attach a monitor while hardware moves around."
 # DO NOT WIRE THIS INTO THE FLEET. The Ollama endpoint is real, answers on the
 # LAN, and holds a tempting 12-model list (3B-14B Q4: llama3.2:3b, qwen2.5 7b/14b,
 # qwen2.5-coder:7b, llama3.1:8b, deepseek-r1:8b, gemma2:9b, mistral:7b, zephyr,

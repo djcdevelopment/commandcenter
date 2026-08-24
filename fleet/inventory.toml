@@ -126,22 +126,49 @@ alt = ["100.116.82.60", "am4.tail8e749c.ts.net"]   # tailscale STAYS on AM4 (gal
    # phone/i5 access) — but HEARTH/mechnet lanes use the LAN address (ADR-0014).
    # ufw: 22 + 8090 ALLOW from 192.168.12.0/24 (8090 rule added 2026-07-09).
 via = "lan"
-expect = "up"     # 2026-08-24: box is BACK (was "down" through the 08-20 teardown)
-purpose = "UP, but serves NO inference. Ubuntu 26.04, 30 GB RAM. Hosts the fleet's observability spine (Jaeger :16686, OTel collector :4317/:4318), the image gallery and IRC stack (loopback, published via its own tailscale Funnel), and the oxen facade :8090. The RTX 5070 is physically installed but there is NO NVIDIA driver and NO CUDA stack -- `nvidia-smi` is not present -- so nothing on this box can serve a model. NOT a build VM."
-# MEASURED 2026-08-24, not inferred: ping 1 ms, ssh:22 open, jaeger:16686 open,
-# 8090 answers (401 without a bearer, model list with one). The `expect="down"`
-# tombstone from the 08-20 teardown outlived the teardown -- AM4 came back as an
-# observability/services host without ever coming back as an inference host, and
-# the config only modelled the second thing.
+expect = "optional"   # POWERED DOWN 2026-08-24 (deliberate, Derek) -- see cable note
+purpose = "POWERED DOWN. When up: Ubuntu 26.04, 30 GB RAM, serving NO inference -- it hosts the observability spine (Jaeger :16686, OTel :4317/:4318), the image gallery, the IRC stack (Ergo/TheLounge on loopback, published via its own tailscale Funnel), and the oxen facade :8090. The RTX 5070 is installed but has NO driver and NO CUDA (`nvidia-smi` absent), so it serves nothing even when powered. NOT a build VM."
+# CABLE, not failure (Derek, 2026-08-24): AM4 was running on fx99's network cable.
+# Derek took the cable back and shut AM4 down, so fx99 is up and AM4 is dark --
+# these two nodes have been trading one physical link. Verified after the swap:
+# AM4 100% packet loss, ssh:22 closed; fx99 2 ms, ssh + ollama answering.
 #
-# DO NOT read "up" here as capacity. Standing up a 5070 rung is deliberately out
-# of scope (Derek, 2026-08-24) and needs: NVIDIA driver + CUDA on 26.04, a CUDA
-# llama.cpp build, and a model that fits 12 GB VRAM against 30 GB host RAM (the
-# host RAM, not the VRAM, was the binding constraint on this box historically).
+# WHAT GOES DARK WITH THIS BOX -- it is not just an inference tombstone:
+#   Jaeger :16686 + OTel collector :4317/:4318   the fleet's whole trace spine
+#   image gallery + its Funnel                    public showcase offline
+#   Ergo + TheLounge (IRC)                        <-- the planned mechnet frontend
+# The IRC community-compute plan runs on THIS machine. Any work on that lane
+# needs AM4 powered and cabled first; see [[project-irc-community-compute]].
+#
+# Standing up a 5070 rung here is deliberately out of scope (Derek, 2026-08-24).
+# Note fx99 already IS the working CUDA node this box was meant to become.
 checks = [
   { service = "ssh", port = 22 },
   { service = "jaeger", port = 16686 },
   { service = "oxen-facade", port = 8090 },
+]
+
+[[node]]
+name = "fx99"
+kind = "physical-host"
+address = "192.168.12.220"                      # LAN = the machine lane (ADR-0014)
+alt = ["100.122.130.124", "fx99.tail8e749c.ts.net"]   # tailnet = human lane only
+via = "lan"
+expect = "up"     # ADDED 2026-08-24 -- first time this node has ever been in the file
+purpose = "The fleet's only WORKING CUDA node. Hostname is `ai-1`; Derek calls it fx99. Ubuntu 6.8.0-137, 15 GB RAM, NVIDIA RTX 2070 SUPER 8 GB, driver 595.84. Serves Ollama 0.30.10 on :11434 with 12 resident models (3B-14B, Q4): llama3.2:3b, qwen2.5 7b/14b, qwen2.5-coder:7b, llama3.1:8b, deepseek-r1:8b, gemma2:9b, mistral:7b, plus the 7B chat set (zephyr, openhermes, starling-lm, dolphin-mistral)."
+# WHY IT WAS INVISIBLE UNTIL NOW: fx99 predates this file and was never modelled.
+# It read as "offline" for a mundane reason -- AM4 was using its network cable.
+# Cable returned 2026-08-24, AM4 powered down, fx99 came straight back.
+#
+# CAPABILITY NOTE, so nobody over-reads it: 8 GB VRAM caps this at ~14B Q4. It is
+# NOT a peer of omen-arc (dual B70, 30B MoE). Its value is heterogeneity -- a
+# genuinely independent CUDA rung for small/cheap classification and triage work,
+# on hardware that would otherwise sit idle, while omen-arc keeps the heavy lane.
+# It is NOT registered as a HEARTH backend rung as of 2026-08-24; that is a
+# deliberate open decision, not an oversight.
+checks = [
+  { service = "ssh", port = 22 },
+  { service = "ollama", port = 11434 },
 ]
 
 [[node]]
@@ -245,7 +272,7 @@ via = "lan"
 # silently did nothing. This node CANNOT build and must never gate the sweep.
 expect = "optional"   # pending the AM4 CUDA rebuild (out of scope 2026-08-24)
 runner_class = "local"   # openai runner -> oxen; NOT dispatchable while oxen is empty
-purpose = "NOT DISPATCHABLE. AM4 local-model builder (openai runner -> oxen facade :8090). Its ssh check rides AM4, which is up again, so this row reports reachable -- that proves the SHELL, not the model. The oxen facade answers but every backend behind it is ready:false, and AM4 has no CUDA stack, so there is nothing to route work to. Shell on AM4; farmer via cc-farmer tunnel."
+purpose = "NOT DISPATCHABLE, and doubly so since 2026-08-24: AM4 is powered down, so even the shell is gone. AM4 local-model builder (openai runner -> oxen facade :8090). CAUTION when AM4 is powered again -- its ssh check rides AM4, so this row flips to reachable and that proves the SHELL, not the model: the oxen facade answers with every backend ready:false, and AM4 has no CUDA stack. Shell on AM4; farmer via cc-farmer tunnel."
 checks = [
   { service = "ssh", port = 22, host = "192.168.12.233" },
 ]

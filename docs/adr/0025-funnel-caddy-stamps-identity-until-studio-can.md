@@ -98,3 +98,72 @@ Derek chose to skip that build step for this test rather than block on it.
   `kernel_status`, `read_file`, and `git_status` through
   Funnel → Caddy → gateway, each ledgered as `gcp-adk-test` / profile
   `research` / `ok: true`.
+
+---
+
+## Amendment — 2026-08-24: the stamp is removed, and it leaked before it left
+
+**Status of the original decision: superseded in its mechanism, vindicated in
+its reasoning.** ADR-0025 named the exact conditions for revisiting, and both
+arrived at once.
+
+### What happened
+
+**1. The stamped key leaked into the proxy's own logs.** Caddy's
+`reverse_proxy` error path (`"aborting with incomplete response"`) serialises
+the whole request object, headers included. The live `X-Hearth-Key` therefore
+sat in plaintext in `hearth/var/caddy-funnel-proxy.log` — 5 occurrences,
+undetected from 2026-07-24. The file is gitignored, so it never left the box,
+and the endpoint had been returning 502 since the 2026-08-20 rebuild, so the
+key unlocked nothing at the time of discovery. Rotated regardless; the log was
+destroyed.
+
+Worth naming as a class, because this ADR's own threat model missed it: we
+reasoned about who could *reach* the endpoint and never about where the
+credential would be *written down* on the way through.
+
+**2. The proxy had no boot task and silently died.** It ran from 2026-07-21 as
+a hand-started process. The OMEN rebuild wiped it. Tailscale Funnel stayed
+configured and kept serving the public hostname — a 502 — for four days while
+every map still described the lane as live. The endpoint reported *presence*
+while providing *nothing*.
+
+**3. A caller arrived that can send its own header.** The prerequisite this ADR
+set for dropping the stamp was "once Studio ships API-key auth." The equivalent
+condition was met from the other direction: a peer's Hermes router, which sends
+custom headers natively.
+
+### What changed
+
+- **The stamp is gone.** Callers present their own `X-Hearth-Key`; the gateway
+  identifies them per request by the normal ADR-0019 path. **The Funnel URL is
+  no longer a credential** — knowing it now earns a rejection, not read access.
+  This restores the model this ADR knowingly inverted.
+- **`peer-inference` minted** on profile `generation-proxy` — `generate`,
+  `execution`, `status`. No file authority, no repo authority.
+- **Both Caddy loggers redact** `X-Hearth-Key`, `Authorization`, and `Cookie`,
+  and now roll at 10 MiB × 3. The *default* logger needed filtering, not just
+  the access log — that is where the leak actually was.
+- **`HearthFunnelProxyBoot` / `HearthFunnelProxyRestart`** registered on the
+  ADR-0032 pattern, so the hop survives a rebuild.
+- **`funnel-proxy` added to `fleet/inventory.toml`** with a revive command, so
+  the sweep notices next time instead of four days of quiet 502s.
+
+### Consequence, stated plainly
+
+**The GCP Studio lane goes dark** until Studio ships API-key auth for its MCP
+tool. That is precisely the trade this ADR pre-authorised. `gcp-adk-test`
+remains minted and rotated; it simply has no ingress that will stamp for it.
+
+### Verified end to end, 2026-08-24
+
+Through `https://omen.tail8e749c.ts.net/mcp` from the public internet:
+no key → **denied**; wrong key → **denied**; `peer-inference` → `kernel_status`
+**allowed**, `read_file` refused (`profile 'generation-proxy' does not grant
+'read'`), `git_status` refused (`does not grant 'repo_metadata'`), and
+`local_generate` returned 52 tokens from `omen-arc`/`qwen3-30b-a3b` in 12.5 s.
+Both proxy logs contain zero occurrences of the key header afterward.
+
+The rate-limiting gap from the original Consequences section **remains open and
+is now more material**, since this ingress is intended for a real peer rather
+than one test caller.

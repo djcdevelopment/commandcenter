@@ -1,4 +1,4 @@
-## HEARTH Funnel-facing reverse proxy (Track 2.0 minimal test case).
+## HEARTH Funnel-facing reverse proxy.
 #
 # HEARTH's gateway serves exactly one HTTP path (/mcp, streamable-http; see
 # hearth/kernel/gateway.py's module docstring) and binds 127.0.0.1:8710 only.
@@ -6,26 +6,70 @@
 # exposes the bare gateway port directly to the internet: `tailscale funnel`
 # targets THIS port, not 8710.
 #
-# KNOWN TRADEOFF (accepted 2026-07-21, trial-credit stakes): Google Agent
-# Platform Studio's native "MCP Server" tool only offers Authentication: None
-# today ("OAuth"/"API key" are both greyed out "Coming soon"), and sends no
-# custom header at all. Since HEARTH requires X-Hearth-Key to identify ANY
-# caller, this proxy stamps a FIXED key on every request that reaches THIS
-# URL, so the secret HEARTH checks lives in a value only Studio's Endpoint URL
-# field carries -- the Funnel URL itself is now the de facto shared secret,
-# not a per-request header. Bounded by design: the caller this key resolves
-# to (gcp-adk-test) is scoped to profile `research` (read-only) on
-# `commandcenter` only -- worst case of the URL leaking is read access to
-# public-ish docs/code, not a mutate path. Revisit once Studio ships API-key
-# auth (then switch back to a real per-request header and drop this stamp).
+# ── REBUILT 2026-08-24 (amends ADR-0025) ─────────────────────────────────────
+# The original version STAMPED a fixed X-Hearth-Key onto every request, because
+# the only external caller then (Google Agent Platform Studio's MCP tool) had
+# `Authentication: None` and could not send a header at all. That made the
+# Funnel URL itself the de facto shared secret. ADR-0025 accepted it explicitly
+# as a bounded, temporary trade and said to drop the stamp once a real caller
+# could send its own header.
 #
-# Also adds path narrowing (only /mcp is forwarded; everything else 404s) as
-# defense in depth. No rate limiting yet (stock Caddy has none built in;
-# deferred -- see the implementation plan's Track 2.0 §1 open decision).
+# Two things forced the revisit:
+#   1. The stamped key LEAKED. Caddy's reverse_proxy error logging serialises
+#      the whole request object, headers included, so the live key sat in
+#      plaintext in hearth/var/caddy-funnel-proxy.log (5 occurrences). Rotated
+#      2026-08-24; the log with the old value has been destroyed.
+#   2. The next external caller (a peer's Hermes router) CAN send headers, so
+#      the reason for the stamp no longer applies to it.
 #
-# Run: caddy run --config hearth/etc/caddy/Caddyfile --adapter caddyfile
+# So: NO stamped secret. Callers present their own X-Hearth-Key and are
+# identified per-request by the gateway's normal ADR-0019 path. The URL is no
+# longer a credential -- knowing it gets you a 401, not read access.
+#
+# CONSEQUENCE, stated plainly: the GCP Studio lane goes dark until Studio ships
+# API-key auth for its MCP tool. That is the trade ADR-0025 pre-authorised.
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Run:  caddy run --config hearth/etc/caddy/Caddyfile --adapter caddyfile
+# Boot: the HearthFunnelProxyBoot scheduled task (see fleet/funnelproxy/).
+{
+	# The leak was NOT the access log -- it was the DEFAULT logger, which
+	# reverse_proxy uses for warnings like "aborting with incomplete response"
+	# and which serialises request>headers verbatim. Filter it at the source so
+	# no future handler can reintroduce the same leak.
+	log default {
+		output file C:\work\commandcenter\hearth\var\caddy-funnel-proxy.log {
+			roll_size 10MiB
+			roll_keep 3
+		}
+		format filter {
+			wrap console
+			fields {
+				request>headers>X-Hearth-Key delete
+				request>headers>Authorization delete
+				request>headers>Cookie delete
+			}
+		}
+	}
+}
 
 :8711 {
+	# Same redaction on the access log. Both loggers, or neither is safe.
+	log {
+		output file C:\work\commandcenter\hearth\var\caddy-funnel-access.log {
+			roll_size 10MiB
+			roll_keep 3
+		}
+		format filter {
+			wrap console
+			fields {
+				request>headers>X-Hearth-Key delete
+				request>headers>Authorization delete
+				request>headers>Cookie delete
+			}
+		}
+	}
+
 	handle /mcp* {
 		reverse_proxy 127.0.0.1:8710 {
 			# HEARTH's gateway allowlists Host by value (loopback only,
@@ -33,15 +77,16 @@
 			# _transport_security) -- rewrite so the public Funnel hostname
 			# the client actually sent doesn't get rejected as untrusted.
 			header_up Host 127.0.0.1:8710
-			# Stamped caller identity -- see KNOWN TRADEOFF above. Gitignored
-			# snippet (same convention as start-hearth-gateway.cmd's
-			# hearth/var/gateway.cmd): one `header_up X-Hearth-Key <value>`
-			# line. This Caddyfile stays secret-free and tracked in git; only
-			# the imported file under hearth/var/ carries the real key.
-			# Rotate via `callerctl rotate` and update that file together.
-			import ../../var/caddy-funnel-secret.caddy
+
+			# NOTE: no header_up for X-Hearth-Key. Client-supplied headers pass
+			# through by default, which is exactly what we want now -- each
+			# caller authenticates as itself. Re-adding a stamp here would
+			# re-create the URL-as-secret hole; don't.
 		}
 	}
+
+	# Defense in depth: /mcp is the gateway's only real path. Everything else
+	# 404s rather than reaching the gateway process at all.
 	handle {
 		respond 404
 	}

@@ -102,6 +102,11 @@ checks = [
   { service = "llama-server", port = 8082, host = "127.0.0.1" },
   { service = "ollama-fleet", port = 11435, host = "omen.mshome.net" },
   { service = "hearth-gateway", port = 8710, host = "127.0.0.1", revive = "C:\\work\\commandcenter\\fleet-worker-node\\.venv-omen\\Scripts\\python.exe -m hearth.callers.doorcheck --revive" },
+  # ADDED 2026-08-24. This hop died in the 08-20 rebuild and nobody noticed for
+  # four days: Tailscale Funnel stayed configured and kept answering the public
+  # URL -- with a 502. Nothing watched it, so "the lane is up" stayed true in the
+  # map while the lane served errors. It is watched now.
+  { service = "funnel-proxy", port = 8711, host = "127.0.0.1", revive = "schtasks /Run /TN HearthFunnelProxyRestart" },
 ]
 
 [[node]]

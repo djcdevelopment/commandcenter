@@ -155,17 +155,22 @@ address = "192.168.12.220"                      # LAN = the machine lane (ADR-00
 alt = ["100.122.130.124", "fx99.tail8e749c.ts.net"]   # tailnet = human lane only
 via = "lan"
 expect = "up"     # ADDED 2026-08-24 -- first time this node has ever been in the file
-purpose = "The fleet's only WORKING CUDA node. Hostname is `ai-1`; Derek calls it fx99. Ubuntu 6.8.0-137, 15 GB RAM, NVIDIA RTX 2070 SUPER 8 GB, driver 595.84. Serves Ollama 0.30.10 on :11434 with 12 resident models (3B-14B, Q4): llama3.2:3b, qwen2.5 7b/14b, qwen2.5-coder:7b, llama3.1:8b, deepseek-r1:8b, gemma2:9b, mistral:7b, plus the 7B chat set (zephyr, openhermes, starling-lm, dolphin-mistral)."
+purpose = "NETWORK MONITORING NODE (intended role, Derek 2026-08-24). Deliberately NOT a fleet inference node and NOT a HEARTH rung. Hostname `ai-1`. Ubuntu 6.8.0-137, 15 GB RAM. It currently also holds an RTX 2070 SUPER 8 GB (driver 595.84) running Ollama 0.30.10 on :11434 with 12 resident models -- but that card is TRANSITIONAL, kept only so Derek can attach a monitor while hardware moves around."
+# DO NOT WIRE THIS INTO THE FLEET. The Ollama endpoint is real, answers on the
+# LAN, and holds a tempting 12-model list (3B-14B Q4: llama3.2:3b, qwen2.5 7b/14b,
+# qwen2.5-coder:7b, llama3.1:8b, deepseek-r1:8b, gemma2:9b, mistral:7b, zephyr,
+# openhermes, starling-lm, dolphin-mistral). It is still off the fleet ON PURPOSE.
+# This node is being kept clean for monitoring duty; capability is not the reason
+# to enlist it, and the GPU it is serving from is leaving.
+#
+# CARD DESTINATION: the 2070 SUPER is earmarked for AM4, which is planned to hold
+# THREE NVIDIA cards -- 5070 + 4070 Ti + 2070 SUPER. Expect fx99 to end up
+# headless and GPU-less, and expect this Ollama endpoint to disappear with the
+# card. Do not build anything that depends on :11434 here.
+#
 # WHY IT WAS INVISIBLE UNTIL NOW: fx99 predates this file and was never modelled.
 # It read as "offline" for a mundane reason -- AM4 was using its network cable.
 # Cable returned 2026-08-24, AM4 powered down, fx99 came straight back.
-#
-# CAPABILITY NOTE, so nobody over-reads it: 8 GB VRAM caps this at ~14B Q4. It is
-# NOT a peer of omen-arc (dual B70, 30B MoE). Its value is heterogeneity -- a
-# genuinely independent CUDA rung for small/cheap classification and triage work,
-# on hardware that would otherwise sit idle, while omen-arc keeps the heavy lane.
-# It is NOT registered as a HEARTH backend rung as of 2026-08-24; that is a
-# deliberate open decision, not an oversight.
 checks = [
   { service = "ssh", port = 22 },
   { service = "ollama", port = 11434 },

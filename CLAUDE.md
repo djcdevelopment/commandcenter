@@ -3,8 +3,9 @@
 ## Local-first offload (HEARTH)
 
 The HEARTH gateway (always-on MCP door) exposes a local model via
-`mcp__hearth__local_generate` backed by boot-started Ollama on OMEN
-(`qwen3-coder:30b` by default). Before spending your own frontier tokens on a
+`mcp__hearth__local_generate`, backed by a boot-started llama-server on OMEN's
+two Arc Pro B70s (`qwen3-30b-a3b` by default — the `omen-arc` rung, ADR-0034;
+the old Ollama default is gone). Before spending your own frontier tokens on a
 self-contained sub-task, delegate it to the local model. Every such call also
 lands on the HEARTH ledger and feeds the learning loop — so offloading is both a
 token saving and an assay observation.
@@ -32,9 +33,30 @@ has a task lane: `submit_task` dispatches to the fleet via the conductor's inbox
 fleet workers do have read-only source at `~/commandcenter-src`, so a git range
 they can inspect themselves is fair game.
 
-**Backend rungs** (hearth/etc/backends.toml; pass `backend="name"` to pin):
-`omen-ollama` qwen (sunk — the default), `am4-oxen` (banked fire, big context),
-`gcp-gemini` (Vertex `gemini-3.5-flash` on **GCP trial credits** — near-free
+**Backend rungs** (hearth/etc/backends.toml; pass `backend="name"` to pin).
+**Re-synced 2026-08-24 against what is actually listening** — the old list named
+`omen-ollama` as the default and `am4-oxen` as usable; both are dead, and the
+rung that actually serves you was missing entirely:
+
+- `omen-arc` — **THE DOOR DEFAULT** (ADR-0034). Qwen3-30B-A3B on the dual Arc Pro
+  B70s in OMEN, llama-server :8082, `-c 131072 -np 2` (2 slots × 64k tokens),
+  `context_bytes = 229376`. Truly sunk cost — this is the rung to spend freely.
+  Boot-started by `ArcServeBoot`, serving the **stock** `llamacpp-b10549-vulkan`
+  binary: ~57 tok/s single-stream decode. (The local `GGML_VK_MMV_MAX_COLS` patch
+  measures 92 tok/s on the same model, but production does not run it — see the
+  vulkancliff note in ADR-0034 territory before quoting either number.)
+- `omen-arc-oss` — banked fire, **pin-only** (`tags = []`, port 8083 normally
+  closed). gpt-oss-120b on the same cards. Costs a model swap, so pin it with cause.
+- ☠ `omen-ollama` — **DEAD, not merely demoted.** :11434 does not listen and
+  `OllamaBoot` is **Disabled for good** (ADR-0034). Routing skips it via
+  `tags = []`, but an explicit pin **fails at connect**. Do not reach for this.
+- ☠ `am4-moe` / `am4-oxen` — **DEAD.** The B70s left AM4 in the 2026-08-20 rebuild.
+  AM4 is up again as a services host (Jaeger/OTel/gallery/IRC) with an RTX 5070
+  that has **no driver and no CUDA**, so it serves nothing. Careful: the oxen
+  facade on :8090 still *answers* and still lists models, every one of them
+  `ready:false` — a port probe and a health check both pass against a rung that
+  cannot emit a token.
+- `gcp-gemini` (Vertex `gemini-3.5-flash` on **GCP trial credits** — near-free
 frontier-class while they last: prefer it over spending metered Sonnet/frontier
 tokens for self-contained reasoning, drafting, and integration proofs),
 `gcp-gemini-pro` (Vertex `gemini-3.1-pro-preview`, same trial credits — the
@@ -51,17 +73,13 @@ occupancy — a busy rung serves you from its own queue — but a pin whose payl
 exceeds that rung's declared `context_bytes` is **refused at the door**
 (`ok:false`, `error_code:"routing_refusal"`, reason
 `payload_over_budget_for_pinned_backend`) instead of dispatching and dying at the
-server. This bites hardest on `files=` packs against the AM4 rungs, which hold
-**57344 bytes** (omen-ollama 98304; both gemini rungs are effectively unlimited
-at 2–4 MiB). If you are pinning a local rung for a big read, either drop the pin
-and let the router pick, or pin a gemini rung. `plan_execution` resolves a
-provider content-free if you want to check before spending anything.
-
-**Updated 2026-08-24:** `omen-arc` (the default) was widened to
-**`context_bytes = 229376`** — it now serves `-c 131072 -np 2`, i.e. 64k tokens
-per slot instead of 16k, to clear Hermes Agent's 64000-token floor. So the
-default rung now takes `files=` packs ~4x larger than before, at the cost of 2
-concurrent slots instead of 4. The other local rungs are unchanged at 57344.
+server. Current budgets (2026-08-24): **`omen-arc` 229376** — widened from 57344
+on 2026-08-24, so the default rung now takes `files=` packs ~4x larger than
+before, at the cost of 2 concurrent slots instead of 4; `omen-arc-oss` 57344;
+both gemini rungs effectively unlimited at 2–4 MiB. The dead rungs still carry
+declared budgets (omen-ollama 98304, the AM4 pair 57344) — that is a tombstone,
+not an offer. `plan_execution` resolves a provider content-free if you want to
+check before spending anything.
 
 For **auditable infra builds** (checkable acceptance criteria, receipt wanted),
 use the door's **build-request lane**: `create/get/list/update/execute/

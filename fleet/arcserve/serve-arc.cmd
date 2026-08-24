@@ -36,7 +36,34 @@ rem Token: shared with the gateway (backends.toml auth_env OMEN_ARC_TOKEN).
 rem Sourced from the same gitignored fragment the gateway uses.
 call C:\work\commandcenter\hearth\var\gateway.cmd
 
-E:\work\llamacpp-b10549-vulkan\llama-server.exe ^
+rem STEP 2 of 2 (2026-08-24): opt in to the widened mul_mat_vec crossover.
+rem
+rem ⚠ MEASURED INERT AT THE CURRENT -np. Live A/B on this box, single stream,
+rem 3 reps each, same prompt/n_predict/temperature:
+rem     stock b10549            tg ~104.5 tok/s
+rem     knee build, default 8   tg ~108.2 tok/s   (+3.5%, from 32 upstream builds)
+rem     knee build, mmv=16      tg ~107.9 tok/s   (no change -- within noise)
+rem WHY: the gate is `n <= mul_mat_vec_max_cols`, where n is the number of
+rem sequences decoding together. With -np 2 the batch can never exceed 2, so
+rem `n <= 8` already holds and raising the cap to 16 changes no dispatch. The
+rem knob only does anything once -np goes ABOVE 8 -- that is the cliff the
+rem vulkancliff campaign measured, and this rung cannot reach it at 2 slots.
+rem
+rem It is left set deliberately: harmless, and it arms the moment -np rises.
+rem Clamped to [1, 16] by the compile-time max -- setting 32 here would SILENTLY
+rem clamp to 16, not error. To A/B, change this value and ArcServeRestart; to
+rem revert to stock dispatch, delete this line (default is 8).
+set GGML_VK_MMV_MAX_COLS=16
+
+rem BINARY SWAP 2026-08-24, step 1 of 2: b10549 prebuilt -> the local knee build
+rem (b10581-2-g242c3cd = upstream e85caa8 + the GGML_VK_MMV_MAX_COLS patch).
+rem Step 1 deliberately sets NO env var, so mul_mat_vec_max_cols defaults to 8 and
+rem dispatch is historically identical -- this step changes the BINARY only.
+rem Pre-evidenced by vulkancliff data-correctness.md #2: patched-at-default vs the
+rem b10549 prebuilt, 14B sanity bench, within +-3%.
+rem ROLLBACK: git revert this file to the previous commit (the b10549 path), then
+rem   schtasks /Run /TN ArcServeRestart
+E:\work\llamacpp-knee\build\bin\llama-server.exe ^
   -m E:\work\battlemage\models\Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf ^
   --alias qwen3-30b-a3b ^
   -ngl 99 -sm layer -ts 1,1 ^

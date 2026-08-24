@@ -41,21 +41,20 @@ rung that actually serves you was missing entirely:
 - `omen-arc` — **THE DOOR DEFAULT** (ADR-0034). Qwen3-30B-A3B on the dual Arc Pro
   B70s in OMEN, llama-server :8082, `-c 131072 -np 2` (2 slots × 64k tokens),
   `context_bytes = 229376`. Truly sunk cost — this is the rung to spend freely.
-  Boot-started by `ArcServeBoot`, serving the **stock** `llamacpp-b10549-vulkan`
-  binary: ~57 tok/s single-stream decode. (The local `GGML_VK_MMV_MAX_COLS` patch
-  measures 92 tok/s on the same model, but production does not run it — see the
-  vulkancliff note in ADR-0034 territory before quoting either number.)
+  Boot-started by `ArcServeBoot`. **~108 tok/s single-stream decode**, measured
+  live 2026-08-24 (short prompt, shallow context). Deep-context harness numbers
+  from the burn-in campaign are much lower (~57) — decode rate falls with KV
+  depth, so always say which regime a figure came from.
 - `omen-arc-oss` — banked fire, **pin-only** (`tags = []`, port 8083 normally
   closed). gpt-oss-120b on the same cards. Costs a model swap, so pin it with cause.
 - ☠ `omen-ollama` — **DEAD, not merely demoted.** :11434 does not listen and
   `OllamaBoot` is **Disabled for good** (ADR-0034). Routing skips it via
   `tags = []`, but an explicit pin **fails at connect**. Do not reach for this.
 - ☠ `am4-moe` / `am4-oxen` — **DEAD.** The B70s left AM4 in the 2026-08-20 rebuild.
-  AM4 is up again as a services host (Jaeger/OTel/gallery/IRC) with an RTX 5070
-  that has **no driver and no CUDA**, so it serves nothing. Careful: the oxen
-  facade on :8090 still *answers* and still lists models, every one of them
-  `ready:false` — a port probe and a health check both pass against a rung that
-  cannot emit a token.
+  AM4 is **powered down** as of 2026-08-24 (its RTX 5070 has no driver and no
+  CUDA anyway). Careful when it returns: the oxen facade on :8090 *answers* and
+  lists models, every one `ready:false` — a port probe and a health check both
+  pass against a rung that cannot emit a token.
 - `gcp-gemini` (Vertex `gemini-3.5-flash` on **GCP trial credits** — near-free
 frontier-class while they last: prefer it over spending metered Sonnet/frontier
 tokens for self-contained reasoning, drafting, and integration proofs),
@@ -102,8 +101,9 @@ prove. See hearth/BUILD-REQUESTS.md.
   comes back `ok:false` or unusable, do the task yourself; never loop on a
   cold worker.
 - If the door itself is down, run the `/checkmcp` skill (doorcheck `--revive`) once.
-- First call after a boot pays a ~12s model-load tax; calls after that run at
-  ~54 tok/s. Don't treat the cold-start latency as a failure.
+- No cold-start tax on `omen-arc` — `ArcServeBoot` keeps the model resident, so
+  the first call of the day is as fast as the last (~108 tok/s). The old "~12s
+  model-load tax, then ~54 tok/s" note described Ollama, which is retired.
 - Keep frontier reasoning for what needs it: architecture, multi-file logic,
   judgment, and anything requiring repo-wide context. Offload the grunt work,
   not the thinking.

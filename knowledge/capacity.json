@@ -1,7 +1,7 @@
 {
   "contract_version": "capacity.v1",
-  "evidence_watermark": "2026-08-24T08:25:54.397069Z",
-  "bucket_count": 105,
+  "evidence_watermark": "2026-08-24T14:06:44.645985Z",
+  "bucket_count": 110,
   "buckets": [
     {
       "task_class": null,
@@ -75,21 +75,21 @@
       "runner_class": "local",
       "model": null,
       "tool": "kernel_status",
-      "calls": 16210,
+      "calls": 16385,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 3464,
+      "calls_7d": 3639,
       "ok_rate_7d": 1.0,
-      "calls_30d": 16210,
+      "calls_30d": 16385,
       "ok_rate_30d": 1.0,
       "duration_ms": {
-        "p50": 504.973,
-        "p90": 810.69,
-        "mean": 661.1606,
+        "p50": 507.944,
+        "p90": 816.113,
+        "mean": 663.5351,
         "max": 462921.583
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-08-24T08:22:53.734281Z"
+      "last_seen": "2026-08-24T14:02:41.045289Z"
     },
     {
       "task_class": null,
@@ -97,21 +97,21 @@
       "runner_class": "local",
       "model": null,
       "tool": "list_execution_providers",
-      "calls": 16213,
+      "calls": 16388,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 3466,
+      "calls_7d": 3641,
       "ok_rate_7d": 1.0,
-      "calls_30d": 16213,
+      "calls_30d": 16388,
       "ok_rate_30d": 1.0,
       "duration_ms": {
-        "p50": 0.95,
-        "p90": 1.148,
-        "mean": 1.0203,
+        "p50": 0.951,
+        "p90": 1.154,
+        "mean": 1.022,
         "max": 42.028
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-08-24T08:22:52.686892Z"
+      "last_seen": "2026-08-24T14:02:38.192552Z"
     },
     {
       "task_class": null,
@@ -119,21 +119,21 @@
       "runner_class": "local",
       "model": null,
       "tool": "list_operations",
-      "calls": 16214,
+      "calls": 16389,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 3466,
+      "calls_7d": 3641,
       "ok_rate_7d": 1.0,
-      "calls_30d": 16214,
+      "calls_30d": 16389,
       "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 0.067,
         "p90": 0.086,
-        "mean": 0.587,
+        "mean": 0.5815,
         "max": 8112.95
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-08-24T08:22:52.660198Z"
+      "last_seen": "2026-08-24T14:02:38.135536Z"
     },
     {
       "task_class": null,
@@ -141,21 +141,21 @@
       "runner_class": "local",
       "model": null,
       "tool": "list_owned_executions",
-      "calls": 16200,
+      "calls": 16375,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 3460,
+      "calls_7d": 3635,
       "ok_rate_7d": 1.0,
-      "calls_30d": 16200,
+      "calls_30d": 16375,
       "ok_rate_30d": 1.0,
       "duration_ms": {
-        "p50": 4.124,
-        "p90": 5.123,
-        "mean": 5.0438,
+        "p50": 4.132,
+        "p90": 5.144,
+        "mean": 5.0473,
         "max": 1916.223
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-08-24T08:22:53.766087Z"
+      "last_seen": "2026-08-24T14:02:41.100226Z"
     },
     {
       "task_class": null,
@@ -493,21 +493,21 @@
       "runner_class": "frontier",
       "model": null,
       "tool": "list_execution_providers",
-      "calls": 2,
+      "calls": 3,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 2,
+      "calls_7d": 3,
       "ok_rate_7d": 1.0,
-      "calls_30d": 2,
+      "calls_30d": 3,
       "ok_rate_30d": 1.0,
       "duration_ms": {
-        "p50": 0.964,
+        "p50": 1.093,
         "p90": 1.1,
-        "mean": 1.032,
+        "mean": 1.0523,
         "max": 1.1
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-08-24T07:06:30.987860Z"
+      "last_seen": "2026-08-24T08:26:14.445865Z"
     },
     {
       "task_class": null,
@@ -932,13 +932,35 @@
       "node": "omen",
       "runner_class": "human",
       "model": null,
+      "tool": "__auth__",
+      "calls": 5,
+      "ok_rate": 0.0,
+      "indeterminate": 0,
+      "calls_7d": 5,
+      "ok_rate_7d": 0.0,
+      "calls_30d": 5,
+      "ok_rate_30d": 0.0,
+      "duration_ms": {
+        "p50": null,
+        "p90": null,
+        "mean": null,
+        "max": null
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-08-24T13:46:35.004896Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "human",
+      "model": null,
       "tool": "bankedfire_drain.tick",
       "calls": 1932,
       "ok_rate": 1.0,
       "indeterminate": 593,
       "calls_7d": 99,
       "ok_rate_7d": 1.0,
-      "calls_30d": 1038,
+      "calls_30d": 1026,
       "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 0.0,
@@ -977,21 +999,21 @@
       "runner_class": "human",
       "model": null,
       "tool": "kernel_status",
-      "calls": 14110,
+      "calls": 14224,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 2647,
+      "calls_7d": 2761,
       "ok_rate_7d": 1.0,
       "calls_30d": 12009,
       "ok_rate_30d": 1.0,
       "duration_ms": {
-        "p50": 331.968,
-        "p90": 807.172,
-        "mean": 663.5356,
+        "p50": 336.049,
+        "p90": 812.675,
+        "mean": 665.4855,
         "max": 725107.879
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-08-24T08:25:54.397069Z"
+      "last_seen": "2026-08-24T14:05:03.932264Z"
     },
     {
       "task_class": null,
@@ -1026,8 +1048,8 @@
       "indeterminate": 0,
       "calls_7d": 184,
       "ok_rate_7d": 0.2826,
-      "calls_30d": 2057,
-      "ok_rate_30d": 0.7477,
+      "calls_30d": 2034,
+      "ok_rate_30d": 0.7448,
       "duration_ms": {
         "p50": 0.0,
         "p90": 0.0,
@@ -1048,8 +1070,8 @@
       "indeterminate": 0,
       "calls_7d": 555,
       "ok_rate_7d": 0.2775,
-      "calls_30d": 6166,
-      "ok_rate_30d": 0.7467,
+      "calls_30d": 6098,
+      "ok_rate_30d": 0.7439,
       "duration_ms": {
         "p50": 0.0,
         "p90": 0.0,
@@ -1070,7 +1092,7 @@
       "indeterminate": 0,
       "calls_7d": 193,
       "ok_rate_7d": 1.0,
-      "calls_30d": 2066,
+      "calls_30d": 2043,
       "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 0.0,
@@ -1114,8 +1136,8 @@
       "indeterminate": 0,
       "calls_7d": 193,
       "ok_rate_7d": 0.2798,
-      "calls_30d": 2066,
-      "ok_rate_30d": 0.7454,
+      "calls_30d": 2043,
+      "ok_rate_30d": 0.7425,
       "duration_ms": {
         "p50": 0.0,
         "p90": 0.0,
@@ -1278,6 +1300,28 @@
       },
       "tokens_out_per_s_p50": null,
       "last_seen": "2026-07-04T00:20:05.179694Z"
+    },
+    {
+      "task_class": null,
+      "node": "peer",
+      "runner_class": "local",
+      "model": null,
+      "tool": "kernel_status",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 1,
+      "ok_rate_7d": 1.0,
+      "calls_30d": 1,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 884.667,
+        "p90": 884.667,
+        "mean": 884.667,
+        "max": 884.667
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-08-24T13:46:35.950815Z"
     },
     {
       "task_class": "build",
@@ -1549,21 +1593,21 @@
       "runner_class": "frontier",
       "model": null,
       "tool": "local_generate",
-      "calls": 47,
-      "ok_rate": 0.8723,
+      "calls": 51,
+      "ok_rate": 0.8824,
       "indeterminate": 0,
-      "calls_7d": 8,
+      "calls_7d": 12,
       "ok_rate_7d": 1.0,
-      "calls_30d": 41,
-      "ok_rate_30d": 0.9512,
+      "calls_30d": 45,
+      "ok_rate_30d": 0.9556,
       "duration_ms": {
-        "p50": 30359.399,
+        "p50": 28556.471,
         "p90": 75865.26,
-        "mean": 38169.9779,
+        "mean": 36946.0359,
         "max": 218391.108
       },
-      "tokens_out_per_s_p50": 44.749543316958516,
-      "last_seen": "2026-08-22T11:27:00.925098Z"
+      "tokens_out_per_s_p50": 43.92783911115155,
+      "last_seen": "2026-08-24T13:22:46.997922Z"
     },
     {
       "task_class": "inference",
@@ -1808,6 +1852,28 @@
       "last_seen": "2026-07-09T10:52:13.108025Z"
     },
     {
+      "task_class": "inference",
+      "node": "peer",
+      "runner_class": "local",
+      "model": null,
+      "tool": "local_generate",
+      "calls": 4,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 4,
+      "ok_rate_7d": 1.0,
+      "calls_30d": 4,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 12430.043,
+        "p90": 12572.214,
+        "mean": 12249.1087,
+        "max": 12572.214
+      },
+      "tokens_out_per_s_p50": 4.183412720293888,
+      "last_seen": "2026-08-24T14:06:44.645985Z"
+    },
+    {
       "task_class": "infra",
       "node": "omen",
       "runner_class": "frontier",
@@ -1982,6 +2048,28 @@
       },
       "tokens_out_per_s_p50": null,
       "last_seen": "2026-07-20T06:55:05.627303Z"
+    },
+    {
+      "task_class": "io",
+      "node": "peer",
+      "runner_class": "local",
+      "model": null,
+      "tool": "read_file",
+      "calls": 1,
+      "ok_rate": 0.0,
+      "indeterminate": 0,
+      "calls_7d": 1,
+      "ok_rate_7d": 0.0,
+      "calls_30d": 1,
+      "ok_rate_30d": 0.0,
+      "duration_ms": {
+        "p50": null,
+        "p90": null,
+        "mean": null,
+        "max": null
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-08-24T13:46:36.017450Z"
     },
     {
       "task_class": "prefer_validation",
@@ -2312,8 +2400,30 @@
       },
       "tokens_out_per_s_p50": null,
       "last_seen": "2026-07-18T13:04:05.387290Z"
+    },
+    {
+      "task_class": "vcs",
+      "node": "peer",
+      "runner_class": "local",
+      "model": null,
+      "tool": "git_status",
+      "calls": 1,
+      "ok_rate": 0.0,
+      "indeterminate": 0,
+      "calls_7d": 1,
+      "ok_rate_7d": 0.0,
+      "calls_30d": 1,
+      "ok_rate_30d": 0.0,
+      "duration_ms": {
+        "p50": null,
+        "p90": null,
+        "mean": null,
+        "max": null
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-08-24T13:46:36.048240Z"
     }
   ],
-  "corpus_digest": "sha256:8d7031662e7795c2b630c7702abf8708db9f2cdf57a249297bf7d0253da16a3c",
-  "corpus_event_count": 106009
+  "corpus_digest": "sha256:1467fd35dc64b182ba0e5bd23b17bbd8cd8084545521c2f0759e780531eb0c88",
+  "corpus_event_count": 106840
 }

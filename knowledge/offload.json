@@ -1,17 +1,17 @@
 {
   "contract_version": "offload.v1",
-  "evidence_watermark": "2026-08-22T11:27:00.925098Z",
+  "evidence_watermark": "2026-08-24T14:06:44.645985Z",
   "bucket_count": 11,
   "totals": {
-    "calls": 1222,
-    "tokens_in": 3025167,
-    "tokens_out": 377733
+    "calls": 1230,
+    "tokens_in": 3035827,
+    "tokens_out": 379148
   },
   "per_class": {
     "sunk": {
-      "calls": 623,
-      "tokens_in": 369680,
-      "tokens_out": 157684
+      "calls": 631,
+      "tokens_in": 380340,
+      "tokens_out": 159099
     },
     "trial": {
       "calls": 589,
@@ -29,7 +29,7 @@
     "reference": "claude-sonnet",
     "input_per_mtok": 3.0,
     "output_per_mtok": 15.0,
-    "usd": 14.741496
+    "usd": 14.794701
   },
   "real_usd_spent": {
     "pricing_source": "vertex-ai-pricing verified 2026-07-23 (global/standard, <=200K tier)",
@@ -158,12 +158,12 @@
       "backend": "omen-arc",
       "cost_class": "sunk",
       "models": [],
-      "calls": 3,
+      "calls": 11,
       "ok_rate": 1.0,
-      "tokens_in": 547,
-      "tokens_out": 932,
+      "tokens_in": 11207,
+      "tokens_out": 2347,
       "real_usd": 0.0,
-      "last_seen": "2026-08-22T11:27:00.925098Z"
+      "last_seen": "2026-08-24T14:06:44.645985Z"
     },
     {
       "backend": "omen-ollama",
@@ -180,6 +180,6 @@
       "last_seen": "2026-08-21T04:51:37.712201Z"
     }
   ],
-  "corpus_digest": "sha256:8d7031662e7795c2b630c7702abf8708db9f2cdf57a249297bf7d0253da16a3c",
-  "corpus_event_count": 106009
+  "corpus_digest": "sha256:1467fd35dc64b182ba0e5bd23b17bbd8cd8084545521c2f0759e780531eb0c88",
+  "corpus_event_count": 106840
 }

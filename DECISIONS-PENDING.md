@@ -242,12 +242,25 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       up. The existing "Lumberjacks Stage 1 monthly budget" ($25) actually scopes the whole
       project and has likely breached — rename/raise it rather than adding a duplicate.
       Class-fix drafted as ADR-0026 (ephemeral-by-default, staged for docs/adr/).
-- [ ] 2026-07-21 — Revisit [ADR-0025](docs/adr/0025-funnel-caddy-stamps-identity-until-studio-can.md)'s
-      Caddy-stamped-key auth once Google Agent Platform Studio ships MCP Server API-key auth
-      (currently "Coming soon") — switch to a real per-request header and drop the stamp. Also
-      revisit `callerctl`'s `--runner-class` taxonomy (no "cloud" value; `gcp-adk-test` used
-      `frontier` as a placeholder fit) if more cloud-hosted callers get minted, and consider a
-      custom `xcaddy` build with `caddy-ratelimit` if this proxy sees traffic beyond one test caller.
+- [x] 2026-07-21 — ~~Revisit [ADR-0025](docs/adr/0025-funnel-caddy-stamps-identity-until-studio-can.md)'s
+      Caddy-stamped-key auth once Studio ships MCP Server API-key auth~~ **DONE 2026-08-24, but
+      not the way this was written.** Studio never shipped the auth; Derek killed the Studio agent
+      for cost (~$16/day). The stamp was dropped anyway because (a) it had leaked its key into the
+      proxy's own logs and (b) a peer caller arrived that sends its own header. Per-request auth is
+      live, `gcp-adk-test` is revoked, and the `--runner-class` taxonomy question dies with it —
+      no cloud-hosted callers remain. See the ADR amendment.
+- [ ] 2026-08-24 — **Rate limiting on the Funnel ingress is now material, not theoretical.**
+      Carried from ADR-0025 where it was acceptable because the only caller was one test agent.
+      That ingress is now intended for a real peer's router. Stock Caddy has none; needs a custom
+      `xcaddy` build with `caddy-ratelimit`. Decide before handing the key to anyone.
+- [ ] 2026-08-24 — **`hearth/var/callers.json` stores caller secrets in PLAINTEXT**, as the
+      top-level JSON keys. Discovered while pruning backups: 8 distinct plaintext secrets were
+      sitting across 10 auto-generated `.bak` files, 5 of them still valid — including
+      `claude-frontier`, which holds the `unrestricted` profile. Pruned to one backup, but the
+      shape is the issue, not the pile. The gateway could store `sha256(secret)` and compare
+      hashes on arrival, so a registry read would yield nothing usable. Two sub-decisions:
+      (a) move to hashed storage, and (b) make `callerctl` prune its own backups, since every
+      mutation writes another full-credential copy and that is what built the pile.
 - [ ] 2026-07-29 — **Decide on an actual fix for unpushed/unattached git state — the escalation
       trigger has been hit.** [SESSION-RETRO-2026-07-21.md](SESSION-RETRO-2026-07-21.md)'s
       L-2026-07-21-3 said "a fourth occurrence should trigger an actual fix." As of today

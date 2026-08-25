@@ -308,6 +308,13 @@ via = "lan"
 # silently did nothing. This node CANNOT build and must never gate the sweep.
 expect = "optional"   # pending the AM4 CUDA rebuild (out of scope 2026-08-24)
 runner_class = "local"   # openai runner -> oxen; NOT dispatchable while oxen is empty
+# Out of the ADVISORY SCHEDULING pool, which is a different question from the sweep
+# above: `expect` only says this node must not gate fleet_ping, while `schedulable`
+# says the CP-SAT planner must not place work here. The exclusion used to ride on
+# expect="optional" by accident; it now has its own key. Clear this when an
+# inference engine is actually bound to the 5070 -- a facade that answers on :8090
+# with every backend ready:false is not capacity.
+schedulable = false
 purpose = "NOT DISPATCHABLE, and doubly so since 2026-08-24: AM4 is powered down, so even the shell is gone. AM4 local-model builder (openai runner -> oxen facade :8090). CAUTION when AM4 is powered again -- its ssh check rides AM4, so this row flips to reachable and that proves the SHELL, not the model: the oxen facade answers with every backend ready:false, and AM4 has no CUDA stack. Shell on AM4; farmer via cc-farmer tunnel."
 checks = [
   { service = "ssh", port = 22, host = "192.168.12.233" },

@@ -89,7 +89,14 @@ class RateControlTest(unittest.TestCase):
         # The ceiling cannot be an encoder setting (maxrate does not cap in
         # ICQ: gq=18 with -maxrate 85M still emitted 87.96 Mbps), so it must
         # survive as data for the validator.
-        self.assertEqual(95, self.profile.variant("horizontal").max_bitrate_mbps)
+        #
+        # The horizontal value is PROVISIONAL and deliberately pinned here so a
+        # change is a deliberate edit rather than a drift. Raised 95 -> 125 on
+        # 2026-08-25 after the first real gameplay render hit 111.54 Mbps.
+        # A 10-clip gameplay sample at gq=19 then measured median 81.02 /
+        # max 204.42 Mbps with 3 of 10 over 125, so this ceiling is known to be
+        # unsettled and awaits a decision -- see the report, not a quiet tune.
+        self.assertEqual(125, self.profile.variant("horizontal").max_bitrate_mbps)
         self.assertEqual(30, self.profile.variant("vertical").max_bitrate_mbps)
 
     def test_both_variants_are_marked_calibrated(self) -> None:

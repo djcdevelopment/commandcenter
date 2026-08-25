@@ -35,6 +35,7 @@ import time
 from typing import Optional
 
 from hearth.execution.coordination import CapacityLeaseStore
+from hearth.media import gate as gate_mod
 from hearth.media import handoff, lanes as lanes_mod, render as render_mod
 from hearth.media import scheduler as scheduler_mod
 from hearth.media.acceptance import load_acceptance
@@ -69,7 +70,9 @@ class RenderAgent:
         self._ffmpeg = ffmpeg or _discover("ffmpeg", "HEARTH_FFMPEG")
         self._ffprobe = ffprobe or _discover("ffprobe", "HEARTH_FFPROBE")
         self._poll = poll_seconds
-        self._gate = gate
+        # The gate withholds the lane OBS/BF6 is contending for, not the whole
+        # renderer -- the other B70 keeps working while you play.
+        self._gate = gate if gate is not None else gate_mod.make_gate(self.lanes)
         self._leases = leases or CapacityLeaseStore()
         self._stop = False
         self._capable: Optional[bool] = None

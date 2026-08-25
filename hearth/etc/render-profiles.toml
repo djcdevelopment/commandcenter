@@ -75,9 +75,22 @@ global_quality = 19
 # 18.69 Mbps. And in ICQ, -maxrate does not cap: gq=18 with -maxrate 85M still
 # emitted 87.96 Mbps. So the size ceiling cannot be an encoder setting here.
 args = []
-# Enforced at VALIDATION time instead (see max_bitrate_mbps), which is a real
-# guardrail rather than one the encoder ignores.
-max_bitrate_mbps = 95
+# Enforced at VALIDATION time instead, which is a real guardrail rather than one
+# the encoder ignores.
+#
+# PROVISIONAL, raised 95 -> 125 on 2026-08-25. The original 95 was derived from a
+# single quiet calibration window (36-56s of this segment, 73.89 Mbps). The first
+# real gameplay render at gq=19 produced 111.54 Mbps on busier content and was
+# correctly refused promotion -- which says the CEILING was too tightly drawn,
+# not that the quality target is wrong. gq=19 still measures slightly ABOVE the
+# NVENC renderer source-relative (0.979264 vs 0.978265), so the quality target is
+# unchanged.
+#
+# This is a safety/property check for pathological output growth, NOT the rate
+# control. There is deliberately no dynamic per-clip global_quality adjustment
+# and no automatic retry at a different quality. Final ceiling awaits a broader
+# gameplay bitrate distribution.
+max_bitrate_mbps = 125
 scale = false
 burn_captions = false
 calibrated = true

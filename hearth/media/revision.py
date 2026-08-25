@@ -51,7 +51,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Mapping, Optional
 
 from hearth.toolsurface._media_scope import MediaPathError, resolve_media
 
@@ -66,6 +66,20 @@ PROMOTION_LEASE_TTL_S = 120.0
 REASON_PROMOTED = "promoted"
 REASON_SUPERSEDED = "superseded_by_revision"
 REASON_AUTHORITY_UNAVAILABLE = "revision_authority_unavailable"
+REASON_PROMOTION_FAILED = "promotion_failed"
+
+# Suffix for a displaced draft during a multi-variant promotion.
+#
+# `os.replace` is atomic PER FILE and not across files, so promoting a two
+# variant set is NOT physically transactional however it is written. The
+# invariant that actually matters is narrower and achievable: a clip must never
+# end up with horizontal at revision N+1 and vertical still at revision N.
+#
+# So the previous set is moved aside under this suffix, the new set is installed,
+# and only then are the displaced files removed. The presence of ANY rollback
+# file is therefore proof that a promotion did not finish -- which is what makes
+# process death inside the promotion window recoverable rather than silent.
+ROLLBACK_SUFFIX = ".rollback-"
 
 
 class AuthorityUnavailable(RuntimeError):
@@ -81,6 +95,7 @@ class PromotionOutcome:
     job_revision: int
     authoritative_revision: Optional[int]
     destination: Optional[str] = None
+    detail: str = ""
 
     def to_dict(self) -> dict:
         return {
@@ -89,6 +104,7 @@ class PromotionOutcome:
             "job_revision": self.job_revision,
             "authoritative_revision": self.authoritative_revision,
             "destination": self.destination,
+            "detail": self.detail,
         }
 
 
@@ -246,6 +262,153 @@ def promote_if_current(
         )
     finally:
         leases.release(lease_id)
+
+
+def rollback_path(destination: Path, job_id: str) -> Path:
+    """Where a displaced draft waits while its replacement is installed."""
+    return destination.with_name(destination.name + ROLLBACK_SUFFIX + job_id)
+
+
+def promote_set(
+    *,
+    leases,
+    session_id: str,
+    clip_id: str,
+    job_revision: int,
+    job_id: str,
+    invocation_id: str,
+    staged: Mapping,
+    root: Optional[Path] = None,
+    ttl_seconds: float = PROMOTION_LEASE_TTL_S,
+    replace: Optional[Callable] = None,
+) -> PromotionOutcome:
+    """Promote a COMPLETE variant set, or none of it.
+
+    ``staged`` maps variant name -> ``(staged_path, destination_path)``. Every
+    entry must already have passed validation; this function decides whether to
+    publish, not whether the files are good.
+
+    THE DOMAIN INVARIANT
+    --------------------
+        A successful render job promotes the complete requested variant set.
+        A failed render job promotes none of that attempt's variants.
+
+    Without this, a clip whose horizontal failed validation while its vertical
+    passed leaves the drafts tree holding two different revisions of the same
+    clip -- a state nothing downstream is written to understand.
+
+    HOW, GIVEN os.replace IS ONLY PER-FILE ATOMIC
+    ---------------------------------------------
+    1. take ``promote:<clip_id>`` so two jobs for one clip cannot interleave;
+    2. re-read the authoritative revision INSIDE the lease and fail closed;
+    3. move every existing destination aside to a job-owned rollback path;
+    4. install the new set;
+    5. on ANY failure, delete what was installed and restore what was moved;
+    6. only once the whole set is installed, delete the rollback files.
+
+    Step 6 last is what makes recovery possible: a surviving rollback file means
+    the promotion did not complete. See ``recover_incomplete_promotions``.
+
+    ``replace`` is injectable so tests can fail the SECOND filesystem operation
+    and prove the previous set is restored.
+    """
+    mover = replace or os.replace
+    entries = list(staged.items())
+    scope = promotion_scope(clip_id)
+    lease_id = leases.acquire(
+        scope=scope, job_id=job_id, invocation_id=invocation_id,
+        limit=1, ttl_seconds=ttl_seconds,
+    )
+    try:
+        try:
+            authoritative = read_authority(session_id, clip_id, root=root)
+        except AuthorityUnavailable:
+            _discard_all(entries)
+            return PromotionOutcome(False, REASON_AUTHORITY_UNAVAILABLE,
+                                    job_revision, None)
+
+        if authoritative != job_revision:
+            # Superseded: the whole staged set is stale, so the whole set goes.
+            _discard_all(entries)
+            return PromotionOutcome(False, REASON_SUPERSEDED, job_revision,
+                                    authoritative)
+
+        displaced: list = []
+        installed: list = []
+        try:
+            for _variant, (_source, destination) in entries:
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                if destination.exists():
+                    saved = rollback_path(destination, job_id)
+                    mover(destination, saved)
+                    displaced.append((destination, saved))
+            for _variant, (source, destination) in entries:
+                mover(source, destination)
+                installed.append(destination)
+        except Exception as exc:
+            for destination in installed:
+                try:
+                    destination.unlink()
+                except OSError:
+                    pass
+            for destination, saved in displaced:
+                try:
+                    mover(saved, destination)
+                except OSError:
+                    pass
+            _discard_all(entries)
+            return PromotionOutcome(
+                False, REASON_PROMOTION_FAILED, job_revision, authoritative,
+                detail="promotion failed and the previous set was restored: %s" % (exc,),
+            )
+
+        for _destination, saved in displaced:
+            try:
+                saved.unlink()
+            except OSError:
+                pass
+        return PromotionOutcome(
+            True, REASON_PROMOTED, job_revision, authoritative,
+            destination=", ".join(str(d) for _v, (_s, d) in entries),
+        )
+    finally:
+        leases.release(lease_id)
+
+
+def recover_incomplete_promotions(directory: Path) -> list:
+    """Restore drafts displaced by a promotion that never finished.
+
+    A rollback file exists only between "moved the old set aside" and "installed
+    the whole new set". If the process died in that window, the previous draft
+    is sitting under the rollback name and the destination may be missing or
+    half-new. Restoring returns the clip to its last complete state.
+
+    Reverting rather than completing is deliberate: the staged replacements
+    belong to a job that is no longer running, and a clip at its previous
+    revision is a valid state, whereas a half-installed pair is not.
+    """
+    restored = []
+    try:
+        candidates = list(Path(directory).glob("*" + ROLLBACK_SUFFIX + "*"))
+    except OSError:
+        return restored
+    for saved in candidates:
+        name = saved.name
+        index = name.rfind(ROLLBACK_SUFFIX)
+        if index <= 0:
+            continue
+        destination = saved.with_name(name[:index])
+        try:
+            os.replace(saved, destination)
+            restored.append(str(destination))
+        except OSError:
+            continue
+    return restored
+
+
+def _discard_all(entries) -> None:
+    for _variant, (source, _destination) in entries:
+        _discard(source)
 
 
 def _discard(staged: Path) -> None:

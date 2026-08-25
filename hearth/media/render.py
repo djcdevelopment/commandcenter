@@ -56,6 +56,11 @@ class VariantResult:
     output: Optional[str] = None
     validation: dict = field(default_factory=dict)
     seconds: float = 0.0
+    # Internal: where the encode landed, and whether it may be published. Not
+    # serialised -- a staging path is not a draft, and must never read like one.
+    staged: Optional[Path] = None
+    destination: Optional[Path] = None
+    valid: bool = False
 
     def to_dict(self) -> dict:
         return {
@@ -202,6 +207,7 @@ def render_clip(
     root: Optional[Path] = None,
     on_progress: Optional[Callable] = None,
     cancelled: Optional[Callable] = None,
+    replace: Optional[Callable] = None,
 ) -> RenderReceipt:
     """Render every requested variant of one clip and promote what survives."""
     started = time.time()
@@ -239,6 +245,15 @@ def render_clip(
     drafts_dir = resolve_media("drafts/%s" % spec.session_id, mode="write", root=base)
     drafts_dir.mkdir(parents=True, exist_ok=True)
 
+    # A rollback file surviving in drafts/ means some earlier promotion died
+    # between "moved the old set aside" and "installed the whole new set".
+    # Restore the last complete set before doing anything else -- otherwise this
+    # job could promote on top of a half-dismantled clip.
+    recovered = revision_mod.recover_incomplete_promotions(drafts_dir)
+    if recovered:
+        receipt.scheduling = dict(receipt.scheduling)
+        receipt.scheduling["recovered_promotions"] = recovered
+
     concat_path = None
     if len(sources) > 1:
         concat_path = work_dir / ("%s.ffconcat" % spec.clip_id)
@@ -254,6 +269,10 @@ def render_clip(
     elif spec.captions_path:
         srt_path = resolve_media(spec.captions_path, mode="read", root=base)
 
+    # PHASE 1 -- encode and validate EVERY requested variant into staging.
+    # Nothing is published here. A clip that promotes horizontal at revision N+1
+    # while its vertical stays at N is a state nothing downstream understands,
+    # so publication cannot begin until the whole set is known good.
     for variant in spec.variants:
         if cancelled is not None and cancelled():
             receipt.variants.append(
@@ -261,37 +280,94 @@ def render_clip(
             )
             continue
         receipt.variants.append(
-            _render_variant(
+            _encode_variant(
                 spec=spec, lane=lane, job_id=job_id, variant=variant,
                 profile=profile, ffmpeg=ffmpeg, ffprobe=ffprobe,
                 sources=sources, concat_path=concat_path, srt_path=srt_path,
                 work_dir=work_dir, drafts_dir=drafts_dir, base=base,
                 src_w=src_w, src_h=src_h, audio_streams=audio_streams,
-                leases=leases, on_progress=on_progress,
+                on_progress=on_progress,
             )
         )
-
     clear_inflight(job_id)
+
+    # PHASE 2 -- all-or-none. One bad variant fails the job and publishes none.
+    failed = [v for v in receipt.variants if not v.valid]
+    if failed or not receipt.variants:
+        for result in receipt.variants:
+            if result.staged is not None:
+                _discard(result.staged)
+                result.staged = None
+            if result.valid:
+                # It was fine; it simply does not get published alone.
+                result.reason = "withheld_sibling_failed"
+        receipt.ok = False
+        receipt.error = "; ".join(sorted({v.reason for v in failed})) or "no variants"
+        receipt.total_seconds = time.time() - started
+        _prune_workdir(work_dir)
+        return receipt
+
+    # PHASE 3 -- commit the complete set under the promotion lease.
+    if leases is None:
+        for result in receipt.variants:
+            _discard(result.staged)
+            result.staged = None
+            result.reason = "no_lease_store_for_promotion"
+        receipt.ok = False
+        receipt.error = "no_lease_store_for_promotion"
+        receipt.total_seconds = time.time() - started
+        _prune_workdir(work_dir)
+        return receipt
+
+    staged_set = {
+        result.variant: (result.staged, result.destination)
+        for result in receipt.variants
+    }
+    outcome = revision_mod.promote_set(
+        leases=leases,
+        session_id=spec.session_id,
+        clip_id=spec.clip_id,
+        job_revision=spec.clip_revision,
+        job_id=job_id,
+        invocation_id="render-%s" % job_id,
+        staged=staged_set,
+        root=base,
+        replace=replace,
+    )
+    for result in receipt.variants:
+        result.promoted = outcome.promoted
+        result.reason = outcome.reason
+        result.staged = None
+        if outcome.promoted:
+            result.output = str(result.destination)
+            measured = dict(result.validation.get("measured") or {})
+            try:
+                measured["sha256"] = sha256_of(result.destination)
+            except OSError:
+                pass
+            result.validation["measured"] = measured
+        result.validation["promotion"] = outcome.to_dict()
+
+    receipt.ok = outcome.promoted
+    if not receipt.ok:
+        receipt.error = outcome.reason
     receipt.total_seconds = time.time() - started
-    # A job is ok when every requested variant was promoted. A superseded clip
-    # is NOT an error -- it is the mechanism working -- but it is not ok either,
-    # and the reason on each variant says which happened.
-    receipt.ok = bool(receipt.variants) and all(v.promoted for v in receipt.variants)
-    if not receipt.ok and not receipt.error:
-        reasons = {v.reason for v in receipt.variants if not v.promoted}
-        receipt.error = "; ".join(sorted(reasons))
+    _prune_workdir(work_dir)
+    return receipt
+
+
+def _prune_workdir(work_dir: Path) -> None:
     try:
         if not any(work_dir.iterdir()):
             work_dir.rmdir()
     except OSError:
         pass
-    return receipt
 
 
-def _render_variant(
+def _encode_variant(
     *, spec, lane, job_id, variant, profile, ffmpeg, ffprobe, sources,
     concat_path, srt_path, work_dir, drafts_dir, base, src_w, src_h,
-    audio_streams, leases, on_progress,
+    audio_streams, on_progress,
 ) -> VariantResult:
     started = time.time()
     staged = work_dir / ("%s-%s.mp4.part" % (spec.clip_id, variant))
@@ -336,6 +412,7 @@ def _render_variant(
         return VariantResult(
             variant, False, "ffmpeg_failed",
             validation={"stderr": tail}, seconds=time.time() - started,
+            destination=destination, valid=False,
         )
 
     spec_variant = profile.variant(variant)
@@ -352,43 +429,24 @@ def _render_variant(
         ffprobe=ffprobe,
     )
     if not result.ok:
-        _discard(staged)
+        # Keep the staged file for now. Whether it is discarded depends on the
+        # WHOLE set: the caller decides, because a variant is never published or
+        # thrown away on its own.
         return VariantResult(
             variant, False, "validation_failed",
             validation=result.to_dict(), seconds=time.time() - started,
+            staged=staged, destination=destination, valid=False,
         )
 
-    measured = dict(result.measured)
-    if leases is None:
-        _discard(staged)
-        return VariantResult(
-            variant, False, "no_lease_store_for_promotion",
-            validation=result.to_dict(), seconds=time.time() - started,
-        )
-
-    outcome = revision_mod.promote_if_current(
-        leases=leases,
-        session_id=spec.session_id,
-        clip_id=spec.clip_id,
-        job_revision=spec.clip_revision,
-        job_id=job_id,
-        invocation_id="render-%s-%s" % (job_id, variant),
-        staged=staged,
-        destination=destination,
-        root=base,
-    )
-    if outcome.promoted:
-        measured["sha256"] = sha256_of(destination)
-    validation = result.to_dict()
-    validation["measured"] = measured
-    validation["promotion"] = outcome.to_dict()
     return VariantResult(
         variant=variant,
-        promoted=outcome.promoted,
-        reason=outcome.reason,
-        output=str(destination) if outcome.promoted else None,
-        validation=validation,
+        promoted=False,
+        reason="validated",
+        validation=result.to_dict(),
         seconds=time.time() - started,
+        staged=staged,
+        destination=destination,
+        valid=True,
     )
 
 

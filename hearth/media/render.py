@@ -40,6 +40,41 @@ from hearth.toolsurface._media_scope import media_root, resolve_media
 
 PROGRESS_RE = re.compile(r"^(?P<key>\w+)=(?P<value>.*)$")
 
+# Review thumbnails, ported from the AM4 renderer's create_review_thumbnail.
+# The review UI expects a <draft>.jpg beside every rendered variant, so this is
+# part of the output contract, not a nicety.
+#
+# Deliberately BEST EFFORT, matching AM4: it wraps the call in try/except, logs,
+# and still marks the clip a draft. A missing thumbnail is a cosmetic gap in the
+# review UI; failing a validated, promoted render over one would be worse.
+THUMBNAIL_SECONDS = "0.500"
+THUMBNAIL_SCALE = "scale=320:-2:flags=lanczos"
+THUMBNAIL_QUALITY = "3"
+
+
+def create_review_thumbnail(video_path: Path, ffmpeg: str) -> Optional[Path]:
+    """Cache a small opening-frame JPEG beside a promoted draft, atomically."""
+    thumbnail = video_path.with_suffix(".jpg")
+    temporary = thumbnail.with_name("%s.part%s" % (thumbnail.stem, thumbnail.suffix))
+    try:
+        proc = subprocess.run(
+            [ffmpeg, "-hide_banner", "-loglevel", "error", "-y",
+             "-ss", THUMBNAIL_SECONDS, "-i", str(video_path), "-frames:v", "1",
+             "-vf", THUMBNAIL_SCALE, "-q:v", THUMBNAIL_QUALITY, str(temporary)],
+            capture_output=True, text=True, errors="replace", timeout=120,
+        )
+        if proc.returncode != 0 or not temporary.exists():
+            return None
+        os.replace(temporary, thumbnail)
+        return thumbnail
+    except (OSError, subprocess.SubprocessError):
+        return None
+    finally:
+        try:
+            temporary.unlink()
+        except OSError:
+            pass
+
 
 def inflight_dir() -> Path:
     configured = os.environ.get("HEARTH_RENDER_INFLIGHT")
@@ -347,6 +382,18 @@ def render_clip(
                 pass
             result.validation["measured"] = measured
         result.validation["promotion"] = outcome.to_dict()
+
+    if outcome.promoted:
+        # Derived from the PROMOTED file, after the set is committed -- the same
+        # order the AM4 renderer uses. Best effort by design.
+        thumbnails, missing = [], []
+        for result in receipt.variants:
+            made = create_review_thumbnail(result.destination, ffmpeg)
+            (thumbnails if made else missing).append(result.variant)
+        receipt.scheduling = dict(receipt.scheduling)
+        receipt.scheduling["thumbnails"] = thumbnails
+        if missing:
+            receipt.scheduling["thumbnails_failed"] = missing
 
     receipt.ok = outcome.promoted
     if not receipt.ok:

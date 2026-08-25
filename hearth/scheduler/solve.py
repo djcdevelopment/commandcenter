@@ -380,6 +380,12 @@ def solve_schedule(
     model.Minimize(W_TOKENS * sum(token_terms) + W_SPAN * makespan)
 
     solver = cp_model.CpSolver()
+    # Caveat on the determinism claim above: one worker and a fixed seed make the
+    # SEARCH deterministic, but max_time_in_seconds is WALL CLOCK, so a model large
+    # enough to hit the limit could stop on a different incumbent on a loaded box.
+    # Measured 2026-08-24: the advisory sizes we solve finish in ~170ms worst case
+    # under full 24-core saturation, ~59x inside this budget, so the cutoff is not
+    # reachable today. If it ever becomes so, max_deterministic_time is the knob.
     solver.parameters.max_time_in_seconds = time_limit_s
     solver.parameters.num_workers = 1        # deterministic
     solver.parameters.random_seed = 1

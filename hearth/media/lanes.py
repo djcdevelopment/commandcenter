@@ -165,6 +165,11 @@ class Lane:
     # can see why an engine was or was not selected.
     engine_profile: dict = field(default_factory=dict)
     engtypes: list = field(default_factory=list)
+    # Dedicated VRAM at calibration time. DIAGNOSTIC ONLY -- this counter is not
+    # stable enough to schedule on: the same two adapters read 29.45/0.36 GB
+    # under load and 0.003/0.003 GB minutes later at idle. Lane preference is a
+    # stated policy in hearth.media.scheduler, not derived from this number.
+    dedicated_gb: float = 0.0
     healthy: bool = False
     detail: str = ""
 
@@ -190,7 +195,11 @@ class Calibration:
         }
 
     def healthy_lanes(self) -> list:
-        """Healthy lanes, ordered by lane_id -- the deterministic scheduling order."""
+        """Healthy lanes, stably ordered by lane_id.
+
+        SCHEDULING preference is not decided here -- see
+        hearth.media.scheduler.lane_rank. This is just a deterministic listing.
+        """
         return sorted(
             (lane for lane in self.lanes if lane.healthy),
             key=lambda lane: lane.lane_id,
@@ -591,6 +600,36 @@ def sample_counter_instances(pid: int, powershell: str = "powershell") -> list:
     return [line.strip() for line in (proc.stdout or "").splitlines() if line.strip()]
 
 
+_DEDICATED_PS = r"""
+$s = (Get-Counter -Counter '\GPU Adapter Memory(*)\Dedicated Usage' -ErrorAction SilentlyContinue).CounterSamples
+foreach ($x in $s) { "$($x.InstanceName)|$($x.CookedValue)" }
+"""
+
+
+def sample_dedicated_gb(powershell: str = "powershell") -> dict:
+    """Dedicated (on-card) VRAM per adapter, keyed by counter LUID token.
+
+    Adapter-level on purpose: per-process counters read 0 for the S4U-launched
+    llama-server, so a per-process view would miss the tenant that actually
+    fills the card.
+    """
+    proc = subprocess.run(
+        [powershell, "-NoProfile", "-NonInteractive", "-Command", _DEDICATED_PS],
+        capture_output=True, text=True, timeout=120, errors="replace",
+    )
+    totals: dict = {}
+    for line in (proc.stdout or "").splitlines():
+        name, _, raw = line.strip().rpartition("|")
+        match = re.search(r"(luid_0x[0-9a-fA-F]+_0x[0-9a-fA-F]+)", name)
+        if not match:
+            continue
+        try:
+            totals[match.group(1).lower()] = float(raw) / (1024.0 ** 3)
+        except ValueError:
+            continue
+    return totals
+
+
 def sample_counter_utilisation(pid: int, powershell: str = "powershell") -> list:
     """Sample live per-engine utilisation for one process.
 
@@ -761,6 +800,7 @@ def calibrate(
 
     probe = probe_d3d11_indices(ffmpeg_bin)
     indices = candidate_arc_indices(probe)
+    dedicated = sample_dedicated_gb(powershell)
 
     # luid -> child_device, established by observation rather than by position.
     binding = {}
@@ -790,6 +830,7 @@ def calibrate(
                     media_engines=media,
                     engine_profile=profile,
                     engtypes=sorted(profile),
+                    dedicated_gb=round(dedicated.get(token.lower(), 0.0), 3),
                     healthy=True,
                     detail="bound by observed encode on child_device=%d; "
                            "media engines %s selected from %r"
@@ -807,6 +848,7 @@ def calibrate(
                     media_engines=[],
                     engine_profile={},
                     engtypes=[],
+                    dedicated_gb=round(dedicated.get(token.lower(), 0.0), 3),
                     healthy=False,
                     detail="no ffmpeg index bound to this adapter; "
                            + ("probe errors: %s" % failures if failures else "not observed"),

@@ -30,6 +30,7 @@ debugged from a receipt.
 """
 from __future__ import annotations
 
+import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -40,6 +41,39 @@ from hearth.media import acceptance as acceptance_mod
 from hearth.media import occupancy as occupancy_mod
 
 RENDER_WORKERS = 2
+
+# LANE PREFERENCE -- an explicit policy, not a derived measurement.
+#
+# Both lanes are accepted for concurrent use (Phase 6: 2 lanes, -1.34%/+0.87%
+# inference impact). But the two cards are NOT interchangeable: the resident
+# model's `-sm layer -ts 1,1` split does not land evenly, and bus4 was observed
+# at 29.45 GB of ~31.8 GB dedicated while bus9 held 0.36 GB. A LONE render has
+# no reason to choose the card that is nearly full.
+#
+# Deliberately a stated policy rather than a live VRAM reading: the dedicated
+# counter is not stable enough to key on -- the same two adapters measured
+# 29.45/0.36 GB under load and 0.003/0.003 GB minutes later at idle. Sorting on
+# that would silently flip preference with the weather. This is overridable via
+# HEARTH_RENDER_LANE_ORDER, and should be revisited if the model's split changes.
+DEFAULT_LANE_ORDER = ("b70@bus9", "b70@bus4")
+LANE_ORDER_ENV = "HEARTH_RENDER_LANE_ORDER"
+
+
+def preferred_order() -> tuple:
+    configured = os.environ.get(LANE_ORDER_ENV)
+    if configured:
+        return tuple(part.strip() for part in configured.split(",") if part.strip())
+    return DEFAULT_LANE_ORDER
+
+
+def lane_rank(lane) -> tuple:
+    """Sort key: declared preference first, then lane_id for a stable tie-break."""
+    order = preferred_order()
+    lane_id = getattr(lane, "lane_id", "")
+    try:
+        return (order.index(lane_id), lane_id)
+    except ValueError:
+        return (len(order), lane_id)
 LEASE_TTL_SECONDS = 900.0
 TICK_SECONDS = 5.0
 
@@ -83,7 +117,8 @@ def select_lane_candidates(
     Returns ``(ordered_lanes, LaneDecision)``.
     """
     decision = LaneDecision()
-    ordered = sorted(lanes, key=lambda lane: lane.lane_id)
+    # Declared preference first (see DEFAULT_LANE_ORDER), lane_id as tie-break.
+    ordered = sorted(lanes, key=lane_rank)
     candidates = []
 
     for lane in ordered:

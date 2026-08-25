@@ -103,7 +103,8 @@ class ThreadOccupancyTest(SchedulerTestBase):
         sched.pump()
         self.assertEqual(1, sched.active_count())
         self.assertEqual(1, sched.queue_depth())
-        self.assertEqual("b70@bus4", list(sched.active_lanes().values())[0])
+        self.assertEqual("b70@bus4", list(sched.active_lanes().values())[0],
+                         "bus9 is withheld, so the render falls to bus4")
 
     def test_both_lanes_withheld_occupies_zero_workers(self) -> None:
         sched = self.make(
@@ -181,13 +182,35 @@ class LaneSelectionTest(SchedulerTestBase):
     def test_is_deterministic_across_repeated_calls(self) -> None:
         for _ in range(10):
             candidates, _ = self._select([LANE_B, LANE_A])
-            self.assertEqual(["b70@bus4", "b70@bus9"],
+            self.assertEqual(["b70@bus9", "b70@bus4"],
                              [lane.lane_id for lane in candidates])
 
     def test_input_order_does_not_change_the_decision(self) -> None:
         forward, _ = self._select([LANE_A, LANE_B])
         backward, _ = self._select([LANE_B, LANE_A])
         self.assertEqual([l.lane_id for l in forward], [l.lane_id for l in backward])
+
+    def test_a_lone_render_takes_the_preferred_lane(self) -> None:
+        # Both lanes are accepted for concurrent use, but the cards are not
+        # interchangeable: bus4 carries the resident model (29.45 GB of ~31.8
+        # observed under load) while bus9 held 0.36 GB. One render has no reason
+        # to choose the nearly-full card.
+        candidates, _ = self._select([LANE_A, LANE_B], accepted_lane_count=1)
+        self.assertEqual(["b70@bus9"], [lane.lane_id for lane in candidates])
+
+    def test_preference_is_overridable(self) -> None:
+        import os
+        from unittest.mock import patch
+        with patch.dict(os.environ, {S.LANE_ORDER_ENV: "b70@bus4,b70@bus9"}):
+            candidates, _ = self._select([LANE_A, LANE_B], accepted_lane_count=1)
+            self.assertEqual(["b70@bus4"], [lane.lane_id for lane in candidates])
+
+    def test_an_unlisted_lane_sorts_last_but_stably(self) -> None:
+        other = lane("b70@bus7", 7, "luid_0x00000000_0x0000aaaa")
+        # accepted_lane_count=3 so the capacity cap does not truncate the point.
+        candidates, _ = self._select([other, LANE_A, LANE_B], accepted_lane_count=3)
+        self.assertEqual(["b70@bus9", "b70@bus4", "b70@bus7"],
+                         [lane.lane_id for lane in candidates])
 
     def test_unhealthy_lane_is_rejected_with_a_reason(self) -> None:
         broken = lane("b70@bus4", 4, "luid_a", healthy=False)
@@ -238,8 +261,8 @@ class LaneSelectionTest(SchedulerTestBase):
     def test_accepted_lane_count_caps_capacity(self) -> None:
         # Production capability is the last accepted benchmark, not the hardware.
         candidates, decision = self._select([LANE_A, LANE_B], accepted_lane_count=1)
-        self.assertEqual(["b70@bus4"], [l.lane_id for l in candidates])
-        self.assertIn("accepted_lane_count", decision.rejected["b70@bus9"])
+        self.assertEqual(["b70@bus9"], [l.lane_id for l in candidates])
+        self.assertIn("accepted_lane_count", decision.rejected["b70@bus4"])
 
     def test_zero_accepted_capacity_yields_no_candidates(self) -> None:
         candidates, _ = self._select([LANE_A, LANE_B], accepted_lane_count=0)
@@ -252,7 +275,7 @@ class LaneSelectionTest(SchedulerTestBase):
         )
         payload = decision.to_dict()
         self.assertIn("rejected", payload)
-        self.assertIn("b70@bus9", payload["rejected"])
+        self.assertIn("b70@bus4", payload["rejected"])
 
 
 class AcceptedCapacityTest(unittest.TestCase):

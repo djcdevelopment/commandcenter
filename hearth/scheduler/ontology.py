@@ -61,6 +61,13 @@ _POOL_BUILDER_NAMES = {"am4-worker-1", "cc-builder-1", "cc-builder-2"}
 # monitoring decision can never again rewrite the token economy as a side effect.
 _SCHEDULABLE_KEY = "schedulable"
 
+# The two synthetic options load_machines always offers the solver. Neither is a
+# fleet node: they exist so BOTH economies are always on the table, and the
+# two-economies objective can only ever choose between them on cost — never by
+# omission, because one side's candidates quietly vanished from a config file.
+_SYNTHETIC_FRONTIER = "frontier-builder"
+_SYNTHETIC_LOCAL = "local-builder"
+
 # Declared builder locality, used when fleet/inventory.toml (or its runner_class
 # fields) is absent. Corrected 2026-07-11 against each node's live runner.json:
 # cc-builder-1 carries NO runner.json, so its worker defaults to the metered
@@ -221,6 +228,11 @@ def load_machines(inventory_path: str, backends_path: str) -> list[Machine]:
 
     Availability comes from the node's optional `schedulable` flag (default true),
     NOT from `expect` — see the note above _POOL_BUILDER_NAMES.
+
+    GUARANTEE: the returned pool always contains at least one AVAILABLE machine of
+    each kind. Whatever the inventory says, the solver is offered both economies, so
+    frontier can only ever win the objective on cost — never because a config edit
+    emptied the local side.
     """
     inventory = _read_toml(Path(inventory_path))
     backends = _read_toml(Path(backends_path))
@@ -258,9 +270,27 @@ def load_machines(inventory_path: str, backends_path: str) -> list[Machine]:
 
     # Always offer one frontier builder (metered tokens; high weight).
     machines.append(Machine(
-        name="frontier-builder", kind="frontier", token_cost_weight=1.0,
+        name=_SYNTHETIC_FRONTIER, kind="frontier", token_cost_weight=1.0,
         tags=["frontier"], available=True,
     ))
+
+    # ...and, symmetrically, always offer one AVAILABLE local builder. The frontier
+    # option above is synthetic and hardcoded available=True, so it is the one
+    # candidate no config edit can remove; leaving the local side to whatever the
+    # inventory happens to say is the asymmetry that let the 2026-08-24 fleet hold
+    # hand the token economy to frontier by omission (6d6badc).
+    #
+    # Testing `kind` alone does not close that hole — it only asks whether a local
+    # builder is NAMED, and a parked one is still named. `schedulable = false`, the
+    # very key 6d6badc introduced (and which its own note says is where
+    # am4-worker-1's exclusion belongs), therefore reproduces the identical
+    # frontier-by-omission failure one key over. The guarantee has to be keyed on
+    # what the solver can actually place work on: an AVAILABLE local machine.
+    if not any(m.kind == "local" and m.available for m in machines):
+        machines.append(Machine(
+            name=_SYNTHETIC_LOCAL, kind="local", token_cost_weight=0.0,
+            tags=["local"], available=True,
+        ))
     return machines
 
 

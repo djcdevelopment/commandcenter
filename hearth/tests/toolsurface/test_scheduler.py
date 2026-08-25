@@ -10,6 +10,7 @@ from unittest import TestCase
 from hearth.scheduler.decision import validate_decision
 from hearth.scheduler.ontology import (
     DEFAULT_DURATIONS_S,
+    _SYNTHETIC_LOCAL,
     Job,
     Machine,
     load_capacity,
@@ -34,6 +35,51 @@ def _three_machines() -> list[Machine]:
         _machine("local-b", "local", 0.0),
         _machine("frontier-x", "frontier", 1.0),
     ]
+
+
+# Declared inventory fixture for the provider tests. propose_schedule takes no
+# inventory argument — it reads fleet/inventory.toml out of its HEARTH_SCOPE root —
+# so the SANDBOX is the injection seam, and what we write into it is the pinned
+# input. These tests used to copy the LIVE working-tree inventory in here instead,
+# which made a fleet-config edit an input to a scheduler unit test: on 2026-08-24 the
+# fleet hold parked the builders, test_slack_deadline_stays_local started asserting
+# 'frontier' != 'local', and because the change arrived as a COMMIT the working tree
+# was clean across both the failing and the passing runs — so it read as scheduler
+# nondeterminism rather than as the config change it was.
+#
+# Shape mirrors the real inventory (two local builders + one frontier-runner
+# builder), but every value the loader reads is declared here.
+_PINNED_INVENTORY = """
+[[node]]
+name = "am4-worker-1"
+kind = "logical-builder"
+expect = "optional"
+runner_class = "local"
+
+[[node]]
+name = "cc-builder-1"
+kind = "vm"
+expect = "up"
+runner_class = "frontier"
+
+[[node]]
+name = "cc-builder-2"
+kind = "vm"
+expect = "optional"
+runner_class = "local"
+"""
+
+# The same pool with every REAL local builder parked via the purpose-built exclusion
+# key. cc-builder-1 stays schedulable so the pool is not empty — it is just
+# frontier-only, which is precisely the shape that used to force metered spend.
+_PINNED_INVENTORY_ALL_LOCALS_PARKED = _PINNED_INVENTORY.replace(
+    'runner_class = "local"', 'runner_class = "local"\nschedulable = false')
+
+_PINNED_BACKENDS = """
+[[backend]]
+name = "omen-arc"
+tags = ["code"]
+"""
 
 
 def _no_overlap_holds(assignments: list[dict]) -> bool:
@@ -243,13 +289,50 @@ class LoadMachinesTests(TestCase):
         cc2 = next(m for m in machines if m.name == "cc-builder-2")
         self.assertFalse(cc2.available)
 
-    def test_real_inventory_offers_an_available_local_machine(self) -> None:
-        # The invariant the pool exists to hold: whatever the fleet hold says about
-        # the health sweep, the solver is always offered a free local option, so
-        # frontier can only ever win on the objective — never by omission.
+    def test_all_locals_parked_still_offers_an_available_local(self) -> None:
+        # The invariant the pool exists to hold, at its hardest case: the fleet has
+        # parked every real local builder. `kind == "local"` is still satisfied — the
+        # builders are named, just not schedulable — so a guarantee written against
+        # `kind` reads as held while the solver has nothing free to place work on and
+        # falls through to metered frontier. Keyed on `available`, it actually holds.
+        inventory = self._inventory(
+            '[[node]]',
+            'name = "cc-builder-2"',
+            'runner_class = "local"',
+            'schedulable = false',
+            '',
+            '[[node]]',
+            'name = "am4-worker-1"',
+            'runner_class = "local"',
+            'schedulable = false',
+        )
+        machines = load_machines(inventory, "/no/backends.toml")
+        parked = {m.name for m in machines if not m.available}
+        self.assertEqual(parked, {"cc-builder-2", "am4-worker-1"})
+        self.assertTrue(any(m.kind == "local" and m.available for m in machines))
+        self.assertTrue(any(m.kind == "frontier" and m.available for m in machines))
+
+    def test_real_inventory_offers_a_real_available_local_builder(self) -> None:
+        # This is the FLEET-CONFIG guard, deliberately ambient: it reads the live
+        # fleet/inventory.toml and asserts the fleet still names a REAL schedulable
+        # local builder. load_machines now guarantees an available local either way,
+        # so without excluding the synthetic fallback this assertion would be
+        # vacuous — it would pass while every real builder was parked.
+        #
+        # It is the only test here that reads live fleet state, and it is named so a
+        # failure reads as "the fleet config no longer offers a local builder", not
+        # as scheduler nondeterminism. That confusion is what made the original
+        # failure look intermittent.
         machines = load_machines(str(REPO_ROOT / "fleet" / "inventory.toml"),
                                  str(REPO_ROOT / "hearth" / "etc" / "backends.toml"))
-        self.assertTrue(any(m.kind == "local" and m.available for m in machines))
+        real_locals = [m.name for m in machines
+                       if m.kind == "local" and m.available and m.name != _SYNTHETIC_LOCAL]
+        self.assertTrue(real_locals,
+                        "fleet/inventory.toml names no schedulable local builder: every "
+                        "local node is schedulable = false. The scheduler will fall back "
+                        "to the synthetic local option, so advisory proposals no longer "
+                        "name a machine that exists. Clear a `schedulable = false`, or "
+                        "retire this guard deliberately.")
 
 
 class DecisionRecordTests(TestCase):
@@ -265,19 +348,31 @@ class DecisionRecordTests(TestCase):
 
 
 class ProposeScheduleToolTests(TestCase):
-    """The provider entry point, run under a HEARTH_SCOPE sandbox (no capacity.json)."""
+    """The provider entry point, run under a HEARTH_SCOPE sandbox (no capacity.json).
+
+    Every input is PINNED: the sandbox gets the declared _PINNED_INVENTORY /
+    _PINNED_BACKENDS fixtures, never the live working-tree fleet config. These tests
+    assert what the objective does with a given pool; whether the real fleet config
+    still offers that pool is a separate question, asserted separately by
+    LoadMachinesTests.test_real_inventory_offers_a_real_available_local_builder.
+    """
 
     def setUp(self) -> None:
         self.scope = Path(mkdtemp()).resolve()
         self._previous = os.environ.get("HEARTH_SCOPE")
         os.environ["HEARTH_SCOPE"] = str(self.scope)
-        # Provide the inventory + backends so machine loading exercises real files.
+        # Machine loading still exercises the real file-reading path — the files it
+        # reads are just declared here rather than sampled from the fleet's state.
         (self.scope / "fleet").mkdir(parents=True, exist_ok=True)
         (self.scope / "hearth" / "etc").mkdir(parents=True, exist_ok=True)
-        import shutil
-        shutil.copy(REPO_ROOT / "fleet" / "inventory.toml", self.scope / "fleet" / "inventory.toml")
-        shutil.copy(REPO_ROOT / "hearth" / "etc" / "backends.toml",
-                    self.scope / "hearth" / "etc" / "backends.toml")
+        self._write_inventory(_PINNED_INVENTORY)
+        (self.scope / "hearth" / "etc" / "backends.toml").write_text(
+            _PINNED_BACKENDS, encoding="utf-8")
+
+    def _write_inventory(self, text: str) -> None:
+        """Pin the sandbox's inventory. Tests that care about a particular pool
+        shape call this rather than depending on whatever the fleet looks like."""
+        (self.scope / "fleet" / "inventory.toml").write_text(text, encoding="utf-8")
 
     def tearDown(self) -> None:
         if self._previous is None:
@@ -313,6 +408,39 @@ class ProposeScheduleToolTests(TestCase):
         self.assertEqual(result["proposal"]["makespan_s"], 1.0)
 
     def test_slack_deadline_stays_local(self) -> None:
+        # The two-economies objective, over the PINNED pool: 100000s of slack means
+        # nothing forces metered spend, so the free local machine must win on cost.
+        # A failure here is now a statement about the objective and nothing else.
+        jobs = [{"plan_id": "j1", "task_class": "build", "est_tokens": 9999,
+                 "deadline_s": 100000}]
+        result = propose_schedule(jobs)
+        machine = result["proposal"]["assignments"][0]["machine"]
+        kinds = {m["name"]: m["kind"] for m in result["machines_considered"]}
+        self.assertEqual(kinds[machine], "local")
+        self.assertEqual(result["proposal"]["est_metered_tokens"], 0)
+
+    def test_slack_deadline_stays_local_is_stable_across_runs(self) -> None:
+        # The flake this test class was rewritten for: the same declared inputs must
+        # produce the same placement every time. Repeat it in-process so a stray
+        # ambient read (or a solver that answered differently on a busy box) shows up
+        # as a disagreement rather than as an intermittent failure someone re-runs away.
+        jobs = [{"plan_id": "j1", "task_class": "build", "est_tokens": 9999,
+                 "deadline_s": 100000}]
+        placements = set()
+        for _ in range(10):
+            result = propose_schedule(jobs)
+            placements.add((result["proposal"]["assignments"][0]["machine"],
+                            result["proposal"]["est_metered_tokens"],
+                            result["proposal"]["solver_status"]))
+        self.assertEqual(len(placements), 1, f"placement varied across runs: {placements}")
+
+    def test_parked_local_pool_still_keeps_slack_work_local(self) -> None:
+        # The same failure one key over. `schedulable = false` is the purpose-built
+        # exclusion key, and parking every real local builder with it used to empty
+        # the schedulable local pool exactly the way expect="optional" once did —
+        # load_machines only asked whether a local was NAMED, and a parked builder
+        # still is. The pool guarantee has to survive a fleet that parks everything.
+        self._write_inventory(_PINNED_INVENTORY_ALL_LOCALS_PARKED)
         jobs = [{"plan_id": "j1", "task_class": "build", "est_tokens": 9999,
                  "deadline_s": 100000}]
         result = propose_schedule(jobs)

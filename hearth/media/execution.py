@@ -63,6 +63,11 @@ class RenderSubsystem:
         self._ffprobe = ffprobe or _discover("ffprobe", "HEARTH_FFPROBE")
         self._calibration_provider = calibration_provider or lanes_mod.load_calibration
         self._progress: dict = {}
+        # None until probed once. See _lanes() -- a process that cannot create a
+        # D3D11 device has no render capacity at all, and saying so once is far
+        # better than letting every job die on an ffmpeg option-parse error.
+        self._render_capable: Optional[bool] = None
+        self.capability_detail: str = "not probed"
         self.scheduler = scheduler_mod.RenderScheduler(
             runner=self._run_job,
             leases=service.leases,
@@ -83,8 +88,26 @@ class RenderSubsystem:
         if calibration is None:
             # No lane map means no capacity. Saying so is better than guessing
             # an adapter index and encoding on the integrated GPU.
+            self.capability_detail = "no lane calibration found"
             return []
-        return calibration.healthy_lanes()
+        healthy = calibration.healthy_lanes()
+        if not healthy:
+            self.capability_detail = "no healthy lanes in the calibration"
+            return []
+        if self._render_capable is None:
+            # Probe ONCE per process. The HEARTH gateway runs under an S4U
+            # scheduled task in session 0, which has no GPU adapter access at
+            # all -- D3D11 creation returns 887a0004 and every QSV render fails.
+            # A lane map full of healthy lanes is meaningless if this process
+            # cannot reach a GPU, so capacity is withheld with the real reason.
+            ok, detail = lanes_mod.can_create_d3d_device(
+                self._ffmpeg, healthy[0].child_device
+            )
+            self._render_capable = ok
+            self.capability_detail = detail
+        if not self._render_capable:
+            return []
+        return healthy
 
     @staticmethod
     def _default_occupancy(lane):

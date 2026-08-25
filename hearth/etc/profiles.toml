@@ -186,11 +186,21 @@ capabilities = [
 # The list is written out rather than wildcarded so that widening the taxonomy
 # cannot silently widen this role. `test_profiles_v1` asserts it stays complete,
 # so a new capability fails a test instead of surprising the operator in prod.
+# The BF6 render dispatcher. Its whole job is "render this clip", so it gets
+# exactly that and nothing else -- no inference, no cancellation, no filesystem.
+# Rendering writes promoted media and consumes real workstation resources, which
+# is why this is not folded into `operator`: authority stays narrow until an
+# actual operator workflow needs it.
+[profile.bf6-render]
+capabilities = [
+    "media_render",     # submit_render, get_render_status, list_render_lanes
+]
+
 [profile.unrestricted]
 capabilities = [
     "build_request", "catalog_write", "commander", "dispatch", "dream",
     "generate", "harvest", "health", "kernel_admin", "knowledge_write",
-    "execution",
+    "execution", "media_render",
     "query", "queue", "read", "repo_content", "repo_metadata", "repo_write",
     "schedule", "status", "summon", "test", "write",
 ]

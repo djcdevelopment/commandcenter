@@ -14,6 +14,7 @@ from hearth.toolsurface import (
     summon,
     task_lane,
     testing,
+    media_render,
 )
 
 PROVIDERS = (
@@ -27,6 +28,7 @@ PROVIDERS = (
     scheduler,
     am4,
     build_requests,
+    media_render,
 )
 
 

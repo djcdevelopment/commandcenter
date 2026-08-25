@@ -69,15 +69,26 @@ class OperatorProfileTests(TestCase):
     def setUp(self) -> None:
         self.profiles = caps.load_profiles(PROFILES)
 
-    def test_operator_withholds_exactly_kernel_admin(self) -> None:
-        """The operator boundary is a single deliberate exclusion: an operator
-        acts THROUGH the door, it does not reconfigure the door. If this test
-        starts failing because a second capability was withheld, that is a real
-        policy change and belongs in an ADR, not in a quiet edit."""
+    def test_operator_withholds_exactly_kernel_admin_and_media_render(self) -> None:
+        """The operator boundary is a set of deliberate exclusions.
+
+        Originally one: an operator acts THROUGH the door, it does not
+        reconfigure the door (`kernel_admin`).
+
+        Since 2026-08-25 there is a second, recorded in ADR docs/adr#0035:
+        `media_render` leases a GPU media engine and WRITES PROMOTED MEDIA into
+        the drafts tree the review UI treats as authoritative. That is not a
+        read-only console action, so authority stays narrow until an actual
+        operator workflow needs it -- widening later is a one-line profile
+        change, narrowing after the fact is a revocation.
+
+        If this test starts failing because a THIRD capability was withheld,
+        that is a real policy change and belongs in an ADR, not a quiet edit.
+        Do not "fix" a failure here by granting the capability."""
         every = {c for c in caps.TOOL_CAPABILITY.values() if c}
         withheld = sorted(c for c in every
                           if not self.profiles["operator"].grants(c))
-        self.assertEqual(withheld, ["kernel_admin"])
+        self.assertEqual(withheld, ["kernel_admin", "media_render"])
 
     def test_operator_cannot_change_the_kernel(self) -> None:
         allowed, _ = caps.check_tool_access(self.profiles["operator"], "kernel_change")

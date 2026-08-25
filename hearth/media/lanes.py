@@ -699,6 +699,42 @@ def bind_index_to_lane(
             process.wait(timeout=15)
 
 
+def can_create_d3d_device(ffmpeg: str, child_device: int) -> tuple:
+    """Whether THIS PROCESS can create a D3D11 device on an adapter.
+
+    Returns ``(ok, detail)``.
+
+    WHY THIS CHECK EXISTS -- measured 2026-08-25. The HEARTH gateway runs under a
+    scheduled task with LogonType=S4U, which places it in **session 0**. Session 0
+    has no desktop and no GPU adapter access, so D3D11 device creation fails with
+    ``887a0004`` (DXGI_ERROR_NOT_FOUND) and every QSV render dies at
+    "Failed to set value ... for option 'init_hw_device'".
+
+    The identical command succeeds from an interactive session. This is the same
+    root cause that makes llama-server's per-process GPU counters read 0.
+
+    Without this probe the symptom is an ffmpeg option-parsing error per job,
+    which reads like a malformed command rather than "this process cannot see a
+    GPU". Checking once and saying so plainly is worth the one subprocess.
+    """
+    proc = _run(
+        [ffmpeg, "-hide_banner", "-v", "verbose",
+         "-init_hw_device", "d3d11va=probe:%d" % child_device,
+         "-f", "lavfi", "-i", "nullsrc", "-frames:v", "0", "-f", "null", "-"],
+        timeout=60,
+    )
+    output = (proc.stderr or "") + (proc.stdout or "")
+    if proc.returncode == 0 and parse_ffmpeg_device_probe(output) is not None:
+        return True, "d3d11 device created on child_device=%d" % child_device
+    if "887a0004" in output:
+        return False, (
+            "no GPU adapters visible to this process (DXGI_ERROR_NOT_FOUND). The "
+            "gateway runs under an S4U scheduled task in session 0, which has no "
+            "GPU access; renders must run in an interactive session"
+        )
+    return False, "d3d11 device creation failed: %s" % output.strip()[-200:]
+
+
 def calibrate(
     ffmpeg: Optional[str] = None,
     vulkaninfo: Optional[str] = None,

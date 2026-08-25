@@ -103,6 +103,12 @@ TOOL_CAPABILITY: dict[str, str] = {
     # generate: inference through the router
     "local_generate": "generate",
     # execution: canonical Operations, Jobs, Invocations, events, and artifacts
+    # media_render: the constrained B70 render lane. Deliberately NOT folded
+    # into "execution" -- the BF6 dispatcher must be able to render a clip and
+    # nothing else, and "execution" would also grant llm.chat and cancellation.
+    "submit_render": "media_render",
+    "get_render_status": "media_render",
+    "list_render_lanes": "media_render",
     "cancel_execution": "execution",
     "get_execution": "execution",
     "get_execution_artifact": "execution",

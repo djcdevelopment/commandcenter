@@ -1,209 +1,225 @@
-"""Glue between HEARTH's execution plane and the render subsystem.
+"""Gateway side of the render lane: authority, admission, and state transitions.
 
-``ExecutionService`` knows nothing about ffmpeg, lanes or media paths, and the
-render modules know nothing about jobs, ledgers or artifacts. This module is the
-only place the two meet.
+    GATEWAY  owns authority, admission, job lifecycle, and the ledger.
+    AGENT    owns GPU process execution, and nothing else.
 
-It supplies the object ``ExecutionService`` calls ``enqueue(job_id)`` on, and it
-owns the render scheduler behind it. Its runner is responsible for the parts of
-the job lifecycle that belong to the execution plane -- the dispatched/running/
-succeeded events, and the result artifact -- while delegating the actual work to
-``hearth.media.render``.
+The gateway never runs ffmpeg. It cannot -- it lives in Windows session 0, which
+has no GPU adapter access -- and even if it could, two executors would be one too
+many. So this module does three things and no more:
 
-The receipt is stored as a small JSON artifact, never the video. Rendered output
-lands in ``drafts/`` and is referenced by path and sha256;
-``get_execution_artifact`` caps inline retrieval at 1 MiB and text only, so
-putting an MP4 there would be useless as well as wasteful.
+1. **Admission.** ``enqueue`` publishes a validated job to the handoff queue.
+2. **Ingestion.** A poller turns the agent's claim/result sidecars into ledger
+   events. Every state transition is written HERE, by the single process that
+   owns the ledger.
+3. **Reporting.** Whether an interactive executor is currently available.
+
+Why the agent does not write the ledger itself: ``ExecutionLedger.append`` guards
+with a **threading.Lock**, assigns sequence via ``SELECT MAX(sequence)+1``, and
+writes at ``offset = stat().st_size``. A direct two-process test produced a
+duplicate sequence number, sqlite ``OperationalError``, and a cascade of
+``PermissionError`` that wedged the second writer -- 80 appends attempted, 18
+events written. ``CapacityLeaseStore`` being cross-process safe does not make the
+ledger so.
 """
 from __future__ import annotations
 
 import json
-import os
-import shutil
-from pathlib import Path
+import threading
 from typing import Callable, Optional
 
 from hearth.execution.ids import new_invocation_id
-from hearth.media import jobspec as jobspec_mod
+from hearth.media import handoff
 from hearth.media import lanes as lanes_mod
-from hearth.media import occupancy as occupancy_mod
-from hearth.media import render as render_mod
-from hearth.media import scheduler as scheduler_mod
 
+INGEST_SECONDS = 3.0
 
-def _discover(name: str, env_var: str) -> str:
-    configured = os.environ.get(env_var)
-    if configured:
-        return configured
-    found = shutil.which(name)
-    if found:
-        return found
-    return name
+TERMINAL = {"succeeded", "failed", "cancelled", "rejected", "expired"}
 
 
 class RenderSubsystem:
-    """Owns the render scheduler and reports job lifecycle back to the ledger."""
+    """Admission + ingestion for `media.render`. Executes nothing."""
 
     def __init__(
         self,
         *,
         service,
         calibration_provider: Optional[Callable] = None,
-        gate: Optional[Callable] = None,
-        occupancy: Optional[Callable] = None,
-        spill: Optional[Callable] = None,
-        acceptance_provider: Optional[Callable] = None,
-        ffmpeg: Optional[str] = None,
-        ffprobe: Optional[str] = None,
-        workers: int = scheduler_mod.RENDER_WORKERS,
+        ingest_seconds: float = INGEST_SECONDS,
         autostart: bool = True,
     ) -> None:
         self._service = service
-        self._ffmpeg = ffmpeg or _discover("ffmpeg", "HEARTH_FFMPEG")
-        self._ffprobe = ffprobe or _discover("ffprobe", "HEARTH_FFPROBE")
         self._calibration_provider = calibration_provider or lanes_mod.load_calibration
-        self._progress: dict = {}
-        # None until probed once. See _lanes() -- a process that cannot create a
-        # D3D11 device has no render capacity at all, and saying so once is far
-        # better than letting every job die on an ffmpeg option-parse error.
-        self._render_capable: Optional[bool] = None
-        self.capability_detail: str = "not probed"
-        self.scheduler = scheduler_mod.RenderScheduler(
-            runner=self._run_job,
-            leases=service.leases,
-            lanes_provider=self._lanes,
-            gate=gate,
-            occupancy=occupancy if occupancy is not None else self._default_occupancy,
-            spill=spill,
-            acceptance_provider=acceptance_provider,
-            workers=workers,
-            on_error=self._on_error,
-            autostart=autostart,
+        self._ingest_seconds = ingest_seconds
+        self._invocations: dict = {}
+        self._stop = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+        handoff.ensure_dirs()
+        if autostart:
+            self.start()
+
+    # ------------------------------------------------------------- lifecycle
+
+    def start(self) -> None:
+        if self._thread is not None:
+            return
+        self._thread = threading.Thread(
+            target=self._loop, name="hearth-render-ingest", daemon=True
         )
-
-    # ------------------------------------------------------------- plumbing
-
-    def _lanes(self) -> list:
-        calibration = self._calibration_provider()
-        if calibration is None:
-            # No lane map means no capacity. Saying so is better than guessing
-            # an adapter index and encoding on the integrated GPU.
-            self.capability_detail = "no lane calibration found"
-            return []
-        healthy = calibration.healthy_lanes()
-        if not healthy:
-            self.capability_detail = "no healthy lanes in the calibration"
-            return []
-        if self._render_capable is None:
-            # Probe ONCE per process. The HEARTH gateway runs under an S4U
-            # scheduled task in session 0, which has no GPU adapter access at
-            # all -- D3D11 creation returns 887a0004 and every QSV render fails.
-            # A lane map full of healthy lanes is meaningless if this process
-            # cannot reach a GPU, so capacity is withheld with the real reason.
-            ok, detail = lanes_mod.can_create_d3d_device(
-                self._ffmpeg, healthy[0].child_device
-            )
-            self._render_capable = ok
-            self.capability_detail = detail
-        if not self._render_capable:
-            return []
-        return healthy
-
-    @staticmethod
-    def _default_occupancy(lane):
-        return occupancy_mod.media_occupancy(lane)
-
-    def enqueue(self, job_id: str) -> None:
-        """The hook ``ExecutionService`` calls. Consumes no worker."""
-        self.scheduler.enqueue(job_id)
+        self._thread.start()
 
     def close(self, *, wait: bool = True) -> None:
-        self.scheduler.close(wait=wait)
+        self._stop.set()
+        if self._thread is not None and wait:
+            self._thread.join(timeout=10)
+        self._thread = None
+
+    # -------------------------------------------------------------- reporting
+
+    def lanes(self) -> list:
+        calibration = self._calibration_provider()
+        if calibration is None:
+            return []
+        return calibration.healthy_lanes()
+
+    def executor_status(self) -> handoff.AgentStatus:
+        """Whether an interactive render executor is alive and able to render."""
+        return handoff.agent_status()
 
     def progress_for(self, job_id: str) -> dict:
-        return dict(self._progress.get(job_id, {}))
-
-    # -------------------------------------------------------------- runner
-
-    def _run_job(self, *, job_id, lane, lease_id, scheduling) -> None:
-        service = self._service
-        state = service.ledger.get_job(job_id)
-        if state is None:
-            return
-        if service._is_cancelled(job_id):
-            service._append("job.cancelled", state, reason="cancelled before dispatch")
-            return
-
-        arguments = (state.get("desired") or {}).get("arguments") or {}
-        try:
-            spec = jobspec_mod.parse_render_arguments(arguments)
-        except jobspec_mod.RenderArgumentError as exc:
-            service._append("job.failed", state, reason="invalid render job: %s" % exc)
-            return
-
-        invocation_id = new_invocation_id()
-        # `observed` is the event contract's slot for what actually happened --
-        # provider/model are not top-level event fields. The lane takes the
-        # provider slot and the render profile takes the model slot, so a render
-        # reads back through the same ledger surface as an inference call.
-        dispatch_observed = {
-            "provider": lane.lane_id,
-            "model": spec.profile_version,
-            "routed_by": "render-scheduler",
-            "occupancy": "leased",
-            "lease_id": lease_id,
-            "child_device": lane.child_device,
-            "scheduling": dict(scheduling or {}),
+        claim = handoff.read_claim(job_id)
+        if not claim:
+            return {}
+        return {
+            "lane_id": claim.get("lane_id"),
+            "started_at": claim.get("started_at"),
+            "agent_pid": claim.get("pid"),
         }
-        service._append("job.dispatched", state, observed=dispatch_observed)
-        service._append("invocation.started", state, invocation_id=invocation_id,
-                        observed=dispatch_observed)
-        service._append("job.running", state)
 
-        def on_progress(variant, key, value):
-            if key in ("out_time_ms", "frame", "speed"):
-                self._progress.setdefault(job_id, {}).setdefault(variant, {})[key] = value
+    # -------------------------------------------------------------- admission
 
-        receipt = render_mod.render_clip(
-            spec=spec, lane=lane, job_id=job_id,
-            ffmpeg=self._ffmpeg, ffprobe=self._ffprobe,
-            scheduling=scheduling, leases=service.leases,
-            on_progress=on_progress,
-            cancelled=lambda: service._is_cancelled(job_id),
-        )
+    def enqueue(self, job_id: str) -> None:
+        """Publish a validated job for the interactive agent. Consumes no worker.
 
-        payload = json.dumps(receipt.to_dict(), indent=2, sort_keys=True).encode("utf-8")
-        artifact = service.artifacts.put(
-            payload,
-            media_type="application/json; charset=utf-8",
-            filename="%s-render-receipt.json" % job_id,
-        )
-        state = service.ledger.get_job(job_id) or state
-        service._append("artifact.recorded", state, invocation_id=invocation_id,
-                        artifacts=[{**artifact, "role": "result"}])
-
-        if receipt.ok:
-            service._append("invocation.succeeded", state, invocation_id=invocation_id)
-            service._append("job.succeeded", state)
-            return
-
-        # A superseded clip is the revision guard WORKING, not a fault -- but it
-        # did not produce a draft, so the job is not a success either. The
-        # reason on the receipt says which happened, and the review UI uses it
-        # to decide whether a retry is worth offering.
-        service._append("invocation.failed", state, invocation_id=invocation_id,
-                        reason=receipt.error or "render did not promote")
-        service._append("job.failed", state, reason=receipt.error or "render failed")
-
-    def _on_error(self, job_id, exc) -> None:
-        if job_id is None:
-            return
+        Deliberately does NOT require an agent to be running. A job with no
+        executor is still a valid job -- it stays queued until one appears, which
+        is what makes "nobody is logged in" a pause rather than a failure.
+        """
         state = self._service.ledger.get_job(job_id)
         if state is None:
             return
-        try:
-            self._service._append(
-                "job.failed", state, reason="render worker crashed: %s" % (exc,)
-            )
-        except Exception:
-            pass
+        desired = state.get("desired") or {}
+        handoff.enqueue_job(
+            job_id,
+            desired.get("arguments") or {},
+            deadline_s=(desired.get("policy") or {}).get("deadline_s"),
+            principal=(state.get("principal") or {}).get("id"),
+        )
+
+    # -------------------------------------------------------------- ingestion
+
+    def ingest(self) -> int:
+        """Convert agent sidecars into ledger events. The gateway alone writes."""
+        handled = 0
+        for path in handoff.list_claims():
+            record = handoff._read(path)
+            if record is None:
+                continue
+            job_id = record.get("job_id") or path.stem
+            if self._mark_running(job_id, record):
+                handled += 1
+        for path in handoff.list_results():
+            record = handoff._read(path)
+            if record is None:
+                continue
+            job_id = record.get("job_id") or path.stem
+            if self._finalise(job_id, record):
+                handled += 1
+        return handled
+
+    def _mark_running(self, job_id: str, claim: dict) -> bool:
+        state = self._service.ledger.get_job(job_id)
+        if state is None or state.get("status") in TERMINAL:
+            return False
+        if state.get("status") in ("dispatched", "running"):
+            return False
+        invocation_id = new_invocation_id()
+        self._invocations[job_id] = invocation_id
+        observed = {
+            "provider": claim.get("lane_id"),
+            "model": (claim.get("arguments") or {}).get("profile_version"),
+            "routed_by": "render-agent",
+            "occupancy": "leased",
+            "agent_pid": claim.get("pid"),
+            "session": claim.get("host_session"),
+        }
+        self._service._append("job.dispatched", state, observed=observed)
+        state = self._service.ledger.get_job(job_id) or state
+        self._service._append("invocation.started", state,
+                              invocation_id=invocation_id, observed=observed)
+        state = self._service.ledger.get_job(job_id) or state
+        self._service._append("job.running", state)
+        return True
+
+    def _finalise(self, job_id: str, result: dict) -> bool:
+        state = self._service.ledger.get_job(job_id)
+        if state is None:
+            handoff.clear_result(job_id)
+            handoff.clear_claim(job_id)
+            return False
+        if state.get("status") in TERMINAL:
+            handoff.clear_result(job_id)
+            handoff.clear_claim(job_id)
+            return False
+
+        # A result can arrive for a job the gateway never saw start: the control
+        # plane may have restarted mid-render, which must NOT kill or invalidate
+        # the GPU process. Synthesise the missing transitions so the lifecycle
+        # stays well-formed instead of jumping queued -> succeeded.
+        claim = handoff.read_claim(job_id) or {"job_id": job_id}
+        if state.get("status") not in ("dispatched", "running"):
+            self._mark_running(job_id, claim)
+            state = self._service.ledger.get_job(job_id) or state
+
+        invocation_id = self._invocations.pop(job_id, None)
+        if invocation_id is None:
+            invocations = state.get("invocations") or []
+            invocation_id = (invocations[-1]["invocation_id"] if invocations
+                             else new_invocation_id())
+
+        receipt = result.get("receipt") or {}
+        payload = json.dumps(receipt, indent=2, sort_keys=True).encode("utf-8")
+        artifact = self._service.artifacts.put(
+            payload, media_type="application/json; charset=utf-8",
+            filename="%s-render-receipt.json" % job_id,
+        )
+        state = self._service.ledger.get_job(job_id) or state
+        self._service._append("artifact.recorded", state,
+                              invocation_id=invocation_id,
+                              artifacts=[{**artifact, "role": "result"}])
+        state = self._service.ledger.get_job(job_id) or state
+        if result.get("ok"):
+            self._service._append("invocation.succeeded", state,
+                                  invocation_id=invocation_id)
+            state = self._service.ledger.get_job(job_id) or state
+            self._service._append("job.succeeded", state)
+        else:
+            # A superseded clip is the revision guard WORKING, not a fault --
+            # but it produced no draft, so the job is not a success either. The
+            # receipt's reason says which happened.
+            reason = result.get("reason") or "render did not promote"
+            self._service._append("invocation.failed", state,
+                                  invocation_id=invocation_id, reason=reason)
+            state = self._service.ledger.get_job(job_id) or state
+            self._service._append("job.failed", state, reason=reason)
+        handoff.clear_result(job_id)
+        handoff.clear_claim(job_id)
+        handoff.dequeue_job(job_id)
+        return True
+
+    def _loop(self) -> None:
+        while not self._stop.is_set():
+            try:
+                self.ingest()
+            except Exception:
+                pass
+            self._stop.wait(self._ingest_seconds)

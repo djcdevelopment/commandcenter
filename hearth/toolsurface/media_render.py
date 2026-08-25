@@ -66,19 +66,15 @@ def submit_render(
     except RenderArgumentError as exc:
         raise ValueError(str(exc)) from exc
 
-    # Refuse fast when this process has no render capacity. Queueing a job that
-    # can never be dispatched leaves it pending in the ledger forever, which is
-    # a worse failure than saying so now -- and the reason is actionable (the
-    # gateway's session has no GPU access).
+    # Note what is deliberately NOT checked here: whether an interactive render
+    # agent is currently running. A job with no executor is still a valid job.
+    # It stays QUEUED until an agent appears, which is what makes "nobody is
+    # logged in" a pause rather than a failure. Only a gateway with no render
+    # subsystem at all refuses.
     dispatcher = getattr(service, "_render_dispatcher", None)
     if dispatcher is None:
         raise RuntimeError(
             "this gateway has no render subsystem; media.render is unavailable here"
-        )
-    if not dispatcher._lanes():
-        raise RuntimeError(
-            "no schedulable render lane: %s"
-            % getattr(dispatcher, "capability_detail", "unknown")
         )
 
     identity = current_identity()
@@ -140,6 +136,11 @@ def list_render_lanes() -> dict:
     this driver that is ``videodecode`` -- there is no ``VideoEncode`` node --
     which is exactly why the value is measured rather than hardcoded.
 
+    ``interactive_executor_available`` says whether a render agent is alive in
+    an interactive session. The gateway itself cannot render -- session 0 has no
+    GPU adapter access -- so healthy lanes with no executor means queued work is
+    waiting, not broken.
+
     ``accepted_lane_count`` is how many lanes may run CONCURRENTLY. It comes
     from the last accepted coexistence benchmark, not from how many lanes exist;
     a stale record keeps its old count until a new benchmark is accepted.
@@ -147,10 +148,7 @@ def list_render_lanes() -> dict:
     calibration = lanes_mod.load_calibration()
     record = acceptance_mod.load_acceptance()
     dispatcher = getattr(get_execution_service(), "_render_dispatcher", None)
-    # _lanes() is what runs the capability probe, so it must be called BEFORE
-    # reading capability_detail or the answer is always "not probed".
-    schedulable = bool(dispatcher is not None and dispatcher._lanes())
-    capability = getattr(dispatcher, "capability_detail", "no render dispatcher")
+    executor = dispatcher.executor_status() if dispatcher is not None else None
     if calibration is None:
         return {
             "ok": False,
@@ -160,11 +158,13 @@ def list_render_lanes() -> dict:
         }
     return {
         "ok": True,
-        # A lane can be calibrated-healthy and still unschedulable: this process
-        # may have no GPU access (session 0). `schedulable` is the truth that
-        # matters to a caller; `capability` says why when it is False.
-        "schedulable": schedulable,
-        "capability": capability,
+        # A lane can be calibrated-healthy while nothing can currently drive it.
+        # The gateway runs in session 0 and has no GPU access at all; execution
+        # belongs to an interactive-session agent. This flag is the difference
+        # between "a broken install" and "nobody is logged in" -- and in the
+        # latter case submitted jobs stay queued, not failed.
+        "interactive_executor_available": bool(executor and executor.available),
+        "executor": executor.to_dict() if executor else None,
         "lanes": [lane.to_dict() for lane in calibration.lanes],
         "healthy": [lane.lane_id for lane in calibration.healthy_lanes()],
         "calibrated_at": calibration.calibrated_at,

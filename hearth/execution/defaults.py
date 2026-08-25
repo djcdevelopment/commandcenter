@@ -23,11 +23,14 @@ def get_execution_service() -> ExecutionService:
 def _attach_render_subsystem(service: ExecutionService) -> None:
     """Give the service a render dispatcher, if this host can render.
 
+    The subsystem does NOT execute renders -- the gateway runs in Windows
+    session 0, which has no GPU adapter access. It admits jobs to a handoff
+    queue and ingests the interactive agent's results into the ledger, of which
+    it remains the sole writer.
+
     Deliberately best-effort and non-fatal. A gateway that cannot import the
-    render subsystem, or that has no calibrated lanes, must still boot and serve
-    inference -- rendering is one operation, not the door. Without a dispatcher
-    `media.render` submissions are refused outright with a clear message, which
-    is far better than accepting work into a queue nothing drains.
+    render subsystem must still boot and serve inference -- rendering is one
+    operation, not the door.
 
     Imported lazily so `hearth.execution` keeps no import-time dependency on the
     media subsystem, and so a broken media module cannot take the door down.

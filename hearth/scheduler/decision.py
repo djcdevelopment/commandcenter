@@ -106,13 +106,23 @@ def build_scheduler_decision(
         primary_kind = candidates[0]["backend"]
 
     frontier_used = any(m.kind == "frontier" and m.name in load for m in available)
+    # WHY frontier was used is the whole audit value. A deadline local capacity could
+    # not meet is the DESIGNED reason. An empty local pool is not: there the doctrine
+    # lost by omission rather than by arithmetic, and the record must not claim a
+    # deadline forced spend when nothing local was ever on offer.
+    local_offered = any(m.kind == "local" for m in available)
+    if not frontier_used:
+        frontier_cause = "all-local (token objective wins)"
+    elif not local_offered:
+        frontier_cause = "frontier by omission — NO local machine was schedulable"
+    else:
+        frontier_cause = "frontier used to meet a deadline"
     total_tokens = sum(j.est_tokens or 0 for j in jobs)
 
     reason = (
         f"shadow job-shop over {len(jobs)} job(s) x {len(available)} machine(s): "
         f"status={proposal.solver_status}, makespan={proposal.makespan_s:.0f}s, "
-        f"metered_tokens={proposal.est_metered_tokens} "
-        f"({'frontier used to meet a deadline' if frontier_used else 'all-local (token objective wins)'})"
+        f"metered_tokens={proposal.est_metered_tokens} ({frontier_cause})"
     )
 
     # Economy block: the objective the proposal optimized and the makespan-first
@@ -130,8 +140,11 @@ def build_scheduler_decision(
             "two-economies doctrine: metered tokens minimized first, makespan second. "
             f"total est_tokens={total_tokens}; metered (frontier) tokens spent="
             f"{proposal.est_metered_tokens}. "
-            + ("A hard deadline forced a frontier placement."
-               if frontier_used else "No deadline forced metered spend; kept all-local.")
+            + ("No deadline forced metered spend; kept all-local." if not frontier_used
+               else ("No local machine was schedulable — the metered placement was "
+                     "forced by an empty local pool, not by a deadline."
+                     if not local_offered
+                     else "A hard deadline forced a frontier placement."))
         ),
         "counterfactual": {
             "objective": "knowledge_per_hour",

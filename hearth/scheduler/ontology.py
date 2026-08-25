@@ -46,6 +46,21 @@ _DEFAULT_MACHINES: tuple[dict, ...] = (
 # their local-vs-frontier kind comes from the runner-class registry below).
 _POOL_BUILDER_NAMES = {"am4-worker-1", "cc-builder-1", "cc-builder-2"}
 
+# Machine.available answers "may the solver PLAN work here?". That is NOT what the
+# inventory's `expect` field means. `expect` is fleet_ping's ALARM flag: "up" = this
+# node's absence turns the health sweep red, "optional" = it never does. An
+# expect="optional" node may be live and serving right now (fx99 is one) — "not
+# required to answer" is not "known to be down".
+#
+# Reading `expect` as availability was a category error that stayed invisible until
+# the 2026-08-24 fleet hold marked every parked VM expect="optional" for sweep
+# hygiene. That one config edit emptied the schedulable local pool, leaving only the
+# synthetic always-on `frontier-builder`, and silently flipped the scheduler from
+# local-first to metered-only — the exact outcome the two-economies objective exists
+# to prevent. Deliberate exclusion now has its own key, `schedulable = false`, so a
+# monitoring decision can never again rewrite the token economy as a side effect.
+_SCHEDULABLE_KEY = "schedulable"
+
 # Declared builder locality, used when fleet/inventory.toml (or its runner_class
 # fields) is absent. Corrected 2026-07-11 against each node's live runner.json:
 # cc-builder-1 carries NO runner.json, so its worker defaults to the metered
@@ -203,6 +218,9 @@ def load_machines(inventory_path: str, backends_path: str) -> list[Machine]:
     deadline-forced parallelism has somewhere to go. Backend tags
     (hearth/etc/backends.toml) enrich local machine tags where a backend rides
     the same node. Missing files -> declared defaults.
+
+    Availability comes from the node's optional `schedulable` flag (default true),
+    NOT from `expect` — see the note above _POOL_BUILDER_NAMES.
     """
     inventory = _read_toml(Path(inventory_path))
     backends = _read_toml(Path(backends_path))
@@ -222,7 +240,6 @@ def load_machines(inventory_path: str, backends_path: str) -> list[Machine]:
         name = node.get("name")
         if name not in _POOL_BUILDER_NAMES:
             continue
-        expect = node.get("expect", "up")
         kind = "frontier" if runner_classes.get(name) == "frontier" else "local"
         tags = [kind]
         tags.extend(tag for tag in ("code",) if tag in backend_tags or True)
@@ -231,7 +248,7 @@ def load_machines(inventory_path: str, backends_path: str) -> list[Machine]:
             kind=kind,
             token_cost_weight=1.0 if kind == "frontier" else 0.0,
             tags=sorted(set(tags)),
-            available=(expect == "up"),
+            available=bool(node.get(_SCHEDULABLE_KEY, True)),
         ))
 
     if not any(m.kind == "local" for m in machines):

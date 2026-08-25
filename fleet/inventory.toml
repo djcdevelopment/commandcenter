@@ -28,6 +28,17 @@
 # regret assay's local-vs-metered classification from it — keep it in sync when a
 # node's runner.json changes.
 #
+# `schedulable` (optional, per builder node): may hearth/scheduler PLAN work on this
+# node? Defaults to true; set `schedulable = false` to take a builder out of the
+# advisory pool. This is DELIBERATELY separate from `expect` (2026-08-24). `expect`
+# is fleet_ping's alarm flag -- "up" means this node's absence turns the sweep red,
+# "optional" means it never does -- and an expect="optional" node may be live and
+# serving right now. The scheduler used to read `expect` as availability, so the
+# fleet hold below (which marked every parked VM "optional" purely for sweep
+# hygiene) emptied its local pool and left only the synthetic always-on
+# frontier-builder: a monitoring edit silently flipped the proposal economy from
+# free local compute to metered frontier tokens. Keep the two flags distinct.
+#
 # Addressing model (Derek, 2026-07-02): VMs never join the tailnet -- only physical
 # hosts hold tailnet identities. Same-host VMs are reached via mshome.net sibling DNS;
 # off-host VMs via a ProxyJump through their tailnet-member hypervisor.

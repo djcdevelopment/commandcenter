@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 from pathlib import Path
 from tempfile import mkdtemp
 from unittest import TestCase
@@ -180,6 +181,13 @@ class CapacityLookupTests(TestCase):
 
 
 class LoadMachinesTests(TestCase):
+    def _inventory(self, *body: str) -> str:
+        """Write a throwaway inventory from TOML lines; return its path."""
+        path = Path(mkdtemp()) / "inventory.toml"
+        path.write_text(chr(10).join(body) + chr(10), encoding="utf-8")
+        self.addCleanup(shutil.rmtree, path.parent, ignore_errors=True)
+        return str(path)
+
     def test_missing_inventory_yields_defaults(self) -> None:
         machines = load_machines("/no/inventory.toml", "/no/backends.toml")
         names = {m.name for m in machines}
@@ -206,6 +214,42 @@ class LoadMachinesTests(TestCase):
         self.assertGreater(by_name["cc-builder-1"].token_cost_weight, 0)
         self.assertEqual(by_name["cc-builder-2"].kind, "local")
         self.assertEqual(by_name["am4-worker-1"].kind, "local")
+
+    def test_expect_optional_is_still_schedulable(self) -> None:
+        # `expect` is fleet_ping's ALARM flag, not a dispatch gate: "optional" only
+        # means "absence must not turn the health sweep red". Reading it as
+        # availability emptied the local pool the moment the 2026-08-24 fleet hold
+        # parked the VMs, leaving only the synthetic frontier-builder.
+        inventory = self._inventory(
+            '[[node]]',
+            'name = "cc-builder-2"',
+            'expect = "optional"',
+            'runner_class = "local"',
+        )
+        machines = load_machines(inventory, "/no/backends.toml")
+        cc2 = next(m for m in machines if m.name == "cc-builder-2")
+        self.assertTrue(cc2.available)
+
+    def test_schedulable_false_excludes_the_builder(self) -> None:
+        # The purpose-built exclusion key still takes a builder out of the pool.
+        inventory = self._inventory(
+            '[[node]]',
+            'name = "cc-builder-2"',
+            'expect = "up"',
+            'schedulable = false',
+            'runner_class = "local"',
+        )
+        machines = load_machines(inventory, "/no/backends.toml")
+        cc2 = next(m for m in machines if m.name == "cc-builder-2")
+        self.assertFalse(cc2.available)
+
+    def test_real_inventory_offers_an_available_local_machine(self) -> None:
+        # The invariant the pool exists to hold: whatever the fleet hold says about
+        # the health sweep, the solver is always offered a free local option, so
+        # frontier can only ever win on the objective — never by omission.
+        machines = load_machines(str(REPO_ROOT / "fleet" / "inventory.toml"),
+                                 str(REPO_ROOT / "hearth" / "etc" / "backends.toml"))
+        self.assertTrue(any(m.kind == "local" and m.available for m in machines))
 
 
 class DecisionRecordTests(TestCase):

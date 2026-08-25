@@ -327,7 +327,7 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       `ffprobe` can all pass over a stream a decoder cannot read. The render lane validates its
       outputs the same cheap way and has **not** been checked for that failure mode. Source:
       [docs/RENDER-LANE-BACKLOG.md](file:///E:/omen/bf6-highlights/docs/RENDER-LANE-BACKLOG.md) §4.
-- [ ] 2026-08-25 — **Decide whether the BF6 lane needs liveness watching on BOTH ends.**
+- [x] 2026-08-25 — **Decide whether the BF6 lane needs liveness watching on BOTH ends.**
       Demonstrated twice in one day. AM4's worker crash-looped on a dead mount from the moment
       the cable moved until a deploy happened to notice. Then all three OMEN processes died and
       sat dead for ~30 minutes with nothing reporting it — found only because a second retro
@@ -335,3 +335,7 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       `rawMounted`, and the render agent writes `hearth/var/render/agent.heartbeat.json` with a
       timestamp. Neither is watched. Sources:
       [SESSION-RETRO-2026-08-25.md](SESSION-RETRO-2026-08-25.md) §Operator and §Addendum.
+      — DONE 2026-08-25: `hearth.media.watchdog` plus the external minute-cadence
+      `BF6PipelineWatchdog` task heal stopped OMEN workers, restart a stale render
+      agent, and record AM4 mount/API health. See the operational amendment to
+      [ADR-0036](docs/adr/0036-gpu-execution-leaves-the-control-plane.md).

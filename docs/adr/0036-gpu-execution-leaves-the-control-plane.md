@@ -119,6 +119,16 @@ Failure semantics become explicit, and each is a test:
 - **BF6/OBS withholding** continues to operate at lane level, inside the agent's
   lane selection, unchanged.
 
+Operational amendment (2026-08-25): the one-shot `BF6PipelineWatchdog` runs
+outside all three interactive workers once per minute. Exact, anchored worker
+process identities are liveness truth because Task Scheduler can read `Ready`
+while a launcher child remains alive; task state is launch control only. The
+watchdog starts a missing worker, restarts the render agent when its heartbeat is stale, and records
+AM4 `/health` mount failures without attempting remote mutation. Its current
+truth and transition log live under `hearth/var/render/pipeline-watchdog.*`.
+This is the same liveness boundary as ADR-0024: the watched process cannot be
+responsible for noticing its own death.
+
 Verified end to end: a job submitted through the door queued with no executor,
 was claimed and rendered by the agent in session 1, and reached `succeeded` with
 the canonical lifecycle written entirely by the gateway.

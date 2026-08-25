@@ -87,6 +87,7 @@ class VariantSpec:
     blur_height: Optional[int]
     rate_control: str = "cq"
     max_bitrate_mbps: Optional[float] = None
+    bitrate: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -130,6 +131,7 @@ def _variant_from(raw: dict) -> VariantSpec:
         blur_height=raw.get("blur_height"),
         rate_control=str(raw.get("rate_control", "cq")),
         max_bitrate_mbps=raw.get("max_bitrate_mbps"),
+        bitrate=raw.get("bitrate"),
     )
 
 
@@ -331,6 +333,22 @@ def _encoder_args(spec: VariantSpec) -> list:
     enforced downstream at validation instead.
     """
     args = ["-c:v", spec.encoder]
+    if spec.rate_control == "vbr":
+        # Bounded mode. QSV VBR DOES honour -maxrate (it is ICQ that ignores
+        # it), so this is the only QSV configuration that actually caps output.
+        # global_quality is NOT emitted here: mixing it back in is what silently
+        # drops the encoder into a mode where neither control works as written.
+        if not spec.bitrate or not spec.maxrate:
+            raise ProfileError(
+                "rate_control=vbr requires both bitrate and maxrate on %r"
+                % (spec.encoder,)
+            )
+        args += ["-b:v", spec.bitrate, "-maxrate", spec.maxrate]
+        if spec.bufsize:
+            args += ["-bufsize", spec.bufsize]
+        args += list(spec.args)
+        return args
+
     if spec.rate_control == "icq":
         if spec.global_quality is None:
             raise ProfileError(

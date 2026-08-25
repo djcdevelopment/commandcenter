@@ -61,35 +61,42 @@ reference_only = false
 # match.
 [profile."bf6-qsv-v1".horizontal]
 encoder = "h264_qsv"
-rate_control = "icq"
-# CALIBRATED 2026-08-25 against the NVENC reference, both measured against the
-# ORIGINAL SOURCE over the same 20 s window (target 0.978265 @ 63.27 Mbps):
-#   gq=18 -> SSIM 0.980477 @ 89.65 Mbps   PASS
-#   gq=19 -> SSIM 0.979264 @ 73.89 Mbps   PASS  <-- chosen: clears the bar for
-#   gq=20 -> SSIM 0.978026 @ 62.26 Mbps   fail        the fewest bits
-#   gq=21 -> SSIM 0.976588 @ 51.52 Mbps   fail
+# BOUNDED MODE, chosen 2026-08-25 from a 10-clip gameplay calibration.
+#
+# ICQ gq=19 is quality-targeted and UNBOUNDED -- QSV ignores -maxrate in ICQ --
+# and measured min 11.86 / median 80.71 / max 204.09 Mbps, with 3 of 10 clips
+# over the 125 Mbps stop. A guardrail that rejects legitimate high-motion output
+# is not a guardrail, and raising it to ~220 would have made it an
+# extreme-outlier check while letting this path diverge from production.
+#
+# The right comparison was production semantics: AM4/NVENC today is
+# quality-targeted AND bitrate-bounded (-cq 18 -maxrate 85M, which NVENC
+# honours). QSV VBR is the equivalent bounded mode.
+#
+# Candidates measured source-relative against the UNCHANGED ICQ gq=19 baseline
+# across the same 10 clips (median SSIM delta / max Mbps):
+#     vbr 60M/85M    -0.002685   61.26
+#     vbr 75M/100M   -0.001482   77.17
+#     vbr 85M/125M   -0.000812   87.36   <-- chosen
+#
+# 85M/125M matches ICQ's median bitrate (80.50 vs 80.71) and its median quality
+# to within 0.0008 SSIM, while cutting the tail from 204 -> 87 Mbps. Its MEAN
+# bitrate is actually lower than ICQ's (77.73 vs 87.73): VBR spends more on easy
+# content and far less on hard content. Chosen on the distribution, not the
+# single worst clip.
+rate_control = "vbr"
+bitrate = "85M"
+maxrate = "125M"
+bufsize = "250M"
+# Retained as the QUALITY REFERENCE, not an active setting. gq=19 measured
+# slightly above the NVENC renderer source-relative (0.979264 vs 0.978265) and
+# remains the yardstick any future rate-control change is judged against.
+# Deliberately NOT emitted in vbr mode.
 global_quality = 19
-# NO "-b:v 0", and NO encoder-level maxrate. MEASURED 2026-08-25: either one
-# silently drops h264_qsv out of ICQ into VBR, after which global_quality is
-# ignored entirely -- a sweep of gq 14..22 produced byte-identical output at
-# 18.69 Mbps. And in ICQ, -maxrate does not cap: gq=18 with -maxrate 85M still
-# emitted 87.96 Mbps. So the size ceiling cannot be an encoder setting here.
 args = []
-# Enforced at VALIDATION time instead, which is a real guardrail rather than one
-# the encoder ignores.
-#
-# PROVISIONAL, raised 95 -> 125 on 2026-08-25. The original 95 was derived from a
-# single quiet calibration window (36-56s of this segment, 73.89 Mbps). The first
-# real gameplay render at gq=19 produced 111.54 Mbps on busier content and was
-# correctly refused promotion -- which says the CEILING was too tightly drawn,
-# not that the quality target is wrong. gq=19 still measures slightly ABOVE the
-# NVENC renderer source-relative (0.979264 vs 0.978265), so the quality target is
-# unchanged.
-#
-# This is a safety/property check for pathological output growth, NOT the rate
-# control. There is deliberately no dynamic per-clip global_quality adjustment
-# and no automatic retry at a different quality. Final ceiling awaits a broader
-# gameplay bitrate distribution.
+# Now a genuine anomaly detector rather than a rate control: across the sample
+# VBR never exceeded 87.36 Mbps against its own 125 Mbps cap, so this firing
+# means the encoder failed to honour maxrate -- which is worth failing on.
 max_bitrate_mbps = 125
 scale = false
 burn_captions = false

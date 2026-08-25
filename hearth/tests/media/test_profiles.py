@@ -65,18 +65,46 @@ class RateControlTest(unittest.TestCase):
         self.profile = P.get_profile("bf6-qsv-v1")
 
     def test_icq_emits_global_quality(self) -> None:
-        args = P._encoder_args(self.profile.variant("horizontal"))
+        args = P._encoder_args(self.profile.variant("vertical"))
         self.assertIn("-global_quality", args)
 
     def test_icq_never_emits_the_flags_that_disable_it(self) -> None:
-        # MEASURED: either of these drops h264_qsv into VBR, after which
+        # MEASURED: either of these drops h264_qsv out of ICQ, after which
         # global_quality is ignored and a gq 14..22 sweep produced
-        # byte-identical output at 18.69 Mbps.
-        for variant in ("horizontal", "vertical"):
-            args = P._encoder_args(self.profile.variant(variant))
-            self.assertNotIn("-b:v", args, variant)
-            self.assertNotIn("-maxrate", args, variant)
-            self.assertNotIn("-bufsize", args, variant)
+        # byte-identical output at 18.69 Mbps. Vertical is the ICQ variant.
+        args = P._encoder_args(self.profile.variant("vertical"))
+        self.assertNotIn("-b:v", args)
+        self.assertNotIn("-maxrate", args)
+        self.assertNotIn("-bufsize", args)
+
+    def test_horizontal_uses_the_bounded_vbr_mode(self) -> None:
+        # ICQ is quality-targeted and UNBOUNDED -- QSV ignores -maxrate there,
+        # measured max 204.09 Mbps. VBR is the only QSV mode that actually caps.
+        spec = self.profile.variant("horizontal")
+        self.assertEqual("vbr", spec.rate_control)
+        args = P._encoder_args(spec)
+        self.assertIn("-b:v", args)
+        self.assertIn("85M", args)
+        self.assertIn("-maxrate", args)
+        self.assertIn("125M", args)
+
+    def test_vbr_never_emits_global_quality(self) -> None:
+        # Mixing global_quality back in is how the encoder ends up in a mode
+        # where neither control does what the config says.
+        args = P._encoder_args(self.profile.variant("horizontal"))
+        self.assertNotIn("-global_quality", args)
+
+    def test_vbr_without_a_cap_is_refused(self) -> None:
+        spec = self.profile.variant("horizontal")
+        broken = P.VariantSpec(spec.encoder, (), None, None, None, None, None,
+                               None, False, True, None, None, "vbr", None, None)
+        with self.assertRaises(P.ProfileError):
+            P._encoder_args(broken)
+
+    def test_the_quality_reference_is_retained_but_inactive(self) -> None:
+        # gq=19 stays recorded as the yardstick any rate-control change is
+        # judged against; it is deliberately not emitted in vbr mode.
+        self.assertEqual(19, self.profile.variant("horizontal").global_quality)
 
     def test_icq_without_global_quality_is_refused(self) -> None:
         spec = self.profile.variant("horizontal")
@@ -90,12 +118,11 @@ class RateControlTest(unittest.TestCase):
         # ICQ: gq=18 with -maxrate 85M still emitted 87.96 Mbps), so it must
         # survive as data for the validator.
         #
-        # The horizontal value is PROVISIONAL and deliberately pinned here so a
-        # change is a deliberate edit rather than a drift. Raised 95 -> 125 on
-        # 2026-08-25 after the first real gameplay render hit 111.54 Mbps.
-        # A 10-clip gameplay sample at gq=19 then measured median 81.02 /
-        # max 204.42 Mbps with 3 of 10 over 125, so this ceiling is known to be
-        # unsettled and awaits a decision -- see the report, not a quiet tune.
+        # Pinned so a change is a deliberate edit rather than a drift. Under
+        # the chosen bounded VBR mode this is now a genuine ANOMALY detector,
+        # not a rate control: across the 10-clip sample VBR never exceeded
+        # 87.36 Mbps against its own 125 Mbps cap, so this firing means the
+        # encoder failed to honour maxrate.
         self.assertEqual(125, self.profile.variant("horizontal").max_bitrate_mbps)
         self.assertEqual(30, self.profile.variant("vertical").max_bitrate_mbps)
 

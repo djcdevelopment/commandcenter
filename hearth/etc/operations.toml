@@ -20,3 +20,16 @@ max_prompt_bytes = 1048576
 max_tokens_ceiling = 32768
 deadline_ceiling_s = 1200
 artifact_media_type = "text/plain; charset=utf-8"
+
+[operation."media.render"]
+description = "Render a BF6 highlight clip on a leased Arc Pro B70 QSV lane."
+handler = "media_render"
+# The "prompt" for a render is its JSON job spec, recorded as the input
+# artifact so the ledger still shows exactly what was asked for.
+max_prompt_bytes = 65536
+# Not a token budget -- renders emit no tokens. Kept at the schema's minimum
+# because the field is required by load_operations().
+max_tokens_ceiling = 1
+# A 180 s 4K clip through two variants, with headroom for a contended lane.
+deadline_ceiling_s = 3600
+artifact_media_type = "application/json; charset=utf-8"

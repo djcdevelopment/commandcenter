@@ -42,6 +42,7 @@ class ExecutionService:
         workers: int = 16,
         max_pending: int = 256,
         recover_pending: bool = True,
+        render_dispatcher: Optional[Any] = None,
     ) -> None:
         self.ledger = ledger or ExecutionLedger()
         self.artifacts = artifacts or ArtifactStore()
@@ -52,6 +53,10 @@ class ExecutionService:
             max_workers=workers, thread_name_prefix="hearth-execution"
         )
         self._max_pending = max_pending
+        # Optional. When absent, media.render submissions are refused outright
+        # rather than accepted into a queue nothing drains -- a gateway without
+        # the render subsystem should say so, not silently swallow work.
+        self._render_dispatcher = render_dispatcher
         self._futures: dict[str, Future[None]] = {}
         self._cancel_requested: set[str] = set()
         self._lock = threading.RLock()
@@ -101,11 +106,36 @@ class ExecutionService:
                     )
                 elif state["status"] == "accepted":
                     self._append("job.queued", state, reason="queued during recovery")
-                future = self._executor.submit(self._run, job_id)
-                self._futures[job_id] = future
-                future.add_done_callback(lambda _future, jid=job_id: self._forget(jid))
+                if self._is_render_job(state):
+                    # Recovered render jobs re-enter the render queue, never the
+                    # shared executor. Their commit-time revision check runs
+                    # again on the retry, so a job that was superseded while the
+                    # gateway was down still refuses to promote.
+                    if self._render_dispatcher is None:
+                        self._append(
+                            "job.failed",
+                            state,
+                            reason="render job recovered but no render dispatcher "
+                                   "is configured",
+                        )
+                        continue
+                    self._render_dispatcher.enqueue(job_id)
+                else:
+                    future = self._executor.submit(self._run, job_id)
+                    self._futures[job_id] = future
+                    future.add_done_callback(lambda _future, jid=job_id: self._forget(jid))
                 recovered += 1
         return recovered
+
+    def _is_render_job(self, state: Mapping[str, Any]) -> bool:
+        """Whether a ledger job state belongs to the media_render handler."""
+        name = state.get("operation")
+        if not name:
+            return False
+        try:
+            return self.operations.get(name).handler == "media_render"
+        except (OperationConfigError, KeyError, ExecutionServiceError):
+            return False
 
     def _append(self, event_type: str, state: Mapping[str, Any], **kwargs: Any) -> dict[str, Any]:
         event = self.ledger.append(
@@ -146,6 +176,17 @@ class ExecutionService:
         self, operation: Operation, arguments: Mapping[str, Any]
     ) -> tuple[dict[str, Any], bytes]:
         normalized = copy.deepcopy(dict(arguments))
+        if operation.handler == "media_render":
+            # Delegated so the execution plane stays free of media specifics.
+            # Runs HERE, on the caller's thread, because path containment reads
+            # ContextVars that a pool worker does not inherit -- the same
+            # reasoning as the `files=` packing note in submit().
+            from hearth.media.jobspec import RenderArgumentError, validate_render_arguments
+
+            try:
+                return validate_render_arguments(operation, normalized)
+            except RenderArgumentError as exc:
+                raise ExecutionServiceError(str(exc)) from exc
         if operation.handler != "llm_chat":
             raise ExecutionServiceError(f"unsupported operation handler: {operation.handler}")
         allowed = {
@@ -197,7 +238,16 @@ class ExecutionService:
         source_value = self._validate_source(source)
         operation = self.operations.get(operation_name)
         arguments_value, prompt_bytes = self._validate_arguments(operation, arguments)
-        if arguments_value.get("files"):
+        # A render job has no model, no backend and no prompt to pack. It also
+        # must not consume a shared pool worker -- see the dispatch branch below.
+        is_render = operation.handler == "media_render"
+        if is_render and self._render_dispatcher is None:
+            raise ExecutionServiceError(
+                "media.render was submitted but this gateway has no render "
+                "dispatcher configured; refusing rather than queueing work "
+                "nothing will execute"
+            )
+        if arguments_value.get("files") and not is_render:
             # Resolve and pack under the gateway caller's active filesystem
             # scope before crossing the executor thread boundary. ContextVars
             # are not implicitly inherited by ThreadPoolExecutor workers.
@@ -214,10 +264,15 @@ class ExecutionService:
                     f"limit is {operation.max_prompt_bytes}"
                 )
         policy_value = self.operations.policy_for(operation, policy)
-        model = arguments_value.get("model") or operation.default_model
-        backend = arguments_value.get("backend")
-        endpoint = arguments_value.get("endpoint")
-        pool = load_pool()
+        if is_render:
+            # Capacity for a render is a calibrated B70 lane, not a model
+            # provider, so the whole backend-selection path is skipped.
+            model = None
+        else:
+            model = arguments_value.get("model") or operation.default_model
+        backend = None if is_render else arguments_value.get("backend")
+        endpoint = None if is_render else arguments_value.get("endpoint")
+        pool = None if is_render else load_pool()
         if endpoint is not None:
             provider = pool.by_endpoint(endpoint)
             if provider is None:
@@ -228,15 +283,16 @@ class ExecutionService:
                 raise ExecutionServiceError("backend and endpoint select different providers")
             backend = provider.name
             arguments_value["backend"] = backend
-        try:
-            select_backend(
-                pool,
-                backend=backend,
-                model=model,
-                payload_bytes=len(prompt_bytes),
-            )
-        except BackendConfigError as exc:
-            raise ExecutionServiceError(str(exc)) from exc
+        if not is_render:
+            try:
+                select_backend(
+                    pool,
+                    backend=backend,
+                    model=model,
+                    payload_bytes=len(prompt_bytes),
+                )
+            except BackendConfigError as exc:
+                raise ExecutionServiceError(str(exc)) from exc
 
         if idempotency_key is not None:
             if not isinstance(idempotency_key, str) or not idempotency_key.strip():
@@ -254,15 +310,20 @@ class ExecutionService:
             job_id = new_job_id()
             input_artifact = self.artifacts.put(
                 prompt_bytes,
-                media_type="text/plain; charset=utf-8",
-                filename=f"{job_id}-prompt.txt",
+                media_type=(
+                    "application/json; charset=utf-8" if is_render
+                    else "text/plain; charset=utf-8"
+                ),
+                filename=(
+                    f"{job_id}-render.json" if is_render else f"{job_id}-prompt.txt"
+                ),
             )
             desired = {
                 "operation": operation_name,
                 "arguments": {
                     key: value
                     for key, value in arguments_value.items()
-                    if key not in {"prompt", "packed_files"}
+                    if key not in {"prompt", "packed_files", "_spec"}
                 },
                 "packed_files": arguments_value.get("packed_files", []),
                 "input_artifact": input_artifact,
@@ -291,9 +352,18 @@ class ExecutionService:
                 artifacts=[{**input_artifact, "role": "input"}],
             )
             self._append("job.queued", initial)
-            future = self._executor.submit(self._run, job_id)
-            self._futures[job_id] = future
-            future.add_done_callback(lambda _future, jid=job_id: self._forget(jid))
+            if is_render:
+                # Handed to the render scheduler, which holds it as durable
+                # queued state and only assigns a worker once a lane can
+                # actually be leased. Submitting it to self._executor here
+                # would reproduce the very bug this design avoids: a job
+                # occupying one of the 16 shared workers while it waits for
+                # capacity, starving llm.chat.
+                self._render_dispatcher.enqueue(job_id)
+            else:
+                future = self._executor.submit(self._run, job_id)
+                self._futures[job_id] = future
+                future.add_done_callback(lambda _future, jid=job_id: self._forget(jid))
         state = self.ledger.get_job(job_id)
         assert state is not None
         return state

@@ -1,0 +1,111 @@
+# Render profiles for the BF6 highlights media lane.
+#
+# A profile is a VERSIONED contract. Every rendered output records the profile
+# version that produced it, so a draft can always be traced back to the exact
+# encoder settings behind it -- and so changing settings is a new version rather
+# than a silent redefinition of the old one.
+#
+# What lives here: the tunables (encoder, rate control, caps).
+# What does NOT live here: the filter graphs. Those are logic, not data, and
+# they live in hearth/media/profiles.py where they can be tested. Pretending a
+# filter graph is configuration only makes it configuration nobody validates.
+#
+# The audio contract is deliberately identical across both profiles and is NOT
+# tunable: track gains 1.0/1.35/1.25, amix normalize=0, loudnorm I=-14:TP=-1:
+# LRA=11, aresample=48000, aac 320k. It is copied verbatim from the AM4
+# renderer (am4-worker/app/pipeline.py mix_filter) because preserving the mix is
+# a hard compatibility requirement, not a preference.
+
+[profile."bf6-nvenc-v1"]
+description = "The AM4 RTX 5070 renderer, recorded verbatim as the comparison reference."
+graph = "nvenc"
+node = "am4"
+# Reference only -- HEARTH does not dispatch this. It exists so the benchmark
+# has a machine-readable statement of what it is comparing against.
+reference_only = true
+
+[profile."bf6-nvenc-v1".horizontal]
+encoder = "h264_nvenc"
+args = ["-preset", "p7", "-tune", "hq", "-cq", "18", "-b:v", "0"]
+maxrate = "85M"
+bufsize = "170M"
+scale = false            # -map 0:v:0 passthrough; the 4K master is not resized
+burn_captions = false
+
+[profile."bf6-nvenc-v1".vertical]
+encoder = "h264_nvenc"
+args = ["-preset", "p7", "-tune", "hq", "-cq", "18", "-b:v", "0"]
+maxrate = "24M"
+bufsize = "48M"
+width = 1080
+height = 1920
+fps = 60
+burn_captions = true
+
+
+[profile."bf6-qsv-v1"]
+description = "Dual Arc Pro B70 QSV lane. HEVC decode, H.264 encode, GPU-approximated blur."
+graph = "qsv"
+node = "omen"
+reference_only = false
+
+# global_quality is the QSV analogue of NVENC's cq, but the scales are NOT
+# comparable and there is no conversion formula. Values here are a first pass
+# pending the full Phase 7 sweep; see max_bitrate_mbps for the size guardrail.
+#
+# Calibration methodology matters here. Comparing a QSV encode against the NVENC
+# *output* is meaningless -- the reference is itself lossy, so SSIM saturates at
+# ~0.947 no matter how many bits QSV spends. Both encoders must be compared
+# against the ORIGINAL SOURCE. Measured that way over the same 20 s window, the
+# NVENC reference scores SSIM 0.978265 at 63.27 Mbps; that is the number to
+# match.
+[profile."bf6-qsv-v1".horizontal]
+encoder = "h264_qsv"
+rate_control = "icq"
+# CALIBRATED 2026-08-25 against the NVENC reference, both measured against the
+# ORIGINAL SOURCE over the same 20 s window (target 0.978265 @ 63.27 Mbps):
+#   gq=18 -> SSIM 0.980477 @ 89.65 Mbps   PASS
+#   gq=19 -> SSIM 0.979264 @ 73.89 Mbps   PASS  <-- chosen: clears the bar for
+#   gq=20 -> SSIM 0.978026 @ 62.26 Mbps   fail        the fewest bits
+#   gq=21 -> SSIM 0.976588 @ 51.52 Mbps   fail
+global_quality = 19
+# NO "-b:v 0", and NO encoder-level maxrate. MEASURED 2026-08-25: either one
+# silently drops h264_qsv out of ICQ into VBR, after which global_quality is
+# ignored entirely -- a sweep of gq 14..22 produced byte-identical output at
+# 18.69 Mbps. And in ICQ, -maxrate does not cap: gq=18 with -maxrate 85M still
+# emitted 87.96 Mbps. So the size ceiling cannot be an encoder setting here.
+args = []
+# Enforced at VALIDATION time instead (see max_bitrate_mbps), which is a real
+# guardrail rather than one the encoder ignores.
+max_bitrate_mbps = 95
+scale = false
+burn_captions = false
+calibrated = true
+
+[profile."bf6-qsv-v1".vertical]
+encoder = "h264_qsv"
+rate_control = "icq"
+# CALIBRATED 2026-08-25. SSIM against a near-transparent CPU encode of the
+# IDENTICAL filter graph, which isolates the encoder from the deliberate blur
+# difference (comparing against the NVENC vertical would measure the blur, not
+# the encode):  gq=18 0.995803 @ 5.29 Mbps | gq=20 0.995315 @ 4.12 Mbps |
+# gq=24 0.993764 @ 2.65 Mbps. Chosen gq=20: 0.9953 for 4.12 Mbps, well inside
+# the guard, and the curve is nearly flat so extra bits buy almost nothing.
+global_quality = 20
+args = []
+max_bitrate_mbps = 30
+width = 1080
+height = 1920
+fps = 60
+burn_captions = true
+calibrated = true
+# The blurred bed is approximated on the GPU by a staged downscale/upscale rather
+# than gblur=sigma=28, which has no QSV equivalent. DELIBERATE and VISIBLE
+# departure; see the plan's "Known deviations". Chosen by looking at frames:
+#   68x120 straight to 1080x1920 -> a hard mosaic, not a blur
+#   136x240                      -> bed stays READABLE (menu text, faces legible)
+#   68x120 -> 270x480 -> 1080x1920 + denoise -> reads as a blurred bed  <-- used
+# The source is also cropped to the output aspect first; scaling 16:9 straight
+# into 9:16 squashes the picture, which is obvious on screen.
+blur_width = 68
+blur_height = 120

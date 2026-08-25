@@ -233,6 +233,23 @@ class RenderScheduler:
             self._idle.clear()
             self._wake.notify_all()
 
+    def dequeue(self, job_id: str) -> bool:
+        """Remove a job that has not started yet. Returns whether it was queued.
+
+        This is the ENFORCEABLE half of cancellation. A job still in the queue
+        can be stopped absolutely -- it has no lane, no lease and no ffmpeg. A
+        job already dispatched cannot be, so the caller is told which happened
+        rather than being allowed to assume the strong case (see cancel_render).
+        """
+        with self._wake:
+            if job_id not in self._queue:
+                return False
+            self._queue.remove(job_id)
+            if not self._queue and not self._active:
+                self._idle.set()
+            self._wake.notify_all()
+            return True
+
     def queue_depth(self) -> int:
         with self._lock:
             return len(self._queue)

@@ -89,12 +89,16 @@ def results_dir() -> Path:
     return render_root() / "results"
 
 
+def cancels_dir() -> Path:
+    return render_root() / "cancels"
+
+
 def heartbeat_path() -> Path:
     return render_root() / "agent.heartbeat.json"
 
 
 def ensure_dirs() -> None:
-    for directory in (queue_dir(), claims_dir(), results_dir()):
+    for directory in (queue_dir(), claims_dir(), results_dir(), cancels_dir()):
         directory.mkdir(parents=True, exist_ok=True)
 
 
@@ -136,6 +140,38 @@ def dequeue_job(job_id: str) -> None:
             path.unlink()
         except OSError:
             pass
+
+
+def request_cancel(job_id: str, *, reason: str = "cancelled") -> Path:
+    """Ask the agent to stop. Gateway side.
+
+    A marker file, not a signal: the agent is a separate process in a different
+    Windows session, and the gateway cannot reach into it. What this buys is
+    bounded -- the agent checks it BETWEEN variants, so it prevents work that has
+    not started rather than stopping work that has. An ffmpeg already encoding
+    runs to completion (ADR-0030: cancellation is cooperative), and correctness
+    does not depend on this arriving: the commit-time revision check refuses to
+    promote a superseded render regardless.
+    """
+    ensure_dirs()
+    return _write_atomic(cancels_dir() / ("%s.json" % job_id), {
+        "schema_version": SCHEMA_VERSION,
+        "job_id": job_id,
+        "reason": reason,
+        "requested_at": time.time(),
+    })
+
+
+def is_cancelled(job_id: str) -> bool:
+    """Agent side: has cancellation been requested for this job?"""
+    return (cancels_dir() / ("%s.json" % job_id)).exists()
+
+
+def clear_cancel(job_id: str) -> None:
+    try:
+        (cancels_dir() / ("%s.json" % job_id)).unlink()
+    except OSError:
+        pass
 
 
 def list_queued() -> list:

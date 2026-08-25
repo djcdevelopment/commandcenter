@@ -38,6 +38,7 @@ class BridgeTestBase(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         self.submits = []
+        self.cancels = []
 
     def write_request(self, clip=CLIP, revision=1) -> Path:
         path = self.work / (clip + bridge.REQUEST_SUFFIX)
@@ -62,7 +63,12 @@ class BridgeTestBase(unittest.TestCase):
         def status(jid):
             return dict(status_map, job_id=jid)
 
-        return bridge.Bf6Bridge(submit=submit, status=status,
+        def cancel(jid, reason):
+            self.cancels.append((jid, reason))
+            return {"ok": True, "job_id": jid, "status": "cancelled",
+                    "stopped_before_start": True}
+
+        return bridge.Bf6Bridge(submit=submit, status=status, cancel=cancel,
                                 receipt=lambda s: receipt)
 
     def read(self, suffix, clip=CLIP):
@@ -143,7 +149,8 @@ class ConvergenceTest(BridgeTestBase):
         # The crash window: job terminal, publication never happened.
         self.write_request()
         (self.work / (CLIP + bridge.CLAIM_SUFFIX)).write_text(
-            json.dumps({"clip_id": CLIP, "job_id": "job_1"}), encoding="utf-8")
+            json.dumps({"clip_id": CLIP, "job_id": "job_1", "clip_revision": 1}),
+            encoding="utf-8")
         tick = self.make(status_map={"status": "succeeded"},
                          receipt=self.RECEIPT).tick()
         self.assertEqual([CLIP], tick.reconciled)
@@ -237,3 +244,94 @@ class ShareRobustnessTest(BridgeTestBase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SupersedeTest(BridgeTestBase):
+    """A new revision must never inherit, nor wait behind, an old claim.
+
+    The window is real: AM4 bumps the authority and clears the exchange, and the
+    bridge may be writing a claim for the OLD job at that moment. What arrives on
+    disk afterwards is a new request beside a stale claim, and the bridge cannot
+    tell that apart from a supersede -- so both take the same path.
+    """
+
+    def write_claim(self, *, job_id="job_old", revision=1) -> None:
+        (self.work / (CLIP + bridge.CLAIM_SUFFIX)).write_text(json.dumps({
+            "schema_version": 1, "clip_id": CLIP, "job_id": job_id,
+            "clip_revision": revision, "idempotency_key": "old",
+            "submitted_at": time.time(),
+        }), encoding="utf-8")
+
+    def test_a_claim_for_an_older_revision_is_not_inherited(self) -> None:
+        self.write_request(revision=2)
+        self.write_claim(job_id="job_old", revision=1)
+        b = self.make(job_id="job_new")
+        tick = b.tick()
+
+        self.assertEqual([CLIP], tick.submitted, "revision 2 must get its own job")
+        self.assertEqual(2, self.submits[0]["clip_revision"])
+        claim = self.read(bridge.CLAIM_SUFFIX)
+        self.assertEqual("job_new", claim["job_id"])
+        self.assertEqual(2, claim["clip_revision"])
+
+    def test_the_superseded_job_is_cancelled(self) -> None:
+        self.write_request(revision=2)
+        self.write_claim(job_id="job_old", revision=1)
+        tick = self.make(job_id="job_new").tick()
+
+        self.assertEqual(1, len(self.cancels))
+        self.assertEqual("job_old", self.cancels[0][0])
+        self.assertIn("superseded", self.cancels[0][1])
+        self.assertEqual(1, len(tick.cancelled))
+
+    def test_a_failed_cancel_still_lets_the_new_revision_proceed(self) -> None:
+        # Cancellation is an optimisation. Correctness rests on the commit-time
+        # revision check, so a cancel that does not land must not block anything.
+        self.write_request(revision=2)
+        self.write_claim(job_id="job_old", revision=1)
+
+        def refuse(jid, reason):
+            raise RuntimeError("door unreachable")
+
+        b = self.make(job_id="job_new")
+        b._cancel = refuse
+        tick = b.tick()
+
+        self.assertEqual([CLIP], tick.submitted)
+        self.assertEqual("job_new", self.read(bridge.CLAIM_SUFFIX)["job_id"])
+        self.assertTrue(any("not cancelled" in e for e in tick.errors))
+
+    def test_a_claim_at_the_same_revision_is_still_never_resubmitted(self) -> None:
+        # The guard must not fire on the ordinary path.
+        self.write_request(revision=2)
+        self.write_claim(job_id="job_old", revision=2)
+        tick = self.make().tick()
+        self.assertEqual([], tick.submitted)
+        self.assertEqual([], self.cancels)
+        self.assertEqual([CLIP], tick.waiting)
+
+    def test_an_unlabelled_claim_is_resubmitted_but_never_cancelled(self) -> None:
+        """No revision is proof of nothing -- it may be this revision's own job.
+
+        Resubmitting is safe (the idempotency key returns the same job);
+        cancelling on a guess would kill live work, so it is not done.
+        """
+        self.write_request(revision=1)
+        (self.work / (CLIP + bridge.CLAIM_SUFFIX)).write_text(json.dumps({
+            "schema_version": 1, "clip_id": CLIP, "job_id": "job_old",
+        }), encoding="utf-8")
+        tick = self.make(job_id="job_new").tick()
+        self.assertEqual([CLIP], tick.submitted)
+        self.assertEqual([], self.cancels, "must not cancel on a guess")
+        self.assertEqual("job_new", self.read(bridge.CLAIM_SUFFIX)["job_id"])
+
+
+class ResultRevisionTest(BridgeTestBase):
+    def test_the_result_carries_the_revision_it_rendered(self) -> None:
+        # Without this AM4's guard has nothing to compare and every result
+        # passes -- the guard would exist but never fire.
+        self.write_request(revision=3)
+        self.make(status_map={"status": "succeeded", "lane": "b70@bus9"}).tick()
+        result = self.read(bridge.RESULT_SUFFIX)
+        self.assertEqual(3, result["clip_revision"])
+        self.assertTrue(result["ok"])

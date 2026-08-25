@@ -108,6 +108,7 @@ TOOL_CAPABILITY: dict[str, str] = {
     # nothing else, and "execution" would also grant llm.chat and cancellation.
     "submit_render": "media_render",
     "get_render_status": "media_render",
+    "cancel_render": "media_render",
     "list_render_lanes": "media_render",
     "cancel_execution": "execution",
     "get_execution": "execution",

@@ -228,6 +228,9 @@ class RenderAgent:
                 spec=spec, lane=lane, job_id=job_id,
                 ffmpeg=self._ffmpeg, ffprobe=self._ffprobe,
                 scheduling=scheduling, leases=self._leases,
+                # Checked between variants. A variant already encoding finishes;
+                # this stops the ones that have not started.
+                cancelled=lambda: handoff.is_cancelled(job_id),
             )
             handoff.publish_result(job_id, receipt.to_dict(), ok=receipt.ok,
                                    reason=receipt.error)

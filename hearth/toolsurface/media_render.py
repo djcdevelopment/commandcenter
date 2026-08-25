@@ -128,6 +128,45 @@ def get_render_status(job_id: str) -> dict:
     }
 
 
+def cancel_render(job_id: str, reason: str = "superseded by a newer revision") -> dict:
+    """Cancel a queued or running render job.
+
+    Scoped deliberately: this cancels `media.render` jobs and nothing else, so
+    the BF6 dispatcher can retire its own superseded work without being granted
+    the whole `execution` surface and its `cancel_execution`.
+
+    `stopped_before_start` is the honest part of the answer. True means the job
+    never reached the GPU and cannot. False means an agent had already claimed
+    it -- cancellation is cooperative (ADR-0030), the agent checks between
+    variants, and a variant already encoding runs to completion. Nothing here
+    kills an ffmpeg. Callers must not treat cancellation as the thing that keeps
+    a stale render from landing: the commit-time revision check does that.
+    """
+    service = get_execution_service()
+    state = service.ledger.get_job(job_id)
+    if state is None:
+        raise ValueError("unknown job_id: %s" % job_id)
+    if (state.get("desired") or {}).get("operation") != "media.render":
+        # Without this the tool would be a general-purpose cancel wearing a
+        # narrow capability.
+        raise PermissionError("cancel_render only cancels media.render jobs")
+
+    identity = current_identity()
+    if identity is None:
+        raise PermissionError("cancel_render requires gateway caller identity")
+    owner = (state.get("principal") or {}).get("id")
+    if owner and owner != identity.caller_id:
+        raise PermissionError("job %s belongs to another caller" % job_id)
+
+    dispatcher = getattr(service, "_render_dispatcher", None)
+    if dispatcher is None:
+        raise RuntimeError(
+            "this gateway has no render subsystem; media.render is unavailable here"
+        )
+    outcome = dispatcher.cancel(job_id, reason=reason)
+    return {"ok": True, **outcome}
+
+
 def list_render_lanes() -> dict:
     """Calibrated B70 render lanes, their health, and the accepted capacity.
 
@@ -177,4 +216,4 @@ def list_render_lanes() -> dict:
 
 def get_tools() -> list:
     """Provider entry point: the render lane's MCP tools."""
-    return [submit_render, get_render_status, list_render_lanes]
+    return [submit_render, get_render_status, cancel_render, list_render_lanes]

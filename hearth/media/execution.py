@@ -115,6 +115,44 @@ class RenderSubsystem:
             principal=(state.get("principal") or {}).get("id"),
         )
 
+    def cancel(self, job_id: str, *, reason: str = "cancelled by caller") -> dict:
+        """Cancel a render job. Two outcomes, and the caller is told which.
+
+        A job the agent has NOT claimed is stopped absolutely: its queue entry is
+        removed, so no GPU work can ever start, and it terminalises here.
+
+        A job already claimed cannot be stopped absolutely. The agent is a
+        separate process in another session; the marker it reads is checked
+        BETWEEN variants, so a variant already encoding finishes. The job stays
+        non-terminal until the agent publishes its own result -- inventing a
+        terminal event for work still running would make the ledger lie.
+
+        Correctness never depends on either path: a superseded render is refused
+        promotion by the commit-time revision check whether or not it is
+        cancelled. This only saves GPU time.
+        """
+        state = self._service.ledger.get_job(job_id)
+        if state is None:
+            raise ValueError("unknown job_id: %s" % job_id)
+        if state.get("status") in TERMINAL:
+            return {"job_id": job_id, "status": state.get("status"),
+                    "stopped_before_start": False, "already_terminal": True}
+
+        started = handoff.read_claim(job_id) is not None
+        handoff.request_cancel(job_id, reason=reason)
+        # Registers the flag and appends job.cancellation_requested.
+        self._service.cancel(job_id, reason=reason)
+
+        if not started:
+            handoff.dequeue_job(job_id)
+            state = self._service.ledger.get_job(job_id) or state
+            if state.get("status") not in TERMINAL:
+                self._service._append("job.cancelled", state, reason=reason)
+            handoff.clear_cancel(job_id)
+        state = self._service.ledger.get_job(job_id) or state
+        return {"job_id": job_id, "status": state.get("status"),
+                "stopped_before_start": not started, "already_terminal": False}
+
     # -------------------------------------------------------------- ingestion
 
     def ingest(self) -> int:
@@ -214,6 +252,7 @@ class RenderSubsystem:
         handoff.clear_result(job_id)
         handoff.clear_claim(job_id)
         handoff.dequeue_job(job_id)
+        handoff.clear_cancel(job_id)
         return True
 
     def _loop(self) -> None:

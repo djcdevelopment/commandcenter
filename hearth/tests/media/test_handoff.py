@@ -238,3 +238,122 @@ class GatewayIsTheSoleLedgerWriterTest(HandoffBase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CancellationTest(GatewayIsTheSoleLedgerWriterTest):
+    """What cancellation actually enforces -- and what it deliberately does not.
+
+    Two stages with genuinely different strength, which is why the tool reports
+    which one happened rather than a bare ok. A queued job is stopped
+    absolutely. A claimed job is asked to stop, and an ffmpeg already encoding
+    finishes (ADR-0030: cancellation is cooperative). Nothing here kills a
+    process, and no test below pretends otherwise.
+    """
+
+    def test_a_queued_job_is_stopped_absolutely(self) -> None:
+        job_id = self._submit()
+        outcome = self.subsystem.cancel(job_id, reason="superseded")
+
+        self.assertTrue(outcome["stopped_before_start"])
+        self.assertEqual("cancelled", outcome["status"])
+        self.assertEqual("cancelled", self.service.ledger.get_job(job_id)["status"])
+        # The queue entry is gone, so no agent can ever pick it up.
+        self.assertEqual([], handoff.list_queued())
+
+    def test_a_claimed_job_is_asked_not_forced(self) -> None:
+        job_id = self._submit()
+        record = handoff.claim_job(handoff.list_queued()[0])
+        handoff.publish_claim(job_id, record, lane_id="b70@bus4", pid=99)
+        self.subsystem.ingest()
+
+        outcome = self.subsystem.cancel(job_id, reason="superseded")
+
+        self.assertFalse(outcome["stopped_before_start"])
+        # NOT terminal: the agent is still holding it, and inventing a terminal
+        # event for work that is still running would make the ledger lie.
+        self.assertEqual("cancellation_requested",
+                         self.service.ledger.get_job(job_id)["status"])
+        self.assertTrue(handoff.is_cancelled(job_id),
+                        "the agent must be able to see the request")
+
+    def test_the_agent_result_still_decides_a_claimed_job(self) -> None:
+        # Cancellation does not pre-empt the outcome: whatever the agent
+        # publishes is what the job becomes.
+        job_id = self._submit()
+        record = handoff.claim_job(handoff.list_queued()[0])
+        handoff.publish_claim(job_id, record, lane_id="b70@bus4", pid=99)
+        self.subsystem.ingest()
+        self.subsystem.cancel(job_id, reason="superseded")
+
+        handoff.publish_result(job_id, {"ok": True, "variants": []}, ok=True)
+        self.subsystem.ingest()
+
+        self.assertEqual("succeeded", self.service.ledger.get_job(job_id)["status"])
+        self.assertFalse(handoff.is_cancelled(job_id), "the marker is cleaned up")
+
+    def test_cancelling_a_terminal_job_is_a_no_op(self) -> None:
+        job_id = self._submit()
+        record = handoff.claim_job(handoff.list_queued()[0])
+        handoff.publish_claim(job_id, record, lane_id="b70@bus4", pid=99)
+        handoff.publish_result(job_id, {"ok": True, "variants": []}, ok=True)
+        self.subsystem.ingest()
+
+        outcome = self.subsystem.cancel(job_id)
+        self.assertTrue(outcome["already_terminal"])
+        self.assertEqual("succeeded", self.service.ledger.get_job(job_id)["status"])
+
+    def test_an_unknown_job_is_refused(self) -> None:
+        with self.assertRaises(ValueError):
+            self.subsystem.cancel("job_nope")
+
+    def test_cancellation_events_come_only_from_the_gateway(self) -> None:
+        # The single-writer invariant holds for this path too.
+        job_id = self._submit()
+        self.subsystem.cancel(job_id, reason="superseded")
+        self.assertEqual(
+            ["request.accepted", "artifact.recorded", "job.queued",
+             "job.cancellation_requested", "job.cancelled"],
+            self._events(job_id))
+
+
+class CancelRenderToolScopeTest(GatewayIsTheSoleLedgerWriterTest):
+    """`cancel_render` is a narrow capability and must stay narrow.
+
+    It exists so the BF6 dispatcher can retire its own superseded work without
+    being handed `execution` and its `cancel_execution`. If it could reach any
+    job, or another caller's job, the narrow capability would be decoration.
+    """
+
+    def _cancel(self, job_id, caller="t"):
+        from hearth.observation.identity import DispatchIdentity, dispatch_identity
+        from hearth.toolsurface import media_render
+
+        identity = DispatchIdentity(caller_id=caller, runner_class="local", node="omen")
+        with patch("hearth.execution.defaults.get_execution_service",
+                   return_value=self.service), \
+             patch("hearth.toolsurface.media_render.get_execution_service",
+                   return_value=self.service), \
+             dispatch_identity(identity):
+            return media_render.cancel_render(job_id)
+
+    def test_it_cancels_a_media_render_job_it_owns(self) -> None:
+        job_id = self._submit()
+        outcome = self._cancel(job_id)
+        self.assertTrue(outcome["ok"])
+        self.assertEqual("cancelled", self.service.ledger.get_job(job_id)["status"])
+
+    def test_it_refuses_another_callers_job(self) -> None:
+        job_id = self._submit()          # submitted as caller "t"
+        with self.assertRaises(PermissionError):
+            self._cancel(job_id, caller="someone-else")
+        self.assertEqual("queued", self.service.ledger.get_job(job_id)["status"])
+
+    def test_it_refuses_a_job_that_is_not_media_render(self) -> None:
+        state = self.service.submit(
+            operation_name="llm.chat",
+            arguments={"prompt": "hello"},
+            principal={"type": "hearth_caller", "id": "t", "authenticated": True},
+            source={"transport": "test", "adapter": "t"},
+        )
+        with self.assertRaises(PermissionError):
+            self._cancel(state["job_id"])

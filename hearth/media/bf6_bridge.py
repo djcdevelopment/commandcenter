@@ -12,8 +12,9 @@ mistake:
 
 This bridge is a CALLER of HEARTH, not part of it. It holds the least-privilege
 ``bf6-dispatcher`` credential, which grants ``media_render`` and nothing else --
-it cannot spend a metered token, cancel a job, or read the filesystem through
-the door. It never touches the execution ledger.
+it cannot spend a metered token, reach the filesystem through the door, or touch
+any job that is not a ``media.render`` job it submitted itself. It never writes
+to the execution ledger; the gateway remains the single writer.
 
 WHY SIDECARS AND NOT A PORT
 ---------------------------
@@ -33,7 +34,8 @@ A terminal job and a published result are separate events, and a crash can land
 between them. So the loop is written to converge from whatever is on disk:
 
     result present            -> publication complete, nothing to do
-    claim present             -> QUERY that job; never blindly resubmit
+    claim at THIS revision    -> QUERY that job; never blindly resubmit
+    claim at ANOTHER revision -> cancel it, then submit for this revision
     no claim                  -> submit (the idempotency key makes even a
                                  duplicate submit return the SAME job)
     terminal but no result    -> reconstruct the result sidecar
@@ -50,7 +52,7 @@ from __future__ import annotations
 import json
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -88,6 +90,7 @@ class BridgeTick:
     waiting: list
     skipped: list
     errors: list
+    cancelled: list = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -95,17 +98,19 @@ class BridgeTick:
             "reconciled": list(self.reconciled),
             "waiting": list(self.waiting),
             "skipped": list(self.skipped),
+            "cancelled": list(self.cancelled),
             "errors": list(self.errors),
         }
 
     @property
     def did_work(self) -> bool:
-        return bool(self.submitted or self.reconciled)
+        return bool(self.submitted or self.reconciled or self.cancelled)
 
 
 # The bridge authenticates as `bf6-dispatcher`, whose profile grants
-# `media_render` and nothing else -- it cannot spend a metered token, cancel a
-# job, or reach the filesystem through the door.
+# `media_render` and nothing else. Within that: submit, query, and cancel its
+# OWN media.render jobs. Not `cancel_execution`, which would reach every job on
+# the box.
 KEY_ENV = "HEARTH_BF6_KEY"
 KEY_FILE_ENV = "HEARTH_BF6_KEY_FILE"
 DEFAULT_KEY_FILE = Path(__file__).resolve().parents[1] / "var" / "bf6-dispatcher.key"
@@ -196,8 +201,15 @@ def arguments_from(request: dict) -> dict:
     return {key: request[key] for key in PASSTHROUGH_KEYS if key in request}
 
 
-def build_result(clip_id: str, job_id: str, status: dict, receipt: Optional[dict]) -> dict:
-    """The terminal record AM4's reconciler consumes."""
+def build_result(clip_id: str, job_id: str, status: dict, receipt: Optional[dict],
+                 clip_revision: Optional[int] = None) -> dict:
+    """The terminal record AM4's reconciler consumes.
+
+    ``clip_revision`` is not decoration. AM4 refuses any result that does not
+    match the clip's current revision exactly, so a result without one cannot be
+    checked -- it would sail through the guard that exists to stop a stale render
+    overwriting a newer draft.
+    """
     variants = []
     for entry in (receipt or {}).get("variants", []) or []:
         measured = (entry.get("validation") or {}).get("measured") or {}
@@ -215,6 +227,7 @@ def build_result(clip_id: str, job_id: str, status: dict, receipt: Optional[dict
         "schema_version": SCHEMA_VERSION,
         "clip_id": clip_id,
         "job_id": job_id,
+        "clip_revision": clip_revision,
         "status": state,
         "ok": state == "succeeded",
         "reason": status.get("reason") or (receipt or {}).get("error") or "",
@@ -234,12 +247,14 @@ class Bf6Bridge:
         submit: Optional[Callable] = None,
         status: Optional[Callable] = None,
         receipt: Optional[Callable] = None,
+        cancel: Optional[Callable] = None,
         root: Optional[Path] = None,
         poll_seconds: float = POLL_SECONDS,
     ) -> None:
         self._submit = submit
         self._status = status
         self._receipt = receipt
+        self._cancel = cancel
         self._root = root
         self._poll = poll_seconds
         self._stop = False
@@ -276,6 +291,14 @@ class Bf6Bridge:
         client = self._client()
         return self._payload(client.call_sync("get_render_status", job_id=job_id),
                              "get_render_status")
+
+    def cancel_render(self, job_id: str, reason: str) -> dict:
+        if self._cancel is not None:
+            return self._cancel(job_id, reason)
+        client = self._client()
+        return self._payload(
+            client.call_sync("cancel_render", job_id=job_id, reason=reason),
+            "cancel_render")
 
     def render_receipt(self, status: dict) -> Optional[dict]:
         if self._receipt is not None:
@@ -319,12 +342,41 @@ class Bf6Bridge:
             tick.errors.append("%s: unreadable request" % clip_id)
             return
 
+        revision = request.get("clip_revision")
         claim_path = sidecar(request_path, CLAIM_SUFFIX)
         claim = _read(claim_path)
         job_id = (claim or {}).get("job_id")
 
+        # EXACT match, not >=. A claim for any other revision belongs to a job
+        # this request did not ask for, and there are two ways to arrive at one:
+        # AM4 superseded the clip, or AM4's supersede cleared a claim in the
+        # window where this bridge was writing it. Both look identical here and
+        # both have the same answer -- the claim is not ours, so it is neither
+        # inherited nor waited on.
+        if job_id and (claim or {}).get("clip_revision") != revision:
+            stale_job, stale_revision = job_id, (claim or {}).get("clip_revision")
+            job_id, claim = None, None
+            # Cancel only what is KNOWN stale. A claim carrying a different
+            # revision is proof of supersede. A claim carrying NO revision is
+            # proof of nothing -- it may well be this revision's own job -- and
+            # cancelling on a guess would kill live work. Resubmitting is safe
+            # either way: the idempotency key returns the existing job.
+            if stale_revision is not None:
+                try:
+                    self.cancel_render(
+                        stale_job,
+                        "superseded: clip %s moved to revision %s" % (clip_id, revision))
+                    tick.cancelled.append("%s@%s->%s"
+                                          % (clip_id, stale_revision, revision))
+                except Exception as exc:
+                    # A cancel that does not land costs GPU time, never
+                    # correctness: the stale job is refused promotion at commit
+                    # time regardless.
+                    tick.errors.append("%s: stale job %s not cancelled: %s"
+                                       % (clip_id, stale_job, exc))
+
         if job_id:
-            # A known job is QUERIED, never resubmitted.
+            # A known job at the SAME revision is QUERIED, never resubmitted.
             status = self.render_status(job_id)
         else:
             submitted = self.submit_render(arguments_from(request))
@@ -332,11 +384,14 @@ class Bf6Bridge:
             if not job_id:
                 tick.errors.append("%s: submit returned no job_id" % clip_id)
                 return
+            # Overwriting our own claim, not deleting AM4's file. The rename is
+            # the commit point, so a superseded claim is replaced rather than
+            # briefly absent.
             _write_atomic(claim_path, {
                 "schema_version": SCHEMA_VERSION,
                 "clip_id": clip_id,
                 "job_id": job_id,
-                "clip_revision": request.get("clip_revision"),
+                "clip_revision": revision,
                 "idempotency_key": submitted.get("idempotency_key"),
                 "submitted_at": time.time(),
             })
@@ -348,7 +403,8 @@ class Bf6Bridge:
             return
 
         _write_atomic(result_path,
-                      build_result(clip_id, job_id, status, self.render_receipt(status)))
+                      build_result(clip_id, job_id, status,
+                                   self.render_receipt(status), revision))
         tick.reconciled.append(clip_id)
 
     # ------------------------------------------------------------------ loop

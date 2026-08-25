@@ -297,12 +297,28 @@ def render_clip(
             lines.append("file '%s'" % Path(source).as_posix().replace("'", "\\'"))
         concat_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    srt_path = None
-    if spec.captions:
-        srt_path = work_dir / ("%s.srt" % spec.clip_id)
-        srt_path.write_text(spec.captions, encoding="utf-8")
+    # The .srt is part of the DRAFT set, not a work artifact: AM4 writes it to
+    # drafts/<clip>.srt and records it in clip.renders["captions"], and the
+    # review UI reads it from there. It is written unconditionally -- a clip
+    # with no transcript still gets an empty file (confirmed against a reference
+    # draft with a 0-byte srt), so its absence would be a real difference.
+    #
+    # Staged like any other variant so all-or-none covers it: a promoted clip
+    # never has video from this attempt and captions from the previous one.
+    staged_srt = work_dir / ("%s.srt" % spec.clip_id)
+    if spec.captions is not None:
+        staged_srt.write_text(spec.captions, encoding="utf-8")
     elif spec.captions_path:
-        srt_path = resolve_media(spec.captions_path, mode="read", root=base)
+        source_srt = resolve_media(spec.captions_path, mode="read", root=base)
+        try:
+            staged_srt.write_text(source_srt.read_text(encoding="utf-8"),
+                                  encoding="utf-8")
+        except OSError:
+            staged_srt.write_text("", encoding="utf-8")
+    else:
+        staged_srt.write_text("", encoding="utf-8")
+    # Burn-in only happens when there is something to burn.
+    srt_path = staged_srt if staged_srt.stat().st_size > 0 else None
 
     # PHASE 1 -- encode and validate EVERY requested variant into staging.
     # Nothing is published here. A clip that promotes horizontal at revision N+1
@@ -329,6 +345,7 @@ def render_clip(
     # PHASE 2 -- all-or-none. One bad variant fails the job and publishes none.
     failed = [v for v in receipt.variants if not v.valid]
     if failed or not receipt.variants:
+        _discard(staged_srt)
         for result in receipt.variants:
             if result.staged is not None:
                 _discard(result.staged)
@@ -344,6 +361,7 @@ def render_clip(
 
     # PHASE 3 -- commit the complete set under the promotion lease.
     if leases is None:
+        _discard(staged_srt)
         for result in receipt.variants:
             _discard(result.staged)
             result.staged = None
@@ -358,6 +376,7 @@ def render_clip(
         result.variant: (result.staged, result.destination)
         for result in receipt.variants
     }
+    staged_set["captions"] = (staged_srt, drafts_dir / ("%s.srt" % spec.clip_id))
     outcome = revision_mod.promote_set(
         leases=leases,
         session_id=spec.session_id,
@@ -372,6 +391,7 @@ def render_clip(
     for result in receipt.variants:
         result.promoted = outcome.promoted
         result.reason = outcome.reason
+        # `captions` rides the same commit but is not a rendered variant.
         result.staged = None
         if outcome.promoted:
             result.output = str(result.destination)

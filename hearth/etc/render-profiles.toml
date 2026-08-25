@@ -94,26 +94,42 @@ bufsize = "250M"
 # Deliberately NOT emitted in vbr mode.
 global_quality = 19
 args = []
-# Now a genuine anomaly detector rather than a rate control: across the sample
-# VBR never exceeded 87.36 Mbps against its own 125 Mbps cap, so this firing
-# means the encoder failed to honour maxrate -- which is worth failing on.
-max_bitrate_mbps = 125
+# An ANOMALY detector, not a rate control: across the sample VBR never exceeded
+# 87.36 Mbps against its own 125 Mbps cap. Deliberately set ABOVE maxrate --
+# a guard equal to the cap can false-fire on legitimate cap-hugging output plus
+# container overhead, which would make it fail exactly the clips the cap is
+# working hardest on. This firing now means the encoder did not honour maxrate.
+max_bitrate_mbps = 140
 scale = false
 burn_captions = false
 calibrated = true
 
 [profile."bf6-qsv-v1".vertical]
 encoder = "h264_qsv"
-rate_control = "icq"
-# CALIBRATED 2026-08-25. SSIM against a near-transparent CPU encode of the
-# IDENTICAL filter graph, which isolates the encoder from the deliberate blur
-# difference (comparing against the NVENC vertical would measure the blur, not
-# the encode):  gq=18 0.995803 @ 5.29 Mbps | gq=20 0.995315 @ 4.12 Mbps |
-# gq=24 0.993764 @ 2.65 Mbps. Chosen gq=20: 0.9953 for 4.12 Mbps, well inside
-# the guard, and the curve is nearly flat so extra bits buy almost nothing.
+# BOUNDED MODE, chosen 2026-08-25 by the same method as horizontal.
+#
+# ICQ gq=20 is unbounded and a live round trip hit 38.11 Mbps against the old
+# 30 Mbps guard -- the whole clip was correctly withheld by all-or-none. An
+# 11-clip sample (the 10 calibration clips plus that failing window) put ICQ at
+# median 15.25 / max 35.67 Mbps, 1 of 11 over 30.
+#
+# Candidates measured against a near-transparent CPU encode of the IDENTICAL
+# filter graph -- SSIM against the 4K source is meaningless for a 1080x1920
+# composite, and comparing against ICQ output would compare against something
+# itself lossy. Median SSIM delta vs the unchanged ICQ gq=20 baseline / max Mbps:
+#     vbr 15M/24M   -0.001640   15.21   (worse on 7/11 -- too tight)
+#     vbr 20M/30M   -0.000270   20.30   <-- chosen: quality-neutral, bounded
+#     vbr 25M/40M   +0.000545   25.36   (better, but +37% mean bitrate for
+#                                        +0.0005 SSIM, and needs a 40M cap)
+rate_control = "vbr"
+bitrate = "20M"
+maxrate = "30M"
+bufsize = "60M"
+# Retained as the quality REFERENCE, not an active setting; not emitted in vbr.
 global_quality = 20
 args = []
-max_bitrate_mbps = 30
+# Above the 30M cap, for the reason given on horizontal.
+max_bitrate_mbps = 35
 width = 1080
 height = 1920
 fps = 60

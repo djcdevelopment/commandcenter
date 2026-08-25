@@ -64,18 +64,37 @@ class RateControlTest(unittest.TestCase):
     def setUp(self) -> None:
         self.profile = P.get_profile("bf6-qsv-v1")
 
-    def test_icq_emits_global_quality(self) -> None:
-        args = P._encoder_args(self.profile.variant("vertical"))
-        self.assertIn("-global_quality", args)
-
-    def test_icq_never_emits_the_flags_that_disable_it(self) -> None:
+    def test_icq_still_refuses_the_flags_that_disable_it(self) -> None:
         # MEASURED: either of these drops h264_qsv out of ICQ, after which
         # global_quality is ignored and a gq 14..22 sweep produced
-        # byte-identical output at 18.69 Mbps. Vertical is the ICQ variant.
-        args = P._encoder_args(self.profile.variant("vertical"))
+        # byte-identical output at 18.69 Mbps. Both production variants are now
+        # bounded VBR, so this pins the ICQ path itself rather than a variant.
+        spec = self.profile.variant("vertical")
+        icq = P.VariantSpec(spec.encoder, (), None, None, 20, None, None, None,
+                            False, True, None, None, "icq", None, None)
+        args = P._encoder_args(icq)
+        self.assertIn("-global_quality", args)
         self.assertNotIn("-b:v", args)
         self.assertNotIn("-maxrate", args)
         self.assertNotIn("-bufsize", args)
+
+    def test_both_variants_use_the_bounded_vbr_mode(self) -> None:
+        # ICQ is unbounded on BOTH variants: horizontal reached 204.09 Mbps and
+        # vertical 38.11 Mbps in live use, each exceeding its guard.
+        for variant in ("horizontal", "vertical"):
+            spec = self.profile.variant(variant)
+            self.assertEqual("vbr", spec.rate_control, variant)
+            args = P._encoder_args(spec)
+            self.assertIn("-maxrate", args, variant)
+            self.assertNotIn("-global_quality", args, variant)
+
+    def test_every_guard_sits_above_its_cap(self) -> None:
+        # A guard EQUAL to maxrate can false-fire on legitimate cap-hugging
+        # output plus container overhead -- failing exactly the clips the cap is
+        # working hardest on. The guard means "the encoder ignored its cap".
+        for variant, cap in (("horizontal", 125), ("vertical", 30)):
+            guard = self.profile.variant(variant).max_bitrate_mbps
+            self.assertGreater(guard, cap, variant)
 
     def test_horizontal_uses_the_bounded_vbr_mode(self) -> None:
         # ICQ is quality-targeted and UNBOUNDED -- QSV ignores -maxrate there,
@@ -123,8 +142,8 @@ class RateControlTest(unittest.TestCase):
         # not a rate control: across the 10-clip sample VBR never exceeded
         # 87.36 Mbps against its own 125 Mbps cap, so this firing means the
         # encoder failed to honour maxrate.
-        self.assertEqual(125, self.profile.variant("horizontal").max_bitrate_mbps)
-        self.assertEqual(30, self.profile.variant("vertical").max_bitrate_mbps)
+        self.assertEqual(140, self.profile.variant("horizontal").max_bitrate_mbps)
+        self.assertEqual(35, self.profile.variant("vertical").max_bitrate_mbps)
 
     def test_both_variants_are_marked_calibrated(self) -> None:
         for variant in ("horizontal", "vertical"):

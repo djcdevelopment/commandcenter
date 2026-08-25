@@ -31,6 +31,7 @@ import argparse
 import os
 import signal
 import sys
+import threading
 import time
 from typing import Optional
 
@@ -74,6 +75,23 @@ class RenderAgent:
         # renderer -- the other B70 keeps working while you play.
         self._gate = gate if gate is not None else gate_mod.make_gate(self.lanes)
         self._leases = leases or CapacityLeaseStore()
+        self._lock = threading.RLock()
+        self._pending: dict = {}
+        # The scheduler owns lane selection, leasing, and the worker pool. The
+        # agent previously rendered inline and returned after ONE job, which
+        # made two-lane concurrency impossible through the real path however
+        # many lanes were accepted.
+        self._scheduler = scheduler_mod.RenderScheduler(
+            runner=self._run_job,
+            leases=self._leases,
+            lanes_provider=self.lanes,
+            gate=self._gate,
+            occupancy=media_occupancy,
+            spill=spilling,
+            acceptance_provider=load_acceptance,
+            on_error=self._job_error,
+            autostart=False,
+        )
         self._stop = False
         self._capable: Optional[bool] = None
         self._capability_detail = "not probed"
@@ -116,6 +134,22 @@ class RenderAgent:
         with the job -- so it is requeued rather than reported as an error.
         """
         recovered = 0
+        # A ".claiming" file is a job taken out of the queue whose runner never
+        # started -- the window between claim_job() and publish_claim(). It has
+        # no claim record, so the loop below cannot see it.
+        for staged in handoff.claims_dir().glob("*.claiming"):
+            try:
+                if time.time() - staged.stat().st_mtime < handoff.CLAIM_ORPHAN_S:
+                    continue
+                record = handoff._read(staged) or {}
+                staged.unlink()
+            except OSError:
+                continue
+            job_id = record.get("job_id") or staged.stem
+            handoff.requeue(job_id, record or {
+                "schema_version": handoff.SCHEMA_VERSION, "job_id": job_id,
+                "arguments": {}, "queued_at": time.time()})
+            recovered += 1
         for path in handoff.list_claims():
             record = handoff._read(path)
             if record is None:
@@ -143,64 +177,71 @@ class RenderAgent:
 
     # ------------------------------------------------------------- execution
 
-    def claim_and_run_one(self) -> Optional[str]:
-        """Claim one eligible job and render it. Returns its job id, or None."""
-        available = self.lanes()
-        if not available:
-            return None
+    def claim_available(self) -> int:
+        """Claim queued work up to current capacity and hand it to the scheduler.
 
-        accepted = load_acceptance().accepted_lane_count
-        candidates, decision = scheduler_mod.select_lane_candidates(
-            available,
-            accepted_lane_count=accepted,
-            leases=self._leases,
-            gate=self._gate,
-            occupancy=media_occupancy,
-            spill=spilling,
-        )
-        if not candidates:
-            return None
-
+        Deliberately claims only what there is room for. Claiming the whole
+        queue would move every job out of ``queue/`` into a ``.claiming`` state
+        this process alone knows about -- a hoard that another agent could not
+        take and that recovery would have to reason about. Capacity-bounded
+        claiming keeps that window small.
+        """
+        capacity = load_acceptance().accepted_lane_count
+        room = capacity - self._scheduler.active_count() - self._scheduler.queue_depth()
+        if room <= 0:
+            return 0
+        claimed = 0
         for path in handoff.list_queued():
+            if claimed >= room:
+                break
             record = handoff.claim_job(path)
             if record is None:
                 continue
             job_id = record.get("job_id") or path.stem
-            try:
-                spec = parse_render_arguments(record.get("arguments") or {})
-            except RenderArgumentError as exc:
-                handoff.publish_result(job_id, {}, ok=False,
-                                       reason="invalid render job: %s" % exc)
-                handoff.clear_claim(job_id)
-                return job_id
+            with self._lock:
+                self._pending[job_id] = record
+            self._scheduler.enqueue(job_id)
+            claimed += 1
+        return claimed
 
-            lane = candidates[0]
-            try:
-                lease_id = self._leases.acquire(
-                    scope=scheduler_mod.lane_scope(lane.lane_id),
-                    job_id=job_id, invocation_id="agent-%s" % job_id,
-                    limit=1, ttl_seconds=scheduler_mod.LEASE_TTL_SECONDS,
-                )
-            except Exception:
-                handoff.requeue(job_id, record)
-                return None
+    def _run_job(self, *, job_id, lane, lease_id, scheduling) -> None:
+        """The scheduler's runner. It is handed a lane that is already leased.
 
-            handoff.publish_claim(job_id, record, lane_id=lane.lane_id, pid=os.getpid())
-            try:
-                receipt = render_mod.render_clip(
-                    spec=spec, lane=lane, job_id=job_id,
-                    ffmpeg=self._ffmpeg, ffprobe=self._ffprobe,
-                    scheduling=decision.to_dict(), leases=self._leases,
-                )
-                handoff.publish_result(job_id, receipt.to_dict(), ok=receipt.ok,
-                                       reason=receipt.error)
-            except Exception as exc:
-                handoff.publish_result(job_id, {}, ok=False,
-                                       reason="render agent error: %s" % exc)
-            finally:
-                self._leases.release(lease_id)
-            return job_id
-        return None
+        The scheduler releases the lease in its own finally block, so this must
+        not -- releasing twice would free a lane a later job already holds.
+        """
+        with self._lock:
+            record = self._pending.pop(job_id, None)
+        if record is None:
+            return
+        try:
+            spec = parse_render_arguments(record.get("arguments") or {})
+        except RenderArgumentError as exc:
+            handoff.publish_result(job_id, {}, ok=False,
+                                   reason="invalid render job: %s" % exc)
+            handoff.clear_claim(job_id)
+            return
+
+        handoff.publish_claim(job_id, record, lane_id=lane.lane_id, pid=os.getpid())
+        try:
+            receipt = render_mod.render_clip(
+                spec=spec, lane=lane, job_id=job_id,
+                ffmpeg=self._ffmpeg, ffprobe=self._ffprobe,
+                scheduling=scheduling, leases=self._leases,
+            )
+            handoff.publish_result(job_id, receipt.to_dict(), ok=receipt.ok,
+                                   reason=receipt.error)
+        except Exception as exc:
+            handoff.publish_result(job_id, {}, ok=False,
+                                   reason="render agent error: %s" % exc)
+
+    def _job_error(self, job_id, exc) -> None:
+        if job_id is None:
+            return
+        with self._lock:
+            self._pending.pop(job_id, None)
+        handoff.publish_result(job_id, {}, ok=False,
+                               reason="render worker crashed: %s" % exc)
 
     # ------------------------------------------------------------------ loop
 
@@ -218,7 +259,8 @@ class RenderAgent:
                 if time.time() - self._last_beat >= HEARTBEAT_SECONDS:
                     self.beat()
                 self.recover_orphans()
-                if self.claim_and_run_one() is None:
+                self.claim_available()
+                if self._scheduler.pump() == 0 and self._scheduler.active_count() == 0:
                     time.sleep(self._poll)
             except KeyboardInterrupt:
                 break
@@ -262,8 +304,11 @@ def main(argv: Optional[list] = None) -> int:
         handoff.ensure_dirs()
         agent.beat()
         agent.recover_orphans()
-        job_id = agent.claim_and_run_one()
-        print("ran: %s" % (job_id or "nothing eligible"), flush=True)
+        claimed = agent.claim_available()
+        agent._scheduler.pump()
+        agent._scheduler.wait_idle(3600)
+        print("ran: %d job(s)" % claimed, flush=True)
+        agent._scheduler.close()
         return 0
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:

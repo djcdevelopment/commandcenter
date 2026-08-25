@@ -264,3 +264,86 @@ This session contributed one door call — the retro's timeline + lessons draft 
 whose work was measurement, hardware, and repo-coherent judgment, almost none of which is
 offloadable. L-2026-07-30-7 still stands — the scorecard measures door traffic, and the
 render lane's own ffmpeg dispatches are not offload events.
+
+---
+
+# Addendum — 2026-08-25, after the close
+
+A second `/retro` was invoked after the first had already been written and pushed. Per the
+skill's own rule this appends rather than overwrites. It contains only what the first pass
+could not: the commits that landed *after* it was written, a post-deploy verification it
+was too early to run, and the lessons that verification produced.
+
+## Range closed
+
+The first retro's "What shipped" table was assembled mid-flight and stops before its own
+commit. Two more landed:
+
+| Commit | Repo | What |
+|---|---|---|
+| `61e992c` | commandcenter | Session retro, ADR-0037, ADR index, four open decisions |
+| `7525114` | bf6-highlights | README matches where the reading actually happens now |
+
+Final ranges: commandcenter `dac3138..61e992c`, pushed. bf6-highlights `ec4766a..7525114`,
+local-only.
+
+## Post-deploy verification — and a correction
+
+**I ended the previous turn with "System is live." That was true when I checked it and
+false thirty minutes later.**
+
+This pass found all three OMEN processes dead. The scheduled tasks read `Ready` rather than
+`Running`, the render agent's heartbeat was **1900 s stale**, and both launcher logs ended
+in `^C`. They did not crash — they were interrupted.
+
+The cause was mine. Several times during the session I cleaned up test processes with a
+command that matched on the command line:
+
+```
+Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'extract.py|media.agent|bf6_bridge' } | Stop-Process -Force
+```
+
+That pattern is precisely what the three scheduled tasks run. A kill written to tidy up my
+own experiments could not tell my processes from the production ones the same session had
+just registered, and the interactive console the tasks share with the agent's shell carried
+the interrupt the rest of the way.
+
+Nothing was lost: no recording happened in that window, the queue was empty, and no segment
+went unprocessed. The exposure was availability, not data.
+
+**Restarted through the registered tasks and verified stable** — all three `Running`,
+heartbeat 14 s old, held across 104 s of unrelated commands. AM4 healthy, backend `omen`,
+queue empty, no stuck segments.
+
+The deployment itself is sound: the tasks are registered correctly, start correctly, and
+survive. What is *not* sound is that nothing noticed for half an hour — the same gap the
+first retro logged against AM4's crash loop, now demonstrated on OMEN's side too.
+
+## Lessons learned (addendum)
+
+11. **L-2026-08-25-11a — A process kill that matches on command line cannot tell your
+    processes from production's.** My cleanup pattern was written for test runs and hit the
+    three services the same session had just registered. Scope destructive matches by PID,
+    or exclude what a scheduler owns. *(→ memory: [[feedback-loud-fallbacks-and-real-decodes]])*
+12. **L-2026-08-25-12a — "Verified live" carries a timestamp, and a deployment claim decays
+    the moment you stop looking.** I reported a live system truthfully and it was down
+    within the hour; the report had no expiry and nothing was watching. A deploy is not
+    finished when it works, it is finished when something else will notice it stop.
+    *(→ open decision, below)*
+13. **L-2026-08-25-13a — An artifact that ships without its index entry is invisible.**
+    ADR-0035 and ADR-0036 were written, committed and referenced by other documents hours
+    before anyone noticed they were absent from `docs/adr/README.md`. They were found only
+    because the retro forced a look at the index — not by any check. Given this repo already
+    has 196 records across 13 registers and 30 colliding numbers, an unindexed ADR is a
+    record that effectively does not exist. *(→ practice: `tools.adr_index --check` belongs
+    wherever ADRs are written, not just where they are counted)*
+
+## Provenance (addendum)
+
+**Offload deliberately skipped.** This addendum is roughly a page and is almost entirely
+judgment about a defect found while writing it — constructing a factsheet for a local model
+would have cost more than drafting it. Recorded here rather than left implicit, per the
+report-faithfully guardrail. No `--fleet`; no plan_ids pending.
+
+The first pass's own provenance stands unchanged: timeline + lessons extraction on
+`gcp-gemini`, edit verdict `minor-fixes`, seat reads frontier.

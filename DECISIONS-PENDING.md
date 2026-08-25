@@ -327,7 +327,11 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       `ffprobe` can all pass over a stream a decoder cannot read. The render lane validates its
       outputs the same cheap way and has **not** been checked for that failure mode. Source:
       [docs/RENDER-LANE-BACKLOG.md](file:///E:/omen/bf6-highlights/docs/RENDER-LANE-BACKLOG.md) §4.
-- [ ] 2026-08-25 — **Decide whether `nothing was watching AM4` is worth a probe.** The worker
-      crash-looped on a dead mount from the moment the cable moved until a deploy happened to
-      notice. `/health` reports `rawMounted`, so a fleet check could catch it. Source:
-      [SESSION-RETRO-2026-08-25.md](SESSION-RETRO-2026-08-25.md) §Operator.
+- [ ] 2026-08-25 — **Decide whether the BF6 lane needs liveness watching on BOTH ends.**
+      Demonstrated twice in one day. AM4's worker crash-looped on a dead mount from the moment
+      the cable moved until a deploy happened to notice. Then all three OMEN processes died and
+      sat dead for ~30 minutes with nothing reporting it — found only because a second retro
+      went looking. Both ends already expose a cheap signal: AM4's `/health` reports
+      `rawMounted`, and the render agent writes `hearth/var/render/agent.heartbeat.json` with a
+      timestamp. Neither is watched. Sources:
+      [SESSION-RETRO-2026-08-25.md](SESSION-RETRO-2026-08-25.md) §Operator and §Addendum.

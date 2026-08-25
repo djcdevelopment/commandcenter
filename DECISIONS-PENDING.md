@@ -309,3 +309,25 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       in-process attempts). The doc change belongs in `CLAUDE.md`, which a **concurrent session is
       editing** — deferred rather than conflicted. Source:
       [SESSION-RETRO-2026-07-30.md](SESSION-RETRO-2026-07-30.md) L-2026-07-30-7.
+- [ ] 2026-08-25 — **Decide whether AM4 should stay in the BF6 media path at all.** Producer-local
+      extraction cut the crossing 40x (3.94 GB → 97.9 MB), but AM4's remaining role is Whisper on
+      the RTX 5070 plus the review UI and database. Moving analysis to OMEN too would make the
+      cross-machine sidecar bridge and its revision-matching largely unnecessary — a smaller
+      system, at the cost of stranding the 5070 on a job it does well. Explicitly out of scope
+      when the extraction work was ordered; recorded so the option is not lost. Source:
+      [ADR-0037](docs/adr/0037-the-producer-reads-the-raw-footage.md) §Alternatives considered.
+- [ ] 2026-08-25 — **Decide what replaces `RENDER_BACKEND=am4` as a rollback path.** The flag is
+      still coded and tested but is no longer operable: a local render reads the raw segment, which
+      now costs ~16 min of wireless transfer per clip. Today's real rollback is `git revert` plus
+      restoring the retired copper cable. Options: accept it (documented), restore a fast link, or
+      drop the flag so nothing suggests a fallback that is not there. Source:
+      [ADR-0037](docs/adr/0037-the-producer-reads-the-raw-footage.md) §Consequences.
+- [ ] 2026-08-25 — **Decide whether the render lane's own `h264_qsv` output needs a real-decode
+      check.** The iGPU proxy proved that correct size/geometry/duration/`nb_frames` and a clean
+      `ffprobe` can all pass over a stream a decoder cannot read. The render lane validates its
+      outputs the same cheap way and has **not** been checked for that failure mode. Source:
+      [docs/RENDER-LANE-BACKLOG.md](file:///E:/omen/bf6-highlights/docs/RENDER-LANE-BACKLOG.md) §4.
+- [ ] 2026-08-25 — **Decide whether `nothing was watching AM4` is worth a probe.** The worker
+      crash-looped on a dead mount from the moment the cable moved until a deploy happened to
+      notice. `/health` reports `rawMounted`, so a fleet check could catch it. Source:
+      [SESSION-RETRO-2026-08-25.md](SESSION-RETRO-2026-08-25.md) §Operator.

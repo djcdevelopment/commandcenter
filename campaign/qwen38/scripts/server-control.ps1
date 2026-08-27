@@ -117,9 +117,14 @@ try {
             '-ngl', [string]$layers,
             '-fa', 'on'
         )
-        if (-not $useMmap) { $arguments += '--no-mmap' }
+        # -dio is direct I/O, which deliberately bypasses the page cache and reads
+        # weights into allocated memory. Passing it alongside mmap defeats the
+        # mapping entirely: the 2026-08-27 Flash load drove commit to 0.76 GB in
+        # 41 s with mmap already enabled, because -dio was still on. A host-placed
+        # model must page from the mapping, so it gets neither flag.
+        if (-not $useMmap) { $arguments += @('--no-mmap', '-dio') }
         $arguments += @(
-            '-dio', '-fit', 'off',
+            '-fit', 'off',
             '-c', [string]$context,
             '-np', [string]$parallel,
             '--host', '127.0.0.1', '--port', [string]$port,

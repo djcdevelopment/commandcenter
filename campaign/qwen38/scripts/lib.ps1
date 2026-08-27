@@ -401,6 +401,29 @@ function Assert-Q38ThermalQuarantineEvidence {
     }
 }
 
+function Assert-Q38PlacementProbeFailure {
+    <#
+        For the quarantined placement ladder only.
+
+        The ladder exists to find where an oversized model fits, so "this rung does
+        not fit" is the measurement, not an incident — the 2026-08-27 Flash run lost
+        the whole campaign at rung 0 of 8 and recorded zero placements because a
+        load-time commit shortfall was raised as FATAL.
+
+        Genuine hardware danger is still fatal: temperature, TDR/WHEA/kernel-power
+        events, and lost telemetry all re-raise. Only a memory-fit failure during
+        load is treated as a recordable outcome.
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$RunId,
+        [Parameter(Mandatory = $true)][string]$Message
+    )
+    $memoryFit = $Message -match 'commit headroom' -or $Message -match 'failed health during load' -or $Message -match 'out of memory'
+    $hardwareDanger = $Message -match 'temperature' -or $Message -match 'system event' -or $Message -match 'telemetry'
+    if ($memoryFit -and -not $hardwareDanger) { return }
+    Assert-Q38FailureQuarantinable -RunId $RunId -Message $Message
+}
+
 function Assert-Q38FailureQuarantinable {
     param(
         [Parameter(Mandatory = $true)][string]$RunId,

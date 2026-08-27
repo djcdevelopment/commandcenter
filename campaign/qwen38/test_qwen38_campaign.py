@@ -220,6 +220,20 @@ class SourceValidationTests(unittest.TestCase):
         self.assertIn("QWEN38_FORCE_LEGS", lib)
         self.assertIn("$env:QWEN38_FORCE_LEGS = '1'", stage)
 
+    def test_placement_ladder_records_a_rung_that_does_not_fit(self) -> None:
+        lib = (campaign.SOURCE_ROOT / "scripts" / "lib.ps1").read_text(encoding="utf-8")
+        stage = (campaign.SOURCE_ROOT / "scripts" / "05-flash-quarantine.ps1").read_text(encoding="utf-8")
+        # A ladder that dies on its first non-fitting rung records nothing, which is
+        # exactly what happened on 2026-08-27: 0 of 8 placements captured.
+        self.assertIn("function Assert-Q38PlacementProbeFailure", lib)
+        self.assertIn("Assert-Q38PlacementProbeFailure -RunId $runId", stage)
+        # ...but real hardware danger must still be fatal, even on the probe lane.
+        probe = lib[lib.index("function Assert-Q38PlacementProbeFailure"):]
+        probe = probe[: probe.index("function Assert-Q38FailureQuarantinable")]
+        for danger in ("temperature", "system event", "telemetry"):
+            self.assertIn(danger, probe)
+        self.assertIn("Assert-Q38FailureQuarantinable -RunId $RunId -Message $Message", probe)
+
     def test_only_the_host_placed_topology_opts_into_mmap(self) -> None:
         config = campaign.campaign_config()
         opted = {name for name, spec in config["topologies"].items() if spec.get("mmap")}
@@ -231,7 +245,11 @@ class SourceValidationTests(unittest.TestCase):
             "dual-split-host-placement", config["topologies"]["flash-feasibility"]["shape"]
         )
         control = (campaign.SOURCE_ROOT / "scripts" / "server-control.ps1").read_text(encoding="utf-8")
-        self.assertIn("if (-not $useMmap) { $arguments += '--no-mmap' }", control)
+        # -dio has to go with --no-mmap: direct I/O bypasses the page cache, so
+        # leaving it on defeats the mapping and the host-placed load still charges
+        # full commit (measured: 0.76 GB free, 41 s, mmap already enabled).
+        self.assertIn("if (-not $useMmap) { $arguments += @('--no-mmap', '-dio') }", control)
+        self.assertNotIn("'-dio', '-fit', 'off'", control)
 
     def test_deep_context_quarantine_is_config_driven_and_evidenced(self) -> None:
         config = campaign.campaign_config()

@@ -61,8 +61,10 @@ try {
                 if ($status -ne 'passed') { continue }
                 $bestLayers = [int]$layers
             } catch {
-                Assert-Q38FailureQuarantinable -RunId $runId -Message $_.Exception.Message
+                # A rung that cannot fit is what the ladder is here to find out.
+                Assert-Q38PlacementProbeFailure -RunId $runId -Message $_.Exception.Message
                 $placements += [pscustomobject]@{ variant = $variant.label; gpu_layers = [int]$layers; valid = 0; total = $probeTasks.Count; integrity_failures = 1; status = 'load_or_runtime_failure'; reason = $_.Exception.Message }
+                Write-Warning "Flash rung ngl=$layers did not fit: $($_.Exception.Message)"
                 continue
             } finally {
                 & (Join-Path $PSScriptRoot 'server-control.ps1') -Action Stop

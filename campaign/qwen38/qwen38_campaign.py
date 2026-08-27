@@ -1955,6 +1955,15 @@ def _dedupe_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return list(by_id.values())
 
 
+def _quality_evidence_regimes(rows: list[dict[str, Any]], candidate: str, seed: int) -> set[bool]:
+    """MTP regimes the candidate's deterministic quality evidence actually came from."""
+    return {
+        bool(row.get("mtp_enabled"))
+        for row in rows
+        if row.get("candidate") == candidate and row.get("test_kind") == "assay" and row.get("seed") == seed
+    }
+
+
 def _deterministic_quality(rows: list[dict[str, Any]], candidate: str, seed: int) -> tuple[float, dict[str, float]]:
     selected: dict[str, dict[str, Any]] = {}
     for row in rows:
@@ -2153,6 +2162,16 @@ def compile_scorecard(
             "id": f"qwen38-27b-q4-{winner['topology']}-mtp-{'on' if mtp_enabled else 'off'}",
             "deterministic_pass_rate": candidate_rate,
             "family_pass_rates": candidate_families,
+            # Quality is attributed to the WINNING configuration, so it has to
+            # have been measured on it. Speculative decoding is only output-safe
+            # when verification is exact; on 2026-08-27 the MTP-on and MTP-off
+            # paths produced different text at temperature 0, which makes an
+            # MTP-off pass rate no evidence at all about an MTP-on winner.
+            "quality_evidence": {
+                "mtp_regimes_measured": sorted(_quality_evidence_regimes(rows, "qwen38-27b", seed)),
+                "winner_mtp_enabled": mtp_enabled,
+                "matches_winning_configuration": _quality_evidence_regimes(rows, "qwen38-27b", seed) == {mtp_enabled},
+            },
             "jobs_per_hour": candidate_perf["jobs_per_hour"],
             "p95_latency_s": candidate_perf["latency_p95_s"],
             "blind_wins": counts["wins"],
@@ -2247,6 +2266,12 @@ def evaluate_promotion(scorecard: dict[str, Any], config: dict[str, Any] | None 
         "shared_memory_growth": float(soak.get("max_unplanned_shared_growth_gb", math.inf)) <= float(safety["shared_growth_abort_gb"]),
         "mtp_net_goodput": (not mtp.get("enabled")) or (
             float(mtp.get("successful_output_goodput_delta", -1)) > 0 and float(mtp.get("validity_regression", 1)) <= 0
+        ),
+        # A verdict must not attribute quality measured on one configuration to a
+        # different one. Without this the scorecard can certify an MTP-on winner
+        # using MTP-off text, which is exactly what this campaign produced.
+        "quality_measured_on_winning_config": bool(
+            candidate.get("quality_evidence", {}).get("matches_winning_configuration", False)
         ),
     }
     return {

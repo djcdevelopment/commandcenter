@@ -525,6 +525,25 @@ class PromotionTests(unittest.TestCase):
         self.assertTrue(verdict["all_gates_pass"], verdict)
         self.assertEqual("eligible_for_pin_only_canary", verdict["decision"])
 
+    def test_quality_measured_on_a_different_config_blocks_promotion(self) -> None:
+        # The 2026-08-27 run selected an MTP-on winner while every deterministic
+        # assay row was MTP-off, and those two paths were shown to produce
+        # different text at temperature 0. A pass rate from one configuration is
+        # not evidence about another.
+        self.scorecard["candidate"]["quality_evidence"] = {
+            "mtp_regimes_measured": [False],
+            "winner_mtp_enabled": True,
+            "matches_winning_configuration": False,
+        }
+        verdict = campaign.evaluate_promotion(self.scorecard)
+        self.assertFalse(verdict["gates"]["quality_measured_on_winning_config"])
+        self.assertEqual("do_not_promote", verdict["decision"])
+
+    def test_missing_quality_evidence_is_treated_as_unproved(self) -> None:
+        self.scorecard["candidate"].pop("quality_evidence", None)
+        verdict = campaign.evaluate_promotion(self.scorecard)
+        self.assertFalse(verdict["gates"]["quality_measured_on_winning_config"])
+
     def test_one_family_regression_blocks_promotion(self) -> None:
         self.scorecard["candidate"]["family_pass_rates"]["tool_execution"] = 0.5
         verdict = campaign.evaluate_promotion(self.scorecard)

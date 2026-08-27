@@ -1,6 +1,6 @@
 {
   "baseline": {
-    "deterministic_pass_rate": 0.90,
+    "deterministic_pass_rate": 0.9,
     "family_pass_rates": {
       "summarization": 0.875,
       "extraction": 1.0,
@@ -50,6 +50,13 @@
       "enabled": false,
       "successful_output_goodput_delta": 0.0,
       "validity_regression": 0.0
+    },
+    "quality_evidence": {
+      "mtp_regimes_measured": [
+        false
+      ],
+      "winner_mtp_enabled": false,
+      "matches_winning_configuration": true
     }
   }
 }

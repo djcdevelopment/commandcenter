@@ -45,8 +45,45 @@ Follow up once a few days of duration_ms land in knowledge/capacity.json:
   aside when this was set up.
 ---------------------------
 
-TODO (2026-08-27): chase the slot-cache-thrash hypothesis on the HEARTH
-ledger — for when we have capacity, after the qwen38 campaign.
+RESOLVED 2026-08-27 (the mechanism; the frequency is still open — see the end).
+
+The prefix-cache-miss penalty is now MEASURED on this rig, as a controlled
+comparison inside the qwen38 campaign. Same model, same hardware, same depth;
+the only variable is whether the prompt prefix repeats.
+
+  Shared prefix (identical filler prompt), TTFT in request order:
+    baseline  8K depth:   3.72s -> 0.07s -> 0.06s      ( 53x)
+    baseline 26K depth:  39.75s -> 0.13s -> 0.12s      (306x)
+    27B MTP  26K depth:  67.41s -> 0.43s -> 0.43s      (157x)
+
+  Unique prefix (retrieval needle at a varying position) — every request cold:
+    27B 26K depth:  59.8s, 59.6s, 55.4s
+    27B 52K depth: 152.6s, 164.8s, 165.1s
+
+A prefix-cache MISS at 26K depth costs ~306x the warm TTFT, and it grows with
+depth. This independently reproduces denning's pre-registered 114-219x
+restore-vs-cold-re-prefill result.
+
+Verdict on the original hypothesis: "the cache needs to rebuild" is CORRECT and
+expensive. "Windows steals the memory" is NOT the cause — shared memory stayed
+flat (0.45-0.47 GB) across every campaign leg and denning's WDDM spill probe
+found no demotion. The evicting party is llama-server's own slot reuse.
+
+STILL OPEN — the FREQUENCY in production, which needs instrumentation we lack:
+- The ledger records duration_ms but NOT ttft, so a re-prefill is
+  indistinguishable from a slow generation.
+- Only 11 omen-arc local_generate events carry token counts at all (that rung
+  became the default 2026-08-21).
+- The one change that makes it answerable: record ttft_s and prompt tokens on
+  local_generate ledger events. The campaign harness already captures exactly
+  that (ttft_s with ttft_source=client_stream_first_token); the door does not.
+  It is a change to a live gateway, so it is Derek's call.
+- If the miss rate is material, prefix-affinity routing at the door (same
+  caller/prefix -> same slot) is worth more to those callers than any model
+  swap: 0.13s versus 40s at 26K depth.
+
+ORIGINAL FRAMING (kept for context): chase the slot-cache-thrash hypothesis on
+the HEARTH ledger — for when we have capacity, after the qwen38 campaign.
 
 Context: Derek's hypothesis was that large-context calls get slower because
 Windows steals memory and the cache rebuilds. Campaign telemetry + denning's

@@ -165,8 +165,10 @@ try {
                 # the cards. Cool to the configured ceiling first so a cell is
                 # measured on its own thermal merits.
                 if (-not (Test-Q38LegPassed -RunId $cell -ExpectedAttemptedRows ($concurrency * [int]$config.generation.measured_rounds))) {
-                    $cooledTo = Wait-Q38ThermalHeadroom -Label $cell
-                    Write-Host "Cooled to $cooledTo C before $cell"
+                    # Not fatal here: a cell that cannot get cool enough is a cell
+                    # that is not measurable now, which is a quarantine, not a
+                    # reason to end the campaign. Maintenance entry keeps FATAL.
+                    Wait-Q38ThermalHeadroom -Label $cell -FatalOnTimeout $false | Out-Null
                 }
                 & (Join-Path $PSScriptRoot 'server-control.ps1') -Action Start -Topology 'qwen27-dual-context' `
                     -ParallelPerServer $concurrency -SlotDepth $depth -Vision

@@ -194,7 +194,22 @@ function Get-Q38B70TelemetrySample {
 }
 
 function Wait-Q38ThermalHeadroom {
-    param([object[]]$Adapters = @())
+    <#
+        Proves the cards are cool before work starts. Used at maintenance entry
+        and again before each deep-context cell: this campaign lost two
+        topologies to heat because every cell began from wherever the previous
+        one left the cards.
+
+        -FatalOnTimeout is the difference between the two callers. At maintenance
+        entry a hot box means do not start at all, so failing to cool is FATAL.
+        Before an individual cell it only means that cell is not measurable now,
+        which should quarantine the cell and let the campaign continue.
+    #>
+    param(
+        [object[]]$Adapters = @(),
+        [string]$Label = 'resume',
+        [bool]$FatalOnTimeout = $true
+    )
     $config = Get-Q38Config
     $root = Get-Q38RuntimeRoot
     if ($Adapters.Count -eq 0) { $Adapters = @(Resolve-Q38B70Adapters) }
@@ -204,12 +219,12 @@ function Wait-Q38ThermalHeadroom {
     $intervalSeconds = [int]$config.safety.sample_interval_s
     $startedAt = Get-Date
     $deadline = $startedAt.AddSeconds($timeoutSeconds)
-    $session = "{0}-{1}" -f (Get-Date -Format 'yyyyMMdd-HHmmss'), $PID
+    $session = "{0}-{1}-{2}" -f $Label, (Get-Date -Format 'yyyyMMdd-HHmmss'), $PID
     $telemetryPath = Join-Path $root ("results\telemetry\thermal-headroom-{0}.jsonl" -f $session)
     $receiptPath = Join-Path $root 'state\thermal-headroom.json'
     $coolSamples = 0
     do {
-        $sample = Get-Q38B70TelemetrySample -Adapters $Adapters -Label 'resume-headroom'
+        $sample = Get-Q38B70TelemetrySample -Adapters $Adapters -Label $Label
         $row = [ordered]@{
             timestamp = (Get-Date).ToString('o')
             max_temperature_c = $sample.max_temperature_c
@@ -247,7 +262,9 @@ function Wait-Q38ThermalHeadroom {
         telemetry = $telemetryPath
         final_sample = $row
     })
-    throw "FATAL SAFETY: B70 temperatures did not remain below $resumeBelow C within $timeoutSeconds seconds"
+    $message = "B70 temperatures did not remain below $resumeBelow C within $timeoutSeconds seconds (label: $Label)"
+    if ($FatalOnTimeout) { throw "FATAL SAFETY: $message" }
+    throw $message
 }
 
 function Get-Q38BadEvents {
@@ -337,38 +354,6 @@ function Test-Q38LegPassed {
     if ($successful.Count -lt 1) { return $false }
     if ($ExpectedAttemptedRows -gt 0 -and $attempted.Count -lt $ExpectedAttemptedRows) { return $false }
     return $true
-}
-
-function Wait-Q38ThermalHeadroom {
-    <#
-        Cools between legs. The 2026-08-27 campaign lost two topologies to
-        thermal aborts because every cell started from wherever the previous one
-        left the cards; the config already carried temperature_resume_* keys but
-        nothing consumed them between legs. Failure here is deliberately NOT
-        prefixed FATAL SAFETY so the caller can quarantine the cell and continue
-        rather than killing the campaign.
-    #>
-    param([string]$Label = 'leg')
-    $config = Get-Q38Config
-    $ceiling = [double]$config.safety.temperature_resume_below_c
-    $needed = [int]$config.safety.temperature_resume_consecutive_samples
-    $timeoutSeconds = [int]$config.safety.temperature_resume_timeout_s
-    $adapters = @(Resolve-Q38B70Adapters)
-    $deadline = (Get-Date).AddSeconds($timeoutSeconds)
-    $consecutive = 0
-    $last = $null
-    while ((Get-Date) -lt $deadline) {
-        try {
-            $sample = Get-Q38B70TelemetrySample -Adapters $adapters -Label "cooldown-$Label"
-            $last = [double]$sample.max_temperature_c
-        } catch {
-            throw "FATAL SAFETY: cooldown telemetry unavailable before ${Label}: $($_.Exception.Message)"
-        }
-        if ($last -le $ceiling) { $consecutive++ } else { $consecutive = 0 }
-        if ($consecutive -ge $needed) { return $last }
-        Start-Sleep -Seconds ([int]$config.safety.sample_interval_s)
-    }
-    throw "Cards did not cool to $ceiling C within $timeoutSeconds s before ${Label} (last sample ${last} C)"
 }
 
 function Assert-Q38ThermalQuarantineEvidence {

@@ -397,6 +397,37 @@ class RequestContractTests(unittest.TestCase):
         self.assertTrue(all(row["thinking_disabled"] for row in rows))
 
 
+class PrefillAggregationTests(unittest.TestCase):
+    def test_a_cached_prefix_is_not_a_prefill_measurement(self) -> None:
+        # Real: processed ~19.7k of a 26.2k prompt at 495.9 tok/s.
+        self.assertTrue(campaign._performed_full_prefill(
+            {"prompt_tokens_per_s": 495.9, "prompt_ms": 39658.4, "prompt_tokens": 26245}))
+        # Cache hit: one token of a 440-token prompt, reported as 81 tok/s. Averaging
+        # this in halves the apparent prefill rate at shallow depth.
+        self.assertFalse(campaign._performed_full_prefill(
+            {"prompt_tokens_per_s": 81.0, "prompt_ms": 12.3, "prompt_tokens": 440}))
+
+    def test_missing_timings_never_count_as_prefill(self) -> None:
+        for row in ({}, {"prompt_tokens_per_s": 100}, {"prompt_ms": 10, "prompt_tokens": 5},
+                    {"prompt_tokens_per_s": 0, "prompt_ms": 10, "prompt_tokens": 5}):
+            self.assertFalse(campaign._performed_full_prefill(row), row)
+
+    def test_summary_reports_the_prefill_sample_size(self) -> None:
+        rows = [
+            {"candidate": "c", "topology": "t", "mtp_enabled": False, "test_kind": "performance",
+             "concurrency": 1, "requested_prompt_tokens": 512, "valid": True, "success": True,
+             "request_id": f"r{i}", "run_id": "leg", "latency_s": 1.0,
+             "started_at": "2026-08-27T00:00:00Z", "completed_at": "2026-08-27T00:00:01Z",
+             "prompt_tokens": 1000, "prompt_ms": 1000.0,
+             "prompt_tokens_per_s": 1000.0 if i == 0 else 5.0}
+            for i in range(3)
+        ]
+        summary = campaign.summarize_rows(rows, [])[0]
+        # One genuine prefill, two cache hits.
+        self.assertEqual(1, summary["prefill_measured_requests"])
+        self.assertEqual(1000.0, summary["prefill_rate_p50_tokens_per_s"])
+
+
 class ValidatorTests(unittest.TestCase):
     def test_exact_text_is_whitespace_and_terminal_punctuation_tolerant(self) -> None:
         task = {"validator": {"type": "exact_text", "expected": "PASS"}}

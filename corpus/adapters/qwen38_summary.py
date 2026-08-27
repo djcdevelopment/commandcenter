@@ -111,6 +111,11 @@ def _metric_specs(summary: dict[str, Any], workload: str) -> list[dict[str, Any]
         spec("ttft_s", summary.get("ttft_p99_s"), "s", "p99"),
         spec("tokens_per_s", summary.get("decode_rate_p50_tokens_per_s"), "tokens/s", "p50", workload_override="decode"),
         spec("tokens_per_s", summary.get("decode_rate_p95_tokens_per_s"), "tokens/s", "p95", workload_override="decode"),
+        # Prefill and decode are separate workloads in bench-row.v1 for a reason:
+        # they are the two numbers the published corpus compares models on, and
+        # blending them describes no operating point.
+        spec("tokens_per_s", summary.get("prefill_rate_p50_tokens_per_s"), "tokens/s", "p50", workload_override="prefill"),
+        spec("tokens_per_s", summary.get("prefill_rate_p95_tokens_per_s"), "tokens/s", "p95", workload_override="prefill"),
         spec("acceptance_rate", summary.get("mtp_acceptance_rate"), "ratio", "single", confidence="derived"),
         spec("fairness_cv", summary.get("client_goodput_fairness_cv"), "cv", "single", confidence="derived"),
         spec(

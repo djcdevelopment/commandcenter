@@ -6,7 +6,7 @@
   "host": "OMEN",
   "platform": "windows-vulkan",
   "era": "z890-windows-vulkan",
-  "expected_table_rows": 80,
+  "expected_table_rows": 81,
   "device": {
     "kind": "arc-pro-b70",
     "count": 2
@@ -23,7 +23,7 @@
   },
   "source": {
     "path": "corpus/fixtures/qwen38-summary/campaign-full-20260827.json",
-    "note": "Full qwen38 campaign 2026-08-27: baseline characterization, 27B dual-split matrix (MTP off/on), vision, context residency, and the 60-min soak. Replica placements and the d131072/d262144 tiers are absent by thermal quarantine, not by omission."
+    "note": "Full qwen38 campaign 2026-08-27: baseline characterization, 27B dual-split matrix (MTP off/on), vision, context residency, and the 60-min soak. Replica placements and the d131072/d262144 tiers are absent by thermal quarantine, not by omission. Prefill rates count only requests that actually prefilled; a request served from a warm prefix reports a rate over the one or two tokens it really processed."
   },
   "timestamp": "2026-08-27T04:24:04-07:00",
   "kv_type": "f16",

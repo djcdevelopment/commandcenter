@@ -1667,6 +1667,21 @@ def summarize_rows(
             for row in valid
             if row.get("decode_tokens_per_s") is not None
         ]
+        # Prefill was measured from the first request onward but never aggregated,
+        # so prompt-processing rate - the number the published corpus compares
+        # models on - was invisible in every summary this campaign produced.
+        #
+        # Only rows that actually PREFILLED count. A request whose prefix is
+        # already cached reports a rate over the one or two tokens it really
+        # processed, which is not a prefill measurement and merely looks like a
+        # plausible one: every request in baseline-p512-c1 reported 80-94 tok/s
+        # while processing exactly 1 token of a 440-token prompt. Averaging those
+        # in silently halves the reported prefill rate at shallow depth.
+        prefill_rates = [
+            float(row["prompt_tokens_per_s"])
+            for row in valid
+            if _performed_full_prefill(row)
+        ]
         by_client: dict[int, list[dict[str, Any]]] = {}
         for row in group:
             if row.get("client_id") is not None:
@@ -1715,6 +1730,11 @@ def summarize_rows(
                 "ttft_p99_s": percentile(ttfts, 0.99),
                 "decode_rate_p50_tokens_per_s": percentile(decode_rates, 0.50),
                 "decode_rate_p95_tokens_per_s": percentile(decode_rates, 0.95),
+                "prefill_rate_p50_tokens_per_s": percentile(prefill_rates, 0.50),
+                "prefill_rate_p95_tokens_per_s": percentile(prefill_rates, 0.95),
+                # Sample size is part of the measurement: a shared-prefix cell
+                # contributes one cold request and then only cache hits.
+                "prefill_measured_requests": len(prefill_rates),
                 "client_goodput_fairness_cv": fairness_cv,
                 "structured_output_valid_rate": _family_valid_rate(
                     group, {"extraction", "classification"}
@@ -1962,6 +1982,23 @@ def _quality_evidence_regimes(rows: list[dict[str, Any]], candidate: str, seed: 
         for row in rows
         if row.get("candidate") == candidate and row.get("test_kind") == "assay" and row.get("seed") == seed
     }
+
+
+def _performed_full_prefill(row: dict[str, Any], minimum_fraction: float = 0.5) -> bool:
+    """True when the row's prompt-rate reflects real prefill work, not a cache hit.
+
+    llama.cpp reports ``prompt_per_second`` over the tokens it actually processed.
+    With a warm prefix that is one or two tokens, so the rate describes nothing
+    about prefill throughput. Recover the processed count from rate x duration and
+    require it to be a real fraction of the prompt.
+    """
+    rate = row.get("prompt_tokens_per_s")
+    duration_ms = row.get("prompt_ms")
+    prompt_tokens = row.get("prompt_tokens")
+    if not rate or not duration_ms or not prompt_tokens:
+        return False
+    processed = float(rate) * float(duration_ms) / 1000.0
+    return processed >= float(prompt_tokens) * minimum_fraction
 
 
 def _deterministic_quality(rows: list[dict[str, Any]], candidate: str, seed: int) -> tuple[float, dict[str, float]]:

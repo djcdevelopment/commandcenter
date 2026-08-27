@@ -45,3 +45,33 @@ Follow up once a few days of duration_ms land in knowledge/capacity.json:
   aside when this was set up.
 ---------------------------
 
+TODO (2026-08-27): chase the slot-cache-thrash hypothesis on the HEARTH
+ledger — for when we have capacity, after the qwen38 campaign.
+
+Context: Derek's hypothesis was that large-context calls get slower because
+Windows steals memory and the cache rebuilds. Campaign telemetry + denning's
+June battery ruled out VidMm for the depth slowdown itself (shared memory
+flat 0.45-0.47 GB across all 19 baseline legs, zero within-leg drift, decode
+cost a clean ~2.14 us/token/KV-token line; denning's WDDM spill probe: f16 KV
+fits to 128K dedicated with no silent demotion — VidMm theft is real but
+co-tenant-gated, per H1). The surviving mechanism for "the door feels slower
+at depth over time" is SLOT-CACHE THRASH: omen-arc has 2 slots, interleaved
+callers evict each other's KV prefix, and llama-server silently re-prefills
+the whole context. denning's keystone: restore is 114-219x cheaper than cold
+re-prefill (64K re-prefills in ~9.3 min vs restores in 3.85 s).
+
+The measurement:
+- Pull deep-context calls (large payload / big prompt_tokens) from the HEARTH
+  ledger + knowledge/capacity.json durations.
+- TTFT should be BIMODAL: warm-prefix hits (fast) vs silent re-prefills
+  (slow, scaling with prompt depth). Bucket by payload size; look for the
+  two populations and their mix rate.
+- If thrash rate is material, the levers are slot count / caller affinity /
+  prompt-prefix routing at the door (route same-conversation calls to the
+  same slot), or llama-server slot-save/restore (denning's 3.85 s restore).
+- Related follow-up from the same conversation: a -fa off deep-context A/B
+  on the 27B (denning: Vulkan flash-attn triples decode latency at depth;
+  campaign runs -fa on to match production) — only if the campaign's
+  dual-context numbers look attention-bound.
+---------------------------
+

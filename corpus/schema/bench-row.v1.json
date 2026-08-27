@@ -50,10 +50,23 @@
     "model_params": { "type": ["string", "null"] },
     "model_size_bytes": { "type": ["integer", "null"] },
     "model_architecture": { "type": ["string", "null"] },
+    "candidate_revision": { "type": ["string", "null"] },
+    "artifact_revision": { "type": ["string", "null"] },
+    "topology": { "type": ["string", "null"] },
+    "replica_id": { "type": ["string", "null"] },
+    "card_identity": { "type": ["string", "null"] },
+    "mtp_enabled": { "type": ["boolean", "null"] },
+    "mtp_acceptance_rate": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "task_family": { "type": ["string", "null"] },
+    "valid": { "type": ["boolean", "null"] },
+    "failure_class": { "type": ["string", "null"] },
+    "placement": { "type": ["string", "null"] },
+    "commit_headroom_bytes": { "type": ["integer", "null"] },
+    "shared_memory_growth_bytes": { "type": ["integer", "null"] },
 
     "workload": {
       "type": ["string", "null"],
-      "enum": ["prefill", "decode", "prefill+decode", "load", "idle", "quality", null],
+      "enum": ["prefill", "decode", "prefill+decode", "load", "idle", "quality", "tool", "vision", "soak", null],
       "description": "prefill and decode are the two regimes that behave completely differently; keeping them in one column with a discriminator is what allows the context-depth cliff to be plotted at all."
     },
     "n_prompt": { "type": ["integer", "null"] },
@@ -85,14 +98,22 @@
         "power_w",
         "temperature_c",
         "score",
-        "duration_ms"
+        "duration_ms",
+        "jobs_per_hour",
+        "output_tokens_per_s",
+        "success_rate",
+        "acceptance_rate",
+        "joules_per_successful_job",
+        "shared_memory_bytes",
+        "commit_headroom_bytes",
+        "fairness_cv"
       ]
     },
     "value": { "type": "number" },
     "unit": { "type": ["string", "null"] },
     "stat": {
       "type": ["string", "null"],
-      "enum": ["mean", "p50", "p90", "p99", "min", "max", "stddev", "single", null],
+      "enum": ["mean", "p50", "p90", "p95", "p99", "min", "max", "stddev", "single", null],
       "description": "Which statistic `value` is. A point estimate with no distribution is recorded as 'single' and is honestly weaker evidence than a p50 -- do not silently promote one to the other."
     },
     "stddev": { "type": ["number", "null"] },

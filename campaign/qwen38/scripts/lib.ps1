@@ -153,19 +153,101 @@ function Get-Q38B70TelemetrySample {
     if (-not (Test-Path -LiteralPath $eventsPath)) { throw 'b70tools did not emit events.jsonl' }
     $eventRows = @(Get-Content -LiteralPath $eventsPath -Encoding UTF8 |
         Where-Object { $_ -match '^\{' } | ForEach-Object { $_ | ConvertFrom-Json })
-    $temperatureRows = @($eventRows | Where-Object { $_.k -eq 'ms' -and $_.n -match 'temperature_c$' -and @($Adapters.id) -contains $_.a })
+    $adapterIds = @($Adapters | ForEach-Object { [string]$_.id })
+    $temperatureRows = @($eventRows | Where-Object { $_.k -eq 'ms' -and $_.n -match 'temperature_c$' -and $adapterIds -contains $_.a })
     if (-not $temperatureRows.Count) { throw 'no B70 temperature samples were emitted' }
-    $latestEnergy = @($eventRows | Where-Object { $_.k -eq 'ms' -and $_.n -eq 'gpu.energy_j_counter' -and @($Adapters.id) -contains $_.a } |
+    $adapterTemperatures = @(foreach ($adapter in $Adapters) {
+        $gpuRow = @($temperatureRows | Where-Object { $_.a -eq $adapter.id -and $_.n -eq 'gpu.temperature_c' } |
+            Sort-Object t | Select-Object -Last 1)
+        $vramRow = @($temperatureRows | Where-Object { $_.a -eq $adapter.id -and $_.n -eq 'vram.temperature_c' } |
+            Sort-Object t | Select-Object -Last 1)
+        $values = @()
+        if ($gpuRow.Count) { $values += [double]$gpuRow[0].v }
+        if ($vramRow.Count) { $values += [double]$vramRow[0].v }
+        if (-not $values.Count) { continue }
+        [pscustomobject]@{
+            adapter_id = [string]$adapter.id
+            bdf = [string]$adapter.bdf
+            vulkan_index = $adapter.vulkan_index
+            gpu_temperature_c = if ($gpuRow.Count) { [double]$gpuRow[0].v } else { $null }
+            vram_temperature_c = if ($vramRow.Count) { [double]$vramRow[0].v } else { $null }
+            max_temperature_c = [double](($values | Measure-Object -Maximum).Maximum)
+        }
+    })
+    $hottestRow = @($temperatureRows | Sort-Object { [double]$_.v } | Select-Object -Last 1)[0]
+    $hottestAdapter = @($Adapters | Where-Object { $_.id -eq $hottestRow.a } | Select-Object -First 1)
+    $latestEnergy = @($eventRows | Where-Object { $_.k -eq 'ms' -and $_.n -eq 'gpu.energy_j_counter' -and $adapterIds -contains $_.a } |
         Group-Object a | ForEach-Object { $_.Group | Sort-Object t | Select-Object -Last 1 })
     $latestHost = @($eventRows | Where-Object { $_.k -eq 'ms' -and $_.n -eq 'host.memory.used_bytes' } | Sort-Object t | Select-Object -Last 1)
     [pscustomobject]@{
         probe_path = $probe
         max_temperature_c = [double](($temperatureRows.v | Measure-Object -Maximum).Maximum)
+        hottest_adapter_id = [string]$hottestRow.a
+        hottest_adapter_bdf = if ($hottestAdapter.Count) { [string]$hottestAdapter[0].bdf } else { $null }
+        hottest_sensor = [string]$hottestRow.n
+        adapter_temperatures = $adapterTemperatures
         energy_j_counter = if ($latestEnergy.Count) { [double](($latestEnergy.v | Measure-Object -Sum).Sum) } else { $null }
         local_vram_used_gb = $null
         local_vram_observability = 'unavailable-cross-process-windows-vulkan'
         host_ram_used_gb = if ($latestHost.Count) { [Math]::Round([double]$latestHost[0].v / 1GB, 3) } else { $null }
     }
+}
+
+function Wait-Q38ThermalHeadroom {
+    param([object[]]$Adapters = @())
+    $config = Get-Q38Config
+    $root = Get-Q38RuntimeRoot
+    if ($Adapters.Count -eq 0) { $Adapters = @(Resolve-Q38B70Adapters) }
+    $resumeBelow = [double]$config.safety.temperature_resume_below_c
+    $requiredSamples = [int]$config.safety.temperature_resume_consecutive_samples
+    $timeoutSeconds = [int]$config.safety.temperature_resume_timeout_s
+    $intervalSeconds = [int]$config.safety.sample_interval_s
+    $startedAt = Get-Date
+    $deadline = $startedAt.AddSeconds($timeoutSeconds)
+    $session = "{0}-{1}" -f (Get-Date -Format 'yyyyMMdd-HHmmss'), $PID
+    $telemetryPath = Join-Path $root ("results\telemetry\thermal-headroom-{0}.jsonl" -f $session)
+    $receiptPath = Join-Path $root 'state\thermal-headroom.json'
+    $coolSamples = 0
+    do {
+        $sample = Get-Q38B70TelemetrySample -Adapters $Adapters -Label 'resume-headroom'
+        $row = [ordered]@{
+            timestamp = (Get-Date).ToString('o')
+            max_temperature_c = $sample.max_temperature_c
+            adapter_temperatures = $sample.adapter_temperatures
+            resume_below_c = $resumeBelow
+            consecutive_cool_samples = $coolSamples
+        }
+        if ([double]$sample.max_temperature_c -lt $resumeBelow) { $coolSamples++ } else { $coolSamples = 0 }
+        $row.consecutive_cool_samples = $coolSamples
+        $row | ConvertTo-Json -Compress -Depth 8 | Add-Content -LiteralPath $telemetryPath -Encoding UTF8
+        if ($coolSamples -ge $requiredSamples) {
+            Write-Q38JsonAtomic -Path $receiptPath -Value ([ordered]@{
+                contract_version = 'qwen38-thermal-headroom.v1'
+                status = 'passed'
+                started_at = $startedAt.ToString('o')
+                completed_at = (Get-Date).ToString('o')
+                resume_below_c = $resumeBelow
+                consecutive_samples = $coolSamples
+                telemetry = $telemetryPath
+                final_sample = $row
+            })
+            Write-Host "Thermal headroom proved below $resumeBelow C for $coolSamples consecutive samples."
+            return $row
+        }
+        if ((Get-Date) -ge $deadline) { break }
+        Start-Sleep -Seconds $intervalSeconds
+    } while ($true)
+    Write-Q38JsonAtomic -Path $receiptPath -Value ([ordered]@{
+        contract_version = 'qwen38-thermal-headroom.v1'
+        status = 'failed'
+        started_at = $startedAt.ToString('o')
+        completed_at = (Get-Date).ToString('o')
+        resume_below_c = $resumeBelow
+        consecutive_samples = $coolSamples
+        telemetry = $telemetryPath
+        final_sample = $row
+    })
+    throw "FATAL SAFETY: B70 temperatures did not remain below $resumeBelow C within $timeoutSeconds seconds"
 }
 
 function Get-Q38BadEvents {
@@ -214,6 +296,64 @@ function Test-Q38ReceiptPassed {
     if (-not (Test-Path -LiteralPath $path)) { return $false }
     $row = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
     $row.status -eq 'passed'
+}
+
+function Test-Q38LegPassed {
+    param([Parameter(Mandatory = $true)][string]$RunId)
+    $path = Join-Path (Get-Q38RuntimeRoot) ("results\telemetry\watchdog-{0}-passed.json" -f $RunId)
+    if (-not (Test-Path -LiteralPath $path)) { return $false }
+    try {
+        $row = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ([string]$row.contract_version -ne 'qwen38-watchdog-result.v1') { return $false }
+        if ([string]$row.status -ne 'passed' -or [string]$row.stage -ne $RunId) { return $false }
+        if (-not (Test-Path -LiteralPath ([string]$row.telemetry))) { return $false }
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+function Assert-Q38ThermalQuarantineEvidence {
+    $root = Get-Q38RuntimeRoot
+    $config = Get-Q38Config
+    $runId = 'qwen27-replica-production-mtp-off-p512-c4'
+    $abortPath = Join-Path $root ("results\telemetry\watchdog-{0}-abort.json" -f $runId)
+    $amendmentPath = Join-Path $root 'state\resume-amendment.json'
+    $manifestPath = Join-Path $root 'state\run-manifest.json'
+    foreach ($path in @($abortPath, $amendmentPath, $manifestPath)) {
+        if (-not (Test-Path -LiteralPath $path)) { throw "Thermal-quarantine evidence is missing: $path" }
+    }
+    $abort = Get-Content -LiteralPath $abortPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $amendment = Get-Content -LiteralPath $amendmentPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $temperature = [double]$abort.sample.max_temperature_c
+    if ([string]$abort.contract_version -ne 'qwen38-watchdog-abort.v1' -or [string]$abort.stage -ne $runId) {
+        throw 'Thermal-quarantine abort receipt has the wrong contract or stage'
+    }
+    if ($temperature -lt [double]$config.safety.vram_temperature_abort_c -or [string]$abort.reason -notmatch 'temperature') {
+        throw 'Thermal-quarantine abort receipt does not prove a threshold-crossing temperature event'
+    }
+    if ([string]$amendment.contract_version -ne 'qwen38-resume-amendment.v1' -or
+        [string]$amendment.decision -ne 'operator_acknowledged_replica_thermal_quarantine' -or
+        -not [bool]$amendment.unchanged_inputs_proved) {
+        throw 'Resume amendment does not authorize the reviewed thermal quarantine'
+    }
+    $requiredTopologies = @('qwen27-replica-production', 'qwen27-replica-throughput')
+    foreach ($topology in $requiredTopologies) {
+        if (@($amendment.quarantined_topologies) -notcontains $topology) {
+            throw "Resume amendment does not quarantine $topology"
+        }
+    }
+    $abortHash = (Get-FileHash -LiteralPath $abortPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $manifestHash = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ([string]$amendment.abort_evidence.sha256 -ne $abortHash) { throw 'Resume amendment abort hash does not match current evidence' }
+    if ([string]$amendment.current_manifest.sha256 -ne $manifestHash) { throw 'Resume amendment manifest hash does not match the active lock' }
+    [pscustomobject]@{
+        run_id = $runId
+        abort_path = $abortPath
+        amendment_path = $amendmentPath
+        max_temperature_c = $temperature
+        reason = [string]$abort.reason
+    }
 }
 
 function Assert-Q38FailureQuarantinable {

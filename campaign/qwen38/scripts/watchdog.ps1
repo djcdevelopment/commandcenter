@@ -71,14 +71,23 @@ while ((Get-Date) -lt $deadline) {
     $energyCounter = $null
     $localVramUsed = $null
     $hostRamUsed = $null
+    $adapterTemperatures = @()
+    $hottestAdapterBdf = $null
+    $hottestSensor = $null
     try {
         $b70 = Get-Q38B70TelemetrySample -Adapters $adapters -Label $Stage
         $maxTemp = $b70.max_temperature_c
+        $adapterTemperatures = @($b70.adapter_temperatures)
+        $hottestAdapterBdf = $b70.hottest_adapter_bdf
+        $hottestSensor = $b70.hottest_sensor
         $energyCounter = $b70.energy_j_counter
         $localVramUsed = $b70.local_vram_used_gb
         $hostRamUsed = $b70.host_ram_used_gb
     } catch { $reason = "b70tools telemetry unavailable: $($_.Exception.Message)" }
-    if ($null -ne $maxTemp -and $maxTemp -ge [double]$config.safety.vram_temperature_abort_c) { $reason = "GPU/VRAM temperature $maxTemp C reached abort line" }
+    if ($null -ne $maxTemp -and $maxTemp -ge [double]$config.safety.vram_temperature_abort_c) {
+        $location = if ($hottestAdapterBdf) { " on $hottestAdapterBdf ($hottestSensor)" } else { '' }
+        $reason = "GPU/VRAM temperature $maxTemp C$location reached abort line"
+    }
 
     $liveServerProcesses = @($servers | ForEach-Object {
         Get-Process -Id ([int]$_.pid) -ErrorAction SilentlyContinue
@@ -95,6 +104,9 @@ while ((Get-Date) -lt $deadline) {
         shared_growth_hits = $sharedHits
         commit_free_gb = $commit
         max_temperature_c = $maxTemp
+        hottest_adapter_bdf = $hottestAdapterBdf
+        hottest_sensor = $hottestSensor
+        adapter_temperatures = $adapterTemperatures
         energy_j_counter = $energyCounter
         local_vram_used_gb = $localVramUsed
         local_vram_observability = 'unavailable-cross-process-windows-vulkan'

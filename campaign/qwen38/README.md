@@ -82,8 +82,22 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File campaign/qwen38/scripts/
 Use `-SkipFlash` when the optional day-zero artifacts are absent or when the
 maintenance window is reserved for the 27B replacement decision only.
 
+`-AcknowledgeThermalQuarantine` is a narrow resume-only control. It is accepted
+only when the recorded replica p512/c4 watchdog abort crossed the configured
+temperature line and `state/resume-amendment.json` proves that model and engine
+inputs are unchanged. It preserves completed replica evidence, records every
+remaining replica-production and replica-throughput cell as quarantined, and
+continues only the dual-card lane. It never weakens the 95 C hard abort:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File campaign/qwen38/scripts/run-campaign.ps1 `
+  -ConfirmOutage -SkipFlash -AcknowledgeThermalQuarantine
+```
+
 Each stage is resumable. A stage is complete only when its receipt has
-`status: "passed"`; a partial JSONL file is never treated as completion.
+`status: "passed"`; a partial JSONL file is never treated as completion. A
+clean per-leg watchdog receipt and its referenced telemetry are also reused
+without being overwritten.
 Transport/judge-infrastructure retries append evidence under the same request
 ID; gates and summaries use the latest attempt while preserving earlier rows.
 `99-restore.ps1` is safe to run after any failure.
@@ -109,7 +123,7 @@ successful jobs and are never included in throughput or preference rates.
 Every launch command, embedded GGUF chat template, artifact/engine revision,
 quant, placement, and device assignment is appended to
 `state/server-launches.jsonl`. Watchdog samples carry energy counters, host RAM,
-temperatures, shared-memory growth, commit headroom, and event status,
+per-adapter GPU/VRAM temperatures, shared-memory growth, commit headroom, and event status,
 correlated to request rows by run ID. Cross-process local VRAM is explicitly
 marked unobservable on this Windows/Vulkan stack; the campaign does not turn
 the known-blind PDH/Vulkan gauges into fake residency numbers. Shared growth is

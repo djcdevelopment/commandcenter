@@ -69,6 +69,100 @@ class SourceValidationTests(unittest.TestCase):
                 handle.write(json.dumps({"request_id": "r1", "success": True}) + "\n")
             self.assertIn("r1", campaign._existing_ids(path, "success"))
 
+    def test_resume_amendment_requires_unchanged_locked_inputs_and_thermal_evidence(self) -> None:
+        def manifest(source_hash: str) -> dict:
+            return {
+                "contract_version": "qwen38-run-manifest.v1",
+                "source_tree_sha256": source_hash,
+                "engines": [
+                    {
+                        "role": "campaign",
+                        "revision": "1" * 40,
+                        "binary_sha256": "2" * 64,
+                        "binary_size_bytes": 123,
+                    }
+                ],
+                "artifacts": [
+                    {
+                        "id": "qwen38-27b",
+                        "state": "locked",
+                        "revision": "3" * 40,
+                        "size_bytes": 456,
+                        "parts_locked": [
+                            {"path": "model.gguf", "size_bytes": 456, "sha256": "4" * 64}
+                        ],
+                    }
+                ],
+            }
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archived_path = root / "old-manifest.json"
+            current_path = root / "run-manifest.json"
+            source_path = root / "old-source-receipt.json"
+            abort_path = root / "abort.json"
+            old = manifest("5" * 64)
+            current = manifest("6" * 64)
+            source = {
+                "commandcenter_revision": "7" * 40,
+                "source_tree_sha256": old["source_tree_sha256"],
+            }
+            abort = {
+                "contract_version": "qwen38-watchdog-abort.v1",
+                "stage": "qwen27-replica-production-mtp-off-p512-c4",
+                "reason": "GPU/VRAM temperature 96 C reached abort line",
+                "sample": {"max_temperature_c": 96},
+            }
+            for path, value in (
+                (archived_path, old),
+                (current_path, current),
+                (source_path, source),
+                (abort_path, abort),
+            ):
+                path.write_text(json.dumps(value), encoding="utf-8")
+            amendment = campaign.build_resume_amendment(
+                old,
+                current,
+                source,
+                abort,
+                archived_manifest_path=archived_path,
+                archived_source_receipt_path=source_path,
+                abort_path=abort_path,
+                current_manifest_path=current_path,
+            )
+            self.assertTrue(amendment["unchanged_inputs_proved"])
+            self.assertEqual(96, amendment["abort_evidence"]["max_temperature_c"])
+            self.assertEqual(
+                ["qwen27-replica-production", "qwen27-replica-throughput"],
+                amendment["quarantined_topologies"],
+            )
+            current["artifacts"][0]["parts_locked"][0]["sha256"] = "8" * 64
+            with self.assertRaisesRegex(ValueError, "model or engine identity changed"):
+                campaign.build_resume_amendment(
+                    old,
+                    current,
+                    source,
+                    abort,
+                    archived_manifest_path=archived_path,
+                    archived_source_receipt_path=source_path,
+                    abort_path=abort_path,
+                    current_manifest_path=current_path,
+                )
+
+    def test_thermal_quarantine_resume_is_evidence_gated_and_receipt_safe(self) -> None:
+        scripts = campaign.SOURCE_ROOT / "scripts"
+        invoke = (scripts / "invoke-leg.ps1").read_text(encoding="utf-8")
+        stage = (scripts / "03-qwen27-performance.ps1").read_text(encoding="utf-8")
+        runner = (scripts / "run-campaign.ps1").read_text(encoding="utf-8")
+        watchdog = (scripts / "watchdog.ps1").read_text(encoding="utf-8")
+        self.assertLess(invoke.index("Test-Q38LegPassed"), invoke.index("$serverState ="))
+        self.assertLess(invoke.index("Test-Q38LegPassed"), invoke.index("Remove-Item -LiteralPath $watchPassed"))
+        self.assertIn("Assert-Q38ThermalQuarantineEvidence", stage)
+        self.assertIn("skipped-thermal-quarantine", stage)
+        self.assertIn("if (-not $AcknowledgeThermalQuarantine)", stage)
+        self.assertIn("-AcknowledgeThermalQuarantine:$AcknowledgeThermalQuarantine", runner)
+        self.assertIn("adapter_temperatures = $adapterTemperatures", watchdog)
+
 
 class RequestContractTests(unittest.TestCase):
     def test_streaming_chat_reconstructs_content_usage_and_real_ttft(self) -> None:

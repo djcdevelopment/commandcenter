@@ -149,6 +149,20 @@ def validate_sources() -> list[str]:
         errors.append("commit headroom floor must be at least 6 GB")
     if float(config.get("safety", {}).get("shared_growth_abort_gb", 99)) > 2:
         errors.append("shared-memory growth gate may not exceed 2 GB")
+    safety = config.get("safety", {})
+    abort_temperature = float(safety.get("vram_temperature_abort_c", 0))
+    resume_temperature = float(safety.get("temperature_resume_below_c", math.inf))
+    resume_samples = int(safety.get("temperature_resume_consecutive_samples", 0))
+    resume_timeout = int(safety.get("temperature_resume_timeout_s", 0))
+    sample_interval = int(safety.get("sample_interval_s", 0))
+    if abort_temperature > 95:
+        errors.append("VRAM temperature abort line may not exceed 95 C")
+    if resume_temperature >= abort_temperature:
+        errors.append("thermal resume line must remain below the abort line")
+    if resume_samples < 2:
+        errors.append("thermal resume requires at least two consecutive cool samples")
+    if resume_timeout < sample_interval * resume_samples:
+        errors.append("thermal resume timeout is too short for the configured samples")
     if config.get("matrix", {}).get("concurrency") != [1, 2, 4, 8, 12, 16, 24]:
         errors.append("performance concurrency ladder must remain 1,2,4,8,12,16,24")
     if config.get("matrix", {}).get("vision_concurrency") != [1, 4, 8]:
@@ -419,6 +433,99 @@ def verify_manifest(*, rehash_artifacts: bool = False) -> list[str]:
             elif rehash_artifacts and sha256_file(part_path) != part["sha256"]:
                 errors.append(f"locked artifact bytes drifted: {part_path}")
     return errors
+
+
+def _locked_input_identity(manifest: dict[str, Any]) -> dict[str, Any]:
+    """Return the model/engine identity that must not change across a resume patch."""
+    engines = {
+        str(row.get("role")): {
+            "revision": row.get("revision"),
+            "binary_sha256": row.get("binary_sha256"),
+            "binary_size_bytes": row.get("binary_size_bytes"),
+        }
+        for row in manifest.get("engines", [])
+    }
+    artifacts = {
+        str(row.get("id")): {
+            "state": row.get("state"),
+            "revision": row.get("revision"),
+            "size_bytes": row.get("size_bytes"),
+            "parts": [
+                {
+                    "path": part.get("path"),
+                    "size_bytes": part.get("size_bytes"),
+                    "sha256": part.get("sha256"),
+                }
+                for part in row.get("parts_locked", [])
+            ],
+        }
+        for row in manifest.get("artifacts", [])
+    }
+    return {"engines": engines, "artifacts": artifacts}
+
+
+def build_resume_amendment(
+    archived_manifest: dict[str, Any],
+    current_manifest: dict[str, Any],
+    archived_source_receipt: dict[str, Any],
+    abort: dict[str, Any],
+    *,
+    archived_manifest_path: Path,
+    archived_source_receipt_path: Path,
+    abort_path: Path,
+    current_manifest_path: Path,
+) -> dict[str, Any]:
+    expected_stage = "qwen27-replica-production-mtp-off-p512-c4"
+    if archived_manifest.get("contract_version") != "qwen38-run-manifest.v1":
+        raise ValueError("archived run manifest has the wrong contract")
+    if current_manifest.get("contract_version") != "qwen38-run-manifest.v1":
+        raise ValueError("current run manifest has the wrong contract")
+    if abort.get("contract_version") != "qwen38-watchdog-abort.v1":
+        raise ValueError("thermal abort receipt has the wrong contract")
+    if abort.get("stage") != expected_stage:
+        raise ValueError(f"thermal abort stage is {abort.get('stage')!r}; expected {expected_stage!r}")
+    max_temperature = float((abort.get("sample") or {}).get("max_temperature_c", -math.inf))
+    abort_line = float(campaign_config()["safety"]["vram_temperature_abort_c"])
+    if max_temperature < abort_line or "temperature" not in str(abort.get("reason", "")).casefold():
+        raise ValueError("abort receipt does not prove a threshold-crossing temperature event")
+    old_inputs = _locked_input_identity(archived_manifest)
+    new_inputs = _locked_input_identity(current_manifest)
+    if old_inputs != new_inputs:
+        raise ValueError("model or engine identity changed across the resume patch")
+    return {
+        "contract_version": "qwen38-resume-amendment.v1",
+        "created_at": utc_now(),
+        "decision": "operator_acknowledged_replica_thermal_quarantine",
+        "quarantined_topologies": [
+            "qwen27-replica-production",
+            "qwen27-replica-throughput",
+        ],
+        "archived_manifest": {
+            "path": str(archived_manifest_path),
+            "sha256": sha256_file(archived_manifest_path),
+            "source_tree_sha256": archived_manifest.get("source_tree_sha256"),
+        },
+        "archived_source_receipt": {
+            "path": str(archived_source_receipt_path),
+            "sha256": sha256_file(archived_source_receipt_path),
+            "commandcenter_revision": archived_source_receipt.get("commandcenter_revision"),
+            "source_tree_sha256": archived_source_receipt.get("source_tree_sha256"),
+        },
+        "current_manifest": {
+            "path": str(current_manifest_path),
+            "sha256": sha256_file(current_manifest_path),
+            "source_tree_sha256": current_manifest.get("source_tree_sha256"),
+        },
+        "abort_evidence": {
+            "path": str(abort_path),
+            "sha256": sha256_file(abort_path),
+            "stage": abort.get("stage"),
+            "reason": abort.get("reason"),
+            "max_temperature_c": max_temperature,
+        },
+        "unchanged_inputs_proved": True,
+        "input_identity_sha256": sha256_value(new_inputs),
+    }
 
 
 def _clean_exact(value: str) -> str:
@@ -2071,6 +2178,41 @@ def command_verify_lock(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_resume_amendment(args: argparse.Namespace) -> int:
+    root = runtime_root()
+    archived_manifest_path = Path(args.archived_manifest)
+    archived_source_receipt_path = Path(args.archived_source_receipt)
+    abort_path = Path(args.abort) if args.abort else (
+        root
+        / "results/telemetry"
+        / "watchdog-qwen27-replica-production-mtp-off-p512-c4-abort.json"
+    )
+    current_manifest_path = root / "state/run-manifest.json"
+    for path in (
+        archived_manifest_path,
+        archived_source_receipt_path,
+        abort_path,
+        current_manifest_path,
+    ):
+        if not path.is_file():
+            raise FileNotFoundError(f"resume amendment input is missing: {path}")
+    amendment = build_resume_amendment(
+        load_json(archived_manifest_path),
+        load_json(current_manifest_path),
+        load_json(archived_source_receipt_path),
+        load_json(abort_path),
+        archived_manifest_path=archived_manifest_path,
+        archived_source_receipt_path=archived_source_receipt_path,
+        abort_path=abort_path,
+        current_manifest_path=current_manifest_path,
+    )
+    output = Path(args.output) if args.output else root / "state/resume-amendment.json"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(amendment, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(output)
+    return 0
+
+
 def command_assay(args: argparse.Namespace) -> int:
     print(run_assay(args))
     return 0
@@ -2173,6 +2315,15 @@ def build_parser() -> argparse.ArgumentParser:
     verify_lock = sub.add_parser("verify-lock", help="fail if locked campaign inputs have drifted")
     verify_lock.add_argument("--rehash-artifacts", action="store_true", help="rehash model parts instead of size-checking")
     verify_lock.set_defaults(func=command_verify_lock)
+    amendment = sub.add_parser(
+        "resume-amendment",
+        help="prove unchanged locked inputs across the reviewed thermal-quarantine resume patch",
+    )
+    amendment.add_argument("--archived-manifest", required=True)
+    amendment.add_argument("--archived-source-receipt", required=True)
+    amendment.add_argument("--abort")
+    amendment.add_argument("--output")
+    amendment.set_defaults(func=command_resume_amendment)
 
     assay = sub.add_parser("assay", help="run the fixed assay through OpenAI-compatible chat")
     _add_request_args(assay)

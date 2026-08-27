@@ -21,6 +21,10 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib.ps1')
 
 $root = Get-Q38RuntimeRoot
+if (Test-Q38LegPassed -RunId $RunId) {
+    Write-Host "Leg $RunId already has a valid watchdog receipt; preserving and skipping."
+    exit 0
+}
 $serverState = Get-Content -LiteralPath (Join-Path $root 'state\servers.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 if ($serverState.status -ne 'running') { throw "Recorded server state is '$($serverState.status)', not running" }
 if ([string]$serverState.topology -ne $Topology) { throw "Requested topology $Topology does not match running topology $($serverState.topology)" }

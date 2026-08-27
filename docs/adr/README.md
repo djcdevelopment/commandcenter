@@ -46,6 +46,7 @@ record with its status changed and a pointer to the ADR that replaced it.
 | [0035](0035-media-render-is-its-own-authority.md) | Rendering is its own authority: `media_render` is withheld from `operator` | Accepted (2026-08-25); live through the door the same day |
 | [0036](0036-gpu-execution-leaves-the-control-plane.md) | GPU execution leaves the control plane: the interactive render agent | Accepted (2026-08-25); session 0 has no adapter, gateway stays sole ledger writer |
 | [0037](0037-the-producer-reads-the-raw-footage.md) | The producer reads the raw footage: extraction runs where the bytes already are | Accepted (2026-08-25); forced by the retired copper link, deployed and proven the same day |
+| [0038](0038-a-verdict-cites-only-evidence-from-the-configuration-it-promotes.md) | A verdict cites only evidence measured on the configuration it promotes | Accepted (2026-08-27); caught a scorecard about to credit an MTP-on winner with MTP-off quality |
 
 ## Historical note
 The "ADR-0001" referenced in `SESSION-RETRO-2026-06-29.md` (which orchestrator is

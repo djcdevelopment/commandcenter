@@ -339,3 +339,26 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       `BF6PipelineWatchdog` task heal stopped OMEN workers, restart a stale render
       agent, and record AM4 mount/API health. See the operational amendment to
       [ADR-0036](docs/adr/0036-gpu-execution-leaves-the-control-plane.md).
+- [ ] 2026-08-27 — **Decide whether the Qwen3.8-27B earns a long-context / vision pin-only rung.**
+      The campaign verdict is `do_not_promote` and that is correct for a *default-rung swap*:
+      the candidate is −31.3% on jobs/hour at the gate's 512-token operating point. But the
+      gate measures the one regime where a dense 27B loses to a 3B-active MoE. Along prompt
+      length it inverts — **2.63× the baseline at 8K prompts, 5.49× at 32K** — and HEARTH's
+      real traffic is `files=` packs, which is why `context_bytes` was widened 4× in the first
+      place. It also wins blind judging 44/42/4 (95.6% win-or-tie) and has vision, which the
+      incumbent lacks entirely. Adding a rung is a standing-cost deployment decision, so it is
+      not mine to make. Sources: [SESSION-RETRO-2026-08-27.md](SESSION-RETRO-2026-08-27.md),
+      `E:\work\battlemage\qwen38-bench-2026-08\results\promotion-verdict.json`.
+- [ ] 2026-08-27 — **Decide whether MTP output divergence at temperature 0 is an engine defect.**
+      MTP-on and MTP-off produced zero identical responses across every compared cell, and all
+      126 `p8192` MTP-off requests stopped early while MTP-on did not. Speculative decoding is
+      only output-safe when verification is exact, so either the pinned build's verification is
+      inexact or something else differs between the paths. Blocks any MTP-on deployment.
+      Source: [ADR-0038](docs/adr/0038-a-verdict-cites-only-evidence-from-the-configuration-it-promotes.md).
+- [ ] 2026-08-27 — **Decide whether to record `ttft` and prompt tokens on `local_generate` ledger events.**
+      The prefix-cache-miss penalty is now measured at **~306× the warm TTFT at 26K depth**
+      (39.75s → 0.13s once cached). Its *frequency in production* is unmeasurable: the ledger
+      records `duration_ms` but not TTFT, so a re-prefill is indistinguishable from a slow
+      generation, and only 11 `omen-arc` events carry token counts at all. The campaign harness
+      already captures exactly this field; the door does not. It is a change to a live gateway.
+      Source: [todo.txt](todo.txt).

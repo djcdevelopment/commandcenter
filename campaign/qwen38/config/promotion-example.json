@@ -1,0 +1,55 @@
+{
+  "baseline": {
+    "deterministic_pass_rate": 0.90,
+    "family_pass_rates": {
+      "summarization": 0.875,
+      "extraction": 1.0,
+      "classification": 1.0,
+      "drafting": 0.75,
+      "reasoning_planning": 0.75,
+      "tool_execution": 0.875,
+      "document_ocr": 0.875,
+      "chart_diagram": 1.0,
+      "screenshot_grounded": 1.0
+    },
+    "jobs_per_hour": 100.0,
+    "p95_latency_s": 8.0
+  },
+  "candidate": {
+    "id": "qwen38-27b-q4-replica-mtp-off",
+    "deterministic_pass_rate": 0.95,
+    "family_pass_rates": {
+      "summarization": 1.0,
+      "extraction": 1.0,
+      "classification": 1.0,
+      "drafting": 0.875,
+      "reasoning_planning": 0.875,
+      "tool_execution": 0.875,
+      "document_ocr": 1.0,
+      "chart_diagram": 1.0,
+      "screenshot_grounded": 1.0
+    },
+    "jobs_per_hour": 130.0,
+    "p95_latency_s": 9.0,
+    "blind_wins": 30,
+    "blind_ties": 20,
+    "blind_losses": 22,
+    "spill_free_slot_tokens": 65536,
+    "soak": {
+      "completed": true,
+      "correctness_failures": 0,
+      "tdr_events": 0,
+      "whea_events": 0,
+      "kernel_power_events": 0,
+      "process_corruptions": 0,
+      "min_commit_headroom_gb": 20.0,
+      "max_vram_temperature_c": 82.0,
+      "max_unplanned_shared_growth_gb": 0.3
+    },
+    "mtp": {
+      "enabled": false,
+      "successful_output_goodput_delta": 0.0,
+      "validity_regression": 0.0
+    }
+  }
+}

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900">
+  <rect width="1200" height="900" fill="#eef1f6"/>
+  <rect x="0" y="0" width="1200" height="95" fill="#18233a"/>
+  <text x="55" y="62" fill="white" font-family="Arial" font-size="36" font-weight="bold">HEARTH Command Center</text>
+  <text x="930" y="58" fill="#9ee7bf" font-family="Arial" font-size="23">27 Aug 2026</text>
+  <rect x="55" y="135" width="515" height="210" rx="12" fill="white" stroke="#c8cfdd"/>
+  <text x="85" y="185" font-family="Arial" font-size="27" font-weight="bold">omen-arc</text>
+  <text x="370" y="185" fill="#c37a10" font-family="Arial" font-size="24" font-weight="bold">MAINTENANCE</text>
+  <text x="85" y="235" font-family="Arial" font-size="23">Model: qwen3-30b-a3b</text>
+  <text x="85" y="278" font-family="Arial" font-size="23">Queue: 0</text>
+  <text x="85" y="318" font-family="Arial" font-size="23">Slots: 0 / 2 active</text>
+  <rect x="630" y="135" width="515" height="210" rx="12" fill="white" stroke="#c8cfdd"/>
+  <text x="660" y="185" font-family="Arial" font-size="27" font-weight="bold">gcp-gemini fallback</text>
+  <text x="950" y="185" fill="#18864b" font-family="Arial" font-size="24" font-weight="bold">HEALTHY</text>
+  <text x="660" y="235" font-family="Arial" font-size="23">Queue: 3</text>
+  <text x="660" y="278" font-family="Arial" font-size="23">p95: 4.8 s</text>
+  <text x="660" y="318" font-family="Arial" font-size="23">Success: 100%</text>
+  <rect x="55" y="395" width="1090" height="245" rx="12" fill="white" stroke="#c8cfdd"/>
+  <text x="85" y="445" font-family="Arial" font-size="27" font-weight="bold">B70 telemetry</text>
+  <text x="110" y="505" font-family="Arial" font-size="24">PCI 04:00.0</text><text x="390" y="505" font-family="Arial" font-size="24">68°C</text><text x="555" y="505" font-family="Arial" font-size="24">Shared 0.24 GB</text>
+  <text x="110" y="565" font-family="Arial" font-size="24">PCI 09:00.0</text><text x="390" y="565" font-family="Arial" font-size="24">73°C</text><text x="555" y="565" font-family="Arial" font-size="24">Shared 0.31 GB</text>
+  <text x="860" y="535" font-family="Arial" font-size="24" font-weight="bold">Commit free</text><text x="930" y="580" font-family="Arial" font-size="30">54 GB</text>
+  <rect x="55" y="690" width="1090" height="135" rx="12" fill="#fff4db" stroke="#e1ad45"/>
+  <text x="85" y="742" fill="#7a4b00" font-family="Arial" font-size="25" font-weight="bold">NOTICE</text>
+  <text x="85" y="790" fill="#5c4520" font-family="Arial" font-size="25">Qwen 3.8 canary starts at 18:30. Owner: Derek.</text>
+</svg>

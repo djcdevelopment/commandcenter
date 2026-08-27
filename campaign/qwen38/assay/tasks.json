@@ -1,0 +1,140 @@
+{
+  "contract_version": "qwen38-assay.v1",
+  "description": "Balanced HEARTH replacement assay: nine equally weighted families, eight fixed tasks each.",
+  "tools": {
+    "get_weather": {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get weather for a place and date.",
+        "parameters": {
+          "type": "object",
+          "properties": {"location": {"type": "string"}, "date": {"type": "string"}, "units": {"type": "string", "enum": ["celsius", "fahrenheit"]}},
+          "required": ["location", "date", "units"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "search_files": {
+      "type": "function",
+      "function": {
+        "name": "search_files",
+        "description": "Search text in files under a repository path.",
+        "parameters": {
+          "type": "object",
+          "properties": {"query": {"type": "string"}, "path": {"type": "string"}, "case_sensitive": {"type": "boolean"}},
+          "required": ["query", "path", "case_sensitive"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "create_ticket": {
+      "type": "function",
+      "function": {
+        "name": "create_ticket",
+        "description": "Create an operations ticket.",
+        "parameters": {
+          "type": "object",
+          "properties": {"title": {"type": "string"}, "severity": {"type": "string", "enum": ["low", "medium", "high", "critical"]}, "component": {"type": "string"}},
+          "required": ["title", "severity", "component"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "schedule_job": {
+      "type": "function",
+      "function": {
+        "name": "schedule_job",
+        "description": "Schedule a named job at an ISO-8601 timestamp.",
+        "parameters": {
+          "type": "object",
+          "properties": {"job": {"type": "string"}, "at": {"type": "string"}, "timezone": {"type": "string"}},
+          "required": ["job", "at", "timezone"],
+          "additionalProperties": false
+        }
+      }
+    }
+  },
+  "tasks": [
+    {"id":"summary-01","family":"summarization","prompt":"Summarize in no more than 24 words: The OMEN server has two Arc Pro B70 GPUs. Neither drives a display. Vulkan device zero is the integrated GPU, so benchmark processes must expose devices one and two only.","validator":{"type":"max_words_contains","max_words":24,"terms":["B70","devices 1 and 2"]}},
+    {"id":"summary-02","family":"summarization","prompt":"Summarize in no more than 22 words: A model loaded while host commit was nearly exhausted silently placed tensors in shared memory. Freeing memory afterward did not repair that process; it had to be restarted after a clean admission probe.","validator":{"type":"max_words_contains","max_words":22,"terms":["shared memory","restart"]}},
+    {"id":"summary-03","family":"summarization","prompt":"Summarize in no more than 20 words: Qwen3-30B reached its best aggregate decode rate at eight simultaneous sequences. Above eight, the Vulkan backend selected a slower matrix path and latency increased sharply.","validator":{"type":"max_words_contains","max_words":20,"terms":["eight","latency"]}},
+    {"id":"summary-04","family":"summarization","prompt":"Summarize in no more than 24 words: The candidate may become a pin-only canary after laboratory gates pass. It remains there for 48 hours while failures and queue latency are inspected before routing tags change.","validator":{"type":"max_words_contains","max_words":24,"terms":["48","canary"]}},
+    {"id":"summary-05","family":"summarization","prompt":"Summarize in no more than 22 words: Multi-token prediction can raise raw decode speed, but rejected draft tokens consume work. Promotion therefore depends on successful output goodput and unchanged answer validity, not raw draft rate.","validator":{"type":"max_words_contains","max_words":22,"terms":["goodput","validity"]}},
+    {"id":"summary-06","family":"summarization","prompt":"Summarize in no more than 20 words: Flash-Next is an experimental 125B mixture-of-experts model with 6B parameters active per token and a very large n-gram embedding table.","validator":{"type":"max_words_contains","max_words":20,"terms":["125B","6B"]}},
+    {"id":"summary-07","family":"summarization","prompt":"Summarize in no more than 25 words: Native context length is a model capability, not proof that many simultaneous maximum-length sessions fit in VRAM. Routing metadata must use the largest measured spill-free configuration.","validator":{"type":"max_words_contains","max_words":25,"terms":["measured","spill-free"]}},
+    {"id":"summary-08","family":"summarization","prompt":"Summarize in no more than 22 words: Every measured request is retained. Invalid or corrupted completions count as failed jobs and are excluded from valid throughput and preference rates.","validator":{"type":"max_words_contains","max_words":22,"terms":["failed","throughput"]}},
+
+    {"id":"extract-01","family":"extraction","prompt":"Return only JSON with keys host, gpu_count, and gpu_model from: Host OMEN contains 2 Intel Arc Pro B70 cards.","validator":{"type":"json_equal","expected":{"host":"OMEN","gpu_count":2,"gpu_model":"Intel Arc Pro B70"}}},
+    {"id":"extract-02","family":"extraction","prompt":"Return only JSON with keys run_id, successes, failures, and p95_s. Log: run=q38-r17 ok=47 bad=1 p95=8.4s.","validator":{"type":"json_equal","expected":{"run_id":"q38-r17","successes":47,"failures":1,"p95_s":8.4}}},
+    {"id":"extract-03","family":"extraction","prompt":"Return only JSON with keys card, gpu_c, vram_c, shared_gb. Sample: pci=04:00.0 core=68C memory=73C shared=0.24GiB.","validator":{"type":"json_equal","expected":{"card":"04:00.0","gpu_c":68,"vram_c":73,"shared_gb":0.24}}},
+    {"id":"extract-04","family":"extraction","prompt":"Return only JSON with keys model, quant, context, parallel. Command: llama-server -m Qwen3.8-27B-Q4_K_M.gguf -c 131072 -np 2.","validator":{"type":"json_equal","expected":{"model":"Qwen3.8-27B","quant":"Q4_K_M","context":131072,"parallel":2}}},
+    {"id":"extract-05","family":"extraction","prompt":"Return only JSON with keys started_at, stage, and status. Receipt: [2026-08-27T18:30:00-07:00] stage=compatibility disposition=passed.","validator":{"type":"json_equal","expected":{"started_at":"2026-08-27T18:30:00-07:00","stage":"compatibility","status":"passed"}}},
+    {"id":"extract-06","family":"extraction","prompt":"Return only JSON with keys commit_free_gb, local_gb, shared_gb. Probe says commit available 54.0 GB; adapter local 23.6 GB; adapter shared 0.31 GB.","validator":{"type":"json_equal","expected":{"commit_free_gb":54.0,"local_gb":23.6,"shared_gb":0.31}}},
+    {"id":"extract-07","family":"extraction","prompt":"Return only JSON with keys wins, ties, losses, and total. Judge ledger: 30 wins, 20 ties, 22 losses.","validator":{"type":"json_equal","expected":{"wins":30,"ties":20,"losses":22,"total":72}}},
+    {"id":"extract-08","family":"extraction","prompt":"Return only JSON with keys baseline_jph, candidate_jph, improvement_pct. Baseline completed 100 jobs/hour; candidate completed 130 jobs/hour.","validator":{"type":"json_equal","expected":{"baseline_jph":100,"candidate_jph":130,"improvement_pct":30}}},
+
+    {"id":"class-01","family":"classification","prompt":"Reply with exactly one label: PASS, SPILL, or UNKNOWN. Local GPU memory is steady and shared memory rose from 0.20 GB to 2.55 GB on two consecutive probes.","validator":{"type":"exact_text","expected":"SPILL"}},
+    {"id":"class-02","family":"classification","prompt":"Reply with exactly one label: PASS, TDR, or WHEA. Windows System log contains Event ID 4101 during the measured leg.","validator":{"type":"exact_text","expected":"TDR"}},
+    {"id":"class-03","family":"classification","prompt":"Reply with exactly one label: VALID, INVALID_JSON, or EMPTY. Output: {\"status\":\"ok\",\"count\":3}","validator":{"type":"exact_text","expected":"VALID"}},
+    {"id":"class-04","family":"classification","prompt":"Reply with exactly one label: PROMOTE_DEFAULT, PIN_ONLY, or REJECT. Candidate is stable and excellent at vision, but completes only 40% of baseline jobs/hour.","validator":{"type":"exact_text","expected":"PIN_ONLY"}},
+    {"id":"class-05","family":"classification","prompt":"Reply with exactly one label: RETRY, RESTART_AFTER_PREFLIGHT, or ACCEPT. A server loaded under commit pressure remains slow after the co-tenant exits.","validator":{"type":"exact_text","expected":"RESTART_AFTER_PREFLIGHT"}},
+    {"id":"class-06","family":"classification","prompt":"Reply with exactly one label: CORRECTNESS, PERFORMANCE, or OPERATIONS. The response contains malformed tool arguments even though decode speed is high.","validator":{"type":"exact_text","expected":"CORRECTNESS"}},
+    {"id":"class-07","family":"classification","prompt":"Reply with exactly one label: MEASURED, DERIVED, or REPORTED. A value is calculated from raw request rows by dividing completed jobs by wall-clock hours.","validator":{"type":"exact_text","expected":"DERIVED"}},
+    {"id":"class-08","family":"classification","prompt":"The current VRAM reading is 95 C. Using the rule from the earlier turn, reply with exactly one label: SAFE, ABORT, or WATCH.","messages":[{"role":"user","content":"For this campaign, the rule is: abort when VRAM temperature is at or above 95 C. Remember the rule for my next message."},{"role":"assistant","content":"Understood."},{"role":"user","content":"The current VRAM reading is 95 C. Using the rule from the earlier turn, reply with exactly one label: SAFE, ABORT, or WATCH."}],"validator":{"type":"exact_text","expected":"ABORT"}},
+
+    {"id":"draft-01","family":"drafting","prompt":"Draft a concise maintenance notice under 45 words. It must state that local HEARTH inference is unavailable, cloud fallback remains available, and restoration is expected by 22:00 Pacific.","validator":{"type":"max_words_contains","max_words":45,"terms":["local HEARTH","cloud fallback","22:00","Pacific"]}},
+    {"id":"draft-02","family":"drafting","prompt":"Write an incident title and one-sentence impact statement under 45 words for silent shared-memory spill that reduced decode throughput by 22 percent. Include both 'silent spill' and '22%'.","validator":{"type":"max_words_contains","max_words":45,"terms":["silent spill","22%"]}},
+    {"id":"draft-03","family":"drafting","prompt":"Write a rollback note under 50 words that names ArcServeBoot, says the campaign binary was isolated, and requires a real one-token completion after restore.","validator":{"type":"max_words_contains","max_words":50,"terms":["ArcServeBoot","isolated","one-token completion"]}},
+    {"id":"draft-04","family":"drafting","prompt":"Draft a two-sentence release note under 55 words for a new pin-only Qwen3.8 canary. Mention 48 hours and that routing tags are unchanged.","validator":{"type":"max_words_contains","max_words":55,"terms":["pin-only","48 hours","routing tags"]}},
+    {"id":"draft-05","family":"drafting","prompt":"Write a concise warning under 45 words explaining why native 262K context must not be copied into HEARTH routing metadata without residency proof. Include 'spill-free'.","validator":{"type":"max_words_contains","max_words":45,"terms":["262K","routing metadata","spill-free"]}},
+    {"id":"draft-06","family":"drafting","prompt":"Draft an assay result note under 50 words: MTP raised raw tokens per second but lowered successful jobs per hour because tool validity fell. State the decision to keep MTP off.","validator":{"type":"max_words_contains","max_words":50,"terms":["tool validity","MTP off"]}},
+    {"id":"draft-07","family":"drafting","prompt":"Write a concise quarantine label under 45 words for Flash-Next. Mention day-zero backend support, provisional measurements, and ineligibility for default promotion.","validator":{"type":"max_words_contains","max_words":45,"terms":["day-zero","provisional","default"]}},
+    {"id":"draft-08","family":"drafting","prompt":"Write a handoff under 55 words naming the three next actions: inspect promotion-verdict.json, review quarantined rows, and run 99-restore.ps1. Preserve those exact filenames.","validator":{"type":"max_words_contains","max_words":55,"terms":["promotion-verdict.json","quarantined rows","99-restore.ps1"]}},
+
+    {"id":"reasoning-01","family":"reasoning_planning","prompt":"Return only JSON. Baseline is 100 jobs/hour. Candidate is 124 jobs/hour. Required improvement is at least 25%. Keys: improvement_pct and passes.","validator":{"type":"json_equal","expected":{"improvement_pct":24,"passes":false}}},
+    {"id":"reasoning-02","family":"reasoning_planning","prompt":"Return only JSON. Two replica servers each have 8 slots. At 16 simultaneous jobs, how many jobs are assigned to each under even round-robin? Keys: server_1 and server_2.","validator":{"type":"json_equal","expected":{"server_1":8,"server_2":8}}},
+    {"id":"reasoning-03","family":"reasoning_planning","prompt":"Return only JSON. Baseline p95 is 8 seconds and the allowed ratio is 1.5. Candidate p95 is 12.1 seconds. Keys: limit_s and passes.","validator":{"type":"json_equal","expected":{"limit_s":12.0,"passes":false}}},
+    {"id":"reasoning-04","family":"reasoning_planning","prompt":"Return only JSON. There are 30 wins, 20 ties, and 22 losses. Promotion counts wins plus ties and requires 60%. Keys: rate rounded to 4 decimals and passes.","validator":{"type":"json_equal","expected":{"rate":0.6944,"passes":true}}},
+    {"id":"reasoning-05","family":"reasoning_planning","prompt":"Return only JSON. A server has total context 131072 and 2 equal slots. Keys: tokens_per_slot and meets_64000.","validator":{"type":"json_equal","expected":{"tokens_per_slot":65536,"meets_64000":true}}},
+    {"id":"reasoning-06","family":"reasoning_planning","prompt":"Return only JSON. Shared memory baseline is 0.30 GB; readings are 2.10 GB then 2.45 GB. Abort requires growth greater than 2.0 GB on two consecutive readings. Keys: growths_gb and abort.","validator":{"type":"json_equal","expected":{"growths_gb":[1.8,2.15],"abort":false}}},
+    {"id":"reasoning-07","family":"reasoning_planning","prompt":"Choose the safe order and return only a JSON array of step names: load candidate, stop production, admission probe, restore production, run assay. A model load must occur only after production is stopped and the probe passes; restore is last.","validator":{"type":"json_equal","expected":["stop production","admission probe","load candidate","run assay","restore production"]}},
+    {"id":"reasoning-08","family":"reasoning_planning","prompt":"Return only JSON. A 60-minute soak completes 847 jobs; 3 are invalid. Keys: successful_jobs and successful_jobs_per_hour.","validator":{"type":"json_equal","expected":{"successful_jobs":844,"successful_jobs_per_hour":844}}},
+
+    {"id":"tool-01","family":"tool_execution","prompt":"What is the weather in Seattle on 2026-08-28? Use Celsius and call the available tool.","tools":["get_weather"],"validator":{"type":"tool_call","name":"get_weather","arguments":{"location":"Seattle","date":"2026-08-28","units":"celsius"}}},
+    {"id":"tool-02","family":"tool_execution","prompt":"Search case-sensitively for GGML_VK_VISIBLE_DEVICES under fleet/arcserve. Call the tool; do not answer in prose.","tools":["search_files"],"validator":{"type":"tool_call","name":"search_files","arguments":{"query":"GGML_VK_VISIBLE_DEVICES","path":"fleet/arcserve","case_sensitive":true}}},
+    {"id":"tool-03","family":"tool_execution","prompt":"Create a high-severity ticket titled 'Qwen38 shared-memory spill' for component 'omen-arc'. Call the tool.","tools":["create_ticket"],"validator":{"type":"tool_call","name":"create_ticket","arguments":{"title":"Qwen38 shared-memory spill","severity":"high","component":"omen-arc"}}},
+    {"id":"tool-04","family":"tool_execution","prompt":"Schedule job 'restore-arc' for 2026-08-27 at 22:00 in America/Los_Angeles. Call the tool.","tools":["schedule_job"],"validator":{"type":"tool_call","name":"schedule_job","arguments":{"job":"restore-arc","at":"2026-08-27T22:00:00","timezone":"America/Los_Angeles"}}},
+    {"id":"tool-05","family":"tool_execution","prompt":"Search without case sensitivity for mul_mat_vec_max_cols in E:/work/llamacpp-qwen38. Call the search tool only.","tools":["search_files"],"validator":{"type":"tool_call","name":"search_files","arguments":{"query":"mul_mat_vec_max_cols","path":"E:/work/llamacpp-qwen38","case_sensitive":false}}},
+    {"id":"tool-06","family":"tool_execution","prompt":"Create a critical ticket titled 'TDR during final soak' for component 'dual-b70'. Call the tool.","tools":["create_ticket"],"validator":{"type":"tool_call","name":"create_ticket","arguments":{"title":"TDR during final soak","severity":"critical","component":"dual-b70"}}},
+    {"id":"tool-07","family":"tool_execution","prompt":"Get weather for Portland on 2026-08-29 in Fahrenheit. Call the available function.","tools":["get_weather"],"validator":{"type":"tool_call","name":"get_weather","arguments":{"location":"Portland","date":"2026-08-29","units":"fahrenheit"}}},
+    {"id":"tool-08","family":"tool_execution","prompt":"Schedule job 'qwen38-canary-review' for 2026-08-29 at 18:30 in America/Los_Angeles. Use the tool.","tools":["schedule_job"],"validator":{"type":"tool_call","name":"schedule_job","arguments":{"job":"qwen38-canary-review","at":"2026-08-29T18:30:00","timezone":"America/Los_Angeles"}}},
+
+    {"id":"doc-01","family":"document_ocr","prompt":"Read the purchase order. Return only the PO number.","image":"assets/document.svg","validator":{"type":"exact_text","expected":"CC-3842"}},
+    {"id":"doc-02","family":"document_ocr","prompt":"Read the purchase order. Return only the vendor name.","image":"assets/document.svg","validator":{"type":"exact_text","expected":"Northstar Components"}},
+    {"id":"doc-03","family":"document_ocr","prompt":"Read the purchase order. Return only JSON with item names mapped to quantities.","image":"assets/document.svg","validator":{"type":"json_equal","expected":{"B70 cooling duct":2,"NVMe heatsink":4}}},
+    {"id":"doc-04","family":"document_ocr","prompt":"Read the purchase order. Return only the subtotal, including currency symbol.","image":"assets/document.svg","validator":{"type":"exact_text","expected":"$166.00"}},
+    {"id":"doc-05","family":"document_ocr","prompt":"Read the purchase order. Return only the tax, including currency symbol.","image":"assets/document.svg","validator":{"type":"exact_text","expected":"$13.28"}},
+    {"id":"doc-06","family":"document_ocr","prompt":"Read the purchase order. Return only the total, including currency symbol.","image":"assets/document.svg","validator":{"type":"exact_text","expected":"$179.28"}},
+    {"id":"doc-07","family":"document_ocr","prompt":"Read the purchase order. Return only JSON with ship_to and terms.","image":"assets/document.svg","validator":{"type":"json_equal","expected":{"ship_to":"OMEN Lab 4B","terms":"Net 30"}}},
+    {"id":"doc-08","family":"document_ocr","prompt":"Read the purchase order. Return only the approver's name.","image":"assets/document.svg","validator":{"type":"exact_text","expected":"D. Mercer"}},
+
+    {"id":"chart-01","family":"chart_diagram","prompt":"Read the chart. Which quarter has the highest jobs/hour? Return only the quarter.","image":"assets/chart.svg","validator":{"type":"exact_text","expected":"Q3"}},
+    {"id":"chart-02","family":"chart_diagram","prompt":"Read the chart. Return only JSON mapping each quarter to jobs/hour.","image":"assets/chart.svg","validator":{"type":"json_equal","expected":{"Q1":82,"Q2":104,"Q3":131,"Q4":126}}},
+    {"id":"chart-03","family":"chart_diagram","prompt":"Read the chart. Return only the p95 latency for Q2, including unit.","image":"assets/chart.svg","validator":{"type":"exact_text","expected":"11s"}},
+    {"id":"chart-04","family":"chart_diagram","prompt":"Read the chart. Which quarter has the lowest p95 latency? Return only the quarter.","image":"assets/chart.svg","validator":{"type":"exact_text","expected":"Q3"}},
+    {"id":"chart-05","family":"chart_diagram","prompt":"Read the chart. Return only the jobs/hour change from Q1 to Q3 as an integer.","image":"assets/chart.svg","validator":{"type":"exact_text","expected":"49"}},
+    {"id":"chart-06","family":"chart_diagram","prompt":"Read the chart. Return only JSON mapping each quarter to failed jobs.","image":"assets/chart.svg","validator":{"type":"json_equal","expected":{"Q1":7,"Q2":5,"Q3":2,"Q4":3}}},
+    {"id":"chart-07","family":"chart_diagram","prompt":"Read the chart. Did jobs/hour and p95 both improve from Q1 through Q3? Return only yes or no.","image":"assets/chart.svg","validator":{"type":"exact_text","expected":"yes"}},
+    {"id":"chart-08","family":"chart_diagram","prompt":"Read the chart. Return only JSON with Q4 jobs_per_hour and p95_s.","image":"assets/chart.svg","validator":{"type":"json_equal","expected":{"jobs_per_hour":126,"p95_s":10}}},
+
+    {"id":"screen-01","family":"screenshot_grounded","prompt":"Read the dashboard. Return only the status of omen-arc.","image":"assets/dashboard.svg","validator":{"type":"exact_text","expected":"MAINTENANCE"}},
+    {"id":"screen-02","family":"screenshot_grounded","prompt":"Read the dashboard. Return only the queue depth for gcp-gemini fallback.","image":"assets/dashboard.svg","validator":{"type":"exact_text","expected":"3"}},
+    {"id":"screen-03","family":"screenshot_grounded","prompt":"Read the dashboard. Return only the hotter B70 PCI address.","image":"assets/dashboard.svg","validator":{"type":"exact_text","expected":"09:00.0"}},
+    {"id":"screen-04","family":"screenshot_grounded","prompt":"Read the dashboard. Return only JSON mapping each B70 PCI address to temperature in C.","image":"assets/dashboard.svg","validator":{"type":"json_equal","expected":{"04:00.0":68,"09:00.0":73}}},
+    {"id":"screen-05","family":"screenshot_grounded","prompt":"Read the dashboard. Return only the available commit memory including unit.","image":"assets/dashboard.svg","validator":{"type":"exact_text","expected":"54 GB"}},
+    {"id":"screen-06","family":"screenshot_grounded","prompt":"Read the dashboard. Return only the cloud fallback p95 latency including unit.","image":"assets/dashboard.svg","validator":{"type":"exact_text","expected":"4.8 s"}},
+    {"id":"screen-07","family":"screenshot_grounded","prompt":"Read the dashboard. Return only the canary start time.","image":"assets/dashboard.svg","validator":{"type":"exact_text","expected":"18:30"}},
+    {"id":"screen-08","family":"screenshot_grounded","prompt":"Read the dashboard. Return only JSON with canary_owner and local_queue.","image":"assets/dashboard.svg","validator":{"type":"json_equal","expected":{"canary_owner":"Derek","local_queue":0}}}
+  ]
+}

@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900">
+  <rect width="1200" height="900" fill="#f8f7f2"/>
+  <rect x="70" y="55" width="1060" height="790" rx="8" fill="white" stroke="#222" stroke-width="3"/>
+  <text x="105" y="120" font-family="Arial" font-size="42" font-weight="bold">PURCHASE ORDER</text>
+  <text x="850" y="105" font-family="Arial" font-size="25">PO: CC-3842</text>
+  <text x="850" y="140" font-family="Arial" font-size="25">Date: 2026-08-21</text>
+  <text x="105" y="195" font-family="Arial" font-size="24" font-weight="bold">Vendor</text>
+  <text x="105" y="230" font-family="Arial" font-size="27">Northstar Components</text>
+  <text x="680" y="195" font-family="Arial" font-size="24" font-weight="bold">Ship to</text>
+  <text x="680" y="230" font-family="Arial" font-size="27">OMEN Lab 4B</text>
+  <line x1="105" y1="285" x2="1095" y2="285" stroke="#222" stroke-width="3"/>
+  <text x="120" y="330" font-family="Arial" font-size="24" font-weight="bold">Item</text>
+  <text x="720" y="330" font-family="Arial" font-size="24" font-weight="bold">Qty</text>
+  <text x="835" y="330" font-family="Arial" font-size="24" font-weight="bold">Unit</text>
+  <text x="985" y="330" font-family="Arial" font-size="24" font-weight="bold">Line</text>
+  <line x1="105" y1="350" x2="1095" y2="350" stroke="#777"/>
+  <text x="120" y="405" font-family="Arial" font-size="25">B70 cooling duct</text>
+  <text x="735" y="405" font-family="Arial" font-size="25">2</text>
+  <text x="830" y="405" font-family="Arial" font-size="25">$48.50</text>
+  <text x="985" y="405" font-family="Arial" font-size="25">$97.00</text>
+  <text x="120" y="465" font-family="Arial" font-size="25">NVMe heatsink</text>
+  <text x="735" y="465" font-family="Arial" font-size="25">4</text>
+  <text x="830" y="465" font-family="Arial" font-size="25">$17.25</text>
+  <text x="985" y="465" font-family="Arial" font-size="25">$69.00</text>
+  <line x1="700" y1="515" x2="1095" y2="515" stroke="#777"/>
+  <text x="780" y="560" font-family="Arial" font-size="25">Subtotal</text>
+  <text x="985" y="560" font-family="Arial" font-size="25">$166.00</text>
+  <text x="780" y="610" font-family="Arial" font-size="25">Tax</text>
+  <text x="985" y="610" font-family="Arial" font-size="25">$13.28</text>
+  <text x="780" y="665" font-family="Arial" font-size="28" font-weight="bold">Total</text>
+  <text x="985" y="665" font-family="Arial" font-size="28" font-weight="bold">$179.28</text>
+  <text x="105" y="735" font-family="Arial" font-size="25" font-weight="bold">Terms: Net 30</text>
+  <text x="105" y="790" font-family="Arial" font-size="22">Approved by: D. Mercer</text>
+</svg>

@@ -1,0 +1,128 @@
+ # Qwen 3.8 Benchmark Campaign for HEARTH
+
+  ## Summary
+
+  Benchmark both models on OMEN’s 2× Arc Pro B70s, using the current Qwen3-30B-A3B rung as the operational baseline
+  and Gemini 3.1 Pro as the frontier-quality reference.
+
+  The likely winning topology for Qwen3.8-27B is two independent Q4 replicas—one per B70, eight requests each—rather
+  than one 16-slot dual-card server. Its Q4 weights plus MTP total about 20.7 GB, leaving each card useful KV
+  headroom. Qwen3.8-27B is a dense 27B model with native 262K context and MTP; the official GGUF Q4_K_M is 19 GB plus
+  a 1.68 GB MTP model. GGUF repository
+
+  Flash-Next is a different experiment: 125B-A6B plus 51B of N-gram embeddings, with only 6B parameters active per
+  token. Its current IQ4_XS GGUF is 93.7 GB, so it cannot reside entirely in 64 GB VRAM and must use deliberate host
+  placement. Official architecture, IQ4_XS files
+
+  ## Implementation Changes
+
+  - Create an isolated campaign under E:\work\battlemage\qwen38-bench-2026-08; leave the production ArcServeBoot
+    binary, configuration, and model untouched.
+
+  - Build a separately pinned Windows/Vulkan llama.cpp version containing Qwen3.8 and qwen4exp support. Record commit,
+    compiler, driver, model revisions, hashes, chat templates, and all command lines in the run manifest.
+
+  - Treat Flash-Next measurements as provisional: current support has fresh reports of graph aborts and corrupt GPU
+    output. Preserve crash logs and continue safe cells, but never aggregate invalid completions as throughput. Graph-
+    abort report, corrupt-output report
+
+  - Reuse the burn-in campaign’s device assertion, pre-load admission probe, b70tools telemetry, event-log checks,
+    spill detection, resumable legs, and JSONL result pattern.
+
+  - Add benchmark configurations:
+      - Current Qwen3-30B-A3B Q4 dual-split baseline.
+      - Qwen3.8-27B Q4_K_M, dual-split single server.
+      - Qwen3.8-27B Q4_K_M, one replica per B70, -np 8 each, requests distributed round-robin.
+      - Both 27B topologies with MTP off/on; promote MTP only if accepted-token rate produces net goodput without
+        correctness loss.
+
+      - Flash-Next IQ4_XS dual-card with explicit CPU/GPU placement.
+      - Flash-Next Q2_K_XL only if IQ4 cannot meet the baseline goodput/latency gate or lacks adequate commit
+        headroom; its current GGUF is 78.9 GB. Q2_K_XL files
+
+  - For vision, use the matching projector/template supplied by each GGUF repository and send requests through the
+    OpenAI-compatible chat endpoint, not the legacy /completion endpoint.
+
+  ## Results Interface
+
+  Each request row will record model and artifact revision, quant, topology, MTP state, prompt/image size, context
+  depth, concurrency, TTFT, decode rate, end-to-end latency, success, tool validity, generated tokens, placement,
+  local/shared memory, thermals, energy, and failure class.
+
+  Each configuration summary will report:
+
+  - Completed jobs/hour and aggregate output tokens/second.
+  - TTFT and end-to-end p50/p95/p99.
+  - Per-request decode rate and fairness across the 16 clients.
+  - Tool-call and structured-output success rates.
+  - Frontier quality score and blinded preference.
+  - Joules per successful job.
+  - Peak local/shared memory, commit headroom, temperatures, and system events.
+
+  ## Test Plan
+
+  1. Compatibility and correctness gate
+      - Run deterministic text generation, long-context retrieval, JSON/schema, tool-call, multi-turn, MTP, and vision
+        cases.
+
+      - Detect empty output, repetition loops, invalid special tokens, corrupted text, malformed tools, inconsistent
+        image answers, process exits, and hangs.
+
+      - Compare MTP-on output validity against MTP-off before accepting its performance figures.
+
+  2. Performance characterization
+      - Run three measured rounds after a discarded warm-up.
+      - Sweep concurrency 1, 2, 4, 8, 12, 16, 24.
+      - At concurrency through 16, test approximately 512-token, 8K, and 32K prompts with fixed 200-token outputs.
+      - Test 64K and 128K separately at feasible concurrency 1, 2, 4, 8; do not imply that native context means
+        sixteen simultaneous 262K sessions fit.
+
+      - Use closed-loop saturated clients for maximum goodput and persist every request individually.
+      - For vision, sweep concurrency 1, 4, 8 using fixed document, chart, screenshot, and natural-image sets at
+        controlled resolutions.
+
+  3. HEARTH quality assay
+      - Use 48 text/tool tasks: eight each for summarization, extraction, classification, drafting, reasoning/
+        planning, and tool execution.
+
+      - Use 24 vision tasks: eight document/OCR, eight chart/diagram, and eight screenshot-grounded tasks.
+      - Run every task once deterministically; repeat the 12 most discriminating tasks across three seeds.
+      - Score executable answers mechanically first. Then compare anonymized outputs against the current rung and
+        Gemini 3.1 Pro using blinded frontier judging.
+
+      - Preserve prompts, outputs, validators, judge rubric, and judge responses for auditability.
+
+  4. Saturation and soak
+      - Run the winning topology for 60 minutes with 16 continuously saturated jobs.
+      - Abort on TDR, WHEA, Kernel-Power, process corruption, commit headroom below 6 GB, VRAM temperature at or above
+        95°C, or unplanned shared-memory growth exceeding 2 GB on two consecutive probes.
+
+      - For Flash’s intentional host placement, establish its post-load shared-memory baseline first and apply the 2
+        GB threshold to growth above that baseline.
+
+  ## Promotion Rules
+
+  - Qwen3.8-27B becomes the default rung only if it has zero correctness failures in the soak, matches or exceeds the
+    current rung’s deterministic pass rate, wins or ties at least 60% of blinded comparisons, improves 16-client
+    completed jobs/hour by at least 25%, and keeps p95 latency within 1.5× of the baseline.
+
+  - Flash-Next becomes a specialist rung if it is stable and wins at least 65% of frontier-judged big-context or
+    vision comparisons. It need not beat 27B throughput, but its quality gain must justify its host-memory and
+    residency cost.
+
+  - Any candidate that is useful but misses its promotion gate remains pin-only.
+  - Derive HEARTH’s advertised parallel_slots and context_bytes from the largest tested spill-safe configuration;
+    never copy the models’ native 262K claim into routing metadata without a measured residency proof.
+
+  - After selection, deploy pin-only for 48 hours, inspect HEARTH failures and queue latency, then change routing
+    tags/default only if the canary remains clean.
+
+  ## Assumptions
+
+  - “16 threads” means 16 simultaneous independent HEARTH jobs.
+  - Text, tools, and native vision are all in scope.
+  - IQ4_XS is Flash-Next’s primary quality configuration; Q2_K_XL is the predetermined fallback.
+  - Day-zero Flash exploration begins immediately, but unstable-backend results are labeled provisional and cannot
+    trigger production promotion.
+
+  - The current Qwen3-30B-A3B rung is restored after every benchmark window.

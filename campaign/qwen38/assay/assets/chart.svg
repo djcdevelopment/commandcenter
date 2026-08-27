@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900">
+  <rect width="1200" height="900" fill="#101725"/>
+  <text x="75" y="75" fill="white" font-family="Arial" font-size="38" font-weight="bold">HEARTH Quarterly Service Trend</text>
+  <text x="75" y="115" fill="#a8b3cf" font-family="Arial" font-size="21">Jobs/hour (bars) · p95 latency seconds (line)</text>
+  <line x1="120" y1="720" x2="1090" y2="720" stroke="#a8b3cf" stroke-width="2"/>
+  <line x1="120" y1="170" x2="120" y2="720" stroke="#a8b3cf" stroke-width="2"/>
+  <rect x="200" y="424" width="130" height="296" fill="#3987e5"/><text x="235" y="410" fill="white" font-family="Arial" font-size="28">82</text>
+  <rect x="420" y="345" width="130" height="375" fill="#3987e5"/><text x="450" y="330" fill="white" font-family="Arial" font-size="28">104</text>
+  <rect x="640" y="248" width="130" height="472" fill="#35c47c"/><text x="670" y="233" fill="white" font-family="Arial" font-size="28">131</text>
+  <rect x="860" y="266" width="130" height="454" fill="#3987e5"/><text x="890" y="251" fill="white" font-family="Arial" font-size="28">126</text>
+  <polyline points="265,260 485,380 705,500 925,440" fill="none" stroke="#ffb84d" stroke-width="8"/>
+  <circle cx="265" cy="260" r="12" fill="#ffb84d"/><text x="235" y="235" fill="#ffcf85" font-family="Arial" font-size="24">14s</text>
+  <circle cx="485" cy="380" r="12" fill="#ffb84d"/><text x="455" y="355" fill="#ffcf85" font-family="Arial" font-size="24">11s</text>
+  <circle cx="705" cy="500" r="12" fill="#ffb84d"/><text x="680" y="475" fill="#ffcf85" font-family="Arial" font-size="24">9s</text>
+  <circle cx="925" cy="440" r="12" fill="#ffb84d"/><text x="895" y="415" fill="#ffcf85" font-family="Arial" font-size="24">10s</text>
+  <text x="245" y="765" fill="white" font-family="Arial" font-size="27">Q1</text>
+  <text x="465" y="765" fill="white" font-family="Arial" font-size="27">Q2</text>
+  <text x="685" y="765" fill="white" font-family="Arial" font-size="27">Q3</text>
+  <text x="905" y="765" fill="white" font-family="Arial" font-size="27">Q4</text>
+  <text x="145" y="835" fill="#d7deef" font-family="Arial" font-size="23">Failed jobs: Q1 7 · Q2 5 · Q3 2 · Q4 3</text>
+</svg>

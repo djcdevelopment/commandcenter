@@ -1,0 +1,77 @@
+{
+  "contract_version": "qwen38-artifacts.v1",
+  "artifacts": [
+    {
+      "id": "qwen3-30b-baseline",
+      "role": "model",
+      "required": true,
+      "revision": "local-production-baseline",
+      "quant": "Q4_K_M",
+      "path": "E:\\work\\battlemage\\models\\Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf"
+    },
+    {
+      "id": "qwen38-27b",
+      "role": "model",
+      "required": true,
+      "repo": "ggml-org/Qwen3.8-27B-GGUF",
+      "revision": "0669b98607d47046c7c2b3f801011d54a08cfccf",
+      "quant": "Q4_K_M",
+      "filename": "Qwen3.8-27B-Q4_K_M.gguf",
+      "path": "E:\\work\\battlemage\\models\\qwen38\\Qwen3.8-27B-Q4_K_M.gguf"
+    },
+    {
+      "id": "qwen38-27b-mtp",
+      "role": "draft_model",
+      "required": true,
+      "repo": "ggml-org/Qwen3.8-27B-GGUF",
+      "revision": "0669b98607d47046c7c2b3f801011d54a08cfccf",
+      "quant": "Q4_0",
+      "filename": "mtp-Qwen3.8-27B-Q4_0.gguf",
+      "path": "E:\\work\\battlemage\\models\\qwen38\\mtp-Qwen3.8-27B-Q4_0.gguf"
+    },
+    {
+      "id": "qwen38-27b-mmproj",
+      "role": "mmproj",
+      "required": true,
+      "repo": "ggml-org/Qwen3.8-27B-GGUF",
+      "revision": "0669b98607d47046c7c2b3f801011d54a08cfccf",
+      "quant": "Q8_0",
+      "filename": "mmproj-Qwen3.8-27B-Q8_0.gguf",
+      "path": "E:\\work\\battlemage\\models\\qwen38\\mmproj-Qwen3.8-27B-Q8_0.gguf"
+    },
+    {
+      "id": "qwen38-flash-next-iq4",
+      "role": "model",
+      "required": false,
+      "repo": "unsloth/Qwen3.8-Flash-Next-GGUF",
+      "revision": "824f539b2710e5a9e47af4952cf6578cf5ee8932",
+      "quant": "IQ4_XS",
+      "filename": "UD-IQ4_XS/Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf",
+      "local_dir": "E:\\work\\battlemage\\models\\qwen38-flash-next",
+      "path": "E:\\work\\battlemage\\models\\qwen38-flash-next\\UD-IQ4_XS\\Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf",
+      "parts": 3
+    },
+    {
+      "id": "qwen38-flash-next-q2",
+      "role": "model_fallback",
+      "required": false,
+      "repo": "unsloth/Qwen3.8-Flash-Next-GGUF",
+      "revision": "824f539b2710e5a9e47af4952cf6578cf5ee8932",
+      "quant": "Q2_K_XL",
+      "filename": "UD-Q2_K_XL/Qwen3.8-Flash-Next-UD-Q2_K_XL-00001-of-00003.gguf",
+      "local_dir": "E:\\work\\battlemage\\models\\qwen38-flash-next",
+      "path": "E:\\work\\battlemage\\models\\qwen38-flash-next\\UD-Q2_K_XL\\Qwen3.8-Flash-Next-UD-Q2_K_XL-00001-of-00003.gguf",
+      "parts": 3
+    },
+    {
+      "id": "qwen38-flash-next-mmproj",
+      "role": "mmproj",
+      "required": false,
+      "repo": "unsloth/Qwen3.8-Flash-Next-GGUF",
+      "revision": "824f539b2710e5a9e47af4952cf6578cf5ee8932",
+      "quant": "F16",
+      "filename": "mmproj-F16.gguf",
+      "path": "E:\\work\\battlemage\\models\\qwen38-flash-next\\mmproj-F16.gguf"
+    }
+  ]
+}

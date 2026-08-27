@@ -159,14 +159,19 @@ is the whole display stack.
 
 ## Do not
 
-- **Do not use the `josh5/steam-headless` container.** The image is still on disk and
-  `~/comfy-valheim-lab/docker-compose.yml` still references it, but its GPU wiring is
-  stale — `NVIDIA_VISIBLE_DEVICES: "void"` plus `/dev/dri` was written for the Arc
-  B70s that left in the 2026-08-20 rebuild. It existed only to supply a running Steam
-  client, which native Steam now does.
+- **Do not rebuild the `josh5/steam-headless` container.** Deleted 2026-08-27 — image
+  removed and `docker-compose.yml` renamed to `docker-compose.yml.retired-20260827`.
+  It existed only to supply a running Steam client, which native Steam now does, and
+  its GPU wiring was stale anyway: `NVIDIA_VISIBLE_DEVICES: "void"` plus `/dev/dri`
+  was written for the Arc B70s that left in the 2026-08-20 rebuild. Reclaimed 7 GB.
+  Note a container image is also the wrong shape for this job — it would need GPU
+  passthrough that the retired compose explicitly disabled.
 - **Do not confuse the dedicated server with the client.** `server-compose.yml`
   (`ghcr.io/community-valheim-tools/valheim-server`) uses **anonymous** steamcmd and
-  never needed an account. The client does.
+  never needed an account. The client does. That server side is **live and holds
+  7.6 GB of world state** in `~/comfy-valheim-lab/server-state/` — do not clean it up
+  alongside client leftovers. `state/client-shared/` (288 KB) also survives: it holds
+  a `teleport-route.tsv` that may exist nowhere else.
 - **Do not `pkill -f valheim.x86_64`** over SSH. The pattern matches your own command
   line and kills the shell running it — silently, mid-script. Use `pkill -x`.
 

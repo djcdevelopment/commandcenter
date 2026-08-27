@@ -167,6 +167,13 @@ class SourceValidationTests(unittest.TestCase):
             # A stale abort receipt from before this run must not re-authorize it.
             with self.assertRaisesRegex(ValueError, "stale"):
                 build(abort={**abort, "aborted_at": "2026-08-26T00:00:00Z"})
+            # Offsets and Z must be compared as instants, not as strings: this
+            # stamp sorts BEFORE the lock lexically but is 2 h after it in UTC.
+            self.assertTrue(
+                build(abort={**abort, "aborted_at": "2026-08-27T00:00:00.9526225-02:00"})[
+                    "model_and_engine_identity_unchanged"
+                ]
+            )
             # The deep-context abort is an accepted authorizing stage too.
             self.assertTrue(
                 build(abort={**abort, "stage": "dual-context-d131072-c1"})["model_and_engine_identity_unchanged"]
@@ -205,10 +212,10 @@ class SourceValidationTests(unittest.TestCase):
         stage = (campaign.SOURCE_ROOT / "scripts" / "03-qwen27-performance.ps1").read_text(encoding="utf-8")
         # The watchdog writes a passed receipt even when the request runner died,
         # so the receipt alone must never be enough to skip a leg.
-        self.assertIn("ExpectedSuccessRows", lib)
+        self.assertIn("ExpectedAttemptedRows", lib)
         self.assertIn("results\\requests\\{0}.jsonl", lib)
         self.assertLess(lib.index("$successful.Count -lt 1"), lib.index("return $true"))
-        self.assertIn("-ExpectedSuccessRows $expectedRows", invoke)
+        self.assertIn("-ExpectedAttemptedRows $expectedRows", invoke)
         # -Force has to reach the per-leg gate, not just the stage receipt.
         self.assertIn("QWEN38_FORCE_LEGS", lib)
         self.assertIn("$env:QWEN38_FORCE_LEGS = '1'", stage)

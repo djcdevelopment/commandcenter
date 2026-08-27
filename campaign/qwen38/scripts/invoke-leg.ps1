@@ -21,11 +21,12 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib.ps1')
 
 $root = Get-Q38RuntimeRoot
-# A closed-loop Load leg has a knowable row count, so a crashed or partial leg can
-# be told apart from a complete one. Assay and duration-bounded soak legs do not,
-# so they fall back to "at least one successful row".
+# A closed-loop Load leg has a knowable request count, so a leg that never got to
+# attempt its requests can be told apart from one that attempted them all and had
+# some fail. Assay and duration-bounded soak legs have no fixed count, so they
+# fall back to "at least one successful row".
 $expectedRows = if ($Kind -eq 'Load' -and $DurationSeconds -le 0) { $Concurrency * $RequestsPerClient } else { 0 }
-if (Test-Q38LegPassed -RunId $RunId -ExpectedSuccessRows $expectedRows) {
+if (Test-Q38LegPassed -RunId $RunId -ExpectedAttemptedRows $expectedRows) {
     Write-Host "Leg $RunId already has a complete measurement set; preserving and skipping."
     exit 0
 }

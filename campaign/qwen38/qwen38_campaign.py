@@ -474,6 +474,28 @@ THERMAL_ABORT_STAGES = (
 )
 
 
+def _parse_iso_instant(value: str) -> dt.datetime:
+    """Parse an ISO-8601 stamp to an absolute instant.
+
+    PowerShell writes local time with an offset ('...-07:00') while Python writes
+    UTC ('...Z'), and some stamps carry 7 fractional digits. Comparing these as
+    strings silently compares different clocks, so normalize before any ordering.
+    """
+    text = value.strip()
+    if text.endswith(("Z", "z")):
+        text = text[:-1] + "+00:00"
+    fractional = re.search(r"\.(\d+)", text)
+    if fractional and len(fractional.group(1)) > 6:
+        text = text.replace("." + fractional.group(1), "." + fractional.group(1)[:6], 1)
+    try:
+        parsed = dt.datetime.fromisoformat(text)
+    except ValueError as exc:
+        raise ValueError(f"cannot parse timestamp {value!r} to an absolute instant") from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=dt.timezone.utc)
+    return parsed
+
+
 def _canonical_block_sha256(config: dict[str, Any], keys: Iterable[str]) -> str:
     """Hash selected config blocks semantically, so CRLF/LF never masks a real change."""
     selected = {key: config.get(key) for key in keys}
@@ -533,7 +555,9 @@ def build_resume_amendment(
     locked_at = str(archived_manifest.get("locked_at") or "")
     if not aborted_at:
         raise ValueError("abort receipt carries no aborted_at timestamp to bind it to this run")
-    if locked_at and aborted_at < locked_at:
+    aborted_moment = _parse_iso_instant(aborted_at)
+    locked_moment = _parse_iso_instant(locked_at) if locked_at else None
+    if locked_moment is not None and aborted_moment < locked_moment:
         raise ValueError(
             f"abort receipt predates the archived lock ({aborted_at} < {locked_at}); evidence is stale"
         )

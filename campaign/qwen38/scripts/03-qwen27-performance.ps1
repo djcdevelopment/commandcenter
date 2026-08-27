@@ -164,7 +164,7 @@ try {
                 # heat: each cell used to start from wherever the previous one left
                 # the cards. Cool to the configured ceiling first so a cell is
                 # measured on its own thermal merits.
-                if (-not (Test-Q38LegPassed -RunId $cell -ExpectedSuccessRows ($concurrency * [int]$config.generation.measured_rounds))) {
+                if (-not (Test-Q38LegPassed -RunId $cell -ExpectedAttemptedRows ($concurrency * [int]$config.generation.measured_rounds))) {
                     $cooledTo = Wait-Q38ThermalHeadroom -Label $cell
                     Write-Host "Cooled to $cooledTo C before $cell"
                 }

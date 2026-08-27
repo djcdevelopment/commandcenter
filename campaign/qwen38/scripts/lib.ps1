@@ -301,7 +301,7 @@ function Test-Q38ReceiptPassed {
 function Test-Q38LegPassed {
     param(
         [Parameter(Mandatory = $true)][string]$RunId,
-        [int]$ExpectedSuccessRows = 0
+        [int]$ExpectedAttemptedRows = 0
     )
     if ($env:QWEN38_FORCE_LEGS -eq '1') { return $false }
     $root = Get-Q38RuntimeRoot
@@ -322,14 +322,20 @@ function Test-Q38LegPassed {
     # so require the measurements themselves before treating a leg as done.
     $requests = Join-Path $root ("results\requests\{0}.jsonl" -f $RunId)
     if (-not (Test-Path -LiteralPath $requests)) { return $false }
+    $attempted = New-Object 'System.Collections.Generic.HashSet[string]'
     $successful = New-Object 'System.Collections.Generic.HashSet[string]'
     foreach ($line in (Get-Content -LiteralPath $requests -Encoding UTF8)) {
         if (-not $line.Trim()) { continue }
         try { $parsed = $line | ConvertFrom-Json } catch { continue }
+        [void]$attempted.Add([string]$parsed.request_id)
         if ($parsed.success) { [void]$successful.Add([string]$parsed.request_id) }
     }
+    # Completeness is about COVERAGE, not success: a request that timed out at
+    # depth is a measurement, not a gap, and re-running it would burn hours to
+    # re-observe the same timeout. What must never be skipped is a leg that never
+    # got to attempt its requests, or one where every attempt died.
     if ($successful.Count -lt 1) { return $false }
-    if ($ExpectedSuccessRows -gt 0 -and $successful.Count -lt $ExpectedSuccessRows) { return $false }
+    if ($ExpectedAttemptedRows -gt 0 -and $attempted.Count -lt $ExpectedAttemptedRows) { return $false }
     return $true
 }
 

@@ -299,18 +299,70 @@ function Test-Q38ReceiptPassed {
 }
 
 function Test-Q38LegPassed {
-    param([Parameter(Mandatory = $true)][string]$RunId)
-    $path = Join-Path (Get-Q38RuntimeRoot) ("results\telemetry\watchdog-{0}-passed.json" -f $RunId)
+    param(
+        [Parameter(Mandatory = $true)][string]$RunId,
+        [int]$ExpectedSuccessRows = 0
+    )
+    if ($env:QWEN38_FORCE_LEGS -eq '1') { return $false }
+    $root = Get-Q38RuntimeRoot
+    $path = Join-Path $root ("results\telemetry\watchdog-{0}-passed.json" -f $RunId)
     if (-not (Test-Path -LiteralPath $path)) { return $false }
     try {
         $row = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
         if ([string]$row.contract_version -ne 'qwen38-watchdog-result.v1') { return $false }
         if ([string]$row.status -ne 'passed' -or [string]$row.stage -ne $RunId) { return $false }
         if (-not (Test-Path -LiteralPath ([string]$row.telemetry))) { return $false }
-        return $true
     } catch {
         return $false
     }
+    # A watchdog receipt certifies only that no safety line tripped. It is written
+    # even when the request runner died, because invoke-leg drops the stop file in
+    # its finally block on the failure path too. Skipping a leg on that receipt
+    # alone would turn a crashed leg into a permanent silent hole in the matrix,
+    # so require the measurements themselves before treating a leg as done.
+    $requests = Join-Path $root ("results\requests\{0}.jsonl" -f $RunId)
+    if (-not (Test-Path -LiteralPath $requests)) { return $false }
+    $successful = New-Object 'System.Collections.Generic.HashSet[string]'
+    foreach ($line in (Get-Content -LiteralPath $requests -Encoding UTF8)) {
+        if (-not $line.Trim()) { continue }
+        try { $parsed = $line | ConvertFrom-Json } catch { continue }
+        if ($parsed.success) { [void]$successful.Add([string]$parsed.request_id) }
+    }
+    if ($successful.Count -lt 1) { return $false }
+    if ($ExpectedSuccessRows -gt 0 -and $successful.Count -lt $ExpectedSuccessRows) { return $false }
+    return $true
+}
+
+function Wait-Q38ThermalHeadroom {
+    <#
+        Cools between legs. The 2026-08-27 campaign lost two topologies to
+        thermal aborts because every cell started from wherever the previous one
+        left the cards; the config already carried temperature_resume_* keys but
+        nothing consumed them between legs. Failure here is deliberately NOT
+        prefixed FATAL SAFETY so the caller can quarantine the cell and continue
+        rather than killing the campaign.
+    #>
+    param([string]$Label = 'leg')
+    $config = Get-Q38Config
+    $ceiling = [double]$config.safety.temperature_resume_below_c
+    $needed = [int]$config.safety.temperature_resume_consecutive_samples
+    $timeoutSeconds = [int]$config.safety.temperature_resume_timeout_s
+    $adapters = @(Resolve-Q38B70Adapters)
+    $deadline = (Get-Date).AddSeconds($timeoutSeconds)
+    $consecutive = 0
+    $last = $null
+    while ((Get-Date) -lt $deadline) {
+        try {
+            $sample = Get-Q38B70TelemetrySample -Adapters $adapters -Label "cooldown-$Label"
+            $last = [double]$sample.max_temperature_c
+        } catch {
+            throw "FATAL SAFETY: cooldown telemetry unavailable before ${Label}: $($_.Exception.Message)"
+        }
+        if ($last -le $ceiling) { $consecutive++ } else { $consecutive = 0 }
+        if ($consecutive -ge $needed) { return $last }
+        Start-Sleep -Seconds ([int]$config.safety.sample_interval_s)
+    }
+    throw "Cards did not cool to $ceiling C within $timeoutSeconds s before ${Label} (last sample ${last} C)"
 }
 
 function Assert-Q38ThermalQuarantineEvidence {
@@ -334,7 +386,9 @@ function Assert-Q38ThermalQuarantineEvidence {
     }
     if ([string]$amendment.contract_version -ne 'qwen38-resume-amendment.v1' -or
         [string]$amendment.decision -ne 'operator_acknowledged_replica_thermal_quarantine' -or
-        -not [bool]$amendment.unchanged_inputs_proved) {
+        -not [bool]$amendment.model_and_engine_identity_unchanged -or
+        -not [bool]$amendment.gate_constants_unchanged -or
+        -not [bool]$amendment.task_set_unchanged) {
         throw 'Resume amendment does not authorize the reviewed thermal quarantine'
     }
     $requiredTopologies = @('qwen27-replica-production', 'qwen27-replica-throughput')

@@ -21,8 +21,12 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib.ps1')
 
 $root = Get-Q38RuntimeRoot
-if (Test-Q38LegPassed -RunId $RunId) {
-    Write-Host "Leg $RunId already has a valid watchdog receipt; preserving and skipping."
+# A closed-loop Load leg has a knowable row count, so a crashed or partial leg can
+# be told apart from a complete one. Assay and duration-bounded soak legs do not,
+# so they fall back to "at least one successful row".
+$expectedRows = if ($Kind -eq 'Load' -and $DurationSeconds -le 0) { $Concurrency * $RequestsPerClient } else { 0 }
+if (Test-Q38LegPassed -RunId $RunId -ExpectedSuccessRows $expectedRows) {
+    Write-Host "Leg $RunId already has a complete measurement set; preserving and skipping."
     exit 0
 }
 $serverState = Get-Content -LiteralPath (Join-Path $root 'state\servers.json') -Raw -Encoding UTF8 | ConvertFrom-Json

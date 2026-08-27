@@ -464,6 +464,44 @@ def _locked_input_identity(manifest: dict[str, Any]) -> dict[str, Any]:
     return {"engines": engines, "artifacts": artifacts}
 
 
+GATE_BLOCK_KEYS = ("promotion", "quality", "generation")
+
+# Legs whose watchdog abort may authorize a thermal quarantine. Both were reached
+# on 2026-08-27: replica-per-card at a light cell, then the deep dual-context tier.
+THERMAL_ABORT_STAGES = (
+    "qwen27-replica-production-mtp-off-p512-c4",
+    "dual-context-d131072-c1",
+)
+
+
+def _canonical_block_sha256(config: dict[str, Any], keys: Iterable[str]) -> str:
+    """Hash selected config blocks semantically, so CRLF/LF never masks a real change."""
+    selected = {key: config.get(key) for key in keys}
+    return sha256_value(selected)
+
+
+def _config_at_revision(revision: str | None) -> dict[str, Any] | None:
+    """Recover campaign.json as of a git revision, for archived-vs-current gate comparison."""
+    if not revision:
+        return None
+    repo = Path(campaign_config()["commandcenter_root"])
+    relative = CONFIG_PATH.resolve().relative_to(repo.resolve()).as_posix()
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(repo), "show", f"{revision}:{relative}"],
+            capture_output=True,
+            check=False,
+        )
+    except OSError:
+        return None
+    if completed.returncode != 0:
+        return None
+    try:
+        return json.loads(completed.stdout.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return None
+
+
 def build_resume_amendment(
     archived_manifest: dict[str, Any],
     current_manifest: dict[str, Any],
@@ -474,24 +512,63 @@ def build_resume_amendment(
     archived_source_receipt_path: Path,
     abort_path: Path,
     current_manifest_path: Path,
+    expected_stages: Iterable[str] = THERMAL_ABORT_STAGES,
 ) -> dict[str, Any]:
-    expected_stage = "qwen27-replica-production-mtp-off-p512-c4"
+    expected = tuple(expected_stages)
     if archived_manifest.get("contract_version") != "qwen38-run-manifest.v1":
         raise ValueError("archived run manifest has the wrong contract")
     if current_manifest.get("contract_version") != "qwen38-run-manifest.v1":
         raise ValueError("current run manifest has the wrong contract")
     if abort.get("contract_version") != "qwen38-watchdog-abort.v1":
         raise ValueError("thermal abort receipt has the wrong contract")
-    if abort.get("stage") != expected_stage:
-        raise ValueError(f"thermal abort stage is {abort.get('stage')!r}; expected {expected_stage!r}")
+    if abort.get("stage") not in expected:
+        raise ValueError(f"thermal abort stage is {abort.get('stage')!r}; expected one of {expected!r}")
     max_temperature = float((abort.get("sample") or {}).get("max_temperature_c", -math.inf))
     abort_line = float(campaign_config()["safety"]["vram_temperature_abort_c"])
     if max_temperature < abort_line or "temperature" not in str(abort.get("reason", "")).casefold():
         raise ValueError("abort receipt does not prove a threshold-crossing temperature event")
+    # Bind the evidence to THIS run: a stale abort receipt from an earlier campaign
+    # must not be able to re-authorize a quarantine forever.
+    aborted_at = str(abort.get("aborted_at") or "")
+    locked_at = str(archived_manifest.get("locked_at") or "")
+    if not aborted_at:
+        raise ValueError("abort receipt carries no aborted_at timestamp to bind it to this run")
+    if locked_at and aborted_at < locked_at:
+        raise ValueError(
+            f"abort receipt predates the archived lock ({aborted_at} < {locked_at}); evidence is stale"
+        )
     old_inputs = _locked_input_identity(archived_manifest)
     new_inputs = _locked_input_identity(current_manifest)
     if old_inputs != new_inputs:
         raise ValueError("model or engine identity changed across the resume patch")
+
+    # The model/engine check above says nothing about the campaign config or the
+    # task set - the files that carry the promotion gate constants, the safety
+    # abort lines and the deterministic pass-rate corpus. Prove those separately
+    # and report every hash that moved, rather than emitting one broad boolean.
+    current_config = campaign_config()
+    archived_config = _config_at_revision(archived_source_receipt.get("commandcenter_revision"))
+    current_gate_hash = _canonical_block_sha256(current_config, GATE_BLOCK_KEYS)
+    archived_gate_hash = (
+        _canonical_block_sha256(archived_config, GATE_BLOCK_KEYS) if archived_config is not None else None
+    )
+    config_unchanged = archived_manifest.get("campaign_config_sha256") == current_manifest.get(
+        "campaign_config_sha256"
+    )
+    if archived_gate_hash is not None:
+        gate_constants_unchanged = archived_gate_hash == current_gate_hash
+        gate_evidence = "reconstructed archived config from git and compared promotion/quality/generation blocks"
+    elif config_unchanged:
+        gate_constants_unchanged = True
+        gate_evidence = "campaign_config_sha256 identical across the resume"
+    else:
+        gate_constants_unchanged = False
+        gate_evidence = "campaign config changed and the archived revision could not be recovered from git"
+    task_set_unchanged = archived_manifest.get("task_set_sha256") == current_manifest.get("task_set_sha256")
+    if not task_set_unchanged:
+        raise ValueError("assay task set changed across the resume patch; deterministic pass rates are not comparable")
+    if not gate_constants_unchanged:
+        raise ValueError(f"promotion/quality/generation constants changed across the resume patch ({gate_evidence})")
     return {
         "contract_version": "qwen38-resume-amendment.v1",
         "created_at": utc_now(),
@@ -523,8 +600,46 @@ def build_resume_amendment(
             "reason": abort.get("reason"),
             "max_temperature_c": max_temperature,
         },
-        "unchanged_inputs_proved": True,
+        # Named for exactly what each one proves. The predecessor field was a
+        # single "unchanged_inputs_proved" that compared only engine and model
+        # bytes, while campaign.json - which carries the safety abort lines and
+        # every promotion gate constant - could drift unnoticed underneath it.
+        "model_and_engine_identity_unchanged": True,
         "input_identity_sha256": sha256_value(new_inputs),
+        "gate_constants_unchanged": True,
+        "gate_constants_evidence": gate_evidence,
+        "gate_constants_sha256": current_gate_hash,
+        "task_set_unchanged": True,
+        "config_drift": {
+            "campaign_config_sha256": {
+                "archived": archived_manifest.get("campaign_config_sha256"),
+                "current": current_manifest.get("campaign_config_sha256"),
+                "changed": not config_unchanged,
+            },
+            "artifacts_config_sha256": {
+                "archived": archived_manifest.get("artifacts_config_sha256"),
+                "current": current_manifest.get("artifacts_config_sha256"),
+                "changed": archived_manifest.get("artifacts_config_sha256")
+                != current_manifest.get("artifacts_config_sha256"),
+            },
+            "task_set_sha256": {
+                "archived": archived_manifest.get("task_set_sha256"),
+                "current": current_manifest.get("task_set_sha256"),
+                "changed": False,
+            },
+            "source_tree_sha256": {
+                "archived": archived_manifest.get("source_tree_sha256"),
+                "current": current_manifest.get("source_tree_sha256"),
+                "changed": archived_manifest.get("source_tree_sha256")
+                != current_manifest.get("source_tree_sha256"),
+            },
+            "note": (
+                "A changed campaign_config_sha256 or source_tree_sha256 is expected when the harness "
+                "is patched between legs; it is reported, not suppressed. What must NOT change is "
+                "proved above: model bytes, engine binary, the assay task set, and the "
+                "promotion/quality/generation constants."
+            ),
+        },
     }
 
 
@@ -2205,6 +2320,7 @@ def command_resume_amendment(args: argparse.Namespace) -> int:
         archived_source_receipt_path=archived_source_receipt_path,
         abort_path=abort_path,
         current_manifest_path=current_manifest_path,
+        expected_stages=tuple(args.expected_stage) if args.expected_stage else THERMAL_ABORT_STAGES,
     )
     output = Path(args.output) if args.output else root / "state/resume-amendment.json"
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -2322,6 +2438,11 @@ def build_parser() -> argparse.ArgumentParser:
     amendment.add_argument("--archived-manifest", required=True)
     amendment.add_argument("--archived-source-receipt", required=True)
     amendment.add_argument("--abort")
+    amendment.add_argument(
+        "--expected-stage",
+        action="append",
+        help="leg id the abort receipt must name; repeatable (default: the known thermal-abort legs)",
+    )
     amendment.add_argument("--output")
     amendment.set_defaults(func=command_resume_amendment)
 

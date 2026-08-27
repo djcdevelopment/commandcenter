@@ -7,6 +7,9 @@ $ErrorActionPreference = 'Stop'
 
 $stage = '03-qwen27-performance'
 if ((Test-Q38ReceiptPassed $stage) -and -not $Force) { Write-Host "$stage already passed; skipping"; exit 0 }
+# -Force has to reach the per-leg gate too, or it re-walks the matrix, skips every
+# leg on its existing receipt, and rewrites a green stage receipt without measuring.
+if ($Force) { $env:QWEN38_FORCE_LEGS = '1' }
 Assert-Q38Maintenance | Out-Null
 $config = Get-Q38Config
 $root = Get-Q38RuntimeRoot
@@ -138,10 +141,33 @@ try {
         }
     }
 
-    foreach ($depth in @(32768, 65536, 131072, 262144)) {
-        foreach ($concurrency in @(1, 2, 4, 8)) {
+    $infeasibleDepths = @($config.thermal_quarantine.context_depths_infeasible | ForEach-Object { [int]$_ })
+    foreach ($depth in @($config.matrix.context_depths | ForEach-Object { [int]$_ })) {
+        if ($AcknowledgeThermalQuarantine -and $infeasibleDepths -contains $depth) {
+            # Recorded, not silently dropped: the declared matrix still shows the
+            # tier was intended, and every skipped cell carries its abort evidence.
+            foreach ($concurrency in @($config.matrix.context_concurrency | ForEach-Object { [int]$_ })) {
+                $skipped = "dual-context-d$depth-c$concurrency"
+                if (Test-Q38LegPassed -RunId $skipped) { continue }
+                Record-Quarantine -Cell $skipped -Topology 'qwen27-dual-context' `
+                    -Disposition 'skipped-thermal-quarantine' `
+                    -Reason ([string]$config.thermal_quarantine.reason) `
+                    -Evidence (Join-Path $root ("results\telemetry\watchdog-{0}-abort.json" -f $config.thermal_quarantine.evidence_stage)) `
+                    -TemperatureC ([double]$config.thermal_quarantine.observed_temperature_c)
+            }
+            continue
+        }
+        foreach ($concurrency in @($config.matrix.context_concurrency | ForEach-Object { [int]$_ })) {
             $cell = "dual-context-d$depth-c$concurrency"
             try {
+                # The deep-context ladder is where this campaign lost a topology to
+                # heat: each cell used to start from wherever the previous one left
+                # the cards. Cool to the configured ceiling first so a cell is
+                # measured on its own thermal merits.
+                if (-not (Test-Q38LegPassed -RunId $cell -ExpectedSuccessRows ($concurrency * [int]$config.generation.measured_rounds))) {
+                    $cooledTo = Wait-Q38ThermalHeadroom -Label $cell
+                    Write-Host "Cooled to $cooledTo C before $cell"
+                }
                 & (Join-Path $PSScriptRoot 'server-control.ps1') -Action Start -Topology 'qwen27-dual-context' `
                     -ParallelPerServer $concurrency -SlotDepth $depth -Vision
                 & (Join-Path $PSScriptRoot 'invoke-leg.ps1') -RunId $cell -Candidate 'qwen38-27b' `

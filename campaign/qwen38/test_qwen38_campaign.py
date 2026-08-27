@@ -70,10 +70,13 @@ class SourceValidationTests(unittest.TestCase):
             self.assertIn("r1", campaign._existing_ids(path, "success"))
 
     def test_resume_amendment_requires_unchanged_locked_inputs_and_thermal_evidence(self) -> None:
-        def manifest(source_hash: str) -> dict:
+        def manifest(source_hash: str, config_hash: str = "c" * 64, task_hash: str = "d" * 64) -> dict:
             return {
                 "contract_version": "qwen38-run-manifest.v1",
                 "source_tree_sha256": source_hash,
+                "locked_at": "2026-08-27T00:00:00Z",
+                "campaign_config_sha256": config_hash,
+                "task_set_sha256": task_hash,
                 "engines": [
                     {
                         "role": "campaign",
@@ -110,6 +113,7 @@ class SourceValidationTests(unittest.TestCase):
             abort = {
                 "contract_version": "qwen38-watchdog-abort.v1",
                 "stage": "qwen27-replica-production-mtp-off-p512-c4",
+                "aborted_at": "2026-08-27T06:40:45Z",
                 "reason": "GPU/VRAM temperature 96 C reached abort line",
                 "sample": {"max_temperature_c": 96},
             }
@@ -130,12 +134,44 @@ class SourceValidationTests(unittest.TestCase):
                 abort_path=abort_path,
                 current_manifest_path=current_path,
             )
-            self.assertTrue(amendment["unchanged_inputs_proved"])
+            self.assertTrue(amendment["model_and_engine_identity_unchanged"])
+            self.assertTrue(amendment["gate_constants_unchanged"])
+            self.assertTrue(amendment["task_set_unchanged"])
             self.assertEqual(96, amendment["abort_evidence"]["max_temperature_c"])
             self.assertEqual(
                 ["qwen27-replica-production", "qwen27-replica-throughput"],
                 amendment["quarantined_topologies"],
             )
+            # Source drift is reported rather than suppressed, and is not itself a bar.
+            self.assertTrue(amendment["config_drift"]["source_tree_sha256"]["changed"])
+            self.assertNotIn("unchanged_inputs_proved", amendment)
+
+            def build(**overrides):
+                return campaign.build_resume_amendment(
+                    overrides.get("old", old),
+                    overrides.get("current", current),
+                    source,
+                    overrides.get("abort", abort),
+                    archived_manifest_path=archived_path,
+                    archived_source_receipt_path=source_path,
+                    abort_path=abort_path,
+                    current_manifest_path=current_path,
+                )
+
+            # A changed assay task set makes deterministic pass rates incomparable.
+            with self.assertRaisesRegex(ValueError, "task set changed"):
+                build(current=manifest("6" * 64, task_hash="e" * 64))
+            # Gate constants that cannot be proved unchanged must block the resume.
+            with self.assertRaisesRegex(ValueError, "constants changed"):
+                build(current=manifest("6" * 64, config_hash="f" * 64))
+            # A stale abort receipt from before this run must not re-authorize it.
+            with self.assertRaisesRegex(ValueError, "stale"):
+                build(abort={**abort, "aborted_at": "2026-08-26T00:00:00Z"})
+            # The deep-context abort is an accepted authorizing stage too.
+            self.assertTrue(
+                build(abort={**abort, "stage": "dual-context-d131072-c1"})["model_and_engine_identity_unchanged"]
+            )
+
             current["artifacts"][0]["parts_locked"][0]["sha256"] = "8" * 64
             with self.assertRaisesRegex(ValueError, "model or engine identity changed"):
                 campaign.build_resume_amendment(
@@ -162,6 +198,36 @@ class SourceValidationTests(unittest.TestCase):
         self.assertIn("if (-not $AcknowledgeThermalQuarantine)", stage)
         self.assertIn("-AcknowledgeThermalQuarantine:$AcknowledgeThermalQuarantine", runner)
         self.assertIn("adapter_temperatures = $adapterTemperatures", watchdog)
+
+    def test_leg_skip_requires_measurements_not_just_a_watchdog_receipt(self) -> None:
+        lib = (campaign.SOURCE_ROOT / "scripts" / "lib.ps1").read_text(encoding="utf-8")
+        invoke = (campaign.SOURCE_ROOT / "scripts" / "invoke-leg.ps1").read_text(encoding="utf-8")
+        stage = (campaign.SOURCE_ROOT / "scripts" / "03-qwen27-performance.ps1").read_text(encoding="utf-8")
+        # The watchdog writes a passed receipt even when the request runner died,
+        # so the receipt alone must never be enough to skip a leg.
+        self.assertIn("ExpectedSuccessRows", lib)
+        self.assertIn("results\\requests\\{0}.jsonl", lib)
+        self.assertLess(lib.index("$successful.Count -lt 1"), lib.index("return $true"))
+        self.assertIn("-ExpectedSuccessRows $expectedRows", invoke)
+        # -Force has to reach the per-leg gate, not just the stage receipt.
+        self.assertIn("QWEN38_FORCE_LEGS", lib)
+        self.assertIn("$env:QWEN38_FORCE_LEGS = '1'", stage)
+
+    def test_deep_context_quarantine_is_config_driven_and_evidenced(self) -> None:
+        config = campaign.campaign_config()
+        quarantine = config["thermal_quarantine"]
+        self.assertEqual([131072, 262144], list(quarantine["context_depths_infeasible"]))
+        self.assertIn(quarantine["evidence_stage"], campaign.THERMAL_ABORT_STAGES)
+        self.assertGreaterEqual(
+            float(quarantine["observed_temperature_c"]),
+            float(config["safety"]["vram_temperature_abort_c"]),
+        )
+        stage = (campaign.SOURCE_ROOT / "scripts" / "03-qwen27-performance.ps1").read_text(encoding="utf-8")
+        # Quarantined depths must still be recorded per cell, and only under
+        # explicit operator acknowledgment.
+        self.assertIn("context_depths_infeasible", stage)
+        self.assertIn("$AcknowledgeThermalQuarantine -and $infeasibleDepths -contains $depth", stage)
+        self.assertIn("Wait-Q38ThermalHeadroom", stage)
 
 
 class RequestContractTests(unittest.TestCase):

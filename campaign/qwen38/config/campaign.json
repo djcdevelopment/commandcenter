@@ -44,7 +44,9 @@
     "temperature_resume_timeout_s": 600,
     "health_failures_abort": 3,
     "sample_interval_s": 10,
-    "event_ids": [4101],
+    "event_ids": [
+      4101
+    ],
     "event_providers": [
       "Microsoft-Windows-WHEA-Logger",
       "Microsoft-Windows-Kernel-Power"
@@ -60,34 +62,96 @@
     "measured_rounds": 3
   },
   "matrix": {
-    "concurrency": [1, 2, 4, 8, 12, 16, 24],
-    "throughput_slot_depths": [8192, 16384],
-    "context_depths": [32768, 65536, 131072, 262144],
-    "context_concurrency": [1, 2, 4, 8],
-    "vision_concurrency": [1, 4, 8],
-    "flash_gpu_layer_ladder": [0, 8, 9, 16, 24, 32, 40, 48]
+    "concurrency": [
+      1,
+      2,
+      4,
+      8,
+      12,
+      16,
+      24
+    ],
+    "throughput_slot_depths": [
+      8192,
+      16384
+    ],
+    "context_depths": [
+      32768,
+      65536,
+      131072,
+      262144
+    ],
+    "context_concurrency": [
+      1,
+      2,
+      4,
+      8
+    ],
+    "vision_concurrency": [
+      1,
+      4,
+      8
+    ],
+    "flash_gpu_layer_ladder": [
+      0,
+      8,
+      9,
+      16,
+      24,
+      32,
+      40,
+      48
+    ]
   },
   "topologies": {
     "baseline-production": {
       "candidate": "qwen3-30b-baseline",
       "shape": "dual-split",
       "servers": [
-        {"device_filter": "1,2", "port": 18100, "parallel": 2, "slot_depth": 65536, "split_mode": "layer", "tensor_split": "1,1"}
+        {
+          "device_filter": "1,2",
+          "port": 18100,
+          "parallel": 2,
+          "slot_depth": 65536,
+          "split_mode": "layer",
+          "tensor_split": "1,1"
+        }
       ]
     },
     "qwen27-dual-production": {
       "candidate": "qwen38-27b",
       "shape": "dual-split",
       "servers": [
-        {"device_filter": "1,2", "port": 18110, "parallel": 2, "slot_depth": 65536, "split_mode": "layer", "tensor_split": "1,1"}
+        {
+          "device_filter": "1,2",
+          "port": 18110,
+          "parallel": 2,
+          "slot_depth": 65536,
+          "split_mode": "layer",
+          "tensor_split": "1,1"
+        }
       ]
     },
     "qwen27-replica-production": {
       "candidate": "qwen38-27b",
       "shape": "replica-per-card",
       "servers": [
-        {"device_filter": "1", "card": "pci-09:00.0", "port": 18111, "parallel": 1, "slot_depth": 65536, "split_mode": "none"},
-        {"device_filter": "2", "card": "pci-04:00.0", "port": 18112, "parallel": 1, "slot_depth": 65536, "split_mode": "none"}
+        {
+          "device_filter": "1",
+          "card": "pci-09:00.0",
+          "port": 18111,
+          "parallel": 1,
+          "slot_depth": 65536,
+          "split_mode": "none"
+        },
+        {
+          "device_filter": "2",
+          "card": "pci-04:00.0",
+          "port": 18112,
+          "parallel": 1,
+          "slot_depth": 65536,
+          "split_mode": "none"
+        }
       ]
     },
     "qwen27-replica-throughput": {
@@ -95,8 +159,22 @@
       "shape": "replica-per-card",
       "dynamic": true,
       "servers": [
-        {"device_filter": "1", "card": "pci-09:00.0", "port": 18121, "parallel": 8, "slot_depth": 8192, "split_mode": "none"},
-        {"device_filter": "2", "card": "pci-04:00.0", "port": 18122, "parallel": 8, "slot_depth": 8192, "split_mode": "none"}
+        {
+          "device_filter": "1",
+          "card": "pci-09:00.0",
+          "port": 18121,
+          "parallel": 8,
+          "slot_depth": 8192,
+          "split_mode": "none"
+        },
+        {
+          "device_filter": "2",
+          "card": "pci-04:00.0",
+          "port": 18122,
+          "parallel": 8,
+          "slot_depth": 8192,
+          "split_mode": "none"
+        }
       ]
     },
     "qwen27-dual-context": {
@@ -104,7 +182,14 @@
       "shape": "dual-split",
       "dynamic": true,
       "servers": [
-        {"device_filter": "1,2", "port": 18130, "parallel": 1, "slot_depth": 262144, "split_mode": "layer", "tensor_split": "1,1"}
+        {
+          "device_filter": "1,2",
+          "port": 18130,
+          "parallel": 1,
+          "slot_depth": 262144,
+          "split_mode": "layer",
+          "tensor_split": "1,1"
+        }
       ]
     },
     "flash-feasibility": {
@@ -113,7 +198,15 @@
       "quarantined": true,
       "dynamic": true,
       "servers": [
-        {"device_filter": "1,2", "port": 18140, "parallel": 1, "slot_depth": 32768, "split_mode": "layer", "tensor_split": "1,1", "gpu_layers": 8}
+        {
+          "device_filter": "1,2",
+          "port": 18140,
+          "parallel": 1,
+          "slot_depth": 32768,
+          "split_mode": "layer",
+          "tensor_split": "1,1",
+          "gpu_layers": 8
+        }
       ]
     }
   },
@@ -145,13 +238,17 @@
       "screen-04",
       "screen-08"
     ],
-    "repeat_seeds": [38027, 38038, 38049]
+    "repeat_seeds": [
+      38027,
+      38038,
+      38049
+    ]
   },
   "promotion": {
     "deterministic_pass_rate_ratio_min": 1.0,
     "family_regression_tolerance": 0.0,
-    "blind_win_or_tie_rate_min": 0.60,
-    "blind_judgment_coverage_min": 0.90,
+    "blind_win_or_tie_rate_min": 0.6,
+    "blind_judgment_coverage_min": 0.9,
     "jobs_per_hour_improvement_min": 0.25,
     "p95_latency_ratio_max": 1.5,
     "minimum_spill_free_slot_tokens": 64000,
@@ -159,6 +256,15 @@
     "deep_context_soak_minutes": 15,
     "canary_hours": 48,
     "flash_specialist_win_rate_min": 0.65,
-    "flash_feasibility_jobs_rate_ratio_min": 0.50
+    "flash_feasibility_jobs_rate_ratio_min": 0.5
+  },
+  "thermal_quarantine": {
+    "context_depths_infeasible": [
+      131072,
+      262144
+    ],
+    "evidence_stage": "dual-context-d131072-c1",
+    "observed_temperature_c": 96,
+    "reason": "Deep dual-context tiers quarantined: VRAM on 0000:04:00.0 reached 96 C against a 95 C abort line at dual-context-d131072-c1 on 2026-08-27, with commit headroom (56.7 GB) and shared memory (1.2 GB) both healthy - the limit is cooling on one card, not capacity. The 262144 tier is hotter still and is quarantined on the same evidence rather than being attempted."
   }
 }

@@ -64,7 +64,9 @@ if ($Mode -eq 'Hardware') {
     foreach ($feature in @($config.engine.required_features)) {
         $pattern = [string]$featurePatterns[[string]$feature]
         if (-not $pattern) { throw "No source assertion is defined for required engine feature '$feature'" }
-        $hit = & rg -n -m 1 $pattern $source 2>$null
+        # git grep over tracked files: asserts the pinned revision's own content and
+        # needs no external search tool on the host.
+        $hit = @(git -C $source grep -I -l -e $pattern) | Select-Object -First 1
         if (-not $hit) { throw "Campaign checkout does not contain required engine feature '$feature'" }
     }
     $checks.engine_features = 'pass'

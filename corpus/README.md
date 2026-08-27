@@ -1,6 +1,8 @@
 # corpus — benchmark provenance for a fleet whose parts move
 
-**Status:** foundation landed and exercised; the adapter layer is **not built**.
+**Status:** foundation landed and exercised; two adapters and real backfills
+are built (llama-batched-bench text tables, qwen38 campaign summaries). Four
+source formats remain.
 Written 2026-08-20, committed 2026-08-24.
 
 ## What this is
@@ -40,17 +42,34 @@ comment to be re-read.
 ```
 fingerprint.py  vkdevices.py  runlog.py  verdict.py   # built, executed, stdlib-only
 schema/run-manifest.v1.json                           # implemented by runlog.py
-schema/bench-row.v1.json                              # ⚠ contract only — NO implementation
-adapters/                                             # ⚠ EMPTY STUB (0-byte __init__.py)
+schema/bench-row.v1.json                              # implemented by the adapters
+adapters/llama_batched_bench.py                       # text table -> bench-row.v1 JSONL
+adapters/qwen38_summary.py                            # campaign summary -> bench-row.v1 JSONL
+backfills/vulkancliff-expY-*.json                     # historical run identity
+backfills/qwen38-campaign-baseline-20260827.*         # campaign baseline backfill
 runs/b0-preflight-20260821T032313Z/                   # one real, complete run
 ```
 
-**The gap is `adapters/`.** `bench-row.v1.json` defines the normalized measurement
-row that would let six different harness formats (llama-bench, b70tools,
-ollama-backend-lab, denning, hearth experiment rows, the AM4 gambit) be compared
-in one shape. Nothing writes that row yet, so **zero `bench-row.v1` records exist**.
-That is the package's actual deliverable and it is unbuilt — treat the schema as a
-design note, not a working contract.
+`bench-row.v1.json` defines the normalized measurement row that lets six
+different harness formats (llama-bench, b70tools, ollama-backend-lab, denning,
+hearth experiment rows, the AM4 gambit) be compared in one shape. The first
+adapter handles the pipe-delimited output from `llama-batched-bench` and the
+checked-in ExpY backfill proves the contract on retained evidence. The second
+adapter normalizes `qwen38-summary.v1` per-configuration aggregates (the layer
+the 2026-08 schema widening anticipated: jobs_per_hour, joules_per_successful_job,
+fairness_cv, p95 stats, topology/MTP columns); its checked-in backfill is the
+2026-08-27 baseline characterization of the production rung — 304 rows across
+19 configurations, every row schema-validated. Raw campaign request rows stay
+campaign-local and are referenced via `source.path`. Four formats are still
+missing; do not describe the adapter layer as complete.
+
+Historical tables do not identify their machine or model. Their descriptor uses
+`bench-adapter-context.v1` to supply those facts explicitly instead of inferring
+them from filenames. The descriptor also states the expected table-row count so
+a truncated historical artifact fails instead of becoming a plausible partial
+import. One table row emits two measurements (prefill and decode), and the
+adapter deliberately records `N_KV` as `n_kv` while leaving `n_depth` null:
+those concepts are not interchangeable.
 
 ## Provenance of the committed run
 
@@ -72,6 +91,11 @@ python -m corpus.fingerprint            # human summary
 python -m corpus.fingerprint --json     # for run manifests
 python -m corpus.fingerprint --id       # just the hw_id
 python -m corpus.vkdevices              # resolved device table
+
+python -m corpus.adapters.llama_batched_bench \
+  corpus/fixtures/llama-batched-bench/expY-mistral24b-mmv8-rep1.txt \
+  --descriptor corpus/backfills/vulkancliff-expY-mistral24b-mmv8-rep1.json \
+  --output corpus/backfills/vulkancliff-expY-mistral24b-mmv8-rep1.bench-row.v1.jsonl
 ```
 
 Stdlib-only, per the repo rule. Exit codes in `verdict.py` follow b70tools'

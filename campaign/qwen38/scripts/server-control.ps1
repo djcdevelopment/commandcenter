@@ -104,12 +104,22 @@ try {
         $port = [int]$server.port
         $env:GGML_VK_VISIBLE_DEVICES = [string]$server.device_filter
         $env:GGML_VK_MMV_MAX_COLS = [string]$config.engine.mmv_max_cols
+        # --no-mmap is right for a model that fits in VRAM: it avoids double-buffering
+        # and was measured that way for the dense rungs. It is exactly wrong for a
+        # deliberately host-placed model, because it forces every byte into commit —
+        # 88.1 GiB of Flash-Next against ~61 GB of commit headroom would trip the
+        # FATAL load-time commit floor before the first token. Topologies whose shape
+        # is host placement opt into mmap and page from disk instead.
+        $useMmap = [bool](Get-Q38Property -Object $spec -Name 'mmap' -Default $false)
         $arguments = @(
             '-m', [string]$modelArtifact.path,
             '--alias', $alias,
             '-ngl', [string]$layers,
-            '-fa', 'on',
-            '--no-mmap', '-dio', '-fit', 'off',
+            '-fa', 'on'
+        )
+        if (-not $useMmap) { $arguments += '--no-mmap' }
+        $arguments += @(
+            '-dio', '-fit', 'off',
             '-c', [string]$context,
             '-np', [string]$parallel,
             '--host', '127.0.0.1', '--port', [string]$port,

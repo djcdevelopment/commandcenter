@@ -195,6 +195,7 @@
     "flash-feasibility": {
       "candidate": "qwen38-flash-next-iq4",
       "shape": "dual-split-host-placement",
+      "mmap": true,
       "quarantined": true,
       "dynamic": true,
       "servers": [

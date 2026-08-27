@@ -220,6 +220,19 @@ class SourceValidationTests(unittest.TestCase):
         self.assertIn("QWEN38_FORCE_LEGS", lib)
         self.assertIn("$env:QWEN38_FORCE_LEGS = '1'", stage)
 
+    def test_only_the_host_placed_topology_opts_into_mmap(self) -> None:
+        config = campaign.campaign_config()
+        opted = {name for name, spec in config["topologies"].items() if spec.get("mmap")}
+        # --no-mmap forces every byte into commit. Flash-Next is 88.1 GiB against
+        # ~61 GB of commit headroom, so the host-placed topology must page from
+        # disk; the VRAM-resident topologies keep the measured --no-mmap path.
+        self.assertEqual({"flash-feasibility"}, opted)
+        self.assertEqual(
+            "dual-split-host-placement", config["topologies"]["flash-feasibility"]["shape"]
+        )
+        control = (campaign.SOURCE_ROOT / "scripts" / "server-control.ps1").read_text(encoding="utf-8")
+        self.assertIn("if (-not $useMmap) { $arguments += '--no-mmap' }", control)
+
     def test_deep_context_quarantine_is_config_driven_and_evidenced(self) -> None:
         config = campaign.campaign_config()
         quarantine = config["thermal_quarantine"]

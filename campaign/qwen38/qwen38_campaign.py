@@ -521,7 +521,12 @@ def _data_url(path: Path) -> str:
 
 
 def build_task_payload(
-    task: dict[str, Any], tasks_doc: dict[str, Any], model: str, max_tokens: int, seed: int
+    task: dict[str, Any],
+    tasks_doc: dict[str, Any],
+    model: str,
+    max_tokens: int,
+    seed: int,
+    disable_thinking: bool = False,
 ) -> dict[str, Any]:
     messages = [dict(message) for message in task.get("messages", [])]
     if not messages:
@@ -550,6 +555,10 @@ def build_task_payload(
     if task.get("tools"):
         payload["tools"] = [tasks_doc["tools"][name] for name in task["tools"]]
         payload["tool_choice"] = "auto"
+    if disable_thinking:
+        # A thinking-enabled template default starves visible output on tight
+        # budgets (a 2048-token cap produced empty content on a one-word task).
+        payload["chat_template_kwargs"] = {"enable_thinking": False}
     return payload
 
 
@@ -700,6 +709,7 @@ def make_row(
     commit_preload_gb: float | None = None,
     commit_postload_gb: float | None = None,
     client_id: int | None = None,
+    disable_thinking: bool = False,
 ) -> dict[str, Any]:
     prompt_tokens, completion_tokens = _usage(result.response)
     integrity_ok, integrity_failure = completion_integrity(result.response) if result.ok else (False, "request_failed")
@@ -740,6 +750,7 @@ def make_row(
         "task_id": task.get("id") if task else None,
         "task_family": task.get("family") if task else None,
         "mtp_enabled": mtp,
+        "thinking_disabled": bool(disable_thinking),
         "seed": seed,
         "concurrency": concurrency,
         "slot_depth": slot_depth,
@@ -847,7 +858,9 @@ def run_assay(args: argparse.Namespace) -> Path:
         if request_id in existing:
             return None
         endpoint = endpoints[ordinal % len(endpoints)]
-        payload = build_task_payload(task, tasks_doc, args.model, args.max_tokens, seed)
+        payload = build_task_payload(
+            task, tasks_doc, args.model, args.max_tokens, seed, disable_thinking=args.disable_thinking
+        )
         started_at = utc_now()
         result = post_chat(endpoint, payload, api_key, args.timeout_s)
         row = make_row(
@@ -873,6 +886,7 @@ def run_assay(args: argparse.Namespace) -> Path:
             shared_postload_gb=args.shared_postload_gb,
             commit_preload_gb=args.commit_preload_gb,
             commit_postload_gb=args.commit_postload_gb,
+            disable_thinking=args.disable_thinking,
         )
         row["request_payload_bytes"] = len(canonical_bytes(payload))
         writer.append(row)
@@ -1107,6 +1121,7 @@ def _performance_payload(
     max_tokens: int,
     seed: int,
     retrieval_key: str | None = None,
+    disable_thinking: bool = False,
 ) -> tuple[dict[str, Any], str | None, float | None]:
     # Four ASCII words are approximately five Qwen tokens. Usage receipts record
     # the real token count, so the approximation is never presented as measured.
@@ -1129,14 +1144,17 @@ def _performance_payload(
             "Write a detailed operational analysis of at least 350 words; continue until the server output budget stops you.\n"
         )
     content = " ".join(prompt[:words])
-    return {
+    payload: dict[str, Any] = {
         "model": model,
         "messages": [{"role": "user", "content": instruction + content}],
         "temperature": 0,
         "seed": seed,
         "max_tokens": max_tokens,
         "stream": False,
-    }, expected, retrieval_position
+    }
+    if disable_thinking:
+        payload["chat_template_kwargs"] = {"enable_thinking": False}
+    return payload, expected, retrieval_position
 
 
 def run_load(args: argparse.Namespace) -> Path:
@@ -1174,6 +1192,7 @@ def run_load(args: argparse.Namespace) -> Path:
                 args.max_tokens,
                 args.seed + client_id,
                 key if args.retrieval else None,
+                disable_thinking=args.disable_thinking,
             )
             started_at = utc_now()
             result = post_chat(endpoint, payload, api_key, args.timeout_s, stream=True)
@@ -1200,6 +1219,7 @@ def run_load(args: argparse.Namespace) -> Path:
                 commit_preload_gb=args.commit_preload_gb,
                 commit_postload_gb=args.commit_postload_gb,
                 client_id=client_id,
+                disable_thinking=args.disable_thinking,
             )
             row["requested_prompt_tokens"] = args.prompt_tokens
             row["requested_max_tokens"] = args.max_tokens
@@ -1229,6 +1249,7 @@ def run_load(args: argparse.Namespace) -> Path:
                 min(args.prompt_tokens, 512),
                 min(args.max_tokens, 32),
                 args.seed + index,
+                disable_thinking=args.disable_thinking,
             )
             post_chat(
                 endpoint,
@@ -2247,6 +2268,11 @@ def _add_request_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--commit-preload-gb", type=float)
     parser.add_argument("--commit-postload-gb", type=float)
     parser.add_argument("--mtp", action="store_true")
+    parser.add_argument(
+        "--disable-thinking",
+        action="store_true",
+        help="send chat_template_kwargs enable_thinking=false (the gated no-think regime)",
+    )
     parser.add_argument("--timeout-s", type=int, default=1000)
     parser.add_argument("--api-key-env", default="QWEN38_API_KEY")
     parser.add_argument("--output")

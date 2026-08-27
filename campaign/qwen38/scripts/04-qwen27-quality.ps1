@@ -19,6 +19,11 @@ try {
     & (Join-Path $PSScriptRoot 'invoke-leg.ps1') -RunId 'qwen27-assay-repeats' `
         -Candidate 'qwen38-27b' -Topology 'qwen27-dual-production' -Model 'qwen38-27b' `
         -Kind Assay -Concurrency 2 -MaxTokens 2048 -RepeatOnly -IncludeRepeats
+    # Side evidence only: the 12 discriminating tasks with thinking left on and room
+    # to close the think block. Not an input to any gate or judge packet.
+    & (Join-Path $PSScriptRoot 'invoke-leg.ps1') -RunId 'qwen27-assay-think-on' `
+        -Candidate 'qwen38-27b' -Topology 'qwen27-dual-production' -Model 'qwen38-27b' `
+        -Kind Assay -Concurrency 2 -MaxTokens 8192 -RepeatOnly -ThinkOn
     & (Join-Path $PSScriptRoot 'server-control.ps1') -Action Stop
 
     $inputs = @(

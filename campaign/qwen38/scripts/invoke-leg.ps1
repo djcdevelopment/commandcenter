@@ -10,6 +10,7 @@ param(
     [int]$RequestsPerClient = 3,
     [int]$DurationSeconds = 0,
     [switch]$Mtp,
+    [switch]$ThinkOn,
     [switch]$Retrieval,
     [switch]$IncludeRepeats,
     [switch]$RepeatOnly,
@@ -62,6 +63,9 @@ try {
     )
     foreach ($endpoint in $endpoints) { $arguments += @('--endpoint', $endpoint) }
     if ($Mtp) { $arguments += '--mtp' }
+    # Gated default for candidates is the no-think regime; -ThinkOn is the explicit
+    # side-evidence override. The baseline model is non-thinking and gets neither.
+    if ($Candidate -ne 'qwen3-30b-baseline' -and -not $ThinkOn) { $arguments += '--disable-thinking' }
     if ($Retrieval) { $arguments += '--retrieval' }
     if ($Kind -eq 'Load') {
         $arguments += @('--prompt-tokens', [string]$PromptTokens, '--requests-per-client', [string]$RequestsPerClient)

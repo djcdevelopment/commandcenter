@@ -189,12 +189,14 @@ class RequestContractTests(unittest.TestCase):
                 shared_postload_gb=0.2,
                 commit_preload_gb=50,
                 commit_postload_gb=49,
+                disable_thinking=True,
             )
             campaign.run_assay(args)
             rows = campaign.read_rows([output])
         self.assertEqual(3, len(rows))
         self.assertEqual(3, len({row["request_id"] for row in rows}))
         self.assertEqual({38027, 38038, 38049}, {row["seed"] for row in rows})
+        self.assertTrue(all(row["thinking_disabled"] for row in rows))
 
 
 class ValidatorTests(unittest.TestCase):

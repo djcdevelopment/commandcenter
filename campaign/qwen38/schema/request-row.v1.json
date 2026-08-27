@@ -37,6 +37,7 @@
     "task_id": {"type": ["string", "null"]},
     "task_family": {"type": ["string", "null"]},
     "mtp_enabled": {"type": "boolean"},
+    "thinking_disabled": {"type": "boolean", "description": "true when the request pinned chat_template_kwargs enable_thinking=false (the gated no-think regime)"},
     "seed": {"type": ["integer", "null"]},
     "concurrency": {"type": "integer", "minimum": 1},
     "slot_depth": {"type": "integer", "minimum": 0},

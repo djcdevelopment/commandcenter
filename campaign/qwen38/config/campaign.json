@@ -267,5 +267,57 @@
     "evidence_stage": "dual-context-d131072-c1",
     "observed_temperature_c": 96,
     "reason": "Deep dual-context tiers quarantined: VRAM on 0000:04:00.0 reached 96 C against a 95 C abort line at dual-context-d131072-c1 on 2026-08-27, with commit headroom (56.7 GB) and shared memory (1.2 GB) both healthy - the limit is cooling on one card, not capacity. The 262144 tier is hotter still and is quarantined on the same evidence rather than being attempted."
+  },
+  "bench": {
+    "harness": "llama-bench",
+    "prompt_tokens": 512,
+    "gen_tokens": 128,
+    "depths": [
+      0,
+      8192,
+      32768
+    ],
+    "repetitions": 3,
+    "control_arm": "A-control-production",
+    "control_expected_tg128": 95.2,
+    "control_tolerance_fraction": 0.1,
+    "arms": [
+      {
+        "id": "A-control-production",
+        "label": "Qwen3-30B-A3B (production binary)",
+        "binary": "production",
+        "model_artifact": "qwen3-30b-baseline",
+        "gpu_layers": 99,
+        "load_mode": "dio",
+        "note": "Ties the sweep to the published 95.2 tok/s. If this misses, nothing publishes."
+      },
+      {
+        "id": "B-control-campaign",
+        "label": "Qwen3-30B-A3B (campaign binary)",
+        "binary": "campaign",
+        "model_artifact": "qwen3-30b-baseline",
+        "gpu_layers": 99,
+        "load_mode": "dio",
+        "note": "Same model, campaign build. Proves the two binaries are equivalent."
+      },
+      {
+        "id": "C-qwen38-27b",
+        "label": "Qwen3.8-27B dense",
+        "binary": "campaign",
+        "model_artifact": "qwen38-27b",
+        "gpu_layers": 99,
+        "load_mode": "dio",
+        "note": "MTP is not available in llama-bench, so this is inherently the like-for-like arm."
+      },
+      {
+        "id": "D-flash-next",
+        "label": "Qwen3.8-Flash-Next 125B-A6B",
+        "binary": "campaign",
+        "model_artifact": "qwen38-flash-next-iq4",
+        "gpu_layers": 48,
+        "load_mode": "mmap",
+        "note": "Host-placed: 88.1 GiB will not fit VRAM, and dio would force it all into commit."
+      }
+    ]
   }
 }

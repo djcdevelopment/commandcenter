@@ -25,7 +25,7 @@ machine exists to do.
 THE bf6.exe TRAP
 ----------------
 There are two. The real game lives under Steam; a 57 KB stub lives at
-``E:\\omen\\bf6-highlights\\runtime\\bf6.exe`` and exists to test capture
+``E:\\omen\\clippy\\runtime\\bf6.exe`` and exists to test capture
 auto-start. Name-only detection matches both, so detection keys on the full
 image path and the stub counts only in explicit test mode.
 """
@@ -43,7 +43,7 @@ GAME_IMAGE = "bf6.exe"
 GAME_PATH_MARKER = os.path.join("steamapps", "common", "Battlefield 6")
 
 # The capture-test stub. Counts as "gaming" only when explicitly enabled.
-TEST_STUB_MARKER = os.path.join("bf6-highlights", "runtime")
+TEST_STUB_MARKER = os.path.join("omen", "clippy", "runtime")
 TEST_MODE_ENV = "HEARTH_RENDER_TEST_MODE"
 
 OBS_IMAGE = "obs64.exe"
@@ -117,7 +117,7 @@ def parse_processes(output: str) -> list:
 def classify_game(processes: Sequence, test_mode: bool = False) -> tuple:
     """``(is_gaming, detail)`` from candidate bf6.exe processes.
 
-    The stub under ``bf6-highlights/runtime`` is ignored unless test mode is on.
+    The stub under ``omen/clippy/runtime`` is ignored unless test mode is on.
     A name-only match would treat the capture test-harness as a live game and
     withhold a lane for nothing.
     """

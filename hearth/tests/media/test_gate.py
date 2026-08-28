@@ -20,7 +20,7 @@ LUID_A = "luid_0x00000000_0x00016d21"   # b70@bus4
 LUID_B = "luid_0x00000000_0x0001714b"   # b70@bus9
 
 STEAM = r"C:\Program Files (x86)\Steam\steamapps\common\Battlefield 6\bf6.exe"
-STUB = r"E:\omen\bf6-highlights\runtime\bf6.exe"
+STUB = r"E:\omen\clippy\runtime\bf6.exe"
 
 
 def lane(lane_id, luid, bus):

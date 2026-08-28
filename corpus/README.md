@@ -1,7 +1,7 @@
 # corpus — benchmark provenance for a fleet whose parts move
 
-**Status:** foundation landed and exercised; two adapters and real backfills
-are built (llama-batched-bench text tables, qwen38 campaign summaries). Four
+**Status:** foundation landed and exercised; three adapters and real backfills
+are built (llama-batched-bench text tables, qwen38 campaign summaries, llama-bench JSON). Three
 source formats remain.
 Written 2026-08-20, committed 2026-08-24.
 

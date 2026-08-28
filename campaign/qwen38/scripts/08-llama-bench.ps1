@@ -73,7 +73,12 @@ try {
                 '-r', [string]$bench.repetitions,
                 '-ngl', [string]$arm.gpu_layers,
                 '-sm', 'layer',
-                '-ts', '1,1',
+                # llama-bench separates the values WITHIN one tensor-split with '/'
+                # and uses ',' to request SEVERAL configurations. '1,1' therefore
+                # ran the whole matrix twice at tensor_split=1.00, which puts every
+                # layer on the first card - single-card numbers wearing a dual-card
+                # label. '1/1' is the even two-way split production actually uses.
+                '-ts', [string]$bench.tensor_split,
                 '-fa', 'on',
                 '-lm', [string]$arm.load_mode,
                 '-o', 'json'
@@ -121,44 +126,60 @@ try {
         $env:GGML_VK_MMV_MAX_COLS = $oldMmv
     }
 
-    # The control gate. tg128 for the incumbent on the production binary must land
-    # near the published figure or the sweep is not commensurable with the corpus.
-    $controlId = [string]$bench.control_arm
-    $controlPath = Join-Path $outDir ("{0}.json" -f $controlId)
-    if (-not (Test-Path -LiteralPath $controlPath)) { throw "Control arm $controlId produced no output" }
-    $controlTests = @(Get-Content -LiteralPath $controlPath -Raw -Encoding UTF8 | ConvertFrom-Json)
-    $controlTg = @($controlTests | Where-Object { [int]$_.n_prompt -eq 0 -and [int]$_.n_gen -gt 0 -and [int]$_.n_depth -eq 0 }) |
-        Select-Object -First 1
-    if ($null -eq $controlTg) { throw "Control arm has no shallow tg measurement" }
-    $expected = [double]$bench.control_expected_tg128
+    # The control gate is BUILD EQUIVALENCE between the two control arms, not
+    # agreement with the published 95.2 tok/s. That figure is a llama-server
+    # single-stream measurement and llama-bench runs without the serving path, so
+    # comparing them measures the harness, not the hardware. It is recorded as
+    # context below and never gated on.
+    function Get-ShallowTg([string]$ArmId) {
+        $path = Join-Path $outDir ("{0}.json" -f $ArmId)
+        if (-not (Test-Path -LiteralPath $path)) { throw "Control arm $ArmId produced no output" }
+        # PowerShell 5.1's ConvertFrom-Json hands a JSON array to the pipeline as a
+        # SINGLE object, so @(pipeline) wraps it rather than unrolling it and every
+        # member access then returns an array. Assign first, wrap second.
+        $parsed = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
+        $tests = @($parsed)
+        $tg = @($tests | Where-Object { [int]$_.n_prompt -eq 0 -and [int]$_.n_gen -gt 0 -and [int]$_.n_depth -eq 0 }) |
+            Select-Object -First 1
+        if ($null -eq $tg) { throw "Control arm $ArmId has no shallow tg measurement" }
+        [double]$tg.avg_ts
+    }
+    $pair = @($bench.control_pair | ForEach-Object { [string]$_ })
     $tolerance = [double]$bench.control_tolerance_fraction
-    $observed = [double]$controlTg.avg_ts
-    $drift = [Math]::Abs($observed - $expected) / $expected
+    $productionTg = Get-ShallowTg $pair[0]
+    $campaignTg = Get-ShallowTg $pair[1]
+    $drift = [Math]::Abs($productionTg - $campaignTg) / $productionTg
     $controlPassed = $drift -le $tolerance
+    $observed = $productionTg
+    $expected = $campaignTg
 
     $verdict = [ordered]@{
-        contract_version = 'qwen38-bench-sweep.v1'
+        contract_version = 'qwen38-bench-sweep.v2'
         completed_at = (Get-Date).ToString('o')
-        control_arm = $controlId
-        control_expected_tg128 = $expected
-        control_observed_tg128 = $observed
+        gate = 'build-equivalence'
+        control_pair = $pair
+        production_binary_tg128 = $productionTg
+        campaign_binary_tg128 = $campaignTg
         control_drift_fraction = [Math]::Round($drift, 6)
         control_tolerance_fraction = $tolerance
         control_passed = $controlPassed
         publishable = $controlPassed
+        tensor_split = [string]$bench.tensor_split
+        server_reference_tg_tokens_per_s = [double]$bench.server_reference_tg_tokens_per_s
+        server_reference_note = [string]$bench.server_reference_note
         arms = $armResults
     }
     Write-Q38JsonAtomic -Path (Join-Path $outDir 'sweep-verdict.json') -Value $verdict
 
     if (-not $controlPassed) {
-        Write-Warning "CONTROL GATE FAILED: $observed tok/s against an expected $expected ($([Math]::Round(100*$drift,1))% drift). These rows are NOT comparable to the published corpus."
+        Write-Warning "BUILD EQUIVALENCE FAILED: production $productionTg tok/s vs campaign $campaignTg ($([Math]::Round(100*$drift,1))% apart). The two binaries do not measure the same, so the new models' rows carry that caveat."
     } else {
-        Write-Host "Control gate passed: $observed tok/s against an expected $expected."
+        Write-Host "Build equivalence held: production $productionTg tok/s vs campaign $campaignTg ($([Math]::Round(100*$drift,1))% apart)."
     }
     $detail = if ($controlPassed) {
-        "Four arms measured; control tg128 $observed tok/s within $([Math]::Round(100*$tolerance,0))% of the published $expected."
+        "Four arms measured; the two binaries agree within $([Math]::Round(100*$tolerance,0))% ($productionTg vs $campaignTg tok/s tg128)."
     } else {
-        "Four arms measured but the control missed: $observed vs $expected. Rows are not corpus-comparable."
+        "Four arms measured but the binaries disagree: $productionTg vs $campaignTg tok/s. New rows are not build-neutral."
     }
     # PowerShell 5.1 rejects a bare (if ...) in an argument position at RUNTIME even
     # though it parses, so the status is resolved into a variable first.

@@ -1,0 +1,33 @@
+{
+  "contract_version": "bench-adapter-context.v1",
+  "run_id": "llama-bench-d-flash-next-20260827",
+  "hw_id": "hw-8bc78be7a37a",
+  "hw_label": "pro-ws-z890-ace-se+intel-core-ultra-9-285k+128gb+2xintel-arc-pro-b70-graphics",
+  "host": "OMEN",
+  "platform": "windows-vulkan",
+  "era": "z890-windows-vulkan",
+  "expected_table_rows": 6,
+  "device": {
+    "kind": "arc-pro-b70",
+    "count": 2
+  },
+  "engine": {
+    "name": "llama.cpp",
+    "build": "f413d64b-qwen38-campaign"
+  },
+  "model": {
+    "name": "Qwen3.8-Flash-Next",
+    "quant": "IQ4_XS",
+    "params": "125B-A6B",
+    "architecture": "moe",
+    "filename": "Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf"
+  },
+  "source": {
+    "path": "corpus/fixtures/llama-bench/D-flash-next.json",
+    "note": "88.1 GiB host-placed at 48 of 48 blocks on GPU, loaded through a memory mapping."
+  },
+  "timestamp": null,
+  "kv_type": "f16",
+  "split_mode": "layer",
+  "tensor_split": "1/1"
+}

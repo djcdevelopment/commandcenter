@@ -278,9 +278,7 @@
       32768
     ],
     "repetitions": 3,
-    "control_arm": "A-control-production",
-    "control_expected_tg128": 95.2,
-    "control_tolerance_fraction": 0.1,
+    "control_tolerance_fraction": 0.05,
     "arms": [
       {
         "id": "A-control-production",
@@ -318,6 +316,13 @@
         "load_mode": "mmap",
         "note": "Host-placed: 88.1 GiB will not fit VRAM, and dio would force it all into commit."
       }
-    ]
+    ],
+    "tensor_split": "1/1",
+    "control_pair": [
+      "A-control-production",
+      "B-control-campaign"
+    ],
+    "server_reference_tg_tokens_per_s": 95.2,
+    "server_reference_note": "The published 95.2 tok/s is a llama-server single-stream figure. llama-bench measures without the serving path, so the two are not comparable; recorded for context, never gated on."
   }
 }

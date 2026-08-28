@@ -1,0 +1,33 @@
+{
+  "contract_version": "bench-adapter-context.v1",
+  "run_id": "llama-bench-a-control-production-20260827",
+  "hw_id": "hw-8bc78be7a37a",
+  "hw_label": "pro-ws-z890-ace-se+intel-core-ultra-9-285k+128gb+2xintel-arc-pro-b70-graphics",
+  "host": "OMEN",
+  "platform": "windows-vulkan",
+  "era": "z890-windows-vulkan",
+  "expected_table_rows": 6,
+  "device": {
+    "kind": "arc-pro-b70",
+    "count": 2
+  },
+  "engine": {
+    "name": "llama.cpp",
+    "build": "e85caa8-production"
+  },
+  "model": {
+    "name": "Qwen3-30B-A3B-Instruct-2507",
+    "quant": "Q4_K_M",
+    "params": "30B-A3B",
+    "architecture": "moe",
+    "filename": "Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf"
+  },
+  "source": {
+    "path": "corpus/fixtures/llama-bench/A-control-production.json",
+    "note": "Control arm on the production binary. Dual-split, the placement the service actually runs."
+  },
+  "timestamp": null,
+  "kv_type": "f16",
+  "split_mode": "layer",
+  "tensor_split": "1/1"
+}

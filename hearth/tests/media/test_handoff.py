@@ -171,6 +171,14 @@ class GatewayIsTheSoleLedgerWriterTest(HandoffBase):
         self.assertEqual("queued", state["status"])
         self.assertEqual([job_id], [p.stem for p in handoff.list_queued()])
 
+    def test_startup_reconciles_a_terminal_jobs_duplicate_queue_entry(self) -> None:
+        job_id = self._submit()
+        self.subsystem.cancel(job_id, reason="test terminal")
+        handoff.enqueue_job(job_id, {"clip_id": CLIP})
+
+        self.assertEqual(1, self.subsystem.reconcile_terminal_queue())
+        self.assertEqual([], handoff.list_queued())
+
     def test_claim_then_result_produces_the_canonical_lifecycle(self) -> None:
         job_id = self._submit()
         record = handoff.claim_job(handoff.list_queued()[0])

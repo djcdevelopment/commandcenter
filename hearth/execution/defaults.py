@@ -15,8 +15,12 @@ def get_execution_service() -> ExecutionService:
     global _service
     with _lock:
         if _service is None:
-            _service = ExecutionService()
+            # Recovery must see the render dispatcher. Constructing with the
+            # default used to terminally fail queued media jobs during the tiny
+            # window before _attach_render_subsystem ran on gateway startup.
+            _service = ExecutionService(recover_pending=False)
             _attach_render_subsystem(_service)
+            _service.recover_pending()
         return _service
 
 

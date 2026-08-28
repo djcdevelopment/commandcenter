@@ -591,6 +591,73 @@ def build_server(providers_spec: str = "", host: str = DEFAULT_HOST,
     async def healthz(_request: Request) -> JSONResponse:
         return JSONResponse({"status": "ok"})
 
+    # External durable workflows intentionally bypass the MCP tool surface:
+    # this is an authenticated HTTP integration boundary, not a second tool
+    # dispatcher.  Instantiate its execution ledger lazily so ordinary gateway
+    # construction and discovery tests do not mutate execution state.
+    bf6_adapter = {"value": None}
+
+    def get_bf6_adapter():
+        if bf6_adapter["value"] is None:
+            from hearth.integrations.bf6_workflows import BF6WorkflowGateway
+            bf6_adapter["value"] = BF6WorkflowGateway()
+        return bf6_adapter["value"]
+
+    @mcp.custom_route("/integrations/bf6/workflows", methods=["POST"], include_in_schema=False)
+    async def submit_bf6_workflow(request: Request) -> JSONResponse:
+        caller = auth.resolve(request.headers.get(HEADER_NAME))
+        if caller is None:
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        try:
+            document = await request.json()
+            result = get_bf6_adapter().submit(document, caller=caller)
+        except Exception as exc:
+            log.exception("BF6 workflow intake failed")
+            return JSONResponse({"error": str(exc)}, status_code=502)
+        return JSONResponse(result, status_code=202)
+
+    @mcp.custom_route("/integrations/bf6/renders", methods=["POST"], include_in_schema=False)
+    async def submit_bf6_render(request: Request) -> JSONResponse:
+        caller = auth.resolve(request.headers.get(HEADER_NAME))
+        if caller is None:
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        try:
+            document = await request.json()
+            result = get_bf6_adapter().submit_render(document, caller=caller)
+        except Exception as exc:
+            log.exception("BF6 render workflow intake failed")
+            return JSONResponse({"error": str(exc)}, status_code=502)
+        return JSONResponse(result, status_code=202)
+
+    @mcp.custom_route(
+        "/integrations/bf6/outcomes/{job_id}", methods=["POST"], include_in_schema=False
+    )
+    async def receive_bf6_outcome(request: Request) -> JSONResponse:
+        body = await request.body()
+        try:
+            result = get_bf6_adapter().receive_terminal(
+                request.path_params["job_id"],
+                body,
+                request.headers.get("X-Hearth-Signature"),
+            )
+        except Exception as exc:
+            log.warning("BF6 terminal receipt refused: %s", exc)
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse(result)
+
+    @mcp.custom_route(
+        "/integrations/bf6/workflows/{job_id}", methods=["GET"], include_in_schema=False
+    )
+    async def get_bf6_workflow(request: Request) -> JSONResponse:
+        caller = auth.resolve(request.headers.get(HEADER_NAME))
+        if caller is None:
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        try:
+            result = get_bf6_adapter().status(request.path_params["job_id"])
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=404)
+        return JSONResponse(result)
+
     providers = load_providers(providers_spec)
     mounted = [BUILTIN_PROVIDER, *providers]
     providers[BUILTIN_PROVIDER] = builtin_get_tools(hearth, mounted)
@@ -675,6 +742,19 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     mcp = build_server(providers_spec=args.providers, host=host, port=port,
                        callers_path=args.callers, ledger_dir=args.ledger_dir)
+
+    # The execution ledger is used lazily by protocol adapters, but render
+    # handoff ingestion is a process runtime: claims and results must continue
+    # to be reconciled after a gateway restart even when no new MCP request
+    # arrives.  Starting it here keeps build_server() side-effect-free for
+    # discovery tests while ensuring the daemon always owns its single-writer
+    # render ingester before external workers can resume.
+    from hearth.execution.defaults import get_execution_service
+    execution_service = get_execution_service()
+    if getattr(execution_service, "_render_dispatcher", None) is None:
+        log.warning("hearth render handoff ingester is unavailable")
+    else:
+        log.info("hearth render handoff ingester started")
 
     log.info("hearth gateway binding %s:%d (host from %s, port from %s)",
              host, port, host_source, port_source)

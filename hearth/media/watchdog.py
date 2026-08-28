@@ -46,6 +46,41 @@ DEFAULT_AM4_HEALTH_URL = os.environ.get(
 VAR_RENDER = Path(__file__).resolve().parents[1] / "var" / "render"
 DEFAULT_STATUS_PATH = VAR_RENDER / "pipeline-watchdog.json"
 DEFAULT_EVENT_LOG_PATH = VAR_RENDER / "pipeline-watchdog.ndjson"
+DEFAULT_PAUSE_PATH = VAR_RENDER / "PAUSED"
+
+
+def paused_report(
+    pause_path: Path = DEFAULT_PAUSE_PATH,
+    *,
+    clock: Callable[[], float] = time.time,
+) -> dict:
+    """Describe an intentional maintenance pause without healing workers.
+
+    The marker is deliberately file-based so an operator can pause the pipeline
+    without changing a privileged Scheduled Task. Removing it is the resume
+    operation; the next watchdog tick restores missing workers.
+    """
+    detail = "operator maintenance hold"
+    try:
+        configured = pause_path.read_text(encoding="utf-8").strip()
+        if configured:
+            detail = configured
+    except OSError:
+        pass
+    return {
+        "schema_version": 1,
+        "at": clock(),
+        "status": "paused",
+        "healthy": True,
+        "paused": True,
+        "pause_path": str(pause_path),
+        "detail": detail,
+        "tasks": {},
+        "agent": {},
+        "am4": {},
+        "actions": [],
+        "errors": [],
+    }
 
 
 def _ps_literal(value: str) -> str:
@@ -313,12 +348,16 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--am4-health-url", default=DEFAULT_AM4_HEALTH_URL)
     parser.add_argument("--status-path", type=Path, default=DEFAULT_STATUS_PATH)
     parser.add_argument("--event-log-path", type=Path, default=DEFAULT_EVENT_LOG_PATH)
+    parser.add_argument("--pause-path", type=Path, default=DEFAULT_PAUSE_PATH)
     args = parser.parse_args(argv)
 
-    report = inspect_and_heal(
-        heal=not args.no_heal,
-        am4_probe=lambda: probe_am4(args.am4_health_url),
-    )
+    if args.pause_path.exists():
+        report = paused_report(args.pause_path)
+    else:
+        report = inspect_and_heal(
+            heal=not args.no_heal,
+            am4_probe=lambda: probe_am4(args.am4_health_url),
+        )
     persist_report(report, status_path=args.status_path, event_log_path=args.event_log_path)
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))

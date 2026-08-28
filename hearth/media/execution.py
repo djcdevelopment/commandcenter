@@ -54,6 +54,7 @@ class RenderSubsystem:
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
         handoff.ensure_dirs()
+        self.reconcile_terminal_queue()
         if autostart:
             self.start()
 
@@ -96,6 +97,19 @@ class RenderSubsystem:
         }
 
     # -------------------------------------------------------------- admission
+
+    def reconcile_terminal_queue(self) -> int:
+        """Remove handoff duplicates whose durable ledger job is terminal."""
+        cleaned = 0
+        for path in handoff.list_queued():
+            job_id = path.stem
+            state = self._service.ledger.get_job(job_id)
+            if state is None or state.get("status") not in TERMINAL:
+                continue
+            handoff.dequeue_job(job_id)
+            handoff.clear_cancel(job_id)
+            cleaned += 1
+        return cleaned
 
     def enqueue(self, job_id: str) -> None:
         """Publish a validated job for the interactive agent. Consumes no worker.
@@ -207,6 +221,8 @@ class RenderSubsystem:
         if state.get("status") in TERMINAL:
             handoff.clear_result(job_id)
             handoff.clear_claim(job_id)
+            handoff.dequeue_job(job_id)
+            handoff.clear_cancel(job_id)
             return False
 
         # A result can arrive for a job the gateway never saw start: the control

@@ -134,6 +134,22 @@ class RenderAgent:
         with the job -- so it is requeued rather than reported as an error.
         """
         recovered = 0
+        # A hard kill can land after render.write_inflight() but before the
+        # claim sidecar is published. Those records were invisible to the
+        # claim-driven recovery below and accumulated forever. With no claim
+        # and an expired orphan window, reap_orphan's PID identity check makes
+        # cleanup safe even if Windows has reused the PID.
+        claimed_ids = {path.stem for path in handoff.list_claims()}
+        for inflight in render_mod.inflight_dir().glob("*.json"):
+            if inflight.stem in claimed_ids:
+                continue
+            try:
+                if time.time() - inflight.stat().st_mtime < handoff.CLAIM_ORPHAN_S:
+                    continue
+            except OSError:
+                continue
+            render_mod.reap_orphan(inflight.stem)
+            recovered += 1
         # A ".claiming" file is a job taken out of the queue whose runner never
         # started -- the window between claim_job() and publish_claim(). It has
         # no claim record, so the loop below cannot see it.

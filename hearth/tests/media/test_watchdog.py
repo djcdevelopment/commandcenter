@@ -39,6 +39,18 @@ def healthy_am4():
 
 
 class PipelineWatchdogTests(unittest.TestCase):
+    def test_pause_marker_reports_expected_hold_without_workers(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            marker = Path(directory) / "PAUSED"
+            marker.write_text("work workstation in use\n", encoding="utf-8")
+            report = watchdog.paused_report(marker, clock=lambda: 100.0)
+
+        self.assertEqual("paused", report["status"])
+        self.assertTrue(report["healthy"])
+        self.assertTrue(report["paused"])
+        self.assertEqual("work workstation in use", report["detail"])
+        self.assertEqual([], report["actions"])
+
     def test_healthy_pipeline_is_a_no_op(self) -> None:
         starts = []
         restarts = []

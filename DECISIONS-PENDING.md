@@ -412,6 +412,17 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       separate unsloth sidecar repo), add it to `artifacts.json` as optional, acquire
       revision-pinned, re-lock, THEN run the probe. Not freelance-downloaded mid-window on
       purpose — acquisition discipline holds.
+      **Sidecar hunt 2026-08-28:** no publisher ships a fork-native `dflash-*` sibling for
+      Flash-Next — unsloth's repo at HEAD (c8b5954, checked same day) still has none, and
+      the z-lab/incoai DFlash2 drafters exist only for the 27B. The one candidate is
+      `quimmedes/Qwen3.8-Flash-Next-MTP-GGUF` (community; mtp-Q4_K_M 2.79 GB; its `mtp-*`
+      naming matches OUR fork's sidecar convention) — but it was published against a
+      different fork ("cafe-llama.cpp"), so wire-format compatibility with our qwen4exp
+      binary is a load-time experiment, not a given. TWO gates before R7 can run: (a) Derek
+      accepts pinning a community artifact (or we wait for unsloth/Qwen to ship one), and
+      (b) commit headroom — Flash 48-blk needs 60.4 GB and current margin with production
+      down is ~0.9 GB, which is poisoned-load territory; needs a pagefile/headroom decision
+      first.
 
 - [x] 2026-08-28 — **Ratify llama-swap as the serving-lifecycle layer (pending probes P5–P7).**
       — **RATIFIED same day: all seven probes passed** in a supervised maintenance window

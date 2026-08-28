@@ -363,16 +363,34 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       already captures exactly this field; the door does not. It is a change to a live gateway.
       Source: [todo.txt](todo.txt).
 
-- [ ] 2026-08-27 — **Resolve the 3× Flash-Next decode gap before any Flash figure enters the
-      bake-off table.** `llama-server` reports **27.4 tok/s** text decode for
-      Qwen3.8-Flash-Next; `llama-bench` reports **8.91** (best repetition 9.97) for the same
-      model, same `mmap` load mode, same `dual-split-host-placement`, same memory state, MTP
-      off in both. Ruled out already: MTP (`--spec-type draft-mtp` is gated to `qwen38-27b`),
-      thermal (prefill degrades 4–8% while decode degrades 19–48% — throttling costs the
-      compute-bound half most), and page-cache warm-up (repetition 1 is the *fastest*).
-      A second unexplained split sits inside one server instance at identical memory state:
-      text tasks decode at 27.4, vision tasks at 6.8. Until one mechanism explains both, the
-      article carries the Flash row with an explicit "unsteady series" caveat and no
-      bake-off entry. Cheapest next probe: `llama-bench` on Flash with `-r 10` to see whether
-      the decay floors or keeps falling, in one short maintenance window.
+- [x] 2026-08-27 — ~~Resolve the 3× Flash-Next decode gap before any Flash figure enters the
+      bake-off table~~ — **RESOLVED same day, by the campaign's own placement ladder.** The two
+      numbers are two residency levels of one model, and the ladder is monotonic: 4.86 tok/s at
+      0 blocks on GPU, 7.41 at 16, 9.24 at 24, 11.66 at 32, 16.38 at 40, **27.70 at all 48**,
+      with host commit tracking it 5.7 GB → 60.4 GB. `llama-bench`'s **8.91 sits between the
+      16- and 24-block rungs**: the arm passed `-ngl 48` but `-lm mmap`, so the weights stayed
+      file-backed and it never obtained the residency it asked for. The within-run decay is the
+      same axis (9.97 → 8.4 tok/s ≈ four blocks of residency lost to page reclaim). The
+      "unexplained" framing was mine and it was wrong — the answer was already published four
+      sections below the number, in this article. **No `-r 10` probe is needed.** The chart now
+      carries 27.7 (all 48 blocks named). Fixed in steppeintegrations-site `a725827`.
+      ⚠ Still genuinely open, and narrower: the **text-vs-vision split inside one server
+      instance** — 27.4 tok/s text against 6.8 vision at identical memory state, MTP off,
+      same placement. Vision `latency_s` is ~360 s against ~4 s of `predicted_ms`, so almost
+      all of it is image encoding, but that does not explain why *decode* is 4× slower after
+      an image. Source: [SESSION-RETRO-2026-08-27.md](SESSION-RETRO-2026-08-27.md).
+
+- [ ] 2026-08-27 — **Decide whether Flash-Next gets its speculative-decoding lane measured at
+      all.** Every Flash figure in the campaign and the article is `mtp_enabled: false`, and
+      not by choice: `server-control.ps1` hard-gates the `-md / --spec-type draft-mtp` path to
+      `qwen38-27b` and throws for any other candidate. Flash-Next ships MTP natively, and on
+      the dense 27B that path was the single largest configuration win measured — 510 → **1591
+      completed jobs/hour**, acceptance 0.65 → 0.86. So the published 27.7 tok/s is the
+      model's *non-speculative* speed, and the fast configuration was never run. Two reasons to
+      weigh before spending an outage: the same MTP path produced **zero identical responses at
+      temperature 0** on the 27B (the open divergence decision above), so a throughput win here
+      would land on an output-safety question that is already unresolved; and Flash at full
+      residency needs 61.2 GB VRAM + 65.3 GB commit, leaving little room for draft weights.
+      Cheapest version: lift the gate, run the eight-task compat probe MTP-on at `-ngl 48`, and
+      compare outputs to the MTP-off run already retained.
       Source: [SESSION-RETRO-2026-08-27.md](SESSION-RETRO-2026-08-27.md).

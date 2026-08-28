@@ -66,7 +66,9 @@ function Invoke-Greedy([string]$Cell) {
         $line = python (Join-Path $PSScriptRoot 'lz8_greedy.py') $port $Cell 64
         $j = $line | ConvertFrom-Json
         $rows += $j
-        "  rep ${rep}: prefill $($j.prefill_tps)  decode $($j.decode_tps) tok/s"
+        # Write-Host, not pipeline: emitted strings would join the function's return
+        # value and land as null-metric rows in the receipts ledger
+        Write-Host "  rep ${rep}: prefill $($j.prefill_tps)  decode $($j.decode_tps) tok/s"
     }
     [IO.File]::WriteAllText("$logDir\lz8-$Cell.txt", $rows[0].content)
     return $rows

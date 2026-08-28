@@ -466,6 +466,14 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       full-residency epoch (60.4 GB commit) does not fit without the resident model unloaded
       and headroom managed; builder VMs would eat further into that. `ollama-sentinel` stays
       off for good (ADR-0034). Owner: Derek, after Phase 1.
+      **Pagefile posture REVISED 2026-08-28 (later):** the 32 GB pagefile was configured
+      (unapplied — needs an elevated run + reboot) to make full-residency Flash fit beside
+      production. The experts-on-host discovery makes that mostly unnecessary: Flash-lite
+      (`-ot exps=CPU`) proved **on tap alongside live production at zero pagefile tax**
+      (file-backed experts never become commit), and full-residency Flash fits fine in
+      dark windows now that renders drained. Derek's stated preference is to AVOID the
+      pagefile penalty. New posture: leave the pagefile config staged but unapplied;
+      apply only if a workload ever needs full-fat Flash CO-RESIDENT with production.
       **Option raised by Derek 2026-08-28:** move the conductor role to fx99 (always-on,
       15 GB RAM) so it stops soaking OMEN memory as a VM. Checked same day: no conductor
       exists on fx99 today (dashboard ports closed, no SSH trust from OMEN; loopback-only

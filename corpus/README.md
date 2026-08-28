@@ -45,8 +45,10 @@ schema/run-manifest.v1.json                           # implemented by runlog.py
 schema/bench-row.v1.json                              # implemented by the adapters
 adapters/llama_batched_bench.py                       # text table -> bench-row.v1 JSONL
 adapters/qwen38_summary.py                            # campaign summary -> bench-row.v1 JSONL
+adapters/llama_bench.py                               # llama-bench JSON -> bench-row.v1 JSONL
 backfills/vulkancliff-expY-*.json                     # historical run identity
-backfills/qwen38-campaign-baseline-20260827.*         # campaign baseline backfill
+backfills/qwen38-campaign-*.…                         # campaign summaries backfill
+backfills/llama-bench-*-20260827.*                    # single-stream comparability sweep
 runs/b0-preflight-20260821T032313Z/                   # one real, complete run
 ```
 
@@ -60,8 +62,20 @@ the 2026-08 schema widening anticipated: jobs_per_hour, joules_per_successful_jo
 fairness_cv, p95 stats, topology/MTP columns); its checked-in backfill is the
 2026-08-27 baseline characterization of the production rung — 304 rows across
 19 configurations, every row schema-validated. Raw campaign request rows stay
-campaign-local and are referenced via `source.path`. Four formats are still
-missing; do not describe the adapter layer as complete.
+campaign-local and are referenced via `source.path`.
+
+The third adapter reads `llama-bench -o json`, which matters more than the count
+suggests: llama-bench produced most of the older published single-stream figures,
+so it is the format that lets a measurement taken today sit beside one taken in
+May. It keeps prefill and decode as separate workloads and carries llama-bench's
+own per-repetition `samples_ts` into the row rather than discarding the spread.
+Its backfills are the 2026-08-27 comparability sweep, including one deliberately
+retained single-card run — `-ts 1,1` reads as two *separate* configurations
+rather than an even split, so that arm measured one card while claiming two.
+Paired with the corrected arm it isolates the cost of dual-split placement, which
+is why it is kept rather than deleted.
+
+Three formats are still missing; do not describe the adapter layer as complete.
 
 Historical tables do not identify their machine or model. Their descriptor uses
 `bench-adapter-context.v1` to supply those facts explicitly instead of inferring

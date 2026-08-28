@@ -1,0 +1,1560 @@
+﻿Read the following engineering documents carefully. You will be asked questions about them.
+
+
+===== FILE: C:\work\commandcenter\SESSION-RETRO-2026-08-27.md =====
+# Session retro â€” 2026-08-27
+
+**We set out to benchmark a model and spent most of the session discovering that the
+instrument, the evidence, and my own fixes each needed proving before the measurement
+meant anything â€” and the campaign's headline number turned out to describe the one
+operating point where the answer comes out backwards.**
+
+## What this session was
+
+A resumption, then a review, then a recovery â€” and only incidentally a benchmark run.
+
+Derek pointed at a campaign spec and suggested running the new Qwen models through the
+wind tunnel. The campaign was not greenfield: a prior agent session had already built the
+whole instrument â€” a 2,270-line measurement engine, 19 stage scripts, a 72-task assay, 30
+unit tests â€” and had stopped on a failure that never happened. Windows returned a null
+exit code for a watchdog process that had exited cleanly, and the parent read that as an
+abort. The first real work was proving the instrument, not running it.
+
+It then met two physical walls, both thermal, both real. The replica-per-card topology â€”
+the placement the spec had *predicted would win* â€” tripped the 95 Â°C line at 96 Â°C on a
+light cell, with no spill and no system events. Later the 128K context tier did the same
+and killed the campaign outright. The second abort named its own cause precisely: VRAM on
+one specific card at 96 Â°C while its sibling sat at 86 Â°C and both GPU cores idled in the
+high seventies. The ceiling on this rig is cooling on one card, not capacity.
+
+The largest single category of work was verification catching errors. An adversarial
+review of thermal-resume machinery written by another agent mid-session produced 42
+findings, of which 24 survived independent attempts to refute them â€” including one that
+would have let a crashed leg be skipped forever while the stage reported green. Five more
+defects were my own, and every one of them surfaced the same way: by running the change
+against real state instead of trusting that it was correct.
+
+The verdict came back `do_not_promote` on 12 of 15 gates, which is the right mechanical
+answer. The more useful answer is that the failing gate measures 512-token prompts â€” the
+single regime where a dense 27B loses to a 3B-active mixture-of-experts â€” and that along
+the prompt-length axis the result inverts completely.
+
+## What shipped
+
+**commandcenter** â€” `9bf8f24..08b322a`, 13 commits, 52 files, +14387/âˆ’12.
+One commit in the range (`ca8eb27`) belongs to **another agent's session**, not this one.
+
+| Commit | What |
+|---|---|
+| `6030254` | The qwen38 campaign harness, 27B-only run prep, arc maintenance sentinel |
+| `334a140` | Preflight feature assertion via `git grep`, not a host `rg` |
+| `d1ba4c3` | TODO: chase slot-cache thrash on the HEARTH ledger |
+| `5d9d381` | Dual thinking regimes â€” no-think gated, think-on side cell |
+| `f6b1bc7` | `qwen38-summary` corpus adapter â€” campaign aggregates into `bench-row.v1` |
+| `ca8eb27` | *(other session)* resume safely after replica thermal abort |
+| `7529b4a` | Land the adapter layer's missing half â€” schema widening + first adapter |
+| `5e9366c` | Close the resume-integrity holes an adversarial review found |
+| `169f47f` | Leg completeness is coverage, not success; parse abort stamps as instants |
+| `817cc30` | Merge the duplicate cooldown function I introduced |
+| `9ebf3b3` | A verdict may not attribute quality it measured elsewhere |
+| `75f0d91` | Land the full qwen38 campaign as `bench-row.v1` (1227 rows) |
+| `08b322a` | Slot-cache-thrash mechanism measured; frequency needs instrumentation |
+
+**Durable artifacts:** a completed campaign with `promotion-verdict.json` and
+`promotion-scorecard.json`; 1227 schema-validated `bench-row.v1` rows covering three
+models; a second corpus adapter with tests; [ADR-0038](docs/adr/0038-a-verdict-cites-only-evidence-from-the-configuration-it-promotes.md).
+
+## The team retro â€” our collaboration across the seats
+
+### Architect
+The load-bearing design call was Derek's: **measure both thinking regimes** rather than
+picking one. That call is what made the think-on side cell exist, and the side cell is
+what let us say "thinking buys nothing measurable here" with a number instead of a guess.
+It cost one extra assay leg and answered a question that would otherwise have stayed open.
+
+What I would decide differently: the promotion gate's operating point was inherited
+without challenge. A gate that fixes prompt length at 512 tokens encodes an assumption
+about the workload, and nobody â€” including me, for most of the session â€” treated that as a
+design decision. It is the single most consequential unexamined constant in the campaign.
+
+### Implementer
+Rework was high and it was mostly mine. Five defects in my own changes, four of them in
+code written specifically to *fix* other defects. The pattern is consistent: each one
+looked correct when written and was wrong about how the environment actually behaves â€”
+NTFS's lag on open files, PowerShell's last-definition-wins, `tasklist` printing window
+titles, ISO offsets versus `Z`. None was a logic error in the usual sense.
+
+What went well: every fix was landed with a test that would have caught the defect, and
+the mid-run edit to `lib.ps1` was timed into the quietest window available rather than
+deferred indefinitely or done carelessly.
+
+### Reviewer / QA
+This seat did the session's best work, and it was not me reading my own code. The
+adversarial review â€” findings generated independently, then each one attacked by a
+verifier told to refute it â€” kept 24 of 42. The refutation step mattered: 18 plausible
+findings died there, which is 18 investigations not spent.
+
+What slipped: the campaign's own MTP compatibility gate compared *validity rates* between
+speculation-on and speculation-off and passed them as equal at 0.875. It never compared
+the outputs. Equal pass rates on a rubric are not equivalence, and the divergence sat
+undetected until I compared response text directly.
+
+### Operator / SRE
+The safety machinery worked exactly as designed, twice. Both thermal aborts stopped the
+leg, restored production, and proved the restore with a real one-token generation. The
+outage discipline held: production came back serviceable every time, the sentinel was
+always cleaned up, and no measurement was taken with the door in an unknown state.
+
+The operator lesson is about *my* monitoring, not the campaign's. I wrote a monitor that
+reported the campaign dead while it was healthy. Had I acted on it, I would have started
+recovery against a running campaign with production still stopped. I also nearly fell into
+the previous session's polling loop before retuning the monitor to stop waking me on
+per-cell noise.
+
+### Product / planning
+We built the right thing and then found out the gates were asking a narrower question than
+the one Derek actually has. The campaign answers "should this replace the default rung?"
+Derek's real question is closer to "is this worth serving at all, and for what?" â€” and the
+data answers that far more interestingly than the verdict does.
+
+Scope discipline was decent: Flash-Next stayed excluded as agreed, the corpus adapter got
+built during dead time rather than competing with the run, and the slot-cache analysis
+waited until the outage closed.
+
+## Two seats, two views
+
+### From Claude's seat
+I was right to distrust the handoff and wrong to trust myself at the same rate. The
+adversarial review of another agent's work was thorough; my own changes went in with far
+less scrutiny, and that asymmetry is exactly backwards from what the defect counts justify
+â€” 24 findings in 529 lines of theirs, five in a smaller volume of mine.
+
+Where I over-reached: the first completeness gate. I wrote a rule that was stricter than
+the science required, and it would have cost hours of re-measurement to re-observe
+timeouts we had already measured. I caught it only because I checked the rule against live
+data before relying on it, which I nearly did not do.
+
+What I would want to know next time: what the production call mix actually looks like by
+prompt size. I ended the session recommending a long-context rung on structural reasoning
+rather than measurement, because the ledger cannot answer it.
+
+### From Derek's seat *(my reconstruction â€” correct me)*
+He asked a short question and got a long campaign, which is the normal shape here. He made
+three decisions quickly and cleanly, and each one held up. The "both regimes" call in
+particular paid for itself.
+
+What he would likely flag: I reported a stall and killed an 84 GB download on evidence
+that turned out to mean nothing, and he had already sent me a screenshot showing the disk
+working. The picture was in front of me. He would also, I suspect, care more about the
+2.63Ã—/5.49Ã— long-prompt inversion than about the verdict â€” the gates answer a question he
+did not ask, and the interesting number is the one that says *where* this model earns its
+place.
+
+## Last time's lessons â€” follow-through
+
+| Lesson (2026-08-25) | Status | Evidence |
+|---|---|---|
+| L-2026-08-25-1 â€” a premise with no number attached is treated as a constant until it breaks | **acted-on** | The 512-token gate is exactly this shape; named it explicitly rather than letting the verdict stand alone |
+| L-2026-08-25-2 â€” every fallback that makes failure survivable makes it invisible; be loud | **acted-on** | The watchdog "passed" receipt was precisely a silent survivable failure; the leg gate now demands measurements |
+| L-2026-08-25-3 â€” cheap checks certify containers, not content | **acted-on, twice** | The MTP gate certified validity rates, not outputs; `tasklist` certified a process list that could not contain the answer |
+| L-2026-08-25-4 â€” a guard needs a test that proves it FIRES | **acted-on** | Every new gate landed with a test that fails without it, including two for the quality-attribution gate |
+| L-2026-08-25-5 â€” when two machines run the same command, the output is the contract | **acted-on** | Applied to one machine, two code paths: MTP-on and MTP-off were compared by output, not by configuration |
+| L-2026-08-25-6 â€” cancel on proof, never on absence of proof | **dropped this session, then relearned** | I killed the download on absence of visible bytes. The lesson existed and I did not apply it; it recurs below as L-2026-08-27-5 |
+| L-2026-08-25-7 â€” config-as-code never re-run drifts from the machine | pending | Not exercised |
+| L-2026-08-25-8 â€” moving work to the right machine is half the fix if the data flow stays | pending | Not exercised |
+| L-2026-08-25-9 â€” subsystems sharing hardware need the separation stated | **acted-on** | The thermal ceiling is a shared-resource fact now stated per-card, with the hot BDF named |
+| L-2026-08-25-10 â€” an unexercised rollback path is not a rollback path | pending | Not exercised |
+| L-2026-07-30-6 â€” local-model seat reads invent self-criticism | **acted-on** | Seat reads written frontier again; offloaded only timeline + lesson extraction |
+| L-2026-07-30-7 â€” in-process `local_generate` calls are invisible to offload economics | **acted-on** | Both retro offloads went through the door and are on the ledger |
+
+## Second opinion resolved
+
+None pending â€” the 2026-08-25 retro did not use `--fleet`.
+
+## Lessons learned
+
+1. **L-2026-08-27-1 â€” A benchmark's operating point is a claim about the workload, and
+   choosing it wrong inverts the answer.** The promotion gate fixes prompts at 512 tokens
+   and returns âˆ’31%; the same candidate on the same hardware returns +163% at 8K and +449%
+   at 32K. Nothing about the model changed between those numbers. *(â†’ ADR-0038 context, and
+   an open decision)*
+2. **L-2026-08-27-2 â€” A receipt that certifies the guard will eventually be read as
+   certifying the work.** The watchdog's `passed` receipt means "no safety line tripped" and
+   is written even when the request runner dies; a later change made it sufficient to skip a
+   leg, which would have left silent holes in the matrix. *(â†’ ADR-0038, fixed in `5e9366c`)*
+3. **L-2026-08-27-3 â€” Name an integrity claim for exactly what it compares, or it will be
+   read as covering everything.** `unchanged_inputs_proved` compared only model and engine
+   bytes while the file holding every safety threshold and promotion constant drifted
+   underneath it â€” and did drift, benignly, on the live run. *(â†’ practice; renamed to three
+   fields that each say what they prove)*
+4. **L-2026-08-27-4 â€” Completeness is coverage, not success: an outcome the experiment
+   exists to observe is data, not a gap.** My first gate demanded every request succeed, and
+   would have re-run legs whose 8-of-24 timeout rate at 64K *was* the finding. *(â†’ practice)*
+5. **L-2026-08-27-5 â€” Absence of visible progress is not evidence of no progress; verify
+   through the channel that measures the work.** Three independent size-based probes agreed a
+   download was dead; the handle held 84 GB that materialized the moment it closed. Process
+   I/O counters would have shown it. *(â†’ memory, written)*
+6. **L-2026-08-27-6 â€” A monitor that reports a terminal state falsely is worse than no
+   monitor.** Mine announced the campaign dead because `tasklist` prints window titles, not
+   command lines; acting on it meant recovery against a healthy run with production down.
+   *(â†’ practice: a liveness check must be validated against the live positive case)*
+7. **L-2026-08-27-7 â€” When two code paths must be equivalent, test equivalence, not a proxy
+   for it.** The MTP gate compared pass rates (0.875 vs 0.875, passed) where it should have
+   compared text; the paths produce different output at temperature 0. *(â†’ ADR-0038)*
+8. **L-2026-08-27-8 â€” Evidence belongs to the configuration it was measured on.** The
+   scorecard was about to stamp an MTP-on winner with an MTP-off pass rate. *(â†’ ADR-0038,
+   enforced in `9ebf3b3`)*
+9. **L-2026-08-27-9 â€” A default inside someone else's template is a decision you have made
+   without noticing.** Qwen3.8 enables thinking by default; that single unexamined default
+   consumed entire output budgets and failed a correctness gate that had nothing wrong with
+   it. *(â†’ memory)*
+10. **L-2026-08-27-10 â€” Thermal state persists between measurements, so an experiment that
+    does not reset it measures the schedule as much as the configuration.** Every deep cell
+    began from wherever the previous one left the cards; the config already carried
+    cooldown thresholds that nothing consumed between legs. *(â†’ practice, fixed)*
+11. **L-2026-08-27-11 â€” Adding to a shared namespace without reading it first silently
+    replaces someone's better work.** My cooldown function shadowed an existing one that
+    wrote telemetry and a receipt; PowerShell keeps the last definition and says nothing.
+    *(â†’ practice)*
+
+## Provenance
+
+**Git range:** `9bf8f24..08b322a`, 13 commits, not yet pushed. `ca8eb27` within the range is
+**another session's** commit, not this one's. The working tree carries pre-existing dirty
+files (`CLAUDE.md`, two HTML dashboards, `hearth/media/*`, eleven `knowledge/*.json`) that
+predate this session and were deliberately left untouched.
+
+**Offloaded:** timeline condense + lessons extraction. First attempt `gcp-gemini`
+(`gemini-3.5-flash`) returned **only its own reasoning and no content** â€” 117 output tokens,
+the known strict-format failure mode for that rung. Escalated once per the skill's retry
+budget to `gcp-gemini-pro` (`gemini-3.1-pro-preview`), 1761 in / 1071 out,
+`routed_by: pinned:gcp-gemini-pro`. **Edit verdict: `minor-fixes`** â€” the narrative
+miscategorised the download misread as one of the two "physical walls" (it was an
+operational error, not a hardware limit) and overstated the completeness gate as having
+failed the run; several drafted lessons were event restatements and were rewritten. The
+draft's framing of the thermal and verification sections survived largely intact.
+
+**Frontier:** all five seat reads, both two-seat views, the follow-through audit, every
+lesson's final wording, ADR-0038, and all repo-coherent writes.
+
+**`--fleet`:** not requested.
+
+## Offload scorecard (S6)
+
+`knowledge/offload.json` â€” watermark `2026-08-27T16:44:26Z`, 1234 calls across 11 buckets.
+
+| Class | Calls | Tokens out |
+|---|---|---|
+| sunk | 631 | 159,099 |
+| trial | 593 | 225,474 |
+| unknown | 10 | 0 |
+
+`offload_ratio` **1.0**; `est_usd_saved` **$14.89** against a claude-sonnet reference;
+`real_usd_spent` **$6.27** on the trial rungs. Note `omen-arc` shows only **11 calls** â€”
+that rung became the door default on 2026-08-21 and has barely been exercised through the
+door, which is the same data gap that makes the slot-cache frequency question
+unanswerable (see `todo.txt`).
+
+===== FILE: C:\work\commandcenter\campaign\qwen38\README.md =====
+# Qwen 3.8 HEARTH replacement campaign
+
+This directory is the version-controlled source for the August 2026 Qwen 3.8
+campaign. Runtime state is deliberately kept outside the repository at
+`E:\work\battlemage\qwen38-bench-2026-08`.
+
+The campaign has two lanes:
+
+- **Qwen3.8-27B** is a production-replacement candidate. It must clear every
+  correctness, quality, residency, latency, throughput, and soak gate.
+- **Qwen3.8-Flash-Next** is quarantined experimental fire. It is not eligible
+  to become the default in this campaign.
+
+The scripts never alter `fleet/arcserve/serve-arc.cmd` or
+`hearth/etc/backends.toml`. Entering maintenance explicitly stops the
+`ArcServeBoot` process tree and writes a restore receipt. Restoring starts the
+known-good task and proves a real one-token completion with
+`fleet/arcserve/arc-serviceability.ps1`.
+
+## Before the hardware window
+
+From `C:\work\commandcenter`:
+
+```powershell
+python campaign/qwen38/qwen38_campaign.py validate
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File campaign/qwen38/scripts/prepare-engine.ps1
+python campaign/qwen38/qwen38_campaign.py init --force
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File campaign/qwen38/scripts/preflight.ps1 -Mode Offline
+```
+
+The guarded runner captures the pinned Gemini reference before maintenance.
+It can also be prepared or resumed independently, without occupying the B70s:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File campaign/qwen38/scripts/prepare-frontier.ps1
+```
+
+Preview the revision-pinned model acquisition without downloading anything:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File campaign/qwen38/scripts/acquire-models.ps1 -WhatIf
+# Add -IncludeFlash, and optionally -IncludeFlashQ2, when the quarantined lane is wanted.
+```
+
+Run the same command without `-WhatIf`, or populate the paths in
+`config/artifacts.json` by another audited method. Qwen3.8-27B, its MTP file,
+and its vision projector are required; both Flash quants are optional. After
+acquisition, lock the exact bytes and verify that nothing drifted:
+
+```powershell
+python campaign/qwen38/qwen38_campaign.py lock
+python campaign/qwen38/qwen38_campaign.py verify-lock --rehash-artifacts
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File campaign/qwen38/scripts/preflight.ps1 -Mode Hardware
+```
+
+`lock` refuses missing required files and writes SHA-256, byte size, model
+revision, engine revision, configuration hash, and task-set hash into the
+runtime manifest. Hardware preflight also proves the Vulkan-index-to-BDF map,
+driver versions, engine parent revision, binary hash, full model hashes,
+commit headroom, the pinned Gemini 3.1 Pro rung/credentials, and the absence of
+the iGPU after filtering.
+
+## Campaign order
+
+1. `prepare-frontier.ps1` (production remains online)
+2. `00-enter-maintenance.ps1 -ConfirmOutage`
+3. `01-baseline.ps1`
+4. `02-qwen27-compatibility.ps1`
+5. `03-qwen27-performance.ps1`
+6. `04-qwen27-quality.ps1`
+7. `05-flash-quarantine.ps1`
+8. `06-final-soak.ps1`
+9. `99-restore.ps1`
+10. `07-score.ps1` (blind cloud judging runs only after restore is proved)
+
+The guarded entry point runs that chain and always restores ArcServeBoot:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File campaign/qwen38/scripts/run-campaign.ps1 -ConfirmOutage
+```
+
+Use `-SkipFlash` when the optional day-zero artifacts are absent or when the
+maintenance window is reserved for the 27B replacement decision only.
+
+`-AcknowledgeThermalQuarantine` is a narrow resume-only control. It is accepted
+only when the recorded replica p512/c4 watchdog abort crossed the configured
+temperature line and `state/resume-amendment.json` proves that model and engine
+inputs are unchanged. It preserves completed replica evidence, records every
+remaining replica-production and replica-throughput cell as quarantined, and
+continues only the dual-card lane. It never weakens the 95 C hard abort:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File campaign/qwen38/scripts/run-campaign.ps1 `
+  -ConfirmOutage -SkipFlash -AcknowledgeThermalQuarantine
+```
+
+Each stage is resumable. A stage is complete only when its receipt has
+`status: "passed"`; a partial JSONL file is never treated as completion. A
+clean per-leg watchdog receipt and its referenced telemetry are also reused
+without being overwritten.
+Transport/judge-infrastructure retries append evidence under the same request
+ID; gates and summaries use the latest attempt while preserving earlier rows.
+`99-restore.ps1` is safe to run after any failure.
+
+## Result shape
+
+Every request is written independently to `results/requests/*.jsonl`. Summary
+and verdict files are derived outputs:
+
+```text
+results/
+  requests/                 one immutable row per request attempt
+  telemetry/                b70tools, residency, commit, and watchdog streams
+  serverlogs/               stdout/stderr per server process
+  quarantine/               invalid, corrupt, crashed, or spilled legs
+  receipts/                 resumability and stage disposition
+  summaries/                per-configuration aggregates
+  promotion-verdict.json    deterministic gate result
+```
+
+Raw output is retained even when invalid. Invalid completions contribute zero
+successful jobs and are never included in throughput or preference rates.
+Every launch command, embedded GGUF chat template, artifact/engine revision,
+quant, placement, and device assignment is appended to
+`state/server-launches.jsonl`. Watchdog samples carry energy counters, host RAM,
+per-adapter GPU/VRAM temperatures, shared-memory growth, commit headroom, and event status,
+correlated to request rows by run ID. Cross-process local VRAM is explicitly
+marked unobservable on this Windows/Vulkan stack; the campaign does not turn
+the known-blind PDH/Vulkan gauges into fake residency numbers. Shared growth is
+the authoritative spill signal.
+
+Performance legs use streaming responses, so TTFT is measured at the client;
+the server's prompt/decode timings and current `draft_n` / `draft_n_accepted`
+MTP counters are retained separately. Closed-loop wall time is reconstructed
+from per-client active time, so a resumed leg cannot accidentally count an
+overnight pause as benchmark time.
+
+## Deliberate operator decisions
+
+- The quality assay is balanced across nine families (eight tasks each), not
+  weighted by historical HEARTH traffic.
+- A single campaign outage is permitted. Ordinary traffic must not share the
+  benchmark servers.
+- MTP is always tested after the non-MTP base path and is promoted only on net
+  successful-output goodput.
+- Long-context cells use buried-code retrieval and leave output headroom; a
+  nonempty but context-blind answer does not count as a successful job.
+- Flash-Next tries IQ4 first. Q2 is allowed only after IQ4 misses residency,
+  correctness, goodput, or latency, and neither quant earns specialist status
+  without a 65% order-consistent frontier win rate.
+- Blind judges receive the original prompt, mechanical acceptance criteria,
+  tool calls, multi-turn transcript, and image, while model identities and
+  output order remain hidden.
+- Advertised HEARTH capacity comes only from a measured, spill-free topology;
+  native model context is not routing metadata.
+
+A passing verdict says `eligible_for_pin_only_canary`; it does not edit HEARTH
+routing or make the candidate default. That preserves the separate 48-hour
+canary and human review boundary from the campaign plan.
+
+===== FILE: C:\work\commandcenter\DECISIONS-PENDING.md =====
+# Decisions pending â€” Derek's desk
+
+One register for open decisions accumulated across retros, ADRs, and review docs.
+Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
+
+- [x] 2026-07-04 â€” Ratify "two ledgers = two bounded contexts; one door â‰  one store"
+      as an ADR-0005 amendment or new ADR (source: [docs/CQRS-ES-STANDARDIZATION.md](docs/CQRS-ES-STANDARDIZATION.md))
+      â€” DONE 2026-07-04 ("make it so"): [ADR-0010](docs/adr/0010-two-ledgers-two-bounded-contexts.md)
+- [x] 2026-07-04 â€” `record_event` double-write: keep + document (reviewers' lean) vs
+      special-case the gateway wrapper (source: [docs/CQRS-ES-STANDARDIZATION.md](docs/CQRS-ES-STANDARDIZATION.md))
+      â€” DONE 2026-07-04 ("make it so"): keep + document, [ADR-0011](docs/adr/0011-record-event-double-write-is-intentional.md)
+- [x] 2026-07-04 â€” Green-light fleet briefs for CQRS plan steps 2â€“4 (atomic writes +
+      capacity.json guard, Ledger.reindex, canonical Corpus enumerator)
+      (source: [docs/CQRS-ES-STANDARDIZATION.md](docs/CQRS-ES-STANDARDIZATION.md))
+      â€” DONE 2026-07-04, merged f1f2b8b/bd636d5/ad486d6 (bfaaf9f)
+- [x] 2026-07-03 â€” known_good/known_bad_models.json guard coverage
+      (source: DECISION-NEEDED-A2.md, flagged again by the CQRS review)
+      â€” DONE 2026-07-11 (S2 of [SCHEDULER-STRATEGY.html](SCHEDULER-STRATEGY.html)): 12 tests
+      landed in `hearth/tests/toolsurface/test_knowledge.py` (`2ad68e0`), mutation-checked
+      (inverted guard â†’ 4 tests fail). Note: real classification logic lives in
+      `tools/workflow/project_capacity.py`; the A2 watermark gap itself stays deferred
+      (option 1 "leave unguarded" still in effect, now with the contract pinned by tests).
+- [x] 2026-07-05 â€” Canonical AM4 B70 bring-up (2 per-B70 ports). RESOLVED: AM4 is native
+      Ubuntu; only the :8080 planner slot has Linux backing (`~/baseline/relaunch-qwen3-baseline.sh`),
+      :8081 critic slot unbacked. Planner woken; pilot + confirmation sweep ran cross-machine.
+- [x] 2026-07-05 â€” Fix the knowledge-guard bug (read tools refused on knowledge/ paths).
+      DONE in code + tested (`80c41d6`): am4/scheduler read tools added to EXTRA_KNOWLEDGE_READERS,
+      11 guard tests green. **Goes live on next gateway reload.**
+- [x] 2026-07-05 â€” Reload the HEARTH gateway (carries BOTH the guard fix `80c41d6` AND the
+      commander door tools `refine_idea`/`refine_result`); CLI + unit tests already green
+      (source: [ADR-0012](docs/adr/0012-commander-intent-lane-frontier-out-of-loop.md))
+      â€” DONE 2026-07-09: gateway restarted for the ADR-0014 lane change; 35 tools live
+      (commander tools + guard fix confirmed aboard).
+- [ ] 2026-07-05 â€” Harvest + synthesize the 24-pour idle campaign; curate/land the JS5 +
+      assay-acceptance branches (source: [SESSION-RETRO-2026-07-05.md](SESSION-RETRO-2026-07-05.md))
+      â€” 2026-07-11 PARTIAL: harvest DONE (23/23 â†’ `campaign/harvest/`, `0fff65f`);
+      assay-acceptance branch LANDED (`9e01612`, null-action regression pinned). JS5 CANNOT
+      be curated: the pour produced empty laps on both builders (the null-action exploit,
+      live) â€” remaining sub-decision is H1b in SCHEDULER-STRATEGY.html (re-pour vs direct
+      build). Synthesis = S7, in flight.
+- [x] 2026-07-09 â€” Tailscale in the machine loop (browser re-auth blocked the conductor
+      lane). DECIDED + SHIPPED same day: machine lanes moved to mshome/LAN, Tailscale =
+      humans + Funnel only; conductor stays a Hyper-V VM (WSL/AM4 relocation rejected)
+      â€” [ADR-0014](docs/adr/0014-machine-lanes-off-the-tailnet.md), verified live.
+- [x] 2026-07-09 â€” Derek: Tailscale admin hygiene for the remaining HUMAN lanes â€”
+      disable key expiry on server nodes (OMEN, AM4), flip SSH ACL `check`â†’`accept`
+      (admin console; source: ADR-0014 consequences). DONE 2026-07-09 (Derek, separate
+      session).
+- [x] 2026-07-09 â€” Derek: confirm nothing human-facing still rides cc-conductor's
+      tailnet identity (dashboard :8080 from phone?) â†’ then `tailscale logout` on the
+      conductor (source: ADR-0014 consequences). DONE 2026-07-09 (Derek, separate
+      session): conductor is off the tailnet â€” confirmed independently the same evening
+      via `tailscale status` from OMEN (only omen/am4/i5/pixel-8a remain); cc-builder-4's
+      rogue tailnet node also removed. inventory.toml updated to match.
+- [x] 2026-07-09 â€” BUILD: fold patrol/watchdog/drain/perception into the gateway as
+      internal timers; shrink Task Scheduler to two headless boot entries; deregister
+      the superseded tasks ([ADR-0015](docs/adr/0015-ops-loops-fold-into-the-gateway.md)).
+      DONE 2026-07-09 (slice 1): `hearth/kernel/timers.py` + 291 tests green; gateway
+      arms patrol/watchdog/drain; live cutover verified (all three ticked `exit 0` with
+      ledger ids) and the 3 superseded tasks deregistered (XML backed up to
+      `hearth/var/retired-tasks-adr0015/`). Perception + tracing proxy stay tasks (homing
+      decision: out-of-repo / persistent service). Boot entries DONE 2026-07-09:
+      `HearthGatewayBoot` + `OllamaBoot` re-registered `LogonType=S4U` ("run whether
+      user is logged on or not", no stored password â€” needed UAC only, not the
+      password). ADR-0015 end state complete; proof = next OMEN reboot.
+- [x] 2026-07-09 â€” PINNED (decide after use-case discovery): repo-aware `local_generate`
+      â€” gateway-side context assembly (a `paths`/glob param packing scope-guarded files
+      into the prompt) was proposed for the "point a local model at a repo" bootstrap
+      gap. Before building: collect the OTHER use cases (feeding knowledge/, repo-grounded
+      experiment briefs, â€¦) and decide extend-vs-enhance on those findings.
+      â€” DECIDED + BUILT 2026-07-16: un-pinned by the offload-first strategy
+      ([HEARTH-OFFLOAD-STRATEGY.html](HEARTH-OFFLOAD-STRATEGY.html) WP1.1 â€” the use-case
+      evidence accumulated). `files=` param landed on branch `feat/repo-aware-intake`,
+      drafted by the door's own gcp-gemini-pro rung and live-proven post-restart
+      (receipt br-20260716-070602-756035bd; 445 tests green).
+- [ ] 2026-07-16 â€” PINNED (decide after sentinel data accrues): full per-request
+      interception of direct Ollama traffic â€” a ledgering proxy owning :11434 (Ollama
+      moves to :11435) would capture every bypass with content digests, but puts a
+      moving piece in front of a production serving lane the fleet uses directly.
+      Slice 0 shipped instead: the ollama-sentinel gateway timer (fleet/ollama_sentinel.py,
+      120s netstat sampling, hearth/var/sentinel/ollama-direct.ndjson) â€” sampling can
+      miss short calls between ticks. Revisit when the ndjson shows how much direct
+      traffic exists and from whom. Also open: same sentinel pattern for AM4 oxen :8090
+      (facade is our code â€” could ledger natively) and Vertex-direct (only GCP audit
+      logs can see it).
+- [ ] 2026-07-09 â€” PINNED (decide after use-case discovery): fleet builds targeting a
+      NON-conductor repo (trigger: Valheim fieldlab mod wanted mechnet help; today
+      CCMETA has no repo concept â€” [task_lane.py](hearth/toolsurface/task_lane.py) is
+      hardwired to the conductor repo). Candidate: optional CCMETA `repo` field
+      (conductor-side change, coordinate â€” concurrently-owned code). Interim: the
+      comfy_gateway (:8720, HEARTH_SCOPE=C:\work\comfy) covers the interactive slice.
+      Gather concrete use cases before an implementation decision.
+- [x] 2026-07-18 â€” Set `.mcp.json` hearth server timeout so deliberate long moe
+      calls survive the client idle cap (source: [SESSION-RETRO-2026-07-18.md](SESSION-RETRO-2026-07-18.md)).
+      DONE, superseded: 600000 â†’ 900000 (am4-moe timeout_s=600 headroom) â†’ 1300000
+      (2026-07-21, alongside the flat 1000s rung-timeout baseline) â€” local `.mcp.json`
+      updated directly; the tracked template is [hearth/callers/mcp-config-snippet.json](hearth/callers/mcp-config-snippet.json).
+- [ ] 2026-07-18 â€” Review/apply the tracker sync recommendations (items 5 superseded, 8 done,
+      13 done) (source: [docs/DECISIONS-PENDING-SYNC-2026-07-18.md](docs/DECISIONS-PENDING-SYNC-2026-07-18.md))
+- [ ] 2026-07-18 â€” D4: edit + publish call on the O4 Windows-delta draft
+      (source: [docs/drafts/o4-windows-delta-draft.md](docs/drafts/o4-windows-delta-draft.md))
+- [ ] 2026-07-18 â€” Optional: remount `/mnt/win` ro (`sudo mount -o remount,ro /mnt/win`) â€”
+      resident serving is ro-mmap safe (source: [SESSION-RETRO-2026-07-18.md](SESSION-RETRO-2026-07-18.md))
+- [x] 2026-07-19 â€” **The container-access deployment gate â€” RESOLVED SMALLER, same day.**
+      Originally: confirm Docker subnet â†’ firewall rule â†’ `0.0.0.0` bind â†’ restart. Investigation
+      falsified the premise: this host runs WSL2 `networkingMode=mirrored`, so containers already
+      reach the loopback bind, and the real blocker was the MCP SDK's DNS-rebinding allowlist â€”
+      which ADR-0019's bind mode could not influence (FastMCP was constructed before
+      `settings.host` was assigned), so the gate as written would have opened the LAN and still
+      returned 421. Fixed in `build_server` + `_transport_security()`; verified from a container
+      against a loopback-only gateway (200 on `/healthz`, 406 not 421 on `/mcp`); 609 tests green.
+      â€” [ADR-0022](docs/adr/0022-container-access-needs-no-exposure.md). **No firewall rule and no
+      bind change will be made.**
+- [x] 2026-07-19 â€” **Restart the durable gateway â€” DONE 2026-07-20 00:01, verified.** Preflighted
+      first with a full-provider dry-run on a spare port against the real caller registry (startup
+      capability-completeness + authority coherence both passed) so a refusal could not take the
+      door down. `HearthGatewayRestart` bounced it cleanly. Evidence: `/healthz` 200 from host
+      **and** container (was 404); container `/mcp` **406, not 421**; bind still `127.0.0.1` only;
+      **zero firewall rules for 8710**; doorcheck all four facets healthy
+      (`process_listener`/`authentication`/`mcp_surface`/`backend_dependency`); authenticated
+      `local_generate` through the door returned `ok:true` via `gcp-gemini`;
+      `docker-open-notebook-facade` live under the `generation-proxy` profile. ADR-0019 + 0020 +
+      0022 are now in force on the live door with **no network exposure created**.
+- [x] 2026-07-19 â€” Push / land `hearth-container-access-adr-0019`: 13 commits and 2372 lines of
+      security work sat on a local branch with no remote tracking branch. DONE same day ("make
+      sure everything is merged and push to master"): merged `--no-ff` to master and pushed
+      (`6efc7e2`), along with the stranded twin fix `claude/upbeat-swirles-e6be44` (`288873e`)
+      that the branch sweep surfaced. Both local branches deleted after merge; 609 tests green.
+      (source: [SESSION-RETRO-2026-07-19.md](SESSION-RETRO-2026-07-19.md) L-5)
+- [x] 2026-07-19 â€” Close the legacy fail-open â€” **DONE 2026-07-20, live and verified**
+      ([ADR-0023](docs/adr/0023-authority-is-granted-never-assumed.md)). Roles were **authored from
+      intent, not derived from the ledger** â€” Derek's call: the network had been used
+      opportunistically to build other things, so observed usage records how the door happened to
+      be reached, not what an identity is for. v1 roster live on the door: `claude-frontier` â†’
+      `unrestricted` (47/47, dated review), `omen-worker-1` â†’ `builder` (21/47), `dev-local` â†’
+      `probe` (1/47), `docker-open-notebook-facade` â†’ `generation-proxy` (2/47). An absent profile
+      now DENIES. New `callerctl assign` changes a role **without rotating the secret**, so policy
+      no longer costs a credential change. 628 tests green; all four doorcheck facets healthy.
+- [ ] 2026-10-20 â€” **Role review (ADR-0023).** With `profile`-attributed events from intentional
+      usage, decide whether `unrestricted` has earned a narrower role for `claude-frontier`, and
+      whether `builder` should keep `dispatch` (a worker that can queue fleet work is defensible
+      but was never separately argued). If a role is too tight to flip safely, build report-only
+      enforcement rather than guessing again
+      (source: [ADR-0023](docs/adr/0023-authority-is-granted-never-assumed.md))
+- [ ] 2026-07-20 â€” Optional: `dev-local`'s secret is the literal string `dev-local`, checked into
+      git at `hearth/etc/callers.json`. It is held to `probe` (1 tool) for exactly that reason, and
+      `doorcheck --probe-cloud` now needs `generate` so it requires a real key. If you want a
+      hands-on operator identity, mint a SEPARATE caller with a CSPRNG secret and assign the
+      (already-defined, currently unassigned) `operator` role â€” do not widen `dev-local`
+      (source: [ADR-0023](docs/adr/0023-authority-is-granted-never-assumed.md))
+- [x] 2026-07-20 â€” **Logging on the gateway's critical start path made the door unstartable.
+      FIXED + verified 2026-07-20** ([ADR-0024](docs/adr/0024-gateway-liveness-lives-outside-the-gateway.md)).
+      `start-hearth-gateway.cmd` now probes the primary log, retries a few times (a bounce leaves
+      the old wrapper's handle open ~1-2s), and only if it is genuinely wedged falls back to a
+      unique per-launch file â€” so the door boots regardless of a stale log handle. The retry sleep
+      is `ping`, not `timeout` (which aborts under the `stdin=DEVNULL` that `doorcheck --revive`
+      uses). Verified across repeated live bounces: door returns clean, 0 fallback files on a
+      normal restart; a genuinely-locked primary falls back and still boots (staged-lock test).
+      Recovery wrapper already retired (door back on the normal boot task).
+- [x] 2026-07-20 â€” **The gateway had no external liveness watch. FIXED + verified 2026-07-20**
+      ([ADR-0024](docs/adr/0024-gateway-liveness-lives-outside-the-gateway.md)). New scheduled task
+      `HearthGatewayWatchdog` (`hearth/etc/watchdog-gateway.cmd`, MINUTE/3) runs
+      `doorcheck --json --facet door` and, on two consecutive failed probes, triggers
+      `HearthGatewayRestart` (the high-integrity S4U path â€” preserves Hyper-V admin, no UAC). The
+      one deliberate ADR-0015 exception: a loop that cannot fold into the thing it watches.
+      Up-path verified live (healthy door â†’ no-op, PID unchanged); downâ†’revive verified by
+      component (doorcheck.py:670 returns exit 1 when the listener is down; the restart task
+      revives, seen repeatedly) since the test shell cannot kill the higher-integrity door to stage
+      a full outage. Rollback: `schtasks /Delete /TN HearthGatewayWatchdog /F`.
+- [x] 2026-07-20 â€” **Mirrored-WSL fate-sharing recorded as a cost of ADR-0022.** Now documented in
+      [ADR-0024](docs/adr/0024-gateway-liveness-lives-outside-the-gateway.md) Context (the
+      `WinError 64` listener death) and Consequences (mitigated by the facade's per-call reconnect
+      + the external watchdog, not removed). A reader weighing mirrored mode now sees both the
+      benefit (ADR-0022) and the cost (ADR-0024).
+- [x] 2026-07-20 â€” **Transformation outputs were truncated at their token caps. FIXED + verified
+      2026-07-20.** The first run landed on EXACTLY 2,250 / 3,000 (truncation). The builder raised
+      the token caps to 3,600 / 3,600 / 4,700 (keeping the 9,000-byte map-output validation as the
+      hard backstop) and matched the map prompt to the 9,000-byte target. Re-run on a 49,095-byte
+      source, ledger-verified: map 1,160 & 1,550, reduce 2,205 â€” all STRICTLY under cap, finish
+      reason "stop", am4-moe/tag:research, zero trial, zero refusal, final output a complete
+      conclusion. Note (not a concern): the token cap (3,600) is now looser than the 9,000-byte
+      cap (~2,380 tokens), so the byte validation is the binding constraint and a very dense map
+      that naturally runs long would fail-and-retry rather than clip â€” the intended backstop.
+- [x] 2026-07-20 â€” **Exercise the chunker against a real multi-chunk source. DONE + verified
+      2026-07-20.** 108 KB source â†’ 3 chunks, resume isolation confirmed (recomputed chunk 0, reused
+      1 & 2 from checkpoints = 2 model calls, matched by ledger), map 2,250 / reducer 3,000 tokens
+      both `max_completion_tokens` on am4-moe/tag:research, zero trial-credit routing, zero refusals,
+      ~4m15s. Hierarchical reduction, durable checkpoints, and budget enforcement all exercised
+      against live compute for the first time. Follow-on quality item registered above.
+- [ ] 2026-07-19 â€” Low priority: fix the offload projection's legacy bucket keys â€” 182 of 229
+      lifetime calls sit in `model:<name>`-shaped buckets with zero token counts, so
+      `est_usd_saved` undercounts. Decide backfill vs alias-map vs leave-and-annotate
+      (source: [SESSION-RETRO-2026-07-19.md](SESSION-RETRO-2026-07-19.md) L-7)
+- [ ] 2026-07-21 â€” **Full Track 2 build or not.** Track 1 (live benchmark: `am4-moe` 93.8 vs
+      `gcp-gemini` 89.2 vs `gcp-gemini-pro` 90.6, gemini ~4-5x faster) and Track 2.0 (minimal
+      Studio-hosted ADK agent proven live over HEARTH MCP via Funnel+Caddy) both landed; whether
+      to invest in the full docx Agent-1 build (`repo_search`/`git_show`/`ledger_query`/
+      `manifest_query` tools, a dedicated `cloud-steward` profile, `baseline` registry
+      enrollment, the 8-scenario eval harness) is explicitly left to Derek
+      (source: [Hearth_Google_Agent_Implementation_Plan.docx](hearth/Hearth_Google_Agent_Implementation_Plan.docx),
+      this session's plan file, SESSION-RETRO-2026-07-21.md session 2).
+- [ ] 2026-07-21 â€” Commit or discard this session's new, currently-uncommitted files:
+      `hearth/experiments/doc_adr_bench.py`, `hearth/experiments/run_doc_adr_bench.py`,
+      `hearth/projection/gemini_pricing.py`, `hearth/etc/caddy/Caddyfile`,
+      `hearth/etc/start-hearth-funnel-proxy.cmd` (not asked for this session â€” see
+      SESSION-RETRO-2026-07-21.md session 2, Operator/SRE).
+- [x] 2026-07-21 â€” Fill real Vertex AI per-Mtok pricing into `hearth/projection/gemini_pricing.py`
+      â€” DONE 2026-07-23, verified against Google's Vertex pricing page (Global/Standard, <=200K):
+      flash $1.50/$9.00, pro-preview $2.00/$12.00 (pro tiers to $4/$18 above 200K prompt tokens â€”
+      noted in the module, flat table carries the <=200K rates that match observed usage).
+      Cross-check: the pro rung's entire lifetime tokens (1.79M in / 119K out) price out to
+      ~$5.02 â€” corroborates the 2026-07-23 finding that the ~$36 was standing compute, not inference.
+- [ ] 2026-07-23 â€” **Stop the GCP standing-compute burn (the real "$36").** Diagnosis (read-only
+      Monitoring API, 2026-07-23) reconciled Derek's ~$36 console figure: NOT monitoring/logging
+      ingest (0 chargeable samples; ~287 MB logs/7d, inside free tier) â€” the dollars are standing
+      compute: **two Agent Engine ReasoningEngines live in us-west1 since 2026-07-21 06:41 UTC**
+      (`baseline` + `AGENT_DESIGNER_GENERATED_DO_NOT_DELETE`, billing vCPU/GiB-hours while idle,
+      ~est $3.5/day each) + the `comfy-lumberjacks-p7` e2-medium VM since ~07-11 (~est $1/day) +
+      the $13.30 agent-session drawdown. âš  2026-07-23 engine inspection: `baseline` IS the deployed
+      ADK demo agent (`agentFramework: google-adk`) â€” deleting it deletes the Track 2.0 demo â€” and
+      it runs with `GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY=true` +
+      `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` (full message content into Cloud
+      Trace/Logging â€” the actual source of the 50K trace calls and the "identity logging" bloat;
+      also a privacy consideration: prompt/response bodies land in GCP logs). Corroboration: real
+      per-Mtok pricing (now in gemini_pricing.py) prices the pro rung's ENTIRE lifetime inference
+      at ~$5.02. Decisions: (a) delete/undeploy the two ReasoningEngines
+      (the Studio-generated one despite its name â€” verify in console first; accept losing the
+      standing demo, redeploy-per-campaign later), (b) stop the VM when
+      not integrating, (c) optionally disable the Data Access audit logs (41K entries/3d â€” the
+      "interim identity logging") and Ops Agent docker-stdout ingestion (136K entries/3d) â€” free-tier
+      today, noise regardless. Registered in the new spend ledger
+      [knowledge/cloud_spend.json](knowledge/cloud_spend.json) ([cloud-spend.v1](contracts/cloud-spend.v1.schema.json));
+      full findings in [GCP-AGENT-ASSESSMENT.html](GCP-AGENT-ASSESSMENT.html).
+      â†’ 2026-07-23 session 2 progress: engine specs captured pre-deletion to
+      hearth/gcp/engine-specs-2026-07-23.json (API exposes no agent source â€” rebuild is
+      repo-owned via hearth/gcp/adk_demo.py, staged); deletion/budget commands handed to
+      Derek in the burn-stop runbook (agent-side cloud mutations blocked by the permission
+      layer). CORRECTIONS to the diagnosis: the VM is n2-highmem-2 as of 2026-07-23 ~03:09
+      (manually downsized; it was n2-highmem-8 from 07-11 â€” the "e2-medium" in this item and
+      cloud_spend.json is wrong; ~$3.14/day at current size, ~$94/mo). Terraform defaults in
+      both checkouts now pinned to n2-highmem-2 so the next apply cannot silently resize back
+      up. The existing "Lumberjacks Stage 1 monthly budget" ($25) actually scopes the whole
+      project and has likely breached â€” rename/raise it rather than adding a duplicate.
+      Class-fix drafted as ADR-0026 (ephemeral-by-default, staged for docs/adr/).
+- [x] 2026-07-21 â€” ~~Revisit [ADR-0025](docs/adr/0025-funnel-caddy-stamps-identity-until-studio-can.md)'s
+      Caddy-stamped-key auth once Studio ships MCP Server API-key auth~~ **DONE 2026-08-24, but
+      not the way this was written.** Studio never shipped the auth; Derek killed the Studio agent
+      for cost (~$16/day). The stamp was dropped anyway because (a) it had leaked its key into the
+      proxy's own logs and (b) a peer caller arrived that sends its own header. Per-request auth is
+      live, `gcp-adk-test` is revoked, and the `--runner-class` taxonomy question dies with it â€”
+      no cloud-hosted callers remain. See the ADR amendment.
+- [ ] 2026-08-24 â€” **Rate limiting on the Funnel ingress is now material, not theoretical.**
+      Carried from ADR-0025 where it was acceptable because the only caller was one test agent.
+      That ingress is now intended for a real peer's router. Stock Caddy has none; needs a custom
+      `xcaddy` build with `caddy-ratelimit`. Decide before handing the key to anyone.
+- [ ] 2026-08-24 â€” **`hearth/var/callers.json` stores caller secrets in PLAINTEXT**, as the
+      top-level JSON keys. Discovered while pruning backups: 8 distinct plaintext secrets were
+      sitting across 10 auto-generated `.bak` files, 5 of them still valid â€” including
+      `claude-frontier`, which holds the `unrestricted` profile. Pruned to one backup, but the
+      shape is the issue, not the pile. The gateway could store `sha256(secret)` and compare
+      hashes on arrival, so a registry read would yield nothing usable. Two sub-decisions:
+      (a) move to hashed storage, and (b) make `callerctl` prune its own backups, since every
+      mutation writes another full-credential copy and that is what built the pile.
+- [ ] 2026-07-29 â€” **Decide on an actual fix for unpushed/unattached git state â€” the escalation
+      trigger has been hit.** [SESSION-RETRO-2026-07-21.md](SESSION-RETRO-2026-07-21.md)'s
+      L-2026-07-21-3 said "a fourth occurrence should trigger an actual fix." As of today
+      `master` is **10 commits ahead of `origin/master`** (from earlier sessions, incl. the Buzz
+      and i5 work), making this at least the fourth documented instance across 07-19, 07-20,
+      07-21 and now. Options to pick from: (a) a session-start `git status -sb` / `symbolic-ref`
+      habit baked into the retro or a `SessionStart` hook, (b) a pre-commit or post-commit hook
+      that warns on ahead-count > N, (c) accept it explicitly as normal for this repo (Derek
+      pushes in batches deliberately) and stop counting it in retros. Choosing (c) is a
+      legitimate outcome â€” the cost right now is retro noise, not lost work â€” but it should be a
+      decision rather than a fourth observation. Source:
+      [SESSION-RETRO-2026-07-29.md](SESSION-RETRO-2026-07-29.md).
+      **Update 2026-07-30:** the *symptom* is cleared â€” master pushed on request, now 0 ahead,
+      working tree clean. The *decision* (a/b/c) is still open and deliberately not closed here;
+      one push does not settle whether the habit needs a hook. See
+      [SESSION-RETRO-2026-07-30.md](SESSION-RETRO-2026-07-30.md).
+
+- [ ] 2026-07-30 â€” **Find what re-pushes deleted fleet branches.** 70 merged remote branches were
+      deleted; **61 reappeared within ~30 minutes** carrying Jul 5â€“18 commit dates (same branches
+      re-pushed, not new runs), while the 9 non-`fleet/*` ones stayed deleted. Nothing on OMEN
+      explains it: the local `conductor-mirror.git` holds only `main`, and no scheduled task pushes
+      to this repo. Most likely a clone on cc-conductor or a builder VM doing a `push --all`.
+      Pruning again is a treadmill until the source is found. Remote sits at 158 branches. Source:
+      [SESSION-RETRO-2026-07-30.md](SESSION-RETRO-2026-07-30.md).
+- [ ] 2026-07-30 â€” **Decide whether to pin Ollama's version and stop the auto-updater
+      half-applying.** `app.log` shows the updater looping hourly on "new update available /
+      already downloaded", and `repair-install-2026-07-17.log` (417 KB, "Installation process
+      succeeded") shows this exact break was already repaired once, 13 days before it recurred. The
+      pattern: it half-applies, deletes `lib/ollama`, and leaves Ollama answering `/api/tags` while
+      no generate can succeed. The sentinel now catches it inside 120 s, so this is about
+      prevention, not detection. Pinning means updating deliberately. Source:
+      [ADR-0028](docs/adr/0028-one-door-means-one-host.md).
+- [ ] 2026-07-30 â€” **Retire `comfy_gateway`'s duplicate `local_generate`** in favour of HEARTH's.
+      It is the surviving artifact of the Valheim-MCP-into-HEARTH merge and a second inference path;
+      right now it is kept honest only by both ends living on loopback. Changing it touches a tool
+      surface in active use. Source: [ADR-0028](docs/adr/0028-one-door-means-one-host.md) Â§Decision 4.
+- [ ] 2026-07-30 â€” **Decide whether `hearth/experiments/*` should push a `dispatch_identity`.**
+      Those runs are real backend Ã— task matrices â€” the richest varied-axis evidence in the repo and
+      exactly what the association engine's gate 2 is starving for â€” but they currently emit no
+      observations. Opting them in is a curation question (which experiment runs count as evidence),
+      not plumbing. Source: [ADR-0027](docs/adr/0027-gateway-dispatches-are-not-observations-yet.md).
+- [ ] 2026-07-30 â€” **Name in the offload doctrine that the scorecard measures door traffic, not
+      offload.** In-process `local_generate` calls bypass the gateway wrapper and never reach the
+      kernel ledger, so this session's live dispatches appear in the observation artifacts but not
+      in `knowledge/offload.json` (and `omen-ollama` still reads `ok_rate 1.0` despite failed
+      in-process attempts). The doc change belongs in `CLAUDE.md`, which a **concurrent session is
+      editing** â€” deferred rather than conflicted. Source:
+      [SESSION-RETRO-2026-07-30.md](SESSION-RETRO-2026-07-30.md) L-2026-07-30-7.
+- [ ] 2026-08-25 â€” **Decide whether AM4 should stay in the BF6 media path at all.** Producer-local
+      extraction cut the crossing 40x (3.94 GB â†’ 97.9 MB), but AM4's remaining role is Whisper on
+      the RTX 5070 plus the review UI and database. Moving analysis to OMEN too would make the
+      cross-machine sidecar bridge and its revision-matching largely unnecessary â€” a smaller
+      system, at the cost of stranding the 5070 on a job it does well. Explicitly out of scope
+      when the extraction work was ordered; recorded so the option is not lost. Source:
+      [ADR-0037](docs/adr/0037-the-producer-reads-the-raw-footage.md) Â§Alternatives considered.
+- [ ] 2026-08-25 â€” **Decide what replaces `RENDER_BACKEND=am4` as a rollback path.** The flag is
+      still coded and tested but is no longer operable: a local render reads the raw segment, which
+      now costs ~16 min of wireless transfer per clip. Today's real rollback is `git revert` plus
+      restoring the retired copper cable. Options: accept it (documented), restore a fast link, or
+      drop the flag so nothing suggests a fallback that is not there. Source:
+      [ADR-0037](docs/adr/0037-the-producer-reads-the-raw-footage.md) Â§Consequences.
+- [ ] 2026-08-25 â€” **Decide whether the render lane's own `h264_qsv` output needs a real-decode
+      check.** The iGPU proxy proved that correct size/geometry/duration/`nb_frames` and a clean
+      `ffprobe` can all pass over a stream a decoder cannot read. The render lane validates its
+      outputs the same cheap way and has **not** been checked for that failure mode. Source:
+      [docs/RENDER-LANE-BACKLOG.md](file:///E:/omen/bf6-highlights/docs/RENDER-LANE-BACKLOG.md) Â§4.
+- [x] 2026-08-25 â€” **Decide whether the BF6 lane needs liveness watching on BOTH ends.**
+      Demonstrated twice in one day. AM4's worker crash-looped on a dead mount from the moment
+      the cable moved until a deploy happened to notice. Then all three OMEN processes died and
+      sat dead for ~30 minutes with nothing reporting it â€” found only because a second retro
+      went looking. Both ends already expose a cheap signal: AM4's `/health` reports
+      `rawMounted`, and the render agent writes `hearth/var/render/agent.heartbeat.json` with a
+      timestamp. Neither is watched. Sources:
+      [SESSION-RETRO-2026-08-25.md](SESSION-RETRO-2026-08-25.md) Â§Operator and Â§Addendum.
+      â€” DONE 2026-08-25: `hearth.media.watchdog` plus the external minute-cadence
+      `BF6PipelineWatchdog` task heal stopped OMEN workers, restart a stale render
+      agent, and record AM4 mount/API health. See the operational amendment to
+      [ADR-0036](docs/adr/0036-gpu-execution-leaves-the-control-plane.md).
+- [ ] 2026-08-27 â€” **Decide whether the Qwen3.8-27B earns a long-context / vision pin-only rung.**
+      The campaign verdict is `do_not_promote` and that is correct for a *default-rung swap*:
+      the candidate is âˆ’31.3% on jobs/hour at the gate's 512-token operating point. But the
+      gate measures the one regime where a dense 27B loses to a 3B-active MoE. Along prompt
+      length it inverts â€” **2.63Ã— the baseline at 8K prompts, 5.49Ã— at 32K** â€” and HEARTH's
+      real traffic is `files=` packs, which is why `context_bytes` was widened 4Ã— in the first
+      place. It also wins blind judging 44/42/4 (95.6% win-or-tie) and has vision, which the
+      incumbent lacks entirely. Adding a rung is a standing-cost deployment decision, so it is
+      not mine to make. Sources: [SESSION-RETRO-2026-08-27.md](SESSION-RETRO-2026-08-27.md),
+      `E:\work\battlemage\qwen38-bench-2026-08\results\promotion-verdict.json`.
+- [ ] 2026-08-27 â€” **Decide whether MTP output divergence at temperature 0 is an engine defect.**
+      MTP-on and MTP-off produced zero identical responses across every compared cell, and all
+      126 `p8192` MTP-off requests stopped early while MTP-on did not. Speculative decoding is
+      only output-safe when verification is exact, so either the pinned build's verification is
+      inexact or something else differs between the paths. Blocks any MTP-on deployment.
+      Source: [ADR-0038](docs/adr/0038-a-verdict-cites-only-evidence-from-the-configuration-it-promotes.md).
+- [ ] 2026-08-27 â€” **Decide whether to record `ttft` and prompt tokens on `local_generate` ledger events.**
+      The prefix-cache-miss penalty is now measured at **~306Ã— the warm TTFT at 26K depth**
+      (39.75s â†’ 0.13s once cached). Its *frequency in production* is unmeasurable: the ledger
+      records `duration_ms` but not TTFT, so a re-prefill is indistinguishable from a slow
+      generation, and only 11 `omen-arc` events carry token counts at all. The campaign harness
+      already captures exactly this field; the door does not. It is a change to a live gateway.
+      Source: [todo.txt](todo.txt).
+
+- [x] 2026-08-27 â€” ~~Resolve the 3Ã— Flash-Next decode gap before any Flash figure enters the
+      bake-off table~~ â€” **RESOLVED same day, by the campaign's own placement ladder.** The two
+      numbers are two residency levels of one model, and the ladder is monotonic: 4.86 tok/s at
+      0 blocks on GPU, 7.41 at 16, 9.24 at 24, 11.66 at 32, 16.38 at 40, **27.70 at all 48**,
+      with host commit tracking it 5.7 GB â†’ 60.4 GB. `llama-bench`'s **8.91 sits between the
+      16- and 24-block rungs**: the arm passed `-ngl 48` but `-lm mmap`, so the weights stayed
+      file-backed and it never obtained the residency it asked for. The within-run decay is the
+      same axis (9.97 â†’ 8.4 tok/s â‰ˆ four blocks of residency lost to page reclaim). The
+      "unexplained" framing was mine and it was wrong â€” the answer was already published four
+      sections below the number, in this article. **No `-r 10` probe is needed.** The chart now
+      carries 27.7 (all 48 blocks named). Fixed in steppeintegrations-site `a725827`.
+      âš  Still genuinely open, and narrower: the **text-vs-vision split inside one server
+      instance** â€” 27.4 tok/s text against 6.8 vision at identical memory state, MTP off,
+      same placement. Vision `latency_s` is ~360 s against ~4 s of `predicted_ms`, so almost
+      all of it is image encoding, but that does not explain why *decode* is 4Ã— slower after
+      an image. Source: [SESSION-RETRO-2026-08-27.md](SESSION-RETRO-2026-08-27.md).
+
+- [ ] 2026-08-27 â€” **Decide whether Flash-Next gets its speculative-decoding lane measured at
+      all.** Every Flash figure in the campaign and the article is `mtp_enabled: false`, and
+      not by choice: `server-control.ps1` hard-gates the `-md / --spec-type draft-mtp` path to
+      `qwen38-27b` and throws for any other candidate. Flash-Next ships MTP natively, and on
+      the dense 27B that path was the single largest configuration win measured â€” 510 â†’ **1591
+      completed jobs/hour**, acceptance 0.65 â†’ 0.86. So the published 27.7 tok/s is the
+      model's *non-speculative* speed, and the fast configuration was never run. Two reasons to
+      weigh before spending an outage: the same MTP path produced **zero identical responses at
+      temperature 0** on the 27B (the open divergence decision above), so a throughput win here
+      would land on an output-safety question that is already unresolved; and Flash at full
+      residency needs 61.2 GB VRAM + 65.3 GB commit, leaving little room for draft weights.
+      Cheapest version: lift the gate, run the eight-task compat probe MTP-on at `-ngl 48`, and
+      compare outputs to the MTP-off run already retained.
+      Source: [SESSION-RETRO-2026-08-27.md](SESSION-RETRO-2026-08-27.md).
+
+===== FILE: C:\work\commandcenter\todo.txt =====
+That "on-ramp" is probably worth treating as its own product.
+
+Imagine bootstrapping a fresh machine:
+
+Connect to MCP.
+Discover available GPUs.
+Discover available models.
+Discover available agents.
+Discover available workflows.
+Verify credentials.
+Run health checks.
+Present capabilities.
+
+After that, every modelâ€”whether it's a tiny local Haiku-equivalent, a GPT Mini, or a frontier modelâ€”has the same entry point into your ecosystem.
+
+That's a much more resilient architecture than hard-coding assumptions about which machine is running what.
+
+The pattern I see across everything you've built is that you're gradually replacing "tribal knowledge in your head" with executable systems. Every time you hit one of these friction points, you don't just fix the immediate problemâ€”you end up designing a more general capability. That's exactly how MechNet seems to have evolved, and this feels like the next iteration: making your own infrastructure discoverable enough that even a modest local model can take over the operational work when the expensive reasoning models are unavailable.
+
+----------------------------
+
+
+This folder answers one operational question: â€œFrom OMEN, which fleet nodes and services are reachable right now?â€
+
+
+---------------------------
+
+TODO (2026-07-21): retune HEARTH rung timeouts from real data.
+
+Set DEFAULT_TIMEOUT_S and am4-moe's timeout_s to a flat 1000s baseline
+(hearth/toolsurface/inference.py, hearth/etc/backends.toml) instead of
+per-rung tuning, because premature cutoffs were wasting more orchestration
+tokens/time than a generous ceiling costs, and we're barely touching the
+GCP trial-token runway for agentic use vs. Claude â€” there's room to be
+generous while we get a real baseline.
+
+Follow up once a few days of duration_ms land in knowledge/capacity.json:
+- Compute real p50/p90/p99 per rung (omen-ollama, am4-oxen, am4-moe,
+  gcp-gemini, gcp-gemini-pro) instead of the flat 1000s.
+- Re-derive timeout_s the old way: max_tokens / measured tok/s + queue
+  headroom (see the am4-moe comment history in backends.toml for the
+  pattern this replaces).
+- Look at whether better naming/classification of calls (task/tags) would
+  make routing + capacity data more useful for this tuning, per Derek's
+  aside when this was set up.
+---------------------------
+
+RESOLVED 2026-08-27 (the mechanism; the frequency is still open â€” see the end).
+
+The prefix-cache-miss penalty is now MEASURED on this rig, as a controlled
+comparison inside the qwen38 campaign. Same model, same hardware, same depth;
+the only variable is whether the prompt prefix repeats.
+
+  Shared prefix (identical filler prompt), TTFT in request order:
+    baseline  8K depth:   3.72s -> 0.07s -> 0.06s      ( 53x)
+    baseline 26K depth:  39.75s -> 0.13s -> 0.12s      (306x)
+    27B MTP  26K depth:  67.41s -> 0.43s -> 0.43s      (157x)
+
+  Unique prefix (retrieval needle at a varying position) â€” every request cold:
+    27B 26K depth:  59.8s, 59.6s, 55.4s
+    27B 52K depth: 152.6s, 164.8s, 165.1s
+
+A prefix-cache MISS at 26K depth costs ~306x the warm TTFT, and it grows with
+depth. This independently reproduces denning's pre-registered 114-219x
+restore-vs-cold-re-prefill result.
+
+Verdict on the original hypothesis: "the cache needs to rebuild" is CORRECT and
+expensive. "Windows steals the memory" is NOT the cause â€” shared memory stayed
+flat (0.45-0.47 GB) across every campaign leg and denning's WDDM spill probe
+found no demotion. The evicting party is llama-server's own slot reuse.
+
+STILL OPEN â€” the FREQUENCY in production, which needs instrumentation we lack:
+- The ledger records duration_ms but NOT ttft, so a re-prefill is
+  indistinguishable from a slow generation.
+- Only 11 omen-arc local_generate events carry token counts at all (that rung
+  became the default 2026-08-21).
+- The one change that makes it answerable: record ttft_s and prompt tokens on
+  local_generate ledger events. The campaign harness already captures exactly
+  that (ttft_s with ttft_source=client_stream_first_token); the door does not.
+  It is a change to a live gateway, so it is Derek's call.
+- If the miss rate is material, prefix-affinity routing at the door (same
+  caller/prefix -> same slot) is worth more to those callers than any model
+  swap: 0.13s versus 40s at 26K depth.
+
+ORIGINAL FRAMING (kept for context): chase the slot-cache-thrash hypothesis on
+the HEARTH ledger â€” for when we have capacity, after the qwen38 campaign.
+
+Context: Derek's hypothesis was that large-context calls get slower because
+Windows steals memory and the cache rebuilds. Campaign telemetry + denning's
+June battery ruled out VidMm for the depth slowdown itself (shared memory
+flat 0.45-0.47 GB across all 19 baseline legs, zero within-leg drift, decode
+cost a clean ~2.14 us/token/KV-token line; denning's WDDM spill probe: f16 KV
+fits to 128K dedicated with no silent demotion â€” VidMm theft is real but
+co-tenant-gated, per H1). The surviving mechanism for "the door feels slower
+at depth over time" is SLOT-CACHE THRASH: omen-arc has 2 slots, interleaved
+callers evict each other's KV prefix, and llama-server silently re-prefills
+the whole context. denning's keystone: restore is 114-219x cheaper than cold
+re-prefill (64K re-prefills in ~9.3 min vs restores in 3.85 s).
+
+The measurement:
+- Pull deep-context calls (large payload / big prompt_tokens) from the HEARTH
+  ledger + knowledge/capacity.json durations.
+- TTFT should be BIMODAL: warm-prefix hits (fast) vs silent re-prefills
+  (slow, scaling with prompt depth). Bucket by payload size; look for the
+  two populations and their mix rate.
+- If thrash rate is material, the levers are slot count / caller affinity /
+  prompt-prefix routing at the door (route same-conversation calls to the
+  same slot), or llama-server slot-save/restore (denning's 3.85 s restore).
+- Related follow-up from the same conversation: a -fa off deep-context A/B
+  on the 27B (denning: Vulkan flash-attn triples decode latency at depth;
+  campaign runs -fa on to match production) â€” only if the campaign's
+  dual-context numbers look attention-bound.
+---------------------------
+
+
+===== REPEAT PADDING =====
+Read the following engineering documents carefully. You will be asked questions about them.
+
+
+===== FILE: C:\work\commandcenter\SESSION-RETRO-2026-08-27.md =====
+# Session retro â€” 2026-08-27
+
+**We set out to benchmark a model and spent most of the session discovering that the
+instrument, the evidence, and my own fixes each needed proving before the measurement
+meant anything â€” and the campaign's headline number turned out to describe the one
+operating point where the answer comes out backwards.**
+
+## What this session was
+
+A resumption, then a review, then a recovery â€” and only incidentally a benchmark run.
+
+Derek pointed at a campaign spec and suggested running the new Qwen models through the
+wind tunnel. The campaign was not greenfield: a prior agent session had already built the
+whole instrument â€” a 2,270-line measurement engine, 19 stage scripts, a 72-task assay, 30
+unit tests â€” and had stopped on a failure that never happened. Windows returned a null
+exit code for a watchdog process that had exited cleanly, and the parent read that as an
+abort. The first real work was proving the instrument, not running it.
+
+It then met two physical walls, both thermal, both real. The replica-per-card topology â€”
+the placement the spec had *predicted would win* â€” tripped the 95 Â°C line at 96 Â°C on a
+light cell, with no spill and no system events. Later the 128K context tier did the same
+and killed the campaign outright. The second abort named its own cause precisely: VRAM on
+one specific card at 96 Â°C while its sibling sat at 86 Â°C and both GPU cores idled in the
+high seventies. The ceiling on this rig is cooling on one card, not capacity.
+
+The largest single category of work was verification catching errors. An adversarial
+review of thermal-resume machinery written by another agent mid-session produced 42
+findings, of which 24 survived independent attempts to refute them â€” including one that
+would have let a crashed leg be skipped forever while the stage reported green. Five more
+defects were my own, and every one of them surfaced the same way: by running the change
+against real state instead of trusting that it was correct.
+
+The verdict came back `do_not_promote` on 12 of 15 gates, which is the right mechanical
+answer. The more useful answer is that the failing gate measures 512-token prompts â€” the
+single regime where a dense 27B loses to a 3B-active mixture-of-experts â€” and that along
+the prompt-length axis the result inverts completely.
+
+## What shipped
+
+**commandcenter** â€” `9bf8f24..08b322a`, 13 commits, 52 files, +14387/âˆ’12.
+One commit in the range (`ca8eb27`) belongs to **another agent's session**, not this one.
+
+| Commit | What |
+|---|---|
+| `6030254` | The qwen38 campaign harness, 27B-only run prep, arc maintenance sentinel |
+| `334a140` | Preflight feature assertion via `git grep`, not a host `rg` |
+| `d1ba4c3` | TODO: chase slot-cache thrash on the HEARTH ledger |
+| `5d9d381` | Dual thinking regimes â€” no-think gated, think-on side cell |
+| `f6b1bc7` | `qwen38-summary` corpus adapter â€” campaign aggregates into `bench-row.v1` |
+| `ca8eb27` | *(other session)* resume safely after replica thermal abort |
+| `7529b4a` | Land the adapter layer's missing half â€” schema widening + first adapter |
+| `5e9366c` | Close the resume-integrity holes an adversarial review found |
+| `169f47f` | Leg completeness is coverage, not success; parse abort stamps as instants |
+| `817cc30` | Merge the duplicate cooldown function I introduced |
+| `9ebf3b3` | A verdict may not attribute quality it measured elsewhere |
+| `75f0d91` | Land the full qwen38 campaign as `bench-row.v1` (1227 rows) |
+| `08b322a` | Slot-cache-thrash mechanism measured; frequency needs instrumentation |
+
+**Durable artifacts:** a completed campaign with `promotion-verdict.json` and
+`promotion-scorecard.json`; 1227 schema-validated `bench-row.v1` rows covering three
+models; a second corpus adapter with tests; [ADR-0038](docs/adr/0038-a-verdict-cites-only-evidence-from-the-configuration-it-promotes.md).
+
+## The team retro â€” our collaboration across the seats
+
+### Architect
+The load-bearing design call was Derek's: **measure both thinking regimes** rather than
+picking one. That call is what made the think-on side cell exist, and the side cell is
+what let us say "thinking buys nothing measurable here" with a number instead of a guess.
+It cost one extra assay leg and answered a question that would otherwise have stayed open.
+
+What I would decide differently: the promotion gate's operating point was inherited
+without challenge. A gate that fixes prompt length at 512 tokens encodes an assumption
+about the workload, and nobody â€” including me, for most of the session â€” treated that as a
+design decision. It is the single most consequential unexamined constant in the campaign.
+
+### Implementer
+Rework was high and it was mostly mine. Five defects in my own changes, four of them in
+code written specifically to *fix* other defects. The pattern is consistent: each one
+looked correct when written and was wrong about how the environment actually behaves â€”
+NTFS's lag on open files, PowerShell's last-definition-wins, `tasklist` printing window
+titles, ISO offsets versus `Z`. None was a logic error in the usual sense.
+
+What went well: every fix was landed with a test that would have caught the defect, and
+the mid-run edit to `lib.ps1` was timed into the quietest window available rather than
+deferred indefinitely or done carelessly.
+
+### Reviewer / QA
+This seat did the session's best work, and it was not me reading my own code. The
+adversarial review â€” findings generated independently, then each one attacked by a
+verifier told to refute it â€” kept 24 of 42. The refutation step mattered: 18 plausible
+findings died there, which is 18 investigations not spent.
+
+What slipped: the campaign's own MTP compatibility gate compared *validity rates* between
+speculation-on and speculation-off and passed them as equal at 0.875. It never compared
+the outputs. Equal pass rates on a rubric are not equivalence, and the divergence sat
+undetected until I compared response text directly.
+
+### Operator / SRE
+The safety machinery worked exactly as designed, twice. Both thermal aborts stopped the
+leg, restored production, and proved the restore with a real one-token generation. The
+outage discipline held: production came back serviceable every time, the sentinel was
+always cleaned up, and no measurement was taken with the door in an unknown state.
+
+The operator lesson is about *my* monitoring, not the campaign's. I wrote a monitor that
+reported the campaign dead while it was healthy. Had I acted on it, I would have started
+recovery against a running campaign with production still stopped. I also nearly fell into
+the previous session's polling loop before retuning the monitor to stop waking me on
+per-cell noise.
+
+### Product / planning
+We built the right thing and then found out the gates were asking a narrower question than
+the one Derek actually has. The campaign answers "should this replace the default rung?"
+Derek's real question is closer to "is this worth serving at all, and for what?" â€” and the
+data answers that far more interestingly than the verdict does.
+
+Scope discipline was decent: Flash-Next stayed excluded as agreed, the corpus adapter got
+built during dead time rather than competing with the run, and the slot-cache analysis
+waited until the outage closed.
+
+## Two seats, two views
+
+### From Claude's seat
+I was right to distrust the handoff and wrong to trust myself at the same rate. The
+adversarial review of another agent's work was thorough; my own changes went in with far
+less scrutiny, and that asymmetry is exactly backwards from what the defect counts justify
+â€” 24 findings in 529 lines of theirs, five in a smaller volume of mine.
+
+Where I over-reached: the first completeness gate. I wrote a rule that was stricter than
+the science required, and it would have cost hours of re-measurement to re-observe
+timeouts we had already measured. I caught it only because I checked the rule against live
+data before relying on it, which I nearly did not do.
+
+What I would want to know next time: what the production call mix actually looks like by
+prompt size. I ended the session recommending a long-context rung on structural reasoning
+rather than measurement, because the ledger cannot answer it.
+
+### From Derek's seat *(my reconstruction â€” correct me)*
+He asked a short question and got a long campaign, which is the normal shape here. He made
+three decisions quickly and cleanly, and each one held up. The "both regimes" call in
+particular paid for itself.
+
+What he would likely flag: I reported a stall and killed an 84 GB download on evidence
+that turned out to mean nothing, and he had already sent me a screenshot showing the disk
+working. The picture was in front of me. He would also, I suspect, care more about the
+2.63Ã—/5.49Ã— long-prompt inversion than about the verdict â€” the gates answer a question he
+did not ask, and the interesting number is the one that says *where* this model earns its
+place.
+
+## Last time's lessons â€” follow-through
+
+| Lesson (2026-08-25) | Status | Evidence |
+|---|---|---|
+| L-2026-08-25-1 â€” a premise with no number attached is treated as a constant until it breaks | **acted-on** | The 512-token gate is exactly this shape; named it explicitly rather than letting the verdict stand alone |
+| L-2026-08-25-2 â€” every fallback that makes failure survivable makes it invisible; be loud | **acted-on** | The watchdog "passed" receipt was precisely a silent survivable failure; the leg gate now demands measurements |
+| L-2026-08-25-3 â€” cheap checks certify containers, not content | **acted-on, twice** | The MTP gate certified validity rates, not outputs; `tasklist` certified a process list that could not contain the answer |
+| L-2026-08-25-4 â€” a guard needs a test that proves it FIRES | **acted-on** | Every new gate landed with a test that fails without it, including two for the quality-attribution gate |
+| L-2026-08-25-5 â€” when two machines run the same command, the output is the contract | **acted-on** | Applied to one machine, two code paths: MTP-on and MTP-off were compared by output, not by configuration |
+| L-2026-08-25-6 â€” cancel on proof, never on absence of proof | **dropped this session, then relearned** | I killed the download on absence of visible bytes. The lesson existed and I did not apply it; it recurs below as L-2026-08-27-5 |
+| L-2026-08-25-7 â€” config-as-code never re-run drifts from the machine | pending | Not exercised |
+| L-2026-08-25-8 â€” moving work to the right machine is half the fix if the data flow stays | pending | Not exercised |
+| L-2026-08-25-9 â€” subsystems sharing hardware need the separation stated | **acted-on** | The thermal ceiling is a shared-resource fact now stated per-card, with the hot BDF named |
+| L-2026-08-25-10 â€” an unexercised rollback path is not a rollback path | pending | Not exercised |
+| L-2026-07-30-6 â€” local-model seat reads invent self-criticism | **acted-on** | Seat reads written frontier again; offloaded only timeline + lesson extraction |
+| L-2026-07-30-7 â€” in-process `local_generate` calls are invisible to offload economics | **acted-on** | Both retro offloads went through the door and are on the ledger |
+
+## Second opinion resolved
+
+None pending â€” the 2026-08-25 retro did not use `--fleet`.
+
+## Lessons learned
+
+1. **L-2026-08-27-1 â€” A benchmark's operating point is a claim about the workload, and
+   choosing it wrong inverts the answer.** The promotion gate fixes prompts at 512 tokens
+   and returns âˆ’31%; the same candidate on the same hardware returns +163% at 8K and +449%
+   at 32K. Nothing about the model changed between those numbers. *(â†’ ADR-0038 context, and
+   an open decision)*
+2. **L-2026-08-27-2 â€” A receipt that certifies the guard will eventually be read as
+   certifying the work.** The watchdog's `passed` receipt means "no safety line tripped" and
+   is written even when the request runner dies; a later change made it sufficient to skip a
+   leg, which would have left silent holes in the matrix. *(â†’ ADR-0038, fixed in `5e9366c`)*
+3. **L-2026-08-27-3 â€” Name an integrity claim for exactly what it compares, or it will be
+   read as covering everything.** `unchanged_inputs_proved` compared only model and engine
+   bytes while the file holding every safety threshold and promotion constant drifted
+   underneath it â€” and did drift, benignly, on the live run. *(â†’ practice; renamed to three
+   fields that each say what they prove)*
+4. **L-2026-08-27-4 â€” Completeness is coverage, not success: an outcome the experiment
+   exists to observe is data, not a gap.** My first gate demanded every request succeed, and
+   would have re-run legs whose 8-of-24 timeout rate at 64K *was* the finding. *(â†’ practice)*
+5. **L-2026-08-27-5 â€” Absence of visible progress is not evidence of no progress; verify
+   through the channel that measures the work.** Three independent size-based probes agreed a
+   download was dead; the handle held 84 GB that materialized the moment it closed. Process
+   I/O counters would have shown it. *(â†’ memory, written)*
+6. **L-2026-08-27-6 â€” A monitor that reports a terminal state falsely is worse than no
+   monitor.** Mine announced the campaign dead because `tasklist` prints window titles, not
+   command lines; acting on it meant recovery against a healthy run with production down.
+   *(â†’ practice: a liveness check must be validated against the live positive case)*
+7. **L-2026-08-27-7 â€” When two code paths must be equivalent, test equivalence, not a proxy
+   for it.** The MTP gate compared pass rates (0.875 vs 0.875, passed) where it should have
+   compared text; the paths produce different output at temperature 0. *(â†’ ADR-0038)*
+8. **L-2026-08-27-8 â€” Evidence belongs to the configuration it was measured on.** The
+   scorecard was about to stamp an MTP-on winner with an MTP-off pass rate. *(â†’ ADR-0038,
+   enforced in `9ebf3b3`)*
+9. **L-2026-08-27-9 â€” A default inside someone else's template is a decision you have made
+   without noticing.** Qwen3.8 enables thinking by default; that single unexamined default
+   consumed entire output budgets and failed a correctness gate that had nothing wrong with
+   it. *(â†’ memory)*
+10. **L-2026-08-27-10 â€” Thermal state persists between measurements, so an experiment that
+    does not reset it measures the schedule as much as the configuration.** Every deep cell
+    began from wherever the previous one left the cards; the config already carried
+    cooldown thresholds that nothing consumed between legs. *(â†’ practice, fixed)*
+11. **L-2026-08-27-11 â€” Adding to a shared namespace without reading it first silently
+    replaces someone's better work.** My cooldown function shadowed an existing one that
+    wrote telemetry and a receipt; PowerShell keeps the last definition and says nothing.
+    *(â†’ practice)*
+
+## Provenance
+
+**Git range:** `9bf8f24..08b322a`, 13 commits, not yet pushed. `ca8eb27` within the range is
+**another session's** commit, not this one's. The working tree carries pre-existing dirty
+files (`CLAUDE.md`, two HTML dashboards, `hearth/media/*`, eleven `knowledge/*.json`) that
+predate this session and were deliberately left untouched.
+
+**Offloaded:** timeline condense + lessons extraction. First attempt `gcp-gemini`
+(`gemini-3.5-flash`) returned **only its own reasoning and no content** â€” 117 output tokens,
+the known strict-format failure mode for that rung. Escalated once per the skill's retry
+budget to `gcp-gemini-pro` (`gemini-3.1-pro-preview`), 1761 in / 1071 out,
+`routed_by: pinned:gcp-gemini-pro`. **Edit verdict: `minor-fixes`** â€” the narrative
+miscategorised the download misread as one of the two "physical walls" (it was an
+operational error, not a hardware limit) and overstated the completeness gate as having
+failed the run; several drafted lessons were event restatements and were rewritten. The
+draft's framing of the thermal and verification sections survived largely intact.
+
+**Frontier:** all five seat reads, both two-seat views, the follow-through audit, every
+lesson's final wording, ADR-0038, and all repo-coherent writes.
+
+**`--fleet`:** not requested.
+
+## Offload scorecard (S6)
+
+`knowledge/offload.json` â€” watermark `2026-08-27T16:44:26Z`, 1234 calls across 11 buckets.
+
+| Class | Calls | Tokens out |
+|---|---|---|
+| sunk | 631 | 159,099 |
+| trial | 593 | 225,474 |
+| unknown | 10 | 0 |
+
+`offload_ratio` **1.0**; `est_usd_saved` **$14.89** against a claude-sonnet reference;
+`real_usd_spent` **$6.27** on the trial rungs. Note `omen-arc` shows only **11 calls** â€”
+that rung became the door default on 2026-08-21 and has barely been exercised through the
+door, which is the same data gap that makes the slot-cache frequency question
+unanswerable (see `todo.txt`).
+
+===== FILE: C:\work\commandcenter\campaign\qwen38\README.md =====
+# Qwen 3.8 HEARTH replacement campaign
+
+This directory is the version-controlled source for the August 2026 Qwen 3.8
+campaign. Runtime state is deliberately kept outside the repository at
+`E:\work\battlemage\qwen38-bench-2026-08`.
+
+The campaign has two lanes:
+
+- **Qwen3.8-27B** is a production-replacement candidate. It must clear every
+  correctness, quality, residency, latency, throughput, and soak gate.
+- **Qwen3.8-Flash-Next** is quarantined experimental fire. It is not eligible
+  to become the default in this campaign.
+
+The scripts never alter `fleet/arcserve/serve-arc.cmd` or
+`hearth/etc/backends.toml`. Entering maintenance explicitly stops the
+`ArcServeBoot` process tree and writes a restore receipt. Restoring starts the
+known-good task and proves a real one-token completion with
+`fleet/arcserve/arc-serviceability.ps1`.
+
+## Before the hardware window
+
+From `C:\work\commandcenter`:
+
+```powershell
+python campaign/qwen38/qwen38_campaign.py validate
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File campaign/qwen38/scripts/prepare-engine.ps1
+python campaign/qwen38/qwen38_campaign.py init --force
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File campaign/qwen38/scripts/preflight.ps1 -Mode Offline
+```
+
+The guarded runner captures the pinned Gemini reference before maintenance.
+It can also be prepared or resumed independently, without occupying the B70s:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File campaign/qwen38/scripts/prepare-frontier.ps1
+```
+
+Preview the revision-pinned model acquisition without downloading anything:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File campaign/qwen38/scripts/acquire-models.ps1 -WhatIf
+# Add -IncludeFlash, and optionally -IncludeFlashQ2, when the quarantined lane is wanted.
+```
+
+Run the same command without `-WhatIf`, or populate the paths in
+`config/artifacts.json` by another audited method. Qwen3.8-27B, its MTP file,
+and its vision projector are required; both Flash quants are optional. After
+acquisition, lock the exact bytes and verify that nothing drifted:
+
+```powershell
+python campaign/qwen38/qwen38_campaign.py lock
+python campaign/qwen38/qwen38_campaign.py verify-lock --rehash-artifacts
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File campaign/qwen38/scripts/preflight.ps1 -Mode Hardware
+```
+
+`lock` refuses missing required files and writes SHA-256, byte size, model
+revision, engine revision, configuration hash, and task-set hash into the
+runtime manifest. Hardware preflight also proves the Vulkan-index-to-BDF map,
+driver versions, engine parent revision, binary hash, full model hashes,
+commit headroom, the pinned Gemini 3.1 Pro rung/credentials, and the absence of
+the iGPU after filtering.
+
+## Campaign order
+
+1. `prepare-frontier.ps1` (production remains online)
+2. `00-enter-maintenance.ps1 -ConfirmOutage`
+3. `01-baseline.ps1`
+4. `02-qwen27-compatibility.ps1`
+5. `03-qwen27-performance.ps1`
+6. `04-qwen27-quality.ps1`
+7. `05-flash-quarantine.ps1`
+8. `06-final-soak.ps1`
+9. `99-restore.ps1`
+10. `07-score.ps1` (blind cloud judging runs only after restore is proved)
+
+The guarded entry point runs that chain and always restores ArcServeBoot:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File campaign/qwen38/scripts/run-campaign.ps1 -ConfirmOutage
+```
+
+Use `-SkipFlash` when the optional day-zero artifacts are absent or when the
+maintenance window is reserved for the 27B replacement decision only.
+
+`-AcknowledgeThermalQuarantine` is a narrow resume-only control. It is accepted
+only when the recorded replica p512/c4 watchdog abort crossed the configured
+temperature line and `state/resume-amendment.json` proves that model and engine
+inputs are unchanged. It preserves completed replica evidence, records every
+remaining replica-production and replica-throughput cell as quarantined, and
+continues only the dual-card lane. It never weakens the 95 C hard abort:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File campaign/qwen38/scripts/run-campaign.ps1 `
+  -ConfirmOutage -SkipFlash -AcknowledgeThermalQuarantine
+```
+
+Each stage is resumable. A stage is complete only when its receipt has
+`status: "passed"`; a partial JSONL file is never treated as completion. A
+clean per-leg watchdog receipt and its referenced telemetry are also reused
+without being overwritten.
+Transport/judge-infrastructure retries append evidence under the same request
+ID; gates and summaries use the latest attempt while preserving earlier rows.
+`99-restore.ps1` is safe to run after any failure.
+
+## Result shape
+
+Every request is written independently to `results/requests/*.jsonl`. Summary
+and verdict files are derived outputs:
+
+```text
+results/
+  requests/                 one immutable row per request attempt
+  telemetry/                b70tools, residency, commit, and watchdog streams
+  serverlogs/               stdout/stderr per server process
+  quarantine/               invalid, corrupt, crashed, or spilled legs
+  receipts/                 resumability and stage disposition
+  summaries/                per-configuration aggregates
+  promotion-verdict.json    deterministic gate result
+```
+
+Raw output is retained even when invalid. Invalid completions contribute zero
+successful jobs and are never included in throughput or preference rates.
+Every launch command, embedded GGUF chat template, artifact/engine revision,
+quant, placement, and device assignment is appended to
+`state/server-launches.jsonl`. Watchdog samples carry energy counters, host RAM,
+per-adapter GPU/VRAM temperatures, shared-memory growth, commit headroom, and event status,
+correlated to request rows by run ID. Cross-process local VRAM is explicitly
+marked unobservable on this Windows/Vulkan stack; the campaign does not turn
+the known-blind PDH/Vulkan gauges into fake residency numbers. Shared growth is
+the authoritative spill signal.
+
+Performance legs use streaming responses, so TTFT is measured at the client;
+the server's prompt/decode timings and current `draft_n` / `draft_n_accepted`
+MTP counters are retained separately. Closed-loop wall time is reconstructed
+from per-client active time, so a resumed leg cannot accidentally count an
+overnight pause as benchmark time.
+
+## Deliberate operator decisions
+
+- The quality assay is balanced across nine families (eight tasks each), not
+  weighted by historical HEARTH traffic.
+- A single campaign outage is permitted. Ordinary traffic must not share the
+  benchmark servers.
+- MTP is always tested after the non-MTP base path and is promoted only on net
+  successful-output goodput.
+- Long-context cells use buried-code retrieval and leave output headroom; a
+  nonempty but context-blind answer does not count as a successful job.
+- Flash-Next tries IQ4 first. Q2 is allowed only after IQ4 misses residency,
+  correctness, goodput, or latency, and neither quant earns specialist status
+  without a 65% order-consistent frontier win rate.
+- Blind judges receive the original prompt, mechanical acceptance criteria,
+  tool calls, multi-turn transcript, and image, while model identities and
+  output order remain hidden.
+- Advertised HEARTH capacity comes only from a measured, spill-free topology;
+  native model context is not routing metadata.
+
+A passing verdict says `eligible_for_pin_only_canary`; it does not edit HEARTH
+routing or make the candidate default. That preserves the separate 48-hour
+canary and human review boundary from the campaign plan.
+
+===== FILE: C:\work\commandcenter\DECISIONS-PENDING.md =====
+# Decisions pending â€” Derek's desk
+
+One register for open decisions accumulated across retros, ADRs, and review docs.
+Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
+
+- [x] 2026-07-04 â€” Ratify "two ledgers = two bounded contexts; one door â‰  one store"
+      as an ADR-0005 amendment or new ADR (source: [docs/CQRS-ES-STANDARDIZATION.md](docs/CQRS-ES-STANDARDIZATION.md))
+      â€” DONE 2026-07-04 ("make it so"): [ADR-0010](docs/adr/0010-two-ledgers-two-bounded-contexts.md)
+- [x] 2026-07-04 â€” `record_event` double-write: keep + document (reviewers' lean) vs
+      special-case the gateway wrapper (source: [docs/CQRS-ES-STANDARDIZATION.md](docs/CQRS-ES-STANDARDIZATION.md))
+      â€” DONE 2026-07-04 ("make it so"): keep + document, [ADR-0011](docs/adr/0011-record-event-double-write-is-intentional.md)
+- [x] 2026-07-04 â€” Green-light fleet briefs for CQRS plan steps 2â€“4 (atomic writes +
+      capacity.json guard, Ledger.reindex, canonical Corpus enumerator)
+      (source: [docs/CQRS-ES-STANDARDIZATION.md](docs/CQRS-ES-STANDARDIZATION.md))
+      â€” DONE 2026-07-04, merged f1f2b8b/bd636d5/ad486d6 (bfaaf9f)
+- [x] 2026-07-03 â€” known_good/known_bad_models.json guard coverage
+      (source: DECISION-NEEDED-A2.md, flagged again by the CQRS review)
+      â€” DONE 2026-07-11 (S2 of [SCHEDULER-STRATEGY.html](SCHEDULER-STRATEGY.html)): 12 tests
+      landed in `hearth/tests/toolsurface/test_knowledge.py` (`2ad68e0`), mutation-checked
+      (inverted guard â†’ 4 tests fail). Note: real classification logic lives in
+      `tools/workflow/project_capacity.py`; the A2 watermark gap itself stays deferred
+      (option 1 "leave unguarded" still in effect, now with the contract pinned by tests).
+- [x] 2026-07-05 â€” Canonical AM4 B70 bring-up (2 per-B70 ports). RESOLVED: AM4 is native
+      Ubuntu; only the :8080 planner slot has Linux backing (`~/baseline/relaunch-qwen3-baseline.sh`),
+      :8081 critic slot unbacked. Planner woken; pilot + confirmation sweep ran cross-machine.
+- [x] 2026-07-05 â€” Fix the knowledge-guard bug (read tools refused on knowledge/ paths).
+      DONE in code + tested (`80c41d6`): am4/scheduler read tools added to EXTRA_KNOWLEDGE_READERS,
+      11 guard tests green. **Goes live on next gateway reload.**
+- [x] 2026-07-05 â€” Reload the HEARTH gateway (carries BOTH the guard fix `80c41d6` AND the
+      commander door tools `refine_idea`/`refine_result`); CLI + unit tests already green
+      (source: [ADR-0012](docs/adr/0012-commander-intent-lane-frontier-out-of-loop.md))
+      â€” DONE 2026-07-09: gateway restarted for the ADR-0014 lane change; 35 tools live
+      (commander tools + guard fix confirmed aboard).
+- [ ] 2026-07-05 â€” Harvest + synthesize the 24-pour idle campaign; curate/land the JS5 +
+      assay-acceptance branches (source: [SESSION-RETRO-2026-07-05.md](SESSION-RETRO-2026-07-05.md))
+      â€” 2026-07-11 PARTIAL: harvest DONE (23/23 â†’ `campaign/harvest/`, `0fff65f`);
+      assay-acceptance branch LANDED (`9e01612`, null-action regression pinned). JS5 CANNOT
+      be curated: the pour produced empty laps on both builders (the null-action exploit,
+      live) â€” remaining sub-decision is H1b in SCHEDULER-STRATEGY.html (re-pour vs direct
+      build). Synthesis = S7, in flight.
+- [x] 2026-07-09 â€” Tailscale in the machine loop (browser re-auth blocked the conductor
+      lane). DECIDED + SHIPPED same day: machine lanes moved to mshome/LAN, Tailscale =
+      humans + Funnel only; conductor stays a Hyper-V VM (WSL/AM4 relocation rejected)
+      â€” [ADR-0014](docs/adr/0014-machine-lanes-off-the-tailnet.md), verified live.
+- [x] 2026-07-09 â€” Derek: Tailscale admin hygiene for the remaining HUMAN lanes â€”
+      disable key expiry on server nodes (OMEN, AM4), flip SSH ACL `check`â†’`accept`
+      (admin console; source: ADR-0014 consequences). DONE 2026-07-09 (Derek, separate
+      session).
+- [x] 2026-07-09 â€” Derek: confirm nothing human-facing still rides cc-conductor's
+      tailnet identity (dashboard :8080 from phone?) â†’ then `tailscale logout` on the
+      conductor (source: ADR-0014 consequences). DONE 2026-07-09 (Derek, separate
+      session): conductor is off the tailnet â€” confirmed independently the same evening
+      via `tailscale status` from OMEN (only omen/am4/i5/pixel-8a remain); cc-builder-4's
+      rogue tailnet node also removed. inventory.toml updated to match.
+- [x] 2026-07-09 â€” BUILD: fold patrol/watchdog/drain/perception into the gateway as
+      internal timers; shrink Task Scheduler to two headless boot entries; deregister
+      the superseded tasks ([ADR-0015](docs/adr/0015-ops-loops-fold-into-the-gateway.md)).
+      DONE 2026-07-09 (slice 1): `hearth/kernel/timers.py` + 291 tests green; gateway
+      arms patrol/watchdog/drain; live cutover verified (all three ticked `exit 0` with
+      ledger ids) and the 3 superseded tasks deregistered (XML backed up to
+      `hearth/var/retired-tasks-adr0015/`). Perception + tracing proxy stay tasks (homing
+      decision: out-of-repo / persistent service). Boot entries DONE 2026-07-09:
+      `HearthGatewayBoot` + `OllamaBoot` re-registered `LogonType=S4U` ("run whether
+      user is logged on or not", no stored password â€” needed UAC only, not the
+      password). ADR-0015 end state complete; proof = next OMEN reboot.
+- [x] 2026-07-09 â€” P
+===== REPEAT PADDING =====
+Read the following engineering documents carefully. You will be asked questions about them.
+
+
+===== FILE: C:\work\commandcenter\SESSION-RETRO-2026-08-27.md =====
+# Session retro â€” 2026-08-27
+
+**We set out to benchmark a model and spent most of the session discovering that the
+instrument, the evidence, and my own fixes each needed proving before the measurement
+meant anything â€” and the campaign's headline number turned out to describe the one
+operating point where the answer comes out backwards.**
+
+## What this session was
+
+A resumption, then a review, then a recovery â€” and only incidentally a benchmark run.
+
+Derek pointed at a campaign spec and suggested running the new Qwen models through the
+wind tunnel. The campaign was not greenfield: a prior agent session had already built the
+whole instrument â€” a 2,270-line measurement engine, 19 stage scripts, a 72-task assay, 30
+unit tests â€” and had stopped on a failure that never happened. Windows returned a null
+exit code for a watchdog process that had exited cleanly, and the parent read that as an
+abort. The first real work was proving the instrument, not running it.
+
+It then met two physical walls, both thermal, both real. The replica-per-card topology â€”
+the placement the spec had *predicted would win* â€” tripped the 95 Â°C line at 96 Â°C on a
+light cell, with no spill and no system events. Later the 128K context tier did the same
+and killed the campaign outright. The second abort named its own cause precisely: VRAM on
+one specific card at 96 Â°C while its sibling sat at 86 Â°C and both GPU cores idled in the
+high seventies. The ceiling on this rig is cooling on one card, not capacity.
+
+The largest single category of work was verification catching errors. An adversarial
+review of thermal-resume machinery written by another agent mid-session produced 42
+findings, of which 24 survived independent attempts to refute them â€” including one that
+would have let a crashed leg be skipped forever while the stage reported green. Five more
+defects were my own, and every one of them surfaced the same way: by running the change
+against real state instead of trusting that it was correct.
+
+The verdict came back `do_not_promote` on 12 of 15 gates, which is the right mechanical
+answer. The more useful answer is that the failing gate measures 512-token prompts â€” the
+single regime where a dense 27B loses to a 3B-active mixture-of-experts â€” and that along
+the prompt-length axis the result inverts completely.
+
+## What shipped
+
+**commandcenter** â€” `9bf8f24..08b322a`, 13 commits, 52 files, +14387/âˆ’12.
+One commit in the range (`ca8eb27`) belongs to **another agent's session**, not this one.
+
+| Commit | What |
+|---|---|
+| `6030254` | The qwen38 campaign harness, 27B-only run prep, arc maintenance sentinel |
+| `334a140` | Preflight feature assertion via `git grep`, not a host `rg` |
+| `d1ba4c3` | TODO: chase slot-cache thrash on the HEARTH ledger |
+| `5d9d381` | Dual thinking regimes â€” no-think gated, think-on side cell |
+| `f6b1bc7` | `qwen38-summary` corpus adapter â€” campaign aggregates into `bench-row.v1` |
+| `ca8eb27` | *(other session)* resume safely after replica thermal abort |
+| `7529b4a` | Land the adapter layer's missing half â€” schema widening + first adapter |
+| `5e9366c` | Close the resume-integrity holes an adversarial review found |
+| `169f47f` | Leg completeness is coverage, not success; parse abort stamps as instants |
+| `817cc30` | Merge the duplicate cooldown function I introduced |
+| `9ebf3b3` | A verdict may not attribute quality it measured elsewhere |
+| `75f0d91` | Land the full qwen38 campaign as `bench-row.v1` (1227 rows) |
+| `08b322a` | Slot-cache-thrash mechanism measured; frequency needs instrumentation |
+
+**Durable artifacts:** a completed campaign with `promotion-verdict.json` and
+`promotion-scorecard.json`; 1227 schema-validated `bench-row.v1` rows covering three
+models; a second corpus adapter with tests; [ADR-0038](docs/adr/0038-a-verdict-cites-only-evidence-from-the-configuration-it-promotes.md).
+
+## The team retro â€” our collaboration across the seats
+
+### Architect
+The load-bearing design call was Derek's: **measure both thinking regimes** rather than
+picking one. That call is what made the think-on side cell exist, and the side cell is
+what let us say "thinking buys nothing measurable here" with a number instead of a guess.
+It cost one extra assay leg and answered a question that would otherwise have stayed open.
+
+What I would decide differently: the promotion gate's operating point was inherited
+without challenge. A gate that fixes prompt length at 512 tokens encodes an assumption
+about the workload, and nobody â€” including me, for most of the session â€” treated that as a
+design decision. It is the single most consequential unexamined constant in the campaign.
+
+### Implementer
+Rework was high and it was mostly mine. Five defects in my own changes, four of them in
+code written specifically to *fix* other defects. The pattern is consistent: each one
+looked correct when written and was wrong about how the environment actually behaves â€”
+NTFS's lag on open files, PowerShell's last-definition-wins, `tasklist` printing window
+titles, ISO offsets versus `Z`. None was a logic error in the usual sense.
+
+What went well: every fix was landed with a test that would have caught the defect, and
+the mid-run edit to `lib.ps1` was timed into the quietest window available rather than
+deferred indefinitely or done carelessly.
+
+### Reviewer / QA
+This seat did the session's best work, and it was not me reading my own code. The
+adversarial review â€” findings generated independently, then each one attacked by a
+verifier told to refute it â€” kept 24 of 42. The refutation step mattered: 18 plausible
+findings died there, which is 18 investigations not spent.
+
+What slipped: the campaign's own MTP compatibility gate compared *validity rates* between
+speculation-on and speculation-off and passed them as equal at 0.875. It never compared
+the outputs. Equal pass rates on a rubric are not equivalence, and the divergence sat
+undetected until I compared response text directly.
+
+### Operator / SRE
+The safety machinery worked exactly as designed, twice. Both thermal aborts stopped the
+leg, restored production, and proved the restore with a real one-token generation. The
+outage discipline held: production came back serviceable every time, the sentinel was
+always cleaned up, and no measurement was taken with the door in an unknown state.
+
+The operator lesson is about *my* monitoring, not the campaign's. I wrote a monitor that
+reported the campaign dead while it was healthy. Had I acted on it, I would have started
+recovery against a running campaign with production still stopped. I also nearly fell into
+the previous session's polling loop before retuning the monitor to stop waking me on
+per-cell noise.
+
+### Product / planning
+We built the right thing and then found out the gates were asking a narrower question than
+the one Derek actually has. The campaign answers "should this replace the default rung?"
+Derek's real question is closer to "is this worth serving at all, and for what?" â€” and the
+data answers that far more interestingly than the verdict does.
+
+Scope discipline was decent: Flash-Next stayed excluded as agreed, the corpus adapter got
+built during dead time rather than competing with the run, and the slot-cache analysis
+waited until the outage closed.
+
+## Two seats, two views
+
+### From Claude's seat
+I was right to distrust the handoff and wrong to trust myself at the same rate. The
+adversarial review of another agent's work was thorough; my own changes went in with far
+less scrutiny, and that asymmetry is exactly backwards from what the defect counts justify
+â€” 24 findings in 529 lines of theirs, five in a smaller volume of mine.
+
+Where I over-reached: the first completeness gate. I wrote a rule that was stricter than
+the science required, and it would have cost hours of re-measurement to re-observe
+timeouts we had already measured. I caught it only because I checked the rule against live
+data before relying on it, which I nearly did not do.
+
+What I would want to know next time: what the production call mix actually looks like by
+prompt size. I ended the session recommending a long-context rung on structural reasoning
+rather
+
+Question: summarize the single most important finding in one sentence.

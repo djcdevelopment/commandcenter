@@ -423,6 +423,17 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       (b) commit headroom — Flash 48-blk needs 60.4 GB and current margin with production
       down is ~0.9 GB, which is poisoned-load territory; needs a pagefile/headroom decision
       first.
+      **RESOLVED-NEGATIVE 2026-08-28 (W3):** Derek approved the pin; sidecar acquired,
+      locked, and load-tested on the campaign fork at ngl48 (headroom fine in-window — the
+      drained render backlog left 81 GB free; gate passed). **The fork refused the draft
+      loudly**: `check_tensor_dims: tensor 'blk.0.hc_attn_norm.weight' not found` — the
+      cafe-llama.cpp hyper-connections layout is not what qwen4exp `draft-mtp` expects.
+      Cross-fork wire mismatch, exactly the flagged risk; failed at load, no garbage.
+      Flash's MTP ceiling stays unmeasured. Paths forward, cost order: (1) wait for a
+      fork-native sibling from unsloth/Qwen (free, unknown wait); (2) cafe-llama.cpp as a
+      second campaign binary (new provenance, comparability caveats); (3) extract the MTP
+      head ourselves from safetensors via the qwen4exp conversion (deep work, best
+      provenance). The pinned artifact stays on disk as the negative-control receipt.
 
 - [x] 2026-08-28 — **Ratify llama-swap as the serving-lifecycle layer (pending probes P5–P7).**
       — **RATIFIED same day: all seven probes passed** in a supervised maintenance window

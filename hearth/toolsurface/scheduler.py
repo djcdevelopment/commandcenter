@@ -76,6 +76,18 @@ for name in names:
             rec["task_class"] = r.get("task_class") or "proofing"
         else:
             rec["task_class"] = r.get("task_class") or r.get("workflow_id") or "unknown"
+        # Regret-gate hole #3 (REGRET-TREND-2026-07 / SCHEDULER-STRATEGY S5):
+        # the gather never collected tokens_out, so every regret number was an
+        # estimate. Collect it when a result carries it, under any of the three
+        # shapes a runner might write; hindsight's estimator already prefers an
+        # explicit record value over capacity-bucket or DEFAULT_EST_TOKENS.
+        tok = r.get("tokens_out")
+        if tok is None:
+            tok = (r.get("cost") or {}).get("tokens_out")
+        if tok is None:
+            tok = (r.get("usage") or {}).get("completion_tokens")
+        if isinstance(tok, (int, float)) and tok >= 0:
+            rec["tokens_out"] = int(tok)
     except Exception as e:
         rec["parse_error"] = str(e)[:120]
         rec["status"] = None

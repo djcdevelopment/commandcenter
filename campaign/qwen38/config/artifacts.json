@@ -72,6 +72,17 @@
       "quant": "F16",
       "filename": "mmproj-F16.gguf",
       "path": "E:\\work\\battlemage\\models\\qwen38-flash-next\\mmproj-F16.gguf"
+    },
+    {
+      "id": "qwen38-flash-next-mtp",
+      "role": "draft_model",
+      "required": false,
+      "repo": "quimmedes/Qwen3.8-Flash-Next-MTP-GGUF",
+      "revision": "baae1595ba28d1b28eceb3bfc638d264390a8d05",
+      "quant": "Q4_K_M",
+      "filename": "mtp-Qwen3.8-Flash-Next-Q4_K_M.gguf",
+      "path": "E:\\work\\battlemage\\models\\qwen38-flash-next\\mtp-Qwen3.8-Flash-Next-Q4_K_M.gguf",
+      "provenance_note": "COMMUNITY conversion (pinned by Derek's call 2026-08-28, rotation program). Published against cafe-llama.cpp; wire-format compatibility with the qwen4exp campaign binary is a load-time experiment, not a given. Measurement-only: ADR-0038's temp-0 divergence question blocks MTP-on deployment regardless."
     }
   ]
 }

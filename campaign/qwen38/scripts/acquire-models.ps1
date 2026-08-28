@@ -1,6 +1,7 @@
 param(
     [switch]$IncludeFlash,
     [switch]$IncludeFlashQ2,
+    [switch]$IncludeFlashMtp,
     [switch]$WhatIf
 )
 $ErrorActionPreference = 'Stop'
@@ -11,7 +12,8 @@ $selected = @($doc.artifacts | Where-Object {
     $_.id -in @('qwen38-27b', 'qwen38-27b-mtp', 'qwen38-27b-mmproj') -or
     (($IncludeFlash -or $IncludeFlashQ2) -and $_.id -eq 'qwen38-flash-next-iq4') -or
     (($IncludeFlash -or $IncludeFlashQ2) -and $_.id -eq 'qwen38-flash-next-mmproj') -or
-    ($IncludeFlashQ2 -and $_.id -eq 'qwen38-flash-next-q2')
+    ($IncludeFlashQ2 -and $_.id -eq 'qwen38-flash-next-q2') -or
+    ($IncludeFlashMtp -and $_.id -eq 'qwen38-flash-next-mtp')
 })
 
 $hf = Get-Command hf -ErrorAction SilentlyContinue

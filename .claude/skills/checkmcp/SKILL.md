@@ -68,13 +68,21 @@ it requires a properly-secured key, not the shipped `dev-local` one.
   was updated (new/changed provider) but the RUNNING process predates it — a
   registered-but-not-loaded door. A mismatch makes the overall verdict
   DEGRADED even though the port and handshake look fine.
-- **backends** — one line per backend declared in `hearth/etc/backends.toml`:
-  - `omen-ollama` (api=ollama, the pool default) — real `/api/version` check;
-    `cold` is advisory for the default door check and fails `--strict` or an
-    explicit `--facet backend_dependency` check.
-  - `am4-oxen` (api=openai) — TCP-only reachability, INFORMATIONAL. AM4 sleeps
-    by design (banked fire); `asleep` is expected, not a failure, and never
-    affects exit.
+- **backends** — one line per backend declared in `hearth/etc/backends.toml`
+  (rung truth re-synced 2026-08-28; the old text here predated ADR-0034):
+  - `omen-arc` (api=openai, **the door default** since ADR-0034) — llama-server
+    :8082 on the dual B70s, boot-resident via ArcServeBoot. A failed check here
+    is a real outage unless `hearth/var/arc-maintenance.stop` exists (campaign/
+    rotation maintenance window — expected dark, loud by design).
+  - `omen-arc-oss` :8083 and `omen-arc-27b` :8084 (api=openai) — pin-only,
+    NOT resident; `closed` is the normal state, never a failure.
+  - `fx99-ollama` (api=ollama, pin-only) — real check OK; enlisted 2026-08-28
+    (ADR-0039). Retires if the 2070 SUPER leaves fx99.
+  - ☠ `omen-ollama` — retired=true, OllamaBoot Disabled for good (ADR-0034);
+    a pin fails at connect. Not a health signal, a tombstone.
+  - ☠ `am4-moe` / `am4-oxen` — retired=true; the B70s left AM4 2026-08-20.
+    The oxen facade still ANSWERS :8090 with every model ready:false — a
+    passing TCP/health probe against a rung that cannot emit a token.
   - `gcp-gemini` (api=gemini) — auth-only check (token from the backend's
     `auth_env` if set, else `gcloud auth print-access-token`). Reported as a
     WARNING (`auth ok (adc)` / `auth FAILED - <reason>`); never affects exit.
@@ -145,7 +153,8 @@ Tell the user the verdict in one line, plus:
 - if `toolsurface` was STALE: name the missing/unexpected tools and suggest
   `--restart` (the door needs a bounce to pick up the new provider set).
 - if a backend WARNING fired (gemini auth) or an INFORMATIONAL line is
-  interesting (am4-oxen asleep): mention it, but don't treat it as a failure.
+  interesting (a pin-only rung closed, the oxen facade answering ready:false):
+  mention it, but don't treat it as a failure.
 
 ## Activation triggers
 

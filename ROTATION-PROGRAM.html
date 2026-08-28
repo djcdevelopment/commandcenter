@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rotation Program — living doc</title>
+<style>
+  :root{
+    --bg:#0b1017; --card:#101823; --card2:#0d141d; --line:#1e2a38;
+    --ink:#dce6f0; --dim:#8fa1b3; --faint:#5c6e80;
+    --cyan:#7fd4e4; --amber:#e8b95f; --green:#6fce9a; --red:#e08484; --violet:#b39ddb;
+    --mono:'Consolas','JetBrains Mono',monospace;
+    --serif:Georgia,'Times New Roman',serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,'Segoe UI',sans-serif;
+       max-width:1000px;margin:0 auto;padding:40px 24px 80px}
+  a{color:var(--cyan);text-decoration:none} a:hover{text-decoration:underline}
+  .kicker{font-family:var(--mono);font-size:12px;letter-spacing:.25em;color:var(--cyan);
+          text-transform:uppercase;margin-bottom:10px}
+  h1{font-family:var(--serif);font-size:34px;font-weight:700;line-height:1.2;margin-bottom:8px}
+  h1 em{color:var(--cyan);font-style:italic}
+  h2{font-family:var(--serif);font-size:24px;margin:48px 0 12px}
+  h3{font-size:16px;margin:20px 0 6px}
+  .meta{color:var(--dim);font-size:14px;margin-bottom:6px}
+  .meta code, td code, li code, p code{font-family:var(--mono);font-size:.85em;background:#161f2b;
+        border:1px solid var(--line);border-radius:4px;padding:1px 6px;color:var(--ink)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:14px 0}
+  .card.amber{border-color:#4d3d1e} .card.green{border-color:#1e4d33} .card.cyan{border-color:#1e4250}
+  .label{font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--faint);margin-bottom:8px}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:12px 0}
+  th{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+     color:var(--faint);text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+  td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  .pill{font-family:var(--mono);font-size:11px;padding:2px 10px;border-radius:999px;border:1px solid;white-space:nowrap}
+  .todo{color:var(--amber);border-color:#4d3d1e}
+  .done{color:var(--green);border-color:#1e4d33}
+  .blocked{color:var(--red);border-color:#4d1e1e}
+  .gated{color:var(--dim);border-color:var(--line)}
+  .prog{color:var(--cyan);border-color:#1e4250}
+  .verdict{font-family:var(--mono);font-size:11px;padding:2px 10px;border-radius:4px;border:1px solid;white-space:nowrap}
+  .adopt{color:var(--green);border-color:#1e4d33}
+  .wrap{color:var(--cyan);border-color:#1e4250}
+  .borrow{color:var(--violet);border-color:#3a2e55}
+  .build{color:var(--amber);border-color:#4d3d1e}
+  .retain{color:var(--dim);border-color:var(--line)}
+  pre{background:var(--card2);border:1px solid var(--line);border-radius:6px;padding:10px 14px;
+      font-family:var(--mono);font-size:13px;overflow-x:auto;margin:6px 0;color:#b8ccdd}
+  ul,ol{padding-left:22px;margin:8px 0} li{margin:4px 0}
+  .rule{color:var(--dim)} .rule b{color:var(--ink)}
+  .foot{color:var(--faint);font-size:13px;margin-top:40px;border-top:1px solid var(--line);padding-top:16px}
+  .num{font-family:var(--mono);color:var(--cyan)}
+</style>
+</head>
+<body>
+
+<div class="kicker">Commandcenter · Rotation Program · Living Doc</div>
+<h1>What should this machine <em>become</em> next epoch?</h1>
+<div class="meta">Created <code>2026-08-28</code> · source of truth for the multi-model rotation +
+self-learning scheduling program · maintained by whoever touches it (same pickup protocol as
+<a href="SCHEDULER-STRATEGY.html">SCHEDULER-STRATEGY.html</a>: live checks beat this table; fixing the table is the living part).</div>
+<div class="meta">The commodity question — <i>"where should this request execute"</i> — is adopted from existing
+infrastructure. The HEARTH question — <i>"given backlog, quality beliefs, residency cost, KV state, thermals, and
+media contention, what topology should the box run next epoch"</i> — has <b>no open-source peer</b> and stays ours.
+Plan of record: Derek-ratified 2026-08-28; pool changes in
+<a href="docs/adr/0039-depth-specialists-earn-pin-only-rungs.md">ADR-0039</a>; lifecycle adoption pending ADR-0040 (probe-gated).</div>
+
+<h2 id="constitution">Constitution (standing constraints — do not re-litigate)</h2>
+<div class="card cyan">
+  <ul>
+    <li><b>ADR-0008 advisory-first:</b> the scheduler proposes; actuation needs a Derek-ratified ADR-0016-class decision plus a real regret trend. Shadow modes log divergence and dispatch the static choice.</li>
+    <li><b>Two economies:</b> no metered/frontier tokens when a local placement is feasible; the CP-SAT objective already encodes this.</li>
+    <li><b>Single writer:</b> every new evidence stream (rotation receipts, shadow logs, probe results) goes through the kernel/ledger paths; <code>knowledge/*.json</code> writes stay guard-enforced.</li>
+    <li><b>Evidence before belief:</b> catalog values (<code>omen_catalog.json</code>) come only from measured receipts — the telemetry contract's nullable fields stay null until a measurement fills them.</li>
+    <li><b>Thermal ceiling:</b> card <code>0000:04:00.0</code> runs 8–10&nbsp;°C hot; 96&nbsp;°C aborts; context depths 131072/262144 are quarantined on dual-split. The hot card gets the lighter model.</li>
+    <li><b>Loud fallbacks:</b> a dark rung refuses loudly; maintenance windows are announced, never silent. A verdict never observed firing correctly is a hypothesis.</li>
+  </ul>
+</div>
+
+<h2 id="state">Where we are (live-verified)</h2>
+<div class="card">
+  <div class="label">verified against the running system, not copied from docs · update on every state change</div>
+  <table>
+    <tr><th>Fact</th><th>Value</th><th>Verified</th></tr>
+    <tr><td>Door default rung</td><td><code>omen-arc</code> — Qwen3-30B-A3B, llama-server :8082, dual B70, <code>-c 131072 -np 2</code>; serviceability probe passed (1-token real completion)</td><td>2026-08-28</td></tr>
+    <tr><td>New rungs (ADR-0039)</td><td><code>omen-arc-27b</code> :8084 pin-only (MTP-off, text-only) · <code>fx99-ollama</code> pin-only — <b>verified through the door</b>: <code>routed_by: pinned:fx99-ollama</code>, 802&nbsp;ms</td><td>2026-08-28</td></tr>
+    <tr><td>Watchdog / conductor lane</td><td><b>LIVE again after 8 days dark</b> — cc-conductor Running, SSH hop verified, <code>patrol,watchdog</code> timers re-armed; first clean patrol <code>05:55:57Z</code>, hindsight events ledgering</td><td>2026-08-28</td></tr>
+    <tr><td>Fleet hold</td><td>Builder VMs (cc-builder-1..3, claudefarm1) still Off; <code>drain,fleet_harvest</code> still held; <code>ollama-sentinel</code> off for good. Full lift deferred until Phase&nbsp;1 done (register entry)</td><td>2026-08-28</td></tr>
+    <tr><td>RAM / commit budget (R0)</td><td>127.3&nbsp;GB RAM · committed <span class="num">96.9&nbsp;GB</span> of <span class="num">135.3&nbsp;GB</span> limit with production up · standby cache 62.3&nbsp;GB ⇒ <b>a Flash-Next 48-block epoch (60.4&nbsp;GB commit) does not fit</b> without unloading production and managing headroom/pagefile</td><td>2026-08-28</td></tr>
+    <tr><td>P1 device identity</td><td>Under <code>GGML_VK_VISIBLE_DEVICES=1,2</code> the B70s enumerate as exactly <code>Vulkan0</code>/<code>Vulkan1</code> (32558&nbsp;MiB each). Note: the "free" figure is per-process budget — cross-process VRAM stays invisible on Windows Vulkan</td><td>2026-08-28</td></tr>
+    <tr><td>Render lane</td><td>BF6 pipeline healthy; real backlog rides the same two cards (queue + inflight + parked). Media vs compute occupancy are independent dimensions (<code>hearth/media/occupancy.py</code>)</td><td>2026-08-27 files</td></tr>
+    <tr><td>Belief spine</td><td>Frozen at watermark <code>2026-07-31</code>; rebuild reports COMPLETED-WITH-STALENESS. Write side live, read side unbuilt — gate&nbsp;2 unlock begins with these rungs and Phase&nbsp;2 model-rung traffic</td><td>2026-08-28</td></tr>
+    <tr><td>Campaign runtime</td><td>Maintenance Enter requires <code>verify-lock</code>; source tree drifted (post-verdict PS&nbsp;5.1 fix) → re-lock in progress; manifest backed up (<code>run-manifest.json.pre-relock-20260828.bak</code>)</td><td>2026-08-28</td></tr>
+  </table>
+</div>
+
+<h2 id="physics">The physics (why the plan is shaped like this)</h2>
+<div class="card">
+  <table>
+    <tr><th>Number</th><th>Meaning for the program</th><th>Receipt</th></tr>
+    <tr><td><span class="num">~306×</span> prefix-miss penalty (39.75&nbsp;s → 0.13&nbsp;s at 26K depth; 157× for 27B+MTP)</td><td><b>KV state dominates rotation economics</b> — swaps are epoch-scheduled, and in-server prefix affinity is the first lever, not an external router</td><td><code>todo.txt</code> §prefix; denning 114–219× pre-registered</td></tr>
+    <tr><td><span class="num">8–40&nbsp;s</span> model loads (30B 7.9–8.3&nbsp;s; 27B 8.5–12&nbsp;s; Flash mmap 15.5→38.9&nbsp;s by placement)</td><td>Weight movement is the <i>cheap</i> half of a swap; <code>-dio</code> makes cold≈warm (page cache bypassed), so warm-pool claims need the mmap path measured (R2)</td><td>44 launch logs, <code>results/serverlogs/</code></td></tr>
+    <tr><td><span class="num">0.687× → 2.63× → 5.49×</span> 27B-vs-MoE jobs/hour at 512 / 8K / 32K prompts</td><td>The 27B is a depth specialist — hence a pin-only rung, not a default swap; the verdict's gate sat at the one depth where it loses</td><td><code>corpus/backfills/qwen38-campaign-full-20260827…jsonl</code></td></tr>
+    <tr><td><span class="num">1.85×</span> symmetric two-server scaling; replica-per-card topologies executed</td><td>One-model-per-card heterogeneous pairs are the realistic "multi-model resident" shape; beyond that is unmeasured (R4–R6)</td><td><code>OMEN-LIMIT-TEST-2026-08.html</code> Stage 5; campaign replica rows</td></tr>
+    <tr><td><span class="num">27.69 tok/s / 60.37&nbsp;GB</span> Flash-Next at 48 blocks (MTP-off — the fast config was never run)</td><td>Flash epochs = full-box states entered deliberately; R7 measures the MTP ceiling; R0 says the commit doesn't fit beside production</td><td>placement ladder, <code>results/requests/flash-iq4-ngl*.jsonl</code></td></tr>
+    <tr><td><span class="num">96&nbsp;°C</span> quarantine on card <code>04:00.0</code> (sibling at 86&nbsp;°C)</td><td>Thermals are a scheduler input and a catalog column; sustained critic duty ≠ burst benching</td><td><code>campaign.json thermal_quarantine</code></td></tr>
+    <tr><td><span class="num">0.08×</span> permanent poisoned-load floor; co-tenant eviction −5×</td><td>VRAM admission gates run before <b>every</b> load, non-optional; unload safety is measured (R5), never assumed</td><td>OMEN-LIMIT F3; denning H1</td></tr>
+  </table>
+</div>
+
+<h2 id="matrix">Build-vs-adopt (Phase −1 bake-off verdict)</h2>
+<div class="card">
+  <div class="label">llama.cpp router · llama-swap · SGLang · Ray Serve · Dynamo · landscape — full dossier in the session plan; ~60–70% of the originally proposed controller code deleted</div>
+  <table>
+    <tr><th>Component</th><th>Verdict</th><th>Owner / candidate</th></tr>
+    <tr><td>Model process lifecycle, load/unload, queueing, TTL, health</td><td><span class="verdict adopt">ADOPT</span></td><td><b>llama-swap v251</b> (Windows binary; per-model <code>env:</code> keeps proven command lines byte-for-byte; groups = enforced mutual exclusion). In-tree <code>llama-server</code> router = plan&nbsp;B (already in our b10581 pin; no per-model env, card-blind LRU, pinning commented out)</td></tr>
+    <tr><td>Per-card placement</td><td><span class="verdict adopt">ADOPT</span></td><td>llama-swap per-model <code>env: GGML_VK_VISIBLE_DEVICES=N</code> (probe P5)</td></tr>
+    <tr><td>Prefix-affinity / KV reuse</td><td><span class="verdict adopt">ADOPT (config)</span></td><td>In-server: <code>-sps</code> best-LCP slot select, <code>--cache-ram</code>, <code>--cache-reuse</code> — likely disabled today; R2c tunes them. External prefix routers only pay with multiple instances of the same model</td></tr>
+    <tr><td>KV persistence across swaps</td><td><span class="verdict wrap">WRAP</span></td><td><code>--slot-save-path</code> save/restore (CI-proven across restart) + our hydration hooks + naming manifest — ⚠ state files carry <b>no model identity</b> (probes P2–P4)</td></tr>
+    <tr><td>Topology definitions</td><td><span class="verdict wrap">WRAP</span></td><td>llama-swap macros + groups/matrix; one entry per proven command line</td></tr>
+    <tr><td>Request routing at the door</td><td><span class="verdict retain">RETAIN</span></td><td>HEARTH <code>inference.py</code> A1–A4 (payload budgets, auth, refusal semantics, ladder, trial suppression) — SGLang gateway and Ray Serve <b>rejected</b> as adoptions (concepts borrowed)</td></tr>
+    <tr><td>Scheduling cost model, queue keys, executor protocol, hysteresis</td><td><span class="verdict borrow">BORROW</span></td><td>Dynamo: tier-weighted KV credit (1.0/0.75/0.25 as a prior), WSPT key <code>(1+prio)/max(1, isl−cached)</code>, <b>VirtualConnector</b> (decision_id → poll → execute → ack → timeout), three-band hysteresis, effective-prefill-tokens telemetry split</td></tr>
+    <tr><td>VRAM admission (bytes, per-card) · Arc telemetry · card-aware eviction · restart/backoff</td><td><span class="verdict build">BUILD</span></td><td>HEARTH thin controller (~200–300 lines, gates ported from <code>server-control.ps1</code>) — verified absent in every surveyed system</td></tr>
+    <tr><td>Residency-epoch scheduling · quality beliefs + promotion gates · regret · thermal/media-aware scheduling</td><td><span class="verdict build">BUILD</span></td><td>JS7b/CP-SAT + belief spine — <b>no open-source peer</b> (the seven verified absences below)</td></tr>
+  </table>
+  <p class="rule"><b>Verified absences</b> (each actively searched for a counterexample): ① no OSS system puts model-residency setup cost in a solver; ② nobody ships learned quality-per-model-per-workload routing with candidate→shadow→promote; ③ no KV-aware routing exists for llama.cpp/Vulkan (telemetry must be synthesized — copy Dynamo's schema); ④ nothing schedules KV state across a model swap (the highest-leverage unoccupied gap); ⑤ nothing treats one box's topology as a decision variable; ⑥ nothing pairs an external advisory solver with a serving gateway (VirtualConnector anticipates it); ⑦ Windows-native non-CUDA multi-GPU residency scheduling has no serious contender (GPUStack v2 dropped native Windows).</p>
+</div>
+
+<h2 id="decisions">Decision queue</h2>
+<div class="card green">
+  <div class="label">Closed (Derek, 2026-08-28)</div>
+  <table>
+    <tr><th>Decision</th><th>Call</th><th>Recorded</th></tr>
+    <tr><td>27B rung</td><td><b>Pin-only, now</b> — MTP-off, text-only; R10 confirms or retracts</td><td>ADR-0039</td></tr>
+    <tr><td>CUDA sidecar</td><td><b>Enlist fx99</b> (AM4 5070 stays out of scope, reaffirmed). ⚠ 2070 SUPER still earmarked for AM4 — the rung retires with the card</td><td>ADR-0039 · inventory.toml</td></tr>
+    <tr><td>VM lift</td><td><b>Conductor first</b> — executed; builders wait for Phase 1</td><td>DECISIONS-PENDING 08-28</td></tr>
+    <tr><td>Flash MTP measurement</td><td><b>Yes</b> — compat probe in W0; measurement only, deployment stays blocked</td><td>DECISIONS-PENDING 08-27→28</td></tr>
+  </table>
+</div>
+<div class="card amber">
+  <div class="label">Evidence-pending (do not ask Derek before the number exists)</div>
+  <table>
+    <tr><th>Decision</th><th>Evidence it waits on</th></tr>
+    <tr><td>ADR-0040: ratify llama-swap as lifecycle layer</td><td>Probes P5–P7 (per-card env co-residency, Intel telemetry fallback, swap-drain semantics)</td></tr>
+    <tr><td>MTP-on deployment anywhere</td><td>The temp-0 divergence question (ADR-0038) — engine-defect determination</td></tr>
+    <tr><td>Flash analyst / router seats (Phase 4)</td><td>R8 judge-agreement + R9 routing classification (only current signal is adverse: <code>reasoning_planning 0.0</code> placement-invariant)</td></tr>
+    <tr><td>27B rung charter confirmation; vision enablement</td><td>R10 accuracy-at-depth; the 27.4-vs-6.8 text/vision decode split diagnosis</td></tr>
+    <tr><td>Full builder-VM lift</td><td>Phase 1 complete (RAM budget from R0/R2b)</td></tr>
+  </table>
+</div>
+
+<h2 id="board">Phase board</h2>
+<div class="card">
+  <table>
+    <tr><th>Item</th><th>Status</th><th>Evidence / next</th></tr>
+    <tr><td><b>Phase 0</b> — hygiene, decisions, ADR-0039, rungs, Track M</td><td><span class="pill done">DONE</span></td><td>ADR-0039 · registers updated · <code>omen-arc-27b</code>+<code>fx99-ollama</code> declared (fx99 door-verified) · patrol clean 05:55:57Z · stale records fixed (inventory 5070 line, checkmcp rungs, AM4 :8787 check added)</td></tr>
+    <tr><td><b>P1</b> — device identity under env filter</td><td><span class="pill done">PASS</span></td><td>B70s = exactly <code>Vulkan0/Vulkan1</code></td></tr>
+    <tr><td><b>R0</b> — RAM/commit census</td><td><span class="pill done">DONE</span></td><td>96.9/135.3&nbsp;GB committed with production up; Flash epoch needs production unloaded + headroom management</td></tr>
+    <tr><td><b>P2</b> — KV slot save (29,320 tokens, 30B, card 1)</td><td><span class="pill done">PASS</span></td><td><span class="num">2.68&nbsp;GB in 1.74&nbsp;s</span> (~1.66&nbsp;GB/s) — Vulkan readback a non-issue. Cold prefill of the same prompt: 102.8&nbsp;s (286.9 tok/s single-card)</td></tr>
+    <tr><td><b>P3</b> — restore across full server restart</td><td><span class="pill done">PASS</span></td><td>Restart 6.1&nbsp;s → restore <span class="num">1.19&nbsp;s</span> → identical prompt re-evaluates <b>1 token</b> (0.84&nbsp;s vs 102.8&nbsp;s; byte-identical greedy output). <b>Save+restore ≈ 3&nbsp;s vs ~100&nbsp;s re-prefill — KV-preserving rotation is real on this stack</b></td></tr>
+    <tr><td><b>P4</b> — cross-model restore negative control</td><td><span class="pill done">PASS</span></td><td>30B state into 27B server → <b>HTTP 400</b> (loud structural refusal). Naming manifest stays mandatory — the file format carries no model identity</td></tr>
+    <tr><td><b>P5</b> — llama-swap heterogeneous co-residency, per-model env</td><td><span class="pill done">PASS</span></td><td>30B@card1 + 27B@card2 both resident; <b>concurrent</b> canaries hold <span class="num">99.2</span> (95% of solo) and <span class="num">21.6&nbsp;tok/s</span> (100% of solo; matches campaign replica row 23.0). Proven command lines ran byte-for-byte via <code>env:</code></td></tr>
+    <tr><td><b>P6</b> — Intel telemetry through llama-swap</td><td><span class="pill done">DONE</span></td><td>Host memory only; <b>no per-GPU Arc VRAM anywhere</b> → Arc telemetry confirmed BUILD</td></tr>
+    <tr><td><b>P7</b> — swap-during-inflight semantics</td><td><span class="pill done">PASS</span></td><td>2048-token <code>ignore_eos</code> stream completed <b>intact</b>; the swap request <b>drained</b> (~27&nbsp;s wait) then loaded. Swaps never cut work; drain time joins the swap-latency budget</td></tr>
+    <tr><td><b>ADR-0040</b> — llama-swap ratification</td><td><span class="pill done">ACCEPTED</span></td><td><a href="docs/adr/0040-serving-lifecycle-is-adopted-not-built.md">docs/adr#0040</a> — all probe gates passed 2026-08-28</td></tr>
+    <tr><td><b>R7</b> — Flash MTP compat probe</td><td><span class="pill blocked">BLOCKED · artifact</span></td><td>The fork's <code>draft-dflash</code> path needs a <b>sidecar draft file</b>; the pinned unsloth revision (<code>824f539b</code>, 26 files) ships none. Needs: identify + pin the sidecar repo, add to <code>artifacts.json</code>, acquire, re-lock, then probe. Registered in DECISIONS-PENDING</td></tr>
+    <tr><td><b>Phase 1</b> — rotation physics: R2 warm-swap ladder · R2b Flash-eviction of warm pool · <b>R2c prefix-affinity config experiment</b> (<code>-sps/-cram/--cache-reuse</code>) · R4/R5/R6 co-residency tiers · R8/R9 Flash judge/router scoring · R10 27B depth grading</td><td><span class="pill todo">TODO</span></td><td>~3–4 thermally-spaced windows; receipts → corpus (bench-row.v1 pattern); every run fills <code>omen_catalog.json</code> columns</td></tr>
+    <tr><td><b>Phase 2</b> — thin substrate: llama-swap owns lifecycle (ArcServeBoot re-points; retires serve-arc.cmd as entry point) · VRAM admission + Arc telemetry + card-aware eviction + KV hydration hooks · model-level rungs vs one llama-swap endpoint (permanent gate-2 unlock) · token-accounting holes ×3 (regret gate becomes satisfiable) · <code>knowledge/omen_catalog.json</code></td><td><span class="pill todo">UNGATED — ADR-0040 accepted</span></td><td>Shrunk ~60–70% by the bake-off. P3's ~3&nbsp;s KV round trip splits JS7b's setup-time term into weight-load (8–40&nbsp;s) + KV-hydrate (~1–3&nbsp;s/slot) — continuous rotation reopens for KV-manifested callers; epochs remain the Flash shape (R0 commit ceiling)</td></tr>
+    <tr><td><b>Phase 3</b> — read side: shadow router consult (learned-vs-static divergence, static dispatches) · queue feeder → <code>propose_schedule</code> with the OMEN catalog · VirtualConnector-style executor contract · full VM lift · assay_acceptance to conductor (shadow-log first)</td><td><span class="pill gated">GATED · Phase 1</span></td><td>ADR-0008 stays intact throughout</td></tr>
+    <tr><td><b>Phase 4</b> — critic ensembles (refine.py <code>fan</code> across per-card pairs) · Flash full-residency epochs as ONE seat on a multi-judge panel · three-band epoch hysteresis · Flash-as-router only via its own actuation ADR</td><td><span class="pill gated">GATED · R8/R9</span></td><td>"The judge is a first-order confound" — multi-judge or nothing</td></tr>
+    <tr><td><b>Phase 5</b> — AM4 5070 (conditional, never critical-path)</td><td><span class="pill gated">CLOSED for now</span></td><td>Reopens only with a named CUDA-only workload</td></tr>
+  </table>
+</div>
+
+<h2 id="scorecard">Program scorecard (empty until measured — campaign discipline applied to the program itself)</h2>
+<div class="card">
+  <table>
+    <tr><th>Gate</th><th>Target</th><th>Measured</th></tr>
+    <tr><td>Ensemble-critique quality lift (multi-judge, length-neutral)</td><td>&gt; solo-model baseline at matched cost</td><td>—</td></tr>
+    <tr><td>Jobs/hour cost of rotation vs status-quo 30B-resident</td><td>net positive across a representative week of door traffic</td><td>—</td></tr>
+    <tr><td>Thermal-quarantine violations during rotation</td><td>0</td><td>—</td></tr>
+    <tr><td>Regret-gate satisfiability (real tokens_out end-to-end)</td><td>3 named holes closed; trend series resumes with measured values</td><td>—</td></tr>
+    <tr><td>Prefix-affinity capture (R2c)</td><td>deep-context TTFT p95 within 5× warm baseline on repeat callers</td><td>—</td></tr>
+    <tr><td>Capability formation (gate 2)</td><td>≥1 association from rotation-era variation</td><td>—</td></tr>
+  </table>
+</div>
+
+<h2 id="risks">Risk register</h2>
+<div class="card">
+  <table>
+    <tr><th>Risk</th><th>Mitigation / status</th></tr>
+    <tr><td>Cross-model KV restore has no identity guard in the file format</td><td>Filename manifest <code>{model_id}.{slot}.{prompt_hash}</code> + P4 negative control (must 400)</td></tr>
+    <tr><td>Flash epochs evict the warm pool (88&nbsp;GiB streamed through standby LRU)</td><td>R2b measures; fallbacks: 24-block placement (31&nbsp;GB), accepted cold reloads, epoch batching</td></tr>
+    <tr><td>VM RAM vs warm pool vs Flash commit contention</td><td>R0 ledger; builder lift deferred; pagefile/headroom decision before first Flash epoch</td></tr>
+    <tr><td>Poisoned load at high commit is permanent for process life</td><td>Commit-floor gate before <b>every</b> load (ported, non-optional)</td></tr>
+    <tr><td>Trial-credit leak while omen-arc is dark (A2 climbs to gcp)</td><td>fx99 fallback pin + short announced windows; loud refusal preferred over silent climb</td></tr>
+    <tr><td>Judge circularity in R8 (scoring Flash against retained judgments)</td><td>Report agreement/variance, never "accuracy"; multi-rubric per the matrix finding</td></tr>
+    <tr><td>Router-CLI-overrides-preset trap (in-tree router plan B)</td><td>Per-model flags live only in config; router command line stays bare</td></tr>
+    <tr><td>Sustained critic duty vs burst thermal evidence; card asymmetry</td><td>Hot card gets the lighter model; temp is a catalog column and scheduler input</td></tr>
+    <tr><td>MTP temp-0 divergence may also asterisk the 27B's headline MTP win</td><td>Open engine-defect decision blocks all MTP deployment; R7 is measurement only</td></tr>
+    <tr><td>gpt-oss is SWA — restored prefixes need <code>--swa-full</code></td><td>Noted in rung/serve config before any oss slot-save use</td></tr>
+    <tr><td>fx99 card is earmarked to move to AM4</td><td>Rung declared pin-only; retires with the card; no hard dependencies on :11434</td></tr>
+  </table>
+</div>
+
+<h2>Changelog</h2>
+<div class="card">
+  <ul>
+    <li><code>2026-08-28</code> (later) — <b>W0 executed; all seven probes passed; ADR-0040 accepted.</b> Window entered under the campaign sentinel (control-file drift fixed via <code>init --force</code>; source-tree re-lock with manifest backup), ~40 min dark, production restored and proved by a real one-token completion. Headline: KV save 2.68&nbsp;GB/1.74&nbsp;s, restore 1.19&nbsp;s across a restart with 1-token re-evaluation — <b>save+restore ≈ 3&nbsp;s vs ~100&nbsp;s re-prefill</b>, so KV-preserving rotation is architecturally real; heterogeneous per-card co-residency holds solo rates; swaps drain, never cut. R7 (Flash MTP) BLOCKED on a missing dflash sidecar artifact — registered. Conductor-on-fx99 idea (Derek) checked: no conductor exists on fx99 today; registered as a Phase&nbsp;3 option. Scorecard row "prefix-affinity capture" now shares the stage with KV hydration — R2c measures both levers.</li>
+    <li><code>2026-08-28</code> — Doc created (Fable session a58fb70c). Plan ratified by Derek; Phase −1 bake-off complete (three research passes: llama.cpp/llama-swap source, SGLang/Ray, Dynamo/landscape); ADR-0039 landed with both rungs (fx99 verified through the door); Track M conductor-first lift executed — patrol clean at 05:55:57Z after 8 days dark; R0 + P1 measured; llama-swap v251 downloaded, probe configs staged; campaign re-lock in progress for the W0 window (manifest backed up first).</li>
+  </ul>
+</div>
+
+<div class="foot">
+Sources of record: <a href="docs/adr/0039-depth-specialists-earn-pin-only-rungs.md">ADR-0039</a> ·
+<a href="docs/adr/0038-a-verdict-cites-only-evidence-from-the-configuration-it-promotes.md">ADR-0038</a> ·
+<a href="docs/adr/0008-scheduler-advisory-first.md">ADR-0008</a> ·
+<a href="DECISIONS-PENDING.md">DECISIONS-PENDING.md</a> ·
+<a href="SCHEDULER-STRATEGY.html">SCHEDULER-STRATEGY.html</a> ·
+<code>corpus/backfills/</code> · <code>E:\work\battlemage\qwen38-bench-2026-08\</code>.
+Cite ADRs as <code>&lt;register&gt;#&lt;number&gt;</code>; resolve via <code>C:\work\handoffs\decision-architecture\adr-index.md</code>.
+</div>
+
+</body>
+</html>

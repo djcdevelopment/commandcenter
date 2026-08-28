@@ -339,7 +339,7 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       `BF6PipelineWatchdog` task heal stopped OMEN workers, restart a stale render
       agent, and record AM4 mount/API health. See the operational amendment to
       [ADR-0036](docs/adr/0036-gpu-execution-leaves-the-control-plane.md).
-- [ ] 2026-08-27 — **Decide whether the Qwen3.8-27B earns a long-context / vision pin-only rung.**
+- [x] 2026-08-27 — **Decide whether the Qwen3.8-27B earns a long-context / vision pin-only rung.**
       The campaign verdict is `do_not_promote` and that is correct for a *default-rung swap*:
       the candidate is −31.3% on jobs/hour at the gate's 512-token operating point. But the
       gate measures the one regime where a dense 27B loses to a 3B-active MoE. Along prompt
@@ -349,6 +349,11 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       incumbent lacks entirely. Adding a rung is a standing-cost deployment decision, so it is
       not mine to make. Sources: [SESSION-RETRO-2026-08-27.md](SESSION-RETRO-2026-08-27.md),
       `E:\work\battlemage\qwen38-bench-2026-08\results\promotion-verdict.json`.
+      — **DECIDED 2026-08-28 (Derek): yes, pin-only, now** — text-only and MTP-off until the
+      vision-decode and divergence questions below resolve. Recorded in
+      [ADR-0039](docs/adr/0039-depth-specialists-earn-pin-only-rungs.md), which also enlists
+      **fx99** as the CUDA sidecar rung (Derek chose fx99 over reopening the AM4-5070 ruling).
+      Phase 1's accuracy-at-depth grading (R10) confirms the rung's charter or retracts it.
 - [ ] 2026-08-27 — **Decide whether MTP output divergence at temperature 0 is an engine defect.**
       MTP-on and MTP-off produced zero identical responses across every compared cell, and all
       126 `p8192` MTP-off requests stopped early while MTP-on did not. Speculative decoding is
@@ -380,8 +385,12 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       all of it is image encoding, but that does not explain why *decode* is 4× slower after
       an image. Source: [SESSION-RETRO-2026-08-27.md](SESSION-RETRO-2026-08-27.md).
 
-- [ ] 2026-08-27 — **Decide whether Flash-Next gets its speculative-decoding lane measured at
-      all.** Every Flash figure in the campaign and the article is `mtp_enabled: false`, and
+- [x] 2026-08-27 — **Decide whether Flash-Next gets its speculative-decoding lane measured at
+      all.** — **DECIDED 2026-08-28 (Derek): yes** — run the cheapest version (lift the
+      harness gate, eight-task compat probe MTP-on at `-ngl 48`, diff against the retained
+      MTP-off outputs) inside a supervised maintenance window. Measurement only: the
+      temperature-0 divergence question above still blocks MTP-on *deployment* everywhere.
+      Original register text follows for the stakes. Every Flash figure in the campaign and the article is `mtp_enabled: false`, and
       not by choice: `server-control.ps1` hard-gates the `-md / --spec-type draft-mtp` path to
       `qwen38-27b` and throws for any other candidate. Flash-Next ships MTP natively, and on
       the dense 27B that path was the single largest configuration win measured — 510 → **1591
@@ -394,3 +403,50 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       Cheapest version: lift the gate, run the eight-task compat probe MTP-on at `-ngl 48`, and
       compare outputs to the MTP-off run already retained.
       Source: [SESSION-RETRO-2026-08-27.md](SESSION-RETRO-2026-08-27.md).
+      ⚠ **2026-08-28: the cheap version measured NOT-cheap — blocked on a missing artifact.**
+      The fork's Flash MTP path (`--spec-type draft-dflash`) requires a **sidecar draft
+      file**, same pattern as the 27B's separate `mtp-*.Q4_0.gguf` — and the pinned unsloth
+      repo revision (`824f539b`, 26 files) ships **no dflash/draft/MTP sidecar at all**
+      (verified against the cached HF tree). R7 now needs an acquisition step first:
+      identify the correct sidecar repo + revision (likely Qwen's original release or a
+      separate unsloth sidecar repo), add it to `artifacts.json` as optional, acquire
+      revision-pinned, re-lock, THEN run the probe. Not freelance-downloaded mid-window on
+      purpose — acquisition discipline holds.
+
+- [x] 2026-08-28 — **Ratify llama-swap as the serving-lifecycle layer (pending probes P5–P7).**
+      — **RATIFIED same day: all seven probes passed** in a supervised maintenance window
+      (production restored + proved). Headline numbers: KV slot save 2.68 GB / **1.74 s**,
+      restore **1.19 s** across a full server restart with `prompt_n = 1` on the identical
+      29K prompt (0.84 s vs 102.8 s cold — **KV-preserving rotation is real**); heterogeneous
+      per-card co-residency held solo rates under concurrent fire (99.2 / 21.6 tok/s); swaps
+      **drain** in-flight streams, never cut; cross-model restore 400s (naming manifest still
+      mandatory — no model identity in the file format); no Intel VRAM telemetry anywhere
+      (Arc telemetry confirmed BUILD). Recorded as
+      [ADR-0040](docs/adr/0040-serving-lifecycle-is-adopted-not-built.md).
+      Original register text follows.
+      The Phase −1 framework bake-off (llama.cpp router mode, SGLang gateway, NVIDIA Dynamo,
+      Ray Serve, plus a landscape sweep) concluded that ~60–70% of the proposed rotation
+      controller is commodity: llama-swap v251 (Windows binary, per-model `env` so the proven
+      B70 command lines survive byte-for-byte, groups for mutual exclusion) should own model
+      lifecycle, with the in-tree `llama-server` router as plan B and HEARTH building only
+      what verified as absent everywhere — bytes-per-card VRAM admission, Arc telemetry,
+      card-aware eviction policy, KV hydration across swaps, and the belief/epoch-scheduling
+      layer (JS7b has no open-source peer). Becomes ADR-0040 once probes P5–P7 pass
+      (heterogeneous per-card co-residency, Intel telemetry fallback, swap-drain semantics).
+      Source: the 2026-08-28 rotation-program session plan; probe receipts to follow in
+      ROTATION-PROGRAM.html.
+
+- [ ] 2026-08-28 — **Decide when the remaining builder VMs lift.** Conductor-first executed
+      2026-08-28: cc-conductor Running, its SSH hop verified, `patrol,watchdog` re-armed
+      (first clean patrol 05:55:57Z after 8 days dark). `drain,fleet_harvest` stay held and
+      cc-builder-1..3/claudefarm1 stay Off until the rotation measurement campaign finishes —
+      R0 measured commit at 96.9 GB of a 135.3 GB limit with production up, so a Flash-Next
+      full-residency epoch (60.4 GB commit) does not fit without the resident model unloaded
+      and headroom managed; builder VMs would eat further into that. `ollama-sentinel` stays
+      off for good (ADR-0034). Owner: Derek, after Phase 1.
+      **Option raised by Derek 2026-08-28:** move the conductor role to fx99 (always-on,
+      15 GB RAM) so it stops soaking OMEN memory as a VM. Checked same day: no conductor
+      exists on fx99 today (dashboard ports closed, no SSH trust from OMEN; loopback-only
+      services would evade this check) — the operative conductor is the OMEN VM, patrol-
+      verified. A migration is a real Phase 3 candidate; it also concentrates more roles on
+      the box whose 2070 SUPER is earmarked to leave, which is fine for a CPU-side daemon.

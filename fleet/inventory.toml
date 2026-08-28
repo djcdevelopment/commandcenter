@@ -143,7 +143,7 @@ alt = ["100.116.82.60", "am4.tail8e749c.ts.net"]   # tailscale STAYS on AM4 (gal
    # ufw: 22 + 8090 ALLOW from 192.168.12.0/24 (8090 rule added 2026-07-09).
 via = "lan"
 expect = "up"     # BACK UP 2026-08-24 (cable returned; serving the gallery to a real user)
-purpose = "UP and serving. Ubuntu 26.04, 30 GB RAM, serving NO inference -- it hosts the observability spine (Jaeger :16686, OTel :4317/:4318), the image gallery, the IRC stack (Ergo/TheLounge on loopback, published via its own tailscale Funnel), and the oxen facade :8090. The RTX 5070 is installed but has NO driver and NO CUDA (`nvidia-smi` absent), so it serves nothing even when powered. NOT a build VM."
+purpose = "UP and serving. Ubuntu 26.04, 30 GB RAM, serving NO inference -- it hosts the observability spine (Jaeger :16686, OTel :4317/:4318), the image gallery, the IRC stack (Ergo/TheLounge on loopback, published via its own tailscale Funnel), the oxen facade :8090, and the BF6 worker/review API :8787. The RTX 5070 HAS a working driver since 2026-08-24 (595.84 open kernel module, CUDA 13.2 runtime, nvidia-smi sees the card) but NO inference engine is bound to it and no CUDA toolkit (nvcc) is installed -- driver present is NOT capacity. NOT a build VM."
 # ✅ RESOLVED 2026-08-24 (later the same day): Derek enabled wireless on AM4, so
 # the two boxes no longer contend for one link. Both answered simultaneously at
 # 16:5x — AM4 on 192.168.12.233 (wireless) and fx99 on 192.168.12.220 (the wired
@@ -167,12 +167,18 @@ purpose = "UP and serving. Ubuntu 26.04, 30 GB RAM, serving NO inference -- it h
 # The IRC community-compute plan runs on THIS machine. Any work on that lane
 # needs AM4 powered and cabled first; see [[project-irc-community-compute]].
 #
-# Standing up a 5070 rung here is deliberately out of scope (Derek, 2026-08-24).
-# Note fx99 already IS the working CUDA node this box was meant to become.
+# Standing up a 5070 rung here is deliberately out of scope (Derek, 2026-08-24;
+# REAFFIRMED 2026-08-28 — offered the reopen explicitly, Derek chose enlisting
+# fx99 instead, ADR-0039). Reopens only with a named CUDA-only workload.
 checks = [
   { service = "ssh", port = 22 },
   { service = "jaeger", port = 16686 },
   { service = "oxen-facade", port = 8090 },
+  # BF6 worker/review API — polled by hearth.media.watchdog (BF6_AM4_HEALTH_URL)
+  # and pointed at by Resume-BF6Pipeline.ps1, but was invisible to /checkmechnet
+  # until 2026-08-28. Same gap class as the funnel-proxy hop that died unnoticed
+  # for four days in the 08-20 rebuild.
+  { service = "bf6-worker-api", port = 8787 },
 ]
 
 [[node]]
@@ -183,18 +189,17 @@ alt = ["100.122.130.124", "fx99.tail8e749c.ts.net"]   # tailnet = human lane onl
 via = "lan"
 expect = "optional"   # UP 2026-08-24: holds the wired cable; AM4 moved to wireless,
                       # so both boxes are reachable at once now (see am4)
-purpose = "NETWORK MONITORING NODE (intended role, Derek 2026-08-24). UP - holds the wired link; AM4 moved to wireless so the two no longer contend. Deliberately NOT a fleet inference node and NOT a HEARTH rung. Hostname `ai-1`. Ubuntu 6.8.0-137, 15 GB RAM. It currently also holds an RTX 2070 SUPER 8 GB (driver 595.84) running Ollama 0.30.10 on :11434 with 12 resident models -- but that card is TRANSITIONAL, kept only so Derek can attach a monitor while hardware moves around."
-# DO NOT WIRE THIS INTO THE FLEET. The Ollama endpoint is real, answers on the
-# LAN, and holds a tempting 12-model list (3B-14B Q4: llama3.2:3b, qwen2.5 7b/14b,
-# qwen2.5-coder:7b, llama3.1:8b, deepseek-r1:8b, gemma2:9b, mistral:7b, zephyr,
-# openhermes, starling-lm, dolphin-mistral). It is still off the fleet ON PURPOSE.
-# This node is being kept clean for monitoring duty; capability is not the reason
-# to enlist it, and the GPU it is serving from is leaving.
+purpose = "MONITORING NODE + CUDA SIDECAR RUNG (Derek 2026-08-28, ADR-0039). UP - holds the wired link; AM4 moved to wireless so the two no longer contend. Hostname `ai-1`. Ubuntu 6.8.0-137, 15 GB RAM. RTX 2070 SUPER 8 GB (driver 595.84) running Ollama 0.30.10 on :11434 with 12 resident models (3B-14B Q4). ENLISTED as the pin-only `fx99-ollama` HEARTH rung: light critic/utility seats + the cheap local fallback during OMEN maintenance windows. Verified end-to-end through the door 2026-08-28 (routed_by pinned:fx99-ollama, 802 ms)."
+# ENLISTMENT NOTE 2026-08-28: the earlier "DO NOT WIRE THIS INTO THE FLEET"
+# ruling (2026-08-24) is SUPERSEDED by Derek's explicit call in the rotation-
+# program session -- he chose enlisting fx99 over reopening the AM4-5070 rung.
+# See docs/adr/0039-depth-specialists-earn-pin-only-rungs.md.
 #
-# CARD DESTINATION: the 2070 SUPER is earmarked for AM4, which is planned to hold
-# THREE NVIDIA cards -- 5070 + 4070 Ti + 2070 SUPER. Expect fx99 to end up
-# headless and GPU-less, and expect this Ollama endpoint to disappear with the
-# card. Do not build anything that depends on :11434 here.
+# CARD DESTINATION CAVEAT -- still in force: the 2070 SUPER remains earmarked
+# for AM4 (planned to hold 5070 + 4070 Ti + 2070 SUPER). If/when the card
+# moves, the fx99-ollama rung RETIRES WITH IT -- it is declared pin-only and
+# nothing may grow a hard dependency on :11434 here. The rung is capacity
+# while the card is present, not a promise that it stays.
 #
 # WHY IT WAS INVISIBLE UNTIL NOW: fx99 predates this file and was never modelled.
 # It read as "offline" for a mundane reason -- AM4 was using its network cable.

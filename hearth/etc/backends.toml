@@ -125,6 +125,66 @@ timeout_s = 1000
 parallel_slots = 4
 
 [[backend]]
+name     = "omen-arc-27b"                     # DEPTH SPECIALIST (pin-only, NOT resident),
+                                              # ADR-0039. Qwen3.8-27B dense, dual-split on
+                                              # the same two B70s. The campaign verdict was
+                                              # do_not_promote as DEFAULT (−31% jobs/hour at
+                                              # p512) — but the ratio inverts with depth:
+                                              # 2.63× the incumbent at 8K prompts, 5.49× at
+                                              # 32K, 95.6% blind win-or-tie. Pin it for
+                                              # deep-context files= packs, long-horizon
+                                              # analysis. MTP OFF (temp-0 divergence open,
+                                              # ADR-0038) and TEXT ONLY (vision decode
+                                              # anomaly open) until those decisions close.
+                                              # Serving costs a model swap: light via the
+                                              # rotation lane (llama-swap, pending ADR-0040)
+                                              # or the campaign's proven qwen27-dual-
+                                              # production shape. MUTUAL EXCLUSION with
+                                              # omen-arc / omen-arc-oss is NOT enforced —
+                                              # stop the resident rung first or both degrade.
+endpoint = "http://127.0.0.1:8084"
+api      = "openai"
+auth_env = "OMEN_ARC_TOKEN"
+models   = ["qwen38-27b"]
+tags     = []                                 # pin-only by design (ADR-0039)
+[backend.settings]
+node                = "omen"
+hardware_profile_id = "omen-285k-dual-b70-2026H2"
+# ADR-0031 arithmetic, same shape as omen-arc: -c 131072 -np 2 → 2 slots × 65536
+# tokens × ~3.5 bytes/token. Derived, not copied; retune if the serve shape changes.
+context_bytes = 229376
+max_tokens = 8192
+timeout_s = 1000
+parallel_slots = 2
+
+[[backend]]
+name     = "fx99-ollama"                      # CUDA SIDECAR (pin-only), ADR-0039: the
+                                              # monitoring node's RTX 2070 SUPER + stock
+                                              # Ollama, enlisted 2026-08-28 (Derek chose
+                                              # this over reopening the AM4-5070 ruling).
+                                              # Light-duty 7–14B seats: critic/utility
+                                              # calls, small-model judge panel seats, and
+                                              # the designated cheap local fallback when
+                                              # OMEN is in a maintenance window (stops dark
+                                              # windows leaking to metered/trial cloud).
+                                              # Verified live 2026-08-28: 12 resident
+                                              # models, /api/tags answers. NOT a
+                                              # rehabilitation of the dead am4 rungs — 8 GB
+                                              # VRAM, wireless-class LAN, keep payloads
+                                              # small.
+endpoint = "http://192.168.12.220:11434"
+api      = "ollama"                           # /api/generate
+models   = ["qwen2.5:7b", "qwen2.5-coder:7b", "qwen2.5:14b", "llama3.1:8b", "gemma2:9b", "deepseek-r1:8b"]
+tags     = []                                 # pin-only until R8/R9 score these seats
+[backend.settings]
+node                = "fx99"
+hardware_profile_id = "fx99-2070super-2026H2"
+# Conservative: Ollama default num_ctx 8192 → ~8k tokens × ~3 bytes. Widen only
+# after measuring a larger num_ctx on the 2070 SUPER.
+context_bytes = 24576
+timeout_s = 300
+
+[[backend]]
 name     = "omen-ollama"                      # DEMOTED from routing 2026-08-21 (ADR-0034):
                                               # the RTX 5070 left OMEN in the rebuild and
                                               # stock Ollama on Arc silently serves CPU-only

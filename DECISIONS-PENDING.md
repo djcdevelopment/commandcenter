@@ -362,3 +362,17 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       generation, and only 11 `omen-arc` events carry token counts at all. The campaign harness
       already captures exactly this field; the door does not. It is a change to a live gateway.
       Source: [todo.txt](todo.txt).
+
+- [ ] 2026-08-27 — **Resolve the 3× Flash-Next decode gap before any Flash figure enters the
+      bake-off table.** `llama-server` reports **27.4 tok/s** text decode for
+      Qwen3.8-Flash-Next; `llama-bench` reports **8.91** (best repetition 9.97) for the same
+      model, same `mmap` load mode, same `dual-split-host-placement`, same memory state, MTP
+      off in both. Ruled out already: MTP (`--spec-type draft-mtp` is gated to `qwen38-27b`),
+      thermal (prefill degrades 4–8% while decode degrades 19–48% — throttling costs the
+      compute-bound half most), and page-cache warm-up (repetition 1 is the *fastest*).
+      A second unexplained split sits inside one server instance at identical memory state:
+      text tasks decode at 27.4, vision tasks at 6.8. Until one mechanism explains both, the
+      article carries the Flash row with an explicit "unsteady series" caveat and no
+      bake-off entry. Cheapest next probe: `llama-bench` on Flash with `-r 10` to see whether
+      the decay floors or keeps falling, in one short maintenance window.
+      Source: [SESSION-RETRO-2026-08-27.md](SESSION-RETRO-2026-08-27.md).

@@ -6,9 +6,17 @@
 # Known wrinkle (recorded, not mitigated): with the iGPU visible, op-offload's prefill
 # streaming targets Vulkan0 (first backend) instead of a B70 - prefill may drop; this
 # lap's edge is decode.
+#
+# VERDICT 2026-08-28 (lz-receipts.jsonl, probe LZ8): cell B is QUANT-GATED on this
+# hardware - the UD-IQ4_XS expert mix fails the Vulkan MMID shared-memory gate on the
+# iGPU's 48KB SLM (ggml-vulkan.cpp:18152; iq-quant shaders carry codebook tables in SLM,
+# Q4_K fits - the full Q4_K 30B-A3B runs on the iGPU at 13.05 tok/s). Default runs now
+# execute cell A only and exit clean; pass -AttemptB to retry B (do this only once a
+# Q4_K-expert requant of Flash exists, or after an engine bump that changes the gate).
 param(
     [string]$Receipts = "E:\work\battlemage\lz-probes\lz-receipts.jsonl",
-    [int]$CommitGateGB = 95
+    [int]$CommitGateGB = 95,
+    [switch]$AttemptB
 )
 $ErrorActionPreference = 'Stop'
 $bin = "E:\work\llamacpp-qwen38\build\bin\llama-server.exe"
@@ -79,29 +87,40 @@ $aPre
 Stop-Probe
 
 # ---- Cell B: experts blk 24-47 -> iGPU (Vulkan0), blk 0-23 -> CPU ----
-$ot = 'blk\.(2[4-9]|3[0-9]|4[0-7])\.ffn_.*_exps\.=Vulkan0,\.ffn_.*_exps\.=CPU'
-$b = Start-Cell "lz8-B-igpu" "0,1,2" @("-ts","0,1,1","-ot",$ot)
-# verify enumeration + placement out of the launch log, loudly
-$enum = Select-String -Path "$logDir\lz8-B-igpu.err.log" -Pattern 'ggml_vulkan.*=' | Select-Object -First 4 | ForEach-Object { $_.Line }
-$enum
-$ovVk = (Select-String -Path "$logDir\lz8-B-igpu.err.log" -Pattern 'overridden.*Vulkan0' | Measure-Object).Count
-$ovCpu = (Select-String -Path "$logDir\lz8-B-igpu.err.log" -Pattern 'overridden' | Measure-Object).Count - $ovVk
-"tensor overrides: $ovVk -> Vulkan0 (expect 72 = 3 x 24 layers), $ovCpu -> CPU"
-$bRows = Invoke-Greedy "B-igpu"
-foreach ($j in $bRows) { Add-Receipt @{ ts = (Get-Date).ToString('o'); probe = 'LZ8'; cell = 'B-igpu-half'; decode_tps = $j.decode_tps; prefill_tps = $j.prefill_tps; commit_pre = $b.commit_pre; commit_post = $b.commit_post; load_s = $b.load_s; overrides_vulkan0 = $ovVk; coresident = $true } }
-$bPre = python (Join-Path $PSScriptRoot 'lz_prefill_probe.py') $port "B-igpu-512" 512 8 1
-$bPre
-Stop-Probe
-
-# ---- correctness diff ----
-$same = ((Get-FileHash "$logDir\lz8-A-cpu.txt").Hash -eq (Get-FileHash "$logDir\lz8-B-igpu.txt").Hash)
-"greedy outputs byte-identical: $same"
-if (-not $same) {
-    "--- A ---"; [IO.File]::ReadAllText("$logDir\lz8-A-cpu.txt")
-    "--- B ---"; [IO.File]::ReadAllText("$logDir\lz8-B-igpu.txt")
+if (-not $AttemptB) {
+    ""
+    "cell B SKIPPED (known quant gate): UD-IQ4_XS expert tensors fail the Vulkan MMID"
+    "shared-memory check on the iGPU's 48KB SLM (ggml-vulkan.cpp:18152). Verdict row is"
+    "in lz-receipts.jsonl (probe LZ8, 2026-08-28). Re-attempt with -AttemptB once a"
+    "Q4_K-expert Flash requant exists or after an engine bump."
+} else {
+    $ot = 'blk\.(2[4-9]|3[0-9]|4[0-7])\.ffn_.*_exps\.=Vulkan0,\.ffn_.*_exps\.=CPU'
+    try {
+        $b = Start-Cell "lz8-B-igpu" "0,1,2" @("-ts","0,1,1","-ot",$ot)
+        # verify enumeration + placement out of the launch log, loudly
+        Select-String -Path "$logDir\lz8-B-igpu.err.log" -Pattern 'ggml_vulkan.*=' | Select-Object -First 4 | ForEach-Object { $_.Line }
+        $ovVk = (Select-String -Path "$logDir\lz8-B-igpu.err.log" -Pattern 'overridden.*Vulkan0' | Measure-Object).Count
+        $ovCpu = (Select-String -Path "$logDir\lz8-B-igpu.err.log" -Pattern 'overridden' | Measure-Object).Count - $ovVk
+        "tensor overrides: $ovVk -> Vulkan0 (expect 72 = 3 x 24 layers), $ovCpu -> CPU"
+        $bRows = Invoke-Greedy "B-igpu"
+        foreach ($j in $bRows) { Add-Receipt @{ ts = (Get-Date).ToString('o'); probe = 'LZ8'; cell = 'B-igpu-half'; decode_tps = $j.decode_tps; prefill_tps = $j.prefill_tps; commit_pre = $b.commit_pre; commit_post = $b.commit_post; load_s = $b.load_s; overrides_vulkan0 = $ovVk; coresident = $true } }
+        $bPre = python (Join-Path $PSScriptRoot 'lz_prefill_probe.py') $port "B-igpu-512" 512 8 1
+        $bPre
+        $same = ((Get-FileHash "$logDir\lz8-A-cpu.txt").Hash -eq (Get-FileHash "$logDir\lz8-B-igpu.txt").Hash)
+        "greedy outputs byte-identical: $same"
+        if (-not $same) {
+            "--- A ---"; [IO.File]::ReadAllText("$logDir\lz8-A-cpu.txt")
+            "--- B ---"; [IO.File]::ReadAllText("$logDir\lz8-B-igpu.txt")
+        }
+        Add-Receipt @{ ts = (Get-Date).ToString('o'); probe = 'LZ8'; cell = 'diff'; greedy_identical = $same }
+    } catch {
+        "cell B refused: $($_.Exception.Message)"
+        "expected while the quant gate stands - see the LZ8 verdict row"
+        Add-Receipt @{ ts = (Get-Date).ToString('o'); probe = 'LZ8'; cell = 'B-igpu-half'; result_raw = 'REFUSED (re-attempt)'; detail = "$($_.Exception.Message)" }
+    } finally {
+        Stop-Probe
+    }
 }
-
-Add-Receipt @{ ts = (Get-Date).ToString('o'); probe = 'LZ8'; cell = 'diff'; greedy_identical = $same }
 
 "--- post-lap ---"
 & "C:\work\commandcenter\fleet\arcserve\arc-serviceability.ps1" 2>&1 | Out-String

@@ -38,6 +38,35 @@ was almost certainly poisoning, since ub512 was measured fresh (104) and ub1024 
 Flash work (22–27). **NEW RULE: restart the incumbent after any co-resident experiment, before
 measuring it.** FF-CENSUS checks placement and residency; it must also check *rate*.
 
+### ⛔ CURRENT STATE — production is poisoned right now *(2026-08-29 ~14:50, unresolved)*
+
+**Do not open a measurement window without restarting production first.** Measured during the
+P-D harness verification, no restart performed:
+
+| | value |
+|---|---|
+| decode | **4.80 tok/s** settling floor — reps `[15.71, 5.27, 4.95, 4.92, 4.80, 4.80]` |
+| known-good | 104.86 tok/s (this epoch's own post-restart figure) |
+| ratio | **0.046×** |
+| placement | **correct** — 14.6 / 15.5 GB across both BDFs, temp spread 2 °C, both cards warm |
+| co-tenants | **none** — only `llama-server` pid 11780 (:8082) and the HEARTH gateway (:8710) |
+| epoch | started 08:03:24, ~6 h old |
+
+This is not the ADR-0042 one-card defect — placement is right. It is consistent with ADR-0041
+poisoning accumulated across a ~6 h epoch, and it is **deeper than that ADR's 0.27×**, closer to
+the OMEN-LIMIT F3 / denning H1 **0.08× permanent poisoned-load floor**.
+
+⚠ **The HEARTH door proof returned `ok:true` with correct text at this rate**, and `/health` was
+fine throughout. Exactly what ADR-0041 says the door proof is worth as a health gate: nothing.
+Only the rate assertion caught it.
+
+**Cause is not attributed.** Production was *already* at 0.61× on the first measurement, before
+this session ran any b70tools sampling, so the probes did not start it. Whether repeated
+read-only probing *deepened* it is **untested** — one sequence, no control. ADR-0041 tested
+b70tools as harmless (105.08 → 105.23), but that was a single invocation on a *healthy* server,
+while `ff_census` runs it as `--run --ticks 4`, a heavier operation. Registered as a question
+for **P-C**, whose Vulkan-probe cell already covers it.
+
 ### ✅ RETRACTED: the decay account *(kept for the record — do not cite)*
 
 **Everything in this subsection is superseded by the poisoning account above.** It is retained

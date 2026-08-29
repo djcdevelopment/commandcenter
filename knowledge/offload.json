@@ -1,27 +1,27 @@
 {
   "contract_version": "offload.v1",
-  "evidence_watermark": "2026-08-24T14:06:44.645985Z",
-  "bucket_count": 11,
+  "evidence_watermark": "2026-08-29T20:38:54.691356Z",
+  "bucket_count": 12,
   "totals": {
-    "calls": 1230,
-    "tokens_in": 3035827,
-    "tokens_out": 379148
+    "calls": 1251,
+    "tokens_in": 3050806,
+    "tokens_out": 388477
   },
   "per_class": {
     "sunk": {
-      "calls": 631,
-      "tokens_in": 380340,
-      "tokens_out": 159099
+      "calls": 644,
+      "tokens_in": 384103,
+      "tokens_out": 161697
     },
     "trial": {
-      "calls": 589,
-      "tokens_in": 2655487,
-      "tokens_out": 220049
+      "calls": 596,
+      "tokens_in": 2666667,
+      "tokens_out": 226778
     },
     "unknown": {
-      "calls": 10,
-      "tokens_in": 0,
-      "tokens_out": 0
+      "calls": 11,
+      "tokens_in": 36,
+      "tokens_out": 2
     }
   },
   "offload_ratio": 1.0,
@@ -29,13 +29,13 @@
     "reference": "claude-sonnet",
     "input_per_mtok": 3.0,
     "output_per_mtok": 15.0,
-    "usd": 14.794701
+    "usd": 14.979435
   },
   "real_usd_spent": {
     "pricing_source": "vertex-ai-pricing verified 2026-07-23 (global/standard, <=200K tier)",
     "usd": 6.266929,
     "priced_calls": 404,
-    "unpriced_calls": 185
+    "unpriced_calls": 192
   },
   "buckets": [
     {
@@ -66,17 +66,28 @@
       "last_seen": "2026-07-30T09:38:02.654937Z"
     },
     {
+      "backend": "fx99-ollama",
+      "cost_class": "unknown",
+      "models": [],
+      "calls": 1,
+      "ok_rate": 1.0,
+      "tokens_in": 36,
+      "tokens_out": 2,
+      "real_usd": null,
+      "last_seen": "2026-08-28T06:01:10.585369Z"
+    },
+    {
       "backend": "gcp-gemini",
       "cost_class": "trial",
       "models": [
         "gemini-3.5-flash"
       ],
-      "calls": 248,
+      "calls": 254,
       "ok_rate": 1.0,
-      "tokens_in": 517574,
-      "tokens_out": 64617,
+      "tokens_in": 526993,
+      "tokens_out": 70275,
       "real_usd": 0.913247,
-      "last_seen": "2026-08-19T16:03:44.097980Z"
+      "last_seen": "2026-08-29T05:06:30.387394Z"
     },
     {
       "backend": "gcp-gemini-pro",
@@ -84,12 +95,12 @@
       "models": [
         "gemini-3.1-pro-preview"
       ],
-      "calls": 190,
+      "calls": 191,
       "ok_rate": 1.0,
-      "tokens_in": 2137913,
-      "tokens_out": 155432,
+      "tokens_in": 2139674,
+      "tokens_out": 156503,
       "real_usd": 5.353682,
-      "last_seen": "2026-08-12T05:02:59.140369Z"
+      "last_seen": "2026-08-27T20:02:32.872453Z"
     },
     {
       "backend": "model:",
@@ -158,12 +169,12 @@
       "backend": "omen-arc",
       "cost_class": "sunk",
       "models": [],
-      "calls": 11,
+      "calls": 24,
       "ok_rate": 1.0,
-      "tokens_in": 11207,
-      "tokens_out": 2347,
+      "tokens_in": 14970,
+      "tokens_out": 4945,
       "real_usd": 0.0,
-      "last_seen": "2026-08-24T14:06:44.645985Z"
+      "last_seen": "2026-08-29T20:38:54.691356Z"
     },
     {
       "backend": "omen-ollama",
@@ -180,6 +191,6 @@
       "last_seen": "2026-08-21T04:51:37.712201Z"
     }
   ],
-  "corpus_digest": "sha256:1467fd35dc64b182ba0e5bd23b17bbd8cd8084545521c2f0759e780531eb0c88",
-  "corpus_event_count": 106840
+  "corpus_digest": "sha256:b0a5b12fb1628ad7fd4f638cb0496d462b6dc4760c09f88b50279caad4c19a74",
+  "corpus_event_count": 144211
 }

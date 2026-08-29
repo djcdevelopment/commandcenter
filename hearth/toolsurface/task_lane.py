@@ -52,12 +52,26 @@ PLAN_ID_PREFIX = "hearth-"
 # requires at least two targets — a single-builder run crashes on dispatch
 # ("FanOutEdgeGroup must contain at least two targets") and never writes a
 # result, lingering as a phantom in-flight run that also holds occupancy.
-# Default to TWO local B70 builders (both openai/vllama runners) so the offload
-# lane works without pulling in a frontier (claude/sonnet) builder. cc-builder-1
-# is frontier and is only the last-resort padding tail. See _ensure_fanout_minimum.
-DEFAULT_BUILDERS = ["am4-worker-1", "cc-builder-2"]
+# Default to TWO local builders (both openai runners) so the offload lane works
+# without pulling in a frontier (claude/sonnet) builder. cc-builder-1 has no
+# runner.json, so it falls back to the METERED claude runner — it is only the
+# last-resort padding tail. See _ensure_fanout_minimum.
+#
+# Re-pointed 2026-08-29 after a live sweep found every local builder aimed at a
+# dead backend: am4-worker-1 -> am4 oxen :8090 (answers, every model
+# ready:false), cc-builder-2 -> the same oxen over the tailnet, cc-builder-3 ->
+# OMEN Ollama :11434 (OllamaBoot disabled for good, ADR-0034). The whole local
+# task lane was dark. omen-arc is not the fix — llama-server binds 127.0.0.1:8082,
+# so the builder VMs (Default Switch, 172.19.240.0/20) cannot see it at all.
+# fx99-ollama (192.168.12.220:11434) IS reachable from the VMs and was proved
+# with a real decode, so cc-builder-2/3 runner.json now point there
+# (qwen2.5-coder:7b / qwen2.5:14b; old values saved as runner.json.bak-2026-08-29).
+# Moving cc-builder-2 off its tailnet URL also restores ADR-0014/0015 compliance.
+# When llama-swap lands (ADR-0040 phase 2) it should also listen on the Default
+# Switch address so these builders get the B70 rung instead of an 8 GB sidecar.
+DEFAULT_BUILDERS = ["cc-builder-2", "cc-builder-3"]
 FANOUT_MIN_BUILDERS = 2
-COMPANION_BUILDERS = ["cc-builder-2", "am4-worker-1", "cc-builder-1"]
+COMPANION_BUILDERS = ["cc-builder-2", "cc-builder-3", "cc-builder-1"]
 
 _SLUG_RE = re.compile(r"[^a-z0-9-]+")
 

@@ -1,0 +1,57 @@
+{
+  "contract_version": "ff-provenance-boundaries.v1",
+  "purpose": "Evidenced incumbent-process-epoch boundaries for the omen-arc rung. Read by ff_provenance.py. Hand-curated and committed BECAUSE the tool must be deterministic and reproducible: the OS event log is a live source that would make the generated index depend on when it ran. Each entry cites the channel it came from so the claim can be re-checked.",
+  "why_epochs_matter": "ADR-0042: Vulkan enumeration order on this box is nondeterministic PER PROCESS LAUNCH. A topology observation is therefore evidence about ONE process epoch and does not survive a restart. ArcServeBoot is boot-triggered, so every OS boot starts a new epoch with an independently redrawn device order.",
+  "blind_spot": "ArcServeBoot carries RestartCount 3 @ PT1M (the ADR-0032 hardening pattern). A crash-restart inside an epoch leaves NO record in any channel listed here -- not the OS boot log, not git, not the receipts. Unrecorded sub-epochs are possible and their absence is not evidence. Microsoft-Windows-TaskScheduler/Operational is enabled=False on this box and holds zero records, so the channel that would have caught them does not exist.",
+  "boundaries": [
+    {
+      "ts": "2026-08-26T23:18:19-07:00",
+      "kind": "os_boot",
+      "confidence": "hard",
+      "evidence": "System event log IDs 6005/6009 at 2026-08-26 23:18:19, preceded by 1074 (shutdown initiated) at 23:16:41. ArcServeBoot is boot-triggered, so production restarted here."
+    },
+    {
+      "ts": "2026-08-28T08:32:52-07:00",
+      "kind": "os_boot",
+      "confidence": "hard",
+      "evidence": "Win32_OperatingSystem.LastBootUpTime = 2026-08-28T08:32:52.5-07:00, corroborated by System event log 12 at 08:32:53 and 6005/6009 at 08:33:02, preceded by 1074 at 08:31:46. This is the boot referenced by finding A13 (lanes.json calibrated 08-25, booted 08-28)."
+    },
+    {
+      "ts": "2026-08-29T04:39:55-07:00",
+      "kind": "placement_fix_restart",
+      "confidence": "recorded",
+      "evidence": "FF receipt FF0-placement at 04:39:55 'FIXED - both B70s in service' records removing the visibility filter and restarting. Bracketed by evidence on both sides: the -lv 5 load report at 04:31:42 still showed SINGLE-card, and the FF-CENSUS row at 04:45:59 shows 14.882/15.803 GB across both BDFs. NOTE the commit (8933e82, 04:47:38) came AFTER the restart -- commit time is a lagging indicator here and would have placed this boundary ~8 min late, misfiling the two post-fix census anchors."
+    },
+    {
+      "ts": "2026-08-29T06:30:16-07:00",
+      "kind": "config_change_restart",
+      "confidence": "recorded",
+      "evidence": "git commit d4a8ed3 'RETRACT -ub 1024' touched fleet/arcserve/serve-arc.cmd; the revert only takes effect on restart. Commit time BOUNDS this boundary from above only -- per the 8933e82 precedent the restart likely preceded the commit, so the true boundary is at or before 06:30:16."
+    },
+    {
+      "ts": "2026-08-29T08:03:24-07:00",
+      "kind": "investigation_restart",
+      "confidence": "derived",
+      "evidence": "Derived from hearth/var/arc-serve.log: the last line carries elapsed 335.30.333 (MM.SS.mmm = 5h35m30s) against file mtime 2026-08-29T13:38:54-07:00, placing process start at ~08:03:24. Corroborated by the FF-POISONING receipt at 08:05:09 recording 'Restart restored 104.86'. This epoch was still open when the index was generated.",
+      "open_ended": true
+    }
+  ],
+  "not_available": {
+    "task_scheduler_operational_log": "enabled=False, zero records -- cannot contribute epoch boundaries",
+    "per_epoch_load_reports": "serve-arc.cmd redirects with '>' (truncate), so only the CURRENT epoch's log survives; and at the default verbosity=3 llama-server emits no 'using device' or 'model buffer size' lines at all. Those lines were only ever obtained by running at -lv 5.",
+    "process_start_time": "llama-server runs under an S4U scheduled task; Get-Process StartTime is inaccessible and its CPU counters read 0 while it works."
+  },
+  "load_report_anchors": [
+    {
+      "ts": "2026-08-29T04:31:42-07:00",
+      "label": "confirmed-single",
+      "source": "llama-server load report (-lv 5)",
+      "evidence": "FF receipt FF0-placement at 04:31:42, 'ROOT CAUSE - production defect': device_info listed 'Vulkan0 : Intel(R) Arc(TM) Pro B70 Graphics (32558 MiB)' and 'Vulkan1 : Intel(R) Graphics', llama_prepare_model_devices used Vulkan0 ONLY, and all 49/49 layers landed there = 30108 MiB on one card. This is the FIRST-RANK placement authority per ff_census's own hierarchy -- above b70tools residency, which is activity-windowed. Corroborated by b70tools per BDF: 0000:04:00.0 29.57 GB / 0000:09:00.0 0.00 GB."
+    }
+  ],
+  "anchor_channels": {
+    "b70tools_captures": "adapter-probe-* directories under the qwen38-bench telemetry tree; parsed by ff_census.parse_events",
+    "ff_census_ledger_rows": "FF-CENSUS receipts carry an 'adapters' block with the same per-BDF fields; read directly from the ledger",
+    "load_report_anchors": "hand-curated from receipts whose evidence is llama-server's own -lv 5 load report -- the highest-rank authority, but free text, so it is cited here rather than parsed"
+  }
+}

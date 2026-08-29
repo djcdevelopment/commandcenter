@@ -14,6 +14,7 @@ param(
     [int]$CommitGateGB = 95
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'kit\placement.ps1')
 $bin = "E:\work\llamacpp-qwen38\build\bin\llama-server.exe"
 $logDir = "E:\work\battlemage\lz-probes"
 $port = 18187
@@ -30,13 +31,22 @@ function Stop-Probe {
         Where-Object { $_.Path -eq $bin } | Stop-Process -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 3
 }
-function Start-Cell([string]$LogName, [string]$Devices, [string[]]$ExtraArgs) {
+function Start-Cell([string]$LogName, [string[]]$Roles, [string]$Expect, [string[]]$ExtraArgs) {
     Stop-Probe
     $pre = Get-CommitGB
     if ($pre -gt $CommitGateGB) { throw "commit gate: $pre GB > $CommitGateGB GB - refusing load" }
-    $env:GGML_VK_VISIBLE_DEVICES = $Devices
+    # ADR-0042: roles, not indices. Only the iGPU cell needs a filter at all -- device-TYPE
+    # selection deliberately excludes integrated GPUs, so H1 cannot reach its venue without
+    # one. H2 wants a single B70, which is said with -ts 1,0 rather than by naming a device.
+    if ($Roles -contains 'igpu') {
+        $env:GGML_VK_VISIBLE_DEVICES = Get-DeviceFilterByRole -Roles $Roles
+    } else {
+        Remove-Item Env:GGML_VK_VISIBLE_DEVICES -ErrorAction SilentlyContinue
+    }
+    # -lv 5: without it there are no placement lines to assert against (see placement.ps1).
     $args = @("-m",$model,"--alias","lz8b","-ngl","99","-sm","layer","-fa","on","-fit","off",
-              "--no-repack","-c","16384","-np","1","--host","127.0.0.1","--port",[string]$port,"--slots") + $ExtraArgs
+              "--no-repack","-c","16384","-np","1","-lv","5",
+              "--host","127.0.0.1","--port",[string]$port,"--slots") + $ExtraArgs
     $sw = [Diagnostics.Stopwatch]::StartNew()
     $p = Start-Process -FilePath $bin -ArgumentList $args `
             -RedirectStandardError "$logDir\$LogName.err.log" `
@@ -49,6 +59,8 @@ function Start-Cell([string]$LogName, [string]$Devices, [string[]]$ExtraArgs) {
     } while (-not $up -and (Get-Date) -lt $deadline)
     $sw.Stop()
     if (-not $up) { Get-Content "$logDir\$LogName.err.log" -Tail 12; throw "$LogName never healthy (loud refusal - read the log)" }
+    # /health is liveness only (ADR-0041). Placement is asserted from the load report.
+    $null = Assert-Placement -LogPath "$logDir\$LogName.err.log" -Expect $Expect -Cell $LogName
     $post = Get-CommitGB
     Write-Host "$LogName up: load $([math]::Round($sw.Elapsed.TotalSeconds,1))s  commit $pre -> $post GB"
     return @{ proc = $p; commit_pre = $pre; commit_post = $post; load_s = [math]::Round($sw.Elapsed.TotalSeconds,1) }
@@ -88,12 +100,12 @@ $ff = Get-Process ffmpeg -ErrorAction SilentlyContinue
 # list when a dGPU is present, so without it the -ot'd Vulkan0 buffers are orphaned and
 # the sched aborts at the first expert leaf (ggml-backend.cpp:932) - the same failure
 # previously misattributed to an MMID/SLM quant gate in LZ8 (corrected on the ledger).
-$h1 = Start-Cell "lz8b-H1-igpu" "0,1" @("--device","Vulkan0,Vulkan1","-ts","0,1","-ot",".ffn_.*_exps.=Vulkan0")
+$h1 = Start-Cell "lz8b-H1-igpu" @("igpu","b70") "igpu-plus-b70" @("--device","Vulkan0,Vulkan1","-ts","0,1","-ot",".ffn_.*_exps.=Vulkan0")
 Invoke-Cell "H1-exps-igpu" $h1 144 "Vulkan0" "lz8b-H1-igpu"
 Stop-Probe
 
 # H2: experts -> CPU, same B70 (twin)
-$h2 = Start-Cell "lz8b-H2-cpu" "1" @("-ot",".ffn_.*_exps.=CPU")
+$h2 = Start-Cell "lz8b-H2-cpu" @("b70") "one-b70" @("-ts","1,0","-ot",".ffn_.*_exps.=CPU")
 Invoke-Cell "H2-exps-cpu" $h2 144 "CPU" "lz8b-H2-cpu"
 Stop-Probe
 

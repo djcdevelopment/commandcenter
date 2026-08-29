@@ -271,9 +271,62 @@ def dispatch_observation_keys(runs_root: Path) -> set[tuple]:
 
 
 def load_cursor(cursor_path: Path) -> dict:
+    """Read the bridge cursor. A cursor that cannot be parsed is reported, not raised.
+
+    This used to be a bare ``json.loads``, which made an unreadable cursor a
+    PERMANENT, SELF-SUSTAINING outage: the bridge died reading the cursor before
+    it could write a new one, so every later run died the same way and no ledger
+    event ever reached the corpus again. Found 2026-08-29 with this file holding
+    83 NUL bytes -- the classic crash-during-write signature, where the length was
+    extended but the data never flushed. It had been failing silently since
+    2026-08-20 and had stranded 144k ledger rows, freezing the whole belief layer.
+
+    A corrupt cursor is flagged rather than swallowed: ``cursor_corrupt`` tells
+    project_ledger to REBUILD the position from the target stream instead of
+    quietly resuming from zero, which would re-append every already-bridged event.
+    """
     if cursor_path.exists():
-        return json.loads(cursor_path.read_text(encoding="utf-8"))
+        raw = cursor_path.read_text(encoding="utf-8", errors="replace")
+        try:
+            cursor = json.loads(raw)
+            if not isinstance(cursor, dict):
+                raise json.JSONDecodeError("cursor is not an object", raw or "", 0)
+            return cursor
+        except json.JSONDecodeError as exc:
+            return {"last_event_id": None, "line": 0, "cursor_corrupt": str(exc)}
     return {"last_event_id": None, "line": 0}
+
+
+def _recover_cursor_from_target(target_path: Path) -> dict | None:
+    """Reconstruct the bridge position from the last event already in the target.
+
+    The bridge is append-only and every bridged row carries its source id at
+    ``payload.hearth_event_id``, so the target stream is itself an authoritative
+    record of how far the bridge got. Returning a cursor with that id lets
+    _start_line scan the ledger for the true resume point.
+
+    Returning None means "no usable target" -- an absent or empty stream, where
+    starting from zero is genuinely correct rather than duplicative.
+    """
+    if not target_path.exists():
+        return None
+    last_id = None
+    with target_path.open("r", encoding="utf-8", errors="replace") as handle:
+        for raw_line in handle:
+            if not raw_line.strip():
+                continue
+            try:
+                event = json.loads(raw_line)
+            except json.JSONDecodeError:
+                continue
+            candidate = (event.get("payload") or {}).get("hearth_event_id")
+            if candidate:
+                last_id = candidate
+    if last_id is None:
+        return None
+    # line is a hint only: _start_line verifies it against the ledger and falls
+    # back to scanning for the id, which is the path this recovery relies on.
+    return {"last_event_id": last_id, "line": 1}
 
 
 def save_cursor(cursor_path: Path, last_event_id: str, line: int) -> None:
@@ -337,7 +390,27 @@ def project_ledger(
 
     lines = [line for line in ledger_path.read_text(encoding="utf-8").splitlines() if line.strip()]
     cursor = load_cursor(cursor_path)
+    if cursor.get("cursor_corrupt"):
+        # Never resume a corrupt cursor from zero: append_event is unconditional
+        # (only capacity observations dedupe), so that would re-append every row
+        # the bridge already delivered. Rebuild the position from the target.
+        summary["cursor_corrupt"] = cursor["cursor_corrupt"]
+        recovered = _recover_cursor_from_target(target_path)
+        if recovered is not None:
+            cursor = recovered
+            summary["cursor_recovered_from_target"] = recovered["last_event_id"]
+        else:
+            summary["cursor_recovered_from_target"] = None
     start = _start_line(lines, cursor)
+    if cursor.get("last_event_id") is not None and start == 0:
+        # The recorded id is not in this ledger at all (rotation, or a target from
+        # a different ledger). Re-bridging from zero would duplicate, so refuse and
+        # let a human decide -- an append-only stream has no undo.
+        summary["errors"].append(
+            f"bridge cursor names event {cursor['last_event_id']!r}, which is not in "
+            f"{ledger_path}; refusing to re-bridge from zero (would duplicate rows in "
+            f"{target_path}). Resolve by hand: confirm the target/ledger pairing.")
+        return summary
     summary["skipped"] = start
 
     last_event_id = cursor.get("last_event_id")

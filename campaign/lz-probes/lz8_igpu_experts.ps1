@@ -19,6 +19,7 @@ param(
     [switch]$AttemptB
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'kit\placement.ps1')
 $bin = "E:\work\llamacpp-qwen38\build\bin\llama-server.exe"
 $logDir = "E:\work\battlemage\lz-probes"
 $port = 18186
@@ -35,13 +36,22 @@ function Stop-Probe {
         Where-Object { $_.Path -eq $bin } | Stop-Process -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 3
 }
-function Start-Cell([string]$LogName, [string]$Devices, [string[]]$ExtraArgs) {
+function Start-Cell([string]$LogName, [string[]]$Roles, [string]$Expect, [string[]]$ExtraArgs) {
     Stop-Probe
     $pre = Get-CommitGB
     if ($pre -gt $CommitGateGB) { throw "commit gate: $pre GB > $CommitGateGB GB - refusing load (poisoned-load territory)" }
-    $env:GGML_VK_VISIBLE_DEVICES = $Devices
+    # ADR-0042: indices are resolved by ROLE at run time, never hardcoded. A both-B70
+    # cell takes NO filter at all (device-TYPE selection); only an iGPU cell needs one,
+    # because type selection deliberately excludes integrated GPUs.
+    if ($Roles -contains 'igpu') {
+        $env:GGML_VK_VISIBLE_DEVICES = Get-DeviceFilterByRole -Roles $Roles
+    } else {
+        Remove-Item Env:GGML_VK_VISIBLE_DEVICES -ErrorAction SilentlyContinue
+    }
+    # -lv 5: without it there are no placement lines to assert against (see placement.ps1).
     $args = @("-m",$model,"--alias","lz8","-ngl","99","-sm","layer","-fa","on","-fit","off",
-              "--no-repack","-c","16384","-np","1","--host","127.0.0.1","--port",[string]$port,"--slots") + $ExtraArgs
+              "--no-repack","-c","16384","-np","1","-lv","5",
+              "--host","127.0.0.1","--port",[string]$port,"--slots") + $ExtraArgs
     $sw = [Diagnostics.Stopwatch]::StartNew()
     $p = Start-Process -FilePath $bin -ArgumentList $args `
             -RedirectStandardError "$logDir\$LogName.err.log" `
@@ -54,6 +64,9 @@ function Start-Cell([string]$LogName, [string]$Devices, [string[]]$ExtraArgs) {
     } while (-not $up -and (Get-Date) -lt $deadline)
     $sw.Stop()
     if (-not $up) { Get-Content "$logDir\$LogName.err.log" -Tail 12; throw "$LogName never healthy (loud refusal - read the log)" }
+    # /health is liveness only (ADR-0041). Placement is asserted from the load report,
+    # which is what actually catches an enumeration reshuffle.
+    $null = Assert-Placement -LogPath "$logDir\$LogName.err.log" -Expect $Expect -Cell $LogName
     $post = Get-CommitGB
     "$LogName up: load $([math]::Round($sw.Elapsed.TotalSeconds,1))s  commit $pre -> $post GB"
     return @{ proc = $p; commit_pre = $pre; commit_post = $post; load_s = [math]::Round($sw.Elapsed.TotalSeconds,1) }
@@ -80,7 +93,7 @@ $ff = Get-Process ffmpeg -ErrorAction SilentlyContinue
 "ffmpeg: $(if ($ff) { $ff.Count } else { 0 })  commit: $(Get-CommitGB) GB"
 
 # ---- Cell A: reference, all experts CPU (identical to the morning's lz1 config) ----
-$a = Start-Cell "lz8-A-cpu" "1,2" @("-ts","1,1","-ot",".ffn_.*_exps.=CPU")
+$a = Start-Cell "lz8-A-cpu" @("b70","b70") "both-b70" @("-ts","1,1","-ot",".ffn_.*_exps.=CPU")
 $aRows = Invoke-Greedy "A-cpu"
 # receipts written PER CELL, immediately - a later cell's throw must not eat these rows
 foreach ($j in $aRows) { Add-Receipt @{ ts = (Get-Date).ToString('o'); probe = 'LZ8'; cell = 'A-cpu'; decode_tps = $j.decode_tps; prefill_tps = $j.prefill_tps; commit_pre = $a.commit_pre; commit_post = $a.commit_post; load_s = $a.load_s; coresident = $true } }
@@ -98,7 +111,7 @@ if (-not $AttemptB) {
 } else {
     $ot = 'blk\.(2[4-9]|3[0-9]|4[0-7])\.ffn_.*_exps\.=Vulkan0,\.ffn_.*_exps\.=CPU'
     try {
-        $b = Start-Cell "lz8-B-igpu" "0,1,2" @("-ts","0,1,1","-ot",$ot)
+        $b = Start-Cell "lz8-B-igpu" @("igpu","b70","b70") "igpu-plus-b70" @("-ts","0,1,1","-ot",$ot)
         # verify enumeration + placement out of the launch log, loudly
         Select-String -Path "$logDir\lz8-B-igpu.err.log" -Pattern 'ggml_vulkan.*=' | Select-Object -First 4 | ForEach-Object { $_.Line }
         $ovVk = (Select-String -Path "$logDir\lz8-B-igpu.err.log" -Pattern 'overridden.*Vulkan0' | Measure-Object).Count

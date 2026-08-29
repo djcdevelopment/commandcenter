@@ -90,18 +90,32 @@ rem b10549 prebuilt, 14B sanity bench, within +-3%.
 rem ROLLBACK: git revert this file to the previous commit (the b10549 path), then
 rem   schtasks /Run /TN ArcServeRestart
 rem UBATCH 2026-08-29: -ub 1024 was PROMOTED AND THEN RETRACTED THE SAME DAY.
-rem DO NOT RE-APPLY without an -np 2 measurement. Measured A/B at THIS config
-rem (-c 131072 -np 2, knee build, dual-split), decode tok/s over 3 reps each:
+rem DO NOT RE-APPLY without a clean -np 2 measurement. The A/B that produced these
+rem numbers is NOT trustworthy -- see the withdrawal note below.
 rem     -ub 512  (default) : 104.26 / 104.84 / 103.40   <- matches the 109.31
 rem                           recorded here on 2026-08-24
-rem     -ub 1024           :  27.03 /  25.93 /  21.95   <- ~4x REGRESSION
-rem WHY IT SHIPPED: llama-bench measured -ub 1024 as +5.7% prefill and decode-
-rem neutral, so it looked free. But llama-bench HAS NO -np: it tests ONE slot,
-rem and the pathology only appears at two. The gap was explicitly noted at
-rem promotion time and shipped anyway on the strength of the prefill gain.
-rem LESSON: a flag validated only where the harness can reach is not validated.
-rem llama-bench cannot express production shape (-np), so any flag that touches
-rem batching MUST be A/B tested against the live server before promotion.
+rem     -ub 1024           :  27.03 /  25.93 /  21.95
+rem
+rem CAUSAL CLAIM WITHDRAWN (ADR-0041, same day, later). This file previously
+rem asserted that -ub 1024 CAUSES a ~4x decode regression at -np 2. It does not
+rem say that any more, because the two arms were not measured at the same machine
+rem state: ub512 was measured on a FRESH server (104) and ub1024 was measured
+rem AFTER co-resident Flash work (22-27). Co-residency persistently degrades this
+rem server by ~3.7x until it is restarted, which reproduces the entire "4x gap"
+rem with the ubatch value held constant. The measured spread is real; the
+rem attribution to -ub is not.
+rem THE REVERT STILL STANDS, on different grounds: ub512 is the historical default
+rem and matches the 109.31 recorded here on 2026-08-24. It is the known-good
+rem value, not the winner of a valid A/B.
+rem TO RESOLVE: re-run both arms FRESH AFTER RESTART (ADR-0041 rule 2), with
+rem ff_ratecheck pre/post on each. Until then this is an open question, not a
+rem settled finding.
+rem
+rem THE LESSON THAT DOES SURVIVE: llama-bench measured -ub 1024 as +5.7% prefill
+rem and decode-neutral, so it looked free -- but llama-bench HAS NO -np and tests
+rem ONE slot. A flag validated only where the harness can reach is NOT validated.
+rem That gap was explicitly noted at promotion time and shipped anyway. Any flag
+rem touching batching MUST be A/B tested against the live server before promotion.
 E:\work\llamacpp-knee\build\bin\llama-server.exe ^
   -m E:\work\battlemage\models\Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf ^
   --alias qwen3-30b-a3b ^

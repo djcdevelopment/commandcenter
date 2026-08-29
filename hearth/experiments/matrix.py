@@ -120,8 +120,25 @@ NEUTRAL_JUDGE = (
     "such: a short answer and a long answer of equal soundness must score equally."
 )
 
-# Default held-out judge panel: OMEN's resident coder MoE (separate from cell roles).
-DEFAULT_JUDGES: list[tuple] = [(None, "qwen3-coder:30b")]
+# Default held-out judge panel.
+# Retargeted 2026-08-29: the old seat was ``(None, "qwen3-coder:30b")`` — an
+# unpinned dispatch naming a model that only ever existed on OMEN Ollama, which
+# is dead for good (ADR-0034). Left as-is it would route to omen-arc and ask a
+# server hosting qwen3-30b-a3b for a model it does not have.
+#
+# Two live seats, both PINNED so a judge is never silently tag-routed onto the
+# rung it is judging:
+#   - fx99-ollama/qwen2.5:14b — separate host, separate model family, genuinely
+#     held out from every arm we currently score. Small, so it is the weaker seat.
+#   - gcp-gemini/gemini-3.5-flash — the strong anchor.
+# NOTE the standing confound: gcp-gemini is also an ARM in the doc bench, so its
+# seat is partly self-scoring there. score_proposal returns per-judge scores, so
+# that bias stays visible in the data instead of being averaged away — read the
+# per-judge breakdown, not just the mean, whenever an arm shares a name with a seat.
+DEFAULT_JUDGES: list[tuple] = [
+    ("fx99-ollama", "qwen2.5:14b"),
+    ("gcp-gemini", "gemini-3.5-flash"),
+]
 
 
 def _parse_score(text: str) -> Optional[int]:
@@ -131,19 +148,46 @@ def _parse_score(text: str) -> Optional[int]:
     return max(0, min(100, int(matches[-1])))
 
 
+# A judge emits ~5 tokens ("SCORE: 85"), so this looks absurdly generous — but it
+# is a CAP, not a charge, and the old value of 300 was silently breaking the panel.
+# A thinking model (the gemini rungs) spends output budget on hidden reasoning
+# before any visible text: measured 2026-08-29 on gemini-3.5-flash, the identical
+# scoring prompt returned garbage at max_tokens=300 ('integer 0-100>"\n    *',
+# tokens_out=11) and a clean 'SCORE: 85' at 2048 and unset. _parse_score then found
+# no SCORE line, marked the seat ok=false, and the panel quietly averaged one judge
+# instead of two — a silent halving, which is exactly the failure mode a judge panel
+# exists to prevent. Keep this well clear of any seat's thinking budget.
+JUDGE_MAX_TOKENS = 2048
+
+
 def score_proposal(final: str, prompt: str, judges: list[tuple],
                    generate: Callable[..., dict], timeout_s: int = 600,
-                   judge_system: Optional[str] = None) -> dict:
+                   judge_system: Optional[str] = None,
+                   max_tokens: int = JUDGE_MAX_TOKENS) -> dict:
     """Score a final proposal with a held-out judge panel; return {mean, judges}.
     ``judge_system`` overrides the judge's rubric bias (for confound testing)."""
     j_sys = judge_system or JUDGE_SYSTEM
     per_judge = []
     for jb, jm in judges:
         r = generate(_SCORE_PROMPT.format(prompt=prompt, response=final), model=jm,
-                     backend=jb, system=j_sys, max_tokens=300, timeout_s=timeout_s)
+                     backend=jb, system=j_sys, max_tokens=max_tokens, timeout_s=timeout_s)
         score = _parse_score(r.get("text", "")) if r.get("ok") else None
+        # Say WHY a seat did not score. Without this the two failure modes look
+        # identical in the dataset (ok:false, score:null) even though one is a
+        # dead/unreachable rung and the other is a live rung whose answer did not
+        # contain a parseable SCORE line — and the second one silently shrinks the
+        # panel while everything still reads as a successful run.
+        if not r.get("ok"):
+            reason = f"dispatch failed: {(r.get('error') or 'unknown error')[:200]}"
+        elif score is None:
+            reason = ("no SCORE line in judge output "
+                      f"(tokens_out={r.get('tokens_out')}, "
+                      f"text={((r.get('text') or '').strip()[:120])!r})")
+        else:
+            reason = None
         per_judge.append({"model": r.get("model", jm), "backend": jb, "score": score,
-                          "ok": bool(r.get("ok")) and score is not None})
+                          "ok": bool(r.get("ok")) and score is not None,
+                          "reason": reason})
     scored = [j["score"] for j in per_judge if j["ok"]]
     mean = round(sum(scored) / len(scored), 1) if scored else None
     return {"mean": mean, "n_scored": len(scored), "judges": per_judge}

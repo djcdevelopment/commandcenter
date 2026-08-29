@@ -17,6 +17,6 @@
       "reason": "3/3 failed runs, zero successes (dominant: moe_offload_crash)"
     }
   ],
-  "corpus_digest": "sha256:bbf02107dec57204a2a7774dc009b6758940e2e45fa3c7c4987e80cb7e5d0535",
-  "corpus_event_count": 58236
+  "corpus_digest": "sha256:7510eabaeffb4c14a5dff84ea62a0aef78e815a0b798ab2ac0b852875753322b",
+  "corpus_event_count": 101365
 }

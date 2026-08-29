@@ -50,22 +50,44 @@
 # control loop. Trigger: Tailscale SSH "check" mode blocked the conductor lane
 # pending a browser re-auth (2026-07-09).
 #
-# --- FLEET HOLD (2026-08-24) ------------------------------------------------
-# ALL SIX Hyper-V VMs are Off on purpose -- Derek's campaign RAM reclaim, still
-# in force. The matching gateway-side hold is HEARTH_TIMERS_DISABLE in
-# hearth/var/gateway.cmd (patrol, watchdog, drain, fleet_harvest, ollama-sentinel).
+# --- FLEET HOLD: PARTIALLY LIFTED (2026-08-28, re-verified 2026-08-29) -------
+# HISTORY: the 2026-08-24 hold parked ALL SIX Hyper-V VMs for Derek's campaign RAM
+# reclaim. That is NO LONGER the state, and this header claimed otherwise for a day.
 #
-# So cc-conductor / claudefarm1 / cc-builder-1..3 / omen-worker-1 are marked
-# expect="optional", NOT "up". They are parked, not broken, and `expect="up"` on a
-# deliberately-off node makes `fleet_ping` exit 1 forever -- which trains everyone
-# to ignore the one signal that is supposed to mean something. Same reasoning that
-# retired OMEN's dead ollama-local check.
+# LIVE NOW (verified 2026-08-29 by Get-VM + SSH): cc-conductor, claudefarm1 and
+# cc-builder-1..3 are all Running and SSH-reachable; the conductor's dashboard :8080
+# answers. Only cc-builder-4 is still Off (retired; holds the golden MAC). The
+# gateway-side hold is likewise partial -- HEARTH_TIMERS_DISABLE is now only
+# `drain,fleet_harvest,ollama-sentinel`; patrol and watchdog are re-armed, and
+# ollama-sentinel is off FOR GOOD (ADR-0034).
 #
-# The gate still has teeth: `omen` (the door + the only live rung) and `am4` stay
+# They are still marked expect="optional" ON PURPOSE. `expect` is fleet_ping's alarm
+# flag, not an availability claim (see the schedulable/expect note above): these VMs
+# are Derek-managed and may be parked again for RAM at any time, and expect="up" on a
+# node that is deliberately off makes the sweep exit 1 forever -- which trains
+# everyone to ignore the one signal that is supposed to mean something.
+#
+# The gate still has teeth: `omen` (the door + the resident rung) and `am4` stay
 # expect="up", so the sweep goes red if the thing that actually serves dies.
 #
-# TO LIFT THE HOLD: start the VMs, flip those six back to expect="up", drop
-# HEARTH_TIMERS_DISABLE, and bounce the gateway (HearthGatewayRestart, UAC-free).
+# --- WHERE THE LOCAL BUILDERS ACTUALLY POINT (2026-08-29) -------------------
+# A live sweep found every `runner_class = "local"` builder aimed at a DEAD backend,
+# so the whole local task lane was dark while every node reported healthy:
+#   am4-worker-1 -> am4 oxen :8090      -- answers, every model ready:false
+#   cc-builder-2 -> the same oxen, over the TAILNET (also an ADR-0014 violation)
+#   cc-builder-3 -> OMEN Ollama :11434  -- OllamaBoot disabled for good (ADR-0034)
+# omen-arc is NOT the fix: llama-server binds 127.0.0.1:8082, so the VMs (Default
+# Switch, 172.19.240.0/20, host 172.19.240.1) cannot reach it at all. fx99-ollama
+# (192.168.12.220:11434) IS reachable from the VMs and was proved with a real decode,
+# so cc-builder-2/3 now point there (qwen2.5-coder:7b / qwen2.5:14b; old values kept
+# as ~/fleet-worker-node/runner.json.bak-2026-08-29). Proof: plan
+# hearth-tasklane-revival-probe-936c001e built on both, assay 162/162.
+# When llama-swap lands (ADR-0040 phase 2) it should ALSO listen on 172.19.240.1 so
+# these builders get the B70 rung instead of an 8 GB sidecar.
+#
+# TO RE-PARK: stop the VMs and re-add drain/fleet_harvest to HEARTH_TIMERS_DISABLE.
+# TO FULLY LIFT: drop HEARTH_TIMERS_DISABLE and bounce the gateway
+# (HearthGatewayRestart, UAC-free). Leave `expect` alone in both cases.
 # ============================================================================
 
 [meta]
@@ -207,9 +229,21 @@ purpose = "MONITORING NODE + CUDA SIDECAR RUNG (Derek 2026-08-28, ADR-0039). UP 
 # same day Derek put AM4 on wireless, and both have been up together since.
 # Its Ollama :11434 is listening again as a result -- and is STILL off the fleet
 # on purpose, per the note above. Reachable is not the same as enlisted.
+#
+# READ-ONLY SSD SHARES 2026-08-28 (Derek's ask): this box also exports one
+# read-only SMB share per physical SSD, mapped on OMEN as W: (WD500, sda3
+# NTFS), S: (SystemSSD, the Ubuntu root fs on sdb), Y: (Betsy, sdc2 NTFS).
+# Served as `omenro` -- nologin system account, traverse-only ACL on
+# /home/derek -- with `read only = yes` in smb.conf [global]. smbd is bound
+# `interfaces = lo 192.168.12.0/24` + `bind interfaces only`: naming the
+# interface instead made it listen on enp9s0's PUBLIC IPv6 too, with ufw
+# inactive behind it. NetBIOS and samba-ad-dc are masked. This is DISK, not
+# GPU -- it survives the 2070 SUPER moving to AM4 and the fx99-ollama rung
+# retiring with it. Runbook: docs/fx99-readonly-ssd-shares.md
 checks = [
   { service = "ssh", port = 22 },
   { service = "ollama", port = 11434 },
+  { service = "samba", port = 445 },
 ]
 
 [[node]]
@@ -261,7 +295,7 @@ address = "cc-builder-2.mshome.net"
 via = "mshome"
 host = "omen"
 expect = "optional"   # PARKED 2026-08-24 (see FLEET HOLD note above); restore to "up" when the VMs restart
-runner_class = "local"   # runner.json: openai -> AM4 vllama-planner
+runner_class = "local"   # runner.json: openai -> fx99-ollama qwen2.5-coder:7b (re-pointed 2026-08-29; was AM4 vllama-planner over the tailnet, a dead oxen facade)
 purpose = "Builder VM (local oxen-planner runner)."
 checks = [
   { service = "ssh", port = 22 },
@@ -274,7 +308,7 @@ address = "cc-builder-3.mshome.net"
 via = "mshome"
 host = "omen"
 expect = "optional"   # PARKED 2026-08-24 (see FLEET HOLD note above); restore to "up" when the VMs restart
-runner_class = "local"   # runner.json: openai -> OMEN Ollama qwen2.5:14b
+runner_class = "local"   # runner.json: openai -> fx99-ollama qwen2.5:14b (re-pointed 2026-08-29; same model, but was aimed at OMEN Ollama :11434, dead since ADR-0034)
 purpose = "Builder + assay VM (rebuilt 2026-07-01, standalone disk). Current assay node while claudefarm1 is down."
 checks = [
   { service = "ssh", port = 22 },

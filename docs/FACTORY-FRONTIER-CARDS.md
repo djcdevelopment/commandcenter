@@ -38,35 +38,100 @@ was almost certainly poisoning, since ub512 was measured fresh (104) and ub1024 
 Flash work (22–27). **NEW RULE: restart the incumbent after any co-resident experiment, before
 measuring it.** FF-CENSUS checks placement and residency; it must also check *rate*.
 
-### Superseded: the decay account
+### ✅ RETRACTED: the decay account *(kept for the record — do not cite)*
 
-**Discovered 2026-08-29, late.** Production decode **decays 104 → 22 tok/s under sustained use
-and recovers after idle**, on one unchanging config. From the server's own timings, all slot 1:
+**Everything in this subsection is superseded by the poisoning account above.** It is retained
+because the retraction is part of the evidence, not because any of it is load-bearing. The
+account below claimed production decode *"decays 104 → 22 tok/s under sustained use and recovers
+after idle."* **Both halves are false.**
+
+<details>
+<summary>The withdrawn table and its reasoning (click to expand)</summary>
 
 | uptime | task | decode |
 |---|---|---|
-| 1:30 | 0 | **104.26** ← fresh after restart |
+| 1:30 | 0 | 104.26 ← fresh after restart |
 | 1:32 | 202 | 103.40 |
-| 20:15 | 303 | 68.23 ← after an idle gap |
+| 20:15 | 303 | 68.23 |
 | 20:21 | 510 | 33.57 |
-| 21:14 | 611 | **75.14** ← recovers after another gap |
+| 21:14 | 611 | 75.14 |
 | 21:29 | 1020 | 22.17 |
-| 22:37 | 1627 | **27.67** ← recovers again |
+| 22:37 | 1627 | 27.67 |
 | 22:51 | 1930 | 22.10 |
 
-**Thermal is ruled out** — GPU core 36–56 °C, VRAM 40–60 °C, against a 96 °C abort. No spill
-(`local` 14.52/15.44 GB, `non_local` ≈ 0). Host CPU 1.9%, GPU 3d 5.3%. IGCL frequency reads a
-constant 550 MHz and is **not trustworthy** (b70tools lists voltage/frequency as unusable on the
-top slot). Leading hypothesis: a **power-limit boost budget** — fast-when-fresh, decay under
-load, recovery after idle, cool silicon. Needs HWiNFO power/clock telemetry to confirm or kill.
+The leading hypothesis was a **power-limit boost budget** — fast-when-fresh, decay under load,
+recovery after idle, cool silicon. Thermal was correctly ruled out (36–56 °C core against a 96 °C
+abort), as were spill and KV depth. The conclusion drawn was that *"most throughput numbers in
+this document are plausibly boost-window numbers"* and that every figure should be treated as
+burst-measured pending a sustained-rate metric.
 
-**Why this matters more than any single cell:** `llama-bench` runs are short bursts. **Most
-throughput numbers in this document are plausibly boost-window numbers, not sustained.** A lab
-optimising *work per occupied machine-hour* runs sustained, so the sustained rate is the one that
-counts — and we have almost none of it. Until characterised, treat every tok/s figure below as
-**burst-measured** unless it says otherwise.
+</details>
 
-**Confidence-sorted state of knowledge** (full ledger:
+**Why it was wrong.** Those rows were not a time series from one controlled run — they were
+scattered log lines read across a session that had already been poisoned at an unknown point. The
+controlled tests, run afterwards, refute both halves directly: **40 back-to-back requests on a
+fresh server held 102–107 with no drift**; another 40 with `cache_prompt=False` held 105.6–106.7;
+**18 back-to-back on a slow server were dead flat at 22.0–22.1** (ratio 1.09×, so no decay in the
+degraded state either); and a **90 s idle recovered nothing**. A fresh server does not decay, and
+a poisoned one does not recover.
+
+**What this costs, and what it does not.** No sustained-rate metric is needed, and the burst
+measurement `ff_ratecheck.py` takes is valid *provided the server is fresh* — which is exactly
+what ADR-0041's restart rule guarantees. The one live remnant is the `-ub 512` vs `1024` A/B (B1
+below), which must be redone with **both arms fresh after restart** rather than "at plateau."
+
+⚠ **Two retractions, one lesson.** The decay account was itself an attempt to explain the `-ub`
+anomaly, and it failed for the same reason that finding did: both compared measurements taken at
+different, unrecorded machine states. The fix is not a better metric — it is recording the state,
+which is what ADR-0041 rule 2 and the nine receipt fields now do.
+
+### Provenance repair — what the two ADRs cost the existing record *(2026-08-29, P-A)*
+
+Neither ADR invalidates the campaign's *conclusions*, but both invalidate the *provenance* of the
+measurements behind them. `campaign/ff-probes/ff_provenance.py` reconstructs what survives and
+classifies every receipt alongside the originals — no history rewritten. Regenerate with
+`python campaign/ff-probes/ff_provenance.py`; `--check` exits 1 on drift.
+
+**Process epochs.** ArcServeBoot is boot-triggered and `serve-arc.cmd` truncates its log on every
+launch, so per-epoch load reports do not survive. Epochs were reconstructed from OS boot events,
+receipt-evidenced restarts, and the running server's own elapsed-time counter:
+
+| epoch | span | topology | evidence |
+|---|---|---|---|
+| E1 | 08-26 23:18 → 08-28 08:32 | **confirmed-single** | b70tools capture at 08-28 02:15:37 — 29.69 / 0.17 GB |
+| E2 | 08-28 08:32 → 08-29 04:40 | **confirmed-single** | `-lv 5` load report at 04:31:42 — 49/49 layers, 30108 MiB, one card |
+| E3 | 08-29 04:40 → 06:30 | **confirmed-dual** | two FF-CENSUS rows — 14.88 / 15.80 GB across both BDFs |
+| E4, E5 | 08-29 06:30 → open | unknown | no decisive anchor falls in these |
+
+**The headline: E2 contains the entire LZ campaign window and all pre-fix FF work — 288 of 315
+receipts — and E2 is anchored SINGLE-CARD by the highest-authority channel we have.** That is not
+inference from absent evidence; it is a positive observation from llama-server's own load report.
+The venue matrix was measured on half the hardware it claimed.
+
+**Reach, stated honestly.** The E2 anchor sits at the *end* of a ~20 h epoch, so most receipts
+inherit it by epoch membership rather than direct observation: **35 rows are `direct` (within
+15 min of a decisive anchor), 268 are `epoch-inferred`**, median reach 3.7 h, maximum 18.8 h.
+Every row carries `placement_reach_minutes`, so this is auditable per receipt. The residual risk
+is an unrecorded crash-restart inside an epoch — `ArcServeBoot` carries `RestartCount 3 @ PT1M`
+and leaves no trace in any surviving channel, and the Task Scheduler operational log is
+`enabled=False` with zero records.
+
+| status | count | meaning |
+|---|---|---|
+| `PLACEMENT_CONTEXT_INVALID` | 288 | epoch anchored single-card; a dual-card reading measures a different machine |
+| `PLACEMENT_CONTEXT_UNKNOWN` | 12 | 8 LZ rows carry date-only stamps spanning a reboot; 4 sit in unanchored epochs |
+| `PLACEMENT_CONTEXT_CONFIRMED` | 15 | epoch anchored dual-card |
+| `INCUMBENT_HEALTH_UNKNOWN` | 275 | co-resident receipt taken before `ff_ratecheck.py` existed |
+
+⚠ **Absence of evidence is labelled as such.** `UNKNOWN` is a distinct verdict from `INVALID`, and
+22 of the 25 stored b70tools captures are `indeterminate` rather than informative — they read
+~0.00 GB on both cards, which is the activity-window artifact (A12), **not** evidence the cards
+were empty. Collapsing those into a verdict would repeat exactly the over-claiming that produced
+three same-day retractions.
+
+### Confidence-sorted state of knowledge
+
+(full ledger:
 `E:\work\battlemage\ff-probes\ff-receipts.jsonl`):
 
 **CONFIRMED — safe to build on.** Production was on one card (A1) and is fixed by *removing* the
@@ -80,16 +145,23 @@ activity-window counter (A12); `lanes.json` LUIDs are stale so the render spill 
 (A13).
 
 **SUSPECT — measured, basis now in doubt.** The `-ub 1024` "4× regression" (B1) — that A/B
-compared ub512 **fresh** against ub1024 **deep in a session**, and the decay above reproduces the
-same spread at ub512 alone, so **the causal claim is unsupported**; the revert is safe because
-ub512 is the historical default, but the reasoning is not. Also suspect: the FF6c crossover (B2),
-dual-vs-single (B3), Flash's −42% co-residency tax (B4), and the dense-vs-MoE decode comparison
-(B5) — all burst-measured, possibly at different session depths.
+compared ub512 on a **fresh** server (104) against ub1024 **after co-resident Flash work** (22–27),
+which is the ~3.7× poisoning signature almost exactly. **The causal claim is withdrawn**: the
+regression is attributable to machine state, not to ubatch. The revert itself is safe because
+ub512 is the historical default and matches the 109.31 recorded 2026-08-24, but it stands on that
+default rather than on the A/B. Re-run required: **both arms fresh after restart** (ADR-0041
+rule 2). Also suspect: the FF6c crossover (B2), dual-vs-single (B3), Flash's −42% co-residency tax
+(B4), and the dense-vs-MoE decode comparison (B5) — every one measured co-resident with no rate
+gate, and per the provenance repair above all of them fall in **E2, the single-card epoch**.
 
-**OPEN.** The decay mechanism (C1); door overhead 2212 ms of inference inside a 14250 ms call
-(C2); NPU occupancy — Flash is **CPU-bound at 4.52 core-s/token, 23.9/24 cores busy, GPU 3d only
-14.27%**, which supports the NPU reframe but there is no NPU serving path to measure (C3);
-placement is un-targetable (C4); the FF1 harness is unbuilt (C5).
+**OPEN.** The **poisoning mechanism** (C1) — behaviour characterised, cause unknown; IGCL
+frequency is unusable on the top slot per b70tools, so confirming it needs HWiNFO power/clock
+telemetry, which is installed but whose VSB export is not enabled. (This replaces the former
+"decay mechanism" entry, which is retracted — there is no decay to explain.) Also open: door
+overhead 2212 ms of inference inside a 14250 ms call (C2); NPU occupancy — Flash is **CPU-bound at
+4.52 core-s/token, 23.9/24 cores busy, GPU 3d only 14.27%**, which supports the NPU reframe but
+there is no NPU serving path to measure (C3); placement is un-targetable (C4); the FF1 harness is
+unbuilt (C5).
 
 ---
 

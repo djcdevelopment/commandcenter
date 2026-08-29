@@ -127,14 +127,22 @@ def vulkan_enumeration():
     }
 
 
-def adapters_via_b70tools():
-    """Per-PCI-BDF residency and temperature. BDF is the stable identity."""
-    os.makedirs(SCRATCH, exist_ok=True)
-    rc, _out = _run([B70TOOLS, "--run", "--ticks", "4", "--cadence-ms", "500",
-                     "--flush-every-tick", "--out", SCRATCH])
-    path = os.path.join(SCRATCH, "events.jsonl")
-    if not os.path.exists(path):
-        return {"ok": False, "reason": "b70tools produced no events.jsonl", "adapters": []}
+def gb(v):
+    """Bytes -> GB, preserving null. `null != 0` is a campaign invariant."""
+    return round(v / 1024 ** 3, 3) if isinstance(v, (int, float)) else None
+
+
+def parse_events(path):
+    """Parse one b70tools-jsonl-compact-v1 capture -> (ident, last, disagreements).
+
+    Extracted so `ff_provenance.py` can replay the STORED adapter-probe captures
+    through the exact parser a live census uses. An archived probe and a live
+    sample must be read identically or the anchor table is not comparable to the
+    census rows it will be cited against.
+
+    `last` keeps the final value seen per (adapter, metric) -- these captures are
+    multi-tick and we want the settled reading, not the first.
+    """
     ident, last, disagreements = {}, {}, []
     for line in io.open(path, encoding="utf-8"):
         line = line.strip()
@@ -152,10 +160,11 @@ def adapters_via_b70tools():
         elif kind == "dr":
             disagreements.append({"rule": e.get("rule"), "adapter": e.get("a"),
                                   "confidence": e.get("cf")})
+    return ident, last, disagreements
 
-    def gb(v):
-        return round(v / 1024 ** 3, 3) if isinstance(v, (int, float)) else None
 
+def adapters_from_events(ident, last, disagreements):
+    """Adapter rows + the two placement corroborations, from parsed events."""
     adapters = []
     for a, i in sorted(ident.items(), key=lambda kv: kv[1].get("bdf") or ""):
         adapters.append({
@@ -169,11 +178,24 @@ def adapters_via_b70tools():
     temps = [a["vram_temp_c"] for a in arc if isinstance(a.get("vram_temp_c"), (int, float))]
     both_warm = len(temps) == 2 and abs(temps[0] - temps[1]) <= 8
     idle_counter = all((a.get("local_committed_gb") or 0) < 0.5 for a in arc) and bool(arc)
-    return {"ok": rc == 0, "adapters": adapters, "disagreements": disagreements,
+    return {"adapters": adapters, "disagreements": disagreements,
             "igcl_caveat": IGCL_CAVEAT, "residency_caveat": RESIDENCY_CAVEAT,
             "local_committed_reads_idle": idle_counter,
             "both_arc_cards_warm": both_warm,
             "temp_spread_c": (round(abs(temps[0] - temps[1]), 1) if len(temps) == 2 else None)}
+
+
+def adapters_via_b70tools():
+    """Per-PCI-BDF residency and temperature. BDF is the stable identity."""
+    os.makedirs(SCRATCH, exist_ok=True)
+    rc, _out = _run([B70TOOLS, "--run", "--ticks", "4", "--cadence-ms", "500",
+                     "--flush-every-tick", "--out", SCRATCH])
+    path = os.path.join(SCRATCH, "events.jsonl")
+    if not os.path.exists(path):
+        return {"ok": False, "reason": "b70tools produced no events.jsonl", "adapters": []}
+    out = adapters_from_events(*parse_events(path))
+    out["ok"] = rc == 0
+    return out
 
 
 def consumers():

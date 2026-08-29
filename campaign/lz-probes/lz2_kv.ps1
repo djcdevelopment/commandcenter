@@ -10,6 +10,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $kit = Join-Path $PSScriptRoot 'kit'
+. (Join-Path $kit 'placement.ps1')
 $bin = "E:\work\llamacpp-knee\build\bin\llama-server.exe"
 New-Item -ItemType Directory -Force -Path $SavePath | Out-Null
 $logDir = "E:\work\battlemage\lz-probes"
@@ -18,10 +19,17 @@ function Add-Receipt($row) {
     $row | ConvertTo-Json -Compress | Add-Content -Encoding utf8 -Path $Receipts
 }
 
-$env:GGML_VK_VISIBLE_DEVICES = "1"
+# ADR-0042: this cell wants ONE card, but "one card" cannot be named by index -- the
+# old GGML_VK_VISIBLE_DEVICES="1" meant whichever device happened to be second in THIS
+# process's enumeration, which is not stable and was sometimes the iGPU. Say it with a
+# split proportion instead: no filter (device-TYPE selection picks both B70s), then
+# -ts 1,0 puts every layer on one of them. We do not control WHICH physical card gets
+# them -- only that it is a single B70 -- and that is all this cell requires.
+Remove-Item Env:GGML_VK_VISIBLE_DEVICES -ErrorAction SilentlyContinue
 $args = @("-m","E:\work\battlemage\models\Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
-          "--alias","lz2-qwen30b","-ngl","99","-fa","on","--no-mmap","-dio","-fit","off",
-          "-c","32768","-np","1","--host","127.0.0.1","--port",[string]$Port,
+          "--alias","lz2-qwen30b","-ngl","99","-sm","layer","-ts","1,0",
+          "-fa","on","--no-mmap","-dio","-fit","off",
+          "-c","32768","-np","1","-lv","5","--host","127.0.0.1","--port",[string]$Port,
           "--slots","--slot-save-path",$SavePath)
 $p = Start-Process -FilePath $bin -ArgumentList $args `
         -RedirectStandardError "$logDir\lz2-$LabelSuffix-server.log" `
@@ -32,6 +40,8 @@ do { Start-Sleep -Seconds 2
            if ($h.status -eq "ok") { $up = $true } } catch {}
 } while (-not $up -and (Get-Date) -lt $deadline)
 if (-not $up) { Get-Content "$logDir\lz2-$LabelSuffix-server.log" -Tail 8; throw "server never healthy" }
+# /health said a port answered. Assert what actually holds the weights (ADR-0042).
+$null = Assert-Placement -LogPath "$logDir\lz2-$LabelSuffix-server.log" -Expect one-b70 -Cell "lz2-$LabelSuffix"
 "server up (pid $($p.Id)) save path $SavePath"
 
 # fill slot 0 with the proven ~29K-token corpus

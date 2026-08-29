@@ -8,12 +8,18 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $kit = Join-Path $PSScriptRoot 'kit'
+. (Join-Path $kit 'placement.ps1')
 $bin = "E:\work\llamacpp-qwen38\build\bin\llama-server.exe"
 $logDir = "E:\work\battlemage\lz-probes"
 $port = 18184
+# -lv 5 is MANDATORY, not diagnostic noise: at the default verbosity llama-server emits
+# no "using device" / "model buffer size" lines at all, so placement cannot be asserted.
+# Every LZ log written before 2026-08-29 lacks them, which is how a single-card campaign
+# went unnoticed (ADR-0042).
 $modelArgs = @("-m","E:\work\battlemage\models\qwen38-flash-next\UD-IQ4_XS\Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf",
                "--alias","lz1-flash","-ngl","99","-sm","layer","-ts","1,1","-fa","on","-fit","off",
                "-ot",".ffn_.*_exps.=CPU","--no-repack","-c","16384","-np","1",
+               "-lv","5",
                "--host","127.0.0.1","--port",[string]$port,"--slots")
 
 function Add-Receipt($row) {
@@ -24,7 +30,12 @@ function Start-Flash([string]$MinBatch, [string]$LogName, [string[]]$ExtraEnv) {
     Get-Process llama-server -ErrorAction SilentlyContinue |
         Where-Object { $_.Path -eq $bin } | Stop-Process -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
-    $env:GGML_VK_VISIBLE_DEVICES = "1,2"
+    # ADR-0042: NO index filter. With none set, ggml-vulkan selects by device TYPE
+    # (ggml-vulkan.cpp:7479-7495, "all dedicated GPUs") and llama.cpp drops the iGPU at
+    # placement -- order-independent, so a reshuffle cannot break it. The old
+    # GGML_VK_VISIBLE_DEVICES="1,2" here resolved to [B70, iGPU] in a scheduled-task
+    # context and silently cost a whole card.
+    Remove-Item Env:GGML_VK_VISIBLE_DEVICES -ErrorAction SilentlyContinue
     if ($MinBatch) { $env:GGML_OP_OFFLOAD_MIN_BATCH = $MinBatch }
     else { Remove-Item Env:GGML_OP_OFFLOAD_MIN_BATCH -ErrorAction SilentlyContinue }
     Remove-Item Env:GGML_SCHED_DEBUG, Env:GGML_VK_PERF_LOGGER -ErrorAction SilentlyContinue
@@ -43,6 +54,9 @@ function Start-Flash([string]$MinBatch, [string]$LogName, [string[]]$ExtraEnv) {
     } while (-not $up -and (Get-Date) -lt $deadline)
     $sw.Stop()
     if (-not $up) { Get-Content "$logDir\$LogName.err.log" -Tail 8; throw "$LogName never healthy" }
+    # Liveness is NOT health and NOT placement (ADR-0041/0042). /health returning ok only
+    # says a port answered; assert what actually took the weights before trusting a timing.
+    $null = Assert-Placement -LogPath "$logDir\$LogName.err.log" -Expect both-b70 -Cell $LogName
     $perf1 = Get-CimInstance Win32_PerfRawData_PerfOS_Memory
     "$LogName up: load $([math]::Round($sw.Elapsed.TotalSeconds,1))s commit $pre -> $([math]::Round($perf1.CommittedBytes/1GB,1)) GB"
     return $p

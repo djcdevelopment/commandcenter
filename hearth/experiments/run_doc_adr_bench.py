@@ -1,18 +1,22 @@
-"""run_doc_adr_bench -- Track 1 of the GCP trial-credit benchmark: flat
-gcp-gemini / gcp-gemini-pro / am4-moe comparison on doc-vs-ADR-vs-code
-consistency tasks (see the implementation plan's Track 1 for the full design).
+"""run_doc_adr_bench -- flat gcp-gemini / gcp-gemini-pro / omen-arc comparison
+on doc-vs-ADR-vs-code consistency tasks.
 
     python -m hearth.experiments.run_doc_adr_bench --smoke   # 1 backend x 1 task, live proof
-    python -m hearth.experiments.run_doc_adr_bench           # full sweep, all 3 backends x 5 tasks
+    python -m hearth.experiments.run_doc_adr_bench           # full sweep, all 3 backends x 6 tasks
 
 Every call pins ``backend=`` (never ``task=``), so every row's ledger event
 should show ``routed_by: "pinned:<name>"`` -- confirm with:
     tail hearth/var/ledger/events.ndjson
 
-am4-moe must be awake (see hearth.toolsurface.summon.wake_am4 / the AM4
-B70-card runbook) or its rows will come back ``ok: false``; gcp-gemini /
-gcp-gemini-pro need a valid Google OAuth token on the gateway host (env
-``GOOGLE_OAUTH_ACCESS_TOKEN`` or ``gcloud auth print-access-token``) and
+Retargeted 2026-08-29: ``BACKENDS`` named ``am4-moe``, whose B70s left AM4 in the
+2026-08-20 rebuild -- every one of its rows had been coming back ``ok: false``.
+The local arm is now ``omen-arc``, the resident dual-B70 rung that actually
+serves. The judge panel moved too (see ``matrix.DEFAULT_JUDGES``); note that
+gcp-gemini is both an arm here and a judge seat, so read the per-judge scores,
+not only the mean.
+
+gcp-gemini / gcp-gemini-pro need a valid Google OAuth token on the gateway host
+(env ``GOOGLE_OAUTH_ACCESS_TOKEN`` or ``gcloud auth print-access-token``) and
 ``GOOGLE_CLOUD_PROJECT`` set.
 """
 
@@ -26,7 +30,7 @@ from datetime import datetime, timezone
 from hearth.experiments.doc_adr_bench import DOC_ADR_TASKS, bench_summary, run_flat_matrix
 from hearth.toolsurface.inference import local_generate
 
-BACKENDS = ["gcp-gemini", "gcp-gemini-pro", "am4-moe"]
+BACKENDS = ["gcp-gemini", "gcp-gemini-pro", "omen-arc"]
 OUT_ROOT = "hearth/var/experiments"
 _REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -46,7 +50,7 @@ def _persist(rows: list[dict], summary: dict, tag: str) -> str:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--smoke", action="store_true",
-                    help="one backend (gcp-gemini) x one task, live proof before the full sweep")
+                    help="one backend (omen-arc) x one task, live proof before the full sweep")
     ap.add_argument("--backends", nargs="+", default=None,
                     help=f"restrict to these backends (default: {BACKENDS})")
     ap.add_argument("--tasks", nargs="+", default=None,
@@ -57,7 +61,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  {msg}", flush=True)
 
     if args.smoke:
-        backends = ["gcp-gemini"]
+        # Smoke on the sunk-cost local rung: the path most worth proving is
+        # door -> PINNED local backend -> judge panel, and it costs no credits.
+        backends = ["omen-arc"]
         task_ids = [next(iter(DOC_ADR_TASKS))]
         tag = "smoke"
     else:

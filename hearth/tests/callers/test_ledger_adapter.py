@@ -130,6 +130,65 @@ class ProjectLedgerTests(TestCase):
         lines = self.target.read_text(encoding="utf-8").splitlines()
         self.assertEqual(len(lines), 3)
 
+    def test_corrupt_cursor_recovers_from_target_without_duplicating(self) -> None:
+        """A NUL-filled cursor must not re-bridge rows the target already has.
+
+        Regression for the 2026-08-29 outage: the cursor held 83 NUL bytes (a
+        crash-during-write), load_cursor raised on it, and the bridge died before
+        it could write a repaired cursor -- so every later run died identically and
+        the corpus stopped advancing for nine days while all the surrounding health
+        checks stayed green. Recovering from zero would have been just as wrong:
+        append_event is unconditional, so it would have duplicated every row.
+        """
+        write_ndjson(self.ledger, [make_hearth_event("he_101"), make_hearth_event("he_102")])
+        project_ledger(self.ledger, self.target, self.cursor)
+        self.assertEqual(len(self.target.read_text(encoding="utf-8").splitlines()), 2)
+
+        self.cursor.write_bytes(b"\x00" * 83)
+
+        with self.ledger.open("a", encoding="utf-8", newline="\n") as handle:
+            handle.write(json.dumps(make_hearth_event("he_103")) + "\n")
+
+        summary = project_ledger(self.ledger, self.target, self.cursor)
+
+        self.assertEqual(summary["errors"], [])
+        self.assertIn("cursor_corrupt", summary)  # loud, not swallowed
+        self.assertEqual(summary["cursor_recovered_from_target"], "he_102")
+        self.assertEqual(summary["processed"], 1)  # only the new row
+        self.assertEqual(summary["skipped"], 2)
+
+        lines = [json.loads(line) for line in self.target.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([e["event_id"] for e in lines],
+                         ["evt_hearth_he_101", "evt_hearth_he_102", "evt_hearth_he_103"])
+        self.assertEqual(json.loads(self.cursor.read_text(encoding="utf-8"))["last_event_id"], "he_103")
+
+    def test_corrupt_cursor_with_no_target_starts_from_zero(self) -> None:
+        """No target means nothing was ever bridged, so zero is correct, not duplicative."""
+        write_ndjson(self.ledger, [make_hearth_event("he_101")])
+        self.cursor.parent.mkdir(parents=True, exist_ok=True)
+        self.cursor.write_bytes(b"\x00" * 83)
+
+        summary = project_ledger(self.ledger, self.target, self.cursor)
+
+        self.assertEqual(summary["errors"], [])
+        self.assertIsNone(summary["cursor_recovered_from_target"])
+        self.assertEqual(summary["processed"], 1)
+        self.assertEqual(summary["skipped"], 0)
+
+    def test_cursor_naming_an_absent_event_refuses_rather_than_duplicating(self) -> None:
+        """A target/ledger mismatch must stop, not silently re-bridge everything."""
+        write_ndjson(self.ledger, [make_hearth_event("he_101")])
+        self.cursor.parent.mkdir(parents=True, exist_ok=True)
+        self.cursor.write_text(json.dumps({"last_event_id": "he_from_another_ledger", "line": 7}),
+                               encoding="utf-8")
+
+        summary = project_ledger(self.ledger, self.target, self.cursor)
+
+        self.assertEqual(summary["processed"], 0)
+        self.assertEqual(len(summary["errors"]), 1)
+        self.assertIn("refusing to re-bridge from zero", summary["errors"][0])
+        self.assertFalse(self.target.exists())
+
     def test_bad_lines_reported_and_good_lines_still_land(self) -> None:
         self.ledger.parent.mkdir(parents=True, exist_ok=True)
         with self.ledger.open("w", encoding="utf-8", newline="\n") as handle:

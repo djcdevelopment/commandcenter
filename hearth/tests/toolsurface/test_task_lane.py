@@ -52,7 +52,13 @@ class SubmitTaskTests(TestCase):
         b64_segment = remote_command.split("echo ", 1)[1].split(" | base64", 1)[0]
         decoded = base64.b64decode(b64_segment).decode("utf-8")
         self.assertTrue(decoded.startswith("<!-- CCMETA"))
-        self.assertIn('"am4-worker-1"', decoded)
+        # Assert against DEFAULT_BUILDERS rather than a literal name: the roster
+        # is live infrastructure and gets re-pointed when a rung dies (2026-08-29
+        # moved this off am4-worker-1, whose backend had gone dark). The invariant
+        # under test is "the default builders reach the CCMETA header", not which
+        # machines happen to be alive this month.
+        for builder in DEFAULT_BUILDERS:
+            self.assertIn(f'"{builder}"', decoded)
         self.assertIn("list three risks of X", decoded)
 
     def test_default_builders_meet_fanout_minimum(self) -> None:

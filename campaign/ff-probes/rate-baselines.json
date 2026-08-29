@@ -1,6 +1,6 @@
 {
   "contract_version": "ff-rate-baselines.v1",
-  "note": "Known-good serving rates per rung. A rung below 80% of baseline is degraded, not noisy -- 0.80 is chosen to catch the ~22% loss serve-arc.cmd attributes to a partial VRAM spill, the quietest real degradation this box produces. Re-baseline ONLY after verifying the rung by other means (placement via ff_census.py, then a deliberate A/B). A burst baseline is invalid on a rung that decays under sustained load -- measure at plateau.",
+  "note": "Known-good serving rates per rung. A rung below 80% of baseline is degraded, not noisy -- 0.80 is chosen to catch the ~22% loss serve-arc.cmd attributes to a partial VRAM spill, the quietest real degradation this box produces. Re-baseline ONLY after verifying the rung by other means (placement via ff_census.py, then a deliberate A/B), and ONLY on a server that is FRESH AFTER RESTART (ADR-0041): a burst measurement is valid on a fresh server and meaningless on a poisoned one.",
   "rungs": {
     "omen-arc": {
       "port": 8082,
@@ -9,7 +9,7 @@
       "config": "knee build e85caa8, -ngl 99 -sm layer -ts 1,1 -fa on --no-mmap -dio -fit off -c 131072 -np 2 (ub default 512)",
       "baseline_decode_tok_s": null,
       "baseline_set": null,
-      "baseline_note": "CLEARED 2026-08-29: a baseline of 55.44 was set from reps [75.08, 57.68, 33.57] with a 74.87% repeat spread. Meaningless. The rung also shows a sustained-rate DECAY (104 fresh -> 22 under load, recovering after idle), so a burst baseline is the wrong measurement entirely. Re-baseline only at PLATEAU, after the decay mechanism is characterised."
+      "baseline_note": "CLEARED 2026-08-29: a baseline of 55.44 was set from reps [75.08, 57.68, 33.57] with a 74.87% repeat spread. Meaningless -- and the reps were that noisy because they straddled a co-residency poisoning event, not because the rung is inherently unstable. UNBLOCKED: an earlier version of this note required re-baselining 'at PLATEAU, after the decay mechanism is characterised'. That gate is removed -- the sustained-rate decay was RETRACTED (ADR-0041); 40 back-to-back requests on a fresh server held 102-107 flat. TO RE-BASELINE: restart production, wait for the real 'model loaded' marker in hearth/var/arc-serve.log (NOT /health, which returns 200 mid-load), then run with --set-baseline. Expect ~104.86 with a spread near 4.7%, inside the 10% guard. That sets the P-B health gate at ~83.9 tok/s."
     }
   }
 }

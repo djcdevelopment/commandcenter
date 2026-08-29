@@ -83,6 +83,32 @@ DOC_ADR_TASKS: dict[str, dict] = {
             r"C:\work\baseline\Lumberjacks\docs\adrs\0002-edge-nodes-assist-but-do-not-own-truth.md",
         ],
     },
+    # Added 2026-08-29 for the mechnet-forward program: the Phase 0 smoke should
+    # produce Phase 1's actual deliverable instead of a throwaway. The three arms
+    # each draft the ADR-0043 cutover record from the two records that constrain
+    # it plus the incumbent's real launch script, so the spread is also the first
+    # honest read on whether a local rung can carry doc work.
+    "adr-0043-cutover-record-draft": {
+        "prompt": (
+            "OMEN currently serves one resident model via the launch script below, "
+            "started by a scheduled task. We are about to put llama-swap in front of "
+            "it so more than one model can be served by name, with the incumbent "
+            "staying resident and specialists loading beside it. Read the two ADRs "
+            "and the launch script below, then draft the cutover decision record. "
+            "It MUST state: what changes and what deliberately does not; how the two "
+            "existing ADRs constrain the design (be specific about what each one "
+            "forbids); which checks must pass before the change is trusted, each "
+            "phrased so an operator can actually observe it pass or fail; and the "
+            "exact rollback. Do not invent measurements or cite numbers not present "
+            "in the sources. Where a fact is needed but absent, write TODO and say "
+            "what must be measured."
+        ),
+        "files": [
+            "docs/adr/0041-co-residency-poisons-the-incumbent.md",
+            "docs/adr/0042-devices-are-selected-by-type-never-by-index.md",
+            "fleet/arcserve/serve-arc.cmd",
+        ],
+    },
     "plan-bounded-remediation": {
         "prompt": (
             "Read the ADR and code below. Produce a BOUNDED remediation/verification "

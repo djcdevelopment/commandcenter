@@ -142,6 +142,13 @@ def run_flat_cell(task_id: str, backend: str, generate: Callable[..., dict],
         "model": result.get("model"),
         "ok": result.get("ok"),
         "routed_by": result.get("routed_by"),
+        # Persist what was actually generated. Without this the bench scores an
+        # answer and then throws it away, so a row can say 91/100 and leave you
+        # unable to read the thing that earned it, re-judge it under another
+        # rubric, or use it -- the 2026-08-29 three-arm run produced a usable ADR
+        # draft that had to be regenerated to be read. A benchmark that keeps only
+        # the grade is not evidence, it is a rumour about evidence.
+        "text": result.get("text"),
         "tokens_in": result.get("tokens_in"),
         "tokens_out": result.get("tokens_out"),
         "duration_ms": result.get("duration_ms"),

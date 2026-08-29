@@ -1,0 +1,2 @@
+A network port being OPEN means that traffic can be accepted on it, but does not imply readiness to process requests. A model-serving backend being READY indicates that it has fully initialized and is prepared to serve tokens upon request. An operator would see a successful connection attempt for an open port but no response from the service if the backend isn't ready yet. The distinction lies in whether the service responds correctly after establishing a network connection.
+<!-- agent_openai completion: reason=finished steps=2 elapsed_s=104.9 model=qwen2.5:14b -->

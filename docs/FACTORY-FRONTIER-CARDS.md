@@ -9,7 +9,36 @@ rotation program (R-series) and the Level-Zero campaign (LZ1–LZ8b).
 
 ---
 
-## ⚠ 0.0 · SUSTAINED-RATE DECAY — read before citing any throughput number here
+## ⚠ 0.0 · CO-RESIDENCY POISONING — read before citing any throughput number here
+
+**CORRECTED 2026-08-29 (late).** An earlier version of this section claimed a *"sustained-rate
+decay that recovers after idle."* **Both halves were wrong.** The real mechanism:
+
+> **Co-resident GPU work persistently degrades the incumbent server until RESTART.**
+
+Measured cleanly: production at **105.08 / 105.23 / 105.48** tok/s across three checks → launched
+Flash (host weights, ~1 GB Vulkan compute buffer on a B70) → production read **28.39 tok/s with
+Flash already stopped** → restart restored **104.86**. A ~3.7× persistent loss, not recovered by
+stopping the co-tenant, not recovered by idle, fully recovered by restart.
+
+**What the controlled tests ruled out:** sustained use (40 back-to-back on a fresh server held
+102–107; another 40 with `cache_prompt=False` held 105.6–106.7); idle (90 s did *not* recover a
+slow server); b70tools (105.08→105.23); `llama-bench --list-devices` (105.23→105.48); thermal
+(36–56 °C core); VRAM spill; KV depth. The "decay curve" in the earlier version was an artifact of
+reading scattered log lines across a session that had already been poisoned at an unknown point.
+
+⚠ **This is a rediscovery, and the prior art was in this very document.** OMEN-LIMIT F3 / denning
+H1 recorded a **"0.08× permanent poisoned-load floor; co-tenant eviction −5×"** — quoted in §3's
+eviction row — and I failed to apply it all day. Their −5× and today's −3.7× are the same thing.
+
+**Methodology consequence: every co-resident measurement in this campaign is suspect** unless the
+incumbent was restarted immediately beforehand. That includes the four-venue seat rates, Flash's
+"−42% co-residency tax", the dense-vs-MoE comparison, and the `-ub 1024` "4× regression" — which
+was almost certainly poisoning, since ub512 was measured fresh (104) and ub1024 after co-resident
+Flash work (22–27). **NEW RULE: restart the incumbent after any co-resident experiment, before
+measuring it.** FF-CENSUS checks placement and residency; it must also check *rate*.
+
+### Superseded: the decay account
 
 **Discovered 2026-08-29, late.** Production decode **decays 104 → 22 tok/s under sustained use
 and recovers after idle**, on one unchanging config. From the server's own timings, all slot 1:

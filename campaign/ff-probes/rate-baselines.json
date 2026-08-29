@@ -1,0 +1,15 @@
+{
+  "contract_version": "ff-rate-baselines.v1",
+  "note": "Known-good serving rates per rung. A rung below 80% of baseline is degraded, not noisy -- 0.80 is chosen to catch the ~22% loss serve-arc.cmd attributes to a partial VRAM spill, the quietest real degradation this box produces. Re-baseline ONLY after verifying the rung by other means (placement via ff_census.py, then a deliberate A/B). A burst baseline is invalid on a rung that decays under sustained load -- measure at plateau.",
+  "rungs": {
+    "omen-arc": {
+      "port": 8082,
+      "auth_env": "OMEN_ARC_TOKEN",
+      "n_predict": 100,
+      "config": "knee build e85caa8, -ngl 99 -sm layer -ts 1,1 -fa on --no-mmap -dio -fit off -c 131072 -np 2 (ub default 512)",
+      "baseline_decode_tok_s": null,
+      "baseline_set": null,
+      "baseline_note": "CLEARED 2026-08-29: a baseline of 55.44 was set from reps [75.08, 57.68, 33.57] with a 74.87% repeat spread. Meaningless. The rung also shows a sustained-rate DECAY (104 fresh -> 22 under load, recovering after idle), so a burst baseline is the wrong measurement entirely. Re-baseline only at PLATEAU, after the decay mechanism is characterised."
+    }
+  }
+}

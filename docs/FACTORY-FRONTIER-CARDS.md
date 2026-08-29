@@ -9,6 +9,61 @@ rotation program (R-series) and the Level-Zero campaign (LZ1–LZ8b).
 
 ---
 
+## ⚠ 0.0 · SUSTAINED-RATE DECAY — read before citing any throughput number here
+
+**Discovered 2026-08-29, late.** Production decode **decays 104 → 22 tok/s under sustained use
+and recovers after idle**, on one unchanging config. From the server's own timings, all slot 1:
+
+| uptime | task | decode |
+|---|---|---|
+| 1:30 | 0 | **104.26** ← fresh after restart |
+| 1:32 | 202 | 103.40 |
+| 20:15 | 303 | 68.23 ← after an idle gap |
+| 20:21 | 510 | 33.57 |
+| 21:14 | 611 | **75.14** ← recovers after another gap |
+| 21:29 | 1020 | 22.17 |
+| 22:37 | 1627 | **27.67** ← recovers again |
+| 22:51 | 1930 | 22.10 |
+
+**Thermal is ruled out** — GPU core 36–56 °C, VRAM 40–60 °C, against a 96 °C abort. No spill
+(`local` 14.52/15.44 GB, `non_local` ≈ 0). Host CPU 1.9%, GPU 3d 5.3%. IGCL frequency reads a
+constant 550 MHz and is **not trustworthy** (b70tools lists voltage/frequency as unusable on the
+top slot). Leading hypothesis: a **power-limit boost budget** — fast-when-fresh, decay under
+load, recovery after idle, cool silicon. Needs HWiNFO power/clock telemetry to confirm or kill.
+
+**Why this matters more than any single cell:** `llama-bench` runs are short bursts. **Most
+throughput numbers in this document are plausibly boost-window numbers, not sustained.** A lab
+optimising *work per occupied machine-hour* runs sustained, so the sustained rate is the one that
+counts — and we have almost none of it. Until characterised, treat every tok/s figure below as
+**burst-measured** unless it says otherwise.
+
+**Confidence-sorted state of knowledge** (full ledger:
+`E:\work\battlemage\ff-probes\ff-receipts.jsonl`):
+
+**CONFIRMED — safe to build on.** Production was on one card (A1) and is fixed by *removing* the
+index filter (A2); Vulkan enumeration is nondeterministic so **no index scheme is safe, including
+`-dev`** (A3); `llama-bench` parses `-ts` differently from `common/arg.cpp` (A4) and **has no
+`-np`** (A5); **GPU residency costs host commit ~1:1 while mmap host residency is nearly free**
+(A6); three venues co-reside and serve (A7); Flash needs GPU compute even with host weights (A8)
+and **cannot bank prefill — it is a hybrid attention/SSM model** (A9); **KV rates span ~10× and
+the GQA formula is unreliable** (A10); Flash needs the qwen38 fork (A11); `local_committed` is an
+activity-window counter (A12); `lanes.json` LUIDs are stale so the render spill guard is **inert**
+(A13).
+
+**SUSPECT — measured, basis now in doubt.** The `-ub 1024` "4× regression" (B1) — that A/B
+compared ub512 **fresh** against ub1024 **deep in a session**, and the decay above reproduces the
+same spread at ub512 alone, so **the causal claim is unsupported**; the revert is safe because
+ub512 is the historical default, but the reasoning is not. Also suspect: the FF6c crossover (B2),
+dual-vs-single (B3), Flash's −42% co-residency tax (B4), and the dense-vs-MoE decode comparison
+(B5) — all burst-measured, possibly at different session depths.
+
+**OPEN.** The decay mechanism (C1); door overhead 2212 ms of inference inside a 14250 ms call
+(C2); NPU occupancy — Flash is **CPU-bound at 4.52 core-s/token, 23.9/24 cores busy, GPU 3d only
+14.27%**, which supports the NPU reframe but there is no NPU serving path to measure (C3);
+placement is un-targetable (C4); the FF1 harness is unbuilt (C5).
+
+---
+
 ## 0 · Where this layer sits
 
 Three campaigns now run against the same two B70s. They are **not** peers; they stack:

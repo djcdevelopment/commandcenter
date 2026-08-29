@@ -527,6 +527,58 @@ selection than the original (wrong) reading was.
 Receipts: `ff-receipts.jsonl`, probes `FF6-ub` (single-card), `FF-CORRECTION`,
 `FF6-ub-dualsplit`.
 
+### FF6c — the crossover surface: **the optimum is `ub 1024`** *(2026-08-29)*
+
+Prompt × ubatch × placement, prefill-only (decode measured unaffected by ubatch), 2 repeats,
+placement asserted on both arms (`layer 1.00/1.00` / `none 0.00`). **Prefill tok/s:**
+
+| | ub 256 | ub 512 | ub 1024 | ub 2048 | best |
+|---|---|---|---|---|---|
+| **dual-split** pp512 | 2085.0 | 2344.8 | **2380.0** | 2356.3 | ub1024 |
+| **dual-split** pp2048 | 2012.6 | 2541.7 | **2709.2** | 2462.9 | ub1024 |
+| **dual-split** pp8192 | 1067.0 | 1227.3 | **1242.8** | 1089.1 | ub1024 |
+| single-card pp512 | 1700.5 | **2386.3** | 2370.8 | 2311.8 | ub512 |
+| single-card pp2048 | 1304.4 | 1756.0 | 2125.6 | **2334.3** | ub2048 |
+| single-card pp8192 | 658.4 | 824.6 | 963.8 | **1042.9** | ub2048 |
+
+**`ub 1024` wins at every prompt length on production's shape** — and it is a value neither our
+earlier cells nor 27593 ever tested. Against production's current `ub 512`: **pp2048 +6.6%**
+(floor 1.02%, REAL), pp8192 +1.3% (floor 0.06%, REAL), pp512 +1.5% (inside a 2.71% floor).
+Against the `ub 2048` I wrongly recommended: **+10.0% at pp2048 and +14.1% at pp8192.**
+
+**Placement changes the optimum's shape-dependence.** On a single card the best ubatch *moves
+with prompt length* (512 → 2048 → 2048). On dual-split it is *pinned* at 1024 across all three.
+
+**Mechanism — dual-split and large ubatch are substitutes.** Both supply work per dispatch, so
+the dual/single ratio shrinks monotonically as ubatch grows:
+
+| | ub 256 | ub 512 | ub 1024 | ub 2048 |
+|---|---|---|---|---|
+| pp2048 | 1.54× | 1.45× | 1.27× | 1.06× |
+| pp8192 | 1.62× | 1.49× | 1.29× | 1.04× |
+
+Once the pipe is full from either source the other stops paying — and past the optimum, doing
+both *regresses*.
+
+**A second, independent signal says 2048 crosses a regime boundary.** The compute-buffer base is
+**exactly** linear from ub512→ub1024 (V1 316.80 → 633.59, precisely 2×) but **superlinear** to
+ub2048 (→ 1587.19, 2.5×, 25% above linear), while the context slope stays exactly
+`ub × 7.629e-6 MiB/token` at all three values. Throughput and allocation agree independently
+that 2048 is past a threshold — stronger than either alone.
+
+⚠ **Production recommendation: `-ub 512` → `1024`.** Measured cost at `c=131072`: V0 612 → 1224
+MiB, V1 829 → 1658 MiB (+0.60 / +0.81 GiB); totals 16.2 / 15.7 GiB against a 32558 MiB card,
+~16 GiB spare. Buffers at ub1024 are **measured** at two contexts, not interpolated. **The one
+remaining gap is `-np 2`**, still untested because `llama-bench` has no `-np` — that is what
+stands between this evidence and a config edit.
+
+**Feeds FF8 rung 3 in exactly the form 27652's maintainer asked for:** the crossover is not a
+per-vendor constant but a function of prompt length **and** placement *on one vendor's card*. No
+architecture-keyed default can express *"ub1024 always on two cards, but 512→2048 by prompt
+length on one."*
+
+Receipts: `ff-receipts.jsonl`, probes `FF6c-surface`, `FF6c-buffers`.
+
 ### FF5b — VRAM was never the constraint *(2026-08-29)*
 
 Compute buffer, dual-split, measured at two contexts:
@@ -695,11 +747,41 @@ near-uniform routing already noted in LZ7 is the strongest prior *against* this 
 uniform routing gives a predictor nothing to exploit.
 
 **Kill / promote:** predictor beats static placement by more than the LZ7 rung spacing at
-equal commit → a residency manager is worth building. Within noise, or routing entropy
-measured near-uniform → **kill the tier idea explicitly and record it**; the hierarchy is
-then a static placement question that LZ7 already answers, and no residency manager should
-be built. Measure routing entropy *first* — it is a cheap read and it can kill this card
-before any window is spent.
+equal commit → a residency manager is worth building. Within noise, or routing measured
+near-uniform → **kill the tier idea explicitly and record it**; the hierarchy is then a static
+placement question LZ7 already answers.
+
+### FF9 status — DOWNGRADED *(2026-08-29)*
+
+⚠ **Correction to this card's own claim.** It said routing entropy is "a cheap read" that could
+kill FF9 before any window. **It is not cheap on this build.** The routing tensor is emitted
+only through the graph callback (`src/llama-graph.cpp:2058-2060`, cb names `ffn_moe_argsort` /
+`ffn_moe_topk`), there is no env-gated expert dump in the Vulkan or CPU path, and
+**`llama-eval-callback` is not built** in our pin (`build/bin` has only bench, cli, server).
+Measuring entropy is a **build-lane task**, not a Lap-0 read.
+
+**What *is* free is an analytical bound, and it is unfavorable.** Under uniform routing the
+distinct-expert working set per layer saturates fast:
+
+| model | experts | used | 50 tokens | 100 tokens | 500 tokens |
+|---|---|---|---|---|---|
+| 30B-A3B (`qwen3moe`) | 128 | 8 | **96.0%** | 99.8% | 100% |
+| Flash-Next (`qwen4exp`) | 512 | 10 | 62.7% | **86.1%** | 100% |
+
+A VRAM tier holding a *subset* is therefore missing almost constantly past a few dozen tokens
+unless routing is both strongly skewed **and** temporally stable. Uniform is the worst case for
+the tier, so this bounds rather than settles it — but it relocates the burden of proof onto FF9.
+
+**It also converges with a call LZ7 already made** on the same reasoning: *"per-expert
+(popularity) pinning is not `-ot`-reachable and has no expected edge at 10-of-512 near-uniform
+routing — don't burn window time on it."* FF9's prefetch variant is that idea with a predictor
+bolted on, and the arithmetic supports LZ7. It also explains why `-ot exps=CPU` performs as well
+as it does: if nearly every expert is touched anyway there is no subset worth caching — you
+stream them all or hold them all, which is exactly the two endpoints LZ7 measured.
+
+**Decision: do not schedule the prefetch cell.** If revived, the prerequisite is building
+`llama-eval-callback` and demonstrating skew large enough to keep the per-layer working set well
+under the tier size. That is the gate, and it is a build task, not a window.
 
 ---
 
@@ -779,7 +861,7 @@ why" row and the lap **stops** rather than repeating input.
 | Order | Card | Window tier | Gate |
 |---|---|---|---|
 | 1 | FF1 Slice A ×5 | Lap 0, co-resident | **Campaign gate** — CV ≤ 25% or stop |
-| 2 | FF9 routing-entropy read | Lap 0, cheap | Can kill FF9 before any window |
+| 2 | ~~FF9 routing-entropy read~~ | ⚠ **NOT cheap — reclassified 2026-08-29** | Needs `llama-eval-callback` built; **FF9 downgraded** on the analytical bound instead |
 | 3 | ~~R7 `draft-mtp` head check~~ | ✅ **DONE 2026-08-29** | Flash has no head; 2 of 3 R7 paths dead (§0.5) |
 | 4 | ~~`-ub 2048` cell~~ | ✅ **DONE 2026-08-29** | **+34.4% on pp2048**; shape effect → rung 3 (FF6) |
 | 5 | ~~KV-quant ladder q8_0/q4_0~~ | ✅ **DONE 2026-08-29** | Not a speed lever; ceiling half still needs a window (FF4) |
@@ -790,7 +872,7 @@ why" row and the lap **stops** rather than repeating input.
 | 8 | FF3 (Slice B) | Lap 0 | Needs FF2 |
 | 9 | FF7 SYCL-F16 build cell | **Build lane, not a window** | Stop-and-record if it won't build |
 | 10 | FF5 bake-off | Windowed | The expensive one; needs FF1–FF4 |
-| 11 | FF9 prefetch | Windowed, after LZ7 | Only if entropy read survives |
+| 11 | ~~FF9 prefetch~~ | ❌ **DESCHEDULED 2026-08-29** | Working set saturates (96% of experts in 50 tok on 30B-A3B); converges with LZ7's existing call |
 | 12 | FF8 rung-2 evidence → 27652 | Follows FF6 | The maintainer's named blocker |
 | 13 | FF10 synthesis | Desk work | Needs all above |
 

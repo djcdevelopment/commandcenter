@@ -6,7 +6,33 @@ rem OMEN-LIMIT-TEST-2026-08 (Q4 CV 2.3%%, zero TDR/WHEA over the soaks).
 rem
 rem Device rule (Phase 0 finding): Vulkan0 is the iGPU on this box — the visibility
 rem filter is LOAD-BEARING. Never remove it; re-verify indices after driver updates.
-set GGML_VK_VISIBLE_DEVICES=1,2
+rem 2026-08-29 (FF Phase 0, ROOT CAUSE): the visibility filter is REMOVED, not adjusted.
+rem It was silently costing us a whole card. Measured at -lv 5 in the SCHEDULED-TASK
+rem context, GGML_VK_VISIBLE_DEVICES=1,2 selected ONE B70 PLUS THE iGPU:
+rem     - Vulkan0 : Intel(R) Arc(TM) Pro B70 Graphics
+rem     - Vulkan1 : Intel(R) Graphics          <-- the iGPU, not the 2nd B70
+rem The iGPU is then dropped (llama.cpp excludes iGPU when a dGPU is present), leaving
+rem ONE device, and all 49/49 layers landed on it: model 17524 + KV 12288 + compute 296
+rem = 30108 MiB = 92.5%% of a 32558 MiB card, with the second B70 completely idle.
+rem WHY THE INDICES DRIFTED: Vulkan enumeration ORDER IS NOT STABLE ON THIS BOX. Derek
+rem has been bitten by this repeatedly -- it reshuffles between runs, DHCP-lease style,
+rem which is why the original note was so emphatic. Observed here in one session: an
+rem interactive shell enumerated [iGPU, B70, B70] (so 1,2 was correct) while the S4U
+rem task got [B70, B70, iGPU] (so 1,2 selected [B70, iGPU]). Testing a filter
+rem interactively therefore CANNOT predict what the task will do, and NO index scheme
+rem can be made safe -- including -dev/--device, whose VulkanN names are positional too.
+rem COROLLARY: any policy that targets a SPECIFIC card by index is equally unreliable,
+rem which includes the thermal rule "the hot card gets the lighter model". With -ts 1,1
+rem the split is symmetric so ordering is harmless here, but unequal -ts or --main-gpu
+rem would need identity-based placement (b70tools resolves cards by PCI BDF).
+rem THE FIX: with no filter set, ggml-vulkan selects by DEVICE TYPE, not index
+rem (ggml-vulkan.cpp:7479-7495, "Default to using all dedicated GPUs"), and llama.cpp
+rem drops the iGPU at model-placement. Verified on a spare port, no env var:
+rem     llama_prepare_model_devices: using device Vulkan1 (Arc Pro B70)
+rem     llama_prepare_model_devices: using device Vulkan2 (Arc Pro B70)
+rem Order-independent, so session context cannot break it.
+rem ROLLBACK: git revert this commit, then start ArcServeBoot (NOT a rapid Restart loop).
+rem set GGML_VK_VISIBLE_DEVICES=1,2
 
 rem COOPMAT stays ENABLED (Stage 1 finding: the old disable flag cost 2x prompt
 rem processing; zero TDRs across the campaign on driver 8974).
@@ -63,13 +89,27 @@ rem Pre-evidenced by vulkancliff data-correctness.md #2: patched-at-default vs t
 rem b10549 prebuilt, 14B sanity bench, within +-3%.
 rem ROLLBACK: git revert this file to the previous commit (the b10549 path), then
 rem   schtasks /Run /TN ArcServeRestart
+rem UBATCH 2026-08-29 (FF6c + FF Phase 0): -ub default 512 -> 1024.
+rem Measured on THIS binary at THESE flags (knee build e85caa8, -lm dio,
+rem -ts 1/1, dual-split), 2 repeats, between-repeat spread as noise floor:
+rem     pp512   2394.8 -> 2407.0   +0.5%%  (floor 0.88%% -- within noise)
+rem     pp2048  2553.1 -> 2697.8   +5.7%%  (floor 1.79%% -- REAL)
+rem     pp8192  1225.8 -> 1235.3   +0.8%%  (floor 0.30%% -- REAL)
+rem ub1024 is best at EVERY prompt length; ub2048 REGRESSES (pp8192 1076.9).
+rem PLACEMENT-DEPENDENT: on a SINGLE card the optimum moves with prompt length
+rem (512/2048/2048); on dual-split it is pinned at 1024. Do not port this value
+rem to a single-card rung without re-measuring.
+rem Compute-buffer cost, MEASURED: Vulkan0 216.08 / Vulkan1 649.59 MiB at n_ctx
+rem 2048; ctx term is exactly ub * 7.629e-6 MiB/token, so at -c 131072 that is
+rem ~1224 / ~1658 MiB -- about +0.6/+0.8 GB per card against ~16 GB spare.
+rem ROLLBACK: git revert this commit, then schtasks /Run /TN ArcServeRestart.
 E:\work\llamacpp-knee\build\bin\llama-server.exe ^
   -m E:\work\battlemage\models\Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf ^
   --alias qwen3-30b-a3b ^
   -ngl 99 -sm layer -ts 1,1 ^
   -fa on ^
   --no-mmap -dio -fit off ^
-  -c 131072 -np 2 ^
+  -c 131072 -np 2 -ub 1024 ^
   --host 127.0.0.1 --port 8082 ^
   --slots --jinja --metrics ^
   --api-key %OMEN_ARC_TOKEN% > "C:\work\commandcenter\hearth\var\arc-serve.log" 2>&1

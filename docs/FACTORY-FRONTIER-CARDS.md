@@ -82,6 +82,25 @@ never wall clock; High Performance power plan + fixed `--threads` for CPU-involv
 record HAGS state once; TDR (WDDM 2 s) is the first suspect on device-lost; every receipt
 row records co-residency + BF6 render-queue state; `ZE_AFFINITY_MASK` is never set.
 
+**Amendment 2026-08-29 (c) — run FF-CENSUS before every cell in a series.**
+`campaign/ff-probes/ff_census.py --label <run> --phase pre` pings every known GPU and GPU
+consumer and appends one `FF-CENSUS` row. The load-bearing field is **the Vulkan enumeration
+order THIS run saw**, because that order is *nondeterministic on this box* — it reshuffles
+between runs, so an index-based device filter correct in one process is wrong in the next with
+no error. That is not hypothetical: production was found running **all 49 layers on ONE B70**
+(30108 MiB = 92.5% of one card, second card idle) because `GGML_VK_VISIBLE_DEVICES=1,2`
+resolved to `[B70, iGPU]` in the scheduled-task context. **No index scheme is safe, including
+`-dev`/`--device`** — its `VulkanN` names are positional too. The fix was *removing* the filter:
+with none set, `ggml-vulkan.cpp:7479-7495` selects by device TYPE and llama.cpp drops the iGPU
+at placement, which is order-independent.
+
+⚠ **And do not gate placement on `gpu.adapter.vram.local.bytes_committed`.** It is an
+**activity-window** signal, not steady-state residency: on one unchanging, healthy server it
+read 14.86/15.78 GB after start, **0.002/0.004 GB while idle**, then 14.88/15.80 GB after a
+single inference — the model never moved. Authority order: (1) llama-server's own load report
+at `-lv 5`, (2) per-card **temperature** delta (credible per b70tools where voltage/frequency
+are not), (3) that counter, inside its activity window only.
+
 **Amendment 2026-08-29 (b) — assert placement, never assume it.** Every FF cell claiming a
 multi-card placement must capture the per-device `model buffer size` lines and **verify both
 cards are non-zero before any timing is trusted**. Learned the hard way: `llama-bench`'s `-ts`

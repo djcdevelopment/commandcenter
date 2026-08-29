@@ -82,6 +82,16 @@ never wall clock; High Performance power plan + fixed `--threads` for CPU-involv
 record HAGS state once; TDR (WDDM 2 s) is the first suspect on device-lost; every receipt
 row records co-residency + BF6 render-queue state; `ZE_AFFINITY_MASK` is never set.
 
+**Amendment 2026-08-29 (b) — assert placement, never assume it.** Every FF cell claiming a
+multi-card placement must capture the per-device `model buffer size` lines and **verify both
+cards are non-zero before any timing is trusted**. Learned the hard way: `llama-bench`'s `-ts`
+takes **slash**-separated values (`-ts 1/1`). Passing `-ts 1,1` parses as the single value `1`,
+loads the entire 17524.42 MiB model onto `Vulkan0`, leaves `Vulkan1` empty — and emits **no
+warning at all** while returning entirely plausible numbers. That is the silent-fallback failure
+mode in its purest form, and it mislabeled a full lap of cells before a verbose load log caught
+it. LZ7 already mandates counting `buffer type overridden` lines to validate `-ot` placement;
+this is the same rule for `-ts`, and it would have caught the error at cell 1 instead of cell 4.
+
 **Amendment 2026-08-29 — the noise floor is the repeat spread, not the sample stddev.**
 Measured in FF4: `llama-bench`'s stddev over 3 *consecutive* samples is 0.01–0.13 (≈0.03–0.4%),
 while the **repeat-to-repeat spread of the identical condition minutes apart is 1.6%** on
@@ -366,7 +376,9 @@ capacity-limited, not value-limited, and the interesting lever moves to FF9's hi
 
 ### FF4 first result — KV quantization is not a speed lever *(2026-08-29, Lap 0, co-resident)*
 
-30B-A3B Q4_K_M, dual-split, `-ub 512`, depth 8192, `-r 3` × 2 repeats:
+30B-A3B Q4_K_M, **single-B70** (see amendment b — this cell carried the same `-ts` mislabel;
+all three arms shared the identical placement, so the comparison stands), `-ub 512`,
+depth 8192, `-r 3` × 2 repeats:
 
 | test | f16 | q8_0 | q4_0 | reading |
 |---|---|---|---|---|
@@ -469,40 +481,77 @@ actually available** — and record which were `null` per row rather than droppi
 The difference between those two is the reason the corpus is checked before the sweep is
 designed: one is free headroom, the other is a number we already banked.
 
-### FF6 first result — `-ub 2048` reproduces, and it is a *shape* effect *(2026-08-29, Lap 0)*
+### FF6 result — the `-ub 2048` win is a **single-card artifact** *(2026-08-29, corrected)*
 
-30B-A3B Q4_K_M, dual-split, `GGML_VK_VISIBLE_DEVICES=1,2`, `-r 3` × 2 repeats, co-resident:
+⚠ **Read the correction first (§ standing controls, amendment b).** The initial FF6 run passed
+`-ts 1,1`, which `llama-bench` parsed as the single value `1`, loading the whole model on one
+card with no warning. Those numbers are valid **as single-B70 results**; the placement label was
+wrong. The corrected dual-split run reverses the conclusion.
 
-| test | ub 512 | ub 2048 | Δ |
+30B-A3B Q4_K_M, `GGML_VK_VISIBLE_DEVICES=1,2`, `-r 3`, co-resident, **3 repeats**, placement
+asserted (`Vulkan0` 8975.63 + `Vulkan1` 8548.79 MiB, both non-zero, `tensor_split 1.00/1.00`):
+
+| test | ub 512 | ub 2048 | Δ | noise floor | call |
+|---|---|---|---|---|---|
+| pp512 | 2378.06 | 2383.44 | +0.2% | 1.50% | within noise |
+| **pp2048** | **2529.25** | **2447.36** | **−3.2%** | 0.64% | **REAL — a loss** |
+| tg128 | 105.10 | 104.06 | −1.0% | 1.20% | within noise |
+
+**Production recommendation RETRACTED. Do not raise `-ub` on the serving config.**
+
+**Why the reversal:** dual-split already captures what `-ub 2048` bought on one card. At
+`ub 512`, pp2048 is **2529.25 dual vs 1783.43 single (+42%)** — the micro-batching penalty that
+a larger ubatch repaired on a single card **does not exist across two**.
+
+**Single vs dual at `ub 512` — layer split trades decode for prefill:**
+
+| test | single-B70 | dual-split | Δ |
 |---|---|---|---|
-| pp512 | 2373.57 | 2392.07 | +0.8% — flat |
-| **pp2048** | **1783.43** | **2396.86** | **+34.4%** |
-| tg128 | 121.90 | 121.77 | −0.1% — flat |
+| pp512 | 2373.57 | 2378.06 | ~0% |
+| pp2048 | 1783.43 | **2529.25** | **+42%** |
+| tg128 | **121.90** | 105.10 | **−14%** |
 
-**The gain appears exactly where prompt > ubatch.** At `-ub 512` a 2048-token prompt splits
-into four micro-batches; at `-ub 2048` it is one. pp512 cannot gain because 512 ≤ 512 already,
-and decode is untouched. **This is a shape effect, so it is evidence for ladder rung 3
-(shape-aware selection), not rung 2** — a per-architecture constant would not predict it,
-because the crossover is a function of prompt length against ubatch.
+That is a real, reproducible tradeoff and it **answers FF10's "best use of dual B70s" row**,
+which the mislabel had only raised as a question.
 
-**Rig validation:** today's pp512/ub512 = 2373–2389 against the archived corpus control of
-**2399** — under 1% apart. The rig reproduces our own baseline, so the co-resident label is not
-distorting this result, and +34.4% sits far above the 1.6% noise floor.
+**The irony is worth recording.** 27593 measured a *single card* — so the `-ts` mistake
+accidentally reproduced their exact topology, and reproduced their number almost exactly
+(**+34.4% vs their +35%**). Their claim is correct *for their configuration*; it simply does
+not transfer to our dual-split production shape. The cards' platform-gap caution was aimed at
+Linux-vs-Windows. **The axis that actually mattered here was card count.**
 
-**Cross-stack corroboration:** 27593 claimed +35% on Linux / SYCL / single-card / dense 27B
-Q8_0. We measure +34.4% on Windows / Vulkan / dual-B70 / MoE Q4_K_M beside live production.
-Same effect, almost the same magnitude, across nearly every axis changed — which is what a
-real mechanism looks like, as opposed to a platform artifact.
+**Feeds FF8 rung 3:** the correct ubatch depends on **placement** as well as prompt shape, so
+no per-architecture constant can be right — which is a stronger argument for shape-aware
+selection than the original (wrong) reading was.
 
-⚠ **Actionable but not yet cleared.** Production serves at `-ub 512` (corpus
-`adapter_config.n_ubatch: 512`), so every prompt over 512 tokens is paying ~34% more prefill
-than it needs to — and with the 306× prefix-miss penalty, prefill is not a cheap axis to leave
-on the floor. **Before changing the serving config**, measure the activation-buffer VRAM cost
-of `-ub 2048` and its interaction with `-np 2` slots. A prefill win that costs a slot is not a
-win. *(The live production argv was not readable without elevation; the corpus backfill is the
-authority for what it runs.)*
+Receipts: `ff-receipts.jsonl`, probes `FF6-ub` (single-card), `FF-CORRECTION`,
+`FF6-ub-dualsplit`.
 
-Receipts: `ff-receipts.jsonl`, probe `FF6-ub`.
+### FF5b — VRAM was never the constraint *(2026-08-29)*
+
+Compute buffer, dual-split, measured at two contexts:
+
+| n_ctx | ub | Vulkan0 | Vulkan1 | Host |
+|---|---|---|---|---|
+| 2048 | 512 | 108.04 | 324.80 | 16.05 |
+| 2048 | 2048 | 432.16 | 1619.19 | 64.22 |
+| 18432 | 512 | 172.04 | 388.80 | 80.05 |
+| 18432 | 2048 | 688.16 | 1875.19 | 320.22 |
+
+Fits an exact two-term model per card: `compute(ub, ctx) = base(ub) + ub × 7.629e-6 MiB/token`.
+**The context slope scales with ubatch** (64 MiB per 16384 tok at ub 512; 256 MiB at ub 2048 —
+exactly 4×), so the ubatch penalty *grows with context* and cannot be read off a short-context
+run. KV is linear in context (192 MiB @ 2048 → 1728 @ 18432, ratio exactly 9).
+
+Extrapolated to production's `-c 131072`: ubatch delta **+1.79 GiB (V0) / +2.74 GiB (V1)**;
+totals ub512 15.6 / 14.9 GiB vs ub2048 17.4 / 17.6 GiB — **both well inside the 32558 MiB card
+with ~14 GiB spare either way.** So memory never was the blocker; throughput was.
+
+⚠ Caveats: (1) a **fit extrapolated 7× beyond the measured range** — it reproduces both points
+exactly, but it is not a measurement at 131072; (2) `llama-bench` has no `-np`, so the `-np 2`
+interaction is **untested** — compute buffer is sized by total ubatch so it should not multiply,
+but that is reasoning, not evidence; (3) Windows Vulkan reports a **per-process** budget, so
+these are what a server *would* allocate, not an observation of live free VRAM.
 
 ⚠ `GGML_VK_PERF_LOGGER=1` **crashes the qwen38 fork** (known). Kernel-timing attribution on
 Flash-family models needs a different instrument or a fork fix; do not plan a cell that
@@ -734,7 +783,8 @@ why" row and the lap **stops** rather than repeating input.
 | 3 | ~~R7 `draft-mtp` head check~~ | ✅ **DONE 2026-08-29** | Flash has no head; 2 of 3 R7 paths dead (§0.5) |
 | 4 | ~~`-ub 2048` cell~~ | ✅ **DONE 2026-08-29** | **+34.4% on pp2048**; shape effect → rung 3 (FF6) |
 | 5 | ~~KV-quant ladder q8_0/q4_0~~ | ✅ **DONE 2026-08-29** | Not a speed lever; ceiling half still needs a window (FF4) |
-| 5b | **`-ub 2048` VRAM/slot cost** | Lap 0, next | **Gates the production config change** — the one open follow-up |
+| 5b | ~~`-ub 2048` VRAM/slot cost~~ | ✅ **DONE 2026-08-29** | VRAM never the blocker; the win was a single-card artifact — **change retracted** |
+| 5c | **Dual-split decode/prefill tradeoff** | Lap 0, deliberate cell | −14% decode for +42% prefill measured in passing; FF10 needs it measured on purpose |
 | 6 | FF6 oracle trace capture | Lap 0 (render lane already runs) | Telemetry symmetry gate |
 | 7 | FF2 / FF4 | Lap 0 | Needs FF1 pass |
 | 8 | FF3 (Slice B) | Lap 0 | Needs FF2 |

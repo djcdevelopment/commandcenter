@@ -295,8 +295,14 @@ Findings:
   default 1024, chunked prefill since OpenVINO 2025.3; OVMS 2026.3 caps NPU prompts at 8k);
   practical band 1–4B (docs top out ~8B). Closest measured class (Meteor Lake NPU, ~11
   TOPS): Qwen2.5-1.5B INT4 at ~6.8 words/s with a **95.9 s model load** — sub-CPU speed.
-  `[Windows]` **MoE on NPU: no** — every MoE enablement note is CPU/GPU-only; NPU wants
-  static dense graphs. Embeddings on NPU: documented **preview** (BGE-class, batch 1).
+  `[Windows]` ~~**MoE on NPU: no**~~ — **CORRECTED 2026-08-29 `[MEASURED-HERE]`**: too
+  broad. OpenVINO 2026.3 ships a HOST_ROUTED Qwen MoE path (NPUW) that the NPU
+  expert-engine campaign drove to compile, bind selected top-10 dynamic i4 experts, and
+  execute correctly on this NPU (arch 3720) — see
+  [NPU-EXPERT-ENGINE-HISTORY.md](NPU-EXPERT-ENGINE-HISTORY.md). The *economics* still
+  close the lane for single-stream decode: ~2.03 ms/layer compiler floor → ~10–12.6 tok/s
+  expert-only vs the measured 23–26 tok/s CPU-expert lane; reopen conditions listed in the
+  campaign doc. Embeddings on NPU: documented **preview** (BGE-class, batch 1).
   https://docs.openvino.ai/2026/openvino-workflow-generative/inference-with-genai/inference-with-genai-on-npu.html ·
   https://dev.to/mr1azl/i-tried-running-llms-on-intels-npu-heres-what-actually-happened-5h17 ·
   https://github.com/openvinotoolkit/model_server/blob/main/demos/embeddings/README.md

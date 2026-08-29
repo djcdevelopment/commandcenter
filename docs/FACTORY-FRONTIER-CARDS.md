@@ -1,0 +1,661 @@
+# Factory Frontier experiment cards — FF1–FF10
+
+**Date:** 2026-08-29 · **Posture:** /rnd (sampling for edges; vertical slices) ·
+**Status:** plan of record for the next research layer; extends, does not replace, the
+rotation program (R-series) and the Level-Zero campaign (LZ1–LZ8b).
+**Receipts:** `E:\work\battlemage\ff-probes\ff-receipts.jsonl` + `corpus/runs/` manifests ·
+**Board:** ROTATION-PROGRAM.html side-lane rows · **Cards format:** identical to
+[LZ-EXPERIMENT-CARDS.md](LZ-EXPERIMENT-CARDS.md) (Hypothesis / Moves / Rig / Kill-promote).
+
+---
+
+## 0 · Where this layer sits
+
+Three campaigns now run against the same two B70s. They are **not** peers; they stack:
+
+| Layer | Campaign | Unit of measurement | Question |
+|---|---|---|---|
+| Mechanism | LZ1–LZ8b | GB/s, tok/s, seconds | *What is the hardware physically doing?* |
+| Serving topology | R0–R10 / W-phases | tok/s, commit GB, swap seconds | *Which model should be resident where?* |
+| **Factory (this)** | **FF1–FF10** | **completed R&D work per occupied machine-hour** | *Which whole configuration produces the most finished autonomous work?* |
+
+**The unit change is the entire point of this layer.** Every existing card measures
+throughput. None measures *work*. A configuration can win every tok/s row and still lose
+the factory, because it rebuilds context four times, burns a window on re-prefill, or
+occupies both cards while producing one merged change.
+
+### 0.1 · The load-bearing integration fact
+
+`corpus/schema/bench-row.v1.json` already normalizes the configuration axes this brief
+names — `model`, `model_quant`, `context_size`, `concurrency`, `n_gpu_layers`,
+`split_mode`, `tensor_split`, `placement`, `topology`, `device_kind`, `device_count`,
+`replica_id`, `engine_build`, `kv_type`, `flash_attn`, `threads`, `task_family`,
+`workload`, `hw_id`, `card_identity`, `commit_headroom_bytes`, plus `confidence`, `valid`,
+and `failure_class`. `corpus/schema/run-manifest.v1.json` carries hardware fingerprint,
+engine build commit, device resolution, model SHA-256, flags, environment, and a
+`telemetry` block with an explicit `complete` flag.
+
+**Therefore: this campaign does not run a new throughput sweep.** The denominator largely
+exists. What is missing is a numerator (work completed and its quality), an occupancy
+measure, and a join. New machine-hours go to FF1–FF5 and the FF6 telemetry, not to
+re-measuring tok/s across a config grid we have already crossed many times.
+
+### 0.2 · Already answered — do not re-run
+
+Reps from 2026-08-20→29 have closed or narrowed most of the configuration space. Re-running
+these buys nothing; cite the receipt instead.
+
+| Brief item | Status | Authority |
+|---|---|---|
+| Single vs dual B70; replica-per-card | **Measured** — 1.85× symmetric two-server scaling; replica topologies executed | OMEN-LIMIT-TEST-2026-08 Stage 5 |
+| Heterogeneous co-residency | **Measured** — 30B@card1 + 27B@card2 held solo rates (99.2 / 21.6 tok/s) | W0 probe P5 |
+| Quantization + context ladder, 3.8 family | **Measured** — `do_not_promote` (12/15); operating-point inversion reproduced in 2 harnesses | qwen38 campaign; `corpus/backfills/qwen38-campaign-full-*` |
+| Context value at depth | **Partly measured** — 27B-vs-MoE jobs/hour 0.687× / 2.63× / 5.49× at 512 / 8K / 32K | campaign backfill jsonl |
+| Memory placement ladder (`-ngl` blocks) | **Measured** — 4.86 / 7.41 / 9.24 / 11.66 / 16.38 / 27.70 tok/s at 0/16/24/32/40/48 blocks; 60.4 GB at full | Flash-Next placement ladder |
+| Load/swap vs simultaneous residency | **Measured** — KV save 1.74 s, restore 1.19 s, ~3 s round trip vs ~100 s re-prefill; swaps drain | W0 P2/P3/P7 → ADR-0040 |
+| Weight-load cost | **Measured** — 30B 7.9–8.3 s, 27B 8.5–12 s, Flash mmap 15.5→38.9 s by placement | 44 launch logs |
+| Prefix/KV reuse value | **Measured** — ~306× prefix-miss penalty (39.75 s → 0.13 s at 26K); 157× for 27B+MTP | ROTATION-PROGRAM receipts |
+| Host-RAM expert residency | **Measured (endpoint)** — `-ot exps=CPU` runs beside production at zero pagefile tax; file-backed experts never become commit | R0 / LZ1 Stage 0 |
+| Flash prefill "cliff" | **Refuted** — 512-tok prefill 32.6–52.5 tok/s co-resident; 11.7 was a first-eval + 22-token artifact | LZ1 Stage 0 |
+| Wire bandwidth | **Frozen** — ~13 GB/s H2D per B70 (3 estimators agree); D2D symmetric ~6.7 GB/s | LZ3 |
+| B70↔B70 P2P | **Dead by silicon** — `canAccessPeer=0` | LZ brief Q1 |
+| iGPU participation in serving | **Retracted** — CPU experts (23–24 tg) beat the hop-taxed iGPU hybrid at idle; whole 30B-A3B on iGPU = 13 tok/s | LZ8/LZ8b, commit `ff1d926` |
+| NPU as router LLM | **IGNORE** — single-digit tok/s class + ~1–2 min compile | LZ brief; NPU-20/21 are compile-admission probes only |
+| SYCL as production backend | **IGNORE**, with named re-check triggers | LZ brief Q6 — see FF7 |
+| Unbuffered weight loads ([#26014](https://github.com/ggml-org/llama.cpp/pull/26014)) | **Parked** — E: is drive-bound at ~3.0 GB/s | LZ4a |
+
+### 0.2b · Two axes we have *not* crossed, surfaced 2026-08-29
+
+Reviewing [discussion 27593](https://github.com/ggml-org/llama.cpp/discussions/27593) against
+our own corpus exposed two axes that are in the schema but unpopulated. Both are cheap and both
+can move a FF10 row.
+
+| Axis | Our state | Why it matters |
+|---|---|---|
+| **KV cache quantization** | `kv_type` is `"f16"` in **all 1638** `bench-row.v1` corpus rows (22 `null`). We have never run q8_0 or q4_0 KV. | 27593 reports q4_0 KV fitting **131072** context on a *single* 32 GB B70 (f16 reached 49152, q8_0 65536). Our 131072/262144 quarantine is a **dual-split thermal** limit; single-card + quantized KV is a different cell we have simply never run. Directly moves FF4 and FF10's "best single-B70" row. |
+| **SYCL built with F16** | Never built. Our SYCL verdict rests on third-party numbers whose build flags we did not control. | See FF7 — `-DGGML_SYCL_F16=ON` defaults **OFF**, and is reported worth 3.72× on prefill. |
+
+**Standing controls (inherited verbatim from the LZ cards, every FF cell):** env vars latch
+at backend registration — set before process start; `--no-repack` on every `-ot` run; unique
+prompts or `cache_prompt:false`; never time rep 1; timing from server-internal `timings`,
+never wall clock; High Performance power plan + fixed `--threads` for CPU-involved cells;
+record HAGS state once; TDR (WDDM 2 s) is the first suspect on device-lost; every receipt
+row records co-residency + BF6 render-queue state; `ZE_AFFINITY_MASK` is never set.
+
+### 0.3 · Three concerns stated once, then executed around
+
+1. **The numerator is an instrument that does not exist yet.** Everything downstream of
+   FF1 is a comparison, and a comparison across a noisy work-slice is noise. FF1 is
+   therefore gated on a *measured replay variance bound* before any FF5 config comparison is
+   believed. A slice never observed replaying consistently is a hypothesis, not a benchmark.
+2. **Power telemetry is known-degraded and degrades silently.** `corpus/verdict.py:186-190`
+   records the Z890 case: the bus-4 B70 reported 206 samples against bus-9's 824 because
+   IGCL power telemetry kept dropping out on one slot, and nothing in b70tools' own verdict
+   noticed — it silently degraded every power and thermal number attributed to the quieter
+   card. Every FF6 saturation figure **gates on `verdict.py`'s `symmetry_check` ratio** and
+   records it. A missing power sample is `null`, never `0`.
+3. **The SYCL ask splits in two.** Q6 already answers *SYCL as a production backend*:
+   IGNORE, on four independent receipts including our exact shape (dual-B70 MoE layer split
+   ignores `--tensor-split` → single 25.4 GB alloc → OOM). That verdict is not re-litigated
+   here; it is re-checked only by its own cheap canary. *SYCL as an attribution oracle* is a
+   different question that the IGNORE does not answer — an instrument does not need to be
+   fast to be informative. FF7 does the oracle half only.
+
+### 0.4 · The denominator: what "occupied machine-hour" means
+
+OMEN is not a benchmark rig. It simultaneously carries production serving, the BF6 render
+lane, and campaign windows, and `hearth/media/occupancy.py` establishes that **media and
+compute occupancy are independent dimensions**. A configuration that finishes work while
+leaving a card free for renders is worth strictly more than one that does not.
+
+Occupancy is therefore recorded as a vector, never a scalar:
+
+```
+occupancy = { b70_0_s, b70_1_s, cpu_core_s, ddr5_peak_gb,
+              commit_peak_gb, render_lane_blocked_s, wall_s }
+```
+
+`useful work per occupied machine-hour` is reported against **each** axis, and the Pareto
+set in FF10 is computed over the vector. Collapsing this to "GPU-hours" is what produces a
+false universal winner.
+
+### 0.5 · Upstream lane — the two live threads this campaign feeds
+
+**Citation rule (house):** always full URLs. A bare `#27652` auto-links into commandcenter's
+own issue space and 404s.
+
+| Thread | What it is | What FF owes it |
+|---|---|---|
+| [PR 27652](https://github.com/ggml-org/llama.cpp/pull/27652) — *vulkan: add `GGML_VK_MMV_MAX_COLS` override for mul_mat_vec dispatch* (ours, **open**) | Replaces the hardcoded `static constexpr uint32_t mul_mat_vec_max_cols = 8;` with a runtime env override. Measured: Mistral-Small-24B on Arc Pro B70 at ub=12 — MMV cols=12 **5.8 s/pass**, cols=16 **3.1 s/pass**, matmul cols=8 **40.7 s/pass**. | **The maintainer's stated blocker is our FF8 rung-2 deliverable**: the default stays 8 and *no per-vendor defaults are proposed without measurement data*. FF6's surface is exactly that data. |
+| [Discussion 27593](https://github.com/ggml-org/llama.cpp/discussions/27593) — B70 SYCL tuning report (third-party, open) | Single Arc Pro B70, **Linux** (xe kernel 7.0.0-28-generic, Level Zero 1.15.39122), Qwen3.8-27B-Q8_0. | Generates four hypotheses for FF4/FF6/FF7 and one cross-lane lead for R7 — **all Linux-sourced, none yet true on our box**. |
+
+**What 27593 actually reports** (verified against the source, 2026-08-29 — it is *not* a
+prefix-cache patch, despite the title's suggestion):
+
+- `-DGGML_SYCL_F16=ON` (**defaults OFF**): pp2048 **389.2 → 1446.8 tok/s = 3.72×**. Full build
+  line: `-DGGML_SYCL=ON -DGGML_SYCL_TARGET=INTEL -DGGML_SYCL_F16=ON -DGGML_SYCL_DEVICE_ARCH=bmg_g21 -DCMAKE_C_COMPILER=icx -DCMAKE_CXX_COMPILER=icpx`
+- Vulkan on the same box: prompt processing **2.2× slower** than that SYCL build.
+- `-ub 2048`: **+35%** prefill. `-fa 1`: **+6%** prefill.
+- KV `q4_0` → **131072** context on one 32 GB card (f16 → 49152, q8_0 → 65536).
+- MTP via `--spec-type draft-mtp`, **no separate draft model**: 50.92 t/s (3.2×) at n-max 6;
+  33.53 t/s (2.1×) at n-max 3.
+
+⚠ **The platform gap is the whole story, and we have direct precedent for it.** Every number
+above is Linux. LZ3 already established that Linux-class Arc figures do not transfer to this
+box — the Linux-class 20–28 GB/s wire did not materialize on Windows 8974, where we measured
+~13 GB/s across three independent estimators. Treat 27593 as a **hypothesis generator with a
+named platform gap**, never as a result. Nothing from it enters a FF row without a Windows
+re-measurement, and any cell that reproduces there is a finding in its own right.
+
+⚠ **Do not compare 27593's SYCL numbers to our Vulkan corpus directly.** Their 1446.8 pp2048 is
+27B *dense* Q8_0 on *one* card; our production control is 30B-A3B *MoE* Q4_K_M dual-split at
+pp512 = **2399 tok/s** (depth 0), 469 (depth 8192), decode 112.5 — different model, quant,
+depth, prompt length, and card count. The only sound comparison in 27593 is its **internal**
+Vulkan-vs-SYCL delta on one unchanged box.
+
+**Cross-lane, MTP — 27593 corroborates a number we already own, and it is not the blocker.**
+27593's `--spec-type draft-mtp` result (3.2× at n-max 6, no separate draft model) lands almost
+exactly on our own measurement: [ADR-0038](adr/0038-a-verdict-cites-only-evidence-from-the-configuration-it-promotes.md)
+records MTP roughly tripling the 27B dual-production shape, **510 → 1591 jobs/hour (~3.1×)**.
+Two platforms, two backends, same model family, same answer — so the *mechanism* is settled
+and needs no further measurement.
+
+⚠ **Do not read this as unblocking MTP-on.** The blocker is ADR-0038's own rule — every
+deterministic assay row feeding that scorecard was measured **MTP-off**, so a verdict may not
+cite it for an MTP-on configuration. Unblocking is a **quality re-run on the MTP-on config**,
+not a throughput question. What 27593 adds is confidence that the re-run is worth scheduling.
+
+**The separate R7 (Flash) lead is still live and cheap.** R7 was blocked on "no dflash sidecar
+in the pinned repo," and W3 recorded a community sidecar refusing at load (`hc_attn_norm`
+tensor mismatch, cafe-fork layout ≠ qwen4exp). But `draft-mtp` **is present in our pinned
+fork** — `common/speculative.cpp:36` registers it, and `:1293-1296` documents three modes, one
+of which is "a single trained MTP head" needing no sidecar. ⚠ Not a solved blocker: `:1323`
+still asserts `ctx_tgt && ctx_dft`, and we have not verified the Flash GGUF carries a head.
+**Cheap check, worth doing before any further sidecar hunting.**
+
+---
+
+## FF1 — the replayable long-horizon R&D slice *(keystone; everything else depends on it)*
+
+**Hypothesis:** a long-horizon autonomous R&D task can be made replayable enough that the
+same work, run under different configurations, differs by less than the effect sizes we
+intend to measure. If replay variance swamps configuration effects, the entire factory
+question is unanswerable by this method and we should learn that in one afternoon rather
+than after ten windows.
+
+**Moves:** whether FF3/FF5/FF10 mean anything at all. This is the gate on the campaign.
+
+**Design — the slice is a *re-run of a probe whose true answer we already hold.*** Do not
+invent a synthetic task. Pick a completed LZ/R probe with a full receipt trail, strip the
+repo back to its pre-probe commit, and hand the agent the original card's hypothesis. This
+solves the scoring-oracle problem that normally sinks agentic benchmarks: **we already know
+the correct verdict, the correct failure, and the evidence a correct answer must cite.**
+
+Two candidate slices, both carrying a genuine failed hypothesis and recovery:
+
+- **Slice A — LZ4a (unbuffered weight loads).** True verdict: gate FAILED, E: is drive-bound
+  at ~3.0 GB/s, the [#26014](https://github.com/ggml-org/llama.cpp/pull/26014) port is PARKED. Contains a real dead end reached honestly.
+  Requires: planning, a read ladder, measurement, a negative result, and a park decision.
+- **Slice B — LZ8→LZ8b (iGPU expert venue).** True verdict: mechanism real but quant-gated,
+  then RETRACTED at idle when CPU experts beat the hop-taxed hybrid. Contains a
+  **reversal** — the agent must first find a positive, then overturn it. Harder, and the
+  better test of continuity.
+
+Run Slice A first (cheaper, unambiguous); promote Slice B once A's variance is bounded.
+
+**Scored dimensions** (all recorded per run, never collapsed to pass/fail):
+
+| Class | Fields |
+|---|---|
+| Outcome | `verdict_match` (vs the known true verdict), `evidence_cited`, `artifact_quality`, `regressions_introduced` |
+| Time | `wall_s`, `prefill_s`, `decode_s`, `human_intervention_s` |
+| Cost | `tokens_in`, `tokens_out`, `b70_0_s`, `b70_1_s`, `cpu_core_s`, `commit_peak_gb`, `ddr5_peak_gb` |
+| Process | `context_rebuilds`, `human_interventions`, `repeated_mistakes`, `rework_cycles`, `tests_run`, `tests_passed` |
+| Stability | `device_lost_events`, `server_restarts`, `thermal_aborts` |
+
+`verdict_match` is scored by a rubric written **before** any run and frozen with the slice —
+same freeze discipline as the Promotion Gate. Rubric authorship is a human act, once.
+
+**Rig:** slice repo state pinned by commit; the agent gets the card's Hypothesis and Moves
+sections and nothing downstream of them; all receipts land in `corpus/runs/<run_id>/` with a
+full `run-manifest.v1` so the config identity joins to `bench-row.v1` rows.
+
+**Kill / promote:** run Slice A **5× on one fixed configuration** (the current production
+default) before any comparison. Coefficient of variation on `wall_s` and on the rubric score
+≤ 25% → the slice is an instrument; proceed to FF2–FF5. CV > 25% on the rubric score → the
+task is not replayable at this granularity; **stop, and either constrain the slice further
+or abandon the work-per-hour framing for a proxy metric.** Do not proceed to config
+comparison on an uncalibrated instrument.
+
+---
+
+## FF2 — orientation tax
+
+**Hypothesis:** the compute and wall-clock cost of reconstructing project state after a
+context reset or handoff is large, measurable, and **asymmetric across workflow shapes** —
+and it is currently invisible because every existing receipt measures a warm agent.
+
+**Moves:** the context-length and workflow-shape decisions in FF5; whether "short context +
+frequent reset" is cheap in practice or only cheap in memory.
+
+**Definition (frozen):**
+
+```
+orientation_tax = (tokens + wall_s + b70_s) consumed between a context reset
+                  and the first subsequent action that advances the slice's
+                  scored state, minus the same measured for a warm agent at
+                  the identical slice position.
+```
+
+The subtraction is what makes it a tax rather than a startup cost. "Advances the scored
+state" is defined by the FF1 rubric, so this metric inherits FF1's calibration and cannot be
+computed before FF1 passes.
+
+**Rig:** instrument the slice harness to force a reset at three fixed slice positions
+(early / mid / late — after the failed hypothesis is the interesting one). Measure the tax at
+each. Vary the external-memory scaffold: none / plain notes file / structured state doc.
+
+**Kill / promote:** tax measurably grows with slice position → continuity has compounding
+value and FF3 is worth running in full. Tax flat across positions → context reset is a fixed
+cost, structured external memory is sufficient, and the very-long-context arm of FF5 can be
+cut to a single confirmatory cell.
+
+---
+
+## FF3 — continuity dividend
+
+**Hypothesis:** retaining experiments, failures, decisions, code history, and evidence
+*directly in context* produces measurable improvement over reconstructing them from
+artifacts — and the improvement concentrates in the **recovery** phase after a failed
+hypothesis, not in the initial build.
+
+**Moves:** the central FF5 comparison; the context-length-versus-cost frontier in FF10.
+
+**Definition (frozen):** the paired difference in FF1 rubric score and in `rework_cycles`
+between an agent that carried the failure in-context and one that re-derived it from
+artifacts, at identical slice position and identical model/quant/placement. **Paired on the
+slice, not averaged across slices** — the effect is expected to be smaller than
+cross-slice variance.
+
+**Rig:** the same slice run twice per configuration, differing only in whether the
+failed-hypothesis segment remains in context at the recovery point. Slice B (the reversal) is
+the discriminating case; Slice A may show nothing, and a null on A is not a null on B.
+
+**Kill / promote:** dividend positive and larger than FF1's replay CV → long-context arms
+earn their prefill and memory cost, and FF10 gets a real "context length worth paying for"
+answer. Dividend inside the noise band → **structured external memory is as good as
+context**, which is the single most decision-changing negative result available in this
+campaign — it would collapse the FF5 space to shapes 1, 2, and 4 and cut the memory budget
+for the whole lab.
+
+---
+
+## FF4 — prefill amortization
+
+**Hypothesis:** there is a break-even context depth beyond which the prefill and KV cost of
+ingesting more context is not repaid by the autonomous execution it enables — and, given the
+~306× prefix-miss penalty, that break-even moves sharply depending on whether the context is
+*reused across turns* or re-ingested.
+
+**Moves:** "best context length before marginal capability stops paying" (FF10); the KV
+manifest / rotation design's caller model.
+
+**Definition (frozen):**
+
+```
+prefill_amortization = scored_slice_progress_after_ingest / (prefill_s + kv_bytes_cost)
+```
+
+reported per context point, with `kv_bytes_cost` expressed in the same occupancy vector as
+FF1 (commit GB-seconds), not as a bare byte count.
+
+**KV quantization is a first-class axis here, and we have never varied it** (§0.2b: all 1638
+corpus rows are `kv_type: f16`). 27593 reports q4_0 KV reaching **131072** on a single 32 GB
+card where f16 stopped at 49152 and q8_0 at 65536 — i.e. the KV dtype, not the card, was the
+context ceiling. Since `kv_type` is already a `bench-row.v1` field, adding it costs a flag and
+a re-run, not a schema change. ⚠ Quantized KV trades accuracy for depth: pair every KV-quant
+cell with the FF1 rubric score, or the extra context will look free when it is not.
+
+**Rig:** the FF1 slice at context points **8K / 32K / 64K / 128K**, crossed with
+`kv_type` ∈ {f16, q8_0, q4_0} — plus 256K **only if a config admits it without spilling** (R0: commit is 96.9 GB of a 135.3 GB limit with
+production up; and depths 131072/262144 are thermally quarantined on dual-split, so a 256K
+dual-split cell is a *thermal* refusal, not a capability datum). Each point measured twice:
+cold-prefix and warm-prefix, so the 306× reuse factor enters the amortization explicitly.
+
+**Reuse note:** the throughput half of this curve is largely already in the corpus — the
+27B-vs-MoE jobs/hour ladder (0.687× / 2.63× / 5.49× at 512 / 8K / 32K) and the qwen38
+operating-point inversion. FF4 supplies only the numerator; join, don't re-measure.
+
+**Kill / promote:** a knee appears below 128K → publish it as the lab's default context and
+size the KV manifest to it. Monotonic improvement to the memory ceiling → context is
+capacity-limited, not value-limited, and the interesting lever moves to FF9's hierarchy.
+
+---
+
+## FF5 — workflow architecture bake-off *(the headline comparison)*
+
+**Hypothesis:** workflow shape dominates model choice for long-horizon autonomous work. A
+mid-tier model in the right workflow finishes more scored slices per occupied machine-hour
+than the best model in a naive one.
+
+**Moves:** everything in FF10's "best long-horizon autonomous configuration" row; the seat
+design for R8/R9.
+
+**Arms** (each run against the frozen FF1 slice, identical rubric):
+
+| # | Shape | Notes |
+|---|---|---|
+| 1 | Short context + frequent checkpoint/reset | Pays FF2's tax repeatedly; cheapest per-turn |
+| 2 | Medium context + structured external memory | The FF3-null-hypothesis arm |
+| 3 | Very long continuous context | Pays prefill + KV once; FF4 decides if it repays |
+| 4 | Planner → builder → reviewer handoffs | Three orientation taxes; parallelism possible |
+| 5 | Long-lived primary + specialized secondaries | The rotation program's natural shape |
+| 6 | Empirical hybrid | Authored only after 1–5 report; not pre-specified |
+
+**Config cross:** do **not** cross all six arms against the full config space. Cross them
+against **three** configurations chosen from existing receipts as the representative corners
+— current production default (30B-A3B dual-split), the single-card 27B depth specialist, and
+the best Flash-lite hybrid rung LZ7 promotes. Nine-plus arms × three configs is the entire
+window budget; a full cross is not affordable and would not change a decision.
+
+**Kill / promote:** an arm wins on scored work per occupied machine-hour by more than FF1's
+CV → promote it as the lab's default autonomous shape and record the margin. All arms inside
+the noise band → workflow shape does *not* dominate at this slice length, and the honest
+finding is that the slice is too short to discriminate — lengthen it before concluding
+indifference.
+
+---
+
+## FF6 — prefill saturation surface + the saturation oracle
+
+**Hypothesis:** prefill fails to drive the B70s into the sustained high-power regime that
+generative image/video workloads demonstrably reach, and the gap is a *software dispatch*
+property — insufficient exposed parallel work per submission — rather than a hardware
+ceiling. Making the reference regime explicit turns "the GPU seems idle" into a measured
+duty cycle.
+
+**Moves:** whether the prefill investigation is chasing a real headroom or a physical
+ceiling; which upstream contribution in FF8 is worth authoring.
+
+**The oracle:** the BF6 render lane already drives these exact cards through sustained
+high-compute operation on the same host, the same driver, and the same telemetry path. It is
+the reference for what a saturated B70 looks like on this box — no new workload needs
+building. Capture a render-lane telemetry trace once and freeze it as the saturation
+reference profile.
+
+**New metrics (frozen definitions):**
+
+```
+time_to_saturation   = seconds from prefill start until board power crosses
+                       (reference_p50_power × 0.9) for 3 consecutive samples
+saturation_duty_cycle = fraction of prefill wall time spent above that line
+```
+
+Both are `null` — not `0` — whenever the telemetry gate below fails.
+
+**Telemetry gate (mandatory, per §0.3.2):** every FF6 row records `verdict.py`'s
+`symmetry_check` sample-count ratio between the two identical cards. Ratio below a frozen
+floor → the row's power-derived fields are `null` and the row is marked
+`partially_scored`. Thermal and clock figures attributed to the quieter card inherit the
+same flag. This is the one place the campaign is most likely to fool itself.
+
+**Surface axes:** prompt length × `-b`/`-ub` × concurrency × dense-vs-MoE × single-vs-dual
+B70 × stock-vs-tuned dispatch. Correlate PP tok/s against board power, clocks, memory
+behavior, kernel/dispatch timing, submission gaps, and CPU utilization **where each is
+actually available** — and record which were `null` per row rather than dropping the row.
+
+**Two named candidate points from 27593, pre-checked against our own corpus:**
+
+- **`-ub 2048` (+35% prefill claimed).** Our production control runs `n_ubatch: 512` with
+  `n_batch: 2048` — so this is a **genuinely untested delta on our box**, and it sits on the
+  axis FF6 already sweeps. Promote it to an early cell; it is one flag.
+- **`-fa 1` (+6% prefill claimed).** ⚠ **Already on for us** — `flash_attn: true` in the
+  production control rows. There is no gain to collect here; do not schedule a cell for it.
+
+The difference between those two is the reason the corpus is checked before the sweep is
+designed: one is free headroom, the other is a number we already banked.
+
+⚠ `GGML_VK_PERF_LOGGER=1` **crashes the qwen38 fork** (known). Kernel-timing attribution on
+Flash-family models needs a different instrument or a fork fix; do not plan a cell that
+silently depends on it.
+
+**Kill / promote:** duty cycle rises materially with exposed work (larger ub, higher
+concurrency, dual-card) → the headroom is real and FF8's ladder is the payoff path. Duty
+cycle pinned low across the whole surface while the render oracle saturates the same cards →
+the bottleneck is submission-side, and the credible upstream target is dispatch/submission
+batching, not kernel tuning. Duty cycle already high while tok/s is low → the cards *are*
+saturated and prefill is bound by something other than compute; stop hunting dispatch.
+
+---
+
+## FF7 — Vulkan ↔ SYCL attribution, and the F16 confound
+
+**Hypothesis (revised 2026-08-29):** the "brutally bad SYCL on Battlemage" evidence our Q6
+IGNORE rests on was very likely measured **with `GGML_SYCL_F16` at its OFF default**, making
+it a confounded comparison rather than a backend verdict. Where a Vulkan↔SYCL prefill gap
+survives a matched-flag build, it is attributable to a specific mechanism (dispatch shape,
+XMX engagement, memory residency), and naming that mechanism is worth more than the ratio.
+
+**Moves:** the confidence behind Q6's IGNORE; whether FF8's ladder has a target; whether an
+upstream Vulkan issue can cite a concrete unused capability rather than a benchmark delta.
+
+**The arithmetic that motivated the revision.** Q6 cites Gemma-4-26B on B50/B70 at **SYCL 351
+pp vs Vulkan 1169**. [Discussion 27593](https://github.com/ggml-org/llama.cpp/discussions/27593)
+reports `-DGGML_SYCL_F16=ON` worth **3.72×** on prefill on this exact card class. 351 × 3.72
+≈ **1306** — the same class as the 1169 it supposedly lost to. Different model and box, so
+this is *suggestive, not proof*; but it is a coherent explanation of the entire reported gap,
+and it means the receipt we treated as decisive may be measuring a build flag.
+
+**What does and does not change.** Q6's IGNORE for SYCL **as a production backend still
+stands on independent grounds** that F16 cannot touch: our exact shape (dual-B70 MoE layer
+split) ignores `--tensor-split` and attempts a single 25.4 GB allocation → OOM
+([#22885](https://github.com/ggml-org/llama.cpp/issues/22885), closed not-planned), and
+Battlemage **Windows** correctness produced garbled output where Vulkan was correct
+([#20169](https://github.com/ggml-org/llama.cpp/issues/20169), closed not-planned). What
+changes is our *confidence in the throughput half* of that verdict, and therefore **Q6's
+re-check triggers are amended**: add *"a matched-flag (`GGML_SYCL_F16=ON`) head-to-head has
+never been run on our box."*
+
+**Rig — cheapest decisive cell first:**
+
+1. **Build cell.** SYCL build with the 27593 line, adapted to Windows/oneAPI:
+   `-DGGML_SYCL=ON -DGGML_SYCL_TARGET=INTEL -DGGML_SYCL_F16=ON -DGGML_SYCL_DEVICE_ARCH=bmg_g21`
+   (`icx`/`icpx`). ⚠ This is a **toolchain acquisition**, not a runtime flag — budget it as a
+   build-lane task, not a window. If the Windows oneAPI build does not produce a working
+   binary in one sitting, **stop and record that**: "SYCL is not buildable here today" is
+   itself the answer to the production question and closes the card.
+2. **Matched head-to-head.** Dense model, **one** B70, small context, identical prompts,
+   matched `-b`/`-ub`, Vulkan vs SYCL-F16. Correctness gate first — greedy output compared
+   against the Vulkan baseline, per the [#20169](https://github.com/ggml-org/llama.cpp/issues/20169) garbling risk. A fast wrong answer is not a
+   datum.
+3. **Attribution.** Compare PP tok/s **and** the FF6 saturation pair. SYCL reaching a higher
+   duty cycle at equal or lower tok/s is the attribution signal: it indicates Vulkan is
+   leaving submission-side work unused, not arithmetic.
+
+**Kill / promote:** SYCL-F16 fails to build or fails the correctness gate on Windows →
+**Q6's IGNORE is reconfirmed on stronger grounds than before**; record and close. Matched
+build shows Vulkan competitive → the "brutal" receipts were a flag artifact; say so, and the
+oracle lane closes having removed a bad assumption from our own record. A reproducible
+duty-cycle gap with a nameable mechanism → author the upstream issue with the render-lane
+oracle trace attached as the "this hardware can do this" control.
+
+---
+
+## FF8 — dispatch selection: from constant to measurement
+
+**Hypothesis:** [PR 27652](https://github.com/ggml-org/llama.cpp/pull/27652)'s finding — that
+a static Vulkan dispatch threshold (`static constexpr uint32_t mul_mat_vec_max_cols = 8;`)
+leaves large performance on the table and that the correct crossover is architecture-dependent
+— generalizes into a ladder, and each rung is independently shippable upstream.
+
+**Moves:** which upstream contribution to author next; whether the lab ships a B70 constant
+(bad) or removes an assumption (good).
+
+**The ladder** — the point is that each rung *removes an assumption* rather than adding a
+special case:
+
+| Rung | Change | Status | Upstream character |
+|---|---|---|---|
+| 0 | Static threshold `= 8` | upstream today | The assumption under test |
+| 1 | Runtime override (`GGML_VK_MMV_MAX_COLS`) | **already authored — [PR 27652](https://github.com/ggml-org/llama.cpp/pull/27652), open** | Trivially safe; makes the constant *measurable by users* |
+| 2 | Architecture-aware selection | **next target; blocker named by the maintainer** | Encodes that one constant is provably wrong cross-vendor |
+| 3 | Shape-aware selection | not started | Threshold depends on matrix shape, not just device |
+| 4 | Measured / autotuned dispatch | not started | One-time probe at load; no constant survives |
+
+**Rung 1 is already shipped as a proposal — the campaign's job is rung 2's evidence.** The
+maintainer's position on 27652 is explicit: the default stays 8, and **no per-vendor defaults
+are proposed without measurement data**. That is not an objection, it is a specification. FF6's
+saturation surface — prompt length × `-b`/`-ub` × concurrency × dense-vs-MoE × single-vs-dual
+card × stock-vs-tuned, with the crossover located per architecture — is precisely the dataset
+that unblocks rung 2. Publishing it is worth more than another B70 number.
+
+**Standing rule:** cross-vendor evidence already indicates a universal threshold is unlikely
+to be correct (ftoleedo validated on RDNA3.5, per the knee campaign). **Prefer discovering
+and removing a bad assumption over adding a B70-specific hack.** A patch that helps only our
+cards is a lab hack; a patch that makes the threshold measurable helps every vendor and is
+far likelier to land.
+
+⚠ Register discipline for the 0cc4m lane is unchanged: reply only when addressed, short,
+Derek-typed. Never ghost-write PR prose.
+
+**Kill / promote:** the crossover measurably differs across ≥2 architectures → post that data
+to 27652 as the per-vendor evidence the maintainer asked for, and rung 2 becomes authorable.
+Crossover turns out to be uniform outside the B70 → the finding is narrower than we believed;
+**say so in the existing PR rather than escalating** — a narrowed claim, volunteered, is worth
+more to that review than a defended one.
+
+---
+
+## FF9 — MoE memory hierarchy: prove or kill cheaply
+
+**Hypothesis (to be killed if it does not pay):** B70 VRAM = hot tier → 128 GB DDR5 = warm
+expert tier → NVMe = cold/backing tier is a *useful* hierarchy for MoE, and CPU-driven
+routing/prefetch/residency management can hide enough DDR5/PCIe latency to make
+host-resident experts worth serving from.
+
+**Moves:** whether Flash-family models are servable beside production at a useful operating
+point; the Flash-lite seat design.
+
+**Do not restart this from zero — most of it is already carded or measured:**
+
+- The two endpoints exist: `-ot exps=CPU` (+6.3 GB, ~10.6 tok/s, zero pagefile tax,
+  file-backed experts never become commit) and full residency (60.4 GB, 27.7 tok/s).
+- The frontier between them is **LZ7** (rungs 0/25/50/75/100% experts on CPU) — already
+  designed, windowed, and gated on LZ1 freezing the prefill config.
+- The decode-side ceiling for any experts-from-host design is **LZ6** (copy-then-execute DMA
+  vs BAR execute-in-place).
+- The wire is frozen: ~13 GB/s H2D per B70; D2D symmetric ~6.7 GB/s; P2P dead by silicon.
+
+**FF9 therefore adds exactly one thing LZ6/LZ7 do not cover: the *prefetch* question.** LZ7
+measures static placement; FF9 asks whether CPU-side prediction of expert residency can beat
+static placement at the same memory budget.
+
+**Rig:** at LZ7's best static rung, add a CPU-side expert-residency predictor driven by
+observed routing, and compare against that rung at identical commit GB. Keep CPU work in
+scheduling, prefetch, batching, and memory movement — **not** GEMM. The 10-of-512
+near-uniform routing already noted in LZ7 is the strongest prior *against* this working:
+uniform routing gives a predictor nothing to exploit.
+
+**Kill / promote:** predictor beats static placement by more than the LZ7 rung spacing at
+equal commit → a residency manager is worth building. Within noise, or routing entropy
+measured near-uniform → **kill the tier idea explicitly and record it**; the hierarchy is
+then a static placement question that LZ7 already answers, and no residency manager should
+be built. Measure routing entropy *first* — it is a cheap read and it can kill this card
+before any window is spent.
+
+---
+
+## FF10 — STOCK LAB vs TUNED LAB, and the Pareto set
+
+**Hypothesis:** there is no universal winner, and the honest deliverable is a Pareto set over
+the occupancy vector plus a stated rule for choosing among its members.
+
+**Moves:** the lab's default configurations; what goes in `backends.toml`; what gets written
+up publicly.
+
+**Two matrices, identical axes, differing only in configuration source:**
+
+- **STOCK LAB** — default/runtime-baseline: stock dispatch, stock batching, default
+  placement, no tuned concurrency, no KV manifest reuse.
+- **TUNED LAB** — best validated dispatch (FF8), batching (FF6), placement (LZ7/FF9),
+  caching and KV reuse, backend, concurrency, and workflow shape (FF5).
+
+The pair is what makes the campaign publishable: the delta between them is the measured
+value of everything this lab has learned, stated as work per machine-hour rather than as
+tok/s.
+
+**Required Pareto answers** (each names a configuration *and* the axis it wins on):
+
+- Best interactive configuration
+- Best long-horizon autonomous configuration
+- Best throughput configuration
+- Best quality per GPU-hour
+- Best single-B70 configuration
+- Best use of dual B70s
+- Best context length before marginal capability stops paying for its prefill/memory cost
+- When a larger model beats a smaller one despite lower tok/s
+- When multiple specialized agents beat one long persistent context
+- Whether host RAM / iGPU / NPU add meaningful lab capacity *(prior: iGPU serving already
+  retracted; NPU narrow to embeddings/triage — a positive here would be a surprise and
+  should be treated as one)*
+- Which optimizations exposed previously unused B70 compute
+- Which remaining bottlenecks are credible upstream llama.cpp / Intel-runtime targets
+
+**Kill / promote:** the Pareto set collapses to one member across every axis → say so
+plainly; a genuine universal winner is a finding, not a failure. Members that differ only
+inside FF1's CV are **not** distinct members and must be merged rather than reported as
+choices.
+
+---
+
+## Receipts, invariants, and upstream readiness
+
+**Rows.** Machine rows per trial appended to
+`E:\work\battlemage\ff-probes\ff-receipts.jsonl` in the LZ convention
+(`{ts, probe, cell/variant, rep, ...metrics, coresident}`), **plus** a full
+`run-manifest.v1` per slice run under `corpus/runs/<run_id>/` so every factory row joins to
+the existing `bench-row.v1` corpus on `hw_id` + `engine_build` + config axes. Verdict rows
+per card on close, mirrored to the ROTATION-PROGRAM.html side lane and committed (docs →
+master, house convention).
+
+**Invariants to preserve for upstream credibility:** exact runtime/driver/build/model
+versions (`run-manifest.v1` already carries engine `build_commit`, model `sha256`, device
+`resolved`, and the hardware fingerprint); reproducible command lines verbatim; the telemetry
+`complete` flag and the FF6 symmetry ratio; co-residency and render-queue state per row;
+and the frozen definitions of orientation tax, continuity dividend, prefill amortization,
+time-to-saturation, and saturation duty cycle. A metric whose definition moved mid-campaign
+is not comparable and must be re-run or dropped.
+
+**Null discipline (carried from the routing-harvest contract):** `null ≠ 0` anywhere in this
+campaign. Unmeasured telemetry, absent power samples, and skipped cells propagate as `null`
+with a `partially_scored` flag; they never become zeros in a mean. A card supported by two
+of five measured dimensions is not equal-confidence to one supported by five.
+
+**Stop rule (/rnd).** A card whose evidence cannot explain what was seen gets a "can't answer
+why" row and the lap **stops** rather than repeating input.
+
+---
+
+## Sequencing
+
+| Order | Card | Window tier | Gate |
+|---|---|---|---|
+| 1 | FF1 Slice A ×5 | Lap 0, co-resident | **Campaign gate** — CV ≤ 25% or stop |
+| 2 | FF9 routing-entropy read | Lap 0, cheap | Can kill FF9 before any window |
+| 3 | **R7 `draft-mtp` head check** (§0.5) | Desk + 1 load | Cheap; may dissolve a BLOCKED probe's premise |
+| 4 | **`-ub 2048` cell** (FF6) | Lap 0, one flag | Untested on our box; `-fa` already banked |
+| 5 | **KV-quant ladder** q8_0/q4_0 (FF4/§0.2b) | Lap 0 | Axis in schema, never varied; pair with rubric |
+| 6 | FF6 oracle trace capture | Lap 0 (render lane already runs) | Telemetry symmetry gate |
+| 7 | FF2 / FF4 | Lap 0 | Needs FF1 pass |
+| 8 | FF3 (Slice B) | Lap 0 | Needs FF2 |
+| 9 | FF7 SYCL-F16 build cell | **Build lane, not a window** | Stop-and-record if it won't build |
+| 10 | FF5 bake-off | Windowed | The expensive one; needs FF1–FF4 |
+| 11 | FF9 prefetch | Windowed, after LZ7 | Only if entropy read survives |
+| 12 | FF8 rung-2 evidence → 27652 | Follows FF6 | The maintainer's named blocker |
+| 13 | FF10 synthesis | Desk work | Needs all above |
+
+Steps 3–5 are new as of 2026-08-29 and are deliberately ahead of most of the campaign: each is
+cheap, each was surfaced by reading the two upstream threads against our own corpus, and each
+can change a decision before any window is spent.
+
+FF1 first is not a formality. Every card from FF2 onward divides by it.

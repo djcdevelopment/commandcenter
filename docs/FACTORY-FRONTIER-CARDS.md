@@ -546,6 +546,85 @@ selection than the original (wrong) reading was.
 Receipts: `ff-receipts.jsonl`, probes `FF6-ub` (single-card), `FF-CORRECTION`,
 `FF6-ub-dualsplit`.
 
+### T1b — four-venue residency: **the lab holds it** *(2026-08-29, windowed)*
+
+Production stopped for the window (needed elevation). Three venues resident **and serving
+simultaneously**:
+
+| venue | model | decode | VRAM | host commit |
+|---|---|---|---|---|
+| B70 `09:00.0` | Qwen3.8-27B @32k | 23.54 tok/s | 20.40 GB (64%) | 20.4 GB |
+| B70 `04:00.0` | qwen2.5-coder-32B q5 @16k | 20.64 tok/s | 25.45 GB (80%) | 25.8 GB |
+| host RAM | Flash-Next (87.25 GiB) | 2.93 tok/s | — | **2.57 GB** |
+
+**⚠ The finding that reshapes the design: GPU residency costs host commit ~1:1; host residency
+via mmap is nearly free.** Per-process private bytes matched each seat's VRAM almost exactly,
+while the 87 GiB Flash committed 2.57 GB with its weights in a 35.65 GB standby cache. The sum
+(48.77 GB) accounts for the entire system commit move, 54.9 → 104.6 GB.
+
+So **the 135.3 GB commit limit couples GPU and host capacity** — two full B70 seats reserve
+~64 GB of commit before any host-resident model loads. "How many simultaneous projects" is a
+**commit** question, not a VRAM question. (b70tools' README already said the real wall is commit
+charge, not free RAM.)
+
+**Two costs a residency table alone would hide:**
+
+- **Co-residency taxes the host tier −42%**: Flash fell 5.04 → 2.93 tok/s once both seats went
+  live. Its weights are in RAM but its *compute* rides the same cards, so the strategic tier is
+  not isolated from GPU contention.
+- **Dense seats decode ~21–24 tok/s against the 30B MoE's ~121.** A planner/builder/reviewer
+  split built from dense models runs ~6× slower per seat than the incumbent. That is the price of
+  specialisation, and residency does not reveal it.
+
+**Placement remains un-targetable.** The *lighter* model landed on the *cool* card, inverting the
+constitution's "hot card gets the lighter model" rule. Symmetric `-ts` does not care; this seating
+arrangement does. Identity-based placement is the only fix.
+
+### T2 — Flash as strategic tier: viable, with two hard limits *(2026-08-29)*
+
+**Memory holds convincingly:** 87.25 GiB of weights for **+2.2 GB commit** (mmap keeps them
+file-backed). But:
+
+| config | prefill | decode |
+|---|---|---|
+| `-ngl 0`, GPU compute available | 5.77–7.94 | 5.04–5.50 |
+| `-dev none` (GPU fully excluded) | **0.15** | **0.37** |
+
+⚠ **"Fully CPU, no GPU" is a dead end** — ~38×/15× worse. With `-ngl 0` the *weights* are on host
+but llama.cpp offloads the *compute* to a B70 via a ~1 GB buffer, and that buffer does nearly all
+the work. **Flash therefore needs a ~1 GB tenancy, not a dedicated venue** — it can share a card
+with a dense seat.
+
+⚠ **Prefill cannot be banked, architecturally.** Slot save/restore round-trips the bytes fine
+(138 MB in 52.7 / 31.0 ms) but the prefix is unusable: llama-server reports *"forcing full prompt
+re-processing due to lack of cache data (likely due to SWA or hybrid/recurrent memory)"*, and the
+metadata confirms it — Flash declares **SSM parameters** (`ssm.conv_kernel`, `ssm.state_size`,
+`ssm.group_count`, …). It is a hybrid attention/state-space model; recurrent state is not
+reconstructible from a KV slot. The 30B has no such keys, which is why W0 got `prompt_n=1`.
+**The prefill-elsewhere pattern belongs to the B70 dense/MoE seats, not the strategic tier.**
+
+Consequence: Flash pays its prefill *every conversation* (a 2k brief ≈ 6 min) and is viable only
+for **short-prompt, long-generation** work. ⚠ Flash also needs the **qwen38 fork** binary — the
+knee build rejects `qwen4exp` — so the lab requires two llama.cpp builds.
+
+### Measured KV rates — never derive them *(2026-08-29)*
+
+| model | layers / n_kv / key_len | **measured** | formula |
+|---|---|---|---|
+| Qwen3.8-27B (`qwen35`) | 64 / 4 / 256 | **64 KiB/tok** | 256 — **4× wrong** |
+| qwen2.5-coder-32B (`qwen2`) | 64 / 8 / 128 | 256 KiB/tok | correct |
+| Qwen3-30B-A3B (`qwen3moe`) | 48 / 4 / 128 | 96 KiB/tok | correct |
+| Flash-Next (`qwen4exp`) | 48 | **622 KiB/tok** | — |
+
+**A ~10× spread across models we would seat together**, and the standard GQA formula is 4× wrong
+on Qwen3.8-27B (likely compressed/MLA-style KV). **Take the server's own `memory_breakdown` as
+authority; never derive KV from metadata.** Context sizing is a per-model property and the
+router's catalog needs *measured* rates.
+
+⚠ Self-correction from this lap: I measured 64 KiB/tok on seat 1, noted seat 2 might differ, then
+generalised anyway and gave seat 2 32k — landing at **92.7%** of its card, the level production sat
+at when it spilled. Re-ran at 16k: 79.7%, 6.4 GiB margin.
+
 ### FF6c — the crossover surface: **the optimum is `ub 1024`** *(2026-08-29)*
 
 Prompt × ubatch × placement, prefill-only (decode measured unaffected by ubatch), 2 repeats,

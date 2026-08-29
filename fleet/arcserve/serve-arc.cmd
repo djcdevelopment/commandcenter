@@ -89,27 +89,26 @@ rem Pre-evidenced by vulkancliff data-correctness.md #2: patched-at-default vs t
 rem b10549 prebuilt, 14B sanity bench, within +-3%.
 rem ROLLBACK: git revert this file to the previous commit (the b10549 path), then
 rem   schtasks /Run /TN ArcServeRestart
-rem UBATCH 2026-08-29 (FF6c + FF Phase 0): -ub default 512 -> 1024.
-rem Measured on THIS binary at THESE flags (knee build e85caa8, -lm dio,
-rem -ts 1/1, dual-split), 2 repeats, between-repeat spread as noise floor:
-rem     pp512   2394.8 -> 2407.0   +0.5%%  (floor 0.88%% -- within noise)
-rem     pp2048  2553.1 -> 2697.8   +5.7%%  (floor 1.79%% -- REAL)
-rem     pp8192  1225.8 -> 1235.3   +0.8%%  (floor 0.30%% -- REAL)
-rem ub1024 is best at EVERY prompt length; ub2048 REGRESSES (pp8192 1076.9).
-rem PLACEMENT-DEPENDENT: on a SINGLE card the optimum moves with prompt length
-rem (512/2048/2048); on dual-split it is pinned at 1024. Do not port this value
-rem to a single-card rung without re-measuring.
-rem Compute-buffer cost, MEASURED: Vulkan0 216.08 / Vulkan1 649.59 MiB at n_ctx
-rem 2048; ctx term is exactly ub * 7.629e-6 MiB/token, so at -c 131072 that is
-rem ~1224 / ~1658 MiB -- about +0.6/+0.8 GB per card against ~16 GB spare.
-rem ROLLBACK: git revert this commit, then schtasks /Run /TN ArcServeRestart.
+rem UBATCH 2026-08-29: -ub 1024 was PROMOTED AND THEN RETRACTED THE SAME DAY.
+rem DO NOT RE-APPLY without an -np 2 measurement. Measured A/B at THIS config
+rem (-c 131072 -np 2, knee build, dual-split), decode tok/s over 3 reps each:
+rem     -ub 512  (default) : 104.26 / 104.84 / 103.40   <- matches the 109.31
+rem                           recorded here on 2026-08-24
+rem     -ub 1024           :  27.03 /  25.93 /  21.95   <- ~4x REGRESSION
+rem WHY IT SHIPPED: llama-bench measured -ub 1024 as +5.7% prefill and decode-
+rem neutral, so it looked free. But llama-bench HAS NO -np: it tests ONE slot,
+rem and the pathology only appears at two. The gap was explicitly noted at
+rem promotion time and shipped anyway on the strength of the prefill gain.
+rem LESSON: a flag validated only where the harness can reach is not validated.
+rem llama-bench cannot express production shape (-np), so any flag that touches
+rem batching MUST be A/B tested against the live server before promotion.
 E:\work\llamacpp-knee\build\bin\llama-server.exe ^
   -m E:\work\battlemage\models\Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf ^
   --alias qwen3-30b-a3b ^
   -ngl 99 -sm layer -ts 1,1 ^
   -fa on ^
   --no-mmap -dio -fit off ^
-  -c 131072 -np 2 -ub 1024 ^
+  -c 131072 -np 2 ^
   --host 127.0.0.1 --port 8082 ^
   --slots --jinja --metrics ^
   --api-key %OMEN_ARC_TOKEN% > "C:\work\commandcenter\hearth\var\arc-serve.log" 2>&1

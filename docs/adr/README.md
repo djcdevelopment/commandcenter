@@ -48,6 +48,11 @@ record with its status changed and a pointer to the ADR that replaced it.
 | [0037](0037-the-producer-reads-the-raw-footage.md) | The producer reads the raw footage: extraction runs where the bytes already are | Accepted (2026-08-25); forced by the retired copper link, deployed and proven the same day |
 | [0038](0038-a-verdict-cites-only-evidence-from-the-configuration-it-promotes.md) | A verdict cites only evidence measured on the configuration it promotes | Accepted (2026-08-27); caught a scorecard about to credit an MTP-on winner with MTP-off quality |
 
+| [0039](0039-depth-specialists-earn-pin-only-rungs.md) | Depth specialists earn pin-only rungs, not the default | Accepted (2026-08-28); the 27B wins at depth and loses at 512, so it is pinned not promoted |
+| [0040](0040-serving-lifecycle-is-adopted-not-built.md) | Serving lifecycle is adopted, not built: llama-swap owns process lifecycle | Accepted (2026-08-28); probe-gated, ~60-70% of the proposed controller deleted |
+| [0041](0041-co-residency-poisons-the-incumbent.md) | Co-residency poisons the incumbent: restart before you measure | Accepted (2026-08-29); 105 → 28.39 tok/s with the co-tenant already stopped, restart restored 104.86 |
+| [0042](0042-devices-are-selected-by-type-never-by-index.md) | Devices are selected by type, never by index | Accepted (2026-08-29); the visibility filter had been costing a whole card — removed, not corrected |
+
 ## Historical note
 The "ADR-0001" referenced in `SESSION-RETRO-2026-06-29.md` (which orchestrator is
 run-of-record: ember vs Farmer) was a forward-reference from the pre-fleet convergence

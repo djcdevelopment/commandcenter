@@ -72,7 +72,7 @@ can move a FF10 row.
 
 | Axis | Our state | Why it matters |
 |---|---|---|
-| **KV cache quantization** | `kv_type` is `"f16"` in **all 1638** `bench-row.v1` corpus rows (22 `null`). We have never run q8_0 or q4_0 KV. | 27593 reports q4_0 KV fitting **131072** context on a *single* 32 GB B70 (f16 reached 49152, q8_0 65536). Our 131072/262144 quarantine is a **dual-split thermal** limit; single-card + quantized KV is a different cell we have simply never run. Directly moves FF4 and FF10's "best single-B70" row. |
+| **KV cache quantization** | ~~`kv_type` is `"f16"` in all 1638 corpus rows~~ → **throughput half MEASURED 2026-08-29 (FF4)**; ceiling half still open. | 27593 reports q4_0 KV fitting **131072** context on a *single* 32 GB B70 (f16 49152, q8_0 65536). Our 131072/262144 quarantine is a **dual-split thermal** limit, so single-card + quantized KV remains untested. **Result so far: KV quant is not a speed lever** (see FF4) — its entire case is the ceiling, and that needs a window. |
 | **SYCL built with F16** | Never built. Our SYCL verdict rests on third-party numbers whose build flags we did not control. | See FF7 — `-DGGML_SYCL_F16=ON` defaults **OFF**, and is reported worth 3.72× on prefill. |
 
 **Standing controls (inherited verbatim from the LZ cards, every FF cell):** env vars latch
@@ -81,6 +81,15 @@ prompts or `cache_prompt:false`; never time rep 1; timing from server-internal `
 never wall clock; High Performance power plan + fixed `--threads` for CPU-involved cells;
 record HAGS state once; TDR (WDDM 2 s) is the first suspect on device-lost; every receipt
 row records co-residency + BF6 render-queue state; `ZE_AFFINITY_MASK` is never set.
+
+**Amendment 2026-08-29 — the noise floor is the repeat spread, not the sample stddev.**
+Measured in FF4: `llama-bench`'s stddev over 3 *consecutive* samples is 0.01–0.13 (≈0.03–0.4%),
+while the **repeat-to-repeat spread of the identical condition minutes apart is 1.6%** on
+prefill. Consecutive-sample stddev understates real noise by ~50×. **Every FF cell runs its
+grid at least twice and uses the between-repeat spread as the noise floor.** Reporting
+confidence from back-to-back samples manufactures false positives — the exact failure §3's
+confidence contract exists to prevent. This is why FF6's +34.4% is trustworthy (far above
+1.6%) and FF4's prefill "differences" are correctly called flat.
 
 ### 0.3 · Three concerns stated once, then executed around
 
@@ -165,13 +174,38 @@ deterministic assay row feeding that scorecard was measured **MTP-off**, so a ve
 cite it for an MTP-on configuration. Unblocking is a **quality re-run on the MTP-on config**,
 not a throughput question. What 27593 adds is confidence that the re-run is worth scheduling.
 
-**The separate R7 (Flash) lead is still live and cheap.** R7 was blocked on "no dflash sidecar
-in the pinned repo," and W3 recorded a community sidecar refusing at load (`hc_attn_norm`
-tensor mismatch, cafe-fork layout ≠ qwen4exp). But `draft-mtp` **is present in our pinned
-fork** — `common/speculative.cpp:36` registers it, and `:1293-1296` documents three modes, one
-of which is "a single trained MTP head" needing no sidecar. ⚠ Not a solved blocker: `:1323`
-still asserts `ctx_tgt && ctx_dft`, and we have not verified the Flash GGUF carries a head.
-**Cheap check, worth doing before any further sidecar hunting.**
+**The separate R7 (Flash) question is now ANSWERED — 2026-08-29, zero GPU.** The check was a
+GGUF metadata read; it took minutes and it closes a registered blocker with a definite
+architectural reason.
+
+| Model | Arch | Blocks | `nextn` tensors | Reading |
+|---|---|---|---|---|
+| Flash-Next UD-IQ4_XS | `qwen4exp` | 48 (512 experts, 10 used) | **0 of 1224** | **No built-in MTP head.** |
+| Qwen3.8-27B Q4_K_M | `qwen35` | 64 | 0 of 851 | Base carries none either… |
+| `mtp-Qwen3.8-27B-Q4_0.gguf` | `qwen35` | **65** | 4 of 18 (`blk.64.nextn.*`) | …because the 27B's head ships as a **separate sidecar** (base 64 + 1 nextn layer). |
+
+⚠ **A regex nearly produced a false positive here.** Flash scores 192 "MTP-ish" tensor hits —
+every one is `hc_attn_{down,inject,norm,up}`, a `qwen4exp` architecture tensor present on all
+48 blocks. Match on **`nextn`**, not on a loose pattern, or Flash looks MTP-capable when it
+is not.
+
+**Consequences, in order of value:**
+
+1. **27593's "no separate draft model required" does not transfer to Flash.**
+   `common/speculative.cpp:1293-1300` documents three modes and the no-sidecar one —
+   *"neither (qwen35 / qwen35moe): a single trained MTP head"* — is a **qwen35-family**
+   property. Flash is `qwen4exp`. The claim was true and simply not about our model.
+2. **W3's failure is now fully explained.** The community sidecar refused with `hc_attn_norm`
+   missing because a `qwen4exp` draft target requires `hc_attn_*` on every block and a
+   qwen35-layout sidecar has none. That was a layout mismatch, not a bad artifact.
+3. **Two of R7's three registered paths are dead.** *"cafe as a 2nd binary"* — dead, the
+   mismatch is tensor layout, not the binary. *"extract the head ourselves"* — dead, there is
+   no head in Flash's weights to extract. Only *"wait for fork-native"* survives, and it is
+   now precisely stated: **waiting for someone to publish a `qwen4exp`-layout MTP draft
+   carrying `hc_attn_*`.** That is an ecosystem dependency, not a local task — so R7 should
+   stop consuming window time and become a watch item.
+
+Receipts: `E:\work\battlemage\ff-probes\ff-receipts.jsonl`, probe `FF-MTP`.
 
 ---
 
@@ -330,6 +364,26 @@ operating-point inversion. FF4 supplies only the numerator; join, don't re-measu
 size the KV manifest to it. Monotonic improvement to the memory ceiling → context is
 capacity-limited, not value-limited, and the interesting lever moves to FF9's hierarchy.
 
+### FF4 first result — KV quantization is not a speed lever *(2026-08-29, Lap 0, co-resident)*
+
+30B-A3B Q4_K_M, dual-split, `-ub 512`, depth 8192, `-r 3` × 2 repeats:
+
+| test | f16 | q8_0 | q4_0 | reading |
+|---|---|---|---|---|
+| pp512 @ d8192 | 461.4 | 461.1–468.5 | 465.9–472.6 | **flat** — within-type repeat spread (1.6%) exceeds every between-type gap |
+| tg128 @ d8192 | **33.23** | 31.68 (**−4.7%**) | 32.28 (**−2.9%**) | real, reproducible to 0.4% |
+
+- **Quantized KV costs decode and buys no prefill.** Adopting it for speed would be a
+  mistake; its entire value proposition is the **memory/context ceiling**, which a co-resident
+  cell structurally cannot test. The 27593 ceiling claim is still open and needs a window.
+- ⚠ **Non-monotonic in bit-width: q4_0 decode *beats* q8_0 by +1.9%, reproducibly.** The q8_0
+  dequant path costs more than q4_0's on Vulkan/Battlemage. That is a mechanism observation,
+  not a benchmark artifact, and it is a **candidate upstream note** — nobody would predict the
+  wider type being slower.
+- Also banked: decode falls **122 → 33 tok/s** from depth 0 to 8192 (both co-resident).
+
+Receipts: `ff-receipts.jsonl`, probe `FF4-kv`.
+
 ---
 
 ## FF5 — workflow architecture bake-off *(the headline comparison)*
@@ -414,6 +468,41 @@ actually available** — and record which were `null` per row rather than droppi
 
 The difference between those two is the reason the corpus is checked before the sweep is
 designed: one is free headroom, the other is a number we already banked.
+
+### FF6 first result — `-ub 2048` reproduces, and it is a *shape* effect *(2026-08-29, Lap 0)*
+
+30B-A3B Q4_K_M, dual-split, `GGML_VK_VISIBLE_DEVICES=1,2`, `-r 3` × 2 repeats, co-resident:
+
+| test | ub 512 | ub 2048 | Δ |
+|---|---|---|---|
+| pp512 | 2373.57 | 2392.07 | +0.8% — flat |
+| **pp2048** | **1783.43** | **2396.86** | **+34.4%** |
+| tg128 | 121.90 | 121.77 | −0.1% — flat |
+
+**The gain appears exactly where prompt > ubatch.** At `-ub 512` a 2048-token prompt splits
+into four micro-batches; at `-ub 2048` it is one. pp512 cannot gain because 512 ≤ 512 already,
+and decode is untouched. **This is a shape effect, so it is evidence for ladder rung 3
+(shape-aware selection), not rung 2** — a per-architecture constant would not predict it,
+because the crossover is a function of prompt length against ubatch.
+
+**Rig validation:** today's pp512/ub512 = 2373–2389 against the archived corpus control of
+**2399** — under 1% apart. The rig reproduces our own baseline, so the co-resident label is not
+distorting this result, and +34.4% sits far above the 1.6% noise floor.
+
+**Cross-stack corroboration:** 27593 claimed +35% on Linux / SYCL / single-card / dense 27B
+Q8_0. We measure +34.4% on Windows / Vulkan / dual-B70 / MoE Q4_K_M beside live production.
+Same effect, almost the same magnitude, across nearly every axis changed — which is what a
+real mechanism looks like, as opposed to a platform artifact.
+
+⚠ **Actionable but not yet cleared.** Production serves at `-ub 512` (corpus
+`adapter_config.n_ubatch: 512`), so every prompt over 512 tokens is paying ~34% more prefill
+than it needs to — and with the 306× prefix-miss penalty, prefill is not a cheap axis to leave
+on the floor. **Before changing the serving config**, measure the activation-buffer VRAM cost
+of `-ub 2048` and its interaction with `-np 2` slots. A prefill win that costs a slot is not a
+win. *(The live production argv was not readable without elevation; the corpus backfill is the
+authority for what it runs.)*
+
+Receipts: `ff-receipts.jsonl`, probe `FF6-ub`.
 
 ⚠ `GGML_VK_PERF_LOGGER=1` **crashes the qwen38 fork** (known). Kernel-timing attribution on
 Flash-family models needs a different instrument or a fork fix; do not plan a cell that
@@ -642,9 +731,10 @@ why" row and the lap **stops** rather than repeating input.
 |---|---|---|---|
 | 1 | FF1 Slice A ×5 | Lap 0, co-resident | **Campaign gate** — CV ≤ 25% or stop |
 | 2 | FF9 routing-entropy read | Lap 0, cheap | Can kill FF9 before any window |
-| 3 | **R7 `draft-mtp` head check** (§0.5) | Desk + 1 load | Cheap; may dissolve a BLOCKED probe's premise |
-| 4 | **`-ub 2048` cell** (FF6) | Lap 0, one flag | Untested on our box; `-fa` already banked |
-| 5 | **KV-quant ladder** q8_0/q4_0 (FF4/§0.2b) | Lap 0 | Axis in schema, never varied; pair with rubric |
+| 3 | ~~R7 `draft-mtp` head check~~ | ✅ **DONE 2026-08-29** | Flash has no head; 2 of 3 R7 paths dead (§0.5) |
+| 4 | ~~`-ub 2048` cell~~ | ✅ **DONE 2026-08-29** | **+34.4% on pp2048**; shape effect → rung 3 (FF6) |
+| 5 | ~~KV-quant ladder q8_0/q4_0~~ | ✅ **DONE 2026-08-29** | Not a speed lever; ceiling half still needs a window (FF4) |
+| 5b | **`-ub 2048` VRAM/slot cost** | Lap 0, next | **Gates the production config change** — the one open follow-up |
 | 6 | FF6 oracle trace capture | Lap 0 (render lane already runs) | Telemetry symmetry gate |
 | 7 | FF2 / FF4 | Lap 0 | Needs FF1 pass |
 | 8 | FF3 (Slice B) | Lap 0 | Needs FF2 |

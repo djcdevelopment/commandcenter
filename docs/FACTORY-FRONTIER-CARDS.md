@@ -38,7 +38,14 @@ was almost certainly poisoning, since ub512 was measured fresh (104) and ub1024 
 Flash work (22–27). **NEW RULE: restart the incumbent after any co-resident experiment, before
 measuring it.** FF-CENSUS checks placement and residency; it must also check *rate*.
 
-### ⛔ CURRENT STATE — production is poisoned right now *(2026-08-29 ~14:50, unresolved)*
+### ✅ RESOLVED — production is healthy again *(2026-08-29 ~19:40)*
+
+After the W-A solo window, production was restarted and measured at **106.02 tok/s = 100% of
+the 106.00 baseline** (reps `[105.88, 105.52, 106.25, 106.43]`, repeat spread 0.87%), with the
+HEARTH door proof `ok:true`. The snapshot below is kept as the record of what a deeply poisoned
+incumbent looks like — it is **history, not current state**.
+
+#### ⛔ The poisoned snapshot *(2026-08-29 ~14:50 — historical)*
 
 **Do not open a measurement window without restarting production first.** Measured during the
 P-D harness verification, no restart performed:
@@ -157,6 +164,147 @@ and leaves no trace in any surviving channel, and the Task Scheduler operational
 ~0.00 GB on both cards, which is the activity-window artifact (A12), **not** evidence the cards
 were empty. Collapsing those into a verdict would repeat exactly the over-claiming that produced
 three same-day retractions.
+
+### W-A solo controls — the venue matrix with **no incumbent at all** *(2026-08-29 evening)*
+
+The campaign had exactly one solo receipt. Everything else was measured beside a production
+server whose topology was unprovable (ADR-0042) and whose health was never gated (ADR-0041). With
+Derek out, production was stopped for a whole window and the matrix was re-measured clean.
+
+Rig: `campaign/ff-probes/wa_solo_controls.ps1`, receipts `probe: "W-A-SOLO"`,
+`receipt_status: SOLO_CONTROL`. Production down via the `arc-maintenance.stop` sentinel +
+`ArcServeRestart` (the UAC-free stop-only control `restart-arc.cmd` already provides — a medium
+caller **cannot** kill the S4U server directly; `Stop-Process` and `taskkill` both return access
+denied). Commit fell 84.7 → 54.0 GB on the stop, which is exactly the server's 30.65 GB of private
+bytes — an independent re-confirmation of A6 (GPU residency costs host commit ~1:1).
+
+**One binary for every cell** (`E:\work\llamacpp-qwen38`), because Flash requires the fork (A11)
+and a mixed-binary matrix would confound venue with build. S2K measures that choice's cost once.
+
+| cell | venue | decode ×2 (tok/s) | mean | prefill@512 ×2 | placement asserted |
+|---|---|---|---|---|---|
+| **S5** | 30B-A3B, **one** B70 | 116.43 / 116.26 | **116.35** | 2213.96 / 2213.44 | `Vulkan1=17524.4MiB` (1 GPU buffer) |
+| **S2K** | 30B-A3B, dual-split — **knee** build | 110.56 / 110.93 | **110.75** | 2162.60 / 2214.48 | `Vulkan1=8975.6, Vulkan2=8548.8MiB` |
+| **S2** | 30B-A3B, dual-split — qwen38 build | 109.97 / 109.96 | **109.97** | 2164.68 / 2235.30 | `Vulkan1=8975.6, Vulkan2=8548.8MiB` |
+| **S3** | 30B-A3B, experts→CPU, one B70 | 24.06 / 26.58 | **25.32** | 140.66 / 212.10 | `CPU_Mapped=17447.9, Vulkan1=784.4MiB` |
+| **S1** | Flash-Next, experts→CPU, both B70 | 14.40 / 14.71 | **14.56** | 57.28 / 58.52 | `CPU_Mapped 47015.9+41787.2, Vulkan1=2077.7, Vulkan2=2381.8MiB` |
+| **S4** | 30B-A3B, full iGPU | 13.41 / 13.31 | **13.36** | 88.01 / 129.03 | `Vulkan0=17524.4MiB`, zero B70 |
+
+#### 1. The ordering **HOLDS** — and the number at the top of it never existed
+
+For the 30B across venues, solo: **B70 (110–116) > experts→CPU (25.3) > full-iGPU (13.4)**. Same
+ordering as the co-resident matrix, same rough ratios. The venue conclusions survive the
+provenance repair.
+
+But the recorded headline **121.6 "full-B70 dual-split" is mislabeled**. Its receipt carries
+`"tensor_split": "1.00"` — it is a **single-card llama-bench `tg128`** run, not a dual-split one,
+which is finding A4 biting exactly where A4 predicts (llama-bench splits `-ts` on `[;/]+` and
+reads a comma as its *config* separator, so `-ts 1,1` there means two separate single-card runs).
+llama-bench also has no `-np`, so it cannot express a serving topology at all. There was never a
+121.6 dual-split figure. The server, solo, reads **116.35 single-card** and **109.97 dual-split**.
+
+#### 2. Dual-split costs 5.5% decode and buys **nothing** at 512-token prefill
+
+| | decode | prefill@512 |
+|---|---|---|
+| one B70 (S5) | 116.35 | 2213.7 |
+| dual-split (S2) | 109.97 | 2200.0 |
+| delta | **−5.5%** | **−0.6%** |
+
+The −5% decode cost reproduces. The prefill *gain* does not — because the recorded "+27% / +42%"
+was measured at **pp2048**, and 512 tokens is below the crossover. This is the first server-side,
+`-np`-capable, solo measurement of dual-vs-single the campaign has; it upgrades **B3** from
+SUSPECT to a bounded statement: *dual-split is a prefill-length bet, and at 512 tokens the bet has
+not paid yet.* It does not settle pp2048 — that needs the same treatment.
+
+#### 3. The build choice is free: knee vs qwen38 = **0.7%**
+
+S2K vs S2 on identical config: decode 110.75 vs 109.97, prefill within 1%. Production's binary is
+not leaving performance on the table, and the one-binary matrix above is honest.
+
+#### 4. Signed prediction: **FALSIFIED**, and the anomaly it chased was an artifact of a missing control
+
+The prediction was that clean LZ1-A Flash decode would fall from the "anomalous" co-resident
+**12.4–14.9** toward **10.6–11.5**. Solo, it reads **14.40 / 14.71** — at the *top* of the
+co-resident band. Every Flash measure is at or above its co-resident counterpart:
+
+| measure | solo (W-A) | co-resident on record |
+|---|---|---|
+| decode 64 | 14.40 / 14.71 | 12.36 / 13.19 / 12.21 / 10.98 |
+| prefill @22 | 24.72 / 27.36 | 20.94 – 29.06 |
+| prefill @512 | 57.28 / 58.52 | 32.01 – 59.38 |
+
+Solo ≥ co-resident is the direction physics predicts, so there is nothing left to explain. **The
+"favourable anomaly" was never an anomaly.** It came from comparing LZ1-A against a "10.6 solo"
+figure that is not a solo LZ1-A receipt at all — it is from the qwen38 expert-placement ladder at
++6.3 GB commit, a different rig. The empty-second-card hypothesis is not merely insufficient; the
+thing it was invented to explain does not exist. ⚠ Closed as **explained-away**, not as *refuted
+mechanism* — nothing here says an empty second card is harmless, only that it was never needed.
+
+#### 5. First eval costs **12×**, and it is paid **per batch shape**
+
+The first S1 pass had no prefill warm-up. Same server, same requests, warmed vs cold:
+
+| measure | cold (first eval) | warm | ratio |
+|---|---|---|---|
+| prefill @22 | 2.16 tok/s (12.5 s) | 24.72 | **11.4×** |
+| prefill @512 | 4.80 tok/s (**105.8 s**) | 57.28 | **11.9×** |
+| decode 64 | 12.43 / 13.86 | 14.40 / 14.71 | 1.15× |
+
+The 512-token shape paid its own 105.8-second penalty **after** the 22-token shape had already
+warmed the server — so this is not one warm-up, it is one per batch geometry. Any harness that
+reports rep 1 publishes a pipeline-compile time as a throughput number. LZ1 warmed up for exactly
+this reason; W-A's first draft did not, and it produced a 9.93 tok/s "solo Flash prefill" that was
+pure artifact. Fixed in `Invoke-Prefill`.
+
+⚠ This also puts a floor under FF4's prefill-amortization work: on Flash, **cold-shape cost is the
+dominant term at short horizons** — larger than the co-residency tax and larger than the venue
+choice. Model load itself is comparatively cheap, and cache-warm cheaper still: Flash's first load
+took **84.3 s**, its second **12.1 s**.
+
+#### 6. The solo noise floor, per venue
+
+Repeat spread with nothing else on the box — this is the real floor, and it is venue-dependent:
+
+| venue | decode spread | prefill@512 spread |
+|---|---|---|
+| B70 dual-split (S2) | **0.01%** | 3.2% |
+| B70 single (S5) | 0.15% | **0.02%** |
+| full iGPU (S4) | 0.75% | **46.4%** |
+| Flash experts→CPU (S1) | 2.1% | 2.1% |
+| 30B experts→CPU (S3) | **10.5%** | **50.9%** |
+
+B70-resident work is metronomic; anything that crosses to host memory is not. A ±10% effect is
+unmeasurable on the experts→CPU venue at 2 reps, and the iGPU venue cannot support a prefill claim
+at all without many more reps. This is a **per-venue** rule, not a global one.
+
+#### Kit defects found and fixed by running this window
+
+Five, four of them in code written earlier the same day to prevent exactly this class of error:
+
+1. **`placement.ps1` counted host buffers as devices carrying weights.** `CPU_Mapped=17447.9MiB`
+   made `one-b70` reject every valid `-ot exps=CPU` cell — and, far worse, would have let
+   `both-b70` **PASS on a single-card load** that happened to have a host buffer. That is the
+   ADR-0042 defect surviving inside the assert built to catch it. GPU buffers are now counted
+   separately from host buffers.
+2. **`Get-VulkanDevices` could not run under `$ErrorActionPreference = 'Stop'`.** llama-bench
+   writes its device list to stderr; PowerShell 5.1 wraps each redirected stderr line of a native
+   exe in an ErrorRecord, so `--list-devices` succeeding at exit 0 still aborted the caller. The
+   iGPU cell could not start at all.
+3. **`ff_cell.wait_for_ready()` had a stale-marker race.** `restart-arc.cmd` kills the old server,
+   waits 3 s, *then* starts the new one; for those seconds the log still holds the previous
+   epoch's `model loaded`. A caller that restarted and immediately waited got `True` from a log
+   describing a server that no longer existed. Now gated on `since=`.
+4. **`Stop-Probe` slept a fixed 4 s.** Flash's teardown with ~88 GB mmap'd outlives that, so the
+   next cell's solo guard saw the dying process as a foreign tenant and voided the window. The
+   guard was right to fail closed; the stop was wrong to be impatient. It now waits for real exit.
+5. **No prefill warm-up** (§5 above).
+
+⚠ The pattern is consistent with lesson D6: none of these produced a wrong *answer*, they produced
+plausible ones. Only defect 2 announced itself.
+
+**Window closed clean.** Production restored, `ff_ratecheck` **106.02 tok/s = 100% of baseline**
+(spread 0.87%), HEARTH door proof `ok:true` / `routed_by: pinned:omen-arc`.
 
 ### Confidence-sorted state of knowledge
 

@@ -81,19 +81,31 @@ def incumbent_epoch():
                       "truncated on every launch, so it describes exactly one epoch"}
 
 
-def wait_for_ready(timeout_s=420):
+def wait_for_ready(timeout_s=420, since=None):
     """Gate on the REAL ready marker, never on /health.
 
     /health returns 200 while the model is still loading -- measured: a 503 and a 43 s
     call with no timings at all. Port-open is not model-ready. This rule was written
     down and then broken the same day, which is why it is enforced in code here.
+
+    `since` closes a STALE-MARKER race that the marker check alone does not. serve-arc.cmd
+    redirects with `>`, so the log is truncated at launch -- but restart-arc.cmd kills the
+    old server, waits 3 s, and only then starts the new one. For those seconds the file
+    still holds the PREVIOUS epoch's "model loaded" line, so a caller that restarts and
+    immediately waits gets True from a log describing a server that no longer exists.
+    Passing the instant the restart was issued makes the check require a log written
+    AFTER it -- i.e. this epoch's marker, not the last one's.
     """
     deadline = datetime.now() + timedelta(seconds=timeout_s)
     while datetime.now() < deadline:
         try:
+            if since is not None:
+                mtime = datetime.fromtimestamp(os.path.getmtime(SERVE_LOG))
+                if mtime < since:
+                    raise ValueError("log not rewritten yet")
             if READY_MARKER in io.open(SERVE_LOG, encoding="utf-8", errors="replace").read():
                 return True
-        except OSError:
+        except (OSError, ValueError):
             pass
         subprocess.run(["powershell", "-NoProfile", "-Command", "Start-Sleep -Seconds 3"],
                        capture_output=True)
@@ -136,8 +148,9 @@ def main() -> int:
 
     if args.restart:
         print("  restarting incumbent (ArcServeRestart) ...")
+        t0 = datetime.now()
         subprocess.run(["schtasks", "/Run", "/TN", "ArcServeRestart"], capture_output=True)
-        if not wait_for_ready():
+        if not wait_for_ready(since=t0):
             print("  FAIL -- ready marker %r never appeared. Refusing to measure." % READY_MARKER)
             return 1
         epoch = incumbent_epoch()

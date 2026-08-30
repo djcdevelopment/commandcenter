@@ -7,9 +7,9 @@
       "auth_env": "OMEN_ARC_TOKEN",
       "n_predict": 100,
       "config": "knee build e85caa8, -ngl 99 -sm layer -ts 1,1 -fa on --no-mmap -dio -fit off -c 131072 -np 2 (ub default 512)",
-      "baseline_decode_tok_s": null,
-      "baseline_set": null,
-      "baseline_note": "CLEARED 2026-08-29: a baseline of 55.44 was set from reps [75.08, 57.68, 33.57] with a 74.87% repeat spread. Meaningless -- and the reps were that noisy because they straddled a co-residency poisoning event, not because the rung is inherently unstable. UNBLOCKED: an earlier version of this note required re-baselining 'at PLATEAU, after the decay mechanism is characterised'. That gate is removed -- the sustained-rate decay was RETRACTED (ADR-0041); 40 back-to-back requests on a fresh server held 102-107 flat. TO RE-BASELINE: restart production, wait for the real 'model loaded' marker in hearth/var/arc-serve.log (NOT /health, which returns 200 mid-load), then run with --set-baseline. Expect ~104.86 with a spread near 4.7%, inside the 10% guard. That sets the P-B health gate at ~83.9 tok/s."
+      "baseline_decode_tok_s": 106.0,
+      "baseline_set": "2026-08-29T18:22:39-07:00",
+      "baseline_note": "P-B canonical. Verified clean: restarted, placement asserted DUAL-SPLIT by b70tools BDF (14.52/15.44 GB, temps 52/50) inside the ratecheck activity window. Corroborates Derek's chosen 104.86 within ~1%."
     }
   }
 }

@@ -30,8 +30,16 @@ function Get-VulkanDevices {
     param([string]$Bench = "E:\work\llamacpp-knee\build\bin\llama-bench.exe")
     $saved = $env:GGML_VK_VISIBLE_DEVICES
     Remove-Item Env:GGML_VK_VISIBLE_DEVICES -ErrorAction SilentlyContinue
+    # llama-bench writes its device list to STDERR. Under `$ErrorActionPreference = 'Stop'`
+    # -- which every probe script sets -- PowerShell 5.1 wraps each redirected stderr line
+    # of a NATIVE exe in an ErrorRecord and throws NativeCommandError, so `--list-devices`
+    # succeeding at exit code 0 still aborted the caller. Relaxed for the duration of the
+    # call and restored immediately; the parse below is what validates the output.
+    $eap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     try   { $out = & $Bench --list-devices 2>&1 | Out-String }
     finally {
+        $ErrorActionPreference = $eap
         if ($null -ne $saved) { $env:GGML_VK_VISIBLE_DEVICES = $saved }
     }
     $devices = @()
@@ -124,16 +132,28 @@ function Read-Placement {
     # appears in "using device" may still hold nothing (the one-card defect looked
     # exactly like this from the outside).
     $loaded = @($buffers | Where-Object { $_.MiB -gt 1.0 })
+    # ...but not every buffer is a DEVICE. llama-server reports host-side buffers in the
+    # same format -- "CPU_Mapped model buffer size = 17447.9 MiB" is what an
+    # `-ot .ffn_.*_exps.=CPU` cell looks like, and counting it as a loaded device was a
+    # real defect here (found 2026-08-29 by W-A cell S3). It cut both ways: it made every
+    # valid experts-on-host cell fail `one-b70`, AND it let `both-b70` PASS on a
+    # single-card load that happened to have a host buffer -- which is exactly the
+    # ADR-0042 failure the assert exists to catch, surviving inside the assert itself.
+    # Placement predicates count GPU buffers only.
+    $gpuLoaded = @($loaded | Where-Object { $_.Handle -match '^Vulkan\d+$' })
 
     return [pscustomobject]@{
-        UsedDevices   = $used
-        Buffers       = $buffers
-        B70Count      = $b70Used.Count
-        IGpuCount     = $igpuUsed.Count
-        LoadedCount   = $loaded.Count
-        LoadedMiB     = @($loaded | ForEach-Object { $_.MiB })
-        Summary       = (($used | ForEach-Object { "$($_.Handle)=$($_.Name)" }) -join ', ')
-        BufferSummary = (($buffers | ForEach-Object { "$($_.Handle)=$([math]::Round($_.MiB,1))MiB" }) -join ', ')
+        UsedDevices    = $used
+        Buffers        = $buffers
+        B70Count       = $b70Used.Count
+        IGpuCount      = $igpuUsed.Count
+        LoadedCount    = $loaded.Count
+        GpuLoadedCount = $gpuLoaded.Count
+        GpuLoadedMiB   = @($gpuLoaded | ForEach-Object { $_.MiB })
+        HostLoadedMiB  = @($loaded | Where-Object { $_.Handle -notmatch '^Vulkan\d+$' } | ForEach-Object { $_.MiB })
+        LoadedMiB      = @($loaded | ForEach-Object { $_.MiB })
+        Summary        = (($used | ForEach-Object { "$($_.Handle)=$($_.Name)" }) -join ', ')
+        BufferSummary  = (($buffers | ForEach-Object { "$($_.Handle)=$([math]::Round($_.MiB,1))MiB" }) -join ', ')
     }
 }
 
@@ -146,10 +166,15 @@ function Assert-Placement {
       -Expect both-b70        : two B70s, both carrying weights
               one-b70         : exactly one device carrying weights, and it is a B70
               igpu-plus-b70   : at least one iGPU and at least one B70 in service
+              igpu-only       : an iGPU in service and NO B70 -- the full-iGPU venue.
+                                Added for the W-A solo controls: without it that cell
+                                had no assertable expectation, and an iGPU cell that
+                                silently picked up a B70 would return a flattering
+                                number with no error (the LZ8 failure mode).
     #>
     param(
         [Parameter(Mandatory)][string]$LogPath,
-        [Parameter(Mandatory)][ValidateSet('both-b70', 'one-b70', 'igpu-plus-b70')][string]$Expect,
+        [Parameter(Mandatory)][ValidateSet('both-b70', 'one-b70', 'igpu-plus-b70', 'igpu-only')][string]$Expect,
         [string]$Cell = '(unnamed)'
     )
     $p = Read-Placement -LogPath $LogPath
@@ -160,16 +185,18 @@ function Assert-Placement {
     }
 
     $ok = switch ($Expect) {
-        'both-b70'      { $p.B70Count -ge 2 -and $p.LoadedCount -ge 2 }
-        'one-b70'       { $p.B70Count -ge 1 -and $p.LoadedCount -eq 1 }
+        'both-b70'      { $p.B70Count -ge 2 -and $p.GpuLoadedCount -ge 2 }
+        'one-b70'       { $p.B70Count -ge 1 -and $p.GpuLoadedCount -eq 1 }
         'igpu-plus-b70' { $p.IGpuCount -ge 1 -and $p.B70Count -ge 1 }
+        'igpu-only'     { $p.IGpuCount -ge 1 -and $p.B70Count -eq 0 -and $p.GpuLoadedCount -ge 1 }
     }
     if (-not $ok) {
         throw ("PLACEMENT MISMATCH [$Cell]: expected '$Expect' but the server reported " +
-               "B70s=$($p.B70Count) iGPUs=$($p.IGpuCount) devices-carrying-weights=$($p.LoadedCount). " +
+               "B70s=$($p.B70Count) iGPUs=$($p.IGpuCount) GPU-devices-carrying-weights=$($p.GpuLoadedCount) " +
+               "(host buffers, which are NOT devices: $($p.HostLoadedMiB -join '/') MiB). " +
                "using: $($p.Summary). buffers: $($p.BufferSummary). " +
                "Per ADR-0042 this is what a reshuffled enumeration looks like -- the run is void.")
     }
-    Write-Host ("  placement OK [$Cell] expect=$Expect :: $($p.Summary) | $($p.BufferSummary)")
+    Write-Host ("  placement OK [$Cell] expect=$Expect :: gpu-buffers=$($p.GpuLoadedCount) :: $($p.BufferSummary)")
     return $p
 }

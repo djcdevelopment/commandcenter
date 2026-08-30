@@ -232,6 +232,18 @@ raising it. Two candidates survive: **a less efficient kernel/dispatch path** se
 degraded state (the same shape as this lab's own `mul_mat_vec` knee finding), or **busy-wait/spin**
 burning power without productive work.
 
+> ⚠ **RETRACTED — the paragraph above reasons wrongly from its own evidence.** "Each token costs it
+> more work" and "that disfavours a simple host-side stall" are **both false**, and the GPU busy-time
+> counter settles it (see *The GPU does the same work in every state*, below): busy time per token
+> moves **+5.5%** while wall time per token moves **+97.4%**. The stall inference failed because it
+> assumed a stalled GPU falls toward idle power. **It does not — it stays pinned at 2800 MHz /
+> 1.04–1.06 V, which is exactly what the measurement two paragraphs up established.** A clocked-up,
+> non-computing GPU burns near-load power while waiting, so a host stall **raises** energy per token
+> precisely as observed. The energy result stands; the mechanism read off it does not.
+> **Both surviving candidates are now disfavoured**: busy-wait/spin would *raise* busy-ns (it barely
+> moves), and an inefficient kernel would raise busy per token by far more than 5.5% while wall time
+> doubled.
+
 **Interleaved idle-floor control.** Subtracting a single *assumed* idle value would exaggerate the
 per-token gap if the degraded regime carried a higher background floor. It does not. Each arm was
 bracketed with its own locally measured floor, taken from the same 1 Hz capture immediately before
@@ -333,4 +345,65 @@ That is a **phenotype match-or-separate contrast between two naturally occurring
 telemetry already attached** — no restart, no epoch boundary, no added load. It answers the same
 class of question the planned induced-idle probe was meant to answer, without spending the
 non-reproducible natural-recurrence record to do it.
+
+
+### The GPU does the same work in every state — both channels are host-side gaps
+
+Phenotype first, mechanism second: do the two behavioural states share a **hardware** signature?
+
+**The instrument was already in the capture and had never been read.**
+`gpu.activity.global_counter` is IGCL, `DirectlyObserved`, and its unit is **nanoseconds of GPU
+busy time**. Its B70 idle floor is **~81,300 ns/s — 0.008% busy**. That is why it succeeds where
+energy failed: energy carries a 26.5 W/card floor that swamps a 300 ms probe (the cause of the
+03:05:17 alignment artefact), whereas busy-time integrated over a multi-second window loses almost
+nothing. **A single 20 ms forward pass is resolvable at 1 Hz.**
+
+⚠ **The wall-clock anchor validated itself.** Windows aligned to keep-alive timestamps carry a
+median **8,826,152** busy-ns; the same windows offset by +3 s carry **4,340**. A ~2000× separation
+confirms the timestamp mapping to sub-second precision — independently of how it was derived.
+
+**Channel B — the 32-token deep probe.** Eleven healthy and two degraded, all inside one capture,
+one epoch, no restart:
+
+| per token | healthy (n=11) | degraded (n=2) | change |
+|---|---|---|---|
+| **GPU busy** | 8.811 ms | 9.297 ms | **+5.5%** |
+| wall | 9.272 ms | 18.298 ms | **+97.4%** |
+| **host gap** | 0.461 ms | 9.001 ms | **+1851%** |
+| GPU busy fraction | **95.0%** | **50.8%** | — |
+| energy above idle | 1.022 J | 1.550 J | +52% |
+
+**The GPU is not doing more work. It is idle for half the decode loop.**
+
+**Channel A — the 1-token ping.** `prompt_ms` rises 10.30 → 20.20 ms while GPU busy moves only
+8.814 → 9.684 ms. Of the **+9.90 ms** of extra prefill latency, **0.87 ms (9%) is GPU busy and
+9.03 ms (91%) is host-side.** In threshold-free form — because the detection cut must not carry the
+claim — regressing busy-ms on prompt-ms across **all 117 clean pings** gives a slope of **0.090 ms
+of GPU time per ms reported**.
+
+**The phenotype answer.** The two states **share a hardware signature, and the shared signature is
+the *absence* of work inflation.** Neither channel inflates GPU work; both add latency outside GPU
+execution. So the dissociation is **higher-level** — two *places* a host-side gap appears (request
+entry versus the inter-token loop) — rather than two different hardware behaviours.
+
+**"One forward pass" is now measured, not inferred.** Ping GPU busy **8.814 ms** (n=100, one token)
+against deep-probe busy per token **8.811 ms** (32 tokens): **0.04% agreement** across two
+independent request shapes. The previous lap's arithmetic inference is promoted by a separate
+instrument, and the caveat on it can be closed.
+
+⚠ **A derived consistency check, not a measurement.** Solving the healthy and degraded energy
+budgets for two unknowns gives ~116 W above idle while computing and **~52 W above idle during the
+host gap** — about half of load power, and far above the 0 W that "stall means idle" assumed.
+Self-consistent with a clocked-up, non-computing GPU. **n=2; do not cite as a measurement.**
+
+⚠ **What this does not establish.** n=2 degraded deep probes, so the +5.5% busy/token may be a
+small real component or noise — the wall/gap split is far too large to be affected either way.
+Five ping windows were excluded as contaminated (>50 ms busy): three overlapped an adjacent deep
+probe, and **03:01:57 and 03:06:05 caught my own `ff_ratecheck` arms** — the instrument detecting
+my own measurements is a validation, but those rows are not data. The counter is a **per-adapter
+aggregate**: it cannot name an engine or a kernel, and it cannot separate *"the host did not
+submit"* from *"the host submitted late"*. The gap could be host CPU, driver submission, the
+server's scheduling loop, or synchronisation — this lap localises it **outside GPU execution and no
+further**. 1 Hz sampling cannot say **where inside a request** the gap falls. One night, one epoch,
+one server instance, one model.
 

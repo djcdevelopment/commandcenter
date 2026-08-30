@@ -165,11 +165,25 @@ def main() -> int:
             verdict = "NO-BASELINE"
         else:
             frac = m["decode_tok_s"] / base
-            print("  baseline %.2f tok/s  =>  %.0f%% of known-good" % (base, frac * 100))
+            # A baseline is an EPOCH-SCOPED REFERENCE, not demonstrated invariant capacity.
+            # This rung has shown at least four stable levels (106 / 97 / 65 / 27.5), so a
+            # bare "% of known-good" invites reading the baseline as the machine's ceiling.
+            # Health is reported as: baseline epoch + observed rate + acceptance envelope.
+            env = rung.get("acceptance_envelope") or {}
+            print("  baseline %.2f tok/s  =>  %.0f%% of it" % (base, frac * 100))
+            print("  baseline epoch: %s" % (rung.get("baseline_epoch") or "(unrecorded)"))
+            print("  envelope: fail <%.0f%%, warn <%.0f%% -- of THIS baseline, not of capacity"
+                  % (env.get("fail_below_frac", FAIL_FRAC) * 100,
+                     env.get("warn_below_frac", WARN_FRAC) * 100))
             if frac < FAIL_FRAC:
                 print("  *** FAIL: %.0f%% of baseline. This is DEGRADATION, not noise." % (frac * 100))
                 print("      Check, in order: device placement (ff_census.py), VRAM spill,")
                 print("      and any batching flag changed since the baseline (-ub/-np/-c).")
+                print("      CLASSIFY before attributing (docs/adr#0044). The discriminator is")
+                print("      the RESTART: cleared by one => ADR-0043 idle collapse; survives one")
+                print("      => INC-2026-08-30-A class, cause unknown, do not assume idle.")
+                print("      R10: if you change something and it recovers, that is temporal")
+                print("      association, NOT causation, until interleaved or repeated.")
                 verdict = "FAIL"
             elif frac < WARN_FRAC:
                 print("  ** WARN: %.0f%% of baseline." % (frac * 100))
@@ -180,6 +194,8 @@ def main() -> int:
 
     if not args.no_ledger:
         row = {"ts": ts, "probe": "FF-RATECHECK", "rung": args.rung,
+           "baseline_epoch": rung.get("baseline_epoch"),
+           "acceptance_envelope": rung.get("acceptance_envelope"),
                "verdict": verdict, "measurement": m,
                "baseline_decode_tok_s": rung.get("baseline_decode_tok_s"),
                "note": args.note or None}

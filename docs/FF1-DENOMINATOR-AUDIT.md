@@ -95,7 +95,29 @@ The corrected campaign results do **not** depend on this. The higher-order frami
 
 ---
 
-## The real first question: which denominator is wanted?
+## ⛔ IMPLEMENTATION IS BLOCKED, pending one semantic decision
+
+**Do not build an occupancy meter yet.** The audit's finding is not that `b70_*_s` is unimplemented
+or imprecise — it is that **the concept currently has no observable corresponding to its semantics
+under co-residency**. Adapter time would reproduce B4 *structurally*, by charging one tenant for
+another's consumption; `occupancy.py` is deliberately measuring something else. Choosing wall-clock
+occupancy would therefore be a **specification decision**, not an instrumentation task, and it
+should be made as one.
+
+> **The blocking question: what is `work per machine-hour` intended to PRICE?**
+>
+> 1. **elapsed possession** — the resource was held, whatever was done with it;
+> 2. **attributable resource consumption** — this work's share of the hardware;
+> 3. **scheduling opportunity cost** — what else could not run because this ran.
+>
+> These are three different economic quantities. They rank configurations differently, and (2) has
+> no observable on this box. **Choose the quantity first; only then choose an observable.**
+
+⚠ Building before that decision risks a beautifully measured denominator for the wrong economic
+quantity — an error no amount of precision would reveal, and exactly the class R8 was written to
+catch on the numerator side.
+
+## The three candidates, as economic quantities
 
 Three candidates. They are **not interchangeable**, they rank configurations differently, and one
 of them cannot be built on this hardware.

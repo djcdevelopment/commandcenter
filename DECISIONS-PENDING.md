@@ -602,3 +602,21 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       corrected row. Recorded in [docs/CLAIM-REGISTER.md](docs/CLAIM-REGISTER.md); flagged here
       only so the policy is ratified rather than assumed.
 
+- [ ] 2026-08-30 — **⭐ THE FF1 BLOCKING DECISION: what does `work per machine-hour` PRICE?**
+      Implementation is deliberately blocked on this, not on tooling. Three candidate quantities,
+      which rank configurations differently: **(1) elapsed possession** — the resource was held,
+      whatever was done with it; **(2) attributable resource consumption** — this work's share of the
+      hardware; **(3) scheduling opportunity cost** — what else could not run. ⚠ **(2) has no
+      observable on this box** (per-process GPU counters read 0 under S4U; adapter counters charge
+      tenants for each other, reproducing B4 structurally), and it is what the current `b70_*_s`
+      axes imply. **Choose the economic quantity first, then the observable** — building first risks
+      a beautifully measured denominator for the wrong quantity, which no amount of precision would
+      reveal. (source: [docs/FF1-DENOMINATOR-AUDIT.md](docs/FF1-DENOMINATOR-AUDIT.md))
+- [ ] 2026-08-30 — **INC-2026-08-30-A: watch, do not poke.** A restart-surviving ~61% state that
+      cleared spontaneously ([ADR-0044](docs/adr/0044-rate-is-not-a-scalar.md)). The deliberate
+      posture is **no experiment**: the deep probe detects it, the signature is distinct, and per R10
+      an intervention scored against a machine that transitions on its own would prove nothing.
+      **Spontaneous recurrence is the more informative observation — waiting is the experiment.**
+      Revisit if it recurs, or if a second signature appears that the restart discriminator cannot
+      separate.
+

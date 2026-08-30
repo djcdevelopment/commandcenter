@@ -19,7 +19,14 @@ work the rules and the claim register exist to make unnecessary. The next invest
 **FF1**, and it starts with [`docs/FF1-DENOMINATOR-AUDIT.md`](FF1-DENOMINATOR-AUDIT.md),
 not with an instrument.
 
-### ⚠ OPEN INCIDENT — a restart-surviving ~61% state, unattributed *(2026-08-30 00:28–01:10)*
+### ⚠ INC-2026-08-30-A — a restart-surviving ~61% state, unattributed *(2026-08-30 00:28–01:10)*
+
+> **Classified, not explained.** It has its own identity rather than extending ADR-0043,
+> because it differs on that record's defining discriminator: **a restart does not clear it.**
+> See [`docs/adr#0044`](adr/0044-rate-is-not-a-scalar.md). ⚠ **Deliberately not being poked** —
+> it cleared spontaneously, the monitor detects it, and per R10 an intervention scored against
+> a machine that transitions on its own would prove nothing. Spontaneous recurrence is the
+> more informative observation. **Waiting is the experiment.**
 
 Found by the shipped monitor on its first real event. **Not** ADR-0043's idle-cold state, and **not**
 a suspect measurement — this does not reopen the campaign boundary.
@@ -36,6 +43,7 @@ a suspect measurement — this does not reopen the campaign boundary.
 | 00:38 | **restart → 64.14 (61%). The restart did NOT clear it.** |
 | 00:40–00:50 | stable: 65.06 / 64.53 / 65.14 across spaced checks |
 | ~01:05 | state cleared on its own; now **97–99 (92–94%)** |
+| ~01:25 | **99.17 → 106.54 (101%), also spontaneous** — nothing changed in between |
 
 **Excluded by direct measurement while degraded:** placement (dual-split, 14.864 / 15.786),
 thermal (56 / 56 °C, 0 spread), VRAM spill (`non_local` 0.002 / 0.704 GB), co-tenancy (only
@@ -1933,6 +1941,17 @@ differently from the rest of llama.cpp (A4). **One habit distorted three separat
 (actually `tensor_split "1.00"`, single-card), and dense-vs-MoE "~6×" (a bench MoE number against
 serving dense numbers — really 4.5–5.0×). Each was internally plausible, which is precisely why a
 gate is needed rather than vigilance. (2026-08-29; B1, W-A, B5)
+
+**R10. Recovery after intervention is not evidence that the intervention caused recovery.**
+Unless recovery is distinguished from a spontaneous state transition — by a control, or by a
+repeated intervention→response — record **temporal association only**. This complements R1 rather
+than repeating it: R1 says identifying a confound is not identifying a cause; R10 addresses the
+specific and unusually seductive sequence **recent change → degradation → revert → recovery**, which
+looks overwhelmingly causal and is not. On 2026-08-30 that exact sequence read 65 → 97 on a `-ub`
+revert; interleaving destroyed the causal interpretation, with both configs at ~97–98. **The
+dangerous errors are not absurd explanations — they are explanations with excellent narratives and
+insufficient controls**, which is precisely why the rule cannot be conditioned on how compelling the
+story feels. (2026-08-30; INC-2026-08-30-A)
 
 **R9. Effect resolution and hypothesis exclusion are separate verdicts. Report both.** "Can I
 distinguish this effect from zero?" and "can I exclude the claim under test?" have different answers

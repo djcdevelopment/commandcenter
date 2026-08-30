@@ -1,4 +1,4 @@
-<#
+﻿<#
 ETW6 session lifecycle - THE ONLY PRIVILEGED COMPONENT. REQUIRES ELEVATION.
 
 Creates/starts (or stops) a CIRCULAR DxgKrnl session. It does nothing else: detection,
@@ -7,9 +7,10 @@ so production is not redesigned around privilege.
 
 Measured inputs (ETW5, 2026-08-30, 120 s through normal keep-alive traffic):
   * sustained UNFILTERED rate  9.70 MB/s  (1,224,605,696 B / 120.39 s)
-  * continuous-session perturbation on the keep-alive ping: prompt_ms 11.72 -> 12.54,
-    +7%, n=5 vs n=5 -- PASSES a 10% gate but MARGINALLY, and one 19.8 ms outlier sits in
-    the during-set. Treat as tolerable, not proven.
+  * continuous-session perturbation: RETIRED. The +7% figure (n=5) was refuted by ETW8:
+    prompt_ms 10.40 -> 10.40, +0.0%, n=117 vs n=90. Decode was separately -9.2% across
+    the same boundary but is UNATTRIBUTED (R10 in mirror), and two in-session probes at
+    107.70 / 105.37 refute a constant tax.
 
 Ring sizing, per the agreed formula:
     ring = bytes_per_second * retention_seconds * 1.25
@@ -107,3 +108,4 @@ if ($Start) {
 
 Write-Host "specify -Start, -Stop or -Status"
 exit 1
+

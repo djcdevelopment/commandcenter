@@ -30,7 +30,26 @@ import json, io, sys
 EXPECTED_SPAN_MS = 315.0      # prompt 10.4 + predicted 305.1, the fixed 32-token shape
 SPAN_ABS_TOL_PCT = 15.0       # stage 1: each span vs the workload expectation
 SPAN_REL_TOL_PCT = 10.0       # stage 2: healthy vs degraded
-HEALTHY = {                   # ETW4, union over deep compute queues, both arms
+# ---------------------------------------------------------------------------
+# COMPARISON HIERARCHY. A later analyzer must not treat the numbers below as
+# immutable machine constants. They are validated observables from a healthy
+# SHORT-session trace, not a universal baseline.
+#
+#   PRIMARY          within-trace healthy -> degraded -> recovery, same ETW
+#                    session and same server epoch. This is the comparison the
+#                    continuous recorder was built to produce, and it is
+#                    SELF-CONTROLLED: any session cost applies to both arms.
+#   SECONDARY        other states observed during that same continuous session.
+#   CROSS-CHECK ONLY HEALTHY_CROSSCHECK below (ETW4, short sessions, 04:34).
+#   HISTORICAL       pre-ETW ADR-0044 regimes (~106 / ~97-99 / ~65 / ~27.5).
+#
+# LOCAL COMPARATOR RULE. Do NOT classify a snapshot's pre-trigger portion as
+# "healthy" merely because its rate exceeds the watcher's 90 tok/s threshold.
+# Identify the comparator from the actual deep-probe observations inside the
+# ring. A trace running ~97 -> ~65 -> ~97 answers the INC-A question perfectly
+# well even though no part of it touches 106.
+# ---------------------------------------------------------------------------
+HEALTHY_CROSSCHECK = {        # ETW4, union over deep compute queues, both arms
     "mean_depth": 3.9075, "f_depth0": 0.1180, "f_depth_ge3": 0.7347,
     "longest_zero_ms": 1.29,
     "band_depth": 0.005,      # cross-arm agreement
@@ -73,13 +92,22 @@ def span_gate(healthy_span_ms, degraded_span_ms, expected_ms=EXPECTED_SPAN_MS):
     return True, "both stages passed", m
 
 
-def occupancy_verdict(deg):
-    """Only called when the span gate licenses it. deg = union stats from the degraded trace."""
-    rose = deg["f_depth0"] > HEALTHY["f_depth0"] + 10 * HEALTHY["band_pp"]
-    fell = deg["f_depth_ge3"] < HEALTHY["f_depth_ge3"] - 10 * HEALTHY["band_pp"]
-    longer = deg["longest_zero_ms"] > 2.0 * HEALTHY["longest_zero_ms"]
-    near = (tolerant_equal(deg["f_depth0"], HEALTHY["f_depth0"], 0.02, HEALTHY["band_pp"] * 4)
-            and tolerant_equal(deg["f_depth_ge3"], HEALTHY["f_depth_ge3"], 0.02, HEALTHY["band_pp"] * 4))
+def occupancy_verdict(deg, local=None):
+    """Only called when the span gate licenses it.
+
+    deg   = union stats from the DEGRADED portion of the trace.
+    local = union stats from the PRE-TRIGGER portion of the SAME trace. This is the
+            PRIMARY comparator and should always be supplied once a real snapshot
+            exists. It defaults to HEALTHY_CROSSCHECK only so the fixtures can run;
+            falling back to it on real data silently downgrades a within-trace
+            comparison to a cross-session one.
+    """
+    ref = local or HEALTHY_CROSSCHECK
+    rose = deg["f_depth0"] > ref["f_depth0"] + 10 * HEALTHY_CROSSCHECK["band_pp"]
+    fell = deg["f_depth_ge3"] < ref["f_depth_ge3"] - 10 * HEALTHY_CROSSCHECK["band_pp"]
+    longer = deg["longest_zero_ms"] > 2.0 * ref["longest_zero_ms"]
+    near = (tolerant_equal(deg["f_depth0"], ref["f_depth0"], 0.02, HEALTHY_CROSSCHECK["band_pp"] * 4)
+            and tolerant_equal(deg["f_depth_ge3"], ref["f_depth_ge3"], 0.02, HEALTHY_CROSSCHECK["band_pp"] * 4))
     if rose and fell and longer:
         return "FEED_STARVATION_SUPPORTED"
     if near:

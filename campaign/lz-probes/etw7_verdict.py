@@ -92,17 +92,28 @@ def span_gate(healthy_span_ms, degraded_span_ms, expected_ms=EXPECTED_SPAN_MS):
     return True, "both stages passed", m
 
 
-def occupancy_verdict(deg, local=None):
-    """Only called when the span gate licenses it.
+REFUSED_NO_LOCAL = ("NO_LOCAL_COMPARATOR - PRIMARY EVIDENCE MISSING, VERDICT REFUSED")
+
+
+def occupancy_verdict(deg, local=None, mode="production"):
+    """Only called when the span gate licenses it. FAILS CLOSED without PRIMARY evidence.
 
     deg   = union stats from the DEGRADED portion of the trace.
     local = union stats from the PRE-TRIGGER portion of the SAME trace. This is the
-            PRIMARY comparator and should always be supplied once a real snapshot
-            exists. It defaults to HEALTHY_CROSSCHECK only so the fixtures can run;
-            falling back to it on real data silently downgrades a within-trace
-            comparison to a cross-session one.
+            PRIMARY comparator.
+    mode  = "production" (default) REFUSES a verdict when local is absent.
+            "crosscheck" is the ONLY way to reach HEALTHY_CROSSCHECK, and naming it is
+            the point: a cross-session reference must be a deliberate, visible choice.
+
+    There is deliberately no silent fallback. Substituting the ETW4 short-session floor
+    for missing within-trace evidence would downgrade PRIMARY to CROSS-CHECK without
+    anyone noticing, which is precisely how a stale observable becomes a machine constant.
     """
-    ref = local or HEALTHY_CROSSCHECK
+    if local is None:
+        if mode != "crosscheck":
+            return REFUSED_NO_LOCAL
+        local = HEALTHY_CROSSCHECK
+    ref = local
     rose = deg["f_depth0"] > ref["f_depth0"] + 10 * HEALTHY_CROSSCHECK["band_pp"]
     fell = deg["f_depth_ge3"] < ref["f_depth_ge3"] - 10 * HEALTHY_CROSSCHECK["band_pp"]
     longer = deg["longest_zero_ms"] > 2.0 * ref["longest_zero_ms"]
@@ -115,7 +126,7 @@ def occupancy_verdict(deg, local=None):
     return "MIXED_SURFACE - report the surface, do NOT force a binary classification"
 
 
-def report(healthy_span, degraded_span, deg_stats):
+def report(healthy_span, degraded_span, deg_stats, local=None, mode="production"):
     lic, reason, m = span_gate(healthy_span, degraded_span)
     print("  active_span_ms  healthy=%.3f  degraded=%.3f" % (m["healthy_span_ms"], m["degraded_span_ms"]))
     print("  span_delta_ms   %+.3f      span_delta_pct  %+.2f%%" % (m["span_delta_ms"], m["span_delta_pct"]))
@@ -127,9 +138,14 @@ def report(healthy_span, degraded_span, deg_stats):
         for k, v in sorted(deg_stats.items()):
             print("      %-18s %s" % (k, v))
         return "SPAN_NON_EQUIVALENT"
-    v = occupancy_verdict(deg_stats)
+    v = occupancy_verdict(deg_stats, local=local, mode=mode)
     print("  span gate: LICENSED (%s)" % reason)
-    print("  VERDICT: %s" % v)
+    if v == REFUSED_NO_LOCAL:
+        print("  VERDICT: %s" % v)
+        print("           supply the pre-trigger union stats from the SAME trace as local=,")
+        print("           or pass mode='crosscheck' to deliberately use the ETW4 floor.")
+    else:
+        print("  VERDICT: %s" % v)
     return v
 
 
@@ -158,16 +174,32 @@ def selftest():
     check("3.910 vs 3.905 equal", tolerant_equal(3.910, 3.905, 0.10, 0.05), True)
     check("3.9 vs 1.2 NOT equal", tolerant_equal(3.9, 1.2, 0.10, 0.05), False)
 
-    print("--- occupancy verdict ---")
+    print("--- FAIL CLOSED: production analysis without a within-trace comparator ---")
     starved = {"f_depth0": 0.55, "f_depth_ge3": 0.20, "longest_zero_ms": 9.0}
-    same = {"f_depth0": 0.1185, "f_depth_ge3": 0.7340, "longest_zero_ms": 1.31}
-    mixed = {"f_depth0": 0.30, "f_depth_ge3": 0.70, "longest_zero_ms": 1.30}
-    check("starved -> SUPPORTED", occupancy_verdict(starved), "FEED_STARVATION_SUPPORTED")
-    check("unchanged -> DISFAVOURED", occupancy_verdict(same), "FEED_STARVATION_DISFAVOURED")
-    check("mixed -> not forced binary", occupancy_verdict(mixed).startswith("MIXED_SURFACE"), True)
+    check("no local= -> verdict REFUSED", occupancy_verdict(starved), REFUSED_NO_LOCAL)
+    check("no local= -> does NOT emit feed-starvation",
+          "STARVATION" in occupancy_verdict(starved), False)
+    check("crosscheck mode must be NAMED to reach the ETW4 floor",
+          occupancy_verdict(starved, mode="crosscheck"), "FEED_STARVATION_SUPPORTED")
+    check("end-to-end report() also refuses without local=",
+          report(314.5, 316.0, starved), REFUSED_NO_LOCAL)
+
+    print("--- occupancy verdict, against a LOCAL within-trace comparator ---")
+    # A local arc that never touches 106: ~97 healthy prehistory is a valid comparator.
+    local97 = {"f_depth0": 0.150, "f_depth_ge3": 0.700, "longest_zero_ms": 1.60}
+    same = {"f_depth0": 0.1520, "f_depth_ge3": 0.6985, "longest_zero_ms": 1.63}
+    mixed = {"f_depth0": 0.30, "f_depth_ge3": 0.69, "longest_zero_ms": 1.65}
+    check("starved vs local -> SUPPORTED",
+          occupancy_verdict(starved, local=local97), "FEED_STARVATION_SUPPORTED")
+    check("unchanged vs local -> DISFAVOURED",
+          occupancy_verdict(same, local=local97), "FEED_STARVATION_DISFAVOURED")
+    check("mixed vs local -> not forced binary",
+          occupancy_verdict(mixed, local=local97).startswith("MIXED_SURFACE"), True)
+    check("a ~97 local comparator is NOT judged against the 106-era floor",
+          occupancy_verdict(same, local=local97) != occupancy_verdict(same, mode="crosscheck"), True)
 
     print("--- end-to-end: a stretched degraded span must NOT reach an occupancy verdict ---")
-    v = report(314.5, 470.0, starved)
+    v = report(314.5, 470.0, starved, local=local97)
     check("stretched span refuses even a starved-looking trace", v, "SPAN_NON_EQUIVALENT")
 
     print("\n%s" % ("ALL FIXTURES PASS" if ok else "FIXTURE FAILURES ABOVE"))

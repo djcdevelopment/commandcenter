@@ -137,3 +137,40 @@ distinction is not academic here.
   unfalsifiable by construction — the rung would be "healthy" at any rate.
 - **Chase INC-2026-08-30-A now.** Rejected: it cleared spontaneously, so an intervention would be
   scored against a moving target, and R10 says the resulting recovery would prove nothing.
+
+---
+
+## Observation log — INC-2026-08-30-A recurrences
+
+Appended as the monitor produces them. **No intervention**; this is the watch posture doing its job.
+
+| deep-probe sample | decode | prefill | note |
+|---|---|---|---|
+| 00:49:54 | 109.37 | 10.1 | healthy |
+| **00:54:56** | **69.22** | 21.6 | **DEGRADED** — a single-sample excursion |
+| 00:59:56 | 106.44 | 10.1 | recovered spontaneously, **≤5 min dwell** |
+| 01:04 → 02:15 | 101.8–110.3 | ~10.1 | healthy, 15 consecutive samples |
+| **02:20:15** | **66.56** | 13.6 | **DEGRADED** |
+| **02:25:15** | **66.64** | 13.6 | still degraded; a rate check at ~02:30 read 64.55 |
+
+**The pre-committed negative result has fired.** The keep-alive ran throughout — **477 of 482 ticks
+ok, idle enforced at ≤30 s** — so **prolonged idleness is not necessary for this signature**. That
+was stated in advance precisely so it could not be reconstructed afterwards, and it is now
+established on evidence rather than argument.
+
+What the accumulating record shows so far, stated no more strongly than it supports:
+
+- **At least three episodes**, and transitions occur in **both directions without intervention**.
+- **Dwell time is variable**: ≤5 min (00:54), ~30 min (the first), and ≥10 min ongoing (02:20).
+  The ±5 min sampling limit bounds the short ones.
+- **The degraded level clusters** — 69.22 / 66.56 / 66.64 / 64.55. ⚠ Suggestive of a preferred lower
+  regime rather than a continuum, but **four samples is not a distribution** and per ADR-0044 these
+  remain observed regimes, not established states.
+- **Prefill rises with it** (13.6–21.6 ms against ~10.1 ms healthy) — a correlated second signal, and
+  the first hint that the two costs may share a cause. ⚠ Correlation only.
+
+⚠ **Deliberately not restarted.** A restart did not clear the first episode, the 00:54 episode
+cleared itself within one sampling interval, and intervening would consume the dwell-time
+measurement that is currently the only thing accumulating. Per R10 a recovery following a restart
+would not be attributable to it anyway.
+

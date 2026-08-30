@@ -63,9 +63,13 @@ The two idle-120 runs agree to within 0.5%. Once collapsed the rung sits **stabl
 
 **The mitigation is trivial and it works.** On a fresh server, a **1-token request every 20 s**
 across a 300 s gap held the rate at **104.83 tok/s** — identical to that server's own fresh
-104.83, against 28.66 for the same gap spent idle. Confirmed again in production: a 30 s pinger
-held **105.43 tok/s (99% of baseline, 0.41% spread)** across ~6 minutes whose only traffic was the
-ping itself.
+104.83, against 28.66 for the same gap spent idle. Confirmed in production over a **~6 minute** horizon: a 30 s pinger held **105.43 tok/s (99% of
+baseline, 0.41% spread)** across a window whose only traffic was the ping itself.
+
+⚠ **That horizon is the limit of the claim.** On 2026-08-30 an epoch ran ~35 minutes with pings
+landing every 30 s and degraded to 61% anyway — a state a **restart did not clear**, so it is
+likely a different phenomenon rather than a keep-alive failure. But *"holds the rate"* is supported
+only out to the horizon actually tested. See the open incident in `docs/FACTORY-FRONTIER-CARDS.md`.
 
 ⚠ **But only from a warm start.** A pinger begun on an *already collapsed* rung keeps prefill fast
 and does **not** revive decode: with pings landing every 30 s and every receipt showing

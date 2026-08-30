@@ -19,6 +19,76 @@ work the rules and the claim register exist to make unnecessary. The next invest
 **FF1**, and it starts with [`docs/FF1-DENOMINATOR-AUDIT.md`](FF1-DENOMINATOR-AUDIT.md),
 not with an instrument.
 
+### ⚠ OPEN INCIDENT — a restart-surviving ~61% state, unattributed *(2026-08-30 00:28–01:10)*
+
+Found by the shipped monitor on its first real event. **Not** ADR-0043's idle-cold state, and **not**
+a suspect measurement — this does not reopen the campaign boundary.
+
+**Timeline**
+
+| time | observation |
+|---|---|
+| 22:26 | `-ub 1024` promoted; verified **106.31** (100%) |
+| 22:48 → 00:27 | deep probe every 5 min: **104–110**, all healthy |
+| ~00:28–00:32 | transition |
+| 00:32:52 | deep probe: **65.17 · DEGRADED** — the monitor fires |
+| 00:35 | `ff_ratecheck` **65.29** (62%) |
+| 00:38 | **restart → 64.14 (61%). The restart did NOT clear it.** |
+| 00:40–00:50 | stable: 65.06 / 64.53 / 65.14 across spaced checks |
+| ~01:05 | state cleared on its own; now **97–99 (92–94%)** |
+
+**Excluded by direct measurement while degraded:** placement (dual-split, 14.864 / 15.786),
+thermal (56 / 56 °C, 0 spread), VRAM spill (`non_local` 0.002 / 0.704 GB), co-tenancy (only
+production listening, one `llama-server`), and generation length — decode was flat at **62–66
+tok/s across `n_predict` 8, 16, 32, 64, 100, 200, 400**.
+
+⚠ **A restart did not clear it**, which is the defining difference from ADR-0043: that record's
+whole mechanism is that a freshly loaded server serves at full rate. **This is a different state and
+it is not attributed.** Per R1, the candidates — something host- or driver-level that survives a
+process restart, or a delayed consequence of the B4/B5 model churn — are named only as candidates.
+
+#### The monitor earned its place
+
+`arc-keepalive-deep.timer` caught this within one 5-minute interval and flagged `DEGRADED`. The
+design decision it vindicates is specific: **a 1-token keep-alive ping cannot see the decode
+collapse it exists to prevent**, so a 32-token probe was added purely so the monitor could be
+falsified. Without it the 30-second pings would have reported `ok, prefill 11 ms` throughout — which
+they did, correctly, the whole time.
+
+#### ⚠ I violated R3 diagnosing this, and R3 caught it
+
+The most recent production change was mine, so I reverted `-ub 1024` and measured: **65 → 97**. I
+was one step from reporting that my own promotion had caused a 33% regression.
+
+The interleaved re-test refutes it. In the **current** state:
+
+| | ub 512 | ub 1024 | delta |
+|---|---|---|---|
+| decode | 97.55 | 97.79 | **+0.2%** |
+| prefill @2048 | 2389.45 | 2524.29 | +5.6% |
+
+Both configs read ~97–98. **My single-arm comparison read a state change as a config effect** — two
+arms, different times, no interleaving. That is *precisely* the error the original B1 claim made, on
+*the same flag*, and it is what R3 exists to prevent. The promotion stands on two independent
+interleaved A/Bs (+0.4% / +0.2% decode, +5.8–12.3% / +5.6% prefill).
+
+⚠ **This is the campaign's rules catching their own author, one day after they were written.** It is
+the strongest evidence available that they are load-bearing rather than decorative — and a reminder
+that "the most recent change was mine" is a hypothesis, not a diagnosis.
+
+#### What it puts in doubt
+
+- **The keep-alive's validation horizon was too short.** ADR-0043's mitigation was validated over
+  **~6 minutes**; this epoch ran ~35 minutes with pings landing every 30 s and degraded anyway. That
+  does not show the keep-alive failed — this looks like a different state — but *"holds the rate"*
+  is not supported beyond the horizon actually tested, and the claim is narrowed accordingly.
+- **The 106.00 baseline may not be a stable reference.** The box has now shown at least three stable
+  levels in one night: ~106, ~97–99, ~65. Per R1 this is an observation, not a claim that the
+  baseline is wrong.
+
+**Left**: production at `-ub 1024`, **99.17 tok/s (94%), PASS**, monitor running.
+
+
 ## ⚠ 0.0 · THE RUNG GOES COLD WHEN IDLE — read before citing any throughput number here
 
 > **Before citing ANY throughput, ratio, crossover or tax figure from this campaign, check

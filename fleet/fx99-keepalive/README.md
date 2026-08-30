@@ -21,6 +21,11 @@ A **1-token request every 20 s held the rate at 104.83 tok/s**, indistinguishabl
 freshly loaded server. Confirmed live at this timer's 30 s interval: **105.43 tok/s (99% of
 baseline, 0.41% spread)** across ~6 minutes whose only traffic was the ping itself.
 
+⚠ **Six minutes is the tested horizon, not a guarantee.** On 2026-08-30 an epoch ran ~35 minutes
+with this timer running and degraded to 61% — a state a restart did **not** clear, so probably a
+different phenomenon, but the keep-alive is not evidence against it. The **deep probe caught it**,
+which is what it is for.
+
 ## ⚠ It must start from a WARM rung
 
 Warming prevents the transition; it does **not** reverse it. Started against an already

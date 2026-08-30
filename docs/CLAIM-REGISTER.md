@@ -45,6 +45,21 @@ Rules: `docs/FACTORY-FRONTIER-CARDS.md` § *Campaign rules earned the hard way*.
 
 ---
 
+## Open — recorded, not resolved
+
+| # | Observation | Bound | Receipt |
+|---|---|---|---|
+| 20 | A **restart-surviving ~61% state** | Appeared ~00:28 on 2026-08-30, stable across `n_predict` 8→400 and spaced checks, **survived a restart** (unlike ADR-0043's idle-cold state), cleared on its own by ~01:05. Placement, thermal, spill, co-tenancy and generation length all excluded by direct measurement. **Unattributed.** | `ARC-KEEPALIVE` deep probe, `FF-RATECHECK` |
+| 21 | The keep-alive's *"holds the rate"* claim | Validated over **~6 minutes**. An epoch ran ~35 min with pings and degraded anyway. Narrowed to the tested horizon; not evidence the keep-alive failed. | ADR-0043 |
+| 22 | The **106.00 baseline** may not be a stable reference | At least three stable levels observed in one night: ~106, ~97–99, ~65. Observation only — **not** a claim the baseline is wrong. | `FF-RATECHECK` |
+
+⚠ **R3 caught its own author on #20.** Diagnosing it, a single-arm revert of `-ub 1024` read
+65 → 97 and nearly became "my promotion caused a 33% regression". The interleaved re-test found both
+configs at ~97–98: a **state change read as a config effect** — the identical error the original B1
+claim made, on the same flag, one day after the rule against it was written.
+
+---
+
 ## There is no machine-level topology law
 
 ⚠ **Do not describe this box as having "a dual-split decode tax" or "the prefill crossover".**

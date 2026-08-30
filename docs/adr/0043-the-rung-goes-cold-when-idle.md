@@ -1,6 +1,6 @@
 # 0043 — The rung goes cold when idle: keep it warm, don't restart it
 
-**Status:** Accepted (2026-08-29) — measured on three independent runs, mitigation proven
+**Status:** Accepted (2026-08-29) — measured on three independent runs; mitigation proven and **shipped** (`fleet/fx99-keepalive/`, scheduled from fx99)
 
 **Supersedes the trigger in:** `docs/adr#0041` (co-residency poisons the incumbent). That record's
 *rule* — restart before you trust a measurement — remains sound and is what kept the campaign
@@ -63,7 +63,31 @@ The two idle-120 runs agree to within 0.5%. Once collapsed the rung sits **stabl
 
 **The mitigation is trivial and it works.** On a fresh server, a **1-token request every 20 s**
 across a 300 s gap held the rate at **104.83 tok/s** — identical to that server's own fresh
-104.83, against 28.66 for the same gap spent idle.
+104.83, against 28.66 for the same gap spent idle. Confirmed again in production: a 30 s pinger
+held **105.43 tok/s (99% of baseline, 0.41% spread)** across ~6 minutes whose only traffic was the
+ping itself.
+
+⚠ **But only from a warm start.** A pinger begun on an *already collapsed* rung keeps prefill fast
+and does **not** revive decode: with pings landing every 30 s and every receipt showing
+`prefill 44 ms, stall false`, a rate check still read **42.54 tok/s (40%)** with the familiar
+68.82 → 26.40 within-burst decay. Warming prevents the transition; it does not reverse it. **The
+only known cure remains a restart**, which is why the pinger deliberately does not actuate — see
+Consequences.
+
+### Two distinct post-idle costs, and only one of them is visible
+
+They have different signatures and want different treatment:
+
+| | cost | shape | visible in `print_timing`? |
+|---|---|---|---|
+| **First-request stall** | **~11.5 s** | one-shot; the next request is normal | **often NOT** |
+| **Decode collapse** | 106 → ~27.5 tok/s | persists until restart | yes |
+
+The stall is size-independent — 10 735 ms to prefill **11 tokens**, and 11 540 ms for a **1-token**
+ping. ⚠ And it hides: on that 1-token ping the server reported `prompt_ms = 47.1` and
+`eval_ms = 0.0` while its own `launch_slot_` → `release` pair spanned **11.54 s**. On the 11-token
+call the same cost landed *inside* `prompt_ms` instead. **Any monitor that trusts llama.cpp's
+timing counters will miss this**, which is why `warm-arc.ps1` records wall time as well.
 
 **Spill and thermal are excluded by direct measurement in the degraded state**: an `ff_census`
 taken immediately after a collapsed burst read `local` 14.516 / 15.485 GB with `non_local`
@@ -92,19 +116,31 @@ restarting them.**
 
 ## Consequences
 
-- **The real-world rate of the door may be far below its benchmark rate — but the ledger cannot
-  prove it, and the reason matters.** Reconstructed `tokens_out / duration_ms` for `omen-arc`
-  `local_generate` calls gives **4.0 – 44.1 tok/s, median ~15**, never near 106. That confounds this
-  ADR's cold state with **door overhead** (finding C2). One live call separated them: after ~4 min
-  idle, 100 tokens took **11 781 ms** end-to-end while the server logged that task at **91.75
-  tok/s** — ~1.09 s of decode inside an 11.78 s call, so the door was ~91% of the cost. Overhead is
-  not constant (a 10-token proof completed in 281 ms the same evening). **On present evidence the
-  door is at least as large a throughput problem as the cold rung**, and the two must be measured
-  separately.
-- **A keep-alive pinger is the obvious production change** — ~4× throughput for one small request
-  every 20 s. It is **not** implemented here: where it lives (a scheduled task, the gateway's own
-  timer, or llama-swap) is a design decision with an owner, and it is registered in
-  `DECISIONS-PENDING.md` rather than shipped unilaterally.
+- **The door is exonerated; the cold rung was the whole story.** Finding C2 suspected the gateway
+  after a call showed ~91% of its wall time outside the server's decode. A bracketed size ladder
+  (`campaign/ff-probes/c2_door_attribution.py`, join verified by ordinal assignment plus
+  `tokens_out == predicted_n` on every row) puts door overhead at a **flat 175–264 ms independent
+  of size** — 35.6% of a 32-token call and 11.8% of a 512-token one, so its *share* falls as calls
+  grow. The apparent 91% was this ADR's own first-request stall, invisible because there was no
+  server-side join. **C2 is resolved as a non-issue.** ⚠ The earlier ledger reconstruction
+  (`tokens_out / duration_ms` = 4.0–44.1 tok/s, median ~15) therefore measures the cold regime, not
+  door cost — which is evidence, though not proof, that real traffic has been running cold.
+- **The keep-alive is SHIPPED, and it runs from fx99** (Derek's call, 2026-08-29).
+  `fleet/fx99-keepalive/` holds the systemd units; `fleet/arcserve/warm-arc.ps1` is the OMEN-side
+  action. A keep-alive that runs on the box it keeps alive dies with that box, so fx99 owns the
+  schedule while OMEN owns the action **and the secret** — fx99 never holds the bearer token, and
+  `:8082` stays loopback-bound because SSH is the transport. ⚠ It runs over the **tailnet**, which
+  crosses ADR-0014/0015 (LAN is the machine lane); the LAN path is firewalled to the `Private`
+  profile while `Ethernet 3` is `Public`. The script tries LAN first and will switch itself when a
+  scoped rule is added.
+- **The pinger observes; it never actuates.** It cannot revive a collapsed rung anyway, and a
+  keep-alive that reached for a restart would be an outage generator on a flaky link. It therefore
+  needs a companion decision — who restarts, on what evidence — which is registered rather than
+  invented here.
+- **A 1-token ping cannot see the collapse it prevents**, because it generates no measurable
+  decode. `arc-keepalive-deep.timer` runs the same script with 32 tokens every 5 minutes purely to
+  produce a decode rate and flag it below 80% of baseline. Roughly 0.3 s per 5 minutes buys the
+  monitor its own falsifiability.
 - **Three retracted or narrowed findings are explained by one mechanism.** The "sustained-rate
   decay" was real but only post-idle, which is why 40 back-to-back requests on a *fresh* server
   held flat and appeared to refute it. The "co-residency poisoning" was real but the co-tenant was

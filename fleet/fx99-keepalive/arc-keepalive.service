@@ -1,0 +1,23 @@
+[Unit]
+# Keeps the omen-arc rung out of its cold state (ADR-0043). Paired with
+# arc-keepalive.timer; this unit is fired by the timer, never enabled directly.
+Description=Warm the omen-arc rung on OMEN (ADR-0043 keep-alive)
+Documentation=file:///home/derek/commandcenter-src/docs/adr/0043-the-rung-goes-cold-when-idle.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=derek
+ExecStart=/opt/arc-keepalive/warm-omen-arc.sh
+# The first request after an idle gap costs ~11.5 s, so a short start timeout would kill
+# precisely the call that matters. 100 s leaves room for that plus SSH setup.
+TimeoutStartSec=100
+# A failed ping must not escalate: OMEN being down is a normal, recoverable state and the
+# next tick will retry. Nothing here restarts the rung.
+SuccessExitStatus=0 1
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,14 @@
+[Unit]
+Description=Measure omen-arc decode health every 5 min (ADR-0043)
+Documentation=file:///home/derek/commandcenter-src/fleet/fx99-keepalive/README.md
+
+[Timer]
+# 5 minutes. Frequent enough to catch a collapse within one reporting interval, rare
+# enough that the probe itself is not the thing keeping the rung warm -- that job belongs
+# to arc-keepalive.timer, and conflating them would make the monitor unfalsifiable.
+OnBootSec=3min
+OnUnitActiveSec=5min
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

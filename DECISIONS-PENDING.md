@@ -533,7 +533,13 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       model+KV+compute is ~30.1 GB of a 32.5 GB card, which is precisely the ADR-0042 defect
       footprint. Dual-split is required for headroom regardless of the decode delta.
       (source: [docs/FACTORY-FRONTIER-CARDS.md](docs/FACTORY-FRONTIER-CARDS.md) W-A §2)
-- [ ] 2026-08-29 — **Decide where the `omen-arc` keep-alive pinger lives, and ship it.** Measured:
+- [x] 2026-08-29 — **RESOLVED (Derek): the keep-alive runs from fx99.** Shipped as
+      `fleet/fx99-keepalive/` (30 s warm ping + a 5 min deep probe) driving
+      `fleet/arcserve/warm-arc.ps1` over SSH, so fx99 holds the schedule and OMEN keeps the
+      token and the loopback binding. Verified holding 105.43 tok/s across 6 minutes.
+      ⚠ Running on the **tailnet** fallback; the LAN path needs one scoped firewall rule
+      (see the README). ⚠ It cannot revive an already-collapsed rung — restart first.
+      ~~Decide where the `omen-arc` keep-alive pinger lives, and ship it.~~ Measured:
       more than ~60 s idle costs the rung **~4×** (106.5 → 39.7 at 120 s idle, 28.7 at 300 s), and a
       **1-token request every 20 s holds it at 104.83** — indistinguishable from a freshly loaded
       server. This is roughly a 4× throughput recovery for one trivial request every 20 seconds, and
@@ -545,7 +551,9 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       be hot**, not just `omen-arc`, and it must not count as traffic in the offload ledger.
       (source: [ADR-0043](docs/adr/0043-the-rung-goes-cold-when-idle.md))
 - [ ] 2026-08-29 — **Check whether real door traffic has been running in the cold regime all
-      along.** If an agent asks the door a question every few minutes, every call is past the idle
+      along.** *(Partly answered: door overhead is now measured at a flat 175–264 ms
+      independent of size, so the 4.0–44.1 tok/s reconstructed from the ledger reflects the
+      RUNG, not the gateway. The keep-alive's own receipts will now settle it directly.)* If an agent asks the door a question every few minutes, every call is past the idle
       threshold and `omen-arc` has been serving at ~a quarter of its measured capability in normal
       use. The kernel ledger (`hearth/var/ledger/index.sqlite`) carries `duration_ms` per call; with
       `tokens_out` from the result envelopes it would settle this from history rather than from

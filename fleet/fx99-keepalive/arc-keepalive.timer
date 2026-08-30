@@ -1,0 +1,21 @@
+[Unit]
+Description=Warm the omen-arc rung every 30s (ADR-0043)
+Documentation=file:///home/derek/commandcenter-src/docs/adr/0043-the-rung-goes-cold-when-idle.md
+
+[Timer]
+# THE INTERVAL IS THE MEASUREMENT, not a guess. Measured on the rung:
+#   idle 30 s -> 106.54 tok/s   (no loss)
+#   idle 60 s -> 106.45 tok/s   (no loss)
+#   idle 120 s ->  39.54 tok/s  (collapsed; replicated at 39.71)
+# and a 1-token ping every 20 s held 104.83, indistinguishable from a fresh server.
+# 30 s sits inside the proven-safe band with 2x margin to the first failing point, and
+# still costs one ~50 ms request per tick.
+OnBootSec=1min
+OnUnitActiveSec=30s
+AccuracySec=1s
+# Do NOT set Persistent=true: a missed tick is worthless after the fact. Catching up on
+# a backlog of warm-ups after a reboot would just fire a burst at a rung that a single
+# ping already warmed.
+
+[Install]
+WantedBy=timers.target

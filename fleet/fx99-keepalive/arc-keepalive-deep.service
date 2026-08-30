@@ -1,0 +1,22 @@
+[Unit]
+# The OBSERVABILITY half of the keep-alive (ADR-0043). arc-keepalive.service keeps the
+# rung warm with a 1-token ping, but a 1-token request generates no measurable decode --
+# so it cannot see the very collapse it is preventing. This unit runs the same script with
+# a 32-token generation, which does yield a decode rate, and flags it when it falls under
+# 80% of baseline. ~0.3 s every 5 minutes.
+Description=Deep probe of the omen-arc rung: measure decode health (ADR-0043)
+Documentation=file:///home/derek/commandcenter-src/fleet/fx99-keepalive/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=derek
+ExecStart=/opt/arc-keepalive/warm-omen-arc.sh 32
+TimeoutStartSec=100
+SuccessExitStatus=0 1
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=multi-user.target

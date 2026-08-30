@@ -7,8 +7,10 @@ state rather than the explanation for all of them), `docs/adr#0041` (restart bef
 
 ## Context
 
-In a single night this rung served at **four distinct, stable levels**: ~106, ~97–99, ~65, and the
-~27.5 plateau. Each was flat under repeated measurement — 0.5–1.5% spread — so none was noise. And
+In a single night this rung served at **four stable levels**: ~106, ~97–99, ~65, and the ~27.5
+plateau. Each was flat under repeated measurement — 0.5–1.5% spread — so none was noise. (⚠ "Stable"
+is an observation about flatness under measurement; it does **not** assert they are *distinct
+states* — see the caution under Decision 2.) And
 transitions between them happened **without intervention** in both directions: 106 → 65
 spontaneously, 65 → 97 spontaneously, and 99.17 → 106.54 spontaneously twenty minutes later, with
 nothing changed in between.
@@ -47,6 +49,12 @@ is a different state, whatever its mechanism.
 
 > **baseline epoch + observed rate + acceptance envelope**
 
+⚠ **Epoch-scoped does not mean epoch-homogeneous.** The epoch identifies **the reference
+contract** — which measurement the envelope is drawn against — and asserts *nothing* about the
+machine remaining stationary within it. Tonight is the proof: multiple stable regimes occurred
+**inside a single operational epoch**. `baseline_epoch` is a provenance label, **never a guarantee
+of equivalent state**, and two readings sharing an epoch are not thereby comparable.
+
 `ff_ratecheck` prints the epoch the baseline came from and states the envelope as a fraction *of
 that baseline, not of capacity*. `rate-baselines.json` records `baseline_epoch`,
 `acceptance_envelope`, and the `observed_stable_levels` seen so far. **The baseline is preserved,
@@ -62,6 +70,13 @@ restart, because it is cheap and it separates the two known classes:
 
 An observation that fits neither gets its own incident identity rather than being filed under the
 nearest existing story.
+
+⚠ **These are OBSERVED REGIMES, not established mechanisms.** ~106, ~97–99, ~65 and ~27.5 are levels
+the machine has been seen to hold; nothing yet shows they are discrete states rather than samples
+from a continuous process, and the restart discriminator separates them **behaviourally**, not
+causally. **No thresholds or state names beyond that are warranted**, and none are defined here.
+Naming a regime is not discovering one — the classification stays behavioural until recurrence
+supplies the evidence to decide.
 
 **3. R10 — recovery after intervention is not evidence the intervention caused recovery.** Record
 temporal association only, unless a control or a repeated intervention→response distinguishes it
@@ -83,10 +98,26 @@ distinction is not academic here.
   interleaving is exactly the control that makes spontaneous transitions show up as within-config
   drift instead of a fake effect. That is now a much stronger argument for the protocol than it was
   when it was written.
-- **The incident is deliberately not being poked.** The monitor detects it, it has a distinct
-  signature, and spontaneous recurrence will be more informative than intervening until something
-  happens. **Waiting is now an experiment** — which is the first time in this campaign that has been
-  true, and it is what the monitoring was for.
+- **The incident is deliberately not being poked, and "waiting is the experiment" is concrete.**
+  Bidirectional spontaneous transitions mean the monitor can accumulate exactly what an intervention
+  would destroy:
+
+  | observable | why an intervention would spoil it |
+  |---|---|
+  | transition **frequency** | each intervention adds an event of unknown class |
+  | **dwell-time** distribution per regime | truncated the moment anything is changed |
+  | **directionality** (up vs down) | tonight already shows both; a forced recovery hides the up-transitions |
+  | correlation with **idle duration** | ⚠ largely *controlled out* already — the keep-alive pins idle at ≤30 s, so whatever remains is not the ADR-0043 mechanism |
+  | correlation with **workload** | the door ledger carries this independently |
+  | whether **intermediate regimes recur** | the single strongest evidence for discrete states vs a continuum |
+  | whether a restart changes **transition probability** | ⚠ observationally only — R10 forbids reading a post-restart recovery as caused by it |
+
+  ⚠ **Resolution limit:** the deep probe samples every 5 minutes, so dwell times are bounded to
+  ±5 min and a transition faster than that is invisible. Adequate for frequency and directionality;
+  **not** adequate for onset dynamics. That is a known limit, not a defect to fix pre-emptively.
+
+  This is the first point in the campaign where waiting is genuinely the informative move, and it is
+  what the monitoring was for.
 
 ## Alternatives considered
 

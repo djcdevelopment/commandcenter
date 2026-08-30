@@ -10,7 +10,7 @@
       "baseline_decode_tok_s": 106.0,
       "baseline_set": "2026-08-29T18:22:39-07:00",
       "baseline_note": "P-B canonical. Verified clean: restarted, placement asserted DUAL-SPLIT by b70tools BDF (14.52/15.44 GB, temps 52/50) inside the ratecheck activity window. Corroborates Derek's chosen 104.86 within ~1%.",
-      "baseline_epoch": "2026-08-29T18:22 incumbent epoch, dual-split asserted by b70tools BDF",
+      "baseline_epoch": "2026-08-29T18:22 incumbent epoch, dual-split asserted by b70tools BDF. EPOCH-SCOPED IS NOT EPOCH-HOMOGENEOUS: this labels the reference CONTRACT, not a guarantee that the machine was stationary within it -- multiple stable regimes have occurred inside a single epoch. Two readings sharing an epoch are NOT thereby comparable.",
       "acceptance_envelope": {
         "fail_below_frac": 0.8,
         "warn_below_frac": 0.9,
@@ -33,7 +33,8 @@
           "tok_s": 27.5,
           "note": "ADR-0043 idle-collapse plateau; cleared by restart"
         }
-      ]
+      ],
+      "observed_stable_levels_note": "OBSERVED REGIMES, not established mechanisms. Nothing yet shows these are discrete states rather than samples from a continuous process. Do not add thresholds or state names beyond the behavioural restart discriminator (docs/adr#0044)."
     }
   }
 }

@@ -52,6 +52,7 @@ record with its status changed and a pointer to the ADR that replaced it.
 | [0040](0040-serving-lifecycle-is-adopted-not-built.md) | Serving lifecycle is adopted, not built: llama-swap owns process lifecycle | Accepted (2026-08-28); probe-gated, ~60-70% of the proposed controller deleted |
 | [0041](0041-co-residency-poisons-the-incumbent.md) | Co-residency poisons the incumbent: restart before you measure | Accepted (2026-08-29); 105 → 28.39 tok/s with the co-tenant already stopped, restart restored 104.86 |
 | [0042](0042-devices-are-selected-by-type-never-by-index.md) | Devices are selected by type, never by index | Accepted (2026-08-29); the visibility filter had been costing a whole card — removed, not corrected |
+| [0043](0043-the-rung-goes-cold-when-idle.md) | The rung goes cold when idle: keep it warm, don't restart it | Accepted (2026-08-29); >60 s idle costs ~4×, a 1-token ping every 20 s prevents it entirely — supersedes 0041's trigger |
 
 ## Historical note
 The "ADR-0001" referenced in `SESSION-RETRO-2026-06-29.md` (which orchestrator is

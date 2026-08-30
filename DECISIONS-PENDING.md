@@ -533,3 +533,31 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       model+KV+compute is ~30.1 GB of a 32.5 GB card, which is precisely the ADR-0042 defect
       footprint. Dual-split is required for headroom regardless of the decode delta.
       (source: [docs/FACTORY-FRONTIER-CARDS.md](docs/FACTORY-FRONTIER-CARDS.md) W-A §2)
+- [ ] 2026-08-29 — **Decide where the `omen-arc` keep-alive pinger lives, and ship it.** Measured:
+      more than ~60 s idle costs the rung **~4×** (106.5 → 39.7 at 120 s idle, 28.7 at 300 s), and a
+      **1-token request every 20 s holds it at 104.83** — indistinguishable from a freshly loaded
+      server. This is roughly a 4× throughput recovery for one trivial request every 20 seconds, and
+      it is almost certainly the single highest-value change available to the lab right now. It was
+      deliberately **not** shipped from a measurement window: where the timer lives is a design
+      choice with an owner. Options: a scheduled task beside `ArcServeBoot`; a timer inside the
+      HEARTH gateway (which already knows every rung and its auth); or llama-swap, which owns
+      serving lifecycle per ADR-0040. ⚠ Whichever it is, it must ping **every rung that is meant to
+      be hot**, not just `omen-arc`, and it must not count as traffic in the offload ledger.
+      (source: [ADR-0043](docs/adr/0043-the-rung-goes-cold-when-idle.md))
+- [ ] 2026-08-29 — **Check whether real door traffic has been running in the cold regime all
+      along.** If an agent asks the door a question every few minutes, every call is past the idle
+      threshold and `omen-arc` has been serving at ~a quarter of its measured capability in normal
+      use. The kernel ledger (`hearth/var/ledger/index.sqlite`) carries `duration_ms` per call; with
+      `tokens_out` from the result envelopes it would settle this from history rather than from
+      argument. Consequential either way: it decides whether the keep-alive is a *fix* or merely a
+      benchmarking hygiene item.
+      (source: [ADR-0043](docs/adr/0043-the-rung-goes-cold-when-idle.md) consequences)
+- [ ] 2026-08-29 — **Get HWiNFO's VSB export enabled.** Spill, eviction and thermal are now
+      excluded *in the degraded state* by direct measurement (`non_local` 0.002/0.446 GB, 0 °C
+      spread at 50 °C), leaving **GPU clock/power state** as the surviving candidate for the idle
+      mechanism. IGCL cannot measure it on this box — b70tools lists voltage/frequency as unusable
+      on the top slot. This was already registered under ADR-0041 with a vaguer question; the
+      question is now sharp: *what do the clocks do across a 120 s idle gap and the four requests
+      that follow it?*
+      (source: [ADR-0043](docs/adr/0043-the-rung-goes-cold-when-idle.md))
+

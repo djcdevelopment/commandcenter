@@ -9,7 +9,7 @@ rotation program (R-series) and the Level-Zero campaign (LZ1–LZ8b).
 
 ---
 
-## ⚠ 0.0 · CO-RESIDENCY POISONING — read before citing any throughput number here
+## ⚠ 0.0 · THE RUNG GOES COLD WHEN IDLE — read before citing any throughput number here
 
 **CORRECTED 2026-08-29 (late).** An earlier version of this section claimed a *"sustained-rate
 decay that recovers after idle."* **Both halves were wrong.** The real mechanism:
@@ -38,7 +38,19 @@ was almost certainly poisoning, since ub512 was measured fresh (104) and ub1024 
 Flash work (22–27). **NEW RULE: restart the incumbent after any co-resident experiment, before
 measuring it.** FF-CENSUS checks placement and residency; it must also check *rate*.
 
-### ✅ RESOLVED — production is healthy again *(2026-08-29 ~19:40)*
+### ✅ MECHANISM FOUND — it was never co-residency *(2026-08-29 evening, `docs/adr#0043`)*
+
+**>60 s idle costs ~4×. A 1-token ping every 20 s prevents it entirely.** A server that never
+shared the cards with anything reads 100% of baseline at t+0 and 45% / 46% / 31% at t+5 / +10 /
++15 min. The idle threshold is bracketed between **60 s** (holds at 106.45) and **120 s** (falls to
+39.71). See the **W-B → W-B3** section below for the full trail, and `docs/adr#0043` for the
+decision. ADR-0041's *rule* kept the campaign honest; its *trigger* is superseded.
+
+⚠ **So "co-resident" was never the disclosure that mattered.** The field that matters is **how long
+the incumbent sat idle before it was measured** — and running any experiment leaves it idle for
+minutes, which is why co-residency looked causal.
+
+### ✅ RESOLVED — production was restored healthy *(2026-08-29 ~19:40)*
 
 After the W-A solo window, production was restarted and measured at **106.02 tok/s = 100% of
 the 106.00 baseline** (reps `[105.88, 105.52, 106.25, 106.43]`, repeat spread 0.87%), with the
@@ -305,6 +317,181 @@ plausible ones. Only defect 2 announced itself.
 
 **Window closed clean.** Production restored, `ff_ratecheck` **106.02 tok/s = 100% of baseline**
 (spread 0.87%), HEARTH door proof `ok:true` / `routed_by: pinned:omen-arc`.
+
+### W-B → W-B3 — the mechanism found: **the rung goes cold when idle** *(2026-08-29 evening)*
+
+> **The result: >60 s idle costs ~4×, and a 1-token ping every 20 s prevents it entirely.**
+> Co-residency was a bystander. Full decision record: `docs/adr#0043`, which supersedes ADR-0041's
+> trigger.
+
+This started as a five-class sweep to discriminate *how* a co-tenant poisons the incumbent. It
+ended somewhere else, via a wrong answer that was worth having.
+
+#### Step 1 — W-B: five co-tenant classes, and an `after` column that proved nothing
+
+Per class: restart → **before**-rate → placement by PCI BDF *inside the window the before-rate just
+opened* → start co-tenant → **during**-rate (co-tenant resident, and for class 3 still inferring) →
+stop co-tenant → **after**-rate. Rig: `campaign/ff-probes/wb_poison_classes.py`.
+
+Every class ran the **same model with the same tensor override** (`Qwen3-30B-A3B`,
+`-ot .ffn_.*_exps.=CPU`), so the only variable is *which device the co-tenant touches*. That also
+keeps the GPU buffer at **784 MiB** — production is dual-split at ~15 GB of a 32.5 GB card, so a
+full-weight co-tenant would have needed 17.5 GB on card 1 and the cell would have measured an
+allocation failure instead of co-residency. It is also the right analogue: the co-tenant in the
+original ADR-0041 event was Flash holding ~1 GB of Vulkan compute buffer, not a full card.
+
+| # | class | before | during | after (**+6 s**) | during/before |
+|---|---|---|---|---|---|
+| 1 | control — nothing runs | 106.70 | 105.87 | 105.68 | 0.99× |
+| 2 | Vulkan server, loads, **never infers** | 106.48 | 105.64 | 105.98 | 0.99× |
+| 3 | Vulkan server, loads **and infers** | 105.50 | **96.73** | 105.64 | **0.92×** |
+| 4 | CPU-only (`--device none -ngl 0`) | 106.00 | 106.20 | 106.24 | 1.00× |
+| 5 | iGPU-only | 106.49 | 105.68 | 106.01 | 0.99× |
+
+Incumbent placement asserted dual-split on every class (`0000:04:00.0` 14.516 GB /
+`0000:09:00.0` 15.437 GB, `idle_read=False`). Co-tenant placement read back from its own load
+report: class 2/3 `Vulkan1=784.4MiB`, class 4 `gpu_buffers=0`, class 5 `Vulkan0=784.4MiB`.
+
+**The `during` column is sound and is the part worth keeping.** It needs no waiting period:
+
+- **A resident-but-idle neighbour is free.** Class 2 loaded a model onto a B70 and never received a
+  request; the incumbent did not move.
+- **An actively inferring neighbour on the same B70 costs 8%, and only while it infers.** Class 3
+  is the identical config differing in one bit. 8% is cheap for a second model on the card.
+- **A co-tenant that never touches a GPU costs nothing** (class 4), and neither does one on the
+  iGPU (class 5). Contention is local to the shared card.
+
+**The `after` column is worthless** — sampled 6 seconds after co-tenant exit, before the effect
+arrives.
+
+#### Step 2 — the loss showed up minutes later, with nothing on the cards
+
+Class 3's epoch was left running. At roughly +5 min — **no co-tenant**, correct dual-split
+placement, a **4-minute-old** epoch:
+
+| burst | epoch age | reps (tok/s) | mean | of baseline |
+|---|---|---|---|---|
+| 1 | 3:58 → 4:07 | 62.95 · 47.46 · 30.29 · **29.31** | 42.50 | **40%** |
+| 2 | ~1 min later | 69.67 · 48.32 · 29.50 · **27.59** | 43.77 | **41%** |
+
+All eight requests sequential on slot 1; one `llama-server` process; nothing else listening; and
+the census taken immediately afterwards read the two cards at **exactly production's own
+footprint** (`local` 14.516 / 15.485, `non_local` 0.002 / 0.446) — so nothing else held memory on
+them. Not contention, and not another session.
+
+#### Step 3 — remove co-residency entirely; it still degrades
+
+`campaign/ff-probes/wb2_delayed_onset.py` restarts the incumbent and samples on a schedule with
+**no co-tenant at any point**:
+
+| epoch age | reps (tok/s) | mean | of baseline | within-burst slope |
+|---|---|---|---|---|
+| t+0 | 105.97 · 106.36 · 105.90 · 105.89 | 106.03 | **100%** | 0.999 |
+| t+5 min | 74.37 · 57.89 · 31.17 · 26.60 | 47.51 | 45% | 0.358 |
+| t+10 min | 74.09 · 59.17 · 32.12 · 27.96 | 48.34 | 46% | 0.377 |
+| t+15 min | 47.71 · 27.30 · 28.74 · 27.67 | 32.85 | 31% | 0.580 |
+
+**Co-residency is not necessary.** And it does not accumulate cleanly with epoch age — t+5 and
+t+10 are the same curve.
+
+#### Step 4 — the threshold, and a mitigation that works
+
+`campaign/ff-probes/wb3_idle_ladder.py`, one server, arms in order:
+
+| idle before the burst | reps (tok/s) | mean | of fresh |
+|---|---|---|---|
+| 0 s | 106.43 · 107.03 · 106.70 · 106.64 · 106.20 | **106.60** | 100% |
+| **30 s** | 106.65 · 106.44 · 106.32 · 106.61 · 106.69 | **106.54** | **100%** |
+| **60 s** | 106.13 · 106.37 · 106.43 · 106.73 · 106.60 | **106.45** | **100%** |
+| **120 s** | 68.92 · 46.19 · 29.09 · 28.53 · 25.80 | **39.71** | **37%** |
+| 300 s | 35.55 · 28.29 · 27.01 · 25.92 · 26.54 | 28.66 | 27% |
+
+⚠ The arms share one server, so the ladder is independent only **up to and including the first arm
+that falls**. The 300 s row started already degraded. The 0/30/60/120 rows are the result.
+
+**Replicated on a second fresh server**, and it is not a decay — it is a transition between two
+stable states:
+
+| arm | reps (tok/s) | mean |
+|---|---|---|
+| idle 0 s | 106.61 · 106.99 · 106.45 · 106.24 · 106.72 | **106.60** |
+| idle 120 s | 68.19 · 42.67 · 29.55 · 29.03 · 28.28 | **39.54** *(run 1: 39.71)* |
+| immediately after, **0 s gap** | 27.42 · 27.48 · 27.41 · 27.49 · 27.84 | **27.53** |
+
+The two idle-120 runs agree to within 0.5%. The third arm is the informative one: once collapsed,
+the rung is **stable at ~27.5 tok/s** — dead flat, not noisy, and continued load does not recover
+it. So the picture is **two states ~3.9× apart** with a ~4-request transition between them, not a
+gradual decline.
+
+⚠ **The first post-idle request is variable and is not a reliable detector.** Observed rep-1 values
+after a gap: 68.19, 68.92, 74.37, and — on a real door call after ~4 minutes idle — **91.75**. Any
+health check that samples once after an idle period can easily read near-healthy. It takes a
+sustained burst to see the state.
+
+**Keep-alive, run on its own fresh server** (the first attempt ran after the 300 s arm and so
+tested *"does pinging revive a collapsed server"* — no — instead of *"does pinging prevent
+collapse"*):
+
+| arm | reps (tok/s) | mean |
+|---|---|---|
+| fresh, idle 0 | 104.43 · 105.04 · 105.17 · 104.58 · 104.94 | **104.83** |
+| **300 s gap, 1-token ping every 20 s** | 104.48 · 104.77 · 105.02 · 104.76 · 105.10 | **104.83** |
+
+**Identical.** One trivial request every 20 seconds buys back ~4×.
+
+#### What this explains, and what it costs
+
+Three separate published-then-retracted findings collapse into this one mechanism:
+
+- **"Sustained-rate decay that recovers after idle"** — the decay is real but only *post*-idle,
+  which is why 40 back-to-back requests on a **fresh** server held 102–107 flat and looked like a
+  refutation. Both observations were true of different machine states.
+- **"Co-residency poisons the incumbent"** — real loss, wrong agent. Running any experiment leaves
+  the incumbent idle for minutes.
+- **The `-ub 1024` "4× regression"** — ub512 fresh after restart (104) against ub1024 after
+  co-resident Flash work (22–27) is exactly a warm-vs-cold comparison.
+
+⚠ **The operating point may be far below the benchmark point.** An agent that asks a question every
+few minutes is past the threshold on *every* call.
+
+The kernel ledger has been checked, and it does **not** settle this — for a reason worth recording.
+Reconstructing `tokens_out / duration_ms` for `omen-arc` `local_generate` calls gives door-observed
+rates of **4.0 – 44.1 tok/s, median ~15**, never close to 106. But `duration_ms` is the *whole door
+call*, so that number confounds the cold-idle regime with **door overhead**, which finding C2
+already flags as large and non-constant. A live test separated them once: a door call made after
+~4 minutes idle returned 100 tokens in **11 781 ms** (8.5 tok/s end-to-end) while the server's own
+log recorded that same task decoding at **91.75 tok/s** — about **1.09 s of decode inside an
+11.78 s call**. On that sample the door, not the rung, was ~91% of the cost. ⚠ Overhead is not
+constant: a 10-token proof the same evening completed in 281 ms. **C2 is strengthened, not
+resolved**, and it now looks at least as consequential for real throughput as the idle state is.
+
+**Mechanism still unknown, but the field is narrowed.** Spill, eviction and thermal are excluded by
+direct measurement *in the degraded state* — `non_local` 0.002 / 0.446 GB, 0 °C spread at 50 °C.
+GPU clock/power state is the surviving candidate, and IGCL cannot measure it on this box
+(b70tools lists voltage/frequency as unusable on the top slot), so it needs HWiNFO — the same gap
+ADR-0041 registered, now with a much sharper question to ask of it.
+
+**Bracketed, not resolved:** 60 s holds and 120 s falls; nothing between was tested, on one model
+at one context. The 120 s collapse itself is **replicated** (39.71 / 39.54), but the threshold's
+location is a single bracket.
+
+#### Harness defects found along the way
+
+- **`CoTenantDriver` shadowed `threading.Thread._stop`.** `Thread` owns a private `_stop()` and
+  calls it at teardown; binding an `Event` to that name killed the thread with `'Event' object is
+  not callable` — and killed it on **the one cell that discriminated**, which returned
+  INCONCLUSIVE while the four less-informative classes reported cleanly.
+- **The verdict threshold was picked for the wrong effect size.** `DROP = 0.85` was chosen to catch
+  a 3.7× loss and could not see an 8% one, so class 3's real contention drop was first labelled
+  NO-EFFECT. Now **derived from the control class** — which drifted ≤1% across an identical
+  schedule — and set to **0.97**. Verdicts were recomputed from the originally recorded rates and
+  appended as a `W-B-RECLASS` row; **no measurement was re-run and no original row altered.**
+- **The keep-alive arm shared a server with the arms that preceded it**, so it measured recovery
+  rather than prevention. Documented in the probe and re-run standalone.
+- **Readiness for a co-tenant must be its own `model loaded` marker, never a test completion.** The
+  obvious probe — send a short request and see if it answers — makes the co-tenant **infer**, and
+  *whether it infers* is the single bit separating class 2 from class 3. A completion used as a
+  health check would have quietly turned the control into the treatment.
 
 ### Confidence-sorted state of knowledge
 

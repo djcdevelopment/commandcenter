@@ -191,12 +191,16 @@ class CoTenantDriver(threading.Thread):
 
     def __init__(self):
         super().__init__(daemon=True)
-        self._stop = threading.Event()
+        # NOT `self._stop`: threading.Thread already owns a private _stop() method and
+        # calls it internally at thread teardown. Shadowing it with an Event makes the
+        # thread die with "'Event' object is not callable" -- which surfaced as an
+        # INCONCLUSIVE verdict on the single most important cell in the sweep.
+        self._stop_evt = threading.Event()
         self.served = 0
         self.errors = 0
 
     def run(self):
-        while not self._stop.is_set():
+        while not self._stop_evt.is_set():
             try:
                 body = json.dumps({"prompt": "Explain consensus algorithms in depth.",
                                    "n_predict": 96, "temperature": 0,
@@ -214,7 +218,7 @@ class CoTenantDriver(threading.Thread):
                 time.sleep(1)
 
     def stop(self):
-        self._stop.set()
+        self._stop_evt.set()
         self.join(timeout=330)
 
 
@@ -291,7 +295,14 @@ def run_class(kind, rung, reps, dwell, no_ledger):
 
     # Signature. The thresholds are deliberately coarse: this sweep sorts cells into
     # buckets, it does not estimate an effect size.
-    DROP = 0.85  # a >15% fall against this cell's OWN before-rate counts as a drop
+    # Threshold derived from the CONTROL class, which is what a control is for: with
+    # nothing running, the incumbent read 106.70 -> 105.87 -> 105.68, i.e. drift of <=1%
+    # across an identical schedule of restarts, dwells and ratechecks. 0.97 sits three
+    # times outside that and still catches the 0.92x contention signature that the
+    # inferring co-tenant produces. The first pass used 0.85, which was picked to catch a
+    # 3.7x effect and was far too coarse to see an 8% one -- it labelled a real,
+    # reproducible, fully-recovering contention drop as NO-EFFECT.
+    DROP = 0.97
     d_ok, a_ok = during.get("ok"), after.get("ok")
     d_rel = (during["decode_tok_s"] / before["decode_tok_s"]) if d_ok else None
     a_rel = (after["decode_tok_s"] / before["decode_tok_s"]) if a_ok else None

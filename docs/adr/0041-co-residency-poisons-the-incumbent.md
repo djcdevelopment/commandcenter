@@ -1,6 +1,11 @@
 # 0041 — Co-residency poisons the incumbent: restart before you measure
 
-**Status:** Accepted (2026-08-29) — measured, reproduced, and applied the same day
+**Status:** Accepted (2026-08-29), **trigger superseded the same evening by `docs/adr#0043`.**
+The loss is real and the rule it produced — restart before you trust a measurement — kept the
+campaign honest. But **co-residency is not the cause**: a server that never shared the cards
+with anything degrades the same way after ~2 minutes idle, and a 1-token keep-alive ping
+prevents it entirely. A co-resident cell degrades the incumbent by leaving it *idle*, which is
+a property of running any experiment. See *Subsequent evidence* at the foot of this record.
 
 **Companion to:** `docs/adr#0038` (a verdict cites only evidence from the configuration it
 promotes — this ADR extends that rule from *configuration* to *machine state*),
@@ -79,3 +84,59 @@ incumbent is restarted after any co-resident cell, before any measurement of it 
   not an inconvenience. The lab must be able to measure what it is designed to do.
 - **Trust the door proof as the health gate.** Rejected on evidence: the door proof returned
   `ok:true` at 105 tok/s and at 22 tok/s alike.
+
+---
+
+## Subsequent evidence — W-B / W-B2 / W-B3, 2026-08-29 evening
+
+**This record's rule survives; its cause does not.** The full account is `docs/adr#0043`; what
+follows is the evidence trail from this record's own claim to that one.
+
+### Step 1 — W-B appeared to refute the effect entirely
+
+Five co-tenant classes, measured before / during / after, restart and rate gate on each:
+
+| class | before | during | after (at **+6 s**) |
+|---|---|---|---|
+| control — nothing | 106.70 | 105.87 | 105.68 |
+| Vulkan server, loads, **never infers** | 106.48 | 105.64 | 105.98 |
+| Vulkan server, loads **and infers** | 105.50 | **96.73** | 105.64 |
+| CPU-only (`--device none -ngl 0`) | 106.00 | 106.20 | 106.24 |
+| iGPU-only | 106.49 | 105.68 | 106.01 |
+
+Every `after` at 99–100% of its own `before`. **The `after` column is worthless** — it was sampled
+6 seconds after co-tenant exit. The `during` column is sound and is worth keeping: a
+resident-but-idle neighbour costs the incumbent nothing; an actively inferring one on the same B70
+costs **8%**, and only while it infers; a CPU-only or iGPU co-tenant costs nothing. **Contention is
+local to the shared card and it is cheap.**
+
+### Step 2 — the loss arrived minutes later, with nothing on the cards
+
+Class 3's epoch was left running. At ~+5 min, no co-tenant, correct dual-split placement
+(14.516 / 15.485 GB, 0 °C spread at 50 °C), a 4-minute-old epoch: **42.50 tok/s (40%)**, and
+**43.77 (41%)** a minute later. Eight requests, all sequential on slot 1, one `llama-server`
+process, nothing else listening.
+
+### Step 3 — co-residency removed entirely; it still degrades
+
+A restarted incumbent that never shared the cards with anything: **100%** at t+0, **45% / 46% /
+31%** at t+5 / +10 / +15 min. The trigger is **idle time**, bracketed between **60 s** (holds at
+106.45) and **120 s** (falls to 39.71). A **1-token ping every 20 s** across a 300 s gap holds the
+rate at **104.83** — identical to fresh.
+
+### What this means for the decision above
+
+- **"Restart the incumbent after any co-resident cell" is right for the wrong reason.** It works
+  because a freshly loaded server is measured immediately. Warming is cheaper and does not cost a
+  weight load. Superseded by ADR-0043's rule.
+- **`coresident: true` was never the disclosure that mattered.** The field that matters is *how
+  long the incumbent sat idle before it was measured*.
+- **The suspect list this record generated stands, with the reason rewritten.** Every co-resident
+  receipt is still suspect — not because a co-tenant poisoned the cards, but because running a cell
+  necessarily leaves the incumbent idle for minutes, and a post-idle measurement is a cold one.
+- **The `-ub 1024` A/B is explained.** ub512 fresh after restart (104) against ub1024 measured
+  after co-resident Flash work (22–27) is exactly a warm-vs-cold comparison. The retraction stands
+  and now has a mechanism behind it.
+
+⚠ Preserved deliberately: the reasoning in this record was sound given what was measured, and the
+rule it produced prevented further bad data all evening. It is superseded, not withdrawn.

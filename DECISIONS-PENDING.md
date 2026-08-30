@@ -496,11 +496,15 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       identity-based placement, and llama.cpp exposes no PCI-BDF selector. Options: verify-and-
       retry per launch, an upstream BDF selector, or accept symmetric-only placement.
       (source: [ADR-0042](docs/adr/0042-devices-are-selected-by-type-never-by-index.md))
-- [ ] 2026-08-29 — **Re-measure the FF numbers marked SUSPECT.** *(First one done: the
+- [ ] 2026-08-29 — **Re-measure the FF numbers marked SUSPECT.** *(Two done. (1) The
       `-ub 512` vs `1024` A/B was re-run warm-vs-warm at `-np 2`, interleaved A-B-A-B, and
       `-ub 1024` is now PROMOTED — the 4x regression is refuted, not just withdrawn. The
-      remaining SUSPECT items — the four-venue seat rates, Flash's -42% co-residency tax,
-      dense-vs-MoE — are now unblocked by the same control.)* Every co-resident measurement
+      (2) B3's topology crossover is LOCATED — dual-split changes sign between 512 and 1024
+      tokens, reaching +72% at 8192 for a ~5–6% decode cost, so production's forced dual-split is
+      also correct on merit. Remaining: B4 (Flash's −42% co-residency tax, which now has a clean
+      14.56 solo baseline and a changed evidentiary burden — any incumbent degradation during the
+      cell is an INVALID EPOCH, not part of the tax) and B5 (dense-vs-MoE, deliberately last so
+      topology and warmth cannot masquerade as an architectural effect).)* Every co-resident measurement
       taken before ADR-0041 lacks restart-before-measure discipline: the four-venue seat rates,
       Flash's "−42% co-residency tax", the dense-vs-MoE decode comparison, and the `-ub 512` vs
       `1024` A/B (whose retraction stands on config-default grounds, not on its stated causal

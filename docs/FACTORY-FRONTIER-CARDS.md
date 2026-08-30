@@ -539,11 +539,17 @@ upgraded from SUSPECT to supported**, on a server-side measurement this time.
 3. **Door proof** `ok:true`, `routed_by: pinned:omen-arc`. Post-promotion `ff_ratecheck`
    **106.31 tok/s = 100% of baseline**; `arc-serve.log` free of TDR/WHEA/device-lost.
 
-⚠ **The running config is asserted behaviourally, not from the load report.** llama-server does
-not print `n_ubatch` at the default verbosity, so the promoted server cannot testify to its own
-ubatch — the same class of blindness as ADR-0042. Instead: `prefill@8192` on the running server
-reads **1470.97**, which is 0.15% from the ub1024 arm and 12.5% from the ub512 arm. The flag is
-in effect.
+⚠ **`config_assertion: behavioral`** — and the label is the point. llama-server does not print
+`n_ubatch` at the default verbosity, so the promoted server cannot testify to its own ubatch; the
+same class of blindness as ADR-0042. The evidence is a rate separation: `prefill@8192` on the
+running server reads **1470.97**, which is **0.15% from the ub1024 arm and 12.5% from the ub512
+arm**. That is strong corroboration and it is **not** a logged launch parameter.
+
+**Provenance *type* is recorded separately from provenance *quality*, because they are
+independent properties.** This evidence is strong *and* indirect. Carrying both prevents a later
+audit from reading the numbers and mistaking inference for direct observation — the failure mode
+that let a single-card campaign run for days on an assumed placement. Direct observation would
+need a relaunch at `-lv 5`, or an upstream change making llama-server print `n_ubatch` by default.
 
 #### B1 is resolved: refuted, not merely withdrawn
 
@@ -561,6 +567,87 @@ causal claim and wrong about which variable had moved. Naming a confound is not 
 identifying it — and the honest version of "we don't know" left the flag correctly reverted for
 the wrong reason for a day. The mechanism campaign is what made the re-measurement possible;
 without ADR-0043 there was no way to put two arms in the same machine state.
+
+### B3 — dual-split vs single-card: **the crossover is between 512 and 1024 tokens** *(2026-08-29)*
+
+The second warm-vs-warm re-measurement. W-A had settled 512 tokens on a serving topology
+(dual-split costs decode and buys nothing there), but the recorded "+27% / +42% prefill" came from
+**pp2048 on llama-bench**, which has no `-np` (finding A5) and so cannot express a serving topology
+at all. The crossover was real and its *location* unmeasured.
+
+Rig: `campaign/ff-probes/b3_topology_crossover.py`, receipts `probe: "B3-TOPOLOGY-CROSSOVER"`.
+Protocol carried over from the `-ub` A/B deliberately, so the result is directly comparable to it
+and to FF6c: interleaved `dual-single-dual-single`, within-config drift as the noise floor,
+warm-only arms, identical load on both arms for the spill figure, placement asserted from each
+server's own load report (GPU buffers only).
+
+**Two independent runs.** The 512 anchor reproduced to the digit and 2048 to within 0.6 points:
+
+| prompt tokens | dual (tok/s) | single (tok/s) | **dual advantage** | run |
+|---|---|---|---|---|
+| 512 | 2161.14 | 2201.30 | **−1.8%** | 1 |
+| 512 | 2164.14 | 2202.78 | **−1.8%** | 2 |
+| 1024 | 2418.44 | 1753.51 | **+37.9%** | 2 |
+| 1536 | 2435.29 | 1679.63 | **+45.0%** | 2 |
+| 2048 | 2513.55 | 1741.82 | **+44.3%** | 1 |
+| 2048 | 2522.59 | 1740.49 | **+44.9%** | 2 |
+| 8192 | 1313.64 | 762.74 | **+72.2%** | 1 |
+
+| cost of dual-split | run 1 | run 2 |
+|---|---|---|
+| decode, single stream | −6.3% (104.92 vs 111.99) | −5.3% (105.33 vs 111.21) |
+| aggregate at `-np 2` | −3.8% (134.53 vs 139.78) | −2.9% (136.72 vs 140.78) |
+| within-config drift | **0.24%** | 2.34% |
+| `non_local` (spill) | 0.055 GB both arms | 0.038 / 0.034 GB |
+
+#### The shape, which is the actual answer
+
+**Dual-split changes sign between 512 and 1024 tokens.** Below that it is a small net loss; above
+it the advantage is large immediately (+37.9% at 1024) rather than ramping in. The curve then
+**plateaus around +45% through 1536–2048 and rises again to +72% at 8192** — not a smooth
+monotone, which is worth noting because a two-point sample at 512 and 2048 would have implied one.
+
+⚠ **A single pp2048 cell would have been the wrong shape of answer.** It would have returned
+"+44%" and left open whether the crossover sat just below 2048 or far below it, and it would have
+missed the second rise entirely.
+
+**The llama-bench figure was directionally right and understated.** +27% / +42% at pp2048 against
+**+44.3% / +44.9%** measured on a serving topology at `-np 2`. So FF6c's crossover surface is
+corroborated, not replaced — this locates it and shows it is steeper than the bench suggested.
+
+#### What it means for production
+
+Production runs dual-split at `-c 131072 -np 2`, and **that was already forced by capacity**: at
+that context the KV block is ~12 GB, so a single card would hold model + KV + compute ≈ 30.1 GB of
+32.5 GB — precisely the ADR-0042 defect footprint. B3 says the forced choice is also the right one
+on merit: real agent prompts are essentially never under 1024 tokens, so production sits far on the
+dual-split side of the crossover, paying ~5–6% decode for ~45–72% prefill.
+
+⚠ **Single-card is not thereby useless** — it wins decode by 5–6% and aggregate by ~3%, and it uses
+one card. For a short-prompt, decode-heavy seat on *one* B70 it is the better topology, which is
+exactly the one-per-card replica case T1 raises.
+
+#### Scope limits, stated on every row
+
+- **Measured at `-c 32768 -np 2`, not production's `-c 131072`.** A single-card arm cannot hold
+  production's context (above), and neither arm fits *beside* production, which holds ~15 GB on
+  each card while a single-card arm needs ~19 GB on one. So this answers the **topology** question,
+  not production's operating point. Production comes down for the window.
+- **Run 2's drift was 2.34%**, ten times run 1's. The prefill deltas (37.9–45%) are far outside it,
+  but run 2's decode figure (−5.3%) is only ~2.3× its own drift floor. **Run 1's −6.3% against
+  0.24% drift is the stronger decode number**; treat the decode cost as ~5–6%, not a precise value.
+- No spill either way — `non_local` was identical across topologies under identical load.
+
+#### The bug this run found: `-np` splits the context
+
+The first attempt died mid-run, with production already down, on `HTTP 400` at the 8192 arm.
+**With `-np N` each slot gets `c/N` tokens, not `c`** — at `-c 16384 -np 2` a slot holds 8192, so
+an 8192-token prompt exactly exhausts it. Production's `-c 131072 -np 2` gives each slot 65536.
+
+The probe now **refuses before taking production offline** if the largest prompt exceeds a slot.
+That is the general lesson: a rig that takes a resource offline must validate its own parameters
+*first*, because the cost of a late failure is not a failed run, it is an outage that bought
+nothing.
 
 ### Confidence-sorted state of knowledge
 
@@ -583,6 +670,12 @@ prefill at 2048 / 8192 tokens, with repeats of the same config agreeing to 0.30%
 104 → 22–27 spread behind the original claim is ADR-0043's idle collapse with the ubatch value
 held constant. **B2 (the FF6c crossover) is upgraded to supported** by the same run — the gain is
 prompt-length dependent and negative at 512 tokens. See the `-ub 1024` section above.
+
+**RESOLVED (was B3) — the topology crossover is located.** Dual-split changes sign between **512
+and 1024 tokens**: −1.8% at 512, +37.9% at 1024, ~+45% through 1536–2048, **+72.2% at 8192**, for a
+decode cost of ~5–6% and ~3% aggregate at `-np 2`. Two independent runs, the 512 anchor reproducing
+to the digit. FF6c's surface is corroborated and the llama-bench figure was understated. See the B3
+section above.
 
 **SUSPECT — measured, basis now in doubt.** Still suspect: the FF6c crossover (B2), dual-vs-single (B3), Flash's −42% co-residency tax
 (B4), and the dense-vs-MoE decode comparison (B5) — every one measured co-resident with no rate
@@ -1517,6 +1610,38 @@ choices.
 ---
 
 ## Receipts, invariants, and upstream readiness
+
+### Campaign rules earned the hard way *(add to these; do not quietly drop one)*
+
+**R1. Noticing a confound is not identifying it.** The `-ub 1024` retraction correctly saw that
+two arms were not comparable and correctly withdrew the causal claim — and then attributed the
+spread to the wrong variable, because "co-residency" was the confound in view and idle time was
+the one that had actually moved. The result was a flag reverted for the wrong reason for a day.
+**A withdrawal is not a diagnosis.** State what is unknown as unknown, and do not let the
+confound you happened to name stand in for the one you have not found. (2026-08-29; B1, ADR-0043)
+
+**R2. Provenance TYPE is recorded separately from provenance QUALITY.** They are independent:
+evidence can be strong *and* indirect. `config_assertion: behavioral` marks a config inferred
+from a rate separation rather than read from a launch parameter — even at a 0.15% vs 12.5%
+separation, which is excellent corroboration and still not an observation. An audit that reads
+only the numbers must not be able to mistake the two. (2026-08-29; the ub promotion)
+
+**R3. Comparative arms are interleaved, never sequential.** A-then-B cannot separate "B is
+faster" from "the machine got faster". A-B-A-B makes drift appear as *within*-config
+disagreement, which is also the only honest noise floor: repeats of the same config agreeing to
+0.30% are what license reading a 5–12% between-config difference as real. (2026-08-29; the ub A/B)
+
+**R4. Both arms of a resource comparison are measured under an identical load.** A shared-usage
+figure from one arm alone proves nothing — 0.732 GB looked elevated against a 0.24 GB reference
+until the default arm was measured the same way and read 0.476 GB. (2026-08-29; the spill gate)
+
+**R5. A control that shares a server with the arm before it stops being a control** once that arm
+degrades the machine. Run it on its own epoch. (2026-08-29; the keep-alive arm in W-B3)
+
+**R6. Warm-vs-warm or it is not a comparison.** Every arm restarts and warms before it is
+measured; a post-idle measurement is a cold one and is not comparable to anything.
+(ADR-0041, ADR-0043)
+
 
 **Rows.** Machine rows per trial appended to
 `E:\work\battlemage\ff-probes\ff-receipts.jsonl` in the LZ convention

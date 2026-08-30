@@ -190,6 +190,9 @@ Three facts the earlier entries do not carry:
 
 - **Prefill recovers in lockstep, not just degrades in lockstep.** 13.6 → 10.3 ms at the same sample
   decode returned. The correlation now has a **down-edge**, not only up-edges.
+  ⚠ **"Lockstep" is retracted — see the dissociation section below.** It was written from five
+  hand-picked samples; 64 paired samples give Spearman −0.60, and the two signals demonstrably
+  come apart. The down-edge observation stands; the word "lockstep" does not.
 - **Onset ordering.** At the episode-1 onset the 00:32:52 row read decode 65.17 with prefill still
   **10.8 ms**, and prefill only rose to 17.3 ms at 00:33:01. **Decode fell before prefill rose.**
 - ⚠ **Provenance gap.** The "rate check at ~02:30 read 64.55" cited above has **no receipt** —
@@ -257,4 +260,77 @@ it? The useful outcome is phenotype match-or-separate, not "rate fell". (2) Fixe
 If the fixed kernel slows while clocks stay pinned, the inefficiency lives **below** server
 orchestration; if the bench stays normal while server decode degrades, the search moves **up** into
 scheduling/runtime. ⚠ Neither may perturb the running 1 Hz passive capture before it completes.
+
+
+### The 30 s ping was a rate instrument all along — and it breaks the shared-cause reading
+
+The keep-alive's 30-second tick fires `prompt_n:1` and records `prompt_ms`. That is a
+**fixed-shape prefill measurement taken every 30 seconds, all night, at zero added load**, and
+nothing in this campaign had read it as an instrument. The resolution warning at
+[§Resolution limit](#) does not bind: **the finer sample was already being taken**, so reading it
+changes nothing about the observed system. No request was issued to `:8082` for any of what
+follows.
+
+**Instrument validation first, because the conclusion depends on it.** Every deep probe measures
+`prompt_ms` and `decode_tok_s` **in the same request** — 64 perfectly paired samples since
+2026-08-29 22:00 local.
+
+| | decode < 90 | decode ≥ 90 | |
+|---|---|---|---|
+| **prefill > 12.24 ms** | 7 | **8** | precision **0.47** |
+| **prefill ≤ 12.24 ms** | 1 | 48 | |
+| | recall **0.88** | | Spearman **−0.60**, Pearson −0.30 |
+
+Prefill is a **sensitive** degradation detector and a **poor** one: it catches 7 of 8 degraded
+decodes, and cries wolf 8 times out of 56 healthy ones.
+
+⚠ **The dissociation is threshold-independent, so it is not an artefact of the 12.24 ms cut.**
+
+- The **worst prefill of the night — 24.50 ms at 23:41:21, 2.4× the 10.20 ms baseline — carried
+  decode 107.83 tok/s.** Fully healthy.
+- **00:32:52 ran decode 65.17 with prefill at a normal 10.80 ms.** Already in the log above as the
+  onset-ordering fact; it is also a clean counterexample in the other direction.
+- The two classes' prefill ranges **overlap almost completely**: false alarms 14.2–24.5, true
+  degraded 10.8–21.6. No cut separates them.
+
+**Therefore the "shared cause" hint is weakened, not strengthened.** The observation log calls
+prefill "a correlated second signal, and the first hint that the two costs may share a cause", and
+the 03:10 continuation escalated that to "recovers in lockstep". Correlated: yes, r = −0.60.
+Lockstep: **no**. `INC-2026-08-30-A` has **at least two separable channels**, and a mechanism
+hypothesis must now explain why one can move while the other does not.
+
+**Episode coverage the 5-minute grid cannot see.** Grouping hot pings into episodes (a >90 s gap
+splits) gives **28 prefill episodes against the 7 the deep-probe grid caught**; **8 are entirely
+invisible to it**, including a 93-second, 4-sample episode at 03:22:01. Twelve of the 28 carry
+n ≥ 2 samples, so they are states rather than single-sample jitter. Forward test: a hot ping is
+followed within 60 s by a degraded deep probe **11 times in 19**; a cold ping **2 times in 86**.
+
+⚠ **The competing hypothesis is not tested, and it is a good one.** The keep-alive sends the *same
+prompt every time* against a **2-slot** server (`-np 2`). `prompt_ms` may therefore be measuring
+**KV cache-hit versus cache-miss** — slot eviction, or a different slot serving the request — and
+not GPU health at all. That would produce hot prefill beside healthy decode with no GPU state
+involved, which is exactly the false-alarm pattern above. Until it is excluded, the 28-episode
+count is a count of *prefill excursions*, not of incidents.
+
+Further caveats: `prompt_ms` on a 1-token prompt is ~10 ms and dominated by fixed overhead, so it
+is sensitive but noisy, and 16 of the 28 episodes are single samples; the one ping at
+**22:23:53 reading 2462.2 ms** is almost certainly a restart or model load and is excluded as an
+artefact rather than explained; the largest prefill-only cluster (23:19–23:48) **predates the
+02:57 telemetry capture** and so has no GPU telemetry; and this is one night, one epoch, one
+server instance.
+
+**What it buys, at no cost.** Both phenotypes occur **naturally inside the live 1 Hz capture
+window**:
+
+| window | phenotype | decode at the deep probe |
+|---|---|---|
+| 02:59:23–03:02:59 | prefill hot **and** decode degraded | 67.01 |
+| 03:04:32, 03:06:05–03:06:36 | **prefill-only** | 102.34 |
+| 03:18:26–03:20:28 | prefill hot **and** decode degraded | 46.13 |
+| 03:22:01–03:23:34 | **prefill-only** | 107.02 |
+
+That is a **phenotype match-or-separate contrast between two naturally occurring states, with GPU
+telemetry already attached** — no restart, no epoch boundary, no added load. It answers the same
+class of question the planned induced-idle probe was meant to answer, without spending the
+non-reproducible natural-recurrence record to do it.
 

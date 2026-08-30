@@ -40,6 +40,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -55,6 +56,7 @@ LOGDIR = r"E:\work\battlemage\ff-probes\wb-poison"
 QWEN38 = r"E:\work\llamacpp-qwen38\build\bin\llama-server.exe"
 MODEL30 = r"E:\work\battlemage\models\Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf"
 COTENANT_PORT = 18192
+READY_MARKER = "model loaded"
 
 BUF_RE = re.compile(r"(\S+)\s+model buffer size\s*=\s*([\d.]+)\s*MiB")
 DEV_RE = re.compile(r"using device\s+(Vulkan\d+)\s*\((.*)\)")
@@ -82,17 +84,37 @@ def igpu_index():
 # `-lv 5` on every launch: at the default verbosity there are no placement lines to
 # record, and their absence is indistinguishable from a healthy load (ADR-0042).
 def cotenant_argv(kind, log_name):
+    """One model, one tensor-override shape, ONE variable: which device it touches.
+
+    Every class runs Qwen3-30B-A3B with `-ot .ffn_.*_exps.=CPU`. Two reasons, both
+    load-bearing:
+
+    * FOOTPRINT. Production is dual-split at ~15 GB per 32.5 GB card. A full-weight
+      co-tenant would need 17.5 GB on card 1 -- 32.5 of 32.5 -- so it would spill to host
+      or fail to allocate, and the cell would measure an OOM rather than co-residency.
+      With the override the GPU buffer is ~0.78 GB (measured, W-A cell S3), which is also
+      the right analogue: the co-tenant that produced the original ADR-0041 event was
+      Flash holding roughly 1 GB of Vulkan compute buffer, not a full card.
+    * COMPARABILITY. Holding the model and the override fixed means the B70, iGPU and
+      CPU-only cells differ in the device and nothing else. Swapping in a second model
+      would confound adapter with architecture.
+    """
     base = ["-m", MODEL30, "--alias", "wb-%s" % kind, "-fa", "on", "-fit", "off",
             "--no-repack", "-c", "8192", "-np", "1", "-lv", "5",
+            "-ot", ".ffn_.*_exps.=CPU",
             "--host", "127.0.0.1", "--port", str(COTENANT_PORT), "--slots"]
     env = dict(os.environ)
     env.pop("GGML_VK_VISIBLE_DEVICES", None)
     if kind in ("vulkan-load-noinfer", "vulkan-load-infer"):
-        # ONE B70, chosen by tensor split rather than by naming a device (ADR-0042).
+        # ONE B70, said with a tensor split rather than by naming a device (ADR-0042).
         return base + ["-ngl", "99", "-sm", "layer", "-ts", "1,0"], env, "one-b70"
     if kind == "cpu-only":
         return base + ["-ngl", "0", "--device", "none"], env, "cpu-only"
     if kind == "igpu-only":
+        # The documented exception to "never filter by index": device-TYPE selection
+        # deliberately drops integrated GPUs, so this venue is unreachable without one.
+        # Discovered at run time, recorded on the receipt, and the placement that results
+        # is read back from the load report.
         idx, enum = igpu_index()
         if idx is None:
             raise RuntimeError("no iGPU in this enumeration: %s" % enum)
@@ -108,25 +130,30 @@ def start_cotenant(kind, timeout_s=420):
     out = os.path.join(LOGDIR, "%s.out.log" % kind)
     fe, fo = io.open(err, "wb"), io.open(out, "wb")
     p = subprocess.Popen([QWEN38] + argv, stderr=fe, stdout=fo, env=env)
-    # Readiness is a REAL COMPLETION, never /health -- /health returns 200 mid-load.
+    # Readiness is the server's own "model loaded" marker, NOT a completion and NOT
+    # /health (which returns 200 mid-load).
+    #
+    # It has to be the marker here specifically: the obvious readiness probe -- send a
+    # short completion and see if it answers -- would make the co-tenant INFER, and
+    # "does it infer" is the single bit that separates class 2 from class 3. A completion
+    # used as a health check would have quietly turned the control into the treatment.
+    # Each co-tenant writes a fresh log, so there is no stale-marker race to guard here.
     deadline = time.time() + timeout_s
+    ready = False
     while time.time() < deadline:
         if p.poll() is not None:
             raise RuntimeError("%s co-tenant exited rc=%s; see %s" % (kind, p.returncode, err))
         try:
-            body = json.dumps({"prompt": "ok", "n_predict": 4, "temperature": 0,
-                               "cache_prompt": False}).encode()
-            req = urllib.request.Request(
-                "http://127.0.0.1:%d/completion" % COTENANT_PORT, data=body,
-                headers={"Content-Type": "application/json"})
-            with urllib.request.urlopen(req, timeout=20) as r:
-                json.load(r)
-            break
-        except Exception:  # noqa: BLE001
-            time.sleep(3)
-    else:
+            if READY_MARKER in io.open(err, encoding="utf-8", errors="replace").read():
+                ready = True
+                break
+        except OSError:
+            pass
+        time.sleep(3)
+    if not ready:
         stop_cotenant(p)
-        raise RuntimeError("%s co-tenant never served a completion in %ds" % (kind, timeout_s))
+        raise RuntimeError("%s co-tenant never reported %r in %ds"
+                           % (kind, READY_MARKER, timeout_s))
     text = io.open(err, encoding="utf-8", errors="replace").read()
     bufs = [(m.group(1), float(m.group(2))) for m in BUF_RE.finditer(text)]
     devs = [(m.group(1), m.group(2).strip()) for m in DEV_RE.finditer(text)]
@@ -150,24 +177,45 @@ def stop_cotenant(p):
             pass
 
 
-def drive_cotenant(seconds):
-    """Keep the co-tenant executing for the dwell -- this is what class 3 adds over 2."""
-    end = time.time() + seconds
-    n = 0
-    while time.time() < end:
-        try:
-            body = json.dumps({"prompt": "Explain consensus algorithms in depth.",
-                               "n_predict": 96, "temperature": 0,
-                               "cache_prompt": False}).encode()
-            req = urllib.request.Request(
-                "http://127.0.0.1:%d/completion" % COTENANT_PORT, data=body,
-                headers={"Content-Type": "application/json"})
-            with urllib.request.urlopen(req, timeout=300) as r:
-                json.load(r)
-            n += 1
-        except Exception:  # noqa: BLE001
-            break
-    return n
+class CoTenantDriver(threading.Thread):
+    """Keep the co-tenant executing CONCURRENTLY with the incumbent's during-rate.
+
+    This has to be a thread. Driving the co-tenant for the dwell and only then
+    measuring the incumbent would make "during" mean *after the co-tenant stopped
+    working, while it was still resident* -- which is a different question, and which
+    would silently collapse the contention signature the sweep is built to detect
+    (`during down / after clean` = contention). The co-tenant must still be inferring
+    while the incumbent is measured, so the driver runs until it is told to stop, not
+    for a fixed dwell.
+    """
+
+    def __init__(self):
+        super().__init__(daemon=True)
+        self._stop = threading.Event()
+        self.served = 0
+        self.errors = 0
+
+    def run(self):
+        while not self._stop.is_set():
+            try:
+                body = json.dumps({"prompt": "Explain consensus algorithms in depth.",
+                                   "n_predict": 96, "temperature": 0,
+                                   "cache_prompt": False}).encode()
+                req = urllib.request.Request(
+                    "http://127.0.0.1:%d/completion" % COTENANT_PORT, data=body,
+                    headers={"Content-Type": "application/json"})
+                with urllib.request.urlopen(req, timeout=300) as r:
+                    json.load(r)
+                self.served += 1
+            except Exception:  # noqa: BLE001
+                self.errors += 1
+                if self.errors > 3:
+                    return
+                time.sleep(1)
+
+    def stop(self):
+        self._stop.set()
+        self.join(timeout=330)
 
 
 # --- the sweep --------------------------------------------------------------
@@ -205,7 +253,7 @@ def run_class(kind, rung, reps, dwell, no_ledger):
                           % (before["decode_tok_s"], (bfrac or 0) * 100,
                              ff_ratecheck.FAIL_FRAC * 100)}
 
-    proc, place, served = None, None, 0
+    proc, place, served, driver = None, None, 0, None
     try:
         if kind != "control":
             print("  starting co-tenant ...")
@@ -213,17 +261,24 @@ def run_class(kind, rung, reps, dwell, no_ledger):
             print("  co-tenant up: intent=%s gpu_buffers=%d :: %s"
                   % (place["intent"], place["gpu_buffer_count"], ", ".join(place["buffers"])))
         if kind == "vulkan-load-infer":
-            served = drive_cotenant(dwell)
-            print("  co-tenant served %d completions during dwell" % served)
-        else:
-            time.sleep(dwell)
+            driver = CoTenantDriver()
+            driver.start()
+        time.sleep(dwell)
+        # Measured with the co-tenant STILL RESIDENT, and -- for class 3 -- still inferring.
         during, dfrac = ff_cell.rate(rung, reps)
+        if driver is not None:
+            driver.stop()
+            served = driver.served
+            print("  co-tenant served %d completions, concurrently, through the during-rate"
+                  % served)
         if during.get("ok"):
             print("  during %.2f tok/s (%.0f%% of baseline) reps=%s"
                   % (during["decode_tok_s"], (dfrac or 0) * 100, during["decode_reps"]))
         else:
             print("  during FAILED: %s" % during.get("error"))
     finally:
+        if driver is not None:
+            driver.stop()
         stop_cotenant(proc)
         time.sleep(6)
 
@@ -262,6 +317,7 @@ def run_class(kind, rung, reps, dwell, no_ledger):
         "cotenant_placement_evidence": (place or {}).get("buffers"),
         "cotenant_devices": (place or {}).get("devices"),
         "cotenant_completions_served": served,
+        "cotenant_driven_concurrently": kind == "vulkan-load-infer",
         "dwell_s": dwell,
         "incumbent_process_epoch": epoch.get("epoch_start"),
         "incumbent_restarted_since_cotenancy": True,

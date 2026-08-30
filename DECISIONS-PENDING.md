@@ -502,13 +502,34 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       `1024` A/B (whose retraction stands on config-default grounds, not on its stated causal
       reasoning). Owner: next FF session.
       (source: [docs/FACTORY-FRONTIER-CARDS.md](docs/FACTORY-FRONTIER-CARDS.md) §0.0)
-- [ ] 2026-08-29 — **Finish `ff_ratecheck`: measure at plateau, then re-baseline every rung.**
-      It currently measures a burst and its baseline is CLEARED (the previous one was set from a
-      74.87% repeat spread and refused retroactively). Until a baseline exists, the lab has no
-      rate gate — which is the control ADR-0041 depends on.
-      (source: `campaign/ff-probes/ff_ratecheck.py`)
+- [ ] 2026-08-29 — **Finish `ff_ratecheck`: measure at plateau, not a burst.**
+      *Partially resolved 2026-08-29 evening* — a baseline now exists (**106.00 tok/s**, set on a
+      restarted server with dual-split placement asserted by BDF) and it has been exercised: it
+      passed production back at 106.02 (100%, 0.87% spread) after the W-A window. What remains is
+      the original limitation — it measures a burst, and the lab optimizes work per machine-hour,
+      which is a sustained quantity.
+      (source: `campaign/ff-probes/ff_ratecheck.py`, `campaign/ff-probes/rate-baselines.json`)
 - [ ] 2026-08-29 — **Build FF1, or stop claiming work-per-machine-hour.** The work-slice harness
       is the campaign's declared gate and is still unbuilt, so every FF number to date is a
       throughput proxy. Orientation tax, continuity dividend, and prefill amortization all divide
       by it. Either build it or re-scope the campaign's unit honestly.
       (source: [docs/FACTORY-FRONTIER-CARDS.md](docs/FACTORY-FRONTIER-CARDS.md) FF1)
+
+- [ ] 2026-08-29 — **Decide whether serving rungs should pre-warm their common batch shapes at
+      startup.** W-A measured a **~12× first-eval penalty paid per batch geometry**, not once per
+      server: on Flash, `prefill@512` read 4.80 tok/s (**105.8 s**) on its first eval and 57.28
+      warm — *after* the 22-token shape had already warmed the process. For an autonomous lab that
+      rotates models, this is a real tax on every rotation and it is invisible in any benchmark
+      that discards rep 1. Options: warm a fixed shape ladder at load (costs seconds of startup
+      per rung), warm lazily and accept the first-request latency, or ignore it for rungs that
+      only ever see one shape.
+      (source: [docs/FACTORY-FRONTIER-CARDS.md](docs/FACTORY-FRONTIER-CARDS.md) W-A §5)
+- [ ] 2026-08-29 — **Re-measure dual-vs-single at pp2048, solo.** W-A settled the 512-token case
+      on the server for the first time: dual-split costs **5.5% decode** and buys **−0.6%** (i.e.
+      nothing) on 512-token prefill. The recorded "+27% / +42% prefill" was at **pp2048** on
+      llama-bench, which has no `-np`. So the crossover is real but its location is unmeasured on
+      a serving topology. ⚠ Note this is an optimization question, **not** a config question:
+      production cannot run single-card anyway — at `-c 131072` the KV block is ~12 GB, so
+      model+KV+compute is ~30.1 GB of a 32.5 GB card, which is precisely the ADR-0042 defect
+      footprint. Dual-split is required for headroom regardless of the decode delta.
+      (source: [docs/FACTORY-FRONTIER-CARDS.md](docs/FACTORY-FRONTIER-CARDS.md) W-A §2)

@@ -607,6 +607,14 @@ it the advantage is large immediately (+37.9% at 1024) rather than ramping in. T
 **plateaus around +45% through 1536–2048 and rises again to +72% at 8192** — not a smooth
 monotone, which is worth noting because a two-point sample at 512 and 2048 would have implied one.
 
+⚠ **The shape may not be one crossover at all.** An abrupt gain by 1024, a plateau across
+1536–2048, and a second rise at 8192 is the signature of **multiple prompt-processing regimes**
+rather than a single smooth transition — plausibly batching or dispatch thresholds that change
+which kernel path runs. This is a reading of the shape, **not** a mechanism: nothing here
+identifies a regime boundary, and per R1 an explanation is not promoted merely because it fits.
+Recorded so the shape is not later flattened to "dual wins above 512", which would discard the
+part most likely to be informative.
+
 ⚠ **A single pp2048 cell would have been the wrong shape of answer.** It would have returned
 "+44%" and left open whether the crossover sat just below 2048 or far below it, and it would have
 missed the second rise entirely.
@@ -649,6 +657,85 @@ That is the general lesson: a rig that takes a resource offline must validate it
 *first*, because the cost of a late failure is not a failed run, it is an outage that bought
 nothing.
 
+### B4 — Flash's "−42% co-residency tax" is **refuted**, and the cost lands on the other party *(2026-08-29)*
+
+Rig: `campaign/ff-probes/b4_flash_coresidency.py`, receipts `probe: "B4-FLASH-CORESIDENCY"`.
+
+**A config mismatch had to be resolved before anything could be measured.** The −42% (5.04 → 2.93)
+was recorded on Flash at **`-ngl 0`** — weights on host, a ~1 GB Vulkan compute buffer doing the
+work. W-A's clean solo baseline of **14.56** is a *different* venue: `-ot .ffn_.*_exps.=CPU`, with
+attention and KV resident on both B70s (2.1 / 2.4 GB). Scoring one against the other would compare
+two venues and call the difference a co-residency tax. So both configs were bracketed: `ngl0`
+answers the historical claim on its own terms, `expcpu` is the venue the matrix actually uses.
+
+**Local bracket per config — solo → co-resident → solo** — so Flash carries its own within-session
+drift control instead of leaning on a baseline measured on another day by another rig.
+
+| config | solo (pre / post) | solo mean | co-resident | **Flash tax** | local drift | epoch |
+|---|---|---|---|---|---|---|
+| `ngl0` | 5.60 / 5.32 | 5.46 | 5.25 | **−3.9%** | 5.24% | **VALID** |
+| `expcpu` | 12.98 / 13.34 | 13.16 | 12.85 | **−2.3%** | 2.72% | **VALID** |
+
+Incumbent health, gated pre and post, recorded as its own observation and never folded into the
+tax:
+
+| config | incumbent pre | **during** | incumbent post | verdict |
+|---|---|---|---|---|
+| `ngl0` | 105.25 (99%) | **76.24** | 105.14 (99%) | VALID — full recovery |
+| `expcpu` | 105.57 (100%) | **89.54** | 106.20 (100%) | VALID — full recovery |
+
+#### Two questions, and only one of them is answerable here
+
+**Is −42% excluded? Yes, decisively** — by more than 3× the drift floor in both configs. A −42%
+tax would put `ngl0` co-resident at ~3.17 against a measured 5.25.
+
+**Is the residual tax distinguishable from zero? No.** −3.9% against 5.24% drift, and −2.3%
+against 2.72%, are both inside their own noise. The honest statement is **"at most a few percent"**,
+not a point estimate.
+
+⚠ **Conflating those two questions is a real trap, and the first version of this probe fell into
+it** — it returned INCONCLUSIVE because it could not resolve a 3% effect, and in doing so would
+have thrown away a decisive refutation. *Unresolvable* and *unexcluded* are different verdicts.
+The probe now computes both and reports them separately.
+
+#### The finding that actually matters: the cost lands on production, not on Flash
+
+The original claim was that co-residency taxes **Flash**. Under controlled warmth it does almost
+nothing to Flash — and takes **15–28% off the incumbent** while they share:
+
+| | Flash pays | production pays |
+|---|---|---|
+| `ngl0` | −3.9% (unresolvable) | **−27.6%** |
+| `expcpu` | −2.3% (unresolvable) | **−15.2%** |
+
+Both fully transient: the incumbent returned to 99–100% of its own pre-rate the moment Flash
+exited, so this is **contention, not ADR-0043 poisoning**. And it is far larger than W-B's 8% for a
+30B co-tenant — consistent with C3, which found Flash **CPU-bound** at 4.52 core-seconds per token
+with 23.9 of 24 cores busy. Flash does not fight production for the GPU; it fights it for the host.
+
+**So the historical figure was not merely inflated by cold-state contamination — it was assigned to
+the wrong party.** ⚠ Per R1, that is a description of where the cost falls, **not** a mechanism: it
+is consistent with CPU contention and this run did not test that. What can be said is that the
+*direction* of the original claim does not survive.
+
+⚠ **This does not make Flash free.** A co-resident Flash seat costs production up to a quarter of
+its throughput for as long as it runs. That is a real scheduling cost — it simply belongs in the
+incumbent's column, where a planner can see it, rather than being charged to the tier that is
+barely affected.
+
+#### Original receipt preserved
+
+The T1b four-venue entry recording 5.04 → 2.93 stands unaltered; this section is added alongside it
+and the entry now carries a pointer here. No measurement was deleted or rewritten.
+
+#### Two harness defects found
+
+- **A failed pre-rate skipped the cell silently.** `expcpu`'s first co-resident attempt died on a
+  transient `WinError 10054` — the incumbent reports its ready marker a moment before it reliably
+  accepts sockets — and the probe printed *nothing*, so a missing arm looked like a design choice
+  in the output rather than a failure. Now retried once and, if it still fails, announced loudly.
+- **The verdict conflated resolvable with excluded** (above).
+
 ### Confidence-sorted state of knowledge
 
 (full ledger:
@@ -676,6 +763,11 @@ and 1024 tokens**: −1.8% at 512, +37.9% at 1024, ~+45% through 1536–2048, **
 decode cost of ~5–6% and ~3% aggregate at `-np 2`. Two independent runs, the 512 anchor reproducing
 to the digit. FF6c's surface is corroborated and the llama-bench figure was understated. See the B3
 section above.
+
+**RESOLVED (was B4) — Flash's −42% co-residency tax is refuted.** Bracketed and health-gated, the
+tax on Flash is −2.3% to −3.9%, inside its own drift floor; −42% is excluded by >3× that floor on
+both Flash configs. The cost is real but lands on the **incumbent** (−15 to −28% while sharing,
+fully recovered after). See the B4 section above.
 
 **SUSPECT — measured, basis now in doubt.** Still suspect: the FF6c crossover (B2), dual-vs-single (B3), Flash's −42% co-residency tax
 (B4), and the dense-vs-MoE decode comparison (B5) — every one measured co-resident with no rate
@@ -1255,6 +1347,14 @@ charge, not free RAM.)
 - **Co-residency taxes the host tier −42%**: Flash fell 5.04 → 2.93 tok/s once both seats went
   live. Its weights are in RAM but its *compute* rides the same cards, so the strategic tier is
   not isolated from GPU contention.
+  > ⚠ **REFUTED 2026-08-29 by B4 — see the B4 section above.** The observation above is preserved
+  > as recorded. Under a bracketed solo→co-resident→solo test with the incumbent health-gated, the
+  > tax on Flash is **−3.9%** on this very config, inside its own drift floor, and −42% is excluded
+  > by >3× that floor. The cost is real but falls on the **incumbent** (−27.6% while sharing, fully
+  > recovered after), not on Flash. The mechanism guess in this bullet — GPU contention — is also
+  > not supported: C3 shows Flash is CPU-bound, so the contention is for the host.
+
+
 - **Dense seats decode ~21–24 tok/s against the 30B MoE's ~121.** A planner/builder/reviewer
   split built from dense models runs ~6× slower per seat than the incumbent. That is the price of
   specialisation, and residency does not reveal it.
@@ -1637,6 +1737,15 @@ until the default arm was measured the same way and read 0.476 GB. (2026-08-29; 
 
 **R5. A control that shares a server with the arm before it stops being a control** once that arm
 degrades the machine. Run it on its own epoch. (2026-08-29; the keep-alive arm in W-B3)
+
+**R7. A constraint detectable before production shutdown must never be discovered after it.**
+A probe that takes a resource offline validates that its requested workload can actually complete
+under the proposed server configuration *first*. At minimum compute
+`effective_slot_context = total_context / parallel_slots` and reject any cell whose prompt plus
+generation and template overhead cannot fit it — `-np N` **splits** the context, so `-c 16384 -np 2`
+gives a slot 8192 tokens, not 16384. B3's first attempt died on HTTP 400 at its third prompt length
+with production already down. **A late validation failure is not a failed benchmark; it is an
+outage that purchased no evidence.** (2026-08-29; B3)
 
 **R6. Warm-vs-warm or it is not a comparison.** Every arm restarts and warms before it is
 measured; a post-idle measurement is a cold one and is not comparable to anything.

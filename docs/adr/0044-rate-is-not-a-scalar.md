@@ -163,9 +163,10 @@ What the accumulating record shows so far, stated no more strongly than it suppo
 - **At least three episodes**, and transitions occur in **both directions without intervention**.
 - **Dwell time is variable**: ≤5 min (00:54), ~30 min (the first), and ≥10 min ongoing (02:20).
   The ±5 min sampling limit bounds the short ones.
-- **The degraded level clusters** — 69.22 / 66.56 / 66.64 / 64.55. ⚠ Suggestive of a preferred lower
-  regime rather than a continuum, but **four samples is not a distribution** and per ADR-0044 these
-  remain observed regimes, not established states.
+- ~~**The degraded level clusters** — 69.22 / 66.56 / 66.64 / 64.55.~~ ⚠ **FALSIFIED within hours by
+  its own follow-on data — see the full episode table below.** The caveat attached to it (*"four
+  samples is not a distribution"*) was correct, and the clustering did not survive: the next two
+  episodes read **46.13** and **1.24** tok/s. There is no preferred lower level.
 - **Prefill rises with it** (13.6–21.6 ms against ~10.1 ms healthy) — a correlated second signal, and
   the first hint that the two costs may share a cause. ⚠ Correlation only.
 
@@ -433,4 +434,34 @@ record is *perishable and non-reproducible* and should not be spent to buy a rep
 measurement — then damaged it myself with an unchecked input file. **The prompt file's size was
 never verified before it was fired at a production server.** The five requests in the preceding
 elevated ETW run were harmless only by accident: they all returned HTTP 401 and did no GPU work.
+
+### The full episode table — 12.4 h, 145 deep-probe samples
+
+| onset | span | rates (tok/s) |
+|---|---|---|
+| 00:32:52 | ≤5 min | 65.17 · 68.37 |
+| 00:54:56 | ≤5 min | 69.22 |
+| 02:20:15 | **5 min** | 66.56 · 66.64 |
+| 03:00:17 | ≤5 min | 67.01 |
+| 03:20:19 | ≤5 min | **46.13** |
+| 04:30:26 | ≤5 min | **1.24** |
+
+**Six episodes, 8 degraded samples of 145 — 5.5% of sampled time — then 6.0 hours clean
+(72 consecutive healthy samples).** Three corrections to what was recorded earlier, all of them
+produced by waiting rather than by intervening:
+
+1. ⚠ **The episodes are mostly brief.** The first was characterised as *"a stable ~61% state"*, and
+   it is not: most are single-sample, under five minutes. That characterisation came from the one
+   episode long enough to be caught, restarted and re-measured by hand. **An observer standing over
+   the machine samples the long episodes preferentially** — the impartial record looks different from
+   the one an operator assembles while investigating.
+2. ⚠ **Depth varies by two orders of magnitude**, not within a band: 69.22 down to **1.24**. The
+   clustering claim is withdrawn above. **Whether 46.13 and 1.24 are even the same phenomenon is
+   unestablished** — depth does not classify, and per the restart discriminator neither of them was
+   tested.
+3. ⚠ **The behaviour is bursty**: six episodes inside four hours, then six hours of nothing. Any
+   intervention fired during that first window would have landed on an episode about to clear on its
+   own, and R10 would have made the resulting "recovery" uninterpretable. **This is the concrete
+   payoff of the watch posture**, and it is the shape of evidence an intervention would have
+   destroyed rather than produced.
 

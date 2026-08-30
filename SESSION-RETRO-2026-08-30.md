@@ -154,3 +154,100 @@ frontier work: the campaign was judgment, multi-file coherence and live-machine 
 what the doctrine says to keep. The honest read of a 1.0 ratio on a 1,253-call corpus is that it
 measures the *door's* history, not this session's discipline.
 
+---
+
+# Addendum — closing the day *(2026-08-30, later)*
+
+Written after the first retro because three things happened afterwards: the public article was
+audited and edited, the incident recurred five more times and produced a **correction to my own
+characterisation of it**, and a concurrent session localised its mechanism.
+
+## What shipped after the first retro
+
+| Commit | What |
+|---|---|
+| `4688781` | Board brought current (B3/B4/B5, campaign close, ADR-0044) |
+| `8d7344f` | The first retro |
+| `4dc470e` | INC-2026-08-30-A recurrence — the pre-committed negative result fires |
+| *(this)* | Clustering claim withdrawn; episode table; addendum |
+| `steppeintegrations-site@f798a04` | The public article — **committed, not pushed** |
+
+## The article
+
+Corrected one number and added one finding. The number is the interesting part: **`130` does not
+exist in the corpus.** Searching every bench-row for 126–136 tok/s returns 121.58 (llama-bench, MoE,
+one card) and 127.49 — which is an **aggregate at concurrency 24**. The `23` it was paired against is
+single-stream. So the published `5.7×` most likely compared aggregate-under-load with single-stream:
+the exact class R8 was written to make inadmissible, found in our own published work.
+
+Corrected to **5.0× (112 vs 22)** from B5's controlled measurement. ⚠ **The dense side was always
+right** (23.75 published vs 23.52/23.62 measured) — the error was entirely on the sparse side, and
+finding 2's conclusion is untouched.
+
+Added **finding 8** on machine state. ⚠ And found that the article had already documented the
+llama-bench `-ts` comma trap and the bench-vs-server gap — **the campaign rediscovered both.** That
+is the second rediscovery this week, after ADR-0041 re-derived OMEN-LIMIT F3. The claim register
+exists to stop the first kind; nothing yet stops the second.
+
+## I mischaracterised the incident, and impartial sampling corrected me
+
+I recorded INC-2026-08-30-A as *"a stable ~61% state"* and noted its levels *"cluster at 64–69"*,
+with the caveat that four samples is not a distribution. **The caveat was right and the claim was
+wrong.** Six episodes across 12.4 h:
+
+| onset | span | rates |
+|---|---|---|
+| 00:32 | ≤5 min | 65.17 · 68.37 |
+| 00:54 | ≤5 min | 69.22 |
+| 02:20 | 5 min | 66.56 · 66.64 |
+| 03:00 | ≤5 min | 67.01 |
+| 03:20 | ≤5 min | **46.13** |
+| 04:30 | ≤5 min | **1.24** |
+
+8 degraded samples of 145 — **5.5% of sampled time** — then **6.0 h clean**. Depth spans two orders
+of magnitude, so there is no preferred level. And most episodes are **single-sample**, not stable
+states.
+
+⚠ **Why I got it wrong is the useful part.** The first episode was the one long enough for me to
+stand over, restart, and re-measure by hand — so it is the one I characterised. **An operator
+investigating an intermittent fault samples the long episodes preferentially**, because the short
+ones end before the investigation starts. The impartial record and the investigator's record are
+different documents, and the investigator's is biased by construction.
+
+## The concurrent session localised the mechanism
+
+While this was running, another session ran an ETW campaign on the same incident and got further
+than the behavioural work could. Recorded as claim #24: in the degraded state **GPU busy/token rises
+only +5.5% (8.811 → 9.297 ms) while wall/token rises +97.4% (9.272 → 18.298 ms)**; host gap/token
+goes 0.461 → 9.001 ms and GPU busy fraction falls **95.0% → 50.8%**. On the 1-token ping, **91% of
+the extra latency is host-side.**
+
+So the loss is **non-busy wall time, not extra GPU work** — a family (host scheduling, driver
+submission latency, synchronisation waits) rather than a mechanism, but a far tighter family than
+"unattributed". They also refuted an energy-based inference of their own along the way (claim #23):
+a stalled GPU here stays pinned at 2800 MHz and burns near-load power, so J/token is a symptom of
+prolonged wall residence, not evidence of extra work.
+
+That is consistent with the brief-and-bursty picture above and sharper than it. **Credit theirs, not
+mine** — and worth noting that two sessions converged on the same phenomenon from opposite ends,
+behavioural and instrumented, without contradicting each other.
+
+## Additional lessons
+
+9. **L-2026-08-30-9 — The investigator's record is biased toward the episodes long enough to
+   investigate.** An intermittent fault sampled by hand looks more persistent than it is; only
+   impartial sampling gives the duration distribution. → **practice**
+10. **L-2026-08-30-10 — A caveat that turns out to be load-bearing should be promoted to a
+    correction, not left as a hedge.** "Four samples is not a distribution" was written as a
+    footnote and was falsified within hours; the hedge protected the reader but the claim still
+    needed withdrawing. → **practice**
+11. **L-2026-08-30-11 — The claim register catches stale claims, not rediscoveries.** Both
+    rediscoveries this week (`-ts` comma trap, OMEN-LIMIT F3) were of things *correctly recorded*
+    and simply not reached at decision time. A register of what is *true* does not help; what would
+    is a habit of searching the record before measuring. → **open**
+
+## Provenance (addendum)
+
+No offload — the correction and the audit were judgment work. Commits `4688781`, `8d7344f`,
+`4dc470e`, this one, and `steppeintegrations-site@f798a04` (unpushed). The ETW findings are the
+concurrent session's; they are cited here and credited there.

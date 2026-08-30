@@ -493,6 +493,75 @@ location is a single bracket.
   *whether it infers* is the single bit separating class 2 from class 3. A completion used as a
   health check would have quietly turned the control into the treatment.
 
+### `-ub 1024` — PROMOTED on a valid A/B, and B1 is resolved *(2026-08-29 evening)*
+
+The first warm-vs-warm re-measurement, and the one that had been sitting invalid since the
+morning. Rig: `campaign/ff-probes/ub_ab.py`, receipts `probe: "UB-AB-WARM"`.
+
+**Both arms on the live server at production flags, both warm after restart, interleaved
+A-B-A-B, measured at `-np 2`.** Not llama-bench: it has no `-np` (finding A5) and so tests one
+slot, which is precisely the gap that let the first promotion ship unvalidated. The keep-alive
+timers were stopped for the run — they are production's warmth control, but here they would
+inject an uncontrolled third request into a two-slot concurrency measurement.
+
+| metric | `-ub 512` | `-ub 1024` | delta |
+|---|---|---|---|
+| **within-config drift** — repeats of the *same* config | 0.23% | 0.30% | *the control* |
+| decode, single stream | 105.66 | 106.11 | **+0.4%** |
+| aggregate at `-np 2` | 129.37 | 128.92 | −0.3% |
+| prefill @512 | 2190.66 | 2162.28 | **−1.3%** |
+| prefill @2048 | 2498.78 | 2643.45 | **+5.8%** |
+| prefill @8192 | 1307.87 | 1468.79 | **+12.3%** |
+
+**The drift control is what makes this readable.** Repeats of the same config agreed to
+**0.30%**, so a 5–12% between-config difference is real and the +0.4% decode figure is not. An
+A-then-B ordering could not have separated "1024 is faster" from "the machine got faster";
+interleaving forces drift to show up as within-arm disagreement instead.
+
+⚠ **The gain is prompt-length dependent and NEGATIVE at 512 tokens.** This is a bet on long
+prompts, and it corroborates FF6c's crossover surface rather than replacing it — **B2 is
+upgraded from SUSPECT to supported**, on a server-side measurement this time.
+
+#### The promotion gate, all three parts
+
+1. **Gain at production context** — above.
+2. **No shared-usage spill.** `serve-arc.cmd` mandates re-running the assert after `-c`/`-np`,
+   and `-ub` moves the same compute buffers. Measured under an *identical* 8192-token load on
+   both arms — a figure from one arm alone would have proved nothing:
+
+   | | local (per card) | non_local total |
+   |---|---|---|
+   | `-ub 512` | 14.559 / 15.451 | **0.476 GB** |
+   | `-ub 1024` | 14.908 / 15.802 | **0.732 GB** |
+
+   +0.35 GB VRAM per card, +0.26 GB shared, against a **10.24 GB** spill signature and ~16 GB
+   free per card. Clean.
+3. **Door proof** `ok:true`, `routed_by: pinned:omen-arc`. Post-promotion `ff_ratecheck`
+   **106.31 tok/s = 100% of baseline**; `arc-serve.log` free of TDR/WHEA/device-lost.
+
+⚠ **The running config is asserted behaviourally, not from the load report.** llama-server does
+not print `n_ubatch` at the default verbosity, so the promoted server cannot testify to its own
+ubatch — the same class of blindness as ADR-0042. Instead: `prefill@8192` on the running server
+reads **1470.97**, which is 0.15% from the ub1024 arm and 12.5% from the ub512 arm. The flag is
+in effect.
+
+#### B1 is resolved: refuted, not merely withdrawn
+
+The morning's claim was that `-ub 1024` causes a ~4× decode regression at `-np 2`. That was
+retracted the same day as *unsupported*; it is now **refuted**. At `-np 2`, warm against warm,
+ub1024 is decode-neutral (+0.4%, inside the 0.30% drift band's reach and certainly not −75%).
+
+The entire 104 → 22–27 spread that produced the original claim is explained by
+[ADR-0043](adr/0043-the-rung-goes-cold-when-idle.md) with the ubatch value **held constant**:
+the ub512 arm was measured on a fresh server and the ub1024 arm after co-resident work had left
+the rung idle for minutes. It was a warm arm against a cold one.
+
+**What this says about the method, not the flag:** the retraction was right to withdraw the
+causal claim and wrong about which variable had moved. Naming a confound is not the same as
+identifying it — and the honest version of "we don't know" left the flag correctly reverted for
+the wrong reason for a day. The mechanism campaign is what made the re-measurement possible;
+without ADR-0043 there was no way to put two arms in the same machine state.
+
 ### Confidence-sorted state of knowledge
 
 (full ledger:
@@ -508,13 +577,14 @@ the GQA formula is unreliable** (A10); Flash needs the qwen38 fork (A11); `local
 activity-window counter (A12); `lanes.json` LUIDs are stale so the render spill guard is **inert**
 (A13).
 
-**SUSPECT — measured, basis now in doubt.** The `-ub 1024` "4× regression" (B1) — that A/B
-compared ub512 on a **fresh** server (104) against ub1024 **after co-resident Flash work** (22–27),
-which is the ~3.7× poisoning signature almost exactly. **The causal claim is withdrawn**: the
-regression is attributable to machine state, not to ubatch. The revert itself is safe because
-ub512 is the historical default and matches the 109.31 recorded 2026-08-24, but it stands on that
-default rather than on the A/B. Re-run required: **both arms fresh after restart** (ADR-0041
-rule 2). Also suspect: the FF6c crossover (B2), dual-vs-single (B3), Flash's −42% co-residency tax
+**RESOLVED (was B1) — `-ub 1024` is promoted.** The "4× regression" is **refuted**, not merely
+withdrawn: warm against warm at `-np 2`, ub1024 is decode-neutral (+0.4%) and buys +5.8% / +12.3%
+prefill at 2048 / 8192 tokens, with repeats of the same config agreeing to 0.30%. The whole
+104 → 22–27 spread behind the original claim is ADR-0043's idle collapse with the ubatch value
+held constant. **B2 (the FF6c crossover) is upgraded to supported** by the same run — the gain is
+prompt-length dependent and negative at 512 tokens. See the `-ub 1024` section above.
+
+**SUSPECT — measured, basis now in doubt.** Still suspect: the FF6c crossover (B2), dual-vs-single (B3), Flash's −42% co-residency tax
 (B4), and the dense-vs-MoE decode comparison (B5) — every one measured co-resident with no rate
 gate, and per the provenance repair above all of them fall in **E2, the single-card epoch**.
 

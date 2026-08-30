@@ -89,40 +89,52 @@ rem Pre-evidenced by vulkancliff data-correctness.md #2: patched-at-default vs t
 rem b10549 prebuilt, 14B sanity bench, within +-3%.
 rem ROLLBACK: git revert this file to the previous commit (the b10549 path), then
 rem   schtasks /Run /TN ArcServeRestart
-rem UBATCH 2026-08-29: -ub 1024 was PROMOTED AND THEN RETRACTED THE SAME DAY.
-rem DO NOT RE-APPLY without a clean -np 2 measurement. The A/B that produced these
-rem numbers is NOT trustworthy -- see the withdrawal note below.
-rem     -ub 512  (default) : 104.26 / 104.84 / 103.40   <- matches the 109.31
-rem                           recorded here on 2026-08-24
-rem     -ub 1024           :  27.03 /  25.93 /  21.95
+rem UBATCH: -ub 1024 is PROMOTED (2026-08-29 evening) on a valid A/B. It was promoted
+rem and retracted earlier the SAME DAY on an invalid one; both are recorded here because
+rem the second promotion only means something against the first one's failure.
 rem
-rem CAUSAL CLAIM WITHDRAWN (ADR-0041, same day, later). This file previously
-rem asserted that -ub 1024 CAUSES a ~4x decode regression at -np 2. It does not
-rem say that any more, because the two arms were not measured at the same machine
-rem state: ub512 was measured on a FRESH server (104) and ub1024 was measured
-rem AFTER co-resident Flash work (22-27). Co-residency persistently degrades this
-rem server by ~3.7x until it is restarted, which reproduces the entire "4x gap"
-rem with the ubatch value held constant. The measured spread is real; the
-rem attribution to -ub is not.
-rem THE REVERT STILL STANDS, on different grounds: ub512 is the historical default
-rem and matches the 109.31 recorded here on 2026-08-24. It is the known-good
-rem value, not the winner of a valid A/B.
-rem TO RESOLVE: re-run both arms FRESH AFTER RESTART (ADR-0041 rule 2), with
-rem ff_ratecheck pre/post on each. Until then this is an open question, not a
-rem settled finding.
+rem THE VALID A/B (campaign/ff-probes/ub_ab.py, receipts probe "UB-AB-WARM"):
+rem both arms on THIS server at THESE flags, both warm after restart, interleaved
+rem A-B-A-B, and measured at -np 2 -- the regime llama-bench cannot express at all.
+rem     within-config drift (the control)          0.30%   <- repeats of the SAME config
+rem     decode, single stream       105.66 -> 106.11   +0.4%
+rem     aggregate at -np 2          129.37 -> 128.92   -0.3%
+rem     prefill @512               2190.66 -> 2162.28  -1.3%
+rem     prefill @2048              2498.78 -> 2643.45  +5.8%
+rem     prefill @8192              1307.87 -> 1468.79  +12.3%
+rem Repeats of the same config agreed to 0.30%, so a 5-12% between-config difference is
+rem real and a 0.4% one is not. The gain is prompt-length dependent and NEGATIVE at 512
+rem tokens -- consistent with FF6c's crossover surface, so this is a bet on long prompts.
 rem
-rem THE LESSON THAT DOES SURVIVE: llama-bench measured -ub 1024 as +5.7% prefill
-rem and decode-neutral, so it looked free -- but llama-bench HAS NO -np and tests
-rem ONE slot. A flag validated only where the harness can reach is NOT validated.
-rem That gap was explicitly noted at promotion time and shipped anyway. Any flag
-rem touching batching MUST be A/B tested against the live server before promotion.
+rem SHARED-USAGE ASSERT (mandated above for -c/-np, and -ub moves the same compute
+rem buffers). Measured under an identical 8192-token load on both arms:
+rem     -ub 512   local 14.559/15.451   non_local 0.476 GB total
+rem     -ub 1024  local 14.908/15.802   non_local 0.732 GB total
+rem +0.35 GB VRAM per card and +0.26 GB shared. The known spill signature is 10.24 GB and
+rem costs ~22% quietly; this is 14x below it, with ~16 GB free per card. CLEAN.
+rem
+rem WHY THE FIRST PROMOTION FAILED, kept because it is the reason to trust this one:
+rem the original A/B compared -ub 512 on a FRESH server (104) against -ub 1024 measured
+rem after co-resident work had left the rung idle (22-27), and read the difference as a
+rem 4x regression caused by ubatch. ADR-0043 explains that entire spread with the ubatch
+rem value HELD CONSTANT: more than ~60 s idle costs this rung ~4x. The retraction was
+rem right to withdraw the causal claim; it was wrong about which variable moved.
+rem
+rem THE LESSON THAT SURVIVES BOTH: llama-bench measured -ub 1024 as +5.7% prefill and
+rem decode-neutral, so it looked free -- but llama-bench HAS NO -np and tests ONE slot.
+rem A flag validated only where the harness can reach is NOT validated. That gap was
+rem noted at the first promotion and shipped anyway. Any flag touching batching MUST be
+rem A/B tested against the live server, at -np 2, warm vs warm, before promotion.
+rem
+rem ROLLBACK: delete " -ub 1024" from the launch line below, then
+rem   schtasks /Run /TN ArcServeRestart
 E:\work\llamacpp-knee\build\bin\llama-server.exe ^
   -m E:\work\battlemage\models\Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf ^
   --alias qwen3-30b-a3b ^
   -ngl 99 -sm layer -ts 1,1 ^
   -fa on ^
   --no-mmap -dio -fit off ^
-  -c 131072 -np 2 ^
+  -c 131072 -np 2 -ub 1024 ^
   --host 127.0.0.1 --port 8082 ^
   --slots --jinja --metrics ^
   --api-key %OMEN_ARC_TOKEN% > "C:\work\commandcenter\hearth\var\arc-serve.log" 2>&1

@@ -11,6 +11,12 @@ rotation program (R-series) and the Level-Zero campaign (LZ1–LZ8b).
 
 ## ⚠ 0.0 · THE RUNG GOES COLD WHEN IDLE — read before citing any throughput number here
 
+> **Before citing ANY throughput, ratio, crossover or tax figure from this campaign, check
+> [`docs/CLAIM-REGISTER.md`](CLAIM-REGISTER.md).** It is the authoritative lookup: original
+> claim → status → corrected claim/bound → decisive receipt → rule. Twelve claims in these
+> cards have been corrected, refuted, or relocated; the prose around them is preserved and
+> annotated in place, so a stale headline is still readable here and is **not** citable.
+
 **CORRECTED 2026-08-29 (late).** An earlier version of this section claimed a *"sustained-rate
 decay that recovers after idle."* **Both halves were wrong.** The real mechanism:
 
@@ -1824,13 +1830,30 @@ until the default arm was measured the same way and read 0.476 GB. (2026-08-29; 
 **R5. A control that shares a server with the arm before it stops being a control** once that arm
 degrades the machine. Run it on its own epoch. (2026-08-29; the keep-alive arm in W-B3)
 
-**R8. A llama-bench figure and a server figure are different quantities. Never quote one against
-the other.** llama-bench has no `-np`, so it cannot express a serving topology (A5), and it parses
-`-ts` differently (A4). Three separate findings this campaign were distorted by this one habit: the
+**R8 — INSTRUMENT ADMISSIBILITY (a gate, not guidance).**
+
+> **A ratio, delta, crossover, or promotion claim is inadmissible unless both sides were produced
+> by the same instrument and compatible execution semantics, or an explicit instrument-equivalence
+> experiment exists.**
+
+Not a caution to weigh — a precondition. A claim that fails it is not *weak*, it is **not a claim**,
+and it does not enter a card, an ADR, or a commit message.
+
+llama-bench has no `-np`, so it cannot express a serving topology (A5), and it parses `-ts`
+differently from the rest of llama.cpp (A4). **One habit distorted three separate findings**: the
 `-ub 1024` promotion (validated only where the harness could reach), the "121.6 dual-split" headline
-(actually `tensor_split "1.00"`, single-card), and the dense-vs-MoE "~6×" (a bench MoE number
-against serving dense numbers, really 4.5–5.0×). If a claim compares two numbers, both must come
-from the same instrument. (2026-08-29; B1, W-A, B5)
+(actually `tensor_split "1.00"`, single-card), and dense-vs-MoE "~6×" (a bench MoE number against
+serving dense numbers — really 4.5–5.0×). Each was internally plausible, which is precisely why a
+gate is needed rather than vigilance. (2026-08-29; B1, W-A, B5)
+
+**R9. Effect resolution and hypothesis exclusion are separate verdicts. Report both.** "Can I
+distinguish this effect from zero?" and "can I exclude the claim under test?" have different answers
+far more often than they look. B4 measured a −3.9% Flash tax against a 5.24% drift floor: the point
+estimate is **unresolvable**, while −42% is **excluded by more than 3× that floor**. The first
+version of the probe returned a single INCONCLUSIVE and would have thrown away a decisive
+refutation. An INCONCLUSIVE point estimate must never be allowed to obscure a strong exclusion
+bound — a probe that cannot say *"I don't know the value, and I know it isn't that"* is
+under-reporting. (2026-08-29; B4)
 
 **R7. A constraint detectable before production shutdown must never be discovered after it.**
 A probe that takes a resource offline validates that its requested workload can actually complete

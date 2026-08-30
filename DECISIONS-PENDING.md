@@ -519,7 +519,12 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       the original limitation — it measures a burst, and the lab optimizes work per machine-hour,
       which is a sustained quantity.
       (source: `campaign/ff-probes/ff_ratecheck.py`, `campaign/ff-probes/rate-baselines.json`)
-- [ ] 2026-08-29 — **Build FF1, or stop claiming work-per-machine-hour.** The work-slice harness
+- [ ] 2026-08-29 — **⭐ PRIORITY: build FF1.** *(Elevated 2026-08-30 after the suspect-measurement
+      campaign closed. Numerator quality is now substantially better — five corrected claims, two
+      instrument gates, and a warmth control — so the **denominator is the dominant epistemic
+      weakness** in every higher-level efficiency claim. Orientation tax, continuity dividend and
+      prefill amortization all divide by FF1.)*
+      **Build FF1, or stop claiming work-per-machine-hour.** The work-slice harness
       is the campaign's declared gate and is still unbuilt, so every FF number to date is a
       throughput proxy. Orientation tax, continuity dividend, and prefill amortization all divide
       by it. Either build it or re-scope the campaign's unit honestly.
@@ -578,4 +583,13 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       question is now sharp: *what do the clocks do across a 120 s idle gap and the four requests
       that follow it?*
       (source: [ADR-0043](docs/adr/0043-the-rung-goes-cold-when-idle.md))
+
+- [ ] 2026-08-30 — **E2 is BOUNDED, not repaired — confirm this as standing policy.** The 288
+      pre-fix receipts in epoch E2 keep their `PLACEMENT_CONTEXT_UNKNOWN` /
+      `INCUMBENT_HEALTH_UNKNOWN` labels permanently. Derive only conclusions that hold across
+      plausible E2 states; anything that flips is marked **`NON-IDENTIFIABLE FROM HISTORICAL
+      EVIDENCE`** and left there. ⚠ **A modern re-measurement is not a historical correction** — it
+      is a fact about today's machine and, where both exist, they are two rows rather than one
+      corrected row. Recorded in [docs/CLAIM-REGISTER.md](docs/CLAIM-REGISTER.md); flagged here
+      only so the policy is ratified rather than assumed.
 

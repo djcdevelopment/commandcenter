@@ -130,8 +130,22 @@ def snapshot(tag, trigger, extra):
     return man
 
 
+def _arg(name, default=None):
+    if name in sys.argv:
+        return sys.argv[sys.argv.index(name) + 1]
+    return default
+
+
 def main():
+    global KA, CAPTURES, SETTLE_S
     once = "--once" in sys.argv
+    # Dry-run overrides. The synthetic-trigger rehearsal MUST NOT write into the real
+    # keep-alive ledger: that file is the campaign's primary rate instrument and a fake
+    # row in it would contaminate every later analysis. So the rehearsal points at its
+    # own ledger and its own capture directory instead.
+    KA = _arg("--ledger", KA)
+    CAPTURES = _arg("--captures", CAPTURES)
+    SETTLE_S = int(_arg("--settle", SETTLE_S))
     if not os.path.exists(ETL):
         print("no live ring at %s -- start it with etw6_session.ps1 -Start (elevated)" % ETL)
         return 2

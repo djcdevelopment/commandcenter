@@ -9,6 +9,16 @@ rotation program (R-series) and the Level-Zero campaign (LZ1–LZ8b).
 
 ---
 
+## ✅ CAMPAIGN BOUNDARY — the suspect-measurement campaign is CLOSED (2026-08-30)
+
+B1–B5 have dispositions, E2 is bounded rather than repaired, topology claims are scoped to
+model × workload, ADR-0043 has a shipped mitigation with falsifiable monitoring, and
+production is at baseline. **No remaining experiment here has information value exceeding
+its opportunity cost.** Do not reopen it to make historical receipts pristine — that is the
+work the rules and the claim register exist to make unnecessary. The next investigation is
+**FF1**, and it starts with [`docs/FF1-DENOMINATOR-AUDIT.md`](FF1-DENOMINATOR-AUDIT.md),
+not with an instrument.
+
 ## ⚠ 0.0 · THE RUNG GOES COLD WHEN IDLE — read before citing any throughput number here
 
 > **Before citing ANY throughput, ratio, crossover or tax figure from this campaign, check
@@ -1000,6 +1010,14 @@ confidence contract exists to prevent. This is why FF6's +34.4% is trustworthy (
    fast to be informative. FF7 does the oracle half only.
 
 ### 0.4 · The denominator: what "occupied machine-hour" means
+
+> ⚠ **AUDITED 2026-08-30 — the vector below is a specification, not a measurement.**
+> **0 of 405 FF receipts carry any of its axes**, the `b70_*_s` axes have **no instrument on
+> this box** (per-process GPU counters read 0 under S4U), and `hearth/media/occupancy.py`
+> measures a *different dimension* (media, not compute) with a deliberate fail-closed bias
+> that is correct for a guard and wrong for a meter. Read
+> [`docs/FF1-DENOMINATOR-AUDIT.md`](FF1-DENOMINATOR-AUDIT.md) before building anything
+> against this. The first question is which denominator is wanted, not how precise it is.
 
 OMEN is not a benchmark rig. It simultaneously carries production serving, the BF6 render
 lane, and campaign windows, and `hearth/media/occupancy.py` establishes that **media and

@@ -524,7 +524,16 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       instrument gates, and a warmth control — so the **denominator is the dominant epistemic
       weakness** in every higher-level efficiency claim. Orientation tax, continuity dividend and
       prefill amortization all divide by FF1.)*
-      **Build FF1, or stop claiming work-per-machine-hour.** The work-slice harness
+      **⚠ START WITH THE DEFINITION, NOT THE INSTRUMENT.**
+      [`docs/FF1-DENOMINATOR-AUDIT.md`](docs/FF1-DENOMINATOR-AUDIT.md) finds the denominator
+      has never been recorded at all (0 of 405 receipts), exists in two competing
+      specifications, and that its `b70_*_s` axes have **no instrument on this box** —
+      per-process GPU counters read 0 under S4U, adapter counters cannot attribute between
+      co-tenants. **The open decision is which denominator the lab wants:** wall-clock
+      occupancy (measurable today), exclusive-resource seconds (what the axes imply, and
+      unbuildable here), or opportunity-cost occupancy (arguably the right unit, but a
+      scheduling quantity rather than a counter reading). That is a judgement about what the
+      lab is for. **Build FF1, or stop claiming work-per-machine-hour.** The work-slice harness
       is the campaign's declared gate and is still unbuilt, so every FF number to date is a
       throughput proxy. Orientation tax, continuity dividend, and prefill amortization all divide
       by it. Either build it or re-scope the campaign's unit honestly.

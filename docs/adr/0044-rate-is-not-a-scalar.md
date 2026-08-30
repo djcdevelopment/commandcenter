@@ -229,9 +229,32 @@ raising it. Two candidates survive: **a less efficient kernel/dispatch path** se
 degraded state (the same shape as this lab's own `mul_mat_vec` knee finding), or **busy-wait/spin**
 burning power without productive work.
 
+**Interleaved idle-floor control.** Subtracting a single *assumed* idle value would exaggerate the
+per-token gap if the degraded regime carried a higher background floor. It does not. Each arm was
+bracketed with its own locally measured floor, taken from the same 1 Hz capture immediately before
+and after that arm:
+
+| arm | pre-window floor | post-window floor | local floor used |
+|---|---|---|---|
+| degraded | 26.6 W / 26.6 W | 26.6 W / 26.6 W | **26.6 W per card** |
+| healthy | 26.6 W / 26.6 W | 26.6 W / 26.6 W | **26.6 W per card** |
+
+All eight bracket medians agree (n ≈ 30–34 samples each), so the two regimes share one idle floor
+and the J/token figures are unchanged by the control. **Sensitivity:** the degraded floor would have
+to be **34.9 W/card — 31% higher than measured** — to erase the difference. This is the same
+interleaved discipline that caught the `-ub` single-arm error (R3).
+
 ⚠ **Bounds.** n=1 per arm, no replication. The healthy arm is the ~97–99 regime, **not** the ~106
 one, so this pairs two of the four observed levels rather than degraded-vs-best. Token count
-approximated at 404 (4×100 + warm-up, prefill included); idle floor taken as the measured
-26.2–26.6 W/card. Wall-clock mapping of the telemetry was validated independently — derived
-clock-change timestamps matched an externally known load window to the second.
+approximated at 404 (4×100 + warm-up, prefill included). Wall-clock mapping of the telemetry was
+validated independently — derived clock-change timestamps matched an externally known load window
+to the second.
+
+**Next, in order** (Derek, 2026-08-30): (1) passive capture across a deliberate ≥120 s idle gap —
+does ADR-0043's idle-triggered state share this clock/voltage/energy **phenotype**, or separate from
+it? The useful outcome is phenotype match-or-separate, not "rate fell". (2) Fixed-shape
+`llama-bench` during a *naturally occurring* episode — same bench shape in both states, no restart.
+If the fixed kernel slows while clocks stay pinned, the inefficiency lives **below** server
+orchestration; if the bench stays normal while server decode degrades, the search moves **up** into
+scheduling/runtime. ⚠ Neither may perturb the running 1 Hz passive capture before it completes.
 

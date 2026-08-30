@@ -584,13 +584,19 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       argument. Consequential either way: it decides whether the keep-alive is a *fix* or merely a
       benchmarking hygiene item.
       (source: [ADR-0043](docs/adr/0043-the-rung-goes-cold-when-idle.md) consequences)
-- [ ] 2026-08-29 — **Get HWiNFO's VSB export enabled.** Spill, eviction and thermal are now
-      excluded *in the degraded state* by direct measurement (`non_local` 0.002/0.446 GB, 0 °C
-      spread at 50 °C), leaving **GPU clock/power state** as the surviving candidate for the idle
-      mechanism. IGCL cannot measure it on this box — b70tools lists voltage/frequency as unusable
-      on the top slot. This was already registered under ADR-0041 with a vaguer question; the
-      question is now sharp: *what do the clocks do across a 120 s idle gap and the four requests
-      that follow it?*
+- [x] ~~2026-08-29 — **Get HWiNFO's VSB export enabled.**~~ **CLOSED 2026-08-30 — not needed.**
+      The premise ("IGCL cannot measure it on this box") was inherited from a different rig and is
+      false here: `b70tools` already emits `gpu.frequency_hz` / `gpu.voltage_v` /
+      `gpu.energy_j_counter` per card at 1 Hz and reads sane values on **both** B70s. Every consumer
+      script filtered those fields out, so the instrument existed and was never read. HWiNFO would
+      have closed nothing in any case — two repo statements say it cannot see the B70s on this
+      driver at all. **The clock/power hypothesis it was meant to test is now REFUTED** for
+      INC-2026-08-30-A: while degraded, both cards sit at 2800 MHz / 1.04–1.06 V drawing 161 W and
+      burn **26% more energy per token** than the healthy arm at identical clocks
+      (`docs/adr#0044` continuation; receipts `E:\work\battlemage\ff-probes\statewatch-20260830\`).
+      ⚠ **Still open, and now cheap:** the *idle*-collapse mechanism (ADR-0043) has never been
+      looked at with this instrument — the same 1 Hz capture across a 120 s idle gap would answer
+      it, and no longer needs any new tooling.
       (source: [ADR-0043](docs/adr/0043-the-rung-goes-cold-when-idle.md))
 
 - [ ] 2026-08-30 — **E2 is BOUNDED, not repaired — confirm this as standing policy.** The 288

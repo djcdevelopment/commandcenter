@@ -154,6 +154,16 @@ restarting them.**
   clock/power state is the surviving candidate and IGCL cannot measure it on this box (b70tools
   lists voltage/frequency as unusable on the top slot), so confirming it needs HWiNFO — the same
   telemetry gap ADR-0041 registered, now with a sharper question to ask of it.
+  > ⚠ **CORRECTED 2026-08-30 — both halves of that sentence were wrong.** IGCL *can* measure it
+  > here: `b70tools` already emits `gpu.frequency_hz` / `gpu.voltage_v` / `gpu.energy_j_counter`
+  > per card at 1 Hz and reads physically sane values on **both** B70s (idle 0.40 GHz @ 0.755 V and
+  > 2.05 GHz @ 0.87 V; load 2800 MHz @ 1.04–1.06 V). The "unusable on the top slot" limitation is
+  > inherited from a different rig (5900X / Win10 / driver 8826 / DisplayPort-attached card) and does
+  > not hold on OMEN. Every consumer script simply filtered those fields out. **HWiNFO is not
+  > needed**, and for the *idle*-collapse mechanism this instrument is now available and unused.
+  > For INC-2026-08-30-A the same instrument has already **refuted** the clock/power hypothesis —
+  > see `docs/adr#0044` continuation. Receipts: `E:\work\battlemage\ff-probes\statewatch-20260830\`,
+  > `state-telemetry-findings.jsonl`.
 - **The ~60–120 s threshold is bracketed, not resolved.** 60 s holds, 120 s falls; nothing between
   was tested, on one model at one context. The collapse at 120 s is replicated (39.71 / 39.54); the
   threshold's *location* rests on a single bracket.

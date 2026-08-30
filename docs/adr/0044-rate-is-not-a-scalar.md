@@ -174,3 +174,64 @@ cleared itself within one sampling interval, and intervening would consume the d
 measurement that is currently the only thing accumulating. Per R10 a recovery following a restart
 would not be attributable to it anyway.
 
+### Continuation, 02:25 → 03:10 — episode 3 closed, episode 4 caught with GPU telemetry attached
+
+The log above was written mid-episode. Both episodes have since closed, without intervention.
+
+| deep-probe sample | decode | prefill | note |
+|---|---|---|---|
+| 02:30:15 | 106.68 | 10.3 | **episode 3 cleared spontaneously** — dwell bounded **5–10 min**, not "≥10 ongoing" |
+| 02:35 → 02:55 | 107.10–109.19 | ~10.2 | healthy |
+| **03:00:17** | **67.01** | 12.8 | **DEGRADED — episode 4** |
+| 03:05:17 | 102.34 | 10.3 | cleared spontaneously; dwell again **5–10 min** |
+| 03:10:18 | 100.68 | 10.2 | healthy |
+
+Three facts the earlier entries do not carry:
+
+- **Prefill recovers in lockstep, not just degrades in lockstep.** 13.6 → 10.3 ms at the same sample
+  decode returned. The correlation now has a **down-edge**, not only up-edges.
+- **Onset ordering.** At the episode-1 onset the 00:32:52 row read decode 65.17 with prefill still
+  **10.8 ms**, and prefill only rose to 17.3 ms at 00:33:01. **Decode fell before prefill rose.**
+- ⚠ **Provenance gap.** The "rate check at ~02:30 read 64.55" cited above has **no receipt** —
+  `ff-receipts.jsonl` has no entry between `00:40:38` and `10:01:54Z`. It was run `--no-ledger` or
+  ad hoc. The value is corroborated by an independent receipted check at 03:01:54 (64.55 exactly),
+  but the original reading should not be cited as a receipt.
+
+### ⚠ The clock/power hypothesis is REFUTED by direct measurement
+
+ADR-0041, ADR-0043 §"mechanism still unknown", `FACTORY-FRONTIER-CARDS.md` and
+`DECISIONS-PENDING.md` all name **GPU clock/power state** as the surviving candidate, blocked on
+HWiNFO telemetry. **That blocker was false and the hypothesis is now dead.**
+
+`b70tools` already emits `gpu.frequency_hz`, `gpu.voltage_v` and `gpu.energy_j_counter` per card at
+1 Hz — every consumer script filtered those fields out, keeping only temperature. The
+*"IGCL frequency is unusable on the top slot"* limitation is inherited from a **different rig**
+(5900X / Win10 / driver 8826 / DisplayPort-attached card, `b70tools/README.md:105-121, 390-394`) and
+does not hold on OMEN, where neither card drives a display. Its tell was 5.117 V / 8.55 GHz; nothing
+like that appears here. The collectors self-declare `PassiveSafe` (no VkDevice, no GPU allocation),
+which is stronger than ADR-0041's empirical harmlessness finding.
+
+Two `ff_ratecheck` arms, ~4 min apart, inside one continuous 1 Hz capture, same epoch, no restart
+between them (`E:\work\battlemage\ff-probes\statewatch-20260830\`):
+
+| | DEGRADED 03:01:54 | HEALTHY 03:06:01 |
+|---|---|---|
+| decode | **64.55 tok/s** (61%) | **98.47 tok/s** (93%) |
+| GPU clock, both B70s | **2800 MHz** | **2800 MHz** (no change event fired between the windows) |
+| GPU voltage | 1.04 / 1.055–1.06 V | 1.045 / 1.055 V |
+| peak power, both cards | 160.9 W | 173.5 W |
+| **energy per token above idle** | **1.564 J** | **1.240 J** |
+
+**The degraded GPU is fully clocked, fully volted, drawing comparable power — and spends 26% *more*
+energy per token.** It is not throttled; each token costs it more work. That also disfavours a
+simple host-side stall, which would leave energy-above-idle per token roughly unchanged rather than
+raising it. Two candidates survive: **a less efficient kernel/dispatch path** selected in the
+degraded state (the same shape as this lab's own `mul_mat_vec` knee finding), or **busy-wait/spin**
+burning power without productive work.
+
+⚠ **Bounds.** n=1 per arm, no replication. The healthy arm is the ~97–99 regime, **not** the ~106
+one, so this pairs two of the four observed levels rather than degraded-vs-best. Token count
+approximated at 404 (4×100 + warm-up, prefill included); idle floor taken as the measured
+26.2–26.6 W/card. Wall-clock mapping of the telemetry was validated independently — derived
+clock-change timestamps matched an externally known load window to the second.
+

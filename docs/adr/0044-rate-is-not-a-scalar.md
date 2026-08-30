@@ -407,3 +407,30 @@ server's scheduling loop, or synchronisation — this lap localises it **outside
 further**. 1 Hz sampling cannot say **where inside a request** the gap falls. One night, one epoch,
 one server instance, one model.
 
+
+### ⛔ EXCLUDE 04:29:20–04:31:15 — an artificial episode, caused by me
+
+**This window is NOT an INC-2026-08-30-A recurrence.** It is contention with a 29,313-token
+request I fired at production while verifying an auth fix, without checking the prompt file's
+size first. The request ran **66.8 s with 61.4 s of prefill**.
+
+| keep-alive sample | reading | note |
+|---|---|---|
+| 04:29:32 | wall 57.2 ms, prompt_ms 10.5 | healthy, immediately before |
+| 04:30:03 | wall **6736.4 ms**, prompt_ms 4945.6 | `prefill_stall: true` |
+| **04:30:26** | wall **39110.1 ms**, **decode 1.24 tok/s** | `decode_degraded: true` — **ARTIFICIAL** |
+| 04:30:33 | wall 31255.4 ms, prompt_ms 107.2 | still draining |
+| 04:31:14 | wall 1457.2 ms, prompt_ms 13.9 | recovering |
+| 04:31:44 | wall 83.6 ms, prompt_ms 12.2 | **recovered** |
+
+**1.24 tok/s is by far the lowest decode of the night and it is mine, not the machine's.** Swept
+into a dose-response, a dwell-time distribution, a level-clustering argument or an episode count,
+it would distort every one of them. **Exclude the window from all natural-recurrence analysis.**
+An intervention must not be pooled with spontaneous transitions.
+
+⚠ The irony is the lesson. Earlier in this same session I argued that the natural-recurrence
+record is *perishable and non-reproducible* and should not be spent to buy a reproducible
+measurement — then damaged it myself with an unchecked input file. **The prompt file's size was
+never verified before it was fired at a production server.** The five requests in the preceding
+elevated ETW run were harmless only by accident: they all returned HTTP 401 and did no GPU work.
+

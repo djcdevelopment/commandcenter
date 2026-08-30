@@ -112,9 +112,19 @@ distinction is not academic here.
   | whether **intermediate regimes recur** | the single strongest evidence for discrete states vs a continuum |
   | whether a restart changes **transition probability** | ⚠ observationally only — R10 forbids reading a post-restart recovery as caused by it |
 
+  ⚠ **Recurrence now carries a pre-committed negative result.** Because the keep-alive
+  *continuously enforces* ≤30 s idle, a recurrence of the INC-2026-08-30-A signature would **by
+  itself** establish that ADR-0043-style prolonged idleness is **not necessary** for it. That is a
+  real finding obtainable by waiting, stated in advance so it cannot be reconstructed after the
+  fact — and it narrows the behavioural classification **without** pretending to identify a
+  mechanism. The mitigation has become an experimental control, which is not why it was built.
+
   ⚠ **Resolution limit:** the deep probe samples every 5 minutes, so dwell times are bounded to
   ±5 min and a transition faster than that is invisible. Adequate for frequency and directionality;
-  **not** adequate for onset dynamics. That is a known limit, not a defect to fix pre-emptively.
+  **not** adequate for onset dynamics. That is a known limit, not a defect to fix pre-emptively:
+  **raising the sampling rate merely because finer resolution is available would change the observed
+  system**, trading epistemic cleanliness for prettier timestamps. Tighten it only if a specific
+  question requires it.
 
   This is the first point in the campaign where waiting is genuinely the informative move, and it is
   what the monitoring was for.

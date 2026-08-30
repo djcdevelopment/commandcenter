@@ -108,10 +108,20 @@ should be made as one.
 >
 > 1. **elapsed possession** — the resource was held, whatever was done with it;
 > 2. **attributable resource consumption** — this work's share of the hardware;
-> 3. **scheduling opportunity cost** — what else could not run because this ran.
+> 3. **scheduling opportunity cost** — what else could not run because this ran;
+> 4. **none of the above as a scalar** — the metric is **renamed or split**, because one number
+>    cannot honestly represent all three.
 >
-> These are three different economic quantities. They rank configurations differently, and (2) has
-> no observable on this box. **Choose the quantity first; only then choose an observable.**
+> These are different economic quantities. They rank configurations differently, and (2) has no
+> observable on this box. **Choose the quantity first; only then choose an observable.**
+
+⚠ **(4) is a real answer, not a way of avoiding the question**, and it may be the honest one. The
+campaign has already shown this box refusing to collapse into single numbers twice: there is **no
+machine-level topology law** (B3/B5 — it is a model × topology × workload surface), and **a rate is
+not a scalar** (ADR-0044 — health is epoch + rate + envelope). A denominator that must simultaneously
+price possession, consumption and opportunity cost is the same shape of demand. If the answer is (4),
+the deliverable is a **named split with a stated relationship between the parts**, not a compromise
+average — and "work per machine-hour" stops being a single reportable figure.
 
 ⚠ Building before that decision risks a beautifully measured denominator for the wrong economic
 quantity — an error no amount of precision would reveal, and exactly the class R8 was written to

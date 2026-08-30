@@ -11,5 +11,32 @@ rem Campaign maintenance leaves this sentinel in place until its guarded
 rem restore path is ready to bring production back. The elevated restart task
 rem therefore doubles as a UAC-free stop-only control for a medium caller.
 if exist "%ARC_MAINTENANCE_STOP%" exit /b 0
-timeout /t 3 /nobreak >nul
+
+rem WAIT FOR THE OLD PROCESS TO ACTUALLY BE GONE. This used to be `timeout /t 3`,
+rem and 3 seconds is not enough: the server holds ~30 GB loaded with --no-mmap -dio,
+rem and teardown routinely outlives the sleep. ArcServeBoot then launched while the
+rem old instance still held port 8082, serve-arc.cmd exited 1 WITHOUT truncating its
+rem log, and production stayed down while every scheduled task reported success --
+rem observed 2026-08-29 19:44 (LastTaskResult=1, log untouched, no process). The same
+rem race is the most likely explanation for the ~3-minute outage earlier that day when
+rem ArcServeRestart was invoked three times in a row.
+rem Bounded at ~120 s; if the process will not die we REFUSE to start a second
+rem instance rather than racing it, because two servers on one port is a worse
+rem failure than a rung that is honestly down.
+set /a _arcwait=0
+:arc_waitgone
+tasklist /FI "IMAGENAME eq llama-server.exe" 2>nul | find /I "llama-server.exe" >nul
+if errorlevel 1 goto arc_gone
+set /a _arcwait+=1
+if %_arcwait% GEQ 60 goto arc_stuck
+timeout /t 2 /nobreak >nul
+goto arc_waitgone
+
+:arc_gone
+timeout /t 2 /nobreak >nul
 schtasks /Run /TN ArcServeBoot
+exit /b 0
+
+:arc_stuck
+echo restart-arc: llama-server still present after ~120s - refusing to start a second instance 1>&2
+exit /b 1

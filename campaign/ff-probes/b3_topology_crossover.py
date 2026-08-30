@@ -121,11 +121,15 @@ def stop_probe(proc):
             return
 
 
-def start_probe(topo, ctx, nparallel, rep):
-    os.makedirs(LOGDIR, exist_ok=True)
-    err = os.path.join(LOGDIR, "%s-rep%d.err.log" % (topo, rep))
+def start_probe(topo, ctx, nparallel, rep, model=None, tag="b3", logdir=None):
+    """Launch one probe server. `model`/`tag`/`logdir` let B5 reuse this unchanged --
+    the launch, ready-gate and placement assert are the parts worth not rewriting."""
+    model = model or MODEL
+    logdir = logdir or LOGDIR
+    os.makedirs(logdir, exist_ok=True)
+    err = os.path.join(logdir, "%s-%s-rep%d.err.log" % (tag, topo, rep))
     cfg = TOPOLOGIES[topo]
-    argv = [BIN, "-m", MODEL, "--alias", "b3-%s" % topo,
+    argv = [BIN, "-m", model, "--alias", "%s-%s" % (tag, topo),
             "-ngl", "99", "-sm", "layer", "-ts", cfg["ts"],
             "-fa", "on", "-fit", "off", "--no-repack",
             "-c", str(ctx), "-np", str(nparallel),
@@ -140,7 +144,7 @@ def start_probe(topo, ctx, nparallel, rep):
     deadline = time.time() + 420
     while time.time() < deadline:
         if p.poll() is not None:
-            raise RuntimeError("%s rep%d exited rc=%s; see %s" % (topo, rep, p.returncode, err))
+            raise RuntimeError("%s/%s rep%d exited rc=%s; see %s" % (tag, topo, rep, p.returncode, err))
         try:
             if READY in io.open(err, encoding="utf-8", errors="replace").read():
                 break
@@ -149,7 +153,7 @@ def start_probe(topo, ctx, nparallel, rep):
         time.sleep(3)
     else:
         stop_probe(p)
-        raise RuntimeError("%s rep%d never reported %r" % (topo, rep, READY))
+        raise RuntimeError("%s/%s rep%d never reported %r" % (tag, topo, rep, READY))
 
     text = io.open(err, encoding="utf-8", errors="replace").read()
     bufs = [(m.group(1), float(m.group(2))) for m in BUF_RE.finditer(text)]
@@ -157,9 +161,9 @@ def start_probe(topo, ctx, nparallel, rep):
     if len(gpu) != cfg["expect_gpu_buffers"]:
         stop_probe(p)
         raise RuntimeError(
-            "PLACEMENT MISMATCH [%s rep%d]: expected %d GPU buffers, got %d :: %s. "
+            "PLACEMENT MISMATCH [%s/%s rep%d]: expected %d GPU buffers, got %d :: %s. "
             "Per ADR-0042 this is what a reshuffled enumeration looks like; the run is void."
-            % (topo, rep, cfg["expect_gpu_buffers"], len(gpu),
+            % (tag, topo, rep, cfg["expect_gpu_buffers"], len(gpu),
                ", ".join("%s=%.1fMiB" % b for b in bufs)))
     return p, {"gpu_buffers": ["%s=%.1fMiB" % b for b in gpu],
                "host_buffers": ["%s=%.1fMiB" % b for b in bufs

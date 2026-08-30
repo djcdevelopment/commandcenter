@@ -736,6 +736,78 @@ and the entry now carries a pointer here. No measurement was deleted or rewritte
   in the output rather than a failure. Now retried once and, if it still fails, announced loudly.
 - **The verdict conflated resolvable with excluded** (above).
 
+### B5 — dense vs MoE: the ratio is **4.5–5.0×, not ~6×**, and the error was on the MoE side *(2026-08-29)*
+
+Rig: `campaign/ff-probes/b5_dense_vs_moe.py`, receipts `probe: "B5-DENSE-VS-MOE"`. Last in the
+queue deliberately: until B3 and B4 landed there was no way to stop topology or warmth
+masquerading as an architectural effect.
+
+**The historical claim carried four confounds, all now identifiable.** The dense seats each sat on
+**one card**, were measured **simultaneously with each other and with Flash**, at **different
+contexts** (27B @32k, coder-32B @16k), with **no warmth gate**. The ~121 they were compared against
+was a `llama-bench tg128` run whose receipt reads `tensor_split "1.00"`.
+
+So: one model at a time, fixed topology, same context, warm, placement asserted, models
+**interleaved** within each topology so cross-model drift shows as within-model disagreement.
+
+| topology | model | decode | within-model drift | prefill @512 | @2048 |
+|---|---|---|---|---|---|
+| dual | **MoE 30B-A3B** | **106.17** | 0.02% | 2162.76 | 2470.18 |
+| dual | dense Qwen3.8-27B | 23.52 | 0.04% | 615.27 | 838.91 |
+| dual | dense Qwen2.5-32B | 22.84 | 0.04% | 679.98 | 841.43 |
+| single | **MoE 30B-A3B** | **112.42** | 0.22% | 2127.25 | 1687.08 |
+| single | dense Qwen3.8-27B | 23.62 | 0.13% | 636.36 | 614.81 |
+| single | dense Qwen2.5-32B | 22.34 | 0.04% | 609.52 | 533.77 |
+
+| ratio MoE : dense | dual | single |
+|---|---|---|
+| vs Qwen3.8-27B | **4.51×** | **4.76×** |
+| vs Qwen2.5-32B (size/quant-matched) | **4.65×** | **5.03×** |
+
+Drift of 0.02–0.22% against a ~4.5× effect is the cleanest signal-to-floor ratio in the campaign,
+so these are not close calls.
+
+#### The dense measurement was always right; the MoE number was wrong
+
+**Dense reproduces the historical figure almost exactly: 23.52 / 23.62 against the recorded 23.54.**
+Four confounds were removed and it did not move. The entire discrepancy sits on the other side —
+**~121 from llama-bench against 106.17 / 112.42 measured on a serving topology, warm.**
+
+So the ~6× was not inflated by contention or cold state. It was inflated by **comparing a bench
+number to serving numbers** — the same class of error as B1 (`llama-bench` has no `-np`, A5) and as
+the mislabeled "121.6 dual-split" W-A caught. ⚠ Three separate findings this campaign have now been
+distorted by one habit: *quoting a llama-bench figure alongside server measurements as if they were
+the same quantity.*
+
+#### A new result that extends B3: the topology effect is **architecture-dependent**
+
+| | decode, dual → single | prefill @2048, dual vs single |
+|---|---|---|
+| MoE 30B-A3B | 106.17 → 112.42 (**+5.9%**) | **+46.4%** for dual |
+| dense Qwen3.8-27B | 23.52 → 23.62 (**+0.4%**) | +36.4% for dual |
+| dense Qwen2.5-32B | 22.84 → 22.34 (**−2.2%**) | +57.6% for dual |
+
+**Dense decode is essentially topology-insensitive** — ±2% — while the MoE gains ~6% from a single
+card. B3's decode cost is therefore an **MoE property, not a general one**, which no measurement
+before this could have separated.
+
+⚠ **And the prefill crossover moves with architecture.** B3 located the MoE's sign change between
+512 and 1024. For dense Qwen2.5-32B, dual already wins at 512 (**+11.6%**), so its crossover is
+*below* the range B3 sampled. A single crossover point is a property of a model, not of the box.
+
+#### What this does and does not settle
+
+**Settles:** the per-seat cost of a dense planner/builder/reviewer split against the MoE incumbent
+is **~4.5–5×**, not ~6×. Still large — a dense seat is a genuinely expensive way to buy
+specialisation — but a fifth cheaper than the figure the design discussion has been using.
+
+**Does not settle:** ⚠ a 3B-active MoE doing less work per token than a 27B dense model **is what
+MoE is for**. B5 asks only whether the *ratio* survives the confounds. Per R1, finding that it
+moved to 4.5–5× licenses no mechanism story, and nothing here says the gap is or is not worth
+paying — that depends on output quality per seat, which this does not measure.
+
+**Scope:** `-c 16384 -np 2`, one model at a time, production down for the window.
+
 ### Confidence-sorted state of knowledge
 
 (full ledger:
@@ -769,9 +841,16 @@ tax on Flash is −2.3% to −3.9%, inside its own drift floor; −42% is exclud
 both Flash configs. The cost is real but lands on the **incumbent** (−15 to −28% while sharing,
 fully recovered after). See the B4 section above.
 
-**SUSPECT — measured, basis now in doubt.** Still suspect: the FF6c crossover (B2), dual-vs-single (B3), Flash's −42% co-residency tax
-(B4), and the dense-vs-MoE decode comparison (B5) — every one measured co-resident with no rate
-gate, and per the provenance repair above all of them fall in **E2, the single-card epoch**.
+**RESOLVED (was B5) — the dense-vs-MoE ratio is 4.5–5.0×, not ~6×.** The dense measurement
+reproduces exactly; the MoE side was a llama-bench number quoted against serving numbers. B5 also
+found the topology effect is **architecture-dependent**: dense decode is topology-insensitive
+(±2%) while the MoE gains ~6% from a single card, so B3's decode cost is an MoE property.
+
+**SUSPECT — none of the original five remain.** B1 (refuted, `-ub 1024` promoted), B2 (supported by
+the ub A/B), B3 (crossover located), B4 (refuted; the cost falls on the incumbent), B5 (corrected to
+4.5–5.0×) are all closed. What remains open is not a suspect measurement but the **provenance
+repair**: pre-2026-08-29 receipts still carry `PLACEMENT_CONTEXT_UNKNOWN` /
+`INCUMBENT_HEALTH_UNKNOWN` and fall in **E2, the single-card epoch**.
 
 **OPEN.** The **poisoning mechanism** (C1) — behaviour characterised, cause unknown; IGCL
 frequency is unusable on the top slot per b70tools, so confirming it needs HWiNFO power/clock
@@ -1358,6 +1437,13 @@ charge, not free RAM.)
 - **Dense seats decode ~21–24 tok/s against the 30B MoE's ~121.** A planner/builder/reviewer
   split built from dense models runs ~6× slower per seat than the incumbent. That is the price of
   specialisation, and residency does not reveal it.
+  > ⚠ **CORRECTED 2026-08-29 by B5 — see the B5 section above.** The dense half of this is right
+  > and reproduces exactly (23.52 / 23.62 against the 23.54 recorded here). The **MoE half is not**:
+  > ~121 is a `llama-bench tg128` figure, and on a serving topology the same model reads 106.17
+  > (dual) / 112.42 (single). The ratio is therefore **4.5–5.0×**, not ~6×. Still a large cost, but
+  > a fifth smaller than the number the design discussion has been using.
+
+
 
 **Placement remains un-targetable.** The *lighter* model landed on the *cool* card, inverting the
 constitution's "hot card gets the lighter model" rule. Symmetric `-ts` does not care; this seating
@@ -1737,6 +1823,14 @@ until the default arm was measured the same way and read 0.476 GB. (2026-08-29; 
 
 **R5. A control that shares a server with the arm before it stops being a control** once that arm
 degrades the machine. Run it on its own epoch. (2026-08-29; the keep-alive arm in W-B3)
+
+**R8. A llama-bench figure and a server figure are different quantities. Never quote one against
+the other.** llama-bench has no `-np`, so it cannot express a serving topology (A5), and it parses
+`-ts` differently (A4). Three separate findings this campaign were distorted by this one habit: the
+`-ub 1024` promotion (validated only where the harness could reach), the "121.6 dual-split" headline
+(actually `tensor_split "1.00"`, single-card), and the dense-vs-MoE "~6×" (a bench MoE number
+against serving dense numbers, really 4.5–5.0×). If a claim compares two numbers, both must come
+from the same instrument. (2026-08-29; B1, W-A, B5)
 
 **R7. A constraint detectable before production shutdown must never be discovered after it.**
 A probe that takes a resource offline validates that its requested workload can actually complete

@@ -32,7 +32,7 @@ from hearth.toolsurface.backends import Backend, Pool, load_pool
 REPO = Path(__file__).resolve().parents[3]
 ASSAY_TASKS = REPO / "campaign" / "qwen38" / "assay" / "tasks.json"
 
-R10_EVIDENCE = "R10: 27B verbatim recall 11/14 @8k, 2/2 @32k vs 30B-A3B 3/14, 0/2"
+R10_EVIDENCE = "R10 (r10-results.jsonl, 16 rows per model = 8k + 32k document blocks, each 1 full-prompt row + 7 cached-prefix depth-sweep rows): 27B line_verbatim 13/16 vs 30B-A3B 3/16 -- sweep rows 11/14 vs 3/14, full-prompt rows 2/2 vs 0/2"
 ADR0039_EVIDENCE = "ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K"
 VISION_REASON = "no verified local vision rung (27B text-only, ADR-0039)"
 TEXT_FAMILIES = ("summarization", "extraction", "classification", "drafting",

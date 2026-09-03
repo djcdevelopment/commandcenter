@@ -46,7 +46,7 @@ assay_source = "campaign/qwen38/assay/tasks.json"
 model_id = "qwen38-27b"
 min_prompt_tokens = 4096
 below_threshold_model_id = "qwen3-30b-a3b"
-evidence = "R10: 27B verbatim recall 11/14 @8k, 2/2 @32k vs 30B-A3B 3/14, 0/2"
+evidence = "R10 (r10-results.jsonl, 16 rows per model = 8k + 32k document blocks, each 1 full-prompt row + 7 cached-prefix depth-sweep rows): 27B line_verbatim 13/16 vs 30B-A3B 3/16 -- sweep rows 11/14 vs 3/14, full-prompt rows 2/2 vs 0/2"
 receipt = 'E:\work\battlemage\rotation-phase1\r10-results.jsonl'
 receipt_note = "Tallied 2026-09-03 from the receipt's 32 rows (16 per model): each model has an 8k-document block and a 32k-document block, each block = 1 full-prompt row (prompt_n 9681 / 27548) + 7 cached-prefix depth-sweep rows (prompt_n ~500). The evidence string's '14' is the 14 sweep rows across BOTH documents and its '2' is the two full-prompt rows; the @8k/@32k labels are not a per-document split. Verdict direction is unchanged: line_verbatim 27B 13/16 vs 30B-A3B 3/16."
 reason = "R10 measured verbatim line recall at 8k and 32k document depth; the 27B dense model recalls the line where the 30B-A3B MoE paraphrases. Below 4096 prompt tokens R10 has no evidence and ADR-0039 charges the 27B 0.687x jobs/hour, so the door default stands there."

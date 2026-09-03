@@ -16,6 +16,7 @@ from hearth.toolsurface import (
     testing,
     media_render,
     image_generate,
+    media_generate,
 )
 
 PROVIDERS = (
@@ -31,6 +32,7 @@ PROVIDERS = (
     build_requests,
     media_render,
     image_generate,
+    media_generate,
 )
 
 

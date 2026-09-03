@@ -28,6 +28,7 @@ def _dirs() -> dict[str, Path]:
         "claims": base / "claims",
         "results": base / "results",
         "cancels": base / "cancels",
+        "progress": base / "progress",
     }
 
 
@@ -97,6 +98,10 @@ def read_claim(job_id: str) -> Optional[dict]:
     return _read(_dirs()["claims"] / (job_id + ".json"))
 
 
+def read_progress(job_id: str) -> Optional[dict]:
+    return _read(_dirs()["progress"] / (job_id + ".json"))
+
+
 def dequeue_job(job_id: str) -> None:
     (_dirs()["queue"] / (job_id + ".json")).unlink(missing_ok=True)
 
@@ -118,6 +123,10 @@ def clear_claim(job_id: str) -> None:
 
 def clear_result(job_id: str) -> None:
     (_dirs()["results"] / (job_id + ".json")).unlink(missing_ok=True)
+
+
+def clear_progress(job_id: str) -> None:
+    (_dirs()["progress"] / (job_id + ".json")).unlink(missing_ok=True)
 
 
 def active_count() -> int:

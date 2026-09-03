@@ -108,6 +108,35 @@ class ImageSessionPrecheckTest(unittest.TestCase):
             finally:
                 controller.close()
 
+    def test_restore_waits_until_the_old_arcserve_process_is_replaced(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(
+            os.environ, {"HEARTH_IMAGEGEN_HANDOFF": temporary}
+        ):
+            store = GpuTenancyStore(Path(temporary) / "coordination.sqlite")
+            snapshot = store.acquire(
+                resource="omen-b70-pool", session_id="session_restore",
+                ttl_seconds=180, state="imagegen",
+            )
+            controller = ImageSessionController(store=store, autostart=False)
+            try:
+                with patch.object(
+                    controller, "_arc_process_ids",
+                    side_effect=[{41}, {41}, {99}],
+                ) as process_ids, patch.object(
+                    controller, "_run_restart_task"
+                ) as restart, patch.object(
+                    controller, "_verify_arcserve", return_value=True
+                ), patch("hearth.imagegen.session.time.sleep"):
+                    controller._restore(snapshot, "test restore")
+                self.assertEqual(3, process_ids.call_count)
+                restart.assert_called_once_with()
+                released = store.get("omen-b70-pool")
+                self.assertIsNotNone(released)
+                self.assertEqual("arcserve", released.owner)
+                self.assertEqual("llm", released.state)
+            finally:
+                controller.close()
+
 
 class AbandonedClaimTest(unittest.TestCase):
     """One stuck claim used to wedge ArcServe down with no automated escape.

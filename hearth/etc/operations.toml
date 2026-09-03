@@ -37,7 +37,31 @@ artifact_media_type = "application/json; charset=utf-8"
 [operation."image.generate"]
 description = "Run a registered image workflow on a fenced Arc Pro B70 lane."
 handler = "image_generate"
-max_prompt_bytes = 262144
+max_prompt_bytes = 270336
 max_tokens_ceiling = 1
 deadline_ceiling_s = 7200
+artifact_media_type = "application/json; charset=utf-8"
+
+[operation."media.podcast"]
+description = "Generate a validated podcast script and synthesize a WAV artifact."
+handler = "media_generate"
+max_prompt_bytes = 270336
+max_tokens_ceiling = 1
+deadline_ceiling_s = 3600
+artifact_media_type = "application/json; charset=utf-8"
+
+[operation."media.animate"]
+description = "Animate one caller-owned still with the fixed Wan2.1 workflow."
+handler = "media_generate"
+max_prompt_bytes = 29360128
+max_tokens_ceiling = 1
+deadline_ceiling_s = 10800
+artifact_media_type = "application/json; charset=utf-8"
+
+[operation."media.pipeline"]
+description = "Compose a durable podcast and visual story from a source document."
+handler = "media_generate"
+max_prompt_bytes = 262144
+max_tokens_ceiling = 1
+deadline_ceiling_s = 86400
 artifact_media_type = "application/json; charset=utf-8"

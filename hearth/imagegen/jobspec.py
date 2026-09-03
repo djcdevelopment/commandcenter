@@ -12,6 +12,7 @@ from typing import Any, Mapping
 WORKFLOW_RE = re.compile(r"^[a-z0-9][a-z0-9._/-]{0,127}$")
 STRATEGIES = frozenset({"auto", "single", "dual_cfg", "dual_layers"})
 PRIORITIES = frozenset({"low", "normal", "high"})
+TARGET_LANES = frozenset({"any", "b70@bus4", "b70@bus9"})
 MAX_INPUT_BYTES = 256 * 1024
 
 
@@ -25,6 +26,7 @@ class ImageJobSpec:
     parameters: dict[str, Any]
     strategy: str
     priority: str
+    target_lane: str = "any"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -33,6 +35,7 @@ class ImageJobSpec:
             "parameters": self.parameters,
             "strategy": self.strategy,
             "priority": self.priority,
+            "target_lane": self.target_lane,
         }
 
 
@@ -45,7 +48,7 @@ def _is_absolute_path(value: str) -> bool:
 
 def parse_image_arguments(arguments: Mapping[str, Any]) -> ImageJobSpec:
     value = dict(arguments)
-    allowed = {"workflow_id", "parameters", "strategy", "priority"}
+    allowed = {"workflow_id", "parameters", "strategy", "priority", "target_lane"}
     unknown = set(value) - allowed
     if unknown:
         raise ImageArgumentError(
@@ -73,6 +76,13 @@ def parse_image_arguments(arguments: Mapping[str, Any]) -> ImageJobSpec:
     priority = value.get("priority", "normal")
     if priority not in PRIORITIES:
         raise ImageArgumentError("priority must be one of: low, normal, high")
+    target_lane = value.get("target_lane", "any")
+    if target_lane not in TARGET_LANES:
+        raise ImageArgumentError(
+            "target_lane must be one of: %s" % ", ".join(sorted(TARGET_LANES))
+        )
+    if target_lane != "any" and strategy in {"dual_cfg", "dual_layers"}:
+        raise ImageArgumentError("target_lane is only valid for single-card strategies")
 
     resolved = dict(parameters)
     seed = resolved.get("seed", -1)
@@ -89,7 +99,7 @@ def parse_image_arguments(arguments: Mapping[str, Any]) -> ImageJobSpec:
         raise ImageArgumentError("parameters must contain JSON values") from exc
     if len(encoded) > MAX_INPUT_BYTES:
         raise ImageArgumentError("image parameters exceed the 256 KiB limit")
-    return ImageJobSpec(workflow_id, resolved, str(strategy), str(priority))
+    return ImageJobSpec(workflow_id, resolved, str(strategy), str(priority), str(target_lane))
 
 
 def validate_image_arguments(operation, arguments: Mapping[str, Any]) -> tuple[dict, bytes]:
@@ -111,6 +121,7 @@ def validate_image_arguments(operation, arguments: Mapping[str, Any]) -> tuple[d
         "parameters": public_parameters,
         "strategy": spec.strategy,
         "priority": spec.priority,
+        "target_lane": spec.target_lane,
         # LOAD-BEARING CONTRACT: `_spec` carries the UNREDACTED spec, prompt included, for
         # the dispatcher. It is kept out of the ledger by the underscore-prefix filter in
         # hearth/execution/service.py (the same convention hearth/media/jobspec.py uses).

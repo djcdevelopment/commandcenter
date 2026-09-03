@@ -78,6 +78,27 @@ class TestDashboard(DashboardScopedTestCase):
         rendered = build_dashboard_html(k_dir, ledger_path)
         self.assertIn("<title>HEARTH Dashboard</title>", rendered)
 
+    def test_runtime_panels_escape_media_and_render_trace(self) -> None:
+        runtime = {
+            "tenancy": {"state": "imagegen", "owner": "test", "queued": 2,
+                        "running": 1, "agent_available": True,
+                        "lanes": [{"lane_id": "b70@bus4"}]},
+            "traces": [{"spans": [{"spanID": "1", "operationName": "hearth.mediagen.dag",
+                                      "startTime": 1000, "duration": 5000,
+                                      "references": []}]}],
+            "media": [{"name": "<unsafe>.mp4", "uri": "file:///safe/video.mp4",
+                       "size": 10, "kind": "video"}],
+        }
+        rendered = build_dashboard_html(
+            self.scope / "knowledge", self.scope / "events.ndjson",
+            runtime_snapshot=runtime,
+        )
+        self.assertIn("GPU Tenancy", rendered)
+        self.assertIn("hearth.mediagen.dag", rendered)
+        self.assertIn("&lt;unsafe&gt;.mp4", rendered)
+        self.assertNotIn("<unsafe>.mp4", rendered)
+        self.assertIn("<video controls", rendered)
+
     def test_write_dashboard(self) -> None:
         out_path = self.scope / "dash.html"
         k_dir = self.scope / "empty_knowledge"

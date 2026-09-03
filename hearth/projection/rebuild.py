@@ -441,7 +441,7 @@ def main(argv: list[str] | None = None) -> int:
     # just rebuilt. Failure here never fails the rebuild.
     try:
         from hearth.projection.dashboard import write_dashboard
-        o_path = resolve_in_scope("HEARTH-DASHBOARD.html")
+        o_path = resolve_in_scope("hearth/var/dashboard/HEARTH-DASHBOARD.html")
         k_dir = resolve_in_scope(args.out)
         l_path = resolve_in_scope(args.ledger)
         dash_res = write_dashboard(o_path, k_dir, l_path)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import os
 import secrets
@@ -291,7 +293,21 @@ class ImageSessionController:
         }) as span:
             snapshot = self._transition_state(snapshot, "restoring_llm", reason)
             ARC_SENTINEL.unlink(missing_ok=True)
+            previous_pids = self._arc_process_ids()
             self._run_restart_task()
+            # schtasks /Run only acknowledges that the restart task was queued.  The
+            # old server may still answer a warm probe briefly before restart-arc.cmd
+            # kills it, which used to release the GPU fence prematurely.  Require the
+            # exact old server process to disappear before accepting the replacement.
+            replacement_deadline = time.monotonic() + 140
+            while previous_pids & self._arc_process_ids():
+                if time.monotonic() >= replacement_deadline:
+                    raise ImageSessionError(
+                        "ArcServe restart task did not replace the old server process"
+                    )
+                self.store.renew(resource=POOL, session_id=snapshot.session_id,
+                                 epoch=snapshot.epoch, ttl_seconds=SESSION_TTL_SECONDS)
+                time.sleep(0.5)
             deadline = time.monotonic() + 240
             while time.monotonic() < deadline:
                 self.store.renew(resource=POOL, session_id=snapshot.session_id,
@@ -374,6 +390,25 @@ class ImageSessionController:
             capture_output=True, text=True, timeout=15, errors="replace",
         )
         return "llama-server.exe" in (completed.stdout or "").lower()
+
+    @staticmethod
+    def _arc_process_ids() -> set[int]:
+        completed = subprocess.run(
+            ["tasklist", "/FI", "IMAGENAME eq llama-server.exe", "/FO", "CSV", "/NH"],
+            capture_output=True, text=True, timeout=15, errors="replace",
+        )
+        if completed.returncode != 0:
+            return set()
+        rows = csv.reader(io.StringIO(completed.stdout or ""))
+        result: set[int] = set()
+        for row in rows:
+            if len(row) < 2 or row[0].lower() != "llama-server.exe":
+                continue
+            try:
+                result.add(int(row[1]))
+            except ValueError:
+                continue
+        return result
 
     @staticmethod
     def _arc_token() -> Optional[str]:

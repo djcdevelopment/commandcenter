@@ -5,9 +5,10 @@ Do NOT wrap the JSON in markdown code blocks. Output ONLY the raw JSON object.
 
 # Guidelines
 1. The storyboard should visually represent the key concepts discussed in the source document.
-2. Provide visually distinct scenes.
+2. Provide exactly {{ scene_count }} visually distinct scenes.
 3. For each scene, provide a `still_prompt` (to generate a starting image via SDXL/Z-Image) and a `motion_prompt` (to animate it via Wan2.1/LTX).
-4. The `duration_seconds` per scene should typically be 4.0 seconds.
+4. Every `duration_seconds` must be exactly {{ fixed_duration }} seconds.
+5. Every scene must use `aspect_ratio` "16:9" and `target_lane` "any".
 
 # Source Document
 ```text
@@ -20,13 +21,16 @@ Do NOT wrap the JSON in markdown code blocks. Output ONLY the raw JSON object.
   "schema": "mediagen.visual-storyboard.v1",
   "version": "1.0.0",
   "title": "A catchy title based on the document",
+  "source_document_sha256": "{{ document_sha256 }}",
   "scenes": [
     {
       "scene_id": "scene_001",
       "still_prompt": "A highly detailed cinematic shot of a glowing server rack, volumetric lighting, 8k resolution, photorealistic",
       "negative_prompt": "blurry, low quality, distorted",
       "motion_prompt": "slow pan left, the lights on the server rack blink sequentially",
-      "duration_seconds": 4.0
+      "duration_seconds": {{ fixed_duration }},
+      "aspect_ratio": "16:9",
+      "target_lane": "any"
     }
   ]
 }

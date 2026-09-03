@@ -21,6 +21,7 @@ def get_execution_service() -> ExecutionService:
             _service = ExecutionService(recover_pending=False)
             _attach_render_subsystem(_service)
             _attach_imagegen_subsystem(_service)
+            _attach_mediagen_subsystem(_service)
             _service.recover_pending()
         return _service
 
@@ -65,6 +66,25 @@ def _attach_imagegen_subsystem(service: ExecutionService) -> None:
         # fails partway (it has to -- on that path we never get a reference). This handles
         # the remaining case: construction succeeded and the assignment did not.
         service._image_dispatcher = None
+        if subsystem is not None:
+            try:
+                subsystem.close()
+            except Exception:
+                pass
+
+
+def _attach_mediagen_subsystem(service: ExecutionService) -> None:
+    """Attach the dedicated one-worker MediaGen parent scheduler."""
+    try:
+        from hearth.mediagen.execution import MediaGenerationSubsystem
+    except Exception:  # pragma: no cover - optional subsystem
+        return
+    subsystem = None
+    try:
+        subsystem = MediaGenerationSubsystem(service=service)
+        service._media_dispatcher = subsystem
+    except Exception:  # pragma: no cover - optional subsystem
+        service._media_dispatcher = None
         if subsystem is not None:
             try:
                 subsystem.close()

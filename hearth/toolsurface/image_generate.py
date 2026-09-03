@@ -40,6 +40,7 @@ def submit_image(
     parameters: dict,
     strategy: str = "auto",
     priority: str = "normal",
+    target_lane: str = "any",
     deadline_s: Optional[int] = None,
     idempotency_key: Optional[str] = None,
 ) -> dict:
@@ -50,6 +51,7 @@ def submit_image(
     arguments = {
         "workflow_id": workflow_id, "parameters": parameters,
         "strategy": strategy, "priority": priority,
+        "target_lane": target_lane,
     }
     try:
         spec = parse_image_arguments(arguments)
@@ -62,6 +64,12 @@ def submit_image(
     workflow = registered.get(spec.workflow_id)
     if workflow is None:
         raise ValueError("workflow is not registered or enabled: %s" % spec.workflow_id)
+    allowed_lanes = workflow.get("allowed_lane_ids") or []
+    if spec.target_lane != "any" and allowed_lanes and spec.target_lane not in allowed_lanes:
+        raise ValueError(
+            "target lane is not enabled for workflow %s: %s" %
+            (spec.workflow_id, spec.target_lane)
+        )
     acceptance = image_acceptance.load_acceptance()
     if not image_acceptance.workflow_available(workflow, spec.strategy, acceptance):
         raise ValueError(
@@ -85,6 +93,7 @@ def submit_image(
     return {
         "ok": True, "job_id": state["job_id"], "status": state["status"],
         "workflow_id": spec.workflow_id, "strategy": spec.strategy,
+        "target_lane": spec.target_lane,
         "resolved_seed": spec.parameters["seed"],
         "session": _dispatcher().session.status()["session"],
     }

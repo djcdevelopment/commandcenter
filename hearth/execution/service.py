@@ -44,6 +44,7 @@ class ExecutionService:
         recover_pending: bool = True,
         render_dispatcher: Optional[Any] = None,
         image_dispatcher: Optional[Any] = None,
+        media_dispatcher: Optional[Any] = None,
     ) -> None:
         self.ledger = ledger or ExecutionLedger()
         self.artifacts = artifacts or ArtifactStore()
@@ -59,6 +60,7 @@ class ExecutionService:
         # the render subsystem should say so, not silently swallow work.
         self._render_dispatcher = render_dispatcher
         self._image_dispatcher = image_dispatcher
+        self._media_dispatcher = media_dispatcher
         self._futures: dict[str, Future[None]] = {}
         self._cancel_requested: set[str] = set()
         self._lock = threading.RLock()
@@ -67,7 +69,9 @@ class ExecutionService:
             self.recover_pending()
 
     def close(self, *, wait: bool = True) -> None:
-        for dispatcher in (self._render_dispatcher, self._image_dispatcher):
+        for dispatcher in (
+            self._render_dispatcher, self._media_dispatcher, self._image_dispatcher
+        ):
             if dispatcher is not None:
                 try:
                     dispatcher.close(wait=wait)
@@ -91,6 +95,18 @@ class ExecutionService:
             for state in states:
                 job_id = state["job_id"]
                 if state["status"] == "cancellation_requested":
+                    if self._is_media_job(state) and self._media_dispatcher is not None:
+                        for invocation in state["invocations"]:
+                            if invocation["status"] == "running":
+                                self._append(
+                                    "invocation.cancelled", state,
+                                    invocation_id=invocation["invocation_id"],
+                                    reason="cancellation reconciled after scheduler restart",
+                                )
+                                state = self.ledger.get_job(job_id) or state
+                        self._media_dispatcher.enqueue(job_id)
+                        recovered += 1
+                        continue
                     self._append(
                         "job.cancelled",
                         state,
@@ -114,14 +130,14 @@ class ExecutionService:
                     )
                 elif state["status"] == "accepted":
                     self._append("job.queued", state, reason="queued during recovery")
-                if self._is_render_job(state) or self._is_image_job(state):
+                if self._is_render_job(state) or self._is_image_job(state) or self._is_media_job(state):
                     # Recovered render jobs re-enter the render queue, never the
                     # shared executor. Their commit-time revision check runs
                     # again on the retry, so a job that was superseded while the
                     # gateway was down still refuses to promote.
-                    dispatcher = (
-                        self._render_dispatcher if self._is_render_job(state)
-                        else self._image_dispatcher
+                    dispatcher = self._render_dispatcher if self._is_render_job(state) else (
+                        self._image_dispatcher if self._is_image_job(state)
+                        else self._media_dispatcher
                     )
                     if dispatcher is None:
                         self._append(
@@ -156,6 +172,16 @@ class ExecutionService:
             return False
         try:
             return self.operations.get(name).handler == "image_generate"
+        except (OperationConfigError, KeyError, ExecutionServiceError):
+            return False
+
+    def _is_media_job(self, state: Mapping[str, Any]) -> bool:
+        """Whether a ledger job state belongs to the durable MediaGen handler."""
+        name = state.get("operation")
+        if not name:
+            return False
+        try:
+            return self.operations.get(name).handler == "media_generate"
         except (OperationConfigError, KeyError, ExecutionServiceError):
             return False
 
@@ -216,6 +242,13 @@ class ExecutionService:
                 return validate_image_arguments(operation, normalized)
             except ImageArgumentError as exc:
                 raise ExecutionServiceError(str(exc)) from exc
+        if operation.handler == "media_generate":
+            from hearth.mediagen.jobspec import MediaArgumentError, validate_media_arguments
+
+            try:
+                return validate_media_arguments(operation, normalized)
+            except MediaArgumentError as exc:
+                raise ExecutionServiceError(str(exc)) from exc
         if operation.handler != "llm_chat":
             raise ExecutionServiceError(f"unsupported operation handler: {operation.handler}")
         allowed = {
@@ -271,9 +304,12 @@ class ExecutionService:
         # must not consume a shared pool worker -- see the dispatch branch below.
         is_render = operation.handler == "media_render"
         is_image = operation.handler == "image_generate"
-        is_delegated = is_render or is_image
+        is_media = operation.handler == "media_generate"
+        is_delegated = is_render or is_image or is_media
         dispatcher = self._render_dispatcher if is_render else (
-            self._image_dispatcher if is_image else None
+            self._image_dispatcher if is_image else (
+                self._media_dispatcher if is_media else None
+            )
         )
         if is_delegated and dispatcher is None:
             raise ExecutionServiceError(

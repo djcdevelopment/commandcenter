@@ -12,10 +12,96 @@ import argparse
 import datetime
 import html
 import json
+import os
 import sys
+import urllib.request
 from pathlib import Path
 
 from hearth.toolsurface._scope import resolve_in_scope
+
+DEFAULT_JAEGER_API = "http://192.168.12.233:16686/jaeger/api/traces?service=hearth&limit=10"
+DEFAULT_MEDIA_DIR = Path(r"E:\omen\imagegen\data\outputs")
+
+
+def collect_runtime_snapshot() -> dict:
+    """Collect bounded operational state; every source fails independently."""
+    snapshot: dict = {"traces": [], "trace_error": None, "tenancy": {}, "media": []}
+    try:
+        url = os.environ.get("HEARTH_JAEGER_API", DEFAULT_JAEGER_API)
+        with urllib.request.urlopen(url, timeout=3) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        snapshot["traces"] = (payload.get("data") or [])[:10]
+    except Exception as exc:
+        snapshot["trace_error"] = type(exc).__name__
+    try:
+        from hearth.execution.coordination import GpuTenancyStore
+        from hearth.imagegen import handoff
+        state = GpuTenancyStore().get("omen-b70-pool")
+        agent = handoff.agent_status()
+        snapshot["tenancy"] = {
+            "state": state.state if state is not None else "llm",
+            "owner": state.owner if state is not None else "arcserve",
+            "session_id": state.session_id if state is not None else None,
+            "queued": len(handoff.list_queued()), "running": len(handoff.list_claims()),
+            "agent_available": agent.available,
+            "lanes": ((agent.record or {}).get("lanes") or []),
+        }
+    except Exception as exc:
+        snapshot["tenancy"] = {"error": type(exc).__name__}
+    try:
+        root = Path(os.environ.get("IMAGEGEN_OUTPUT_ROOT", str(DEFAULT_MEDIA_DIR))).resolve()
+        rows = [path for path in root.iterdir()
+                if path.is_file() and path.suffix.lower() in {".wav", ".mp4", ".webm"}]
+        for path in sorted(rows, key=lambda item: item.stat().st_mtime, reverse=True)[:20]:
+            stat = path.stat()
+            snapshot["media"].append({
+                "name": path.name, "uri": path.as_uri(), "size": stat.st_size,
+                "modified": datetime.datetime.fromtimestamp(
+                    stat.st_mtime, datetime.timezone.utc
+                ).isoformat(), "kind": "audio" if path.suffix.lower() == ".wav" else "video",
+            })
+    except Exception:
+        pass
+    return snapshot
+
+
+def _trace_svg(traces: list[dict]) -> str:
+    rows = []
+    for trace in traces:
+        spans = trace.get("spans") if isinstance(trace, dict) else None
+        if not isinstance(spans, list) or not spans:
+            continue
+        starts = [int(span.get("startTime", 0)) for span in spans]
+        ends = [int(span.get("startTime", 0)) + int(span.get("duration", 0)) for span in spans]
+        origin, finish = min(starts), max(ends)
+        extent = max(1, finish - origin)
+        parent = {}
+        for span in spans:
+            for ref in span.get("references") or []:
+                if ref.get("refType") == "CHILD_OF":
+                    parent[span.get("spanID")] = ref.get("spanID")
+                    break
+        def depth(span_id):
+            seen, count = set(), 0
+            while span_id in parent and span_id not in seen and count < 8:
+                seen.add(span_id); span_id = parent[span_id]; count += 1
+            return count
+        for span in sorted(spans, key=lambda item: int(item.get("startTime", 0))):
+            left = 34 + 64 * (int(span.get("startTime", 0)) - origin) / extent
+            width = max(0.6, 64 * int(span.get("duration", 0)) / extent)
+            label = ("  " * depth(span.get("spanID"))) + str(span.get("operationName") or "span")
+            rows.append((label, left, width, int(span.get("duration", 0)) / 1000))
+    if not rows:
+        return '<div class="muted">No MediaGen traces available.</div>'
+    height = 26 + len(rows) * 22
+    parts = [f'<svg viewBox="0 0 100 {height}" role="img" aria-label="Trace timeline">']
+    for index, (label, left, width, duration_ms) in enumerate(rows):
+        y = 18 + index * 22
+        parts.append(f'<text x="1" y="{y}" font-size="3">{_escape(label)}</text>')
+        parts.append(f'<rect x="{left:.2f}" y="{y - 4}" width="{width:.2f}" height="5" rx="1" fill="var(--accent)"/>')
+        parts.append(f'<text x="{min(98, left + width + .5):.2f}" y="{y}" font-size="2.5">{duration_ms:.0f} ms</text>')
+    parts.append('</svg>')
+    return "".join(parts)
 
 
 def _escape(val) -> str:
@@ -41,7 +127,10 @@ def _trial_budget() -> int | None:
         return None
 
 
-def build_dashboard_html(knowledge_dir: Path, ledger_path: Path, now_iso: str | None = None) -> str:
+def build_dashboard_html(
+    knowledge_dir: Path, ledger_path: Path, now_iso: str | None = None,
+    runtime_snapshot: dict | None = None,
+) -> str:
     """Build the HEARTH HTML dashboard string."""
     if now_iso:
         now = datetime.datetime.fromisoformat(now_iso)
@@ -160,6 +249,8 @@ def build_dashboard_html(knowledge_dir: Path, ledger_path: Path, now_iso: str | 
     html_lines.append('.metric { font-size: 2em; margin-top: 8px; font-weight: 500; }')
     html_lines.append('h1, h2, h3 { margin-top: 0; font-weight: 500; }')
     html_lines.append('h3 { color: var(--muted); font-size: 0.9em; text-transform: uppercase; letter-spacing: 0.5px; }')
+    html_lines.append('.muted { color: var(--muted); } svg { width: 100%; min-height: 180px; }')
+    html_lines.append('audio, video { width: 100%; max-width: 640px; margin-top: 6px; }')
     html_lines.append('</style>')
     html_lines.append('</head>')
     html_lines.append('<body>')
@@ -171,6 +262,43 @@ def build_dashboard_html(knowledge_dir: Path, ledger_path: Path, now_iso: str | 
     html_lines.append('<h1>HEARTH Dashboard</h1>')
     html_lines.append('<div style="color: var(--muted); margin-bottom: 24px; font-size: 0.9em;">')
     html_lines.append(f'Generated at: {_escape(now_str)} &bull; Capacity watermark: {cap_wm} &bull; Offload watermark: {off_wm}')
+    html_lines.append('</div>')
+
+    runtime = runtime_snapshot or {"traces": [], "tenancy": {}, "media": []}
+    tenancy = runtime.get("tenancy") or {}
+    html_lines.append('<div class="card"><h2>GPU Tenancy</h2>')
+    if tenancy.get("error"):
+        html_lines.append(f'<div class="muted">Unavailable: {_escape(tenancy["error"])}</div>')
+    else:
+        html_lines.append('<table><tr><th>State</th><th>Owner</th><th>Queued</th><th>Running</th><th>Agent</th></tr>')
+        html_lines.append('<tr>' + ''.join([
+            f'<td>{_escape(tenancy.get("state"))}</td>', f'<td>{_escape(tenancy.get("owner"))}</td>',
+            f'<td>{_fmt_num(tenancy.get("queued"))}</td>', f'<td>{_fmt_num(tenancy.get("running"))}</td>',
+            f'<td>{"ready" if tenancy.get("agent_available") else "unavailable"}</td>',
+        ]) + '</tr></table>')
+        lanes = tenancy.get("lanes") or []
+        if lanes:
+            html_lines.append('<div class="muted">Lanes: ' + ', '.join(
+                _escape(item.get("lane_id") if isinstance(item, dict) else item) for item in lanes
+            ) + '</div>')
+    html_lines.append('</div>')
+
+    html_lines.append('<div class="card"><h2>Jaeger Trace Timeline</h2>')
+    if runtime.get("trace_error"):
+        html_lines.append(f'<div class="muted">Jaeger unavailable: {_escape(runtime["trace_error"])}</div>')
+    html_lines.append(_trace_svg(runtime.get("traces") or []))
+    html_lines.append('</div>')
+
+    html_lines.append('<div class="card"><h2>Media Gallery</h2>')
+    media = runtime.get("media") or []
+    if not media:
+        html_lines.append('<div class="muted">No WAV, MP4, or WebM outputs.</div>')
+    for item in media:
+        name, uri = _escape(item.get("name")), _escape(item.get("uri"))
+        html_lines.append(f'<div style="margin-bottom:16px"><a href="{uri}">{name}</a> '
+                          f'<span class="muted">({_fmt_num(item.get("size"))} bytes)</span>')
+        tag = "audio" if item.get("kind") == "audio" else "video"
+        html_lines.append(f'<{tag} controls preload="metadata" src="{uri}"></{tag}></div>')
     html_lines.append('</div>')
     html_lines.append(
         '<div class="card" style="border-color: var(--warn);">'
@@ -293,7 +421,9 @@ def build_dashboard_html(knowledge_dir: Path, ledger_path: Path, now_iso: str | 
 
 def write_dashboard(out_path: Path, knowledge_dir: Path, ledger_path: Path) -> dict:
     """Write the dashboard HTML to out_path."""
-    html_content = build_dashboard_html(knowledge_dir, ledger_path)
+    html_content = build_dashboard_html(
+        knowledge_dir, ledger_path, runtime_snapshot=collect_runtime_snapshot()
+    )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_bytes = html_content.encode("utf-8")
     out_path.write_bytes(out_bytes)
@@ -307,7 +437,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--knowledge", default="knowledge")
     parser.add_argument("--ledger", default="hearth/var/ledger/events.ndjson")
-    parser.add_argument("--out", default="HEARTH-DASHBOARD.html")
+    parser.add_argument("--out", default="hearth/var/dashboard/HEARTH-DASHBOARD.html")
 
     if argv is None:
         argv = sys.argv[1:]

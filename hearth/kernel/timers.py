@@ -111,6 +111,13 @@ TIMERS: list[TimerSpec] = [
         stagger_s=_stagger_for(4),
     ),
     TimerSpec(
+        name="dashboard_snapshot",
+        interval_s=300.0,
+        argv_builder=lambda: [sys.executable, "-m", "hearth.projection.dashboard"],
+        log_path=VAR_DIR / "dashboard-snapshot-task.log",
+        stagger_s=_stagger_for(6),
+    ),
+    TimerSpec(
         name="fleet_harvest",
         interval_s=1800.0,
         argv_builder=lambda: [sys.executable, "-m", "hearth.toolsurface.fleet_harvest",

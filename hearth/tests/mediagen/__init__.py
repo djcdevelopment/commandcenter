@@ -1,0 +1,1 @@
+"""MediaGen tests."""

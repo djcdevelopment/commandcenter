@@ -119,6 +119,12 @@ TOOL_CAPABILITY: dict[str, str] = {
     "list_image_workflows": "image_generate",
     "list_image_lanes": "image_generate",
     "get_image_session": "image_generate",
+    # Durable podcast, fixed Wan animation, and document-to-video composition.
+    "submit_podcast": "media_generate",
+    "submit_video_animation": "media_generate",
+    "submit_media_pipeline": "media_generate",
+    "get_media_status": "media_generate",
+    "cancel_media": "media_generate",
     "start_image_session": "image_session_admin",
     "stop_image_session": "image_session_admin",
     "cancel_execution": "execution",

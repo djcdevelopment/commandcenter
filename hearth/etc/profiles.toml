@@ -164,6 +164,7 @@ capabilities = [
     "dream",            # dream
     "health",           # masters_pet, patrol
     "image_generate",   # submit/cancel/status for registered image workflows
+    "media_generate",   # bounded durable media jobs, including owned tenancy swaps
     "knowledge_write",  # project*, rebuild_knowledge, record_event
     "summon",           # checkpoint_vm, start_ollama, wake_am4
 ]
@@ -203,11 +204,14 @@ capabilities = ["image_generate"]
 [profile.imagegen-admin]
 capabilities = ["image_generate", "image_session_admin"]
 
+[profile.mediagen-client]
+capabilities = ["media_generate"]
+
 [profile.unrestricted]
 capabilities = [
     "build_request", "catalog_write", "commander", "dispatch", "dream",
     "generate", "harvest", "health", "kernel_admin", "knowledge_write",
-    "execution", "image_generate", "image_session_admin", "media_render",
+    "execution", "image_generate", "image_session_admin", "media_generate", "media_render",
     "query", "queue", "read", "repo_content", "repo_metadata", "repo_write",
     "schedule", "status", "summon", "test", "write",
 ]

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -73,6 +74,7 @@ class ImageGenerationSubsystem:
             "agent_pid": claim.get("agent_pid"),
             "session_id": claim.get("session_id"),
             "session_epoch": claim.get("session_epoch"),
+            **(handoff.read_progress(job_id) or {}),
         }
 
     def reconcile_terminal_queue(self) -> int:
@@ -136,6 +138,7 @@ class ImageGenerationSubsystem:
 
     def ingest(self) -> int:
         handled = 0
+        handled += self._expire_queued()
         for path in handoff.list_claims():
             record = handoff._read(path)
             if record is not None and self._mark_running(path.stem, record):
@@ -145,6 +148,26 @@ class ImageGenerationSubsystem:
             if record is not None and self._finalise(path.stem, record):
                 handled += 1
         return handled
+
+    def _expire_queued(self) -> int:
+        expired = 0
+        now = datetime.now(timezone.utc)
+        for path in handoff.list_queued():
+            record = handoff._read(path)
+            if not record or not isinstance(record.get("deadline_s"), int):
+                continue
+            try:
+                queued = datetime.fromisoformat(str(record["queued_at"]).replace("Z", "+00:00"))
+            except (KeyError, TypeError, ValueError):
+                continue
+            if (now - queued).total_seconds() < record["deadline_s"]:
+                continue
+            state = self._service.ledger.get_job(path.stem)
+            if state is not None and state.get("status") not in TERMINAL:
+                self._service._append("job.expired", state, reason="image job deadline expired in queue")
+            self._cleanup(path.stem)
+            expired += 1
+        return expired
 
     def _mark_running(self, job_id: str, claim: dict) -> bool:
         state = self._service.ledger.get_job(job_id)
@@ -212,7 +235,10 @@ class ImageGenerationSubsystem:
             path = self._safe_output(path_value) if isinstance(path_value, str) else None
             if path is None:
                 continue
-            media_type = "image/png" if path.suffix.lower() == ".png" else "application/octet-stream"
+            media_type = {
+                ".png": "image/png", ".webp": "image/webp",
+                ".mp4": "video/mp4", ".webm": "video/webm",
+            }.get(path.suffix.lower(), "application/octet-stream")
             artifact = self._service.artifacts.put(
                 path.read_bytes(), media_type=media_type,
                 filename="%s-%d%s" % (job_id, index, path.suffix.lower()),
@@ -249,6 +275,7 @@ class ImageGenerationSubsystem:
         handoff.clear_claim(job_id)
         handoff.dequeue_job(job_id)
         handoff.clear_cancel(job_id)
+        handoff.clear_progress(job_id)
 
     def _loop(self) -> None:
         while not self._stop.is_set():

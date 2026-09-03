@@ -54,6 +54,20 @@ class ImageJobSpecTest(unittest.TestCase):
                 "command_line": "--anything",
             })
 
+    def test_target_lane_is_top_level_and_dual_targeting_is_refused(self) -> None:
+        spec = parse_image_arguments({
+            "workflow_id": "wan2-i2v",
+            "parameters": {"prompt": "x", "input_image": "still.png", "seed": 1},
+            "strategy": "single", "target_lane": "b70@bus9",
+        })
+        self.assertEqual("b70@bus9", spec.target_lane)
+        self.assertEqual("b70@bus9", spec.to_dict()["target_lane"])
+        with self.assertRaises(ImageArgumentError):
+            parse_image_arguments({
+                "workflow_id": "dual", "parameters": {"prompt": "x", "seed": 1},
+                "strategy": "dual_cfg", "target_lane": "b70@bus4",
+            })
+
 
 if __name__ == "__main__":
     unittest.main()

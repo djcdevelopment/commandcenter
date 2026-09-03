@@ -626,3 +626,47 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       Revisit if it recurs, or if a second signature appears that the restart discriminator cannot
       separate.
 
+
+- [x] 2026-09-03 — **DECIDED 2026-09-03 (Derek): production `omen-arc` cuts over to llama-swap.**
+      llama-swap on `127.0.0.1:8081` owns the process lifecycle; the production entry keeps
+      `--host 127.0.0.1 --port 8082` behind a per-model `proxy: http://127.0.0.1:8082`, so every
+      `:8082` consumer (door rung, fx99 keep-alive, `ff_ratecheck.py`, `occupancy.probe_omen_arc_slots`,
+      the ETW/keep-alive readers) stays **byte-identical**. The INC-2026-08-30-A observation epoch
+      **ends deliberately** and is recorded as a boundary (`rate-baselines.json` `epoch_boundaries`,
+      ADR-0044 observation log) — baseline 106.0 preserved, never silently re-baselined. **Not
+      executed yet** — needs the ~15 min ledgered window described in the plan's P13 (sentinel stop →
+      `ArcServeBoot` → dual-split placement assert from `-lv 5` → `ff_ratecheck.py` PASS → door pin →
+      keep-alive resumes; rollback = `serve-arc-direct.cmd`).
+      Plan: `C:\Users\derek\.claude\plans\you-have-1-5-hours-mellow-meteor.md` (§ Derek's decisions,
+      § P13). Derek's decisions section, verbatim:
+      > ## Derek's decisions (2026-09-03, in session)
+      >
+      > 1. **Cut production over to llama-swap now** (not side-port-first). Concern stated once: this ends the
+      >    INC-A epoch under observation and the keep-alive must restart from a warm rung (ADR-0043) — so the
+      >    cutover step warms immediately and the boundary is written into ADR-0044's observation log as a
+      >    deliberate epoch boundary. Then execute.
+      > 2. **"Leverage the dual B70s on OMEN first"** — not a fleet-dispatch cue: M6 stays `--dry-run`; VM
+      >    builders reaching the B70 rung is a registered follow-up (design below), not this window.
+      > 3. **Restart the HEARTH gateway at the end** ("don't worry about it") — P10 runs `HearthGatewayRestart`
+      >    after the shadow-door boot passes, then `doorcheck`.
+
+- [x] 2026-09-03 — **DECIDED 2026-09-03 (Derek): "leverage the dual B70s on OMEN first."** Not a
+      fleet-dispatch cue: the mechnet exerciser (plan M6, `campaign/mechnet_exerciser.py`) stays
+      `--dry-run`; `--go` was not cued. **VM builders → B70 rung is a registered follow-up**, not
+      this window: llama-swap's admin endpoints (`/api/models/unload*`) are **unauthenticated**, so
+      binding it on `0.0.0.0` / `172.19.240.1` would let any VM unload production, and the Default
+      Switch NAT prefix drifts across reboots. Shape: keep llama-swap on loopback; expose inference
+      only through an **authenticated reverse proxy on `omen.mshome.net`** (the
+      `OmenOllamaTracingProxy :11435` pattern, forwarding `/v1/*` to `:8081` with the bearer) plus
+      **one operator firewall rule scoped to the `vEthernet (Default Switch)` interface** (Derek's
+      action); then re-point `cc-builder-2/3` `runner.json`. (source: plan § M6, § "VM builders → B70
+      rung"; same plan file as above)
+
+- [ ] 2026-09-03 — **OPEN: `GpuTenancyStore` owner is the literal `'imagegen'`**
+      (`hearth/execution/coordination.py:261`). The rotation substrate only **reads** the fence
+      (`active_image_session("omen-b70-pool")` non-None → refuse to load); it never claims tenancy
+      under its own name. Parameterizing the owner (so rotation loads can hold the pool as a peer
+      tenant) **belongs to the imagegen lane** — that file is theirs and was committed by them today.
+      Decide there: owner as a constructor/param vs. a second store. Until then rotation and imagegen
+      are mutually exclusive on the pool by read-only convention. (source: plan § Hard constraints;
+      `hearth/imagegen/` untouched by the rotation build)

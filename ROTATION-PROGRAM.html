@@ -146,6 +146,21 @@ Plan of record: Derek-ratified 2026-08-28; pool changes in
 
 <h2 id="decisions">Decision queue</h2>
 <div class="card green">
+  <div class="label">Closed (Derek, 2026-09-03 &mdash; plan ratified: <code>~/.claude/plans/you-have-1-5-hours-mellow-meteor.md</code>)</div>
+  <table>
+    <tr><th>Decision</th><th>Call</th><th>Recorded</th></tr>
+    <tr><td>Production <code>omen-arc</code> lifecycle</td><td><b>Cut over to llama-swap</b> (not side-port-first) &mdash; llama-swap on <code>127.0.0.1:8081</code> owns lifecycle; production entry keeps <code>--port 8082</code> behind a per-model <code>proxy:</code> so every <code>:8082</code> consumer stays byte-identical. INC-2026-08-30-A epoch ends <b>deliberately</b>, written as a boundary (ADR-0044 log + <code>rate-baselines.json</code>). <b>Not executed yet</b> &mdash; the ~15 min ledgered window is the plan's P13.</td><td>DECISIONS-PENDING 09-03 (a) &middot; plan &sect;P13</td></tr>
+    <tr><td>Fleet dispatch vs. OMEN</td><td><b>&ldquo;Leverage the dual B70s on OMEN first&rdquo;</b> &mdash; mechnet exerciser stays <code>--dry-run</code>; VM builders &rarr; B70 rung is a registered follow-up needing an authenticated reverse proxy on <code>omen.mshome.net</code> + one operator firewall rule scoped to <code>vEthernet (Default Switch)</code> (admin endpoints unauthenticated; NAT prefix drifts).</td><td>DECISIONS-PENDING 09-03 (b) &middot; plan &sect;M6</td></tr>
+  </table>
+</div>
+<div class="card amber">
+  <div class="label">Open (registered 2026-09-03, another lane's file)</div>
+  <table>
+    <tr><th>Decision</th><th>Waits on</th></tr>
+    <tr><td><code>GpuTenancyStore</code> owner is the literal <code>'imagegen'</code> (<code>hearth/execution/coordination.py:261</code>)</td><td>Rotation <b>reads</b> the fence only (active image session &rarr; refuse to load). Parameterizing the owner belongs to the imagegen lane.</td></tr>
+  </table>
+</div>
+<div class="card green">
   <div class="label">Closed (Derek, 2026-08-28)</div>
   <table>
     <tr><th>Decision</th><th>Call</th><th>Recorded</th></tr>
@@ -224,6 +239,7 @@ Plan of record: Derek-ratified 2026-08-28; pool changes in
 <div class="card">
   <table>
     <tr><th>Risk</th><th>Mitigation / status</th></tr>
+    <tr><td><b>Unauthenticated llama-swap admin endpoints</b> (<code>/api/models/unload*</code> &mdash; the bare form unloads <i>everything</i>, production included)</td><td><b>Never bind beyond loopback without a proxy.</b> llama-swap listens on <code>127.0.0.1:8081</code> only; VM reach = authenticated reverse proxy on <code>omen.mshome.net</code> forwarding <code>/v1/*</code> + one firewall rule scoped to <code>vEthernet (Default Switch)</code> (operator action). Registered 2026-09-03; the <code>172.19.240.1</code> listen is deliberately OUT.</td></tr>
     <tr><td>Cross-model KV restore has no identity guard in the file format</td><td>Filename manifest <code>{model_id}.{slot}.{prompt_hash}</code> + P4 negative control (must 400)</td></tr>
     <tr><td>Flash epochs evict the warm pool (88&nbsp;GiB streamed through standby LRU)</td><td><b>MOOT for weights (R2, W1)</b>: -dio never uses the page cache and beats mmap-warm anyway. Residual: KV state files only (small); R2b downgraded</td></tr>
     <tr><td>VM RAM vs warm pool vs Flash commit contention</td><td><b>Halved by R2 (no weight warm pool)</b>. Remaining: Flash's 60.4&nbsp;GB commit vs ~0.9&nbsp;GB margin — pagefile/headroom decision still gates any Flash run (R7, R8, R9, R10-at-Flash)</td></tr>
@@ -241,6 +257,8 @@ Plan of record: Derek-ratified 2026-08-28; pool changes in
 <h2>Changelog</h2>
 <div class="card">
   <ul>
+    <li><code>2026-09-03</code> &mdash; <b>Plan ratified: the job shop gets a rotating OMEN</b> (<code>~/.claude/plans/you-have-1-5-hours-mellow-meteor.md</code>; Derek's decisions recorded verbatim in <a href="DECISIONS-PENDING.md">DECISIONS-PENDING.md</a> 09-03). <b>13 HEARTH packages + 5 mechnet packages designed:</b> OMEN catalog from receipts only (P1, <code>omen-catalog.v1</code>, cards keyed by BDF); the scheduler binds <code>omen-inference</code> as a <b>stateful host</b> and returns a sibling <code>rotation_plan</code> (P2, ADR-0008 intact &mdash; advisory); <code>hearth/rotation</code> substrate over llama-swap &mdash; swap client, placement assert, KV manifest, ledgered windows, telemetry, admission, lifecycle (P3/P4); <code>omen-swap</code> rung on <code>:8081</code> as the <b>gate-2 unlock</b> (P6); <b>rung state = epoch + rate + envelope</b>, watchdog/patrol spell (P7); dispatch stamps <code>rung_state</code> + <code>pool_config_hash</code> (P8); rotation tool provider (P9); family preferences with R10/ADR-0039 evidence (P5); <b>production cutover P13</b> (llama-swap owns lifecycle, <code>:8082</code> consumers byte-identical, INC-A epoch closed as a boundary); two-model evidence pour M1; held-out judge panel M2; token hole #1 M3; fleet dashboard M4; exerciser M6 stays dry-run.
+      <br><b>Landed today:</b> rung state module + OMEN catalog + this record. Decision queue: cutover DECIDED, &ldquo;OMEN first&rdquo; DECIDED, tenancy-owner literal OPEN (imagegen lane). Risk register: unauthenticated llama-swap admin endpoints &mdash; never bind beyond loopback without a proxy. Board split (Phase 2 DONE/TODO) and the proof receipt table follow once P11/P13 close.</li>
     <li><code>2026-08-30</code> (ETW9 &mdash; <b>the analyzer FAILS CLOSED. Stack and analyzer both FROZEN &mdash; only observation remains.</b>) &mdash; <code>occupancy_verdict()</code> now returns <b><code>NO_LOCAL_COMPARATOR &mdash; PRIMARY EVIDENCE MISSING, VERDICT REFUSED</code></b> when no within-trace comparator is supplied. <b>No silent fallback:</b> reaching <code>HEALTHY_CROSSCHECK</code> requires <code>mode='crosscheck'</code> explicitly, and <i>naming it is the point</i> &mdash; a cross-session reference must be a deliberate, visible choice. Substituting the ETW4 floor for missing within-trace evidence would downgrade PRIMARY to CROSS-CHECK unnoticed, which is exactly how a stale observable becomes a machine constant.
       <br><b>Fixtures (exit 0):</b> production without <code>local=</code> refuses; the refusal emits <i>no</i> starvation verdict; crosscheck mode must be named; <code>report()</code> refuses end-to-end <b>even when the span gate LICENSES</b> the comparison. <b>And the fixture that proves it matters:</b> a sample judged against a <b>~97-regime local comparator</b> gives a <b>different verdict</b> than the same sample against the 106-era cross-check &mdash; so the local comparator changes the answer, it is not decoration.
       <br><b>Precommitted capture protocol</b> (receipt row 179): integrity first (same session, same server PID/epoch, config hash, <b>both</b> snapshots, no reconfiguration, manifests complete) &rarr; local comparator from deep probes <b>inside the ring</b>, <b>not required to touch 106</b> &rarr; span gate <b>before</b> any occupancy verdict &rarr; licensed statistic over the pinned queues with active-span reported alongside &rarr; compare against <b>local</b> prehistory and recovery &rarr; ETW4 as cross-check only &rarr; keep the +5.5% busy/token <b>out</b> of attribution unless independently reproduced &rarr; semantic caution holds (behavioural submit/complete labels; depth counts <b>packets, not work</b>).

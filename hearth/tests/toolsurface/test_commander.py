@@ -6,8 +6,27 @@ from pathlib import Path
 from tempfile import mkdtemp
 from unittest import TestCase, mock
 
-from hearth.commander.refine import run_refine, DEFAULT_FAN_CRITICS
+from hearth.commander import refine
+from hearth.commander.refine import (
+    DEFAULT_FAN_CRITICS, default_author_seat, default_critic_seats, resolve_defaults,
+    run_refine,
+)
 from hearth.toolsurface import commander
+from hearth.toolsurface.backends import Backend, Pool, load_pool
+
+
+def _pool(*backends: Backend, default: str = "omen-arc") -> Pool:
+    return Pool(default=default, backends=tuple(backends))
+
+
+def _b(name: str, models: list[str], retired: bool = False) -> Backend:
+    return Backend(name=name, endpoint=f"http://{name}", api="openai",
+                   models=tuple(models), retired=retired)
+
+
+LIVE_SHAPE = _pool(_b("omen-arc", ["qwen3-30b-a3b"]),
+                   _b("fx99-ollama", ["qwen2.5:14b", "qwen2.5:7b"]),
+                   _b("omen-ollama", ["qwen3-coder:30b"], retired=True))
 
 
 class FakeGen:
@@ -110,6 +129,114 @@ class RefineLoopTests(TestCase):
     def test_rejects_empty_idea(self) -> None:
         with self.assertRaises(ValueError):
             run_refine("  ", rounds=1, generate=FakeGen([["CONVERGED"]]))
+
+
+class CommanderDefaultsTests(TestCase):
+    """The commander's defaults must name seats that exist (M2, 2026-09-03)."""
+
+    def test_defaults_resolve_on_the_live_pool(self) -> None:
+        pool = load_pool()                                   # the declared file
+        author = default_author_seat(pool)
+        self.assertEqual(author, ("omen-arc", "qwen3-30b-a3b"))
+        self.assertEqual(author[0], pool.default)
+        self.assertEqual(author[1], pool.default_backend().models[0])
+        resolved = resolve_defaults(fan=True, pool=pool)
+        self.assertEqual(resolved["author"], {"backend": "omen-arc", "model": "qwen3-30b-a3b"})
+        self.assertEqual(resolved["notes"], [])              # every fan seat is live
+        self.assertEqual(len(resolved["critics"]), len(DEFAULT_FAN_CRITICS))
+        for seat in resolved["critics"]:
+            declared = pool.by_name(seat["backend"])
+            self.assertIsNotNone(declared, seat)
+            self.assertFalse(declared.retired, seat)
+            self.assertIn(seat["model"], declared.models, seat)
+            self.assertNotEqual(seat["model"], "qwen3-coder:30b")
+            self.assertNotIn("mixtral", seat["model"])
+        # non-fan: the author reviews itself, on the same pinned seat
+        self.assertEqual(resolve_defaults(fan=False, pool=pool)["critics"],
+                         [{"backend": "omen-arc", "model": "qwen3-30b-a3b"}])
+
+    def test_no_default_names_a_retired_ollama_model(self) -> None:
+        # The retired names may survive in docstrings (history); never in a literal
+        # the loop could dispatch.
+        import ast
+        import inspect
+        tree = ast.parse(inspect.getsource(refine))
+        docstrings = set()
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Module, ast.FunctionDef, ast.ClassDef)):
+                doc = ast.get_docstring(node, clean=False)
+                if doc:
+                    docstrings.add(doc)
+        literals = [n.value for n in ast.walk(tree)
+                    if isinstance(n, ast.Constant) and isinstance(n.value, str)
+                    and n.value not in docstrings]
+        for name in ("qwen3-coder:30b", "mixtral"):
+            hits = [lit for lit in literals if name in lit]
+            self.assertEqual(hits, [], f"{name!r} survives as dispatchable code")
+
+    def test_unpinned_run_dispatches_on_the_default_seat(self) -> None:
+        gen = FakeGen([["CONVERGED"]])
+        res = run_refine("an idea", rounds=1, generate=gen, pool=LIVE_SHAPE)
+        self.assertTrue(res["ok"])
+        self.assertEqual(res["seats"]["author"], {"backend": "omen-arc", "model": "qwen3-30b-a3b"})
+        self.assertEqual(res["seats"]["critics"], [{"backend": "omen-arc", "model": "qwen3-30b-a3b"}])
+        for _, model, backend in gen.calls:                  # expand + self-review
+            self.assertEqual((backend, model), ("omen-arc", "qwen3-30b-a3b"))
+        self.assertEqual(res["trail"][0]["reviews"][0]["backend"], "omen-arc")
+
+    def test_fan_uses_validated_live_seats(self) -> None:
+        gen = FakeGen([["CONVERGED", "CONVERGED"]])
+        res = run_refine("an idea", rounds=1, fan=True, generate=gen, pool=LIVE_SHAPE)
+        review_seats = [(b, m) for _, m, b in gen.calls[1:]]
+        self.assertEqual(review_seats, [("omen-arc", "qwen3-30b-a3b"), ("fx99-ollama", "qwen2.5:14b")])
+        self.assertEqual(res["seats"]["notes"], [])
+
+    def test_fan_drops_dead_seats_loudly_and_falls_back_to_self_review(self) -> None:
+        pool = _pool(_b("omen-arc", ["qwen3-30b-a3b"]),
+                     _b("omen-ollama", ["qwen3-coder:30b"], retired=True))
+        seats, notes = default_critic_seats(
+            fan=True, pool=pool,
+            fan_critics=[("omen-ollama", "qwen3-coder:30b"), ("am4-oxen", "oxen-critic"),
+                         ("omen-arc", "nope")])
+        self.assertEqual(seats, [("omen-arc", "qwen3-30b-a3b")])
+        self.assertEqual(len(notes), 4)
+        self.assertIn("retired", notes[0])
+        self.assertIn("not declared", notes[1])
+        self.assertIn("model not served", notes[2])
+        self.assertIn("falling back to author self-review", notes[3])
+        # the run surfaces the same notes on its result — a shrunk fan is never silent
+        gen = FakeGen([["CONVERGED"]])
+        res = run_refine("an idea", rounds=1, fan=True, generate=gen, pool=pool,
+                         fan_critics=[("am4-oxen", "oxen-critic")])
+        self.assertEqual(res["seats"]["critics"], [{"backend": "omen-arc", "model": "qwen3-30b-a3b"}])
+        self.assertTrue(any("falling back" in n for n in res["seats"]["notes"]))
+
+    def test_legacy_bare_model_fan_critics_stay_unpinned(self) -> None:
+        gen = FakeGen([["CONVERGED", "CONVERGED"]])
+        res = run_refine("an idea", rounds=1, fan=True, generate=gen, pool=LIVE_SHAPE,
+                         fan_critics=["qwen2.5:7b", ("fx99-ollama", "qwen2.5:14b")])
+        self.assertEqual(res["seats"]["critics"],
+                         [{"backend": None, "model": "qwen2.5:7b"},
+                          {"backend": "fx99-ollama", "model": "qwen2.5:14b"}])
+
+    def test_pinned_backend_without_model_takes_that_rungs_first_model(self) -> None:
+        gen = FakeGen([["CONVERGED"]])
+        res = run_refine("an idea", rounds=1, generate=gen, pool=LIVE_SHAPE,
+                         author_backend="fx99-ollama")
+        self.assertEqual(res["seats"]["author"], {"backend": "fx99-ollama", "model": "qwen2.5:14b"})
+        res = run_refine("an idea", rounds=1, generate=FakeGen([["CONVERGED"]]),
+                         pool=LIVE_SHAPE, author_backend="not-declared")
+        self.assertEqual(res["seats"]["author"], {"backend": "not-declared", "model": None})
+        self.assertTrue(any("not declared" in n for n in res["seats"]["notes"]))
+
+    def test_explicit_pins_are_untouched(self) -> None:
+        gen = FakeGen([["CONVERGED"]])
+        res = run_refine("an idea", rounds=1, generate=gen, pool=LIVE_SHAPE,
+                         author_backend="omen-swap", author_model="phi4-vk1",
+                         critic_specs=[("gcp-gemini", "gemini-3.5-flash")])
+        self.assertEqual(res["seats"]["author"], {"backend": "omen-swap", "model": "phi4-vk1"})
+        self.assertEqual(res["seats"]["critics"], [{"backend": "gcp-gemini", "model": "gemini-3.5-flash"}])
+        self.assertEqual(res["seats"]["notes"], [])
 
 
 class CommanderProviderTests(TestCase):

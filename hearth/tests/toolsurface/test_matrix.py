@@ -87,10 +87,38 @@ class RunCellTests(TestCase):
 
     def test_score_uses_held_out_judge_backend(self) -> None:
         gen = FakeGen()
-        run_cell(self._cell(), generate=gen, judges=[("am4-oxen", "oxen-critic")])
+        run_cell(self._cell(), generate=gen, judges=[("fx99-ollama", "qwen2.5:14b")])
         judge = next(c for c in gen.calls if "Output ONLY a final line" in c["prompt"])
-        self.assertEqual(judge["backend"], "am4-oxen")
-        self.assertEqual(judge["model"], "oxen-critic")
+        self.assertEqual(judge["backend"], "fx99-ollama")
+        self.assertEqual(judge["model"], "qwen2.5:14b")
+
+    def test_run_cell_refuses_a_self_judging_cell_before_any_call(self) -> None:
+        from hearth.experiments.panel import PanelConflict
+        gen = FakeGen()
+        # judge on the planner's rung (a different model is not held out — the
+        # rung is what the evidence layer keys on)
+        with self.assertRaises(PanelConflict) as cm:
+            run_cell(self._cell(), generate=gen, judges=[("am4-oxen", "oxen-critic")])
+        self.assertIn("shares backend 'am4-oxen'", str(cm.exception))
+        self.assertEqual(gen.calls, [])                     # refused at zero cost
+        # judge on the critic's MODEL, on an unpinned backend
+        with self.assertRaises(PanelConflict):
+            run_cell(self._cell(), generate=gen, judges=[(None, "qwen3-coder:30b")])
+        self.assertEqual(gen.calls, [])
+
+    def test_run_matrix_refuses_the_whole_sweep_up_front(self) -> None:
+        from hearth.experiments.panel import PanelConflict
+        cells = build_pilot_cells(AM4, OMEN, prompt_ids=["plan-skeleton"], laps=(1,))
+        gen = FakeGen()
+        with self.assertRaises(PanelConflict) as cm:
+            run_matrix(cells, generate=gen, judges=[("am4-oxen", "oxen-planner")])
+        self.assertIn("cell ", str(cm.exception))             # names the offending cell
+        self.assertEqual(gen.calls, [])                       # nothing dispatched
+
+    def test_default_panel_is_held_out_from_the_pilot_grid(self) -> None:
+        from hearth.experiments.panel import assert_held_out
+        for cell in build_pilot_cells(AM4, OMEN, prompt_ids=["plan-skeleton"], laps=(1,)):
+            assert_held_out(matrix.DEFAULT_JUDGES, matrix.cell_arms(cell))
 
     def test_matrix_and_summary(self) -> None:
         cells = build_pilot_cells(AM4, OMEN, prompt_ids=["plan-skeleton"], laps=(1,))

@@ -10,25 +10,118 @@ The loop, one idea in:
     final = draft
 
 Every turn is a local model call via ``generate`` — by default
-``hearth.toolsurface.inference.local_generate`` (Ollama on OMEN), injected so
-tests run fully offline with a scripted fake. Convergence is an explicit,
-parseable signal: each critic ends with ``VERDICT: CONVERGED`` or
+``hearth.toolsurface.inference.local_generate`` through the HEARTH door,
+injected so tests run fully offline with a scripted fake. Convergence is an
+explicit, parseable signal: each critic ends with ``VERDICT: CONVERGED`` or
 ``VERDICT: REVISE``; a round converges only when EVERY successful critic says
 CONVERGED (a missing/garbled verdict is read as REVISE — fail-toward-more-work).
 
-Non-fan default = one critic (the author model self-reviewing, fast). ``fan``
-spreads each review round across several local models for diverse perspectives
-(qwen + mixtral) at the cost of wall-clock — the hybrid the commander chose.
+Non-fan default = one critic (the author seat self-reviewing, fast). ``fan``
+spreads each review round across several live seats for diverse perspectives
+at the cost of wall-clock — the hybrid the commander chose.
+
+Defaults resolve against the backend pool (2026-09-03, M2). The old constants
+named ``qwen3-coder:30b`` and a mixtral on an unpinned backend: both were
+OMEN-Ollama models, dead since ADR-0034. The llama-server behind ``omen-arc``
+ignored the body's ``model`` field, so those names silently ran on whatever was
+resident; llama-swap routes BY the body model and answers 404 for a name it does
+not serve. The author now defaults to the door's default rung and that rung's
+first declared model — the same resolution the door's ``_apply_defaults``
+performs, done here so the trail names the seat that actually served — and the
+critics are ``(backend, model)`` seats validated against the same pool.
 """
 from __future__ import annotations
 
 import re
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
-DEFAULT_AUTHOR_MODEL = "qwen3-coder:30b"
-# Fan critics: qwen for speed + mixtral (bigger MoE) for a different lens. Both
-# live on OMEN's ollama, so this is still all-local — just more calls per round.
-DEFAULT_FAN_CRITICS = ["qwen3-coder:30b", "mixtral:8x22b-instruct-v0.1-q2_K"]
+# Fan critics as (backend, model) seats: the door-default rung (self-review lens,
+# fast, resident) plus a separate host + separate model family (fx99's CUDA
+# sidecar, ADR-0039). Every seat is checked against the pool at call time by
+# ``resolve_defaults`` — a seat whose rung is undeclared or retired is dropped
+# with a note, never dispatched into a dead endpoint.
+DEFAULT_FAN_CRITICS: list[tuple[str, str]] = [
+    ("omen-arc", "qwen3-30b-a3b"),
+    ("fx99-ollama", "qwen2.5:14b"),
+]
+
+
+def _load_pool(pool: Any = None) -> Any:
+    if pool is not None:
+        return pool
+    from hearth.toolsurface.backends import load_pool  # offline TOML read; lazy import
+    return load_pool()
+
+
+def default_author_seat(pool: Any = None) -> tuple[str, str]:
+    """(backend, model) the commander authors on when the caller pins nothing.
+
+    The pool's default rung and its first declared model — ``omen-arc`` /
+    ``qwen3-30b-a3b`` on the live pool. Pinning the backend by name keeps the
+    commander on the sunk-cost rung it was built for: an unpinned call that
+    fails would escalate to a trial-credit cloud rung, and a pin never escalates.
+    """
+    p = _load_pool(pool)
+    backend = p.default_backend()
+    if not backend.models:
+        raise ValueError(f"default backend {backend.name!r} declares no models")
+    return (backend.name, backend.models[0])
+
+
+def _seat(spec: Any) -> tuple[Optional[str], str]:
+    """A critic spec: ``(backend, model)`` or a bare model name (unpinned, legacy)."""
+    if isinstance(spec, str):
+        return (None, spec)
+    b, m = spec
+    return (b or None, m)
+
+
+def default_critic_seats(fan: bool = False, *, author_seat: Optional[tuple] = None,
+                         pool: Any = None,
+                         fan_critics: Optional[list] = None) -> tuple[list[tuple], list[str]]:
+    """The critic seats for a run that pins none: ``([(backend, model), ...], notes)``.
+
+    Non-fan: the author seat reviews itself. Fan: every ``fan_critics`` seat
+    (default ``DEFAULT_FAN_CRITICS``) whose rung is declared and not retired in
+    the pool and which lists the model; anything else is dropped and named in
+    ``notes``. If nothing survives, falls back to the author's self-review — and
+    says so, because a silently shrunk fan is a slow success masking a broken one.
+    """
+    p = _load_pool(pool)
+    author = tuple(author_seat) if author_seat else default_author_seat(p)
+    if not fan:
+        return [author], []
+    seats: list[tuple] = []
+    notes: list[str] = []
+    for spec in (fan_critics if fan_critics is not None else DEFAULT_FAN_CRITICS):
+        b, m = _seat(spec)
+        if b is None:
+            seats.append((None, m))         # legacy bare model name: door routes it
+            continue
+        declared = p.by_name(b)
+        if declared is None:
+            notes.append(f"fan critic {b}/{m} dropped: backend not declared")
+        elif getattr(declared, "retired", False):
+            notes.append(f"fan critic {b}/{m} dropped: backend retired")
+        elif m not in declared.models:
+            notes.append(f"fan critic {b}/{m} dropped: model not served by {b}")
+        else:
+            seats.append((b, m))
+    if not seats:
+        notes.append(f"no live fan critic; falling back to author self-review on "
+                     f"{author[0]}/{author[1]}")
+        seats = [author]
+    return seats, notes
+
+
+def resolve_defaults(fan: bool = False, pool: Any = None) -> dict:
+    """What a run with no pins will dispatch to — for callers, tests, and the CLI."""
+    p = _load_pool(pool)
+    author = default_author_seat(p)
+    critics, notes = default_critic_seats(fan, author_seat=author, pool=p)
+    return {"author": {"backend": author[0], "model": author[1]},
+            "critics": [{"backend": b, "model": m} for b, m in critics],
+            "notes": notes}
 
 # Prompt style tuned by the 2026-07 wind-tunnel prompting study
 # (MATRIX-WIND-TUNNEL-LOG.html): under fair (length-neutral) judging, a CONCISE author
@@ -122,7 +215,7 @@ def run_refine(
     generate: Optional[Callable[..., dict]] = None,
     author_model: Optional[str] = None,
     author_backend: Optional[str] = None,
-    fan_critics: Optional[list[str]] = None,
+    fan_critics: Optional[list] = None,
     critic_specs: Optional[list[tuple]] = None,
     author_system: Optional[str] = None,
     critic_system: Optional[str] = None,
@@ -130,19 +223,26 @@ def run_refine(
     critic_max_tokens: int = 800,
     timeout_s: int = 600,
     on_round: Optional[Callable[[dict], None]] = None,
+    pool: Any = None,
 ) -> dict:
     """Run the refine<->critique loop. Pure except for the injected ``generate``.
 
     Author (planner) calls use ``author_model`` on ``author_backend``; critics
     are ``critic_specs`` = a list of (backend, model) pairs (each reviews every
     round). ``author_backend`` / a per-critic backend route the call to a
-    specific HEARTH backend (e.g. "am4-oxen" for the B70s, None for OMEN ollama)
-    — this is what lets a matrix cell put the planner on one box and the critic
-    on another. Back-compat: if ``critic_specs`` is None it derives from the old
-    ``fan`` behavior (fan critics, or the author self-reviewing).
+    specific HEARTH backend — this is what lets a matrix cell put the planner
+    on one rung and the critic on another. With neither author field pinned
+    the author is the pool's default seat (``default_author_seat``); with only
+    the backend pinned, the model is that rung's first declared model. If
+    ``critic_specs`` is None the critics derive from ``fan`` (validated fan
+    seats, or the author self-reviewing) — see ``default_critic_seats``.
+    ``fan_critics`` entries may be ``(backend, model)`` seats or bare model
+    names (legacy, unpinned). ``pool`` injects the backend pool (tests).
 
-    Returns {ok, idea, final, rounds_run, converged, trail, cost, error}. ``trail``
-    is a list of per-round steps {round, draft, reviews:[{model, text, verdict, ok}]}.
+    Returns {ok, idea, final, rounds_run, converged, trail, cost, seats, error}.
+    ``seats`` names the author and critic seats actually dispatched plus any
+    resolution notes. ``trail`` is a list of per-round steps
+    {round, draft, reviews:[{model, backend, text, verdict, ok}]}.
     A failed AUTHOR call aborts (ok:false, partial trail preserved); a failed
     CRITIC call is recorded and skipped so one cold model can't sink the round.
     """
@@ -154,17 +254,31 @@ def run_refine(
     if generate is None:  # lazy import keeps this module free of network at import
         from hearth.toolsurface.inference import local_generate as generate
 
-    author_model = author_model or DEFAULT_AUTHOR_MODEL
+    seat_notes: list[str] = []
+    if author_model is None:
+        if author_backend is None:
+            author_backend, author_model = default_author_seat(pool)
+        else:
+            declared = _load_pool(pool).by_name(author_backend)
+            if declared is not None and declared.models:
+                author_model = declared.models[0]    # what the door would apply anyway
+            else:
+                seat_notes.append(f"author backend {author_backend!r} not declared; "
+                                  f"model left to the door")
     a_sys = author_system or AUTHOR_SYSTEM      # per-run prompt-variant overrides
     c_sys = critic_system or CRITIC_SYSTEM
     # Critics as (backend, model) pairs. Explicit critic_specs wins; else derive
-    # from the fan flag (fan critics on the default backend, or self-review).
+    # from the fan flag (validated fan seats, or self-review on the author seat).
     if critic_specs is not None:
         critic_pairs = [tuple(spec) for spec in critic_specs]
-    elif fan:
-        critic_pairs = [(None, m) for m in (fan_critics or DEFAULT_FAN_CRITICS)]
     else:
-        critic_pairs = [(author_backend, author_model)]
+        critic_pairs, notes = default_critic_seats(
+            fan, author_seat=(author_backend, author_model), pool=pool,
+            fan_critics=fan_critics)
+        seat_notes.extend(notes)
+    seats = {"author": {"backend": author_backend, "model": author_model},
+             "critics": [{"backend": b, "model": m} for b, m in critic_pairs],
+             "notes": seat_notes}
 
     cost = _Cost()
     idea_short = _short(idea)
@@ -177,7 +291,7 @@ def run_refine(
     if not first.get("ok"):
         return {"ok": False, "error": f"author expand failed: {first.get('error')}",
                 "idea": idea, "final": None, "rounds_run": 0, "converged": False,
-                "trail": [], "cost": cost.asdict()}
+                "trail": [], "cost": cost.asdict(), "seats": seats}
     draft = first.get("text", "")
 
     trail: list[dict] = []
@@ -194,10 +308,10 @@ def run_refine(
             cost.add(rv, critic=True)
             if rv.get("ok"):
                 text = rv.get("text", "")
-                reviews.append({"model": rv.get("model", cm), "text": text,
-                                "verdict": _parse_verdict(text), "ok": True})
+                reviews.append({"model": rv.get("model") or cm, "backend": cb,
+                                "text": text, "verdict": _parse_verdict(text), "ok": True})
             else:
-                reviews.append({"model": cm, "text": None, "verdict": None,
+                reviews.append({"model": cm, "backend": cb, "text": None, "verdict": None,
                                 "ok": False, "error": rv.get("error")})
 
         step = {"round": r, "draft": draft, "reviews": reviews}
@@ -227,4 +341,4 @@ def run_refine(
 
     return {"ok": True, "idea": idea, "final": draft, "rounds_run": rounds_run,
             "converged": converged, "trail": trail, "cost": cost.asdict(),
-            "error": None}
+            "seats": seats, "error": None}

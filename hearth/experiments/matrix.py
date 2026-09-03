@@ -17,6 +17,8 @@ import re
 from dataclasses import dataclass, field, asdict
 from typing import Callable, Optional
 
+from hearth.experiments.panel import PanelConflict, assert_held_out  # noqa: F401 (re-exported)
+
 # ---- The three planning archetypes (from hardware-capability-matrix.md open cells) ----
 PROMPTS: dict[str, str] = {
     "choose-next-agent": (
@@ -135,6 +137,13 @@ NEUTRAL_JUDGE = (
 # seat is partly self-scoring there. score_proposal returns per-judge scores, so
 # that bias stays visible in the data instead of being averaged away — read the
 # per-judge breakdown, not just the mean, whenever an arm shares a name with a seat.
+#
+# 2026-09-03 (M2): that confound is now REFUSED, not merely visible. ``run_cell``
+# / ``run_matrix`` raise ``panel.PanelConflict`` before spending a token when any
+# judge shares a backend or model with the cell's planner or critic. For a sweep
+# whose arms collide with this default, derive the panel from the arms instead:
+# ``panel.held_out_judges(arms)`` picks the seats of ``panel.JUDGE_POOL`` that are
+# held out and reports same-node co-residency as ``panel_note``.
 DEFAULT_JUDGES: list[tuple] = [
     ("fx99-ollama", "qwen2.5:14b"),
     ("gcp-gemini", "gemini-3.5-flash"),
@@ -286,12 +295,30 @@ def build_variant_cells(configs: list[dict], prompt_ids: Optional[list[str]] = N
     return cells
 
 
+def cell_arms(cell: Cell) -> list[tuple]:
+    """The (backend, model) seats a judge must be held out from: both roles.
+
+    The planner authored the final and the critic shaped it, so a judge on
+    either is scoring work it took part in.
+    """
+    return [(cell.planner.backend, cell.planner.model),
+            (cell.critic.backend, cell.critic.model)]
+
+
 def run_cell(cell: Cell, generate: Callable[..., dict],
              judges: Optional[list[tuple]] = None,
-             on_progress: Optional[Callable[[str], None]] = None) -> dict:
-    """Run one matrix cell (a planner<->critic refine loop) + score it. Returns a row."""
+             on_progress: Optional[Callable[[str], None]] = None,
+             pool: object = None) -> dict:
+    """Run one matrix cell (a planner<->critic refine loop) + score it. Returns a row.
+
+    Refuses a self-judging cell (``PanelConflict``) before any model call: no
+    judge may share a backend or a model with the cell's planner or critic.
+    ``pool`` is the backend pool used to resolve unpinned roles (None = the
+    declared pool file).
+    """
     from hearth.commander.refine import run_refine
     judges = judges if judges is not None else DEFAULT_JUDGES
+    assert_held_out(judges, cell_arms(cell), pool=pool)
     prompt = PROMPTS[cell.prompt_id]
     if on_progress:
         on_progress(f"cell {cell.cell_id}: planner={cell.planner.model} "
@@ -316,13 +343,27 @@ def run_cell(cell: Cell, generate: Callable[..., dict],
 
 def run_matrix(cells: list[Cell], generate: Callable[..., dict],
                judges: Optional[list[tuple]] = None,
-               on_progress: Optional[Callable[[str], None]] = None) -> list[dict]:
-    """Run every cell in order (residency is arranged by the caller) -> dataset rows."""
+               on_progress: Optional[Callable[[str], None]] = None,
+               pool: object = None) -> list[dict]:
+    """Run every cell in order (residency is arranged by the caller) -> dataset rows.
+
+    Every cell is checked against the judge panel BEFORE the first dispatch, so
+    a self-judging cell anywhere in the grid fails the sweep at zero cost
+    rather than after the cells ahead of it have been paid for.
+    """
+    panel = judges if judges is not None else DEFAULT_JUDGES
+    for cell in cells:
+        try:
+            assert_held_out(panel, cell_arms(cell), pool=pool)
+        except PanelConflict as exc:
+            raise PanelConflict(f"cell {cell.cell_id}: {exc}", arms=exc.arms,
+                                judges=exc.judges, excluded=exc.excluded) from None
     rows = []
     for i, cell in enumerate(cells, 1):
         if on_progress:
             on_progress(f"[{i}/{len(cells)}] {cell.cell_id}")
-        rows.append(run_cell(cell, generate, judges=judges, on_progress=on_progress))
+        rows.append(run_cell(cell, generate, judges=judges, on_progress=on_progress,
+                             pool=pool))
     return rows
 
 

@@ -110,10 +110,17 @@ def load_runner_classes(inventory_path: str) -> dict[str, str]:
 
 @dataclass
 class ModelSpec:
-    """A loadable model on the stateful AM4 machine, sourced from am4-catalog.v1
-    models[]. Carries the residency economics JS7b optimizes over: how big it is
-    per card (`per_card_gb`), how long it takes to stage into VRAM (`warmup_ms_*`),
-    and how fast it generates once warm (`expected_gen_tps`)."""
+    """A loadable model on a stateful machine (the AM4 box under am4-catalog.v1,
+    OMEN under omen-catalog.v1). Carries the residency economics JS7b optimizes
+    over: how big it is per card (`per_card_gb`), how long it takes to stage into
+    VRAM (`load_s_*` from receipts, `warmup_ms_*` as the older fallback), how fast
+    it generates once warm (`expected_gen_tps`), and — P2 / ADR-0045 — the rotation
+    figures a llama-swap host adds: the first load inside a window is slower than a
+    steady one (`load_s_first_in_window` vs `load_s_steady`), a saved KV slot can be
+    hydrated instead of re-prefilled (`kv_hydrate_s`), a swap drains in-flight
+    streams (`unload_drain_s_max`), and two models sharing an `exclusive_group`
+    are never co-resident. Every rotation field is Optional: unmeasured stays
+    None (Constitution / R8), and the solver falls back to the older figures."""
 
     model_id: str
     alias: Optional[str] = None
@@ -126,9 +133,31 @@ class ModelSpec:
     warmup_ms_max: Optional[float] = None
     sample_count: Optional[int] = None
     notes: Optional[str] = None
+    # --- rotation (omen-catalog.v1; all from receipts, nullable) -------------
+    load_s_steady: Optional[float] = None           # dio cold load, steady state
+    load_s_first_in_window: Optional[float] = None  # first load inside a window
+    kv_hydrate_s: Optional[float] = None            # slot restore (kv_restore_s)
+    kv_save_s: Optional[float] = None
+    unload_drain_s_max: Optional[float] = None      # swaps DRAIN in-flight streams
+    exclusive_group: Optional[str] = None           # never co-resident with siblings
+    swap_entry: Optional[str] = None                # llama-swap entry name, if declared
+    receipt: Optional[dict] = None                  # {field: "path#selector"}
 
-    def setup_s(self, default_s: float = 30.0) -> float:
-        """Load (setup) time in seconds: warmup p50, fallback max, fallback default."""
+    def setup_s(self, default_s: float = 30.0, cold: bool = False) -> float:
+        """Load (setup) time in seconds.
+
+        Preference order: the receipt-backed rotation figure for the host's
+        thermal state — `load_s_first_in_window` when `cold` (the first load
+        inside a window: 26.58 s for the 30B vs 8.19 steady, r2 receipts), else
+        `load_s_steady` — then the older warmup p50 / max pair, then `default_s`.
+        A cold host with only a steady figure still uses the steady figure (it is
+        the best evidence available), and vice versa.
+        """
+        preferred = ((self.load_s_first_in_window, self.load_s_steady) if cold
+                     else (self.load_s_steady, self.load_s_first_in_window))
+        for candidate in preferred:
+            if candidate is not None and candidate > 0:
+                return float(candidate)
         for candidate in (self.warmup_ms_p50, self.warmup_ms_max):
             if candidate is not None and candidate > 0:
                 return float(candidate) / 1000.0
@@ -163,6 +192,17 @@ class Job:
     est_out_tokens: Optional[int] = None
     # U1: caller-supplied direct duration — wins over every lookup path.
     est_duration_s: Optional[float] = None
+    # P2 / ADR-0045: the task family (routing-families.v1) the caller tagged the
+    # job with; the provider resolves it to `required_model` through
+    # hearth.scheduler.families when no explicit model is named. Pure data here.
+    task_family: Optional[str] = None
+    # Prompt depth estimate (tokens); the families' depth rules read it. When
+    # absent, `est_tokens` is the same quantity by intent.
+    prompt_tokens: Optional[int] = None
+    # A saved KV slot exists for this job's prompt on the required model: the
+    # scheduler charges the model's `kv_hydrate_s` (1.19 s measured, ADR-0040 P3)
+    # instead of a re-prefill and the rotation plan emits a kv_restore step.
+    kv_state_available: bool = False
 
 
 @dataclass
@@ -181,10 +221,17 @@ class Machine:
     tags: list[str] = field(default_factory=list)
     available: bool = True
     stateful: bool = False
-    cards: list[dict] = field(default_factory=list)  # [{index, vram_gb}]
+    cards: list[dict] = field(default_factory=list)  # [{index, vram_gb, bdf?}]
     resident_models: list[str] = field(default_factory=list)  # loaded at t=0
     staging_slots: int = 1
     host: Optional[str] = None  # physical host key for DDR4 staging contention
+    # P2 / ADR-0045: which task classes this machine may take. None = any (the
+    # builders); ["inference"] for the OMEN inference host, so a build job is
+    # never planned onto the B70s.
+    roles: Optional[list[str]] = None
+    # The host is cold: the next load pays `load_s_first_in_window` (26.58 s for
+    # the 30B) instead of the steady 8.2 s. Advisory input; the caller decides.
+    cold: bool = False
 
 
 @dataclass
@@ -200,8 +247,11 @@ class ScheduleProposal:
     est_metered_tokens: int
     solver_status: str
     objective_value: float
-    loads: list[dict] = field(default_factory=list)  # [{machine, model_id, cards, start_s, end_s}]
-    residency: list[dict] = field(default_factory=list)  # [{machine, card, resident_models, used_gb, budget_gb}]
+    loads: list[dict] = field(default_factory=list)  # [{machine, model_id, cards, bdfs?, start_s, end_s, setup_s?, cold?}]
+    residency: list[dict] = field(default_factory=list)  # [{machine, card, bdf?, resident_models, used_gb, budget_gb}]
+    # P2: why a result is what it is (exclusive-group refusals, ineligible jobs).
+    # Empty for every proposal that needed no explanation — the JS7a shape.
+    notes: list[str] = field(default_factory=list)
 
 
 # --- loaders ----------------------------------------------------------------
@@ -333,55 +383,130 @@ def _bucket_p90(document: dict, *, task_class: Optional[str], tool: Optional[str
 
 
 AM4_CATALOG_CONTRACT = "am4-catalog.v1"
+OMEN_CATALOG_CONTRACT = "omen-catalog.v1"
+CATALOG_CONTRACTS = (AM4_CATALOG_CONTRACT, OMEN_CATALOG_CONTRACT)
+
+# llama-swap declares every single-card OMEN model TWICE (`<m>-vk1` env=1,
+# `<m>-vk2` env=2) and the dual 27B once as `<m>-dual` (ADR-0042: the Vulkan index
+# is a candidate, never an identity; placement is asserted after load). A job may
+# name any of those entries as its `required_model`; the catalog keys each spec
+# under its swap entry names too so the lookup resolves. The suffix does NOT pin a
+# solver card — the solver still picks the card by VRAM fit.
+_SWAP_ENTRY_SUFFIXES = {"single": ("-vk1", "-vk2"), "dual": ("-dual",)}
+
+
+def _empty_catalog(contract_version: Optional[str] = None) -> dict:
+    return {
+        "models": {}, "gates": None, "cards": None,
+        "contract_version": contract_version, "host": None,
+        "resident_models": [], "staging_slots": None, "coresidency": None,
+    }
+
+
+def _spec_from_raw(raw: dict, contract_version: str) -> ModelSpec:
+    """One models[] row -> ModelSpec. Both contracts share the required keys
+    (am4-catalog.v1's); omen-catalog.v1 adds the rotation fields, mapped here
+    and left None when absent or null (receipts only)."""
+    spec = ModelSpec(
+        model_id=str(raw["model_id"]),
+        alias=raw.get("alias"),
+        placement=str(raw.get("placement") or "single"),
+        visible_devices=raw.get("visible_devices"),
+        vram_gb=raw.get("vram_gb"),
+        per_card_gb=raw.get("per_card_gb"),
+        expected_gen_tps=raw.get("expected_gen_tps"),
+        warmup_ms_p50=raw.get("warmup_ms_p50"),
+        warmup_ms_max=raw.get("warmup_ms_max"),
+        sample_count=raw.get("sample_count"),
+        notes=raw.get("notes"),
+    )
+    if contract_version == OMEN_CATALOG_CONTRACT:
+        spec.load_s_steady = raw.get("load_s_steady")
+        spec.load_s_first_in_window = raw.get("load_s_first_in_window")
+        spec.kv_hydrate_s = raw.get("kv_restore_s")
+        spec.kv_save_s = raw.get("kv_save_s")
+        spec.unload_drain_s_max = raw.get("unload_drain_s_max")
+        spec.exclusive_group = raw.get("exclusive_group")
+        spec.swap_entry = raw.get("swap_entry")
+        receipts = raw.get("receipts")
+        spec.receipt = dict(receipts) if isinstance(receipts, dict) else None
+    return spec
+
+
+def load_model_catalog(path: str, contracts: tuple[str, ...] = CATALOG_CONTRACTS) -> dict:
+    """Load a stateful-host model catalog, dispatching on `contract_version`.
+
+    Returns {"models": {name: ModelSpec}, "gates": dict|None, "cards": list|None,
+    "contract_version", "host", "resident_models", "staging_slots", "coresidency"}.
+
+      am4-catalog.v1  -> the JS7b body: model_id + alias keys, warmup_ms figures.
+      omen-catalog.v1 -> the same plus the rotation fields (load_s_steady,
+                         load_s_first_in_window, kv_restore_s -> kv_hydrate_s,
+                         unload_drain_s_max, exclusive_group, swap_entry,
+                         receipts), cards keyed by BDF, and the document's
+                         resident_models / staging_slots / coresidency. Each spec is
+                         also keyed under its llama-swap entry names (`<m>-vk1`,
+                         `<m>-vk2`, `<m>-dual`) and its declared swap_entry.
+
+    Tolerant of the file being ABSENT, malformed, or of a contract outside
+    `contracts`: everything comes back empty/None so the scheduler degrades to
+    stateless. A model is keyed by BOTH its model_id and its alias (when distinct)
+    so a job's `required_model` may name either.
+    """
+    p = Path(path)
+    if not p.is_file():
+        return _empty_catalog()
+    try:
+        document = json.loads(p.read_text(encoding="utf-8-sig"))
+    except (json.JSONDecodeError, OSError):
+        return _empty_catalog()
+    if not isinstance(document, dict):
+        return _empty_catalog()
+    contract_version = document.get("contract_version")
+    if contract_version not in contracts:
+        return _empty_catalog()
+
+    models: dict[str, ModelSpec] = {}
+    for raw in document.get("models", []):
+        if not isinstance(raw, dict) or not raw.get("model_id"):
+            continue
+        spec = _spec_from_raw(raw, contract_version)
+        models[spec.model_id] = spec
+        if spec.alias and spec.alias not in models:
+            models[spec.alias] = spec
+        if contract_version == OMEN_CATALOG_CONTRACT:
+            entries = [spec.swap_entry] if spec.swap_entry else []
+            entries += [spec.model_id + suffix
+                        for suffix in _SWAP_ENTRY_SUFFIXES.get(spec.placement, ())]
+            for entry in entries:
+                models.setdefault(entry, spec)
+
+    cards = document.get("cards")
+    resident = document.get("resident_models")
+    staging = document.get("staging_slots")
+    coresidency = document.get("coresidency")
+    return {
+        "models": models,
+        "gates": document.get("gates"),
+        "cards": cards if isinstance(cards, list) else None,
+        "contract_version": contract_version,
+        "host": document.get("host"),
+        "resident_models": [str(m) for m in resident] if isinstance(resident, list) else [],
+        "staging_slots": int(staging) if isinstance(staging, int) and not isinstance(staging, bool) else None,
+        "coresidency": coresidency if isinstance(coresidency, dict) else None,
+    }
 
 
 def load_am4_catalog(path: str) -> dict:
     """Load the frozen am4-catalog.v1 model catalog. Returns
     {"models": {model_id: ModelSpec}, "gates": dict|None, "cards": list|None}.
 
-    Tolerant of the file being ABSENT or malformed: every field comes back None/{}
-    so the scheduler degrades to stateless (fully backward compatible with JS7a).
-    A model is keyed by BOTH its model_id and its alias (when distinct) so a job's
-    `required_model` may name either.
+    Thin wrapper over load_model_catalog pinned to the AM4 contract: an
+    omen-catalog.v1 document at this path degrades to empty (the AM4 machine must
+    never inherit OMEN's cards), exactly as before the loader was generalized.
     """
-    empty = {"models": {}, "gates": None, "cards": None}
-    p = Path(path)
-    if not p.is_file():
-        return empty
-    try:
-        document = json.loads(p.read_text(encoding="utf-8-sig"))
-    except (json.JSONDecodeError, OSError):
-        return empty
-    if not isinstance(document, dict) or document.get("contract_version") != AM4_CATALOG_CONTRACT:
-        return empty
-
-    models: dict[str, ModelSpec] = {}
-    for raw in document.get("models", []):
-        if not isinstance(raw, dict) or not raw.get("model_id"):
-            continue
-        spec = ModelSpec(
-            model_id=str(raw["model_id"]),
-            alias=raw.get("alias"),
-            placement=str(raw.get("placement") or "single"),
-            visible_devices=raw.get("visible_devices"),
-            vram_gb=raw.get("vram_gb"),
-            per_card_gb=raw.get("per_card_gb"),
-            expected_gen_tps=raw.get("expected_gen_tps"),
-            warmup_ms_p50=raw.get("warmup_ms_p50"),
-            warmup_ms_max=raw.get("warmup_ms_max"),
-            sample_count=raw.get("sample_count"),
-            notes=raw.get("notes"),
-        )
-        models[spec.model_id] = spec
-        if spec.alias and spec.alias not in models:
-            models[spec.alias] = spec
-
-    cards = document.get("cards")
-    return {
-        "models": models,
-        "gates": document.get("gates"),
-        "cards": cards if isinstance(cards, list) else None,
-    }
+    loaded = load_model_catalog(path, contracts=(AM4_CATALOG_CONTRACT,))
+    return {"models": loaded["models"], "gates": loaded["gates"], "cards": loaded["cards"]}
 
 
 def lookup_duration_s(job: Job, machine: Machine, capacity: Optional[dict],

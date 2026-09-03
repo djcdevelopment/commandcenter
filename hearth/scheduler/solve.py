@@ -43,6 +43,24 @@ already resident:
 Loads count into makespan; the token objective is otherwise unchanged. When NO job
 carries a required_model the entire JS7b layer is inert and schedules are byte-identical
 to JS7a.
+
+P2 / ADR-0045 — a rotating stateful host (OMEN, llama-swap)
+-----------------------------------------------------------
+  - roles: a machine with `roles` set only takes jobs whose task_class is listed
+    (OMEN = ["inference"]; a build job never lands on the B70s). `roles is None`
+    keeps every builder unrestricted, so proposals without OMEN are unchanged.
+  - cold: setup for a (machine, model) load reads `machine.cold` — the first load
+    inside a window (26.58 s for the 30B) instead of the steady 8.2 s.
+  - kv_hydrate_s: a job with `kv_state_available` on a stateful machine pays the
+    model's slot-restore time (1.19 s measured) inside its own interval, whether or
+    not the model still has to load — the restore is per slot, the load per model.
+  - exclusive groups (stretch, v1): two models sharing `exclusive_group` are never
+    co-resident — at most one of them loads per machine, and a sibling of an
+    initial resident cannot load at all (no eviction in v1): the job is ineligible
+    there and, with nowhere else to go, the proposal is a LOUD INFEASIBLE whose
+    `notes` say which model and group.
+  - `loads[]` / `residency[]` carry the card's `bdf` beside its solver index, so a
+    consumer never has to map an index back to a device (ADR-0042).
 """
 
 from __future__ import annotations
@@ -79,16 +97,16 @@ _GB_SCALE = 10
 
 
 def _horizon_s(jobs: list[Job], durations: dict[tuple[str, str], int],
-               setup_by_model: dict[str, int]) -> int:
+               setup_by_pair: dict[tuple[str, str], int]) -> int:
     """A safe upper bound on makespan: sum of every job's longest eligible duration,
-    plus every distinct model's load time (each load happens at most once) so the
-    horizon still bounds start/end vars once setup intervals are stacked in."""
+    plus every possible (machine, model) load time (each load happens at most once)
+    so the horizon still bounds start/end vars once setup intervals are stacked in."""
     total = 0
     for job in jobs:
         longest = max((d for (pid, _m), d in durations.items() if pid == job.plan_id),
                       default=0)
         total += longest
-    total += sum(setup_by_model.values())
+    total += sum(setup_by_pair.values())
     # Also respect the largest deadline so deadline constraints stay feasible to express.
     deadlines = [int(math.ceil(j.deadline_s)) for j in jobs if j.deadline_s is not None]
     return max(total, *deadlines, 1) if deadlines else max(total, 1)
@@ -120,43 +138,76 @@ def solve_schedule(
         return ScheduleProposal([], 0.0, 0, "INFEASIBLE", 0.0)
 
     model = cp_model.CpModel()
-
-    # Integer-second durations per (job, machine).
-    durations: dict[tuple[str, str], int] = {}
-    for job in jobs:
-        for machine in available:
-            secs = lookup_duration_s(job, machine, capacity, models)
-            durations[(job.plan_id, machine.name)] = max(1, int(math.ceil(secs)))
-
-    # --- JS7b residency setup: which (machine, model) loads may exist -----------
-    # A load is possible only for a STATEFUL machine and a model NOT already resident.
-    # setup_s is the load duration (integer seconds).
-    stateful = {m.name for m in available if m.stateful}
+    notes: list[str] = []
 
     def _spec(model_id: str) -> Optional[ModelSpec]:
         return models.get(model_id)
 
-    def _setup_s(model_id: str) -> int:
+    def _role_ok(job: Job, machine: Machine) -> bool:
+        return machine.roles is None or job.task_class in machine.roles
+
+    # Integer-second durations per (job, machine). A job with a saved KV slot on a
+    # stateful machine pays the model's hydrate time inside its own interval.
+    durations: dict[tuple[str, str], int] = {}
+    kv_hydrate: dict[tuple[str, str], float] = {}
+    for job in jobs:
+        for machine in available:
+            secs = lookup_duration_s(job, machine, capacity, models)
+            if job.kv_state_available and machine.stateful and job.required_model:
+                spec = _spec(job.required_model)
+                if spec is not None and spec.kv_hydrate_s:
+                    secs += float(spec.kv_hydrate_s)
+                    kv_hydrate[(job.plan_id, machine.name)] = float(spec.kv_hydrate_s)
+            durations[(job.plan_id, machine.name)] = max(1, int(math.ceil(secs)))
+
+    # --- JS7b residency setup: which (machine, model) loads may exist -----------
+    # A load is possible only for a STATEFUL machine and a model NOT already resident.
+    # setup_s is the load duration (integer seconds), read for the machine's cold state.
+    stateful = {m.name for m in available if m.stateful}
+
+    def _setup_s(model_id: str, machine: Machine) -> float:
         spec = _spec(model_id)
-        secs = spec.setup_s(_DEFAULT_SETUP_S) if spec is not None else _DEFAULT_SETUP_S
-        return max(1, int(math.ceil(secs)))
+        if spec is None:
+            return _DEFAULT_SETUP_S
+        return spec.setup_s(_DEFAULT_SETUP_S, cold=bool(machine.cold))
+
+    def _group_of(model_id: str) -> Optional[str]:
+        spec = _spec(model_id)
+        return spec.exclusive_group if spec is not None else None
 
     # (machine, model) pairs that MIGHT need a load: job needs model, machine is
-    # stateful and does not already hold it.
+    # stateful, role-compatible, and does not already hold it. A model whose
+    # exclusive_group is held by an initial resident cannot load (v1: no eviction).
     load_pairs: set[tuple[str, str]] = set()
+    exclusive_refusals: set[tuple[str, str]] = set()
     for job in jobs:
         M = job.required_model
         if not M:
             continue
         for machine in available:
-            if machine.name in stateful and M not in machine.resident_models:
-                load_pairs.add((machine.name, M))
+            if machine.name not in stateful or M in machine.resident_models:
+                continue
+            if not _role_ok(job, machine):
+                continue
+            group = _group_of(M)
+            if group is not None and any(
+                    _group_of(r) == group and r != M for r in machine.resident_models):
+                if (machine.name, M) not in exclusive_refusals:
+                    exclusive_refusals.add((machine.name, M))
+                    notes.append(
+                        f"{M} cannot load on {machine.name}: exclusive_group "
+                        f"{group!r} is held by a resident model and v1 does not evict")
+                continue
+            load_pairs.add((machine.name, M))
 
-    setup_by_model: dict[str, int] = {}
-    for (_mname, M) in load_pairs:
-        setup_by_model.setdefault(M, _setup_s(M))
+    setup_by_pair: dict[tuple[str, str], int] = {}
+    setup_s_by_pair: dict[tuple[str, str], float] = {}
+    for (mname, M) in load_pairs:
+        secs = _setup_s(M, by_name[mname])
+        setup_s_by_pair[(mname, M)] = secs
+        setup_by_pair[(mname, M)] = max(1, int(math.ceil(secs)))
 
-    horizon = _horizon_s(jobs, durations, setup_by_model)
+    horizon = _horizon_s(jobs, durations, setup_by_pair)
 
     # Per (job, machine): presence literal + optional interval; per job: start/end.
     presence: dict[tuple[str, str], cp_model.IntVar] = {}
@@ -172,22 +223,33 @@ def solve_schedule(
 
         # Eligibility: a job naming a required_model can only run on machines
         # that can actually serve it — stateful machines that either already
-        # hold the model or have it in the catalog to load. Without this, jobs
-        # "escape" to stateless machines and dodge the load cost entirely.
-        # No stateful machine at all (catalog absent) -> nothing to enforce
-        # against; degrade to stateless behavior rather than INFEASIBLE.
+        # hold the model or have it in the catalog to load (and are not refused
+        # by an exclusive group). Without this, jobs "escape" to stateless
+        # machines and dodge the load cost entirely. No stateful machine at all
+        # (catalog absent) -> nothing to enforce against; degrade to stateless
+        # behavior rather than INFEASIBLE. Roles apply to every job: a machine
+        # that declares them only takes the task classes it lists.
         if job.required_model and stateful:
             eligible = [
                 m for m in available
-                if m.stateful and (
+                if m.stateful and _role_ok(job, m) and (
                     job.required_model in m.resident_models
-                    or job.required_model in models
+                    or (job.required_model in models
+                        and (m.name, job.required_model) in load_pairs)
                 )
             ]
             if not eligible:
-                return ScheduleProposal([], 0.0, 0, "INFEASIBLE", 0.0)
+                notes.append(
+                    f"{job.plan_id}: no stateful machine can serve required_model "
+                    f"{job.required_model!r}")
+                return ScheduleProposal([], 0.0, 0, "INFEASIBLE", 0.0, notes=notes)
         else:
-            eligible = available
+            eligible = [m for m in available if _role_ok(job, m)]
+            if not eligible:
+                notes.append(
+                    f"{job.plan_id}: no machine declares a role for task_class "
+                    f"{job.task_class!r}")
+                return ScheduleProposal([], 0.0, 0, "INFEASIBLE", 0.0, notes=notes)
 
         lits = []
         for machine in eligible:
@@ -235,7 +297,7 @@ def solve_schedule(
             model.AddImplication(lit, used)
         model.AddBoolAnd([lit.Not() for lit in assign_lits]).OnlyEnforceIf(used.Not())
 
-        setup = setup_by_model[M]
+        setup = setup_by_pair[(mname, M)]
         ls = model.NewIntVar(0, horizon, f"ldstart_{mname}_{M}")
         le = model.NewIntVar(0, horizon, f"ldend_{mname}_{M}")
         load_start[(mname, M)] = ls
@@ -252,6 +314,16 @@ def solve_schedule(
     # no-overlap per machine (job-shop: one job — or one load — at a time)
     for machine in available:
         model.AddNoOverlap(intervals_by_machine[machine.name])
+
+    # --- P2 exclusive groups (v1): at most one member of a group loads per machine.
+    groups: dict[tuple[str, str], list] = {}
+    for (mname, M), used in load_used.items():
+        group = _group_of(M)
+        if group is not None:
+            groups.setdefault((mname, group), []).append(used)
+    for (_mname, _group), lits in groups.items():
+        if len(lits) > 1:
+            model.Add(sum(lits) <= 1)
 
     # --- JS7b DDR4 staging: one model streams through a host's RAM at a time -----
     for host, entries in loads_by_host.items():
@@ -393,7 +465,9 @@ def solve_schedule(
     status_name = solver.StatusName(status)
 
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        return ScheduleProposal([], 0.0, 0, status_name, 0.0)
+        if exclusive_refusals:
+            notes.append("exclusive-group refusals contributed to the INFEASIBLE result")
+        return ScheduleProposal([], 0.0, 0, status_name, 0.0, notes=notes)
 
     assignments = []
     metered_tokens = 0
@@ -405,15 +479,25 @@ def solve_schedule(
             if solver.BooleanValue(presence[key]):
                 start_s = solver.Value(job_start[job.plan_id])
                 end_s = solver.Value(job_end[job.plan_id])
-                assignments.append({
+                row = {
                     "plan_id": job.plan_id,
                     "machine": machine.name,
                     "start_s": float(start_s),
                     "end_s": float(end_s),
-                })
+                }
+                if key in kv_hydrate:
+                    row["kv_hydrate_s"] = kv_hydrate[key]
+                assignments.append(row)
                 if machine.token_cost_weight > 0:
                     metered_tokens += (job.est_tokens or job.est_out_tokens or 0)
                 break
+
+    def _bdf_of(machine: Machine, index: int) -> Optional[str]:
+        for i, c in enumerate(machine.cards):
+            if int(c.get("index", i)) == index:
+                bdf = c.get("bdf")
+                return str(bdf) if bdf else None
+        return None
 
     # --- JS7b outputs: loads + per-card residency summary -----------------------
     loads_out = []
@@ -427,13 +511,21 @@ def solve_schedule(
         else:
             card_lits = plan.get("card_lits") or {}
             cards = [ci for ci, b in card_lits.items() if solver.BooleanValue(b)]
-        loads_out.append({
+        machine = by_name[mname]
+        cards = sorted(cards)
+        row = {
             "machine": mname,
             "model_id": M,
-            "cards": sorted(cards),
+            "cards": cards,
             "start_s": float(solver.Value(load_start[(mname, M)])),
             "end_s": float(solver.Value(load_end[(mname, M)])),
-        })
+        }
+        bdfs = [_bdf_of(machine, ci) for ci in cards]
+        if any(bdfs):
+            row["bdfs"] = bdfs
+        row["setup_s"] = round(setup_s_by_pair[(mname, M)], 3)
+        row["cold"] = bool(machine.cold)
+        loads_out.append(row)
 
     residency_out = []
     for machine in available:
@@ -457,13 +549,16 @@ def solve_schedule(
                 if on_card:
                     resident_here.append(M)
                     used_scaled += info["charge_scaled"]
-            residency_out.append({
+            row = {
                 "machine": machine.name,
                 "card": ci,
                 "resident_models": sorted(resident_here),
                 "used_gb": round(used_scaled / _GB_SCALE, 2),
                 "budget_gb": budget_gb,
-            })
+            }
+            if card.get("bdf"):
+                row["bdf"] = str(card["bdf"])
+            residency_out.append(row)
 
     return ScheduleProposal(
         assignments=assignments,
@@ -473,4 +568,5 @@ def solve_schedule(
         objective_value=float(solver.ObjectiveValue()),
         loads=loads_out,
         residency=residency_out,
+        notes=notes,
     )

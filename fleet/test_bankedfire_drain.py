@@ -188,7 +188,7 @@ class _TickHarness(TestCase):
             results_path=self.results_path,
             occupancy_check=lambda name: {"occupancy": "available"},
             acquire_lease=lambda name, pinned=False: _FakeLease(True),
-            submit_task_fn=lambda prompt, plan_id_hint=None, task_class=None: {
+            submit_task_fn=lambda prompt, plan_id_hint=None, task_class=None, est_tokens=None: {
                 "ok": True, "plan_id": f"hearth-{plan_id_hint}-abcd1234",
             },
             task_status_fn=lambda plan_id: {"ok": True, "done": True},
@@ -266,7 +266,7 @@ class RunTickTests(_TickHarness):
 
     def test_dispatch_failure_reported_as_noop(self) -> None:
         drain.set_armed(True, "test", path=self.arm_path)
-        report = self._tick(submit_task_fn=lambda prompt, plan_id_hint=None, task_class=None: {
+        report = self._tick(submit_task_fn=lambda prompt, plan_id_hint=None, task_class=None, est_tokens=None: {
             "ok": False, "error": "ssh timeout",
         })
         self.assertEqual(report["reason"], "no-op:dispatch-failed")
@@ -278,13 +278,45 @@ class RunTickTests(_TickHarness):
         drain.set_armed(True, "test", path=self.arm_path)
         seen: dict = {}
 
-        def capture(prompt, plan_id_hint=None, task_class=None):
+        def capture(prompt, plan_id_hint=None, task_class=None, est_tokens=None):
             seen["task_class"] = task_class
             return {"ok": True, "plan_id": f"hearth-{plan_id_hint}-abcd1234"}
 
         report = self._tick(submit_task_fn=capture)
         self.assertTrue(report["reason"].startswith("dispatched:"))
         self.assertEqual(seen["task_class"], "proofing")
+
+    def test_dispatch_stamps_a_derived_est_tokens(self) -> None:
+        # Token hole #1 (M3): the drain is a submit_task call site, so it must
+        # stamp est_tokens itself -- derived from the brief it actually sends,
+        # with the proofing allowance -- and ledger the same number.
+        from hearth.toolsurface.task_lane import estimate_tokens
+        drain.set_armed(True, "test", path=self.arm_path)
+        seen: dict = {}
+
+        def capture(prompt, plan_id_hint=None, task_class=None, est_tokens=None):
+            seen["prompt"] = prompt
+            seen["task_class"] = task_class
+            seen["est_tokens"] = est_tokens
+            return {"ok": True, "plan_id": f"hearth-{plan_id_hint}-abcd1234",
+                    "est_tokens": est_tokens, "est_tokens_source": "caller"}
+
+        report = self._tick(submit_task_fn=capture)
+        self.assertTrue(report["reason"].startswith("dispatched:"))
+        self.assertIsInstance(seen["est_tokens"], int)
+        self.assertGreater(seen["est_tokens"], 0)
+        self.assertEqual(seen["est_tokens"], estimate_tokens(seen["prompt"], "proofing"))
+        # detail is what _record_tick hands the ledger as `result` (the ledger
+        # keeps a digest, so the tick report is the readable copy).
+        self.assertEqual(report["detail"]["est_tokens"], seen["est_tokens"])
+        self.assertEqual(len(self.ledger.events), 1)
+
+    def test_failed_dispatch_still_ledgers_the_estimate(self) -> None:
+        drain.set_armed(True, "test", path=self.arm_path)
+        report = self._tick(submit_task_fn=lambda prompt, plan_id_hint=None, task_class=None,
+                            est_tokens=None: {"ok": False, "error": "ssh timeout"})
+        self.assertEqual(report["reason"], "no-op:dispatch-failed")
+        self.assertGreater(report["detail"]["est_tokens"], 0)
 
 
 class LedgerSemanticsTests(_TickHarness):
@@ -354,7 +386,7 @@ class LedgerSemanticsTests(_TickHarness):
         """The one branch that genuinely failed must stay legible as a failure,
         otherwise this change would trade a false alarm for a blind spot."""
         drain.set_armed(True, "test", path=self.arm_path)
-        self._tick(submit_task_fn=lambda prompt, plan_id_hint=None, task_class=None: {
+        self._tick(submit_task_fn=lambda prompt, plan_id_hint=None, task_class=None, est_tokens=None: {
             "ok": False, "error": "ssh timeout",
         })
         event = self._event()
@@ -369,9 +401,9 @@ class LedgerSemanticsTests(_TickHarness):
             dict(),
             dict(occupancy_check=lambda name: {"occupancy": "busy"}),
             dict(occupancy_check=lambda name: {"occupancy": "unknown"}),
-            dict(submit_task_fn=lambda prompt, plan_id_hint=None, task_class=None: {
+            dict(submit_task_fn=lambda prompt, plan_id_hint=None, task_class=None, est_tokens=None: {
                 "ok": False, "error": "ssh timeout"}),
-            dict(submit_task_fn=lambda prompt, plan_id_hint=None, task_class=None: {"ok": False}),
+            dict(submit_task_fn=lambda prompt, plan_id_hint=None, task_class=None, est_tokens=None: {"ok": False}),
         ]
         for i, overrides in enumerate(branches):
             with self.subTest(branch=i):

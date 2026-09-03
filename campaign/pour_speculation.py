@@ -2,10 +2,12 @@
 """pour_speculation — toss 20 speculative planning briefs onto mechnet (all-local).
 
 Idle-hours divergent exploration (two-economies doctrine: laps on electricity).
-Each idea is poured as a research brief across a rotating pair of LOCAL builders,
-so every idea gets two independent model perspectives. Outputs land as
-proposals/<slug>.md on each lap branch under runs/<plan_id>/ on the conductor;
-harvest later. Writes campaign/speculation_manifest.json with the plan_ids.
+Each idea is poured as a research brief across the task lane's LOCAL builder
+pair (``DEFAULT_BUILDERS`` — two different local models), so every idea gets
+two independent model perspectives. Outputs land as proposals/<slug>.md on each
+lap branch under runs/<plan_id>/ on the conductor; harvest later. Writes
+campaign/speculation_manifest.json with the plan_ids and, since M3 (token hole
+#1), the ``est_tokens`` stamped on every brief.
 
 Run:
     ./fleet-worker-node/.venv-omen/Scripts/python.exe -m campaign.pour_speculation
@@ -17,18 +19,24 @@ import argparse
 import json
 import os
 import sys
+from typing import Callable, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from hearth.toolsurface.task_lane import submit_task  # noqa: E402
+from hearth.toolsurface.task_lane import (  # noqa: E402
+    DEFAULT_BUILDERS,
+    estimate_tokens,
+    submit_task,
+)
 
-# Rotate local builders so each idea gets two different local models and load
-# spreads across the three reachable shells. (mixtral/cc-builder-4 excluded --
-# stranded network + 16x slower; it can join later as a comparison lane.)
-PAIRS = [
-    ["omen-worker-1", "cc-builder-2"],   # qwen3-coder:30b  vs  vllama-planner
-    ["omen-worker-1", "am4-worker-1"],   # qwen3-coder:30b  vs  oxen
-    ["cc-builder-2", "am4-worker-1"],    # vllama-planner   vs  oxen
-]
+# Builders: the task lane's own DEFAULT_BUILDERS, not a private roster. The old
+# PAIRS table rotated omen-worker-1 / am4-worker-1 / cc-builder-2 — by 2026-08-29
+# every one of those was aimed at a dead backend (OMEN Ollama retired ADR-0034;
+# AM4 oxen answers ready:false; see the roster note in task_lane.py) and a pour
+# would have gone dark. Reusing DEFAULT_BUILDERS means this campaign follows the
+# roster when it is re-pointed again (e.g. to the B70 rung via llama-swap).
+TASK_CLASS = "research"
+DEFAULT_MANIFEST_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                     "speculation_manifest.json")
 
 PREAMBLE = (
     "SPECULATIVE PLANNING BRIEF - divergent design exploration, NOT a build.\n"
@@ -154,29 +162,57 @@ IDEAS = [
 ]
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--dry-run", action="store_true")
-    args = ap.parse_args()
+def plan_ideas(builders: Optional[list[str]] = None) -> list[dict]:
+    """Pure: every idea rendered as a submit-ready brief, no I/O.
+
+    Each entry is ``{slug, builders, body, task_class, est_tokens}`` where
+    ``est_tokens`` is ``estimate_tokens(body, TASK_CLASS)`` — the same number
+    the real submit stamps, so a dry run shows exactly what would be
+    submitted (token hole #1: no brief leaves without an estimate).
+    """
+    chosen = list(DEFAULT_BUILDERS) if builders is None else list(builders)
+    plans = []
+    for slug, question in IDEAS:
+        body = PREAMBLE.format(slug=slug) + question + POSTAMBLE.format(slug=slug)
+        plans.append({
+            "slug": slug,
+            "builders": chosen,
+            "body": body,
+            "task_class": TASK_CLASS,
+            "est_tokens": estimate_tokens(body, TASK_CLASS),
+        })
+    return plans
+
+
+def main(argv: Optional[list[str]] = None,
+         submit_fn: Callable[..., dict] = submit_task) -> int:
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--dry-run", action="store_true",
+                    help="print the plan (builders + est_tokens per idea), submit nothing")
+    ap.add_argument("--out", default=DEFAULT_MANIFEST_PATH,
+                    help="manifest path (default: campaign/speculation_manifest.json)")
+    args = ap.parse_args(argv)
 
     manifest = []
-    for i, (slug, question) in enumerate(IDEAS):
-        pair = PAIRS[i % len(PAIRS)]
-        body = PREAMBLE.format(slug=slug) + question + POSTAMBLE.format(slug=slug)
+    for plan in plan_ideas():
+        slug, builders, est = plan["slug"], plan["builders"], plan["est_tokens"]
         if args.dry_run:
-            print(f"[dry] {slug:34s} -> {pair}")
-            manifest.append({"slug": slug, "builders": pair, "plan_id": None})
+            print(f"[dry] {slug:34s} est_tokens={est:5d} -> {builders}")
+            manifest.append({"slug": slug, "builders": builders, "plan_id": None,
+                             "task_class": plan["task_class"], "est_tokens": est})
             continue
-        res = submit_task(body, builders=pair, plan_id_hint=f"spec-{slug}",
-                          task_class="research")
+        res = submit_fn(plan["body"], builders=builders, plan_id_hint=f"spec-{slug}",
+                        task_class=plan["task_class"], est_tokens=est)
         ok = res.get("ok")
         pid = res.get("plan_id")
-        print(f"{'OK ' if ok else 'ERR'} {slug:34s} {pid}  {res.get('builders')}")
+        print(f"{'OK ' if ok else 'ERR'} {slug:34s} est_tokens={est:5d} {pid}  {res.get('builders')}")
         manifest.append({"slug": slug, "builders": res.get("builders"),
-                         "plan_id": pid, "ok": ok, "error": res.get("error")})
+                         "plan_id": pid, "ok": ok, "error": res.get("error"),
+                         "task_class": plan["task_class"],
+                         "est_tokens": res.get("est_tokens", est),
+                         "est_tokens_source": res.get("est_tokens_source")})
 
-    out = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                       "speculation_manifest.json")
+    out = args.out
     with open(out, "w", encoding="utf-8") as f:
         json.dump({"count": len(manifest), "ideas": manifest}, f, indent=2)
     print(f"\nmanifest -> {out}  ({len(manifest)} ideas)")

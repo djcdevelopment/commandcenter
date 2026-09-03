@@ -11,9 +11,14 @@ changes:
      over SSH — no local shell quoting of the prompt body). The file starts
      with an ``<!-- CCMETA {"builders": [...]} -->`` header (conductor_maf.py's
      own ``_extract_ccmeta`` format) naming which fleet worker(s) should build
-     it, followed by the builder prompt as the body. plan_id is prefixed
-     ``hearth-`` so anything landing on the fleet via HEARTH is recognizable at
-     a glance (provenance in the id itself, not just a ledger cross-reference).
+     it, followed by the builder prompt as the body. Since M3 (token hole #1,
+     2026-09-03) the same header also carries ``task_class``, ``est_tokens``
+     and ``est_tokens_source`` so the conductor can copy them into
+     ``runs/<plan_id>/result.json`` (hole #2, conductor-side) and hindsight can
+     join estimate to actual instead of falling back to a flat default.
+     plan_id is prefixed ``hearth-`` so anything landing on the fleet via HEARTH
+     is recognizable at a glance (provenance in the id itself, not just a
+     ledger cross-reference).
   2. The conductor's serve loop scans ``inbox/*.md`` every ~3s (SCAN=3 in
      scripts/conductor_maf.py) and dispatches through the SAME plan->build->assay
      pipeline every fleet build goes through — a "research brief" is just a
@@ -114,9 +119,91 @@ def _new_plan_id(hint: Optional[str]) -> str:
     return f"{PLAN_ID_PREFIX}{suffix}"
 
 
-def _ccmeta_header(builders: list[str]) -> str:
+# --- Token hole #1 (M3, 2026-09-03) -------------------------------------------
+# Every submit_task call used to leave est_tokens empty, so hindsight
+# (hearth/scheduler/hindsight.py) joined each fleet run to a flat
+# DEFAULT_EST_TOKENS = 2000 and the token objective in the solver never saw a
+# per-job number. estimate_tokens() is a *derived* estimate — a labeled guess,
+# never a measurement — and est_tokens_source says which it was so a consumer
+# can weight "caller" (the caller knew) differently from "derived" (this
+# heuristic). Calibrating the heuristic against actual tokens_out is hole #2's
+# job once the conductor copies these stamps into result.json.
+CHARS_PER_TOKEN = 4.0
+# Expected builder OUTPUT per task_class — the part of the bill the prompt length
+# cannot tell you. Authored intent, not receipts: a research brief is a 1–2 page
+# proposal; a build emits code + tests + a commit; a proofing run is a retest
+# whose deliverable is a short report. Unknown classes get hindsight's own flat
+# default (DEFAULT_EST_TOKENS = 2000) so a derived estimate is never *below*
+# what the join would have assumed anyway.
+OUTPUT_ALLOWANCE_TOKENS: dict[str, int] = {
+    "research": 2000,
+    "build": 4000,
+    "proofing": 1000,
+}
+DEFAULT_OUTPUT_ALLOWANCE_TOKENS = 2000
+EST_TOKENS_SOURCE_CALLER = "caller"
+EST_TOKENS_SOURCE_DERIVED = "derived"
+
+
+def estimate_tokens(prompt: str, task_class: str | None = None) -> int:
+    """Pure, deterministic token estimate for a task lane brief.
+
+    ``ceil(len(prompt) / CHARS_PER_TOKEN)`` for the prompt body (the ~4 chars
+    per token rule of thumb for English prose and code) plus the task_class
+    output allowance from ``OUTPUT_ALLOWANCE_TOKENS`` (default
+    ``DEFAULT_OUTPUT_ALLOWANCE_TOKENS`` for None/unknown). No I/O, no clock,
+    no randomness — the same inputs always give the same number, so a dry-run
+    and the real submit agree. This is an estimate for capacity planning and
+    the scheduler's token objective, not a measurement; results stamp it with
+    ``est_tokens_source = "derived"`` so consumers can tell.
+    """
+    if not isinstance(prompt, str):
+        raise ValueError("prompt must be a string")
+    prompt_tokens = -(-len(prompt) // int(CHARS_PER_TOKEN))  # ceil division
+    allowance = OUTPUT_ALLOWANCE_TOKENS.get(task_class or "", DEFAULT_OUTPUT_ALLOWANCE_TOKENS)
+    return int(prompt_tokens + allowance)
+
+
+def _validate_est_tokens(est_tokens: object, where: str = "est_tokens") -> Optional[int]:
+    """Return est_tokens as a non-negative int, or None when absent.
+
+    Accepts ints and integral floats (JSON-over-MCP hands integral numbers back
+    as either); rejects bools, negatives, and non-integral values with a
+    ValueError naming the field, so a bad manifest item fails before any inbox
+    write.
+    """
+    if est_tokens is None:
+        return None
+    if isinstance(est_tokens, bool) or not isinstance(est_tokens, (int, float)):
+        raise ValueError(f"{where} must be a non-negative integer when provided")
+    if isinstance(est_tokens, float) and not est_tokens.is_integer():
+        raise ValueError(f"{where} must be a non-negative integer when provided")
+    value = int(est_tokens)
+    if value < 0:
+        raise ValueError(f"{where} must be a non-negative integer when provided")
+    return value
+
+
+def _ccmeta_header(builders: list[str], task_class: str | None = None,
+                   est_tokens: int | None = None,
+                   est_tokens_source: str | None = None) -> str:
+    """Render the conductor's CCMETA header.
+
+    ``builders`` is what the conductor reads today. ``task_class``,
+    ``est_tokens`` and ``est_tokens_source`` ride along (omitted when None) so
+    the conductor can copy them into ``result.json`` later (token hole #2) —
+    the header is the only channel that reaches the run directory, since the
+    HEARTH ledger stores just a digest of this tool's result.
+    """
     import json
-    return "<!-- CCMETA\n" + json.dumps({"builders": builders}) + "\n-->\n"
+    meta: dict = {"builders": builders}
+    if task_class is not None:
+        meta["task_class"] = task_class
+    if est_tokens is not None:
+        meta["est_tokens"] = est_tokens
+    if est_tokens_source is not None:
+        meta["est_tokens_source"] = est_tokens_source
+    return "<!-- CCMETA\n" + json.dumps(meta) + "\n-->\n"
 
 
 def _ensure_fanout_minimum(builders: list[str]) -> list[str]:
@@ -151,20 +238,26 @@ def submit_task(prompt: str, builders: list[str] | None = None,
     """Submit a research brief / simple build to the fleet via the conductor inbox.
 
     Writes ``inbox/<plan_id>.md`` on cc-conductor with a CCMETA builder-pin
-    header (default: two local B70 builders, ``["am4-worker-1", "cc-builder-2"]``)
-    and `prompt` as the body. Returns immediately with the plan_id — the
-    conductor's own serve loop picks it up within one ~3s scan and runs it
-    through the normal build/assay pipeline. Poll ``task_status(plan_id)`` for
-    the result.
+    header (default: ``DEFAULT_BUILDERS`` — the two local builders currently
+    pointed at a live local rung; re-pointed 2026-08-29 to cc-builder-2/3 on
+    fx99-ollama after every local builder was found aimed at a dead backend,
+    see the roster comment above) and `prompt` as the body. Returns
+    immediately with the plan_id — the conductor's own serve loop picks it up
+    within one ~3s scan and runs it through the normal build/assay pipeline.
+    Poll ``task_status(plan_id)`` for the result.
 
     A single-builder request is padded up to the conductor's fan-out minimum
     (>= 2 targets) — a one-builder run crashes on dispatch and never returns
     (see _ensure_fanout_minimum). The returned ``builders`` reflect what was
     actually written.
 
-    Optional ``task_class`` and ``est_tokens`` are threaded into the ledger event
-    for observability (task_class overrides the gateway's static derivation,
-    est_tokens is a pass-through for scheduler hindsight).
+    ``task_class`` overrides the gateway's static derivation in the ledger
+    event. ``est_tokens`` is the caller's estimate of the job's token cost;
+    when absent it is DERIVED with ``estimate_tokens(prompt, task_class)`` so
+    no submit ever leaves the field empty (token hole #1). The result carries
+    ``est_tokens`` and ``est_tokens_source`` (``"caller"`` | ``"derived"``),
+    and both — plus ``task_class`` — ride the CCMETA header so the conductor
+    can copy them into ``result.json`` (hole #2, conductor-side).
 
     Zero conductor-side changes: this is the same inbox mechanism every fleet
     build already uses, so no scheduler is duplicated (Banked Fire design
@@ -175,12 +268,32 @@ def submit_task(prompt: str, builders: list[str] | None = None,
     chosen_builders = list(DEFAULT_BUILDERS) if builders is None else list(builders)
     if not chosen_builders or not all(isinstance(b, str) and b.strip() for b in chosen_builders):
         raise ValueError("builders must be a non-empty list of non-empty strings")
+    if task_class is not None and (not isinstance(task_class, str) or not task_class.strip()):
+        raise ValueError("task_class must be a non-empty string when provided")
     # Pad to the conductor's fan-out minimum so a single-builder request runs
     # instead of crashing on dispatch (see _ensure_fanout_minimum).
     chosen_builders = _ensure_fanout_minimum(chosen_builders)
 
+    # Token hole #1: never leave est_tokens empty. A caller-supplied value is
+    # kept verbatim and labeled; an absent one is derived and labeled as such.
+    caller_est = _validate_est_tokens(est_tokens)
+    if caller_est is None:
+        est_tokens_value = estimate_tokens(prompt, task_class)
+        est_tokens_source = EST_TOKENS_SOURCE_DERIVED
+    else:
+        est_tokens_value = caller_est
+        est_tokens_source = EST_TOKENS_SOURCE_CALLER
+    stamps: dict = {"est_tokens": est_tokens_value, "est_tokens_source": est_tokens_source}
+    if task_class is not None:
+        stamps["task_class"] = task_class
+        # The gateway wrapper lifts this key into the ledger event's task_class
+        # and pops it before the caller sees the result.
+        stamps["_ledger_task_class"] = task_class
+
     plan_id = _new_plan_id(plan_id_hint)
-    body = _ccmeta_header(chosen_builders) + prompt
+    body = _ccmeta_header(chosen_builders, task_class=task_class,
+                          est_tokens=est_tokens_value,
+                          est_tokens_source=est_tokens_source) + prompt
     b64 = base64.b64encode(body.encode("utf-8")).decode("ascii")
     remote_path = f"{INBOX_DIR}/{plan_id}.md"
     # mkdir -p is a no-op if inbox/ already exists (it always does); base64 -d
@@ -195,21 +308,19 @@ def submit_task(prompt: str, builders: list[str] | None = None,
     duration_ms = round((time.monotonic() - started) * 1000)
 
     if error is not None:
+        # A failed write is still a classed, estimated dispatch attempt — the
+        # ledger event should not lose its task_class because SSH hiccupped.
         return {"ok": False, "error": error, "plan_id": plan_id,
-                "builders": chosen_builders, "duration_ms": duration_ms}
-    result = {
+                "builders": chosen_builders, "duration_ms": duration_ms, **stamps}
+    return {
         "ok": True,
         "plan_id": plan_id,
         "builders": chosen_builders,
         "inbox_path": remote_path,
         "result_path": f"{RUNS_DIR}/{plan_id}/result.json",
         "duration_ms": duration_ms,
+        **stamps,
     }
-    if est_tokens is not None:
-        result["est_tokens"] = est_tokens
-    if task_class is not None:
-        result["_ledger_task_class"] = task_class
-    return result
 
 
 def task_status(plan_id: str, out_file: str | None = None) -> dict:
@@ -344,7 +455,9 @@ def submit_batch(manifest: list[dict]) -> dict:
     ``{"prompt": str, "builders"?: list[str], "task_class"?: str,
     "plan_id_hint"?: str, "est_tokens"?: int}``. Each item is submitted through
     the SAME submit_task inbox mechanism — no second scheduler, no
-    conductor-side change (Banked Fire principle #1). The whole manifest is
+    conductor-side change (Banked Fire principle #1) — so an item without
+    ``est_tokens`` gets a derived estimate exactly as a single submit would
+    (token hole #1). The whole manifest is
     validated up front, so a malformed item fails the call before ANY inbox
     file is written; once validation passes every item is attempted and its
     per-item outcome is returned, so a mid-batch SSH failure is visible per task
@@ -381,6 +494,7 @@ def submit_batch(manifest: list[dict]) -> dict:
             val = item.get(key)
             if val is not None and (not isinstance(val, str) or not val.strip()):
                 raise ValueError(f"manifest[{i}].{key} must be a non-empty string when provided")
+        _validate_est_tokens(item.get("est_tokens"), where=f"manifest[{i}].est_tokens")
 
     submitted: list[dict] = []
     plan_ids: list[str] = []

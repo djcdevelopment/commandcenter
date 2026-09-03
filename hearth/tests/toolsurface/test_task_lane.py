@@ -9,14 +9,28 @@ from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
 
+from hearth.toolsurface import task_lane
 from hearth.toolsurface.task_lane import (
     DEFAULT_BUILDERS,
+    DEFAULT_OUTPUT_ALLOWANCE_TOKENS,
+    OUTPUT_ALLOWANCE_TOKENS,
+    estimate_tokens,
     get_tools,
     queue_status,
     submit_batch,
     submit_task,
     task_status,
 )
+
+
+def _decode_ccmeta(remote_command: str) -> tuple[dict, str]:
+    """Decode the base64 inbox payload out of the captured SSH command and
+    split it into (CCMETA dict, prompt body)."""
+    b64_segment = remote_command.split("echo ", 1)[1].split(" | base64", 1)[0]
+    decoded = base64.b64decode(b64_segment).decode("utf-8")
+    header, _, body = decoded.partition("-->\n")
+    meta = json.loads(header.split("<!-- CCMETA", 1)[1])
+    return meta, body
 
 
 def _completed(stdout: str = "", stderr: str = "", returncode: int = 0) -> subprocess.CompletedProcess:
@@ -139,13 +153,199 @@ class SubmitTaskTests(TestCase):
         self.assertEqual(result["_ledger_task_class"], "research")
         self.assertEqual(result["est_tokens"], 1000)
 
-    def test_task_class_and_est_tokens_omitted_when_not_provided(self) -> None:
-        """submit_task without task_class/est_tokens omits the keys."""
+    def test_task_class_omitted_but_est_tokens_derived_when_not_provided(self) -> None:
+        """submit_task without task_class leaves the ledger override out (the
+        gateway's static derivation stands) -- but est_tokens is NEVER left
+        empty any more (token hole #1): it is derived and labeled as such."""
         with patch("subprocess.run", return_value=_completed(stdout="written\n")):
             result = submit_task("q")
         self.assertTrue(result["ok"])
         self.assertNotIn("_ledger_task_class", result)
-        self.assertNotIn("est_tokens", result)
+        self.assertNotIn("task_class", result)
+        self.assertEqual(result["est_tokens"], estimate_tokens("q", None))
+        self.assertEqual(result["est_tokens_source"], "derived")
+
+    def test_stale_am4_worker_docstring_is_gone(self) -> None:
+        # The submit_task docstring named ["am4-worker-1", "cc-builder-2"] as the
+        # default long after the roster moved off am4-worker-1 (2026-08-29).
+        # The docstring must describe the live roster by reference, not a
+        # dead literal.
+        self.assertNotIn("am4-worker-1", submit_task.__doc__ or "")
+        self.assertIn("DEFAULT_BUILDERS", submit_task.__doc__ or "")
+
+
+class EstimateTokensTests(TestCase):
+    """estimate_tokens is pure: same inputs, same number; no I/O."""
+
+    def test_returns_int_and_is_deterministic(self) -> None:
+        a = estimate_tokens("write a proposal about X", "research")
+        b = estimate_tokens("write a proposal about X", "research")
+        self.assertIsInstance(a, int)
+        self.assertEqual(a, b)
+
+    def test_longer_prompt_costs_more(self) -> None:
+        short = estimate_tokens("x" * 40, "research")
+        long = estimate_tokens("x" * 4000, "research")
+        self.assertGreater(long, short)
+        # ~4 chars/token: 4000 chars -> 1000 prompt tokens on top of the allowance.
+        self.assertEqual(long - short, (4000 - 40) // 4)
+
+    def test_prompt_tokens_are_ceil_of_chars_over_four(self) -> None:
+        allowance = OUTPUT_ALLOWANCE_TOKENS["research"]
+        self.assertEqual(estimate_tokens("", "research"), allowance)
+        self.assertEqual(estimate_tokens("a", "research"), allowance + 1)
+        self.assertEqual(estimate_tokens("abcd", "research"), allowance + 1)
+        self.assertEqual(estimate_tokens("abcde", "research"), allowance + 2)
+
+    def test_task_class_selects_its_output_allowance(self) -> None:
+        prompt = "same prompt"
+        for task_class, allowance in OUTPUT_ALLOWANCE_TOKENS.items():
+            with self.subTest(task_class=task_class):
+                self.assertEqual(estimate_tokens(prompt, task_class),
+                                 estimate_tokens(prompt, None)
+                                 - DEFAULT_OUTPUT_ALLOWANCE_TOKENS + allowance)
+
+    def test_unknown_or_missing_class_uses_the_default_allowance(self) -> None:
+        self.assertEqual(estimate_tokens("", None), DEFAULT_OUTPUT_ALLOWANCE_TOKENS)
+        self.assertEqual(estimate_tokens("", "no-such-class"), DEFAULT_OUTPUT_ALLOWANCE_TOKENS)
+
+    def test_default_allowance_matches_hindsights_flat_default(self) -> None:
+        # A derived estimate must never fall BELOW what hindsight would have
+        # assumed anyway (hearth/scheduler/hindsight.py DEFAULT_EST_TOKENS).
+        self.assertEqual(DEFAULT_OUTPUT_ALLOWANCE_TOKENS, 2000)
+
+    def test_non_string_prompt_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            estimate_tokens(None, "research")  # type: ignore[arg-type]
+
+    def test_not_exposed_as_a_tool(self) -> None:
+        # A pure helper, not a door: the tool surface stays exactly four.
+        self.assertNotIn("estimate_tokens", {fn.__name__ for fn in get_tools()})
+
+
+class TokenHoleStampTests(TestCase):
+    """Token hole #1: every submit stamps task_class / est_tokens, on the result
+    AND in the CCMETA header the conductor reads."""
+
+    def _submit(self, *args, **kwargs) -> tuple[dict, dict, str]:
+        captured = {}
+
+        def runner(cmd, **kw):
+            captured["cmd"] = cmd[-1]
+            return _completed(stdout="written\n")
+
+        with patch("subprocess.run", side_effect=runner):
+            result = submit_task(*args, **kwargs)
+        meta, body = _decode_ccmeta(captured["cmd"])
+        return result, meta, body
+
+    def test_absent_est_tokens_is_derived_from_prompt_and_class(self) -> None:
+        prompt = "design a rubric for grading research briefs " * 20
+        result, meta, body = self._submit(prompt, task_class="research")
+        expected = estimate_tokens(prompt, "research")
+        self.assertEqual(result["est_tokens"], expected)
+        self.assertEqual(result["est_tokens_source"], "derived")
+        self.assertEqual(result["task_class"], "research")
+        self.assertEqual(result["_ledger_task_class"], "research")
+        # The header carries the same stamps so the conductor can copy them
+        # into result.json (hole #2).
+        self.assertEqual(meta["builders"], DEFAULT_BUILDERS)
+        self.assertEqual(meta["task_class"], "research")
+        self.assertEqual(meta["est_tokens"], expected)
+        self.assertEqual(meta["est_tokens_source"], "derived")
+        self.assertEqual(body, prompt)
+
+    def test_caller_est_tokens_is_kept_verbatim_and_labeled(self) -> None:
+        result, meta, _ = self._submit("q", task_class="build", est_tokens=777)
+        self.assertEqual(result["est_tokens"], 777)
+        self.assertEqual(result["est_tokens_source"], "caller")
+        self.assertEqual(meta["est_tokens"], 777)
+        self.assertEqual(meta["est_tokens_source"], "caller")
+        self.assertEqual(meta["task_class"], "build")
+
+    def test_header_omits_task_class_when_caller_gave_none(self) -> None:
+        result, meta, _ = self._submit("q")
+        self.assertNotIn("task_class", meta)
+        self.assertIn("est_tokens", meta)
+        self.assertEqual(meta["est_tokens_source"], "derived")
+        self.assertEqual(result["est_tokens"], meta["est_tokens"])
+
+    def test_header_stays_one_json_object_between_the_markers(self) -> None:
+        # conductor_maf.py's _extract_ccmeta parses the JSON between the
+        # markers; the added keys must not break the shape it already reads.
+        captured = {}
+
+        def runner(cmd, **kw):
+            captured["cmd"] = cmd[-1]
+            return _completed(stdout="written\n")
+
+        with patch("subprocess.run", side_effect=runner):
+            submit_task("q", task_class="research", est_tokens=5)
+        b64_segment = captured["cmd"].split("echo ", 1)[1].split(" | base64", 1)[0]
+        decoded = base64.b64decode(b64_segment).decode("utf-8")
+        self.assertTrue(decoded.startswith("<!-- CCMETA\n"))
+        header_json = decoded.split("<!-- CCMETA\n", 1)[1].split("\n-->\n", 1)[0]
+        self.assertEqual(json.loads(header_json)["builders"], DEFAULT_BUILDERS)
+        self.assertEqual(decoded.count("<!-- CCMETA"), 1)
+
+    def test_integral_float_est_tokens_accepted_as_int(self) -> None:
+        # JSON-over-MCP may hand an integral number back as a float.
+        result, meta, _ = self._submit("q", est_tokens=1500.0)
+        self.assertEqual(result["est_tokens"], 1500)
+        self.assertIsInstance(result["est_tokens"], int)
+        self.assertEqual(result["est_tokens_source"], "caller")
+
+    def test_bad_est_tokens_rejected_before_any_write(self) -> None:
+        for bad in (-1, True, "lots", 12.5, [1]):
+            with self.subTest(bad=bad):
+                with patch("subprocess.run", return_value=_completed(stdout="written\n")) as m:
+                    with self.assertRaises(ValueError):
+                        submit_task("q", est_tokens=bad)  # type: ignore[arg-type]
+                m.assert_not_called()
+
+    def test_blank_task_class_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            submit_task("q", task_class="   ")
+
+    def test_failed_write_still_carries_the_stamps(self) -> None:
+        # The ledger event of a failed dispatch must not lose its class or
+        # estimate just because SSH hiccupped.
+        with patch("subprocess.run",
+                   return_value=_completed(stdout="", stderr="denied", returncode=255)):
+            result = submit_task("q", task_class="research")
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["_ledger_task_class"], "research")
+        self.assertEqual(result["est_tokens"], estimate_tokens("q", "research"))
+        self.assertEqual(result["est_tokens_source"], "derived")
+
+    def test_batch_items_each_get_an_estimate(self) -> None:
+        with patch("subprocess.run", return_value=_completed(stdout="written\n")):
+            result = submit_batch([
+                {"prompt": "one", "task_class": "research"},
+                {"prompt": "two", "task_class": "build", "est_tokens": 42},
+            ])
+        self.assertTrue(result["ok"])
+        first, second = result["submitted"]
+        self.assertEqual(first["est_tokens"], estimate_tokens("one", "research"))
+        self.assertEqual(first["est_tokens_source"], "derived")
+        self.assertEqual(second["est_tokens"], 42)
+        self.assertEqual(second["est_tokens_source"], "caller")
+
+    def test_batch_bad_est_tokens_rejected_before_any_write(self) -> None:
+        with patch("subprocess.run", return_value=_completed(stdout="written\n")) as m:
+            with self.assertRaises(ValueError):
+                submit_batch([{"prompt": "ok"}, {"prompt": "bad", "est_tokens": -3}])
+        m.assert_not_called()
+
+    def test_ccmeta_header_helper_shape(self) -> None:
+        header = task_lane._ccmeta_header(["a", "b"], task_class="proofing",
+                                          est_tokens=9, est_tokens_source="caller")
+        meta = json.loads(header.split("<!-- CCMETA\n", 1)[1].split("\n-->\n", 1)[0])
+        self.assertEqual(meta, {"builders": ["a", "b"], "task_class": "proofing",
+                                "est_tokens": 9, "est_tokens_source": "caller"})
+        # Bare form is byte-identical to the pre-M3 header.
+        self.assertEqual(task_lane._ccmeta_header(["a", "b"]),
+                         '<!-- CCMETA\n{"builders": ["a", "b"]}\n-->\n')
 
 
 class TaskStatusTests(TestCase):

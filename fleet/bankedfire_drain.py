@@ -389,9 +389,16 @@ def run_tick(arm_state_path: Path = DEFAULT_ARM_STATE_PATH,
         f"{candidate.get('reason', '')}\n\n"
         f"This is unattended, gated, opportunistic fleet work — treat it as a normal build."
     )
+    # Token hole #1 (M3): every submit_task call site stamps task_class AND
+    # est_tokens. The drain's brief is short and its deliverable is a retest
+    # report, so the proofing allowance dominates; the number is derived here
+    # (not left for submit_task to fill in) so the tick's own ledger row and
+    # the CCMETA header agree even when a fake submitter is injected.
+    est_tokens = task_lane.estimate_tokens(prompt, DRAIN_TASK_CLASS)
+    detail["est_tokens"] = est_tokens
     submit_result = submit_task_fn(
         prompt, plan_id_hint=f"drain-{candidate['candidate_id'][:40]}",
-        task_class=DRAIN_TASK_CLASS,
+        task_class=DRAIN_TASK_CLASS, est_tokens=est_tokens,
     )
     if not submit_result.get("ok"):
         return _finish("no-op:dispatch-failed", {"submit_error": submit_result.get("error")})

@@ -36,5 +36,13 @@
       ],
       "observed_stable_levels_note": "OBSERVED REGIMES, not established mechanisms. Nothing yet shows these are discrete states rather than samples from a continuous process. Do not add thresholds or state names beyond the behavioural restart discriminator (docs/adr#0044)."
     }
-  }
+  },
+  "epoch_boundaries": [
+    {
+      "ts": null,
+      "reason": "ArcServeBoot -> llama-swap cutover (Derek 2026-09-03, ADR-0045 / plan P13); ts filled by cutover.ps1 -Live",
+      "baseline_preserved": true,
+      "note": "ADR-0044: a boundary, not a re-baseline. baseline_decode_tok_s stays 106.0 and the envelope is still a fraction of THAT baseline; readings across this boundary are two epochs, not one."
+    }
+  ]
 }

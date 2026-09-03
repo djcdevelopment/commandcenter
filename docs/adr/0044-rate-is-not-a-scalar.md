@@ -465,3 +465,14 @@ produced by waiting rather than by intervening:
    payoff of the watch posture**, and it is the shape of evidence an intervention would have
    destroyed rather than produced.
 
+### Deliberate epoch boundary — cutover to llama-swap (decided 2026-09-03, Derek)
+
+**Not an observation of the machine; an observation about the record.** Derek chose to cut production
+`omen-arc` over to llama-swap now (ADR-0045 / plan P13) rather than side-port-first. When `cutover.ps1 -Live`
+runs, the incumbent process (pid 20416, resident since 2026-08-30 07:40Z — the epoch every INC-2026-08-30-A
+row above was taken in) ends and a new llama-server epoch begins under llama-swap on the same `:8082`.
+The recurrence record **splits here**: rows before and after are two epochs (R3/ADR-0044), the baseline
+106.0 is preserved (a boundary is not a re-baseline — `rate-baselines.json` `epoch_boundaries`), and the
+ETW session manifest's `server_pid 20416` becomes stale at execution. The keep-alive is restarted from a
+warm rung by the ceremony itself (ratecheck burst immediately after load — ADR-0043 rule 1), so the first
+post-cutover rows are warm-state rows, not post-idle ones.

@@ -12,7 +12,9 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
 YAML_PATH = REPO / "fleet" / "arcserve" / "llama-swap" / "omen.yaml"
-SERVE_ARC = REPO / "fleet" / "arcserve" / "serve-arc.cmd"
+# The pre-cutover launcher keeps the proven llama-server line verbatim (P13 rollback copy); the live
+# serve-arc.cmd launches llama-swap and no longer carries the flags itself.
+SERVE_ARC = REPO / "fleet" / "arcserve" / "serve-arc-direct.cmd"
 
 SIDE_MODELS = ("phi4", "qwen14b", "gptoss20b", "mistral24b")
 

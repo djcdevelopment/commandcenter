@@ -266,7 +266,10 @@ Plan "G stamp epoch boundary" {
     $doc = Get-Content $Baselines -Raw | ConvertFrom-Json
     $last = $doc.epoch_boundaries[$doc.epoch_boundaries.Count - 1]
     $last.ts = (Get-Date).ToString("o")
-    ($doc | ConvertTo-Json -Depth 12) | Set-Content -Path $Baselines -Encoding UTF8
+    # BOM-less UTF-8 + LF: ff_ratecheck.py and hearth.health.rungstate read this file with plain
+    # utf-8, and Set-Content -Encoding UTF8 on PS 5.1 writes a BOM (the same trap warm-arc.ps1 avoids).
+    $json = ($doc | ConvertTo-Json -Depth 12) -replace "`r`n", "`n"
+    [IO.File]::WriteAllText($Baselines, $json + "`n", (New-Object Text.UTF8Encoding $false))
     return $true
 } "set epoch_boundaries[-1].ts in $Baselines (baseline 106.0 untouched)" | Out-Null
 

@@ -4,6 +4,11 @@ from __future__ import annotations
 import unittest
 
 from hearth.rotation.admission import AdmissionGates
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
+
+from hearth.rotation import lifecycle as L
 from hearth.rotation.lifecycle import load_with_assertion, select_model_log
 from hearth.rotation.swapclient import LoadOutcome
 from hearth.rotation.telemetry import CardTelemetry, HostTelemetry
@@ -56,6 +61,15 @@ def _snapshots(*snaps):
 
 
 class LifecycleTests(unittest.TestCase):
+    def setUp(self) -> None:
+        # The default log reader looks in hearth/var/swap-logs/; a live proof populates that dir,
+        # so tests point it at an empty temp dir and exercise the llama-swap-tail fallback.
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        p = patch.object(L, "SWAP_LOG_DIR", Path(tmp.name))
+        p.start()
+        self.addCleanup(p.stop)
+
     def _common(self, **over):
         base = dict(expected_cards=1, per_card_gb=8.3, vram_gb=None, placement="single",
                     resident_by_bdf={A: 14.52, B: 15.44}, gates=AdmissionGates(),

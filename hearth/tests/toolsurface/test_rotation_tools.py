@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from hearth.rotation.swapclient import LoadOutcome, RunningModel
 from hearth.rotation.telemetry import CardTelemetry, HostTelemetry
+from hearth.rotation import lifecycle as L
 from hearth.toolsurface import rotation as R
 
 A = "0000:04:00.0"
@@ -63,6 +64,7 @@ class RotationToolsTests(unittest.TestCase):
             patch.object(R, "_client_factory", lambda endpoint: self.client),
             patch.object(R, "_snapshot_fn", lambda: next(snaps)),
             patch.object(R, "_fence_fn", lambda: None),
+            patch.object(L, "SWAP_LOG_DIR", Path(self.tmp.name) / "swap-logs"),
         ]
         for p in self.patches:
             p.start()

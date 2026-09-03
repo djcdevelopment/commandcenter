@@ -66,14 +66,21 @@ def last_load_report(text: str) -> str:
     return text[start + 1 if start >= 0 else 0:]
 
 
-def read_model_log(model_id: str, log_dir: Path = SWAP_LOG_DIR) -> str:
+PLACEMENT_MARKERS = ("using device", "model buffer size")
+
+
+def read_model_log(model_id: str, log_dir: Optional[Path] = None) -> str:
     """The model's own ``--log-file`` (fleet/arcserve/llama-swap/omen.yaml gives every side entry one),
-    trimmed to its last load report. Empty when absent -- the parser then fails closed."""
-    path = Path(log_dir) / f"{model_id}.log"
+    trimmed to its last load report. Empty when absent OR when the file carries no placement lines
+    (a server that died at launch leaves only warnings) -- callers then fall back to llama-swap's tail.
+    ``log_dir`` is resolved at call time so tests can point ``SWAP_LOG_DIR`` elsewhere."""
+    base = Path(log_dir) if log_dir is not None else SWAP_LOG_DIR
+    path = base / f"{model_id}.log"
     try:
-        return last_load_report(path.read_text(encoding="utf-8", errors="replace"))
+        text = last_load_report(path.read_text(encoding="utf-8", errors="replace"))
     except OSError:
         return ""
+    return text if any(marker in text for marker in PLACEMENT_MARKERS) else ""
 
 
 def select_model_log(text: str, model_id: str) -> str:

@@ -31,6 +31,7 @@ VAR_DIR = REPO / "hearth" / "var"
 CATALOG_PATH = REPO / "knowledge" / "omen_catalog.json"
 SWAP_RUNG = "omen-swap"
 PRODUCTION_MODEL = "qwen3-30b-a3b"
+KV_DIR = Path("E:/work/battlemage/kv")          # every side entry's --slot-save-path in omen.yaml
 _SIBLING_RE = re.compile(r"^(?P<family>.+)-vk(?P<idx>[12])$")
 
 # Injectable seams (tests patch these; production uses the real ones).
@@ -250,6 +251,7 @@ def rotation_load(model_id: str, window: str, expect_cards: int = 1, reason: str
     entry = _catalog_entry_for(model_id, catalog) or {}
     placement = "dual" if model_id.endswith("-dual") else str(entry.get("placement") or "single")
     (VAR_DIR / "swap-logs").mkdir(parents=True, exist_ok=True)   # the side entries' --log-file dir
+    KV_DIR.mkdir(parents=True, exist_ok=True)                    # --slot-save-path: llama-server refuses to start without it
     client = _client_factory(endpoint)
     try:
         running = client.running()

@@ -76,22 +76,43 @@ def submit_podcast(
 def submit_video_animation(
     still_image_path: str,
     motion_prompt: str,
-    duration_s: float = 4.0,
+    duration_s: float = 3.4,
 ) -> dict:
-    """Queue a video animation job: concept still → I2V animation → MP4.
-
-    Args:
-        still_image_path: Absolute path to the source keyframe image.
-        motion_prompt: Text description of the desired camera motion / animation.
-        duration_s: Target clip duration in seconds (1.0–16.0, default 4.0).
-
-    Returns:
-        Job submission receipt with job_id and initial status.
-
-    Raises:
-        NotImplementedError: Until Phase 3 execution is wired.
-    """
-    raise NotImplementedError(
-        "submit_video_animation is defined in Phase 1 (contracts); "
-        "execution will be wired in Phase 3 (video vertical slice)"
-    )
+    """Queue a video animation job via ComfyUI (Wan2-I2V/LTX)."""
+    with trace_span("hearth.job.video", attributes={"job.image_path": still_image_path}) as span:
+        job_id = "video_" + new_invocation_id()
+        span.set_attribute("job.id", job_id)
+        
+        path = Path(still_image_path)
+        if not path.is_file():
+            raise FileNotFoundError(f"Image not found: {still_image_path}")
+            
+        import shutil
+        # ComfyUI loads inputs from its input directory usually, or from absolute paths depending on LoadImage custom nodes.
+        # But standard LoadImage expects the file in ComfyUI/input.
+        comfy_input_dir = Path(r"E:\Comfy-Desktop\ComfyUI-Installs\OMEN\ComfyUI\input")
+        comfy_input_dir.mkdir(parents=True, exist_ok=True)
+        
+        dest_filename = f"{job_id}_{path.name}"
+        dest_path = comfy_input_dir / dest_filename
+        shutil.copy2(str(path), str(dest_path))
+        
+        # Submits to the standard ImageGen dispatcher which manages the B70 lane queue
+        # In Phase 3, this leverages the existing .NET agent.
+        from hearth.toolsurface.image_generate import submit_image
+        
+        receipt = submit_image(
+            workflow_id="wan2-i2v",
+            parameters={
+                "input_image": dest_filename,
+                "prompt": motion_prompt,
+                "duration_seconds": duration_s,
+                "fps": 24,
+            },
+            strategy="single",
+            priority="normal"
+        )
+        
+        # Override the job type explicitly to 'video' for tracking, but keep the underlying execution ledger job_id.
+        # Actually, let's just return the receipt directly.
+        return receipt

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="refresh" content="300">
+<title>Fleet Dashboard</title>
+<style>
+:root {
+  --bg: #faf8f4; --fg: #22211e; --muted: #6b6760; --accent: #b4541e;
+  --card: #ffffff; --border: #e2ddd3; --good: #2e7d32; --warn: #b26a00; --bad: #c62828; --code-bg: #f0ece4;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1b18; --fg: #e8e4dc; --muted: #a09a8e; --accent: #e8925a;
+    --card: #262420; --border: #3a372f; --good: #81c784; --warn: #ffb74d; --bad: #ef9a9a; --code-bg: #2e2b25;
+  }
+}
+body { background: var(--bg); color: var(--fg); font-family: system-ui, sans-serif; padding: 20px; line-height: 1.5; margin: 0; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 15px; margin-bottom: 20px; }
+.tiles { display: flex; gap: 20px; flex-wrap: wrap; }
+.tile { flex: 1; min-width: 150px; }
+table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9em; }
+th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--muted); font-weight: normal; }
+tr.sub td { padding-top: 2px; padding-bottom: 6px; border-bottom: none; color: var(--muted); font-size: 0.92em; }
+tr.sub + tr td { border-top: 1px solid var(--border); }
+.metric { font-size: 2em; margin-top: 8px; font-weight: 500; }
+.good { color: var(--good); } .warn { color: var(--warn); } .bad { color: var(--bad); } .muted { color: var(--muted); }
+.pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 0.85em; font-weight: 600; border: 1px solid currentColor; white-space: nowrap; }
+code { background: var(--code-bg); padding: 1px 4px; border-radius: 3px; font-size: 0.92em; }
+h1, h2, h3 { margin-top: 0; font-weight: 500; }
+h3 { color: var(--muted); font-size: 0.9em; text-transform: uppercase; letter-spacing: 0.5px; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; font-size: 0.92em; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; }
+.wrap { overflow-x: auto; }
+</style>
+</head>
+<body>
+<h1>Fleet Dashboard</h1>
+<div class="muted" style="margin-bottom: 24px; font-size: 0.9em;">Generated at: 2026-09-03 19:46:11 UTC &bull; Inventory: tail8e749c.ts.net &bull; inventory updated 2026-08-24 &bull; Probe: all declared services &bull; timeout 3.0 s</div>
+<div class="card" style="border-color: var(--warn);"><strong>Generated snapshot, not a live query.</strong> The browser refresh reloads this file; it does not re-probe the fleet. Regenerate with <code>python -m fleet.fleet_dashboard --all-services</code> on OMEN. A TCP connect proves a <em>listener</em>, not a serving model — port-open &ne; model-ready.</div>
+<div class="card">
+<div class="tiles">
+<div class="tile"><h3>Fleet</h3><div class="metric" style="font-size:1.3em"><span class="good">every expected-up node reachable</span></div></div>
+<div class="tile"><h3>Up</h3><div class="metric good">11</div></div>
+<div class="tile"><h3>Down (expected up)</h3><div class="metric ">0</div></div>
+<div class="tile"><h3>Offline (optional)</h3><div class="metric muted">2</div></div>
+<div class="tile"><h3>Nodes</h3><div class="metric">13</div></div>
+</div>
+</div>
+<div class="card">
+<h2>Rung state (ADR-0044)</h2>
+<div class="tiles">
+<div class="tile"><h3>omen-arc (:8082)</h3><div class="metric good">at_rate</div></div>
+<div class="tile"><h3>Observed / baseline tok/s</h3><div class="metric">108.5 <span class="muted" style="font-size:0.5em">/ 106.0</span></div></div>
+<div class="tile"><h3>Fraction of epoch</h3><div class="metric good">102%</div></div>
+<div class="tile"><h3>Deep sample age</h3><div class="metric">50 s</div></div>
+</div>
+<dl class="kv">
+<dt>baseline epoch</dt><dd>2026-08-29T18:22 incumbent epoch, dual-split asserted by b70tools BDF. EPOCH-SCOPED IS NOT EPOCH-HOMOGENEOUS: this labels the reference CONTRACT, not a guarantee that the machine was stationary within it -- multiple stable regimes have occurred inside a single epoch. Two readings sharing an epoch are NOT thereby comparable.</dd>
+<dt>envelope</dt><dd>warn &lt; 90% · fail &lt; 80%</dd>
+<dt>last ping</dt><dd>ok</dd>
+<dt>prefill stall (recent)</dt><dd>no</dd>
+<dt>deep samples in tail</dt><dd>68</dd>
+<dt>observed at</dt><dd>2026-09-03T12:45:21.6393014-07:00</dd>
+<dt>excluded windows</dt><dd>-</dd>
+</dl>
+<div class="muted" style="margin-top:8px;font-size:0.85em">envelope is of THIS baseline epoch, not of capacity (ADR-0044); restart discriminator not applied; no regime names</div>
+</div>
+<div class="card"><h2>Reachability</h2><div class="wrap"><table>
+<tr><th>Status</th><th>Node</th><th>Kind</th><th>Expect</th><th>Primary target</th><th>Service</th><th>Latency</th><th>Purpose</th></tr>
+<tr>
+<td><span class="pill good">UP</span></td>
+<td><strong>omen</strong></td>
+<td>physical-host</td>
+<td>up</td>
+<td><code>127.0.0.1:8082</code></td>
+<td>llama-server</td>
+<td>4 ms</td>
+<td>Hyper-V hypervisor + HEARTH gateway (:8710) + omen-arc rung (llama-server :8082, dual Arc Pro B70, ADR-0034, -c 131072 -np 2). The whole live inference surface of the fleet as of 2026-08-24. Hosts all builder VMs (currently all Off). THIS box.</td>
+</tr>
+<tr class="sub"><td></td><td colspan="7"><span class="good">ok</span> <code>omen.mshome.net:11435</code> ollama-fleet 3024 ms<br><span class="good">ok</span> <code>127.0.0.1:8710</code> hearth-gateway 16 ms<br><span class="good">ok</span> <code>127.0.0.1:8711</code> funnel-proxy 15 ms</td></tr>
+<tr>
+<td><span class="pill good">up (optional)</span></td>
+<td><strong>cc-conductor</strong></td>
+<td>physical-host</td>
+<td>optional</td>
+<td><code>cc-conductor.mshome.net:22</code></td>
+<td>ssh</td>
+<td>30 ms</td>
+<td>Fleet orchestration engine: conductor daemon + api/dashboard (:8080).</td>
+</tr>
+<tr class="sub"><td></td><td colspan="7"><span class="good">ok</span> <code>cc-conductor.mshome.net:8080</code> dashboard 1 ms</td></tr>
+<tr>
+<td><span class="pill good">UP</span></td>
+<td><strong>am4</strong></td>
+<td>physical-host</td>
+<td>up</td>
+<td><code>192.168.12.233:22</code></td>
+<td>ssh</td>
+<td>13 ms</td>
+<td>UP and serving. Ubuntu 26.04, 30 GB RAM, serving NO inference -- it hosts the observability spine (Jaeger :16686, OTel :4317/:4318), the image gallery, the IRC stack (Ergo/TheLounge on loopback, published via its own tailscale Funnel), the oxen facade :8090, and the BF6 worker/review API :8787. The RTX 5070 HAS a working driver since 2026-08-24 (595.84 open kernel module, CUDA 13.2 runtime, nvidia-smi sees the card) but NO inference engine is bound to it and no CUDA toolkit (nvcc) is installed -- driver present is NOT capacity. NOT a build VM.</td>
+</tr>
+<tr class="sub"><td></td><td colspan="7"><span class="good">ok</span> <code>192.168.12.233:16686</code> jaeger 4 ms<br><span class="good">ok</span> <code>192.168.12.233:8090</code> oxen-facade 3 ms<br><span class="good">ok</span> <code>192.168.12.233:8787</code> bf6-worker-api 25 ms</td></tr>
+<tr>
+<td><span class="pill good">up (optional)</span></td>
+<td><strong>fx99</strong></td>
+<td>physical-host</td>
+<td>optional</td>
+<td><code>192.168.12.220:22</code></td>
+<td>ssh</td>
+<td>8 ms</td>
+<td>MONITORING NODE + CUDA SIDECAR RUNG (Derek 2026-08-28, ADR-0039). UP - holds the wired link; AM4 moved to wireless so the two no longer contend. Hostname `ai-1`. Ubuntu 6.8.0-137, 15 GB RAM. RTX 2070 SUPER 8 GB (driver 595.84) running Ollama 0.30.10 on :11434 with 12 resident models (3B-14B Q4). ENLISTED as the pin-only `fx99-ollama` HEARTH rung: light critic/utility seats + the cheap local fallback during OMEN maintenance windows. Verified end-to-end through the door 2026-08-28 (routed_by pinned:fx99-ollama, 802 ms).</td>
+</tr>
+<tr class="sub"><td></td><td colspan="7"><span class="good">ok</span> <code>192.168.12.220:11434</code> ollama 5 ms<br><span class="bad">FAIL</span> <code>192.168.12.220:445</code> samba ConnectionRefusedError</td></tr>
+<tr>
+<td><span class="pill muted">offline</span></td>
+<td><strong>i5-laptop</strong></td>
+<td>physical-host</td>
+<td>optional</td>
+<td><code>100.125.141.110:22</code></td>
+<td>ssh</td>
+<td>TimeoutError</td>
+<td>Portable demo/edge node + second Valheim test client (baseline deploy target). Normally offline -- not part of the SPINE baseline.</td>
+</tr>
+<tr>
+<td><span class="pill good">up (optional)</span></td>
+<td><strong>claudefarm1</strong></td>
+<td>vm</td>
+<td>optional</td>
+<td><code>claudefarm1.mshome.net:22</code></td>
+<td>ssh</td>
+<td>29 ms</td>
+<td>Original golden-image VM. Worker + (temp) assay shell; hosts the omen-worker-1 builder.</td>
+</tr>
+<tr>
+<td><span class="pill good">up (optional)</span></td>
+<td><strong>cc-builder-1</strong></td>
+<td>vm</td>
+<td>optional</td>
+<td><code>cc-builder-1.mshome.net:22</code></td>
+<td>ssh</td>
+<td>29 ms</td>
+<td>Frontier builder VM (claude/sonnet runner).</td>
+</tr>
+<tr>
+<td><span class="pill good">up (optional)</span></td>
+<td><strong>cc-builder-2</strong></td>
+<td>vm</td>
+<td>optional</td>
+<td><code>cc-builder-2.mshome.net:22</code></td>
+<td>ssh</td>
+<td>29 ms</td>
+<td>Builder VM (local oxen-planner runner).</td>
+</tr>
+<tr>
+<td><span class="pill good">up (optional)</span></td>
+<td><strong>cc-builder-3</strong></td>
+<td>vm</td>
+<td>optional</td>
+<td><code>cc-builder-3.mshome.net:22</code></td>
+<td>ssh</td>
+<td>7 ms</td>
+<td>Builder + assay VM (rebuilt 2026-07-01, standalone disk). Current assay node while claudefarm1 is down.</td>
+</tr>
+<tr>
+<td><span class="pill muted">offline</span></td>
+<td><strong>cc-builder-4</strong></td>
+<td>vm</td>
+<td>optional</td>
+<td><code>cc-builder-4.mshome.net:22</code></td>
+<td>ssh</td>
+<td>gaierror</td>
+<td>RETIRED 2026-08-20. Was the OMEN-local Ollama MoE critic (mixtral 8x22b q2_K); exploratory-perspective only, never in the default build pool.</td>
+</tr>
+<tr>
+<td><span class="pill good">up (optional)</span></td>
+<td><strong>am4-worker-1</strong></td>
+<td>logical-builder</td>
+<td>optional</td>
+<td><code>192.168.12.233:22</code></td>
+<td>ssh</td>
+<td>12 ms</td>
+<td>NOT DISPATCHABLE, and doubly so since 2026-08-24: AM4 is powered down, so even the shell is gone. AM4 local-model builder (openai runner -&gt; oxen facade :8090). CAUTION when AM4 is powered again -- its ssh check rides AM4, so this row flips to reachable and that proves the SHELL, not the model: the oxen facade answers with every backend ready:false, and AM4 has no CUDA stack. Shell on AM4; farmer via cc-farmer tunnel.</td>
+</tr>
+<tr>
+<td><span class="pill good">up (optional)</span></td>
+<td><strong>omen-worker-1</strong></td>
+<td>logical-builder</td>
+<td>optional</td>
+<td><code>claudefarm1.mshome.net:22</code></td>
+<td>ssh</td>
+<td>29 ms</td>
+<td>OMEN Ollama qwen3-coder:30b builder (54.6 tok/s). Shell rides claudefarm1 -- so it dies when claudefarm1 is down, even though its model backend (OMEN) is fine.</td>
+</tr>
+<tr class="sub"><td></td><td colspan="7"><span class="good">ok</span> <code>omen.mshome.net:11435</code> ollama-fleet 3028 ms</td></tr>
+<tr>
+<td><span class="pill good">up (optional)</span></td>
+<td><strong>gcp-gemini</strong></td>
+<td>cloud-backend</td>
+<td>optional</td>
+<td><code>aiplatform.googleapis.com:443</code></td>
+<td>vertex-egress</td>
+<td>72 ms</td>
+<td>Vertex AI overflow lane (GCP trial credits) — backends.toml gcp-gemini</td>
+</tr>
+</table></div>
+<div class="muted" style="margin-top:10px;font-size:0.85em"><strong>DOWN</strong> = an <code>expect="up"</code> node whose primary target did not answer (the sweep's alarm). <strong>offline</strong> = an <code>expect="optional"</code> node not answering — expected, never an alarm. A node is reachable when its <em>primary</em> (first declared) service answers; extra services are shown as sub-rows with <code>--all-services</code>.</div>
+</div>
+<div class="muted" style="font-size:0.85em">Source: <code>fleet/inventory.toml</code> via <code>fleet/fleet_ping.py</code>; rendered by <code>fleet/fleet_dashboard.py</code>. OMEN-hosted; independent of the conductor.</div>
+</body>
+</html>

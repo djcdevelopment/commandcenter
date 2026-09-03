@@ -15,6 +15,8 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, asdict
 
+from hearth.health.rungstate import summarize_for_notes
+
 # No result.json this long after dispatch => phantom/stalled run holding occupancy.
 PHANTOM_AGE_S = 1800  # 30 minutes
 
@@ -205,6 +207,46 @@ def scan_knowledge(capacity_path, stale_age_s: int = KNOWLEDGE_STALE_AGE_S) -> "
         gaps.append(Gap("knowledge_stale", "warn", "system",
                         f"knowledge/capacity.json is stale ({int(age_s // 3600)}h old)"))
     return gaps
+
+
+# Spell: rung state (ADR-0044) — a verdict from hearth.health.rungstate mapped
+# onto the gap vocabulary. Only the four verdicts that mean "the rung answers but
+# is not what the epoch promised" become gaps; `unreachable` is LIVENESS, which
+# the watchdog's inventory probe (omen/llama-server :8082) owns, and
+# `at_rate`/`no_baseline`/`unknown` carry no coherence claim to disagree with.
+_RUNG_VERDICT_GAPS = {
+    "degraded": ("rung_degraded", "high"),
+    "stalled": ("rung_stalled", "high"),
+    "warn": ("rung_warn", "warn"),
+    "stale": ("rung_stale", "warn"),
+}
+
+
+def scan_rung_state(state) -> "list[Gap]":
+    """Spells rung_degraded / rung_stalled (high) and rung_warn / rung_stale (warn).
+
+    ``state`` is the dict ``hearth.health.rungstate.rung_state`` returns (pure —
+    this function does no IO, so the caller decides how fresh the state is).
+    The lab's failure modes this names (ADR-0043/0044): correct-but-degraded
+    (pings fine, the deep probe decodes at 65 of a 106 tok/s epoch) and
+    liveness-as-health (pings fine, no deep sample for 20 min — a rung nobody
+    has measured is ``stale``, never ``at_rate``). ``plan_id`` is the rung name
+    so the trend lookback keys it like any other gap. The detail repeats the
+    epoch note: the envelope is of THIS baseline epoch, not of capacity, and no
+    regime is named.
+    """
+    if not isinstance(state, dict):
+        return []
+    hit = _RUNG_VERDICT_GAPS.get(str(state.get("verdict", "")))
+    if hit is None:
+        return []
+    kind, severity = hit
+    rung = str(state.get("rung") or "omen-arc")
+    detail = summarize_for_notes(state)
+    note = state.get("note")
+    if note:
+        detail = f"{detail} — {note}"
+    return [Gap(kind, severity, rung, detail)]
 
 
 def summarize(gaps) -> dict:

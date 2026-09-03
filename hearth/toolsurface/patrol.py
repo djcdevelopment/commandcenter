@@ -20,7 +20,7 @@ import json
 from typing import Callable, Optional
 
 from hearth.health.gaps import (gaps_as_dicts, load_capacity_document, scan_knowledge,
-                                scan_runs, summarize)
+                                scan_rung_state, scan_runs, summarize)
 from hearth.toolsurface.task_lane import CONDUCTOR_REPO, _run_ssh
 
 # Lazy-imported refresh callees; imported at function-call time in patrol(),
@@ -29,6 +29,35 @@ from hearth.toolsurface.task_lane import CONDUCTOR_REPO, _run_ssh
 _project_capacity_knowledge = None
 _gather_am4_catalog = None
 _schedule_hindsight = None
+
+# Lazy-imported rung-state reader (ADR-0044), same discipline: bound on first
+# use so tests pin a verdict instead of reading the live keep-alive tail.
+_live_rung_state = None
+
+
+def _ensure_rung_state_import():
+    global _live_rung_state
+    if _live_rung_state is None:
+        from hearth.health.rungstate import live_rung_state
+        _live_rung_state = live_rung_state
+
+
+def _rung_state_gaps() -> tuple:
+    """Guarded rung-state spell: (state_dict, gaps). Never raises — the reader
+    is passive and itself never raises, but the guard means a broken import or
+    a malformed state degrades to ``{"ok": False, "error": ...}`` and an empty
+    gap list, so the run-coherence sweep is never held hostage by the rung."""
+    try:
+        _ensure_rung_state_import()
+        state = _live_rung_state()
+        if not isinstance(state, dict):
+            raise TypeError(f"rung state reader returned {type(state).__name__}")
+        gaps = scan_rung_state(state)
+        shaped = dict(state)
+        shaped["ok"] = "error" not in state
+        return shaped, gaps
+    except Exception as exc:  # never let the rung spell break the patrol
+        return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}, []
 
 def _ensure_refresh_imports():
     """Lazy-load refresh dependencies once, on first use."""
@@ -155,6 +184,14 @@ def patrol(capacity_path: str = DEFAULT_CAPACITY_PATH, refresh: bool = True) -> 
 
     ``capacity_path`` resolves in the HEARTH sandbox; when absent, schedule_divergence
     fires nothing — cheap, default-on, and silent when there's no capacity data yet.
+
+    The rung-state spell (ADR-0044) rides every patrol: the omen-arc verdict is
+    read passively from the keep-alive tail and surfaced under ``rung_state``;
+    ``degraded``/``stalled`` become high ``rung_degraded``/``rung_stalled`` gaps,
+    ``warn``/``stale`` become warn ``rung_warn``/``rung_stale`` gaps (plan_id =
+    the rung). ``unreachable`` is liveness — the watchdog's inventory probe owns
+    it — and ``at_rate`` is no gap. A failed read is ``rung_state.ok: false``,
+    never a failed patrol.
     """
     payload, error = _gather_runs()
     if error is not None:
@@ -162,6 +199,8 @@ def patrol(capacity_path: str = DEFAULT_CAPACITY_PATH, refresh: bool = True) -> 
     records = payload.get("records", [])
     capacity = load_capacity_document(capacity_path)
     gaps = scan_runs(records, capacity=capacity) + scan_knowledge(capacity_path)
+    rung_state, rung_gaps = _rung_state_gaps()
+    gaps = gaps + rung_gaps
     result = {
         "ok": True,
         "scanned": payload.get("scanned", len(records)),
@@ -170,6 +209,7 @@ def patrol(capacity_path: str = DEFAULT_CAPACITY_PATH, refresh: bool = True) -> 
         "undispatched": payload.get("undispatched", 0),
         "gaps": gaps_as_dicts(gaps),
         "summary": summarize(gaps),
+        "rung_state": rung_state,
     }
 
     # Optional refresh: best-effort update of three knowledge sources.

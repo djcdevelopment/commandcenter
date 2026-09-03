@@ -24,7 +24,32 @@ def _gather_payload(records, scanned=None, truncated=0, undispatched=0):
                        "truncated": truncated, "undispatched": undispatched})
 
 
+def _rung(verdict, **over):
+    """A hearth.health.rungstate.rung_state-shaped dict pinned to one verdict."""
+    st = {"rung": "omen-arc", "port": 8082, "verdict": verdict,
+          "baseline_tok_s": 106.0, "baseline_epoch": "2026-08-29T18:22 incumbent epoch",
+          "envelope": {"fail_below": 0.8, "warn_below": 0.9},
+          "observed_tok_s": 107.5, "observed_at": "2026-09-03T02:28:20-07:00",
+          "observed_age_s": 100.0, "frac_of_baseline": 1.0142,
+          "prefill_stall_recent": False, "last_ping_ok": True, "deep_samples": 3,
+          "excluded_windows": [], "note": "envelope is of THIS baseline epoch, not of capacity"}
+    st.update(over)
+    return st
+
+
+_AT_RATE = _rung("at_rate")
+_DEGRADED = _rung("degraded", observed_tok_s=65.0, frac_of_baseline=0.6132)
+
+# The rung-state spell rides every patrol and reads the LIVE keep-alive tail by
+# default — an environment fact, not these tests' subject (same lesson as the
+# scan_knowledge patch below). Every gap-asserting test pins at_rate.
+_PIN_AT_RATE = ("hearth.toolsurface.patrol._live_rung_state", )
+
+
 class PatrolTests(TestCase):
+    def setUp(self):
+        self.enterContext(patch(*_PIN_AT_RATE, return_value=_AT_RATE))
+
     def test_reports_gaps_from_gathered_records(self):
         records = [
             {"plan_id": "hearth-old", "age_s": 5000, "has_result": False},
@@ -276,7 +301,91 @@ class GatherSourceTests(TestCase):
             shutil.rmtree(tmp, ignore_errors=True)
 
 
+class PatrolRungStateTests(TestCase):
+    """The rung-state spell (ADR-0044) rides every patrol, guarded and lazy."""
+
+    _OK_RECORDS = [{"plan_id": "pour-ok", "age_s": 9000, "has_result": True,
+                    "status": "ok", "winner": "x", "promoted": True,
+                    "winner_grade": "A", "winner_files": 100, "n_questions": 0}]
+
+    def _patrol(self, rung_reader):
+        with patch("subprocess.run", return_value=_completed(stdout=_gather_payload(self._OK_RECORDS))),              patch("hearth.toolsurface.patrol.scan_knowledge", return_value=[]),              patch("hearth.toolsurface.patrol._live_rung_state", rung_reader):
+            return patrol(refresh=False)
+
+    def test_degraded_rung_rides_as_a_high_gap(self) -> None:
+        out = self._patrol(lambda: _DEGRADED)
+        self.assertTrue(out["ok"])
+        self.assertEqual([g["kind"] for g in out["gaps"]], ["rung_degraded"])
+        gap = out["gaps"][0]
+        self.assertEqual(gap["severity"], "high")
+        self.assertEqual(gap["plan_id"], "omen-arc")
+        self.assertIn("65.0/106.0 tok/s", gap["detail"])
+        self.assertEqual(out["summary"]["by_kind"], {"rung_degraded": 1})
+        self.assertEqual(out["rung_state"]["verdict"], "degraded")
+        self.assertTrue(out["rung_state"]["ok"])
+        self.assertEqual(out["rung_state"]["observed_tok_s"], 65.0)
+
+    def test_stale_rung_is_a_warn_gap_never_at_rate(self) -> None:
+        out = self._patrol(lambda: _rung("stale", observed_age_s=1200.0))
+        self.assertEqual([(g["kind"], g["severity"]) for g in out["gaps"]], [("rung_stale", "warn")])
+
+    def test_at_rate_rung_adds_no_gap_but_is_surfaced(self) -> None:
+        out = self._patrol(lambda: _AT_RATE)
+        self.assertEqual(out["gaps"], [])
+        self.assertEqual(out["rung_state"]["verdict"], "at_rate")
+        self.assertTrue(out["rung_state"]["ok"])
+
+    def test_unreachable_rung_is_liveness_not_a_gap(self) -> None:
+        # Production down (the 2026-09-03 imagegen tenancy window): the verdict is
+        # surfaced, but "down" belongs to the watchdog's inventory probe.
+        out = self._patrol(lambda: _rung("unreachable", last_ping_ok=False))
+        self.assertEqual(out["gaps"], [])
+        self.assertEqual(out["rung_state"]["verdict"], "unreachable")
+
+    def test_reader_raising_never_fails_the_patrol(self) -> None:
+        def boom():
+            raise OSError("keep-alive tail unreadable")
+        out = self._patrol(boom)
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["gaps"], [])
+        self.assertFalse(out["rung_state"]["ok"])
+        self.assertIn("OSError", out["rung_state"]["error"])
+
+    def test_reader_error_shape_is_ok_false_not_a_gap(self) -> None:
+        # live_rung_state's own never-raise shape: verdict unknown + error.
+        out = self._patrol(lambda: {"rung": "omen-arc", "port": None, "verdict": "unknown",
+                                    "error": "ValueError: bad json"})
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["gaps"], [])
+        self.assertFalse(out["rung_state"]["ok"])
+        self.assertEqual(out["rung_state"]["verdict"], "unknown")
+
+    def test_reader_returning_non_dict_is_ok_false(self) -> None:
+        out = self._patrol(lambda: "degraded")
+        self.assertTrue(out["ok"])
+        self.assertFalse(out["rung_state"]["ok"])
+        self.assertIn("TypeError", out["rung_state"]["error"])
+
+    def test_reader_is_lazily_bound_on_first_use(self) -> None:
+        from hearth.toolsurface import patrol as mod
+        with patch.object(mod, "_live_rung_state", None):
+            mod._ensure_rung_state_import()
+            from hearth.health.rungstate import live_rung_state
+            self.assertIs(mod._live_rung_state, live_rung_state)
+
+    def test_rung_gap_rides_beside_run_gaps(self) -> None:
+        records = [{"plan_id": "hearth-old", "age_s": 5000, "has_result": False}]
+        with patch("subprocess.run", return_value=_completed(stdout=_gather_payload(records))),              patch("hearth.toolsurface.patrol.scan_knowledge", return_value=[]),              patch("hearth.toolsurface.patrol._live_rung_state", lambda: _DEGRADED):
+            out = patrol(refresh=False)
+        self.assertEqual(sorted(g["kind"] for g in out["gaps"]),
+                         ["phantom_in_flight", "rung_degraded"])
+        self.assertEqual(out["summary"]["total"], 2)
+
+
 class PatrolCoverageTests(TestCase):
+    def setUp(self):
+        self.enterContext(patch(*_PIN_AT_RATE, return_value=_AT_RATE))
+
     def test_truncation_and_undispatched_are_surfaced(self) -> None:
         records = [{"plan_id": "pour-ok", "age_s": 9000, "has_result": True,
                     "status": "ok", "winner": "x", "promoted": True,

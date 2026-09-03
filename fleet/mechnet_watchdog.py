@@ -14,20 +14,27 @@ being discovered mid-dispatch.
     python -m fleet.mechnet_watchdog --no-ledger     # skip the ledger write
     python -m fleet.mechnet_watchdog --no-watchfire  # liveness only, skip coherence sweep
     python -m fleet.mechnet_watchdog --no-hindsight  # skip the regret accrual
+    python -m fleet.mechnet_watchdog --no-rung-state # skip the omen-arc rate-health read
     python -m fleet.mechnet_watchdog --patrol-only   # 5-min cadence: cheap gap-scan snapshot only
 
-Each 15-min pass does four things: a LIVENESS heal (probe services, revive the
+Each 15-min pass does five things: a LIVENESS heal (probe services, revive the
 down ones), a COHERENCE sweep (Watchfire — hearth.toolsurface.masters_pet
 auto-heals the obvious+reversible run-coherence gaps, e.g. phantom_in_flight,
 and flags the ambiguous ones), a PATROL-TREND lookback (reads the last 3 of
 the separate 5-min --patrol-only snapshots and tags gaps persistent/new/
 resolved by plain set comparison on (kind, plan_id) — no scoring, just "has
-this shown up before"), and the REGRET ACCRUAL ADR-0008 designed (replay the
+this shown up before"), the REGRET ACCRUAL ADR-0008 designed (replay the
 last 20 completed runs through the shadow scheduler and ledger the regret
-summary, so the H1 promotion gate accrues a trend series unattended). Liveness
-stays the health gate (the exit code); the coherence sweep, the trend lookback,
-and the regret accrual are all additive and best-effort — their failure never
-fails the patrol.
+summary, so the H1 promotion gate accrues a trend series unattended), and a
+RUNG-STATE read (ADR-0044 — the omen-arc verdict from the keep-alive tail
+against the FF baseline epoch: at_rate/warn/degraded/stalled/stale/
+unreachable, ledgered as `mechnet_watchdog.rung_state` with outcome=verdict so
+the rate series is recoverable from the ledger; a port that answers a 1-token
+ping at 40% of its epoch is UP to liveness and DEGRADED here, and that gap is
+the whole point). Liveness stays the health gate (the exit code); the
+coherence sweep, the trend lookback, the regret accrual, and the rung-state
+read are all additive and best-effort — their failure never fails the patrol,
+and no rung verdict ever flips `healthy`.
 
 Design (Banked Fire):
 - Per-CHECK revive, not per-node: a node can be up while one of its services is
@@ -357,6 +364,79 @@ def run_hindsight_accrual(write_ledger: bool, hindsight_fn=None, ledger=None) ->
     return outcome
 
 
+def _record_rung_state(outcome: dict, ledger=None) -> Optional[str]:
+    """Append one hearth-event carrying the ADR-0044 rung verdict. Best-effort
+    like every other _record*. `ok` is whether the READ succeeded (the passive
+    reader returned a verdict); `outcome` is the verdict itself — the
+    ok/outcome split new_event documents, so an `unreachable` or `degraded`
+    rung is a successful observation with a bad outcome, never an emitter
+    failure. Like hindsight, the compact summary rides `args` too: the ledger
+    keeps only a digest of `result`, and the rate series (observed_tok_s /
+    frac_of_baseline per pass) must be recoverable from the ledger."""
+    try:
+        from hearth.kernel.ledger import Ledger, new_event
+        led = ledger or Ledger()
+        return led.append(new_event(
+            WATCHDOG_CALLER, "mechnet_watchdog.rung_state",
+            args=outcome.get("summary"),
+            result=outcome.get("summary"),
+            ok=bool(outcome.get("ok")),
+            error=outcome.get("error"),
+            outcome=outcome.get("verdict"),
+        ))
+    except Exception as exc:  # audit is best-effort; never break the 15-min pass
+        print(f"[watchdog] rung_state ledger append failed: {type(exc).__name__}: {exc}",
+              file=sys.stderr)
+        return None
+
+
+def run_rung_state(write_ledger: bool, rung_state_fn=None, ledger=None) -> dict:
+    """Rung-state read (ADR-0044): the omen-arc verdict from the keep-alive
+    tail against the FF baseline epoch. Passive — reads two files, sends
+    nothing to the rung — and best-effort like run_watchfire: a raising reader
+    (import error, malformed state) becomes {ok: False, error} and the pass
+    still returns. `rung_state_fn` is injectable so tests pin a verdict instead
+    of reading the live tail. The verdict NEVER feeds `healthy`: liveness is
+    the gate, and the lab's lesson is precisely that a rung can be up and
+    wrong (a 1-token ping at 40% of its epoch)."""
+    try:
+        if rung_state_fn is None:
+            from hearth.health.rungstate import live_rung_state as rung_state_fn
+        state = rung_state_fn()
+        if not isinstance(state, dict):
+            raise TypeError(f"rung state reader returned {type(state).__name__}")
+    except Exception as exc:  # never let the rung read break the patrol
+        return {"ok": False, "error": f"{type(exc).__name__}: {exc}", "verdict": "unknown",
+                "summary": {"verdict": "unknown"}}
+
+    verdict = str(state.get("verdict", "unknown"))
+    # Compact, bounded summary: the fields the rate series needs, small enough
+    # that its canonical JSON always fits the ledger's 400-char args preview.
+    summary = {
+        "rung": state.get("rung"),
+        "port": state.get("port"),
+        "verdict": verdict,
+        "observed_tok_s": state.get("observed_tok_s"),
+        "baseline_tok_s": state.get("baseline_tok_s"),
+        "frac_of_baseline": state.get("frac_of_baseline"),
+        "observed_age_s": state.get("observed_age_s"),
+        "last_ping_ok": state.get("last_ping_ok"),
+        "prefill_stall_recent": state.get("prefill_stall_recent"),
+        "deep_samples": state.get("deep_samples"),
+        "excluded_windows": state.get("excluded_windows"),
+    }
+    outcome = dict(state)
+    outcome.update({
+        "ok": "error" not in state,
+        "error": state.get("error"),
+        "verdict": verdict,
+        "summary": summary,
+    })
+    if write_ledger:
+        outcome["ledger_event_id"] = _record_rung_state(outcome, ledger=ledger)
+    return outcome
+
+
 def run_watchfire(dry_run: bool, write_ledger: bool, masters_pet_fn=None, ledger=None) -> dict:
     """Coherence sweep: auto-heal the obvious+reversible run-coherence gaps.
 
@@ -443,13 +523,15 @@ def run_pass(inventory_path: Path, timeout: float, dry_run: bool,
              include_watchfire: bool = True, masters_pet_fn=None,
              include_patrol_trend: bool = True,
              include_hindsight: bool = True, hindsight_fn=None,
-             snapshot_path: Path = DEFAULT_SNAPSHOT_PATH, ledger=None) -> dict:
+             snapshot_path: Path = DEFAULT_SNAPSHOT_PATH, ledger=None,
+             include_rung_state: bool = True, rung_state_fn=None) -> dict:
     """One patrol pass: liveness heal + (optional) Watchfire coherence sweep +
-    (optional) patrol-trend lookback + (optional) ADR-0008 regret accrual.
+    (optional) patrol-trend lookback + (optional) ADR-0008 regret accrual +
+    (optional) ADR-0044 rung-state read.
 
     Returns a JSON-serializable report. `healthy` reflects LIVENESS only — the
-    coherence sweep, the patrol-trend check, and the regret accrual are all
-    additive and never flip the health verdict.
+    coherence sweep, the patrol-trend check, the regret accrual, and the
+    rung-state read are all additive and never flip the health verdict.
     """
     inv = load_inventory(inventory_path)
     rows = collect_checks(inv["nodes"], timeout, prober=prober)
@@ -484,6 +566,9 @@ def run_pass(inventory_path: Path, timeout: float, dry_run: bool,
     if include_hindsight:
         report["hindsight"] = run_hindsight_accrual(write_ledger, hindsight_fn=hindsight_fn,
                                                     ledger=ledger)
+    if include_rung_state:
+        report["rung_state"] = run_rung_state(write_ledger, rung_state_fn=rung_state_fn,
+                                              ledger=ledger)
     return report
 
 
@@ -497,6 +582,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("--no-patrol-trend", action="store_true", help="skip the 3-sample patrol trend check")
     ap.add_argument("--no-hindsight", action="store_true",
                     help="skip the ADR-0008 regret accrual (20-run hindsight replay + ledger)")
+    ap.add_argument("--no-rung-state", action="store_true",
+                    help="skip the ADR-0044 omen-arc rate-health read (keep-alive tail vs baseline epoch)")
     ap.add_argument("--patrol-only", action="store_true",
                     help="5-min cadence: cheap patrol(refresh=False) snapshot only "
                          "-- no liveness probe, no masters_pet, no inventory load")
@@ -523,7 +610,8 @@ def main(argv: Optional[list[str]] = None) -> int:
                       include_watchfire=not args.no_watchfire,
                       include_patrol_trend=not args.no_patrol_trend,
                       include_hindsight=not args.no_hindsight,
-                      snapshot_path=args.snapshot_path)
+                      snapshot_path=args.snapshot_path,
+                      include_rung_state=not args.no_rung_state)
 
     if args.json:
         print(json.dumps(report, indent=2))
@@ -568,6 +656,19 @@ def main(argv: Optional[list[str]] = None) -> int:
                 print(f"hindsight: n_runs={summary.get('n_runs')} "
                       f"tokens_saved={regret.get('tokens_saved')} "
                       f"span_delta_s={regret.get('span_delta_s')}")
+        rs = report.get("rung_state")
+        if rs is not None:
+            if not rs.get("ok"):
+                print(f"rung-state: read failed — {rs.get('error')}")
+            else:
+                obs = rs.get("observed_tok_s")
+                base = rs.get("baseline_tok_s")
+                frac = rs.get("frac_of_baseline")
+                rate = (f" {obs:.1f}/{base:.1f} tok/s ({frac:.0%} of epoch)"
+                        if isinstance(obs, (int, float)) and isinstance(base, (int, float))
+                        and isinstance(frac, (int, float)) else "")
+                print(f"rung-state: {rs.get('rung')} {rs.get('verdict')}{rate} "
+                      f"-- epoch-scoped, not capacity; does not gate")
         print("verdict: " + ("HEALTHY" if report["healthy"] else "DEGRADED"))
 
     return 0 if report["healthy"] else 1

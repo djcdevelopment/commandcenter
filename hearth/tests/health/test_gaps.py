@@ -3,7 +3,9 @@ from __future__ import annotations
 from unittest import TestCase
 from unittest.mock import patch
 
-from hearth.health.gaps import PHANTOM_AGE_S, Gap, scan_knowledge, scan_runs, summarize
+from hearth.health.gaps import (PHANTOM_AGE_S, Gap, scan_knowledge, scan_rung_state, scan_runs,
+                                summarize)
+from hearth.health.rungstate import NOTE
 
 
 def _kinds(gaps):
@@ -231,3 +233,93 @@ class ScanKnowledgeTests(TestCase):
             mock_resolve.return_value = cap_path
 
             self.assertEqual(scan_knowledge("fake/path"), [])
+
+
+class ScanRungStateTests(TestCase):
+    """The rung-state spell (ADR-0044): verdict -> gap kind/severity, plan_id = rung.
+
+    Fixtures are the dict shape ``hearth.health.rungstate.rung_state`` returns;
+    the spell is pure, so no keep-alive file is read here.
+    """
+
+    @staticmethod
+    def _state(verdict, **over):
+        st = {"rung": "omen-arc", "port": 8082, "verdict": verdict,
+              "baseline_tok_s": 106.0, "baseline_epoch": "2026-08-29T18:22 incumbent epoch",
+              "envelope": {"fail_below": 0.8, "warn_below": 0.9},
+              "observed_tok_s": 65.0, "observed_at": "2026-09-03T02:28:20-07:00",
+              "observed_age_s": 100.0, "frac_of_baseline": round(65.0 / 106.0, 4),
+              "prefill_stall_recent": False, "last_ping_ok": True, "deep_samples": 3,
+              "excluded_windows": [], "note": NOTE}
+        st.update(over)
+        return st
+
+    def test_correct_but_degraded_is_a_high_gap(self):
+        # The lab's failure mode: pings answer, the deep probe decodes at 65 of 106.
+        gaps = scan_rung_state(self._state("degraded"))
+        self.assertEqual(_kinds(gaps), ["rung_degraded"])
+        g = gaps[0]
+        self.assertEqual(g.severity, "high")
+        self.assertEqual(g.plan_id, "omen-arc")
+        self.assertIn("65.0/106.0 tok/s", g.detail)
+        self.assertIn("61% of epoch", g.detail)
+
+    def test_stalled_is_a_high_gap(self):
+        gaps = scan_rung_state(self._state("stalled", prefill_stall_recent=True))
+        self.assertEqual([(g.kind, g.severity) for g in gaps], [("rung_stalled", "high")])
+
+    def test_warn_band_is_a_warn_gap(self):
+        gaps = scan_rung_state(self._state("warn", observed_tok_s=92.0,
+                                           frac_of_baseline=round(92 / 106, 4)))
+        self.assertEqual([(g.kind, g.severity) for g in gaps], [("rung_warn", "warn")])
+
+    def test_liveness_as_health_is_a_warn_gap(self):
+        # Pings fine, no deep sample for 20 min: stale is a gap — the rung is
+        # unmeasured, and unmeasured must never read as at_rate.
+        gaps = scan_rung_state(self._state("stale", observed_age_s=1200.0))
+        self.assertEqual([(g.kind, g.severity) for g in gaps], [("rung_stale", "warn")])
+        self.assertIn("age 1200s", gaps[0].detail)
+
+    def test_at_rate_is_no_gap(self):
+        self.assertEqual(scan_rung_state(self._state("at_rate", observed_tok_s=107.5,
+                                                     frac_of_baseline=1.0142)), [])
+
+    def test_unreachable_is_liveness_not_a_coherence_gap(self):
+        # The watchdog's inventory probe (omen/llama-server :8082) owns "down";
+        # the spell must not double-report it under a coherence name.
+        self.assertEqual(scan_rung_state(self._state("unreachable", last_ping_ok=False)), [])
+
+    def test_no_baseline_and_unknown_are_silent(self):
+        self.assertEqual(scan_rung_state(self._state("no_baseline", baseline_tok_s=None)), [])
+        self.assertEqual(scan_rung_state(self._state("unknown")), [])
+        self.assertEqual(scan_rung_state({"verdict": "unknown", "error": "OSError: x"}), [])
+
+    def test_non_dict_state_is_silent(self):
+        self.assertEqual(scan_rung_state(None), [])
+        self.assertEqual(scan_rung_state("degraded"), [])
+        self.assertEqual(scan_rung_state([]), [])
+
+    def test_plan_id_follows_the_rung_and_defaults_to_omen_arc(self):
+        gaps = scan_rung_state(self._state("degraded", rung="omen-arc-27b", port=8084))
+        self.assertEqual(gaps[0].plan_id, "omen-arc-27b")
+        gaps = scan_rung_state(self._state("degraded", rung=None))
+        self.assertEqual(gaps[0].plan_id, "omen-arc")
+
+    def test_detail_repeats_the_epoch_note_and_names_no_regime(self):
+        g = scan_rung_state(self._state("degraded"))[0]
+        self.assertIn("not of capacity", g.detail)
+        self.assertIn("restart discriminator not applied", g.detail)
+        low = g.detail.lower()
+        for regime in ("cold", "warm", "thermal", "throttl", "idle-degraded"):
+            self.assertNotIn(regime, low, g.detail)
+
+    def test_window_exclusion_is_named_in_the_detail(self):
+        g = scan_rung_state(self._state("degraded", excluded_windows=["cutover-0429"]))[0]
+        self.assertIn("excl cutover-0429", g.detail)
+
+    def test_rung_gaps_count_in_summarize(self):
+        gaps = scan_rung_state(self._state("degraded")) + scan_rung_state(self._state("stale"))
+        s = summarize(gaps)
+        self.assertEqual(s["total"], 2)
+        self.assertEqual(s["by_severity"], {"high": 1, "warn": 1})
+        self.assertEqual(s["by_kind"], {"rung_degraded": 1, "rung_stale": 1})

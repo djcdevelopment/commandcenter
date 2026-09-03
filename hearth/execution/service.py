@@ -669,10 +669,17 @@ class ExecutionService:
 
     @staticmethod
     def _result_observed(result: Mapping[str, Any]) -> dict[str, Any]:
+        # P8: `occupancy` was dropped at the execution-ledger cutover (the kernel
+        # row kept it; the invocation record did not) and `rung_state` /
+        # `pool_config_hash` are the dispatch stamps inference.py adds. All three
+        # ride `observed`, whose contract is an open object.
         allowed = {
             "backend",
             "model",
             "routed_by",
+            "occupancy",
+            "rung_state",
+            "pool_config_hash",
             "tokens_in",
             "tokens_out",
             "duration_ms",
@@ -808,6 +815,9 @@ class ExecutionService:
             "backend",
             "model",
             "routed_by",
+            "occupancy",
+            "rung_state",
+            "pool_config_hash",
             "tokens_in",
             "tokens_out",
             "duration_ms",

@@ -24,6 +24,7 @@ fail-open resolves unknown -> available for a deliberate pin.
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 import shutil
@@ -32,12 +33,15 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from pathlib import Path
 from typing import Callable, NamedTuple, Optional
 
+from hearth.health.rungstate import live_rung_state
 from hearth.observation.emit import record_dispatch
 from hearth.toolsurface._scope import resolve_in_scope, scope_root
 from hearth.toolsurface.backends import (BackendConfigError, BackendRoutingRefusal,
-                                         Pool, load_pool, select_backend)
+                                         Pool, load_pool, pool_config_hash,
+                                         select_backend)
 from hearth.toolsurface.occupancy import check_occupancy
 
 DEFAULT_ENDPOINT = "http://127.0.0.1:11434"
@@ -55,6 +59,55 @@ ENDPOINT_ENV_VAR = "HEARTH_OLLAMA"
 # per-rung setting) can tune them without touching the packing logic.
 FILES_PER_FILE_CAP = 256 * 1024
 FILES_TOTAL_CAP = 1024 * 1024
+
+# P8 dispatch stamps. A rung-state read is two file reads (baselines JSON + the
+# keep-alive tail), so it is cached per rung for RUNG_STATE_TTL_S; the stamp is a
+# snapshot "as of the last 30 s", which is the resolution the keep-alive itself
+# has. RUNG_STATE_ROOT redirects both files (tests point it at a fixture tree);
+# None means the repo defaults inside hearth.health.rungstate.
+RUNG_STATE_TTL_S = 30.0
+RUNG_STATE_ROOT: Optional[Path | str] = None
+_RUNG_STATE_CACHE: dict[str, tuple[float, Optional[dict]]] = {}
+
+
+def _rung_state_stamp(backend: Optional[str]) -> Optional[dict]:
+    """The rung's ADR-0044 health as of dispatch, or None.
+
+    None means "no reading": the rung is not named in the rate baselines (cloud
+    rungs, tombstones), the reader hit an error, or the stamp itself failed. A
+    reading is never invented — `no_baseline` is reported as absence, not as a
+    verdict, so a cloud dispatch does not carry a health line about OMEN.
+    Returns a copy so a caller mutating its result cannot poison the cache.
+    """
+    if not backend:
+        return None
+    try:
+        now = time.monotonic()
+        cached = _RUNG_STATE_CACHE.get(backend)
+        if cached is not None and (now - cached[0]) < RUNG_STATE_TTL_S:
+            return copy.deepcopy(cached[1])
+        state = live_rung_state(rung=backend, root=RUNG_STATE_ROOT)
+        if (not isinstance(state, dict) or state.get("verdict") == "no_baseline"
+                or state.get("error")):
+            state = None
+        _RUNG_STATE_CACHE[backend] = (now, state)
+        return copy.deepcopy(state)
+    except Exception:  # noqa: BLE001 — a stamp must never break a dispatch
+        return None
+
+
+def _stamp_dispatch(result: dict, backend: Optional[str]) -> None:
+    """Stamp `pool_config_hash` and `rung_state` onto a dispatch result, in place.
+
+    Both keys are always present after a real dispatch so the result shape is
+    stable for the execution ledger's `observed` projection; a failed stamp is
+    None, never an exception.
+    """
+    try:
+        result["pool_config_hash"] = pool_config_hash()
+    except Exception:  # noqa: BLE001 — provenance must not break the dispatch
+        result["pool_config_hash"] = None
+    result["rung_state"] = _rung_state_stamp(backend)
 
 
 def _trial_suppressed(pool: Pool) -> set[str]:
@@ -542,6 +595,11 @@ def local_generate(prompt: str, model: str | None = None,
     result["occupancy"] = target.occupancy
     result["max_tokens"] = resolved_max_tokens
     result["timeout_s"] = resolved_timeout_s
+    # P8: which pool declaration routed this call, and how healthy the rung was
+    # (ADR-0044 epoch-scoped verdict) when it did. Stamped on every attempt so
+    # the first-attempt observation of an escalated call carries its own rung's
+    # state, not the rescuer's.
+    _stamp_dispatch(result, target.backend)
 
     # A2: ladder escalation — one climb max. A failed non-pinned dispatch
     # excludes the failed rung and re-routes once; a pin (endpoint or name) is
@@ -569,6 +627,7 @@ def local_generate(prompt: str, model: str | None = None,
                 second_result["max_tokens"] = second_max_tokens
                 second_result["timeout_s"] = second_timeout_s
                 second_result["escalation"] = {"from": first_name, "error": result.get("error")}
+                _stamp_dispatch(second_result, second_target.backend)
 
                 # One observation per ATTEMPT (ADR-0027). The escalated result carries the
                 # SECOND rung's backend, so recording only the final attempt would

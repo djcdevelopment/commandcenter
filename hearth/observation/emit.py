@@ -41,6 +41,7 @@ from pathlib import Path
 from typing import Optional
 
 from hearth.errortax import CAPABILITY_ERROR_CODES, INFRA_ERROR_CODES, classify_error
+from hearth.health.rungstate import summarize_for_notes
 from hearth.observation.identity import DispatchIdentity, current_identity
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -181,6 +182,19 @@ def build_observation(*, result: dict, endpoint: str, backend: Optional[str],
                      f"{result['escalation'].get('error')}")
     if result.get("files_packed"):
         notes.append(f"{len(result['files_packed'])} file(s) packed")
+    # P8: the observation schema is closed, so the rung's health at dispatch time and
+    # the pool declaration that routed the call ride `notes`. `summarize_for_notes`
+    # emits no ';' (the joiner below) and is capped at 96 chars; a stamp that is not
+    # a dict is not evidence of anything and is skipped rather than guessed at.
+    rung_state = result.get("rung_state")
+    if isinstance(rung_state, dict):
+        try:
+            notes.append(f"rung_state: {summarize_for_notes(rung_state)}")
+        except Exception:  # noqa: BLE001 — a malformed stamp must not block evidence
+            notes.append("rung_state: unsummarizable")
+    pool_hash = result.get("pool_config_hash")
+    if isinstance(pool_hash, str) and pool_hash:
+        notes.append(f"pool={pool_hash}")
     if note:
         notes.append(note)
 

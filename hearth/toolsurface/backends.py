@@ -26,6 +26,7 @@ time — every dispatch is an assay observation (principle #6).
 
 from __future__ import annotations
 
+import hashlib
 import os
 import tomllib
 from dataclasses import dataclass, field
@@ -246,6 +247,40 @@ def load_pool(path: Optional[Path | str] = None) -> Pool:
         raise BackendConfigError(
             f"default {default!r} names no declared backend (have: {', '.join(names)})")
     return Pool(backends=backends, default=default, trial=trial)
+
+
+# P8 dispatch stamp: identity of the pool declaration a call was routed under.
+# Keyed by resolved path -> (mtime_ns, size, sha256[:12]); the file is re-read
+# only when its stat changes, so the hot path costs one stat per dispatch.
+_POOL_HASH_CACHE: dict[str, tuple[int, int, str]] = {}
+POOL_HASH_CHARS = 12
+
+
+def pool_config_hash(path: Optional[Path | str] = None) -> Optional[str]:
+    """sha256[:12] of the pool TOML bytes, or None when no pool file exists.
+
+    Resolves the file exactly as ``load_pool`` does (HEARTH_BACKENDS > ``path`` >
+    packaged default) and hashes the BYTES on disk, not the parsed pool, so a
+    comment-only edit still changes the stamp — a ledger row must be able to
+    say precisely which declaration routed it. Cached by (mtime_ns, size).
+    Never raises: a stamp is provenance, and provenance must not be able to
+    break a dispatch.
+    """
+    try:
+        resolved = Path(path) if path else Path(os.environ.get(ENV_VAR, DEFAULT_POOL_PATH))
+        stat = resolved.stat()
+    except (OSError, TypeError, ValueError):
+        return None
+    key = str(resolved)
+    cached = _POOL_HASH_CACHE.get(key)
+    if cached is not None and cached[0] == stat.st_mtime_ns and cached[1] == stat.st_size:
+        return cached[2]
+    try:
+        digest = hashlib.sha256(resolved.read_bytes()).hexdigest()[:POOL_HASH_CHARS]
+    except OSError:
+        return None
+    _POOL_HASH_CACHE[key] = (stat.st_mtime_ns, stat.st_size, digest)
+    return digest
 
 
 def select_backend(pool: Pool, *, backend: Optional[str] = None,

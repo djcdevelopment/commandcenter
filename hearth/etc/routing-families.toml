@@ -1,0 +1,146 @@
+# ============================================================================
+# HEARTH task-family routing preferences  --  routing-families.v1 (P5, ADR-0045)
+# ============================================================================
+# AUTHORED INTENT, CITED. This file is not a measurement: it is the operator's
+# family -> model preference, and every preference carries the evidence it rests
+# on (Constitution / R8: authored intent cites evidence; never a llama-bench
+# number beside a server number). Change a model here only with a receipt.
+#
+# It is a RECOMMENDATION ONLY. hearth.scheduler.families reads it and returns a
+# recommendation dict; nothing here auto-routes, pins, loads, or dispatches
+# (ADR-0008: the scheduler advises, the conductor dispatches; the door routes
+# itself per backends.toml). Consumers: the advisory scheduler
+# (resolve_required_model), the rotation provider's recommend_rung, and
+# plan_execution(task_family=...).
+#
+# backend_hint is NOT authored here -- it is derived at recommendation time from
+# hearth/etc/backends.toml via Pool.by_model(model_id), so a model that moves
+# rungs never leaves a stale hint behind. pin_required is likewise derived: a
+# rung with no routing tags (omen-arc-27b, omen-swap) is never chosen
+# opportunistically, so the caller must pin it by name.
+#
+# Families = the nine assay families in campaign/qwen38/assay/tasks.json
+# (qwen38-assay.v1) + quote_retrieval + default. tests/toolsurface/test_families.py
+# asserts the assay set is covered and every evidence string is non-empty.
+#
+# Depth semantics (prompt_tokens is the caller's estimate; None = unknown):
+#   min_prompt_tokens      the family's primary model applies at/above this depth;
+#                          below it the evidence floor is not reached and
+#                          below_threshold_model_id is recommended instead.
+#                          Unknown depth -> primary model, reason carries a caveat.
+#   depth_override         at/above its min_prompt_tokens the override model wins
+#                          (ADR-0039 depth inversion). Unknown depth -> no override.
+#
+# Parsed with stdlib tomllib. Override the path with HEARTH_ROUTING_FAMILIES.
+
+contract = "routing-families.v1"
+authored = "2026-09-03"
+assay_source = "campaign/qwen38/assay/tasks.json"
+
+# ---------------------------------------------------------------------------
+# quote_retrieval -- verbatim recall of a line/fragment out of a long document.
+# The one family where the 27B dense model is the primary choice. R10 measured
+# it against the incumbent on the 8k and 32k documents.
+# ---------------------------------------------------------------------------
+[family.quote_retrieval]
+model_id = "qwen38-27b"
+min_prompt_tokens = 4096
+below_threshold_model_id = "qwen3-30b-a3b"
+evidence = "R10: 27B verbatim recall 11/14 @8k, 2/2 @32k vs 30B-A3B 3/14, 0/2"
+receipt = 'E:\work\battlemage\rotation-phase1\r10-results.jsonl'
+receipt_note = "Tallied 2026-09-03 from the receipt's 32 rows (16 per model): each model has an 8k-document block and a 32k-document block, each block = 1 full-prompt row (prompt_n 9681 / 27548) + 7 cached-prefix depth-sweep rows (prompt_n ~500). The evidence string's '14' is the 14 sweep rows across BOTH documents and its '2' is the two full-prompt rows; the @8k/@32k labels are not a per-document split. Verdict direction is unchanged: line_verbatim 27B 13/16 vs 30B-A3B 3/16."
+reason = "R10 measured verbatim line recall at 8k and 32k document depth; the 27B dense model recalls the line where the 30B-A3B MoE paraphrases. Below 4096 prompt tokens R10 has no evidence and ADR-0039 charges the 27B 0.687x jobs/hour, so the door default stands there."
+
+# ---------------------------------------------------------------------------
+# The six text families of the assay -> the door default (Qwen3-30B-A3B on
+# omen-arc), because the Qwen 3.8 campaign ended do_not_promote at the 512-token
+# operating point. Each carries the ADR-0039 depth override: at >= 8192 prompt
+# tokens the ratio inverts and the 27B delivers more jobs/hour.
+# ---------------------------------------------------------------------------
+[family.summarization]
+model_id = "qwen3-30b-a3b"
+evidence = "ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K"
+reason = "Qwen 3.8 campaign do_not_promote (12/15) at the 512-token operating point: the 27B delivers 0.687x the incumbent's jobs/hour there, so the door default (omen-arc) serves shallow summarization."
+[family.summarization.depth_override]
+min_prompt_tokens = 8192
+model_id = "qwen38-27b"
+evidence = "ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K"
+
+[family.extraction]
+model_id = "qwen3-30b-a3b"
+evidence = "ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K"
+reason = "Qwen 3.8 campaign do_not_promote (12/15) at the 512-token operating point: the 27B delivers 0.687x the incumbent's jobs/hour there, so the door default (omen-arc) serves shallow extraction."
+[family.extraction.depth_override]
+min_prompt_tokens = 8192
+model_id = "qwen38-27b"
+evidence = "ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K"
+
+[family.classification]
+model_id = "qwen3-30b-a3b"
+evidence = "ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K"
+reason = "Qwen 3.8 campaign do_not_promote (12/15) at the 512-token operating point: the 27B delivers 0.687x the incumbent's jobs/hour there, so the door default (omen-arc) serves shallow classification."
+[family.classification.depth_override]
+min_prompt_tokens = 8192
+model_id = "qwen38-27b"
+evidence = "ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K"
+
+[family.drafting]
+model_id = "qwen3-30b-a3b"
+evidence = "ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K"
+reason = "Qwen 3.8 campaign do_not_promote (12/15) at the 512-token operating point: the 27B delivers 0.687x the incumbent's jobs/hour there, so the door default (omen-arc) serves shallow drafting."
+[family.drafting.depth_override]
+min_prompt_tokens = 8192
+model_id = "qwen38-27b"
+evidence = "ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K"
+
+[family.reasoning_planning]
+model_id = "qwen3-30b-a3b"
+evidence = "ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K"
+reason = "Qwen 3.8 campaign do_not_promote (12/15) at the 512-token operating point: the 27B delivers 0.687x the incumbent's jobs/hour there, so the door default (omen-arc) serves shallow reasoning/planning."
+[family.reasoning_planning.depth_override]
+min_prompt_tokens = 8192
+model_id = "qwen38-27b"
+evidence = "ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K"
+
+[family.tool_execution]
+model_id = "qwen3-30b-a3b"
+evidence = "ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K"
+reason = "Qwen 3.8 campaign do_not_promote (12/15) at the 512-token operating point: the 27B delivers 0.687x the incumbent's jobs/hour there, so the door default (omen-arc) serves shallow tool execution."
+[family.tool_execution.depth_override]
+min_prompt_tokens = 8192
+model_id = "qwen38-27b"
+evidence = "ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K"
+
+# ---------------------------------------------------------------------------
+# The three vision families of the assay -> gcp-gemini (Vertex gemini-3.5-flash
+# on trial credits). No local rung has a verified vision path: the 27B rung is
+# text-only and the campaign's vision cells were not promoted.
+# ---------------------------------------------------------------------------
+[family.document_ocr]
+model_id = "gemini-3.5-flash"
+evidence = "ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K"
+reason = "no verified local vision rung (27B text-only, ADR-0039)"
+
+[family.chart_diagram]
+model_id = "gemini-3.5-flash"
+evidence = "ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K"
+reason = "no verified local vision rung (27B text-only, ADR-0039)"
+
+[family.screenshot_grounded]
+model_id = "gemini-3.5-flash"
+evidence = "ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K"
+reason = "no verified local vision rung (27B text-only, ADR-0039)"
+
+# ---------------------------------------------------------------------------
+# default -- any family this file does not name. The door default rung
+# (backends.toml default = omen-arc, ADR-0034) with the ADR-0039 depth override,
+# which is a throughput inversion and does not depend on the task family.
+# ---------------------------------------------------------------------------
+[family.default]
+model_id = "qwen3-30b-a3b"
+evidence = "ADR-0034: omen-arc (Qwen3-30B-A3B) is the door default; ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K"
+reason = "Unnamed family: the door default rung serves it (backends.toml default = omen-arc, ADR-0034); the ADR-0039 depth inversion still applies because it is a jobs/hour ratio, not a task-family verdict."
+[family.default.depth_override]
+min_prompt_tokens = 8192
+model_id = "qwen38-27b"
+evidence = "ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K"

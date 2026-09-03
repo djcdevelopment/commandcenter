@@ -203,10 +203,15 @@ $c = Plan "C assert dual-split placement" {
     $text = ""
     $source = ""
     foreach ($candidate in @($ServeLog, $SwapLog)) {
-        if (Test-Path $candidate) {
-            $t = [IO.File]::ReadAllText($candidate)
-            if ($t.LastIndexOf("llama_prepare_model_devices: using device") -ge 0) { $text = $t; $source = $candidate; break }
-        }
+        if (-not (Test-Path $candidate)) { continue }
+        # The server holds its --log-file open for writing: open with FileShare ReadWrite, never
+        # ReadAllText (sharing violation -> the second live attempt aborted on exactly that).
+        $t = ""
+        try {
+            $fs = New-Object IO.FileStream($candidate, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+            try { $sr = New-Object IO.StreamReader($fs); $t = $sr.ReadToEnd(); $sr.Close() } finally { $fs.Close() }
+        } catch { Say ("could not read {0}: {1}" -f $candidate, $_.Exception.Message); continue }
+        if ($t.LastIndexOf("llama_prepare_model_devices: using device") -ge 0) { $text = $t; $source = $candidate; break }
     }
     if (-not $text) { Say "no 'using device' line in $ServeLog or $SwapLog (server not launched with -lv 5?)"; return $false }
     Say ("placement source: {0}" -f $source)

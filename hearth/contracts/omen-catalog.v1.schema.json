@@ -1,0 +1,100 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "omen-catalog.v1.schema.json",
+  "title": "OMEN model catalog (P1)",
+  "description": "OMEN dual Arc Pro B70 model-lifecycle catalog: per-model VRAM fit, placement, measured load/warmup/KV-rotation times, and safety gates. Required keys mirror am4-catalog.v1 so the scheduler's ModelSpec loader can be generalized to read it later; contract_version differs deliberately so the un-generalized loader degrades safely (empty models). Every measured number is authored from receipts only; anything unmeasured stays null. Card index is a solver slot, NOT a Vulkan device index (ADR-0042).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "gathered_at", "host", "gates", "cards", "models"],
+  "properties": {
+    "contract_version": { "const": "omen-catalog.v1" },
+    "gathered_at": { "type": "string" },
+    "host": { "type": "string" },
+    "hardware_profile_id": { "type": "string" },
+    "resident_models": { "type": "array", "items": { "type": "string" } },
+    "staging_slots": { "type": "integer", "minimum": 0 },
+    "coresidency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["idle_same_card_pct", "inferring_same_card_pct", "cpu_igpu_tenant_pct", "receipt"],
+      "properties": {
+        "idle_same_card_pct": { "type": "number" },
+        "inferring_same_card_pct": { "type": "number" },
+        "cpu_igpu_tenant_pct": { "type": "number" },
+        "receipt": { "type": "string" }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commit_min_free_gb",
+        "vram_headroom_gb",
+        "vram_temperature_abort_c",
+        "temperature_resume_below_c",
+        "shared_growth_abort_gb"
+      ],
+      "properties": {
+        "commit_min_free_gb": { "type": "number" },
+        "vram_headroom_gb": { "type": "number" },
+        "vram_temperature_abort_c": { "type": "number" },
+        "temperature_resume_below_c": { "type": "number" },
+        "shared_growth_abort_gb": { "type": "number" },
+        "receipt": { "type": "string" }
+      }
+    },
+    "cards": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["index", "bdf", "vram_gb", "label"],
+        "properties": {
+          "index": { "type": "integer", "description": "Solver slot only. Vulkan device indices are NOT stable (ADR-0042); select by type/BDF." },
+          "bdf": { "type": "string" },
+          "vram_gb": { "type": "number" },
+          "label": { "type": "string" }
+        }
+      }
+    },
+    "models": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "model_id", "alias", "placement", "visible_devices", "vram_gb",
+          "per_card_gb", "expected_gen_tps", "warmup_ms_p50", "warmup_ms_max",
+          "sample_count", "notes"
+        ],
+        "properties": {
+          "model_id": { "type": "string" },
+          "alias": { "type": ["string", "null"] },
+          "placement": { "enum": ["single", "dual"] },
+          "visible_devices": { "type": "null" },
+          "vram_gb": { "type": ["number", "null"] },
+          "per_card_gb": { "type": ["number", "null"] },
+          "expected_gen_tps": { "type": ["number", "null"] },
+          "warmup_ms_p50": { "type": ["number", "null"] },
+          "warmup_ms_max": { "type": ["number", "null"] },
+          "sample_count": { "type": "integer", "minimum": 0 },
+          "notes": { "type": ["string", "null"] },
+          "load_s_steady": { "type": ["number", "null"] },
+          "load_s_first_in_window": { "type": ["number", "null"] },
+          "kv_save_s": { "type": ["number", "null"] },
+          "kv_restore_s": { "type": ["number", "null"] },
+          "unload_drain_s_max": { "type": ["number", "null"] },
+          "prefill_tps": { "type": ["number", "null"] },
+          "gguf_path": { "type": ["string", "null"] },
+          "swap_entry": { "type": ["string", "null"] },
+          "exclusive_group": { "type": ["string", "null"] },
+          "receipts": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          },
+          "rate_epoch": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

@@ -166,6 +166,7 @@ capabilities = [
     "image_generate",   # submit/cancel/status for registered image workflows
     "media_generate",   # bounded durable media jobs, including owned tenancy swaps
     "knowledge_write",  # project*, rebuild_knowledge, record_event
+    "rotation_admin",   # rotation_window/load/unload/kv_save/kv_restore (ADR-0045)
     "summon",           # checkpoint_vm, start_ollama, wake_am4
 ]
 
@@ -213,5 +214,5 @@ capabilities = [
     "generate", "harvest", "health", "kernel_admin", "knowledge_write",
     "execution", "image_generate", "image_session_admin", "media_generate", "media_render",
     "query", "queue", "read", "repo_content", "repo_metadata", "repo_write",
-    "schedule", "status", "summon", "test", "write",
+    "rotation_admin", "schedule", "status", "summon", "test", "write",
 ]

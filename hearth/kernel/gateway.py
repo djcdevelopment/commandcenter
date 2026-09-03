@@ -85,6 +85,12 @@ EXTRA_KNOWLEDGE_READERS = {
     "gather_am4_catalog",  # am4.py — writes its OWN knowledge/am4_catalog.json (not the belief corpus)
     "propose_schedule",    # scheduler.py — reads capacity.json + am4_catalog.json
     "schedule_hindsight",  # scheduler.py — reads knowledge/capacity.json
+    # NOT listed on purpose: rotation_status / query_rung_state (ADR-0045). They
+    # read knowledge/omen_catalog.json and campaign/ff-probes/rate-baselines.json
+    # internally, but the guard only inspects ARGS, and neither tool takes a path
+    # argument -- so there is nothing to trust here. test_rotation_registration
+    # proves their default call shapes pass the guard unlisted; add an entry only
+    # if one of them ever grows a knowledge/ path parameter.
 }
 
 # JS1: task_class bucketing for ledger events, keyed by tool name (exact match
@@ -103,6 +109,8 @@ TOOL_CLASS: dict[str, str] = {
     "preflight": "health",
     "masters_pet": "health",
     "patrol": "health",
+    "query_rung_state": "health",   # rungstate.py -- exact match beats the query_ prefix
+    "rotation_status": "health",    # rotation.py -- /running + rung verdict, a health read
 }
 TOOL_CLASS_PREFIXES: tuple[tuple[str, str], ...] = (
     ("git_", "vcs"),

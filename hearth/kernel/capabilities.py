@@ -78,6 +78,9 @@ TOOL_CAPABILITY: dict[str, str] = {
     "query_capacity": "query",
     "query_findings": "query",
     "query_offload": "query",
+    "query_rung_state": "query",   # rungstate.py -- door-side rung verdict (ADR-0044)
+    "recommend_rung": "query",     # rotation.py -- task-family advice, never dispatches
+    "rotation_status": "query",    # rotation.py -- /running + tenancy + rung state, read-only
     # knowledge_write: writes or derived-state mutation, even where the name
     # sits adjacent to the query family. project/record_event/rebuild_knowledge
     # are the corpus writers (the 2026-07-02 overwrite lives in this family's
@@ -177,6 +180,16 @@ TOOL_CAPABILITY: dict[str, str] = {
     "update_build_request": "build_request",
     # dream: speculative idle lane
     "dream": "dream",
+    # rotation_admin: HEARTH's own side-port serving lifecycle on OMEN's B70s
+    # (ADR-0040 s1 / ADR-0045) -- loads, unloads, KV slot save/restore, and the
+    # ledgered windows that fence them. Deliberately NOT folded into "summon"
+    # or "execution": these touch the same cards production is resident on, so
+    # authority stays with operator + unrestricted only.
+    "rotation_kv_restore": "rotation_admin",
+    "rotation_kv_save": "rotation_admin",
+    "rotation_load": "rotation_admin",
+    "rotation_unload": "rotation_admin",
+    "rotation_window": "rotation_admin",
 }
 
 KNOWN_CAPABILITIES: frozenset[str] = frozenset(TOOL_CAPABILITY.values())

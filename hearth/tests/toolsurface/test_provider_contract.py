@@ -17,6 +17,8 @@ from hearth.toolsurface import (
     media_render,
     image_generate,
     media_generate,
+    rotation,
+    rungstate,
 )
 
 PROVIDERS = (
@@ -33,6 +35,8 @@ PROVIDERS = (
     media_render,
     image_generate,
     media_generate,
+    rotation,
+    rungstate,
 )
 
 

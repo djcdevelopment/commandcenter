@@ -4,7 +4,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from hearth.execution import CapacityLeaseStore, CapacityUnavailable
+from hearth.execution import (
+    CapacityLeaseStore,
+    CapacityUnavailable,
+    GpuTenancyStore,
+    TenancyConflict,
+)
 
 
 class CapacityLeaseStoreTest(unittest.TestCase):
@@ -67,6 +72,54 @@ class CapacityLeaseStoreTest(unittest.TestCase):
                 now=100,
             )
             self.assertFalse(store.renew(lease, ttl_seconds=5, now=106))
+
+
+class GpuTenancyStoreTest(unittest.TestCase):
+    def test_epoch_is_monotonic_and_stale_fences_cannot_mutate(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            store = GpuTenancyStore(Path(temporary) / "coordination.sqlite")
+            first = store.acquire(
+                resource="omen-b70-pool", session_id="session_a",
+                ttl_seconds=10, now=100,
+            )
+            self.assertEqual(1, first.epoch)
+            with self.assertRaises(TenancyConflict):
+                store.acquire(
+                    resource="omen-b70-pool", session_id="session_b",
+                    ttl_seconds=10, now=101,
+                )
+            self.assertTrue(store.release(
+                resource="omen-b70-pool", session_id="session_a",
+                epoch=first.epoch, now=102,
+            ))
+            second = store.acquire(
+                resource="omen-b70-pool", session_id="session_b",
+                ttl_seconds=10, now=103,
+            )
+            self.assertEqual(2, second.epoch)
+            self.assertFalse(store.renew(
+                resource="omen-b70-pool", session_id="session_a",
+                epoch=first.epoch, ttl_seconds=10, now=104,
+            ))
+            with self.assertRaises(TenancyConflict):
+                store.transition(
+                    resource="omen-b70-pool", session_id="session_a",
+                    epoch=first.epoch, state="imagegen", ttl_seconds=10, now=104,
+                )
+
+    def test_expired_owner_can_be_replaced_but_live_owner_cannot(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            store = GpuTenancyStore(Path(temporary) / "coordination.sqlite")
+            first = store.acquire(
+                resource="omen-b70-pool", session_id="session_a",
+                ttl_seconds=5, now=100,
+            )
+            replacement = store.acquire(
+                resource="omen-b70-pool", session_id="session_b",
+                ttl_seconds=5, now=106,
+            )
+            self.assertEqual(first.epoch + 1, replacement.epoch)
+            self.assertEqual("session_b", replacement.session_id)
 
 
 if __name__ == "__main__":

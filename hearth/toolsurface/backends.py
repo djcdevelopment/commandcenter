@@ -12,8 +12,8 @@ principle #1: HEARTH routes inference, the conductor owns queued work). Policy,
 in order:
 
   1. caller-pinned ``endpoint``  -> legacy behavior, handled by the caller, not here
-  2. caller-pinned ``backend``   name -> exact match or error; NEVER occupancy-skipped
-     (a pin is a deliberate operator choice; fail-open resolves unknown -> available),
+  2. caller-pinned ``backend``   name -> exact match or error; ordinary busy/unknown
+     remains fail-open, but an active exclusive GPU-pool fence is always refused,
      but still refused if the payload exceeds the rung's ``context_bytes`` (ADR-0031)
   3. ``task``/``tags`` tag match -> first candidate whose occupancy is NOT busy
      (busy or unknown -> skip, try the next tag/candidate)
@@ -258,9 +258,10 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
     """Pick a backend and return (backend, reason, occupancy).
 
     `backend` pins by name (error if unknown) — a pin is a deliberate operator
-    choice and is NEVER skipped for occupancy (Banked Fire P2 fail-open policy:
-    unknown/busy occupancy on a pinned call still routes there; the caller asked
-    for it by name). A pin IS refused, however, when `payload_bytes` exceeds the
+    choice and is not skipped for ordinary occupancy (Banked Fire P2 fail-open
+    policy: unknown/busy occupancy on a pinned call still routes there; the caller
+    asked for it by name). An exclusive GPU tenancy fence is stronger than a pin
+    and is refused. A pin IS also refused when `payload_bytes` exceeds the
     pinned rung's declared `context_bytes` — that raises `BackendRoutingRefusal`
     with reason `payload_over_budget_for_pinned_backend`. A pin overrides
     scheduling judgment, not arithmetic: a busy rung eventually serves you from
@@ -323,6 +324,11 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
                     reason_code="payload_over_budget_for_pinned_backend",
                 )
         occ = _occ(chosen.name)
+        if occ.get("exclusive"):
+            raise BackendConfigError(
+                "backend %r unavailable during exclusive GPU tenancy: %s" %
+                (chosen.name, occ.get("detail") or "resource owned elsewhere")
+            )
         occ["occupancy"] = occ.get("occupancy", "unknown")
         # Pinned calls resolve unknown -> available (fail-open for a deliberate pin).
         return chosen, f"pinned:{backend}", occ

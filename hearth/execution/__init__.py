@@ -8,7 +8,13 @@ the ledger as disposable coordination state, never as canonical history.
 
 from .ids import new_artifact_id, new_event_id, new_invocation_id, new_job_id, new_request_id
 from .artifacts import ArtifactStore, ArtifactStoreError
-from .coordination import CapacityLeaseStore, CapacityUnavailable
+from .coordination import (
+    CapacityLeaseStore,
+    CapacityUnavailable,
+    GpuTenancyStore,
+    TenancyConflict,
+    TenancySnapshot,
+)
 from .ledger import ExecutionLedger, ExecutionLedgerError
 from .operations import (
     ExecutionPolicy,
@@ -36,6 +42,9 @@ __all__ = [
     "ArtifactStoreError",
     "CapacityLeaseStore",
     "CapacityUnavailable",
+    "GpuTenancyStore",
+    "TenancyConflict",
+    "TenancySnapshot",
     "ExecutionLedger",
     "ExecutionLedgerError",
     "ExecutionPolicy",

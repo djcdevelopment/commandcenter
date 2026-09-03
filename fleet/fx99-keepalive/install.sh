@@ -39,6 +39,7 @@ fi
 echo "installing arc-keepalive from $SRC"
 run install -d -m 0755 "$DEST"
 run install -m 0755 "$SRC/warm-omen-arc.sh" "$DEST/warm-omen-arc.sh"
+run install -m 0755 "$SRC/recover-omen-imagegen.sh" "$DEST/recover-omen-imagegen.sh"
 run install -m 0644 "$SRC/arc-keepalive.service" "$UNITS/arc-keepalive.service"
 run install -m 0644 "$SRC/arc-keepalive.timer"   "$UNITS/arc-keepalive.timer"
 run install -m 0644 "$SRC/arc-keepalive-deep.service" "$UNITS/arc-keepalive-deep.service"
@@ -46,8 +47,11 @@ run install -m 0644 "$SRC/arc-keepalive-deep.timer"   "$UNITS/arc-keepalive-deep
 
 # The log is written by the unit's user, not by root.
 run touch /var/log/arc-keepalive.log
+run touch /var/log/imagegen-recovery.log
 run chown derek:derek /var/log/arc-keepalive.log
+run chown derek:derek /var/log/imagegen-recovery.log
 run chmod 0644 /var/log/arc-keepalive.log
+run chmod 0644 /var/log/imagegen-recovery.log
 
 # Config is optional; create it only if absent so a hand-tuned host list survives.
 if [ ! -f /etc/arc-keepalive.conf ]; then

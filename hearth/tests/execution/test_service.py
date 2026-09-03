@@ -173,6 +173,52 @@ class ExecutionServiceTest(unittest.TestCase):
         self.assertEqual(first["job_id"], second["job_id"])
         self.assertEqual(1, len(calls))
 
+    def test_image_job_ledgers_redacted_arguments_and_dispatches_private_artifact(self) -> None:
+        class Dispatcher:
+            def __init__(self) -> None:
+                self.jobs = []
+
+            def enqueue(self, job_id: str) -> None:
+                self.jobs.append(job_id)
+
+            def close(self, **_kwargs) -> None:
+                pass
+
+        dispatcher = Dispatcher()
+        service = ExecutionService(
+            ledger=ExecutionLedger(self.root / "image-ledger"),
+            artifacts=ArtifactStore(self.root / "image-artifacts"),
+            leases=CapacityLeaseStore(self.root / "image-coordination.sqlite"),
+            operations=load_operations(),
+            generate=lambda **_kwargs: {"ok": True},
+            image_dispatcher=dispatcher,
+            workers=1,
+        )
+        self.services.append(service)
+
+        submitted = service.submit(
+            operation_name="image.generate",
+            arguments={
+                "workflow_id": "z-image-turbo",
+                "parameters": {
+                    "prompt": "private prompt must not enter the ledger",
+                    "negative_prompt": "also private", "seed": 7, "steps": 8,
+                },
+                "strategy": "single", "priority": "high",
+            },
+            principal=self.principal, source=self.source,
+            policy={"priority": 1},
+        )
+
+        public = submitted["desired"]["arguments"]
+        self.assertNotIn("private prompt", str(public))
+        self.assertNotIn("negative_prompt", public["parameters"])
+        self.assertIn("prompt_sha256", public["parameters"])
+        metadata = submitted["desired"]["input_artifact"]
+        _, packed = service.read_artifact(metadata["artifact_id"])
+        self.assertIn(b"private prompt must not enter the ledger", packed)
+        self.assertEqual([submitted["job_id"]], dispatcher.jobs)
+
     def test_unauthenticated_principal_is_rejected_without_event(self) -> None:
         service = self.service(lambda **_kwargs: {"ok": True, "text": "no"})
         with self.assertRaises(PermissionError):

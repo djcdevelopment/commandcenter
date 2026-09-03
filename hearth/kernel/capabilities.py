@@ -110,6 +110,17 @@ TOOL_CAPABILITY: dict[str, str] = {
     "get_render_status": "media_render",
     "cancel_render": "media_render",
     "list_render_lanes": "media_render",
+    # image_generate submits/observes registered image workflows. Session
+    # administration is deliberately separate because it drains the resident
+    # LLM and takes exclusive ownership of both workstation GPUs.
+    "submit_image": "image_generate",
+    "get_image_status": "image_generate",
+    "cancel_image": "image_generate",
+    "list_image_workflows": "image_generate",
+    "list_image_lanes": "image_generate",
+    "get_image_session": "image_generate",
+    "start_image_session": "image_session_admin",
+    "stop_image_session": "image_session_admin",
     "cancel_execution": "execution",
     "get_execution": "execution",
     "get_execution_artifact": "execution",

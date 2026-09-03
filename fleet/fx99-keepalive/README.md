@@ -48,7 +48,7 @@ the deep probe is for; the decision to restart stays with a human.
 | unit | every | tokens | job |
 |---|---|---|---|
 | `arc-keepalive.timer` | 30 s | 1 | keep the rung warm (~45 ms/tick) |
-| `arc-keepalive-deep.timer` | 5 min | 32 | **measure decode** and flag it below 84 tok/s (~0.3 s) |
+| `arc-keepalive-deep.timer` | 5 min | 32 | **measure decode**, then invoke fenced image-session recovery on OMEN |
 
 The deep probe exists because **a 1-token ping cannot see the collapse it prevents** — it
 generates no measurable decode. Without it the monitor would be unfalsifiable: every
@@ -72,6 +72,14 @@ OMEN owns the action and the secret.
 Failure is quiet and non-actuating: if OMEN is unreachable the tick logs and exits. It
 never restarts anything. A keep-alive that reached for a restart would be an outage
 generator on a flaky link.
+
+The deep timer also runs `recover-omen-imagegen.sh`. That is separate from the warm
+probe's policy: FX99 merely invokes `E:\omen\imagegen\ops\Invoke-ImageGenRecovery.ps1`
+over the same SSH transport. The OMEN-side recovery code acts only on an abandoned,
+expired image-session fence with no claimed work or listening image backend; a healthy
+session is a no-op. ArcServe credentials and the restart action remain on OMEN. Receipts
+for this check live in `E:\omen\imagegen\data\logs\recovery.log` on OMEN and
+`/var/log/imagegen-recovery.log` on FX99.
 
 ## Transport status — live over the tailnet, LAN still closed
 

@@ -43,6 +43,7 @@ class ExecutionService:
         max_pending: int = 256,
         recover_pending: bool = True,
         render_dispatcher: Optional[Any] = None,
+        image_dispatcher: Optional[Any] = None,
     ) -> None:
         self.ledger = ledger or ExecutionLedger()
         self.artifacts = artifacts or ArtifactStore()
@@ -57,6 +58,7 @@ class ExecutionService:
         # rather than accepted into a queue nothing drains -- a gateway without
         # the render subsystem should say so, not silently swallow work.
         self._render_dispatcher = render_dispatcher
+        self._image_dispatcher = image_dispatcher
         self._futures: dict[str, Future[None]] = {}
         self._cancel_requested: set[str] = set()
         self._lock = threading.RLock()
@@ -65,6 +67,12 @@ class ExecutionService:
             self.recover_pending()
 
     def close(self, *, wait: bool = True) -> None:
+        for dispatcher in (self._render_dispatcher, self._image_dispatcher):
+            if dispatcher is not None:
+                try:
+                    dispatcher.close(wait=wait)
+                except TypeError:
+                    dispatcher.close()
         self._executor.shutdown(wait=wait, cancel_futures=not wait)
 
     def recover_pending(self) -> int:
@@ -106,20 +114,24 @@ class ExecutionService:
                     )
                 elif state["status"] == "accepted":
                     self._append("job.queued", state, reason="queued during recovery")
-                if self._is_render_job(state):
+                if self._is_render_job(state) or self._is_image_job(state):
                     # Recovered render jobs re-enter the render queue, never the
                     # shared executor. Their commit-time revision check runs
                     # again on the retry, so a job that was superseded while the
                     # gateway was down still refuses to promote.
-                    if self._render_dispatcher is None:
+                    dispatcher = (
+                        self._render_dispatcher if self._is_render_job(state)
+                        else self._image_dispatcher
+                    )
+                    if dispatcher is None:
                         self._append(
                             "job.failed",
                             state,
-                            reason="render job recovered but no render dispatcher "
+                            reason="delegated job recovered but no matching dispatcher "
                                    "is configured",
                         )
                         continue
-                    self._render_dispatcher.enqueue(job_id)
+                    dispatcher.enqueue(job_id)
                 else:
                     future = self._executor.submit(self._run, job_id)
                     self._futures[job_id] = future
@@ -134,6 +146,16 @@ class ExecutionService:
             return False
         try:
             return self.operations.get(name).handler == "media_render"
+        except (OperationConfigError, KeyError, ExecutionServiceError):
+            return False
+
+    def _is_image_job(self, state: Mapping[str, Any]) -> bool:
+        """Whether a ledger job state belongs to the image_generate handler."""
+        name = state.get("operation")
+        if not name:
+            return False
+        try:
+            return self.operations.get(name).handler == "image_generate"
         except (OperationConfigError, KeyError, ExecutionServiceError):
             return False
 
@@ -186,6 +208,13 @@ class ExecutionService:
             try:
                 return validate_render_arguments(operation, normalized)
             except RenderArgumentError as exc:
+                raise ExecutionServiceError(str(exc)) from exc
+        if operation.handler == "image_generate":
+            from hearth.imagegen.jobspec import ImageArgumentError, validate_image_arguments
+
+            try:
+                return validate_image_arguments(operation, normalized)
+            except ImageArgumentError as exc:
                 raise ExecutionServiceError(str(exc)) from exc
         if operation.handler != "llm_chat":
             raise ExecutionServiceError(f"unsupported operation handler: {operation.handler}")
@@ -241,13 +270,17 @@ class ExecutionService:
         # A render job has no model, no backend and no prompt to pack. It also
         # must not consume a shared pool worker -- see the dispatch branch below.
         is_render = operation.handler == "media_render"
-        if is_render and self._render_dispatcher is None:
+        is_image = operation.handler == "image_generate"
+        is_delegated = is_render or is_image
+        dispatcher = self._render_dispatcher if is_render else (
+            self._image_dispatcher if is_image else None
+        )
+        if is_delegated and dispatcher is None:
             raise ExecutionServiceError(
-                "media.render was submitted but this gateway has no render "
-                "dispatcher configured; refusing rather than queueing work "
-                "nothing will execute"
+                "%s was submitted but this gateway has no matching dispatcher; "
+                "refusing rather than queueing work nothing will execute" % operation.name
             )
-        if arguments_value.get("files") and not is_render:
+        if arguments_value.get("files") and not is_delegated:
             # Resolve and pack under the gateway caller's active filesystem
             # scope before crossing the executor thread boundary. ContextVars
             # are not implicitly inherited by ThreadPoolExecutor workers.
@@ -264,15 +297,15 @@ class ExecutionService:
                     f"limit is {operation.max_prompt_bytes}"
                 )
         policy_value = self.operations.policy_for(operation, policy)
-        if is_render:
+        if is_delegated:
             # Capacity for a render is a calibrated B70 lane, not a model
             # provider, so the whole backend-selection path is skipped.
             model = None
         else:
             model = arguments_value.get("model") or operation.default_model
-        backend = None if is_render else arguments_value.get("backend")
-        endpoint = None if is_render else arguments_value.get("endpoint")
-        pool = None if is_render else load_pool()
+        backend = None if is_delegated else arguments_value.get("backend")
+        endpoint = None if is_delegated else arguments_value.get("endpoint")
+        pool = None if is_delegated else load_pool()
         if endpoint is not None:
             provider = pool.by_endpoint(endpoint)
             if provider is None:
@@ -283,7 +316,7 @@ class ExecutionService:
                 raise ExecutionServiceError("backend and endpoint select different providers")
             backend = provider.name
             arguments_value["backend"] = backend
-        if not is_render:
+        if not is_delegated:
             try:
                 select_backend(
                     pool,
@@ -311,11 +344,11 @@ class ExecutionService:
             input_artifact = self.artifacts.put(
                 prompt_bytes,
                 media_type=(
-                    "application/json; charset=utf-8" if is_render
+                    "application/json; charset=utf-8" if is_delegated
                     else "text/plain; charset=utf-8"
                 ),
                 filename=(
-                    f"{job_id}-render.json" if is_render else f"{job_id}-prompt.txt"
+                    f"{job_id}-request.json" if is_delegated else f"{job_id}-prompt.txt"
                 ),
             )
             desired = {
@@ -352,14 +385,14 @@ class ExecutionService:
                 artifacts=[{**input_artifact, "role": "input"}],
             )
             self._append("job.queued", initial)
-            if is_render:
+            if is_delegated:
                 # Handed to the render scheduler, which holds it as durable
                 # queued state and only assigns a worker once a lane can
                 # actually be leased. Submitting it to self._executor here
                 # would reproduce the very bug this design avoids: a job
                 # occupying one of the 16 shared workers while it waits for
                 # capacity, starving llm.chat.
-                self._render_dispatcher.enqueue(job_id)
+                dispatcher.enqueue(job_id)
             else:
                 future = self._executor.submit(self._run, job_id)
                 self._futures[job_id] = future

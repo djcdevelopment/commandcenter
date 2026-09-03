@@ -146,11 +146,11 @@ capabilities = [
 # every kind of WORK, and deliberately not the one thing that is not work:
 # changing the door itself.
 #
-# The single withheld capability is `kernel_admin` (kernel_change). That is the
-# boundary this role encodes: an operator acts THROUGH the gateway, it does not
-# reconfigure the gateway mid-flight. Anything that mutates the boundary is a
-# deliberate, separately-authorized act, not a convenience available to whatever
-# terminal happens to hold this key.
+# Three capabilities are deliberately withheld: `kernel_admin` changes the door,
+# `media_render` is reserved for the BF6 dispatcher identity, and
+# `image_session_admin` changes exclusive machine tenancy. An operator may submit
+# registered image work, but only `imagegen-admin` or `unrestricted` may stop
+# ArcServe and grant the B70 pool to that work.
 #
 # Currently UNASSIGNED — no caller carries this profile. dev-local (Derek's
 # hands-on local key) holds `probe` — a status-only liveness key — in the
@@ -163,6 +163,7 @@ capabilities = [
     "commander",        # refine_idea, refine_result
     "dream",            # dream
     "health",           # masters_pet, patrol
+    "image_generate",   # submit/cancel/status for registered image workflows
     "knowledge_write",  # project*, rebuild_knowledge, record_event
     "summon",           # checkpoint_vm, start_ollama, wake_am4
 ]
@@ -196,11 +197,17 @@ capabilities = [
     "media_render",     # submit_render, get_render_status, list_render_lanes
 ]
 
+[profile.imagegen-client]
+capabilities = ["image_generate"]
+
+[profile.imagegen-admin]
+capabilities = ["image_generate", "image_session_admin"]
+
 [profile.unrestricted]
 capabilities = [
     "build_request", "catalog_write", "commander", "dispatch", "dream",
     "generate", "harvest", "health", "kernel_admin", "knowledge_write",
-    "execution", "media_render",
+    "execution", "image_generate", "image_session_admin", "media_render",
     "query", "queue", "read", "repo_content", "repo_metadata", "repo_write",
     "schedule", "status", "summon", "test", "write",
 ]

@@ -20,6 +20,7 @@ def get_execution_service() -> ExecutionService:
             # window before _attach_render_subsystem ran on gateway startup.
             _service = ExecutionService(recover_pending=False)
             _attach_render_subsystem(_service)
+            _attach_imagegen_subsystem(_service)
             _service.recover_pending()
         return _service
 
@@ -47,6 +48,18 @@ def _attach_render_subsystem(service: ExecutionService) -> None:
         service._render_dispatcher = RenderSubsystem(service=service)
     except Exception:  # pragma: no cover - optional subsystem
         service._render_dispatcher = None
+
+
+def _attach_imagegen_subsystem(service: ExecutionService) -> None:
+    """Attach the Hearth-owned image queue; execution stays in the user session."""
+    try:
+        from hearth.imagegen.execution import ImageGenerationSubsystem
+    except Exception:  # pragma: no cover - optional subsystem
+        return
+    try:
+        service._image_dispatcher = ImageGenerationSubsystem(service=service)
+    except Exception:  # pragma: no cover - optional subsystem
+        service._image_dispatcher = None
 
 
 def replace_execution_service(service: Optional[ExecutionService]) -> Optional[ExecutionService]:

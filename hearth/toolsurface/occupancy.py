@@ -321,6 +321,22 @@ def probe_omen_arc_slots() -> dict:
 
     Same body as the moe probe, pointed at loopback :8082 with the OMEN token.
     """
+    # Art mode is a hard tenancy boundary, not ordinary goodput occupancy. It
+    # also applies to explicitly pinned calls: the server is being drained or
+    # stopped and must not receive a late request through the normal pin bypass.
+    try:
+        from hearth.execution.coordination import GpuTenancyStore
+
+        session = GpuTenancyStore().active_image_session("omen-b70-pool")
+    except Exception as exc:
+        return {"occupancy": "unknown", "detail": "tenancy probe failed: %s" % exc,
+                "exclusive": True}
+    if session is not None:
+        return {
+            "occupancy": "busy", "exclusive": True,
+            "detail": "B70 pool owned by imagegen session %s epoch %d (%s)" % (
+                session.session_id, session.epoch, session.state),
+        }
     return probe_moe_slots(
         fetch=lambda url, t: _http_get_json(url, t, token_env=OMEN_ARC_TOKEN_ENV),
         slots_url=OMEN_ARC_SLOTS_URL,

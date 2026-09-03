@@ -33,3 +33,11 @@ max_tokens_ceiling = 1
 # A 180 s 4K clip through two variants, with headroom for a contended lane.
 deadline_ceiling_s = 3600
 artifact_media_type = "application/json; charset=utf-8"
+
+[operation."image.generate"]
+description = "Run a registered image workflow on a fenced Arc Pro B70 lane."
+handler = "image_generate"
+max_prompt_bytes = 262144
+max_tokens_ceiling = 1
+deadline_ceiling_s = 7200
+artifact_media_type = "application/json; charset=utf-8"

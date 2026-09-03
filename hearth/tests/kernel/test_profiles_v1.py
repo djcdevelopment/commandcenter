@@ -69,7 +69,7 @@ class OperatorProfileTests(TestCase):
     def setUp(self) -> None:
         self.profiles = caps.load_profiles(PROFILES)
 
-    def test_operator_withholds_exactly_kernel_admin_and_media_render(self) -> None:
+    def test_operator_withholds_only_privileged_resource_controls(self) -> None:
         """The operator boundary is a set of deliberate exclusions.
 
         Originally one: an operator acts THROUGH the door, it does not
@@ -88,7 +88,7 @@ class OperatorProfileTests(TestCase):
         every = {c for c in caps.TOOL_CAPABILITY.values() if c}
         withheld = sorted(c for c in every
                           if not self.profiles["operator"].grants(c))
-        self.assertEqual(withheld, ["kernel_admin", "media_render"])
+        self.assertEqual(withheld, ["image_session_admin", "kernel_admin", "media_render"])
 
     def test_operator_cannot_change_the_kernel(self) -> None:
         allowed, _ = caps.check_tool_access(self.profiles["operator"], "kernel_change")
@@ -109,5 +109,6 @@ class RosterTests(TestCase):
     def test_v1_roles_all_resolve(self) -> None:
         profiles = caps.load_profiles(PROFILES)
         for name in ("research", "generation-proxy", "builder", "orchestrator",
-                     "operator", "irc-adapter", "unrestricted"):
+                     "operator", "irc-adapter", "imagegen-client", "imagegen-admin",
+                     "unrestricted"):
             self.assertIn(name, profiles)

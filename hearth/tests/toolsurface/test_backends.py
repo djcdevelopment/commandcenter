@@ -230,6 +230,16 @@ class OccupancySkipTests(TestCase):
         chosen, reason, occ = select_backend(self.pool, backend="am4-oxen", occupancy_check=occ_check)
         self.assertEqual(chosen.name, "am4-oxen")
 
+    def test_exclusive_gpu_tenancy_overrides_a_pin(self) -> None:
+        def occ_check(name: str) -> dict:
+            return {
+                "occupancy": "busy", "exclusive": True,
+                "detail": "omen-b70-pool belongs to imagegen session session_a",
+            }
+        with self.assertRaises(BackendConfigError) as context:
+            select_backend(self.pool, backend="omen-ollama", occupancy_check=occ_check)
+        self.assertIn("exclusive GPU tenancy", str(context.exception))
+
     def test_no_occupancy_check_injected_behaves_like_p1(self) -> None:
         chosen, reason, occ = select_backend(self.pool, task="research")
         self.assertEqual(chosen.name, "am4-oxen")

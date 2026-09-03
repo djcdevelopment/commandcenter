@@ -185,6 +185,37 @@ context_bytes = 24576
 timeout_s = 300
 
 [[backend]]
+name     = "omen-swap"                        # ROTATION RUNG (pin-only), ADR-0040 Phase 2 / ADR-0045
+                                              # (2026-09-03): llama-swap v251 on loopback :8081 owns
+                                              # OMEN's model lifecycle and fronts the side seats declared
+                                              # in fleet/arcserve/llama-swap/omen.yaml (w1 R6 command
+                                              # lines, two Vulkan-index candidates per model — ADR-0042:
+                                              # placement is ASSERTED from the load report, never trusted
+                                              # from the index). Production qwen3-30b-a3b stays on :8082
+                                              # (the omen-arc rung above is unchanged). One endpoint
+                                              # serving several model_ids is the ADR-0027 gate-2 shape.
+                                              # NOT listening until the P13 cutover starts llama-swap;
+                                              # a pin then fails at connect (pins never escalate).
+endpoint = "http://127.0.0.1:8081"
+api      = "openai"                           # /v1/chat/completions, routed by the body's `model`
+auth_env = "OMEN_ARC_TOKEN"                   # header forwarded to the upstream; harmless on loopback
+models   = ["phi4-vk1", "phi4-vk2", "qwen14b-vk1", "qwen14b-vk2", "gptoss20b-vk1", "gptoss20b-vk2", "mistral24b-vk1", "mistral24b-vk2", "qwen38-27b-dual"]
+tags     = []                                 # pin-only by design
+# Occupancy: llama-swap /running (occupancy.probe_omen_swap) behind the imagegen tenancy fence.
+[backend.settings]
+node                = "omen"
+hardware_profile_id = "omen-285k-dual-b70-2026H2"
+lifecycle           = "llama-swap"
+# ADR-0031 arithmetic: MIN over the members' -c x -np x ~3.5 B/token = 4096 x 1 x 3.5 (gptoss20b /
+# mistral24b at -c 4096). Never over-declare: llama-server silently truncates over-long prompts.
+context_bytes = 14336
+max_tokens = 2048
+# On-demand load (~8.2 s dio, 19-27 s first-in-window) + drain of a swapped sibling (<= 27 s, P7)
+# both sit inside this budget.
+timeout_s = 600
+parallel_slots = 1
+
+[[backend]]
 name     = "omen-ollama"                      # DEMOTED from routing 2026-08-21 (ADR-0034):
                                               # the RTX 5070 left OMEN in the rebuild and
                                               # stock Ollama on Arc silently serves CPU-only

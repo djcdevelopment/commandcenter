@@ -352,8 +352,81 @@ def probe_omen_arc_slots() -> dict:
     )
 
 
+
+OMEN_SWAP_BASE_URL = "http://127.0.0.1:8081"
+
+
+def _tenancy_fence() -> Optional[dict]:
+    """The imagegen tenancy fence on the B70 pool, or None when the pool is free.
+
+    Shared by the omen-arc and omen-swap probes: an active image session (or an
+    unreadable tenancy store) holds BOTH rungs closed, pins included, because a late
+    request must never reach a server that is being drained (ADR-0045 reads the
+    fence; it never claims it — the owner literal is imagegen's)."""
+    try:
+        from hearth.execution.coordination import GpuTenancyStore
+
+        session = GpuTenancyStore().active_image_session("omen-b70-pool")
+    except Exception as exc:
+        return {"occupancy": "unknown", "exclusive": True,
+                "exclusive_reason": "tenancy_probe_failed",
+                "detail": "GPU tenancy store unreadable, so the rung is held closed as a "
+                          "precaution -- this is NOT an active image session: %s" % exc}
+    if session is not None:
+        return {
+            "occupancy": "busy", "exclusive": True,
+            "exclusive_reason": "image_session_active",
+            "detail": "B70 pool owned by imagegen session %s epoch %d (%s)" % (
+                session.session_id, session.epoch, session.state),
+        }
+    return None
+
+
+_SWAP_READY_STATES = ("ready", "running", "loaded")
+
+
+def probe_omen_swap(fetch: Optional[Callable] = None,
+                    base_url: str = OMEN_SWAP_BASE_URL) -> dict:
+    """Occupancy for the llama-swap rung `omen-swap` (ADR-0040 Phase 2, ADR-0045).
+
+    Tenancy fence first (same as omen-arc), then llama-swap's ``GET /running``:
+    unreachable -> "unknown" (the rung is NOT listening until the cutover starts it);
+    any running model still loading -> "unknown" (port-open != model-ready);
+    otherwise "available" -- a model that is not resident is real capacity at the
+    price of an on-demand dio load (~8.2 s, 19-27 s first-in-window), and llama-swap
+    serialises requests behind that load. The resident list rides the result.
+    """
+    fence = _tenancy_fence()
+    if fence is not None:
+        return fence
+    fetch = fetch or (lambda url, t: _http_get_json(url, t, token_env=OMEN_ARC_TOKEN_ENV))
+    data, err = fetch(base_url.rstrip("/") + "/running", MOE_HTTP_TIMEOUT_S)
+    if err:
+        return {"occupancy": "unknown", "detail": "llama-swap /running unreachable: %s" % err}
+    running = data.get("running") if isinstance(data, dict) else data
+    if not isinstance(running, list):
+        return {"occupancy": "unknown", "detail": "llama-swap /running: unexpected shape"}
+    resident: list = []
+    loading: list = []
+    for item in running:
+        if isinstance(item, dict):
+            model_id = item.get("model") or item.get("id") or item.get("name")
+            state = str(item.get("state", "")).lower()
+            resident.append(model_id)
+            if state and state not in _SWAP_READY_STATES:
+                loading.append(model_id)
+        elif isinstance(item, str):
+            resident.append(item)
+    if loading:
+        return {"occupancy": "unknown", "running": resident,
+                "detail": "llama-swap still loading: %s" % ", ".join(str(m) for m in loading)}
+    return {"occupancy": "available", "running": resident,
+            "detail": "llama-swap resident: %s (others load on demand, ~8 s dio)"
+                      % (", ".join(str(m) for m in resident) or "none")}
+
 _PROBES: dict[str, Callable[[], dict]] = {
     "omen-arc": probe_omen_arc_slots,  # HTTP slot/KV goodput on the resident rung (ADR-0034)
+    "omen-swap": probe_omen_swap,      # llama-swap /running behind the tenancy fence (ADR-0045)
     # am4-oxen / am4-moe probes removed 2026-08-21: those rungs are tombstones
     # (cards moved into OMEN); a probe that can only ever answer "unreachable"
     # is decoration, per this registry's own rule above.

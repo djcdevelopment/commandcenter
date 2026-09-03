@@ -1,0 +1,212 @@
+# fleet/arcserve/llama-swap/omen.yaml -- OMEN's model lifecycle under llama-swap v251 (ADR-0040 Phase 2;
+# Derek's 2026-09-03 decision: production cuts over; see docs/adr/0045 and the 2026-09-03 plan).
+#
+# SHAPE (verified 2026-09-03 against the upstream config.example.yaml for tag v251):
+#   - per-model `proxy:` = "the URL where llama-swap routes API requests; default http://localhost:${PORT}".
+#     The PRODUCTION entry keeps `--host 127.0.0.1 --port 8082` and `proxy: http://127.0.0.1:8082`, so every
+#     existing :8082 consumer (the door's omen-arc rung, the fx99 keep-alive warm-arc.ps1, ff_ratecheck.py,
+#     occupancy.probe_omen_arc_slots, the ETW/keep-alive readers) stays byte-identical.
+#   - groups live under routing.router.settings.groups with `swap` (one member at a time within the group),
+#     `exclusive` (loading a member unloads every OTHER group) and `persistent` (other groups can never unload
+#     this group's members). The P5/P7/R6 probe YAMLs used a top-level `groups:` on this same binary; the
+#     documented form is used here and is parse-checked on a throwaway port before any production stop.
+#   - hooks.on_startup.preload brings production resident at boot.
+#   - ${PORT} is assigned from startPort for the side entries only.
+#
+# SECRETS: no API-key flag or token literal anywhere. serve-arc.cmd exports LLAMA_API_KEY=%OMEN_ARC_TOKEN% before
+# launching llama-swap; llama-server reads it from the environment (arg.cpp: env LLAMA_API_KEY). /health is
+# public even with an api key, so llama-swap's health check needs no bearer.
+#
+# ADR-0042: NEVER trust a Vulkan index. Single-card side models are declared TWICE (-vk1 env=1, -vk2 env=2)
+# in one swap:true group per model; the rotation lifecycle asserts placement from the -lv 5 load report
+# (GET /logs) + the per-BDF commit delta, and retries the sibling entry on mismatch. Dual entries carry
+# NO device env (type-based selection picks both B70s and drops the iGPU).
+#
+# Side models beside production: 32.5 - 15.44 - 0.5 = 16.6 GB free per card; phi-4 8.3 / qwen14b 8.4 /
+# gpt-oss-20b 11.3 / mistral24b 13.3 GB (w1-receipts.jsonl R6). qwen38-27b-dual is present for a
+# Derek-called window only (17.7 GB weights split dual; not loaded by the proof).
+
+healthCheckTimeout: 300
+logLevel: debug
+logToStdout: both
+startPort: 18300
+globalTTL: 0
+
+models:
+  # ---- PRODUCTION (the omen-arc rung, ADR-0034): today's serve-arc.cmd line, port fixed ----------------
+  "qwen3-30b-a3b":
+    cmd: >
+      E:\work\llamacpp-knee\build\bin\llama-server.exe
+      -m E:\work\battlemage\models\Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf
+      --alias qwen3-30b-a3b
+      -ngl 99 -sm layer -ts 1,1
+      -fa on
+      --no-mmap -dio -fit off
+      -c 131072 -np 2 -ub 1024
+      --host 127.0.0.1 --port 8082
+      --slots --jinja --metrics
+      -lv 5 --log-file C:\work\commandcenter\hearth\var\arc-serve.log
+    proxy: http://127.0.0.1:8082
+    checkEndpoint: /health
+    ttl: 0
+    unloadTimeout: 60
+
+  # ---- SIDE SEATS (w1 R6 command lines byte-for-byte + -lv 5 + slot-save; two index candidates each) ----
+  "phi4-vk1":
+    cmd: >
+      E:\work\llamacpp-knee\build\bin\llama-server.exe
+      -m E:\work\battlemage\models\phi-4-Q4_K_M.gguf
+      --alias phi4-vk1
+      -ngl 99 -fa on --no-mmap -dio -fit off
+      -c 8192 -np 1
+      --host 127.0.0.1 --port ${PORT}
+      --slots --jinja -lv 5 --slot-save-path E:\work\battlemage\kv\
+    env:
+      - "GGML_VK_VISIBLE_DEVICES=1"
+    ttl: 0
+  "phi4-vk2":
+    cmd: >
+      E:\work\llamacpp-knee\build\bin\llama-server.exe
+      -m E:\work\battlemage\models\phi-4-Q4_K_M.gguf
+      --alias phi4-vk2
+      -ngl 99 -fa on --no-mmap -dio -fit off
+      -c 8192 -np 1
+      --host 127.0.0.1 --port ${PORT}
+      --slots --jinja -lv 5 --slot-save-path E:\work\battlemage\kv\
+    env:
+      - "GGML_VK_VISIBLE_DEVICES=2"
+    ttl: 0
+
+  "qwen14b-vk1":
+    cmd: >
+      E:\work\llamacpp-knee\build\bin\llama-server.exe
+      -m E:\work\battlemage\models\qwen2.5-14b-instruct-q4_K_M.gguf
+      --alias qwen14b-vk1
+      -ngl 99 -fa on --no-mmap -dio -fit off
+      -c 8192 -np 1
+      --host 127.0.0.1 --port ${PORT}
+      --slots --jinja -lv 5 --slot-save-path E:\work\battlemage\kv\
+    env:
+      - "GGML_VK_VISIBLE_DEVICES=1"
+    ttl: 0
+  "qwen14b-vk2":
+    cmd: >
+      E:\work\llamacpp-knee\build\bin\llama-server.exe
+      -m E:\work\battlemage\models\qwen2.5-14b-instruct-q4_K_M.gguf
+      --alias qwen14b-vk2
+      -ngl 99 -fa on --no-mmap -dio -fit off
+      -c 8192 -np 1
+      --host 127.0.0.1 --port ${PORT}
+      --slots --jinja -lv 5 --slot-save-path E:\work\battlemage\kv\
+    env:
+      - "GGML_VK_VISIBLE_DEVICES=2"
+    ttl: 0
+
+  "gptoss20b-vk1":
+    cmd: >
+      E:\work\llamacpp-knee\build\bin\llama-server.exe
+      -m E:\work\battlemage\models\gpt-oss-20b-MXFP4.gguf
+      --alias gptoss20b-vk1
+      -ngl 99 -fa on --no-mmap -dio -fit off
+      -c 4096 -np 1
+      --host 127.0.0.1 --port ${PORT}
+      --slots --jinja -lv 5 --slot-save-path E:\work\battlemage\kv\
+    env:
+      - "GGML_VK_VISIBLE_DEVICES=1"
+    ttl: 0
+  "gptoss20b-vk2":
+    cmd: >
+      E:\work\llamacpp-knee\build\bin\llama-server.exe
+      -m E:\work\battlemage\models\gpt-oss-20b-MXFP4.gguf
+      --alias gptoss20b-vk2
+      -ngl 99 -fa on --no-mmap -dio -fit off
+      -c 4096 -np 1
+      --host 127.0.0.1 --port ${PORT}
+      --slots --jinja -lv 5 --slot-save-path E:\work\battlemage\kv\
+    env:
+      - "GGML_VK_VISIBLE_DEVICES=2"
+    ttl: 0
+
+  "mistral24b-vk1":
+    cmd: >
+      E:\work\llamacpp-knee\build\bin\llama-server.exe
+      -m E:\work\battlemage\models\Mistral-Small-3.2-24B-Instruct-2506-Q4_K_M.gguf
+      --alias mistral24b-vk1
+      -ngl 99 -fa on --no-mmap -dio -fit off
+      -c 4096 -np 1
+      --host 127.0.0.1 --port ${PORT}
+      --slots --jinja -lv 5 --slot-save-path E:\work\battlemage\kv\
+    env:
+      - "GGML_VK_VISIBLE_DEVICES=1"
+    ttl: 0
+  "mistral24b-vk2":
+    cmd: >
+      E:\work\llamacpp-knee\build\bin\llama-server.exe
+      -m E:\work\battlemage\models\Mistral-Small-3.2-24B-Instruct-2506-Q4_K_M.gguf
+      --alias mistral24b-vk2
+      -ngl 99 -fa on --no-mmap -dio -fit off
+      -c 4096 -np 1
+      --host 127.0.0.1 --port ${PORT}
+      --slots --jinja -lv 5 --slot-save-path E:\work\battlemage\kv\
+    env:
+      - "GGML_VK_VISIBLE_DEVICES=2"
+    ttl: 0
+
+  # ---- DEPTH SPECIALIST (ADR-0039), dual-split, NO device env; for a Derek-called window only ----------
+  "qwen38-27b-dual":
+    cmd: >
+      E:\work\llamacpp-knee\build\bin\llama-server.exe
+      -m E:\work\battlemage\models\qwen38\Qwen3.8-27B-Q4_K_M.gguf
+      --alias qwen38-27b-dual
+      -ngl 99 -sm layer -ts 1,1
+      -fa on --no-mmap -dio -fit off
+      -c 32768 -np 1 -ub 1024
+      --host 127.0.0.1 --port ${PORT}
+      --slots --jinja -lv 5 --slot-save-path E:\work\battlemage\kv\
+    ttl: 0
+
+hooks:
+  on_startup:
+    preload:
+      - "qwen3-30b-a3b"
+
+routing:
+  router:
+    use: group
+    settings:
+      groups:
+        "production":
+          persistent: true
+          swap: false
+          exclusive: false
+          members:
+            - "qwen3-30b-a3b"
+        "phi4":
+          swap: true
+          exclusive: false
+          members:
+            - "phi4-vk1"
+            - "phi4-vk2"
+        "qwen14b":
+          swap: true
+          exclusive: false
+          members:
+            - "qwen14b-vk1"
+            - "qwen14b-vk2"
+        "gptoss20b":
+          swap: true
+          exclusive: false
+          members:
+            - "gptoss20b-vk1"
+            - "gptoss20b-vk2"
+        "mistral24b":
+          swap: true
+          exclusive: false
+          members:
+            - "mistral24b-vk1"
+            - "mistral24b-vk2"
+        "qwen27b-dual":
+          swap: true
+          exclusive: false
+          members:
+            - "qwen38-27b-dual"

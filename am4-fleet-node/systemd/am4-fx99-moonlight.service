@@ -1,0 +1,23 @@
+[Unit]
+Description=Show FX99's virtual desktop fullscreen on AM4
+Requires=am4-openbox.service
+After=am4-openbox.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=derek
+Group=derek
+SupplementaryGroups=video render input
+WorkingDirectory=/home/derek
+RuntimeDirectory=am4-fx99-moonlight
+RuntimeDirectoryMode=0700
+Environment=HOME=/home/derek
+Environment=DISPLAY=:0
+Environment=XDG_RUNTIME_DIR=/run/am4-fx99-moonlight
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 30); do /usr/bin/nc -z -w 1 192.168.12.220 48010 && exit 0; sleep 1; done; exit 1'
+ExecStart=/opt/moonlight/Moonlight.AppImage stream --4K --fps 60 --bitrate 35000 --display-mode fullscreen --absolute-mouse --capture-system-keys fullscreen --video-codec HEVC --video-decoder hardware --no-audio-on-host --no-hdr --no-yuv444 --keep-awake --no-quit-after 192.168.12.220 Desktop
+Restart=no
+
+[Install]
+WantedBy=am4-workstation.target

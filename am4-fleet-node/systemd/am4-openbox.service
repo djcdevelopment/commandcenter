@@ -1,0 +1,26 @@
+[Unit]
+Description=Openbox session for the AM4 physical monitor
+PartOf=am4-workstation.target
+After=valheim-xorg.service
+
+[Service]
+Type=simple
+User=derek
+Group=derek
+Environment=DISPLAY=:0
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=XCURSOR_SIZE=36
+ExecCondition=/bin/sh -c '[ "$(readlink -f /etc/X11/xorg.conf)" = /etc/X11/xorg.monitor.conf ]'
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 30); do DISPLAY=:0 /usr/bin/xdpyinfo >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1'
+ExecStartPre=/usr/bin/xrandr --display :0 --output DP-0 --primary
+ExecStartPre=/usr/bin/xset -display :0 s off
+ExecStartPre=/usr/bin/xset -display :0 dpms 0 0 0
+ExecStartPre=/usr/bin/xset -display :0 -dpms
+ExecStartPre=/usr/bin/xrdb -display :0 -merge /home/derek/.Xresources
+ExecStart=/usr/bin/openbox
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=true
+
+[Install]
+WantedBy=am4-workstation.target

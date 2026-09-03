@@ -1,0 +1,8 @@
+Xft.dpi: 144
+XTerm*faceName: Noto Mono
+XTerm*faceSize: 13
+XTerm*background: #111318
+XTerm*foreground: #e8e8e8
+XTerm*cursorColor: #7fd7ff
+XTerm*scrollBar: true
+XTerm*saveLines: 10000

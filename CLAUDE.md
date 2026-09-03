@@ -51,10 +51,14 @@ rung that actually serves you was missing entirely:
   `OllamaBoot` is **Disabled for good** (ADR-0034). Routing skips it via
   `tags = []`, but an explicit pin **fails at connect**. Do not reach for this.
 - ☠ `am4-moe` / `am4-oxen` — **DEAD.** The B70s left AM4 in the 2026-08-20 rebuild.
-  AM4 is **powered down** as of 2026-08-24 (its RTX 5070 has no driver and no
-  CUDA anyway). Careful when it returns: the oxen facade on :8090 *answers* and
-  lists models, every one `ready:false` — a port probe and a health check both
-  pass against a rung that cannot emit a token.
+  AM4 is back **up** (Ubuntu 26.04, services host) and its RTX 5070 **now has a
+  working NVIDIA driver** — 595.84 open kernel module, CUDA 13.2 runtime,
+  `nvidia_uvm` loaded, `libcuda.so.1` present; installed 2026-08-24 ~23:49 UTC,
+  live since the 23:53 reboot. That does **not** revive these rungs: **no engine
+  is bound to the GPU** (nothing on 8082/11434) and there is no CUDA toolkit
+  (`nvcc`) for building one. The oxen facade on :8090 still *answers* and lists
+  models, every one `ready:false` — a port probe and a health check both pass
+  against a rung that cannot emit a token. "Driver present" ≠ capacity.
 - `gcp-gemini` (Vertex `gemini-3.5-flash` on **GCP trial credits** — near-free
 frontier-class while they last: prefer it over spending metered Sonnet/frontier
 tokens for self-contained reasoning, drafting, and integration proofs),

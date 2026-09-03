@@ -1,0 +1,9 @@
+# Keep AM4 on the router's 5 GHz radio. The 2.4 GHz link cannot sustain the
+# FX99-to-AM4 4K desktop stream and can become unreachable under load.
+network:
+  version: 2
+  wifis:
+    wlp4s0:
+      access-points:
+        "TMOBILE-B395":
+          band: 5GHz

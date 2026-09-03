@@ -1,0 +1,7 @@
+[Unit]
+Description=AM4 physical-monitor workstation
+After=valheim-xorg.service tailscaled.service network-online.target
+Wants=valheim-xorg.service tailscaled.service network-online.target
+
+[Install]
+WantedBy=multi-user.target

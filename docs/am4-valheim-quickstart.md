@@ -1,8 +1,8 @@
 # AM4 Valheim capture node — quick start
 
-**None of this lives in this repo.** It is all on AM4's filesystem, so a `C:\work`
-search will never find it. This file is the pointer. Canonical copy on the box:
-`~/valheim-capture/README.md`.
+The workstation service, X configuration, and OMEN helper scripts are tracked in
+this repo under `am4-fleet-node/` and `tools/ops/`. The Valheim-specific scripts
+and canonical capture notes remain on AM4 under `~/valheim-capture/`.
 
 AM4 runs the Valheim **client** on its RTX 5070 so the orbit / selfie-stick capture
 mod can shoot frames. It is a capture node, not a second copy of the pipeline —
@@ -47,7 +47,7 @@ replace the client.
 ## Start a session
 
 ```bash
-~/valheim-capture/start-steam-session.sh          # openbox + Steam on :0
+~/valheim-capture/start-steam-session.sh          # Steam on :0; Openbox is already managed
 cd ~/valheim && DISPLAY=:0 ./start_game_bepinex.sh -console &
 ```
 
@@ -60,7 +60,7 @@ account OMEN is using**; the second launch kicks the first out of the game.
 
 ```bash
 sudo valheim-display status         # which mode, is X up, what outputs
-sudo valheim-display monitor        # drives the physical panel, 1920x1080
+sudo valheim-display monitor        # ASUS MG28U on DP-0, 3840x2160 at 60 Hz
 sudo valheim-display headless       # UseDisplayDevice None, Virtual 3840x2160
 ```
 
@@ -68,10 +68,72 @@ sudo valheim-display headless       # UseDisplayDevice None, Virtual 3840x2160
 `xorg.headless.conf`. Never edit it in place.
 
 ⚠ **Switching modes restarts `valheim-xorg`, which kills everything on `:0` —
-including openbox and Steam.** Choose the mode *first*, then start Steam:
+including Openbox, Steam, and Valheim.** Monitor mode automatically brings back
+managed Openbox and Deskflow; Steam and Valheim stay manual. Choose the mode
+*first*, then start Steam:
 
 ```
 sudo valheim-display headless  →  start-steam-session.sh  →  run-capture.sh
+```
+
+## OMEN keyboard, mouse, and VNC
+
+Deskflow makes the physical AM4 panel the screen immediately to the **right** of
+OMEN. Push the pointer through OMEN's outer-right edge to enter AM4 and through
+AM4's left edge to return. Clipboard sharing is enabled up to 64 MiB.
+
+- **Scroll Lock** toggles cursor lock on the current computer. While locked on
+  AM4, Deskflow uses relative mouse movement, which is the useful mode for
+  Valheim camera control.
+- OMEN's server listens only on its Tailscale address `100.124.12.37:24800`.
+  Both peer certificates are pinned; port 24800 is not exposed on OMEN's LAN IP.
+- OMEN uses Deskflow's portable build and a per-user Startup shortcut, so the
+  server starts when Derek signs into Windows. It is not available on the Windows
+  sign-in or secure UAC desktop; use OMEN's physical input there.
+- `am4-workstation.target` starts Openbox and the Deskflow client at boot only
+  when `/etc/X11/xorg.conf` points at `xorg.monitor.conf`. Headless mode stops
+  both so a capture cannot be disturbed by an accidental edge crossing.
+- Monitor mode zeroes X screen-blanking and DPMS timers. The ASUS otherwise
+  enters DisplayPort deep sleep after ten idle minutes and appears to lose signal.
+
+Deskflow shares input and the clipboard, not pixels. For recovery or for seeing
+the desktop in a window on OMEN, launch the on-demand VNC helper from the repo:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\ops\am4-vnc.ps1
+```
+
+It starts `x11vnc` only for the lifetime of an SSH tunnel, binds the VNC server
+to AM4 loopback, and opens TigerVNC Viewer on OMEN. It adds no firewall rule and
+stores no VNC password because the SSH tunnel is the authentication boundary.
+
+## AM4 files from Windows
+
+Explorer drive `A:` maps to `\\192.168.12.233\AM4`, AM4's `/home/derek`, over
+encrypted SMB3 on the private home machine lane. Samba listens only on loopback
+and AM4's fixed Wi-Fi address and accepts only OMEN (`192.168.12.239`). The
+mapping is persistent and Windows Credential Manager holds the randomly
+generated Samba password.
+
+SSH keys and common credential stores are deliberately vetoed from the share,
+including `.ssh`, `.gnupg`, `.pki`, `.aws`, `.azure`, `.kube`, `.docker`,
+`keyrings`, and the Deskflow and Moonlight certificate directories. Symlinks
+are not followed.
+
+Recovery checks:
+
+```powershell
+& .\tools\ops\map-am4-drive.ps1
+Get-SmbMapping -LocalPath A:
+Test-NetConnection 192.168.12.233 -Port 445
+```
+
+Use `-ResetCredential` only when rotating the Samba password; it generates the
+replacement in memory, updates AM4 over SSH, and saves the Windows credential.
+
+```bash
+ssh homebase 'sudo systemctl status smbd --no-pager'
+ssh homebase "sudo ss -lntp '( sport = :445 )'"
 ```
 
 `run-capture.sh` defaults to 3840x2160 and preflights the GL renderer but not the
@@ -153,9 +215,13 @@ absent and had to be added. All permanent now:
   must match the loaded kernel module (595.84); a skew breaks GL.
 - `openbox` — bare WM so dialogs can take focus. There is no desktop environment and
   none is needed.
+- `deskflow` — encrypted keyboard, mouse, and clipboard client for the physical
+  workstation mode.
+- `x11vnc` and `xclip` — on-demand SSH-tunneled screen recovery and X11 clipboard
+  support.
 
-There is **no display manager** and `graphical.target` starts nothing. `valheim-xorg.service`
-is the whole display stack.
+There is **no display manager**. `valheim-xorg.service` owns X, while
+`am4-workstation.target` owns Openbox and Deskflow in physical-monitor mode.
 
 ## Do not
 

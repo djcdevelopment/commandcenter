@@ -1,0 +1,25 @@
+#!/bin/sh
+set -eu
+
+case "${1:-status}" in
+    show|start)
+        systemctl start am4-fx99-moonlight.service
+        ;;
+    hide|stop)
+        systemctl stop am4-fx99-moonlight.service
+        ;;
+    toggle)
+        if systemctl is-active --quiet am4-fx99-moonlight.service; then
+            systemctl stop am4-fx99-moonlight.service
+        else
+            systemctl start am4-fx99-moonlight.service
+        fi
+        ;;
+    status)
+        systemctl status am4-fx99-moonlight.service --no-pager
+        ;;
+    *)
+        echo "usage: fx99-display {show|hide|toggle|status}" >&2
+        exit 2
+        ;;
+esac

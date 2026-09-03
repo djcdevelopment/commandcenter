@@ -1,0 +1,25 @@
+[Unit]
+Description=FX99 Sunshine stream for AM4
+Requires=fx99-desktop.service
+After=fx99-desktop.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=derek
+Group=derek
+SupplementaryGroups=video render input
+WorkingDirectory=/home/derek
+RuntimeDirectory=fx99-sunshine
+RuntimeDirectoryMode=0700
+Environment=HOME=/home/derek
+Environment=DISPLAY=:0
+Environment=XDG_RUNTIME_DIR=/run/fx99-sunshine
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 50); do DISPLAY=:0 /usr/bin/xdpyinfo >/dev/null 2>&1 && exit 0; sleep 0.2; done; exit 1'
+ExecStart=/usr/bin/sunshine /home/derek/.config/sunshine/sunshine.conf
+Restart=on-failure
+RestartSec=3
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

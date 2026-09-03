@@ -1,0 +1,14 @@
+[Unit]
+Description=FX99 headless NVIDIA Xorg display
+After=systemd-udev-settle.service nvidia-powercap.service
+Wants=systemd-udev-settle.service
+Conflicts=display-manager.service
+
+[Service]
+Type=simple
+ExecStart=/usr/lib/xorg/Xorg :0 -config /etc/X11/xorg.fx99-headless.conf -ac -nolisten tcp -noreset -novtswitch
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

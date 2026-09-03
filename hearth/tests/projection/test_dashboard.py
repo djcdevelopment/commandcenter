@@ -95,6 +95,8 @@ class TestDashboard(DashboardScopedTestCase):
         )
         self.assertIn("GPU Tenancy", rendered)
         self.assertIn("hearth.mediagen.dag", rendered)
+        self.assertIn('class="trace-svg" viewBox="0 0 1000 ', rendered)
+        self.assertIn('.trace-svg text { fill: var(--fg);', rendered)
         self.assertIn("&lt;unsafe&gt;.mp4", rendered)
         self.assertNotIn("<unsafe>.mp4", rendered)
         self.assertIn("<video controls", rendered)

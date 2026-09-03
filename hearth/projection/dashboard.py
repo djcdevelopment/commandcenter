@@ -87,20 +87,30 @@ def _trace_svg(traces: list[dict]) -> str:
                 seen.add(span_id); span_id = parent[span_id]; count += 1
             return count
         for span in sorted(spans, key=lambda item: int(item.get("startTime", 0))):
-            left = 34 + 64 * (int(span.get("startTime", 0)) - origin) / extent
-            width = max(0.6, 64 * int(span.get("duration", 0)) / extent)
+            left = 330 + 520 * (int(span.get("startTime", 0)) - origin) / extent
+            width = max(4, 520 * int(span.get("duration", 0)) / extent)
             label = ("  " * depth(span.get("spanID"))) + str(span.get("operationName") or "span")
-            rows.append((label, left, width, int(span.get("duration", 0)) / 1000))
+            rows.append((label[:46], left, width,
+                         int(span.get("duration", 0)) / 1000))
     if not rows:
         return '<div class="muted">No MediaGen traces available.</div>'
-    height = 26 + len(rows) * 22
-    parts = [f'<svg viewBox="0 0 100 {height}" role="img" aria-label="Trace timeline">']
+    height = 24 + len(rows) * 26
+    parts = [
+        '<div class="trace-frame">',
+        f'<svg class="trace-svg" viewBox="0 0 1000 {height}" '
+        'role="img" aria-label="Trace timeline">',
+    ]
     for index, (label, left, width, duration_ms) in enumerate(rows):
-        y = 18 + index * 22
-        parts.append(f'<text x="1" y="{y}" font-size="3">{_escape(label)}</text>')
-        parts.append(f'<rect x="{left:.2f}" y="{y - 4}" width="{width:.2f}" height="5" rx="1" fill="var(--accent)"/>')
-        parts.append(f'<text x="{min(98, left + width + .5):.2f}" y="{y}" font-size="2.5">{duration_ms:.0f} ms</text>')
-    parts.append('</svg>')
+        y = 19 + index * 26
+        parts.append(f'<text class="trace-label" x="10" y="{y}">{_escape(label)}</text>')
+        parts.append(
+            f'<rect x="{left:.2f}" y="{y - 11}" width="{width:.2f}" '
+            'height="12" rx="3"/>'
+        )
+        parts.append(
+            f'<text class="trace-duration" x="870" y="{y}">{duration_ms:.0f} ms</text>'
+        )
+    parts.append('</svg></div>')
     return "".join(parts)
 
 
@@ -249,7 +259,13 @@ def build_dashboard_html(
     html_lines.append('.metric { font-size: 2em; margin-top: 8px; font-weight: 500; }')
     html_lines.append('h1, h2, h3 { margin-top: 0; font-weight: 500; }')
     html_lines.append('h3 { color: var(--muted); font-size: 0.9em; text-transform: uppercase; letter-spacing: 0.5px; }')
-    html_lines.append('.muted { color: var(--muted); } svg { width: 100%; min-height: 180px; }')
+    html_lines.append('.muted { color: var(--muted); }')
+    html_lines.append('.trace-frame { width: 100%; overflow-x: auto; }')
+    html_lines.append('.trace-svg { display: block; width: 100%; min-width: 760px; height: auto; }')
+    html_lines.append('.trace-svg rect { fill: var(--accent); opacity: .9; }')
+    html_lines.append('.trace-svg text { fill: var(--fg); font-family: system-ui, sans-serif; font-size: 12px; }')
+    html_lines.append('.trace-svg .trace-label { font-weight: 500; }')
+    html_lines.append('.trace-svg .trace-duration { fill: var(--muted); font-size: 11px; }')
     html_lines.append('audio, video { width: 100%; max-width: 640px; margin-top: 6px; }')
     html_lines.append('</style>')
     html_lines.append('</head>')

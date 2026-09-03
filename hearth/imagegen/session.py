@@ -358,9 +358,28 @@ class ImageSessionController:
         return "llama-server.exe" in (completed.stdout or "").lower()
 
     @staticmethod
-    def _request_json(url: str, *, payload: Optional[dict] = None, timeout: int = 8):
-        headers = {"Accept": "application/json"}
+    def _arc_token() -> Optional[str]:
         token = os.environ.get("OMEN_ARC_TOKEN")
+        if token:
+            return token
+        gateway_cmd = Path(r"C:\work\commandcenter\hearth\var\gateway.cmd")
+        if gateway_cmd.is_file():
+            try:
+                for line in gateway_cmd.read_text(encoding="utf-8", errors="ignore").splitlines():
+                    stripped = line.strip()
+                    if stripped.startswith("set OMEN_ARC_TOKEN="):
+                        token = stripped.split("=", 1)[1].strip()
+                        if token:
+                            os.environ["OMEN_ARC_TOKEN"] = token
+                            return token
+            except OSError:
+                pass
+        return None
+
+    @classmethod
+    def _request_json(cls, url: str, *, payload: Optional[dict] = None, timeout: int = 8):
+        headers = {"Accept": "application/json"}
+        token = cls._arc_token()
         if token:
             headers["Authorization"] = "Bearer " + token
         body = None

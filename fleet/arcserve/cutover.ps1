@@ -219,11 +219,11 @@ $c = Plan "C assert dual-split placement" {
     $b70 = @($report | Where-Object { $_ -match 'Vulkan\d+ model buffer size' }).Count
     $igpu = @($report | Where-Object { $_ -match 'using device' -and $_ -match 'Intel\(R\) Graphics' }).Count
     $devs = @($report | Where-Object { $_ -match 'using device Vulkan\d+ \(' -and $_ -match 'Arc(\(TM\))? Pro B70' }).Count
-    $host = @($report | Where-Object { $_ -match 'CPU model buffer size' -and $_ -notmatch 'Vulkan_Host' }).Count
+    $cpuBuf = @($report | Where-Object { $_ -match 'CPU model buffer size' -and $_ -notmatch 'Vulkan_Host' }).Count
     $layers = ($report | Where-Object { $_ -match 'offloaded (\d+)/(\d+) layers' } | Select-Object -Last 1)
-    $script:Receipts += ("placement: B70-using-lines={0} iGPU-using-lines={1} model-buffer-lines={2} cpu-buffers={3} {4}" -f $devs, $igpu, $b70, $host, $layers)
-    Say ("placement: {0} 'using device ... B70' line(s), {1} iGPU, {2} Vulkan model-buffer line(s), {3} CPU model buffers; {4}" -f $devs, $igpu, $b70, $host, $layers)
-    return ($devs -eq 2 -and $igpu -eq 0 -and $b70 -ge 2 -and $host -eq 0)
+    $script:Receipts += ("placement: B70-using-lines={0} iGPU-using-lines={1} model-buffer-lines={2} cpu-buffers={3} {4}" -f $devs, $igpu, $b70, $cpuBuf, $layers)
+    Say ("placement: {0} 'using device ... B70' line(s), {1} iGPU, {2} Vulkan model-buffer line(s), {3} CPU model buffers; {4}" -f $devs, $igpu, $b70, $cpuBuf, $layers)
+    return ($devs -eq 2 -and $igpu -eq 0 -and $b70 -ge 2 -and $cpuBuf -eq 0)
 } "read $ServeLog from its last 'using device' line; require exactly 2 'using device VulkanN (...Arc Pro B70' lines, 0 'Intel(R) Graphics', >=2 Vulkan model-buffer lines, 0 CPU model buffers"
 if (-not $c) { Abort "placement is not dual-split B70 (ADR-0042)" }
 

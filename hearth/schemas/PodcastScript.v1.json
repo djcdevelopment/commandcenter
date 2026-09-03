@@ -1,0 +1,80 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PodcastScript.v1",
+  "description": "Versioned contract for a two-speaker podcast dialogue generated from a source document. Model output — validated before reaching any execution runtime.",
+  "type": "object",
+  "required": ["schema", "version", "title", "source_document_sha256", "speakers", "turns"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "mediagen.podcast-script.v1"
+    },
+    "version": {
+      "const": "1.0.0"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable title for the podcast episode."
+    },
+    "source_document_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 hex digest of the source document that was summarised."
+    },
+    "speakers": {
+      "type": "object",
+      "required": ["host_a", "host_b"],
+      "additionalProperties": false,
+      "properties": {
+        "host_a": {
+          "type": "object",
+          "required": ["name", "voice_id", "persona"],
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string", "default": "Alex" },
+            "voice_id": { "type": "string", "default": "af_heart" },
+            "persona": { "type": "string", "description": "One-line personality sketch for the speaker." }
+          }
+        },
+        "host_b": {
+          "type": "object",
+          "required": ["name", "voice_id", "persona"],
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string", "default": "Sam" },
+            "voice_id": { "type": "string", "default": "am_adam" },
+            "persona": { "type": "string", "description": "One-line personality sketch for the speaker." }
+          }
+        }
+      }
+    },
+    "turns": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["speaker", "text"],
+        "additionalProperties": false,
+        "properties": {
+          "speaker": {
+            "enum": ["host_a", "host_b"],
+            "description": "Which speaker delivers this turn."
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The dialogue text to be synthesised."
+          },
+          "pause_after_ms": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5000,
+            "default": 250,
+            "description": "Silence in ms inserted after this turn."
+          }
+        }
+      }
+    }
+  }
+}

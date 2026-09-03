@@ -1,0 +1,87 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MediaArtifact.v1",
+  "description": "Output metadata contract for any generated media artifact (audio, video, image). Attached to invocation receipts and used for machine-verifiable acceptance testing.",
+  "type": "object",
+  "required": ["schema", "version", "artifact_id", "media_type", "sha256"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "mediagen.media-artifact.v1"
+    },
+    "version": {
+      "const": "1.0.0"
+    },
+    "artifact_id": {
+      "type": "string",
+      "description": "Unique identifier for this artifact."
+    },
+    "media_type": {
+      "type": "string",
+      "enum": ["audio/mpeg", "audio/wav", "video/mp4", "video/webm", "image/png", "image/webp"],
+      "description": "MIME type of the generated artifact."
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 hex digest of the artifact file."
+    },
+    "duration_seconds": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Duration for audio/video artifacts. Null for images."
+    },
+    "sample_rate": {
+      "type": "integer",
+      "description": "Audio sample rate in Hz (e.g. 24000, 44100). Null for video-only or images."
+    },
+    "channels": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 8,
+      "description": "Number of audio channels. Null for video-only or images."
+    },
+    "video_width": {
+      "type": "integer",
+      "description": "Video frame width in pixels. Null for audio-only."
+    },
+    "video_height": {
+      "type": "integer",
+      "description": "Video frame height in pixels. Null for audio-only."
+    },
+    "video_fps": {
+      "type": "number",
+      "description": "Video frame rate. Null for audio-only."
+    },
+    "codec": {
+      "type": "string",
+      "description": "Primary codec name (e.g. mp3, aac, h264, av1)."
+    },
+    "file_size_bytes": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Size of the artifact file in bytes."
+    },
+    "peak_dedicated_vram_bytes": {
+      "type": "integer",
+      "description": "Peak dedicated VRAM usage during generation. Null for CPU-only tasks."
+    },
+    "peak_shared_vram_bytes": {
+      "type": "integer",
+      "description": "Peak shared (system RAM) VRAM usage during generation."
+    },
+    "generation_duration_seconds": {
+      "type": "number",
+      "description": "Wall-clock time in seconds for the generation step."
+    },
+    "trace_id": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{32}$",
+      "description": "Root OpenTelemetry trace ID linking this artifact to the AM4 Jaeger trace tree."
+    },
+    "source_contract_schema": {
+      "type": "string",
+      "description": "Schema identifier of the input contract that produced this artifact (e.g. mediagen.podcast-script.v1)."
+    }
+  }
+}

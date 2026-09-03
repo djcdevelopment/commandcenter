@@ -54,6 +54,7 @@ record with its status changed and a pointer to the ADR that replaced it.
 | [0042](0042-devices-are-selected-by-type-never-by-index.md) | Devices are selected by type, never by index | Accepted (2026-08-29); the visibility filter had been costing a whole card — removed, not corrected |
 | [0043](0043-the-rung-goes-cold-when-idle.md) | The rung goes cold when idle: keep it warm, don't restart it | Accepted (2026-08-29); >60 s idle costs ~4×, a 1-token ping every 20 s prevents it entirely — supersedes 0041's trigger |
 | [0044](0044-rate-is-not-a-scalar.md) | A rate is not a scalar: baseline epochs, and degraded states are classified | Accepted (2026-08-30); four stable levels in one night — baseline is epoch-scoped, and the restart discriminates ADR-0043 idle collapse from INC-2026-08-30-A |
+| [0045](0045-the-scheduler-plans-a-rotating-host.md) | The scheduler plans a rotating host: OMEN is a stateful Machine, llama-swap owns its lifecycle, and every number comes from a receipt | Accepted (2026-09-03); catalog, rotation substrate, `omen-swap` rung, rung state, task families landed; production cutover scripted but NOT executed (blocked by the imagegen tenancy); `rotation_plan` in progress; tenancy owner OPEN |
 
 ## Historical note
 The "ADR-0001" referenced in `SESSION-RETRO-2026-06-29.md` (which orchestrator is

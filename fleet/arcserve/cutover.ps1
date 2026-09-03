@@ -34,7 +34,7 @@ $script:Receipts = @()
 $script:Preflight = @()
 
 function Say([string]$m) { Write-Host ("[{0}] {1}" -f (Get-Date).ToString("HH:mm:ss"), $m) }
-function Mode() { if ($DryRun) { return "DRY-RUN" } else { return "LIVE" } }
+function Get-Mode { if ($DryRun) { return "DRY-RUN" } else { return "LIVE" } }
 function Plan([string]$label, [scriptblock]$action, [string]$describe) {
     if ($DryRun) { Say ("DRY-RUN {0}: would run -> {1}" -f $label, $describe); return $true }
     Say ("LIVE {0}: {1}" -f $label, $describe)
@@ -96,7 +96,7 @@ function Newest-KeepAliveRow() {
 }
 function Append-Window([string]$event, [string]$status, [hashtable]$extra) {
     $row = [ordered]@{ ts = (Get-Date).ToString("o"); event = $event; name = $Window; reason = $Reason;
-                       ports = @(8081, 8082); models = @("qwen3-30b-a3b"); status = $status; mode = (Mode()) }
+                       ports = @(8081, 8082); models = @("qwen3-30b-a3b"); status = $status; mode = (Get-Mode) }
     foreach ($k in $extra.Keys) { $row[$k] = $extra[$k] }
     $json = ($row | ConvertTo-Json -Compress -Depth 6)
     if ($DryRun) { Say ("DRY-RUN would append to rotation-windows.jsonl: {0}" -f $json); return }
@@ -123,7 +123,7 @@ function Rollback([string]$why) {
 }
 function Abort([string]$why) { Say ("ABORT: {0}" -f $why); Rollback $why; exit 1 }
 
-Say ("cutover ceremony {0} -- window {1}" -f (Mode()), $Window)
+Say ("cutover ceremony {0} -- window {1}" -f (Get-Mode), $Window)
 
 # ---------------------------------------------------------------- pre-flight (read-only, both modes)
 $verdict = ""
@@ -149,6 +149,9 @@ if ($yamlOk) { $leak = Get-Content $Yaml | Where-Object { $_ -notmatch '^\s*#' }
 Check "omen.yaml present and free of key literals" ($yamlOk -and $leak.Count -eq 0) ("present={0} leaks={1}" -f $yamlOk, $leak.Count)
 Check "llama-swap binary present" (Test-Path $SwapExe) $SwapExe
 Check "serve-arc-direct.cmd (rollback) present" (Test-Path $ServeDirect) $ServeDirect
+Check "serve-arc-swap.cmd (the new launcher, parked) present" (Test-Path $ServeSwap) $ServeSwap
+$liveIsDirect = ((Get-Content $ServeArc -Raw) -notmatch "llama-swap")
+Check "serve-arc.cmd is still the pre-cutover launcher" $liveIsDirect ("mentions llama-swap={0}" -f (-not $liveIsDirect))
 Check ":8081 free" (-not (Test-Listen 8081)) ("listening={0}" -f (Test-Listen 8081))
 Check ":8082 listening (incumbent)" (Test-Listen 8082) ("listening={0}" -f (Test-Listen 8082))
 $bearer = Get-Bearer
@@ -175,7 +178,8 @@ $a = Plan "A stop incumbent" {
 if (-not $a) { Abort "incumbent did not stop" }
 
 # Step B: start the new shape and wait for real readiness (health + a completion with timings).
-$b = Plan "B start llama-swap via ArcServeBoot" {
+$b = Plan "B install the llama-swap launcher and start it via ArcServeBoot" {
+    Copy-Item -Force $ServeSwap $ServeArc
     schtasks /Run /TN ArcServeBoot | Out-Null
     if (-not (Wait-Until { (Get-Http "$Swap/health" 5).status -eq 200 } 60 "llama-swap /health on :8081")) { return $false }
     if (-not (Wait-Until { (Get-Http "$Prod/health" 5).status -eq 200 } 240 "production /health on :8082 (preload; first-in-window 19-27 s expected)")) { return $false }
@@ -185,7 +189,7 @@ $b = Plan "B start llama-swap via ArcServeBoot" {
         ($r.ok -and $r.text -match '"timings"')
     } 120 "a real 1-token completion with a timings block"
     return $ready
-} "schtasks /Run /TN ArcServeBoot; wait $Swap/health 200 (60 s); wait $Prod/health 200 (240 s); POST $Prod/completion 1 token with bearer until timings present (120 s)"
+} "Copy-Item serve-arc-swap.cmd -> serve-arc.cmd; schtasks /Run /TN ArcServeBoot; wait $Swap/health 200 (60 s); wait $Prod/health 200 (240 s); POST $Prod/completion 1 token with bearer until timings present (120 s)"
 if (-not $b) { Abort "new shape not ready" }
 
 # Step C: placement assertion from the -lv 5 load report via llama-swap /logs (ADR-0042).
@@ -241,5 +245,5 @@ Plan "G stamp epoch boundary" {
 } "set epoch_boundaries[-1].ts in $Baselines (baseline 106.0 untouched)" | Out-Null
 
 Append-Window "window.close" "done" @{ receipts = $script:Receipts; elapsed_s = [math]::Round(((Get-Date) - $script:Started).TotalSeconds, 0) }
-Say ("cutover {0} complete. Door proof (local_generate backend=omen-arc) is the operator's next line; llama-swap :8081 now fronts the side seats (omen-swap rung)." -f (Mode()))
+Say ("cutover {0} complete. Door proof (local_generate backend=omen-arc) is the operator's next line; llama-swap :8081 now fronts the side seats (omen-swap rung)." -f (Get-Mode))
 exit 0

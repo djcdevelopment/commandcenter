@@ -1,7 +1,7 @@
 {
   "contract_version": "capacity.v1",
-  "evidence_watermark": "2026-08-29T21:53:03.134228Z",
-  "bucket_count": 118,
+  "evidence_watermark": "2026-09-03T18:42:49.871656Z",
+  "bucket_count": 136,
   "buckets": [
     {
       "task_class": null,
@@ -34,9 +34,9 @@
       "calls": 113,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 13,
-      "ok_rate_7d": 1.0,
-      "calls_30d": 113,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
+      "calls_30d": 13,
       "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 1.325,
@@ -56,9 +56,9 @@
       "calls": 34,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 6,
-      "ok_rate_7d": 1.0,
-      "calls_30d": 34,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
+      "calls_30d": 6,
       "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 8.452,
@@ -75,21 +75,21 @@
       "runner_class": "local",
       "model": null,
       "tool": "kernel_status",
-      "calls": 21785,
+      "calls": 27333,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 6811,
+      "calls_7d": 7441,
       "ok_rate_7d": 1.0,
-      "calls_30d": 21785,
+      "calls_30d": 23616,
       "ok_rate_30d": 1.0,
       "duration_ms": {
-        "p50": 651.9,
-        "p90": 1098.946,
-        "mean": 850.7062,
+        "p50": 756.311,
+        "p90": 1368.261,
+        "mean": 1023.6398,
         "max": 462921.583
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-08-29T21:51:25.938852Z"
+      "last_seen": "2026-09-03T18:40:50.497144Z"
     },
     {
       "task_class": null,
@@ -97,21 +97,21 @@
       "runner_class": "local",
       "model": null,
       "tool": "list_execution_providers",
-      "calls": 21788,
+      "calls": 27337,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 6811,
+      "calls_7d": 7442,
       "ok_rate_7d": 1.0,
-      "calls_30d": 21788,
+      "calls_30d": 23619,
       "ok_rate_30d": 1.0,
       "duration_ms": {
-        "p50": 1.003,
-        "p90": 1.324,
-        "mean": 1.2564,
+        "p50": 1.076,
+        "p90": 1.409,
+        "mean": 1.3027,
         "max": 3207.305
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-08-29T21:51:24.871068Z"
+      "last_seen": "2026-09-03T18:40:48.626426Z"
     },
     {
       "task_class": null,
@@ -119,21 +119,21 @@
       "runner_class": "local",
       "model": null,
       "tool": "list_operations",
-      "calls": 21790,
+      "calls": 27339,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 6812,
+      "calls_7d": 7442,
       "ok_rate_7d": 1.0,
-      "calls_30d": 21790,
+      "calls_30d": 23620,
       "ok_rate_30d": 1.0,
       "duration_ms": {
-        "p50": 0.067,
-        "p90": 0.086,
-        "mean": 0.4725,
+        "p50": 0.066,
+        "p90": 0.085,
+        "mean": 0.3932,
         "max": 8112.95
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-08-29T21:51:24.843444Z"
+      "last_seen": "2026-09-03T18:40:48.591620Z"
     },
     {
       "task_class": null,
@@ -141,21 +141,21 @@
       "runner_class": "local",
       "model": null,
       "tool": "list_owned_executions",
-      "calls": 21775,
+      "calls": 27323,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 6811,
+      "calls_7d": 7441,
       "ok_rate_7d": 1.0,
-      "calls_30d": 21775,
+      "calls_30d": 23612,
       "ok_rate_30d": 1.0,
       "duration_ms": {
-        "p50": 4.459,
-        "p90": 11.189,
-        "mean": 7.3712,
+        "p50": 4.816,
+        "p90": 15.78,
+        "mean": 10.4654,
         "max": 3202.057
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-08-29T21:51:25.980439Z"
+      "last_seen": "2026-09-03T18:40:50.572697Z"
     },
     {
       "task_class": null,
@@ -166,9 +166,9 @@
       "calls": 33,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 5,
-      "ok_rate_7d": 1.0,
-      "calls_30d": 33,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
+      "calls_30d": 5,
       "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 1.48,
@@ -188,9 +188,9 @@
       "calls": 35,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 6,
-      "ok_rate_7d": 1.0,
-      "calls_30d": 35,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
+      "calls_30d": 6,
       "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 66.256,
@@ -210,9 +210,9 @@
       "calls": 113,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 13,
-      "ok_rate_7d": 1.0,
-      "calls_30d": 113,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
+      "calls_30d": 13,
       "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 44.087,
@@ -244,6 +244,72 @@
       },
       "tokens_out_per_s_p50": null,
       "last_seen": "2026-07-21T19:47:29.272069Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
+      "tool": "cancel_execution",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 1,
+      "ok_rate_7d": 1.0,
+      "calls_30d": 1,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 16.364,
+        "p90": 16.364,
+        "mean": 16.364,
+        "max": 16.364
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-09-03T18:07:23.538929Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
+      "tool": "cancel_image",
+      "calls": 1,
+      "ok_rate": 0.0,
+      "indeterminate": 0,
+      "calls_7d": 1,
+      "ok_rate_7d": 0.0,
+      "calls_30d": 1,
+      "ok_rate_30d": 0.0,
+      "duration_ms": {
+        "p50": null,
+        "p90": null,
+        "mean": null,
+        "max": null
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-09-03T18:07:15.421704Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
+      "tool": "cancel_media",
+      "calls": 2,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 2,
+      "ok_rate_7d": 1.0,
+      "calls_30d": 2,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 15.072,
+        "p90": 17.233,
+        "mean": 16.1525,
+        "max": 17.233
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-09-03T18:19:16.859956Z"
     },
     {
       "task_class": null,
@@ -338,12 +404,100 @@
       "node": "omen",
       "runner_class": "frontier",
       "model": null,
+      "tool": "get_execution",
+      "calls": 27,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 27,
+      "ok_rate_7d": 1.0,
+      "calls_30d": 27,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 1.309,
+        "p90": 1.383,
+        "mean": 1.3137,
+        "max": 1.614
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-09-03T18:09:16.386928Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
+      "tool": "get_image_session",
+      "calls": 304,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 304,
+      "ok_rate_7d": 1.0,
+      "calls_30d": 304,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 3.392,
+        "p90": 4.469,
+        "mean": 3.473,
+        "max": 7.118
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-09-03T18:42:14.195563Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
+      "tool": "get_image_status",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 1,
+      "ok_rate_7d": 1.0,
+      "calls_30d": 1,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 1.663,
+        "p90": 1.663,
+        "mean": 1.663,
+        "max": 1.663
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-09-03T18:07:08.690023Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
+      "tool": "get_media_status",
+      "calls": 123,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 123,
+      "ok_rate_7d": 1.0,
+      "calls_30d": 123,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 1.008,
+        "p90": 1.821,
+        "mean": 1.2515,
+        "max": 7.947
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-09-03T18:42:49.871656Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
       "tool": "get_render_status",
       "calls": 7,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 7,
-      "ok_rate_7d": 1.0,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
       "calls_30d": 7,
       "ok_rate_30d": 1.0,
       "duration_ms": {
@@ -449,21 +603,21 @@
       "runner_class": "frontier",
       "model": null,
       "tool": "kernel_status",
-      "calls": 18,
+      "calls": 19,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 2,
+      "calls_7d": 3,
       "ok_rate_7d": 1.0,
-      "calls_30d": 2,
+      "calls_30d": 3,
       "ok_rate_30d": 1.0,
       "duration_ms": {
-        "p50": 38.591,
-        "p90": 493.315,
-        "mean": 197.2864,
-        "max": 1024.403
+        "p50": 102.066,
+        "p90": 951.076,
+        "mean": 259.9231,
+        "max": 1387.383
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-08-29T21:30:42.953098Z"
+      "last_seen": "2026-09-03T08:30:15.737310Z"
     },
     {
       "task_class": null,
@@ -515,21 +669,21 @@
       "runner_class": "frontier",
       "model": null,
       "tool": "list_execution_providers",
-      "calls": 7,
+      "calls": 8,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 6,
+      "calls_7d": 1,
       "ok_rate_7d": 1.0,
-      "calls_30d": 7,
+      "calls_30d": 8,
       "ok_rate_30d": 1.0,
       "duration_ms": {
-        "p50": 1.104,
-        "p90": 1.339,
-        "mean": 2.6949,
+        "p50": 1.266,
+        "p90": 1.391,
+        "mean": 2.5319,
         "max": 11.998
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-08-25T04:24:48.472873Z"
+      "last_seen": "2026-09-03T08:30:15.757796Z"
     },
     {
       "task_class": null,
@@ -558,12 +712,34 @@
       "node": "omen",
       "runner_class": "frontier",
       "model": null,
+      "tool": "list_image_workflows",
+      "calls": 2,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 2,
+      "ok_rate_7d": 1.0,
+      "calls_30d": 2,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 0.602,
+        "p90": 0.697,
+        "mean": 0.6495,
+        "max": 0.697
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-09-03T18:36:32.271738Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
       "tool": "list_operations",
       "calls": 3,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 3,
-      "ok_rate_7d": 1.0,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
       "calls_30d": 3,
       "ok_rate_30d": 1.0,
       "duration_ms": {
@@ -584,7 +760,7 @@
       "calls": 10,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 10,
+      "calls_7d": 2,
       "ok_rate_7d": 1.0,
       "calls_30d": 10,
       "ok_rate_30d": 1.0,
@@ -628,8 +804,8 @@
       "calls": 3,
       "ok_rate": 0.6667,
       "indeterminate": 0,
-      "calls_7d": 1,
-      "ok_rate_7d": 1.0,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
       "calls_30d": 3,
       "ok_rate_30d": 0.6667,
       "duration_ms": {
@@ -672,8 +848,8 @@
       "calls": 5,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 1,
-      "ok_rate_7d": 1.0,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
       "calls_30d": 1,
       "ok_rate_30d": 1.0,
       "duration_ms": {
@@ -760,7 +936,7 @@
       "calls": 14,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 3,
+      "calls_7d": 2,
       "ok_rate_7d": 1.0,
       "calls_30d": 9,
       "ok_rate_30d": 1.0,
@@ -823,21 +999,21 @@
       "runner_class": "frontier",
       "model": null,
       "tool": "record_event",
-      "calls": 35,
-      "ok_rate": 0.8857,
+      "calls": 36,
+      "ok_rate": 0.8889,
       "indeterminate": 0,
-      "calls_7d": 5,
+      "calls_7d": 4,
       "ok_rate_7d": 1.0,
       "calls_30d": 9,
       "ok_rate_30d": 1.0,
       "duration_ms": {
-        "p50": 10.255,
-        "p90": 16.387,
-        "mean": 10.8767,
-        "max": 22.628
+        "p50": 10.309,
+        "p90": 16.812,
+        "mean": 11.4703,
+        "max": 29.872
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-08-29T20:43:36.947406Z"
+      "last_seen": "2026-08-30T09:26:50.215119Z"
     },
     {
       "task_class": null,
@@ -910,12 +1086,56 @@
       "node": "omen",
       "runner_class": "frontier",
       "model": null,
+      "tool": "stop_image_session",
+      "calls": 4,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 4,
+      "ok_rate_7d": 1.0,
+      "calls_30d": 4,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 5.064,
+        "p90": 5.341,
+        "mean": 4.6795,
+        "max": 5.341
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-09-03T18:40:50.523892Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
+      "tool": "submit_media_pipeline",
+      "calls": 2,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 2,
+      "ok_rate_7d": 1.0,
+      "calls_30d": 2,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 42.738,
+        "p90": 74.808,
+        "mean": 58.773,
+        "max": 74.808
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-09-03T18:42:39.254418Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
       "tool": "submit_render",
       "calls": 17,
       "ok_rate": 0.8235,
       "indeterminate": 0,
-      "calls_7d": 17,
-      "ok_rate_7d": 0.8235,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
       "calls_30d": 17,
       "ok_rate_30d": 0.8235,
       "duration_ms": {
@@ -948,6 +1168,28 @@
       },
       "tokens_out_per_s_p50": null,
       "last_seen": "2026-07-04T12:15:48.705502Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "frontier",
+      "model": null,
+      "tool": "submit_video_animation",
+      "calls": 5,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 5,
+      "ok_rate_7d": 1.0,
+      "calls_30d": 5,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 76.221,
+        "p90": 87.882,
+        "mean": 76.7146,
+        "max": 87.882
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-09-03T18:23:05.371212Z"
     },
     {
       "task_class": null,
@@ -1021,12 +1263,12 @@
       "runner_class": "human",
       "model": null,
       "tool": "__auth__",
-      "calls": 5,
+      "calls": 7,
       "ok_rate": 0.0,
       "indeterminate": 0,
-      "calls_7d": 5,
+      "calls_7d": 2,
       "ok_rate_7d": 0.0,
-      "calls_30d": 5,
+      "calls_30d": 7,
       "ok_rate_30d": 0.0,
       "duration_ms": {
         "p50": null,
@@ -1035,7 +1277,7 @@
         "max": null
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-08-24T13:46:35.004896Z"
+      "last_seen": "2026-09-03T18:20:28.085361Z"
     },
     {
       "task_class": null,
@@ -1048,7 +1290,7 @@
       "indeterminate": 593,
       "calls_7d": 2,
       "ok_rate_7d": 1.0,
-      "calls_30d": 773,
+      "calls_30d": 536,
       "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 0.0,
@@ -1087,21 +1329,21 @@
       "runner_class": "human",
       "model": null,
       "tool": "kernel_status",
-      "calls": 16813,
+      "calls": 19153,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 3395,
+      "calls_7d": 3394,
       "ok_rate_7d": 1.0,
-      "calls_30d": 12033,
+      "calls_30d": 12032,
       "ok_rate_30d": 1.0,
       "duration_ms": {
-        "p50": 455.868,
-        "p90": 1045.197,
-        "mean": 789.7108,
+        "p50": 541.018,
+        "p90": 1296.396,
+        "mean": 910.5216,
         "max": 725107.879
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-08-29T21:53:03.134228Z"
+      "last_seen": "2026-09-03T18:41:04.011670Z"
     },
     {
       "task_class": null,
@@ -1131,13 +1373,13 @@
       "runner_class": "human",
       "model": null,
       "tool": "mechnet_watchdog.hindsight",
-      "calls": 3356,
-      "ok_rate": 0.8433,
+      "calls": 3831,
+      "ok_rate": 0.8627,
       "indeterminate": 0,
-      "calls_7d": 166,
+      "calls_7d": 641,
       "ok_rate_7d": 1.0,
-      "calls_30d": 1689,
-      "ok_rate_30d": 0.6927,
+      "calls_30d": 1694,
+      "ok_rate_30d": 0.9221,
       "duration_ms": {
         "p50": 0.0,
         "p90": 0.0,
@@ -1145,7 +1387,7 @@
         "max": 0.0
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-08-29T21:49:11.217310Z"
+      "last_seen": "2026-09-03T18:38:59.790713Z"
     },
     {
       "task_class": null,
@@ -1153,13 +1395,13 @@
       "runner_class": "human",
       "model": null,
       "tool": "mechnet_watchdog.patrol_snapshot",
-      "calls": 11822,
-      "ok_rate": 0.8315,
+      "calls": 13230,
+      "ok_rate": 0.8494,
       "indeterminate": 0,
-      "calls_7d": 489,
+      "calls_7d": 1897,
       "ok_rate_7d": 1.0,
-      "calls_30d": 5053,
-      "ok_rate_30d": 0.6909,
+      "calls_30d": 5057,
+      "ok_rate_30d": 0.9205,
       "duration_ms": {
         "p50": 0.0,
         "p90": 0.0,
@@ -1167,7 +1409,7 @@
         "max": 0.0
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-08-29T21:48:53.322534Z"
+      "last_seen": "2026-09-03T18:42:40.700120Z"
     },
     {
       "task_class": null,
@@ -1175,12 +1417,12 @@
       "runner_class": "human",
       "model": null,
       "tool": "mechnet_watchdog.patrol_trend",
-      "calls": 3970,
+      "calls": 4445,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 166,
+      "calls_7d": 641,
       "ok_rate_7d": 1.0,
-      "calls_30d": 1698,
+      "calls_30d": 1703,
       "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 0.0,
@@ -1189,7 +1431,7 @@
         "max": 0.0
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-08-29T21:49:10.723556Z"
+      "last_seen": "2026-09-03T18:38:59.049960Z"
     },
     {
       "task_class": null,
@@ -1218,14 +1460,14 @@
       "node": "omen",
       "runner_class": "human",
       "model": null,
-      "tool": "mechnet_watchdog.watchfire",
-      "calls": 3989,
-      "ok_rate": 0.8313,
+      "tool": "mechnet_watchdog.rung_state",
+      "calls": 18,
+      "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 166,
+      "calls_7d": 18,
       "ok_rate_7d": 1.0,
-      "calls_30d": 1698,
-      "ok_rate_30d": 0.6902,
+      "calls_30d": 18,
+      "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 0.0,
         "p90": 0.0,
@@ -1233,7 +1475,29 @@
         "max": 0.0
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-08-29T21:49:10.657499Z"
+      "last_seen": "2026-09-03T18:38:59.809945Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "human",
+      "model": null,
+      "tool": "mechnet_watchdog.watchfire",
+      "calls": 4464,
+      "ok_rate": 0.8492,
+      "indeterminate": 0,
+      "calls_7d": 641,
+      "ok_rate_7d": 1.0,
+      "calls_30d": 1703,
+      "ok_rate_30d": 0.9184,
+      "duration_ms": {
+        "p50": 0.0,
+        "p90": 0.0,
+        "mean": 0.0,
+        "max": 0.0
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-09-03T18:38:58.951810Z"
     },
     {
       "task_class": null,
@@ -1310,8 +1574,8 @@
       "calls": 1,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 1,
-      "ok_rate_7d": 1.0,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
       "calls_30d": 1,
       "ok_rate_30d": 1.0,
       "duration_ms": {
@@ -1328,11 +1592,55 @@
       "node": "omen",
       "runner_class": "local",
       "model": null,
+      "tool": "get_image_session",
+      "calls": 84,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 84,
+      "ok_rate_7d": 1.0,
+      "calls_30d": 84,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 2.741,
+        "p90": 4.084,
+        "mean": 3.1449,
+        "max": 7.309
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-09-03T18:42:14.438310Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "local",
+      "model": null,
+      "tool": "get_image_status",
+      "calls": 279,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 279,
+      "ok_rate_7d": 1.0,
+      "calls_30d": 279,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 1.662,
+        "p90": 2.567,
+        "mean": 1.9087,
+        "max": 22.409
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-09-03T18:38:37.693810Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "local",
+      "model": null,
       "tool": "get_render_status",
       "calls": 11969,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 11969,
+      "calls_7d": 5591,
       "ok_rate_7d": 1.0,
       "calls_30d": 11969,
       "ok_rate_30d": 1.0,
@@ -1394,6 +1702,28 @@
       "node": "omen",
       "runner_class": "local",
       "model": null,
+      "tool": "list_image_workflows",
+      "calls": 8,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 8,
+      "ok_rate_7d": 1.0,
+      "calls_30d": 8,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 0.53,
+        "p90": 0.741,
+        "mean": 0.5606,
+        "max": 0.752
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-09-03T18:40:33.921967Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "local",
+      "model": null,
       "tool": "read_file",
       "calls": 1,
       "ok_rate": 1.0,
@@ -1416,11 +1746,77 @@
       "node": "omen",
       "runner_class": "local",
       "model": null,
+      "tool": "start_image_session",
+      "calls": 2,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 2,
+      "ok_rate_7d": 1.0,
+      "calls_30d": 2,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 3.156,
+        "p90": 5826.213,
+        "mean": 2914.6845,
+        "max": 5826.213
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-09-03T18:37:03.848511Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "local",
+      "model": null,
+      "tool": "stop_image_session",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 1,
+      "ok_rate_7d": 1.0,
+      "calls_30d": 1,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 6.373,
+        "p90": 6.373,
+        "mean": 6.373,
+        "max": 6.373
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-09-03T18:40:45.999079Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "local",
+      "model": null,
+      "tool": "submit_image",
+      "calls": 4,
+      "ok_rate": 1.0,
+      "indeterminate": 0,
+      "calls_7d": 4,
+      "ok_rate_7d": 1.0,
+      "calls_30d": 4,
+      "ok_rate_30d": 1.0,
+      "duration_ms": {
+        "p50": 69.047,
+        "p90": 69.829,
+        "mean": 66.4355,
+        "max": 69.829
+      },
+      "tokens_out_per_s_p50": null,
+      "last_seen": "2026-09-03T18:37:54.531048Z"
+    },
+    {
+      "task_class": null,
+      "node": "omen",
+      "runner_class": "local",
+      "model": null,
       "tool": "submit_render",
       "calls": 94,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 94,
+      "calls_7d": 49,
       "ok_rate_7d": 1.0,
       "calls_30d": 94,
       "ok_rate_30d": 1.0,
@@ -1464,8 +1860,8 @@
       "calls": 1,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 1,
-      "ok_rate_7d": 1.0,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
       "calls_30d": 1,
       "ok_rate_30d": 1.0,
       "duration_ms": {
@@ -1769,21 +2165,21 @@
       "runner_class": "frontier",
       "model": null,
       "tool": "local_generate",
-      "calls": 72,
-      "ok_rate": 0.9167,
+      "calls": 101,
+      "ok_rate": 0.9406,
       "indeterminate": 0,
-      "calls_7d": 25,
+      "calls_7d": 46,
       "ok_rate_7d": 1.0,
-      "calls_30d": 65,
-      "ok_rate_30d": 0.9846,
+      "calls_30d": 78,
+      "ok_rate_30d": 1.0,
       "duration_ms": {
-        "p50": 24903.899,
-        "p90": 70052.535,
-        "mean": 30970.6359,
+        "p50": 13109.749,
+        "p90": 48380.382,
+        "mean": 22458.752,
         "max": 218391.108
       },
-      "tokens_out_per_s_p50": 15.443226541441899,
-      "last_seen": "2026-08-29T20:38:54.691356Z"
+      "tokens_out_per_s_p50": 42.19077628716545,
+      "last_seen": "2026-08-30T09:24:22.331094Z"
     },
     {
       "task_class": "inference",
@@ -1862,8 +2258,8 @@
       "indeterminate": 0,
       "calls_7d": 0,
       "ok_rate_7d": null,
-      "calls_30d": 1,
-      "ok_rate_30d": 1.0,
+      "calls_30d": 0,
+      "ok_rate_30d": null,
       "duration_ms": {
         "p50": 4226.056,
         "p90": 15163.791,
@@ -2036,8 +2432,8 @@
       "calls": 4,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 4,
-      "ok_rate_7d": 1.0,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
       "calls_30d": 4,
       "ok_rate_30d": 1.0,
       "duration_ms": {
@@ -2234,8 +2630,8 @@
       "calls": 1,
       "ok_rate": 0.0,
       "indeterminate": 0,
-      "calls_7d": 1,
-      "ok_rate_7d": 0.0,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
       "calls_30d": 1,
       "ok_rate_30d": 0.0,
       "duration_ms": {
@@ -2322,9 +2718,9 @@
       "calls": 6,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 1,
-      "ok_rate_7d": 1.0,
-      "calls_30d": 2,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
+      "calls_30d": 1,
       "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 1.24,
@@ -2344,9 +2740,9 @@
       "calls": 10,
       "ok_rate": 1.0,
       "indeterminate": 0,
-      "calls_7d": 2,
+      "calls_7d": 1,
       "ok_rate_7d": 1.0,
-      "calls_30d": 3,
+      "calls_30d": 2,
       "ok_rate_30d": 1.0,
       "duration_ms": {
         "p50": 1.472,
@@ -2385,21 +2781,21 @@
       "runner_class": "frontier",
       "model": null,
       "tool": "query_offload",
-      "calls": 18,
+      "calls": 19,
       "ok_rate": 1.0,
       "indeterminate": 0,
       "calls_7d": 4,
       "ok_rate_7d": 1.0,
-      "calls_30d": 4,
+      "calls_30d": 5,
       "ok_rate_30d": 1.0,
       "duration_ms": {
-        "p50": 1.039,
-        "p90": 1.464,
-        "mean": 1.2595,
+        "p50": 1.08,
+        "p90": 2.023,
+        "mean": 1.3218,
         "max": 2.95
       },
       "tokens_out_per_s_p50": null,
-      "last_seen": "2026-08-29T20:39:13.295972Z"
+      "last_seen": "2026-08-30T09:26:20.091669Z"
     },
     {
       "task_class": "research",
@@ -2586,8 +2982,8 @@
       "calls": 1,
       "ok_rate": 0.0,
       "indeterminate": 0,
-      "calls_7d": 1,
-      "ok_rate_7d": 0.0,
+      "calls_7d": 0,
+      "ok_rate_7d": null,
       "calls_30d": 1,
       "ok_rate_30d": 0.0,
       "duration_ms": {
@@ -2600,6 +2996,6 @@
       "last_seen": "2026-08-24T13:46:36.048240Z"
     }
   ],
-  "corpus_digest": "sha256:b0a5b12fb1628ad7fd4f638cb0496d462b6dc4760c09f88b50279caad4c19a74",
-  "corpus_event_count": 144211
+  "corpus_digest": "sha256:7120a745a8465aaa905bf8dfb3486b4074282b80e4563d58fab3f3c4bb69fc35",
+  "corpus_event_count": 172481
 }

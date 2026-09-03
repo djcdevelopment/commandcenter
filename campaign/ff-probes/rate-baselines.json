@@ -1,48 +1,48 @@
-{
-  "contract_version": "ff-rate-baselines.v1",
-  "note": "Known-good serving rates per rung. A rung below 80% of baseline is degraded, not noisy -- 0.80 is chosen to catch the ~22% loss serve-arc.cmd attributes to a partial VRAM spill, the quietest real degradation this box produces. Re-baseline ONLY after verifying the rung by other means (placement via ff_census.py, then a deliberate A/B), and ONLY on a server that is FRESH AFTER RESTART (ADR-0041): a burst measurement is valid on a fresh server and meaningless on a poisoned one.  ||  2026-08-30: a baseline is an EPOCH-SCOPED REFERENCE, not demonstrated invariant machine capacity. At least four stable levels have been observed on this rung (106 / 97 / 65 / 27.5). Health is therefore reported as BASELINE EPOCH + OBSERVED RATE + ACCEPTANCE ENVELOPE. ** Do NOT re-baseline merely because a new stable level appears ** -- that would silently redefine capacity to whatever the machine is currently doing and make the gate unfalsifiable. Re-baseline only after verifying the rung by other means.",
-  "rungs": {
-    "omen-arc": {
-      "port": 8082,
-      "auth_env": "OMEN_ARC_TOKEN",
-      "n_predict": 100,
-      "config": "knee build e85caa8, -ngl 99 -sm layer -ts 1,1 -fa on --no-mmap -dio -fit off -c 131072 -np 2 (ub default 512)",
-      "baseline_decode_tok_s": 106.0,
-      "baseline_set": "2026-08-29T18:22:39-07:00",
-      "baseline_note": "P-B canonical. Verified clean: restarted, placement asserted DUAL-SPLIT by b70tools BDF (14.52/15.44 GB, temps 52/50) inside the ratecheck activity window. Corroborates Derek's chosen 104.86 within ~1%.",
-      "baseline_epoch": "2026-08-29T18:22 incumbent epoch, dual-split asserted by b70tools BDF. EPOCH-SCOPED IS NOT EPOCH-HOMOGENEOUS: this labels the reference CONTRACT, not a guarantee that the machine was stationary within it -- multiple stable regimes have occurred inside a single epoch. Two readings sharing an epoch are NOT thereby comparable.",
-      "acceptance_envelope": {
-        "fail_below_frac": 0.8,
-        "warn_below_frac": 0.9,
-        "meaning": "fraction of THIS baseline's rate, not of machine capacity"
-      },
-      "observed_stable_levels": [
-        {
-          "tok_s": 106.0,
-          "note": "the baseline epoch"
-        },
-        {
-          "tok_s": 97.0,
-          "note": "2026-08-30 ~01:05 onward; both -ub settings"
-        },
-        {
-          "tok_s": 65.0,
-          "note": "INC-2026-08-30-A; survived a restart, cleared spontaneously"
-        },
-        {
-          "tok_s": 27.5,
-          "note": "ADR-0043 idle-collapse plateau; cleared by restart"
-        }
-      ],
-      "observed_stable_levels_note": "OBSERVED REGIMES, not established mechanisms. Nothing yet shows these are discrete states rather than samples from a continuous process. Do not add thresholds or state names beyond the behavioural restart discriminator (docs/adr#0044)."
-    }
-  },
-  "epoch_boundaries": [
-    {
-      "ts": "2026-09-03T12:35:29-07:00",
-      "reason": "ArcServeBoot -> llama-swap cutover (Derek 2026-09-03, ADR-0045 / plan P13); ts filled by cutover.ps1 -Live",
-      "baseline_preserved": true,
-      "note": "ADR-0044: a boundary, not a re-baseline. baseline_decode_tok_s stays 106.0 and the envelope is still a fraction of THAT baseline; readings across this boundary are two epochs, not one. || 2026-09-03 12:35:29: FIRST ATTEMPT ABORTED at the placement assertion (a parser false alarm: llama-swap /logs is a 10 KB tail) and ROLLED BACK to the direct launcher within 36 s -- but the incumbent epoch (pid 20416, resident since 2026-08-30 07:40Z) ENDED here regardless; production now runs a new epoch on the direct launcher (pid 4340). Readings across this timestamp are two epochs."
-    }
-  ]
+﻿{
+    "contract_version":  "ff-rate-baselines.v1",
+    "note":  "Known-good serving rates per rung. A rung below 80% of baseline is degraded, not noisy -- 0.80 is chosen to catch the ~22% loss serve-arc.cmd attributes to a partial VRAM spill, the quietest real degradation this box produces. Re-baseline ONLY after verifying the rung by other means (placement via ff_census.py, then a deliberate A/B), and ONLY on a server that is FRESH AFTER RESTART (ADR-0041): a burst measurement is valid on a fresh server and meaningless on a poisoned one.  ||  2026-08-30: a baseline is an EPOCH-SCOPED REFERENCE, not demonstrated invariant machine capacity. At least four stable levels have been observed on this rung (106 / 97 / 65 / 27.5). Health is therefore reported as BASELINE EPOCH + OBSERVED RATE + ACCEPTANCE ENVELOPE. ** Do NOT re-baseline merely because a new stable level appears ** -- that would silently redefine capacity to whatever the machine is currently doing and make the gate unfalsifiable. Re-baseline only after verifying the rung by other means.",
+    "rungs":  {
+                  "omen-arc":  {
+                                   "port":  8082,
+                                   "auth_env":  "OMEN_ARC_TOKEN",
+                                   "n_predict":  100,
+                                   "config":  "knee build e85caa8, -ngl 99 -sm layer -ts 1,1 -fa on --no-mmap -dio -fit off -c 131072 -np 2 (ub default 512)",
+                                   "baseline_decode_tok_s":  106.0,
+                                   "baseline_set":  "2026-08-29T18:22:39-07:00",
+                                   "baseline_note":  "P-B canonical. Verified clean: restarted, placement asserted DUAL-SPLIT by b70tools BDF (14.52/15.44 GB, temps 52/50) inside the ratecheck activity window. Corroborates Derek\u0027s chosen 104.86 within ~1%.",
+                                   "baseline_epoch":  "2026-08-29T18:22 incumbent epoch, dual-split asserted by b70tools BDF. EPOCH-SCOPED IS NOT EPOCH-HOMOGENEOUS: this labels the reference CONTRACT, not a guarantee that the machine was stationary within it -- multiple stable regimes have occurred inside a single epoch. Two readings sharing an epoch are NOT thereby comparable.",
+                                   "acceptance_envelope":  {
+                                                               "fail_below_frac":  0.8,
+                                                               "warn_below_frac":  0.9,
+                                                               "meaning":  "fraction of THIS baseline\u0027s rate, not of machine capacity"
+                                                           },
+                                   "observed_stable_levels":  [
+                                                                  {
+                                                                      "tok_s":  106.0,
+                                                                      "note":  "the baseline epoch"
+                                                                  },
+                                                                  {
+                                                                      "tok_s":  97.0,
+                                                                      "note":  "2026-08-30 ~01:05 onward; both -ub settings"
+                                                                  },
+                                                                  {
+                                                                      "tok_s":  65.0,
+                                                                      "note":  "INC-2026-08-30-A; survived a restart, cleared spontaneously"
+                                                                  },
+                                                                  {
+                                                                      "tok_s":  27.5,
+                                                                      "note":  "ADR-0043 idle-collapse plateau; cleared by restart"
+                                                                  }
+                                                              ],
+                                   "observed_stable_levels_note":  "OBSERVED REGIMES, not established mechanisms. Nothing yet shows these are discrete states rather than samples from a continuous process. Do not add thresholds or state names beyond the behavioural restart discriminator (docs/adr#0044)."
+                               }
+              },
+    "epoch_boundaries":  [
+                             {
+                                 "ts":  "2026-09-03T12:45:25.0847921-07:00",
+                                 "reason":  "ArcServeBoot -\u003e llama-swap cutover (Derek 2026-09-03, ADR-0045 / plan P13); ts filled by cutover.ps1 -Live",
+                                 "baseline_preserved":  true,
+                                 "note":  "ADR-0044: a boundary, not a re-baseline. baseline_decode_tok_s stays 106.0 and the envelope is still a fraction of THAT baseline; readings across this boundary are two epochs, not one. || 2026-09-03 12:35:29: FIRST ATTEMPT ABORTED at the placement assertion (a parser false alarm: llama-swap /logs is a 10 KB tail) and ROLLED BACK to the direct launcher within 36 s -- but the incumbent epoch (pid 20416, resident since 2026-08-30 07:40Z) ENDED here regardless; production now runs a new epoch on the direct launcher (pid 4340). Readings across this timestamp are two epochs."
+                             }
+                         ]
 }

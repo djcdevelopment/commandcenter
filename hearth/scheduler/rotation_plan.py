@@ -193,13 +193,26 @@ def cumulative_overflow(jobs: list[Job], models: dict[str, ModelSpec], machine: 
     return blocked
 
 
-def _swap_entry_for(required_name: Optional[str], spec: ModelSpec) -> Optional[str]:
-    """The llama-swap entry the plan names: the job's own entry name when it used
-    one, else the catalog's declared swap_entry, else None (asserted at load)."""
-    if required_name and required_name != spec.model_id and required_name != spec.alias:
-        if required_name.endswith(_ENTRY_SUFFIXES) or required_name == spec.swap_entry:
-            return required_name
+def _swap_entry_for(required_names: Any, spec: ModelSpec) -> Optional[str]:
+    """The llama-swap entry the plan names: the first entry name a job used for
+    this model (a `-vk1`/`-vk2`/`-dual` spelling or the catalog's declared entry),
+    else the catalog's declared swap_entry, else None (asserted at load).
+    `required_names` is one name or an iterable of them."""
+    names = [required_names] if isinstance(required_names, str) or required_names is None \
+        else list(required_names)
+    for name in sorted(n for n in names if n):
+        if name != spec.model_id and name != spec.alias:
+            if name.endswith(_ENTRY_SUFFIXES) or name == spec.swap_entry:
+                return name
     return spec.swap_entry
+
+
+def _canon(models: dict[str, ModelSpec], name: Optional[str]) -> Optional[str]:
+    """Catalog model_id for any spelling (entry, alias, id); unknown names as-is."""
+    if not name:
+        return None
+    spec = models.get(name)
+    return spec.model_id if spec is not None else name
 
 
 def _entry_candidates(spec: ModelSpec) -> list[str]:
@@ -266,9 +279,13 @@ def build_rotation_plan(proposal: ScheduleProposal, models: dict[str, ModelSpec]
             continue
         model_id = load["model_id"]
         spec = models.get(model_id)
-        serves = [a["plan_id"] for a in assigned_here
-                  if by_plan.get(a["plan_id"]) is not None
-                  and by_plan[a["plan_id"]].required_model == model_id]
+        canon_id = _canon(models, model_id)
+        serving_jobs = [by_plan[a["plan_id"]] for a in assigned_here
+                        if by_plan.get(a["plan_id"]) is not None
+                        and _canon(models, by_plan[a["plan_id"]].required_model) == canon_id]
+        serves = [job.plan_id for job in serving_jobs]
+        entry_names = list(load.get("requested_as") or []) + [
+            job.required_model for job in serving_jobs]
         cards = load.get("bdfs") or [_card_label(machine, ci) for ci in load["cards"]]
         if spec is None:
             steps.append({
@@ -284,7 +301,7 @@ def build_rotation_plan(proposal: ScheduleProposal, models: dict[str, ModelSpec]
             "t_s": load["start_s"],
             "action": "load",
             "model_id": spec.model_id,
-            "swap_entry": _swap_entry_for(model_id, spec),
+            "swap_entry": _swap_entry_for(entry_names, spec),
             "swap_entry_candidates": _entry_candidates(spec),
             "cards": cards,
             "placement": spec.placement,

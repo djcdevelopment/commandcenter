@@ -61,6 +61,12 @@ P2 / ADR-0045 — a rotating stateful host (OMEN, llama-swap)
     `notes` say which model and group.
   - `loads[]` / `residency[]` carry the card's `bdf` beside its solver index, so a
     consumer never has to map an index back to a device (ADR-0042).
+  - P2b: model names are CANONICALIZED — a job may name `phi4-vk1`, the alias or
+    the model_id; loads, residency and VRAM are accounted once per physical model
+    (`loads[].model_id` is the catalog id, `requested_as` the entry names used).
+    `Machine.loadable_models` (its own catalog's keys) bounds what each stateful
+    host may load, so two catalogs in one pool never plan a model onto the wrong
+    host's cards.
 """
 
 from __future__ import annotations
@@ -175,23 +181,48 @@ def solve_schedule(
         spec = _spec(model_id)
         return spec.exclusive_group if spec is not None else None
 
+    # P2b: a job may name a model by its llama-swap ENTRY (`phi4-vk1`), its alias,
+    # or its model_id; the catalog keys every spelling to one spec. Loads,
+    # residency and VRAM are accounted per PHYSICAL model, so every comparison
+    # below runs on the canonical model_id (an unknown name is its own canon).
+    def _canon(name: str) -> str:
+        spec = _spec(name)
+        return spec.model_id if spec is not None else name
+
+    resident_canon: dict[str, set[str]] = {
+        m.name: {_canon(r) for r in m.resident_models} for m in available}
+
+    def _is_resident(machine: Machine, model_id: str) -> bool:
+        return _canon(model_id) in resident_canon[machine.name]
+
+    def _loadable(machine: Machine, model_id: str) -> bool:
+        """May this stateful machine load the model at all? None = any model in
+        the solver's map (single-catalog behavior); else its own catalog's keys."""
+        if machine.loadable_models is None:
+            return True
+        return _canon(model_id) in {_canon(n) for n in machine.loadable_models}
+
     # (machine, model) pairs that MIGHT need a load: job needs model, machine is
-    # stateful, role-compatible, and does not already hold it. A model whose
-    # exclusive_group is held by an initial resident cannot load (v1: no eviction).
+    # stateful, role-compatible, can load it, and does not already hold it. A model
+    # whose exclusive_group is held by an initial resident cannot load (v1: no
+    # eviction). Keyed by canonical model_id; `requested_as` remembers the entry
+    # names the jobs used so the rotation plan can name the swap entry.
     load_pairs: set[tuple[str, str]] = set()
+    requested_as: dict[tuple[str, str], set[str]] = {}
     exclusive_refusals: set[tuple[str, str]] = set()
     for job in jobs:
-        M = job.required_model
-        if not M:
+        raw_name = job.required_model
+        if not raw_name:
             continue
+        M = _canon(raw_name)
         for machine in available:
-            if machine.name not in stateful or M in machine.resident_models:
+            if machine.name not in stateful or _is_resident(machine, M):
                 continue
-            if not _role_ok(job, machine):
+            if not _role_ok(job, machine) or not _loadable(machine, M):
                 continue
             group = _group_of(M)
             if group is not None and any(
-                    _group_of(r) == group and r != M for r in machine.resident_models):
+                    _group_of(r) == group and r != M for r in resident_canon[machine.name]):
                 if (machine.name, M) not in exclusive_refusals:
                     exclusive_refusals.add((machine.name, M))
                     notes.append(
@@ -199,6 +230,8 @@ def solve_schedule(
                         f"{group!r} is held by a resident model and v1 does not evict")
                 continue
             load_pairs.add((machine.name, M))
+            if raw_name != M:
+                requested_as.setdefault((machine.name, M), set()).add(raw_name)
 
     setup_by_pair: dict[tuple[str, str], int] = {}
     setup_s_by_pair: dict[tuple[str, str], float] = {}
@@ -230,12 +263,13 @@ def solve_schedule(
         # behavior rather than INFEASIBLE. Roles apply to every job: a machine
         # that declares them only takes the task classes it lists.
         if job.required_model and stateful:
+            wanted = _canon(job.required_model)
             eligible = [
                 m for m in available
                 if m.stateful and _role_ok(job, m) and (
-                    job.required_model in m.resident_models
+                    _is_resident(m, wanted)
                     or (job.required_model in models
-                        and (m.name, job.required_model) in load_pairs)
+                        and (m.name, wanted) in load_pairs)
                 )
             ]
             if not eligible:
@@ -283,7 +317,8 @@ def solve_schedule(
         machine = by_name[mname]
         # jobs that would need model M on machine mname
         needing = [j for j in jobs
-                   if j.required_model == M and (j.plan_id, mname) in presence]
+                   if j.required_model and _canon(j.required_model) == M
+                   and (j.plan_id, mname) in presence]
         if not needing:  # no eligible job could land here; no load needed
             continue
         assign_lits = [presence[(j.plan_id, mname)] for j in needing]
@@ -360,7 +395,7 @@ def solve_schedule(
         }
         # models this machine might hold: initial residents + loadable ones.
         machine_models: list[str] = list(dict.fromkeys(
-            list(machine.resident_models)
+            [_canon(r) for r in machine.resident_models]
             + [M for (mn, M) in load_pairs if mn == machine.name]))
 
         # per (model, card) charge literal: 1 if model resident on that card.
@@ -372,7 +407,7 @@ def solve_schedule(
             spec = _spec(M)
             charge_scaled = int(round((spec.card_charge_gb() if spec else 0.0) * _GB_SCALE))
             placement = spec.placement if spec else "single"
-            is_initial = M in machine.resident_models
+            is_initial = _is_resident(machine, M)
             if is_initial:
                 loaded_lit = None  # always resident
             else:
@@ -525,6 +560,8 @@ def solve_schedule(
             row["bdfs"] = bdfs
         row["setup_s"] = round(setup_s_by_pair[(mname, M)], 3)
         row["cold"] = bool(machine.cold)
+        if requested_as.get((mname, M)):
+            row["requested_as"] = sorted(requested_as[(mname, M)])
         loads_out.append(row)
 
     residency_out = []

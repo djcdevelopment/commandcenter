@@ -232,6 +232,12 @@ class Machine:
     # The host is cold: the next load pays `load_s_first_in_window` (26.58 s for
     # the 30B) instead of the steady 8.2 s. Advisory input; the caller decides.
     cold: bool = False
+    # P2b: the model names THIS stateful machine can load — its own catalog's
+    # keys (model_id, alias, swap entries). None = any model in the solver's
+    # `models` map (the single-catalog JS7b behavior). With two stateful hosts in
+    # one pool (AM4 under am4-catalog.v1, OMEN under omen-catalog.v1) the solver
+    # must not plan an OMEN-only model onto AM4's cards, or vice versa.
+    loadable_models: Optional[list[str]] = None
 
 
 @dataclass

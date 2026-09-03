@@ -17,6 +17,7 @@ from hearth.execution.coordination import GpuTenancyStore, TenancyConflict
 from hearth.imagegen import agent as agent_control, handoff
 from hearth.media import gate as media_gate
 from hearth.media import lanes as media_lanes
+from hearth.observation.telemetry import trace_span
 
 POOL = "omen-b70-pool"
 SESSION_TTL_SECONDS = 180.0
@@ -208,36 +209,48 @@ class ImageSessionController:
 
     def _start_transition(self, snapshot) -> None:
         try:
-            deadline = time.monotonic() + DRAIN_TIMEOUT_SECONDS
-            idle_samples = 0
-            while time.monotonic() < deadline and idle_samples < 2:
-                self.store.renew(resource=POOL, session_id=snapshot.session_id,
-                                 epoch=snapshot.epoch, ttl_seconds=SESSION_TTL_SECONDS)
-                state = self._arc_slots_state()
-                if state == "idle":
-                    idle_samples += 1
-                elif state == "down" and not self._arc_process_running():
-                    idle_samples = 2
-                else:
+            with trace_span("hearth.session.start", attributes={
+                "session.id": snapshot.session_id,
+                "session.epoch": snapshot.epoch,
+            }) as root_span:
+                # Phase 1: drain ArcServe
+                with trace_span("hearth.arcserve.drain") as drain_span:
+                    deadline = time.monotonic() + DRAIN_TIMEOUT_SECONDS
                     idle_samples = 0
-                if idle_samples < 2:
-                    time.sleep(2.5)
-            if idle_samples < 2:
-                raise ImageSessionError("ArcServe did not drain within 15 minutes")
-            snapshot = self._transition_state(snapshot, "starting_imagegen")
-            ARC_SENTINEL.parent.mkdir(parents=True, exist_ok=True)
-            ARC_SENTINEL.write_text(
-                "owned by %s epoch %d\n" % (snapshot.session_id, snapshot.epoch),
-                encoding="utf-8",
-            )
-            self._run_restart_task()
-            deadline = time.monotonic() + 140
-            while self._arc_process_running() and time.monotonic() < deadline:
-                time.sleep(2)
-            if self._arc_process_running():
-                raise ImageSessionError("llama-server remained alive after guarded stop")
-            snapshot = self._transition_state(snapshot, "imagegen")
-            self._empty_since = time.monotonic() if handoff.active_count() == 0 else None
+                    while time.monotonic() < deadline and idle_samples < 2:
+                        self.store.renew(resource=POOL, session_id=snapshot.session_id,
+                                         epoch=snapshot.epoch, ttl_seconds=SESSION_TTL_SECONDS)
+                        state = self._arc_slots_state()
+                        if state == "idle":
+                            idle_samples += 1
+                        elif state == "down" and not self._arc_process_running():
+                            idle_samples = 2
+                        else:
+                            idle_samples = 0
+                        if idle_samples < 2:
+                            time.sleep(2.5)
+                    if idle_samples < 2:
+                        raise ImageSessionError("ArcServe did not drain within 15 minutes")
+                    drain_span.set_attribute("drain.result", "idle")
+
+                # Phase 2: guarded stop and sentinel placement
+                with trace_span("hearth.arcserve.guarded_stop"):
+                    snapshot = self._transition_state(snapshot, "starting_imagegen")
+                    ARC_SENTINEL.parent.mkdir(parents=True, exist_ok=True)
+                    ARC_SENTINEL.write_text(
+                        "owned by %s epoch %d\n" % (snapshot.session_id, snapshot.epoch),
+                        encoding="utf-8",
+                    )
+                    self._run_restart_task()
+                    stop_deadline = time.monotonic() + 140
+                    while self._arc_process_running() and time.monotonic() < stop_deadline:
+                        time.sleep(2)
+                    if self._arc_process_running():
+                        raise ImageSessionError("llama-server remained alive after guarded stop")
+
+                snapshot = self._transition_state(snapshot, "imagegen")
+                self._empty_since = time.monotonic() if handoff.active_count() == 0 else None
+                root_span.set_attribute("session.outcome", "active")
         except Exception as exc:
             self._fault_and_restore(snapshot, "start failed: %s" % exc)
 
@@ -272,24 +285,29 @@ class ImageSessionController:
                 pass
 
     def _restore(self, snapshot, reason: str) -> None:
-        snapshot = self._transition_state(snapshot, "restoring_llm", reason)
-        ARC_SENTINEL.unlink(missing_ok=True)
-        self._run_restart_task()
-        deadline = time.monotonic() + 240
-        while time.monotonic() < deadline:
-            self.store.renew(resource=POOL, session_id=snapshot.session_id,
-                             epoch=snapshot.epoch, ttl_seconds=SESSION_TTL_SECONDS)
-            if self._verify_arcserve():
-                if not self.store.release(resource=POOL, session_id=snapshot.session_id,
-                                          epoch=snapshot.epoch, reason=reason):
-                    raise TenancyConflict("lost fence while releasing image session")
-                released = self.store.get(POOL)
-                assert released is not None
-                self._event("session.restored", released, reason=reason)
-                self._empty_since = None
-                return
-            time.sleep(5)
-        raise ImageSessionError("ArcServe failed its warm serviceability probe")
+        with trace_span("hearth.arcserve.restore", attributes={
+            "session.id": snapshot.session_id,
+            "restore.reason": reason,
+        }) as span:
+            snapshot = self._transition_state(snapshot, "restoring_llm", reason)
+            ARC_SENTINEL.unlink(missing_ok=True)
+            self._run_restart_task()
+            deadline = time.monotonic() + 240
+            while time.monotonic() < deadline:
+                self.store.renew(resource=POOL, session_id=snapshot.session_id,
+                                 epoch=snapshot.epoch, ttl_seconds=SESSION_TTL_SECONDS)
+                if self._verify_arcserve():
+                    if not self.store.release(resource=POOL, session_id=snapshot.session_id,
+                                              epoch=snapshot.epoch, reason=reason):
+                        raise TenancyConflict("lost fence while releasing image session")
+                    released = self.store.get(POOL)
+                    assert released is not None
+                    self._event("session.restored", released, reason=reason)
+                    self._empty_since = None
+                    span.set_attribute("restore.outcome", "verified")
+                    return
+                time.sleep(5)
+            raise ImageSessionError("ArcServe failed its warm serviceability probe")
 
     def _fault_and_restore(self, snapshot, reason: str) -> None:
         try:

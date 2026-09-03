@@ -63,15 +63,19 @@ def _read(path: Path) -> Optional[dict[str, Any]]:
     return value if isinstance(value, dict) else None
 
 
-def enqueue_job(job_id: str, spec: dict, *, deadline_s: Optional[int], principal: Optional[str]) -> None:
+def enqueue_job(job_id: str, spec: dict, *, deadline_s: Optional[int], principal: Optional[str],
+                traceparent: Optional[str] = None) -> None:
     ensure_dirs()
     path = _dirs()["queue"] / (job_id + ".json")
     if path.exists() or (_dirs()["claims"] / path.name).exists():
         return
-    _write(path, {
+    payload = {
         "schema": "imagegen.handoff.v1", "job_id": job_id, "spec": spec,
         "deadline_s": deadline_s, "principal": principal, "queued_at": utc_now(),
-    })
+    }
+    if traceparent:
+        payload["traceparent"] = traceparent
+    _write(path, payload)
 
 
 def list_queued() -> list[Path]:

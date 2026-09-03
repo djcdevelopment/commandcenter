@@ -11,6 +11,7 @@ from typing import Optional
 from hearth.execution.ids import new_invocation_id
 from hearth.imagegen import handoff
 from hearth.imagegen.session import ImageSessionController
+from hearth.observation.telemetry import get_current_traceparent
 
 TERMINAL = {"succeeded", "failed", "cancelled", "rejected", "expired"}
 MAX_PENDING = 256
@@ -99,6 +100,7 @@ class ImageGenerationSubsystem:
         handoff.enqueue_job(
             job_id, spec, deadline_s=(desired.get("policy") or {}).get("deadline_s"),
             principal=(state.get("principal") or {}).get("id"),
+            traceparent=get_current_traceparent(),
         )
 
     def cancel(self, job_id: str, *, reason: str = "cancelled by caller") -> dict:

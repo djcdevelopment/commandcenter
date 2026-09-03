@@ -20,13 +20,18 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional
 
-B70_MARKER = "Arc(TM) Pro B70"
+# Both spellings the server uses: "Intel(R) Arc(TM) Pro B70 Graphics" (enumeration and, on this
+# build, the "using device" line) and the short "Arc Pro B70" quoted in ADR-0042.
+_B70_RE = re.compile(r"Arc(?:\(TM\))? Pro B70")
 IGPU_MARKER = "Intel(R) Graphics"
 
-# Device names carry their own parentheses -- "Intel(R) Arc(TM) Pro B70 Graphics" -- so the
-# capture runs non-greedily to the ")" that precedes " - <free>" or the end of the line.
-_USING_RE = re.compile(r"using device (Vulkan\d+) \((.+?)\)(?=\s*-|\s*$)", re.M)
-_ENUM_RE = re.compile(r"^\s*-\s*(Vulkan\d+)\s*:\s*(.+?)\s*$", re.M)
+# Real lines (arc-swap.log, 2026-09-03 12:35):
+#   0.00.242.305 I llama_prepare_model_devices: using device Vulkan0 (Intel(R) Arc(TM) Pro B70 Graphics) (unknown id) - 31789 MiB free
+#   0.00.150.567 I cmn  common_param:   - Vulkan0 : Intel(R) Arc(TM) Pro B70 Graphics (32558 MiB, 31789 MiB free)
+# Device names carry their own parentheses, an optional trailing "(unknown id)" group follows, and
+# every line carries a timestamp prefix -- so nothing is anchored to the line start.
+_USING_RE = re.compile(r"using device (Vulkan\d+) \((.+?)\)(?:\s*\([^()]*\))?(?=\s*-|\s*$)", re.M)
+_ENUM_RE = re.compile(r"-\s*(Vulkan\d+)\s*:\s*(.+?)\s*$", re.M)
 _TRAILING_VENDOR_RE = re.compile(r"\s+\([^()]*\)\s*$")   # " (Intel Corporation)" but not "(TM)"
 
 
@@ -50,7 +55,7 @@ class DeviceReport:
 
     @property
     def is_b70(self) -> bool:
-        return B70_MARKER in self.name
+        return bool(_B70_RE.search(self.name))
 
     @property
     def is_igpu(self) -> bool:

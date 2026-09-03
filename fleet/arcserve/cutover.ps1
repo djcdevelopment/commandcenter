@@ -151,7 +151,7 @@ Check "omen.yaml present and free of key literals" ($yamlOk -and $leak.Count -eq
 Check "llama-swap binary present" (Test-Path $SwapExe) $SwapExe
 Check "serve-arc-direct.cmd (rollback) present" (Test-Path $ServeDirect) $ServeDirect
 Check "serve-arc-swap.cmd (the new launcher, parked) present" (Test-Path $ServeSwap) $ServeSwap
-$liveIsDirect = ((Get-Content $ServeArc -Raw) -notmatch "llama-swap")
+$liveIsDirect = ((Get-Content $ServeArc -Raw) -notmatch "llama-swap\.exe")   # the launch line, not the word in a comment
 Check "serve-arc.cmd is still the pre-cutover launcher" $liveIsDirect ("mentions llama-swap={0}" -f (-not $liveIsDirect))
 Check ":8081 free" (-not (Test-Listen 8081)) ("listening={0}" -f (Test-Listen 8081))
 Check ":8082 listening (incumbent)" (Test-Listen 8082) ("listening={0}" -f (Test-Listen 8082))
@@ -193,18 +193,38 @@ $b = Plan "B install the llama-swap launcher and start it via ArcServeBoot" {
 } "Copy-Item serve-arc-swap.cmd -> serve-arc.cmd; schtasks /Run /TN ArcServeBoot; wait $Swap/health 200 (60 s); wait $Prod/health 200 (240 s); POST $Prod/completion 1 token with bearer until timings present (120 s)"
 if (-not $b) { Abort "new shape not ready" }
 
-# Step C: placement assertion from the -lv 5 load report via llama-swap /logs (ADR-0042).
+# Step C: placement assertion from the -lv 5 load report (ADR-0042). Read from the server's OWN
+# --log-file on disk, not llama-swap's /logs: that endpoint is a ~10 KB tail and the "using device"
+# lines had already scrolled out of it on the first live attempt (2026-09-03 12:35, a false abort).
+# Only the LAST load report in the file counts (the file may carry earlier epochs).
+$ServeLog = "$Repo\hearth\var\arc-serve.log"
+$SwapLog = "$Repo\hearth\var\arc-swap.log"       # llama-swap stdout with logToStdout: both -- carried the full report on 2026-09-03 12:35
 $c = Plan "C assert dual-split placement" {
-    $logs = Get-Http "$Swap/logs" 15
-    if (-not $logs.ok) { Say "could not read /logs"; return $false }
-    $lines = $logs.text -split "`n" | Where-Object { $_ -match 'model buffer size' }
-    $b70 = @($lines | Where-Object { $_ -match 'Vulkan\d+' -and $_ -notmatch 'CPU' }).Count
-    $igpu = @($logs.text -split "`n" | Where-Object { $_ -match 'using device' -and $_ -match 'Intel\(R\) Graphics' }).Count
-    $devs = @($logs.text -split "`n" | Where-Object { $_ -match 'using device Vulkan\d+ \(Intel\(R\) Arc\(TM\) Pro B70' }).Count
-    $script:Receipts += ("placement: model-buffer lines={0} B70-using-lines={1} iGPU-using-lines={2}" -f $b70, $devs, $igpu)
-    Say ("placement: {0} Vulkan model-buffer line(s), {1} 'using device ... B70' line(s), {2} iGPU" -f $b70, $devs, $igpu)
-    return ($devs -eq 2 -and $igpu -eq 0 -and $b70 -ge 2)
-} "GET $Swap/logs; require exactly 2 'using device VulkanN (Intel(R) Arc(TM) Pro B70' lines, 0 'Intel(R) Graphics', >=2 model-buffer lines"
+    $text = ""
+    $source = ""
+    foreach ($candidate in @($ServeLog, $SwapLog)) {
+        if (Test-Path $candidate) {
+            $t = [IO.File]::ReadAllText($candidate)
+            if ($t.LastIndexOf("llama_prepare_model_devices: using device") -ge 0) { $text = $t; $source = $candidate; break }
+        }
+    }
+    if (-not $text) { Say "no 'using device' line in $ServeLog or $SwapLog (server not launched with -lv 5?)"; return $false }
+    Say ("placement source: {0}" -f $source)
+    # Slice from the LAST load report's device ENUMERATION (it precedes both "using device" lines of a
+    # dual load); slicing from the last "using device" line would drop the first card and abort falsely.
+    $start = $text.LastIndexOf("common_param:   - Vulkan0")
+    if ($start -lt 0) { $start = $text.LastIndexOf("Vulkan devices:") }
+    if ($start -lt 0) { $start = $text.IndexOf("llama_prepare_model_devices: using device") }
+    $report = $text.Substring($start) -split "`n"
+    $b70 = @($report | Where-Object { $_ -match 'Vulkan\d+ model buffer size' }).Count
+    $igpu = @($report | Where-Object { $_ -match 'using device' -and $_ -match 'Intel\(R\) Graphics' }).Count
+    $devs = @($report | Where-Object { $_ -match 'using device Vulkan\d+ \(' -and $_ -match 'Arc(\(TM\))? Pro B70' }).Count
+    $host = @($report | Where-Object { $_ -match 'CPU model buffer size' -and $_ -notmatch 'Vulkan_Host' }).Count
+    $layers = ($report | Where-Object { $_ -match 'offloaded (\d+)/(\d+) layers' } | Select-Object -Last 1)
+    $script:Receipts += ("placement: B70-using-lines={0} iGPU-using-lines={1} model-buffer-lines={2} cpu-buffers={3} {4}" -f $devs, $igpu, $b70, $host, $layers)
+    Say ("placement: {0} 'using device ... B70' line(s), {1} iGPU, {2} Vulkan model-buffer line(s), {3} CPU model buffers; {4}" -f $devs, $igpu, $b70, $host, $layers)
+    return ($devs -eq 2 -and $igpu -eq 0 -and $b70 -ge 2 -and $host -eq 0)
+} "read $ServeLog from its last 'using device' line; require exactly 2 'using device VulkanN (...Arc Pro B70' lines, 0 'Intel(R) Graphics', >=2 Vulkan model-buffer lines, 0 CPU model buffers"
 if (-not $c) { Abort "placement is not dual-split B70 (ADR-0042)" }
 
 # Step D: the api key is enforced (LLAMA_API_KEY inherited) -- a bare request must be refused.

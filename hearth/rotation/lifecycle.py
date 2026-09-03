@@ -11,6 +11,7 @@ image session refuses the load before anything is touched. Nothing here addresse
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from datetime import datetime, timezone
 from typing import Callable, Iterable, Optional
 
@@ -44,6 +45,35 @@ def default_fence() -> Optional[str]:
     except Exception:  # noqa: BLE001
         return "unreadable"
     return session.session_id if session is not None else None
+
+
+SWAP_LOG_DIR = Path("C:/work/commandcenter/hearth/var/swap-logs")
+# Markers that PRECEDE a load report's "using device" lines (never the loader banner, which can
+# print after them and would slice the first card's line away on a dual load).
+LOAD_START_MARKERS = ("Vulkan devices:", "common_param:   - Vulkan0")
+
+
+def last_load_report(text: str) -> str:
+    """The last load report in a server's own --log-file (the file may carry earlier starts)."""
+    if not text:
+        return ""
+    best = -1
+    for marker in LOAD_START_MARKERS:
+        best = max(best, text.rfind(marker))
+    if best < 0:
+        return text
+    start = text.rfind("\n", 0, best)
+    return text[start + 1 if start >= 0 else 0:]
+
+
+def read_model_log(model_id: str, log_dir: Path = SWAP_LOG_DIR) -> str:
+    """The model's own ``--log-file`` (fleet/arcserve/llama-swap/omen.yaml gives every side entry one),
+    trimmed to its last load report. Empty when absent -- the parser then fails closed."""
+    path = Path(log_dir) / f"{model_id}.log"
+    try:
+        return last_load_report(path.read_text(encoding="utf-8", errors="replace"))
+    except OSError:
+        return ""
 
 
 def select_model_log(text: str, model_id: str) -> str:
@@ -146,7 +176,9 @@ def load_with_assertion(client, entries: Iterable[str], *, snapshot: Callable[[]
             client.unload(entry)
             emit("unload", entry=entry, why="not ready")
             continue
-        text = logs(entry) if logs else select_model_log(client.logs(), entry)
+        text = logs(entry) if logs else read_model_log(entry)
+        if not text:
+            text = select_model_log(client.logs(), entry)   # fallback: llama-swap's tail
         report = parse_load_report(text)
         after = snapshot()
         emit("telemetry", phase="after", commit_free_gb=after.commit_free_gb,

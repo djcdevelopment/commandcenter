@@ -39,10 +39,10 @@
   },
   "epoch_boundaries": [
     {
-      "ts": null,
+      "ts": "2026-09-03T12:35:29-07:00",
       "reason": "ArcServeBoot -> llama-swap cutover (Derek 2026-09-03, ADR-0045 / plan P13); ts filled by cutover.ps1 -Live",
       "baseline_preserved": true,
-      "note": "ADR-0044: a boundary, not a re-baseline. baseline_decode_tok_s stays 106.0 and the envelope is still a fraction of THAT baseline; readings across this boundary are two epochs, not one."
+      "note": "ADR-0044: a boundary, not a re-baseline. baseline_decode_tok_s stays 106.0 and the envelope is still a fraction of THAT baseline; readings across this boundary are two epochs, not one. || 2026-09-03 12:35:29: FIRST ATTEMPT ABORTED at the placement assertion (a parser false alarm: llama-swap /logs is a 10 KB tail) and ROLLED BACK to the direct launcher within 36 s -- but the incumbent epoch (pid 20416, resident since 2026-08-30 07:40Z) ENDED here regardless; production now runs a new epoch on the direct launcher (pid 4340). Readings across this timestamp are two epochs."
     }
   ]
 }

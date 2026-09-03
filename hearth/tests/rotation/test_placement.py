@@ -46,6 +46,50 @@ load_tensors:          CPU model buffer size =  8000.00 MiB
 """
 
 
+# Verbatim from hearth/var/arc-swap.log at the first live cutover attempt (2026-09-03 12:35): timestamp
+# prefixes on every line, the enumeration under common_param, a trailing "(unknown id)" group on the
+# "using device" lines, and Vulkan_Host staging buffers.
+REAL_DUAL = """
+0.00.150.567 I cmn  common_param:   - Vulkan0 : Intel(R) Arc(TM) Pro B70 Graphics (32558 MiB, 31789 MiB free)
+0.00.151.600 I cmn  common_param:   - Vulkan1 : Intel(R) Arc(TM) Pro B70 Graphics (32558 MiB, 31789 MiB free)
+0.00.152.649 I cmn  common_param:   - Vulkan2 : Intel(R) Graphics (74286 MiB, 103494 MiB free)
+0.00.242.305 I llama_prepare_model_devices: using device Vulkan0 (Intel(R) Arc(TM) Pro B70 Graphics) (unknown id) - 31789 MiB free
+0.00.243.335 I llama_prepare_model_devices: using device Vulkan1 (Intel(R) Arc(TM) Pro B70 Graphics) (unknown id) - 31789 MiB free
+0.01.658.045 I load_tensors: offloaded 49/49 layers to GPU
+0.01.658.051 I load_tensors:      Vulkan0 model buffer size =  8975.63 MiB
+0.01.658.053 I load_tensors:      Vulkan1 model buffer size =  8548.79 MiB
+0.01.658.054 I load_tensors:  Vulkan_Host model buffer size =   166.92 MiB
+0.08.801.648 I llama_kv_cache:    Vulkan0 KV buffer size =  6400.00 MiB
+0.09.289.067 I llama_kv_cache:    Vulkan1 KV buffer size =  5888.00 MiB
+0.09.473.241 I sched_reserve:    Vulkan0 compute buffer size =   712.08 MiB
+0.09.473.247 I sched_reserve:    Vulkan1 compute buffer size =   712.08 MiB
+0.09.473.248 I sched_reserve: Vulkan_Host compute buffer size =   528.09 MiB
+"""
+
+SHORT_NAME = """
+llama_prepare_model_devices: using device Vulkan1 (Arc Pro B70)
+load_tensors: offloaded 49/49 layers to GPU
+load_tensors:      Vulkan1 model buffer size =  8300.00 MiB
+"""
+
+
+class RealReportTests(unittest.TestCase):
+    def test_real_dual_split_report_is_ok(self) -> None:
+        report = parse_load_report(REAL_DUAL)
+        self.assertEqual(report.using, ("Vulkan0", "Vulkan1"))
+        by = {d.handle: d for d in report.devices}
+        self.assertEqual(by["Vulkan0"].name, "Intel(R) Arc(TM) Pro B70 Graphics")
+        self.assertTrue(by["Vulkan2"].is_igpu)
+        self.assertEqual([d.handle for d in report.with_weights()], ["Vulkan0", "Vulkan1"])
+        verdict = assert_placement(report, expected_cards=2)
+        self.assertTrue(verdict.ok, verdict.reason)
+        self.assertAlmostEqual(verdict.per_card_gb["Vulkan0"], (8975.63 + 6400 + 712.08) / 1024, places=3)
+
+    def test_short_device_name_counts_as_a_b70(self) -> None:
+        verdict = assert_placement(parse_load_report(SHORT_NAME), expected_cards=1)
+        self.assertTrue(verdict.ok, verdict.reason)
+
+
 class ParseTests(unittest.TestCase):
     def test_parses_devices_buffers_and_layers(self) -> None:
         report = parse_load_report(DUAL_OK)

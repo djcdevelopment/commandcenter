@@ -12,6 +12,9 @@
 #     documented form is used here and is parse-checked on a throwaway port before any production stop.
 #   - hooks.on_startup.preload brings production resident at boot.
 #   - ${PORT} is assigned from startPort for the side entries only.
+#   - every side entry writes its OWN --log-file under hearth/var/swap-logs/<id>.log: llama-swap's /logs is a
+#     ~10 KB tail and the load report scrolls out of it (2026-09-03 12:35, a false abort), so placement is
+#     asserted from the server's own file, last report only.
 #
 # SECRETS: no API-key flag or token literal anywhere. serve-arc.cmd exports LLAMA_API_KEY=%OMEN_ARC_TOKEN% before
 # launching llama-swap; llama-server reads it from the environment (arg.cpp: env LLAMA_API_KEY). /health is
@@ -57,6 +60,7 @@ models:
       E:\work\llamacpp-knee\build\bin\llama-server.exe
       -m E:\work\battlemage\models\phi-4-Q4_K_M.gguf
       --alias phi4-vk1
+      --log-file C:/work/commandcenter/hearth/var/swap-logs/phi4-vk1.log
       -ngl 99 -fa on --no-mmap -dio -fit off
       -c 8192 -np 1
       --host 127.0.0.1 --port ${PORT}
@@ -69,6 +73,7 @@ models:
       E:\work\llamacpp-knee\build\bin\llama-server.exe
       -m E:\work\battlemage\models\phi-4-Q4_K_M.gguf
       --alias phi4-vk2
+      --log-file C:/work/commandcenter/hearth/var/swap-logs/phi4-vk2.log
       -ngl 99 -fa on --no-mmap -dio -fit off
       -c 8192 -np 1
       --host 127.0.0.1 --port ${PORT}
@@ -82,6 +87,7 @@ models:
       E:\work\llamacpp-knee\build\bin\llama-server.exe
       -m E:\work\battlemage\models\qwen2.5-14b-instruct-q4_K_M.gguf
       --alias qwen14b-vk1
+      --log-file C:/work/commandcenter/hearth/var/swap-logs/qwen14b-vk1.log
       -ngl 99 -fa on --no-mmap -dio -fit off
       -c 8192 -np 1
       --host 127.0.0.1 --port ${PORT}
@@ -94,6 +100,7 @@ models:
       E:\work\llamacpp-knee\build\bin\llama-server.exe
       -m E:\work\battlemage\models\qwen2.5-14b-instruct-q4_K_M.gguf
       --alias qwen14b-vk2
+      --log-file C:/work/commandcenter/hearth/var/swap-logs/qwen14b-vk2.log
       -ngl 99 -fa on --no-mmap -dio -fit off
       -c 8192 -np 1
       --host 127.0.0.1 --port ${PORT}
@@ -107,6 +114,7 @@ models:
       E:\work\llamacpp-knee\build\bin\llama-server.exe
       -m E:\work\battlemage\models\gpt-oss-20b-MXFP4.gguf
       --alias gptoss20b-vk1
+      --log-file C:/work/commandcenter/hearth/var/swap-logs/gptoss20b-vk1.log
       -ngl 99 -fa on --no-mmap -dio -fit off
       -c 4096 -np 1
       --host 127.0.0.1 --port ${PORT}
@@ -119,6 +127,7 @@ models:
       E:\work\llamacpp-knee\build\bin\llama-server.exe
       -m E:\work\battlemage\models\gpt-oss-20b-MXFP4.gguf
       --alias gptoss20b-vk2
+      --log-file C:/work/commandcenter/hearth/var/swap-logs/gptoss20b-vk2.log
       -ngl 99 -fa on --no-mmap -dio -fit off
       -c 4096 -np 1
       --host 127.0.0.1 --port ${PORT}
@@ -132,6 +141,7 @@ models:
       E:\work\llamacpp-knee\build\bin\llama-server.exe
       -m E:\work\battlemage\models\Mistral-Small-3.2-24B-Instruct-2506-Q4_K_M.gguf
       --alias mistral24b-vk1
+      --log-file C:/work/commandcenter/hearth/var/swap-logs/mistral24b-vk1.log
       -ngl 99 -fa on --no-mmap -dio -fit off
       -c 4096 -np 1
       --host 127.0.0.1 --port ${PORT}
@@ -144,6 +154,7 @@ models:
       E:\work\llamacpp-knee\build\bin\llama-server.exe
       -m E:\work\battlemage\models\Mistral-Small-3.2-24B-Instruct-2506-Q4_K_M.gguf
       --alias mistral24b-vk2
+      --log-file C:/work/commandcenter/hearth/var/swap-logs/mistral24b-vk2.log
       -ngl 99 -fa on --no-mmap -dio -fit off
       -c 4096 -np 1
       --host 127.0.0.1 --port ${PORT}
@@ -158,6 +169,7 @@ models:
       E:\work\llamacpp-knee\build\bin\llama-server.exe
       -m E:\work\battlemage\models\qwen38\Qwen3.8-27B-Q4_K_M.gguf
       --alias qwen38-27b-dual
+      --log-file C:/work/commandcenter/hearth/var/swap-logs/qwen38-27b-dual.log
       -ngl 99 -sm layer -ts 1,1
       -fa on --no-mmap -dio -fit off
       -c 32768 -np 1 -ub 1024

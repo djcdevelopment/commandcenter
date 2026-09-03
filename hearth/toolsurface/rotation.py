@@ -249,6 +249,7 @@ def rotation_load(model_id: str, window: str, expect_cards: int = 1, reason: str
     catalog = _catalog_models()
     entry = _catalog_entry_for(model_id, catalog) or {}
     placement = "dual" if model_id.endswith("-dual") else str(entry.get("placement") or "single")
+    (VAR_DIR / "swap-logs").mkdir(parents=True, exist_ok=True)   # the side entries' --log-file dir
     client = _client_factory(endpoint)
     try:
         running = client.running()

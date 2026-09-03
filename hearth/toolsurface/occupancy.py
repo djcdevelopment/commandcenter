@@ -329,11 +329,20 @@ def probe_omen_arc_slots() -> dict:
 
         session = GpuTenancyStore().active_image_session("omen-b70-pool")
     except Exception as exc:
-        return {"occupancy": "unknown", "detail": "tenancy probe failed: %s" % exc,
-                "exclusive": True}
+        # Still fail closed -- a late request must not reach a draining server. But say
+        # WHICH of the two things happened. This branch means "I could not read the tenancy
+        # store", not "an image session owns the pool", and the two need different fixes:
+        # a locked SQLite file or a missing hearth/var/execution used to surface as
+        # "unavailable during exclusive GPU tenancy" on the door's DEFAULT rung, an error
+        # with no visible connection to its cause.
+        return {"occupancy": "unknown", "exclusive": True,
+                "exclusive_reason": "tenancy_probe_failed",
+                "detail": "GPU tenancy store unreadable, so omen-arc is held closed as a "
+                          "precaution -- this is NOT an active image session: %s" % exc}
     if session is not None:
         return {
             "occupancy": "busy", "exclusive": True,
+            "exclusive_reason": "image_session_active",
             "detail": "B70 pool owned by imagegen session %s epoch %d (%s)" % (
                 session.session_id, session.epoch, session.state),
         }

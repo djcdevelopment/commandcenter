@@ -16,8 +16,29 @@ from pathlib import Path
 from hearth.imagegen import handoff
 
 START_SCRIPT = Path(r"E:\omen\imagegen\ops\Start-ImageGenAgent.ps1")
+RECOVERY_SCRIPT = Path(r"E:\omen\imagegen\ops\Invoke-ImageGenRecovery.ps1")
 START_TIMEOUT_SECONDS = 90.0
 _launch_lock = threading.Lock()
+
+
+def runtime_preflight() -> dict:
+    """Report whether the out-of-repo imagegen runtime is actually installed.
+
+    Both entry points into `E:\\omen\\imagegen` are hardcoded absolute paths into a
+    SEPARATE repository, and nothing in this one deploys or validates them. A missing
+    runtime should be a loud, named failure -- not a launcher that times out after 90 s and
+    a scheduled recovery that quietly never runs again.
+    """
+    scripts = {"start_script": START_SCRIPT, "recovery_script": RECOVERY_SCRIPT}
+    missing = sorted(name for name, path in scripts.items() if not path.is_file())
+    return {
+        "ok": not missing,
+        "missing": missing,
+        "paths": {name: str(path) for name, path in scripts.items()},
+        "detail": "imagegen runtime present" if not missing else
+                  "imagegen runtime is not installed at the expected paths: " +
+                  ", ".join(str(scripts[name]) for name in missing),
+    }
 
 
 def ensure_running(*, timeout_s: float = START_TIMEOUT_SECONDS) -> handoff.AgentStatus:

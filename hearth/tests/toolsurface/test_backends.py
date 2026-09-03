@@ -240,6 +240,34 @@ class OccupancySkipTests(TestCase):
             select_backend(self.pool, backend="omen-ollama", occupancy_check=occ_check)
         self.assertIn("exclusive GPU tenancy", str(context.exception))
 
+    def test_a_probe_failure_is_named_distinctly_from_a_real_image_session(self) -> None:
+        """Both fail closed. They need different fixes, so the error must say which.
+
+        probe_omen_arc_slots returns exclusive:True when the tenancy STORE is unreadable --
+        a locked SQLite file or a missing hearth/var/execution. That used to surface on the
+        door's default rung as "unavailable during exclusive GPU tenancy", an error with no
+        visible connection to its cause.
+        """
+        def probe_failed(name: str) -> dict:
+            return {
+                "occupancy": "unknown", "exclusive": True,
+                "exclusive_reason": "tenancy_probe_failed",
+                "detail": "GPU tenancy store unreadable",
+            }
+        with self.assertRaises(BackendConfigError) as context:
+            select_backend(self.pool, backend="omen-ollama", occupancy_check=probe_failed)
+        self.assertIn("tenancy_probe_failed", str(context.exception))
+
+        def session_active(name: str) -> dict:
+            return {
+                "occupancy": "busy", "exclusive": True,
+                "exclusive_reason": "image_session_active",
+                "detail": "owned by imagegen session session_a",
+            }
+        with self.assertRaises(BackendConfigError) as context:
+            select_backend(self.pool, backend="omen-ollama", occupancy_check=session_active)
+        self.assertIn("image_session_active", str(context.exception))
+
     def test_no_occupancy_check_injected_behaves_like_p1(self) -> None:
         chosen, reason, occ = select_backend(self.pool, task="research")
         self.assertEqual(chosen.name, "am4-oxen")

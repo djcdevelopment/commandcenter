@@ -111,6 +111,11 @@ def validate_image_arguments(operation, arguments: Mapping[str, Any]) -> tuple[d
         "parameters": public_parameters,
         "strategy": spec.strategy,
         "priority": spec.priority,
+        # LOAD-BEARING CONTRACT: `_spec` carries the UNREDACTED spec, prompt included, for
+        # the dispatcher. It is kept out of the ledger by the underscore-prefix filter in
+        # hearth/execution/service.py (the same convention hearth/media/jobspec.py uses).
+        # Anything that ledgers `normalized` wholesale re-exposes the private prompt --
+        # test_service.py locks this; do not weaken it.
         "_spec": spec.to_dict(),
     }
     return normalized, packed

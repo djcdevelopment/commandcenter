@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import os
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from hearth.execution.coordination import GpuTenancyStore
+from hearth.imagegen import handoff
 from hearth.imagegen.handoff import AgentStatus
 from hearth.imagegen.session import ImageSessionController
 
@@ -103,6 +105,72 @@ class ImageSessionPrecheckTest(unittest.TestCase):
                 self.assertEqual(1, len(reasons))
                 self.assertIn("forced session stop", reasons[0])
                 restore.assert_called_once()
+            finally:
+                controller.close()
+
+
+class AbandonedClaimTest(unittest.TestCase):
+    """One stuck claim used to wedge ArcServe down with no automated escape.
+
+    The fault path refused to restore while claims existed, and the scheduled fx99 recovery
+    deferred for the same reason. Two guards, each correct alone, that together had no exit.
+    """
+
+    def _controller(self, temporary: str):
+        store = GpuTenancyStore(Path(temporary) / "coordination.sqlite")
+        snapshot = store.acquire(
+            resource="omen-b70-pool", session_id="session_wedge",
+            ttl_seconds=180, state="imagegen",
+        )
+        controller = ImageSessionController(store=store, autostart=False)
+        return store, snapshot, controller
+
+    def test_a_claim_with_a_live_agent_still_protects_arcserve(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(
+            os.environ, {"HEARTH_IMAGEGEN_HANDOFF": temporary}
+        ):
+            handoff.ensure_dirs()
+            (handoff.root() / "claims" / "job_live.json").write_text("{}", encoding="utf-8")
+            _store, snapshot, controller = self._controller(temporary)
+            try:
+                with patch.object(handoff, "agent_status",
+                                  lambda **kw: AgentStatus(True, 0.0, "ready", {"ready": True})):
+                    self.assertFalse(controller._reap_abandoned_claims(snapshot))
+                self.assertEqual(1, len(handoff.list_claims()))
+            finally:
+                controller.close()
+
+    def test_a_claim_no_worker_can_finish_is_reaped_so_arcserve_can_return(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(
+            os.environ, {"HEARTH_IMAGEGEN_HANDOFF": temporary}
+        ):
+            handoff.ensure_dirs()
+            claim = handoff.root() / "claims" / "job_stuck.json"
+            claim.write_text("{}", encoding="utf-8")
+            stale = time.time() - (handoff.AGENT_STALE_SECONDS + 60)
+            os.utime(claim, (stale, stale))
+            _store, snapshot, controller = self._controller(temporary)
+            try:
+                with patch.object(handoff, "agent_status",
+                                  lambda **kw: AgentStatus(False, None, "gone", None)):
+                    self.assertTrue(controller._reap_abandoned_claims(snapshot))
+                self.assertEqual([], handoff.list_claims())
+            finally:
+                controller.close()
+
+    def test_a_recent_claim_is_not_reaped_even_with_a_dead_agent(self) -> None:
+        """The worker may have only just died; give it the full heartbeat window."""
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(
+            os.environ, {"HEARTH_IMAGEGEN_HANDOFF": temporary}
+        ):
+            handoff.ensure_dirs()
+            (handoff.root() / "claims" / "job_fresh.json").write_text("{}", encoding="utf-8")
+            _store, snapshot, controller = self._controller(temporary)
+            try:
+                with patch.object(handoff, "agent_status",
+                                  lambda **kw: AgentStatus(False, None, "gone", None)):
+                    self.assertFalse(controller._reap_abandoned_claims(snapshot))
+                self.assertEqual(1, len(handoff.list_claims()))
             finally:
                 controller.close()
 

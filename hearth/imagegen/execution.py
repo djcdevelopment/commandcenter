@@ -29,10 +29,19 @@ class ImageGenerationSubsystem:
         self.session = session or ImageSessionController(
             autostart=autostart, cancel_all=self.cancel_all
         )
-        handoff.ensure_dirs()
-        self.reconcile_terminal_queue()
-        if autostart:
-            self.start()
+        # From here on the session monitor thread is ALREADY renewing the GPU fence. If the
+        # rest of construction fails, the caller never gets a reference to this object and
+        # cannot tear it down -- leaving a thread that keeps renewing a fence for a
+        # subsystem the gateway believes does not exist, which reads downstream as an image
+        # session nobody can stop. So the constructor cleans up after itself.
+        try:
+            handoff.ensure_dirs()
+            self.reconcile_terminal_queue()
+            if autostart:
+                self.start()
+        except Exception:
+            self.close(wait=False)
+            raise
 
     def start(self) -> None:
         if self._thread is not None:

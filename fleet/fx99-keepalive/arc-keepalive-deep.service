@@ -14,7 +14,12 @@ Type=oneshot
 User=derek
 ExecStart=/opt/arc-keepalive/warm-omen-arc.sh 32
 ExecStartPost=/opt/arc-keepalive/recover-omen-imagegen.sh
-TimeoutStartSec=300
+# 600 s, not 300: this unit runs warm-omen-arc.sh (up to 180 s across two hosts)
+# followed by recover-omen-imagegen.sh (up to 300 s). At 300 s systemd killed the
+# recovery leg mid-restart. A recovering tick may now outlast the 5-minute timer;
+# systemd will not start a second copy, and one skipped decode measurement beats
+# two concurrent ArcServe restarts.
+TimeoutStartSec=600
 SuccessExitStatus=0 1
 Nice=10
 IOSchedulingClass=idle

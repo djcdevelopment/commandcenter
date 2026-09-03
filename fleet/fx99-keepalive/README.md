@@ -39,9 +39,16 @@ rate check still returned **42.54 tok/s (40%)** with the familiar 68.82 → 26.4
 schtasks /Run /TN ArcServeRestart
 ```
 
-The pinger never does this itself. It cannot fix a collapsed rung anyway, and a keep-alive
-that reached for a restart would be an outage generator on a flaky link. Detection is what
-the deep probe is for; the decision to restart stays with a human.
+The **warm/deep pinger** never does this itself. It cannot fix a collapsed rung anyway, and a
+keep-alive that reached for a restart would be an outage generator on a flaky link. Detection
+is what the deep probe is for; for a cold or collapsed rung the decision to restart stays with
+a human.
+
+> **One exception, added 2026-09-03 -- read it before you trust the paragraph above.** The deep
+> unit's `ExecStartPost` runs `recover-omen-imagegen.sh`, and *that* path CAN restart ArcServe:
+> it reaches `ArcServeRestart`, which force-kills every `llama-server.exe` on OMEN. It is
+> narrowly fenced (see below) and self-limiting, but it is not "non-actuating", and this file
+> claimed otherwise in two places until that was corrected.
 
 ## Two timers, and why
 
@@ -69,9 +76,10 @@ OMEN owns the action and the secret.
   monitor**. That is what will finally answer whether real traffic has been running in the
   cold regime all along — the open question ADR-0043 could not settle.
 
-Failure is quiet and non-actuating: if OMEN is unreachable the tick logs and exits. It
-never restarts anything. A keep-alive that reached for a restart would be an outage
-generator on a flaky link.
+Failure of the **warm probe** is quiet and non-actuating: if OMEN is unreachable the tick logs
+and exits, and `warm-omen-arc.sh` restarts nothing. A keep-alive that reached for a restart
+would be an outage generator on a flaky link. The imagegen recovery leg below is the one
+actuating path on this timer, and it is fenced separately.
 
 The deep timer also runs `recover-omen-imagegen.sh`. That is separate from the warm
 probe's policy: FX99 merely invokes `E:\omen\imagegen\ops\Invoke-ImageGenRecovery.ps1`
@@ -80,6 +88,23 @@ expired image-session fence with no claimed work or listening image backend; a h
 session is a no-op. ArcServe credentials and the restart action remain on OMEN. Receipts
 for this check live in `E:\omen\imagegen\data\logs\recovery.log` on OMEN and
 `/var/log/imagegen-recovery.log` on FX99.
+
+**What it actually does when it does act, and why that is bounded** (hardened 2026-09-03):
+
+- The repair step force-kills `llama-server.exe` machine-wide via `ArcServeRestart`. That is
+  the real blast radius; treat it as such.
+- It **refuses to start** unless `OMEN_ARC_TOKEN` resolves. Every ArcServe probe 401s without
+  it, so the verify loop could never pass -- the original build would have killed the rung,
+  failed the verify, never released the fence, and repeated on the next tick, forever.
+- It **banks an attempt before** the destructive step, so a run cut off by the SSH timeout
+  still counts, and after `MAX_ATTEMPTS` it escalates instead of bouncing ArcServe again. The
+  fence stays held on escalation: a rung that will not come back belongs out of rotation.
+- It removes the ArcServe maintenance sentinel **only when the file names the session being
+  recovered**, so a human maintenance window cannot be ended by this timer.
+- Timeout budget, which now closes: verify loop 120 s < per-host SSH 240 s, overall deadline
+  300 s, `TimeoutStartSec=600`. A recovering tick may outlast the 5-minute timer; systemd
+  will not start a second copy, and one skipped decode measurement beats two concurrent
+  ArcServe restarts.
 
 ## Transport status — live over the tailnet, LAN still closed
 

@@ -326,8 +326,9 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
         occ = _occ(chosen.name)
         if occ.get("exclusive"):
             raise BackendConfigError(
-                "backend %r unavailable during exclusive GPU tenancy: %s" %
-                (chosen.name, occ.get("detail") or "resource owned elsewhere")
+                "backend %r unavailable during exclusive GPU tenancy [%s]: %s" %
+                (chosen.name, occ.get("exclusive_reason") or "unspecified",
+                 occ.get("detail") or "resource owned elsewhere")
             )
         occ["occupancy"] = occ.get("occupancy", "unknown")
         # Pinned calls resolve unknown -> available (fail-open for a deliberate pin).

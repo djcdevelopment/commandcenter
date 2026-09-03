@@ -120,6 +120,42 @@ def active_count() -> int:
     return len(list_queued()) + len(list_claims())
 
 
+def abandoned_claims(*, now: Optional[float] = None) -> list:
+    """Claims no live worker can still be advancing.
+
+    A claim file protects ArcServe from being restarted under a running job -- but only
+    while a worker could actually still be running it. When the agent heartbeat is gone AND
+    the claim itself has not been touched for longer than the heartbeat window, nothing is
+    going to finish it, and treating it as protective wedges ArcServe down forever with no
+    automated escape. That is the failure this distinguishes.
+
+    Returns the abandoned subset; an empty list means every claim is still plausibly live.
+    """
+    claims = list_claims()
+    if not claims:
+        return []
+    if agent_status(now=now).available:
+        return []
+    current = time.time() if now is None else now
+    abandoned = []
+    for path in claims:
+        try:
+            age = current - path.stat().st_mtime
+        except OSError:
+            # The file vanished mid-scan: it is not holding anything down.
+            abandoned.append(path)
+            continue
+        if age > AGENT_STALE_SECONDS:
+            abandoned.append(path)
+    return abandoned
+
+
+def claims_are_abandoned(*, now: Optional[float] = None) -> bool:
+    """True when there ARE claims and every one of them is abandoned."""
+    claims = list_claims()
+    return bool(claims) and len(abandoned_claims(now=now)) == len(claims)
+
+
 @dataclass(frozen=True)
 class AgentStatus:
     available: bool

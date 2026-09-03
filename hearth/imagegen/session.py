@@ -137,6 +137,11 @@ class ImageSessionController:
             "queued": len(handoff.list_queued()),
             "running": len(handoff.list_claims()),
             "idle_restore_seconds": self._idle_seconds,
+            # The worker and the scheduled recovery both live in a SEPARATE repo at
+            # E:\omen\imagegen, reached by hardcoded path. Surface its presence here so a
+            # missing runtime is visible at status time rather than as a 90 s launch
+            # timeout and a recovery that silently stopped running.
+            "runtime": agent_control.runtime_preflight(),
         }
 
     def start(self, *, reason: str = "operator requested art session") -> dict:
@@ -149,11 +154,19 @@ class ImageSessionController:
                 return {"ok": False, "error": "BF6 or OBS recording is active",
                         "blocker": gate.to_dict()}
             agent = self._agent_status()
+        if not agent.available:
+            # OUTSIDE the lock on purpose: _agent_start blocks for up to 90 s waiting for
+            # the worker to report ready. Holding the controller lock across it stalled
+            # every concurrent stop() and every event write for that whole window.
+            agent = self._agent_start()
             if not agent.available:
-                agent = self._agent_start()
-                if not agent.available:
-                    return {"ok": False, "error": "interactive image agent unavailable",
-                            "agent": agent.to_dict()}
+                return {"ok": False, "error": "interactive image agent unavailable",
+                        "agent": agent.to_dict()}
+        with self._lock:
+            # Re-check under the lock: another caller may have won the race while we were
+            # launching the worker.
+            if self.store.active_image_session(POOL) is not None:
+                return {"ok": True, "already_active": True, **self.status()}
             session_id = "imgsess_" + secrets.token_hex(16)
             try:
                 snapshot = self.store.acquire(
@@ -243,7 +256,13 @@ class ImageSessionController:
                                  epoch=snapshot.epoch, ttl_seconds=SESSION_TTL_SECONDS)
                 time.sleep(1)
             if handoff.active_count():
-                raise ImageSessionError("image jobs did not drain; ArcServe remains stopped")
+                # A claim only protects ArcServe while a worker could still finish it.
+                # Reap the ones nothing is advancing, then insist on a genuinely empty
+                # queue before restoring.
+                self._reap_abandoned_claims(snapshot)
+                if handoff.active_count():
+                    raise ImageSessionError(
+                        "image jobs did not drain; ArcServe remains stopped")
             self._restore(snapshot, reason)
         except Exception as exc:
             try:
@@ -276,10 +295,49 @@ class ImageSessionController:
         try:
             snapshot = self._transition_state(snapshot, "faulted", reason)
             self._event("session.faulted", snapshot, reason=reason)
-            if not handoff.list_claims():
+            if not handoff.list_claims() or self._reap_abandoned_claims(snapshot):
                 self._restore(snapshot, reason)
         except Exception:
             pass
+
+    def _reap_abandoned_claims(self, snapshot) -> bool:
+        """Clear claims no live worker can finish. True when nothing is left holding on.
+
+        Without this, one stuck claim file left ArcServe stopped indefinitely: the fault
+        path refused to restore while claims existed, and the scheduled fx99 recovery
+        deferred for the same reason. Two mechanisms, both correct in isolation, that
+        together had no exit.
+        """
+        abandoned = handoff.abandoned_claims()
+        if not abandoned:
+            return False
+        remaining = [path for path in handoff.list_claims() if path not in abandoned]
+        if remaining:
+            return False
+        for path in abandoned:
+            self._event("session.claim_abandoned", snapshot,
+                        reason="no live worker for claim %s; releasing it so ArcServe can "
+                               "be restored" % path.stem)
+            handoff.clear_claim(path.stem)
+        return True
+
+    # ---------------------------------------------------------------- public surface
+    # hearth.imagegen.recovery runs OUT OF PROCESS, from fx99's timer, and used to reach
+    # into the privates below. That made a rename in this file able to silently break
+    # scheduled recovery with nothing to catch it. These three are the contract; the
+    # provider-contract test asserts they stay.
+
+    def restart_arcserve(self) -> None:
+        """Bounce ArcServe via the elevated S4U task. Destructive: force-kills llama-server."""
+        self._run_restart_task()
+
+    def verify_arcserve(self) -> bool:
+        """True only on idle slots PLUS a real completion round-trip -- never a port probe."""
+        return self._verify_arcserve()
+
+    def record_event(self, event: str, snapshot, *, reason: Optional[str] = None) -> None:
+        """Append one `imagegen.session.v1` record to the session event log."""
+        self._event(event, snapshot, reason=reason)
 
     @staticmethod
     def _run_restart_task() -> None:
@@ -370,4 +428,5 @@ class ImageSessionController:
             if self._empty_since is None:
                 self._empty_since = time.monotonic()
             elif time.monotonic() - self._empty_since >= self._idle_seconds:
-                self.stop(reason="30 minute imagegen idle timeout")
+                self.stop(reason="imagegen idle timeout (%.0f minutes with no active jobs)"
+                                 % (self._idle_seconds / 60.0))

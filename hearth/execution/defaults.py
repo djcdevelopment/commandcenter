@@ -56,10 +56,20 @@ def _attach_imagegen_subsystem(service: ExecutionService) -> None:
         from hearth.imagegen.execution import ImageGenerationSubsystem
     except Exception:  # pragma: no cover - optional subsystem
         return
+    subsystem = None
     try:
-        service._image_dispatcher = ImageGenerationSubsystem(service=service)
+        subsystem = ImageGenerationSubsystem(service=service)
+        service._image_dispatcher = subsystem
     except Exception:  # pragma: no cover - optional subsystem
+        # ImageGenerationSubsystem.__init__ now tears down its own daemon threads if it
+        # fails partway (it has to -- on that path we never get a reference). This handles
+        # the remaining case: construction succeeded and the assignment did not.
         service._image_dispatcher = None
+        if subsystem is not None:
+            try:
+                subsystem.close()
+            except Exception:
+                pass
 
 
 def replace_execution_service(service: Optional[ExecutionService]) -> Optional[ExecutionService]:

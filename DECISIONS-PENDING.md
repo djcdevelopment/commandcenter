@@ -932,3 +932,15 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       its own pass rather than being folded into a rotation session.
       ⚠ Read the audit's matrix as **reachability, never capacity** — `:8090` and `:11435` are both
       listed UP and both are hollow (it says so itself).
+
+- [ ] 2026-09-04 — **OPEN (question about how we decide, from L-2026-09-04-5): when the PREMISE of an
+      approved decision is disproved mid-session, does the decision stand?** Concrete instance this
+      session: Derek approved "bridge `local_generate` in `ledger_adapter`" on the stated premise that
+      door calls contribute no evidence. Hours later that turned out to be a **defect**, not a design
+      — door calls now produce first-class observations — so executing the decision as written would
+      double-count. I stopped and re-asked rather than delivering its letter. That felt right, but it
+      is Derek's call about his own authority, not mine: **the standing rule is "a stated decision
+      ENDS deliberation"** (`feedback-accept-dereks-gut-calls`), and this is the one exception I want
+      named rather than improvised. Proposed rule: *a decision stands until its stated premise is
+      falsified; then it returns to the decider with the falsification, once, in one line.* Confirm,
+      amend, or reject. (source: SESSION-RETRO-2026-09-04.md L-2026-09-04-5; ADR-0027 addenda)

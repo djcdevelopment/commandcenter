@@ -1,0 +1,36 @@
+{
+  "title": "Audio Lab Calibration Benchmark",
+  "version": "1.0.0",
+  "turns": [
+    {
+      "speaker": "host_a",
+      "text": "Welcome to the Hearth test bench. Today we are looking at the telemetry from the dual Intel Arc Pro B70 cards after migrating off the AM4 chassis.",
+      "pause_after_ms": 250
+    },
+    {
+      "speaker": "host_b",
+      "text": "Right. We are clocking 107.8 tokens per second on local Qwen3-30B, but our health checks were flagging the lane as cold.",
+      "pause_after_ms": 250
+    },
+    {
+      "speaker": "host_a",
+      "text": "Because doorcheck dot py had a boolean defect on line 382. It was inspecting None instead of the live socket state.",
+      "pause_after_ms": 250
+    },
+    {
+      "speaker": "host_b",
+      "text": "Exactly. Receipts over rhetoric. Per ADR-0014 and ADR-0030, machine control loops must not ride the cloud. The metal is fast, the coordination ledger is durable, and our control loop stays strictly local.",
+      "pause_after_ms": 250
+    },
+    {
+      "speaker": "host_a",
+      "text": "And when the B70 cards moved to OMEN, summon dot py was still attempting to wake b70-moe dot service on AM4 port 8082.",
+      "pause_after_ms": 250
+    },
+    {
+      "speaker": "host_b",
+      "text": "The phantom limb problem. Software topology must be audited until every actuator derives its target from declarative pool state.",
+      "pause_after_ms": 250
+    }
+  ]
+}

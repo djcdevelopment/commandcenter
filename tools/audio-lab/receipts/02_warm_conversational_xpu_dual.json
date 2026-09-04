@@ -1,0 +1,30 @@
+{
+  "candidate_id": "02_warm_conversational",
+  "timestamp": "2026-09-04T10:57:59.044012+00:00",
+  "script_digest": "sha256:2c3092c711caa37457b75be22f2f8908ba5352fd7ea83f1eed1b1734a15966f6",
+  "compute_device": "xpu_dual",
+  "backend": "kokoro",
+  "backend_version": "0.9.4",
+  "voice_spec": {
+    "host_a": "af_bella",
+    "host_b": "am_michael"
+  },
+  "speed": 1.0,
+  "pacing_strategy": "control_zero_padding_250ms",
+  "crossfade_ms": 0.0,
+  "room_tone_db": null,
+  "sample_rate": 24000,
+  "wall_time_s": 8.405,
+  "cpu_time_s": 16.328,
+  "audio_duration_s": 68.075,
+  "x_realtime": 8.1,
+  "thread_cap": 4,
+  "cpu_core_utilization": 1.94,
+  "vram_telemetry": {
+    "xpu_0_allocated_mb": 545.33,
+    "xpu_1_allocated_mb": 540.98
+  },
+  "artifact_path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\02_warm_conversational_xpu_dual.wav",
+  "artifact_bytes": 6535280,
+  "artifact_sha256": "a71dedba246f6ee89ef54ca9566af5e31f45ae6664b703e9d34953dff0a5609c"
+}

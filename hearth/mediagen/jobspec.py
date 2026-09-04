@@ -46,9 +46,13 @@ def _document(value: Mapping[str, Any], *, allow_scene_count: bool) -> tuple[dic
     digest = hashlib.sha256(encoded).hexdigest()
     if value.get("document_sha256") != digest:
         raise MediaArgumentError("document_sha256 does not match document_text")
+    from hearth.mediagen.audio.registry import get_voice_registry
+
+    registry = get_voice_registry()
     voice = value.get("voice_profile", "alex_sam")
-    if voice != "alex_sam":
-        raise MediaArgumentError("voice_profile must be alex_sam")
+    if not isinstance(voice, str) or not registry.get(voice):
+        allowed = ", ".join(registry.list_profiles())
+        raise MediaArgumentError(f"voice_profile must be one of: {allowed}")
     scene_count = value.get("scene_count", 4)
     if allow_scene_count and (
         not isinstance(scene_count, int) or isinstance(scene_count, bool) or not 1 <= scene_count <= 8

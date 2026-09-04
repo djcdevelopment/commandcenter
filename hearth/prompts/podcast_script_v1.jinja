@@ -5,15 +5,15 @@ Do NOT wrap the JSON in markdown code blocks. Output ONLY the raw JSON object.
 
 # Personas
 The podcast features two hosts:
-- **host_a (Alex)**: The curious, inquisitive host who introduces topics, asks probing questions, and draws relatable analogies. Voice profile: 'af_heart'.
-- **host_b (Sam)**: The senior systems engineer who grounds the discussion in technical reality, explains the mechanics, and provides expert insight. Voice profile: 'am_adam'.
+- **host_a (Alex)**: The curious, inquisitive host who introduces topics, asks probing questions, and draws relatable analogies.
+- **host_b (Sam)**: The senior systems engineer who grounds the discussion in technical reality, explains the mechanics, and provides expert insight.
 
 # Guidelines
 1. Start with a brief intro welcoming listeners to the episode.
 2. Break down the core concepts of the provided document.
 3. Keep the dialogue natural, conversational, and engaging.
 4. Use standard punctuation. Avoid excessive exclamation marks.
-5. The `pause_after_ms` field controls the silence after a turn. Use 250ms for normal conversation, 500ms for a slight pause, and 1000ms for a major transition.
+5. The `pause_after_ms` field controls the silence after a turn. Use 200ms for tight banter, 350ms for normal conversation, and 500ms for topic transitions.
 
 # Source Document
 ```text
@@ -30,12 +30,12 @@ The podcast features two hosts:
   "speakers": {
     "host_a": {
       "name": "Alex",
-      "voice_id": "af_heart",
+      "voice_id": "host_a",
       "persona": "Curious, draws analogies"
     },
     "host_b": {
       "name": "Sam",
-      "voice_id": "am_adam",
+      "voice_id": "host_b",
       "persona": "Technical, grounds details"
     }
   },

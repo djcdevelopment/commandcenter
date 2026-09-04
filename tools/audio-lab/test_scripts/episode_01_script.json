@@ -1,0 +1,60 @@
+{
+  "schema": "mediagen.podcast-script.v1",
+  "version": "1.0.0",
+  "title": "The Phantom Limbs of Metal",
+  "source_document_sha256": "4372000000000000000000000000000000000000000000000000000000000001",
+  "speakers": {
+    "host_a": {
+      "name": "Alex",
+      "voice_id": "af_bella,af_sarah",
+      "persona": "Curious, draws analogies"
+    },
+    "host_b": {
+      "name": "Sam",
+      "voice_id": "am_michael,am_adam",
+      "persona": "Technical, grounds details"
+    }
+  },
+  "turns": [
+    {
+      "speaker": "host_a",
+      "text": "Welcome back. Today we are talking about moving hardware versus moving software. You can move thirty pounds of silicon across a room in four minutes with a screwdriver, but getting the software to realize the metal has moved can take four weeks.",
+      "pause_after_ms": 300
+    },
+    {
+      "speaker": "host_b",
+      "text": "That is exactly what happened here. Late August, two Intel Arc Pro B70 graphics cards were unseated from a Linux box named AM4 and bolted into the PCI slots of our Windows hypervisor named OMEN. The goal was simple: eliminate network hops and push 107 tokens a second on loopback.",
+      "pause_after_ms": 250
+    },
+    {
+      "speaker": "host_a",
+      "text": "And the benchmark passed, the model was warm, but forty-eight hours later, Hearth was still tapping on AM4's shoulder over SSH, asking if the cards were free.",
+      "pause_after_ms": 250
+    },
+    {
+      "speaker": "host_b",
+      "text": "Right. Inside Hearth, there is an actuator called summon dot py. When an incoming job needs parked capacity, summon is supposed to wake the node up. For months, that meant SSHing into AM4 and starting b70-moe dot service.",
+      "pause_after_ms": 300
+    },
+    {
+      "speaker": "host_a",
+      "text": "So backends dot toml was updated to loopback, but the procedural automation kept reaching for the phantom limb.",
+      "pause_after_ms": 250
+    },
+    {
+      "speaker": "host_b",
+      "text": "Exactly. Declarative configs are easy to audit because they sit in one table. Procedural scripts live in helper functions, maintenance routines, and recovery loops. They bake IP addresses and systemd service names into string constants.",
+      "pause_after_ms": 300
+    },
+    {
+      "speaker": "host_a",
+      "text": "Which leads directly to what Hearth calls the rule of serve-truth: a tool must never ask a helper script whether metal is present. A machine is just a physical chassis; a service is a capability contract.",
+      "pause_after_ms": 250
+    },
+    {
+      "speaker": "host_b",
+      "text": "Retire the old actuators with prejudice, and never let procedural code maintain its own separate topology map.",
+      "pause_after_ms": 500
+    }
+  ]
+}

@@ -23,3 +23,7 @@ session-export-*.zip
 # on every telemetry call, so every rotation load regenerates them)
 runs/enumerate/
 runs/run/
+
+# Audio Lab: WAV artifacts are large (~120 MB) and regenerable via pacing_bench.py.
+# The JSON receipts and LISTENING_SCORECARD.md ARE tracked -- they are the durable record.
+tools/audio-lab/samples/

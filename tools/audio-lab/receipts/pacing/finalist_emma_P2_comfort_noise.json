@@ -1,0 +1,26 @@
+{
+  "assay_stage": 2,
+  "run_id": "finalist_emma_P2_comfort_noise",
+  "finalist": "finalist_emma",
+  "finalist_label": "Clip 5 Anchor (bf_emma + bm_george)",
+  "voice_spec": {
+    "host_a": "bf_emma",
+    "host_b": "bm_george"
+  },
+  "pacing_strategy": "P2_comfort_noise",
+  "strategy_description": "Ambient bed: 250ms pause filled with -62 dB shaped comfort noise + 10ms fades",
+  "fade_ms": 10.0,
+  "room_tone_db": -62.0,
+  "pause_mode": "fixed_250ms",
+  "comfort_noise_seed": 4541993474690098106,
+  "turns_digest": "sha256:0f68aa06c1431ab5da60628f160aa73c500b36c4b6b125ff8590a98b38f0f6fe",
+  "compute_device": "cpu",
+  "splice_impl": "hearth.mediagen.audio.pacing.splice_dialogue",
+  "sample_rate": 24000,
+  "audio_duration_s": 64.35,
+  "timestamp": "2026-09-04T13:21:52.529365+00:00",
+  "script_digest": "sha256:2c3092c711caa37457b75be22f2f8908ba5352fd7ea83f1eed1b1734a15966f6",
+  "artifact_path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\pacing\\finalist_emma_P2_comfort_noise.wav",
+  "artifact_bytes": 6177680,
+  "artifact_sha256": "67b57568c3608f2b9ec0706d9f0b752c4c5d05b3be9200abfc42c3ebff1c93cc"
+}

@@ -1,0 +1,25 @@
+{
+  "candidate_id": "05_british_tech",
+  "timestamp": "2026-09-04T10:49:24.926484+00:00",
+  "script_digest": "sha256:2c3092c711caa37457b75be22f2f8908ba5352fd7ea83f1eed1b1734a15966f6",
+  "backend": "kokoro",
+  "backend_version": "0.9.4",
+  "voice_spec": {
+    "host_a": "bf_emma",
+    "host_b": "bm_george"
+  },
+  "speed": 1.0,
+  "pacing_strategy": "control_zero_padding_250ms",
+  "crossfade_ms": 0.0,
+  "room_tone_db": null,
+  "sample_rate": 24000,
+  "wall_time_s": 17.645,
+  "cpu_time_s": 69.625,
+  "audio_duration_s": 64.35,
+  "x_realtime": 3.65,
+  "thread_cap": 4,
+  "cpu_core_utilization": 3.95,
+  "artifact_path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\05_british_tech.wav",
+  "artifact_bytes": 6177680,
+  "artifact_sha256": "67c2048ce2b5ddaaee2d823144dc8ede1a89df61c4a78dec818f7bd72cf71cf8"
+}

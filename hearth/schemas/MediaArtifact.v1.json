@@ -41,6 +41,16 @@
       "maximum": 8,
       "description": "Number of audio channels. Null for video-only or images."
     },
+    "voice_ids": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Physical Kokoro voice ids that rendered this audio, in host_a, host_b order. Null for non-podcast artifacts."
+    },
+    "voice_source": {
+      "type": "string",
+      "enum": ["contract", "profile", "mixed"],
+      "description": "Where those voices came from: the PodcastScript contract's speaker voice_id, the named VoiceProfile, or one of each."
+    },
     "video_width": {
       "type": "integer",
       "description": "Video frame width in pixels. Null for audio-only."

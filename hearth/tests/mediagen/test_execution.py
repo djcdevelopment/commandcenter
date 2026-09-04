@@ -71,11 +71,13 @@ def test_podcast_runs_on_delegated_worker_and_records_result(tmp_path: Path) -> 
                       {"speaker": "host_b", "text": "Hello"}],
         }
 
-    def fake_synthesize(_contract: dict, output: Path) -> dict:
+    def fake_synthesize(_contract: dict, output: Path, *, profile_name=None) -> dict:
         output.write_bytes(b"RIFF-test-wav")
         return {"duration_seconds": 1.0, "sample_rate": 24000, "channels": 1,
                 "file_size_bytes": output.stat().st_size,
-                "sha256": hashlib.sha256(output.read_bytes()).hexdigest()}
+                "sha256": hashlib.sha256(output.read_bytes()).hexdigest(),
+                "voice_ids": ["af_heart", "am_adam"], "voice_source": "profile",
+                "voice_warnings": []}
 
     text = "source"
     try:
@@ -126,3 +128,24 @@ def test_cancel_before_dispatch_is_terminal(tmp_path: Path) -> None:
         assert result["status"] == "cancelled"
     finally:
         service.close()
+
+
+def test_threadpool_submit_needs_explicit_context_copy_to_propagate_contextvars() -> None:
+    """Regression guard for _run_pipeline's audio dispatch.
+
+    ThreadPoolExecutor does not propagate contextvars, so _run_pipeline must capture a
+    context on the worker thread and submit context.run(...). A refactor that drops that
+    capture takes DispatchIdentity (ADR-0027 capability evidence) and the
+    _caller_roots/_caller_repos path-containment vars with it -- silently, since the
+    synthesis still produces audio.
+    """
+    import contextvars
+    from concurrent.futures import ThreadPoolExecutor
+
+    var = contextvars.ContextVar("probe", default=None)
+    var.set("caller-value")
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        assert pool.submit(var.get).result() is None, "bare submit should NOT inherit"
+        context = contextvars.copy_context()
+        assert pool.submit(context.run, var.get).result() == "caller-value"

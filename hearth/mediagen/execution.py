@@ -290,6 +290,7 @@ class MediaGenerationSubsystem:
             "progress": {}, "artifacts": {}, "child_job_ids": [], "warnings": []
         }
         artifacts = checkpoint.setdefault("artifacts", {})
+        warnings = checkpoint.setdefault("warnings", [])
         if artifacts.get("script"):
             script = json.loads(self._artifact_bytes(artifacts["script"]).decode("utf-8"))
         else:
@@ -310,7 +311,15 @@ class MediaGenerationSubsystem:
             self._checkpoint(job_id, invocation_id, checkpoint)
         self._check_cancel(signal)
         wav = work / (job_id + ".wav")
-        audio_details = podcast.synthesize_podcast(script, wav)
+        audio_details = podcast.synthesize_podcast(
+            script, wav, profile_name=spec.get("voice_profile")
+        )
+        # voice_warnings describes the synthesis decision, not the artifact, so it must be
+        # drained here: MediaArtifact.v1 is additionalProperties:false and _media_contract
+        # spreads **details straight into the validated contract.
+        for message in audio_details.pop("voice_warnings", []):
+            warnings.append(message)
+            checkpoint["degraded"] = True
         published = self._publish(wav, "podcast_" + job_id + ".wav")
         audio = self._record(
             job_id, invocation_id, published.read_bytes(), media_type="audio/wav",
@@ -329,7 +338,10 @@ class MediaGenerationSubsystem:
         checkpoint["progress"] = {"stage": "completed"}
         checkpoint["artifacts"].update(audio=audio["artifact_id"], result=result["artifact_id"])
         self._checkpoint(job_id, invocation_id, checkpoint)
-        return {"result_artifact_id": result["artifact_id"], "degraded": False, "warnings": []}
+        return {
+            "result_artifact_id": result["artifact_id"],
+            "degraded": bool(checkpoint.get("degraded")), "warnings": warnings,
+        }
 
     def _session_acquire(self, job_id: str, signal: threading.Event) -> Optional[str]:
         image = getattr(self._service, "_image_dispatcher", None)
@@ -569,9 +581,16 @@ class MediaGenerationSubsystem:
         if artifacts.get("audio"):
             audio_path.write_bytes(self._artifact_bytes(artifacts["audio"]))
         else:
+            # Captured on THIS thread, then run inside it on the audio pool thread.
+            # ThreadPoolExecutor does not propagate contextvars, so without this the
+            # DispatchIdentity (ADR-0027 capability evidence) and the
+            # _caller_roots/_caller_repos path-containment vars silently vanish for
+            # every media.pipeline TTS call.
             context = contextvars.copy_context()
-            audio_future = audio_pool.submit(context.run, podcast.synthesize_podcast,
-                                             script, audio_path)
+            audio_future = audio_pool.submit(
+                context.run, podcast.synthesize_podcast, script, audio_path,
+                profile_name=spec.get("voice_profile"),
+            )
 
         owned = None
         still_rows: list[tuple[dict, dict]] = []
@@ -618,6 +637,11 @@ class MediaGenerationSubsystem:
 
             if audio_future is not None:
                 audio_details = audio_future.result()
+                # Drain before the details are checkpointed or spread into the
+                # media-artifact contract -- see the matching note in _run_podcast.
+                for message in audio_details.pop("voice_warnings", []):
+                    warnings.append(message)
+                    checkpoint["degraded"] = True
                 published_audio = self._publish(audio_path, "podcast_" + job_id + ".wav")
                 audio_artifact = self._record(
                     job_id, invocation_id, published_audio.read_bytes(), media_type="audio/wav",

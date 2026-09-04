@@ -1,0 +1,26 @@
+{
+  "assay_stage": 2,
+  "run_id": "finalist_heart_P2_comfort_noise",
+  "finalist": "finalist_heart",
+  "finalist_label": "Clip 1 Anchor (af_heart + am_adam)",
+  "voice_spec": {
+    "host_a": "af_heart",
+    "host_b": "am_adam"
+  },
+  "pacing_strategy": "P2_comfort_noise",
+  "strategy_description": "Ambient bed: 250ms pause filled with -62 dB shaped comfort noise + 10ms fades",
+  "fade_ms": 10.0,
+  "room_tone_db": -62.0,
+  "pause_mode": "fixed_250ms",
+  "comfort_noise_seed": 13469600692368130519,
+  "turns_digest": "sha256:03a982e9147306d950fd21b9a63ab7576c35b0ef009330e3fca816c208e6753d",
+  "compute_device": "cpu",
+  "splice_impl": "hearth.mediagen.audio.pacing.splice_dialogue",
+  "sample_rate": 24000,
+  "audio_duration_s": 62.175,
+  "timestamp": "2026-09-04T13:21:35.269127+00:00",
+  "script_digest": "sha256:2c3092c711caa37457b75be22f2f8908ba5352fd7ea83f1eed1b1734a15966f6",
+  "artifact_path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\pacing\\finalist_heart_P2_comfort_noise.wav",
+  "artifact_bytes": 5968880,
+  "artifact_sha256": "9fb9fcdd1f436d72d1aa2fd64896153c617885894f2320fbfab208845f4f76d8"
+}

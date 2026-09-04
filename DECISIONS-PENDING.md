@@ -898,3 +898,23 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       the day before, and it only surfaced because the proof asked the reader a question while a
       window was open — a step the original handoff sequence did not contain.**
       (source: window `rot-twocard-20260904-A`)
+
+- [ ] 2026-09-04 — **OPEN (registered from the Gemini Flash 3.8 HEARTH audit; P1/P2 items not done).**
+      Full verification verdict in [docs/AUDIT-RESPONSE-2026-09-04.md](docs/AUDIT-RESPONSE-2026-09-04.md):
+      the audit is **accurate** — 8 of 8 network probes matched and both P0 code findings were
+      confirmed in the source and **fixed** this session (doorcheck's permanent false `cold`; a
+      missing local token silently escalating to a paid rung). What remains needs other machines or
+      another lane:
+      **(a)** `cc-conductor` `~/.ssh/config` `StrictHostKeyChecking accept-new` for `*.mshome.net` —
+      Hyper-V Default Switch prefix churn breaks headless build fan-out (audit's claim; **not
+      verified here**, no SSH run from `cc-conductor`).
+      **(b)** Samba `:445` is **DOWN on both AM4 and FX99** (verified by probe) — Windows drives
+      `A:`/`W:`/`S:`/`Y:` hang. The *cause* is not verified: `ufw` rule vs `smbd` binding is the
+      audit's guess.
+      **(c)** `claudefarm1` rejects `cc-conductor`'s SSH key (**not verified**).
+      **(d)** Phantom limbs from the B70 relocation — `summon.wake_am4`, `dream.py`, `am4.py`,
+      `occupancy.MOE_SLOTS_URL` still target `192.168.12.233:8082`, which has served no LLM since
+      2026-08-20 (ADR-0034). Correctly diagnosed; touches the imagegen lane's territory, so it wants
+      its own pass rather than being folded into a rotation session.
+      ⚠ Read the audit's matrix as **reachability, never capacity** — `:8090` and `:11435` are both
+      listed UP and both are hollow (it says so itself).

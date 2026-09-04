@@ -74,12 +74,30 @@ class LocalGenerateTests(TestCase):
         self.assertEqual(body["options"]["num_predict"], 64)
 
     def test_connection_failure_returns_result_not_exception(self) -> None:
-        with patch("urllib.request.urlopen",
-                   side_effect=urllib.error.URLError("connection refused")):
+        # The token must be present for this to test what it says. Without it the
+        # default rung fails auth first, and this test used to reach URLError only by
+        # ESCALATING past that to a cloud rung -- i.e. it was passing because of the
+        # silent cloud-escalation leak (fixed 2026-09-04: an auth-configuration fault
+        # no longer climbs the ladder). Supply the token so the connection is what
+        # fails.
+        with patch.dict(os.environ, {"OMEN_ARC_TOKEN": "test-token"}), \
+                patch("urllib.request.urlopen",
+                      side_effect=urllib.error.URLError("connection refused")):
             result = local_generate("anyone home?")
         self.assertFalse(result["ok"])
         self.assertIn("URLError", result["error"])
         self.assertNotIn("text", result)
+
+    def test_missing_token_fails_loudly_instead_of_escalating_to_a_paid_rung(self) -> None:
+        with patch.dict(os.environ, {"OMEN_ARC_TOKEN": ""}, clear=False), \
+                patch("urllib.request.urlopen",
+                      side_effect=urllib.error.URLError("connection refused")):
+            result = local_generate("anyone home?")
+        self.assertFalse(result["ok"])
+        self.assertEqual(result.get("error_code"), "auth_not_configured")
+        # The whole point: no climb to a metered/trial rung on a local env fault.
+        self.assertNotIn("escalation", result.get("routed_by", ""))
+        self.assertNotIn("escalation", result)
 
     def test_hearth_ollama_env_overrides_default_endpoint(self) -> None:
         with patch.dict(os.environ, {"HEARTH_OLLAMA": "http://100.124.12.37:11434"}):

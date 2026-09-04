@@ -379,7 +379,20 @@ def _backends_report(probe_cloud: bool) -> dict:
         entry = _backend_status(backend, probe_cloud)
         entry["default"] = backend.name == pool.default
         if entry["default"]:
-            default_up = bool(entry.get("up"))
+            # `up` is None for openai-api rungs -- that branch was written when the only
+            # openai rung was am4-oxen, a banked-fire node that is ASLEEP by design, so
+            # "never gates exit" was right. ADR-0034 then made omen-arc (api="openai")
+            # the pool default, and bool(None) is False, so the door reported
+            # backend_dependency "cold" permanently -- including while omen-arc was
+            # serving at 107 tok/s at_rate. A health gate that is always red trains
+            # everyone to ignore it, which is worse than having none.
+            # Fall back to the TCP `awake` probe when `up` is not a real boolean.
+            # NOTE the limit: awake means the PORT answers, not that the model can emit
+            # a token -- am4-oxen answered on :8090 for days with every model
+            # ready:false. For the real verdict use query_rung_state (ADR-0044), which
+            # grants at_rate only from a deep sample.
+            probed = entry.get("up")
+            default_up = bool(entry.get("awake")) if probed is None else bool(probed)
         entries.append(entry)
     return {"backends": entries, "default_up": default_up, "config_error": None}
 

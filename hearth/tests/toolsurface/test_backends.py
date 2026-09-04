@@ -443,10 +443,14 @@ class PinnedPayloadBudgetTests(TestCase):
         refusal = ctx.exception.as_dict()
         self.assertEqual(refusal["reason"], "payload_over_budget_for_pinned_backend")
         self.assertEqual(refusal["payload_bytes"], 8000)
-        # One refused rung, not a walked ladder.
+        # One refused rung, not a walked ladder. `budget_scope`/`model` say WHICH
+        # declaration turned it away — per-member budgets landed 2026-09-04, and with
+        # no model pinned the rung-level number is what applied.
         self.assertEqual(refusal["attempted"], [{
             "name": "am4-oxen",
             "context_bytes": 5000,
+            "budget_scope": "rung",
+            "model": None,
             "occupancy": "not_checked",
             "rejection_reason": "payload_over_budget",
             "pinned": True,

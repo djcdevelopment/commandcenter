@@ -135,17 +135,48 @@ class Backend:
         val = self.settings.get("cost_class")
         return str(val) if val is not None else None
 
-    def context_bytes(self) -> Optional[int]:
-        """The declared context_bytes setting as a positive int, or None (unlimited)."""
-        val = self.settings.get("context_bytes")
-        if val is not None:
-            try:
-                ival = int(val)
-                if ival > 0:
-                    return ival
-            except (TypeError, ValueError):
-                pass
-        return None
+    def context_bytes(self, model: Optional[str] = None) -> Optional[int]:
+        """The declared context budget in bytes, or None (unlimited).
+
+        With ``model`` given, a per-member ``context_bytes_by_model`` entry wins over
+        the rung-level number; without one, or for a model with no entry, the rung
+        value stands. That fallback is the whole point: declaring budgets for one
+        multi-model rung must not change routing for any other rung.
+
+        Why per-member at all: a rung-wide ``context_bytes`` on a multi-model rung is
+        honest arithmetic and the wrong policy. ``omen-swap`` declares the MIN over its
+        members (14336, from the ``-c 4096`` entries), which refused 5 of 8 doc-bench
+        tasks for a ``phi4-vk1`` pin although phi-4 runs ``-c 8192``. Decided
+        2026-09-04; see DECISIONS-PENDING.md.
+        """
+        if model:
+            per_model = self.settings.get("context_bytes_by_model")
+            if isinstance(per_model, dict):
+                value = self._positive_int(per_model.get(model))
+                if value is not None:
+                    return value
+        return self._positive_int(self.settings.get("context_bytes"))
+
+    def context_budget_scope(self, model: Optional[str] = None) -> str:
+        """Which declaration the budget came from: "model", "rung", or "unlimited".
+
+        Rides the refusal receipt so a rejected pin says whether its own member's
+        budget or the rung-wide number turned it away.
+        """
+        if model and isinstance(self.settings.get("context_bytes_by_model"), dict):
+            if self._positive_int(self.settings["context_bytes_by_model"].get(model)) is not None:
+                return "model"
+        return "rung" if self._positive_int(self.settings.get("context_bytes")) is not None else "unlimited"
+
+    @staticmethod
+    def _positive_int(val) -> Optional[int]:
+        if val is None:
+            return None
+        try:
+            ival = int(val)
+        except (TypeError, ValueError):
+            return None
+        return ival if ival > 0 else None
 
     def token(self) -> Optional[str]:
         """The bearer token for this backend from its ``auth_env`` var, or None.
@@ -342,7 +373,7 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
             # rather than letting it surface as a server fault — which is how the
             # am4-oxen ctx miscalculation (0eeb1df) stayed hidden for a month.
             # Callers that pass no payload_bytes (build_requests) are untouched.
-            pinned_context = chosen.context_bytes()
+            pinned_context = chosen.context_bytes(model)
             if pinned_context is not None and payload_bytes > pinned_context:
                 raise BackendRoutingRefusal(
                     payload_bytes=payload_bytes,
@@ -350,6 +381,8 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
                     attempted=[{
                         "name": chosen.name,
                         "context_bytes": pinned_context,
+                        "budget_scope": chosen.context_budget_scope(model),
+                        "model": model,
                         "occupancy": "not_checked",
                         "rejection_reason": "payload_over_budget",
                         "pinned": True,
@@ -381,7 +414,7 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
             if exclude and candidate.name in exclude:
                 continue
             if payload_bytes is not None:
-                context = candidate.context_bytes()
+                context = candidate.context_bytes(model)
                 if context is not None and payload_bytes > context:
                     continue
             occupancy = _occ(candidate.name)
@@ -393,7 +426,8 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
             attempted=[
                 {
                     "name": candidate.name,
-                    "context_bytes": candidate.context_bytes(),
+                    "context_bytes": candidate.context_bytes(model),
+                    "budget_scope": candidate.context_budget_scope(model),
                     "occupancy": _occ(candidate.name).get("occupancy", "unknown"),
                     "rejection_reason": "provider_unavailable",
                 }

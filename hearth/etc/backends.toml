@@ -208,12 +208,28 @@ hardware_profile_id = "omen-285k-dual-b70-2026H2"
 lifecycle           = "llama-swap"
 # ADR-0031 arithmetic: MIN over the members' -c x -np x ~3.5 B/token = 4096 x 1 x 3.5 (gptoss20b /
 # mistral24b at -c 4096). Never over-declare: llama-server silently truncates over-long prompts.
+# This stays as the FALLBACK for any member without its own entry below -- honest, and safe.
 context_bytes = 14336
 max_tokens = 2048
 # On-demand load (~8.2 s dio, 19-27 s first-in-window) + drain of a swapped sibling (<= 27 s, P7)
 # both sit inside this budget.
 timeout_s = 600
 parallel_slots = 1
+
+# Per-member budgets (decided 2026-09-04). The rung MIN is correct arithmetic and the wrong
+# policy on a multi-model rung: it refused 5 of 8 doc-bench tasks for a phi4-vk1 pin although
+# phi-4 runs -c 8192. Each number is that entry's own -c x -np x ~3.5 B/token, read from
+# fleet/arcserve/llama-swap/omen.yaml -- keep them in step with that file.
+[backend.settings.context_bytes_by_model]
+"phi4-vk1"        = 28672      # -c 8192  x 1
+"phi4-vk0"        = 28672
+"qwen14b-vk1"     = 28672      # -c 8192  x 1
+"qwen14b-vk0"     = 28672
+"gptoss20b-vk1"   = 14336      # -c 4096  x 1
+"gptoss20b-vk0"   = 14336
+"mistral24b-vk1"  = 14336      # -c 4096  x 1
+"mistral24b-vk0"  = 14336
+"qwen38-27b-dual" = 114688     # -c 32768 x 1
 
 [[backend]]
 name     = "omen-ollama"                      # DEMOTED from routing 2026-08-21 (ADR-0034):

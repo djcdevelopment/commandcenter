@@ -358,9 +358,16 @@ def _generate_ollama(target: _Target, prompt: str, model: str, system: Optional[
 def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[str],
                      max_tokens: int, timeout_s: int) -> dict:
     if not target.auth_token:
-        return {"ok": False,
+        # error_code is load-bearing: A2 escalation must NOT climb on this. A missing
+        # token is a fault in THIS shell's environment, not a statement about the
+        # rung's capacity -- the rung is fine, we simply cannot address it. Escalating
+        # would silently buy trial-credit cloud tokens to paper over a local
+        # misconfiguration, which is exactly the kind of quiet fallback that hides a
+        # broken setup until the credits are gone.
+        return {"ok": False, "error_code": "auth_not_configured",
                 "error": f"no auth token for {target.backend or target.endpoint}: "
-                         f"set the {target.auth_env or 'auth'} env var on the gateway",
+                         f"set the {target.auth_env or 'auth'} env var on the gateway "
+                         f"(in-process callers: run under hearth/etc/with-gateway-env.cmd)",
                 "endpoint": target.endpoint, "model": model}
 
     messages = []
@@ -606,7 +613,12 @@ def local_generate(prompt: str, model: str | None = None,
     # a deliberate operator choice and never escalates.
     final_target = target
     first_observation = None
-    if result.get("ok") is False and not target.routed_by.startswith("pinned"):
+    # A local auth-configuration fault is not a capacity fault: climbing on it spends
+    # metered/trial credit to hide a broken environment. Fail loudly on the named rung
+    # instead (measured: an unauthenticated shell silently produced
+    # routed_by "escalation:omen-arc->gcp-gemini").
+    _no_climb = result.get("error_code") == "auth_not_configured"
+    if result.get("ok") is False and not target.routed_by.startswith("pinned") and not _no_climb:
         exclude_set = {target.backend} if target.backend else set()
         try:
             second_target = _resolve_target(endpoint, task, backend,

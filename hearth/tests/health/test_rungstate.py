@@ -159,15 +159,11 @@ class LiveWindowExclusionTests(TestCase):
             os.makedirs(os.path.join(d, "campaign", "ff-probes"))
             rows = recent_pings() + [deep(900, 72.0), deep(1500, 108.0)]
             with open(os.path.join(var, "arc-keepalive.jsonl"), "w", encoding="utf-8") as fh:
-                fh.write("
-".join(json.dumps(r) for r in rows) + "
-")
+                fh.write("\n".join(json.dumps(r) for r in rows) + "\n")
             win = [{"ts": _ts(800), "event": "window.open", "name": "rot-side-test", "status": "open"},
                    {"ts": _ts(1000), "event": "window.close", "name": "rot-side-test", "status": "passed"}]
             with open(os.path.join(var, "rotation-windows.jsonl"), "w", encoding="utf-8") as fh:
-                fh.write("
-".join(json.dumps(w) for w in win) + "
-")
+                fh.write("\n".join(json.dumps(w) for w in win) + "\n")
             with mock.patch.object(rungstate, "load_baseline", return_value=dict(BASE)):
                 st = rungstate.live_rung_state(root=d, now=NOW)
         self.assertEqual(st["excluded_windows"], ["rot-side-test"])

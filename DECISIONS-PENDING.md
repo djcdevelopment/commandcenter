@@ -942,5 +942,10 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       is Derek's call about his own authority, not mine: **the standing rule is "a stated decision
       ENDS deliberation"** (`feedback-accept-dereks-gut-calls`), and this is the one exception I want
       named rather than improvised. Proposed rule: *a decision stands until its stated premise is
-      falsified; then it returns to the decider with the falsification, once, in one line.* Confirm,
-      amend, or reject. (source: SESSION-RETRO-2026-09-04.md L-2026-09-04-5; ADR-0027 addenda)
+      falsified; then it returns to the decider with the falsification, once, in one line.*
+      **ACCEPTED IN PRINCIPLE 2026-09-04 (Derek):** *"excellent call out on the addendum to the rule,
+      i'll be sure to work something to that effect in."* The **canonical wording is his to write**;
+      the proposed sentence above is the working form until his lands. Recorded in the
+      `feedback-accept-dereks-gut-calls` memory with the trigger deliberately narrow — a **falsified
+      premise**, not a better argument, which stays forbidden.
+      (source: SESSION-RETRO-2026-09-04.md L-2026-09-04-5; ADR-0027 addenda)

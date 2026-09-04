@@ -187,10 +187,13 @@ closed — read `hearth/var/swap-logs/<id>.log` before touching anything. Never 
   token for omen-swap` unless `OMEN_ARC_TOKEN` is set: run the harness under a wrapper `.cmd` that
   `CALL`s `hearth\var\gateway.cmd` (never echo it), from PowerShell — the Git Bash `cmd /c "call ...
   && ..."` chain fails with "The system cannot find the path specified".
-- **`omen-swap` `context_bytes` 14336 is the MIN over members** (`-c 4096 × -np 1 × 3.5`); it refused
-  5 of 8 bench tasks for a pin although phi-4 runs `-c 8192`. **Decided 2026-09-04 (Derek): per-member
-  budgets with the rung value as fallback** — `context_bytes_by_model` in `[backend.settings]`.
-  Not implemented yet; still the MIN in the code.
+- **`omen-swap` budgets are PER-MEMBER** since 2026-09-04 — `context_bytes_by_model` in
+  `[backend.settings]`: phi4/qwen14b **28672** (`-c 8192`), gptoss20b/mistral24b 14336 (`-c 4096`),
+  qwen38-27b-dual 114688 (`-c 32768`). The rung-wide 14336 (the MIN) remains the **fallback** for any
+  undeclared member, and no other rung changed. Before this, the MIN refused 5 of 8 bench tasks for a
+  `phi4-vk1` pin although phi-4 runs `-c 8192`. A refusal receipt now carries `budget_scope` so it
+  says whether the member's budget or the rung MIN turned it away. Keep the numbers in step with
+  `omen.yaml` — a test re-derives every one of them from its `-c`.
 - **Index 2 is the iGPU** on this driver; siblings are env 0/1 (`92f3cd6`). The `-vk0` entries activate
   at the next ArcServe restart; until then a `-vk0` load gets a fast 404 refusal and env=1 puts every
   side model on `0000:04:00.0`. Ask **G1**, not the yaml: the file on disk says `-vk0` already.
@@ -198,7 +201,11 @@ closed — read `hearth/var/swap-logs/<id>.log` before touching anything. Never 
   `rotation_status` before retrying a load.
 - Gateway dispatches are bridged with `task_kind` = the tool name, so door calls never feed the
   `offload-generate` bucket (ADR-0027 gate 1); the second workflow for `omen-swap` had to be an
-  in-process caller with its own `DispatchIdentity` (`rotation-proof`). **Decided 2026-09-04 (Derek):
-  bridge `local_generate` only, other tools stay tool-named** — but a prerequisite is still unanswered
-  (was the dispatch-time producer's silence a defect or a semantics gap?), so the mapping is unchanged
-  in the code. Read that path before editing it; see the ADR-0027 addendum.
+  in-process caller with its own `DispatchIdentity` (`rotation-proof`).
+  **2026-09-04: the prerequisite is ANSWERED — it was a DEFECT.** Door dispatches reached no emitter
+  at all, because `local_generate` runs on a `ThreadPoolExecutor` worker and ContextVars are not
+  inherited across that boundary, so `current_identity()` was `None`. Fixed in
+  `hearth/execution/service.py`; a door `local_generate` now writes a real observation under
+  `runs/hearth-offload-<caller>/`. ⚠ **That invalidates the premise of the bridging decision** —
+  bridging in `ledger_adapter` as well would now DOUBLE-COUNT the same dispatch. The mapping is
+  deliberately unchanged pending Derek's confirmation; see the ADR-0027 addenda.

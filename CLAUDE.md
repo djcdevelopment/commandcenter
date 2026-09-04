@@ -54,8 +54,9 @@ rung that actually serves you was missing entirely:
   gptoss20b / mistral24b plus `qwen38-27b-dual` (`fleet/arcserve/llama-swap/omen.yaml`;
   the `-vk0` siblings activate at the next ArcServe restart — until then env=1 is the
   only live seat).
-  `context_bytes = 14336` — the MIN over members, so a pin is refused for
-  anything bigger even though phi-4 runs `-c 8192`. Side models load on demand
+  **Context budgets are PER-MEMBER** (2026-09-04): `context_bytes_by_model` gives phi4/qwen14b
+  **28672**, gptoss20b/mistral24b 14336, qwen38-27b-dual 114688; the rung-wide `context_bytes = 14336`
+  (the MIN) is only the fallback for an undeclared member. Side models load on demand
   beside production. For anything beyond a pinned `local_generate`, use the
   door's rotation tools inside a window (`rotation_window` → `rotation_load` …
   `rotation_unload` → close; see `hearth/rotation/README.md`). **Never** the bare

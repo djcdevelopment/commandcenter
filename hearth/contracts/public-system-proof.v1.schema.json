@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "public-system-proof.v1.schema.json",
+  "title": "Steppe public system proof snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "snapshot_id",
+    "source_watermark_day",
+    "observation_window",
+    "gateway",
+    "execution",
+    "weekly",
+    "mechnet",
+    "coverage",
+    "provenance",
+    "integrity"
+  ],
+  "properties": {
+    "schema": { "const": "steppe.public-system-proof.v1" },
+    "snapshot_id": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "source_watermark_day": { "$ref": "#/$defs/day" },
+    "observation_window": { "$ref": "#/$defs/window" },
+    "gateway": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["events", "ok_events", "ok_rate_basis_points", "operational_observations", "work_and_learning_events", "unclassified_events", "families", "inference"],
+      "properties": {
+        "events": { "$ref": "#/$defs/count" },
+        "ok_events": { "$ref": "#/$defs/count" },
+        "ok_rate_basis_points": { "$ref": "#/$defs/basisPoints" },
+        "operational_observations": { "$ref": "#/$defs/count" },
+        "work_and_learning_events": { "$ref": "#/$defs/count" },
+        "unclassified_events": { "$ref": "#/$defs/count" },
+        "families": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/family" },
+          "minItems": 12,
+          "maxItems": 12
+        },
+        "inference": { "$ref": "#/$defs/inference" }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["events", "requests_accepted", "requests_with_idempotency_key", "jobs_succeeded", "jobs_failed", "jobs_cancelled", "jobs_expired", "success_rate_basis_points", "invocations_started", "retried_jobs", "recovered_jobs", "artifacts_recorded", "deliveries_projected", "projection_replay_verified"],
+      "properties": {
+        "events": { "$ref": "#/$defs/count" },
+        "requests_accepted": { "$ref": "#/$defs/count" },
+        "requests_with_idempotency_key": { "$ref": "#/$defs/count" },
+        "jobs_succeeded": { "$ref": "#/$defs/count" },
+        "jobs_failed": { "$ref": "#/$defs/count" },
+        "jobs_cancelled": { "$ref": "#/$defs/count" },
+        "jobs_expired": { "$ref": "#/$defs/count" },
+        "success_rate_basis_points": { "$ref": "#/$defs/basisPoints" },
+        "invocations_started": { "$ref": "#/$defs/count" },
+        "retried_jobs": { "$ref": "#/$defs/count" },
+        "recovered_jobs": { "$ref": "#/$defs/count" },
+        "artifacts_recorded": { "$ref": "#/$defs/count" },
+        "deliveries_projected": { "$ref": "#/$defs/count" },
+        "projection_replay_verified": { "type": "boolean" }
+      }
+    },
+    "weekly": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["week_start", "operations", "learning", "inference", "work_plane", "other", "suppressed_cells"],
+        "properties": {
+          "week_start": { "$ref": "#/$defs/day" },
+          "operations": { "$ref": "#/$defs/publicCell" },
+          "learning": { "$ref": "#/$defs/publicCell" },
+          "inference": { "$ref": "#/$defs/publicCell" },
+          "work_plane": { "$ref": "#/$defs/publicCell" },
+          "other": { "$ref": "#/$defs/publicCell" },
+          "suppressed_cells": { "type": "integer", "minimum": 0, "maximum": 5 }
+        }
+      }
+    },
+    "mechnet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accelerator", "operating_system", "compute_runtime", "topology", "snapshot_state", "observed_day"],
+      "properties": {
+        "accelerator": { "const": "2 × Intel Arc Pro B70" },
+        "operating_system": { "const": "Windows" },
+        "compute_runtime": { "const": "Vulkan · llama.cpp" },
+        "topology": { "const": "role-abstracted local fleet" },
+        "snapshot_state": { "enum": ["at_rate", "warn", "degraded", "stalled", "stale", "unreachable", "unknown"] },
+        "observed_day": {
+          "oneOf": [{ "$ref": "#/$defs/day" }, { "type": "null" }]
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["boundary", "raw_content_withheld", "minimum_public_cell", "limitations"],
+      "properties": {
+        "boundary": { "const": "calls observed at the HEARTH gateway and execution ledgers" },
+        "raw_content_withheld": { "const": true },
+        "minimum_public_cell": { "const": 10 },
+        "limitations": {
+          "type": "array",
+          "minItems": 2,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exporter_revision", "exporter_sha256", "gateway_prefix_sha256", "execution_prefix_sha256"],
+      "properties": {
+        "exporter_revision": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "exporter_sha256": { "$ref": "#/$defs/digest" },
+        "gateway_prefix_sha256": { "$ref": "#/$defs/digest" },
+        "execution_prefix_sha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["content_sha256"],
+      "properties": { "content_sha256": { "$ref": "#/$defs/digest" } }
+    }
+  },
+  "$defs": {
+    "count": { "type": "integer", "minimum": 0 },
+    "basisPoints": { "type": "integer", "minimum": 0, "maximum": 10000 },
+    "day": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["first_day", "last_day"],
+      "properties": { "first_day": { "$ref": "#/$defs/day" }, "last_day": { "$ref": "#/$defs/day" } }
+    },
+    "publicCell": { "oneOf": [{ "$ref": "#/$defs/count" }, { "type": "null" }] },
+    "family": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "count"],
+      "properties": {
+        "id": { "enum": ["health_automation", "door_status", "learning_retro", "local_inference", "cloud_inference", "fleet_builds", "git_vcs", "filesystem", "test_assay", "catalog_hardware", "scheduler", "other"] },
+        "label": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "count": { "$ref": "#/$defs/count" }
+      }
+    },
+    "inference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["calls", "local_calls", "cloud_calls", "token_receipts", "tokens_in", "tokens_out"],
+      "properties": {
+        "calls": { "$ref": "#/$defs/count" },
+        "local_calls": { "$ref": "#/$defs/count" },
+        "cloud_calls": { "$ref": "#/$defs/count" },
+        "token_receipts": { "$ref": "#/$defs/count" },
+        "tokens_in": { "$ref": "#/$defs/count" },
+        "tokens_out": { "$ref": "#/$defs/count" }
+      }
+    }
+  }
+}

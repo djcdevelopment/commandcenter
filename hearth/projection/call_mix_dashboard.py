@@ -44,9 +44,18 @@ HEALTH_TOOLS = {
     "mechnet_watchdog.watchfire",
     "mechnet_watchdog.patrol_trend",
     "mechnet_watchdog.revive",
+    "mechnet_watchdog.rung_state",
     "bankedfire_drain.tick",
     "patrol",
     "remediate",
+}
+DOOR_STATUS_TOOLS = {
+    "kernel_status",
+    "list_execution_providers",
+    "list_operations",
+    "list_owned_executions",
+    "get_image_status",
+    "get_render_status",
 }
 LEARNING_TOOLS = {
     "mechnet_watchdog.hindsight",
@@ -146,7 +155,7 @@ def classify_event(event: dict[str, Any]) -> str:
         return "Learning / retro"
     if tool in HEALTH_TOOLS:
         return "Health / automation"
-    if tool == "kernel_status":
+    if tool in DOOR_STATUS_TOOLS:
         return "Door status"
     if tool in SCHEDULER_TOOLS:
         return "Scheduler"

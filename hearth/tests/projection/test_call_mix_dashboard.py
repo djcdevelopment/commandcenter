@@ -42,6 +42,17 @@ class TestClassification(unittest.TestCase):
         self.assertEqual(classify_event(_event("git_status", "2026-07-01T00:00:00Z")), "Git / VCS")
         self.assertEqual(classify_event(_event("mechnet_watchdog.hindsight", "2026-07-01T00:00:00Z")), "Learning / retro")
 
+    def test_execution_polling_is_door_status_not_unclassified(self) -> None:
+        for tool in (
+            "kernel_status",
+            "list_execution_providers",
+            "list_operations",
+            "list_owned_executions",
+            "get_image_status",
+            "get_render_status",
+        ):
+            self.assertEqual(classify_event(_event(tool, "2026-07-01T00:00:00Z")), "Door status")
+
 
 class TestProjection(unittest.TestCase):
     def _fixture(self, root: Path) -> tuple[Path, Path]:

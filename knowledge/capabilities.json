@@ -1,6 +1,6 @@
 {
   "contract_version": "capabilities.v1",
-  "evidence_watermark": "2026-09-04T01:02:55.235915+00:00",
+  "evidence_watermark": "2026-09-04T10:19:58.363579Z",
   "capability_count": 2,
   "requalification_due": 0,
   "capabilities": [
@@ -69,8 +69,8 @@
       ],
       "first_observed": "2026-07-30T09:23:25.385478+00:00",
       "last_validated": "2026-09-04T00:57:27.501560+00:00",
-      "evidence_watermark": "2026-09-04T01:02:55.235915+00:00",
-      "staleness_days": 0.0,
+      "evidence_watermark": "2026-09-04T10:19:58.363579Z",
+      "staleness_days": 0.39,
       "qualification_status": "qualified",
       "derived_from": [
         "association.v1"
@@ -134,14 +134,14 @@
       ],
       "first_observed": "2026-09-04T00:47:21.915240+00:00",
       "last_validated": "2026-09-04T01:02:55.235915+00:00",
-      "evidence_watermark": "2026-09-04T01:02:55.235915+00:00",
-      "staleness_days": 0.0,
+      "evidence_watermark": "2026-09-04T10:19:58.363579Z",
+      "staleness_days": 0.39,
       "qualification_status": "qualified",
       "derived_from": [
         "association.v1"
       ]
     }
   ],
-  "corpus_digest": "sha256:ae9e68ef8fa5678fbe1d39ab6fa85262305384bf73b6e31dc5f1ed05a3a56b19",
-  "corpus_event_count": 147062
+  "corpus_digest": "sha256:339056e0b668ffd562eef7f4bf6cea92d4c61eaab92af96b54fa70a80d0b7591",
+  "corpus_event_count": 147097
 }

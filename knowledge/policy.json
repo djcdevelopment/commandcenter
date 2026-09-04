@@ -1,7 +1,7 @@
 {
   "contract_version": "policies.v1",
-  "source_findings": 45,
-  "evidence_watermark": "2026-09-04T01:02:55.235915+00:00",
+  "source_findings": 48,
+  "evidence_watermark": "2026-09-04T10:19:58.363579Z",
   "rule_counts": {
     "block": 1,
     "exploratory_only": 2,
@@ -417,7 +417,7 @@
       "contract_version": "policy.v1",
       "policy_id": "prefer:omen|qwen3-30b-a3b|omen-arc|*|*",
       "effect": "prefer",
-      "statement": "prefer omen + qwen3-30b-a3b + omen-arc when compatible: 5/5 success",
+      "statement": "prefer omen + qwen3-30b-a3b + omen-arc when compatible: 7/7 success",
       "subject": {
         "builder_id": "omen",
         "model_id": "qwen3-30b-a3b",
@@ -428,14 +428,14 @@
       "derived_from_finding": "known_good:omen|qwen3-30b-a3b|omen-arc",
       "finding_type": "known_good",
       "confidence": "high",
-      "evidence_summary": "5/5 success",
+      "evidence_summary": "7/7 success",
       "override": null,
       "adjustment": null,
       "status": "active",
       "suspended_reason": null,
-      "last_observed": "2026-09-04T00:57:28.060989+00:00"
+      "last_observed": "2026-09-04T10:19:58.303917+00:00"
     }
   ],
-  "corpus_digest": "sha256:ae9e68ef8fa5678fbe1d39ab6fa85262305384bf73b6e31dc5f1ed05a3a56b19",
-  "corpus_event_count": 147062
+  "corpus_digest": "sha256:339056e0b668ffd562eef7f4bf6cea92d4c61eaab92af96b54fa70a80d0b7591",
+  "corpus_event_count": 147097
 }

@@ -1,8 +1,8 @@
 {
   "contract_version": "prediction-accuracy.v1",
   "decision_count": 0,
-  "observation_count": 1226,
-  "comparison_count": 1226,
+  "observation_count": 1229,
+  "comparison_count": 1229,
   "unresolved_decision_refs": 0,
   "comparisons": [
     {
@@ -39236,24 +39236,120 @@
           "matched": null
         }
       }
+    },
+    {
+      "decision_id": null,
+      "observation_id": "obs-offload-claude-frontier-202609041015290192160000-362ba34b",
+      "workflow_id": "wf-hearth-offload-claude-frontier",
+      "run_id": "hearth-offload-claude-frontier",
+      "builder_id": "omen",
+      "model_id": "qwen3-30b-a3b",
+      "backend": "omen-arc",
+      "workload_shape_key": "adr-0027-producer-probe-post-fix|8|unknown",
+      "timestamp": "2026-09-04T10:15:29.019216+00:00",
+      "confidence": null,
+      "prediction_source": null,
+      "prediction_present": false,
+      "metrics": {
+        "expected_ttft_ms": null,
+        "expected_generation_tokens_per_second": null,
+        "expected_peak_ram_mb": null,
+        "expected_peak_vram_mb": null
+      },
+      "outcomes": {
+        "assay": {
+          "predicted": null,
+          "observed": "passed",
+          "matched": null
+        },
+        "promotion": {
+          "predicted": null,
+          "observed": null,
+          "matched": null
+        }
+      }
+    },
+    {
+      "decision_id": null,
+      "observation_id": "obs-offload-claude-frontier-202609041019583039170000-6786f380",
+      "workflow_id": "wf-hearth-offload-claude-frontier",
+      "run_id": "hearth-offload-claude-frontier",
+      "builder_id": "omen",
+      "model_id": "qwen3-30b-a3b",
+      "backend": "omen-arc",
+      "workload_shape_key": "ledger-model-lift-probe|8|unknown",
+      "timestamp": "2026-09-04T10:19:58.303917+00:00",
+      "confidence": null,
+      "prediction_source": null,
+      "prediction_present": false,
+      "metrics": {
+        "expected_ttft_ms": null,
+        "expected_generation_tokens_per_second": null,
+        "expected_peak_ram_mb": null,
+        "expected_peak_vram_mb": null
+      },
+      "outcomes": {
+        "assay": {
+          "predicted": null,
+          "observed": "passed",
+          "matched": null
+        },
+        "promotion": {
+          "predicted": null,
+          "observed": null,
+          "matched": null
+        }
+      }
+    },
+    {
+      "decision_id": null,
+      "observation_id": "obs-ledger-955ca250-c05a-4bec-a15a-2c7484fa4851",
+      "workflow_id": "wf-hearth-gateway",
+      "run_id": "hearth-gateway",
+      "builder_id": "claude-frontier",
+      "model_id": "qwen3-30b-a3b",
+      "backend": "omen-arc",
+      "workload_shape_key": "local_generate|15|unknown",
+      "timestamp": "2026-09-04T10:19:58.363579Z",
+      "confidence": null,
+      "prediction_source": null,
+      "prediction_present": false,
+      "metrics": {
+        "expected_ttft_ms": null,
+        "expected_generation_tokens_per_second": null,
+        "expected_peak_ram_mb": null,
+        "expected_peak_vram_mb": null
+      },
+      "outcomes": {
+        "assay": {
+          "predicted": null,
+          "observed": "passed",
+          "matched": null
+        },
+        "promotion": {
+          "predicted": null,
+          "observed": null,
+          "matched": null
+        }
+      }
     }
   ],
   "summary": {
     "overall": {
       "overall": {
-        "sample_count": 1226,
-        "last_updated": "2026-09-04T01:02:55.235915+00:00",
+        "sample_count": 1229,
+        "last_updated": "2026-09-04T10:19:58.363579Z",
         "metrics": {},
         "outcomes": {
           "assay": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 1226
+            "unknown": 1229
           },
           "promotion": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 1226
+            "unknown": 1229
           }
         },
         "prediction_confidence": null
@@ -39369,19 +39465,19 @@
         "prediction_confidence": null
       },
       "claude-frontier": {
-        "sample_count": 1093,
-        "last_updated": "2026-07-31T00:12:53.800327Z",
+        "sample_count": 1094,
+        "last_updated": "2026-09-04T10:19:58.363579Z",
         "metrics": {},
         "outcomes": {
           "assay": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 1093
+            "unknown": 1094
           },
           "promotion": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 1093
+            "unknown": 1094
           }
         },
         "prediction_confidence": null
@@ -39477,19 +39573,19 @@
         "prediction_confidence": null
       },
       "omen": {
-        "sample_count": 11,
-        "last_updated": "2026-09-04T01:02:55.235915+00:00",
+        "sample_count": 13,
+        "last_updated": "2026-09-04T10:19:58.303917+00:00",
         "metrics": {},
         "outcomes": {
           "assay": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 11
+            "unknown": 13
           },
           "promotion": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 11
+            "unknown": 13
           }
         },
         "prediction_confidence": null
@@ -39731,19 +39827,19 @@
         "prediction_confidence": null
       },
       "qwen3-30b-a3b": {
-        "sample_count": 5,
-        "last_updated": "2026-09-04T00:57:28.060989+00:00",
+        "sample_count": 8,
+        "last_updated": "2026-09-04T10:19:58.363579Z",
         "metrics": {},
         "outcomes": {
           "assay": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 5
+            "unknown": 8
           },
           "promotion": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 5
+            "unknown": 8
           }
         },
         "prediction_confidence": null
@@ -44195,9 +44291,63 @@
           }
         },
         "prediction_confidence": null
+      },
+      "adr-0027-producer-probe-post-fix|8|unknown": {
+        "sample_count": 1,
+        "last_updated": "2026-09-04T10:15:29.019216+00:00",
+        "metrics": {},
+        "outcomes": {
+          "assay": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 1
+          },
+          "promotion": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 1
+          }
+        },
+        "prediction_confidence": null
+      },
+      "ledger-model-lift-probe|8|unknown": {
+        "sample_count": 1,
+        "last_updated": "2026-09-04T10:19:58.303917+00:00",
+        "metrics": {},
+        "outcomes": {
+          "assay": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 1
+          },
+          "promotion": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 1
+          }
+        },
+        "prediction_confidence": null
+      },
+      "local_generate|15|unknown": {
+        "sample_count": 1,
+        "last_updated": "2026-09-04T10:19:58.363579Z",
+        "metrics": {},
+        "outcomes": {
+          "assay": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 1
+          },
+          "promotion": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 1
+          }
+        },
+        "prediction_confidence": null
       }
     }
   },
-  "corpus_digest": "sha256:ae9e68ef8fa5678fbe1d39ab6fa85262305384bf73b6e31dc5f1ed05a3a56b19",
-  "corpus_event_count": 147062
+  "corpus_digest": "sha256:339056e0b668ffd562eef7f4bf6cea92d4c61eaab92af96b54fa70a80d0b7591",
+  "corpus_event_count": 147097
 }

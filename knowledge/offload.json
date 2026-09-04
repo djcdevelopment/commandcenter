@@ -1,17 +1,17 @@
 {
   "contract_version": "offload.v1",
-  "evidence_watermark": "2026-09-04T01:01:57.278324Z",
+  "evidence_watermark": "2026-09-04T10:19:58.363579Z",
   "bucket_count": 13,
   "totals": {
-    "calls": 1284,
-    "tokens_in": 3052834,
-    "tokens_out": 391043
+    "calls": 1289,
+    "tokens_in": 3052909,
+    "tokens_out": 391061
   },
   "per_class": {
     "sunk": {
-      "calls": 673,
-      "tokens_in": 386058,
-      "tokens_out": 164190
+      "calls": 682,
+      "tokens_in": 386242,
+      "tokens_out": 164283
     },
     "trial": {
       "calls": 596,
@@ -19,17 +19,17 @@
       "tokens_out": 226778
     },
     "unknown": {
-      "calls": 15,
-      "tokens_in": 109,
-      "tokens_out": 75
+      "calls": 11,
+      "tokens_in": 0,
+      "tokens_out": 0
     }
   },
-  "offload_ratio": 0.9998,
+  "offload_ratio": 1.0,
   "est_usd_saved": {
     "reference": "claude-sonnet",
     "input_per_mtok": 3.0,
     "output_per_mtok": 15.0,
-    "usd": 15.022695
+    "usd": 15.024642
   },
   "real_usd_spent": {
     "pricing_source": "vertex-ai-pricing verified 2026-07-23 (global/standard, <=200K tier)",
@@ -67,13 +67,13 @@
     },
     {
       "backend": "fx99-ollama",
-      "cost_class": "unknown",
+      "cost_class": "sunk",
       "models": [],
       "calls": 1,
       "ok_rate": 1.0,
       "tokens_in": 36,
       "tokens_out": 2,
-      "real_usd": null,
+      "real_usd": 0.0,
       "last_seen": "2026-08-28T06:01:10.585369Z"
     },
     {
@@ -168,13 +168,15 @@
     {
       "backend": "omen-arc",
       "cost_class": "sunk",
-      "models": [],
-      "calls": 53,
+      "models": [
+        "qwen3-30b-a3b"
+      ],
+      "calls": 58,
       "ok_rate": 1.0,
-      "tokens_in": 16925,
-      "tokens_out": 7438,
+      "tokens_in": 17000,
+      "tokens_out": 7456,
       "real_usd": 0.0,
-      "last_seen": "2026-08-30T09:24:22.331094Z"
+      "last_seen": "2026-09-04T10:19:58.363579Z"
     },
     {
       "backend": "omen-ollama",
@@ -192,16 +194,16 @@
     },
     {
       "backend": "omen-swap",
-      "cost_class": "unknown",
+      "cost_class": "sunk",
       "models": [],
       "calls": 3,
       "ok_rate": 1.0,
       "tokens_in": 73,
       "tokens_out": 73,
-      "real_usd": null,
+      "real_usd": 0.0,
       "last_seen": "2026-09-04T01:01:57.278324Z"
     }
   ],
-  "corpus_digest": "sha256:01b02704fb350a4cb66e87eca6800cf1dd2a53903af93c9943f1e977613a03f1",
-  "corpus_event_count": 195681
+  "corpus_digest": "sha256:844cc768df16b74f843420541dfd3de3acd6dda2a6c5298de38ede87d6ae0ad5",
+  "corpus_event_count": 195755
 }

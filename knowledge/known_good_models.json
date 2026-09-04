@@ -1,6 +1,6 @@
 {
   "contract_version": "known-good-models.v1",
-  "evidence_watermark": "2026-09-04T01:02:55.235915+00:00",
+  "evidence_watermark": "2026-09-04T10:19:58.363579Z",
   "entries": [
     {
       "builder_id": "am4",
@@ -132,6 +132,18 @@
       "promotion_holds": 0,
       "confidence": 0.33,
       "last_observed": "2026-07-29T21:07:29.824991Z",
+      "reason": "1/1 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "claude-frontier",
+      "model_id": "qwen3-30b-a3b",
+      "backend": "omen-arc",
+      "success_rate": 1.0,
+      "samples": 1,
+      "mean_tokens_per_s": 8.58,
+      "promotion_holds": 0,
+      "confidence": 0.33,
+      "last_observed": "2026-09-04T10:19:58.363579Z",
       "reason": "1/1 successful runs (success_rate 1.0)"
     },
     {
@@ -439,14 +451,14 @@
       "model_id": "qwen3-30b-a3b",
       "backend": "omen-arc",
       "success_rate": 1.0,
-      "samples": 5,
-      "mean_tokens_per_s": 13.25,
+      "samples": 7,
+      "mean_tokens_per_s": 21.76,
       "promotion_holds": 0,
-      "confidence": 0.71,
-      "last_observed": "2026-09-04T00:57:28.060989+00:00",
-      "reason": "5/5 successful runs (success_rate 1.0)"
+      "confidence": 0.78,
+      "last_observed": "2026-09-04T10:19:58.303917+00:00",
+      "reason": "7/7 successful runs (success_rate 1.0)"
     }
   ],
-  "corpus_digest": "sha256:ae9e68ef8fa5678fbe1d39ab6fa85262305384bf73b6e31dc5f1ed05a3a56b19",
-  "corpus_event_count": 147062
+  "corpus_digest": "sha256:339056e0b668ffd562eef7f4bf6cea92d4c61eaab92af96b54fa70a80d0b7591",
+  "corpus_event_count": 147097
 }

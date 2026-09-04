@@ -1,6 +1,6 @@
 {
   "contract_version": "capacity-estimates.v1",
-  "observation_count": 1226,
+  "observation_count": 1229,
   "unresolved_observation_refs": 0,
   "combos": {
     "am4-worker-1|vllama-planner|openai": {
@@ -214,6 +214,22 @@
       "max_vram_gb_peak": null,
       "last_observed": "2026-07-29T21:07:29.824991Z",
       "mean_tokens_per_s": null,
+      "success_rate": 1.0,
+      "confidence": 0.33
+    },
+    "claude-frontier|qwen3-30b-a3b|omen-arc": {
+      "builder_id": "claude-frontier",
+      "model_id": "qwen3-30b-a3b",
+      "backend": "omen-arc",
+      "samples": 1,
+      "successes": 1,
+      "failures": 0,
+      "failure_classes": {},
+      "promotion_holds": 0,
+      "max_context_tokens": 15,
+      "max_vram_gb_peak": null,
+      "last_observed": "2026-09-04T10:19:58.363579Z",
+      "mean_tokens_per_s": 8.58,
       "success_rate": 1.0,
       "confidence": 0.33
     },
@@ -639,19 +655,19 @@
       "builder_id": "omen",
       "model_id": "qwen3-30b-a3b",
       "backend": "omen-arc",
-      "samples": 5,
-      "successes": 5,
+      "samples": 7,
+      "successes": 7,
       "failures": 0,
       "failure_classes": {},
       "promotion_holds": 0,
       "max_context_tokens": 1241,
       "max_vram_gb_peak": null,
-      "last_observed": "2026-09-04T00:57:28.060989+00:00",
-      "mean_tokens_per_s": 13.25,
+      "last_observed": "2026-09-04T10:19:58.303917+00:00",
+      "mean_tokens_per_s": 21.76,
       "success_rate": 1.0,
-      "confidence": 0.71
+      "confidence": 0.78
     }
   },
-  "corpus_digest": "sha256:ae9e68ef8fa5678fbe1d39ab6fa85262305384bf73b6e31dc5f1ed05a3a56b19",
-  "corpus_event_count": 147062
+  "corpus_digest": "sha256:339056e0b668ffd562eef7f4bf6cea92d4c61eaab92af96b54fa70a80d0b7591",
+  "corpus_event_count": 147097
 }

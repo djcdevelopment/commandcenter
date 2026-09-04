@@ -1,13 +1,13 @@
 {
   "contract_version": "findings.v1",
-  "evidence_watermark": "2026-09-04T01:02:55.235915+00:00",
-  "observation_count": 1226,
+  "evidence_watermark": "2026-09-04T10:19:58.363579Z",
+  "observation_count": 1229,
   "decision_count": 0,
   "unresolved_refs": 0,
   "finding_counts": {
     "known_bad": 1,
-    "known_good": 37,
-    "recommendation": 5,
+    "known_good": 38,
+    "recommendation": 7,
     "uncertain": 2
   },
   "findings": [
@@ -1466,6 +1466,39 @@
     },
     {
       "contract_version": "finding.v1",
+      "finding_id": "known_good:claude-frontier|qwen3-30b-a3b|omen-arc",
+      "finding_type": "known_good",
+      "statement": "claude-frontier + qwen3-30b-a3b + omen-arc works: 1/1 successful runs (success_rate 1.0), mean 8.58 tok/s",
+      "subject": {
+        "builder_id": "claude-frontier",
+        "model_id": "qwen3-30b-a3b",
+        "backend": "omen-arc",
+        "task_kind": null,
+        "metric": null
+      },
+      "confidence": "low",
+      "confidence_score": 0.33,
+      "evidence": {
+        "samples": 1,
+        "successes": 1,
+        "failures": 0,
+        "summary": "1/1 success",
+        "observation_ids": [
+          "obs-ledger-955ca250-c05a-4bec-a15a-2c7484fa4851"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": null,
+      "first_observed": "2026-09-04T10:19:58.363579Z",
+      "last_observed": "2026-09-04T10:19:58.363579Z",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
       "finding_id": "known_good:claude-frontier|qwen3-coder:30b|omen-ollama",
       "finding_type": "known_good",
       "statement": "claude-frontier + qwen3-coder:30b + omen-ollama works: 20/20 successful runs (success_rate 1.0), mean 8.12 tok/s",
@@ -2415,7 +2448,7 @@
       "contract_version": "finding.v1",
       "finding_id": "known_good:omen|qwen3-30b-a3b|omen-arc",
       "finding_type": "known_good",
-      "statement": "omen + qwen3-30b-a3b + omen-arc works: 5/5 successful runs (success_rate 1.0), mean 13.25 tok/s",
+      "statement": "omen + qwen3-30b-a3b + omen-arc works: 7/7 successful runs (success_rate 1.0), mean 21.76 tok/s",
       "subject": {
         "builder_id": "omen",
         "model_id": "qwen3-30b-a3b",
@@ -2424,13 +2457,15 @@
         "metric": null
       },
       "confidence": "high",
-      "confidence_score": 0.71,
+      "confidence_score": 0.78,
       "evidence": {
-        "samples": 5,
-        "successes": 5,
+        "samples": 7,
+        "successes": 7,
         "failures": 0,
-        "summary": "5/5 success",
+        "summary": "7/7 success",
         "observation_ids": [
+          "obs-offload-claude-frontier-202609041015290192160000-362ba34b",
+          "obs-offload-claude-frontier-202609041019583039170000-6786f380",
           "obs-offload-experiment-doc-adr-bench-202609040047290473630000-600024df",
           "obs-offload-experiment-doc-adr-bench-202609040050557667370000-f294ceeb",
           "obs-offload-experiment-doc-adr-bench-202609040051396214000000-c19cf0da",
@@ -2443,7 +2478,46 @@
       },
       "recommendation": null,
       "first_observed": "2026-09-04T00:47:29.047363+00:00",
-      "last_observed": "2026-09-04T00:57:28.060989+00:00",
+      "last_observed": "2026-09-04T10:19:58.303917+00:00",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
+      "finding_id": "recommendation:task_kind=adr-0027-producer-probe-post-fix",
+      "finding_type": "recommendation",
+      "statement": "for task_kind adr-0027-producer-probe-post-fix, prefer omen + qwen3-30b-a3b + omen-arc (success rate 1.0 over 7 run(s), 21.76 tok/s)",
+      "subject": {
+        "builder_id": "omen",
+        "model_id": "qwen3-30b-a3b",
+        "backend": "omen-arc",
+        "task_kind": "adr-0027-producer-probe-post-fix",
+        "metric": null
+      },
+      "confidence": "high",
+      "confidence_score": 0.78,
+      "evidence": {
+        "samples": 7,
+        "successes": null,
+        "failures": null,
+        "summary": "best of 1 known_good combo(s) observed on task_kind adr-0027-producer-probe-post-fix",
+        "observation_ids": [
+          "obs-offload-claude-frontier-202609041015290192160000-362ba34b",
+          "obs-offload-claude-frontier-202609041019583039170000-6786f380",
+          "obs-offload-experiment-doc-adr-bench-202609040047290473630000-600024df",
+          "obs-offload-experiment-doc-adr-bench-202609040050557667370000-f294ceeb",
+          "obs-offload-experiment-doc-adr-bench-202609040051396214000000-c19cf0da",
+          "obs-offload-experiment-doc-adr-bench-202609040056393792180000-fd78f178",
+          "obs-offload-experiment-doc-adr-bench-202609040057280609890000-a1942dc3"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": "route task_kind adr-0027-producer-probe-post-fix to omen + qwen3-30b-a3b + omen-arc",
+      "first_observed": "2026-09-04T00:47:29.047363+00:00",
+      "last_observed": "2026-09-04T10:19:58.303917+00:00",
       "derived_from": [
         "capacity-estimates.v1"
       ]
@@ -2527,6 +2601,45 @@
     },
     {
       "contract_version": "finding.v1",
+      "finding_id": "recommendation:task_kind=ledger-model-lift-probe",
+      "finding_type": "recommendation",
+      "statement": "for task_kind ledger-model-lift-probe, prefer omen + qwen3-30b-a3b + omen-arc (success rate 1.0 over 7 run(s), 21.76 tok/s)",
+      "subject": {
+        "builder_id": "omen",
+        "model_id": "qwen3-30b-a3b",
+        "backend": "omen-arc",
+        "task_kind": "ledger-model-lift-probe",
+        "metric": null
+      },
+      "confidence": "high",
+      "confidence_score": 0.78,
+      "evidence": {
+        "samples": 7,
+        "successes": null,
+        "failures": null,
+        "summary": "best of 1 known_good combo(s) observed on task_kind ledger-model-lift-probe",
+        "observation_ids": [
+          "obs-offload-claude-frontier-202609041015290192160000-362ba34b",
+          "obs-offload-claude-frontier-202609041019583039170000-6786f380",
+          "obs-offload-experiment-doc-adr-bench-202609040047290473630000-600024df",
+          "obs-offload-experiment-doc-adr-bench-202609040050557667370000-f294ceeb",
+          "obs-offload-experiment-doc-adr-bench-202609040051396214000000-c19cf0da",
+          "obs-offload-experiment-doc-adr-bench-202609040056393792180000-fd78f178",
+          "obs-offload-experiment-doc-adr-bench-202609040057280609890000-a1942dc3"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": "route task_kind ledger-model-lift-probe to omen + qwen3-30b-a3b + omen-arc",
+      "first_observed": "2026-09-04T00:47:29.047363+00:00",
+      "last_observed": "2026-09-04T10:19:58.303917+00:00",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
       "finding_id": "recommendation:task_kind=local_generate",
       "finding_type": "recommendation",
       "statement": "for task_kind local_generate, prefer claude-frontier + gemini-3.5-flash + gcp-gemini (success rate 1.0 over 228 run(s), 14.63 tok/s)",
@@ -2543,7 +2656,7 @@
         "samples": 228,
         "successes": null,
         "failures": null,
-        "summary": "best of 18 known_good combo(s) observed on task_kind local_generate",
+        "summary": "best of 19 known_good combo(s) observed on task_kind local_generate",
         "observation_ids": [
           "obs-ledger-013037de-fb1e-435b-83db-a42125ed691e",
           "obs-ledger-0156c125-8b32-4ab8-b349-037b2a25d0a4",
@@ -2933,6 +3046,6 @@
       ]
     }
   ],
-  "corpus_digest": "sha256:ae9e68ef8fa5678fbe1d39ab6fa85262305384bf73b6e31dc5f1ed05a3a56b19",
-  "corpus_event_count": 147062
+  "corpus_digest": "sha256:339056e0b668ffd562eef7f4bf6cea92d4c61eaab92af96b54fa70a80d0b7591",
+  "corpus_event_count": 147097
 }

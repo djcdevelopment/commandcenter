@@ -1,10 +1,10 @@
 {
   "contract_version": "associations.v1",
-  "observation_count": 1226,
+  "observation_count": 1229,
   "unresolved_refs": 0,
-  "evidence_watermark": "2026-09-04T01:02:55.235915+00:00",
-  "association_count": 6,
-  "gated_bucket_count": 32,
+  "evidence_watermark": "2026-09-04T10:19:58.363579Z",
+  "association_count": 7,
+  "gated_bucket_count": 34,
   "associations": [
     {
       "contract_version": "association.v1",
@@ -964,6 +964,58 @@
     },
     {
       "contract_version": "association.v1",
+      "association_id": "success_invariant:model_portability:model_id=qwen3-30b-a3b",
+      "association_type": "success_invariant",
+      "pattern": "model_portability",
+      "statement": "model_id=qwen3-30b-a3b succeeds independent of the particulars: held across 3 workflow(s) (2 builder_id value(s))",
+      "invariant": {
+        "model_id": "qwen3-30b-a3b"
+      },
+      "varied": {
+        "builder_id": [
+          "claude-frontier",
+          "omen"
+        ],
+        "backend": [
+          "omen-arc"
+        ]
+      },
+      "workflows": [
+        "wf-hearth-gateway",
+        "wf-hearth-offload-claude-frontier",
+        "wf-hearth-offload-experiment-doc-adr-bench"
+      ],
+      "confidence": "high",
+      "confidence_score": 0.6,
+      "evidence": {
+        "samples": 8,
+        "workflow_count": 3,
+        "observation_ids": [
+          "obs-ledger-955ca250-c05a-4bec-a15a-2c7484fa4851",
+          "obs-offload-claude-frontier-202609041015290192160000-362ba34b",
+          "obs-offload-claude-frontier-202609041019583039170000-6786f380",
+          "obs-offload-experiment-doc-adr-bench-202609040047290473630000-600024df",
+          "obs-offload-experiment-doc-adr-bench-202609040050557667370000-f294ceeb",
+          "obs-offload-experiment-doc-adr-bench-202609040051396214000000-c19cf0da",
+          "obs-offload-experiment-doc-adr-bench-202609040056393792180000-fd78f178",
+          "obs-offload-experiment-doc-adr-bench-202609040057280609890000-a1942dc3"
+        ],
+        "failure_class": null,
+        "summary": "8 observation(s) across 3 workflow(s), all success"
+      },
+      "supporting_findings": [
+        "known_good:claude-frontier|qwen3-30b-a3b|omen-arc",
+        "known_good:omen|qwen3-30b-a3b|omen-arc"
+      ],
+      "first_observed": "2026-09-04T00:47:29.047363+00:00",
+      "last_observed": "2026-09-04T10:19:58.363579Z",
+      "derived_from": [
+        "capacity-observation.v1",
+        "findings.v1"
+      ]
+    },
+    {
+      "contract_version": "association.v1",
       "association_id": "success_invariant:model_portability:model_id=qwen3-coder:30b",
       "association_type": "success_invariant",
       "pattern": "model_portability",
@@ -1311,20 +1363,6 @@
     {
       "pattern": "model_portability",
       "invariant": {
-        "model_id": "qwen3-30b-a3b"
-      },
-      "samples": 5,
-      "workflows": [
-        "wf-hearth-offload-experiment-doc-adr-bench"
-      ],
-      "reasons": [
-        "all 5 sample(s) come from one workflow (wf-hearth-offload-experiment-doc-adr-bench); no generalization from one workflow",
-        "nothing varied under the invariant; a repeated particular is a finding, not an abstraction"
-      ]
-    },
-    {
-      "pattern": "model_portability",
-      "invariant": {
         "model_id": "qwen3-30b-a3b-awq"
       },
       "samples": 3,
@@ -1367,6 +1405,21 @@
       ],
       "reasons": [
         "outcomes are mixed; contested evidence stays at the findings layer"
+      ]
+    },
+    {
+      "pattern": "task_backend",
+      "invariant": {
+        "task_kind": "adr-0027-producer-probe-post-fix",
+        "backend": "omen-arc"
+      },
+      "samples": 1,
+      "workflows": [
+        "wf-hearth-offload-claude-frontier"
+      ],
+      "reasons": [
+        "all 1 sample(s) come from one workflow (wf-hearth-offload-claude-frontier); no generalization from one workflow",
+        "nothing varied under the invariant; a repeated particular is a finding, not an abstraction"
       ]
     },
     {
@@ -1473,6 +1526,21 @@
     {
       "pattern": "task_backend",
       "invariant": {
+        "task_kind": "ledger-model-lift-probe",
+        "backend": "omen-arc"
+      },
+      "samples": 1,
+      "workflows": [
+        "wf-hearth-offload-claude-frontier"
+      ],
+      "reasons": [
+        "all 1 sample(s) come from one workflow (wf-hearth-offload-claude-frontier); no generalization from one workflow",
+        "nothing varied under the invariant; a repeated particular is a finding, not an abstraction"
+      ]
+    },
+    {
+      "pattern": "task_backend",
+      "invariant": {
         "task_kind": "local_generate",
         "backend": "am4-moe"
       },
@@ -1524,6 +1592,21 @@
       ],
       "reasons": [
         "all 177 sample(s) come from one workflow (wf-hearth-gateway); no generalization from one workflow",
+        "nothing varied under the invariant; a repeated particular is a finding, not an abstraction"
+      ]
+    },
+    {
+      "pattern": "task_backend",
+      "invariant": {
+        "task_kind": "local_generate",
+        "backend": "omen-arc"
+      },
+      "samples": 1,
+      "workflows": [
+        "wf-hearth-gateway"
+      ],
+      "reasons": [
+        "all 1 sample(s) come from one workflow (wf-hearth-gateway); no generalization from one workflow",
         "nothing varied under the invariant; a repeated particular is a finding, not an abstraction"
       ]
     },
@@ -1637,6 +1720,6 @@
       ]
     }
   ],
-  "corpus_digest": "sha256:ae9e68ef8fa5678fbe1d39ab6fa85262305384bf73b6e31dc5f1ed05a3a56b19",
-  "corpus_event_count": 147062
+  "corpus_digest": "sha256:339056e0b668ffd562eef7f4bf6cea92d4c61eaab92af96b54fa70a80d0b7591",
+  "corpus_event_count": 147097
 }

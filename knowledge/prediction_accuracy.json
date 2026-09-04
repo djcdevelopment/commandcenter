@@ -1,8 +1,8 @@
 {
   "contract_version": "prediction-accuracy.v1",
   "decision_count": 0,
-  "observation_count": 1229,
-  "comparison_count": 1229,
+  "observation_count": 1231,
+  "comparison_count": 1231,
   "unresolved_decision_refs": 0,
   "comparisons": [
     {
@@ -39332,24 +39332,88 @@
           "matched": null
         }
       }
+    },
+    {
+      "decision_id": null,
+      "observation_id": "obs-offload-claude-frontier-202609041046005428010000-9ab27270",
+      "workflow_id": "wf-hearth-offload-claude-frontier",
+      "run_id": "hearth-offload-claude-frontier",
+      "builder_id": "gcp-vertex",
+      "model_id": "gemini-3.5-flash",
+      "backend": "gcp-gemini",
+      "workload_shape_key": "retro-role-reads|10188|unknown",
+      "timestamp": "2026-09-04T10:46:00.542801+00:00",
+      "confidence": null,
+      "prediction_source": null,
+      "prediction_present": false,
+      "metrics": {
+        "expected_ttft_ms": null,
+        "expected_generation_tokens_per_second": null,
+        "expected_peak_ram_mb": null,
+        "expected_peak_vram_mb": null
+      },
+      "outcomes": {
+        "assay": {
+          "predicted": null,
+          "observed": "passed",
+          "matched": null
+        },
+        "promotion": {
+          "predicted": null,
+          "observed": null,
+          "matched": null
+        }
+      }
+    },
+    {
+      "decision_id": null,
+      "observation_id": "obs-ledger-737d4832-deb7-4398-a8ff-184cdd5a2434",
+      "workflow_id": "wf-hearth-gateway",
+      "run_id": "hearth-gateway",
+      "builder_id": "claude-frontier",
+      "model_id": "gemini-3.5-flash",
+      "backend": "gcp-gemini",
+      "workload_shape_key": "local_generate|12310|unknown",
+      "timestamp": "2026-09-04T10:46:00.606260Z",
+      "confidence": null,
+      "prediction_source": null,
+      "prediction_present": false,
+      "metrics": {
+        "expected_ttft_ms": null,
+        "expected_generation_tokens_per_second": null,
+        "expected_peak_ram_mb": null,
+        "expected_peak_vram_mb": null
+      },
+      "outcomes": {
+        "assay": {
+          "predicted": null,
+          "observed": "passed",
+          "matched": null
+        },
+        "promotion": {
+          "predicted": null,
+          "observed": null,
+          "matched": null
+        }
+      }
     }
   ],
   "summary": {
     "overall": {
       "overall": {
-        "sample_count": 1229,
-        "last_updated": "2026-09-04T10:19:58.363579Z",
+        "sample_count": 1231,
+        "last_updated": "2026-09-04T10:46:00.606260Z",
         "metrics": {},
         "outcomes": {
           "assay": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 1229
+            "unknown": 1231
           },
           "promotion": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 1229
+            "unknown": 1231
           }
         },
         "prediction_confidence": null
@@ -39465,19 +39529,19 @@
         "prediction_confidence": null
       },
       "claude-frontier": {
-        "sample_count": 1094,
-        "last_updated": "2026-09-04T10:19:58.363579Z",
+        "sample_count": 1095,
+        "last_updated": "2026-09-04T10:46:00.606260Z",
         "metrics": {},
         "outcomes": {
           "assay": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 1094
+            "unknown": 1095
           },
           "promotion": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 1094
+            "unknown": 1095
           }
         },
         "prediction_confidence": null
@@ -39537,19 +39601,19 @@
         "prediction_confidence": null
       },
       "gcp-vertex": {
-        "sample_count": 14,
-        "last_updated": "2026-09-04T00:57:27.501560+00:00",
+        "sample_count": 15,
+        "last_updated": "2026-09-04T10:46:00.542801+00:00",
         "metrics": {},
         "outcomes": {
           "assay": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 14
+            "unknown": 15
           },
           "promotion": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 14
+            "unknown": 15
           }
         },
         "prediction_confidence": null
@@ -39701,19 +39765,19 @@
         "prediction_confidence": null
       },
       "gemini-3.5-flash": {
-        "sample_count": 291,
-        "last_updated": "2026-09-04T00:57:27.501560+00:00",
+        "sample_count": 293,
+        "last_updated": "2026-09-04T10:46:00.606260Z",
         "metrics": {},
         "outcomes": {
           "assay": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 291
+            "unknown": 293
           },
           "promotion": {
             "matched": 0,
             "mismatched": 0,
-            "unknown": 291
+            "unknown": 293
           }
         },
         "prediction_confidence": null
@@ -44345,9 +44409,45 @@
           }
         },
         "prediction_confidence": null
+      },
+      "retro-role-reads|10188|unknown": {
+        "sample_count": 1,
+        "last_updated": "2026-09-04T10:46:00.542801+00:00",
+        "metrics": {},
+        "outcomes": {
+          "assay": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 1
+          },
+          "promotion": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 1
+          }
+        },
+        "prediction_confidence": null
+      },
+      "local_generate|12310|unknown": {
+        "sample_count": 1,
+        "last_updated": "2026-09-04T10:46:00.606260Z",
+        "metrics": {},
+        "outcomes": {
+          "assay": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 1
+          },
+          "promotion": {
+            "matched": 0,
+            "mismatched": 0,
+            "unknown": 1
+          }
+        },
+        "prediction_confidence": null
       }
     }
   },
-  "corpus_digest": "sha256:339056e0b668ffd562eef7f4bf6cea92d4c61eaab92af96b54fa70a80d0b7591",
-  "corpus_event_count": 147097
+  "corpus_digest": "sha256:f7e994ec6fffb66b567028d620458a686dc32ba7b8f67efbc46d697e932b341d",
+  "corpus_event_count": 147111
 }

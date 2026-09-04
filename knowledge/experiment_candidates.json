@@ -1,9 +1,9 @@
 {
   "contract_version": "experiment-candidates.v1",
-  "source_findings": 48,
+  "source_findings": 49,
   "candidate_counts": {
     "backend_comparison": 6,
-    "coverage_probe": 69,
+    "coverage_probe": 70,
     "known_bad_retest": 1,
     "prefer_validation": 38,
     "uncertain_resolution": 2
@@ -67,7 +67,7 @@
       "evidence_sought": "the same workload shape run on each backend yields a per-task recommendation instead of a guess",
       "risk_accepted": "one dispatch slot per backend; a gated backend must be opened with its own experiment",
       "confidence": null,
-      "last_observed": "2026-09-04T00:57:27.501560+00:00"
+      "last_observed": "2026-09-04T10:46:00.542801+00:00"
     },
     {
       "candidate_id": "backend_comparison:mixtral:8x22b-instruct-v0.1-q2_K:ollama-cuda+ollama-vulkan-igpu+ollama-vulkan-mixed",
@@ -560,14 +560,14 @@
         "metric": null
       },
       "question": "does 'task_kind=local_generate, backend=gcp-gemini' hold outside wf-hearth-gateway?",
-      "worth": "229 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "worth": "230 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
       "target_finding_id": null,
       "target_capability_id": null,
       "gate": null,
       "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
       "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
       "confidence": null,
-      "last_observed": "2026-07-31T00:12:53.800327Z"
+      "last_observed": "2026-09-04T10:46:00.606260Z"
     },
     {
       "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=local_generate|backend=gcp-gemini-pro",
@@ -688,6 +688,26 @@
       "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
       "confidence": null,
       "last_observed": "2026-09-04T00:57:28.060989+00:00"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=retro-role-reads|backend=gcp-gemini",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "gcp-gemini",
+        "task_kind": "retro-role-reads",
+        "metric": null
+      },
+      "question": "does 'task_kind=retro-role-reads, backend=gcp-gemini' hold outside wf-hearth-offload-claude-frontier?",
+      "worth": "1 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-09-04T10:46:00.542801+00:00"
     },
     {
       "candidate_id": "coverage_probe:unmeasured_metrics:am4-worker-1|vllama-planner|openai",
@@ -867,7 +887,7 @@
       "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
       "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
       "confidence": null,
-      "last_observed": "2026-07-31T00:12:53.800327Z"
+      "last_observed": "2026-09-04T10:46:00.606260Z"
     },
     {
       "candidate_id": "coverage_probe:unmeasured_metrics:claude-frontier|gemini-3.5-flash|unknown",
@@ -1207,7 +1227,7 @@
       "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
       "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
       "confidence": null,
-      "last_observed": "2026-09-04T00:57:27.501560+00:00"
+      "last_observed": "2026-09-04T10:46:00.542801+00:00"
     },
     {
       "candidate_id": "coverage_probe:unmeasured_metrics:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-cuda",
@@ -1664,7 +1684,7 @@
         "task_kind": null,
         "metric": null
       },
-      "question": "does claude-frontier + gemini-3.5-flash + gcp-gemini still hold up (228/228 success)?",
+      "question": "does claude-frontier + gemini-3.5-flash + gcp-gemini still hold up (229/229 success)?",
       "worth": "the preference nudges every dispatch; it must keep earning that",
       "target_finding_id": "known_good:claude-frontier|gemini-3.5-flash|gcp-gemini",
       "target_capability_id": null,
@@ -1672,7 +1692,7 @@
       "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
       "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
       "confidence": "high",
-      "last_observed": "2026-07-31T00:12:53.800327Z"
+      "last_observed": "2026-09-04T10:46:00.606260Z"
     },
     {
       "candidate_id": "prefer_validation:claude-frontier|gemini-3.5-flash|unknown",
@@ -2004,7 +2024,7 @@
         "task_kind": null,
         "metric": null
       },
-      "question": "does gcp-vertex + gemini-3.5-flash + gcp-gemini still hold up (12/12 success)?",
+      "question": "does gcp-vertex + gemini-3.5-flash + gcp-gemini still hold up (13/13 success)?",
       "worth": "the preference nudges every dispatch; it must keep earning that",
       "target_finding_id": "known_good:gcp-vertex|gemini-3.5-flash|gcp-gemini",
       "target_capability_id": null,
@@ -2012,7 +2032,7 @@
       "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
       "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
       "confidence": "high",
-      "last_observed": "2026-09-04T00:57:27.501560+00:00"
+      "last_observed": "2026-09-04T10:46:00.542801+00:00"
     },
     {
       "candidate_id": "prefer_validation:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-cuda",
@@ -2345,6 +2365,6 @@
       "last_observed": "2026-07-04T04:18:00+00:00"
     }
   ],
-  "corpus_digest": "sha256:339056e0b668ffd562eef7f4bf6cea92d4c61eaab92af96b54fa70a80d0b7591",
-  "corpus_event_count": 147097
+  "corpus_digest": "sha256:f7e994ec6fffb66b567028d620458a686dc32ba7b8f67efbc46d697e932b341d",
+  "corpus_event_count": 147111
 }

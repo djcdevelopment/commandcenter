@@ -1,6 +1,6 @@
 {
   "contract_version": "known-bad-models.v1",
-  "evidence_watermark": "2026-09-04T10:19:58.363579Z",
+  "evidence_watermark": "2026-09-04T10:46:00.606260Z",
   "entries": [
     {
       "builder_id": "omen-wsl",
@@ -17,6 +17,6 @@
       "reason": "3/3 failed runs, zero successes (dominant: moe_offload_crash)"
     }
   ],
-  "corpus_digest": "sha256:339056e0b668ffd562eef7f4bf6cea92d4c61eaab92af96b54fa70a80d0b7591",
-  "corpus_event_count": 147097
+  "corpus_digest": "sha256:f7e994ec6fffb66b567028d620458a686dc32ba7b8f67efbc46d697e932b341d",
+  "corpus_event_count": 147111
 }

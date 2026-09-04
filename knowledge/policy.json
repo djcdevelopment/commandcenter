@@ -1,7 +1,7 @@
 {
   "contract_version": "policies.v1",
-  "source_findings": 48,
-  "evidence_watermark": "2026-09-04T10:19:58.363579Z",
+  "source_findings": 49,
+  "evidence_watermark": "2026-09-04T10:46:00.606260Z",
   "rule_counts": {
     "block": 1,
     "exploratory_only": 2,
@@ -175,7 +175,7 @@
       "contract_version": "policy.v1",
       "policy_id": "prefer:claude-frontier|gemini-3.5-flash|gcp-gemini|*|*",
       "effect": "prefer",
-      "statement": "prefer claude-frontier + gemini-3.5-flash + gcp-gemini when compatible: 228/228 success",
+      "statement": "prefer claude-frontier + gemini-3.5-flash + gcp-gemini when compatible: 229/229 success",
       "subject": {
         "builder_id": "claude-frontier",
         "model_id": "gemini-3.5-flash",
@@ -186,12 +186,12 @@
       "derived_from_finding": "known_good:claude-frontier|gemini-3.5-flash|gcp-gemini",
       "finding_type": "known_good",
       "confidence": "high",
-      "evidence_summary": "228/228 success",
+      "evidence_summary": "229/229 success",
       "override": null,
       "adjustment": null,
       "status": "active",
       "suspended_reason": null,
-      "last_observed": "2026-07-31T00:12:53.800327Z"
+      "last_observed": "2026-09-04T10:46:00.606260Z"
     },
     {
       "contract_version": "policy.v1",
@@ -373,7 +373,7 @@
       "contract_version": "policy.v1",
       "policy_id": "prefer:gcp-vertex|gemini-3.5-flash|gcp-gemini|*|*",
       "effect": "prefer",
-      "statement": "prefer gcp-vertex + gemini-3.5-flash + gcp-gemini when compatible: 12/12 success",
+      "statement": "prefer gcp-vertex + gemini-3.5-flash + gcp-gemini when compatible: 13/13 success",
       "subject": {
         "builder_id": "gcp-vertex",
         "model_id": "gemini-3.5-flash",
@@ -384,12 +384,12 @@
       "derived_from_finding": "known_good:gcp-vertex|gemini-3.5-flash|gcp-gemini",
       "finding_type": "known_good",
       "confidence": "high",
-      "evidence_summary": "12/12 success",
+      "evidence_summary": "13/13 success",
       "override": null,
       "adjustment": null,
       "status": "active",
       "suspended_reason": null,
-      "last_observed": "2026-09-04T00:57:27.501560+00:00"
+      "last_observed": "2026-09-04T10:46:00.542801+00:00"
     },
     {
       "contract_version": "policy.v1",
@@ -436,6 +436,6 @@
       "last_observed": "2026-09-04T10:19:58.303917+00:00"
     }
   ],
-  "corpus_digest": "sha256:339056e0b668ffd562eef7f4bf6cea92d4c61eaab92af96b54fa70a80d0b7591",
-  "corpus_event_count": 147097
+  "corpus_digest": "sha256:f7e994ec6fffb66b567028d620458a686dc32ba7b8f67efbc46d697e932b341d",
+  "corpus_event_count": 147111
 }

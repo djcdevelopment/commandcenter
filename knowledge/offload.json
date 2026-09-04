@@ -1,11 +1,11 @@
 {
   "contract_version": "offload.v1",
-  "evidence_watermark": "2026-09-04T10:19:58.363579Z",
+  "evidence_watermark": "2026-09-04T10:46:00.606260Z",
   "bucket_count": 13,
   "totals": {
-    "calls": 1289,
-    "tokens_in": 3052909,
-    "tokens_out": 391061
+    "calls": 1290,
+    "tokens_in": 3065219,
+    "tokens_out": 392483
   },
   "per_class": {
     "sunk": {
@@ -14,9 +14,9 @@
       "tokens_out": 164283
     },
     "trial": {
-      "calls": 596,
-      "tokens_in": 2666667,
-      "tokens_out": 226778
+      "calls": 597,
+      "tokens_in": 2678977,
+      "tokens_out": 228200
     },
     "unknown": {
       "calls": 11,
@@ -29,12 +29,12 @@
     "reference": "claude-sonnet",
     "input_per_mtok": 3.0,
     "output_per_mtok": 15.0,
-    "usd": 15.024642
+    "usd": 15.082902
   },
   "real_usd_spent": {
     "pricing_source": "vertex-ai-pricing verified 2026-07-23 (global/standard, <=200K tier)",
-    "usd": 6.266929,
-    "priced_calls": 404,
+    "usd": 6.298192,
+    "priced_calls": 405,
     "unpriced_calls": 192
   },
   "buckets": [
@@ -82,12 +82,12 @@
       "models": [
         "gemini-3.5-flash"
       ],
-      "calls": 254,
+      "calls": 255,
       "ok_rate": 1.0,
-      "tokens_in": 526993,
-      "tokens_out": 70275,
-      "real_usd": 0.913247,
-      "last_seen": "2026-08-29T05:06:30.387394Z"
+      "tokens_in": 539303,
+      "tokens_out": 71697,
+      "real_usd": 0.94451,
+      "last_seen": "2026-09-04T10:46:00.606260Z"
     },
     {
       "backend": "gcp-gemini-pro",
@@ -204,6 +204,6 @@
       "last_seen": "2026-09-04T01:01:57.278324Z"
     }
   ],
-  "corpus_digest": "sha256:844cc768df16b74f843420541dfd3de3acd6dda2a6c5298de38ede87d6ae0ad5",
-  "corpus_event_count": 195755
+  "corpus_digest": "sha256:c77e9d764cb45dffc7c480da23194869e8290f573d54a07a71cac66d4c8555a8",
+  "corpus_event_count": 195782
 }

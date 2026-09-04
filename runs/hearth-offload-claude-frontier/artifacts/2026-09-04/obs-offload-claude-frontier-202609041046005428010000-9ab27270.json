@@ -1,0 +1,30 @@
+{
+  "contract_version": "capacity-observation.v1",
+  "observation_id": "obs-offload-claude-frontier-202609041046005428010000-9ab27270",
+  "decision_id": null,
+  "workflow_id": "wf-hearth-offload-claude-frontier",
+  "run_id": "hearth-offload-claude-frontier",
+  "timestamp": "2026-09-04T10:46:00.542801+00:00",
+  "builder_id": "gcp-vertex",
+  "model_id": "gemini-3.5-flash",
+  "backend": "gcp-gemini",
+  "hardware_profile_id": null,
+  "workload_shape": {
+    "task_kind": "retro-role-reads",
+    "estimated_context_tokens": 10188,
+    "requires_gpu": null,
+    "notes": "routed_by=pinned:gcp-gemini; occupancy=available; runtime_s is wall-clock; pool=b7b345244144"
+  },
+  "observed": {
+    "runtime_s": 30.953,
+    "ttft_s": null,
+    "tokens_per_s": 45.94,
+    "ram_gb_peak": null,
+    "vram_gb_peak": null,
+    "context_tokens": 12310,
+    "physical": null
+  },
+  "outcome": "success",
+  "failure_class": null,
+  "promotion_status": null
+}

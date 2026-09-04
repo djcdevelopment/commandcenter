@@ -1,11 +1,11 @@
 {
   "contract_version": "coverage.v1",
-  "observation_count": 1229,
+  "observation_count": 1231,
   "decision_count": 0,
   "unresolved_refs": 0,
-  "evidence_watermark": "2026-09-04T10:19:58.363579Z",
+  "evidence_watermark": "2026-09-04T10:46:00.606260Z",
   "gap_counts": {
-    "single_workflow_evidence": 28,
+    "single_workflow_evidence": 29,
     "unmeasured_metrics": 41
   },
   "gaps": [
@@ -573,7 +573,7 @@
       "contract_version": "coverage-gap.v1",
       "gap_id": "single_workflow_evidence:task_backend:task_kind=local_generate|backend=gcp-gemini",
       "gap_type": "single_workflow_evidence",
-      "statement": "'task_kind=local_generate, backend=gcp-gemini' has 229 consistent sample(s) but all from wf-hearth-gateway; a second distinct workflow would let the association engine generalize it",
+      "statement": "'task_kind=local_generate, backend=gcp-gemini' has 230 consistent sample(s) but all from wf-hearth-gateway; a second distinct workflow would let the association engine generalize it",
       "subject": {
         "builder_id": null,
         "model_id": null,
@@ -587,14 +587,14 @@
         "capability_id": null
       },
       "evidence": {
-        "samples": 229,
+        "samples": 230,
         "workflows": [
           "wf-hearth-gateway"
         ],
-        "summary": "229 sample(s), 1 workflow (need 2)"
+        "summary": "230 sample(s), 1 workflow (need 2)"
       },
       "proposed_experiment_type": "coverage_probe",
-      "last_observed": "2026-07-31T00:12:53.800327Z"
+      "last_observed": "2026-09-04T10:46:00.606260Z"
     },
     {
       "contract_version": "coverage-gap.v1",
@@ -757,6 +757,33 @@
       },
       "proposed_experiment_type": "coverage_probe",
       "last_observed": "2026-09-04T00:57:28.060989+00:00"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "single_workflow_evidence:task_backend:task_kind=retro-role-reads|backend=gcp-gemini",
+      "gap_type": "single_workflow_evidence",
+      "statement": "'task_kind=retro-role-reads, backend=gcp-gemini' has 1 consistent sample(s) but all from wf-hearth-offload-claude-frontier; a second distinct workflow would let the association engine generalize it",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "gcp-gemini",
+        "task_kind": "retro-role-reads",
+        "invariant": {
+          "task_kind": "retro-role-reads",
+          "backend": "gcp-gemini"
+        },
+        "missing_metrics": null,
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1,
+        "workflows": [
+          "wf-hearth-offload-claude-frontier"
+        ],
+        "summary": "1 sample(s), 1 workflow (need 2)"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-09-04T10:46:00.542801+00:00"
     },
     {
       "contract_version": "coverage-gap.v1",
@@ -975,7 +1002,7 @@
       "contract_version": "coverage-gap.v1",
       "gap_id": "unmeasured_metrics:claude-frontier|gemini-3.5-flash|gcp-gemini",
       "gap_type": "unmeasured_metrics",
-      "statement": "claude-frontier + gemini-3.5-flash + gcp-gemini has run 228 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "statement": "claude-frontier + gemini-3.5-flash + gcp-gemini has run 229 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
       "subject": {
         "builder_id": "claude-frontier",
         "model_id": "gemini-3.5-flash",
@@ -990,12 +1017,12 @@
         "capability_id": null
       },
       "evidence": {
-        "samples": 228,
+        "samples": 229,
         "workflows": null,
         "summary": "3/4 metrics never measured"
       },
       "proposed_experiment_type": "coverage_probe",
-      "last_observed": "2026-07-31T00:12:53.800327Z"
+      "last_observed": "2026-09-04T10:46:00.606260Z"
     },
     {
       "contract_version": "coverage-gap.v1",
@@ -1423,7 +1450,7 @@
       "contract_version": "coverage-gap.v1",
       "gap_id": "unmeasured_metrics:gcp-vertex|gemini-3.5-flash|gcp-gemini",
       "gap_type": "unmeasured_metrics",
-      "statement": "gcp-vertex + gemini-3.5-flash + gcp-gemini has run 12 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "statement": "gcp-vertex + gemini-3.5-flash + gcp-gemini has run 13 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
       "subject": {
         "builder_id": "gcp-vertex",
         "model_id": "gemini-3.5-flash",
@@ -1438,12 +1465,12 @@
         "capability_id": null
       },
       "evidence": {
-        "samples": 12,
+        "samples": 13,
         "workflows": null,
         "summary": "3/4 metrics never measured"
       },
       "proposed_experiment_type": "coverage_probe",
-      "last_observed": "2026-09-04T00:57:27.501560+00:00"
+      "last_observed": "2026-09-04T10:46:00.542801+00:00"
     },
     {
       "contract_version": "coverage-gap.v1",
@@ -1825,6 +1852,6 @@
       "last_observed": "2026-09-04T10:19:58.303917+00:00"
     }
   ],
-  "corpus_digest": "sha256:339056e0b668ffd562eef7f4bf6cea92d4c61eaab92af96b54fa70a80d0b7591",
-  "corpus_event_count": 147097
+  "corpus_digest": "sha256:f7e994ec6fffb66b567028d620458a686dc32ba7b8f67efbc46d697e932b341d",
+  "corpus_event_count": 147111
 }

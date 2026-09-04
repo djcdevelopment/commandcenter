@@ -1,6 +1,6 @@
 {
   "contract_version": "capacity-estimates.v1",
-  "observation_count": 1229,
+  "observation_count": 1231,
   "unresolved_observation_refs": 0,
   "combos": {
     "am4-worker-1|vllama-planner|openai": {
@@ -141,15 +141,15 @@
       "builder_id": "claude-frontier",
       "model_id": "gemini-3.5-flash",
       "backend": "gcp-gemini",
-      "samples": 228,
-      "successes": 228,
+      "samples": 229,
+      "successes": 229,
       "failures": 0,
       "failure_classes": {},
       "promotion_holds": 0,
       "max_context_tokens": 36556,
       "max_vram_gb_peak": null,
-      "last_observed": "2026-07-31T00:12:53.800327Z",
-      "mean_tokens_per_s": 14.63,
+      "last_observed": "2026-09-04T10:46:00.606260Z",
+      "mean_tokens_per_s": 14.77,
       "success_rate": 1.0,
       "confidence": 0.99
     },
@@ -413,17 +413,17 @@
       "builder_id": "gcp-vertex",
       "model_id": "gemini-3.5-flash",
       "backend": "gcp-gemini",
-      "samples": 12,
-      "successes": 12,
+      "samples": 13,
+      "successes": 13,
       "failures": 0,
       "failure_classes": {},
       "promotion_holds": 0,
       "max_context_tokens": 21314,
       "max_vram_gb_peak": null,
-      "last_observed": "2026-09-04T00:57:27.501560+00:00",
-      "mean_tokens_per_s": 14.36,
+      "last_observed": "2026-09-04T10:46:00.542801+00:00",
+      "mean_tokens_per_s": 16.79,
       "success_rate": 1.0,
-      "confidence": 0.86
+      "confidence": 0.87
     },
     "omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-cuda": {
       "builder_id": "omen-5070",
@@ -668,6 +668,6 @@
       "confidence": 0.78
     }
   },
-  "corpus_digest": "sha256:339056e0b668ffd562eef7f4bf6cea92d4c61eaab92af96b54fa70a80d0b7591",
-  "corpus_event_count": 147097
+  "corpus_digest": "sha256:f7e994ec6fffb66b567028d620458a686dc32ba7b8f67efbc46d697e932b341d",
+  "corpus_event_count": 147111
 }

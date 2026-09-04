@@ -60,7 +60,11 @@ class Corpus:
         """
         root = Path(root)
         if root.is_dir():
-            found = sorted(root.rglob("events.jsonl"), key=lambda p: p.relative_to(root).as_posix())
+            found = sorted(
+                [p for p in root.rglob("events*.jsonl")
+                 if p.name == "events.jsonl" or (p.name.startswith("events-") and p.suffix == ".jsonl")],
+                key=lambda p: p.relative_to(root).as_posix(),
+            )
         elif root.is_file():
             found = [root]
         else:

@@ -1,0 +1,35 @@
+{
+  "episode": "04",
+  "title": "The Silent Escalation Tax: When Fail-Soft Costs You Thousands",
+  "source_document_sha256": "e0553d1d8fc65a09e25374a58b48df1a5cdc44111ee83e1e3a676748d11ade1c",
+  "compute_device": "xpu:0 (Intel Arc Pro B70)",
+  "turns_count": 13,
+  "artifacts": {
+    "british_tech": {
+      "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_04_silent_escalation_british_tech.wav",
+      "profile": "british_tech",
+      "voices": [
+        "bf_emma",
+        "bm_george"
+      ],
+      "duration_seconds": 150.875,
+      "sha256": "40d041bcdc1e0903e25d841baf1df4dd82ab379855ddf003ea0cfc09a5143ff9",
+      "file_size_bytes": 14484080,
+      "synthesis_wall_time_s": 35.3,
+      "speed_realtime": 4.27
+    },
+    "alex_sam": {
+      "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_04_silent_escalation_alex_sam.wav",
+      "profile": "alex_sam",
+      "voices": [
+        "af_heart",
+        "am_adam"
+      ],
+      "duration_seconds": 143.15,
+      "sha256": "09e0d9600241f99bba5929cda827ae1eb279a53d0fdeface40735d3d95838c24",
+      "file_size_bytes": 13742480,
+      "synthesis_wall_time_s": 31.57,
+      "speed_realtime": 4.53
+    }
+  }
+}

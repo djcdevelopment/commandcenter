@@ -2,7 +2,7 @@
   "schema": "mediagen.podcast-script.v1",
   "version": "1.0.0",
   "title": "The Phantom Limbs of Metal",
-  "source_document_sha256": "4372000000000000000000000000000000000000000000000000000000000001",
+  "source_document_sha256": "f10b0b2a12b71261b7fdacdbe41a12186233d27a037e625d2c171ba6c312f277",
   "speakers": {
     "host_a": {
       "name": "Alex",

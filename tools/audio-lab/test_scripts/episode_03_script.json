@@ -1,0 +1,105 @@
+{
+  "schema": "mediagen.podcast-script.v1",
+  "version": "1.0.0",
+  "title": "When Machine Lanes Break the Cloud",
+  "source_document_sha256": "f8bd4b842df4e4d1ba48fffba25c97a62ed3b289520ce8321c3e4eecbe63ff7e",
+  "speakers": {
+    "host_a": {
+      "name": "Alex",
+      "voice_id": "host_a",
+      "persona": "Curious, draws analogies"
+    },
+    "host_b": {
+      "name": "Sam",
+      "voice_id": "host_b",
+      "persona": "Technical, grounds details"
+    }
+  },
+  "turns": [
+    {
+      "speaker": "host_a",
+      "text": "Welcome back, everyone! Today we're diving into a story that sounds like a cyber thriller\u2014except it's real. A build pipeline went dark, not because of a crash or a bug, but because a virtual machine was waiting for a human to log into a browser in California.",
+      "pause_after_ms": 500
+    },
+    {
+      "speaker": "host_b",
+      "text": "Exactly. It\u2019s a perfect example of what happens when you let autonomous systems depend on human-facing infrastructure. The orchestrator and the conductor were on the same machine\u2014same motherboard, same power supply\u2014but one was a Windows process, the other a Linux VM in Hyper-V.",
+      "pause_after_ms": 350
+    },
+    {
+      "speaker": "host_a",
+      "text": "So they were literally next to each other, but couldn\u2019t talk? That feels like a digital version of two people in the same room but unable to hear each other because one\u2019s on a phone call with someone in another country.",
+      "pause_after_ms": 350
+    },
+    {
+      "speaker": "host_b",
+      "text": "That\u2019s the core irony. They were using Tailscale\u2014an encrypted overlay network that\u2019s brilliant for humans on the move. But when you point a headless build agent at it, you\u2019re asking it to do something it wasn\u2019t designed for: authenticate without a browser, without a keyboard, without a human.",
+      "pause_after_ms": 350
+    },
+    {
+      "speaker": "host_a",
+      "text": "So Tailscale\u2019s security features\u2014like 180-day key expiry and browser re-authentication\u2014became the enemy. It\u2019s like putting a password lock on a vending machine that\u2019s supposed to work 24/7.",
+      "pause_after_ms": 350
+    },
+    {
+      "speaker": "host_b",
+      "text": "Exactly. That\u2019s why ADR-0014 was born: Machine lanes don\u2019t ride the tailnet. The rule is simple: human traffic\u2014laptops, phones, operator consoles\u2014can use Tailscale. But machines? They need local, stable, predictable networking.",
+      "pause_after_ms": 350
+    },
+    {
+      "speaker": "host_a",
+      "text": "So what\u2019s the alternative? Local metal, right? Sibling DNS, static IPs, direct Ethernet connections.",
+      "pause_after_ms": 350
+    },
+    {
+      "speaker": "host_b",
+      "text": "Yes. But even local networks have their own demons. Take Hyper-V\u2019s Default Switch. It\u2019s convenient\u2014it gives VMs internet access and auto-registers them in mshome.net. But here\u2019s the catch: it changes its subnet every reboot.",
+      "pause_after_ms": 350
+    },
+    {
+      "speaker": "host_a",
+      "text": "So the VM gets a new IP address every time the host restarts? That sounds like a nightmare for automation.",
+      "pause_after_ms": 350
+    },
+    {
+      "speaker": "host_b",
+      "text": "It is. In July, the subnet was 172.19.240.0/20. August? 172.29.64.0/20. September? 172.17.192.0/20. The VMs get new IPs via DHCP, DNS updates, but SSH doesn\u2019t know the host key changed. In interactive mode, it warns you. In BatchMode? It just fails silently with return code 255.",
+      "pause_after_ms": 500
+    },
+    {
+      "speaker": "host_a",
+      "text": "So the build pipeline crashes because a machine\u2019s IP changed\u2014but no one noticed because the DNS updated and the SSH client didn\u2019t complain.",
+      "pause_after_ms": 350
+    },
+    {
+      "speaker": "host_b",
+      "text": "Exactly. The fix? In ~/.ssh/config, you must set StrictHostKeyChecking accept-new. That way, if a host key is new, it\u2019s automatically accepted. No human needed. No queue backlog.",
+      "pause_after_ms": 350
+    },
+    {
+      "speaker": "host_a",
+      "text": "And then there\u2019s the loopback wall. I love that phrase. So even if a service is running on 127.0.0.1, the VM can\u2019t reach it.",
+      "pause_after_ms": 350
+    },
+    {
+      "speaker": "host_b",
+      "text": "Yes. The host\u2019s loopback is isolated from the VM\u2019s virtual network. So when the builder VM tried to reach the inference server on port 8082, it got connection refused. The solution? Point it to a physical machine on the same LAN\u2014fx99 at 192.168.12.220.",
+      "pause_after_ms": 500
+    },
+    {
+      "speaker": "host_a",
+      "text": "So even though the hypervisor has two B70 GPUs, the VMs can\u2019t use them because of network topology. The hardware specs don\u2019t matter if the plumbing\u2019s broken.",
+      "pause_after_ms": 350
+    },
+    {
+      "speaker": "host_b",
+      "text": "That\u2019s the punchline. Machine lanes need reachable addresses, stable routing, and autonomous key negotiation. Until you solve the network, your hardware is just expensive paperweights.",
+      "pause_after_ms": 500
+    },
+    {
+      "speaker": "host_a",
+      "text": "So the takeaway? Build systems aren\u2019t just about code and compute. They\u2019re about network design. And sometimes, the most powerful machine is the one that stays local.",
+      "pause_after_ms": 500
+    }
+  ]
+}

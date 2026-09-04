@@ -1,0 +1,110 @@
+{
+  "schema": "mediagen.podcast-script.v1",
+  "version": "1.0.0",
+  "title": "The Two Economies of AI: When Compute Is Free and When It Isn't",
+  "source_document_sha256": "eff5bbbf0b85af4d3f67663566184498ac98385fa226e2bd80501eb3477dae9d",
+  "speakers": {
+    "host_a": {
+      "name": "Alex",
+      "voice_id": "host_a",
+      "persona": "Curious, draws analogies"
+    },
+    "host_b": {
+      "name": "Sam",
+      "voice_id": "host_b",
+      "persona": "Technical, grounds details"
+    }
+  },
+  "turns": [
+    {
+      "speaker": "host_a",
+      "text": "Welcome back, everyone! Today we're diving into a radical shift in how we think about AI compute\u2014what the CommandCenter team calls the Two Economies Doctrine.",
+      "pause_after_ms": 350
+    },
+    {
+      "speaker": "host_b",
+      "text": "Exactly. Most AI systems are built on one assumption: every token costs money. That shapes everything\u2014from prompt length to agent behavior. But the Two Economies Doctrine flips that on its head.",
+      "pause_after_ms": 350
+    },
+    {
+      "speaker": "host_a",
+      "text": "So there\u2019s not just one kind of compute? There are two?",
+      "pause_after_ms": 250
+    },
+    {
+      "speaker": "host_b",
+      "text": "Yes. First, there\u2019s sunk compute\u2014the hardware you\u2019ve already paid for. Like OMEN\u2019s two Intel Arc Pro B70s, or the older RTX 2070 Super. You bought them. The cost is in the past. The only real marginal cost is electricity\u2014pennies per hour.",
+      "pause_after_ms": 350
+    },
+    {
+      "speaker": "host_a",
+      "text": "So if I\u2019m running a model on that hardware, the cost per token is basically zero?",
+      "pause_after_ms": 250
+    },
+    {
+      "speaker": "host_b",
+      "text": "Effectively, yes. That\u2019s why we call it the sunk economy. You can run twenty variations of a prompt, generate a 12,000-token draft, throw it away, and try again\u2014all without blinking. The cost isn\u2019t in the tokens, it\u2019s in the kilowatt-hour.",
+      "pause_after_ms": 350
+    },
+    {
+      "speaker": "host_a",
+      "text": "That sounds like a dream. So what\u2019s the other economy? The one where tokens still cost money?",
+      "pause_after_ms": 250
+    },
+    {
+      "speaker": "host_b",
+      "text": "The metered frontier. Think Claude 3.7 Sonnet, Gemini 1.5 Pro\u2014models so large they can\u2019t run locally. Every token here is billed. They have rate limits, latency, and budgets. You can\u2019t just fire them off like a local script.",
+      "pause_after_ms": 350
+    },
+    {
+      "speaker": "host_a",
+      "text": "So if I use a frontier model to reformat JSON, I\u2019m basically hiring a Supreme Court Justice to stamp parking tickets?",
+      "pause_after_ms": 250
+    },
+    {
+      "speaker": "host_b",
+      "text": "Exactly. That\u2019s the core discipline of the Two Economies Doctrine: keep them strictly separated. Sunk compute is the factory floor\u2014doing drafting, linting, background checks. Frontier compute is the appellate court\u2014handling high-level architecture, trade-off decisions, and arbitration.",
+      "pause_after_ms": 350
+    },
+    {
+      "speaker": "host_a",
+      "text": "So how do you actually enforce that boundary in practice?",
+      "pause_after_ms": 250
+    },
+    {
+      "speaker": "host_b",
+      "text": "Through configuration. In `operations.toml`, each operation has ceilings\u2014max prompt size, token limits, and deadlines. In `backends.toml`, backends declare their cost class. Local runners like `omen-arc` have no cost class. Cloud ones like `gcp-gemini` are marked `trial`, with a global cap of 200 million tokens and a hard stop at 20 million.",
+      "pause_after_ms": 350
+    },
+    {
+      "speaker": "host_a",
+      "text": "And the scheduler figures out which one to use?",
+      "pause_after_ms": 250
+    },
+    {
+      "speaker": "host_b",
+      "text": "Yes. When a build worker dispatches a task, the scheduler checks the runner class. Local tasks go to the B70s or FX99. Frontier tasks are metered, audited, and logged like financial transactions.",
+      "pause_after_ms": 350
+    },
+    {
+      "speaker": "host_a",
+      "text": "So what does true autonomous engineering actually look like under this model?",
+      "pause_after_ms": 250
+    },
+    {
+      "speaker": "host_b",
+      "text": "It\u2019s not about having a better model. It\u2019s about making the cost of trying an idea drop to zero. When you don\u2019t fear the bill, an agent can test three different architectures overnight, run them against a live harness, discard the weak ones, and have a winning PR ready by morning coffee.",
+      "pause_after_ms": 350
+    },
+    {
+      "speaker": "host_a",
+      "text": "So the real breakthrough isn\u2019t in the model\u2014it\u2019s in the economics.",
+      "pause_after_ms": 350
+    },
+    {
+      "speaker": "host_b",
+      "text": "Precisely. Hearth isn\u2019t just routing API calls. It\u2019s defending the boundary between infinite local experiment and surgical cloud intelligence. That\u2019s where autonomy really lives.",
+      "pause_after_ms": 500
+    }
+  ]
+}

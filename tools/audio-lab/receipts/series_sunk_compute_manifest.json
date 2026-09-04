@@ -1,0 +1,190 @@
+{
+  "series_title": "The Architecture of Sunk Compute",
+  "description": "5-part technical deep-dive podcast series exploring sovereign compute, telemetry truth, and hardware topology.",
+  "compute_device": "xpu:0 (Intel Arc Pro B70)",
+  "pacing_standard": "P2_comfort_noise (-62 dB room tone bed, 10ms cosine edge fades)",
+  "summary": {
+    "episodes_count": 5,
+    "total_audio_seconds": 1766.9,
+    "total_audio_minutes": 29.45,
+    "total_synthesis_wall_time_s": 388.26,
+    "average_speed_realtime": 4.55
+  },
+  "episodes": [
+    {
+      "episode": "01",
+      "title": "The Phantom Limbs of Metal",
+      "source_document_sha256": "f10b0b2a12b71261b7fdacdbe41a12186233d27a037e625d2c171ba6c312f277",
+      "compute_device": "xpu:0 (Intel Arc Pro B70)",
+      "turns_count": 8,
+      "artifacts": {
+        "british_tech": {
+          "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_01_phantom_limbs_british_tech.wav",
+          "profile": "british_tech",
+          "voices": [
+            "bf_emma",
+            "bm_george"
+          ],
+          "duration_seconds": 109.475,
+          "sha256": "812b4060518525b921625c0e31f1f1fbe9d60ac58b98fbeab464c4937a18412d",
+          "file_size_bytes": 10509680,
+          "synthesis_wall_time_s": 25.76,
+          "speed_realtime": 4.25
+        },
+        "alex_sam": {
+          "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_01_phantom_limbs_alex_sam.wav",
+          "profile": "alex_sam",
+          "voices": [
+            "af_heart",
+            "am_adam"
+          ],
+          "duration_seconds": 105.725,
+          "sha256": "95596106a7279a151734f18dad8f0d4332c9baa052f7fca0aaed2097735c3282",
+          "file_size_bytes": 10149680,
+          "synthesis_wall_time_s": 15.6,
+          "speed_realtime": 6.78
+        }
+      }
+    },
+    {
+      "episode": "02",
+      "title": "When Green Lies: The Hidden Danger of False Health Checks",
+      "source_document_sha256": "69d6e74ea6a1d0686a75c23825185f7bbb7b99af30a1d2f592d0ebeada4e44f7",
+      "compute_device": "xpu:0 (Intel Arc Pro B70)",
+      "turns_count": 19,
+      "artifacts": {
+        "british_tech": {
+          "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_02_green_lies_british_tech.wav",
+          "profile": "british_tech",
+          "voices": [
+            "bf_emma",
+            "bm_george"
+          ],
+          "duration_seconds": 191.125,
+          "sha256": "d1e108668c7f3e4bc3f9f4e392b94f12eb7d2c6be73ec7786c6f5a8c3ffb5434",
+          "file_size_bytes": 18348080,
+          "synthesis_wall_time_s": 55.21,
+          "speed_realtime": 3.46
+        },
+        "alex_sam": {
+          "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_02_green_lies_alex_sam.wav",
+          "profile": "alex_sam",
+          "voices": [
+            "af_heart",
+            "am_adam"
+          ],
+          "duration_seconds": 180.625,
+          "sha256": "e79e771cafc4873d6995f74174d15d5eea9f7f76e20f2f63f1449bc14ad573fb",
+          "file_size_bytes": 17340080,
+          "synthesis_wall_time_s": 44.5,
+          "speed_realtime": 4.06
+        }
+      }
+    },
+    {
+      "episode": "03",
+      "title": "When Machine Lanes Break the Cloud",
+      "source_document_sha256": "f8bd4b842df4e4d1ba48fffba25c97a62ed3b289520ce8321c3e4eecbe63ff7e",
+      "compute_device": "xpu:0 (Intel Arc Pro B70)",
+      "turns_count": 17,
+      "artifacts": {
+        "british_tech": {
+          "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_03_machine_lanes_british_tech.wav",
+          "profile": "british_tech",
+          "voices": [
+            "bf_emma",
+            "bm_george"
+          ],
+          "duration_seconds": 245.75,
+          "sha256": "731c1d2a37dd3b6b9c767a31d4f4d37732dcfe980702b12ddb56dae9a60ec3fc",
+          "file_size_bytes": 23592080,
+          "synthesis_wall_time_s": 45.23,
+          "speed_realtime": 5.43
+        },
+        "alex_sam": {
+          "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_03_machine_lanes_alex_sam.wav",
+          "profile": "alex_sam",
+          "voices": [
+            "af_heart",
+            "am_adam"
+          ],
+          "duration_seconds": 238.025,
+          "sha256": "54c97a54f79361412e34a9721fdd5df7eea8a5596382a9d37dab3bc266ecb6b5",
+          "file_size_bytes": 22850480,
+          "synthesis_wall_time_s": 47.42,
+          "speed_realtime": 5.02
+        }
+      }
+    },
+    {
+      "episode": "04",
+      "title": "The Silent Escalation Tax: When Fail-Soft Costs You Thousands",
+      "source_document_sha256": "e0553d1d8fc65a09e25374a58b48df1a5cdc44111ee83e1e3a676748d11ade1c",
+      "compute_device": "xpu:0 (Intel Arc Pro B70)",
+      "turns_count": 13,
+      "artifacts": {
+        "british_tech": {
+          "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_04_silent_escalation_british_tech.wav",
+          "profile": "british_tech",
+          "voices": [
+            "bf_emma",
+            "bm_george"
+          ],
+          "duration_seconds": 150.875,
+          "sha256": "40d041bcdc1e0903e25d841baf1df4dd82ab379855ddf003ea0cfc09a5143ff9",
+          "file_size_bytes": 14484080,
+          "synthesis_wall_time_s": 35.3,
+          "speed_realtime": 4.27
+        },
+        "alex_sam": {
+          "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_04_silent_escalation_alex_sam.wav",
+          "profile": "alex_sam",
+          "voices": [
+            "af_heart",
+            "am_adam"
+          ],
+          "duration_seconds": 143.15,
+          "sha256": "09e0d9600241f99bba5929cda827ae1eb279a53d0fdeface40735d3d95838c24",
+          "file_size_bytes": 13742480,
+          "synthesis_wall_time_s": 31.57,
+          "speed_realtime": 4.53
+        }
+      }
+    },
+    {
+      "episode": "05",
+      "title": "The Two Economies of AI: When Compute Is Free and When It Isn't",
+      "source_document_sha256": "eff5bbbf0b85af4d3f67663566184498ac98385fa226e2bd80501eb3477dae9d",
+      "compute_device": "xpu:0 (Intel Arc Pro B70)",
+      "turns_count": 18,
+      "artifacts": {
+        "british_tech": {
+          "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_05_two_economies_british_tech.wav",
+          "profile": "british_tech",
+          "voices": [
+            "bf_emma",
+            "bm_george"
+          ],
+          "duration_seconds": 208.075,
+          "sha256": "07d6ff26870ca4ac03229479b1c6a2b47d87fa81e546b83b13e5cece926ae78d",
+          "file_size_bytes": 19975280,
+          "synthesis_wall_time_s": 44.2,
+          "speed_realtime": 4.71
+        },
+        "alex_sam": {
+          "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_05_two_economies_alex_sam.wav",
+          "profile": "alex_sam",
+          "voices": [
+            "af_heart",
+            "am_adam"
+          ],
+          "duration_seconds": 194.075,
+          "sha256": "57c377eb66eb4c190bcf24eef6ac40c1ae0dc4a0ebfc5d194c5c3f644317fc7c",
+          "file_size_bytes": 18631280,
+          "synthesis_wall_time_s": 43.47,
+          "speed_realtime": 4.46
+        }
+      }
+    }
+  ]
+}

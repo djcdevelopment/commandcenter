@@ -1,0 +1,35 @@
+{
+  "episode": "03",
+  "title": "When Machine Lanes Break the Cloud",
+  "source_document_sha256": "f8bd4b842df4e4d1ba48fffba25c97a62ed3b289520ce8321c3e4eecbe63ff7e",
+  "compute_device": "xpu:0 (Intel Arc Pro B70)",
+  "turns_count": 17,
+  "artifacts": {
+    "british_tech": {
+      "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_03_machine_lanes_british_tech.wav",
+      "profile": "british_tech",
+      "voices": [
+        "bf_emma",
+        "bm_george"
+      ],
+      "duration_seconds": 245.75,
+      "sha256": "731c1d2a37dd3b6b9c767a31d4f4d37732dcfe980702b12ddb56dae9a60ec3fc",
+      "file_size_bytes": 23592080,
+      "synthesis_wall_time_s": 45.23,
+      "speed_realtime": 5.43
+    },
+    "alex_sam": {
+      "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_03_machine_lanes_alex_sam.wav",
+      "profile": "alex_sam",
+      "voices": [
+        "af_heart",
+        "am_adam"
+      ],
+      "duration_seconds": 238.025,
+      "sha256": "54c97a54f79361412e34a9721fdd5df7eea8a5596382a9d37dab3bc266ecb6b5",
+      "file_size_bytes": 22850480,
+      "synthesis_wall_time_s": 47.42,
+      "speed_realtime": 5.02
+    }
+  }
+}

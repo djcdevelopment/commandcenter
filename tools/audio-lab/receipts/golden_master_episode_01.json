@@ -1,8 +1,9 @@
 {
   "episode": "01",
   "title": "The Phantom Limbs of Metal",
-  "source_document_sha256": "4372000000000000000000000000000000000000000000000000000000000001",
+  "source_document_sha256": "f10b0b2a12b71261b7fdacdbe41a12186233d27a037e625d2c171ba6c312f277",
   "compute_device": "xpu:0 (Intel Arc Pro B70)",
+  "turns_count": 8,
   "artifacts": {
     "british_tech": {
       "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_01_phantom_limbs_british_tech.wav",

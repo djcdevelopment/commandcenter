@@ -1,0 +1,35 @@
+{
+  "episode": "02",
+  "title": "When Green Lies: The Hidden Danger of False Health Checks",
+  "source_document_sha256": "69d6e74ea6a1d0686a75c23825185f7bbb7b99af30a1d2f592d0ebeada4e44f7",
+  "compute_device": "xpu:0 (Intel Arc Pro B70)",
+  "turns_count": 19,
+  "artifacts": {
+    "british_tech": {
+      "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_02_green_lies_british_tech.wav",
+      "profile": "british_tech",
+      "voices": [
+        "bf_emma",
+        "bm_george"
+      ],
+      "duration_seconds": 191.125,
+      "sha256": "d1e108668c7f3e4bc3f9f4e392b94f12eb7d2c6be73ec7786c6f5a8c3ffb5434",
+      "file_size_bytes": 18348080,
+      "synthesis_wall_time_s": 55.21,
+      "speed_realtime": 3.46
+    },
+    "alex_sam": {
+      "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_02_green_lies_alex_sam.wav",
+      "profile": "alex_sam",
+      "voices": [
+        "af_heart",
+        "am_adam"
+      ],
+      "duration_seconds": 180.625,
+      "sha256": "e79e771cafc4873d6995f74174d15d5eea9f7f76e20f2f63f1449bc14ad573fb",
+      "file_size_bytes": 17340080,
+      "synthesis_wall_time_s": 44.5,
+      "speed_realtime": 4.06
+    }
+  }
+}

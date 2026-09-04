@@ -162,16 +162,26 @@ Select the **winning default profile** and **winning alternate profile** with th
 
 ---
 
-## 8. Golden Master Releases: Episode 01 (*The Phantom Limbs of Metal*)
+## 8. Golden Master Releases: Full 5-Part Series (*The Architecture of Sunk Compute*)
 
-> **Episode Topic**: Hardware migration from AM4 to OMEN, ghost SSH invocations, declarative vs procedural routing, and the rule of serve-truth.  
-> **Source Document**: [`c:\work\writing\hearth-sunk-compute-cluster\01-the-phantom-limbs-of-metal.md`](file:///c:/work/writing/hearth-sunk-compute-cluster/01-the-phantom-limbs-of-metal.md)  
-> **Hardware Provenance**: Synthesized directly on **Intel Arc Pro B70 Graphics (`xpu:0`)** with `torch 2.14.0+xpu` and Intel oneAPI runtime.  
+> **Series Title**: *The Architecture of Sunk Compute*  
+> **Source Directory**: [`c:\work\writing\hearth-sunk-compute-cluster\`](file:///c:/work/writing/hearth-sunk-compute-cluster/)  
+> **Hardware Provenance**: Synthesized directly on **Intel Arc Pro B70 Graphics (`xpu:0`)** with `torch 2.14.0+xpu` and Intel oneAPI Level Zero runtime.  
 > **Post-Processing Standard**: `P2_comfort_noise` (10 ms cosine boundary fades + `-62 dB` shaped ambient room tone bed).  
-> **Receipt**: [`receipts/golden_master_episode_01.json`](file:///C:/work/commandcenter/tools/audio-lab/receipts/golden_master_episode_01.json)
+> **Master Series Manifest**: [`receipts/series_sunk_compute_manifest.json`](file:///C:/work/commandcenter/tools/audio-lab/receipts/series_sunk_compute_manifest.json)  
+> **Performance Summary**: **29.45 minutes** of dual-speaker audio synthesized across 10 golden masters in **388.26 seconds** wall-clock time (**4.55x average realtime throughput**).
 
-| Profile / Anchor | Alex (Host A) | Sam (Host B) | Audio Dur | Wall Time | Speed | File Size | Audio Artifact WAV |
-| :--- | :--- | :--- | :---: | :---: | :---: | :---: | :--- |
-| **`british_tech`** (Emma & George) | `bf_emma` | `bm_george` | 109.48s | 25.76s | **4.25x** | 10.51 MB | [`episode_01_phantom_limbs_british_tech.wav`](samples/golden_master/episode_01_phantom_limbs_british_tech.wav) |
-| **`alex_sam`** (Heart & Adam) | `af_heart` | `am_adam` | 105.72s | 15.60s | **6.78x** | 10.15 MB | [`episode_01_phantom_limbs_alex_sam.wav`](samples/golden_master/episode_01_phantom_limbs_alex_sam.wav) |
+| Ep | Episode Title | Profile | Host Voices | Audio Dur | Wall Time | Speed | File Size | Audio Artifact WAV | Receipt |
+| :-: | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :--- | :--- |
+| **01** | *The Phantom Limbs of Metal* | `british_tech` | `bf_emma` + `bm_george` | 109.48s | 25.76s | **4.25x** | 10.51 MB | [`episode_01_phantom_limbs_british_tech.wav`](samples/golden_master/episode_01_phantom_limbs_british_tech.wav) | [`golden_master_episode_01.json`](receipts/golden_master_episode_01.json) |
+| **01** | *The Phantom Limbs of Metal* | `alex_sam` | `af_heart` + `am_adam` | 105.72s | 15.60s | **6.78x** | 10.15 MB | [`episode_01_phantom_limbs_alex_sam.wav`](samples/golden_master/episode_01_phantom_limbs_alex_sam.wav) | [`golden_master_episode_01.json`](receipts/golden_master_episode_01.json) |
+| **02** | *When Green Lies: The Hidden Danger of False Health Checks* | `british_tech` | `bf_emma` + `bm_george` | 191.12s | 55.21s | **3.46x** | 18.35 MB | [`episode_02_green_lies_british_tech.wav`](samples/golden_master/episode_02_green_lies_british_tech.wav) | [`golden_master_episode_02.json`](receipts/golden_master_episode_02.json) |
+| **02** | *When Green Lies: The Hidden Danger of False Health Checks* | `alex_sam` | `af_heart` + `am_adam` | 180.62s | 44.50s | **4.06x** | 17.34 MB | [`episode_02_green_lies_alex_sam.wav`](samples/golden_master/episode_02_green_lies_alex_sam.wav) | [`golden_master_episode_02.json`](receipts/golden_master_episode_02.json) |
+| **03** | *When Machine Lanes Break the Cloud* | `british_tech` | `bf_emma` + `bm_george` | 245.75s | 45.23s | **5.43x** | 23.59 MB | [`episode_03_machine_lanes_british_tech.wav`](samples/golden_master/episode_03_machine_lanes_british_tech.wav) | [`golden_master_episode_03.json`](receipts/golden_master_episode_03.json) |
+| **03** | *When Machine Lanes Break the Cloud* | `alex_sam` | `af_heart` + `am_adam` | 238.03s | 47.42s | **5.02x** | 22.85 MB | [`episode_03_machine_lanes_alex_sam.wav`](samples/golden_master/episode_03_machine_lanes_alex_sam.wav) | [`golden_master_episode_03.json`](receipts/golden_master_episode_03.json) |
+| **04** | *The Silent Escalation Tax: When Fail-Soft Costs You Thousands* | `british_tech` | `bf_emma` + `bm_george` | 150.88s | 35.30s | **4.27x** | 14.48 MB | [`episode_04_silent_escalation_british_tech.wav`](samples/golden_master/episode_04_silent_escalation_british_tech.wav) | [`golden_master_episode_04.json`](receipts/golden_master_episode_04.json) |
+| **04** | *The Silent Escalation Tax: When Fail-Soft Costs You Thousands* | `alex_sam` | `af_heart` + `am_adam` | 143.15s | 31.57s | **4.53x** | 13.74 MB | [`episode_04_silent_escalation_alex_sam.wav`](samples/golden_master/episode_04_silent_escalation_alex_sam.wav) | [`golden_master_episode_04.json`](receipts/golden_master_episode_04.json) |
+| **05** | *The Two Economies of AI: When Compute Is Free and When It Isn't* | `british_tech` | `bf_emma` + `bm_george` | 208.08s | 44.20s | **4.71x** | 19.98 MB | [`episode_05_two_economies_british_tech.wav`](samples/golden_master/episode_05_two_economies_british_tech.wav) | [`golden_master_episode_05.json`](receipts/golden_master_episode_05.json) |
+| **05** | *The Two Economies of AI: When Compute Is Free and When It Isn't* | `alex_sam` | `af_heart` + `am_adam` | 194.08s | 43.47s | **4.46x** | 18.63 MB | [`episode_05_two_economies_alex_sam.wav`](samples/golden_master/episode_05_two_economies_alex_sam.wav) | [`golden_master_episode_05.json`](receipts/golden_master_episode_05.json) |
+
  

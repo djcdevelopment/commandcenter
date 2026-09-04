@@ -1,0 +1,35 @@
+{
+  "episode": "05",
+  "title": "The Two Economies of AI: When Compute Is Free and When It Isn't",
+  "source_document_sha256": "eff5bbbf0b85af4d3f67663566184498ac98385fa226e2bd80501eb3477dae9d",
+  "compute_device": "xpu:0 (Intel Arc Pro B70)",
+  "turns_count": 18,
+  "artifacts": {
+    "british_tech": {
+      "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_05_two_economies_british_tech.wav",
+      "profile": "british_tech",
+      "voices": [
+        "bf_emma",
+        "bm_george"
+      ],
+      "duration_seconds": 208.075,
+      "sha256": "07d6ff26870ca4ac03229479b1c6a2b47d87fa81e546b83b13e5cece926ae78d",
+      "file_size_bytes": 19975280,
+      "synthesis_wall_time_s": 44.2,
+      "speed_realtime": 4.71
+    },
+    "alex_sam": {
+      "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_05_two_economies_alex_sam.wav",
+      "profile": "alex_sam",
+      "voices": [
+        "af_heart",
+        "am_adam"
+      ],
+      "duration_seconds": 194.075,
+      "sha256": "57c377eb66eb4c190bcf24eef6ac40c1ae0dc4a0ebfc5d194c5c3f644317fc7c",
+      "file_size_bytes": 18631280,
+      "synthesis_wall_time_s": 43.47,
+      "speed_realtime": 4.46
+    }
+  }
+}

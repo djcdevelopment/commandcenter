@@ -1,0 +1,32 @@
+{
+  "contract_version": "bench-adapter-context.v1",
+  "run_id": "vulkancliff-expY-mistral24b-mmv4-rep2",
+  "hw_id": "hw-8bc78be7a37a",
+  "hw_label": "pro-ws-z890-ace-se+intel-core-ultra-9-285k+128gb+2xintel-arc-pro-b70-graphics",
+  "host": "OMEN",
+  "platform": "windows-vulkan",
+  "era": "z890-windows-vulkan",
+  "expected_table_rows": 11,
+  "device": {
+    "kind": "arc-pro-b70",
+    "count": 1
+  },
+  "engine": {
+    "name": "llama.cpp",
+    "build": "e85caa8-patched"
+  },
+  "model": {
+    "name": "Mistral-Small-3.2-24B-Instruct-2506",
+    "quant": "Q4_K_M",
+    "params": "24B",
+    "architecture": "dense"
+  },
+  "source": {
+    "path": "vulkancliff/data/raw/expY-mistral24b-mmv4-rep2.txt",
+    "note": "Dose-response rep 2 (warm citable set); MMV limit 4."
+  },
+  "timestamp": null,
+  "kv_type": null,
+  "split_mode": "single-device",
+  "tensor_split": null
+}

@@ -1,0 +1,32 @@
+{
+  "contract_version": "bench-adapter-context.v1",
+  "run_id": "vulkancliff-expZ-gptoss20-mmv16",
+  "hw_id": "hw-8bc78be7a37a",
+  "hw_label": "pro-ws-z890-ace-se+intel-core-ultra-9-285k+128gb+2xintel-arc-pro-b70-graphics",
+  "host": "OMEN",
+  "platform": "windows-vulkan",
+  "era": "z890-windows-vulkan",
+  "expected_table_rows": 11,
+  "device": {
+    "kind": "arc-pro-b70",
+    "count": 1
+  },
+  "engine": {
+    "name": "llama.cpp",
+    "build": "e85caa8-patched"
+  },
+  "model": {
+    "name": "gpt-oss-20b",
+    "quant": "MXFP4",
+    "params": "20B",
+    "architecture": "moe"
+  },
+  "source": {
+    "path": "vulkancliff/data/raw/expZ-gptoss20-mmv16.txt",
+    "note": "Roster sweep: OpenAI gpt-oss-20b MXFP4; MMV limit 16, ctx 65536."
+  },
+  "timestamp": null,
+  "kv_type": null,
+  "split_mode": "single-device",
+  "tensor_split": null
+}

@@ -1,6 +1,6 @@
 # 0044 — A rate is not a scalar: baseline epochs, and degraded states are classified
 
-**Status:** Accepted (2026-08-30)
+**Status:** Accepted (2026-08-30) — **Addendum 2026-09-03:** first deliberate epoch boundary stamped 2026-09-03T12:45:25 (cutover), baseline preserved.
 
 **Companion to:** `docs/adr#0043` (the rung goes cold when idle — now **one** class of degraded
 state rather than the explanation for all of them), `docs/adr#0041` (restart before you measure)
@@ -476,3 +476,30 @@ The recurrence record **splits here**: rows before and after are two epochs (R3/
 ETW session manifest's `server_pid 20416` becomes stale at execution. The keep-alive is restarted from a
 warm rung by the ceremony itself (ratecheck burst immediately after load — ADR-0043 rule 1), so the first
 post-cutover rows are warm-state rows, not post-idle ones.
+
+## Addendum 2026-09-03 — The first boundary written by the rule, and windows as exclusion spans
+
+- **Executed.** The deliberate boundary described above was stamped at
+  `2026-09-03T12:45:25` in `campaign/ff-probes/rate-baselines.json` (`epoch_boundaries`, reason
+  "ArcServeBoot -> llama-swap cutover (Derek 2026-09-03, ADR-0045 / plan P13)") by step G of the
+  ceremony, BOM-less, with the 106.0 baseline preserved. Two earlier attempts (12:35, 12:43) aborted
+  on ceremony defects and rolled back in 36 s each; the record carries one entry, but its note says
+  the incumbent epoch (pid 20416, resident since 2026-08-30 07:40Z) ended at the first abort,
+  12:35:29, when the rollback restarted production on the direct launcher (pid 4340) — readings
+  across 12:35:29 are also two epochs. This is the first boundary written because the rule said to,
+  not because an incident forced it.
+- **Ledgered windows are exclusion spans.** The three cutover windows (`rot-cutover-20260903-1235`
+  and `-1243` aborted, `-1245` done) and the rotation proofs `rot-side-20260903-A` (aborted, recorded
+  as failed) and `-B` (passed) are `window.open` / `window.close` rows in
+  `hearth/var/rotation-windows.jsonl` (`hearth/rotation/windows.py`; the ceremony appends its own);
+  the two proof windows are also `assay.started` / `assay.failed|passed` events on the kernel ledger.
+  `hearth/health/rungstate.py` excludes rows inside those spans and names the window in its verdict;
+  `campaign/lz-probes/etw11_recurrence.py` is named as the second reader in `windows.py` but does
+  not read them yet. A rate sample taken while a side model was loading is not evidence about the
+  incumbent's regime; the ledger says which ones those were.
+- **The rung-state note now carries this ADR's caveat verbatim** on every read: the envelope is of
+  this baseline epoch, not of capacity; the restart discriminator is not applied; no regime names
+  are minted. "Epoch-scoped is not epoch-homogeneous" stays true, and the afternoon showed it: outside the
+  proof window the deep samples sat at 107–110 tok/s, inside it three rows fell to 71–74 with
+  `decode_degraded:true` while a side model decoded and the pour's judge shared production (see
+  `docs/adr#0043` addendum) — excluded from the verdict as the rule says, not evidence of a level.

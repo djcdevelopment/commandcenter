@@ -144,7 +144,7 @@ cache), +9.621 GB corroborated; `rotation_kv_save phi4-vk1` slot 0 → `phi4-vk1
 `rotation_kv_restore`: `n_restored` 1239 in 168.7 ms, replayed prompt `prompt_n=1 cache_n=1238` (vs a
 1239-token re-prefill); negative control `rotation_kv_restore` into `qwen14b-vk1` refused before any
 HTTP (`CrossModelRestore`); production `qwen3-30b-a3b` on `:8082` stayed listed after every step and
-`at_rate` throughout (107.3 / 109.18 / 107.99 tok/s = 101–103% of the 106.0 baseline; keep-alive
+`at_rate` before and after the pour (107.3 / 109.18 / 107.99 tok/s = 101–103% of the 106.0 baseline), with a dip on the three deep probes taken during it — 17:47:06 74.36, 17:52:11 71.14, 17:57:12 73.33 tok/s, `decode_degraded`, prompt_ms 14.8–15.3 vs 10.0 — while the pour's held-out `omen-arc` judge calls hit production beside a decoding side model; back to 107.99 at 18:02:12 with no intervention; the two causes were not separated, and the probes sit inside the ledgered window; keep-alive
 unbroken); teardown `/running == [qwen3-30b-a3b]`. The M1 evidence pour ran the same night and opened
 gate 2 (`capability_count` 1 → 2 — see Consequences).
 
@@ -159,7 +159,7 @@ gate 2 (`capability_count` 1 → 2 — see Consequences).
    not a 240 s poll, and env=1 puts every side model on `0000:04:00.0` (the pour ran them sequentially).
 2. **The door runs the code it was started with.** The gateway (started 11:42) predated the swap-log
    reader (landed 13:00), so two attempts read "no placement lines" and failed closed on a defect that
-   was not in the running tree; restarted 17:39 and 17:51. The earlier note blaming llama-swap's
+   was not in the running tree; restarted 17:39 and 17:50. The earlier note blaming llama-swap's
    `/logs` tail for the side entries was wrong — they already read their own `--log-file`. Lesson: a
    gateway restart is part of landing code the door mounts.
 3. **A call whose MCP client session had expired still executed door-side and passed.** The retry

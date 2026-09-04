@@ -1,6 +1,6 @@
 # 0040 — Serving lifecycle is adopted, not built
 
-**Status:** Accepted (2026-08-28) — probe-gated ratification; every gate passed same day
+**Status:** Accepted (2026-08-28) — probe-gated ratification; every gate passed same day — **Addendum 2026-09-03:** Phase 2 landed 2026-09-03: production `omen-arc` runs under llama-swap (`docs/adr#0045`).
 
 **Companion to:** `docs/adr#0039` (the rungs this lifecycle serves),
 `docs/adr#0008` (advisory-first — unchanged by this ADR),
@@ -106,3 +106,36 @@ completion). All passed:
   session plan dossier; the probe scripts and configs remain in
   `E:\work\llama-swap-v251\` (p5/p7 YAML) for re-verification after any
   llama-swap or llama.cpp upgrade.
+
+## Addendum 2026-09-03 — Phase 2 landed: production runs under the adopted lifecycle
+
+The thin substrate this ADR bought instead of building is now the production shape, not a probe
+shape (`docs/adr#0045`, plan P6/P13, commit `26a1d66`):
+
+- **Production `omen-arc` runs under llama-swap since 2026-09-03 12:45:02–12:45:25.** `llama-swap.exe`
+  on `127.0.0.1:8081` owns the process lifecycle; the production entry keeps `--host 127.0.0.1 --port
+  8082` behind a per-model `proxy: http://127.0.0.1:8082` in its own `persistent` group, so every
+  `:8082` consumer (the door's `omen-arc` rung, the fx99 keep-alive, `ff_ratecheck.py`, the ETW
+  readers) is byte-identical. `ArcServeBoot` still runs `fleet/arcserve/serve-arc.cmd`; that file is
+  now the llama-swap launcher, `serve-arc-direct.cmd` the rollback (exercised twice, 36 s each, by
+  the two aborted ceremony attempts), `restart-arc.cmd` tears down the whole tree.
+- **Side seats are door tools, inside ledgered windows** (`hearth/toolsurface/rotation.py`:
+  `rotation_window` → `rotation_load` → … → `rotation_unload` → close; ADR-0044 exclusion spans).
+  The first proof through the door (window `rot-side-20260903-B`) loaded `phi4-vk1` on BDF
+  `0000:04:00.0` in 3.344 s (warm file cache; 20.14 s after another model evicted it) and
+  `qwen14b-vk1` in 57.469 s (cold), each asserted from the side server's own `-lv 5` log and a
+  per-BDF commit rise (+9.729 / +9.621 GB on one card, 0.0 on the other), with production
+  `at_rate` at 107–109 tok/s throughout.
+- **The W0 KV finding holds through the door and across a model swap:** slot 0 saved with 1239
+  tokens (253,768,028 bytes) → unload → load `qwen14b-vk1` → unload → reload `phi4-vk1` → restore
+  in 168.7 ms; the replayed prompt cost `prompt_n=1` against `cache_n=1238`. A restore into the
+  other model was refused before any request (the file carries no identity — `hearth/rotation/kv.py`
+  manifest, P4 shape). Two defects on the way: `save_slot` must process the prompt before saving
+  (the first save captured one canary token), and an entry already resident before the call cannot
+  show a commit delta (`hearth/rotation/lifecycle.py` skips that corroboration for it).
+- **A running llama-swap keeps the entries it was started with.** The yaml on disk changed the same
+  night (`<m>-vk2` → `<m>-vk0`, see `docs/adr#0042` addendum); it takes effect only at the next
+  ArcServe restart. Until then a pin on a renamed id gets a fast 404 refusal from `wait_ready`.
+- Still true, still load-bearing: the bare `POST /api/models/unload` unloads **everything**,
+  production included — the path form only; llama-swap stays on loopback (its admin endpoints are
+  unauthenticated).

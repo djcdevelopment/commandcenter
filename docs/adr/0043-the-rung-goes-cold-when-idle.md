@@ -1,6 +1,6 @@
 # 0043 — The rung goes cold when idle: keep it warm, don't restart it
 
-**Status:** Accepted (2026-08-29) — measured on three independent runs; mitigation proven and **shipped** (`fleet/fx99-keepalive/`, scheduled from fx99)
+**Status:** Accepted (2026-08-29) — measured on three independent runs; mitigation proven and **shipped** (`fleet/fx99-keepalive/`, scheduled from fx99) — **Addendum 2026-09-03:** held through the 2026-09-03 cutover and rotation proof; rung state is now code (`hearth/health/rungstate.py`).
 
 **Supersedes the trigger in:** `docs/adr#0041` (co-residency poisons the incumbent). That record's
 *rule* — restart before you trust a measurement — remains sound and is what kept the campaign
@@ -177,3 +177,30 @@ restarting them.**
   recommendation with the evidence attached.
 - **Treat it as a benchmarking artifact and ignore it operationally.** Rejected on the numbers: a
   4× gap between benchmark and production conditions is not an artifact, it is the operating point.
+
+## Addendum 2026-09-03 — The keep-alive held through a cutover and a rotation proof; rung state is code
+
+- **Through the cutover.** The ceremony (`fleet/arcserve/cutover.ps1 -Live`, `docs/adr#0045` P13)
+  applied rule 1 literally: the warm burst was `ff_ratecheck.py` run immediately after the new
+  server loaded (PASS), and the fx99 keep-alive resumed inside the window before it closed. The
+  first rows of the new epoch are warm-state rows, not post-idle ones.
+- **Through the proof.** While side models loaded and unloaded beside production (phi-4 on one B70,
+  then qwen-14b, then phi-4 again; a 254 MB KV restore in between), the pings never stopped and the
+  three rung-state reads the session made returned `at_rate` on deep samples of 107.32 / 109.18 /
+  107.99 tok/s (101–103 % of the 106.0 baseline). The full keep-alive tail
+  (`hearth/var/arc-keepalive.jsonl`) is less flattering: the deep samples at 17:47, 17:52 and 17:57
+  read 74.36 / 71.14 / 73.33 tok/s with `decode_degraded:true` — 67–70 % of baseline, under the 0.8
+  fail line — while a side model was decoding beside production for the M1 pour and the pour's
+  held-out `omen-arc` judge seat was scoring on production itself; by 18:02 (phi-4 resident but
+  idle) the sample was back at 107.99. Those rows sit inside the ledgered window
+  `rot-side-20260903-B` (17:33–18:03), so the regime verdict excludes them by design. A resident,
+  idle neighbour did not idle the incumbent; a decoding neighbour plus a co-tenant judge cost about
+  a third of the rate for as long as they ran, and which of the two cost what was not separated.
+- **Rung state is now read passively by code** rather than by eye: `hearth/health/rungstate.py`
+  (plan P7) reads the keep-alive tail and the baseline file and returns one of
+  `at_rate | warn | degraded | stalled | stale | unreachable | no_baseline`; `at_rate` comes only
+  from a deep sample (`predicted_n >= 8`) inside 720 s, pings give liveness and `prefill_stall`,
+  rows inside a ledgered rotation window are excluded and named. The verdict rides on every
+  dispatch result and observation note (`rung_state`, plan P8), on `query_rung_state` at the door,
+  and in the watchdog and patrol as gaps that never flip `healthy` (P7b). The note it carries is
+  ADR-0044's: an envelope of *this* epoch, not of capacity; no regime names.

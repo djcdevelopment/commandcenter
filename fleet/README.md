@@ -81,3 +81,14 @@ static HTML page, OMEN-hosted, independent of the conductor.
 
 Follow-up (not built): a refresh leg in `mechnet_watchdog.py` so the page regenerates on
 the 15-min pass; until then, run the command by hand or from a scheduled task.
+
+## OMEN serving under llama-swap (2026-09-03)
+
+Since 2026-09-03 12:45 (window `rot-cutover-20260903-1245`, commit `26a1d66`, ADR-0045)
+OMEN's two B70s are served by **llama-swap v251 on `127.0.0.1:8081`**, which owns the process
+lifecycle; production `qwen3-30b-a3b` (the `omen-arc` rung) still answers on `:8082` under it,
+byte-identical for every consumer, and the side models of the `omen-swap` rung load on demand
+beside it. The launcher, the YAML, restart/rollback and the cutover ceremony are documented in
+[`arcserve/README.md`](arcserve/README.md); the rotation substrate and door tools in
+`hearth/rotation/README.md`. `FLEET-DASHBOARD.html` shows the omen-arc rung-state verdict beside
+the reachability sweep — a port that answers is not a model that serves.

@@ -4,7 +4,8 @@
 amendment at the end records what was built, the evidence semantics it authors, and the
 first capability it produced. The title stands as the record of the question: a gateway
 dispatch is not an observation until someone says what it observes, and the amendment is
-where that is said.
+where that is said. **Addendum 2026-09-03:** gate 2 opened on `omen-swap`; door calls did not
+reach gate 1, and whether they should is registered as a decision, not taken.
 **Context sources:** ADR-0010 (two ledgers, two bounded contexts), ADR-0011 (double-write
 is intentional), `hearth/projection/ledger_adapter.py`, `hearth/projection/freshness.py`,
 `tools/workflow/project_associations.py`, `tools/workflow/project_capacity.py`,
@@ -324,3 +325,78 @@ moved, because the pinned value no longer matched, rather than lingering as stal
   capability: 2 samples across 2 workflows, passing gates 1, 3 and 4, blocked only by
   "nothing varied" (both `omen-worker-1` + `qwen3-coder:30b`). One real fleet build with a
   different builder or model unlocks it.
+
+---
+
+## Addendum 2026-09-03 — Gate 2 opened on `omen-swap`; door calls never reached gate 1
+
+### What the amendment predicted, and what happened
+
+The amendment's closing arithmetic said capability formation is driven by pool configuration:
+gate 2 needs a second `model_id` on one rung, and every rung then declared exactly one. `docs/adr#0045`
+built the first rung on OMEN's B70s that declares several (`fx99-ollama`, `docs/adr#0039`, had
+since declared six, with no `offload-generate` evidence) — `omen-swap` (`hearth/etc/backends.toml`: llama-swap
+on `http://127.0.0.1:8081`, `lifecycle = "llama-swap"`, nine `model_id`s, `tags = []`) — and the
+plan's M1 evidence pour ran against it the same night. The rebuild then produced the second
+capability re-earned since the 2026-07-02 overwrite:
+
+- `knowledge/capabilities.json` `capability_count` **1 → 2**, `evidence_watermark`
+  `2026-09-04T01:02:55.235915+00:00`.
+- `capability:task_kind=offload-generate|backend=omen-swap`, confidence medium/0.5, `qualified`,
+  resources (`omen`, `phi4-vk1`) and (`omen`, `qwen14b-vk1`) — two `model_id`s, one `builder_id`,
+  which is exactly the variation gate 2 exists to see.
+- Evidence: 6 observations across 2 workflows, all success —
+  `wf-hearth-offload-experiment-doc-adr-bench` (5 rows, from the doc/ADR bench `e44b726`, the first
+  experiment to push a `dispatch_identity`; the "experiments do not yet push an identity" item
+  above is closed for that harness) and `wf-hearth-offload-rotation-proof` (1 row,
+  `obs-offload-rotation-proof-202609040102552359150000-7218eb6f`).
+
+Datasets: `hearth/var/experiments/doc-adr-bench-20260904T005139Z-sweep` (arm `omen-swap:phi4-vk1`,
+2/2 cells, mean score 92.5, mean latency 26,757.5 ms) and `-20260904T005728Z-sweep`
+(`omen-swap:qwen14b-vk1`, 2/2, 88.25, 29,265.5 ms).
+
+### What did not work: the plan's gate-1 assumption
+
+The plan (`~/.claude/plans/you-have-1-5-hours-mellow-meteor.md`) counted on *"2 door calls from
+`claude-frontier` (second workflow for gate 1)"*. After the pour and two door pins, the bucket
+still read *all 5 samples from one workflow* — the door calls were not in it; a third pin after that
+rebuild changed nothing either. The kernel ledger holds all three (`local_generate`, `routed_by:
+pinned:omen-swap`, caller `claude-frontier`, `ok:true`, 2026-09-04T00:59:59Z / 01:00:39Z / 01:01:57Z). Two facts, both
+checked on disk:
+
+1. **The door pins left no dispatch-time observation.** `runs/hearth-offload-claude-frontier/artifacts/`
+   holds days `2026-07-30` and `2026-07-31` only — nothing for 2026-09-04 — even though
+   `hearth/kernel/gateway.py:423` still pushes a `DispatchIdentity(caller_id=caller.id, …)` around
+   every tool call, which is the path the amendment says produced the first capability.
+2. **The bridge copy lands in a different bucket by construction.** `hearth/projection/ledger_adapter.py:201`
+   stamps `workload_shape.task_kind = hearth_event["tool"]` — a door `local_generate` bridged from
+   the kernel ledger is a `local_generate`-kind observation under the constant `WORKFLOW_ID`
+   (`wf-hearth-gateway`), never an `offload-generate` one, and always from one workflow. That copy
+   can satisfy neither gate 1 nor the bucket join for `offload-generate`, however many door calls
+   are made.
+
+Gate 1 closed only when a second, **in-process** caller pushed its own identity:
+`DispatchIdentity("rotation-proof", "local", "omen")` around one pin, then a rebuild. Two workflows
+in the capability's evidence are therefore two scripts, not a script and the door.
+
+### Decision question — registered, deliberately NOT decided here
+
+**Should gateway dispatches be bridged as `offload-generate` observations, or stay tool-named?**
+
+- *Bridge them.* The bridged row already carries `backend`, `model_id`, `tokens_in`, and a
+  computed `tokens_per_s` (`ledger_adapter.py:170-203`); mapping `task_kind` to `offload-generate`
+  and segmenting `workflow_id` by caller would let real door traffic count toward offload
+  capabilities. It is also **option A of this record wearing the adapter's clothes**: domain facts
+  reconstructed from audit telemetry, in the component ADR-0010 forbids from birthing them, under a
+  `corpus_guard` that makes a wrong mapping expensive to walk back.
+- *Keep them tool-named.* The corpus stays honest to option B, and the price is that the door
+  contributes nothing to any `offload-generate` bucket — every gate-1 second workflow must be an
+  in-process caller with an authored identity, which is how gate 2 was opened tonight.
+
+⚠ **A prerequisite question sits under it.** Fact 1 above says the dispatch-time producer emitted
+nothing for the three door pins although the identity push is in place. Whether that is a defect
+(the producer should have fired and did not) or a semantics gap (it fired and was excluded, or the
+pins never reached `inference.py`'s emitter) was not established from the receipts read for this
+addendum, and it changes the shape of the decision: a defect is fixed, a semantics gap is authored.
+Answer it before choosing. Registered in `DECISIONS-PENDING.md` alongside `docs/adr#0045`'s
+gate-1 mechanism note; the choice changes what counts as evidence, so it is Derek's.

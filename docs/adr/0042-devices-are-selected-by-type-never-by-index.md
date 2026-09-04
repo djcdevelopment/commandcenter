@@ -1,6 +1,6 @@
 # 0042 — Devices are selected by type, never by index
 
-**Status:** Accepted (2026-08-29) — root-caused, fixed, and verified across restarts
+**Status:** Accepted (2026-08-29) — root-caused, fixed, and verified across restarts — **Addendum 2026-09-03:** caught a live instance 2026-09-03: a single-device filter at index 2 selected the iGPU, and the assertion, not the index, decided.
 
 **Companion to:** `docs/adr#0034` (the dual-B70 rung whose boot ceremony carried the defect),
 `docs/adr#0041` (co-residency poisons the incumbent — the other silent-degradation ADR from the
@@ -80,3 +80,32 @@ trusted; `campaign/ff-probes/ff_census.py` records the enumeration order *that r
 - **Switch to `-dev Vulkan1,Vulkan2`.** Rejected: positional, same failure.
 - **Pin by PCI BDF.** Not available — llama.cpp exposes no BDF-based selector. Left as the
   upstream-shaped gap for identity-based placement.
+
+## Addendum 2026-09-03 — The assertion caught a live instance: index 2 is the iGPU
+
+This ADR removed the production device filter and said the load report decides. Single-card side
+seats cannot avoid `GGML_VK_VISIBLE_DEVICES` (type selection has no lever for "one of the two B70s"),
+so `docs/adr#0045` declared every single-card model twice — `<m>-vk1` and `<m>-vk2` — and asserted
+each load from the report. The first live proof (window `rot-side-20260903-B`) is the case the rule
+was written for:
+
+- With `GGML_VK_VISIBLE_DEVICES=2` the side server's own `-lv 5` log (`hearth/var/swap-logs/
+  phi4-vk2.log`) read `Vulkan0 : Intel(R) Graphics (74286 MiB, 103494 MiB free)` and `using device
+  Vulkan0 (Intel(R) Graphics)`: **index 2 is the iGPU on this driver**, indices 0 and 1 are the B70s.
+  The server was READY and answered a one-token canary in 10.3 s — phi-4 runs fine from shared memory.
+  **Liveness and a canary are not placement**; `assert_placement` returned `iGPU holds weights` and
+  the lifecycle unloaded it.
+- With `GGML_VK_VISIBLE_DEVICES=1` the same model landed on BDF `0000:04:00.0`: one B70 with
+  weights, iGPU clean, and the per-BDF commit delta corroborated it (+9.729 GB on that card, 0.0 on
+  `0000:09:00.0`). Two independent signals, neither an index.
+- The sibling pair is therefore renamed **`<m>-vk0` / `<m>-vk1` (env 0 / 1)** across the yaml, the
+  rung, the scheduler suffixes and the sibling map (commit `92f3cd6`). The name says which index was
+  tried; the report says where the weights went; the two are never conflated. A running llama-swap
+  keeps the old entries until the next ArcServe restart.
+- One more shape the assertion had to learn: an entry that was **already resident** before the call
+  shows no commit delta. A retry saw `0 BDF(s) rose >= 1.0 GB` and unloaded a correct placement
+  (the earlier call had executed although its MCP client session had expired). The lifecycle now
+  skips the delta corroboration for a pre-resident entry and says so in the receipt
+  (`already_resident: true`); the log report alone decides for it.
+- BDF-pinned placement remains the upstream-shaped gap: no llama.cpp selector takes a BDF, so the
+  retry lever is still an index candidate list, and the assertion is still what makes it safe.

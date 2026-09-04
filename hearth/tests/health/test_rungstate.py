@@ -146,3 +146,31 @@ class LiveAndSummaryTests(TestCase):
         self.assertLessEqual(len(s), 96)
         self.assertNotIn(";", s)
         self.assertIn("degraded", s)
+
+
+class LiveWindowExclusionTests(TestCase):
+    def test_live_rung_state_excludes_ledgered_rotation_windows(self):
+        """2026-09-03: live_rung_state never passed the rotation windows, so a proof's own probes
+        (71-74 tok/s while a side model decoded) read as production's regime."""
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as d:
+            var = os.path.join(d, "hearth", "var")
+            os.makedirs(var)
+            os.makedirs(os.path.join(d, "campaign", "ff-probes"))
+            rows = recent_pings() + [deep(900, 72.0), deep(1500, 108.0)]
+            with open(os.path.join(var, "arc-keepalive.jsonl"), "w", encoding="utf-8") as fh:
+                fh.write("
+".join(json.dumps(r) for r in rows) + "
+")
+            win = [{"ts": _ts(800), "event": "window.open", "name": "rot-side-test", "status": "open"},
+                   {"ts": _ts(1000), "event": "window.close", "name": "rot-side-test", "status": "passed"}]
+            with open(os.path.join(var, "rotation-windows.jsonl"), "w", encoding="utf-8") as fh:
+                fh.write("
+".join(json.dumps(w) for w in win) + "
+")
+            with mock.patch.object(rungstate, "load_baseline", return_value=dict(BASE)):
+                st = rungstate.live_rung_state(root=d, now=NOW)
+        self.assertEqual(st["excluded_windows"], ["rot-side-test"])
+        self.assertEqual(st["verdict"], "at_rate", st)
+        self.assertAlmostEqual(st["observed_tok_s"], 108.0)
+

@@ -705,7 +705,7 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       `rotation_kv_restore`: `n_restored` 1239 in 168.7 ms, replayed prompt `prompt_n=1 cache_n=1238`
       (vs a 1239-token re-prefill); negative control into `qwen14b-vk1` refused before any HTTP
       (`CrossModelRestore`). Production `qwen3-30b-a3b` on `:8082` listed after every step and
-      `at_rate` throughout (107.3 / 109.18 / 107.99 tok/s = 101–103% of the 106.0 baseline; keep-alive
+      `at_rate` before and after the pour (107.3 / 109.18 / 107.99 tok/s = 101–103% of the 106.0 baseline), with a dip on the three deep probes taken during it — 17:47:06 74.36, 17:52:11 71.14, 17:57:12 73.33 tok/s, `decode_degraded`, prompt_ms 14.8–15.3 vs 10.0 — while the pour's held-out `omen-arc` judge calls hit production beside a decoding side model; back to 107.99 at 18:02:12 with no intervention; the two causes were not separated, and the probes sit inside the ledgered window; keep-alive
       unbroken); teardown `/running == [qwen3-30b-a3b]`. **Pour:** doc/ADR bench (`e44b726`) arms
       `omen-swap:phi4-vk1` + `omen-swap:qwen14b-vk1`, tasks `adr-0042-vs-launcher` +
       `adr-0041-claims-vs-receipts`, held-out judges `gcp-gemini:gemini-3.5-flash` +
@@ -721,7 +721,7 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       never have closed gate 1. Five defects surfaced, all fixed in `92f3cd6`: (1) env=2 is the iGPU on
       this driver (ADR-0042 caught it live — the side server was READY on Intel Graphics) → siblings
       renamed `-vk0`/`-vk1` (env 0/1); (2) the door ran code older than the swap-log reader → gateway
-      restarted 17:39/17:51 (the 56fe865 note blaming llama-swap's `/logs` tail for the side entries was
+      restarted 17:39/17:50 (the 56fe865 note blaming llama-swap's `/logs` tail for the side entries was
       wrong — they already read their own `--log-file`); (3) an expired-MCP-session retry unloaded a
       correct already-resident placement → delta corroboration skipped for resident entries,
       receipt carries `already_resident`; (4) `kv.save_slot` saved the last-held slot (1 canary token,
@@ -754,3 +754,5 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       (advice-only; ADR-0008 stays advisory until the regret trend earns dispatch).** None started; each
       needs its own window or campaign. VM builders → B70 rung and the `GpuTenancyStore` owner literal
       are the two entries above. (source: ROTATION-PROGRAM.html#board Phase 2 TODO)
+
+- [ ] 2026-09-03 — **ADR-0027 follow-up: gateway dispatches are bridged with `task_kind = tool name`, so door calls never feed the `offload-generate` bucket.** The 2026-09-03 gate-2 unlock for `omen-swap` needed an in-process `DispatchIdentity("rotation-proof")` beside the bench identity; the plan assumed two door calls would close gate 1 and they could not. Decide whether gateway dispatches should be bridged as offload-generate observations (they carry backend, model, tokens) or stay tool-named — it changes what counts as evidence for every rung. (source: SESSION-RETRO-2026-09-03.md; `hearth/projection/ledger_adapter.py` ~L201; `tools/workflow/project_associations.py` gates)

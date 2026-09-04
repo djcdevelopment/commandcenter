@@ -198,6 +198,14 @@ def live_rung_state(rung: str = "omen-arc", root=None, now=None) -> dict:
         kpath = base_dir / "hearth" / "var" / "arc-keepalive.jsonl"
         baseline = load_baseline(bpath, rung)
         rows = read_keepalive(kpath)
+        # The ledgered rotation windows (ADR-0044 exclusion spans). 2026-09-03: this reader was
+        # documented to exclude them and never passed them, so a proof's own probes read as
+        # production's regime (71-74 tok/s during the pour). Unreadable -> no exclusion, never raise.
+        try:
+            from hearth.rotation.windows import read_windows
+            windows = read_windows(base_dir / "hearth" / "var" / "rotation-windows.jsonl")
+        except Exception:  # noqa: BLE001
+            windows = ()
         port = 8082
         try:
             with open(bpath, "r", encoding="utf-8-sig") as fh:
@@ -206,7 +214,7 @@ def live_rung_state(rung: str = "omen-arc", root=None, now=None) -> dict:
             pass
         if now is None:
             now = datetime.now(timezone.utc).timestamp()
-        return rung_state(rows, baseline, float(now), port=port, rung=rung)
+        return rung_state(rows, baseline, float(now), port=port, rung=rung, windows=windows)
     except Exception as exc:  # noqa: BLE001 - passive reader must never raise
         return {"rung": rung, "port": None, "verdict": "unknown", "error": f"{type(exc).__name__}: {exc}",
                 "note": NOTE}

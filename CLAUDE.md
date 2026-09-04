@@ -44,9 +44,22 @@ rung that actually serves you was missing entirely:
   Boot-started by `ArcServeBoot`. **~108 tok/s single-stream decode**, measured
   live 2026-08-24 (short prompt, shallow context). Deep-context harness numbers
   from the burn-in campaign are much lower (~57) — decode rate falls with KV
-  depth, so always say which regime a figure came from.
+  depth, so always say which regime a figure came from. Since 2026-09-03 12:45
+  it runs **under llama-swap** (ADR-0045): `:8081` owns the lifecycle, `:8082`
+  is unchanged for every consumer.
 - `omen-arc-oss` — banked fire, **pin-only** (`tags = []`, port 8083 normally
   closed). gpt-oss-120b on the same cards. Costs a model swap, so pin it with cause.
+- `omen-swap` — the **ROTATION rung, pin-only** (`tags = []`; ADR-0045). llama-swap
+  v251 on `127.0.0.1:8081`, models `<m>-vk0` / `<m>-vk1` for phi4 / qwen14b /
+  gptoss20b / mistral24b plus `qwen38-27b-dual` (`fleet/arcserve/llama-swap/omen.yaml`;
+  the `-vk0` siblings activate at the next ArcServe restart — until then env=1 is the
+  only live seat).
+  `context_bytes = 14336` — the MIN over members, so a pin is refused for
+  anything bigger even though phi-4 runs `-c 8192`. Side models load on demand
+  beside production. For anything beyond a pinned `local_generate`, use the
+  door's rotation tools inside a window (`rotation_window` → `rotation_load` …
+  `rotation_unload` → close; see `hearth/rotation/README.md`). **Never** the bare
+  `POST /api/models/unload` — it unloads production too; path form only.
 - ☠ `omen-ollama` — **DEAD, not merely demoted.** :11434 does not listen and
   `OllamaBoot` is **Disabled for good** (ADR-0034). Routing skips it via
   `tags = []`, but an explicit pin **fails at connect**. Do not reach for this.
@@ -111,6 +124,16 @@ prove. See hearth/BUILD-REQUESTS.md.
 - Keep frontier reasoning for what needs it: architecture, multi-file logic,
   judgment, and anything requiring repo-wide context. Offload the grunt work,
   not the thinking.
+- The gateway runs the code it was started with — after landing anything the
+  door mounts, `schtasks /Run /TN HearthGatewayRestart` (from PowerShell, not
+  Git Bash) then doorcheck (`/checkmcp`). Two rotation-proof attempts were
+  wasted on 2026-09-03 against a door older than the provider.
+- In-process callers of `hearth.toolsurface.inference` (the doc/ADR bench, experiment
+  harnesses, one-off pins under a `DispatchIdentity`) need the launcher's env: run
+  them as `cmd /c "hearth\etc\with-gateway-env.cmd <command> [args]"` from
+  PowerShell (the wrapper `CALL`s `hearth\var\gateway.cmd` silently — never echo
+  that file; Git Bash mangles the `cmd /c "call … && …"` chain). Without it every
+  `omen-*` pin fails with `no auth token for <backend>`.
 
 ## Reading the decision record (added 2026-07-30)
 

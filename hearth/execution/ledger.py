@@ -11,11 +11,39 @@ import json
 import os
 import sqlite3
 import threading
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Mapping, Optional
 
 from .model import FINAL_JOB_STATUSES, validate_execution_event
+
+# Cross-process file locking. Windows and POSIX disagree on the primitive but not on
+# the contract: block until this process alone may assign the next sequence.
+try:                                     # pragma: no cover - platform split
+    import msvcrt
+
+    def _lock_file(handle) -> None:
+        handle.seek(0)
+        msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+
+    def _unlock_file(handle) -> None:
+        handle.seek(0)
+        try:
+            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        except OSError:
+            pass
+except ImportError:                      # pragma: no cover - platform split
+    import fcntl
+
+    def _lock_file(handle) -> None:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def _unlock_file(handle) -> None:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        except OSError:
+            pass
 
 
 class ExecutionLedgerError(RuntimeError):
@@ -60,6 +88,7 @@ class ExecutionLedger:
         self.events_path = self.root / "events.ndjson"
         self.projection_path = self.root / "projection.sqlite"
         self._lock = threading.RLock()
+        self._ip_depth = 0          # re-entrancy for the cross-process append lock
         self.root.mkdir(parents=True, exist_ok=True)
         self.events_path.touch(exist_ok=True)
         self._initialize_projection()
@@ -137,6 +166,59 @@ class ExecutionLedger:
             return file_size != 0
         return int(row["byte_offset"]) + int(row["byte_length"]) != file_size
 
+    @contextmanager
+    def _interprocess_append_lock(self, timeout_s: float = 30.0) -> Iterator[None]:
+        """Serialize sequence assignment across PROCESSES, not merely threads.
+
+        ``append`` derives the next sequence from ``MAX(sequence)`` in **this process's
+        own** projection.sqlite. Two processes each hold their own projection, so both
+        can read the same maximum and both append N+1. That is not theoretical: on
+        2026-09-04 two gateway subprocesses started concurrently and each wrote
+        sequence 8139 -- two different invocation.failed events for the same
+        invocation -- leaving a stream whose rebuild raises. A corrupt ledger makes the
+        gateway UNSTARTABLE, because ExecutionLedger.__init__ rebuilds when the
+        projection is stale.
+
+        The staleness check inside the lock is what makes this correct rather than
+        merely narrower: once the holder releases, the next process sees a longer file,
+        rebuilds, and derives a sequence that accounts for the append it did not make.
+
+        Fails LOUD. A lock we could not take is not a lock, and appending unguarded is
+        how the corruption happened in the first place.
+        """
+        if self._ip_depth:
+            # Already held by this instance: append() takes it and then calls rebuild(),
+            # which takes it too. OS file locks are not re-entrant, so count depth.
+            self._ip_depth += 1
+            try:
+                yield
+            finally:
+                self._ip_depth -= 1
+            return
+        lock_path = self.root / "events.lock"
+        deadline = time.monotonic() + timeout_s
+        handle = open(lock_path, "a+b")
+        try:
+            while True:
+                try:
+                    _lock_file(handle)
+                    break
+                except OSError as exc:
+                    if time.monotonic() >= deadline:
+                        raise ExecutionLedgerError(
+                            f"could not take the execution-ledger append lock within "
+                            f"{timeout_s:.0f}s ({lock_path}): {exc}"
+                        ) from exc
+                    time.sleep(0.05)
+            self._ip_depth = 1
+            try:
+                yield
+            finally:
+                self._ip_depth = 0
+                _unlock_file(handle)
+        finally:
+            handle.close()
+
     def append(self, event: Mapping[str, Any]) -> dict[str, Any]:
         """Append one immutable fact and update projections.
 
@@ -148,7 +230,7 @@ class ExecutionLedger:
         if candidate["sequence"] is not None:
             raise ExecutionLedgerError("callers must not assign event sequences")
 
-        with self._lock:
+        with self._lock, self._interprocess_append_lock():
             if self._projection_is_stale():
                 self.rebuild()
             with self._connect() as connection:
@@ -390,8 +472,14 @@ class ExecutionLedger:
                 )
 
     def rebuild(self) -> int:
-        """Discard all projections and replay the canonical event stream."""
-        with self._lock:
+        """Discard all projections and replay the canonical event stream.
+
+        Holds the cross-process lock: rebuild DELETES and re-applies the whole
+        projection, and two processes constructing against one root at the same time
+        (each rebuilding because the other just appended) interleave those writes and
+        collide on `UNIQUE constraint failed: events.sequence`.
+        """
+        with self._lock, self._interprocess_append_lock():
             if self.projection_path.exists():
                 self.projection_path.unlink()
             self._initialize_projection()

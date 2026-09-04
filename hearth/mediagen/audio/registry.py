@@ -117,12 +117,38 @@ _DEFAULT_PROFILES = {
         fade_ms=10.0,
         room_tone_db=-62.0,
     ),
+    "transatlantic": VoiceProfile(
+        name="transatlantic",
+        description="Transatlantic hybrid: 70% Heart / 30% Emma with Adam",
+        host_a_voice="af_heart:0.7,bf_emma:0.3",
+        host_b_voice="am_adam",
+        speed=1.0,
+        fade_ms=10.0,
+        room_tone_db=-62.0,
+    ),
+    "transatlantic_dual": VoiceProfile(
+        name="transatlantic_dual",
+        description="Dual transatlantic show pair: 60/40 Heart/Emma Alex + 60/40 Adam/George Sam",
+        host_a_voice="af_heart:0.6,bf_emma:0.4",
+        host_b_voice="am_adam:0.6,bm_george:0.4",
+        speed=1.0,
+        fade_ms=10.0,
+        room_tone_db=-62.0,
+    ),
 }
 
 
 def _split_voice(voice: str) -> list[str]:
-    """Split a Kokoro voice spec into its parts (a blend is comma-delimited)."""
-    return [part.strip() for part in voice.split(",") if part.strip()]
+    """Split a Kokoro voice spec into its parts (a blend is comma-delimited, with optional :weight)."""
+    parts = []
+    for part in voice.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if ":" in part:
+            part = part.split(":", 1)[0].strip()
+        parts.append(part)
+    return parts
 
 
 class VoiceProfileRegistry:

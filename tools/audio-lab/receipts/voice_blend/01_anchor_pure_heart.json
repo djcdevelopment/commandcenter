@@ -1,0 +1,27 @@
+{
+  "candidate_id": "01_anchor_pure_heart",
+  "title": "Anchor: Pure Heart (Control)",
+  "description": "Baseline control from Clip 1 (af_heart + am_adam)",
+  "calibration_script_sha256": "2c3092c711caa37457b75be22f2f8908ba5352fd7ea83f1eed1b1734a15966f6",
+  "compute_device": "xpu:0",
+  "alex_weights": {
+    "af_heart": 1.0
+  },
+  "sam_weights": {
+    "am_adam": 1.0
+  },
+  "pacing_parameters": {
+    "fade_ms": 10.0,
+    "room_tone_db": -62.0,
+    "comfort_noise_seed": 42
+  },
+  "metrics": {
+    "audio_duration_seconds": 62.175,
+    "wall_time_seconds": 16.15,
+    "speed_realtime": 3.85,
+    "file_size_bytes": 2984444,
+    "artifact_sha256": "88efe88502e952320a8dd76be6812808a84119f6eb7a0d6122ab4614fdf0733e"
+  },
+  "artifact_path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\voice_blend\\01_anchor_pure_heart.wav",
+  "timestamp": "2026-09-04T17:31:10.544874+00:00"
+}

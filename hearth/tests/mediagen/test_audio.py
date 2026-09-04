@@ -26,7 +26,9 @@ def test_registry_recognizes_profile_voices_and_blends() -> None:
     registry = get_voice_registry()
     assert registry.is_recognized_voice("af_heart")
     assert registry.is_recognized_voice("af_bella,af_sarah")
+    assert registry.is_recognized_voice("af_heart:0.7,bf_emma:0.3")
     assert not registry.is_recognized_voice("af_bella,not_a_real_voice")
+    assert not registry.is_recognized_voice("af_heart:0.7,not_a_real_voice:0.3")
 
 
 def test_registry_rejects_role_labels_and_non_strings() -> None:
@@ -275,3 +277,26 @@ def test_synthesis_result_validates_against_the_media_artifact_schema(tmp_path: 
         **details, "codec": "pcm_f32le",
     }
     validate(contract, schema_id="mediagen.media-artifact.v1")
+
+
+def test_prepare_voice_target_builds_weighted_blend() -> None:
+    import torch
+    from hearth.mediagen.audio.synthesizer import _prepare_voice_target
+
+    class FakePipeline:
+        def __init__(self):
+            self.voices = {}
+        def load_single_voice(self, name: str):
+            if name == "v1":
+                return torch.ones((2, 2), dtype=torch.float32)
+            if name == "v2":
+                return torch.zeros((2, 2), dtype=torch.float32)
+            raise ValueError(f"unknown {name}")
+
+    pipe = FakePipeline()
+    spec = "v1:0.7,v2:0.3"
+    _prepare_voice_target(pipe, spec)
+    assert spec in pipe.voices
+    expected = 0.7 * torch.ones((2, 2), dtype=torch.float32)
+    assert torch.allclose(pipe.voices[spec], expected)
+

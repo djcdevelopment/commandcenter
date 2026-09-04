@@ -18,6 +18,28 @@ from hearth.mediagen.audio.registry import VoiceProfile, get_voice_registry
 THREAD_CAP = 4
 
 
+def _prepare_voice_target(pipe: Any, voice: str) -> None:
+    """If voice contains weights (e.g. 'af_heart:0.7,bf_emma:0.3'), compute and cache the blend."""
+    if ":" in voice and voice not in getattr(pipe, "voices", {}):
+        tensors = []
+        parts = [p.strip() for p in voice.split(",") if p.strip()]
+        total_w = 0.0
+        parsed = []
+        for part in parts:
+            if ":" in part:
+                vname, wstr = part.split(":", 1)
+                w = float(wstr)
+            else:
+                vname, w = part, 1.0
+            parsed.append((vname, w))
+            total_w += w
+        if total_w > 0:
+            for vname, w in parsed:
+                pack = pipe.load_single_voice(vname)
+                tensors.append(pack * (w / total_w))
+            pipe.voices[voice] = torch.sum(torch.stack(tensors), dim=0)
+
+
 def _resolve_voice(
     role: str, speakers: dict, profile_voice: str, registry: VoiceProfileRegistry
 ) -> tuple[str, str, Optional[str]]:
@@ -136,6 +158,10 @@ class AudioSynthesizer:
 
         turn_audios: list[np.ndarray] = []
         turn_pauses: list[int] = []
+
+        for p in pipelines.values():
+            _prepare_voice_target(p, alex_voice)
+            _prepare_voice_target(p, sam_voice)
 
         if self._device_mode == "xpu_dual":
             def synth_turn(info: tuple[int, dict]) -> tuple[int, np.ndarray, int]:

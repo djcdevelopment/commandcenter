@@ -1,0 +1,28 @@
+{
+  "candidate_id": "06_blend_heart_dominant_60_40",
+  "title": "Blend 60/40: Heart-Dominant",
+  "description": "60% Heart, 40% Emma: Nuanced hybrid retaining American core",
+  "calibration_script_sha256": "2c3092c711caa37457b75be22f2f8908ba5352fd7ea83f1eed1b1734a15966f6",
+  "compute_device": "xpu:0",
+  "alex_weights": {
+    "af_heart": 0.6,
+    "bf_emma": 0.4
+  },
+  "sam_weights": {
+    "am_adam": 1.0
+  },
+  "pacing_parameters": {
+    "fade_ms": 10.0,
+    "room_tone_db": -62.0,
+    "comfort_noise_seed": 42
+  },
+  "metrics": {
+    "audio_duration_seconds": 61.775,
+    "wall_time_seconds": 6.02,
+    "speed_realtime": 10.26,
+    "file_size_bytes": 2965244,
+    "artifact_sha256": "74a6ad71d285311830b009454d87a978f859ec87c0c9deac18d06c074803e62f"
+  },
+  "artifact_path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\voice_blend\\06_blend_heart_dominant_60_40.wav",
+  "timestamp": "2026-09-04T17:31:53.432810+00:00"
+}

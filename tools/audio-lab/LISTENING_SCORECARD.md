@@ -184,4 +184,43 @@ Select the **winning default profile** and **winning alternate profile** with th
 | **05** | *The Two Economies of AI: When Compute Is Free and When It Isn't* | `british_tech` | `bf_emma` + `bm_george` | 208.08s | 44.20s | **4.71x** | 19.98 MB | [`episode_05_two_economies_british_tech.wav`](samples/golden_master/episode_05_two_economies_british_tech.wav) | [`golden_master_episode_05.json`](receipts/golden_master_episode_05.json) |
 | **05** | *The Two Economies of AI: When Compute Is Free and When It Isn't* | `alex_sam` | `af_heart` + `am_adam` | 194.08s | 43.47s | **4.46x** | 18.63 MB | [`episode_05_two_economies_alex_sam.wav`](samples/golden_master/episode_05_two_economies_alex_sam.wav) | [`golden_master_episode_05.json`](receipts/golden_master_episode_05.json) |
 
+---
+
+## 9. Heart + Emma Hybrid Voice Blend Assay (Finalist Interpolation)
+
+> **Assay Purpose**: Linearly interpolate the voice embedding tensors between the user's top two female anchors (**Clip 1 `af_heart`** and **Clip 5 `bf_emma`**) to discover a transatlantic hybrid host voice.  
+> **Script**: Standardized calibration sample ([`test_scripts/calibration_sample.json`](file:///C:/work/commandcenter/tools/audio-lab/test_scripts/calibration_sample.json)).  
+> **Pacing Standard Held Constant**: `P2_comfort_noise` (10 ms cosine boundary fades + `-62 dB` shaped ambient room tone bed, seeded).  
+> **Compute Platform**: **Intel Arc Pro B70 (`xpu:0`)** via official `torch 2.14.0+xpu` and Intel oneAPI Level Zero runtime.  
+> **Assay Manifest**: [`receipts/voice_blend/voice_blend_manifest.json`](file:///C:/work/commandcenter/tools/audio-lab/receipts/voice_blend/voice_blend_manifest.json)
+
+### Candidate Receipts & Artifacts Matrix
+
+| Candidate ID | Configuration | Alex (Host A) Weights | Sam (Host B) Weights | Audio Dur | Wall Time | Speed | Audio Artifact WAV | Receipt |
+| :--- | :--- | :--- | :--- | :---: | :---: | :---: | :--- | :--- |
+| **`01_anchor_pure_heart`** | Control Anchor 1 | 100% `af_heart` | 100% `am_adam` | 62.17s | 16.15s | **3.85x** | [`01_anchor_pure_heart.wav`](samples/voice_blend/01_anchor_pure_heart.wav) | [`receipt`](receipts/voice_blend/01_anchor_pure_heart.json) |
+| **`02_anchor_pure_emma`** | Control Anchor 2 | 100% `bf_emma` | 100% `bm_george` | 64.35s | 13.24s | **4.86x** | [`02_anchor_pure_emma.wav`](samples/voice_blend/02_anchor_pure_emma.wav) | [`receipt`](receipts/voice_blend/02_anchor_pure_emma.json) |
+| **`03_blend_heart_emma_50_50`** | Equal 50/50 Blend | 50% `af_heart` + 50% `bf_emma` | 100% `am_adam` | 61.38s | 8.23s | **7.46x** | [`03_blend_heart_emma_50_50.wav`](samples/voice_blend/03_blend_heart_emma_50_50.wav) | [`receipt`](receipts/voice_blend/03_blend_heart_emma_50_50.json) |
+| **`04_blend_heart_dominant_70_30`** | 70/30 Heart-Dominant | 70% `af_heart` + 30% `bf_emma` | 100% `am_adam` | 61.88s | 8.76s | **7.07x** | [`04_blend_heart_dominant_70_30.wav`](samples/voice_blend/04_blend_heart_dominant_70_30.wav) | [`receipt`](receipts/voice_blend/04_blend_heart_dominant_70_30.json) |
+| **`05_blend_emma_dominant_70_30`** | 70/30 Emma-Dominant | 30% `af_heart` + 70% `bf_emma` | 100% `bm_george` | 64.97s | 6.25s | **10.40x** | [`05_blend_emma_dominant_70_30.wav`](samples/voice_blend/05_blend_emma_dominant_70_30.wav) | [`receipt`](receipts/voice_blend/05_blend_emma_dominant_70_30.json) |
+| **`06_blend_heart_dominant_60_40`** | 60/40 Heart-Dominant | 60% `af_heart` + 40% `bf_emma` | 100% `am_adam` | 61.77s | 6.02s | **10.26x** | [`06_blend_heart_dominant_60_40.wav`](samples/voice_blend/06_blend_heart_dominant_60_40.wav) | [`receipt`](receipts/voice_blend/06_blend_heart_dominant_60_40.json) |
+| **`07_blend_dual_transatlantic_60_40`** | Dual Symmetrical Blend | 60% `af_heart` + 40% `bf_emma` | 60% `am_adam` + 40% `bm_george` | 63.12s | 2.65s | **23.82x** | [`07_blend_dual_transatlantic_60_40.wav`](samples/voice_blend/07_blend_dual_transatlantic_60_40.wav) | [`receipt`](receipts/voice_blend/07_blend_dual_transatlantic_60_40.json) |
+
+### Human Evaluation Scorecard (Voice Blend)
+
+Score each blend from **1 (Poor)** to **5 (Exceptional)** across vocal characteristics:
+- **Timbre Coherence**: Smooth vocal resonance without phase cancellation or warbling artifacts.
+- **Transatlantic Accent Balance**: Pleasant blend between American warmth and British technical precision.
+- **Conversational Dynamics**: Expressiveness across inquisitive sentences and technical explanations.
+- **Speaker Separation**: Distinct contrast against the chosen co-host (Adam / George).
+
+| Candidate ID | Timbre Coherence (1-5) | Accent Balance (1-5) | Dynamics (1-5) | Separation (1-5) | Total (/20) | Qualitative Notes |
+| :--- | :---: | :---: | :---: | :---: | :---: | :--- |
+| **`03_blend_heart_emma_50_50`** | | | | | /20 | |
+| **`04_blend_heart_dominant_70_30`** | | | | | /20 | |
+| **`05_blend_emma_dominant_70_30`** | | | | | /20 | |
+| **`06_blend_heart_dominant_60_40`** | | | | | /20 | |
+| **`07_blend_dual_transatlantic_60_40`** | | | | | /20 | |
+
+
  

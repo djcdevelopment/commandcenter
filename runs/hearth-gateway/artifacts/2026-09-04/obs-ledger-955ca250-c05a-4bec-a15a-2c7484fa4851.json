@@ -1,0 +1,30 @@
+{
+  "contract_version": "capacity-observation.v1",
+  "observation_id": "obs-ledger-955ca250-c05a-4bec-a15a-2c7484fa4851",
+  "decision_id": null,
+  "workflow_id": "wf-hearth-gateway",
+  "run_id": "hearth-gateway",
+  "timestamp": "2026-09-04T10:19:58.363579Z",
+  "builder_id": "claude-frontier",
+  "model_id": "qwen3-30b-a3b",
+  "backend": "omen-arc",
+  "hardware_profile_id": "omen",
+  "workload_shape": {
+    "task_kind": "local_generate",
+    "estimated_context_tokens": 15,
+    "requires_gpu": null,
+    "notes": "routed_by=pinned:omen-arc; occupancy=available; bridged from hearth-event.v1 955ca250-c05a-4bec-a15a-2c7484fa4851"
+  },
+  "observed": {
+    "runtime_s": 0.233,
+    "ttft_s": null,
+    "tokens_per_s": 8.58,
+    "ram_gb_peak": null,
+    "vram_gb_peak": null,
+    "context_tokens": 15,
+    "physical": null
+  },
+  "outcome": "success",
+  "failure_class": null,
+  "promotion_status": null
+}

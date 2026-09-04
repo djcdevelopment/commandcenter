@@ -793,9 +793,26 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       was never established from the receipts. A defect is fixed; a semantics gap is authored. Derek's
       decision settles *what should count*, not *why nothing was emitted* — the first implementation step
       is still to read that path and answer it.
-      **IMPLEMENTATION OPEN.** Where: `hearth/projection/ledger_adapter.py:201` (the `task_kind` mapping),
-      `tools/workflow/project_associations.py` gates, an ADR-0027 addendum recording the outcome.
-      (source: SESSION-RETRO-2026-09-03.md L-2026-09-03-3; ADR-0027 addendum "Decision question")
+      **⚠ PREREQUISITE ANSWERED 2026-09-04 — it was a DEFECT, and it invalidates this decision's
+      premise. ONE WORD FROM DEREK CLOSES IT.** The producer never fired for door calls because
+      `local_generate` moved onto the Request→Job→Invocation pipeline and `ExecutionService._run`
+      executes on a **ThreadPoolExecutor worker**, across which ContextVars are not inherited — so
+      `current_identity()` was `None` in the worker and `emit_dispatch_observation` recorded nothing.
+      (The service already packed `files=` before that boundary for the same reason; the identity was
+      simply never carried.) **Every door dispatch since that refactor produced no capability evidence
+      at all.** Proven by experiment: a pinned door `local_generate` wrote neither an observation nor
+      an exclusion row; after the fix the identical call wrote
+      `obs-offload-claude-frontier-…` (`workflow_id wf-hearth-offload-claude-frontier`,
+      `model_id qwen3-30b-a3b`, `backend omen-arc`, `outcome success`). **Fixed** in
+      `hearth/execution/service.py` with regression tests.
+
+      **What this changes:** the decision above assumed door calls contribute nothing. They now
+      contribute **first-class dispatch observations**. Bridging them in `ledger_adapter` as well
+      would **double-count the same dispatch** — which this ADR's own earlier addendum predicted.
+      **Recommendation: do NOT build the bridge**; the decision's intent ("door usage should count")
+      is already satisfied, and `ledger_adapter` stays tool-named (option B, honest to ADR-0010).
+      → **Derek: reply "confirm" to close this as decided-no-bridge, or "bridge anyway" to build it.**
+      (source: SESSION-RETRO-2026-09-03.md L-2026-09-03-3; ADR-0027 addenda 2026-09-04)
 
 - [ ] 2026-09-04 — **OPEN (defect, found live): `ExecutionLedger` assigns sequence numbers with no
       cross-process lock, so two gateways writing the same execution dir corrupt the ledger.**
@@ -842,13 +859,18 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       moved `draining_imagegen` → `restoring_llm` at 09:44:39Z with **7–8 jobs still queued**, and at
       `session.restored` (09:46:22Z) the queue read 0 with `hearth/var/imagegen/queue/` and
       `results/` both empty — those renders did not run and were not persisted anywhere findable.
-      Nothing in the tool's result or its `session-events.ndjson` transitions names a dropped-job
-      count, so a caller who checks `ok:true` cannot tell that work was discarded. Decide (imagegen
-      lane owns this): persist the queue across a restore and replay it on the next session, or
-      report a `dropped` count in the stop result and the session event so the loss is at least
-      **loud**. Today it is neither. Chosen deliberately as the *gentler* option over `force=True`,
-      which makes the silence worse. (source: this session's pool handover;
-      `hearth/rotation/POOL-HANDOVER.md`)
+      **CORRECTED 2026-09-04 (I had this wrong):** the jobs were **not** discarded at restore and the
+      loss is **not** silent in the ledger. They stayed queued and **expired on their own deadline at
+      10:05:41Z** — 8 `job.expired` events, sequences 9246–9253 in
+      `hearth/var/execution/events.ndjson`, each reading *"image job deadline expired in queue"*.
+      The real defect is narrower and different: **`get_image_session().queued` read 0 at 09:52 while
+      8 jobs were still pending**, so the tool surface under-reported live work for 13 minutes, and
+      neither the stop result nor the `session-events.ndjson` transitions name a count. A caller who
+      checks `ok:true` and `queued:0` concludes the queue is empty when it is not. Decide (imagegen
+      lane owns this): make `queued` count pending-but-undispatched work during a drain, and/or
+      report a `dropped`/`pending` count in the stop result. The operational advice stands for a
+      better reason — **check `queued` before draining, and do not trust it to fall to 0 honestly.**
+      (source: this session's pool handover; `hearth/rotation/POOL-HANDOVER.md`)
 
 - [x] 2026-09-04 — **DONE: two-card rotation proof PASSED** (window `rot-twocard-20260904-A`,
       09:49:39Z → 09:52:29Z `assay.passed`, `candidate_id` carried). `phi4-vk0` (env 0) landed on

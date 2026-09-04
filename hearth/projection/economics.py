@@ -34,6 +34,9 @@ COST_CLASS_MAP = {
     "omen-arc": "sunk",       # resident Qwen3-30B-A3B on OMEN's dual B70s (ADR-0034)
     "omen-arc-oss": "sunk",   # banked-fire gpt-oss-120b, same cards (ADR-0034)
     "omen-ollama": "sunk",
+    "omen-swap": "sunk",      # rotation rung -- the SAME dual B70s (ADR-0045); a side
+                              # model costs a load, not a dollar
+    "fx99-ollama": "sunk",    # RTX 2070 SUPER sidecar on the monitoring node (ADR-0039)
     "am4-oxen": "sunk",       # ☠ tombstone (cards moved to OMEN 2026-08-20)
     "am4-moe": "sunk",        # ☠ tombstone; was resident gpt-oss-120b on AM4 (2026-07-18)
     "gcp-gemini": "trial",

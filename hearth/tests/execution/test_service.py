@@ -410,3 +410,67 @@ class ExecutionServiceTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DispatchIdentityCrossesTheWorkerBoundaryTest(ExecutionServiceTest):
+    """The submitting caller's identity must reach the executor worker.
+
+    ContextVars are NOT inherited by ThreadPoolExecutor workers. `local_generate`
+    moved onto this Request -> Job -> Invocation pipeline, so the observation
+    emitter -- which reads `current_identity()` inside `inference.local_generate`
+    -- began finding nothing and recording nothing. Measured live 2026-09-04: a
+    successful pinned door call wrote neither an observation artifact nor an
+    exclusion row, while the separate ledger bridge kept counting the same call.
+    Every door dispatch since that refactor produced no capability evidence.
+    """
+
+    def test_identity_in_force_at_submit_reaches_the_generate_call(self) -> None:
+        from hearth.observation.identity import DispatchIdentity, dispatch_identity, current_identity
+
+        seen: list = []
+
+        def generate(**kwargs):
+            # Runs on the worker thread -- this is the boundary under test.
+            seen.append(current_identity())
+            return {"ok": True, "text": "ok", "model": kwargs["model"],
+                    "backend": kwargs["backend"]}
+
+        service = self.service(generate)
+        identity = DispatchIdentity(caller_id="claude-frontier", runner_class="frontier",
+                                    node="omen", task_id="t-1", profile="default")
+        with dispatch_identity(identity):
+            submitted = service.submit(
+                operation_name="llm.chat",
+                arguments={"prompt": "probe", "model": "gpt-oss-120b"},
+                principal=self.principal,
+                source=self.source,
+                idempotency_key="identity:1",
+            )
+        final = self.wait_final(service, submitted["job_id"])
+        self.assertEqual("succeeded", final["status"])
+        self.assertEqual(1, len(seen))
+        self.assertIsNotNone(seen[0], "identity did not cross the executor boundary")
+        self.assertEqual("claude-frontier", seen[0].caller_id)
+        self.assertEqual("t-1", seen[0].task_id)
+
+    def test_no_identity_at_submit_stays_none_rather_than_borrowing_one(self) -> None:
+        from hearth.observation.identity import current_identity
+
+        seen: list = []
+
+        def generate(**kwargs):
+            seen.append(current_identity())
+            return {"ok": True, "text": "ok", "model": kwargs["model"],
+                    "backend": kwargs["backend"]}
+
+        service = self.service(generate)
+        submitted = service.submit(
+            operation_name="llm.chat",
+            arguments={"prompt": "probe", "model": "gpt-oss-120b"},
+            principal=self.principal,
+            source=self.source,
+            idempotency_key="identity:2",
+        )
+        final = self.wait_final(service, submitted["job_id"])
+        self.assertEqual("succeeded", final["status"])
+        self.assertIsNone(seen[0])

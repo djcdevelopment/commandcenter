@@ -19,11 +19,16 @@ python -m hearth.rotation.preflight        # G0 now says WHY the fence is held
   same non-forced call.
 
 > ⚠ **`force=False` drains RUNNING work, not the QUEUE.** Measured 2026-09-04: the session went
-> `draining_imagegen` → `restoring_llm` at 09:44:39 with **7–8 jobs still queued**, and at
-> `session.restored` (09:46:22) the queue read 0 with `hearth/var/imagegen/queue/` and `results/`
-> both empty. Those jobs did not run and were not preserved. **Check `queued` before you drain**
-> — if it is non-zero, that work is lost unless someone resubmits it. Non-forced is gentler than
-> `force=True`, not lossless.
+> `draining_imagegen` → `restoring_llm` at 09:44:39 with **7–8 jobs still queued**. Those jobs never
+> ran; they **expired on their own deadline at 10:05:41Z**, 8 `job.expired` events (sequences
+> 9246–9253 in `hearth/var/execution/events.ndjson`) each reading *"image job deadline expired in
+> queue"*. So the loss **is** recorded — just not where an operator looks.
+>
+> The trap is the counter: **`get_image_session().queued` read 0 at 09:52 while 8 jobs were still
+> pending**, and neither the stop result nor the session events name a count. `ok:true` plus
+> `queued:0` reads as "nothing lost" and is not. **Check `queued` before you drain, and do not trust
+> it falling to 0 as proof the queue is empty** — confirm against `job.expired` in the execution
+> ledger afterwards. Non-forced is gentler than `force=True`, not lossless.
 
 **Never kill the imagegen processes to reclaim the pool.** There are ~16 of them, killing by
 command-line match is how three production services died once before, and `stop_image_session`

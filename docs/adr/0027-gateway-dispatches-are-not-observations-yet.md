@@ -443,3 +443,64 @@ failure this record's own session already made once (`56fe865`, corrected by `84
 **Status: decided, not implemented.** Nothing in `hearth/projection/ledger_adapter.py` or
 `tools/workflow/project_associations.py` changed on 2026-09-04; that session's scope was rotation-proof
 staging and housekeeping. Registered in `DECISIONS-PENDING.md` with the prerequisite attached.
+
+---
+
+## Addendum, 2026-09-04 (later) — the prerequisite is answered: it was a DEFECT, and that changes the decision above
+
+The addendum above recorded a decision (bridge `local_generate` only) and flagged that a
+prerequisite was unanswered: *the dispatch-time producer emitted nothing for the door pins, and
+whether that was a **defect** or a **semantics gap** had never been established.* It is now
+established, by experiment rather than by argument.
+
+### What was measured
+
+1. **The identity IS pushed.** `hearth/kernel/gateway.py:423` wraps every tool call in
+   `dispatch_identity(DispatchIdentity(caller_id=caller.id, …))`, with a comment naming this record.
+2. **The emitter is not silently filtering.** `emit_dispatch_observation`
+   (`hearth/observation/emit.py:249`) returns `None` *only* when no identity is in force, and writes
+   an `exclusions.ndjson` row whenever it classifies a dispatch out.
+3. **Neither artefact existed.** `runs/hearth-offload-claude-frontier/` held 11 observations, all
+   `2026-07-30`/`07-31`, and 2 exclusion rows, both `2026-07-30`. So the door pins produced neither
+   an observation nor an exclusion — `record_dispatch` was never *reached*.
+4. **A live probe confirmed it.** One door `local_generate` pinned to `omen-arc`, `ok:true`,
+   `routed_by: pinned:omen-arc`, tokens counted — and **no observation, no exclusion row, no offload
+   run directory touched**.
+
+### The cause
+
+`local_generate` moved onto the Request → Job → Invocation pipeline. `ExecutionService._run`
+executes on a **`ThreadPoolExecutor` worker** (`hearth/execution/service.py:54`), and **ContextVars
+are not inherited across that boundary**. The service already knew this for one case — it packs
+`files=` *before* crossing the boundary, with a comment saying exactly why — but the dispatch
+identity was never carried, so `current_identity()` inside `inference.local_generate` returned
+`None` on the worker and the emitter recorded nothing.
+
+**Scope: every door dispatch since that refactor produced no capability evidence at all.** The
+belief layer's blindness to door traffic was never a semantics choice; it was this.
+
+Fixed by capturing `current_identity()` on the submitting thread and re-pushing it inside `_run`.
+Authority grants are deliberately **not** carried across — a background worker inherits the asker,
+not their filesystem reach. Jobs recovered at boot pass `None` and record nothing rather than
+borrowing a caller's name. Verified live: the same probe now writes
+`obs-offload-claude-frontier-…` with `workflow_id wf-hearth-offload-claude-frontier`,
+`model_id qwen3-30b-a3b`, `backend omen-arc`, `outcome success`.
+
+### ⚠ This invalidates the premise of the decision above
+
+The 2026-09-04 decision — *bridge `local_generate` dispatches as `offload-generate` in
+`ledger_adapter`* — was made on the premise that **door calls contribute no evidence**. That premise
+is now false: door `local_generate` calls produce **first-class dispatch observations** directly,
+with backend, model, tokens and a caller-derived `workflow_id`.
+
+Bridging them in `ledger_adapter` as well would now **double-count the same dispatch** — once from
+the producer, once from the bridge. This record's own earlier addendum anticipated exactly that: *"a
+defect is fixed, and the bridge change may be unnecessary or may double-count once the emitter
+works."*
+
+**Recommendation: do NOT implement the bridge.** The decision's intent — *door usage should count as
+evidence* — is satisfied by the fix alone. Keep `ledger_adapter` tool-named (option B, unchanged),
+which also keeps the corpus honest to ADR-0010. The choice is Derek's to confirm; it is registered in
+`DECISIONS-PENDING.md` with the premise change stated.
+
+**Status: prerequisite answered, defect fixed, bridge NOT built pending Derek's confirmation.**

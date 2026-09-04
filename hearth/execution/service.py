@@ -13,6 +13,8 @@ import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Any, Callable, Mapping, Optional
 
+from hearth.observation.identity import (DispatchIdentity, current_identity,
+                                         dispatch_identity)
 from hearth.toolsurface.backends import Backend, BackendConfigError, load_pool, select_backend
 
 from .artifacts import ArtifactStore
@@ -430,7 +432,16 @@ class ExecutionService:
                 # capacity, starving llm.chat.
                 dispatcher.enqueue(job_id)
             else:
-                future = self._executor.submit(self._run, job_id)
+                # WHO asked, captured on THIS thread. ContextVars are not inherited
+                # by ThreadPoolExecutor workers -- the same boundary the files pack
+                # above crosses by value. Without this the observation emitter finds
+                # no identity in the worker and records nothing, so every door
+                # dispatch since local_generate moved onto this pipeline produced no
+                # capability evidence at all (ADR-0027; measured 2026-09-04: a
+                # successful pinned door call wrote neither an observation nor an
+                # exclusion row). Authority grants are deliberately NOT carried: a
+                # background worker inherits the asker, not their filesystem reach.
+                future = self._executor.submit(self._run, job_id, current_identity())
                 self._futures[job_id] = future
                 future.add_done_callback(lambda _future, jid=job_id: self._forget(jid))
         state = self.ledger.get_job(job_id)
@@ -511,7 +522,17 @@ class ExecutionService:
 
         return local_generate(**kwargs)
 
-    def _run(self, job_id: str) -> None:
+    def _run(self, job_id: str, identity: Optional[DispatchIdentity] = None) -> None:
+        """Run one job on an executor worker under the submitting caller's identity.
+
+        ``identity`` is None for jobs recovered at boot -- there is no live caller to
+        attribute those to, and ``dispatch_identity(None)`` is a no-op, so they record
+        nothing rather than borrowing someone else's name.
+        """
+        with dispatch_identity(identity):
+            self._run_job(job_id)
+
+    def _run_job(self, job_id: str) -> None:
         state = self.ledger.get_job(job_id)
         if state is None or state["status"] in FINAL_JOB_STATUSES:
             return

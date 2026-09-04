@@ -715,7 +715,7 @@ def _execution_local_generate(
         for key, value in (("max_tokens", max_tokens), ("deadline_s", timeout_s))
         if value is not None
     }
-    return get_execution_service().execute_sync(
+    result = get_execution_service().execute_sync(
         operation_name="inference.generate",
         arguments=arguments,
         principal={
@@ -726,6 +726,16 @@ def _execution_local_generate(
         source={"transport": "mcp", "adapter": identity.caller_id},
         policy=policy,
     )
+    # The gateway lifts `_ledger_model` into the ledger event's `model` field. The raw
+    # primitive stamps it (see the _ledger_model convention above), but `execute_sync`
+    # returns a PROJECTED result, so the provider's hint does not survive the pipeline --
+    # restamp it from the projection's own resolved model or every door dispatch ledgers
+    # `model=None`. Measured 2026-09-04: the omen-arc and omen-swap offload buckets both
+    # carried `models: []` for exactly this reason, so per-model capability evidence from
+    # door traffic was unattributable.
+    if isinstance(result, dict) and result.get("model"):
+        result.setdefault("_ledger_model", result["model"])
+    return result
 
 
 # FastMCP and the capability taxonomy see the compatibility tool's stable public

@@ -690,3 +690,67 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       Decide there: owner as a constructor/param vs. a second store. Until then rotation and imagegen
       are mutually exclusive on the pool by read-only convention. (source: plan § Hard constraints;
       `hearth/imagegen/` untouched by the rotation build)
+
+- [x] 2026-09-03 — **DONE: P11 rotation proof PASSED through the door + M1 evidence pour on
+      `omen-swap` — gate 2 OPEN (`capability_count` 1 → 2).** Window `rot-side-20260903-B`
+      (opened 2026-09-04T00:33:47Z, closed `passed` 01:03:54Z; `assay.started`/`assay.passed` in
+      `hearth/var/rotation-windows.jsonl`); fix-ups `92f3cd6`, suite 1646 passed; nothing pushed.
+      Receipts: `rotation_load phi4-vk1` → entry `phi4-vk1` on BDF `0000:04:00.0`, 3.344 s wall (warm
+      file cache; 20.14 s on a later reload after the other model evicted the cache), placement from
+      the server's own `-lv 5` log (1 B70 with weights, iGPU clean, 9.7 GB) corroborated by +9.729 GB
+      commit on `0000:04:00.0` / 0.0 on `0000:09:00.0`, canary timings present;
+      `rotation_load qwen14b-vk1` → same BDF (env=1 maps there), 57.469 s wall (cold file cache),
+      +9.621 GB corroborated. KV: `rotation_kv_save phi4-vk1` slot 0 → `phi4-vk1.0.e9480f7e3f3cf3d6.bin`,
+      1239 tokens, 253,768,028 bytes; unload phi4 → load qwen14b → unload → reload phi4 →
+      `rotation_kv_restore`: `n_restored` 1239 in 168.7 ms, replayed prompt `prompt_n=1 cache_n=1238`
+      (vs a 1239-token re-prefill); negative control into `qwen14b-vk1` refused before any HTTP
+      (`CrossModelRestore`). Production `qwen3-30b-a3b` on `:8082` listed after every step and
+      `at_rate` throughout (107.3 / 109.18 / 107.99 tok/s = 101–103% of the 106.0 baseline; keep-alive
+      unbroken); teardown `/running == [qwen3-30b-a3b]`. **Pour:** doc/ADR bench (`e44b726`) arms
+      `omen-swap:phi4-vk1` + `omen-swap:qwen14b-vk1`, tasks `adr-0042-vs-launcher` +
+      `adr-0041-claims-vs-receipts`, held-out judges `gcp-gemini:gemini-3.5-flash` +
+      `omen-arc:qwen3-30b-a3b`; phi4 mean 92.5 (2/2 cells, ~26.8 s), qwen14b mean 88.25 (2/2, ~29.3 s);
+      datasets `hearth/var/experiments/doc-adr-bench-20260904T005139Z-sweep` + `-20260904T005728Z-sweep`.
+      Rebuild: `knowledge/capabilities.json` `capability_count` 1 → 2
+      (`capability:task_kind=offload-generate|backend=omen-swap`; qualified resources (omen, phi4-vk1) +
+      (omen, qwen14b-vk1); confidence medium; workflows `wf-hearth-offload-experiment-doc-adr-bench` +
+      `wf-hearth-offload-rotation-proof`; watermark `2026-09-04T01:02:55Z`). Gate-1 mechanism
+      (ADR-0027): gateway dispatches are bridged with `task_kind` = the tool name, so door calls never
+      join the `offload-generate` bucket — the second workflow had to be an in-process caller with its
+      own `DispatchIdentity` (`rotation-proof`); the plan's "two door calls from claude-frontier" could
+      never have closed gate 1. Five defects surfaced, all fixed in `92f3cd6`: (1) env=2 is the iGPU on
+      this driver (ADR-0042 caught it live — the side server was READY on Intel Graphics) → siblings
+      renamed `-vk0`/`-vk1` (env 0/1); (2) the door ran code older than the swap-log reader → gateway
+      restarted 17:39/17:51 (the 56fe865 note blaming llama-swap's `/logs` tail for the side entries was
+      wrong — they already read their own `--log-file`); (3) an expired-MCP-session retry unloaded a
+      correct already-resident placement → delta corroboration skipped for resident entries,
+      receipt carries `already_resident`; (4) `kv.save_slot` saved the last-held slot (1 canary token,
+      205 KB) → prefills the prompt first, restore verifies with the same prompt; (5) the bench harness
+      needs the launcher's env (`OMEN_ARC_TOKEN`) → run under a wrapper that CALLs
+      `hearth/var/gateway.cmd` from PowerShell (Git Bash fails the cmd chain).
+      (source: [ROTATION-PROGRAM.html#board](ROTATION-PROGRAM.html#board);
+      [ADR-0045](docs/adr/0045-the-scheduler-plans-a-rotating-host.md) "Lessons from the first live proof")
+
+- [ ] 2026-09-03 — **OPEN: per-member context budgets on `omen-swap`.** The rung declares one
+      `context_bytes` = 14336 (ADR-0031 arithmetic: MIN over members, `-c 4096 × -np 1 × 3.5 B`), so a
+      pin on any member is refused by the smallest member's budget — it refused 5 of the 8 doc-bench
+      tasks during the M1 pour although the chosen members could carry them. Decide: a per-`model_id`
+      budget on multi-model rungs (router, `plan_execution` and the pin refusal all read it) vs. leaving
+      MIN and accepting the refusals. (source: M1 pour receipts; ROTATION-PROGRAM.html#board)
+
+- [ ] 2026-09-03 — **OPEN: activate the `-vk0` sibling entries at the next ArcServe restart; two side
+      models on DIFFERENT cards waits on it.** `92f3cd6` renamed the single-card siblings `<m>-vk0` /
+      `<m>-vk1` (env 0 / 1 — index 2 is the iGPU on this driver, caught live by the ADR-0042 assertion),
+      but the running llama-swap keeps the entries it was started with: the yaml takes effect at the
+      next ArcServe restart (any lane's restart does it), never by editing it. Until then a `-vk0` pin
+      gets a fast 404 refusal (not a 240 s poll), and env=1 puts every side model on `0000:04:00.0` —
+      the pour ran phi4 and qwen14b sequentially. No deliberate restart is scheduled: production is
+      `at_rate` and INC-2026-08-30-A is WATCH, DO NOT POKE; the next peer-lane or maintenance restart
+      activates them. (source: `92f3cd6`; `fleet/arcserve/llama-swap/omen.yaml` header note)
+
+- [ ] 2026-09-03 — **OPEN (registered from the Phase 2 TODO row): token hole #2 (conductor repo) ·
+      R2c prefix-affinity tuning (`-sps/-cram/--cache-reuse`, a measurement campaign) · BDF-pinned
+      placement (no llama.cpp lever today — placement is asserted, not chosen) · eviction actuation
+      (advice-only; ADR-0008 stays advisory until the regret trend earns dispatch).** None started; each
+      needs its own window or campaign. VM builders → B70 rung and the `GpuTenancyStore` owner literal
+      are the two entries above. (source: ROTATION-PROGRAM.html#board Phase 2 TODO)

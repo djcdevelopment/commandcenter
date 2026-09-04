@@ -132,7 +132,50 @@ unrestricted). Live door checks passed: `rotation_status`; `query_rung_state` (s
 at_rate …"); `recommend_rung('quote_retrieval', 40000 bytes)` → `qwen38-27b` on `omen-arc-27b` with
 the R10 evidence. The first rotation proof (window `rot-side-20260903-A`, `assay.failed`) found
 `--slot-save-path E:\work\battlemage\kv` missing — the side servers exited at launch (fixed
-`039f68a`); the second (`rot-side-20260903-B`) is in progress through the door, receipt to follow.
+`039f68a`). **The second, `rot-side-20260903-B`, PASSED through the door** (opened 2026-09-04T00:33:47Z,
+closed `passed` 01:03:54Z; `assay.started`/`assay.passed` in `hearth/var/rotation-windows.jsonl`;
+fix-ups `92f3cd6`, suite 1646 passed). Receipt line: `rotation_load phi4-vk1` → entry `phi4-vk1` on
+BDF `0000:04:00.0`, 3.344 s wall (warm file cache; 20.14 s on a later reload after the other model
+evicted the cache), placement from the server's own `-lv 5` log — 1 B70 with weights, iGPU clean,
+9.7 GB — corroborated by +9.729 GB commit on `0000:04:00.0` and 0.0 on `0000:09:00.0`, canary
+timings present; `rotation_load qwen14b-vk1` → same BDF (env=1 maps there), 57.469 s wall (cold file
+cache), +9.621 GB corroborated; `rotation_kv_save phi4-vk1` slot 0 → `phi4-vk1.0.e9480f7e3f3cf3d6.bin`,
+1239 tokens, 253,768,028 bytes; unload phi4 → load qwen14b → unload → reload phi4 →
+`rotation_kv_restore`: `n_restored` 1239 in 168.7 ms, replayed prompt `prompt_n=1 cache_n=1238` (vs a
+1239-token re-prefill); negative control `rotation_kv_restore` into `qwen14b-vk1` refused before any
+HTTP (`CrossModelRestore`); production `qwen3-30b-a3b` on `:8082` stayed listed after every step and
+`at_rate` throughout (107.3 / 109.18 / 107.99 tok/s = 101–103% of the 106.0 baseline; keep-alive
+unbroken); teardown `/running == [qwen3-30b-a3b]`. The M1 evidence pour ran the same night and opened
+gate 2 (`capability_count` 1 → 2 — see Consequences).
+
+**Lessons from the first live proof** (2026-09-03; every defect fixed in `92f3cd6`):
+
+1. **`GGML_VK_VISIBLE_DEVICES=2` is the iGPU on this driver — `docs/adr#0042` caught it live.** The
+   side server's own `-lv 5` report read "Vulkan0 : Intel(R) Graphics"; it was READY and answered the
+   canary in 10 s — liveness is not placement. Indices 0 and 1 are the B70s, so the single-card
+   siblings are now `<m>-vk0` / `<m>-vk1` with env 0 / 1 (yaml, rung, scheduler suffixes, sibling map,
+   tests, docs). The running llama-swap keeps the entries it was started with: the `-vk0` entries go
+   live at the next ArcServe restart (any lane's); until then a `-vk0` pin gets a fast 404 refusal,
+   not a 240 s poll, and env=1 puts every side model on `0000:04:00.0` (the pour ran them sequentially).
+2. **The door runs the code it was started with.** The gateway (started 11:42) predated the swap-log
+   reader (landed 13:00), so two attempts read "no placement lines" and failed closed on a defect that
+   was not in the running tree; restarted 17:39 and 17:51. The earlier note blaming llama-swap's
+   `/logs` tail for the side entries was wrong — they already read their own `--log-file`. Lesson: a
+   gateway restart is part of landing code the door mounts.
+3. **A call whose MCP client session had expired still executed door-side and passed.** The retry
+   found phi-4 already resident, saw a 0 GB commit delta, and unloaded a correct placement — the
+   lifecycle now skips the delta corroboration for an already-resident entry and the receipt carries
+   `already_resident`.
+4. **`kv.save_slot` saved whatever the slot last held** (1 canary token, 205 KB) — it now prefills the
+   prompt (`cache_prompt`) before saving, and restore verifies with the same prompt.
+5. **The bench harness runs in-process and needs the launcher's env** (`OMEN_ARC_TOKEN`) — run it under
+   a wrapper that `CALL`s `hearth/var/gateway.cmd`; from Git Bash the cmd chain failed, from PowerShell
+   it works.
+
+**Gate-1 mechanism note (`docs/adr#0027`).** Gateway dispatches are bridged with `task_kind` = the tool
+name, so door calls never join the `offload-generate` bucket; the second workflow that gate 1 needs had
+to be an in-process caller with its own `DispatchIdentity` (`rotation-proof`). The plan's "two door calls
+from claude-frontier" could never have closed gate 1.
 
 **4. Placement is asserted from the `-lv 5` load report plus the per-BDF commit delta; the sibling
 entries `-vk1`/`-vk0` are the retry lever; an index is never trusted.** — **LANDED** (`b85e32e`,
@@ -206,11 +249,20 @@ that has Decision 3 blocked as this record is written. Registered in `DECISIONS-
 - **`omen-swap` is the gate-2 unlock.** `hearth/etc/backends.toml` declares `omen-swap` on
   `http://127.0.0.1:8081`, `tags = []` (pin-only), `lifecycle = "llama-swap"`, `context_bytes = 14336`
   (`docs/adr#0031` arithmetic: MIN over members, `-c 4096 × -np 1 × 3.5 B`), and **nine** `model_id`s
-  (`phi4-vk1/2`, `qwen14b-vk1/2`, `gptoss20b-vk1/2`, `mistral24b-vk1/2`, `qwen38-27b-dual`).
+  (`phi4-vk1`/`-vk0`, `qwen14b-vk1`/`-vk0`, `gptoss20b-vk1`/`-vk0`, `mistral24b-vk1`/`-vk0`,
+  `qwen38-27b-dual` — the `-vk0` names replaced `-vk2` in `92f3cd6`, see the lessons above).
   `docs/adr#0027` found every rung declared exactly one model, so `model_id` and `backend` were the
   same fact and gate 2 could never vary; one endpoint serving several `model_id`s is the first rung
-  that can. The evidence pour that turns this into `capability_count` 2 (plan M1) is **not done** —
-  it needs the side port live, which needs Decision 3 executed.
+  that can. The evidence pour that turns this into `capability_count` 2 (plan M1) is **DONE 2026-09-03**:
+  doc/ADR bench (`e44b726`) arms `omen-swap:phi4-vk1` + `omen-swap:qwen14b-vk1`, tasks
+  `adr-0042-vs-launcher` + `adr-0041-claims-vs-receipts`, held-out judges `gcp-gemini:gemini-3.5-flash`
+  + `omen-arc:qwen3-30b-a3b`; phi4 mean 92.5 (2/2 cells, ~26.8 s), qwen14b mean 88.25 (2/2, ~29.3 s);
+  datasets `hearth/var/experiments/doc-adr-bench-20260904T005139Z-sweep` + `-20260904T005728Z-sweep`.
+  `knowledge/capabilities.json` `capability_count` 1 → 2 (`capability:task_kind=offload-generate|backend=omen-swap`,
+  qualified resources (omen, phi4-vk1) + (omen, qwen14b-vk1), confidence medium, workflows
+  `wf-hearth-offload-experiment-doc-adr-bench` + `wf-hearth-offload-rotation-proof`, watermark
+  `2026-09-04T01:02:55Z`). Residual: the single MIN budget refused 5 of the 8 tasks for a pin although
+  the chosen members could carry them — per-member context budgets are registered in `DECISIONS-PENDING.md`.
 - **Windows are ledgered before the first GPU touch.** `hearth/rotation/windows.py` emits
   schema-valid workflow events (`assay.started`, `assay.passed|failed`,
   `workflow_id = "wf-rotation-side-port"`, `run_id = <window name>`) and appends
@@ -226,7 +278,8 @@ that has Decision 3 blocked as this record is written. Registered in `DECISIONS-
   hard-refuses the production ports; unload uses the **path form** `/api/models/unload/{model}` — the
   bare endpoint unloads *everything*, production included. Cross-model KV restore is refused before any
   HTTP call because the slot file format carries no model identity. Registration in `TOOL_CAPABILITY` /
-  `profiles.toml` / the gateway's `--providers` list (plan P10) is **not** on master at acceptance;
+  `profiles.toml` / the gateway's `--providers` list (plan P10) is **not** on master at acceptance
+  (landed later the same day, `3462687`; door mounts verified — see *Verified live*);
   the capability for the actuators is `rotation_admin`, operator + unrestricted only.
 - **VM builders reach the B70s only through an authenticated proxy plus one operator firewall rule.**
   llama-swap's admin endpoints (`/api/models/unload*`) are unauthenticated, so binding it on `0.0.0.0`
@@ -248,7 +301,10 @@ that has Decision 3 blocked as this record is written. Registered in `DECISIONS-
   live box; the parser is tested against quoted `-lv 5` lines, not a captured phi4 load report; the
   admission gates are ported numbers, not re-measured ones; and the scheduler's `rotation_plan`
   (Decision 2) is a specification here, not a landed function. Each of these has a receipt path
-  named for it and none of them has the receipt yet.
+  named for it and none of them has the receipt yet. **Superseded 2026-09-03 by proof B** (see *Verified
+  live*): phi-4 and qwen14b have been loaded through this substrate on the live box beside production;
+  the parser has read two captured side-server load reports (and refused the iGPU one); `rotation_plan`
+  landed (`4ec76db`). Still ported rather than re-measured: the admission gate numbers.
 
 ## Alternatives considered
 

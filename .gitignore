@@ -18,3 +18,8 @@ runs/hearth/
 # Session export bundles (an export artifact, not repo content)
 session-export-*/
 session-export-*.zip
+
+# b70tools adapter-enumeration spill (b70_snapshot writes these relative to cwd
+# on every telemetry call, so every rotation load regenerates them)
+runs/enumerate/
+runs/run/

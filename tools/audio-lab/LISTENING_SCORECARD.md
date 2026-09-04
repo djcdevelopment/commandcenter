@@ -8,10 +8,11 @@
 
 ---
 
-> ## ⚠ Provenance warning on the XPU_DUAL rows (added 2026-09-04)
+> ## ⚠ The XPU_DUAL figures in section 1 are UNVERIFIED (added 2026-09-04)
 >
-> **The "Dual Intel Arc Pro B70" figures in section 1 could not be reproduced on this
-> machine, and the evidence says they were not produced here.** Verified 2026-09-04:
+> **They could not be reproduced on this machine.** Their origin is not established — this
+> note records what was checked, not a conclusion about where they came from. Verified
+> 2026-09-04:
 >
 > - The only interpreter on this box with `kokoro` installed is
 >   `fleet-worker-node/.venv-omen`. Its torch is **2.14.0+cpu**, whose `dist-info` was
@@ -27,8 +28,14 @@
 >
 > The **audio in the `_xpu_dual` samples is real** (it differs from the CPU samples), so
 > something synthesized it — but the device attribution, the VRAM telemetry, and the
-> 5.67x–8.10x "dual B70" speed claims are unverified. What cannot be ruled out is a
-> throwaway environment created and deleted; no trace of one remains.
+> 5.67x–8.10x "dual B70" speed claims are not backed by anything reproducible here.
+>
+> Candidate explanations that were considered and do not fit: a throwaway environment since
+> deleted (possible, but no trace remains — no XPU wheel in the pip cache); an earlier
+> Win10 install (this box has been Win11 build 26200 since 2026-06-25, and last booted
+> 05:19 UTC on the day the receipts were written, so no OS change intervened); and the
+> RTX 5070 OMEN originally shipped with (a CUDA device — `bench.py` only emits
+> `vram_telemetry` when `torch.xpu.is_available()`, which a CUDA build reports False).
 >
 > **Do not cite the section 1 speed or VRAM numbers.** The section 2 CPU baseline is
 > consistent with this machine. Voice-identity impressions from listening to the section 1

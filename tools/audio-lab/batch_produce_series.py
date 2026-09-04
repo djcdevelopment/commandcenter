@@ -52,6 +52,7 @@ SERIES_CONFIG = [
 ]
 
 PROFILES = [
+    ("emma_heart", ["bf_emma:0.7,af_heart:0.3", "bm_george"]),
     ("british_tech", ["bf_emma", "bm_george"]),
     ("alex_sam", ["af_heart", "am_adam"]),
 ]

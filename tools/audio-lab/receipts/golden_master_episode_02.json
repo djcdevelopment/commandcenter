@@ -30,6 +30,19 @@
       "file_size_bytes": 17340080,
       "synthesis_wall_time_s": 44.5,
       "speed_realtime": 4.06
+    },
+    "emma_heart": {
+      "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_02_green_lies_emma_heart.wav",
+      "profile": "emma_heart",
+      "voices": [
+        "bf_emma:0.7,af_heart:0.3",
+        "bm_george"
+      ],
+      "duration_seconds": 191.825,
+      "sha256": "20047082dc8938f94dbbe86037f2a4146be171ed34b619d6ff8d25066a928c90",
+      "file_size_bytes": 18415280,
+      "synthesis_wall_time_s": 35.74,
+      "speed_realtime": 5.37
     }
   }
 }

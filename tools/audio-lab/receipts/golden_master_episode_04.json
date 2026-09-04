@@ -30,6 +30,19 @@
       "file_size_bytes": 13742480,
       "synthesis_wall_time_s": 31.57,
       "speed_realtime": 4.53
+    },
+    "emma_heart": {
+      "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_04_silent_escalation_emma_heart.wav",
+      "profile": "emma_heart",
+      "voices": [
+        "bf_emma:0.7,af_heart:0.3",
+        "bm_george"
+      ],
+      "duration_seconds": 151.425,
+      "sha256": "30b643636917788778e99ab3cc19747c82913836d7834f5249bb8eb469d0ef30",
+      "file_size_bytes": 14536880,
+      "synthesis_wall_time_s": 23.64,
+      "speed_realtime": 6.41
     }
   }
 }

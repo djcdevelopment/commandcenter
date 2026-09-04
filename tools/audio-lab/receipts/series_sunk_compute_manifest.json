@@ -5,10 +5,10 @@
   "pacing_standard": "P2_comfort_noise (-62 dB room tone bed, 10ms cosine edge fades)",
   "summary": {
     "episodes_count": 5,
-    "total_audio_seconds": 1766.9,
-    "total_audio_minutes": 29.45,
-    "total_synthesis_wall_time_s": 388.26,
-    "average_speed_realtime": 4.55
+    "total_audio_seconds": 2676.15,
+    "total_audio_minutes": 44.6,
+    "total_synthesis_wall_time_s": 543.83,
+    "average_speed_realtime": 4.92
   },
   "episodes": [
     {
@@ -43,6 +43,19 @@
           "file_size_bytes": 10149680,
           "synthesis_wall_time_s": 15.6,
           "speed_realtime": 6.78
+        },
+        "emma_heart": {
+          "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_01_phantom_limbs_emma_heart.wav",
+          "profile": "emma_heart",
+          "voices": [
+            "bf_emma:0.7,af_heart:0.3",
+            "bm_george"
+          ],
+          "duration_seconds": 110.325,
+          "sha256": "ec0d1ec01172c7bdfdfe41091f715a3152b29da56195a8aa09f811a7bd6cbfb6",
+          "file_size_bytes": 10591280,
+          "synthesis_wall_time_s": 25.22,
+          "speed_realtime": 4.37
         }
       }
     },
@@ -78,6 +91,19 @@
           "file_size_bytes": 17340080,
           "synthesis_wall_time_s": 44.5,
           "speed_realtime": 4.06
+        },
+        "emma_heart": {
+          "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_02_green_lies_emma_heart.wav",
+          "profile": "emma_heart",
+          "voices": [
+            "bf_emma:0.7,af_heart:0.3",
+            "bm_george"
+          ],
+          "duration_seconds": 191.825,
+          "sha256": "20047082dc8938f94dbbe86037f2a4146be171ed34b619d6ff8d25066a928c90",
+          "file_size_bytes": 18415280,
+          "synthesis_wall_time_s": 35.74,
+          "speed_realtime": 5.37
         }
       }
     },
@@ -113,6 +139,19 @@
           "file_size_bytes": 22850480,
           "synthesis_wall_time_s": 47.42,
           "speed_realtime": 5.02
+        },
+        "emma_heart": {
+          "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_03_machine_lanes_emma_heart.wav",
+          "profile": "emma_heart",
+          "voices": [
+            "bf_emma:0.7,af_heart:0.3",
+            "bm_george"
+          ],
+          "duration_seconds": 247.4,
+          "sha256": "b6469f55992d3e0f63960d013c870bd39b873cc6e3ec2328cf930cc75579adb9",
+          "file_size_bytes": 23750480,
+          "synthesis_wall_time_s": 35.9,
+          "speed_realtime": 6.89
         }
       }
     },
@@ -148,6 +187,19 @@
           "file_size_bytes": 13742480,
           "synthesis_wall_time_s": 31.57,
           "speed_realtime": 4.53
+        },
+        "emma_heart": {
+          "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_04_silent_escalation_emma_heart.wav",
+          "profile": "emma_heart",
+          "voices": [
+            "bf_emma:0.7,af_heart:0.3",
+            "bm_george"
+          ],
+          "duration_seconds": 151.425,
+          "sha256": "30b643636917788778e99ab3cc19747c82913836d7834f5249bb8eb469d0ef30",
+          "file_size_bytes": 14536880,
+          "synthesis_wall_time_s": 23.64,
+          "speed_realtime": 6.41
         }
       }
     },
@@ -183,6 +235,19 @@
           "file_size_bytes": 18631280,
           "synthesis_wall_time_s": 43.47,
           "speed_realtime": 4.46
+        },
+        "emma_heart": {
+          "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_05_two_economies_emma_heart.wav",
+          "profile": "emma_heart",
+          "voices": [
+            "bf_emma:0.7,af_heart:0.3",
+            "bm_george"
+          ],
+          "duration_seconds": 208.275,
+          "sha256": "9b6df698eb472092cf02bf33dbe5beb865b1afeedd44e626e09080295fea9f3b",
+          "file_size_bytes": 19994480,
+          "synthesis_wall_time_s": 35.07,
+          "speed_realtime": 5.94
         }
       }
     }

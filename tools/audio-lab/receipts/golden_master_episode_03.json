@@ -30,6 +30,19 @@
       "file_size_bytes": 22850480,
       "synthesis_wall_time_s": 47.42,
       "speed_realtime": 5.02
+    },
+    "emma_heart": {
+      "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_03_machine_lanes_emma_heart.wav",
+      "profile": "emma_heart",
+      "voices": [
+        "bf_emma:0.7,af_heart:0.3",
+        "bm_george"
+      ],
+      "duration_seconds": 247.4,
+      "sha256": "b6469f55992d3e0f63960d013c870bd39b873cc6e3ec2328cf930cc75579adb9",
+      "file_size_bytes": 23750480,
+      "synthesis_wall_time_s": 35.9,
+      "speed_realtime": 6.89
     }
   }
 }

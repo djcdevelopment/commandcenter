@@ -30,6 +30,19 @@
       "file_size_bytes": 18631280,
       "synthesis_wall_time_s": 43.47,
       "speed_realtime": 4.46
+    },
+    "emma_heart": {
+      "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_05_two_economies_emma_heart.wav",
+      "profile": "emma_heart",
+      "voices": [
+        "bf_emma:0.7,af_heart:0.3",
+        "bm_george"
+      ],
+      "duration_seconds": 208.275,
+      "sha256": "9b6df698eb472092cf02bf33dbe5beb865b1afeedd44e626e09080295fea9f3b",
+      "file_size_bytes": 19994480,
+      "synthesis_wall_time_s": 35.07,
+      "speed_realtime": 5.94
     }
   }
 }

@@ -30,6 +30,19 @@
       "file_size_bytes": 10149680,
       "synthesis_wall_time_s": 15.6,
       "speed_realtime": 6.78
+    },
+    "emma_heart": {
+      "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_01_phantom_limbs_emma_heart.wav",
+      "profile": "emma_heart",
+      "voices": [
+        "bf_emma:0.7,af_heart:0.3",
+        "bm_george"
+      ],
+      "duration_seconds": 110.325,
+      "sha256": "ec0d1ec01172c7bdfdfe41091f715a3152b29da56195a8aa09f811a7bd6cbfb6",
+      "file_size_bytes": 10591280,
+      "synthesis_wall_time_s": 25.22,
+      "speed_realtime": 4.37
     }
   }
 }

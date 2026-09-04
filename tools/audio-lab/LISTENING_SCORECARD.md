@@ -206,21 +206,23 @@ Select the **winning default profile** and **winning alternate profile** with th
 | **`06_blend_heart_dominant_60_40`** | 60/40 Heart-Dominant | 60% `af_heart` + 40% `bf_emma` | 100% `am_adam` | 61.77s | 6.02s | **10.26x** | [`06_blend_heart_dominant_60_40.wav`](samples/voice_blend/06_blend_heart_dominant_60_40.wav) | [`receipt`](receipts/voice_blend/06_blend_heart_dominant_60_40.json) |
 | **`07_blend_dual_transatlantic_60_40`** | Dual Symmetrical Blend | 60% `af_heart` + 40% `bf_emma` | 60% `am_adam` + 40% `bm_george` | 63.12s | 2.65s | **23.82x** | [`07_blend_dual_transatlantic_60_40.wav`](samples/voice_blend/07_blend_dual_transatlantic_60_40.wav) | [`receipt`](receipts/voice_blend/07_blend_dual_transatlantic_60_40.json) |
 
-### Human Evaluation Scorecard (Voice Blend)
+---
 
-Score each blend from **1 (Poor)** to **5 (Exceptional)** across vocal characteristics:
-- **Timbre Coherence**: Smooth vocal resonance without phase cancellation or warbling artifacts.
-- **Transatlantic Accent Balance**: Pleasant blend between American warmth and British technical precision.
-- **Conversational Dynamics**: Expressiveness across inquisitive sentences and technical explanations.
-- **Speaker Separation**: Distinct contrast against the chosen co-host (Adam / George).
+## 10. Gate 3 Decision: Hybrid Winner Promotion (`emma_heart`)
 
-| Candidate ID | Timbre Coherence (1-5) | Accent Balance (1-5) | Dynamics (1-5) | Separation (1-5) | Total (/20) | Qualitative Notes |
-| :--- | :---: | :---: | :---: | :---: | :---: | :--- |
-| **`03_blend_heart_emma_50_50`** | | | | | /20 | |
-| **`04_blend_heart_dominant_70_30`** | | | | | /20 | |
-| **`05_blend_emma_dominant_70_30`** | | | | | /20 | |
-| **`06_blend_heart_dominant_60_40`** | | | | | /20 | |
-| **`07_blend_dual_transatlantic_60_40`** | | | | | /20 | |
+**Selected Winner**: [**`05_blend_emma_dominant_70_30`**](samples/voice_blend/05_blend_emma_dominant_70_30.wav)
+
+- **Vocal Composition**:
+  - **Alex (Host A)**: 70% `bf_emma` + 30% `af_heart` (`bf_emma:0.7,af_heart:0.3`)
+  - **Sam (Host B)**: 100% `bm_george`
+- **Benchmark Performance**: **10.40x realtime throughput** on Intel Arc Pro B70 (`xpu:0`) — 64.97s synthesized in 6.25s wall time.
+- **Vocal Quality Assessment**:
+  - Blends the crisp, authoritative British technical cadence of Emma (70%) with the acoustic warmth and conversational cadence of Heart (30%).
+  - Retains distinct vocal separation against George's deep engineering delivery.
+- **Promoted Profile**: Registered in [`hearth.mediagen.audio.registry`](file:///c:/work/commandcenter/hearth/mediagen/audio/registry.py) as:
+  - **`emma_heart`**
+  - **`transatlantic_emma`**
+
 
 
  

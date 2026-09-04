@@ -135,6 +135,24 @@ _DEFAULT_PROFILES = {
         fade_ms=10.0,
         room_tone_db=-62.0,
     ),
+    "emma_heart": VoiceProfile(
+        name="emma_heart",
+        description="Winning show blend (Gate 3): 70% Emma / 30% Heart Alex paired with George (bm_george)",
+        host_a_voice="bf_emma:0.7,af_heart:0.3",
+        host_b_voice="bm_george",
+        speed=1.0,
+        fade_ms=10.0,
+        room_tone_db=-62.0,
+    ),
+    "transatlantic_emma": VoiceProfile(
+        name="transatlantic_emma",
+        description="Alias for emma_heart (70% Emma / 30% Heart + bm_george)",
+        host_a_voice="bf_emma:0.7,af_heart:0.3",
+        host_b_voice="bm_george",
+        speed=1.0,
+        fade_ms=10.0,
+        room_tone_db=-62.0,
+    ),
 }
 
 

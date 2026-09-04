@@ -814,7 +814,7 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       → **Derek: reply "confirm" to close this as decided-no-bridge, or "bridge anyway" to build it.**
       (source: SESSION-RETRO-2026-09-03.md L-2026-09-03-3; ADR-0027 addenda 2026-09-04)
 
-- [ ] 2026-09-04 — **OPEN (defect, found live): `ExecutionLedger` assigns sequence numbers with no
+- [x] 2026-09-04 — **FIXED: `ExecutionLedger` assigned sequence numbers with no
       cross-process lock, so two gateways writing the same execution dir corrupt the ledger.**
       `hearth/execution/ledger.py` guards appends with a `threading.RLock` — in-process only. Two
       gateway subprocesses started concurrently each read count 8138 and each appended sequence 8139
@@ -822,13 +822,19 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       `invocation.failed` for the SAME invocation `inv_dadaf8eb995579276b00ca07fe96a509` — each
       booting gateway independently ran the recover-in-flight-invocations path over a shared ledger.
       Consequence: `rebuild()` then raises (`non-contiguous sequence`, and after renumbering,
-      `invocation is already terminal`), which makes the **gateway unstartable**. Fix shape: an
-      OS-level lock (lockfile / `msvcrt.locking`) around read-count-then-append, or one writer by
-      construction. (source: this session's concurrent test runs; `hearth/execution/ledger.py:60-67,
-      291, 416-425`)
+      `invocation is already terminal`), which makes the **gateway unstartable**.
+      **FIXED:** an OS-level file lock (`msvcrt` / `fcntl`) now spans read-sequence-then-append, with
+      the staleness check inside it so the next process rebuilds and accounts for the append it did
+      not make; it fails loud on a lock it cannot take. A **second** race surfaced only because the
+      test ran two real processes: `rebuild()` wipes and replays the whole projection and `__init__`
+      called it outside any lock, so two constructing processes collided on
+      `UNIQUE constraint failed: events.sequence`; `rebuild()` now takes the same lock, which is
+      re-entrant per instance. Tests spawn two real subprocesses and assert position == sequence;
+      run 6 times, 0 failures. (source: this session; `hearth/execution/ledger.py`,
+      `hearth/tests/execution/test_ledger_interprocess.py`)
 
-- [ ] 2026-09-04 — **OPEN (data repair, needs a quiet window): one duplicate terminal event sits at
-      line 8140 of `hearth/var/execution/events.ndjson`.** Caused by the race above during this
+- [x] 2026-09-04 — **RESOLVED (repaired by another lane, not by me): the duplicate terminal event at
+      line 8140 of `hearth/var/execution/events.ndjson` is gone.** Caused by the race above during this
       session's concurrent test runs; I own it. Current state: the file **is contiguous** (its
       sequence was patched 8139 → 8140 in place) and the live door has appended cleanly past it ever
       since, so **a restart works today** — verified by constructing `ExecutionLedger` over a copy of
@@ -837,8 +843,16 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       `invocation is already terminal: inv_dadaf8eb995579276b00ca07fe96a509` and the door will not
       start. Repair: drop line 8140 and renumber the tail down by one — **not** while another lane is
       appending (it grew 8140 → 8160 mid-repair; the guard aborted, which is why the file is intact).
-      Do it with the execution lane idle. Pre-repair backup:
-      `hearth/var/execution/events.ndjson.bak-20260904-seqrepair` (8140 lines, pre-patch).
+      **Outcome:** returning to do the repair under the new lock, the guard **refused** — the file no
+      longer matched. Investigation: exactly **one** event differs between `events.ndjson.bak`
+      (8140 lines, created 02:16 — **not mine**; my own backup
+      `events.ndjson.bak-20260904-seqrepair` is 02:15) and the current 9298-line file: the duplicate
+      `invocation.failed` for `inv_dadaf8eb…` at 09:12:59Z. Something removed exactly the right event
+      and took a backup first. Nothing in this repo writes `events.ndjson.bak`; the concurrent Gemini
+      audit session had `hearth/` open at that moment, which fits, but **the actor is not
+      established**. **Verified healthy:** 9298 events, contiguous 1..9298, zero duplicate terminal
+      transitions, and a **cold rebuild** over a copy with the projection deleted now succeeds — the
+      exact path that used to fail. The race that caused it is fixed above, so it should not recur.
       Note the file is `hearth/var/**` — gitignored, so none of this is in git history.
 
 - [x] 2026-09-04 — **FIXED: `test_gateway_http.py` was not flaky under concurrency — it was silently

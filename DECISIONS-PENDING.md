@@ -731,12 +731,22 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       (source: [ROTATION-PROGRAM.html#board](ROTATION-PROGRAM.html#board);
       [ADR-0045](docs/adr/0045-the-scheduler-plans-a-rotating-host.md) "Lessons from the first live proof")
 
-- [ ] 2026-09-03 — **OPEN: per-member context budgets on `omen-swap`.** The rung declares one
-      `context_bytes` = 14336 (ADR-0031 arithmetic: MIN over members, `-c 4096 × -np 1 × 3.5 B`), so a
-      pin on any member is refused by the smallest member's budget — it refused 5 of the 8 doc-bench
-      tasks during the M1 pour although the chosen members could carry them. Decide: a per-`model_id`
-      budget on multi-model rungs (router, `plan_execution` and the pin refusal all read it) vs. leaving
-      MIN and accepting the refusals. (source: M1 pour receipts; ROTATION-PROGRAM.html#board)
+- [x] 2026-09-03 — **DECIDED 2026-09-04 (Derek): per-member context budgets on `omen-swap`, with the
+      rung value as the fallback.** The rung declares one `context_bytes` = 14336 (ADR-0031 arithmetic:
+      MIN over members, `-c 4096 × -np 1 × 3.5 B`), so a pin on any member is refused by the smallest
+      member's budget — it refused 5 of the 8 doc-bench tasks during the M1 pour although the chosen
+      members could carry them. **Shape:** a `context_bytes_by_model` table in `[backend.settings]`;
+      a pin is judged against its own member's budget, and any rung or model without an entry keeps
+      today's rung-level number, so no other rung's behavior changes. Rejected: strict per-member
+      (refusing an undeclared member) — it would require declaring all nine `omen-swap` members before
+      anything works, for a fail-closed benefit the fallback already gives cheaply.
+      **IMPLEMENTATION STILL OPEN** — not built 2026-09-04 (that session's scope was the rotation-proof
+      staging and housekeeping). Where: `hearth/etc/backends.toml`, `Backend.context_bytes()` in
+      `hearth/toolsurface/backends.py:138` (needs an optional `model` argument) and its five call sites
+      in `route_backend`, the refusal in `hearth/toolsurface/inference.py:582`; tests in
+      `hearth/tests/toolsurface/test_backends_omen_swap.py`. Accept when the doc/ADR bench dry-run shows
+      the 8k tasks `fits` for phi-4 and refused for the `-c 4096` members.
+      (source: M1 pour receipts; ROTATION-PROGRAM.html#board)
 
 - [ ] 2026-09-03 — **OPEN: activate the `-vk0` sibling entries at the next ArcServe restart; two side
       models on DIFFERENT cards waits on it.** `92f3cd6` renamed the single-card siblings `<m>-vk0` /
@@ -748,6 +758,15 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       `at_rate` and INC-2026-08-30-A is WATCH, DO NOT POKE; the next peer-lane or maintenance restart
       activates them. (source: `92f3cd6`; `fleet/arcserve/llama-swap/omen.yaml` header note)
 
+      **CONFIRMED 2026-09-04 (Derek): ride the imagegen lane's restore path — no deliberate production
+      restart.** INC-2026-08-30-A stays watch-do-not-poke. Status at 01:52 on 2026-09-04: the imagegen
+      lane holds `omen-b70-pool` (`imgsess_c1972c5d42e8ec8be76f488d18268e01`, process started 01:47:51)
+      and production is stopped under the fence, so the activating restart is already in flight — its
+      restore path restarts ArcServe. Readiness is now machine-checkable rather than remembered:
+      `python -m hearth.rotation.preflight` gate **G1** asks the RUNNING llama-swap for its declared
+      entries (`/v1/models`), which is the only thing that can distinguish "the yaml says `-vk0`" from
+      "`-vk0` is loadable".
+
 - [ ] 2026-09-03 — **OPEN (registered from the Phase 2 TODO row): token hole #2 (conductor repo) ·
       R2c prefix-affinity tuning (`-sps/-cram/--cache-reuse`, a measurement campaign) · BDF-pinned
       placement (no llama.cpp lever today — placement is asserted, not chosen) · eviction actuation
@@ -755,4 +774,65 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       needs its own window or campaign. VM builders → B70 rung and the `GpuTenancyStore` owner literal
       are the two entries above. (source: ROTATION-PROGRAM.html#board Phase 2 TODO)
 
-- [ ] 2026-09-03 — **ADR-0027 follow-up: gateway dispatches are bridged with `task_kind = tool name`, so door calls never feed the `offload-generate` bucket.** The 2026-09-03 gate-2 unlock for `omen-swap` needed an in-process `DispatchIdentity("rotation-proof")` beside the bench identity; the plan assumed two door calls would close gate 1 and they could not. Decide whether gateway dispatches should be bridged as offload-generate observations (they carry backend, model, tokens) or stay tool-named — it changes what counts as evidence for every rung. (source: SESSION-RETRO-2026-09-03.md; `hearth/projection/ledger_adapter.py` ~L201; `tools/workflow/project_associations.py` gates)
+- [x] 2026-09-03 — **DECIDED 2026-09-04 (Derek): bridge `local_generate` dispatches as
+      `offload-generate`; every other door tool stays tool-named.** Background: gateway dispatches are
+      bridged with `task_kind = tool name`, so door calls never feed the `offload-generate` bucket — the
+      2026-09-03 gate-2 unlock for `omen-swap` needed an in-process `DispatchIdentity("rotation-proof")`
+      beside the bench identity, and the plan's assumption that two door calls would close gate 1 could
+      never have held. **Rationale:** a door `local_generate` *is* an offload generate — it carries
+      backend, model and tokens — so excluding it made the belief layer blind to the richest source of
+      real usage while `offload.json` counted the same calls (1284 lifetime, ratio 0.9998). Workflow
+      diversity keeps coming from the caller identity, not from `task_kind`, so gate 1 still means what
+      it means. Rejected: bridging *every* dispatch (`rotation_status` and the `query_*` readers are not
+      generate work and would inflate every rung's evidence).
+
+      ⚠ **PREREQUISITE, STILL UNANSWERED — resolve before implementing.** ADR-0027's addendum records
+      that the dispatch-time producer emitted nothing for the three door pins although the identity push
+      is in place, and that whether this is a **defect** (it should have fired and did not) or a
+      **semantics gap** (it fired and was excluded, or the pins never reached `inference.py`'s emitter)
+      was never established from the receipts. A defect is fixed; a semantics gap is authored. Derek's
+      decision settles *what should count*, not *why nothing was emitted* — the first implementation step
+      is still to read that path and answer it.
+      **IMPLEMENTATION OPEN.** Where: `hearth/projection/ledger_adapter.py:201` (the `task_kind` mapping),
+      `tools/workflow/project_associations.py` gates, an ADR-0027 addendum recording the outcome.
+      (source: SESSION-RETRO-2026-09-03.md L-2026-09-03-3; ADR-0027 addendum "Decision question")
+
+- [ ] 2026-09-04 — **OPEN (defect, found live): `ExecutionLedger` assigns sequence numbers with no
+      cross-process lock, so two gateways writing the same execution dir corrupt the ledger.**
+      `hearth/execution/ledger.py` guards appends with a `threading.RLock` — in-process only. Two
+      gateway subprocesses started concurrently each read count 8138 and each appended sequence 8139
+      (`hearth/var/execution/events.ndjson`, 2026-09-04T09:12:59Z), and both were
+      `invocation.failed` for the SAME invocation `inv_dadaf8eb995579276b00ca07fe96a509` — each
+      booting gateway independently ran the recover-in-flight-invocations path over a shared ledger.
+      Consequence: `rebuild()` then raises (`non-contiguous sequence`, and after renumbering,
+      `invocation is already terminal`), which makes the **gateway unstartable**. Fix shape: an
+      OS-level lock (lockfile / `msvcrt.locking`) around read-count-then-append, or one writer by
+      construction. (source: this session's concurrent test runs; `hearth/execution/ledger.py:60-67,
+      291, 416-425`)
+
+- [ ] 2026-09-04 — **OPEN (data repair, needs a quiet window): one duplicate terminal event sits at
+      line 8140 of `hearth/var/execution/events.ndjson`.** Caused by the race above during this
+      session's concurrent test runs; I own it. Current state: the file **is contiguous** (its
+      sequence was patched 8139 → 8140 in place) and the live door has appended cleanly past it ever
+      since, so **a restart works today** — verified by constructing `ExecutionLedger` over a copy of
+      `events.ndjson` **plus the current `projection.sqlite`**: OK, no rebuild triggered. It is a
+      **latent** landmine: any forced rebuild (projection lost, deleted, or stale) fails with
+      `invocation is already terminal: inv_dadaf8eb995579276b00ca07fe96a509` and the door will not
+      start. Repair: drop line 8140 and renumber the tail down by one — **not** while another lane is
+      appending (it grew 8140 → 8160 mid-repair; the guard aborted, which is why the file is intact).
+      Do it with the execution lane idle. Pre-repair backup:
+      `hearth/var/execution/events.ndjson.bak-20260904-seqrepair` (8140 lines, pre-patch).
+      Note the file is `hearth/var/**` — gitignored, so none of this is in git history.
+
+- [x] 2026-09-04 — **FIXED: `test_gateway_http.py` was not flaky under concurrency — it was silently
+      SKIPPING.** The label carried in the handoff ("flakes under concurrency") was stale: the port
+      time-of-check/time-of-use race it names had already been fixed by binding `--port 0`. The real
+      behaviour was that `default_execution_dir()` does **not** derive from `HEARTH_ROOT` (it falls
+      back to the repo's `hearth/var/execution`), so every gateway the test spawned wrote to the real
+      shared ledger; once that ledger was corrupt the subprocess could not boot, `_wait_for_bound_port`
+      returned None and `setUp` called `skipTest` — **exit 0, "3 skipped", nothing proven**. Measured:
+      **18 of 20** concurrent runs skipped all three tests while reporting success. Fix: set
+      `HEARTH_EXECUTION_DIR` to a per-test tempdir in both `setUp`s. After: **12 of 12** concurrent
+      runs passed, 0 skipped, and the shared ledger grew by **0** lines. The deselect note in the
+      handoff and `hearth/rotation/README.md` can be retired. (source: this session; a monitor that
+      cannot be falsified is decoration — L-2026-08-30-7)

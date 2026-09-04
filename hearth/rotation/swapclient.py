@@ -141,6 +141,26 @@ class LlamaSwapClient:
                 out.append(RunningModel(item, "ready"))
         return out
 
+    def models(self) -> list[str]:
+        """Entry ids llama-swap DECLARES, resident or not (``/v1/models``).
+
+        ``running()`` answers what is loaded; this answers what may be loaded. A
+        running llama-swap keeps the entries it booted with, so this -- not the
+        yaml on disk -- is what says whether a config edit has taken effect.
+        """
+        status, text, err = self._get("/v1/models")
+        if err or status != 200:
+            raise ConnectionError(f"llama-swap /v1/models: {err or status}")
+        data = self._json(text)
+        rows = data.get("data") if isinstance(data, dict) else data
+        out: list[str] = []
+        for row in rows or []:
+            if isinstance(row, dict) and row.get("id"):
+                out.append(str(row["id"]))
+            elif isinstance(row, str):
+                out.append(row)
+        return out
+
     def is_resident(self, model_id: str) -> bool:
         return any(m.model_id == model_id and m.ready for m in self.running())
 

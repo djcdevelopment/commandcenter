@@ -14,3 +14,7 @@ runs/hearth/
 
 # Local meeting/interview prep notes — kept out of the repo
 /*-prep-*.html
+
+# Session export bundles (an export artifact, not repo content)
+session-export-*/
+session-export-*.zip

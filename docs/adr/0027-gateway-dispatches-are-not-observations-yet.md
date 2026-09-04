@@ -400,3 +400,46 @@ pins never reached `inference.py`'s emitter) was not established from the receip
 addendum, and it changes the shape of the decision: a defect is fixed, a semantics gap is authored.
 Answer it before choosing. Registered in `DECISIONS-PENDING.md` alongside `docs/adr#0045`'s
 gate-1 mechanism note; the choice changes what counts as evidence, so it is Derek's.
+
+---
+
+## Addendum, 2026-09-04 — the question above is answered: `local_generate` bridges, the rest stay tool-named
+
+**Derek's decision.** Gateway dispatches of `local_generate` are to be bridged as `offload-generate`
+observations. Every other door tool keeps `task_kind = <tool name>`.
+
+The reasoning is the one the "bridge them" bullet above already carries, with the boundary drawn one
+level tighter than that bullet proposed: a door `local_generate` **is** an offload generate — it
+carries `backend`, `model_id`, `tokens_in` and a computed `tokens_per_s` — whereas `rotation_status`,
+`query_rung_state` and the other readers are not generate work and would inflate a rung's evidence
+with calls that produced no tokens. Bridging the generate tool alone keeps option B's honesty for
+everything that is genuinely audit telemetry, and stops the split where the same 1284 door calls are
+counted by `offload.json` (`offload_ratio` 0.9998, measured 2026-09-04) and invisible to
+`capabilities.json`.
+
+Gate 1's meaning is unchanged: workflow diversity comes from the **caller identity**, not from
+`task_kind`. Two door calls from one agent session remain one workflow — which is exactly what
+2026-09-03 discovered the hard way, and is now the intended behavior rather than an accident of the
+bridge.
+
+### The prerequisite is NOT answered, and it gates the implementation
+
+The addendum above flags a question under the decision: the dispatch-time producer emitted nothing
+for the three door pins although the identity push is in place, and whether that is a **defect** or a
+**semantics gap** was never established from the receipts. Derek's decision settles *what should
+count as evidence*. It does not settle *why nothing was emitted*.
+
+Both remain live, and they lead to different work:
+
+- **defect** — the producer should have fired and did not; the fix is in the emitter, and the bridge
+  change may be unnecessary or may double-count once the emitter works.
+- **semantics gap** — it fired and was excluded, or the pins never reached `inference.py`'s emitter
+  at all; then the bridge change is the whole fix.
+
+**The first implementation step is to read that path and answer it — not to edit the mapping.**
+Writing the bridge before knowing which of the two is true would be guessing a cause, which is the
+failure this record's own session already made once (`56fe865`, corrected by `8422df8`).
+
+**Status: decided, not implemented.** Nothing in `hearth/projection/ledger_adapter.py` or
+`tools/workflow/project_associations.py` changed on 2026-09-04; that session's scope was rotation-proof
+staging and housekeeping. Registered in `DECISIONS-PENDING.md` with the prerequisite attached.

@@ -109,13 +109,23 @@ def _wait_for_events(events_path: Path, predicate: Callable[[list[dict]], bool],
 class GatewayHttpIntegrationTest(unittest.TestCase):
     """End to end: subprocess gateway on an OS-assigned port, dev-local key, one
     tool call. Timers are off so the subprocess is hermetic (no ops-loop
-    subprocesses, no network) and the only ledger writer is the call under test."""
+    subprocesses, no network) and the only ledger writer is the call under test.
+
+    ``HEARTH_EXECUTION_DIR`` must be set as well as ``HEARTH_ROOT``:
+    ``default_execution_dir()`` does NOT derive from ``HEARTH_ROOT``, it falls back
+    to the repo's own ``hearth/var/execution``. Without it every gateway this test
+    spawns wrote to the REAL execution ledger, and two of them running at once
+    assigned the same sequence number to two different events -- a corrupt ledger
+    that then made the gateway unstartable, surfacing here as a silent
+    ``skipTest`` ("failed to bind") rather than as a failure. 2026-09-04: 18 of 20
+    concurrent runs skipped all three tests this way while reporting exit 0."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.log_path = Path(self.tmp.name) / "gateway.log"
-        env = {**os.environ, "HEARTH_ROOT": self.tmp.name, "HEARTH_TIMERS": "off"}
+        env = {**os.environ, "HEARTH_ROOT": self.tmp.name, "HEARTH_TIMERS": "off",
+               "HEARTH_EXECUTION_DIR": str(Path(self.tmp.name) / "execution")}
         with self.log_path.open("wb") as log:
             self.proc = subprocess.Popen(
                 [sys.executable, "-m", "hearth.kernel.gateway",
@@ -200,7 +210,8 @@ class NonLoopbackGatewayHttpIntegrationTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.log_path = Path(self.tmp.name) / "gateway.log"
-        env = {**os.environ, "HEARTH_ROOT": self.tmp.name, "HEARTH_TIMERS": "off"}
+        env = {**os.environ, "HEARTH_ROOT": self.tmp.name, "HEARTH_TIMERS": "off",
+               "HEARTH_EXECUTION_DIR": str(Path(self.tmp.name) / "execution")}
         with self.log_path.open("wb") as log:
             self.proc = subprocess.Popen(
                 [sys.executable, "-m", "hearth.kernel.gateway",

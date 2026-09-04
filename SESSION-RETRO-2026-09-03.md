@@ -84,6 +84,14 @@ Suite: 1243 passing at the start of the session, 1410 at the plan's mid-point la
 the end** (the `.venv-omen` interpreter; `test_gateway_http` flakes under concurrency and was
 deselected in the last full run — a flake, not a failure, and still open).
 
+> **Correction, 2026-09-04.** "A flake, not a failure" was wrong, and so was "under concurrency" as a
+> cause. The test was **silently skipping**: `default_execution_dir()` does not derive from
+> `HEARTH_ROOT`, so every gateway the test spawned wrote the *real* execution ledger; concurrent runs
+> corrupted it, the subprocess then could not boot, and `setUp` called `skipTest` — exit 0, "3
+> skipped", nothing proven. Measured 18 of 20 concurrent runs skipping while reporting success. Fixed
+> by setting `HEARTH_EXECUTION_DIR` per test (12/12 passing, shared-ledger delta 0). The underlying
+> `ExecutionLedger` cross-process sequence race is registered in `DECISIONS-PENDING.md`.
+
 **Durable artifacts (beyond the code):**
 
 - The **executed cutover**: window `rot-cutover-20260903-1245` in `hearth/var/rotation-windows.jsonl`

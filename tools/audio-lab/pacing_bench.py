@@ -106,19 +106,64 @@ def build_pipelines() -> tuple[str, dict]:
     "Torch not compiled with XPU enabled". A bench must report the device it ran on, not
     the one it hoped for -- the receipt's compute_device field is evidence, not a label.
     """
+    def _drain() -> None:
+        if hasattr(torch, "xpu") and torch.xpu.is_available():
+            try:
+                torch.xpu.empty_cache()
+            except Exception:
+                pass
+
+    def _try(mode: str):
+        """Build pipelines for a mode and PROVE them with a real synthesis."""
+        if mode == "xpu_dual":
+            pipes = {"host_a": KPipeline(lang_code="a", device="xpu:0"),
+                     "host_b": KPipeline(lang_code="a", device="xpu:1")}
+        elif mode == "xpu:0":
+            pipe = KPipeline(lang_code="a", device="xpu:0")
+            pipes = {"host_a": pipe, "host_b": pipe}
+        else:
+            torch.set_num_threads(4)
+            pipe = KPipeline(lang_code="a", device="cpu")
+            pipes = {"host_a": pipe, "host_b": pipe}
+
+        def probe(role: str, voice: str):
+            return [a for _, _, a in pipes[role]("Probe.", voice=voice, speed=1.0)]
+
+        if mode == "xpu_dual":
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                futures = [pool.submit(probe, r, v)
+                           for r, v in (("host_a", "af_heart"), ("host_b", "am_adam"))]
+                for future in futures:
+                    future.result()
+        else:
+            probe("host_a", "af_heart")
+        return pipes
+
     has_xpu = hasattr(torch, "xpu") and torch.xpu.is_available()
     xpu_count = torch.xpu.device_count() if has_xpu else 0
+
+    # A card being VISIBLE is not the card being USABLE, and torch.xpu.mem_get_info's
+    # "free" is not what Level Zero will actually hand out. Measured 2026-09-04 with
+    # ArcServe's llama-server resident on both B70s (~15 GB each): the dual path dies in
+    # Kokoro's text-encoder LSTM with UR_RESULT_ERROR_OUT_OF_RESOURCES, and a single card
+    # then dies loading a voice pack with UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY -- while
+    # mem_get_info still reported 16.7 GB free. So every rung is proved by synthesizing,
+    # and the receipt records the rung that actually worked.
+    candidates = ["cpu"]
     if xpu_count >= 2:
-        return "xpu_dual", {
-            "host_a": KPipeline(lang_code="a", device="xpu:0"),
-            "host_b": KPipeline(lang_code="a", device="xpu:1"),
-        }
-    if xpu_count == 1:
-        pipe = KPipeline(lang_code="a", device="xpu:0")
-        return "xpu:0", {"host_a": pipe, "host_b": pipe}
-    torch.set_num_threads(4)
-    pipe = KPipeline(lang_code="a", device="cpu")
-    return "cpu", {"host_a": pipe, "host_b": pipe}
+        candidates = ["xpu_dual", "xpu:0", "cpu"]
+    elif xpu_count == 1:
+        candidates = ["xpu:0", "cpu"]
+
+    for mode in candidates:
+        try:
+            pipes = _try(mode)
+            print(f"  device probe: {mode} PROVED by synthesis")
+            return mode, pipes
+        except Exception as exc:
+            print(f"  !! device probe {mode} FAILED ({type(exc).__name__}: {str(exc)[:90]})")
+            _drain()
+    raise RuntimeError("no usable synthesis device: every candidate failed its probe")
 
 
 def run_seed_for(run_id: str) -> int:

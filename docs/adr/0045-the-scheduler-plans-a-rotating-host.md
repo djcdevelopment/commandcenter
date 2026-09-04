@@ -1,7 +1,7 @@
 # 0045 — The scheduler plans a rotating host: OMEN is a stateful Machine, llama-swap owns its lifecycle, and every number comes from a receipt
 
 **Status:** Accepted (2026-09-03) — Derek's decisions in session. Each decision below carries its own
-execution state (**LANDED** / **DECIDED, NOT YET EXECUTED** / **IN PROGRESS** / **OPEN**), because
+execution state (**LANDED** / **EXECUTED** / **DECIDED, NOT YET EXECUTED** / **IN PROGRESS** / **OPEN**), because
 accepting the shape and having cut production over are two different facts and this record refuses
 to blur them.
 
@@ -70,8 +70,9 @@ Flash-Next, anything gathered over SSH. Constitution / R8: never a llama-bench n
 server number.
 
 **2. OMEN is a stateful, rotating `Machine` that the ADVISORY scheduler plans over. `docs/adr#0008`
-is intact; a `rotation_plan` is a proposal, never an actuation.** — **IN PROGRESS** (plan P2; not on
-master at acceptance).
+is intact; a `rotation_plan` is a proposal, never an actuation.** — **LANDED** (`fa657bb` ontology /
+solve; `4ec76db` `propose_schedule` appends `omen-inference` + `rotation_plan`,
+`hearth/tests/toolsurface/test_scheduler_omen.py`).
 
 `ModelSpec` gains `load_s_steady`, `load_s_first_in_window`, `kv_hydrate_s`, `unload_drain_s_max`,
 `exclusive_group`, `receipt`; `setup_s(default, cold=False)` prefers `load_s_first_in_window` when the
@@ -87,10 +88,17 @@ Absent catalog → byte-identical proposals to today's.
 
 **3. llama-swap owns the process lifecycle on OMEN, and production cuts over to it — with the
 production entry keeping `:8082` behind a per-model proxy so every consumer stays byte-identical. The
-INC-2026-08-30-A epoch ends deliberately and is recorded as a boundary.** — **DECIDED, NOT YET
-EXECUTED**: scripts landed (`cbeaf69`, `ce32632`, `dfc8479`; `cutover.ps1 -DryRun` verified),
-**blocked at acceptance** because another lane's imagegen session holds the B70 pool and production is
-stopped under it.
+INC-2026-08-30-A epoch ends deliberately and is recorded as a boundary.** — **EXECUTED**
+2026-09-03 12:45:02–12:45:25, window `rot-cutover-20260903-1245` (23 s, `assay.passed`), commit
+`26a1d66`. Receipt: placement asserted from the server's own `-lv 5` log — 2 B70 `using device`
+lines, 0 iGPU, 2 Vulkan model buffers, 0 CPU buffers, 49/49 layers offloaded; api key enforced (bare
+request → 401); `ff_ratecheck` PASS as the warm burst; keep-alive resumed inside the window
+(12:45:21 ok); epoch boundary stamped 12:45:25, baseline 106.0 preserved. Scripts `cbeaf69`,
+`ce32632`, `dfc8479`, `f9409b2`, `a83b395`, `5178f37`. Two earlier attempts (12:35, 12:43) aborted on
+ceremony defects — llama-swap `/logs` is a ~10 KB tail, so the `using device` lines had scrolled out
+(placement is now read from the server's own `--log-file`); then a `ReadAllText` sharing violation on
+that file (now a shared-mode read) — and rolled back to the direct launcher in 36 s each: the
+rollback path is proven twice.
 
 Derek's call was **cut over now, not side-port-first**. The one concern was stated once and is
 encoded rather than argued: the cutover ends the epoch every INC-2026-08-30-A row was taken in, and the
@@ -112,6 +120,20 @@ body byte-identical). Abort criteria: placement not dual, ratecheck FAIL/WARN tw
 resuming within 3 ticks. `cutover.ps1` is dry-run by default and `-Live` refuses unless every
 pre-flight item passed in the same invocation.
 
+**Verified live (2026-09-03, later the same day).** The cutover survived a peer lane without an
+operator: another lane's imagegen sessions took the B70 pool repeatedly (epochs 3..27), and at 12:59
+that lane stopped ArcServe through the new `restart-arc.cmd` — which tears down the whole llama-swap
+tree — and its restore path booted production **unattended under llama-swap**. Verified 17:31:
+`/running` ready, keep-alive ok, rung state `at_rate` 107.3 tok/s = 101% of the 106.0 baseline. The
+HEARTH gateway was restarted by another lane and now mounts `hearth.toolsurface.rotation` +
+`hearth.toolsurface.rungstate` (door tools `rotation_status`, `recommend_rung`, `query_rung_state`,
+`rotation_window/load/unload/kv_save/kv_restore`; capability `rotation_admin` on operator +
+unrestricted). Live door checks passed: `rotation_status`; `query_rung_state` (summary "omen-arc
+at_rate …"); `recommend_rung('quote_retrieval', 40000 bytes)` → `qwen38-27b` on `omen-arc-27b` with
+the R10 evidence. The first rotation proof (window `rot-side-20260903-A`, `assay.failed`) found
+`--slot-save-path E:\work\battlemage\kv` missing — the side servers exited at launch (fixed
+`039f68a`); the second (`rot-side-20260903-B`) is in progress through the door, receipt to follow.
+
 **4. Placement is asserted from the `-lv 5` load report plus the per-BDF commit delta; the sibling
 entries `-vk1`/`-vk2` are the retry lever; an index is never trusted.** — **LANDED** (`b85e32e`,
 `2e5935b`, `c6370b0`).
@@ -131,7 +153,7 @@ it unloads and tries the sibling **once**, emitting every step as a receipt row.
 
 **5. Rung health is three things — baseline epoch + observed rate + acceptance envelope — read
 passively from the keep-alive. Liveness never becomes health. No regime names.** — **LANDED**
-(`36306b9`, the pure module); its gaps / patrol / watchdog wiring is plan P7b, not yet done.
+(`36306b9`, the pure module; `0ae8acf`, the gaps / patrol / watchdog wiring, P7b).
 
 `hearth/health/rungstate.py` yields `at_rate` only from rows with `predicted_n >= 8` (the 32-token
 deep probe) inside 720 s; 1-token pings give liveness and `prefill_stall` and nothing else; rows

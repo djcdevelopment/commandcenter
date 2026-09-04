@@ -633,10 +633,20 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       `:8082` consumer (door rung, fx99 keep-alive, `ff_ratecheck.py`, `occupancy.probe_omen_arc_slots`,
       the ETW/keep-alive readers) stays **byte-identical**. The INC-2026-08-30-A observation epoch
       **ends deliberately** and is recorded as a boundary (`rate-baselines.json` `epoch_boundaries`,
-      ADR-0044 observation log) — baseline 106.0 preserved, never silently re-baselined. **Not
-      executed yet** — needs the ~15 min ledgered window described in the plan's P13 (sentinel stop →
-      `ArcServeBoot` → dual-split placement assert from `-lv 5` → `ff_ratecheck.py` PASS → door pin →
-      keep-alive resumes; rollback = `serve-arc-direct.cmd`).
+      ADR-0044 observation log) — baseline 106.0 preserved, never silently re-baselined.
+      **EXECUTED 2026-09-03 12:45:02–12:45:25** — window `rot-cutover-20260903-1245` (23 s,
+      `assay.passed`, `hearth/var/rotation-windows.jsonl`), commit `26a1d66`. Receipts: placement
+      asserted from the server's own `-lv 5` log (2 B70 `using device` lines, 0 iGPU, 2 Vulkan model
+      buffers, 0 CPU buffers, 49/49 layers offloaded); api key enforced (bare request → 401);
+      `ff_ratecheck` PASS as the warm burst; keep-alive resumed inside the window (12:45:21 ok,
+      prompt_ms 10.3); epoch boundary stamped 12:45:25. Two earlier attempts (12:35, 12:43) aborted on
+      ceremony defects — llama-swap `/logs` is a ~10 KB tail so the `using device` lines had scrolled
+      out (placement is now read from the server's own `--log-file`), then a `ReadAllText` sharing
+      violation on that file (now a shared-mode read) — and rolled back to the direct launcher in
+      36 s each. Unattended boot under llama-swap verified 17:31 after another lane's
+      `restart-arc.cmd` teardown at 12:59 (`/running` ready, keep-alive ok, `at_rate` 107.3 tok/s =
+      101% of baseline). Door tools mounted after the gateway restart (`rotation_status`,
+      `recommend_rung`, `query_rung_state`, `rotation_window/load/unload/kv_save/kv_restore`).
       Plan: `C:\Users\derek\.claude\plans\you-have-1-5-hours-mellow-meteor.md` (§ Derek's decisions,
       § P13). Derek's decisions section, verbatim:
       > ## Derek's decisions (2026-09-03, in session)
@@ -661,6 +671,16 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       **one operator firewall rule scoped to the `vEthernet (Default Switch)` interface** (Derek's
       action); then re-point `cc-builder-2/3` `runner.json`. (source: plan § M6, § "VM builders → B70
       rung"; same plan file as above)
+
+- [ ] 2026-09-03 — **OPEN follow-up: VM builders → B70 rung through an authenticated proxy + one
+      operator firewall rule.** Registered from the decision above; nothing built. llama-swap stays on
+      loopback (its admin endpoints are unauthenticated — the bare unload endpoint drops production).
+      Shape: an authenticated reverse proxy on `omen.mshome.net` (the `OmenOllamaTracingProxy :11435`
+      pattern) forwarding `/v1/*` to `:8081` with the bearer, plus **one inbound firewall rule scoped
+      to the `vEthernet (Default Switch)` interface — Derek's action**; then re-point `cc-builder-2/3`
+      `~/fleet-worker-node/runner.json` (backups exist). Evidence for the need (M6, read-only from
+      cc-builder-2): `curl http://omen.mshome.net:8081/v1/models` → unreachable today. Waits on: the
+      proxy build, then Derek's rule. (source: ADR-0045 Consequences; plan § "VM builders → B70 rung")
 
 - [ ] 2026-09-03 — **OPEN: `GpuTenancyStore` owner is the literal `'imagegen'`**
       (`hearth/execution/coordination.py:261`). The rotation substrate only **reads** the fence

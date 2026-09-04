@@ -1,11 +1,11 @@
 {
   "contract_version": "offload.v1",
-  "evidence_watermark": "2026-08-30T09:24:22.331094Z",
-  "bucket_count": 12,
+  "evidence_watermark": "2026-09-04T01:01:57.278324Z",
+  "bucket_count": 13,
   "totals": {
-    "calls": 1280,
-    "tokens_in": 3052761,
-    "tokens_out": 390970
+    "calls": 1284,
+    "tokens_in": 3052834,
+    "tokens_out": 391043
   },
   "per_class": {
     "sunk": {
@@ -19,12 +19,12 @@
       "tokens_out": 226778
     },
     "unknown": {
-      "calls": 11,
-      "tokens_in": 36,
-      "tokens_out": 2
+      "calls": 15,
+      "tokens_in": 109,
+      "tokens_out": 75
     }
   },
-  "offload_ratio": 1.0,
+  "offload_ratio": 0.9998,
   "est_usd_saved": {
     "reference": "claude-sonnet",
     "input_per_mtok": 3.0,
@@ -106,12 +106,12 @@
       "backend": "model:",
       "cost_class": "unknown",
       "models": [],
-      "calls": 10,
-      "ok_rate": 0.4,
+      "calls": 11,
+      "ok_rate": 0.4545,
       "tokens_in": 0,
       "tokens_out": 0,
       "real_usd": null,
-      "last_seen": "2026-08-19T12:31:25.059288Z"
+      "last_seen": "2026-09-03T19:59:04.135890Z"
     },
     {
       "backend": "model:/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
@@ -189,8 +189,19 @@
       "tokens_out": 1075,
       "real_usd": 0.0,
       "last_seen": "2026-08-21T04:51:37.712201Z"
+    },
+    {
+      "backend": "omen-swap",
+      "cost_class": "unknown",
+      "models": [],
+      "calls": 3,
+      "ok_rate": 1.0,
+      "tokens_in": 73,
+      "tokens_out": 73,
+      "real_usd": null,
+      "last_seen": "2026-09-04T01:01:57.278324Z"
     }
   ],
-  "corpus_digest": "sha256:de203416648a044372df54eb80c0a00ffd4f7cb4030fb77f4c909569c3c74143",
-  "corpus_event_count": 172482
+  "corpus_digest": "sha256:fc1bd6569c6649949ae959e0b02ea2c9c729cf9aeb181c2725e25744e71e31ef",
+  "corpus_event_count": 177084
 }

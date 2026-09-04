@@ -1,7 +1,7 @@
 {
   "contract_version": "capabilities.v1",
-  "evidence_watermark": "2026-07-31T00:12:53.800327Z",
-  "capability_count": 1,
+  "evidence_watermark": "2026-09-04T01:02:55.235915+00:00",
+  "capability_count": 2,
   "requalification_due": 0,
   "capabilities": [
     {
@@ -14,8 +14,8 @@
         "backend": "gcp-gemini"
       },
       "derived_from_association": "success_invariant:task_backend:task_kind=offload-generate|backend=gcp-gemini",
-      "confidence": "medium",
-      "confidence_score": 0.5,
+      "confidence": "high",
+      "confidence_score": 0.6,
       "qualified_resources": [
         {
           "builder_id": "gcp-vertex",
@@ -40,8 +40,8 @@
       },
       "failure_modes": [],
       "evidence": {
-        "samples": 7,
-        "workflow_count": 2,
+        "samples": 12,
+        "workflow_count": 3,
         "observation_ids": [
           "obs-offload-claude-frontier-202607300923253854780000-475d15fa",
           "obs-offload-claude-frontier-202607301426586860080000-9b526a25",
@@ -49,21 +49,92 @@
           "obs-offload-claude-frontier-202607301655570960910000-227bc35a",
           "obs-offload-claude-frontier-202607301656262514100000-8a377637",
           "obs-offload-claude-frontier-202607310012537977900000-cf46abf2",
+          "obs-offload-experiment-doc-adr-bench-202609040047286493740000-950e7ec0",
+          "obs-offload-experiment-doc-adr-bench-202609040050552682920000-efde2e90",
+          "obs-offload-experiment-doc-adr-bench-202609040051387390350000-32df375b",
+          "obs-offload-experiment-doc-adr-bench-202609040056390508360000-9ec1c4fa",
+          "obs-offload-experiment-doc-adr-bench-202609040057275015600000-ccd5cac8",
           "obs-offload-gcp-adk-test-202607300923287424790000-e19cb9e7"
         ],
         "workflows": [
           "wf-hearth-offload-claude-frontier",
+          "wf-hearth-offload-experiment-doc-adr-bench",
           "wf-hearth-offload-gcp-adk-test"
         ],
-        "summary": "7 observation(s) across 2 workflow(s), all success"
+        "summary": "12 observation(s) across 3 workflow(s), all success"
       },
       "supporting_findings": [
         "known_good:gcp-vertex|gemini-3.1-pro-preview|gcp-gemini",
         "known_good:gcp-vertex|gemini-3.5-flash|gcp-gemini"
       ],
       "first_observed": "2026-07-30T09:23:25.385478+00:00",
-      "last_validated": "2026-07-31T00:12:53.797790+00:00",
-      "evidence_watermark": "2026-07-31T00:12:53.800327Z",
+      "last_validated": "2026-09-04T00:57:27.501560+00:00",
+      "evidence_watermark": "2026-09-04T01:02:55.235915+00:00",
+      "staleness_days": 0.0,
+      "qualification_status": "qualified",
+      "derived_from": [
+        "association.v1"
+      ]
+    },
+    {
+      "contract_version": "capability.v1",
+      "capability_id": "capability:task_kind=offload-generate|backend=omen-swap",
+      "name": "offload-generate on backend=omen-swap",
+      "statement": "the organization can perform task_kind=offload-generate work under backend=omen-swap using any of 2 qualified resource combination(s)",
+      "invariant": {
+        "task_kind": "offload-generate",
+        "backend": "omen-swap"
+      },
+      "derived_from_association": "success_invariant:task_backend:task_kind=offload-generate|backend=omen-swap",
+      "confidence": "medium",
+      "confidence_score": 0.5,
+      "qualified_resources": [
+        {
+          "builder_id": "omen",
+          "model_id": "phi4-vk1",
+          "backend": "omen-swap"
+        },
+        {
+          "builder_id": "omen",
+          "model_id": "qwen14b-vk1",
+          "backend": "omen-swap"
+        }
+      ],
+      "operating_envelope": {
+        "max_context_tokens": 2634,
+        "tokens_per_s_range": [
+          21.77,
+          41.1
+        ],
+        "max_ram_gb_peak": null,
+        "max_vram_gb_peak": null,
+        "requires_gpu": null
+      },
+      "failure_modes": [],
+      "evidence": {
+        "samples": 6,
+        "workflow_count": 2,
+        "observation_ids": [
+          "obs-offload-experiment-doc-adr-bench-202609040047219152400000-f99780f8",
+          "obs-offload-experiment-doc-adr-bench-202609040050476275280000-382569a9",
+          "obs-offload-experiment-doc-adr-bench-202609040051339409660000-56724be0",
+          "obs-offload-experiment-doc-adr-bench-202609040056316000430000-ac35b838",
+          "obs-offload-experiment-doc-adr-bench-202609040057216667370000-56adf928",
+          "obs-offload-rotation-proof-202609040102552359150000-7218eb6f"
+        ],
+        "workflows": [
+          "wf-hearth-offload-experiment-doc-adr-bench",
+          "wf-hearth-offload-rotation-proof"
+        ],
+        "summary": "6 observation(s) across 2 workflow(s), all success"
+      },
+      "supporting_findings": [
+        "known_good:omen|phi4-vk1|omen-swap",
+        "known_good:omen|qwen14b-vk1|omen-swap"
+      ],
+      "first_observed": "2026-09-04T00:47:21.915240+00:00",
+      "last_validated": "2026-09-04T01:02:55.235915+00:00",
+      "evidence_watermark": "2026-09-04T01:02:55.235915+00:00",
       "staleness_days": 0.0,
       "qualification_status": "qualified",
       "derived_from": [
@@ -71,6 +142,6 @@
       ]
     }
   ],
-  "corpus_digest": "sha256:e1f1ebc392aa5ade9b8c2fa918c712a540c852878d2b90ed045dbb8ed678c406",
-  "corpus_event_count": 124443
+  "corpus_digest": "sha256:d070140fe6c2c05ff4e5b5cc809495def124a7b41f648f8fc7d1272eb59618af",
+  "corpus_event_count": 128751
 }

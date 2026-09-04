@@ -1,12 +1,12 @@
 {
   "contract_version": "findings.v1",
-  "evidence_watermark": "2026-07-31T00:12:53.800327Z",
-  "observation_count": 1210,
+  "evidence_watermark": "2026-09-04T01:02:55.235915+00:00",
+  "observation_count": 1226,
   "decision_count": 0,
   "unresolved_refs": 0,
   "finding_counts": {
     "known_bad": 1,
-    "known_good": 34,
+    "known_good": 37,
     "recommendation": 5,
     "uncertain": 2
   },
@@ -1937,7 +1937,7 @@
       "contract_version": "finding.v1",
       "finding_id": "known_good:gcp-vertex|gemini-3.5-flash|gcp-gemini",
       "finding_type": "known_good",
-      "statement": "gcp-vertex + gemini-3.5-flash + gcp-gemini works: 7/7 successful runs (success_rate 1.0), mean 23.9 tok/s",
+      "statement": "gcp-vertex + gemini-3.5-flash + gcp-gemini works: 12/12 successful runs (success_rate 1.0), mean 14.36 tok/s",
       "subject": {
         "builder_id": "gcp-vertex",
         "model_id": "gemini-3.5-flash",
@@ -1946,12 +1946,12 @@
         "metric": null
       },
       "confidence": "high",
-      "confidence_score": 0.78,
+      "confidence_score": 0.86,
       "evidence": {
-        "samples": 7,
-        "successes": 7,
+        "samples": 12,
+        "successes": 12,
         "failures": 0,
-        "summary": "7/7 success",
+        "summary": "12/12 success",
         "observation_ids": [
           "obs-offload-claude-frontier-202607300923253854780000-475d15fa",
           "obs-offload-claude-frontier-202607301426586860080000-9b526a25",
@@ -1959,7 +1959,12 @@
           "obs-offload-claude-frontier-202607301655570960910000-227bc35a",
           "obs-offload-claude-frontier-202607301656262514100000-8a377637",
           "obs-offload-claude-frontier-202607301749365758870000-6449426d",
-          "obs-offload-claude-frontier-202607310012537977900000-cf46abf2"
+          "obs-offload-claude-frontier-202607310012537977900000-cf46abf2",
+          "obs-offload-experiment-doc-adr-bench-202609040047286493740000-950e7ec0",
+          "obs-offload-experiment-doc-adr-bench-202609040050552682920000-efde2e90",
+          "obs-offload-experiment-doc-adr-bench-202609040051387390350000-32df375b",
+          "obs-offload-experiment-doc-adr-bench-202609040056390508360000-9ec1c4fa",
+          "obs-offload-experiment-doc-adr-bench-202609040057275015600000-ccd5cac8"
         ],
         "decision_ids": null,
         "mean_signed_error": null,
@@ -1967,7 +1972,7 @@
       },
       "recommendation": null,
       "first_observed": "2026-07-30T09:23:25.385478+00:00",
-      "last_observed": "2026-07-31T00:12:53.797790+00:00",
+      "last_observed": "2026-09-04T00:57:27.501560+00:00",
       "derived_from": [
         "capacity-estimates.v1"
       ]
@@ -2338,6 +2343,113 @@
     },
     {
       "contract_version": "finding.v1",
+      "finding_id": "known_good:omen|phi4-vk1|omen-swap",
+      "finding_type": "known_good",
+      "statement": "omen + phi4-vk1 + omen-swap works: 4/4 successful runs (success_rate 1.0), mean 29.31 tok/s",
+      "subject": {
+        "builder_id": "omen",
+        "model_id": "phi4-vk1",
+        "backend": "omen-swap",
+        "task_kind": null,
+        "metric": null
+      },
+      "confidence": "high",
+      "confidence_score": 0.67,
+      "evidence": {
+        "samples": 4,
+        "successes": 4,
+        "failures": 0,
+        "summary": "4/4 success",
+        "observation_ids": [
+          "obs-offload-experiment-doc-adr-bench-202609040047219152400000-f99780f8",
+          "obs-offload-experiment-doc-adr-bench-202609040050476275280000-382569a9",
+          "obs-offload-experiment-doc-adr-bench-202609040051339409660000-56724be0",
+          "obs-offload-rotation-proof-202609040102552359150000-7218eb6f"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": null,
+      "first_observed": "2026-09-04T00:47:21.915240+00:00",
+      "last_observed": "2026-09-04T01:02:55.235915+00:00",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
+      "finding_id": "known_good:omen|qwen14b-vk1|omen-swap",
+      "finding_type": "known_good",
+      "statement": "omen + qwen14b-vk1 + omen-swap works: 2/2 successful runs (success_rate 1.0), mean 23.62 tok/s",
+      "subject": {
+        "builder_id": "omen",
+        "model_id": "qwen14b-vk1",
+        "backend": "omen-swap",
+        "task_kind": null,
+        "metric": null
+      },
+      "confidence": "medium",
+      "confidence_score": 0.5,
+      "evidence": {
+        "samples": 2,
+        "successes": 2,
+        "failures": 0,
+        "summary": "2/2 success",
+        "observation_ids": [
+          "obs-offload-experiment-doc-adr-bench-202609040056316000430000-ac35b838",
+          "obs-offload-experiment-doc-adr-bench-202609040057216667370000-56adf928"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": null,
+      "first_observed": "2026-09-04T00:56:31.600043+00:00",
+      "last_observed": "2026-09-04T00:57:21.666737+00:00",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
+      "finding_id": "known_good:omen|qwen3-30b-a3b|omen-arc",
+      "finding_type": "known_good",
+      "statement": "omen + qwen3-30b-a3b + omen-arc works: 5/5 successful runs (success_rate 1.0), mean 13.25 tok/s",
+      "subject": {
+        "builder_id": "omen",
+        "model_id": "qwen3-30b-a3b",
+        "backend": "omen-arc",
+        "task_kind": null,
+        "metric": null
+      },
+      "confidence": "high",
+      "confidence_score": 0.71,
+      "evidence": {
+        "samples": 5,
+        "successes": 5,
+        "failures": 0,
+        "summary": "5/5 success",
+        "observation_ids": [
+          "obs-offload-experiment-doc-adr-bench-202609040047290473630000-600024df",
+          "obs-offload-experiment-doc-adr-bench-202609040050557667370000-f294ceeb",
+          "obs-offload-experiment-doc-adr-bench-202609040051396214000000-c19cf0da",
+          "obs-offload-experiment-doc-adr-bench-202609040056393792180000-fd78f178",
+          "obs-offload-experiment-doc-adr-bench-202609040057280609890000-a1942dc3"
+        ],
+        "decision_ids": null,
+        "mean_signed_error": null,
+        "mean_absolute_error": null
+      },
+      "recommendation": null,
+      "first_observed": "2026-09-04T00:47:29.047363+00:00",
+      "last_observed": "2026-09-04T00:57:28.060989+00:00",
+      "derived_from": [
+        "capacity-estimates.v1"
+      ]
+    },
+    {
+      "contract_version": "finding.v1",
       "finding_id": "recommendation:task_kind=capacity-probe",
       "finding_type": "recommendation",
       "statement": "for task_kind capacity-probe, prefer omen-5070 + qwen2.5:14b + ollama-cuda (success rate 1.0 over 1 run(s), 59.88 tok/s)",
@@ -2373,7 +2485,7 @@
       "contract_version": "finding.v1",
       "finding_id": "recommendation:task_kind=extraction",
       "finding_type": "recommendation",
-      "statement": "for task_kind extraction, prefer gcp-vertex + gemini-3.5-flash + gcp-gemini (success rate 1.0 over 7 run(s), 23.9 tok/s)",
+      "statement": "for task_kind extraction, prefer gcp-vertex + gemini-3.5-flash + gcp-gemini (success rate 1.0 over 12 run(s), 14.36 tok/s)",
       "subject": {
         "builder_id": "gcp-vertex",
         "model_id": "gemini-3.5-flash",
@@ -2382,9 +2494,9 @@
         "metric": null
       },
       "confidence": "high",
-      "confidence_score": 0.78,
+      "confidence_score": 0.86,
       "evidence": {
-        "samples": 7,
+        "samples": 12,
         "successes": null,
         "failures": null,
         "summary": "best of 1 known_good combo(s) observed on task_kind extraction",
@@ -2395,7 +2507,12 @@
           "obs-offload-claude-frontier-202607301655570960910000-227bc35a",
           "obs-offload-claude-frontier-202607301656262514100000-8a377637",
           "obs-offload-claude-frontier-202607301749365758870000-6449426d",
-          "obs-offload-claude-frontier-202607310012537977900000-cf46abf2"
+          "obs-offload-claude-frontier-202607310012537977900000-cf46abf2",
+          "obs-offload-experiment-doc-adr-bench-202609040047286493740000-950e7ec0",
+          "obs-offload-experiment-doc-adr-bench-202609040050552682920000-efde2e90",
+          "obs-offload-experiment-doc-adr-bench-202609040051387390350000-32df375b",
+          "obs-offload-experiment-doc-adr-bench-202609040056390508360000-9ec1c4fa",
+          "obs-offload-experiment-doc-adr-bench-202609040057275015600000-ccd5cac8"
         ],
         "decision_ids": null,
         "mean_signed_error": null,
@@ -2403,7 +2520,7 @@
       },
       "recommendation": "route task_kind extraction to gcp-vertex + gemini-3.5-flash + gcp-gemini",
       "first_observed": "2026-07-30T09:23:25.385478+00:00",
-      "last_observed": "2026-07-31T00:12:53.797790+00:00",
+      "last_observed": "2026-09-04T00:57:27.501560+00:00",
       "derived_from": [
         "capacity-estimates.v1"
       ]
@@ -2672,7 +2789,7 @@
       "contract_version": "finding.v1",
       "finding_id": "recommendation:task_kind=offload-generate",
       "finding_type": "recommendation",
-      "statement": "for task_kind offload-generate, prefer gcp-vertex + gemini-3.5-flash + gcp-gemini (success rate 1.0 over 7 run(s), 23.9 tok/s)",
+      "statement": "for task_kind offload-generate, prefer gcp-vertex + gemini-3.5-flash + gcp-gemini (success rate 1.0 over 12 run(s), 14.36 tok/s)",
       "subject": {
         "builder_id": "gcp-vertex",
         "model_id": "gemini-3.5-flash",
@@ -2681,12 +2798,12 @@
         "metric": null
       },
       "confidence": "high",
-      "confidence_score": 0.78,
+      "confidence_score": 0.86,
       "evidence": {
-        "samples": 7,
+        "samples": 12,
         "successes": null,
         "failures": null,
-        "summary": "best of 4 known_good combo(s) observed on task_kind offload-generate",
+        "summary": "best of 7 known_good combo(s) observed on task_kind offload-generate",
         "observation_ids": [
           "obs-offload-claude-frontier-202607300923253854780000-475d15fa",
           "obs-offload-claude-frontier-202607301426586860080000-9b526a25",
@@ -2694,7 +2811,12 @@
           "obs-offload-claude-frontier-202607301655570960910000-227bc35a",
           "obs-offload-claude-frontier-202607301656262514100000-8a377637",
           "obs-offload-claude-frontier-202607301749365758870000-6449426d",
-          "obs-offload-claude-frontier-202607310012537977900000-cf46abf2"
+          "obs-offload-claude-frontier-202607310012537977900000-cf46abf2",
+          "obs-offload-experiment-doc-adr-bench-202609040047286493740000-950e7ec0",
+          "obs-offload-experiment-doc-adr-bench-202609040050552682920000-efde2e90",
+          "obs-offload-experiment-doc-adr-bench-202609040051387390350000-32df375b",
+          "obs-offload-experiment-doc-adr-bench-202609040056390508360000-9ec1c4fa",
+          "obs-offload-experiment-doc-adr-bench-202609040057275015600000-ccd5cac8"
         ],
         "decision_ids": null,
         "mean_signed_error": null,
@@ -2702,7 +2824,7 @@
       },
       "recommendation": "route task_kind offload-generate to gcp-vertex + gemini-3.5-flash + gcp-gemini",
       "first_observed": "2026-07-30T09:23:25.385478+00:00",
-      "last_observed": "2026-07-31T00:12:53.797790+00:00",
+      "last_observed": "2026-09-04T00:57:27.501560+00:00",
       "derived_from": [
         "capacity-estimates.v1"
       ]
@@ -2811,6 +2933,6 @@
       ]
     }
   ],
-  "corpus_digest": "sha256:e1f1ebc392aa5ade9b8c2fa918c712a540c852878d2b90ed045dbb8ed678c406",
-  "corpus_event_count": 124443
+  "corpus_digest": "sha256:d070140fe6c2c05ff4e5b5cc809495def124a7b41f648f8fc7d1272eb59618af",
+  "corpus_event_count": 128751
 }

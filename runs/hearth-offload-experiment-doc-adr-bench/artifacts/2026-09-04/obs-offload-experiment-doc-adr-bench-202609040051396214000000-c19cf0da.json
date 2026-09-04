@@ -1,0 +1,30 @@
+{
+  "contract_version": "capacity-observation.v1",
+  "observation_id": "obs-offload-experiment-doc-adr-bench-202609040051396214000000-c19cf0da",
+  "decision_id": null,
+  "workflow_id": "wf-hearth-offload-experiment-doc-adr-bench",
+  "run_id": "hearth-offload-experiment-doc-adr-bench",
+  "timestamp": "2026-09-04T00:51:39.621400+00:00",
+  "builder_id": "omen",
+  "model_id": "qwen3-30b-a3b",
+  "backend": "omen-arc",
+  "hardware_profile_id": "omen-285k-dual-b70-2026H2",
+  "workload_shape": {
+    "task_kind": "offload-generate",
+    "estimated_context_tokens": 1063,
+    "requires_gpu": null,
+    "notes": "routed_by=pinned:omen-arc; occupancy=available; runtime_s is wall-clock; rung_state: omen-arc degraded 74.4/106.0 tok/s 70% of epoch age 272s; pool=82549d400b9f"
+  },
+  "observed": {
+    "runtime_s": 0.875,
+    "ttft_s": null,
+    "tokens_per_s": 6.86,
+    "ram_gb_peak": null,
+    "vram_gb_peak": null,
+    "context_tokens": 1241,
+    "physical": null
+  },
+  "outcome": "success",
+  "failure_class": null,
+  "promotion_status": null
+}

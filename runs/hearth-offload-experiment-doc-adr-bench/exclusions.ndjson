@@ -1,0 +1,1 @@
+{"backend": "omen-swap", "caller_id": "experiment-doc-adr-bench", "error_code": null, "excluded": "infra:auth_expired", "model": "phi4-vk1", "timestamp": "2026-09-04T00:43:42.735029+00:00"}

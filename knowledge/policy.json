@@ -1,11 +1,11 @@
 {
   "contract_version": "policies.v1",
-  "source_findings": 42,
-  "evidence_watermark": "2026-07-31T00:12:53.800327Z",
+  "source_findings": 45,
+  "evidence_watermark": "2026-09-04T01:02:55.235915+00:00",
   "rule_counts": {
     "block": 1,
     "exploratory_only": 2,
-    "prefer": 14
+    "prefer": 16
   },
   "rules": [
     {
@@ -373,7 +373,7 @@
       "contract_version": "policy.v1",
       "policy_id": "prefer:gcp-vertex|gemini-3.5-flash|gcp-gemini|*|*",
       "effect": "prefer",
-      "statement": "prefer gcp-vertex + gemini-3.5-flash + gcp-gemini when compatible: 7/7 success",
+      "statement": "prefer gcp-vertex + gemini-3.5-flash + gcp-gemini when compatible: 12/12 success",
       "subject": {
         "builder_id": "gcp-vertex",
         "model_id": "gemini-3.5-flash",
@@ -384,14 +384,58 @@
       "derived_from_finding": "known_good:gcp-vertex|gemini-3.5-flash|gcp-gemini",
       "finding_type": "known_good",
       "confidence": "high",
-      "evidence_summary": "7/7 success",
+      "evidence_summary": "12/12 success",
       "override": null,
       "adjustment": null,
       "status": "active",
       "suspended_reason": null,
-      "last_observed": "2026-07-31T00:12:53.797790+00:00"
+      "last_observed": "2026-09-04T00:57:27.501560+00:00"
+    },
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "prefer:omen|phi4-vk1|omen-swap|*|*",
+      "effect": "prefer",
+      "statement": "prefer omen + phi4-vk1 + omen-swap when compatible: 4/4 success",
+      "subject": {
+        "builder_id": "omen",
+        "model_id": "phi4-vk1",
+        "backend": "omen-swap",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "known_good:omen|phi4-vk1|omen-swap",
+      "finding_type": "known_good",
+      "confidence": "high",
+      "evidence_summary": "4/4 success",
+      "override": null,
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-09-04T01:02:55.235915+00:00"
+    },
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "prefer:omen|qwen3-30b-a3b|omen-arc|*|*",
+      "effect": "prefer",
+      "statement": "prefer omen + qwen3-30b-a3b + omen-arc when compatible: 5/5 success",
+      "subject": {
+        "builder_id": "omen",
+        "model_id": "qwen3-30b-a3b",
+        "backend": "omen-arc",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "known_good:omen|qwen3-30b-a3b|omen-arc",
+      "finding_type": "known_good",
+      "confidence": "high",
+      "evidence_summary": "5/5 success",
+      "override": null,
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-09-04T00:57:28.060989+00:00"
     }
   ],
-  "corpus_digest": "sha256:e1f1ebc392aa5ade9b8c2fa918c712a540c852878d2b90ed045dbb8ed678c406",
-  "corpus_event_count": 124443
+  "corpus_digest": "sha256:d070140fe6c2c05ff4e5b5cc809495def124a7b41f648f8fc7d1272eb59618af",
+  "corpus_event_count": 128751
 }

@@ -1,6 +1,6 @@
 {
   "contract_version": "known-good-models.v1",
-  "evidence_watermark": "2026-07-31T00:12:53.800327Z",
+  "evidence_watermark": "2026-09-04T01:02:55.235915+00:00",
   "entries": [
     {
       "builder_id": "am4",
@@ -271,12 +271,12 @@
       "model_id": "gemini-3.5-flash",
       "backend": "gcp-gemini",
       "success_rate": 1.0,
-      "samples": 7,
-      "mean_tokens_per_s": 23.9,
+      "samples": 12,
+      "mean_tokens_per_s": 14.36,
       "promotion_holds": 0,
-      "confidence": 0.78,
-      "last_observed": "2026-07-31T00:12:53.797790+00:00",
-      "reason": "7/7 successful runs (success_rate 1.0)"
+      "confidence": 0.86,
+      "last_observed": "2026-09-04T00:57:27.501560+00:00",
+      "reason": "12/12 successful runs (success_rate 1.0)"
     },
     {
       "builder_id": "omen-5070",
@@ -409,8 +409,44 @@
       "confidence": 0.5,
       "last_observed": "2026-07-04T05:50:00+00:00",
       "reason": "2/2 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "omen",
+      "model_id": "phi4-vk1",
+      "backend": "omen-swap",
+      "success_rate": 1.0,
+      "samples": 4,
+      "mean_tokens_per_s": 29.31,
+      "promotion_holds": 0,
+      "confidence": 0.67,
+      "last_observed": "2026-09-04T01:02:55.235915+00:00",
+      "reason": "4/4 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "omen",
+      "model_id": "qwen14b-vk1",
+      "backend": "omen-swap",
+      "success_rate": 1.0,
+      "samples": 2,
+      "mean_tokens_per_s": 23.62,
+      "promotion_holds": 0,
+      "confidence": 0.5,
+      "last_observed": "2026-09-04T00:57:21.666737+00:00",
+      "reason": "2/2 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "omen",
+      "model_id": "qwen3-30b-a3b",
+      "backend": "omen-arc",
+      "success_rate": 1.0,
+      "samples": 5,
+      "mean_tokens_per_s": 13.25,
+      "promotion_holds": 0,
+      "confidence": 0.71,
+      "last_observed": "2026-09-04T00:57:28.060989+00:00",
+      "reason": "5/5 successful runs (success_rate 1.0)"
     }
   ],
-  "corpus_digest": "sha256:e1f1ebc392aa5ade9b8c2fa918c712a540c852878d2b90ed045dbb8ed678c406",
-  "corpus_event_count": 124443
+  "corpus_digest": "sha256:d070140fe6c2c05ff4e5b5cc809495def124a7b41f648f8fc7d1272eb59618af",
+  "corpus_event_count": 128751
 }

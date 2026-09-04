@@ -1,0 +1,30 @@
+{
+  "contract_version": "capacity-observation.v1",
+  "observation_id": "obs-offload-rotation-proof-202609040102552359150000-7218eb6f",
+  "decision_id": null,
+  "workflow_id": "wf-hearth-offload-rotation-proof",
+  "run_id": "hearth-offload-rotation-proof",
+  "timestamp": "2026-09-04T01:02:55.235915+00:00",
+  "builder_id": "omen",
+  "model_id": "phi4-vk1",
+  "backend": "omen-swap",
+  "hardware_profile_id": "omen-285k-dual-b70-2026H2",
+  "workload_shape": {
+    "task_kind": "offload-generate",
+    "estimated_context_tokens": 11,
+    "requires_gpu": null,
+    "notes": "routed_by=pinned:omen-swap; occupancy=available; runtime_s is wall-clock; pool=82549d400b9f"
+  },
+  "observed": {
+    "runtime_s": 0.219,
+    "ttft_s": null,
+    "tokens_per_s": 41.1,
+    "ram_gb_peak": null,
+    "vram_gb_peak": null,
+    "context_tokens": 19,
+    "physical": null
+  },
+  "outcome": "success",
+  "failure_class": null,
+  "promotion_status": null
+}

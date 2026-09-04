@@ -1,11 +1,11 @@
 {
   "contract_version": "experiment-candidates.v1",
-  "source_findings": 42,
+  "source_findings": 45,
   "candidate_counts": {
     "backend_comparison": 6,
-    "coverage_probe": 60,
+    "coverage_probe": 66,
     "known_bad_retest": 1,
-    "prefer_validation": 34,
+    "prefer_validation": 37,
     "uncertain_resolution": 2
   },
   "candidates": [
@@ -67,7 +67,7 @@
       "evidence_sought": "the same workload shape run on each backend yields a per-task recommendation instead of a guess",
       "risk_accepted": "one dispatch slot per backend; a gated backend must be opened with its own experiment",
       "confidence": null,
-      "last_observed": "2026-07-31T00:12:53.797790+00:00"
+      "last_observed": "2026-09-04T00:57:27.501560+00:00"
     },
     {
       "candidate_id": "backend_comparison:mixtral:8x22b-instruct-v0.1-q2_K:ollama-cuda+ollama-vulkan-igpu+ollama-vulkan-mixed",
@@ -250,6 +250,26 @@
       "last_observed": "2026-07-30T09:25:37.310607Z"
     },
     {
+      "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=qwen14b-vk1",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does 'model_id=qwen14b-vk1' hold outside wf-hearth-offload-experiment-doc-adr-bench?",
+      "worth": "2 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-09-04T00:57:21.666737+00:00"
+    },
+    {
       "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=qwen2.5:14b",
       "experiment_type": "coverage_probe",
       "subject": {
@@ -288,6 +308,26 @@
       "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
       "confidence": null,
       "last_observed": "2026-07-29T21:07:29.824991Z"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=qwen3-30b-a3b",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does 'model_id=qwen3-30b-a3b' hold outside wf-hearth-offload-experiment-doc-adr-bench?",
+      "worth": "5 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-09-04T00:57:28.060989+00:00"
     },
     {
       "candidate_id": "coverage_probe:single_workflow_evidence:model_portability:model_id=qwen3-30b-a3b-awq",
@@ -588,6 +628,26 @@
       "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
       "confidence": null,
       "last_observed": "2026-07-30T14:54:15.389605+00:00"
+    },
+    {
+      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=offload-generate|backend=omen-arc",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "omen-arc",
+        "task_kind": "offload-generate",
+        "metric": null
+      },
+      "question": "does 'task_kind=offload-generate, backend=omen-arc' hold outside wf-hearth-offload-experiment-doc-adr-bench?",
+      "worth": "5 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
+      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
+      "confidence": null,
+      "last_observed": "2026-09-04T00:57:28.060989+00:00"
     },
     {
       "candidate_id": "coverage_probe:unmeasured_metrics:am4-worker-1|vllama-planner|openai",
@@ -1087,7 +1147,7 @@
       "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
       "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
       "confidence": null,
-      "last_observed": "2026-07-31T00:12:53.797790+00:00"
+      "last_observed": "2026-09-04T00:57:27.501560+00:00"
     },
     {
       "candidate_id": "coverage_probe:unmeasured_metrics:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-cuda",
@@ -1328,6 +1388,66 @@
       "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
       "confidence": null,
       "last_observed": "2026-07-02T10:31:56.771381Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen|phi4-vk1|omen-swap",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "omen",
+        "model_id": "phi4-vk1",
+        "backend": "omen-swap",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, ram_gb_peak, vram_gb_peak on omen + phi4-vk1 + omen-swap?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-09-04T01:02:55.235915+00:00"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen|qwen14b-vk1|omen-swap",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "omen",
+        "model_id": "qwen14b-vk1",
+        "backend": "omen-swap",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, ram_gb_peak, vram_gb_peak on omen + qwen14b-vk1 + omen-swap?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-09-04T00:57:21.666737+00:00"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen|qwen3-30b-a3b|omen-arc",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "omen",
+        "model_id": "qwen3-30b-a3b",
+        "backend": "omen-arc",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, ram_gb_peak, vram_gb_peak on omen + qwen3-30b-a3b + omen-arc?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-09-04T00:57:28.060989+00:00"
     },
     {
       "candidate_id": "known_bad_retest:omen-wsl|qwen3-30b-a3b-awq|vllm",
@@ -1804,7 +1924,7 @@
         "task_kind": null,
         "metric": null
       },
-      "question": "does gcp-vertex + gemini-3.5-flash + gcp-gemini still hold up (7/7 success)?",
+      "question": "does gcp-vertex + gemini-3.5-flash + gcp-gemini still hold up (12/12 success)?",
       "worth": "the preference nudges every dispatch; it must keep earning that",
       "target_finding_id": "known_good:gcp-vertex|gemini-3.5-flash|gcp-gemini",
       "target_capability_id": null,
@@ -1812,7 +1932,7 @@
       "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
       "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
       "confidence": "high",
-      "last_observed": "2026-07-31T00:12:53.797790+00:00"
+      "last_observed": "2026-09-04T00:57:27.501560+00:00"
     },
     {
       "candidate_id": "prefer_validation:omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-cuda",
@@ -2035,6 +2155,66 @@
       "last_observed": "2026-07-04T05:50:00+00:00"
     },
     {
+      "candidate_id": "prefer_validation:omen|phi4-vk1|omen-swap",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "omen",
+        "model_id": "phi4-vk1",
+        "backend": "omen-swap",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does omen + phi4-vk1 + omen-swap still hold up (4/4 success)?",
+      "worth": "the preference nudges every dispatch; it must keep earning that",
+      "target_finding_id": "known_good:omen|phi4-vk1|omen-swap",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "high",
+      "last_observed": "2026-09-04T01:02:55.235915+00:00"
+    },
+    {
+      "candidate_id": "prefer_validation:omen|qwen14b-vk1|omen-swap",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "omen",
+        "model_id": "qwen14b-vk1",
+        "backend": "omen-swap",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does omen + qwen14b-vk1 + omen-swap still hold up (2/2 success)?",
+      "worth": "1 more clean run(s) reach high confidence and earn a prefer rule (2/2 success today)",
+      "target_finding_id": "known_good:omen|qwen14b-vk1|omen-swap",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "medium",
+      "last_observed": "2026-09-04T00:57:21.666737+00:00"
+    },
+    {
+      "candidate_id": "prefer_validation:omen|qwen3-30b-a3b|omen-arc",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "omen",
+        "model_id": "qwen3-30b-a3b",
+        "backend": "omen-arc",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does omen + qwen3-30b-a3b + omen-arc still hold up (5/5 success)?",
+      "worth": "the preference nudges every dispatch; it must keep earning that",
+      "target_finding_id": "known_good:omen|qwen3-30b-a3b|omen-arc",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "high",
+      "last_observed": "2026-09-04T00:57:28.060989+00:00"
+    },
+    {
       "candidate_id": "uncertain_resolution:am4-worker-1|vllama-planner|openai",
       "experiment_type": "uncertain_resolution",
       "subject": {
@@ -2085,6 +2265,6 @@
       "last_observed": "2026-07-04T04:18:00+00:00"
     }
   ],
-  "corpus_digest": "sha256:e1f1ebc392aa5ade9b8c2fa918c712a540c852878d2b90ed045dbb8ed678c406",
-  "corpus_event_count": 124443
+  "corpus_digest": "sha256:d070140fe6c2c05ff4e5b5cc809495def124a7b41f648f8fc7d1272eb59618af",
+  "corpus_event_count": 128751
 }

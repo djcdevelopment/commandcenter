@@ -1,6 +1,6 @@
 {
   "contract_version": "capacity-estimates.v1",
-  "observation_count": 1210,
+  "observation_count": 1226,
   "unresolved_observation_refs": 0,
   "combos": {
     "am4-worker-1|vllama-planner|openai": {
@@ -397,17 +397,17 @@
       "builder_id": "gcp-vertex",
       "model_id": "gemini-3.5-flash",
       "backend": "gcp-gemini",
-      "samples": 7,
-      "successes": 7,
+      "samples": 12,
+      "successes": 12,
       "failures": 0,
       "failure_classes": {},
       "promotion_holds": 0,
       "max_context_tokens": 21314,
       "max_vram_gb_peak": null,
-      "last_observed": "2026-07-31T00:12:53.797790+00:00",
-      "mean_tokens_per_s": 23.9,
+      "last_observed": "2026-09-04T00:57:27.501560+00:00",
+      "mean_tokens_per_s": 14.36,
       "success_rate": 1.0,
-      "confidence": 0.78
+      "confidence": 0.86
     },
     "omen-5070|mixtral:8x22b-instruct-v0.1-q2_K|ollama-cuda": {
       "builder_id": "omen-5070",
@@ -602,8 +602,56 @@
       "mean_tokens_per_s": null,
       "success_rate": 0.0,
       "confidence": 0.6
+    },
+    "omen|phi4-vk1|omen-swap": {
+      "builder_id": "omen",
+      "model_id": "phi4-vk1",
+      "backend": "omen-swap",
+      "samples": 4,
+      "successes": 4,
+      "failures": 0,
+      "failure_classes": {},
+      "promotion_holds": 0,
+      "max_context_tokens": 2450,
+      "max_vram_gb_peak": null,
+      "last_observed": "2026-09-04T01:02:55.235915+00:00",
+      "mean_tokens_per_s": 29.31,
+      "success_rate": 1.0,
+      "confidence": 0.67
+    },
+    "omen|qwen14b-vk1|omen-swap": {
+      "builder_id": "omen",
+      "model_id": "qwen14b-vk1",
+      "backend": "omen-swap",
+      "samples": 2,
+      "successes": 2,
+      "failures": 0,
+      "failure_classes": {},
+      "promotion_holds": 0,
+      "max_context_tokens": 2634,
+      "max_vram_gb_peak": null,
+      "last_observed": "2026-09-04T00:57:21.666737+00:00",
+      "mean_tokens_per_s": 23.62,
+      "success_rate": 1.0,
+      "confidence": 0.5
+    },
+    "omen|qwen3-30b-a3b|omen-arc": {
+      "builder_id": "omen",
+      "model_id": "qwen3-30b-a3b",
+      "backend": "omen-arc",
+      "samples": 5,
+      "successes": 5,
+      "failures": 0,
+      "failure_classes": {},
+      "promotion_holds": 0,
+      "max_context_tokens": 1241,
+      "max_vram_gb_peak": null,
+      "last_observed": "2026-09-04T00:57:28.060989+00:00",
+      "mean_tokens_per_s": 13.25,
+      "success_rate": 1.0,
+      "confidence": 0.71
     }
   },
-  "corpus_digest": "sha256:e1f1ebc392aa5ade9b8c2fa918c712a540c852878d2b90ed045dbb8ed678c406",
-  "corpus_event_count": 124443
+  "corpus_digest": "sha256:d070140fe6c2c05ff4e5b5cc809495def124a7b41f648f8fc7d1272eb59618af",
+  "corpus_event_count": 128751
 }

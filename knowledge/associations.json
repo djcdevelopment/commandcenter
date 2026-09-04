@@ -1,10 +1,10 @@
 {
   "contract_version": "associations.v1",
-  "observation_count": 1210,
+  "observation_count": 1226,
   "unresolved_refs": 0,
-  "evidence_watermark": "2026-07-31T00:12:53.800327Z",
-  "association_count": 5,
-  "gated_bucket_count": 28,
+  "evidence_watermark": "2026-09-04T01:02:55.235915+00:00",
+  "association_count": 6,
+  "gated_bucket_count": 32,
   "associations": [
     {
       "contract_version": "association.v1",
@@ -341,7 +341,7 @@
       "association_id": "success_invariant:model_portability:model_id=gemini-3.5-flash",
       "association_type": "success_invariant",
       "pattern": "model_portability",
-      "statement": "model_id=gemini-3.5-flash succeeds independent of the particulars: held across 2 workflow(s) (4 builder_id value(s), 2 backend value(s))",
+      "statement": "model_id=gemini-3.5-flash succeeds independent of the particulars: held across 3 workflow(s) (4 builder_id value(s), 2 backend value(s))",
       "invariant": {
         "model_id": "gemini-3.5-flash"
       },
@@ -359,13 +359,14 @@
       },
       "workflows": [
         "wf-hearth-gateway",
-        "wf-hearth-offload-claude-frontier"
+        "wf-hearth-offload-claude-frontier",
+        "wf-hearth-offload-experiment-doc-adr-bench"
       ],
-      "confidence": "medium",
-      "confidence_score": 0.5,
+      "confidence": "high",
+      "confidence_score": 0.6,
       "evidence": {
-        "samples": 286,
-        "workflow_count": 2,
+        "samples": 291,
+        "workflow_count": 3,
         "observation_ids": [
           "obs-ledger-013037de-fb1e-435b-83db-a42125ed691e",
           "obs-ledger-0156c125-8b32-4ab8-b349-037b2a25d0a4",
@@ -652,10 +653,15 @@
           "obs-offload-claude-frontier-202607301655570960910000-227bc35a",
           "obs-offload-claude-frontier-202607301656262514100000-8a377637",
           "obs-offload-claude-frontier-202607301749365758870000-6449426d",
-          "obs-offload-claude-frontier-202607310012537977900000-cf46abf2"
+          "obs-offload-claude-frontier-202607310012537977900000-cf46abf2",
+          "obs-offload-experiment-doc-adr-bench-202609040047286493740000-950e7ec0",
+          "obs-offload-experiment-doc-adr-bench-202609040050552682920000-efde2e90",
+          "obs-offload-experiment-doc-adr-bench-202609040051387390350000-32df375b",
+          "obs-offload-experiment-doc-adr-bench-202609040056390508360000-9ec1c4fa",
+          "obs-offload-experiment-doc-adr-bench-202609040057275015600000-ccd5cac8"
         ],
         "failure_class": null,
-        "summary": "286 observation(s) across 2 workflow(s), all success"
+        "summary": "291 observation(s) across 3 workflow(s), all success"
       },
       "supporting_findings": [
         "known_good:claude-frontier|gemini-3.5-flash|gcp-gemini",
@@ -665,7 +671,7 @@
         "known_good:gcp-vertex|gemini-3.5-flash|gcp-gemini"
       ],
       "first_observed": "2026-07-12T08:16:12.700186Z",
-      "last_observed": "2026-07-31T00:12:53.800327Z",
+      "last_observed": "2026-09-04T00:57:27.501560+00:00",
       "derived_from": [
         "capacity-observation.v1",
         "findings.v1"
@@ -1059,7 +1065,7 @@
       "association_id": "success_invariant:task_backend:task_kind=offload-generate|backend=gcp-gemini",
       "association_type": "success_invariant",
       "pattern": "task_backend",
-      "statement": "task_kind=offload-generate, backend=gcp-gemini succeeds independent of the particulars: held across 2 workflow(s) (2 model_id value(s))",
+      "statement": "task_kind=offload-generate, backend=gcp-gemini succeeds independent of the particulars: held across 3 workflow(s) (2 model_id value(s))",
       "invariant": {
         "task_kind": "offload-generate",
         "backend": "gcp-gemini"
@@ -1075,13 +1081,14 @@
       },
       "workflows": [
         "wf-hearth-offload-claude-frontier",
+        "wf-hearth-offload-experiment-doc-adr-bench",
         "wf-hearth-offload-gcp-adk-test"
       ],
-      "confidence": "medium",
-      "confidence_score": 0.5,
+      "confidence": "high",
+      "confidence_score": 0.6,
       "evidence": {
-        "samples": 7,
-        "workflow_count": 2,
+        "samples": 12,
+        "workflow_count": 3,
         "observation_ids": [
           "obs-offload-claude-frontier-202607300923253854780000-475d15fa",
           "obs-offload-claude-frontier-202607301426586860080000-9b526a25",
@@ -1089,17 +1096,72 @@
           "obs-offload-claude-frontier-202607301655570960910000-227bc35a",
           "obs-offload-claude-frontier-202607301656262514100000-8a377637",
           "obs-offload-claude-frontier-202607310012537977900000-cf46abf2",
+          "obs-offload-experiment-doc-adr-bench-202609040047286493740000-950e7ec0",
+          "obs-offload-experiment-doc-adr-bench-202609040050552682920000-efde2e90",
+          "obs-offload-experiment-doc-adr-bench-202609040051387390350000-32df375b",
+          "obs-offload-experiment-doc-adr-bench-202609040056390508360000-9ec1c4fa",
+          "obs-offload-experiment-doc-adr-bench-202609040057275015600000-ccd5cac8",
           "obs-offload-gcp-adk-test-202607300923287424790000-e19cb9e7"
         ],
         "failure_class": null,
-        "summary": "7 observation(s) across 2 workflow(s), all success"
+        "summary": "12 observation(s) across 3 workflow(s), all success"
       },
       "supporting_findings": [
         "known_good:gcp-vertex|gemini-3.1-pro-preview|gcp-gemini",
         "known_good:gcp-vertex|gemini-3.5-flash|gcp-gemini"
       ],
       "first_observed": "2026-07-30T09:23:25.385478+00:00",
-      "last_observed": "2026-07-31T00:12:53.797790+00:00",
+      "last_observed": "2026-09-04T00:57:27.501560+00:00",
+      "derived_from": [
+        "capacity-observation.v1",
+        "findings.v1"
+      ]
+    },
+    {
+      "contract_version": "association.v1",
+      "association_id": "success_invariant:task_backend:task_kind=offload-generate|backend=omen-swap",
+      "association_type": "success_invariant",
+      "pattern": "task_backend",
+      "statement": "task_kind=offload-generate, backend=omen-swap succeeds independent of the particulars: held across 2 workflow(s) (2 model_id value(s))",
+      "invariant": {
+        "task_kind": "offload-generate",
+        "backend": "omen-swap"
+      },
+      "varied": {
+        "builder_id": [
+          "omen"
+        ],
+        "model_id": [
+          "phi4-vk1",
+          "qwen14b-vk1"
+        ]
+      },
+      "workflows": [
+        "wf-hearth-offload-experiment-doc-adr-bench",
+        "wf-hearth-offload-rotation-proof"
+      ],
+      "confidence": "medium",
+      "confidence_score": 0.5,
+      "evidence": {
+        "samples": 6,
+        "workflow_count": 2,
+        "observation_ids": [
+          "obs-offload-experiment-doc-adr-bench-202609040047219152400000-f99780f8",
+          "obs-offload-experiment-doc-adr-bench-202609040050476275280000-382569a9",
+          "obs-offload-experiment-doc-adr-bench-202609040051339409660000-56724be0",
+          "obs-offload-experiment-doc-adr-bench-202609040056316000430000-ac35b838",
+          "obs-offload-experiment-doc-adr-bench-202609040057216667370000-56adf928",
+          "obs-offload-rotation-proof-202609040102552359150000-7218eb6f"
+        ],
+        "failure_class": null,
+        "summary": "6 observation(s) across 2 workflow(s), all success"
+      },
+      "supporting_findings": [
+        "known_good:omen|phi4-vk1|omen-swap",
+        "known_good:omen|qwen14b-vk1|omen-swap"
+      ],
+      "first_observed": "2026-09-04T00:47:21.915240+00:00",
+      "last_observed": "2026-09-04T01:02:55.235915+00:00",
       "derived_from": [
         "capacity-observation.v1",
         "findings.v1"
@@ -1194,6 +1256,34 @@
     {
       "pattern": "model_portability",
       "invariant": {
+        "model_id": "phi4-vk1"
+      },
+      "samples": 4,
+      "workflows": [
+        "wf-hearth-offload-experiment-doc-adr-bench",
+        "wf-hearth-offload-rotation-proof"
+      ],
+      "reasons": [
+        "nothing varied under the invariant; a repeated particular is a finding, not an abstraction"
+      ]
+    },
+    {
+      "pattern": "model_portability",
+      "invariant": {
+        "model_id": "qwen14b-vk1"
+      },
+      "samples": 2,
+      "workflows": [
+        "wf-hearth-offload-experiment-doc-adr-bench"
+      ],
+      "reasons": [
+        "all 2 sample(s) come from one workflow (wf-hearth-offload-experiment-doc-adr-bench); no generalization from one workflow",
+        "nothing varied under the invariant; a repeated particular is a finding, not an abstraction"
+      ]
+    },
+    {
+      "pattern": "model_portability",
+      "invariant": {
         "model_id": "qwen2.5:14b"
       },
       "samples": 5,
@@ -1215,6 +1305,20 @@
       ],
       "reasons": [
         "all 1 sample(s) come from one workflow (wf-hearth-gateway); no generalization from one workflow",
+        "nothing varied under the invariant; a repeated particular is a finding, not an abstraction"
+      ]
+    },
+    {
+      "pattern": "model_portability",
+      "invariant": {
+        "model_id": "qwen3-30b-a3b"
+      },
+      "samples": 5,
+      "workflows": [
+        "wf-hearth-offload-experiment-doc-adr-bench"
+      ],
+      "reasons": [
+        "all 5 sample(s) come from one workflow (wf-hearth-offload-experiment-doc-adr-bench); no generalization from one workflow",
         "nothing varied under the invariant; a repeated particular is a finding, not an abstraction"
       ]
     },
@@ -1470,6 +1574,21 @@
     {
       "pattern": "task_backend",
       "invariant": {
+        "task_kind": "offload-generate",
+        "backend": "omen-arc"
+      },
+      "samples": 5,
+      "workflows": [
+        "wf-hearth-offload-experiment-doc-adr-bench"
+      ],
+      "reasons": [
+        "all 5 sample(s) come from one workflow (wf-hearth-offload-experiment-doc-adr-bench); no generalization from one workflow",
+        "nothing varied under the invariant; a repeated particular is a finding, not an abstraction"
+      ]
+    },
+    {
+      "pattern": "task_backend",
+      "invariant": {
         "task_kind": "repo-build",
         "backend": "claude"
       },
@@ -1518,6 +1637,6 @@
       ]
     }
   ],
-  "corpus_digest": "sha256:e1f1ebc392aa5ade9b8c2fa918c712a540c852878d2b90ed045dbb8ed678c406",
-  "corpus_event_count": 124443
+  "corpus_digest": "sha256:d070140fe6c2c05ff4e5b5cc809495def124a7b41f648f8fc7d1272eb59618af",
+  "corpus_event_count": 128751
 }

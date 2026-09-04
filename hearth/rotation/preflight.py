@@ -62,17 +62,69 @@ def _gate(gate_id: str, name: str, ok: bool, detail: str, remedy: Optional[str] 
 
 
 # --------------------------------------------------------------------------- gates (pure)
-def gate_fence(fence) -> dict:
-    """G0. ``fence`` is default_fence()'s answer: None (free), a session id, or "unreadable"."""
+def gate_fence(fence, activity: Optional[dict] = None) -> dict:
+    """G0. ``fence`` is default_fence()'s answer: None (free), a session id, or "unreadable".
+
+    ``activity`` (optional, from :func:`pool_activity`) answers the question the
+    bare fence cannot: the holder is holding, but is it *working*? "Held" and
+    "busy" are different facts, and on 2026-09-04 conflating them cost a round
+    trip -- the lease was renewing every 30 s while the cards had already gone
+    idle and cooled 16 C. Held-and-idle has a remedy; held-and-busy has a wait.
+    """
     if fence == "unreadable":
         return _gate("G0", "tenancy fence", False,
                      "cannot read the omen-b70-pool tenancy store",
                      "fix the store before acting; an unreadable fence is not a free one")
     if fence:
-        return _gate("G0", "tenancy fence", False,
-                     f"held by image session {fence}",
-                     "wait for the imagegen lane to release; production is stopped under the fence")
+        detail = f"held by image session {fence}"
+        remedy = "wait for the imagegen lane to release; production is stopped under the fence"
+        if isinstance(activity, dict) and activity.get("available"):
+            queued, running = activity.get("queued"), activity.get("running")
+            age = activity.get("lease_age_s")
+            detail += f" -- queued {queued}, running {running}"
+            if age is not None:
+                detail += f", lease renewed {age:.0f}s ago"
+            if queued == 0 and running == 0:
+                remedy = ("holder is IDLE but has not released: stop_image_session(force=False) "
+                          "drains and restores a warm ArcServe -- do NOT kill its processes")
+            else:
+                remedy = (f"holder is BUSY ({running} running, {queued} queued): let it drain, or "
+                          "stop_image_session(force=False) to drain in-flight work then restore ArcServe")
+        return _gate("G0", "tenancy fence", False, detail, remedy)
     return _gate("G0", "tenancy fence", True, "omen-b70-pool free")
+
+
+def pool_activity() -> dict:
+    """Is the pool's holder actually working? Read-only; never raises.
+
+    A tenancy lease is a heartbeat, not a measurement -- it says someone claims
+    the pool, not that anyone is using it. Queue depth plus lease age is what
+    separates "wait" from "take it back".
+    """
+    out: dict = {"available": False}
+    try:
+        from hearth.toolsurface.image_generate import get_image_session
+        status = get_image_session()
+    except Exception as exc:  # noqa: BLE001 - advisory only, never blocks a gate
+        out["error"] = f"{type(exc).__name__}: {exc}"
+        return out
+    if not isinstance(status, dict):
+        return out
+    session = status.get("session") or {}
+    out.update({
+        "available": True,
+        "queued": status.get("queued"),
+        "running": status.get("running"),
+        "session_id": session.get("session_id"),
+        "epoch": session.get("epoch"),
+    })
+    updated, expires = session.get("updated_at"), session.get("expires_at")
+    now = datetime.now(timezone.utc).timestamp()
+    if isinstance(updated, (int, float)):
+        out["lease_age_s"] = now - updated
+    if isinstance(expires, (int, float)):
+        out["lease_ttl_s"] = expires - now
+    return out
 
 
 def gate_siblings(model_ids: Optional[Iterable[str]], required: Sequence[str] = DEFAULT_MODELS) -> dict:
@@ -221,7 +273,7 @@ def live_preflight(models: Sequence[str] = DEFAULT_MODELS, endpoint: Optional[st
         state = None
 
     return preflight([
-        gate_fence(fence),
+        gate_fence(fence, pool_activity() if fence not in (None, "unreadable") else None),
         gate_siblings(model_ids, models),
         gate_production(state),
         gate_door_fresh(read_gateway_start(), newest_provider_commit()),

@@ -26,6 +26,30 @@ class GateFenceTest(unittest.TestCase):
         self.assertFalse(gate["ok"])
         self.assertIn("cannot read", gate["detail"])
 
+    def test_held_but_idle_gets_the_drain_remedy(self):
+        # 2026-09-04: the lease renewed every 30 s while the cards sat idle.
+        # "Held" and "busy" are different facts; only one of them has a remedy.
+        gate = pf.gate_fence("imgsess_abc", {"available": True, "queued": 0, "running": 0,
+                                             "lease_age_s": 6.0})
+        self.assertFalse(gate["ok"])
+        self.assertIn("queued 0, running 0", gate["detail"])
+        self.assertIn("IDLE", gate["remedy"])
+        self.assertIn("stop_image_session", gate["remedy"])
+        self.assertIn("do NOT kill", gate["remedy"])
+
+    def test_held_and_busy_says_wait_or_drain(self):
+        gate = pf.gate_fence("imgsess_abc", {"available": True, "queued": 1, "running": 1,
+                                             "lease_age_s": 31.0})
+        self.assertFalse(gate["ok"])
+        self.assertIn("running 1", gate["detail"])
+        self.assertIn("BUSY", gate["remedy"])
+
+    def test_activity_unavailable_falls_back_to_the_plain_remedy(self):
+        gate = pf.gate_fence("imgsess_abc", {"available": False, "error": "boom"})
+        self.assertFalse(gate["ok"])
+        self.assertNotIn("queued", gate["detail"])
+        self.assertIn("wait for the imagegen lane", gate["remedy"])
+
 
 class GateSiblingsTest(unittest.TestCase):
     def test_declared_entries_pass(self):

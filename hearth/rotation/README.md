@@ -114,6 +114,10 @@ phi-4 and qwen14b ran **sequentially on one card**; the `-vk0` entries exist to 
 **Waits on** an ArcServe restart (any lane's — the imagegen lane's restore path does one). Do **not**
 restart production for this alone: INC-2026-08-30-A is watch-do-not-poke (Derek, 2026-09-04).
 
+**To take the pool back deliberately**, see [POOL-HANDOVER.md](POOL-HANDOVER.md): G0 now reports
+whether the holder is *busy* or *idle-but-held*, and `stop_image_session(force=False)` drains and
+restores a warm ArcServe. Never kill the imagegen processes.
+
 | # | step | expect |
 |---|---|---|
 | 1 | ArcServe restarts (peer lane) | `-vk0` entries live |

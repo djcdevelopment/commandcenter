@@ -14,6 +14,17 @@ class _Client:
         self.calls = []
         self.responses = responses or {}
 
+    def completion(self, model_id, prompt, n_predict=1, cache_prompt=False, timeout_s=120.0):
+        self.completions = getattr(self, "completions", [])
+        self.completions.append((model_id, prompt, cache_prompt))
+        n = len(prompt.split())
+        # first sight of a prompt costs its length; a hydrated slot costs ~1
+        seen = getattr(self, "seen", set())
+        self.seen = seen
+        timings = {"prompt_n": 1 if prompt in seen else n, "cache_n": n - 1 if prompt in seen else 0}
+        seen.add(prompt)
+        return {"ok": True, "timings": timings, "content": ""}
+
     def slot_action(self, model_id, slot, action, filename, timeout_s=120.0):
         self.calls.append((model_id, slot, action, filename))
         default = {"ok": True, "id_slot": slot, "filename": filename, "n_saved": 2900, "n_written": 2_680_000_000}
@@ -69,6 +80,39 @@ class KvTests(unittest.TestCase):
             save_slot(client, "phi4-vk1", 0, "hello world", self.manifest)
         self.assertEqual(self.manifest.entries, {})
         self.assertFalse(self.manifest.path.exists())
+
+
+
+class PrefillTests(unittest.TestCase):
+    def test_save_processes_the_prompt_before_saving(self) -> None:
+        import tempfile
+        from pathlib import Path
+        from hearth.rotation.kv import KvManifest, save_slot, restore_slot
+        client = _Client()
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = KvManifest(Path(tmp) / "m.json")
+            save_slot(client, "phi4-vk1", 0, "a b c d e", manifest)
+            self.assertEqual(client.completions[0], ("phi4-vk1", "a b c d e", True))
+            save_call = [c for c in client.calls if c[2] == "save"]
+            self.assertEqual(len(save_call), 1)
+            out = restore_slot(client, "phi4-vk1", 0, "a b c d e", manifest)
+            self.assertEqual(out["prompt_n_after_restore"], 1)
+            self.assertEqual(out["cache_n_after_restore"], 4)
+
+    def test_save_refuses_when_the_prefill_fails(self) -> None:
+        import tempfile
+        from pathlib import Path
+        from hearth.rotation.kv import KvManifest, save_slot
+
+        class Cold(_Client):
+            def completion(self, *a, **k):
+                return {"ok": False, "error": "HTTP 503"}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = KvManifest(Path(tmp) / "m.json")
+            with self.assertRaises(RuntimeError):
+                save_slot(Cold(), "phi4-vk1", 0, "a b", manifest)
+            self.assertEqual(manifest.entries, {})
 
 
 if __name__ == "__main__":

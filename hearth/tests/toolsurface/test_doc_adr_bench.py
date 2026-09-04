@@ -44,7 +44,7 @@ def _fake_pool() -> Pool:
     hw = "omen-285k-dual-b70-2026H2"
     return Pool(default="omen-arc", backends=(
         _b("omen-arc", ["qwen3-30b-a3b"], "omen", hw, 229376),
-        _b("omen-swap", ["phi4-vk1", "phi4-vk2", "qwen14b-vk1", "qwen14b-vk2",
+        _b("omen-swap", ["phi4-vk1", "phi4-vk0", "qwen14b-vk1", "qwen14b-vk0",
                          "mistral24b-vk1", "qwen38-27b-dual"], "omen", hw, 14336),
         _b("fx99-ollama", ["qwen2.5:14b", "qwen2.5:7b"], "fx99", "fx99-2070super-2026H2", 24576),
         _b("gcp-gemini", ["gemini-3.5-flash"], "gcp-vertex"),
@@ -175,7 +175,7 @@ class HeldOutTests(TestCase):
         gen = FakeGen()
         with self.assertRaises(PanelConflict):
             run_flat_matrix(POUR, gen, task_ids=[TASK],
-                            judges=[("some-other-rung", "phi4-vk2"), FX99], pool=self.pool)
+                            judges=[("some-other-rung", "phi4-vk0"), FX99], pool=self.pool)
         self.assertEqual(gen.calls, [])
 
     def test_matrix_refuses_the_whole_sweep_up_front(self) -> None:
@@ -361,7 +361,7 @@ class CliTests(TestCase):
     def test_judge_sharing_an_arms_backend_exits_2_without_dispatching(self) -> None:
         gen = FakeGen()
         rc, _, err = self._run(["--arms", *POUR, "--tasks", TASK,
-                                "--judges", "omen-swap:phi4-vk2"], gen)
+                                "--judges", "omen-swap:phi4-vk0"], gen)
         self.assertEqual(rc, 2)
         self.assertIn("refused", err)
         self.assertEqual(gen.calls, [])

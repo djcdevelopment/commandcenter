@@ -55,7 +55,7 @@ JUDGE_POOL: list[tuple[str, str]] = [
 ]
 
 # llama-swap side entries declare the SAME weights twice (``phi4-vk1`` /
-# ``phi4-vk2``, ADR-0042) and a dual-card variant (``qwen38-27b-dual``); a
+# ``phi4-vk0``, ADR-0042) and a dual-card variant (``qwen38-27b-dual``); a
 # judge on the sibling entry is still the model judging itself.
 _PLACEMENT_SUFFIX = re.compile(r"-(?:vk\d+|dual)$", re.IGNORECASE)
 
@@ -231,7 +231,7 @@ def held_out_judges(arms: Iterable[Any], pool_seats: Optional[Iterable[Any]] = N
     """Pick the seats from ``pool_seats`` (default ``JUDGE_POOL``) held out from ``arms``.
 
     A seat is excluded when it shares a backend OR a model with any arm
-    (placement siblings ``x-vk1``/``x-vk2``/``x-dual`` count as one model), or
+    (placement siblings ``x-vk1``/``x-vk0``/``x-dual`` count as one model), or
     when its rung is retired in the pool declaration. Fewer than ``min_seats``
     survivors raises ``PanelConflict`` carrying every exclusion and its reason.
     ``max_seats`` caps the panel from the front of the pool (preference order).

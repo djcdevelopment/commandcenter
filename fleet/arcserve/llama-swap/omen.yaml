@@ -20,7 +20,12 @@
 # launching llama-swap; llama-server reads it from the environment (arg.cpp: env LLAMA_API_KEY). /health is
 # public even with an api key, so llama-swap's health check needs no bearer.
 #
-# ADR-0042: NEVER trust a Vulkan index. Single-card side models are declared TWICE (-vk1 env=1, -vk2 env=2)
+# 2026-09-03 LIVE (window rot-side-20260903-B): with GGML_VK_VISIBLE_DEVICES=2 the side server's own
+# -lv 5 report read 'Vulkan0 : Intel(R) Graphics' -- index 2 is the iGPU on this driver; indices 0 and 1
+# are the two B70s (env=1 landed on BDF 0000:04:00.0, corroborated by the commit delta). The single-card
+# pair is therefore env=0 / env=1 (ids <m>-vk0 / <m>-vk1). A running llama-swap keeps the entries it was
+# started with: this file takes effect at the next ArcServe restart, never by editing it.
+# ADR-0042: NEVER trust a Vulkan index. Single-card side models are declared TWICE (-vk1 env=1, -vk0 env=0)
 # in one swap:true group per model; the rotation lifecycle asserts placement from the -lv 5 load report
 # (GET /logs) + the per-BDF commit delta, and retries the sibling entry on mismatch. Dual entries carry
 # NO device env (type-based selection picks both B70s and drops the iGPU).
@@ -68,18 +73,18 @@ models:
     env:
       - "GGML_VK_VISIBLE_DEVICES=1"
     ttl: 0
-  "phi4-vk2":
+  "phi4-vk0":
     cmd: >
       E:\work\llamacpp-knee\build\bin\llama-server.exe
       -m E:\work\battlemage\models\phi-4-Q4_K_M.gguf
-      --alias phi4-vk2
-      --log-file C:/work/commandcenter/hearth/var/swap-logs/phi4-vk2.log
+      --alias phi4-vk0
+      --log-file C:/work/commandcenter/hearth/var/swap-logs/phi4-vk0.log
       -ngl 99 -fa on --no-mmap -dio -fit off
       -c 8192 -np 1
       --host 127.0.0.1 --port ${PORT}
       --slots --jinja -lv 5 --slot-save-path E:\work\battlemage\kv\
     env:
-      - "GGML_VK_VISIBLE_DEVICES=2"
+      - "GGML_VK_VISIBLE_DEVICES=0"
     ttl: 0
 
   "qwen14b-vk1":
@@ -95,18 +100,18 @@ models:
     env:
       - "GGML_VK_VISIBLE_DEVICES=1"
     ttl: 0
-  "qwen14b-vk2":
+  "qwen14b-vk0":
     cmd: >
       E:\work\llamacpp-knee\build\bin\llama-server.exe
       -m E:\work\battlemage\models\qwen2.5-14b-instruct-q4_K_M.gguf
-      --alias qwen14b-vk2
-      --log-file C:/work/commandcenter/hearth/var/swap-logs/qwen14b-vk2.log
+      --alias qwen14b-vk0
+      --log-file C:/work/commandcenter/hearth/var/swap-logs/qwen14b-vk0.log
       -ngl 99 -fa on --no-mmap -dio -fit off
       -c 8192 -np 1
       --host 127.0.0.1 --port ${PORT}
       --slots --jinja -lv 5 --slot-save-path E:\work\battlemage\kv\
     env:
-      - "GGML_VK_VISIBLE_DEVICES=2"
+      - "GGML_VK_VISIBLE_DEVICES=0"
     ttl: 0
 
   "gptoss20b-vk1":
@@ -122,18 +127,18 @@ models:
     env:
       - "GGML_VK_VISIBLE_DEVICES=1"
     ttl: 0
-  "gptoss20b-vk2":
+  "gptoss20b-vk0":
     cmd: >
       E:\work\llamacpp-knee\build\bin\llama-server.exe
       -m E:\work\battlemage\models\gpt-oss-20b-MXFP4.gguf
-      --alias gptoss20b-vk2
-      --log-file C:/work/commandcenter/hearth/var/swap-logs/gptoss20b-vk2.log
+      --alias gptoss20b-vk0
+      --log-file C:/work/commandcenter/hearth/var/swap-logs/gptoss20b-vk0.log
       -ngl 99 -fa on --no-mmap -dio -fit off
       -c 4096 -np 1
       --host 127.0.0.1 --port ${PORT}
       --slots --jinja -lv 5 --slot-save-path E:\work\battlemage\kv\
     env:
-      - "GGML_VK_VISIBLE_DEVICES=2"
+      - "GGML_VK_VISIBLE_DEVICES=0"
     ttl: 0
 
   "mistral24b-vk1":
@@ -149,18 +154,18 @@ models:
     env:
       - "GGML_VK_VISIBLE_DEVICES=1"
     ttl: 0
-  "mistral24b-vk2":
+  "mistral24b-vk0":
     cmd: >
       E:\work\llamacpp-knee\build\bin\llama-server.exe
       -m E:\work\battlemage\models\Mistral-Small-3.2-24B-Instruct-2506-Q4_K_M.gguf
-      --alias mistral24b-vk2
-      --log-file C:/work/commandcenter/hearth/var/swap-logs/mistral24b-vk2.log
+      --alias mistral24b-vk0
+      --log-file C:/work/commandcenter/hearth/var/swap-logs/mistral24b-vk0.log
       -ngl 99 -fa on --no-mmap -dio -fit off
       -c 4096 -np 1
       --host 127.0.0.1 --port ${PORT}
       --slots --jinja -lv 5 --slot-save-path E:\work\battlemage\kv\
     env:
-      - "GGML_VK_VISIBLE_DEVICES=2"
+      - "GGML_VK_VISIBLE_DEVICES=0"
     ttl: 0
 
   # ---- DEPTH SPECIALIST (ADR-0039), dual-split, NO device env; for a Derek-called window only ----------
@@ -198,25 +203,25 @@ routing:
           exclusive: false
           members:
             - "phi4-vk1"
-            - "phi4-vk2"
+            - "phi4-vk0"
         "qwen14b":
           swap: true
           exclusive: false
           members:
             - "qwen14b-vk1"
-            - "qwen14b-vk2"
+            - "qwen14b-vk0"
         "gptoss20b":
           swap: true
           exclusive: false
           members:
             - "gptoss20b-vk1"
-            - "gptoss20b-vk2"
+            - "gptoss20b-vk0"
         "mistral24b":
           swap: true
           exclusive: false
           members:
             - "mistral24b-vk1"
-            - "mistral24b-vk2"
+            - "mistral24b-vk0"
         "qwen27b-dual":
           swap: true
           exclusive: false

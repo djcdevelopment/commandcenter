@@ -37,7 +37,7 @@ from hearth.scheduler.ontology import Job, Machine, ModelSpec, ScheduleProposal
 # Mirrors solve._VRAM_HEADROOM_GB; the catalog's gates.vram_headroom_gb overrides.
 DEFAULT_HEADROOM_GB = 0.5
 
-_ENTRY_SUFFIXES = ("-vk1", "-vk2", "-dual")
+_ENTRY_SUFFIXES = ("-vk1", "-vk0", "-dual")
 
 
 def _headroom_gb(gates: Optional[dict]) -> float:
@@ -195,7 +195,7 @@ def cumulative_overflow(jobs: list[Job], models: dict[str, ModelSpec], machine: 
 
 def _swap_entry_for(required_names: Any, spec: ModelSpec) -> Optional[str]:
     """The llama-swap entry the plan names: the first entry name a job used for
-    this model (a `-vk1`/`-vk2`/`-dual` spelling or the catalog's declared entry),
+    this model (a `-vk1`/`-vk0`/`-dual` spelling or the catalog's declared entry),
     else the catalog's declared swap_entry, else None (asserted at load).
     `required_names` is one name or an iterable of them."""
     names = [required_names] if isinstance(required_names, str) or required_names is None \
@@ -218,7 +218,7 @@ def _canon(models: dict[str, ModelSpec], name: Optional[str]) -> Optional[str]:
 def _entry_candidates(spec: ModelSpec) -> list[str]:
     if spec.placement == "dual":
         return [spec.swap_entry] if spec.swap_entry else [f"{spec.model_id}-dual"]
-    return [f"{spec.model_id}-vk1", f"{spec.model_id}-vk2"]
+    return [f"{spec.model_id}-vk1", f"{spec.model_id}-vk0"]
 
 
 def _evidence(spec: ModelSpec, fields: tuple[str, ...]) -> dict[str, Any]:
@@ -360,7 +360,7 @@ def build_rotation_plan(proposal: ScheduleProposal, models: dict[str, ModelSpec]
         f"host cold={bool(machine.cold)}: est_s uses {cold_field} where the catalog "
         "measured it, warmup_ms fallback otherwise; est_s_first_in_window is the "
         "receipt figure for a cold host",
-        "single-card models are declared twice in llama-swap (-vk1/-vk2); the "
+        "single-card models are declared twice in llama-swap (-vk1/-vk0); the "
         "sibling that actually lands is chosen by placement assertion at load time, "
         "never by index (ADR-0042); `cards` is the solver's VRAM-fit choice by BDF",
         "v1 has no eviction: a loaded model stays resident to the horizon; a swap "

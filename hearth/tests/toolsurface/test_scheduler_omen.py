@@ -282,7 +282,7 @@ class OmenCatalogTests(_Sandbox):
                          {steps["phi4"]["cards"][0], steps["mistral24b"]["cards"][0]})
         # The entry the job used is the entry the plan names; both siblings offered.
         self.assertEqual(steps["phi4"]["swap_entry"], "phi4-vk1")
-        self.assertEqual(steps["phi4"]["swap_entry_candidates"], ["phi4-vk1", "phi4-vk2"])
+        self.assertEqual(steps["phi4"]["swap_entry_candidates"], ["phi4-vk1", "phi4-vk0"])
         self.assertEqual(steps["mistral24b"]["swap_entry"], "mistral24b-vk1")
         # Loads are accounted once per physical model, keyed by catalog id.
         loads = {row["model_id"]: row for row in result["proposal"]["loads"]}
@@ -386,8 +386,8 @@ class OmenCatalogTests(_Sandbox):
         self.assertEqual(job.required_model, "qwen38-27b")
         explicit = _job_from_dict({"plan_id": "y", "task_class": "inference",
                                    "task_family": "summarization", "prompt_tokens": 9000,
-                                   "required_model": "phi4-vk2"})
-        self.assertEqual(explicit.required_model, "phi4-vk2")
+                                   "required_model": "phi4-vk0"})
+        self.assertEqual(explicit.required_model, "phi4-vk0")
         plain = _job_from_dict({"plan_id": "z", "task_class": "build"})
         self.assertIsNone(plain.required_model)
         self.assertFalse(plain.kv_state_available)
@@ -396,7 +396,7 @@ class OmenCatalogTests(_Sandbox):
         # llama-swap /running lists entries; the sibling entry of a resident model
         # needs no load, and the residency accounts the model once.
         result = propose_schedule(
-            [{"plan_id": "c1", "task_class": "inference", "required_model": "phi4-vk2",
+            [{"plan_id": "c1", "task_class": "inference", "required_model": "phi4-vk0",
               "est_out_tokens": 100}],
             omen_resident=["qwen3-30b-a3b", "phi4-vk1"])
         self.assertTrue(result["ok"])

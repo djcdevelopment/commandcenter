@@ -108,9 +108,18 @@ class CrossModelRestore(ValueError):
 
 def save_slot(client, model_id: str, slot: int, prompt: str,
               manifest: KvManifest, timeout_s: float = 120.0) -> KvEntry:
-    """``/slots/{slot}?action=save`` under the manifest name; records the entry on success."""
+    """Process ``prompt`` on the model (``cache_prompt``), then ``/slots/{slot}?action=save``
+    under the manifest name; records the entry on success.
+
+    The save alone captures whatever the slot last held (2026-09-03: one canary token, 205 KB);
+    the prompt has to be prefilled first for the file to carry its state.
+    """
     digest = prompt_hash(prompt)
     filename = kv_filename(model_id, slot, digest)
+    pre = client.completion(model_id, prompt, n_predict=1, cache_prompt=True, timeout_s=timeout_s)
+    timings = pre.get("timings") if pre.get("ok") else None
+    if not isinstance(timings, dict) or not timings:
+        raise RuntimeError(f"prefill before save failed for {model_id}: {pre.get('error') or 'no timings'}")
     result = client.slot_action(model_id, slot, "save", filename, timeout_s=timeout_s)
     if not result.get("ok", False) or result.get("error"):
         raise RuntimeError(f"slot save failed for {model_id} slot {slot}: {result.get('error')}")
@@ -142,5 +151,11 @@ def restore_slot(client, model_id: str, slot: int, prompt: str,
     result = client.slot_action(model_id, slot, "restore", entry.filename, timeout_s=timeout_s)
     if not result.get("ok", False) or result.get("error"):
         raise RuntimeError(f"slot restore failed for {model_id} slot {slot}: {result.get('error')}")
+    # The proof of hydration: the same prompt again costs ~1 prompt token, not a re-prefill.
+    post = client.completion(model_id, prompt, n_predict=1, cache_prompt=True, timeout_s=timeout_s)
+    verify = post.get("timings") if post.get("ok") else None
     return {"ok": True, "entry": asdict(entry), "n_restored": result.get("n_restored"),
-            "n_read": result.get("n_read"), "timings": result.get("timings")}
+            "n_read": result.get("n_read"), "timings": result.get("timings"),
+            "verify_timings": verify,
+            "prompt_n_after_restore": (verify or {}).get("prompt_n"),
+            "cache_n_after_restore": (verify or {}).get("cache_n")}

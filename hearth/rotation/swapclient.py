@@ -224,6 +224,11 @@ class LlamaSwapClient:
             status = self.upstream_health(model_id)
             if first_status is None:
                 first_status = status
+            if status == 404:
+                # llama-swap does not know this id: the running instance predates the config
+                # entry (a rename lands at the next ArcServe restart). Polling cannot fix that.
+                return LoadOutcome(False, round(self.clock() - start, 3), first_status, None,
+                                   f"unknown model {model_id!r} on this llama-swap (404)", attempts)
             if status == 200:
                 result = self.completion(model_id, "ok", n_predict=1, timeout_s=min(180.0, deadline_s))
                 timings = result.get("timings") if result.get("ok") else None

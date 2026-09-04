@@ -92,6 +92,15 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(outcome.canary_timings["predicted_n"], 1)
         self.assertEqual(outcome.attempts, 1)
 
+    def test_wait_ready_fails_fast_on_an_unknown_model(self) -> None:
+        fake = _Fake({("GET", "/upstream/phi4-vk0/health"): (404, "model not found")})
+        client = self._client(fake)
+        outcome = client.wait_ready("phi4-vk0", deadline_s=30, poll_s=1)
+        self.assertFalse(outcome.ready)
+        self.assertEqual(outcome.first_status, 404)
+        self.assertEqual(outcome.attempts, 1)
+        self.assertIn("404", outcome.error)
+
     def test_wait_ready_times_out_when_upstream_never_answers(self) -> None:
         fake = _Fake({})
         client = self._client(fake)

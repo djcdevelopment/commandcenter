@@ -2,7 +2,9 @@
 
     fence -> telemetry snapshot -> admission -> trigger load -> wait_ready (health + timings)
           -> read the load report -> assert placement (+ per-BDF commit delta) -> ok
-          -> on mismatch: unload, try the sibling entry (``-vk1`` -> ``-vk2``), bounded by ``entries``
+          -> on mismatch: unload, try the sibling entry (``-vk1`` -> ``-vk0``), bounded by ``entries``
+    An entry already resident before the call shows no commit delta (2026-09-03: a retry unloaded a
+    passing placement that way); for it the log report alone decides and the receipt says so.
 
 Every step emits a receipt row through ``on_event`` so the window's ledger carries the evidence.
 The imagegen tenancy fence is READ only (the store's owner literal belongs to that lane); an active
@@ -168,6 +170,10 @@ def load_with_assertion(client, entries: Iterable[str], *, snapshot: Callable[[]
         result.reason = f"admission refused: {admission.reason_code}: {'; '.join(admission.reasons)}"
         return result
 
+    try:
+        resident_before = {m.model_id for m in client.running() if m.ready}
+    except Exception:  # noqa: BLE001
+        resident_before = set()
     last_reason = "no attempt"
     for entry in entries:
         result.attempts += 1
@@ -190,7 +196,8 @@ def load_with_assertion(client, entries: Iterable[str], *, snapshot: Callable[[]
         after = snapshot()
         emit("telemetry", phase="after", commit_free_gb=after.commit_free_gb,
              cards=[c.bdf for c in after.cards], note=after.note)
-        have_bdf = bool(before.cards) and bool(after.cards)
+        preloaded = entry in resident_before
+        have_bdf = bool(before.cards) and bool(after.cards) and not preloaded
         verdict = assert_placement(report, expected_cards,
                                    before.local_committed_by_bdf() if have_bdf else None,
                                    after.local_committed_by_bdf() if have_bdf else None,
@@ -198,7 +205,8 @@ def load_with_assertion(client, entries: Iterable[str], *, snapshot: Callable[[]
         result.verdict = verdict
         emit("placement", entry=entry, ok=verdict.ok, reason=verdict.reason,
              b70_with_weights=verdict.b70_with_weights, per_card_gb=verdict.per_card_gb,
-             bdf_delta_gb=verdict.bdf_delta_gb, corroborated=verdict.bdf_corroborated)
+             bdf_delta_gb=verdict.bdf_delta_gb, corroborated=verdict.bdf_corroborated,
+             already_resident=preloaded)
         if verdict.ok:
             result.ok = True
             result.entry_used = entry

@@ -135,11 +135,11 @@ the R10 evidence. The first rotation proof (window `rot-side-20260903-A`, `assay
 `039f68a`); the second (`rot-side-20260903-B`) is in progress through the door, receipt to follow.
 
 **4. Placement is asserted from the `-lv 5` load report plus the per-BDF commit delta; the sibling
-entries `-vk1`/`-vk2` are the retry lever; an index is never trusted.** — **LANDED** (`b85e32e`,
+entries `-vk1`/`-vk0` are the retry lever; an index is never trusted.** — **LANDED** (`b85e32e`,
 `2e5935b`, `c6370b0`).
 
 `docs/adr#0042` cost a whole card for days by filtering devices by index. Here every single-card side
-model is declared **twice** in `omen.yaml` — `<m>-vk1` (`env` Vulkan index 1) and `<m>-vk2` (index 2) —
+model is declared **twice** in `omen.yaml` — `<m>-vk1` (`env` Vulkan index 1) and `<m>-vk0` (index 0) —
 in a per-model `{swap: true, exclusive: false}` group; dual entries carry **no env**.
 `hearth/rotation/placement.py` parses what the server itself reported (`- VulkanN : <name>`, `using
 device VulkanN`, `<dev> model buffer size = N MiB`) and `assert_placement` passes only if exactly

@@ -26,7 +26,7 @@ def _fake_pool() -> Pool:
     return Pool(default="omen-arc", backends=(
         _b("omen-arc", ["qwen3-30b-a3b"], "omen", "omen-285k-dual-b70-2026H2"),
         _b("omen-arc-27b", ["qwen38-27b"], "omen", "omen-285k-dual-b70-2026H2"),
-        _b("omen-swap", ["phi4-vk1", "phi4-vk2", "qwen14b-vk1", "qwen14b-vk2",
+        _b("omen-swap", ["phi4-vk1", "phi4-vk0", "qwen14b-vk1", "qwen14b-vk0",
                          "qwen38-27b-dual"], "omen", "omen-285k-dual-b70-2026H2"),
         _b("fx99-ollama", ["qwen2.5:14b", "qwen2.5:7b"], "fx99", "fx99-2070super-2026H2"),
         _b("gcp-gemini", ["gemini-3.5-flash"], "gcp-vertex"),          # no hardware id
@@ -92,7 +92,7 @@ class HeldOutTests(TestCase):
     def test_model_conflict_across_backends_and_placement_siblings(self) -> None:
         # same model served by another rung name is still self-judging; so is the
         # llama-swap sibling entry (same weights, other card)
-        seats = [("fx99-ollama", "qwen2.5:14b"), ("omen-swap", "phi4-vk2"),
+        seats = [("fx99-ollama", "qwen2.5:14b"), ("omen-swap", "phi4-vk0"),
                  ("gcp-gemini", "gemini-3.5-flash")]
         p = held_out_judges([("omen-swap", "phi4-vk1"), ("some-other-rung", "qwen2.5:14b")],
                             seats, min_seats=1, pool=self.pool)
@@ -100,12 +100,12 @@ class HeldOutTests(TestCase):
         reasons = {e["backend"]: e["reason"] for e in p.excluded}
         self.assertIn("shares model 'qwen2.5:14b'", reasons["fx99-ollama"])
         self.assertIn("shares backend 'omen-swap'", reasons["omen-swap"])
-        # the placement-sibling rule on its own: phi4-vk2 IS phi4-vk1 (same weights,
+        # the placement-sibling rule on its own: phi4-vk0 IS phi4-vk1 (same weights,
         # other card, ADR-0042), and -dual is the same model on both cards
         with self.assertRaises(PanelConflict) as cm:
-            assert_held_out([("fx99-ollama", "phi4-vk2")], [("omen-swap", "phi4-vk1")],
+            assert_held_out([("fx99-ollama", "phi4-vk0")], [("omen-swap", "phi4-vk1")],
                             pool=self.pool)
-        self.assertIn("shares model 'phi4-vk2'", str(cm.exception))
+        self.assertIn("shares model 'phi4-vk0'", str(cm.exception))
         with self.assertRaises(PanelConflict):
             assert_held_out([("fx99-ollama", "qwen38-27b-dual")], [("omen-arc-27b", "qwen38-27b")],
                             pool=self.pool)

@@ -32,7 +32,7 @@ CATALOG_PATH = REPO / "knowledge" / "omen_catalog.json"
 SWAP_RUNG = "omen-swap"
 PRODUCTION_MODEL = "qwen3-30b-a3b"
 KV_DIR = Path("E:/work/battlemage/kv")          # every side entry's --slot-save-path in omen.yaml
-_SIBLING_RE = re.compile(r"^(?P<family>.+)-vk(?P<idx>[12])$")
+_SIBLING_RE = re.compile(r"^(?P<family>.+)-vk(?P<idx>[01])$")
 
 # Injectable seams (tests patch these; production uses the real ones).
 _client_factory: Callable[[str], LlamaSwapClient] = lambda endpoint: LlamaSwapClient(endpoint=endpoint)
@@ -103,7 +103,7 @@ def _sibling_entries(model_id: str, declared: tuple) -> list:
     if not match:
         return [model_id]
     family, idx = match.group("family"), match.group("idx")
-    other = f"{family}-vk{'2' if idx == '1' else '1'}"
+    other = f"{family}-vk{'0' if idx == '1' else '1'}"
     return [model_id] + ([other] if other in declared else [])
 
 
@@ -236,7 +236,7 @@ def rotation_load(model_id: str, window: str, expect_cards: int = 1, reason: str
     Refuses without an open window, under an active image session, when the model is not declared on
     the omen-swap rung, when admission fails (VRAM fit / commit floor / thermal / unknown telemetry),
     or when the endpoint is a production port. On a placement mismatch the sibling entry (``-vk1`` <->
-    ``-vk2``) is tried once (ADR-0042). Returns the lifecycle receipt rows.
+    ``-vk0``) is tried once (ADR-0042). Returns the lifecycle receipt rows.
     """
     refusal = _refuse_production_endpoint(endpoint) or _require_window(window)
     if refusal:

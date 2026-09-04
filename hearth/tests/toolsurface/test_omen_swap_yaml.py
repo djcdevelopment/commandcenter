@@ -59,10 +59,10 @@ class OmenSwapYamlTests(unittest.TestCase):
             self.assertIn(flag, entry, flag)
             self.assertIn(flag, serve, "serve-arc.cmd no longer carries %r" % flag)
 
-    def test_every_side_model_is_declared_twice_with_index_1_and_2(self) -> None:
+    def test_every_side_model_is_declared_twice_with_index_0_and_1(self) -> None:
         text = _text()
         for model in SIDE_MODELS:
-            for index in ("1", "2"):
+            for index in ("0", "1"):
                 entry = _entry(text, "%s-vk%s" % (model, index))
                 self.assertIn('"GGML_VK_VISIBLE_DEVICES=%s"' % index, entry)
                 self.assertIn("--port ${PORT}", entry)
@@ -76,10 +76,10 @@ class OmenSwapYamlTests(unittest.TestCase):
         self.assertNotIn("GGML_VK_VISIBLE_DEVICES", entry)
         self.assertIn("-sm layer -ts 1,1", entry)
 
-    def test_device_env_values_are_only_1_or_2(self) -> None:
+    def test_device_env_values_are_only_0_or_1(self) -> None:
         values = re.findall(r"GGML_VK_VISIBLE_DEVICES=(\S+?)\"", _text())
         self.assertTrue(values)
-        self.assertEqual(set(values), {"1", "2"})
+        self.assertEqual(set(values), {"0", "1"})
 
     def test_no_secret_literal_anywhere(self) -> None:
         # Comments may DESCRIBE the rule; the config itself must not carry a flag or a token.
@@ -102,7 +102,7 @@ class OmenSwapYamlTests(unittest.TestCase):
             self.assertIn("exclusive: false", block.group(1), model)
             self.assertIn("swap: true", block.group(1), model)
             self.assertIn('- "%s-vk1"' % model, block.group(1))
-            self.assertIn('- "%s-vk2"' % model, block.group(1))
+            self.assertIn('- "%s-vk0"' % model, block.group(1))
 
     def test_every_model_in_a_group_is_a_declared_model(self) -> None:
         text = _text()

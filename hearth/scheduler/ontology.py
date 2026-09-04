@@ -393,12 +393,12 @@ OMEN_CATALOG_CONTRACT = "omen-catalog.v1"
 CATALOG_CONTRACTS = (AM4_CATALOG_CONTRACT, OMEN_CATALOG_CONTRACT)
 
 # llama-swap declares every single-card OMEN model TWICE (`<m>-vk1` env=1,
-# `<m>-vk2` env=2) and the dual 27B once as `<m>-dual` (ADR-0042: the Vulkan index
+# `<m>-vk0` env=0) and the dual 27B once as `<m>-dual` (ADR-0042: the Vulkan index
 # is a candidate, never an identity; placement is asserted after load). A job may
 # name any of those entries as its `required_model`; the catalog keys each spec
 # under its swap entry names too so the lookup resolves. The suffix does NOT pin a
 # solver card — the solver still picks the card by VRAM fit.
-_SWAP_ENTRY_SUFFIXES = {"single": ("-vk1", "-vk2"), "dual": ("-dual",)}
+_SWAP_ENTRY_SUFFIXES = {"single": ("-vk1", "-vk0"), "dual": ("-dual",)}
 
 
 def _empty_catalog(contract_version: Optional[str] = None) -> dict:
@@ -452,7 +452,7 @@ def load_model_catalog(path: str, contracts: tuple[str, ...] = CATALOG_CONTRACTS
                          receipts), cards keyed by BDF, and the document's
                          resident_models / staging_slots / coresidency. Each spec is
                          also keyed under its llama-swap entry names (`<m>-vk1`,
-                         `<m>-vk2`, `<m>-dual`) and its declared swap_entry.
+                         `<m>-vk0`, `<m>-dual`) and its declared swap_entry.
 
     Tolerant of the file being ABSENT, malformed, or of a contract outside
     `contracts`: everything comes back empty/None so the scheduler degrades to

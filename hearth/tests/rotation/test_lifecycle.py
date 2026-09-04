@@ -35,6 +35,10 @@ class _Client:
         self.loaded = []
         self.current = None
 
+    def running(self):
+        from hearth.rotation.swapclient import RunningModel
+        return [RunningModel(m, "ready") for m in getattr(self, "resident", [])]
+
     def wait_ready(self, entry, deadline_s=300.0):
         self.loaded.append(entry)
         self.current = entry
@@ -80,7 +84,7 @@ class LifecycleTests(unittest.TestCase):
     def test_happy_path_first_entry_lands_on_one_b70_with_commit_corroboration(self) -> None:
         client = _Client(logs_by_entry={"phi4-vk1": GOOD_LOG})
         snaps = _snapshots(_telemetry(), _telemetry(local_a=14.52 + 8.4))
-        out = load_with_assertion(client, ["phi4-vk1", "phi4-vk2"], snapshot=snaps, **self._common())
+        out = load_with_assertion(client, ["phi4-vk1", "phi4-vk0"], snapshot=snaps, **self._common())
         self.assertTrue(out.ok, out.reason)
         self.assertEqual(out.entry_used, "phi4-vk1")
         self.assertEqual(out.attempts, 1)
@@ -89,21 +93,34 @@ class LifecycleTests(unittest.TestCase):
         steps = [e["step"] for e in out.events]
         self.assertEqual(steps, ["fence", "telemetry", "admission", "load", "ready", "telemetry", "placement"])
 
-    def test_igpu_on_first_entry_unloads_and_retries_the_sibling(self) -> None:
-        client = _Client(logs_by_entry={"phi4-vk1": IGPU_LOG, "phi4-vk2": GOOD_LOG.replace("phi4-vk1", "phi4-vk2")})
-        snaps = _snapshots(_telemetry(), _telemetry(), _telemetry(local_a=14.52 + 8.4))
-        out = load_with_assertion(client, ["phi4-vk1", "phi4-vk2"], snapshot=snaps, **self._common())
+    def test_already_resident_entry_skips_the_commit_corroboration(self) -> None:
+        # 2026-09-03: phi4-vk1 was resident from an earlier call; the retry saw a 0 GB delta and
+        # unloaded a correct placement. The log report decides; the receipt names the case.
+        client = _Client(logs_by_entry={"phi4-vk1": GOOD_LOG})
+        client.resident = ["phi4-vk1"]
+        snaps = _snapshots(_telemetry(local_a=14.52 + 8.4), _telemetry(local_a=14.52 + 8.4))
+        out = load_with_assertion(client, ["phi4-vk1", "phi4-vk0"], snapshot=snaps, **self._common())
         self.assertTrue(out.ok, out.reason)
-        self.assertEqual(out.entry_used, "phi4-vk2")
+        self.assertIsNone(out.verdict.bdf_corroborated)
+        placement = [e for e in out.events if e["step"] == "placement"][0]
+        self.assertTrue(placement["already_resident"])
+        self.assertEqual(client.unloaded, [])
+
+    def test_igpu_on_first_entry_unloads_and_retries_the_sibling(self) -> None:
+        client = _Client(logs_by_entry={"phi4-vk1": IGPU_LOG, "phi4-vk0": GOOD_LOG.replace("phi4-vk1", "phi4-vk0")})
+        snaps = _snapshots(_telemetry(), _telemetry(), _telemetry(local_a=14.52 + 8.4))
+        out = load_with_assertion(client, ["phi4-vk1", "phi4-vk0"], snapshot=snaps, **self._common())
+        self.assertTrue(out.ok, out.reason)
+        self.assertEqual(out.entry_used, "phi4-vk0")
         self.assertEqual(out.attempts, 2)
         self.assertEqual(client.unloaded, ["phi4-vk1"])
 
     def test_both_entries_wrong_fails_and_unloads_both(self) -> None:
-        client = _Client(logs_by_entry={"phi4-vk1": IGPU_LOG, "phi4-vk2": IGPU_LOG.replace("phi4-vk1", "phi4-vk2")})
+        client = _Client(logs_by_entry={"phi4-vk1": IGPU_LOG, "phi4-vk0": IGPU_LOG.replace("phi4-vk1", "phi4-vk0")})
         snaps = _snapshots(_telemetry(), _telemetry(), _telemetry())
-        out = load_with_assertion(client, ["phi4-vk1", "phi4-vk2"], snapshot=snaps, **self._common())
+        out = load_with_assertion(client, ["phi4-vk1", "phi4-vk0"], snapshot=snaps, **self._common())
         self.assertFalse(out.ok)
-        self.assertEqual(client.unloaded, ["phi4-vk1", "phi4-vk2"])
+        self.assertEqual(client.unloaded, ["phi4-vk1", "phi4-vk0"])
         self.assertIn("iGPU", out.reason)
 
     def test_active_image_session_refuses_before_any_load(self) -> None:
@@ -134,9 +151,9 @@ class LifecycleTests(unittest.TestCase):
     def test_not_ready_unloads_and_tries_the_sibling(self) -> None:
         client = _Client(ready=False)
         snaps = _snapshots(_telemetry(), _telemetry(), _telemetry())
-        out = load_with_assertion(client, ["phi4-vk1", "phi4-vk2"], snapshot=snaps, **self._common())
+        out = load_with_assertion(client, ["phi4-vk1", "phi4-vk0"], snapshot=snaps, **self._common())
         self.assertFalse(out.ok)
-        self.assertEqual(client.unloaded, ["phi4-vk1", "phi4-vk2"])
+        self.assertEqual(client.unloaded, ["phi4-vk1", "phi4-vk0"])
         self.assertIn("not ready", out.reason)
 
     def test_select_model_log_keeps_the_tagged_lines_of_the_last_load(self) -> None:

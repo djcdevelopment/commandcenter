@@ -26,7 +26,7 @@ class OmenSwapRungTests(unittest.TestCase):
     def test_one_endpoint_serves_several_model_ids(self) -> None:
         """The ADR-0027 gate-2 shape: a second model_id on one rung."""
         self.assertGreaterEqual(len(self.rung.models), 2)
-        for model in ("phi4-vk1", "phi4-vk2", "qwen14b-vk1", "qwen38-27b-dual"):
+        for model in ("phi4-vk1", "phi4-vk0", "qwen14b-vk1", "qwen38-27b-dual"):
             self.assertIn(model, self.rung.models)
             self.assertEqual([b.name for b in self.pool.by_model(model)], ["omen-swap"])
 

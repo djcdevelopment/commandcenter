@@ -51,27 +51,52 @@ class AudioSynthesizer:
         if self._pipelines:
             return self._pipelines
 
-        # Probe for Intel Arc Pro B70 XPU capability
+        def _drain() -> None:
+            if hasattr(torch, "xpu") and torch.xpu.is_available():
+                try:
+                    torch.xpu.empty_cache()
+                except Exception:
+                    pass
+
+        def _try(mode: str) -> dict[str, Any]:
+            from kokoro import KPipeline
+
+            if mode == "xpu_dual":
+                pipes = {
+                    "host_a": KPipeline(lang_code="a", device="xpu:0"),
+                    "host_b": KPipeline(lang_code="a", device="xpu:1"),
+                }
+            elif mode == "xpu:0":
+                pipe = KPipeline(lang_code="a", device="xpu:0")
+                pipes = {"host_a": pipe, "host_b": pipe}
+            else:
+                torch.set_num_threads(THREAD_CAP)
+                pipe = KPipeline(lang_code="a", device="cpu")
+                pipes = {"host_a": pipe, "host_b": pipe}
+
+            # Prove the pipeline by synthesizing a probe turn
+            chunks = [a for _, _, a in pipes["host_a"]("Probe.", voice="af_heart", speed=1.0)]
+            if not chunks:
+                raise RuntimeError(f"probe synthesis on {mode} returned no audio")
+            return pipes
+
         has_xpu = hasattr(torch, "xpu") and torch.xpu.is_available()
         xpu_count = torch.xpu.device_count() if has_xpu else 0
 
-        from kokoro import KPipeline
+        # On dual-B70 OMEN, card 0 has clean headroom for media generation.
+        candidates = ["xpu:0", "cpu"] if (has_xpu and xpu_count >= 1) else ["cpu"]
 
-        if has_xpu and xpu_count >= 2:
-            self._device_mode = "xpu_dual"
-            self._pipelines = {
-                "host_a": KPipeline(lang_code="a", device="xpu:0"),
-                "host_b": KPipeline(lang_code="a", device="xpu:1"),
-            }
-        elif has_xpu and xpu_count == 1:
-            self._device_mode = "xpu:0"
-            pipe = KPipeline(lang_code="a", device="xpu:0")
-            self._pipelines = {"host_a": pipe, "host_b": pipe}
-        else:
+        for mode in candidates:
+            try:
+                self._pipelines = _try(mode)
+                self._device_mode = mode
+                break
+            except Exception:
+                _drain()
+
+        if not self._pipelines:
+            self._pipelines = _try("cpu")
             self._device_mode = "cpu"
-            torch.set_num_threads(THREAD_CAP)
-            pipe = KPipeline(lang_code="a", device="cpu")
-            self._pipelines = {"host_a": pipe, "host_b": pipe}
 
         return self._pipelines
 

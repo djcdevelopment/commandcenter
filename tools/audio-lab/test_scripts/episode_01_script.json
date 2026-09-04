@@ -6,12 +6,12 @@
   "speakers": {
     "host_a": {
       "name": "Alex",
-      "voice_id": "af_bella,af_sarah",
+      "voice_id": "host_a",
       "persona": "Curious, draws analogies"
     },
     "host_b": {
       "name": "Sam",
-      "voice_id": "am_michael,am_adam",
+      "voice_id": "host_b",
       "persona": "Technical, grounds details"
     }
   },

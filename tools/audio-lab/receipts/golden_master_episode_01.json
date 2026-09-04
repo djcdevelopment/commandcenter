@@ -1,0 +1,34 @@
+{
+  "episode": "01",
+  "title": "The Phantom Limbs of Metal",
+  "source_document_sha256": "4372000000000000000000000000000000000000000000000000000000000001",
+  "compute_device": "xpu:0 (Intel Arc Pro B70)",
+  "artifacts": {
+    "british_tech": {
+      "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_01_phantom_limbs_british_tech.wav",
+      "profile": "british_tech",
+      "voices": [
+        "bf_emma",
+        "bm_george"
+      ],
+      "duration_seconds": 109.475,
+      "sha256": "812b4060518525b921625c0e31f1f1fbe9d60ac58b98fbeab464c4937a18412d",
+      "file_size_bytes": 10509680,
+      "synthesis_wall_time_s": 25.76,
+      "speed_realtime": 4.25
+    },
+    "alex_sam": {
+      "path": "C:\\work\\commandcenter\\tools\\audio-lab\\samples\\golden_master\\episode_01_phantom_limbs_alex_sam.wav",
+      "profile": "alex_sam",
+      "voices": [
+        "af_heart",
+        "am_adam"
+      ],
+      "duration_seconds": 105.725,
+      "sha256": "95596106a7279a151734f18dad8f0d4332c9baa052f7fca0aaed2097735c3282",
+      "file_size_bytes": 10149680,
+      "synthesis_wall_time_s": 15.6,
+      "speed_realtime": 6.78
+    }
+  }
+}

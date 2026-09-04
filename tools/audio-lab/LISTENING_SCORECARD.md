@@ -158,4 +158,20 @@ Select the **winning default profile** and **winning alternate profile** with th
 - [ ] **Default Show Profile**: `________________________` (e.g. `finalist_emma_P2_comfort_noise`)
 - [ ] **Alternate Show Profile**: `________________________` (e.g. `finalist_heart_P1_edge_fades_only`)
 
-*(Once selected, Slice 3 will integrate these exact winning behaviors into Hearth's `AudioSynthesizer` boundary).* 
+*(Once selected, Slice 3 will integrate these exact winning behaviors into Hearth's `AudioSynthesizer` boundary).*
+
+---
+
+## 8. Golden Master Releases: Episode 01 (*The Phantom Limbs of Metal*)
+
+> **Episode Topic**: Hardware migration from AM4 to OMEN, ghost SSH invocations, declarative vs procedural routing, and the rule of serve-truth.  
+> **Source Document**: [`c:\work\writing\hearth-sunk-compute-cluster\01-the-phantom-limbs-of-metal.md`](file:///c:/work/writing/hearth-sunk-compute-cluster/01-the-phantom-limbs-of-metal.md)  
+> **Hardware Provenance**: Synthesized directly on **Intel Arc Pro B70 Graphics (`xpu:0`)** with `torch 2.14.0+xpu` and Intel oneAPI runtime.  
+> **Post-Processing Standard**: `P2_comfort_noise` (10 ms cosine boundary fades + `-62 dB` shaped ambient room tone bed).  
+> **Receipt**: [`receipts/golden_master_episode_01.json`](file:///C:/work/commandcenter/tools/audio-lab/receipts/golden_master_episode_01.json)
+
+| Profile / Anchor | Alex (Host A) | Sam (Host B) | Audio Dur | Wall Time | Speed | File Size | Audio Artifact WAV |
+| :--- | :--- | :--- | :---: | :---: | :---: | :---: | :--- |
+| **`british_tech`** (Emma & George) | `bf_emma` | `bm_george` | 109.48s | 25.76s | **4.25x** | 10.51 MB | [`episode_01_phantom_limbs_british_tech.wav`](samples/golden_master/episode_01_phantom_limbs_british_tech.wav) |
+| **`alex_sam`** (Heart & Adam) | `af_heart` | `am_adam` | 105.72s | 15.60s | **6.78x** | 10.15 MB | [`episode_01_phantom_limbs_alex_sam.wav`](samples/golden_master/episode_01_phantom_limbs_alex_sam.wav) |
+ 

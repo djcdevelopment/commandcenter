@@ -170,3 +170,55 @@ class LiveWindowExclusionTests(TestCase):
         self.assertEqual(st["verdict"], "at_rate", st)
         self.assertAlmostEqual(st["observed_tok_s"], 108.0)
 
+
+
+class OpenWindowExclusionTest(TestCase):
+    """An OPEN window (end=None) must exclude everything from its start onward.
+
+    Caught live on 2026-09-04 inside window rot-twocard-20260904-A: the exclusion
+    compared `start <= t <= end` with end=None, raised TypeError, and the passive
+    reader swallowed it into verdict "unknown" -- blind for the whole window, which
+    is exactly the interval the exclusion exists to cover. Every prior test used a
+    window carrying BOTH an open and a close row, so end was never None.
+    """
+
+    def test_open_window_excludes_rows_after_its_start(self):
+        rows = recent_pings() + [deep(1500, 106.0), deep(1700, 40.0)]
+        win_start = T0.timestamp() + 1650
+        st = rung_state(rows, BASE, NOW, windows=[(win_start, None, "rot-open")])
+        self.assertEqual(st["excluded_windows"], ["rot-open"])
+        self.assertEqual(st["observed_tok_s"], 106.0)
+        self.assertEqual(st["verdict"], "at_rate")
+
+    def test_open_window_does_not_exclude_rows_before_its_start(self):
+        rows = recent_pings() + [deep(1500, 106.0)]
+        st = rung_state(rows, BASE, NOW,
+                        windows=[(T0.timestamp() + 1750, None, "rot-open")])
+        self.assertEqual(st["observed_tok_s"], 106.0)
+        self.assertEqual(st["verdict"], "at_rate")
+
+    def test_open_window_never_yields_unknown(self):
+        # The regression proper: a verdict, not a swallowed TypeError.
+        rows = recent_pings() + [deep(1500, 106.0)]
+        st = rung_state(rows, BASE, NOW, windows=[(T0.timestamp(), None, "rot-open")])
+        self.assertNotEqual(st["verdict"], "unknown")
+        self.assertNotIn("error", st)
+
+    def test_live_reader_with_an_open_window_row_only(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as d:
+            var = os.path.join(d, "hearth", "var")
+            os.makedirs(var)
+            os.makedirs(os.path.join(d, "campaign", "ff-probes"))
+            rows = recent_pings() + [deep(900, 108.0), deep(1500, 55.0)]
+            with open(os.path.join(var, "arc-keepalive.jsonl"), "w", encoding="utf-8") as fh:
+                fh.write("\n".join(json.dumps(r) for r in rows) + "\n")
+            # open row only -- no close, the shape a live window has while it runs
+            win = [{"ts": _ts(1000), "event": "window.open", "name": "rot-live", "status": "open"}]
+            with open(os.path.join(var, "rotation-windows.jsonl"), "w", encoding="utf-8") as fh:
+                fh.write("\n".join(json.dumps(w) for w in win) + "\n")
+            with mock.patch.object(rungstate, "load_baseline", return_value=dict(BASE)):
+                st = rungstate.live_rung_state(root=d, now=NOW)
+        self.assertEqual(st["excluded_windows"], ["rot-live"])
+        self.assertNotEqual(st["verdict"], "unknown")
+        self.assertAlmostEqual(st["observed_tok_s"], 108.0)

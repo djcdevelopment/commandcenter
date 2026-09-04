@@ -836,3 +836,43 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       runs passed, 0 skipped, and the shared ledger grew by **0** lines. The deselect note in the
       handoff and `hearth/rotation/README.md` can be retired. (source: this session; a monitor that
       cannot be falsified is decoration — L-2026-08-30-7)
+
+- [ ] 2026-09-04 — **OPEN (imagegen lane): a non-forced `stop_image_session` abandons QUEUED work
+      silently.** `force=False` drains **in-flight** jobs only. Measured this session: the session
+      moved `draining_imagegen` → `restoring_llm` at 09:44:39Z with **7–8 jobs still queued**, and at
+      `session.restored` (09:46:22Z) the queue read 0 with `hearth/var/imagegen/queue/` and
+      `results/` both empty — those renders did not run and were not persisted anywhere findable.
+      Nothing in the tool's result or its `session-events.ndjson` transitions names a dropped-job
+      count, so a caller who checks `ok:true` cannot tell that work was discarded. Decide (imagegen
+      lane owns this): persist the queue across a restore and replay it on the next session, or
+      report a `dropped` count in the stop result and the session event so the loss is at least
+      **loud**. Today it is neither. Chosen deliberately as the *gentler* option over `force=True`,
+      which makes the silence worse. (source: this session's pool handover;
+      `hearth/rotation/POOL-HANDOVER.md`)
+
+- [x] 2026-09-04 — **DONE: two-card rotation proof PASSED** (window `rot-twocard-20260904-A`,
+      09:49:39Z → 09:52:29Z `assay.passed`, `candidate_id` carried). `phi4-vk0` (env 0) landed on
+      `0000:09:00.0` (+9.729 GB, 0.0 on the other card) and `qwen14b-vk1` (env 1) on `0000:04:00.0`
+      (+9.621 GB), both `bdf_corroborated`, both iGPU clean, both **first attempt with no sibling
+      retry**; `/running` held all three ready at once and teardown returned
+      `[qwen3-30b-a3b]`. **Closes the `-vk0` activation item above** — the entries went live on the
+      ArcServe restart inside the imagegen lane's restore, exactly as the decision predicted, with no
+      deliberate production restart. Production: `at_rate` 109.13 tok/s (103%) before the window;
+      inside it 5 samples, all pings, `prompt_ms` 10.1–13.3 vs 10.0 baseline, no stalls — **no deep
+      sample fell inside the 2m50s window, so no in-window decode rate is measured or claimed.**
+      Receipts: `hearth/var/rotation/windows/rot-twocard-20260904-A.json`,
+      `hearth/var/rotation/last-load.json`, `hearth/var/rotation-windows.jsonl`,
+      events `evt_rotwin_90f5ba3e90a7` / `evt_rotwin_d269ac0473b2` on `runs/hearth/events.jsonl`.
+
+- [x] 2026-09-04 — **FIXED (found live inside the proof): the window-exclusion reader was blind
+      during OPEN windows.** `0cb5275` taught `live_rung_state` to exclude ledgered rotation windows,
+      but `rung_state` compared `start <= t <= end` with `end=None` for an open window → `TypeError`,
+      swallowed by the passive reader into `verdict: "unknown"`. The rung therefore reported nothing
+      for exactly the interval the exclusion was written to cover. Every existing test used a window
+      carrying both an open and a close row, so `end` was never `None`. Fixed in
+      `hearth/health/rungstate.py` (open window excludes from its start onward) with regression tests
+      at both the `rung_state` and `live_rung_state` levels, and verified live against the real
+      keep-alive file with the real open window. **This is the second live catch on a gate written
+      the day before, and it only surfaced because the proof asked the reader a question while a
+      window was open — a step the original handoff sequence did not contain.**
+      (source: window `rot-twocard-20260904-A`)

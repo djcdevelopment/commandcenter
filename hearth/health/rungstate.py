@@ -144,7 +144,13 @@ def rung_state(rows, baseline, now: float, *, port: int = 8082,
             continue
         hit = None
         for start, end, name in windows or ():
-            if start <= t <= end:
+            # An OPEN window has end=None and excludes everything from its start
+            # onward -- that is the case the exclusion exists for. Treating None as
+            # a bound made this raise TypeError and the reader returned verdict
+            # "unknown" for the whole window: blind during exactly the interval it
+            # was written to cover (caught live, window rot-twocard-20260904-A).
+            upper = float("inf") if end is None else end
+            if start <= t <= upper:
                 hit = name
                 break
         if hit is not None:

@@ -16,7 +16,14 @@ python -m hearth.rotation.preflight        # G0 now says WHY the fence is held
   Call `stop_image_session(force=False)`. It drains, then asynchronously restores a warm
   ArcServe — which is also the restart that activates the `-vk0` sibling entries.
 - **G0 "held … running N"** — the holder is **busy**. Wait, or drain deliberately with the
-  same non-forced call: it lets in-flight jobs finish rather than dropping them.
+  same non-forced call.
+
+> ⚠ **`force=False` drains RUNNING work, not the QUEUE.** Measured 2026-09-04: the session went
+> `draining_imagegen` → `restoring_llm` at 09:44:39 with **7–8 jobs still queued**, and at
+> `session.restored` (09:46:22) the queue read 0 with `hearth/var/imagegen/queue/` and `results/`
+> both empty. Those jobs did not run and were not preserved. **Check `queued` before you drain**
+> — if it is non-zero, that work is lost unless someone resubmits it. Non-forced is gentler than
+> `force=True`, not lossless.
 
 **Never kill the imagegen processes to reclaim the pool.** There are ~16 of them, killing by
 command-line match is how three production services died once before, and `stop_image_session`

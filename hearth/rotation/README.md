@@ -106,7 +106,41 @@ G3 caught a real one on its first live run: the door had restarted at 22:20 on 0
 close-out landed `hearth/health/rungstate.py` at 01:38 on 09-04 — so the running door still had the
 old rung-state reader, the one that never excluded rotation windows.
 
-## The next window: two side models on two cards (staged 2026-09-04)
+## The two-card proof — PASSED 2026-09-04 (window `rot-twocard-20260904-A`)
+
+Opened 09:49:39Z, closed `assay.passed` 09:52:29Z. **First co-residency of two side models on two
+different cards**, both first-attempt with no sibling retry:
+
+| entry | env | landed | commit delta | corroborated |
+|---|---|---|---|---|
+| `phi4-vk0` | 0 | `0000:09:00.0` | **+9.729 GB** on 09, **0.0** on 04 | yes, iGPU clean, 20.109 s |
+| `qwen14b-vk1` | 1 | `0000:04:00.0` | **+9.621 GB** on 04, 0.048 on 09 | yes, iGPU clean, 20.422 s |
+
+`/running` carried all three ready simultaneously — `phi4-vk0`, `qwen14b-vk1`, `qwen3-30b-a3b` —
+and teardown returned `/running == [qwen3-30b-a3b]`.
+
+**Production during the window, stated precisely:** 5 keep-alive samples fell inside it, all
+**pings** (`ok=true`, `prompt_ms` 10.1–13.3 against a 10.0 baseline, no prefill stalls). **No deep
+sample landed inside** — the window ran 2 m 50 s against a 5-minute deep-probe cadence — so there is
+**no in-window decode-rate measurement** and none is claimed. Before the window: `at_rate` 109.13
+tok/s (103 % of the 106.0 baseline). The verdict excludes in-window samples by design, so the
+`at_rate` reading is *about the interval outside the window*; the only honest source for what
+happened inside is the raw `hearth/var/arc-keepalive.jsonl`, read directly.
+
+**Step 7 did its job.** Reading `query_rung_state` inside the window returned
+`verdict: unknown` with `TypeError: '<=' not supported between instances of 'float' and 'NoneType'`:
+an **open** window has `end=None`, and the exclusion compared against it as a bound. The passive
+reader swallowed the error into `unknown`, so the rung was **blind for exactly the interval the
+exclusion exists to cover**. Every prior test used a window with both an open and a close row, so
+`end` was never `None`. Fixed (`end=None` → excludes from its start onward) with regression tests at
+both the `rung_state` and `live_rung_state` levels; verified live against the real keep-alive file
+and the real open window: `excluded_windows: ['rot-side-20260903-B', 'rot-twocard-20260904-A']`,
+`verdict at_rate`, no error.
+
+That is two live catches for a gate written the day before, and the second one only appeared because
+the proof asked the reader a question while a window was open.
+
+## The runbook (kept for the next window)
 
 The first co-residency attempt. On 2026-09-03 `env=1` mapped every side model to `0000:04:00.0`, so
 phi-4 and qwen14b ran **sequentially on one card**; the `-vk0` entries exist to put them on both.

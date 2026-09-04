@@ -43,6 +43,15 @@ class WindowLogTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.path = Path(self.tmp.name) / "rotation-windows.jsonl"
 
+    def test_close_events_carry_the_candidate_id_the_ontology_requires(self) -> None:
+        from tools.workflow.ontology import EVENT_REQUIREMENTS
+        opened = open_window("rot-t", 8081, ["phi4-vk1"], "unit", "tester")
+        for outcome in ("passed", "failed", "aborted"):
+            closed = close_window(opened, outcome)
+            for ref in EVENT_REQUIREMENTS.get(closed["event_type"], set()):
+                self.assertTrue(closed.get(ref), f"{closed['event_type']} lacks {ref}")
+            self.assertEqual(closed["candidate_id"], "rotation-window:rot-t")
+
     def test_rows_round_trip_and_open_ended_windows_are_open(self) -> None:
         opened = open_window("w1", 8081, ["phi4-vk1"], "r", "op", ts="2026-09-03T10:00:00+00:00")
         append_window_row(window_row(opened), self.path)

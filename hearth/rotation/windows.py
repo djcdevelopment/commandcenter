@@ -82,6 +82,9 @@ def close_window(opened: dict, outcome: str, receipts: Optional[dict] = None,
         "status": "completed" if passed else "failed",
         "outcome": "success" if passed else "failure",
         "assay_id": opened.get("assay_id"),
+        # tools/workflow/ontology.py: assay.passed / assay.failed REQUIRE candidate_id (the thing under
+        # assay). The 2026-09-03 proof's close was refused by record_event without it.
+        "candidate_id": opened.get("candidate_id") or f"rotation-window:{opened.get('run_id')}",
         "payload": payload,
     }
 

@@ -77,12 +77,22 @@ MAX_AGE_S_CAP = 7 * 24 * 3600  # 604800
 # so the file cannot grow without limit even if every other prune rule misses.
 STALE_ENTRY_MAX_AGE_S = 30 * 24 * 3600  # 2592000
 
-# Grace period before "no run dir for this plan_id" counts as a reason to prune.
-# The conductor's serve loop scans inbox/ every ~3 s, so a submitted task becomes
-# a runs/<id>/ dir within seconds; an hour is ~1200x that. Without this grace an
-# expectation recorded microseconds before the next patrol would be pruned before
-# the run it describes ever appeared.
-ABSENT_GRACE_S = 3600
+# THERE IS DELIBERATELY NO "no run dir yet, so drop it" RULE, and so no grace
+# period to tune. An earlier version of this module pruned an entry once no
+# runs/<id>/ dir had appeared within an hour of submit, on the reasoning that the
+# conductor's serve loop turns an inbox item into a run dir in ~3 s, so an hour is
+# ~1200x the healthy latency. That measures the healthy case and then trusts it as
+# a bound. When the serve loop is wedged while cc-conductor still answers SSH, the
+# gather SUCCEEDS and shows no run dir — and a missing directory is absence of
+# evidence, not evidence that the task is gone. The entry gets pruned, the loop
+# recovers, the run finally starts — and it starts stripped of the max_age_s
+# HEARTH asked for, so 30 minutes later the watchdog reads it as a phantom and
+# masters_pet(apply=True) stubs a live multi-hour build. That is exactly the
+# failure this sidecar exists to prevent, re-created by its own housekeeping, and
+# the exposure is widest for the long deliberate runs that need the protection
+# most. Keeping such entries costs nothing: STALE_ENTRY_MAX_AGE_S already bounds
+# the file, and an entry for a plan that never ran is a few hundred bytes
+# annotating nothing.
 
 # Bound the requires list so a manifest cannot smuggle an unbounded blob into the
 # CCMETA header (which travels base64 over SSH into the conductor's inbox).
@@ -315,28 +325,33 @@ def _entry_age_s(entry: dict, now: float):
 
 
 def prune_expectations(expectations: dict, records, now: Optional[float] = None,
-                       max_entry_age_s: int = STALE_ENTRY_MAX_AGE_S,
-                       absent_grace_s: int = ABSENT_GRACE_S) -> tuple[dict, list[dict]]:
+                       max_entry_age_s: int = STALE_ENTRY_MAX_AGE_S) -> tuple[dict, list[dict]]:
     """Pure. Returns ``(kept, pruned)``; ``pruned`` is ``[{plan_id, reason}, ...]``.
 
-    Three rules, in order:
+    Two rules, in order:
       1. ``finished`` — the run has a ``result.json`` (``has_result``). The
-         expectation has done its job; the run is terminal (ADR-0033).
-      2. ``absent`` — no ``runs/<plan_id>/`` dir appears in this gather AND the
-         entry is older than ``absent_grace_s``. The grace matters: an entry
-         recorded moments ago describes a task the conductor has not turned into
-         a run dir yet, and pruning it would throw away the expectation before the
-         run it protects ever exists.
-      3. ``stale`` — older than ``max_entry_age_s`` regardless of anything else.
-         The safety net that bounds the file's size.
+         expectation has done its job; the run is terminal (ADR-0033). This is the
+         only rule that prunes on positive EVIDENCE about the run.
+      2. ``stale`` — older than ``max_entry_age_s`` (30 days) regardless of
+         anything else. Purely a bound on the file's size, deliberately set far
+         beyond any lifetime ``max_age_s`` can express (its cap is 7 days), so it
+         can never be the rule that ends a run's protection while that run might
+         still be alive.
+    (``malformed`` — an entry that is not a dict — is dropped on sight; that is a
+    shape check, not a rule about a run.)
+
+    Absence of a ``runs/<plan_id>/`` dir in this gather is deliberately NOT a
+    reason to prune, at any age — see the block above ``STALE_ENTRY_MAX_AGE_S``.
+    A gather that succeeds while the conductor's serve loop is wedged shows no run
+    dir for a task that is merely late; discarding the entry there hands the
+    eventual run to the watchdog with its declared lifetime removed, which is the
+    false phantom this file exists to prevent.
 
     Neither argument is mutated. An entry whose ``submitted_at`` is missing or
-    unparseable has an unknown age, so rules 2 and 3 cannot judge it — rule 1 and
-    a later absence (once a parseable entry replaces it, or never) are what remove
-    it; that residual is stated rather than papered over.
+    unparseable has an unknown age, so rule 2 cannot judge it — rule 1 is what
+    removes it; that residual is stated rather than papered over.
     """
     now = time.time() if now is None else now
-    seen_ids = set()
     finished_ids = set()
     for r in records or ():
         if not isinstance(r, dict):
@@ -344,7 +359,6 @@ def prune_expectations(expectations: dict, records, now: Optional[float] = None,
         pid = r.get("plan_id")
         if not isinstance(pid, str):
             continue
-        seen_ids.add(pid)
         if r.get("has_result"):
             finished_ids.add(pid)
     kept: dict = {}
@@ -359,9 +373,6 @@ def prune_expectations(expectations: dict, records, now: Optional[float] = None,
             continue
         if age is not None and age > max_entry_age_s:
             pruned.append({"plan_id": plan_id, "reason": "stale"})
-            continue
-        if plan_id not in seen_ids and age is not None and age > absent_grace_s:
-            pruned.append({"plan_id": plan_id, "reason": "absent"})
             continue
         kept[plan_id] = entry
     return kept, pruned

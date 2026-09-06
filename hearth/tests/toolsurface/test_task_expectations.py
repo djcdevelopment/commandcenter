@@ -20,7 +20,7 @@ from unittest import TestCase
 from unittest.mock import patch
 
 from hearth.toolsurface import task_expectations as te
-from hearth.toolsurface.task_expectations import (ABSENT_GRACE_S, MAX_AGE_S_CAP,
+from hearth.toolsurface.task_expectations import (MAX_AGE_S_CAP,
                                                   STALE_ENTRY_MAX_AGE_S,
                                                   default_expectations_path,
                                                   hearth_var_root, load_expectations,
@@ -33,6 +33,18 @@ def _iso(offset_s: float) -> str:
     from datetime import datetime, timedelta, timezone
     dt = datetime.now(timezone.utc) + timedelta(seconds=offset_s)
     return dt.isoformat().replace("+00:00", "Z")
+
+
+def _iso_at(epoch_s: float) -> str:
+    """An absolute UTC stamp for a chosen epoch second.
+
+    ``_iso`` is relative to the wall clock, which is right for the age-rule tests
+    but wrong for a scenario that has to place several gathers at fixed offsets
+    from one submit. Here every instant is derived from a literal ``t0``, so the
+    test asserts about a timeline rather than about how long it took to run.
+    """
+    from datetime import datetime, timezone
+    return datetime.fromtimestamp(epoch_s, timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 class SidecarPathTests(TestCase):
@@ -329,19 +341,25 @@ class PruneTests(TestCase):
         self.assertEqual(kept, {})
         self.assertEqual(pruned[0]["reason"], "stale")
 
-    def test_absent_run_is_kept_inside_the_grace_and_pruned_after_it(self) -> None:
-        # An expectation recorded seconds ago describes a task the conductor has
-        # not turned into a run dir yet — pruning it would lose the protection
-        # before the run it protects exists.
-        young = {"pending": self._entry(5)}
-        kept, pruned = prune_expectations(young, [])
-        self.assertEqual(list(kept), ["pending"])
-        self.assertEqual(pruned, [])
+    def test_a_run_dir_that_has_not_appeared_yet_is_kept_at_any_age(self) -> None:
+        # A gather showing no runs/<plan_id>/ dir is absence of evidence, never
+        # evidence that the task is gone: the conductor may not have picked the
+        # inbox item up yet, and the serve loop can be wedged for hours while SSH
+        # still answers. Only `finished` (evidence) and `stale` (a 30-day size
+        # bound) prune. See DelayedPickupRegressionTests for what discarding these
+        # entries costs downstream.
+        for age_s in (5, 2 * 3600, 7 * 24 * 3600):
+            with self.subTest(age_s=age_s):
+                kept, pruned = prune_expectations({"pending": self._entry(age_s)}, [])
+                self.assertEqual(list(kept), ["pending"])
+                self.assertEqual(pruned, [])
 
-        old = {"pending": self._entry(ABSENT_GRACE_S + 60)}
-        kept, pruned = prune_expectations(old, [])
+    def test_the_30_day_bound_still_prunes_an_entry_with_no_run_dir(self) -> None:
+        # The file is still bounded: not pruning on absence is not "never prune".
+        exp = {"pending": self._entry(STALE_ENTRY_MAX_AGE_S + 60)}
+        kept, pruned = prune_expectations(exp, [])
         self.assertEqual(kept, {})
-        self.assertEqual(pruned[0]["reason"], "absent")
+        self.assertEqual(pruned[0]["reason"], "stale")
 
     def test_malformed_entry_is_pruned(self) -> None:
         kept, pruned = prune_expectations({"junk": "not a dict"}, [])
@@ -349,7 +367,7 @@ class PruneTests(TestCase):
         self.assertEqual(pruned[0]["reason"], "malformed")
 
     def test_unparseable_submitted_at_is_not_aged_out_blindly(self) -> None:
-        # Age unknown => rules 2 and 3 cannot judge; rule 1 still can.
+        # Age unknown => the `stale` rule cannot judge it; `finished` still can.
         exp = {"weird": {"max_age_s": 60, "submitted_at": "not-a-timestamp"}}
         kept, _ = prune_expectations(exp, [])
         self.assertEqual(list(kept), ["weird"])
@@ -377,6 +395,71 @@ class PruneTests(TestCase):
         self.assertEqual(pruned_again, [])
 
     def test_now_is_injectable_so_the_rules_are_testable_without_sleeping(self) -> None:
+        # One entry, one (empty) gather, two clocks: the age rule is driven by
+        # `now` and nothing else, so a 30-day-old entry is assertable in a
+        # sub-second test. Both directions, so a rule that never fired would fail
+        # the first half and one that always fired would fail the second.
         exp = {"p": {"max_age_s": 60, "submitted_at": _iso(0)}}
-        kept, _ = prune_expectations(exp, [], now=time.time() + ABSENT_GRACE_S + 60)
+        kept, pruned = prune_expectations(exp, [], now=time.time())
+        self.assertEqual(list(kept), ["p"])
+        self.assertEqual(pruned, [])
+
+        kept, pruned = prune_expectations(exp, [],
+                                          now=time.time() + STALE_ENTRY_MAX_AGE_S + 60)
         self.assertEqual(kept, {})
+        self.assertEqual(pruned[0]["reason"], "stale")
+
+
+class DelayedPickupRegressionTests(TestCase):
+    """Cleanup must never be the thing that manufactures a phantom.
+
+    The scenario this defends is the whole reason the sidecar exists, inverted: a
+    long build is submitted with a six-hour lifetime, the conductor's serve loop
+    is wedged for two hours (SSH still answers, so the gather succeeds and simply
+    shows no ``runs/<plan_id>/`` dir), and the loop then recovers and starts the
+    run. If any age-based rule had discarded the entry during that wedge, the run
+    would come back stripped of the lifetime HEARTH asked for and read phantom
+    thirty minutes later — stubbed alive by our own housekeeping.
+
+    Absence of a run dir is absence of evidence. It is not evidence that the task
+    is gone, and this test asserts the pipeline end to end (prune -> apply ->
+    verdict) rather than the prune rule alone, because the damage only becomes
+    visible at the verdict.
+    """
+
+    T0 = 1_760_000_000.0
+    PLAN_ID = "plan-delayed-pickup"
+    SIX_HOURS = 21600
+
+    def _expectations(self) -> dict:
+        return {self.PLAN_ID: {"max_age_s": self.SIX_HOURS,
+                               "submitted_at": _iso_at(self.T0)}}
+
+    def test_a_two_hour_pickup_delay_does_not_strip_the_declared_lifetime(self) -> None:
+        from hearth.health.gaps import apply_expectations, phantom_verdict
+
+        # Gather 1 — T0 + 2 h. The serve loop is wedged: SSH answers, the gather
+        # returns cleanly, and there is simply no record for this plan yet.
+        kept, pruned = prune_expectations(self._expectations(), [],
+                                          now=self.T0 + 2 * 3600)
+        self.assertEqual(pruned, [],
+                         "a delayed pickup is not evidence the task is gone")
+        self.assertIn(self.PLAN_ID, kept)
+        self.assertEqual(kept[self.PLAN_ID]["max_age_s"], self.SIX_HOURS)
+
+        # Gather 2 — T0 + 2 h 30 min. The loop recovered, the run dir exists and
+        # is 30 min old, and nothing has been written under it yet (no
+        # last_activity_s) — precisely the shape the flat 30-minute rule stubs.
+        # The only thing standing between this live run and a heal-stub is the
+        # expectation that survived gather 1.
+        records = [{"plan_id": self.PLAN_ID, "has_result": False,
+                    "age_s": 1800, "dispatched": True}]
+        annotated = apply_expectations(records, kept)
+        self.assertEqual(annotated[0]["effective_max_age_s"], self.SIX_HOURS)
+        self.assertEqual(annotated[0]["expectation_source"], "hearth")
+
+        verdict = phantom_verdict(annotated[0])
+        self.assertFalse(verdict["is_phantom"],
+                         "a live run inside its declared lifetime is not a phantom")
+        self.assertEqual(verdict["spared_by"], "max_age_s")
+        self.assertEqual(verdict["threshold_s"], self.SIX_HOURS)

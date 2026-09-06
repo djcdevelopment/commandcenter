@@ -56,6 +56,11 @@ DOOR_STATUS_TOOLS = {
     "list_owned_executions",
     "get_image_status",
     "get_render_status",
+    "get_image_session",
+    "get_media_status",
+    "list_image_workflows",
+    "list_image_lanes",
+    "list_render_lanes",
 }
 LEARNING_TOOLS = {
     "mechnet_watchdog.hindsight",
@@ -86,6 +91,15 @@ FLEET_TOOLS = {
 FILESYSTEM_TOOLS = {"read_file", "write_file", "list_dir", "glob_files"}
 TEST_TOOLS = {"run_tests"}
 SCHEDULER_TOOLS = {"propose_schedule", "schedule_hindsight"}
+# Capability -> family. The tool names behind these four capabilities live in
+# hearth.kernel.capabilities.TOOL_CAPABILITY, which is the authority; keeping a
+# second list of them here would let the two drift silently.
+MEDIA_CAPABILITY_FAMILIES = {
+    "image_generate": "Image generation",
+    "image_session_admin": "Image generation",
+    "media_render": "Media / video render",
+    "media_generate": "Media / video render",
+}
 CATALOG_TOOLS = {"wake_am4", "query_am4_catalog", "gather_am4_catalog"}
 
 FAMILY_ORDER = [
@@ -94,6 +108,8 @@ FAMILY_ORDER = [
     "Learning / retro",
     "Local inference",
     "Cloud / remote inference",
+    "Image generation",
+    "Media / video render",
     "Fleet / builds",
     "Git / VCS",
     "Filesystem",
@@ -108,6 +124,8 @@ FAMILY_COLORS = {
     "Learning / retro": "#9667d5",
     "Local inference": "#45b98b",
     "Cloud / remote inference": "#49a4d5",
+    "Image generation": "#c86fc0",
+    "Media / video render": "#8fb35a",
     "Fleet / builds": "#da7b45",
     "Git / VCS": "#d5a249",
     "Filesystem": "#7eb1d1",
@@ -116,11 +134,12 @@ FAMILY_COLORS = {
     "Scheduler": "#8e7ad1",
     "Other": "#768094",
 }
-MACRO_ORDER = ["Operations", "Learning / retro", "Inference", "Work plane", "Other"]
+MACRO_ORDER = ["Operations", "Learning / retro", "Inference", "Media", "Work plane", "Other"]
 MACRO_COLORS = {
     "Operations": "#5c759d",
     "Learning / retro": "#9667d5",
     "Inference": "#45b98b",
+    "Media": "#c06fbe",
     "Work plane": "#da7b45",
     "Other": "#8b93a3",
 }
@@ -157,6 +176,9 @@ def classify_event(event: dict[str, Any]) -> str:
         return "Health / automation"
     if tool in DOOR_STATUS_TOOLS:
         return "Door status"
+    capability_family = MEDIA_CAPABILITY_FAMILIES.get(TOOL_CAPABILITY.get(tool, ""))
+    if capability_family is not None:
+        return capability_family
     if tool in SCHEDULER_TOOLS:
         return "Scheduler"
     if tool in CATALOG_TOOLS:
@@ -171,6 +193,8 @@ def _macro_for_family(family: str) -> str:
         return "Learning / retro"
     if family in {"Local inference", "Cloud / remote inference"}:
         return "Inference"
+    if family in {"Image generation", "Media / video render"}:
+        return "Media"
     if family in {"Fleet / builds", "Git / VCS", "Filesystem", "Test / assay"}:
         return "Work plane"
     return "Other"
@@ -410,7 +434,7 @@ def _daily_chart(summary: dict[str, Any]) -> str:
             f'<rect x="{legend_x}" y="{legend_y}" width="14" height="14" rx="3" fill="{MACRO_COLORS[name]}"/>',
             f'<text class="legend" x="{legend_x + 21}" y="{legend_y + 12}">{_esc(name)}</text>',
         ])
-        legend_x += 195
+        legend_x += 185
     parts.append("</svg>")
     return "".join(parts)
 

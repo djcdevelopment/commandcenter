@@ -46,6 +46,8 @@ import uuid
 from typing import Callable, Optional
 
 from hearth.toolsurface._scope import resolve_in_scope
+from hearth.toolsurface.task_expectations import (record_expectation, validate_max_age_s,
+                                                  validate_requires)
 
 SSH_USER_HOST = "claude@cc-conductor.mshome.net"  # local Hyper-V switch; machine lanes don't ride the tailnet (ADR-0014)
 CONDUCTOR_REPO = "/home/claude/work/commandcenter"
@@ -186,7 +188,9 @@ def _validate_est_tokens(est_tokens: object, where: str = "est_tokens") -> Optio
 
 def _ccmeta_header(builders: list[str], task_class: str | None = None,
                    est_tokens: int | None = None,
-                   est_tokens_source: str | None = None) -> str:
+                   est_tokens_source: str | None = None,
+                   requires: list[str] | None = None,
+                   max_age_s: int | None = None) -> str:
     """Render the conductor's CCMETA header.
 
     ``builders`` is what the conductor reads today. ``task_class``,
@@ -194,6 +198,13 @@ def _ccmeta_header(builders: list[str], task_class: str | None = None,
     the conductor can copy them into ``result.json`` later (token hole #2) —
     the header is the only channel that reaches the run directory, since the
     HEARTH ledger stores just a digest of this tool's result.
+
+    ``requires`` (a list of relative glob strings naming the deliverables the
+    task must produce) and ``max_age_s`` (the lifetime the caller expects) ride
+    the same channel for the same reason. Both are omitted when None, so the
+    BARE header — every optional absent — stays byte-identical to what this
+    function has always emitted; conductor_maf.py's ``_extract_ccmeta`` parses
+    one JSON object between the markers and that shape is unchanged.
     """
     import json
     meta: dict = {"builders": builders}
@@ -203,6 +214,10 @@ def _ccmeta_header(builders: list[str], task_class: str | None = None,
         meta["est_tokens"] = est_tokens
     if est_tokens_source is not None:
         meta["est_tokens_source"] = est_tokens_source
+    if requires is not None:
+        meta["requires"] = list(requires)
+    if max_age_s is not None:
+        meta["max_age_s"] = int(max_age_s)
     return "<!-- CCMETA\n" + json.dumps(meta) + "\n-->\n"
 
 
@@ -234,7 +249,8 @@ def _ensure_fanout_minimum(builders: list[str]) -> list[str]:
 
 def submit_task(prompt: str, builders: list[str] | None = None,
                plan_id_hint: str | None = None, task_class: str | None = None,
-               est_tokens: int | None = None) -> dict:
+               est_tokens: int | None = None, requires: list[str] | None = None,
+               max_age_s: int | None = None) -> dict:
     """Submit a research brief / simple build to the fleet via the conductor inbox.
 
     Writes ``inbox/<plan_id>.md`` on cc-conductor with a CCMETA builder-pin
@@ -259,6 +275,23 @@ def submit_task(prompt: str, builders: list[str] | None = None,
     and both — plus ``task_class`` — ride the CCMETA header so the conductor
     can copy them into ``result.json`` (hole #2, conductor-side).
 
+    ``max_age_s`` is how long this task is EXPECTED to take (a positive integer
+    of seconds, at most 7 days). It exists because the coherence watchdog stubs
+    any run older than 30 minutes with no ``result.json``, which would kill a
+    deliberate multi-hour build: declaring the lifetime raises that threshold for
+    this run only (it can never lower it). ``requires`` is the list of relative
+    glob patterns naming the deliverables the task must produce. Both are
+    validated BEFORE any SSH — a bad value raises ValueError and writes nothing —
+    and both ride the CCMETA header so the conductor can copy them into
+    ``result.json`` too.
+
+    Because the conductor does not copy the header into the run directory yet,
+    a successful submit that declared either value ALSO records it in HEARTH's
+    own expectation sidecar (hearth/toolsurface/task_expectations.py), which is
+    what ``masters_pet``/``patrol`` read while the run is still in flight. A
+    submit that declared neither records nothing — there is no expectation to
+    remember — and a FAILED write records nothing either.
+
     Zero conductor-side changes: this is the same inbox mechanism every fleet
     build already uses, so no scheduler is duplicated (Banked Fire design
     principle #1).
@@ -270,6 +303,10 @@ def submit_task(prompt: str, builders: list[str] | None = None,
         raise ValueError("builders must be a non-empty list of non-empty strings")
     if task_class is not None and (not isinstance(task_class, str) or not task_class.strip()):
         raise ValueError("task_class must be a non-empty string when provided")
+    # Both validated here, BEFORE _run_ssh: a malformed lifetime or deliverable
+    # list must never reach the conductor's inbox.
+    requires_value = validate_requires(requires)
+    max_age_value = validate_max_age_s(max_age_s)
     # Pad to the conductor's fan-out minimum so a single-builder request runs
     # instead of crashing on dispatch (see _ensure_fanout_minimum).
     chosen_builders = _ensure_fanout_minimum(chosen_builders)
@@ -284,6 +321,10 @@ def submit_task(prompt: str, builders: list[str] | None = None,
         est_tokens_value = caller_est
         est_tokens_source = EST_TOKENS_SOURCE_CALLER
     stamps: dict = {"est_tokens": est_tokens_value, "est_tokens_source": est_tokens_source}
+    if requires_value is not None:
+        stamps["requires"] = requires_value
+    if max_age_value is not None:
+        stamps["max_age_s"] = max_age_value
     if task_class is not None:
         stamps["task_class"] = task_class
         # The gateway wrapper lifts this key into the ledger event's task_class
@@ -293,7 +334,9 @@ def submit_task(prompt: str, builders: list[str] | None = None,
     plan_id = _new_plan_id(plan_id_hint)
     body = _ccmeta_header(chosen_builders, task_class=task_class,
                           est_tokens=est_tokens_value,
-                          est_tokens_source=est_tokens_source) + prompt
+                          est_tokens_source=est_tokens_source,
+                          requires=requires_value,
+                          max_age_s=max_age_value) + prompt
     b64 = base64.b64encode(body.encode("utf-8")).decode("ascii")
     remote_path = f"{INBOX_DIR}/{plan_id}.md"
     # mkdir -p is a no-op if inbox/ already exists (it always does); base64 -d
@@ -312,7 +355,7 @@ def submit_task(prompt: str, builders: list[str] | None = None,
         # ledger event should not lose its task_class because SSH hiccupped.
         return {"ok": False, "error": error, "plan_id": plan_id,
                 "builders": chosen_builders, "duration_ms": duration_ms, **stamps}
-    return {
+    result = {
         "ok": True,
         "plan_id": plan_id,
         "builders": chosen_builders,
@@ -321,6 +364,23 @@ def submit_task(prompt: str, builders: list[str] | None = None,
         "duration_ms": duration_ms,
         **stamps,
     }
+    # Remember what we asked for — only when we asked for something. Recording
+    # every submit would write the sidecar (and create hearth/var) for calls that
+    # carry no expectation at all, which the watchdog could not use anyway.
+    if requires_value is not None or max_age_value is not None:
+        try:
+            record_expectation(plan_id, {"max_age_s": max_age_value,
+                                         "requires": requires_value,
+                                         "task_class": task_class})
+            result["expectation_recorded"] = True
+        except (OSError, ValueError) as exc:
+            # The inbox file IS written at this point — the task is submitted.
+            # Losing our own note about it must not be reported as a failed
+            # submit, but it must not be silent either: the watchdog will fall
+            # back to the flat 30-minute threshold for this run.
+            result["expectation_recorded"] = False
+            result["expectation_error"] = f"{type(exc).__name__}: {exc}"
+    return result
 
 
 def task_status(plan_id: str, out_file: str | None = None) -> dict:
@@ -453,7 +513,8 @@ def submit_batch(manifest: list[dict]) -> dict:
 
     ``manifest`` is a list of items shaped like submit_task's own args:
     ``{"prompt": str, "builders"?: list[str], "task_class"?: str,
-    "plan_id_hint"?: str, "est_tokens"?: int}``. Each item is submitted through
+    "plan_id_hint"?: str, "est_tokens"?: int, "requires"?: list[str],
+    "max_age_s"?: int}``. Each item is submitted through
     the SAME submit_task inbox mechanism — no second scheduler, no
     conductor-side change (Banked Fire principle #1) — so an item without
     ``est_tokens`` gets a derived estimate exactly as a single submit would
@@ -495,6 +556,8 @@ def submit_batch(manifest: list[dict]) -> dict:
             if val is not None and (not isinstance(val, str) or not val.strip()):
                 raise ValueError(f"manifest[{i}].{key} must be a non-empty string when provided")
         _validate_est_tokens(item.get("est_tokens"), where=f"manifest[{i}].est_tokens")
+        validate_requires(item.get("requires"), where=f"manifest[{i}].requires")
+        validate_max_age_s(item.get("max_age_s"), where=f"manifest[{i}].max_age_s")
 
     submitted: list[dict] = []
     plan_ids: list[str] = []
@@ -506,6 +569,8 @@ def submit_batch(manifest: list[dict]) -> dict:
             plan_id_hint=item.get("plan_id_hint"),
             task_class=item.get("task_class"),
             est_tokens=item.get("est_tokens"),
+            requires=item.get("requires"),
+            max_age_s=item.get("max_age_s"),
         )
         submitted.append(res)
         if res.get("ok"):

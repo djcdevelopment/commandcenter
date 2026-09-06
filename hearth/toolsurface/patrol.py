@@ -19,8 +19,11 @@ import base64
 import json
 from typing import Callable, Optional
 
-from hearth.health.gaps import (gaps_as_dicts, load_capacity_document, scan_knowledge,
-                                scan_rung_state, scan_runs, summarize)
+from hearth.health.gaps import (apply_expectations, gaps_as_dicts, load_capacity_document,
+                                scan_knowledge, scan_rung_state, scan_runs, spared_as_dicts,
+                                summarize)
+from hearth.toolsurface.task_expectations import (load_expectations, prune_expectations,
+                                                  save_expectations)
 from hearth.toolsurface.task_lane import CONDUCTOR_REPO, _run_ssh
 
 # Lazy-imported refresh callees; imported at function-call time in patrol(),
@@ -134,6 +137,30 @@ for name in names:
                 rec["winner_grade"] = win.get("grade")
         except Exception as e:
             rec["parse_error"] = str(e)[:120]
+    else:
+        # HEARTBEAT (2026-09-06): newest mtime of ANY file under runs/<id>/.
+        # A long build that is writing logs, checkpoints or partial artifacts is
+        # alive even with no result.json yet; a dead one stops touching its dir.
+        # Unfinished runs only (a finished run's activity is not a question), and
+        # read-only — no renames, no writes (ADR-0033). Per-file OSError is
+        # swallowed: a file can vanish mid-walk while the builder rotates it, and
+        # that race must not cost us the whole record.
+        newest = None
+        for root, _dirs, files in os.walk(d):
+            for fn in files:
+                try:
+                    m = os.path.getmtime(os.path.join(root, fn))
+                except OSError:
+                    continue
+                if newest is None or m > newest:
+                    newest = m
+        if newest is None:
+            try:
+                newest = os.path.getmtime(d)
+            except OSError:
+                newest = None
+        if newest is not None:
+            rec["last_activity_s"] = max(0, round(now - newest))
     records.append(rec)
 records.sort(key=lambda x: x["age_s"])
 pending = [r for r in records if not r["has_result"]]
@@ -163,14 +190,55 @@ def _gather_runs(runner: Optional[Callable] = None):
     return payload, None
 
 
+def _expectations_pass(records) -> "tuple[list[dict], dict]":
+    """Load HEARTH's expectation sidecar, annotate ``records`` with it, prune the
+    entries this gather proves are finished, and return
+    ``(annotated_records, block)``.
+
+    ``block`` is the ``expectations`` section both ``patrol`` and ``masters_pet``
+    report: ``{loaded, applied, pruned}`` plus ``warning`` (a corrupt sidecar) or
+    ``prune_error`` (the cleanup write failed) when either happened — a sweep that
+    could not read its own memory must say so rather than look clean.
+
+    It WRITES ONLY when there is something to prune. A sweep on a machine that has
+    never submitted an expectation-bearing task therefore creates no sidecar and
+    no ``hearth/var`` directory as a side effect of merely looking.
+    """
+    doc = load_expectations()
+    expectations = doc["expectations"]
+    annotated = apply_expectations(records, expectations)
+    block = {"loaded": len(expectations),
+             "applied": sum(1 for r in annotated if r.get("expectation_source")),
+             "pruned": 0}
+    if doc["warning"]:
+        block["warning"] = doc["warning"]
+    kept, pruned = prune_expectations(expectations, annotated)
+    if pruned:
+        try:
+            save_expectations(kept, doc["path"])
+            block["pruned"] = len(pruned)
+        except OSError as exc:
+            block["prune_error"] = f"{type(exc).__name__}: {exc}"
+    return annotated, block
+
+
 def patrol(capacity_path: str = DEFAULT_CAPACITY_PATH, refresh: bool = True) -> dict:
     """Make one round of the coherence watch: scan the fleet's runs, flag gaps.
 
     Returns ``{ok, scanned, considered, truncated, undispatched,
-    gaps:[{kind,severity,plan_id,detail}], summary, refresh: {...}}``. A gap is a
+    gaps:[{kind,severity,plan_id,detail}], summary, spared, expectations,
+    refresh: {...}}``. A gap is a
     place two sources disagree — a run that reads in-flight but is stalled, a pass
     grade over an empty deliverable, a builder reporting missing files, or a run
     taking far longer than capacity predicts. Finds and names the gap; does not fix it.
+
+    ``spared`` is the runs that today's flat 30-minute rule WOULD have called
+    phantom and that a longer declared lifetime (``max_age_s``) or a live
+    heartbeat (``last_activity_s``) spared — each with the rule that spared it, so
+    "no phantoms" is never mistaken for "the watchdog went quiet".
+    ``expectations`` reports HEARTH's own sidecar memory: how many entries were
+    ``loaded``, how many records they ``applied`` to, how many were ``pruned``,
+    and a ``warning`` if that memory was unreadable.
 
     Scans the same universe queue_status counts: every ``runs/<id>/`` dir (ADR-0033).
     ``undispatched`` is how many of them never got a nodes.json; ``truncated`` how many
@@ -197,6 +265,7 @@ def patrol(capacity_path: str = DEFAULT_CAPACITY_PATH, refresh: bool = True) -> 
     if error is not None:
         return {"ok": False, "error": error}
     records = payload.get("records", [])
+    records, expectations_block = _expectations_pass(records)
     capacity = load_capacity_document(capacity_path)
     gaps = scan_runs(records, capacity=capacity) + scan_knowledge(capacity_path)
     rung_state, rung_gaps = _rung_state_gaps()
@@ -209,6 +278,8 @@ def patrol(capacity_path: str = DEFAULT_CAPACITY_PATH, refresh: bool = True) -> 
         "undispatched": payload.get("undispatched", 0),
         "gaps": gaps_as_dicts(gaps),
         "summary": summarize(gaps),
+        "spared": spared_as_dicts(records),
+        "expectations": expectations_block,
         "rung_state": rung_state,
     }
 

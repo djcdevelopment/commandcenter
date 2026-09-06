@@ -3,7 +3,8 @@ from __future__ import annotations
 from unittest import TestCase
 from unittest.mock import patch
 
-from hearth.health.gaps import (PHANTOM_AGE_S, Gap, scan_knowledge, scan_rung_state, scan_runs,
+from hearth.health.gaps import (PHANTOM_AGE_S, Gap, apply_expectations, phantom_threshold_s,
+                                scan_knowledge, scan_rung_state, scan_runs, spared_as_dicts,
                                 summarize)
 from hearth.health.rungstate import NOTE
 
@@ -323,3 +324,203 @@ class ScanRungStateTests(TestCase):
         self.assertEqual(s["total"], 2)
         self.assertEqual(s["by_severity"], {"high": 1, "warn": 1})
         self.assertEqual(s["by_kind"], {"rung_degraded": 1, "rung_stale": 1})
+
+
+class LongRunSparingTests(TestCase):
+    """The four-quadrant proof: "long and alive" must be distinguishable from
+    "dead", and the distinction must be VISIBLE.
+
+    The bug this closes: masters_pet(apply=True) stubs any run older than 30 min
+    with no result.json, so a deliberate multi-hour build was indistinguishable
+    from a crashed one and had its occupancy released out from under it.
+    """
+
+    _SIX_HOURS = 21600
+
+    def _rec(self, plan_id, age_s, **over):
+        rec = {"plan_id": plan_id, "age_s": age_s, "has_result": False, "dispatched": True}
+        rec.update(over)
+        return rec
+
+    # (a) long-lived and still inside its declared lifetime -> not a gap
+    def test_a_run_inside_its_declared_lifetime_is_not_a_phantom(self):
+        rec = self._rec("long-alive", 3 * 3600, max_age_s=self._SIX_HOURS)
+        self.assertEqual(scan_runs([rec]), [])
+        applied = apply_expectations([rec], {})
+        self.assertEqual(applied[0]["spared_by"], "max_age_s")
+        self.assertEqual(applied[0]["phantom_threshold_s"], self._SIX_HOURS)
+        self.assertIn("360 min", applied[0]["spared_detail"])
+
+    # (b) past its declared lifetime with no activity -> phantom, threshold named
+    def test_b_run_past_its_declared_lifetime_is_a_phantom_naming_the_threshold(self):
+        rec = self._rec("long-dead", 7 * 3600, max_age_s=self._SIX_HOURS)
+        gaps = scan_runs([rec])
+        self.assertEqual(_kinds(gaps), ["phantom_in_flight"])
+        # The detail names the threshold actually exceeded (6 h), not the flat
+        # 30-minute default it replaced.
+        self.assertIn("over the 360 min threshold", gaps[0].detail)
+        self.assertIn("no result after 420 min", gaps[0].detail)
+        self.assertNotIn("spared_by", apply_expectations([rec], {})[0])
+
+    # (c) no expectation at all, but the run dir is being written -> not a gap
+    def test_c_recent_file_activity_spares_a_run_with_no_expectation(self):
+        rec = self._rec("busy", 2 * 3600, last_activity_s=60)
+        self.assertEqual(scan_runs([rec]), [])
+        applied = apply_expectations([rec], {})
+        self.assertEqual(applied[0]["spared_by"], "activity")
+        self.assertIn("60s ago", applied[0]["spared_detail"])
+
+    # (d) no expectation, no activity -> today's behaviour, unchanged
+    def test_d_stale_activity_still_reads_as_a_phantom(self):
+        rec = self._rec("stale", 2 * 3600, last_activity_s=7200)
+        gaps = scan_runs([rec])
+        self.assertEqual(_kinds(gaps), ["phantom_in_flight"])
+        self.assertIn(f"over the {PHANTOM_AGE_S // 60} min threshold", gaps[0].detail)
+
+    # (e) below the flat threshold -> not a gap and NOT "spared"
+    def test_e_young_run_is_not_a_gap_and_is_not_reported_as_spared(self):
+        rec = self._rec("young", 1200)
+        self.assertEqual(scan_runs([rec]), [])
+        applied = apply_expectations([rec], {})
+        self.assertNotIn("spared_by", applied[0])
+        self.assertEqual(applied[0]["phantom_threshold_s"], PHANTOM_AGE_S)
+
+    def test_activity_spares_a_run_that_has_overrun_its_declared_lifetime(self):
+        # A heartbeat is evidence about the present; an estimate is not. A run
+        # past its own max_age_s but still writing files is alive.
+        rec = self._rec("overrun-but-writing", 7 * 3600,
+                        max_age_s=self._SIX_HOURS, last_activity_s=30)
+        self.assertEqual(scan_runs([rec]), [])
+        self.assertEqual(apply_expectations([rec], {})[0]["spared_by"], "activity")
+
+    def test_an_expectation_can_only_raise_the_threshold_never_lower_it(self):
+        # A 5-minute max_age_s must not make the watchdog stub healthy runs.
+        rec = self._rec("short-claim", 1200, max_age_s=300)
+        self.assertEqual(scan_runs([rec]), [])
+        self.assertEqual(phantom_threshold_s(rec), PHANTOM_AGE_S)
+
+    def test_nonsense_max_age_values_fall_back_to_the_flat_threshold(self):
+        for bad in (0, -5, "6h", True, None, 12.5):
+            with self.subTest(bad=bad):
+                rec = self._rec("junk", PHANTOM_AGE_S + 1, max_age_s=bad)
+                self.assertEqual(phantom_threshold_s(rec), PHANTOM_AGE_S)
+                self.assertEqual(_kinds(scan_runs([rec])), ["phantom_in_flight"])
+
+    def test_nonsense_activity_values_do_not_spare(self):
+        for bad in ("just now", True, None, [1]):
+            with self.subTest(bad=bad):
+                rec = self._rec("junk", PHANTOM_AGE_S + 1, last_activity_s=bad)
+                self.assertEqual(_kinds(scan_runs([rec])), ["phantom_in_flight"])
+
+    def test_caller_supplied_phantom_age_still_governs_the_floor(self):
+        rec = self._rec("x", 400, last_activity_s=100)
+        self.assertEqual(_kinds(scan_runs([rec], phantom_age_s=300)), [])  # activity spares
+        self.assertEqual(_kinds(scan_runs([{"plan_id": "y", "age_s": 400,
+                                            "has_result": False}], phantom_age_s=300)),
+                         ["phantom_in_flight"])
+
+
+class ApplyExpectationsTests(TestCase):
+    def _rec(self, plan_id="p", age_s=7200, **over):
+        rec = {"plan_id": plan_id, "age_s": age_s, "has_result": False}
+        rec.update(over)
+        return rec
+
+    def test_hearth_sidecar_supplies_max_age_when_the_run_has_none(self):
+        applied = apply_expectations([self._rec()], {"p": {"max_age_s": 21600}})
+        self.assertEqual(applied[0]["effective_max_age_s"], 21600)
+        self.assertEqual(applied[0]["expectation_source"], "hearth")
+        self.assertEqual(applied[0]["spared_by"], "max_age_s")
+        self.assertNotIn("expectation_conflict", applied[0])
+        # The resolved value never overwrites the run's own (absent) key.
+        self.assertNotIn("max_age_s", applied[0])
+
+    def test_run_attached_value_wins_and_the_disagreement_is_flagged(self):
+        # Precedence: the run's own value beats HEARTH's memory of the submit,
+        # and the disagreement is surfaced rather than silently resolved.
+        rec = self._rec(max_age_s=7200)
+        applied = apply_expectations([rec], {"p": {"max_age_s": 3600}})
+        self.assertEqual(applied[0]["effective_max_age_s"], 7200)
+        self.assertEqual(applied[0]["max_age_s"], 7200, "the run's own claim is preserved")
+        self.assertTrue(applied[0]["expectation_conflict"])
+        self.assertEqual(applied[0]["max_age_s_run"], 7200)
+        self.assertEqual(applied[0]["max_age_s_hearth"], 3600)
+        self.assertEqual(applied[0]["expectation_source"], "run")
+        self.assertEqual(applied[0]["phantom_threshold_s"], 7200)
+
+    def test_a_hearth_only_expectation_stays_hearth_sourced_when_reapplied(self):
+        # The idempotency trap this design avoids: writing the resolved value
+        # over `max_age_s` would make the SECOND pass read HEARTH's own
+        # annotation as a claim the run made, flipping the provenance to "run"
+        # and hiding any later genuine conflict.
+        expectations = {"p": {"max_age_s": 21600}}
+        once = apply_expectations([self._rec()], expectations)
+        twice = apply_expectations(once, expectations)
+        self.assertEqual(twice[0]["expectation_source"], "hearth")
+        self.assertEqual(once, twice)
+
+    def test_agreeing_values_are_not_flagged_as_a_conflict(self):
+        applied = apply_expectations([self._rec(max_age_s=3600)], {"p": {"max_age_s": 3600}})
+        self.assertNotIn("expectation_conflict", applied[0])
+        self.assertEqual(applied[0]["expectation_source"], "run")
+
+    def test_requires_follows_the_same_precedence_and_conflict_rule(self):
+        rec = self._rec(requires=["out/a.json"])
+        applied = apply_expectations([rec], {"p": {"requires": ["out/b.json"]}})
+        self.assertEqual(applied[0]["effective_requires"], ["out/a.json"])
+        self.assertTrue(applied[0]["expectation_conflict"])
+        self.assertEqual(applied[0]["requires_run"], ["out/a.json"])
+        self.assertEqual(applied[0]["requires_hearth"], ["out/b.json"])
+
+    def test_inputs_are_never_mutated(self):
+        import json as _json
+        records = [self._rec()]
+        expectations = {"p": {"max_age_s": 21600}}
+        rec_snapshot = _json.loads(_json.dumps(records))
+        exp_snapshot = _json.loads(_json.dumps(expectations))
+        applied = apply_expectations(records, expectations)
+        self.assertEqual(records, rec_snapshot)
+        self.assertEqual(expectations, exp_snapshot)
+        self.assertIsNot(applied[0], records[0])
+
+    def test_applying_twice_is_idempotent(self):
+        records = [self._rec(), self._rec("q", 100),
+                   {"plan_id": "done", "age_s": 5, "has_result": True, "status": "ok"}]
+        expectations = {"p": {"max_age_s": 21600}}
+        once = apply_expectations(records, expectations)
+        twice = apply_expectations(once, expectations)
+        self.assertEqual(once, twice)
+
+    def test_finished_records_pass_through_unannotated(self):
+        rec = {"plan_id": "done", "age_s": 99999, "has_result": True, "status": "ok"}
+        applied = apply_expectations([rec], {"done": {"max_age_s": 60}})
+        self.assertEqual(applied[0], rec)
+        self.assertIsNot(applied[0], rec)
+
+    def test_empty_expectations_still_annotate_the_threshold(self):
+        applied = apply_expectations([self._rec()], {})
+        self.assertEqual(applied[0]["phantom_threshold_s"], PHANTOM_AGE_S)
+        self.assertNotIn("expectation_source", applied[0])
+
+    def test_malformed_expectation_entry_is_ignored(self):
+        applied = apply_expectations([self._rec()], {"p": "not a dict"})
+        self.assertNotIn("expectation_source", applied[0])
+        self.assertEqual(applied[0]["phantom_threshold_s"], PHANTOM_AGE_S)
+
+    def test_non_dict_records_are_skipped(self):
+        self.assertEqual(apply_expectations(["junk", None, self._rec()], {})[0]["plan_id"], "p")
+        self.assertEqual(len(apply_expectations(["junk", None], {})), 0)
+
+    def test_spared_as_dicts_reports_plan_id_rule_and_detail(self):
+        records = [self._rec("spared-a", 3 * 3600, max_age_s=21600),
+                   self._rec("spared-c", 2 * 3600, last_activity_s=60),
+                   self._rec("phantom", 2 * 3600),
+                   {"plan_id": "done", "age_s": 5, "has_result": True}]
+        spared = spared_as_dicts(apply_expectations(records, {}))
+        self.assertEqual([s["plan_id"] for s in spared], ["spared-a", "spared-c"])
+        self.assertEqual([s["rule"] for s in spared], ["max_age_s", "activity"])
+        self.assertTrue(all(s["detail"] for s in spared))
+
+    def test_spared_as_dicts_is_empty_when_nothing_was_spared(self):
+        self.assertEqual(spared_as_dicts(apply_expectations([self._rec()], {})), [])
+        self.assertEqual(spared_as_dicts([]), [])

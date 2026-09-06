@@ -301,6 +301,195 @@ class GatherSourceTests(TestCase):
             shutil.rmtree(tmp, ignore_errors=True)
 
 
+    # --- last_activity_s: the newest mtime under runs/<id>/, so a long build
+    # that is still writing is distinguishable from a dead one that stopped.
+
+    def _age(self, path, seconds_ago) -> None:
+        when = time.time() - seconds_ago
+        os.utime(path, (when, when))
+
+    def test_last_activity_reflects_the_newest_file_under_the_run_dir(self) -> None:
+        tmp = mkdtemp()
+        try:
+            d = self._make_run(tmp, "long-build", nodes=True)
+            (d / "build.log").write_text("working", encoding="utf-8")
+            self._age(d / "nodes.json", 9000)
+            self._age(d / "build.log", 42)
+            self._age(d, 9000)
+            payload = self._run_gather_source(tmp)
+            rec = payload["records"][0]
+            self.assertAlmostEqual(rec["last_activity_s"], 42, delta=5)
+            # age_s still comes from nodes.json — activity is a separate signal.
+            self.assertAlmostEqual(rec["age_s"], 9000, delta=5)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_a_file_in_a_nested_subdirectory_counts_as_activity(self) -> None:
+        tmp = mkdtemp()
+        try:
+            d = self._make_run(tmp, "nested", nodes=True)
+            sub = d / "builds" / "cc-builder-2"
+            sub.mkdir(parents=True)
+            (sub / "out.txt").write_text("x", encoding="utf-8")
+            self._age(d / "nodes.json", 9000)
+            self._age(sub / "out.txt", 30)
+            self._age(sub, 9000)
+            self._age(d / "builds", 9000)
+            self._age(d, 9000)
+            payload = self._run_gather_source(tmp)
+            self.assertAlmostEqual(payload["records"][0]["last_activity_s"], 30, delta=5)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_empty_run_dir_falls_back_to_the_dir_mtime(self) -> None:
+        tmp = mkdtemp()
+        try:
+            d = self._make_run(tmp, "empty", nodes=False)
+            self._age(d, 1234)
+            payload = self._run_gather_source(tmp)
+            rec = payload["records"][0]
+            self.assertAlmostEqual(rec["last_activity_s"], 1234, delta=5)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_finished_runs_carry_no_activity_field(self) -> None:
+        tmp = mkdtemp()
+        try:
+            self._make_run(tmp, "done", nodes=True, result={"status": "ok"})
+            self._make_run(tmp, "pending", nodes=True)
+            payload = self._run_gather_source(tmp)
+            by_id = {r["plan_id"]: r for r in payload["records"]}
+            self.assertNotIn("last_activity_s", by_id["done"])
+            self.assertIn("last_activity_s", by_id["pending"])
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_a_file_vanishing_mid_walk_does_not_lose_the_record(self) -> None:
+        # A builder rotating a log can delete a file between os.walk listing it
+        # and getmtime reading it. That race must cost the one file, not the run.
+        tmp = mkdtemp()
+        try:
+            d = self._make_run(tmp, "racy", nodes=True)
+            (d / "doomed.log").write_text("gone by the time we look", encoding="utf-8")
+            (d / "survivor.log").write_text("still here", encoding="utf-8")
+            self._age(d / "nodes.json", 9000)
+            self._age(d / "survivor.log", 77)
+            self._age(d, 9000)
+            real_getmtime = os.path.getmtime
+
+            def flaky(path):
+                if str(path).endswith("doomed.log"):
+                    raise OSError(2, "No such file or directory")
+                return real_getmtime(path)
+
+            with patch("os.path.getmtime", side_effect=flaky):
+                payload = self._run_gather_source(tmp)
+            rec = payload["records"][0]
+            self.assertEqual(rec["plan_id"], "racy")
+            self.assertAlmostEqual(rec["last_activity_s"], 77, delta=5)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_gather_stdout_stays_one_json_document(self) -> None:
+        # The gather source is shipped to the conductor and its stdout is parsed
+        # as JSON; the heartbeat walk must not print a thing.
+        import contextlib
+        import io as _io
+        tmp = mkdtemp()
+        try:
+            self._make_run(tmp, "a", nodes=True)
+            cwd = os.getcwd()
+            buf = _io.StringIO()
+            os.chdir(tmp)
+            try:
+                with contextlib.redirect_stdout(buf):
+                    exec(compile(_GATHER_SRC, "<gather>", "exec"), {})
+            finally:
+                os.chdir(cwd)
+            raw = buf.getvalue()
+            self.assertEqual(raw.count("\n"), 1, raw)
+            json.loads(raw)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
+class PatrolExpectationsTests(TestCase):
+    """patrol loads HEARTH's expectation sidecar, applies it, prunes it, and
+    reports both the sparing and the state of that memory."""
+
+    def setUp(self):
+        self.enterContext(patch(*_PIN_AT_RATE, return_value=_AT_RATE))
+        self.enterContext(patch("hearth.toolsurface.patrol.scan_knowledge", return_value=[]))
+        self._tmp = mkdtemp()
+        self.addCleanup(shutil.rmtree, self._tmp, True)
+        self.enterContext(patch.dict(os.environ, {"HEARTH_ROOT": self._tmp}))
+        self.sidecar = Path(self._tmp) / "var" / "task_lane" / "expectations.json"
+
+    def _write_sidecar(self, doc) -> None:
+        self.sidecar.parent.mkdir(parents=True, exist_ok=True)
+        self.sidecar.write_text(doc if isinstance(doc, str) else json.dumps(doc),
+                                encoding="utf-8")
+
+    def _patrol(self, records):
+        with patch("subprocess.run", return_value=_completed(stdout=_gather_payload(records))):
+            return patrol(refresh=False)
+
+    def test_no_sidecar_means_an_empty_block_and_no_directory_created(self) -> None:
+        out = self._patrol([{"plan_id": "young", "age_s": 60, "has_result": False}])
+        self.assertEqual(out["expectations"], {"loaded": 0, "applied": 0, "pruned": 0})
+        self.assertEqual(out["spared"], [])
+        self.assertFalse((Path(self._tmp) / "var").exists())
+
+    def test_a_recorded_expectation_spares_a_long_run_from_the_phantom_spell(self) -> None:
+        self._write_sidecar({"hearth-long": {"max_age_s": 21600,
+                                             "submitted_at": "2026-09-06T00:00:00Z"}})
+        out = self._patrol([{"plan_id": "hearth-long", "age_s": 3 * 3600,
+                             "dispatched": True, "has_result": False}])
+        self.assertEqual(out["gaps"], [])
+        self.assertEqual(out["spared"], [{"plan_id": "hearth-long", "rule": "max_age_s",
+                                          "detail": out["spared"][0]["detail"]}])
+        self.assertIn("360 min", out["spared"][0]["detail"])
+        self.assertEqual(out["expectations"]["loaded"], 1)
+        self.assertEqual(out["expectations"]["applied"], 1)
+
+    def test_a_run_past_its_recorded_lifetime_is_still_a_phantom(self) -> None:
+        self._write_sidecar({"hearth-long": {"max_age_s": 21600,
+                                             "submitted_at": "2026-09-06T00:00:00Z"}})
+        out = self._patrol([{"plan_id": "hearth-long", "age_s": 7 * 3600,
+                             "dispatched": True, "has_result": False}])
+        self.assertEqual([g["kind"] for g in out["gaps"]], ["phantom_in_flight"])
+        self.assertEqual(out["spared"], [])
+
+    def test_a_finished_runs_entry_is_pruned_and_the_file_rewritten(self) -> None:
+        self._write_sidecar({
+            "hearth-done": {"max_age_s": 600, "submitted_at": "2026-09-06T00:00:00Z"},
+            "hearth-live": {"max_age_s": 21600, "submitted_at": "2026-09-06T00:00:00Z"},
+        })
+        out = self._patrol([
+            {"plan_id": "hearth-done", "age_s": 60, "has_result": True, "status": "ok",
+             "winner": "w", "promoted": True, "winner_grade": "A", "winner_files": 9,
+             "n_questions": 0},
+            {"plan_id": "hearth-live", "age_s": 3 * 3600, "has_result": False},
+        ])
+        self.assertEqual(out["expectations"]["pruned"], 1)
+        remaining = json.loads(self.sidecar.read_text(encoding="utf-8"))
+        self.assertEqual(list(remaining), ["hearth-live"])
+
+    def test_a_corrupt_sidecar_is_a_warning_not_a_failed_patrol(self) -> None:
+        self._write_sidecar("{{{ not json")
+        out = self._patrol([{"plan_id": "x", "age_s": 60, "has_result": False}])
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["expectations"]["loaded"], 0)
+        self.assertIn("not valid JSON", out["expectations"]["warning"])
+
+    def test_activity_alone_spares_a_run_with_no_recorded_expectation(self) -> None:
+        out = self._patrol([{"plan_id": "busy", "age_s": 2 * 3600, "has_result": False,
+                             "last_activity_s": 30}])
+        self.assertEqual(out["gaps"], [])
+        self.assertEqual([s["rule"] for s in out["spared"]], ["activity"])
+        self.assertEqual(out["expectations"]["applied"], 0)
+
+
 class PatrolRungStateTests(TestCase):
     """The rung-state spell (ADR-0044) rides every patrol, guarded and lazy."""
 

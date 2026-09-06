@@ -26,8 +26,8 @@ import base64
 import json
 from typing import Callable, Optional
 
-from hearth.health.gaps import gaps_as_dicts, scan_runs
-from hearth.toolsurface.patrol import FINISHED_RECORD_CAP, _gather_runs
+from hearth.health.gaps import gaps_as_dicts, scan_runs, spared_as_dicts
+from hearth.toolsurface.patrol import FINISHED_RECORD_CAP, _expectations_pass, _gather_runs
 from hearth.toolsurface.task_lane import CONDUCTOR_REPO, _run_ssh
 
 # Obvious + reversible only. Everything else stays flag-only.
@@ -94,11 +94,23 @@ def masters_pet(apply: bool = False) -> dict:
     newest-``FINISHED_RECORD_CAP`` window, with a ``truncation_note`` spelling
     out what that can and cannot hide.
     Unfinished runs are swept unbounded, so a phantom is never truncated away.
+
+    LONG RUNS ARE NOT PHANTOMS (2026-09-06). Before the scan, every record is
+    annotated from HEARTH's expectation sidecar (what ``submit_task`` asked for)
+    and from the gather's ``last_activity_s`` heartbeat. A run still inside the
+    ``max_age_s`` it was submitted with, or one whose run dir was written to in
+    the last ``PHANTOM_AGE_S``, is NOT healed — it appears in ``spared`` with the
+    rule that spared it, so an empty ``healable`` is readable as "nothing needed
+    healing" and not "something quietly stopped me". A genuinely dead long run
+    still gets stubbed the moment it passes its own threshold with no activity.
+    ``expectations`` reports that memory's ``loaded``/``applied``/``pruned``
+    counts and any ``warning``.
     """
     payload, error = _gather_runs()
     if error is not None:
         return {"ok": False, "error": error}
     records = payload.get("records", [])
+    records, expectations_block = _expectations_pass(records)
     gaps = scan_runs(records)
     healable = [g for g in gaps if g.kind in AUTO_HEAL_KINDS]
     flagged = [g for g in gaps if g.kind not in AUTO_HEAL_KINDS]
@@ -111,6 +123,8 @@ def masters_pet(apply: bool = False) -> dict:
         "truncated": truncated,
         "healable": gaps_as_dicts(healable),
         "flagged": gaps_as_dicts(flagged),
+        "spared": spared_as_dicts(records),
+        "expectations": expectations_block,
     }
     if truncated:
         out["truncation_note"] = (

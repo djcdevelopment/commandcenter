@@ -10,6 +10,7 @@ from unittest import TestCase
 from unittest.mock import patch
 
 from hearth.toolsurface import task_lane
+from hearth.toolsurface.task_expectations import MAX_AGE_S_CAP, load_expectations
 from hearth.toolsurface.task_lane import (
     DEFAULT_BUILDERS,
     DEFAULT_OUTPUT_ALLOWANCE_TOKENS,
@@ -565,6 +566,197 @@ class SubmitBatchTests(TestCase):
     def test_bad_builders_type_rejected(self) -> None:
         with self.assertRaises(ValueError):
             submit_batch([{"prompt": "x", "builders": "not-a-list"}])
+
+
+class LongRunSubmitTests(TestCase):
+    """`requires` + `max_age_s`: validated before any SSH, carried in the CCMETA
+    header, and remembered in HEARTH's own sidecar so the 15-minute watchdog does
+    not stub a live multi-hour build.
+
+    Every test that can touch the sidecar redirects HEARTH_ROOT into a temp dir:
+    the real default path is <repo>/hearth/var/..., which is gitignored, so a test
+    writing it would create the directory silently.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        self.enterContext(patch.dict(os.environ, {"HEARTH_ROOT": str(self.root)}))
+        self.sidecar = self.root / "var" / "task_lane" / "expectations.json"
+
+    def _submit(self, *args, **kwargs) -> tuple[dict, dict, str]:
+        captured = {}
+
+        def runner(cmd, **kw):
+            captured["cmd"] = cmd[-1]
+            return _completed(stdout="written\n")
+
+        with patch("subprocess.run", side_effect=runner):
+            result = submit_task(*args, **kwargs)
+        meta, body = _decode_ccmeta(captured["cmd"])
+        return result, meta, body
+
+    # --- header ---------------------------------------------------------------
+
+    def test_bare_header_is_byte_identical_to_the_pre_change_form(self) -> None:
+        # The exact string emitted at e9822d3, snapshotted. conductor_maf.py's
+        # _extract_ccmeta parses this; adding optional fields must not move a byte
+        # of the form every existing caller produces.
+        self.assertEqual(task_lane._ccmeta_header(["a", "b"]),
+                         '<!-- CCMETA\n{"builders": ["a", "b"]}\n-->\n')
+
+    def test_header_helper_renders_requires_as_a_list_and_max_age_as_an_int(self) -> None:
+        header = task_lane._ccmeta_header(["a"], requires=["out/*.json"], max_age_s=21600)
+        meta = json.loads(header.split("<!-- CCMETA\n", 1)[1].split("\n-->\n", 1)[0])
+        self.assertEqual(meta, {"builders": ["a"], "requires": ["out/*.json"],
+                                "max_age_s": 21600})
+        self.assertIsInstance(meta["max_age_s"], int)
+        self.assertIsInstance(meta["requires"], list)
+
+    def test_both_fields_ride_one_json_object_between_the_markers(self) -> None:
+        result, meta, body = self._submit("q", task_class="build",
+                                          requires=["docs/report.md", "out/*.json"],
+                                          max_age_s=21600)
+        self.assertEqual(meta["requires"], ["docs/report.md", "out/*.json"])
+        self.assertEqual(meta["max_age_s"], 21600)
+        self.assertEqual(meta["task_class"], "build")
+        self.assertEqual(meta["builders"], DEFAULT_BUILDERS)
+        self.assertEqual(body, "q")
+
+    def test_header_omits_both_when_the_caller_gave_neither(self) -> None:
+        _, meta, _ = self._submit("q")
+        self.assertNotIn("requires", meta)
+        self.assertNotIn("max_age_s", meta)
+
+    def test_result_echoes_both_when_given_and_omits_them_otherwise(self) -> None:
+        result, _, _ = self._submit("q", requires=["out/a.json"], max_age_s=600)
+        self.assertEqual(result["requires"], ["out/a.json"])
+        self.assertEqual(result["max_age_s"], 600)
+        bare, _, _ = self._submit("q")
+        self.assertNotIn("requires", bare)
+        self.assertNotIn("max_age_s", bare)
+
+    # --- validation happens BEFORE any SSH ------------------------------------
+
+    def test_every_bad_requires_shape_raises_before_any_runner_call(self) -> None:
+        bad_shapes = [
+            [],                        # empty list
+            ["/etc/passwd"],           # absolute
+            ["C:\\work\\x.md"],        # drive letter
+            ["../secrets.json"],       # parent segment
+            ["docs\\..\\..\\x"],       # parent segment, backslashes
+            [123],                     # non-string
+            [""],                      # empty string
+            ["a\nb"],                  # newline
+            ["a\x00b"],                # NUL
+            "docs/*.md",               # not a list
+        ]
+        for bad in bad_shapes:
+            with self.subTest(bad=bad):
+                with patch("subprocess.run", return_value=_completed(stdout="written\n")) as m:
+                    with self.assertRaises(ValueError):
+                        submit_task("q", requires=bad)  # type: ignore[arg-type]
+                m.assert_not_called()
+        self.assertFalse(self.sidecar.exists())
+
+    def test_every_bad_max_age_raises_before_any_runner_call(self) -> None:
+        for bad in (0, -1, 12.5, 3600.0, "3600", True, MAX_AGE_S_CAP + 1):
+            with self.subTest(bad=bad):
+                with patch("subprocess.run", return_value=_completed(stdout="written\n")) as m:
+                    with self.assertRaises(ValueError):
+                        submit_task("q", max_age_s=bad)  # type: ignore[arg-type]
+                m.assert_not_called()
+        self.assertFalse(self.sidecar.exists())
+
+    def test_the_cap_boundary_is_accepted(self) -> None:
+        result, meta, _ = self._submit("q", max_age_s=MAX_AGE_S_CAP)
+        self.assertEqual(meta["max_age_s"], MAX_AGE_S_CAP)
+
+    # --- the sidecar ----------------------------------------------------------
+
+    def test_successful_submit_records_the_expectation(self) -> None:
+        result, _, _ = self._submit("q", task_class="build",
+                                    requires=["out/a.json"], max_age_s=21600)
+        self.assertTrue(result["expectation_recorded"])
+        entry = load_expectations(self.sidecar)["expectations"][result["plan_id"]]
+        self.assertEqual(entry["max_age_s"], 21600)
+        self.assertEqual(entry["requires"], ["out/a.json"])
+        self.assertEqual(entry["task_class"], "build")
+        self.assertIn("submitted_at", entry)
+
+    def test_submit_without_an_expectation_writes_no_sidecar_at_all(self) -> None:
+        # The persistence invariant: an ordinary submit must not bring
+        # hearth/var into existence as a side effect.
+        result, _, _ = self._submit("q", task_class="research", est_tokens=10)
+        self.assertNotIn("expectation_recorded", result)
+        self.assertFalse(self.sidecar.exists())
+        self.assertFalse((self.root / "var").exists())
+
+    def test_failed_ssh_write_records_nothing(self) -> None:
+        with patch("subprocess.run",
+                   return_value=_completed(stdout="", stderr="denied", returncode=255)):
+            result = submit_task("q", max_age_s=21600)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["max_age_s"], 21600)   # the stamp survives for the ledger
+        self.assertFalse(self.sidecar.exists())
+
+    def test_a_sidecar_write_failure_does_not_fail_the_submit(self) -> None:
+        # The inbox file IS written at that point; the task is submitted. Losing
+        # our own note must be visible, not fatal and not silent.
+        with patch("hearth.toolsurface.task_lane.record_expectation",
+                   side_effect=OSError("disk full")):
+            with patch("subprocess.run", return_value=_completed(stdout="written\n")):
+                result = submit_task("q", max_age_s=21600)
+        self.assertTrue(result["ok"])
+        self.assertFalse(result["expectation_recorded"])
+        self.assertIn("OSError", result["expectation_error"])
+
+    def test_two_submits_keep_two_entries(self) -> None:
+        first, _, _ = self._submit("one", max_age_s=600)
+        second, _, _ = self._submit("two", max_age_s=1200)
+        entries = load_expectations(self.sidecar)["expectations"]
+        self.assertEqual(sorted(entries), sorted([first["plan_id"], second["plan_id"]]))
+
+    # --- batch ----------------------------------------------------------------
+
+    def test_batch_forwards_both_fields_per_item(self) -> None:
+        captured: list[str] = []
+
+        def runner(args, **kw):
+            captured.append(args[-1])
+            return _completed(stdout="written\n")
+
+        with patch("subprocess.run", side_effect=runner):
+            result = submit_batch([
+                {"prompt": "one", "requires": ["out/one.json"], "max_age_s": 3600},
+                {"prompt": "two"},
+            ])
+        self.assertTrue(result["ok"])
+        first_meta, _ = _decode_ccmeta(captured[0])
+        second_meta, _ = _decode_ccmeta(captured[1])
+        self.assertEqual(first_meta["requires"], ["out/one.json"])
+        self.assertEqual(first_meta["max_age_s"], 3600)
+        self.assertNotIn("requires", second_meta)
+        self.assertNotIn("max_age_s", second_meta)
+        self.assertEqual(result["submitted"][0]["max_age_s"], 3600)
+        self.assertNotIn("max_age_s", result["submitted"][1])
+
+    def test_batch_bad_requires_rejected_before_any_write(self) -> None:
+        with patch("subprocess.run", return_value=_completed(stdout="written\n")) as m:
+            with self.assertRaises(ValueError) as ctx:
+                submit_batch([{"prompt": "ok"},
+                              {"prompt": "bad", "requires": ["../escape"]}])
+        m.assert_not_called()
+        self.assertIn("manifest[1].requires", str(ctx.exception))
+        self.assertFalse(self.sidecar.exists())
+
+    def test_batch_bad_max_age_rejected_before_any_write(self) -> None:
+        with patch("subprocess.run", return_value=_completed(stdout="written\n")) as m:
+            with self.assertRaises(ValueError) as ctx:
+                submit_batch([{"prompt": "ok"}, {"prompt": "bad", "max_age_s": 0}])
+        m.assert_not_called()
+        self.assertIn("manifest[1].max_age_s", str(ctx.exception))
 
 
 class GetToolsTests(TestCase):

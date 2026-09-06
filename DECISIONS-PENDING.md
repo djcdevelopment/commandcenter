@@ -949,3 +949,26 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       `feedback-accept-dereks-gut-calls` memory with the trigger deliberately narrow — a **falsified
       premise**, not a better argument, which stays forbidden.
       (source: SESSION-RETRO-2026-09-04.md L-2026-09-04-5; ADR-0027 addenda)
+
+- [ ] 2026-09-06 — **OPEN (conductor-lane work, NOT built here): make the run directory carry its
+      own expectations, so HEARTH's sidecar can retire.** `submit_task` now accepts `max_age_s` and
+      `requires` and ships both in the CCMETA header, and `masters_pet`/`patrol` stop stubbing a run
+      that is inside its declared lifetime or still writing files (`last_activity_s`). But the
+      conductor does not copy the header into the run dir, so during a run the ONLY place the
+      expectation exists is HEARTH's own memory
+      (`hearth/var/task_lane/expectations.json`, written by
+      `hearth/toolsurface/task_expectations.py`). That file is **transitional by design** and its
+      precedence rule already defers to the run: `apply_expectations` uses a run-attached value over
+      the sidecar and flags `expectation_conflict` when they disagree. Three conductor-side changes
+      would retire it:
+      **(a)** copy `max_age_s` and `requires` out of the CCMETA header into `runs/<id>/result.json`
+      (the same hole #2 the `task_class`/`est_tokens` stamps are already waiting on) — and, better
+      still, into a run-dir sidecar written at DISPATCH time, since a value that only appears in
+      `result.json` arrives after the watchdog needed it.
+      **(b)** touch `runs/<id>/heartbeat` once per builder lap. The mtime walk added here infers
+      liveness from whatever files a run happens to write; an explicit heartbeat makes it a signal
+      instead of an inference, and costs one `open(...,"w")` per lap.
+      **(c)** call `rank_with_acceptance` so `requires` becomes a real acceptance gate rather than a
+      recorded intention — B-02 owns the harvest/assay half of that.
+      Until (a) lands, read the sidecar as *what HEARTH asked for*, never as run state
+      (ADR-0033: the run dir is the run; `result.json` is the only terminal marker).

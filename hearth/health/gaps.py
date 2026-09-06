@@ -106,14 +106,178 @@ def _bucket_p90(bucket) -> "float | None":
     return None
 
 
+def _positive_int(v):
+    """v as a positive int, or None (bools are not ints for this purpose)."""
+    if isinstance(v, bool) or not isinstance(v, int) or v <= 0:
+        return None
+    return v
+
+
+def declared_max_age_s(record):
+    """The lifetime in force for this record, or None.
+
+    ``effective_max_age_s`` (what ``apply_expectations`` RESOLVED, run-attached
+    beating HEARTH's sidecar) wins over the raw ``max_age_s`` the gather found on
+    the run itself. Keeping the resolved answer in its own key is what makes
+    ``apply_expectations`` idempotent: it never overwrites its own input, so a
+    second pass reads the same run-attached value the first one did instead of
+    mistaking its own annotation for the run's claim.
+    """
+    record = record or {}
+    for key in ("effective_max_age_s", "max_age_s"):
+        value = _positive_int(record.get(key))
+        if value:
+            return value
+    return None
+
+
+def phantom_threshold_s(record, phantom_age_s: int = PHANTOM_AGE_S) -> int:
+    """How long THIS run may go without a result before it reads phantom.
+
+    ``max(phantom_age_s, declared_max_age_s(record))`` — an expectation may only
+    ever RAISE the bar, never lower it. A caller asking for a 5-minute lifetime
+    does not get a watchdog that stubs healthy 10-minute runs; the 30-minute floor
+    stays the floor.
+    """
+    declared = declared_max_age_s(record)
+    return max(phantom_age_s, declared) if declared else phantom_age_s
+
+
+def phantom_verdict(record, phantom_age_s: int = PHANTOM_AGE_S) -> dict:
+    """ONE rule for "is this unfinished run a phantom?", used by both
+    ``scan_runs`` (which turns it into a gap) and ``apply_expectations`` (which
+    turns it into a visible ``spared_by`` annotation) so the two can never drift.
+
+    Returns ``{threshold_s, is_phantom, spared_by, detail}`` where ``spared_by``
+    is one of ``"max_age_s"`` / ``"activity"`` / None.
+
+    Two independent reasons to spare a run that today's flat 30-minute rule would
+    have stubbed:
+      * ``max_age_s`` — HEARTH (or the run itself) declared a longer expected
+        lifetime and the run is still inside it;
+      * ``activity`` — a file under ``runs/<id>/`` changed less than
+        ``phantom_age_s`` ago, so the run is demonstrably still writing. This one
+        also spares a run that has ALREADY overrun its declared lifetime: a
+        heartbeat is evidence about the present, an estimate is not.
+    A run younger than ``phantom_age_s`` is simply not a phantom and is not
+    "spared" — today's behaviour, unchanged, and not worth an operator's
+    attention.
+    """
+    record = record or {}
+    age = record.get("age_s", 0) or 0
+    threshold = phantom_threshold_s(record, phantom_age_s)
+    activity = record.get("last_activity_s")
+    activity_alive = (isinstance(activity, (int, float)) and not isinstance(activity, bool)
+                      and activity < phantom_age_s)
+    if age < phantom_age_s:
+        return {"threshold_s": threshold, "is_phantom": False, "spared_by": None, "detail": ""}
+    if age < threshold:
+        return {"threshold_s": threshold, "is_phantom": False, "spared_by": "max_age_s",
+                "detail": (f"{age // 60} min old but within the {threshold // 60} min "
+                           f"lifetime this run was submitted with (max_age_s)")}
+    if activity_alive:
+        return {"threshold_s": threshold, "is_phantom": False, "spared_by": "activity",
+                "detail": (f"a file under runs/<id>/ changed {int(activity)}s ago "
+                           f"(< {phantom_age_s}s) — the run is still writing")}
+    return {"threshold_s": threshold, "is_phantom": True, "spared_by": None, "detail": ""}
+
+
+def apply_expectations(records, expectations, phantom_age_s: int = PHANTOM_AGE_S) -> "list[dict]":
+    """Annotate run records with what HEARTH asked for. Pure; inputs untouched.
+
+    Returns NEW record dicts (shallow copies) — neither ``records`` nor
+    ``expectations`` is mutated, and applying twice yields the same records
+    (idempotent), because every annotation is derived from the inputs rather than
+    accumulated.
+
+    PRECEDENCE — a value attached to the RUN wins. ``record["max_age_s"]`` /
+    ``record["requires"]`` are whatever the gather found on the run itself
+    (``result.json``, or a run-dir sidecar the conductor may add later); the
+    ``expectations`` mapping is HEARTH's own memory of the submit. When both
+    exist and DISAGREE the run-attached value is used and the record is stamped
+    ``expectation_conflict: True`` with both values preserved
+    (``max_age_s_run`` / ``max_age_s_hearth``, likewise for requires) — the
+    disagreement is surfaced, never silently resolved. ``expectation_source`` says
+    which side won: ``"run"``, ``"hearth"``, or absent when neither had anything.
+
+    The resolved answer lands in ``effective_max_age_s`` / ``effective_requires``,
+    NEVER over the run's own key. That separation is what makes this function
+    idempotent: applying it twice re-reads the same untouched run-attached values
+    and produces the same record, instead of the second pass mistaking the first
+    pass's annotation for a claim the run made.
+
+    Also stamps ``phantom_threshold_s`` on every unfinished record and, when the
+    run is spared from today's flat rule, ``spared_by`` + ``spared_detail``.
+    Finished records pass through as unannotated copies: an expectation is about
+    a run that has not landed yet.
+    """
+    expectations = expectations or {}
+    out: "list[dict]" = []
+    for r in records or ():
+        if not isinstance(r, dict):
+            continue
+        rec = dict(r)
+        if rec.get("has_result"):
+            out.append(rec)
+            continue
+        pid = rec.get("plan_id")
+        expected = expectations.get(pid) if isinstance(pid, str) else None
+        expected = expected if isinstance(expected, dict) else {}
+        source = None
+        for field in ("max_age_s", "requires"):
+            run_value = r.get(field)
+            hearth_value = expected.get(field)
+            if run_value is not None and hearth_value is not None:
+                if run_value != hearth_value:
+                    rec["expectation_conflict"] = True
+                    rec[f"{field}_run"] = run_value
+                    rec[f"{field}_hearth"] = hearth_value
+                rec[f"effective_{field}"] = run_value
+                source = "run"
+            elif run_value is not None:
+                rec[f"effective_{field}"] = run_value
+                source = source or "run"
+            elif hearth_value is not None:
+                rec[f"effective_{field}"] = hearth_value
+                source = source or "hearth"
+        if source is not None:
+            rec["expectation_source"] = source
+        verdict = phantom_verdict(rec, phantom_age_s)
+        rec["phantom_threshold_s"] = verdict["threshold_s"]
+        if verdict["spared_by"]:
+            rec["spared_by"] = verdict["spared_by"]
+            rec["spared_detail"] = verdict["detail"]
+        out.append(rec)
+    return out
+
+
+def spared_as_dicts(records) -> "list[dict]":
+    """The sparing, made visible: ``[{plan_id, rule, detail}, ...]``.
+
+    A spared run is NOT a gap — nothing disagrees, the run is simply allowed to
+    take longer — but "masters_pet healed nothing" must be readable as "nothing
+    needed healing" rather than "something quietly stopped it", so patrol and
+    masters_pet both report this list beside their gaps.
+    """
+    return [{"plan_id": r.get("plan_id", "?"), "rule": r.get("spared_by"),
+             "detail": r.get("spared_detail", "")}
+            for r in records or () if isinstance(r, dict) and r.get("spared_by")]
+
+
 def scan_runs(records, phantom_age_s: int = PHANTOM_AGE_S, capacity: "dict | None" = None) -> "list[Gap]":
     """Apply the coherence spells to a list of run records; return the gaps found.
 
     A record is a plain dict (shape produced by patrol._gather_runs):
-    ``plan_id``, ``age_s``, ``has_result``, ``dispatched`` and — when
-    ``has_result`` is true —
+    ``plan_id``, ``age_s``, ``has_result``, ``dispatched``, ``last_activity_s``
+    (unfinished runs only) and — when ``has_result`` is true —
     ``status``, ``error``, ``stub``, ``winner``, ``winner_grade``,
     ``winner_files``, ``n_questions``, ``questions_text``, ``promoted``.
+
+    An unfinished record may also carry ``max_age_s`` — the lifetime the run was
+    submitted with, attached either by the run itself or by
+    ``apply_expectations`` from HEARTH's sidecar. It raises the phantom threshold
+    (never lowers it), and a recent ``last_activity_s`` spares the run outright:
+    see ``phantom_verdict``, which owns that rule for both callers.
     """
     gaps: "list[Gap]" = []
     for r in records:
@@ -127,11 +291,14 @@ def scan_runs(records, phantom_age_s: int = PHANTOM_AGE_S, capacity: "dict | Non
         # convention. Same gap either way — it holds occupancy and will never
         # produce a result — so only the wording differs; the heal is identical.
         if not r.get("has_result"):
-            if age >= phantom_age_s:
+            verdict = phantom_verdict(r, phantom_age_s)
+            if verdict["is_phantom"]:
                 stage = ("never dispatched (no nodes.json)" if r.get("dispatched") is False
                          else "reads in-flight but is stalled/errored")
                 gaps.append(Gap("phantom_in_flight", "warn", pid,
-                    f"no result after {age // 60} min — {stage}; holds phantom occupancy"))
+                    f"no result after {age // 60} min "
+                    f"(over the {verdict['threshold_s'] // 60} min threshold) — "
+                    f"{stage}; holds phantom occupancy"))
             continue
 
         # Spell: crashed_isolated — a terminal ERROR result. Key on the error

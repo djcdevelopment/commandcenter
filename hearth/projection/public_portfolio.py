@@ -42,6 +42,8 @@ FAMILY_IDS = {
     "Learning / retro": "learning_retro",
     "Local inference": "local_inference",
     "Cloud / remote inference": "cloud_inference",
+    "Image generation": "image_generation",
+    "Media / video render": "media_render",
     "Fleet / builds": "fleet_builds",
     "Git / VCS": "git_vcs",
     "Filesystem": "filesystem",
@@ -56,6 +58,8 @@ MACRO_IDS = {
     "Learning / retro": "learning",
     "Local inference": "inference",
     "Cloud / remote inference": "inference",
+    "Image generation": "media",
+    "Media / video render": "media",
     "Fleet / builds": "work_plane",
     "Git / VCS": "work_plane",
     "Filesystem": "work_plane",
@@ -64,6 +68,91 @@ MACRO_IDS = {
     "Scheduler": "other",
     "Other": "other",
 }
+# Presentation-only relabels. The family id is the stable public contract; the
+# label is text, so "Door status" can say what it actually measures without
+# renaming the id every consumer already keys on.
+PUBLIC_LABELS = {"Door status": "Door status / polling"}
+WEEKLY_MACRO_KEYS = ("operations", "learning", "inference", "media", "work_plane", "other")
+# A "work call" is a measured gateway call outside health polling and door
+# status. It is a volume statement, never a statement about who did the work.
+NON_WORK_FAMILIES = {"Health / automation", "Door status"}
+
+# The only place raw execution operation names may live. Operations are private
+# routing identifiers: they are folded into this closed set of public family ids
+# before anything is emitted, and an unmapped or absent operation lands in
+# "other" rather than leaking its own name.
+EXECUTION_FAMILY = {
+    "image.generate": "image_generation",
+    "bf6.process_segment": "video_highlight_render",
+    "bf6.render_clip_workflow": "video_highlight_render",
+    "media.render": "media_render",
+    "media.podcast": "media_pipeline",
+    "media.animate": "media_pipeline",
+    "media.pipeline": "media_pipeline",
+    "llm.chat": "inference",
+    "inference.generate": "inference",
+}
+EXECUTION_FAMILY_ORDER = [
+    "image_generation",
+    "video_highlight_render",
+    "media_render",
+    "media_pipeline",
+    "inference",
+    "other",
+]
+EXECUTION_FAMILY_LABELS = {
+    "image_generation": "Image generation jobs",
+    "video_highlight_render": "Clippy · BF6 highlight renders",
+    "media_render": "Media renders",
+    "media_pipeline": "Media pipelines",
+    "inference": "Inference jobs",
+    "other": "Other jobs",
+}
+TERMINAL_JOB_EVENTS = {
+    "job.succeeded": "jobs_succeeded",
+    "job.failed": "jobs_failed",
+    "job.cancelled": "jobs_cancelled",
+    "job.expired": "jobs_expired",
+}
+
+# An "agent lane" is observed activity through a class of caller. It is a fixed
+# public label derived from a private identifier; the identifier itself is never
+# emitted, and a lane makes no claim of authorship or ownership of the work.
+AGENT_LANE_BY_CALLER = {
+    "claude-frontier": "claude_code",
+    "codex-cli": "codex",
+    "dmos-poc": "dmos_image_client",
+    "bf6-dispatcher": "clippy_dispatcher",
+    "botherder-am4": "irc_adapter",
+    "omen-worker-1": "fleet_workers",
+    "peer-inference": "fleet_workers",
+    "mechnet-orchestrator": "fleet_workers",
+    "mechnet-watchdog": "automation",
+    "bankedfire-drain": "automation",
+    "dev-local": "automation",
+}
+AGENT_LANE_BY_ADAPTER = {**AGENT_LANE_BY_CALLER, "bf6-hatchet": "clippy_dispatcher"}
+AGENT_LANE_ORDER = [
+    "claude_code",
+    "codex",
+    "dmos_image_client",
+    "clippy_dispatcher",
+    "irc_adapter",
+    "fleet_workers",
+    "automation",
+    "other",
+]
+AGENT_LANE_LABELS = {
+    "claude_code": "Claude Code",
+    "codex": "Codex",
+    "dmos_image_client": "DMos image client",
+    "clippy_dispatcher": "Clippy dispatcher",
+    "irc_adapter": "IRC adapter",
+    "fleet_workers": "Fleet workers",
+    "automation": "Automation",
+    "other": "Other",
+}
+UNATTRIBUTED_LANE = "other"
 RUNG_STATES = {"at_rate", "warn", "degraded", "stalled", "stale", "unreachable"}
 PUBLIC_KEYS = {
     "schema", "snapshot_id", "source_watermark_day", "observation_window",
@@ -82,11 +171,12 @@ PUBLIC_KEYS = {
     "raw_content_withheld", "minimum_public_cell", "limitations",
     "exporter_revision", "exporter_sha256", "gateway_prefix_sha256",
     "execution_prefix_sha256", "content_sha256",
+    "by_family", "by_agent", "media", "work_calls", "jobs_accepted",
 }
 FORBIDDEN_SOURCE_KEYS = {
     "args_preview", "caller", "task_id", "event_id", "reason", "error", "hostname",
     "port", "path", "prompt", "request_id", "job_id", "invocation_id", "principal",
-    "desired", "observed", "source",
+    "desired", "observed", "source", "operation",
 }
 FORBIDDEN_TEXT = (
     re.compile(r"[A-Za-z]:\\"),
@@ -141,9 +231,59 @@ def _source_digest() -> str:
     return digest.hexdigest()
 
 
+def _gateway_lane(event: dict[str, Any]) -> str:
+    """Map one gateway event to a public agent lane. Identifiers stay private."""
+    caller = event.get("caller")
+    caller_id = str(caller.get("id") or "") if isinstance(caller, dict) else ""
+    return AGENT_LANE_BY_CALLER.get(caller_id, UNATTRIBUTED_LANE)
+
+
+def _execution_lane(event: dict[str, Any]) -> str:
+    """Map one execution event to a public agent lane.
+
+    Precedence (D-015): ``principal.id`` first; when it is absent or maps to the
+    unattributed lane, fall back to ``source.adapter``; otherwise unattributed.
+    """
+    principal = event.get("principal")
+    principal_id = str(principal.get("id") or "") if isinstance(principal, dict) else ""
+    lane = AGENT_LANE_BY_CALLER.get(principal_id, UNATTRIBUTED_LANE)
+    if lane != UNATTRIBUTED_LANE:
+        return lane
+    source = event.get("source")
+    adapter = str(source.get("adapter") or "") if isinstance(source, dict) else ""
+    return AGENT_LANE_BY_ADAPTER.get(adapter, UNATTRIBUTED_LANE)
+
+
+def _execution_family(operation: Any) -> str:
+    """Fold a private operation name into a closed public family id."""
+    if not isinstance(operation, str):
+        return "other"
+    return EXECUTION_FAMILY.get(operation, "other")
+
+
+def _agent_lane_rows(
+    gateway_lanes: dict[str, Counter[str]], execution_lanes: dict[str, Counter[str]]
+) -> list[dict[str, Any]]:
+    """Always emit every lane, in fixed order, so absence reads as zero."""
+    rows: list[dict[str, Any]] = []
+    for lane in AGENT_LANE_ORDER:
+        calls = gateway_lanes.get(lane) or {}
+        jobs = execution_lanes.get(lane) or {}
+        rows.append({
+            "id": lane,
+            "label": AGENT_LANE_LABELS[lane],
+            "calls": calls.get("calls", 0),
+            "work_calls": calls.get("work_calls", 0),
+            "jobs_accepted": jobs.get("jobs_accepted", 0),
+            "jobs_succeeded": jobs.get("jobs_succeeded", 0),
+        })
+    return rows
+
+
 def _scan_gateway(path: Path) -> dict[str, Any]:
     families: Counter[str] = Counter()
     weekly: dict[str, Counter[str]] = defaultdict(Counter)
+    agent_calls: dict[str, Counter[str]] = defaultdict(Counter)
     days: list[str] = []
     digest = hashlib.sha256()
     total = ok = parse_errors = 0
@@ -167,6 +307,10 @@ def _scan_gateway(path: Path) -> dict[str, Any]:
             ok += int(event.get("ok") is True)
             family = classify_event(event)
             families[family] += 1
+            lane = _gateway_lane(event)
+            agent_calls[lane]["calls"] += 1
+            if family not in NON_WORK_FAMILIES:
+                agent_calls[lane]["work_calls"] += 1
             event_day = _day(event.get("ts"))
             if event_day:
                 days.append(event_day)
@@ -197,7 +341,7 @@ def _scan_gateway(path: Path) -> dict[str, Any]:
     for week in sorted(weekly):
         row: dict[str, Any] = {"week_start": week}
         suppressed = 0
-        for key in ("operations", "learning", "inference", "work_plane", "other"):
+        for key in WEEKLY_MACRO_KEYS:
             value = weekly[week].get(key, 0)
             if 0 < value < MINIMUM_PUBLIC_CELL:
                 row[key] = None
@@ -208,7 +352,11 @@ def _scan_gateway(path: Path) -> dict[str, Any]:
         weekly_rows.append(row)
 
     family_rows = [
-        {"id": FAMILY_IDS[name], "label": name, "count": families.get(name, 0)}
+        {
+            "id": FAMILY_IDS[name],
+            "label": PUBLIC_LABELS.get(name, name),
+            "count": families.get(name, 0),
+        }
         for name in FAMILY_ORDER
     ]
     operations = families["Health / automation"] + families["Door status"]
@@ -235,6 +383,7 @@ def _scan_gateway(path: Path) -> dict[str, Any]:
             },
         },
         "weekly": weekly_rows,
+        "agent_calls": agent_calls,
         "first_day": min(days),
         "last_day": max(days),
         "prefix_sha256": digest.hexdigest(),
@@ -245,6 +394,10 @@ def _scan_gateway(path: Path) -> dict[str, Any]:
 def _scan_execution(path: Path) -> dict[str, Any]:
     event_types: Counter[str] = Counter()
     job_attempts: dict[str, Counter[str]] = defaultdict(Counter)
+    job_family: dict[str, str] = {}
+    job_lane: dict[str, str] = {}
+    family_counts: dict[str, Counter[str]] = defaultdict(Counter)
+    agent_jobs: dict[str, Counter[str]] = defaultdict(Counter)
     replayed_states: dict[str, dict[str, Any]] = {}
     reducer = object.__new__(ExecutionLedger)
     days: list[str] = []
@@ -296,6 +449,21 @@ def _scan_execution(path: Path) -> dict[str, Any]:
             if event_type == "request.accepted":
                 desired = event.get("desired") if isinstance(event.get("desired"), dict) else {}
                 idempotent_requests += int(bool(desired.get("idempotency_key")))
+                family = _execution_family(event.get("operation"))
+                lane = _execution_lane(event)
+                job_family[job] = family
+                job_lane[job] = lane
+                family_counts[family]["requests_accepted"] += 1
+                agent_jobs[lane]["jobs_accepted"] += 1
+            elif event_type in TERMINAL_JOB_EVENTS:
+                # A terminal event is attributed to the family and lane its
+                # accepted request recorded. A job that was never accepted
+                # cannot reach this line through the replay gate above; the
+                # fallbacks keep the projection closed rather than raising a
+                # second, later error.
+                family_counts[job_family.get(job, "other")][TERMINAL_JOB_EVENTS[event_type]] += 1
+                if event_type == "job.succeeded":
+                    agent_jobs[job_lane.get(job, UNATTRIBUTED_LANE)]["jobs_succeeded"] += 1
 
     if parse_errors:
         raise PublicProjectionError(f"execution ledger has {parse_errors} malformed rows")
@@ -304,9 +472,21 @@ def _scan_execution(path: Path) -> dict[str, Any]:
     if not replayed_states:
         raise PublicProjectionError("execution ledger replay produced no job projections")
 
-    terminal = sum(event_types[name] for name in ("job.succeeded", "job.failed", "job.cancelled", "job.expired"))
+    terminal = sum(event_types[name] for name in TERMINAL_JOB_EVENTS)
     retried = sum(1 for stats in job_attempts.values() if stats["started"] > 1)
     recovered = sum(1 for stats in job_attempts.values() if stats["failed"] and stats["succeeded"])
+    by_family = [
+        {
+            "id": family,
+            "label": EXECUTION_FAMILY_LABELS[family],
+            "requests_accepted": family_counts[family]["requests_accepted"],
+            "jobs_succeeded": family_counts[family]["jobs_succeeded"],
+            "jobs_failed": family_counts[family]["jobs_failed"],
+            "jobs_cancelled": family_counts[family]["jobs_cancelled"],
+            "jobs_expired": family_counts[family]["jobs_expired"],
+        }
+        for family in EXECUTION_FAMILY_ORDER
+    ]
     return {
         "public": {
             "events": total,
@@ -323,7 +503,9 @@ def _scan_execution(path: Path) -> dict[str, Any]:
             "artifacts_recorded": artifacts,
             "deliveries_projected": event_types["delivery.projected"],
             "projection_replay_verified": True,
+            "by_family": by_family,
         },
+        "agent_jobs": agent_jobs,
         "first_day": min(days),
         "last_day": max(days),
         "prefix_sha256": digest.hexdigest(),
@@ -397,7 +579,10 @@ def build_snapshot(
         "schema": SCHEMA_ID,
         "source_watermark_day": last_day,
         "observation_window": {"first_day": first_day, "last_day": last_day},
-        "gateway": gateway["public"],
+        "gateway": {
+            **gateway["public"],
+            "by_agent": _agent_lane_rows(gateway["agent_calls"], execution["agent_jobs"]),
+        },
         "execution": execution["public"],
         "weekly": gateway["weekly"],
         "mechnet": {
@@ -415,6 +600,9 @@ def build_snapshot(
             "limitations": [
                 "Direct model, shell, file, and cloud calls made around HEARTH are outside this boundary.",
                 "Counts prove observed flow and recovery behavior; they do not measure business value or authorship.",
+                "Image and media rows count execution-ledger jobs (one per accepted request), never gateway status polls.",
+                "Image jobs run before the execution ledger existed (May 2026) are not claimed.",
+                "Agent lanes are fixed labels derived from caller class; caller identities are never published.",
             ],
         },
         "provenance": {

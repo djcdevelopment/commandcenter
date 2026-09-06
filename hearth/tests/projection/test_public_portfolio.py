@@ -1,13 +1,36 @@
+import hashlib
 import json
 import tempfile
 import unittest
 from pathlib import Path
 
+from hearth.projection.call_mix_dashboard import FAMILY_ORDER
 from hearth.projection.public_portfolio import (
+    AGENT_LANE_BY_ADAPTER,
+    AGENT_LANE_LABELS,
+    AGENT_LANE_ORDER,
+    EXECUTION_FAMILY,
+    EXECUTION_FAMILY_LABELS,
+    EXECUTION_FAMILY_ORDER,
+    FAMILY_IDS,
+    FORBIDDEN_SOURCE_KEYS,
+    MACRO_IDS,
+    PUBLIC_KEYS,
+    SCHEMA_PATH,
     PublicProjectionError,
+    _walk_keys,
     build_snapshot,
     validate_public_snapshot,
+    write_snapshot,
 )
+
+
+def _caller(identifier: str) -> dict:
+    return {"id": identifier, "runner_class": "local", "node": "10.0.0.8"}
+
+
+def _principal(identifier: str) -> dict:
+    return {"type": "agent", "id": identifier, "authenticated": True}
 
 
 def _gateway_event(tool: str, ts: str, **overrides) -> dict:
@@ -15,7 +38,7 @@ def _gateway_event(tool: str, ts: str, **overrides) -> dict:
         "schema": "hearth-event.v1",
         "event_id": "private-event-id",
         "ts": ts,
-        "caller": {"id": "secret-host", "runner_class": "local", "node": "10.0.0.8"},
+        "caller": _caller("secret-host"),
         "tool": tool,
         "args_preview": r'{"path":"C:\\Users\\derek\\private.txt"}',
         "result_digest": "private-result",
@@ -51,15 +74,89 @@ def _execution_event(sequence: int, event_type: str, ts: str, **overrides) -> di
     return event
 
 
+def _execution_job(
+    sequence: int,
+    *,
+    day: str,
+    minute: int,
+    operation,
+    terminal: str,
+    principal: dict | None = None,
+    source: dict | None = None,
+) -> list[dict]:
+    """One accepted request plus its terminal event, as a valid replayable pair."""
+    request_id = f"req_{sequence:032x}"
+    job_id = f"job_{sequence:032x}"
+    return [
+        _execution_event(
+            sequence,
+            "request.accepted",
+            f"{day}T10:{minute:02d}:00Z",
+            request_id=request_id,
+            job_id=job_id,
+            operation=operation,
+            principal=principal,
+            source=source,
+        ),
+        _execution_event(
+            sequence + 1,
+            terminal,
+            f"{day}T10:{minute:02d}:30Z",
+            request_id=request_id,
+            job_id=job_id,
+        ),
+    ]
+
+
+# Every identifier the fixture puts on the private side of the boundary. The
+# privacy test treats each one as a forbidden substring of the public bytes.
+FIXTURE_IDENTIFIERS = (
+    "secret-host",
+    "10.0.0.8",
+    "private-event-id",
+    "private-result",
+    "private-task",
+    "secret.txt",
+    "secret-key",
+    "Users",
+    "claude-frontier",
+    "codex-cli",
+    "dmos-poc",
+    "bf6-dispatcher",
+    "botherder-am4",
+    "omen-worker-1",
+    "mechnet-watchdog",
+    "__unauthenticated__",
+    "docker-open-notebook-facade",
+    "bf6-hatchet",
+    "cluster.rebalance",
+)
+
+
+def _reseal(snapshot: dict) -> dict:
+    """Re-derive the content digest so a mutation is judged by the schema, not the hash."""
+    payload = {key: value for key, value in snapshot.items() if key not in {"integrity", "snapshot_id"}}
+    canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return {**payload, "snapshot_id": f"sha256:{digest}", "integrity": {"content_sha256": digest}}
+
+
+def _row(rows: list[dict], row_id: str) -> dict:
+    return next(row for row in rows if row["id"] == row_id)
+
+
 class PublicPortfolioProjectionTests(unittest.TestCase):
-    def _ledgers(self, root: Path) -> tuple[Path, Path]:
-        gateway = root / "gateway.ndjson"
-        gateway_events = [
+    maxDiff = None
+
+    def _gateway_events(self) -> list[dict]:
+        return [
+            # Door status, unmapped caller -> "other" lane.
             _gateway_event("kernel_status", "2026-08-31T01:00:00Z"),
             *[
                 _gateway_event(
                     "local_generate",
                     f"2026-09-0{1 + (index % 2)}T02:00:00Z",
+                    caller=_caller("claude-frontier"),
                     backend="omen-arc",
                     cost={"tokens_in": 100, "tokens_out": 20, "watt_s": None},
                 )
@@ -68,13 +165,48 @@ class PublicPortfolioProjectionTests(unittest.TestCase):
             _gateway_event(
                 "mechnet_watchdog.rung_state",
                 "2026-09-02T03:00:00Z",
+                caller=_caller("mechnet-watchdog"),
                 outcome="at_rate",
             ),
+            # Image generation: 5 submits against 20 status polls, so the poll
+            # volume dwarfs the job volume and the two cannot track each other.
+            *[
+                _gateway_event("submit_image", f"2026-09-01T04:00:0{index}Z", caller=_caller("dmos-poc"))
+                for index in range(3)
+            ],
+            *[
+                _gateway_event("submit_image", f"2026-09-01T04:10:0{index}Z", caller=_caller("claude-frontier"))
+                for index in range(2)
+            ],
+            *[
+                _gateway_event("get_image_status", f"2026-09-01T04:20:{index:02d}Z", caller=_caller("dmos-poc"))
+                for index in range(20)
+            ],
+            *[
+                _gateway_event("submit_render", f"2026-09-02T05:00:0{index}Z", caller=_caller("bf6-dispatcher"))
+                for index in range(2)
+            ],
+            *[
+                _gateway_event("get_media_status", f"2026-09-02T05:10:0{index}Z", caller=_caller("bf6-dispatcher"))
+                for index in range(6)
+            ],
+            *[
+                _gateway_event("git_status", f"2026-09-01T06:00:0{index}Z", caller=_caller("codex-cli"))
+                for index in range(2)
+            ],
+            *[
+                _gateway_event("submit_task", f"2026-09-01T07:00:0{index}Z", caller=_caller("botherder-am4"))
+                for index in range(4)
+            ],
+            *[
+                _gateway_event("run_tests", f"2026-09-02T08:00:0{index}Z", caller=_caller("omen-worker-1"))
+                for index in range(2)
+            ],
+            _gateway_event("list_dir", "2026-09-02T09:00:00Z", caller=_caller("__unauthenticated__")),
         ]
-        gateway.write_text("\n".join(json.dumps(event) for event in gateway_events) + "\n", encoding="utf-8")
 
-        execution = root / "execution.ndjson"
-        execution_events = [
+    def _execution_events(self) -> list[dict]:
+        return [
             _execution_event(
                 1,
                 "request.accepted",
@@ -99,17 +231,109 @@ class PublicPortfolioProjectionTests(unittest.TestCase):
             ),
             _execution_event(7, "job.succeeded", "2026-09-01T01:00:06Z"),
             _execution_event(8, "delivery.projected", "2026-09-01T01:00:07Z"),
+            *_execution_job(
+                9, day="2026-09-01", minute=1, operation="image.generate",
+                principal=_principal("dmos-poc"), terminal="job.succeeded",
+            ),
+            *_execution_job(
+                11, day="2026-09-01", minute=2, operation="image.generate",
+                principal=_principal("dmos-poc"), terminal="job.failed",
+            ),
+            # Adapter-only attribution: no principal at all.
+            *_execution_job(
+                13, day="2026-09-01", minute=3, operation="bf6.process_segment",
+                source={"transport": "http", "adapter": "bf6-hatchet"}, terminal="job.succeeded",
+            ),
+            *_execution_job(
+                15, day="2026-09-01", minute=4, operation="bf6.render_clip_workflow",
+                principal=_principal("bf6-dispatcher"), terminal="job.cancelled",
+            ),
+            # Precedence discriminator (D-015): principal and adapter map to
+            # DIFFERENT lanes, so this job counts as claude_code, not irc_adapter.
+            *_execution_job(
+                17, day="2026-09-01", minute=5, operation="media.render",
+                principal=_principal("claude-frontier"),
+                source={"transport": "irc", "adapter": "botherder-am4"},
+                terminal="job.succeeded",
+            ),
+            *_execution_job(
+                19, day="2026-09-02", minute=6, operation="media.podcast",
+                principal=_principal("claude-frontier"), terminal="job.succeeded",
+            ),
+            # Precedence (D-015): the principal maps to "other", so the adapter decides.
+            *_execution_job(
+                21, day="2026-09-02", minute=7, operation="llm.chat",
+                principal=_principal("docker-open-notebook-facade"),
+                source={"transport": "irc", "adapter": "botherder-am4"},
+                terminal="job.succeeded",
+            ),
+            # Unknown operation string -> "other", and the string itself stays private.
+            *_execution_job(
+                23, day="2026-09-02", minute=8, operation="cluster.rebalance",
+                principal=_principal("codex-cli"), terminal="job.expired",
+            ),
+            # operation: None -> "other".
+            *_execution_job(
+                25, day="2026-09-02", minute=9, operation=None,
+                principal=_principal("omen-worker-1"), terminal="job.succeeded",
+            ),
+            *_execution_job(
+                27, day="2026-09-02", minute=10, operation="inference.generate",
+                principal=_principal("claude-frontier"), terminal="job.succeeded",
+            ),
         ]
-        execution.write_text("\n".join(json.dumps(event) for event in execution_events) + "\n", encoding="utf-8")
+
+    def _ledgers(self, root: Path) -> tuple[Path, Path]:
+        gateway = root / "gateway.ndjson"
+        gateway.write_text(
+            "\n".join(json.dumps(event) for event in self._gateway_events()) + "\n", encoding="utf-8"
+        )
+        execution = root / "execution.ndjson"
+        execution.write_text(
+            "\n".join(json.dumps(event) for event in self._execution_events()) + "\n", encoding="utf-8"
+        )
         return gateway, execution
+
+    def _snapshot(self, root: Path) -> dict:
+        gateway, execution = self._ledgers(root)
+        return build_snapshot(gateway, execution, exporter_revision="test")
+
+    # ---- structure -----------------------------------------------------
+
+    def test_family_maps_cover_exactly_the_classifier_families(self) -> None:
+        self.assertEqual(set(FAMILY_IDS), set(FAMILY_ORDER))
+        self.assertEqual(set(MACRO_IDS), set(FAMILY_ORDER))
+        self.assertEqual(len(set(FAMILY_IDS.values())), len(FAMILY_ORDER))
+
+    def test_schema_enums_match_the_projection_constants(self) -> None:
+        schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+        defs = schema["$defs"]
+        self.assertEqual(set(defs["family"]["properties"]["id"]["enum"]), set(FAMILY_IDS.values()))
+        self.assertEqual(defs["executionFamily"]["properties"]["id"]["enum"], EXECUTION_FAMILY_ORDER)
+        self.assertEqual(defs["agentLane"]["properties"]["id"]["enum"], AGENT_LANE_ORDER)
+        self.assertEqual(set(EXECUTION_FAMILY.values()) - set(EXECUTION_FAMILY_ORDER), set())
+        for label in list(EXECUTION_FAMILY_LABELS.values()) + list(AGENT_LANE_LABELS.values()):
+            self.assertLessEqual(len(label), 40)
+
+    def test_forbidden_source_keys_can_never_be_public_keys(self) -> None:
+        self.assertIn("operation", FORBIDDEN_SOURCE_KEYS)
+        self.assertLessEqual({"caller", "principal", "source", "job_id"}, FORBIDDEN_SOURCE_KEYS)
+        self.assertTrue(FORBIDDEN_SOURCE_KEYS.isdisjoint(PUBLIC_KEYS))
+
+    # ---- projection ----------------------------------------------------
 
     def test_projection_emits_only_aggregates_and_fixed_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            gateway, execution = self._ledgers(Path(tmp))
-            snapshot = build_snapshot(gateway, execution, exporter_revision="test")
-        self.assertEqual(snapshot["gateway"]["events"], 14)
+            snapshot = self._snapshot(Path(tmp))
+        self.assertEqual(snapshot["gateway"]["events"], 56)
+        self.assertEqual(snapshot["gateway"]["ok_events"], 56)
+        self.assertEqual(snapshot["gateway"]["operational_observations"], 28)
+        self.assertEqual(snapshot["gateway"]["work_and_learning_events"], 28)
+        self.assertEqual(snapshot["gateway"]["unclassified_events"], 0)
         self.assertEqual(snapshot["gateway"]["inference"]["local_calls"], 12)
         self.assertEqual(snapshot["gateway"]["inference"]["tokens_in"], 1200)
+        self.assertEqual(snapshot["execution"]["events"], 28)
+        self.assertEqual(snapshot["execution"]["requests_accepted"], 11)
         self.assertEqual(snapshot["execution"]["retried_jobs"], 1)
         self.assertEqual(snapshot["execution"]["recovered_jobs"], 1)
         self.assertEqual(snapshot["execution"]["artifacts_recorded"], 1)
@@ -120,12 +344,268 @@ class PublicPortfolioProjectionTests(unittest.TestCase):
             self.assertNotIn(private, rendered)
         validate_public_snapshot(snapshot)
 
-    def test_small_weekly_cells_are_suppressed(self) -> None:
+    def test_fourteen_gateway_families_in_fixed_order_with_relabelled_door_status(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            snapshot = self._snapshot(Path(tmp))
+        families = snapshot["gateway"]["families"]
+        self.assertEqual(len(families), 14)
+        self.assertEqual([row["id"] for row in families], [FAMILY_IDS[name] for name in FAMILY_ORDER])
+        self.assertEqual(_row(families, "door_status")["label"], "Door status / polling")
+        self.assertEqual(_row(families, "image_generation")["label"], "Image generation")
+        self.assertEqual(
+            {row["id"]: row["count"] for row in families},
+            {
+                "health_automation": 1,
+                "door_status": 27,
+                "learning_retro": 0,
+                "local_inference": 12,
+                "cloud_inference": 0,
+                "image_generation": 5,
+                "media_render": 2,
+                "fleet_builds": 4,
+                "git_vcs": 2,
+                "filesystem": 1,
+                "test_assay": 2,
+                "catalog_hardware": 0,
+                "scheduler": 0,
+                "other": 0,
+            },
+        )
+
+    def test_execution_jobs_are_grouped_into_six_operation_families(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            snapshot = self._snapshot(Path(tmp))
+        by_family = snapshot["execution"]["by_family"]
+        self.assertEqual([row["id"] for row in by_family], EXECUTION_FAMILY_ORDER)
+        self.assertEqual(
+            [
+                (
+                    row["id"],
+                    row["requests_accepted"],
+                    row["jobs_succeeded"],
+                    row["jobs_failed"],
+                    row["jobs_cancelled"],
+                    row["jobs_expired"],
+                )
+                for row in by_family
+            ],
+            [
+                ("image_generation", 2, 1, 1, 0, 0),
+                ("video_highlight_render", 2, 1, 0, 1, 0),
+                ("media_render", 1, 1, 0, 0, 0),
+                ("media_pipeline", 1, 1, 0, 0, 0),
+                ("inference", 2, 2, 0, 0, 0),
+                ("other", 3, 2, 0, 0, 1),
+            ],
+        )
+        self.assertEqual(
+            sum(row["requests_accepted"] for row in by_family),
+            snapshot["execution"]["requests_accepted"],
+        )
+        self.assertEqual(
+            sum(row["jobs_succeeded"] for row in by_family), snapshot["execution"]["jobs_succeeded"]
+        )
+        self.assertEqual(_row(by_family, "video_highlight_render")["label"], "Clippy · BF6 highlight renders")
+
+    def test_work_is_grouped_into_eight_agent_lanes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            snapshot = self._snapshot(Path(tmp))
+        by_agent = snapshot["gateway"]["by_agent"]
+        self.assertEqual([row["id"] for row in by_agent], AGENT_LANE_ORDER)
+        self.assertEqual(
+            [
+                (row["id"], row["calls"], row["work_calls"], row["jobs_accepted"], row["jobs_succeeded"])
+                for row in by_agent
+            ],
+            [
+                ("claude_code", 14, 14, 3, 3),
+                ("codex", 2, 2, 1, 0),
+                ("dmos_image_client", 23, 3, 2, 1),
+                ("clippy_dispatcher", 8, 2, 2, 1),
+                ("irc_adapter", 4, 4, 1, 1),
+                ("fleet_workers", 2, 2, 1, 1),
+                ("automation", 1, 0, 0, 0),
+                ("other", 2, 1, 1, 1),
+            ],
+        )
+        self.assertEqual(sum(row["calls"] for row in by_agent), snapshot["gateway"]["events"])
+        self.assertEqual(
+            sum(row["jobs_accepted"] for row in by_agent), snapshot["execution"]["requests_accepted"]
+        )
+        # Polling lanes must not read as work lanes.
+        self.assertLess(_row(by_agent, "dmos_image_client")["work_calls"], _row(by_agent, "dmos_image_client")["calls"])
+        self.assertEqual(_row(by_agent, "automation")["work_calls"], 0)
+        # Two execution jobs carry adapter "botherder-am4". Only the one with no
+        # lane-mapped principal lands in irc_adapter, so principal wins the tie.
+        self.assertEqual(_row(by_agent, "irc_adapter")["jobs_accepted"], 1)
+        self.assertEqual(_row(by_agent, "claude_code")["jobs_accepted"], 3)
+
+    def test_gateway_calls_and_execution_jobs_are_distinct_quantities(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            snapshot = self._snapshot(Path(tmp))
+        gateway_image = _row(snapshot["gateway"]["families"], "image_generation")["count"]
+        job_image = _row(snapshot["execution"]["by_family"], "image_generation")["requests_accepted"]
+        self.assertEqual(gateway_image, 5)
+        self.assertEqual(job_image, 2)
+        self.assertNotEqual(gateway_image, job_image)
+        # 27 door-status polls against 11 accepted jobs: the two series cannot track each other.
+        self.assertGreater(
+            _row(snapshot["gateway"]["families"], "door_status")["count"],
+            snapshot["execution"]["requests_accepted"],
+        )
+
+    def test_weekly_rows_carry_the_media_macro_and_suppress_small_cells(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            snapshot = self._snapshot(Path(tmp))
+        self.assertEqual(len(snapshot["weekly"]), 1)
+        first_week = snapshot["weekly"][0]
+        self.assertEqual(first_week["week_start"], "2026-08-31")
+        self.assertIn("media", first_week)
+        # media = 7 and work_plane = 9 fall under the minimum public cell of 10.
+        self.assertIsNone(first_week["media"])
+        self.assertIsNone(first_week["work_plane"])
+        # operations = 28 and inference = 12 clear it, so suppression is not blanket.
+        self.assertEqual(first_week["operations"], 28)
+        self.assertEqual(first_week["inference"], 12)
+        self.assertEqual(first_week["learning"], 0)
+        self.assertEqual(first_week["other"], 0)
+        self.assertEqual(first_week["suppressed_cells"], 2)
+
+    def test_coverage_limitations_state_the_new_boundaries(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            snapshot = self._snapshot(Path(tmp))
+        limitations = snapshot["coverage"]["limitations"]
+        for sentence in (
+            "Image and media rows count execution-ledger jobs (one per accepted request), never gateway status polls.",
+            "Image jobs run before the execution ledger existed (May 2026) are not claimed.",
+            "Agent lanes are fixed labels derived from caller class; caller identities are never published.",
+        ):
+            self.assertIn(sentence, limitations)
+
+    # ---- privacy -------------------------------------------------------
+
+    def test_no_identifier_or_operation_string_survives_serialization(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            snapshot = self._snapshot(Path(tmp))
+        rendered = json.dumps(snapshot, ensure_ascii=False)
+        for operation in EXECUTION_FAMILY:
+            self.assertNotIn(operation, rendered)
+        for identifier in AGENT_LANE_BY_ADAPTER:
+            self.assertNotIn(identifier, rendered)
+        for identifier in FIXTURE_IDENTIFIERS:
+            self.assertNotIn(identifier, rendered)
+        keys = set(_walk_keys(snapshot))
+        self.assertEqual(keys & FORBIDDEN_SOURCE_KEYS, set())
+        self.assertEqual(keys - PUBLIC_KEYS, set())
+
+    def test_undeclared_key_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            snapshot = self._snapshot(Path(tmp))
+        snapshot["gateway"]["by_caller"] = []
+        with self.assertRaisesRegex(PublicProjectionError, "undeclared keys"):
+            validate_public_snapshot(snapshot)
+
+    def test_injected_private_key_or_identifier_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = self._snapshot(Path(tmp))
+        with_operation = json.loads(json.dumps(base))
+        with_operation["execution"]["operation"] = "image.generate"
+        with self.assertRaises(PublicProjectionError):
+            validate_public_snapshot(with_operation)
+        # Even resealed, an undeclared/forbidden key still fails closed.
+        with self.assertRaisesRegex(PublicProjectionError, "undeclared keys"):
+            validate_public_snapshot(_reseal(with_operation))
+
+        with_caller = json.loads(json.dumps(base))
+        _row(with_caller["gateway"]["by_agent"], "claude_code")["label"] = "claude-frontier"
+        with self.assertRaisesRegex(PublicProjectionError, "digest"):
+            validate_public_snapshot(with_caller)
+
+    def test_schema_is_load_bearing_for_row_counts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = self._snapshot(Path(tmp))
+        import jsonschema  # noqa: F401  - the schema gate is only meaningful when installed
+
+        short = json.loads(json.dumps(base))
+        short["execution"]["by_family"] = short["execution"]["by_family"][:-1]
+        with self.assertRaisesRegex(PublicProjectionError, "schema validation failed"):
+            validate_public_snapshot(_reseal(short))
+
+        short_lanes = json.loads(json.dumps(base))
+        short_lanes["gateway"]["by_agent"] = short_lanes["gateway"]["by_agent"][:-1]
+        with self.assertRaisesRegex(PublicProjectionError, "schema validation failed"):
+            validate_public_snapshot(_reseal(short_lanes))
+
+    # ---- determinism, monotonicity, fault injection ---------------------
+
+    def test_same_fixture_yields_byte_identical_snapshots(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             gateway, execution = self._ledgers(Path(tmp))
-            snapshot = build_snapshot(gateway, execution, exporter_revision="test")
+            first = build_snapshot(gateway, execution, exporter_revision="test")
+            second = build_snapshot(gateway, execution, exporter_revision="test")
+        self.assertEqual(
+            json.dumps(first, sort_keys=True, ensure_ascii=False),
+            json.dumps(second, sort_keys=True, ensure_ascii=False),
+        )
+
+    def test_appending_events_never_lowers_a_public_counter(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            gateway, execution = self._ledgers(root)
+            before = build_snapshot(gateway, execution, exporter_revision="test")
+
+            with gateway.open("a", encoding="utf-8") as stream:
+                stream.write(
+                    json.dumps(
+                        _gateway_event(
+                            "submit_image", "2026-09-02T11:00:00Z", caller=_caller("dmos-poc")
+                        )
+                    )
+                    + "\n"
+                )
+            with execution.open("a", encoding="utf-8") as stream:
+                for event in _execution_job(
+                    29,
+                    day="2026-09-02",
+                    minute=11,
+                    operation="media.animate",
+                    principal=_principal("mechnet-orchestrator"),
+                    terminal="job.succeeded",
+                ):
+                    stream.write(json.dumps(event) + "\n")
+            after = build_snapshot(gateway, execution, exporter_revision="test")
+
+        for family in EXECUTION_FAMILY_ORDER:
+            self.assertGreaterEqual(
+                _row(after["execution"]["by_family"], family)["requests_accepted"],
+                _row(before["execution"]["by_family"], family)["requests_accepted"],
+            )
+        for lane in AGENT_LANE_ORDER:
+            self.assertGreaterEqual(
+                _row(after["gateway"]["by_agent"], lane)["calls"],
+                _row(before["gateway"]["by_agent"], lane)["calls"],
+            )
+        self.assertEqual(_row(after["gateway"]["by_agent"], "dmos_image_client")["calls"], 24)
+        self.assertEqual(_row(after["execution"]["by_family"], "media_pipeline")["requests_accepted"], 2)
+        self.assertEqual(_row(after["gateway"]["by_agent"], "fleet_workers")["jobs_accepted"], 2)
+
+    def test_terminal_event_without_an_accepted_request_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            gateway, execution = self._ledgers(root)
+            orphan = root / "orphan.ndjson"
+            orphan.write_text(
+                json.dumps(_execution_event(1, "job.succeeded", "2026-09-01T01:00:00Z")) + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(PublicProjectionError, "replay failed"):
+                build_snapshot(gateway, orphan, exporter_revision="test")
+
+    def test_small_weekly_cells_are_suppressed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            snapshot = self._snapshot(Path(tmp))
         first_week = snapshot["weekly"][0]
-        self.assertIsNone(first_week["operations"])
+        self.assertIsNone(first_week["media"])
         self.assertGreater(first_week["suppressed_cells"], 0)
 
     def test_non_contiguous_execution_stream_fails_closed(self) -> None:
@@ -148,11 +628,21 @@ class PublicPortfolioProjectionTests(unittest.TestCase):
 
     def test_digest_tampering_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            gateway, execution = self._ledgers(Path(tmp))
-            snapshot = build_snapshot(gateway, execution, exporter_revision="test")
+            snapshot = self._snapshot(Path(tmp))
         snapshot["gateway"]["events"] += 1
         with self.assertRaisesRegex(PublicProjectionError, "digest"):
             validate_public_snapshot(snapshot)
+
+    def test_write_snapshot_writes_the_named_output_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            gateway, execution = self._ledgers(root)
+            out = root / "staged" / "public-system-proof.v1.json"
+            snapshot = write_snapshot(out, gateway, execution)
+            self.assertTrue(out.exists())
+            written = json.loads(out.read_text(encoding="utf-8"))
+        self.assertEqual(written["snapshot_id"], snapshot["snapshot_id"])
+        validate_public_snapshot(written)
 
 
 if __name__ == "__main__":

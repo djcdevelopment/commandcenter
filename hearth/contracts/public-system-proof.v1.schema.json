@@ -25,7 +25,7 @@
     "gateway": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["events", "ok_events", "ok_rate_basis_points", "operational_observations", "work_and_learning_events", "unclassified_events", "families", "inference"],
+      "required": ["events", "ok_events", "ok_rate_basis_points", "operational_observations", "work_and_learning_events", "unclassified_events", "families", "inference", "by_agent"],
       "properties": {
         "events": { "$ref": "#/$defs/count" },
         "ok_events": { "$ref": "#/$defs/count" },
@@ -36,16 +36,22 @@
         "families": {
           "type": "array",
           "items": { "$ref": "#/$defs/family" },
-          "minItems": 12,
-          "maxItems": 12
+          "minItems": 14,
+          "maxItems": 14
         },
-        "inference": { "$ref": "#/$defs/inference" }
+        "inference": { "$ref": "#/$defs/inference" },
+        "by_agent": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/agentLane" },
+          "minItems": 8,
+          "maxItems": 8
+        }
       }
     },
     "execution": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["events", "requests_accepted", "requests_with_idempotency_key", "jobs_succeeded", "jobs_failed", "jobs_cancelled", "jobs_expired", "success_rate_basis_points", "invocations_started", "retried_jobs", "recovered_jobs", "artifacts_recorded", "deliveries_projected", "projection_replay_verified"],
+      "required": ["events", "requests_accepted", "requests_with_idempotency_key", "jobs_succeeded", "jobs_failed", "jobs_cancelled", "jobs_expired", "success_rate_basis_points", "invocations_started", "retried_jobs", "recovered_jobs", "artifacts_recorded", "deliveries_projected", "projection_replay_verified", "by_family"],
       "properties": {
         "events": { "$ref": "#/$defs/count" },
         "requests_accepted": { "$ref": "#/$defs/count" },
@@ -60,7 +66,13 @@
         "recovered_jobs": { "$ref": "#/$defs/count" },
         "artifacts_recorded": { "$ref": "#/$defs/count" },
         "deliveries_projected": { "$ref": "#/$defs/count" },
-        "projection_replay_verified": { "type": "boolean" }
+        "projection_replay_verified": { "type": "boolean" },
+        "by_family": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/executionFamily" },
+          "minItems": 6,
+          "maxItems": 6
+        }
       }
     },
     "weekly": {
@@ -68,15 +80,16 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["week_start", "operations", "learning", "inference", "work_plane", "other", "suppressed_cells"],
+        "required": ["week_start", "operations", "learning", "inference", "media", "work_plane", "other", "suppressed_cells"],
         "properties": {
           "week_start": { "$ref": "#/$defs/day" },
           "operations": { "$ref": "#/$defs/publicCell" },
           "learning": { "$ref": "#/$defs/publicCell" },
           "inference": { "$ref": "#/$defs/publicCell" },
+          "media": { "$ref": "#/$defs/publicCell" },
           "work_plane": { "$ref": "#/$defs/publicCell" },
           "other": { "$ref": "#/$defs/publicCell" },
-          "suppressed_cells": { "type": "integer", "minimum": 0, "maximum": 5 }
+          "suppressed_cells": { "type": "integer", "minimum": 0, "maximum": 6 }
         }
       }
     },
@@ -145,9 +158,36 @@
       "additionalProperties": false,
       "required": ["id", "label", "count"],
       "properties": {
-        "id": { "enum": ["health_automation", "door_status", "learning_retro", "local_inference", "cloud_inference", "fleet_builds", "git_vcs", "filesystem", "test_assay", "catalog_hardware", "scheduler", "other"] },
+        "id": { "enum": ["health_automation", "door_status", "learning_retro", "local_inference", "cloud_inference", "image_generation", "media_render", "fleet_builds", "git_vcs", "filesystem", "test_assay", "catalog_hardware", "scheduler", "other"] },
         "label": { "type": "string", "minLength": 1, "maxLength": 40 },
         "count": { "$ref": "#/$defs/count" }
+      }
+    },
+    "executionFamily": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "requests_accepted", "jobs_succeeded", "jobs_failed", "jobs_cancelled", "jobs_expired"],
+      "properties": {
+        "id": { "enum": ["image_generation", "video_highlight_render", "media_render", "media_pipeline", "inference", "other"] },
+        "label": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "requests_accepted": { "$ref": "#/$defs/count" },
+        "jobs_succeeded": { "$ref": "#/$defs/count" },
+        "jobs_failed": { "$ref": "#/$defs/count" },
+        "jobs_cancelled": { "$ref": "#/$defs/count" },
+        "jobs_expired": { "$ref": "#/$defs/count" }
+      }
+    },
+    "agentLane": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "calls", "work_calls", "jobs_accepted", "jobs_succeeded"],
+      "properties": {
+        "id": { "enum": ["claude_code", "codex", "dmos_image_client", "clippy_dispatcher", "irc_adapter", "fleet_workers", "automation", "other"] },
+        "label": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "calls": { "$ref": "#/$defs/count" },
+        "work_calls": { "$ref": "#/$defs/count" },
+        "jobs_accepted": { "$ref": "#/$defs/count" },
+        "jobs_succeeded": { "$ref": "#/$defs/count" }
       }
     },
     "inference": {

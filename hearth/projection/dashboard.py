@@ -171,7 +171,7 @@ def build_dashboard_html(
     events_24h = 0
     backend_calls: dict[str, int] = {}
     backend_ok: dict[str, int] = {}
-    routing_counts = {"escalation": 0, "ask": 0, "payload": 0, "quality": 0}
+    routing_counts = {"family": 0, "escalation": 0, "ask": 0, "payload": 0, "quality": 0}
     error_counts: dict[str, int] = {}
 
     if ledger_path.exists():
@@ -203,7 +203,15 @@ def build_dashboard_html(
 
                     routed_by = ev.get("routed_by")
                     if routed_by and isinstance(routed_by, str):
-                        if routed_by.startswith("escalation:"):
+                        # Counting rule: the OUTERMOST prefix wins, one bucket
+                        # per event. A family route carries its inner reason
+                        # after the family segment ("family:x:escalation:a->b"),
+                        # so it counts as family, not as an escalation — the
+                        # family bucket answers "how many routes did the authored
+                        # evidence steer", which a rescued family route still is.
+                        if routed_by.startswith("family:"):
+                            routing_counts["family"] += 1
+                        elif routed_by.startswith("escalation:"):
                             routing_counts["escalation"] += 1
                         elif routed_by.startswith("ask:"):
                             routing_counts["ask"] += 1
@@ -365,7 +373,7 @@ def build_dashboard_html(
     html_lines.append('</div>')
 
     html_lines.append('<div class="card" style="display: flex; gap: 20px; flex-wrap: wrap;">')
-    for label, key in [("Escalations", "escalation"), ("Asks", "ask"), ("Payload Routes", "payload"), ("Quality Calls", "quality")]:
+    for label, key in [("Family Routes", "family"), ("Escalations", "escalation"), ("Asks", "ask"), ("Payload Routes", "payload"), ("Quality Calls", "quality")]:
         html_lines.append('<div style="flex: 1; min-width: 150px;">')
         html_lines.append(f'<h3>{label} (24h)</h3>')
         html_lines.append(f'<div class="metric">{_fmt_num(routing_counts[key])}</div>')

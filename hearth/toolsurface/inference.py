@@ -308,6 +308,45 @@ def _resolve_target(endpoint: str, task: Optional[str], backend: Optional[str],
                    named.name if named else None, "default", "available", {})
 
 
+def _resolve_family(task_family: Optional[str], prompt_tokens: Optional[int],
+                    endpoint: str, model: Optional[str]) -> tuple[Optional[dict], Optional[dict]]:
+    """The authored family evidence for this call: (recommendation, error_result).
+
+    Exactly one side is non-None; both are None when the caller named no family
+    (absent ``task_family`` must change nothing, including the cost of a TOML
+    read). The import is local because ``hearth.scheduler.__init__`` pulls in the
+    CP-SAT solver -- a dispatch must not start depending on ortools being
+    installed.
+
+    A failure here is LOUD (loud-fallbacks doctrine): the caller asked to be
+    routed by authored evidence, so routing them by an unstated default instead
+    would be exactly the silent substitution this WI exists to prevent. A pool
+    fault keeps its historical "routing failed" shape so the error still names
+    the subsystem that actually broke.
+    """
+    if task_family is None:
+        return None, None
+    try:
+        from hearth.scheduler.families import recommend as recommend_family
+        return recommend_family(task_family, prompt_tokens), None
+    except BackendConfigError as exc:
+        return None, {"ok": False, "error": f"routing failed: {exc}",
+                      "endpoint": endpoint, "model": model,
+                      "task_family": task_family, "family_recommendation": None}
+    except Exception as exc:  # noqa: BLE001 — missing/invalid TOML, import failure
+        return None, {"ok": False,
+                      "error": f"task family config error: {type(exc).__name__}: {exc}",
+                      "error_code": "family_config_error",
+                      "endpoint": endpoint, "model": model,
+                      "task_family": task_family, "family_recommendation": None}
+
+
+def _family_tags(family: str) -> list[str]:
+    """The routing tags declared for a family (local import, see _resolve_family)."""
+    from hearth.scheduler.families import tags_for
+    return tags_for(family)
+
+
 def _post(url: str, payload: dict, timeout_s: int,
           headers: Optional[dict] = None) -> tuple[Optional[dict], Optional[str]]:
     """POST JSON and return (body, error). error is a string on failure, else None."""
@@ -461,7 +500,8 @@ def local_generate(prompt: str, model: str | None = None,
                    max_tokens: int | None = None, timeout_s: int | None = None,
                    task: str | None = None, backend: str | None = None,
                    files: list[str] | None = None,
-                   quality: str | None = None) -> dict:
+                   quality: str | None = None,
+                   task_family: str | None = None) -> dict:
     """Generate text from a configured inference backend.
 
     Routing (Banked Fire): pass ``task`` (e.g. "research") to prefer a tagged
@@ -470,6 +510,22 @@ def local_generate(prompt: str, model: str | None = None,
     occupancy) is skipped in favor of the pool default (P2); a name-pinned
     backend is never occupancy-skipped. The chosen backend, routing reason, and
     occupancy-at-decision all ride in the result.
+
+    Task families (C-05): pass ``task_family`` (e.g. "quote_retrieval") to let
+    the authored family evidence in ``hearth/etc/routing-families.toml`` steer
+    the route. Full precedence, highest first::
+
+        endpoint pin > backend pin > explicit quality/task > task_family > default
+
+    A caller pin routes exactly as it does today and the family is stamped
+    advisory-only. Otherwise the family routes by TAG when its recommended model
+    is opportunistically reachable (``routed_by`` "family:<name>:<inner>"), or by
+    an explicit, named pin when the recommended rung carries no routing tags
+    (``routed_by`` "family:<name>:pinned:<rung>"); an escalated family route
+    reads "family:<name>:escalation:<a>-><b>". A family pin obeys ADR-0031 like
+    any pin: over budget is refused at the door, never silently re-routed. Every
+    result carries ``task_family`` and ``family_recommendation`` so no model or
+    rung substitution is hidden.
 
     Quality tiers (A3): ``quality="fast"`` (or omitted) uses the sunk-first
     ladder (default behavior); ``"good"`` prefers the near-free flash rung
@@ -494,10 +550,19 @@ def local_generate(prompt: str, model: str | None = None,
         raise ValueError("timeout_s must be positive")
     if quality is not None and quality not in ("fast", "good", "best"):
         raise ValueError("quality must be 'fast', 'good', or 'best'")
+    if task_family is not None and (not isinstance(task_family, str)
+                                    or not task_family.strip()):
+        raise ValueError("task_family must be a non-empty string")
 
     if quality == "best":
         # A3 ASK: quality=best maps to the pro rung, which auto-routing never
         # selects (D3). Zero network calls, zero tokens — the caller decides.
+        # The ask returns before packing, so there is no payload to judge depth
+        # by: the recommendation is stamped at UNKNOWN depth, which its own
+        # `reason` says out loud rather than implying a depth nobody measured.
+        ask_recommendation, ask_error = _resolve_family(task_family, None, endpoint, model)
+        if ask_error is not None:
+            return ask_error
         return {
             "ok": True, "ask": True,
             "recommendation": {
@@ -509,6 +574,7 @@ def local_generate(prompt: str, model: str | None = None,
                     'backend="gcp-gemini-pro" to confirm, or quality="good" for the flash rung.',
             "backend": None, "routed_by": "ask:quality-best", "occupancy": "n/a",
             "max_tokens": 0,
+            "task_family": task_family, "family_recommendation": ask_recommendation,
         }
 
     files_packed_list = None
@@ -576,8 +642,51 @@ def local_generate(prompt: str, model: str | None = None,
 
     call_tags = ["cloud-overflow"] if quality == "good" else None
 
+    # The family evidence is read against the payload that actually ships (after
+    # packing), so a files= call is judged at its real depth — the same rule A1
+    # already applies to the context-budget arithmetic. //4 is the door's
+    # standing bytes->tokens estimate (see rotation.recommend_rung).
+    family_recommendation, family_error = _resolve_family(
+        task_family, payload_bytes // 4, endpoint, model)
+    if family_error is not None:
+        return family_error
+
+    # Precedence, highest first:
+    #   endpoint pin > backend pin > explicit quality/task > task_family > default
+    # A caller pin (either kind) and an explicit quality tier or task tag are all
+    # the caller speaking about THIS call; authored family evidence is a standing
+    # preference and yields to them. When it does route, it routes VISIBLY —
+    # every path below writes its own routed_by prefix.
+    caller_pinned = endpoint != DEFAULT_ENDPOINT or backend is not None
+    family_routes = (family_recommendation is not None and not caller_pinned
+                     and quality is None and task is None)
+    route_backend = backend
+    route_model = model
+    family_prefix = None
+    if family_routes:
+        family_prefix = f"family:{family_recommendation['family']}:"
+        if family_recommendation["pin_required"] and family_recommendation["backend_hint"]:
+            # The recommended rung declares no routing tags, so opportunistic
+            # routing would never land there — name it. This is a pin in every
+            # respect: ADR-0031 arithmetic still applies (an over-budget family
+            # pin is refused at the door with the recommendation attached, never
+            # quietly re-routed) and pins never escalate.
+            route_backend = family_recommendation["backend_hint"]
+            route_model = model or family_recommendation["model_id"]
+        else:
+            call_tags = _family_tags(family_recommendation["family"])
+
+    def _label(inner: str) -> str:
+        """Compose routed_by. Family and quality are mutually exclusive here:
+        family_prefix is only set when quality is None."""
+        if family_prefix is not None:
+            return f"{family_prefix}{inner}"
+        if quality is not None:
+            return f"quality-{quality}:{inner}"
+        return inner
+
     try:
-        target = _resolve_target(endpoint, task, backend, payload_bytes=payload_bytes,
+        target = _resolve_target(endpoint, task, route_backend, payload_bytes=payload_bytes,
                                  tags=call_tags)
     except BackendRoutingRefusal as exc:
         refusal = exc.as_dict()
@@ -587,18 +696,21 @@ def local_generate(prompt: str, model: str | None = None,
                 "routing_refusal": refusal,
                 "payload_bytes": refusal["payload_bytes"],
                 "required_context_bytes": refusal["required_context_bytes"],
-                "endpoint": endpoint, "model": model}
+                "endpoint": endpoint, "model": model,
+                "task_family": task_family,
+                "family_recommendation": family_recommendation}
     except BackendConfigError as exc:
         return {"ok": False, "error": f"routing failed: {exc}",
-                "endpoint": endpoint, "model": model}
+                "endpoint": endpoint, "model": model,
+                "task_family": task_family,
+                "family_recommendation": family_recommendation}
 
     resolved_model, resolved_max_tokens, resolved_timeout_s = _apply_defaults(
-        target, model, max_tokens)
+        target, route_model, max_tokens)
     result = _execute(target, resolved_model, resolved_max_tokens, resolved_timeout_s)
 
     result["backend"] = target.backend
-    result["routed_by"] = (f"quality-{quality}:{target.routed_by}"
-                           if quality is not None else target.routed_by)
+    result["routed_by"] = _label(target.routed_by)
     result["occupancy"] = target.occupancy
     result["max_tokens"] = resolved_max_tokens
     result["timeout_s"] = resolved_timeout_s
@@ -607,6 +719,10 @@ def local_generate(prompt: str, model: str | None = None,
     # the first-attempt observation of an escalated call carries its own rung's
     # state, not the rescuer's.
     _stamp_dispatch(result, target.backend)
+    # C-05: stamped on the ATTEMPT, not just the returned result, so an escalated
+    # call's first-attempt observation says which family sent it there too.
+    result["task_family"] = task_family
+    result["family_recommendation"] = family_recommendation
 
     # A2: ladder escalation — one climb max. A failed non-pinned dispatch
     # excludes the failed rung and re-routes once; a pin (endpoint or name) is
@@ -621,25 +737,32 @@ def local_generate(prompt: str, model: str | None = None,
     if result.get("ok") is False and not target.routed_by.startswith("pinned") and not _no_climb:
         exclude_set = {target.backend} if target.backend else set()
         try:
-            second_target = _resolve_target(endpoint, task, backend,
+            second_target = _resolve_target(endpoint, task, route_backend,
                                             payload_bytes=payload_bytes,
                                             exclude=exclude_set,
                                             tags=call_tags)
             if second_target.backend != target.backend:
                 second_model, second_max_tokens, second_timeout_s = _apply_defaults(
-                    second_target, model, max_tokens)
+                    second_target, route_model, max_tokens)
                 second_result = _execute(second_target, second_model, second_max_tokens,
                                          second_timeout_s)
 
                 first_name = target.backend or "default"
                 second_name = second_target.backend or "default"
                 second_result["backend"] = second_target.backend
-                second_result["routed_by"] = f"escalation:{first_name}->{second_name}"
+                # The escalation label replaces the inner reason (historical
+                # shape, quality prefix included); a family route keeps ITS
+                # prefix so the ledger still says which family sent the call.
+                escalated = f"escalation:{first_name}->{second_name}"
+                second_result["routed_by"] = (f"{family_prefix}{escalated}"
+                                              if family_prefix is not None else escalated)
                 second_result["occupancy"] = second_target.occupancy
                 second_result["max_tokens"] = second_max_tokens
                 second_result["timeout_s"] = second_timeout_s
                 second_result["escalation"] = {"from": first_name, "error": result.get("error")}
                 _stamp_dispatch(second_result, second_target.backend)
+                second_result["task_family"] = task_family
+                second_result["family_recommendation"] = family_recommendation
 
                 # One observation per ATTEMPT (ADR-0027). The escalated result carries the
                 # SECOND rung's backend, so recording only the final attempt would
@@ -695,6 +818,7 @@ def _execution_local_generate(
     backend: str | None = None,
     files: list[str] | None = None,
     quality: str | None = None,
+    task_family: str | None = None,
 ) -> dict:
     """Compatibility projection of local_generate over the Execution Ledger.
 
@@ -702,6 +826,16 @@ def _execution_local_generate(
     work now follows the same Request -> Job -> Invocation pipeline as IRC and
     every other adapter. The module-level ``local_generate`` remains the raw
     provider primitive used by the scheduler and by offline provider tests.
+
+    ``task_family`` rides through the pipeline into the provider call. Note what
+    that does and does not buy on THIS lane: ``ExecutionService._run_job``
+    selects the provider itself and hands the primitive ``backend=<provider>``,
+    which is a caller pin — so through the door the family is stamped as
+    advisory evidence on the result and the ledger, and does not re-route.
+    Direct in-process callers of ``local_generate`` (the scheduler, experiment
+    harnesses, doorcheck) get the full routing behaviour. Making the execution
+    lane itself family-route means teaching ``_run_job``'s ``select_backend``
+    call about families, which is a separate decision, not this parameter.
     """
     from hearth.execution.defaults import get_execution_service
     from hearth.observation.identity import current_identity
@@ -717,6 +851,7 @@ def _execution_local_generate(
         ("backend", backend),
         ("files", files),
         ("quality", quality),
+        ("task_family", task_family),
     ):
         if value is not None:
             arguments[key] = value

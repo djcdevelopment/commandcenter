@@ -412,6 +412,167 @@ if __name__ == "__main__":
     unittest.main()
 
 
+_FAMILY_BACKENDS = _BACKENDS + """
+# Rungs that serve the models routing-families.toml actually names, so a plan
+# can be checked against the shipped family declaration rather than a stand-in.
+[[backend]]
+name = "arc-like"
+endpoint = "http://127.0.0.1:8082"
+api = "openai"
+models = ["qwen3-30b-a3b"]
+tags = ["default"]
+[backend.settings]
+context_bytes = 229376
+
+[[backend]]
+name = "arc-27b-like"
+endpoint = "http://127.0.0.1:8084"
+api = "openai"
+models = ["qwen38-27b"]
+[backend.settings]
+context_bytes = 229376
+"""
+
+
+class PlanTaskFamilyTest(ExecutionServiceTest):
+    """C-05: plan_execution consults the authored family evidence, content-free.
+
+    The rule under test is deliberately narrow: a recommendation fills in the
+    model ONLY when the caller named none AND a live provider serves it. A plan
+    that answered with a model nothing in the pool can run would be worse than no
+    advice at all -- it would predict a dispatch that cannot happen.
+    """
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.backends_path.write_text(_FAMILY_BACKENDS, encoding="utf-8")
+        self.service_ = self.service(lambda **_kwargs: {"ok": True, "text": "unreachable"})
+
+    def test_family_fills_in_the_model_when_a_live_provider_serves_it(self) -> None:
+        planned = self.service_.plan(
+            operation_name="llm.chat", task_family="summarization", prompt_bytes=1000)
+        self.assertEqual("qwen3-30b-a3b", planned["model"])
+        self.assertEqual("arc-like", planned["provider"])
+        self.assertEqual("summarization", planned["task_family"])
+        self.assertEqual("qwen3-30b-a3b", planned["family_recommendation"]["model_id"])
+        self.assertFalse(planned["dispatch"])
+        self.assertEqual([], self.service_.events())
+
+    def test_the_authored_depth_rule_reaches_the_plan(self) -> None:
+        """ADR-0039's inversion at >= 8192 prompt tokens; //4 is the door's estimate."""
+        planned = self.service_.plan(
+            operation_name="llm.chat", task_family="summarization", prompt_bytes=8192 * 4)
+        self.assertEqual("qwen38-27b", planned["model"])
+        self.assertEqual("arc-27b-like", planned["provider"])
+        self.assertTrue(planned["family_recommendation"]["depth_rule_applied"])
+        self.assertEqual([], self.service_.events())
+
+    def test_an_unserved_recommendation_keeps_the_operation_default(self) -> None:
+        # The base pool declares only gpt-oss-120b, so nothing serves the family's
+        # model: the plan must fall back, and say so through the recommendation.
+        self.backends_path.write_text(_BACKENDS, encoding="utf-8")
+        planned = self.service_.plan(
+            operation_name="llm.chat", task_family="summarization", prompt_bytes=1000)
+        self.assertEqual("gpt-oss-120b", planned["model"])
+        self.assertEqual([], planned["family_recommendation"]["providers"])
+        self.assertIsNone(planned["family_recommendation"]["backend_hint"])
+        self.assertEqual([], self.service_.events())
+
+    def test_caller_model_wins_over_the_family(self) -> None:
+        planned = self.service_.plan(
+            operation_name="llm.chat", model="gpt-oss-120b",
+            task_family="summarization", prompt_bytes=1000)
+        self.assertEqual("gpt-oss-120b", planned["model"])
+        self.assertEqual("qwen3-30b-a3b", planned["family_recommendation"]["model_id"])
+
+    def test_caller_backend_wins_and_suppresses_the_family_model(self) -> None:
+        """A pin outranks the family (precedence invariant). If the family still
+        filled in its model here, a pin on a rung that does not serve that model
+        would raise instead of planning -- the family overriding the pin by the
+        back door. The advice still rides back, untaken."""
+        planned = self.service_.plan(
+            operation_name="llm.chat", backend="small-provider",
+            task_family="summarization", prompt_bytes=1000)
+        self.assertEqual("small-provider", planned["provider"])
+        self.assertEqual("pinned:small-provider", planned["routed_by"])
+        self.assertEqual("gpt-oss-120b", planned["model"])  # the operation default, not the family's
+        self.assertEqual("qwen3-30b-a3b", planned["family_recommendation"]["model_id"])
+
+    def test_absent_task_family_changes_nothing(self) -> None:
+        planned = self.service_.plan(
+            operation_name="llm.chat", model="gpt-oss-120b", prompt_bytes=123,
+            policy={"max_tokens": 512, "deadline_s": 120})
+        self.assertEqual("test-provider", planned["provider"])
+        self.assertEqual("gpt-oss-120b", planned["model"])
+        self.assertIsNone(planned["task_family"])
+        self.assertIsNone(planned["family_recommendation"])
+        self.assertEqual([], self.service_.events())
+
+    def test_unreadable_family_evidence_fails_loudly_without_planning(self) -> None:
+        missing = str(self.root / "nowhere" / "routing-families.toml")
+        with patch.dict(os.environ, {"HEARTH_ROUTING_FAMILIES": missing}):
+            with self.assertRaises(ExecutionServiceError) as ctx:
+                self.service_.plan(operation_name="llm.chat",
+                                   task_family="summarization", prompt_bytes=1000)
+        self.assertIn("task family config error", str(ctx.exception))
+        self.assertEqual([], self.service_.events())
+
+    def test_blank_task_family_is_refused(self) -> None:
+        with self.assertRaisesRegex(ExecutionServiceError, "task_family"):
+            self.service_.plan(operation_name="llm.chat", task_family="   ",
+                               prompt_bytes=1000)
+
+
+class TaskFamilyReachesTheProviderTest(ExecutionServiceTest):
+    """C-05: the pipeline forwards task_family to the provider instead of dropping it.
+
+    What this does NOT claim: that the door then family-ROUTES. `_run_job`
+    selects the provider itself and passes `backend=<provider>`, which the
+    primitive reads as a caller pin -- so on this lane the family is advisory
+    evidence stamped on the result, exactly as the precedence chain says.
+    """
+
+    def test_task_family_is_forwarded_to_the_generate_call(self) -> None:
+        seen: list = []
+
+        def generate(**kwargs):
+            seen.append(kwargs)
+            return {"ok": True, "text": "ok", "model": kwargs["model"],
+                    "backend": kwargs["backend"]}
+
+        service = self.service(generate)
+        submitted = service.submit(
+            operation_name="llm.chat",
+            arguments={"prompt": "probe", "model": "gpt-oss-120b",
+                       "task_family": "summarization"},
+            principal=self.principal,
+            source=self.source,
+        )
+        self.assertEqual("succeeded", self.wait_final(service, submitted["job_id"])["status"])
+        self.assertEqual(1, len(seen))
+        self.assertEqual("summarization", seen[0]["task_family"])
+        # And the pin that makes it advisory-only on this lane:
+        self.assertEqual("test-provider", seen[0]["backend"])
+
+    def test_absent_task_family_is_not_invented(self) -> None:
+        seen: list = []
+
+        def generate(**kwargs):
+            seen.append(kwargs)
+            return {"ok": True, "text": "ok", "model": kwargs["model"],
+                    "backend": kwargs["backend"]}
+
+        service = self.service(generate)
+        submitted = service.submit(
+            operation_name="llm.chat",
+            arguments={"prompt": "probe", "model": "gpt-oss-120b"},
+            principal=self.principal,
+            source=self.source,
+        )
+        self.assertEqual("succeeded", self.wait_final(service, submitted["job_id"])["status"])
+        self.assertNotIn("task_family", seen[0])
+
+
 class DispatchIdentityCrossesTheWorkerBoundaryTest(ExecutionServiceTest):
     """The submitting caller's identity must reach the executor worker.
 

@@ -82,8 +82,16 @@ def plan_execution(
     backend: str | None = None,
     prompt_bytes: int = 0,
     policy: dict[str, Any] | None = None,
+    task_family: str | None = None,
 ) -> dict[str, Any]:
-    """Resolve Operation, Provider, and policy without content or dispatch."""
+    """Resolve Operation, Provider, and policy without content or dispatch.
+
+    ``task_family`` (e.g. "quote_retrieval") consults the authored family
+    evidence in ``hearth/etc/routing-families.toml``: with no ``model`` given it
+    resolves the family's recommended model when a live provider serves it, and
+    the recommendation itself always rides back as ``family_recommendation``.
+    A caller-supplied ``model``/``backend`` still wins. Nothing is dispatched.
+    """
     _identity()
     return _get_service().plan(
         operation_name=operation,
@@ -91,6 +99,7 @@ def plan_execution(
         backend=backend,
         prompt_bytes=prompt_bytes,
         policy=policy,
+        task_family=task_family,
     )
 
 

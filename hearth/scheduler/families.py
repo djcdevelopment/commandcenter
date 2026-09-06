@@ -60,6 +60,52 @@ ASSAY_FAMILIES: tuple[str, ...] = (
     "screenshot_grounded",
 )
 
+# Which declared backends.toml TAG expresses each family's intent to the door's
+# opportunistic router. This is DATA, not a route: the module contract above
+# ("never routes, pins, loads, or dispatches") still holds -- the routing
+# decision is made in hearth.toolsurface.inference, which reads this table.
+#
+# Every tag here must be declared on a live (non-retired, tagged) rung in
+# hearth/etc/backends.toml, or the "route" is a wish:
+#   default        -> omen-arc, the door default (ADR-0034)
+#   reasoning      -> omen-arc
+#   big-context    -> omen-arc
+#   cloud-overflow -> gcp-gemini, the only verified vision path (ADR-0039)
+# tests/toolsurface/test_family_routing.py fails if one is stripped from the pool.
+#
+# Note the split of concerns with the recommendation: `recommend()` names the
+# MODEL the evidence prefers (and, at depth, a pin-only rung); this table names
+# the tag to route by when the preferred model IS opportunistically reachable.
+# quote_retrieval carries "big-context" because its shallow-depth fallback is the
+# door default and its deep-depth preference is a pin the caller must name.
+FAMILY_TAGS: dict[str, list[str]] = {
+    "summarization": ["default"],
+    "extraction": ["default"],
+    "classification": ["default"],
+    "drafting": ["default"],
+    "tool_execution": ["default"],
+    "default": ["default"],
+    "reasoning_planning": ["reasoning"],
+    "document_ocr": ["cloud-overflow"],
+    "chart_diagram": ["cloud-overflow"],
+    "screenshot_grounded": ["cloud-overflow"],
+    "quote_retrieval": ["big-context"],
+}
+
+
+def tags_for(task_family: Optional[str]) -> list[str]:
+    """The routing tags for ``task_family``; unknown/None -> the default family's.
+
+    Mirrors ``Families.get`` fallback semantics deliberately, so a tag route and
+    a model recommendation can never disagree about which family is in force.
+    Returns a fresh list: the table is shared data and a caller must not be able
+    to mutate the next call's route.
+    """
+    tags = FAMILY_TAGS.get(task_family) if task_family else None
+    if tags is None:
+        tags = FAMILY_TAGS[DEFAULT_FAMILY]
+    return list(tags)
+
 
 class FamiliesConfigError(ValueError):
     """The routing-families declaration is missing or structurally invalid."""
@@ -368,6 +414,7 @@ __all__ = [
     "DEFAULT_FAMILY",
     "DEFAULT_PATH",
     "DepthRule",
+    "FAMILY_TAGS",
     "Families",
     "FamiliesConfigError",
     "FamilyPreference",
@@ -375,4 +422,5 @@ __all__ = [
     "load_families",
     "recommend",
     "resolve_required_model",
+    "tags_for",
 ]

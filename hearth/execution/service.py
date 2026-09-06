@@ -262,6 +262,7 @@ class ExecutionService:
             "task",
             "files",
             "quality",
+            "task_family",
         }
         unknown = set(normalized) - allowed
         if unknown:
@@ -276,7 +277,8 @@ class ExecutionService:
             raise ExecutionServiceError(
                 f"prompt is {len(encoded)} bytes; limit is {operation.max_prompt_bytes}"
             )
-        for key in ("model", "backend", "endpoint", "system", "task", "quality"):
+        for key in ("model", "backend", "endpoint", "system", "task", "quality",
+                    "task_family"):
             value = normalized.get(key)
             if value is not None and (not isinstance(value, str) or not value.strip()):
                 raise ExecutionServiceError(f"{key} must be a non-empty string")
@@ -456,8 +458,19 @@ class ExecutionService:
         backend: Optional[str] = None,
         prompt_bytes: int = 0,
         policy: Optional[dict[str, Any]] = None,
+        task_family: Optional[str] = None,
     ) -> dict[str, Any]:
-        """Resolve policy and provider without storing content or dispatching work."""
+        """Resolve policy and provider without storing content or dispatching work.
+
+        ``task_family`` consults the authored family evidence
+        (``hearth/etc/routing-families.toml``). It fills in the model ONLY when
+        the caller named none and a non-retired provider in the pool actually
+        serves the recommended one — a recommendation nothing can run is a wish,
+        and answering with it would make the plan lie about what would happen.
+        A caller-supplied ``model`` or ``backend`` still wins. The recommendation
+        always rides back as ``family_recommendation``, so the caller can see the
+        advice that was not taken. Still content-free: no dispatch, no ledger row.
+        """
         operation = self.operations.get(operation_name)
         if (
             not isinstance(prompt_bytes, int)
@@ -468,8 +481,25 @@ class ExecutionService:
             raise ExecutionServiceError(
                 f"prompt_bytes must be between 0 and {operation.max_prompt_bytes}"
             )
+        if task_family is not None and (not isinstance(task_family, str)
+                                        or not task_family.strip()):
+            raise ExecutionServiceError("task_family must be a non-empty string")
         resolved_policy = self.operations.policy_for(operation, policy)
         resolved_model = model or operation.default_model
+        family_recommendation: Optional[dict[str, Any]] = None
+        if task_family is not None:
+            from hearth.scheduler.families import recommend as recommend_family
+            try:
+                family_recommendation = recommend_family(task_family, prompt_bytes // 4)
+            except Exception as exc:  # noqa: BLE001 — loud: never plan on a guess
+                raise ExecutionServiceError(
+                    f"task family config error: {type(exc).__name__}: {exc}") from exc
+            # Precedence, same chain the door uses: a caller pin outranks the
+            # family. A pinned provider that does not serve the recommended model
+            # would otherwise turn a working plan into a routing error -- the
+            # family would be overriding the pin by the back door.
+            if model is None and backend is None and family_recommendation["providers"]:
+                resolved_model = family_recommendation["model_id"]
         try:
             provider, routed_by, occupancy = select_backend(
                 load_pool(),
@@ -494,6 +524,8 @@ class ExecutionService:
                 "deadline_s": resolved_policy.deadline_s,
                 "priority": resolved_policy.priority,
             },
+            "task_family": task_family,
+            "family_recommendation": family_recommendation,
             "dispatch": False,
         }
 
@@ -607,7 +639,11 @@ class ExecutionService:
                 "max_tokens": policy.max_tokens,
                 "timeout_s": max(1, int(deadline - time.monotonic())),
             }
-            for optional in ("system", "task", "files", "quality"):
+            # task_family reaches the provider as evidence, not as a route: the
+            # provider is already pinned above (backend=provider.name), and a
+            # caller pin outranks a family. Forwarded anyway so the stamp is on
+            # the result and the ledger rather than silently dropped.
+            for optional in ("system", "task", "files", "quality", "task_family"):
                 if arguments.get(optional) is not None:
                     call_arguments[optional] = arguments[optional]
             result = self._generate_call(**call_arguments)

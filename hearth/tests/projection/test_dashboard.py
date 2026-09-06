@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 from pathlib import Path
 from tempfile import mkdtemp
@@ -100,6 +101,39 @@ class TestDashboard(DashboardScopedTestCase):
         self.assertIn("&lt;unsafe&gt;.mp4", rendered)
         self.assertNotIn("<unsafe>.mp4", rendered)
         self.assertIn("<video controls", rendered)
+
+    def test_family_routes_are_counted_and_labelled(self) -> None:
+        """C-05 counting rule: the OUTERMOST routed_by prefix picks the bucket, one
+        bucket per event. A rescued family route ("family:x:escalation:a->b") is
+        still a family route -- the bucket answers "how many routes did the
+        authored evidence steer", so it must NOT also land in Escalations."""
+        ledger_path = self.scope / "family_events.ndjson"
+        events = [
+            {"ts": "2024-01-01T12:00:00+00:00", "routed_by": "family:x:default"},
+            {"ts": "2024-01-01T12:01:00+00:00", "routed_by": "family:x:escalation:a->b"},
+            {"ts": "2024-01-01T12:02:00+00:00", "routed_by": "escalation:a->b"},
+            {"ts": "2024-01-01T12:03:00+00:00", "routed_by": "quality-good:tag:cloud-overflow"},
+        ]
+        with ledger_path.open("w", encoding="utf-8") as f:
+            for ev in events:
+                f.write(json.dumps(ev) + "\n")
+
+        rendered = build_dashboard_html(self.scope / "knowledge", ledger_path,
+                                        now_iso="2024-01-01T14:00:00+00:00")
+
+        def count(label: str) -> str:
+            match = re.search(
+                rf'<h3>{re.escape(label)} \(24h\)</h3>\s*<div class="metric">([^<]+)</div>',
+                rendered)
+            self.assertIsNotNone(match, f"no {label!r} row rendered")
+            return match.group(1)
+
+        self.assertIn("Family Routes", rendered)
+        self.assertEqual(count("Family Routes"), "2")
+        self.assertEqual(count("Escalations"), "1")
+        self.assertEqual(count("Quality Calls"), "1")
+        self.assertEqual(count("Asks"), "0")
+        self.assertEqual(count("Payload Routes"), "0")
 
     def test_write_dashboard(self) -> None:
         out_path = self.scope / "dash.html"

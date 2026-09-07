@@ -17,6 +17,11 @@ Nothing in this package creates ``hearth/var``. The ``DEFAULT_*`` constants in
 """
 from hearth.backlog.briefs import SOURCES, Brief, parse, safe_slug
 from hearth.backlog.dispatch import (
+    CAPACITY_SKIP_FIELD,
+    CAPACITY_SKIP_NO_COMBO,
+    CAPACITY_SKIP_WINNER_MISMATCH,
+    COMBO_COVERAGE_GAP_TYPES,
+    COMBO_EXPERIMENT_TYPES,
     DEFAULT_EXPERIMENT_TYPE,
     IN_FLIGHT_CONTRACT,
     PHASE_ATTEMPTED,
@@ -24,12 +29,19 @@ from hearth.backlog.dispatch import (
     PHASE_SUBMITTED,
     PLAN_EXPERIMENT_TYPES,
     RUN_NAMESPACE,
+    UNKNOWN_COMBO_SEGMENT,
     WORKFLOW_ID,
+    Combo,
     append_corpus_event,
     build_capacity_observation,
     build_dispatch_event,
     build_drain_experiment_plan,
     build_observation_event,
+    capacity_write_decision,
+    combo_for,
+    combo_for_source,
+    combo_from_candidate_id,
+    combo_from_in_flight,
     completion_outcome,
     event_already_recorded,
     events_path,
@@ -93,4 +105,10 @@ __all__ = [
     "events_path", "observed_marker_path", "append_corpus_event",
     "event_already_recorded", "new_in_flight", "in_flight_phase",
     "read_result", "completion_outcome",
+    # the candidate combo (B-04-R1): what a capacity observation is ABOUT.
+    "Combo", "combo_from_candidate_id", "combo_for", "combo_for_source",
+    "combo_from_in_flight", "capacity_write_decision",
+    "COMBO_EXPERIMENT_TYPES", "COMBO_COVERAGE_GAP_TYPES",
+    "UNKNOWN_COMBO_SEGMENT", "CAPACITY_SKIP_FIELD",
+    "CAPACITY_SKIP_NO_COMBO", "CAPACITY_SKIP_WINNER_MISMATCH",
 ]

@@ -149,12 +149,50 @@ class PlanContractTests(TestCase):
     def test_the_subject_names_no_backend_it_did_not_measure(self) -> None:
         """The drain gates on omen-arc occupancy, but the brief runs on a
         conductor builder it does not choose. Stamping the gating rung here
-        would file evidence against a backend that never served the work."""
+        would file evidence against a backend that never served the work.
+
+        ``bbb_high`` names no combo, so all three stay null. The combo case --
+        where the CANDIDATE names the subject and the plan may say so -- is the
+        next test; the gating rung is still never the source."""
         subject = self._plan(_brief())["subject"]
         self.assertIsNone(subject["backend"])
         self.assertIsNone(subject["builder_id"])
         self.assertIsNone(subject["model_id"])
         self.assertEqual(subject["task_kind"], "proofing")
+
+    def test_a_candidate_subject_is_the_combo_the_candidate_names(self) -> None:
+        """B-04-R1 scope 2: the experiment-result row this plan produces is
+        ABOUT that combo, so the plan says which one -- from the candidate id,
+        never from the gating rung (which here is omen-arc and is not what the
+        subject records)."""
+        plan = self._plan(_brief(
+            source_ref="known_bad_retest:omen-wsl|qwen3-30b-a3b-awq|vllm",
+            slug="known_bad_retest-omen-wsl"))
+        jsonschema.validate(plan, self.schema)
+        self.assertEqual(plan["subject"]["builder_id"], "omen-wsl")
+        self.assertEqual(plan["subject"]["model_id"], "qwen3-30b-a3b-awq")
+        self.assertEqual(plan["subject"]["backend"], "vllm")
+        self.assertNotEqual(plan["subject"]["backend"], "omen-arc")
+        self.assertEqual(plan["subject"]["task_kind"], "proofing")
+        self.assertIsNone(plan["subject"]["metric"])
+
+    def test_an_unknown_bearing_candidate_id_leaves_the_subject_null(self) -> None:
+        """Half a combo is not a combo: "unknown" is the projection's filler."""
+        subject = self._plan(_brief(
+            source_ref="prefer_validation:claude-frontier|gemini-3.5-flash|unknown",
+            slug="prefer_validation-claude-frontier"))["subject"]
+        self.assertIsNone(subject["builder_id"])
+        self.assertIsNone(subject["model_id"])
+        self.assertIsNone(subject["backend"])
+
+    def test_authored_and_refined_subjects_stay_null(self) -> None:
+        for brief in (_brief("authored", "0001-thing.md", "0001-thing", "build"),
+                      _brief("refined", "refine-alpha-1", "refine-alpha-1", "build")):
+            with self.subTest(source=brief.source):
+                subject = self._plan(brief)["subject"]
+                self.assertIsNone(subject["builder_id"])
+                self.assertIsNone(subject["model_id"])
+                self.assertIsNone(subject["backend"])
 
     def test_an_idle_drain_dispatch_opens_no_policy_gate(self) -> None:
         self.assertIsNone(self._plan(_brief())["gate_opened"])
@@ -238,12 +276,17 @@ class CapacityObservationTests(TestCase):
             with self.subTest(succeeded=succeeded):
                 observation = dispatch.build_capacity_observation(
                     "hearth-d-1", "bbb_high", timestamp="2026-09-07T11:00:00Z",
-                    builder_id="cc-builder-2", succeeded=succeeded,
+                    builder_id="cc-builder-2", model_id="qwen3-30b-a3b",
+                    backend="omen-arc", succeeded=succeeded,
                     task_kind="proofing", est_tokens=900)
                 jsonschema.validate(observation, self.schema)
                 self.assertEqual(observation["outcome"],
                                  "success" if succeeded else "error")
                 self.assertEqual(observation["decision_id"], "dec_hearth-d-1")
+                # B-04-R1: the whole combo is named. Leaving model/backend null
+                # is what put <builder>|unknown|unknown into the projection.
+                self.assertEqual(observation["model_id"], "qwen3-30b-a3b")
+                self.assertEqual(observation["backend"], "omen-arc")
 
     def test_an_unnamed_builder_is_refused_rather_than_filled_with_unknown(self) -> None:
         """capacity-observation.v1 requires a builder_id. Writing "unknown"
@@ -254,7 +297,195 @@ class CapacityObservationTests(TestCase):
                 with self.assertRaises(ValueError):
                     dispatch.build_capacity_observation(
                         "hearth-d-1", "bbb_high", timestamp="2026-09-07T11:00:00Z",
-                        builder_id=builder, succeeded=True)
+                        builder_id=builder, model_id="qwen3-30b-a3b",
+                        backend="omen-arc", succeeded=True)
+
+    def test_an_unnamed_model_or_backend_is_refused_too(self) -> None:
+        """THE B-04-R1 GUARD. project_capacity maps a null model_id/backend to
+        the combo key "unknown" (_combo_key L35-41, reduce_capacity L100-102),
+        so an artifact written with either missing files real evidence against
+        a combo that names no machine. It must be impossible to build one."""
+        for field in ("model_id", "backend"):
+            for value in (None, "", "   ", 7):
+                with self.subTest(field=field, value=value):
+                    kwargs = {"builder_id": "cc-builder-2",
+                              "model_id": "qwen3-30b-a3b", "backend": "omen-arc"}
+                    kwargs[field] = value
+                    with self.assertRaises(ValueError):
+                        dispatch.build_capacity_observation(
+                            "hearth-d-1", "bbb_high",
+                            timestamp="2026-09-07T11:00:00Z", succeeded=True,
+                            **kwargs)
+
+    def test_the_literal_unknown_is_refused_in_every_identity_field(self) -> None:
+        """"unknown" is the PROJECTION's placeholder for a field nobody knows.
+        Passing it through would reach the same bad bucket by the front door."""
+        for field in ("builder_id", "model_id", "backend"):
+            with self.subTest(field=field):
+                kwargs = {"builder_id": "cc-builder-2",
+                          "model_id": "qwen3-30b-a3b", "backend": "omen-arc"}
+                kwargs[field] = dispatch.UNKNOWN_COMBO_SEGMENT
+                with self.assertRaises(ValueError):
+                    dispatch.build_capacity_observation(
+                        "hearth-d-1", "bbb_high",
+                        timestamp="2026-09-07T11:00:00Z", succeeded=True,
+                        **kwargs)
+
+    def test_model_and_backend_cannot_be_forgotten_by_a_call_site(self) -> None:
+        # Required keyword-only arguments: omitting them is a TypeError at the
+        # call, not a null that survives into the corpus.
+        with self.assertRaises(TypeError):
+            dispatch.build_capacity_observation(
+                "hearth-d-1", "bbb_high", timestamp="2026-09-07T11:00:00Z",
+                builder_id="cc-builder-2", succeeded=True)
+
+
+class ComboDerivationTests(TestCase):
+    """The combo rule, checked against the id shapes the corpus really makes.
+
+    Every expectation here is traceable to a literal in
+    ``tools/workflow/project_experiments.py`` or ``project_coverage.py``; the
+    real-id cases are copied out of ``knowledge/experiment_candidates.json``.
+    """
+
+    def test_the_four_combo_types_carry_the_combo_after_the_type(self) -> None:
+        for kind in sorted(dispatch.COMBO_EXPERIMENT_TYPES):
+            with self.subTest(kind=kind):
+                combo = dispatch.combo_from_candidate_id(
+                    f"{kind}:omen|qwen3-30b-a3b|omen-arc")
+                self.assertEqual(combo, ("omen", "qwen3-30b-a3b", "omen-arc"))
+                self.assertEqual(combo.builder_id, "omen")
+                self.assertEqual(combo.model_id, "qwen3-30b-a3b")
+                self.assertEqual(combo.backend, "omen-arc")
+
+    def test_a_model_id_containing_colons_or_slashes_survives(self) -> None:
+        """The id is split on the FIRST colon only. A last-colon split, or a
+        3-way split on ':', would mangle every ollama-style model id and every
+        .gguf path -- both of which are in the live candidate table."""
+        self.assertEqual(
+            dispatch.combo_from_candidate_id(
+                "prefer_validation:omen-5070|qwen2.5:14b|ollama-cuda"),
+            ("omen-5070", "qwen2.5:14b", "ollama-cuda"))
+        gguf = "/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf"
+        self.assertEqual(
+            dispatch.combo_from_candidate_id(
+                f"prefer_validation:claude-frontier|{gguf}|am4-oxen"),
+            ("claude-frontier", gguf, "am4-oxen"))
+
+    def test_the_two_combo_shaped_coverage_gaps_are_decoded(self) -> None:
+        for gap in sorted(dispatch.COMBO_COVERAGE_GAP_TYPES):
+            with self.subTest(gap=gap):
+                self.assertEqual(
+                    dispatch.combo_from_candidate_id(
+                        f"coverage_probe:{gap}:am4|gpt-oss-120b|am4-moe"),
+                    ("am4", "gpt-oss-120b", "am4-moe"))
+
+    def test_a_single_workflow_evidence_gap_is_not_a_combo(self) -> None:
+        """It joins "name=value" invariant pairs with '|' too, so shape alone
+        cannot tell them apart -- the gap type is what does."""
+        for candidate_id in (
+            "coverage_probe:single_workflow_evidence:task_backend:"
+            "task_kind=local_generate|backend=omen-arc",
+            "coverage_probe:single_workflow_evidence:model_portability:"
+            "model_id=qwen2.5:7b-instruct",
+            "coverage_probe:single_workflow_evidence:x:a=1|b=2|c=3",
+        ):
+            with self.subTest(candidate_id=candidate_id):
+                self.assertIsNone(dispatch.combo_from_candidate_id(candidate_id))
+
+    def test_the_non_combo_experiment_types_name_no_combo(self) -> None:
+        for candidate_id in (
+            "backend_comparison:gemini-3.5-flash:gcp-gemini+unknown",
+            "backend_comparison:qwen2.5:14b:ollama-cuda+ollama-vulkan",
+            "prediction_bias_calibration:qwen3-30b-a3b:tokens_per_s",
+            "qualification_run:cap_local_generate_omen_arc",
+            "confidence_calibration:corpus",
+            "coverage_probe:stale_capability:cap_x",
+        ):
+            with self.subTest(candidate_id=candidate_id):
+                self.assertIsNone(dispatch.combo_from_candidate_id(candidate_id))
+
+    def test_an_unknown_segment_voids_the_whole_combo(self) -> None:
+        """THE CASE THIS REPAIR EXISTS FOR. _combo writes "unknown" for a field
+        the corpus does not know, and ids like this are in the live candidate
+        table right now. Half a combo is not a combo."""
+        for candidate_id in (
+            "prefer_validation:claude-frontier|gemini-3.5-flash|unknown",
+            "prefer_validation:unknown|gemini-3.5-flash|gcp-gemini",
+            "known_bad_retest:a|unknown|b",
+            "coverage_probe:unmeasured_metrics:a|b|unknown",
+        ):
+            with self.subTest(candidate_id=candidate_id):
+                self.assertIsNone(dispatch.combo_from_candidate_id(candidate_id))
+
+    def test_malformed_and_non_string_ids_are_refused_not_guessed(self) -> None:
+        for candidate_id in (None, 7, "", "bbb_high", "prefer_validation:",
+                             "prefer_validation:a|b", "prefer_validation:a|b|c|d",
+                             "prefer_validation:a||c", "prefer_validation:a| |c",
+                             "coverage_probe:unobserved_combo"):
+            with self.subTest(candidate_id=candidate_id):
+                self.assertIsNone(dispatch.combo_from_candidate_id(candidate_id))
+
+    def test_only_a_candidate_brief_has_a_combo(self) -> None:
+        combo_id = "prefer_validation:omen|qwen3-30b-a3b|omen-arc"
+        self.assertEqual(
+            dispatch.combo_for(_brief(source_ref=combo_id, slug="c")),
+            ("omen", "qwen3-30b-a3b", "omen-arc"))
+        # An authored/refined source_ref is a filename or an intent id; even if
+        # it happened to look combo-shaped it is not a combo experiment.
+        self.assertIsNone(dispatch.combo_for(_brief("authored", combo_id, "c")))
+        self.assertIsNone(dispatch.combo_for(_brief("refined", combo_id, "c")))
+
+    def test_the_combo_is_recovered_from_the_slot_not_stored_on_it(self) -> None:
+        """Scope item 5: the record already carries source/source_ref, so no key
+        is added and the in-flight contract stays at v1."""
+        brief = _brief(source_ref="prefer_validation:omen|qwen3-30b-a3b|omen-arc",
+                       slug="c")
+        record = dispatch.new_in_flight(
+            brief, "hearth-d-1", dispatched_at="2026-09-07T10:00:00Z",
+            plan_artifact="p", dispatch_event_id="hearth-d-1.dispatch",
+            corpus_root="C:/tmp")
+        self.assertEqual(record["contract_version"], "bankedfire-drain-inflight.v1")
+        self.assertNotIn("combo", record)
+        self.assertEqual(dispatch.combo_from_in_flight(record),
+                         ("omen", "qwen3-30b-a3b", "omen-arc"))
+        # A legacy / hand-edited / non-dict slot answers None, never raises.
+        for record in (None, "legacy-plan-id", {}, {"source": "candidate"},
+                       {"source": "authored", "source_ref": "a.md"}):
+            with self.subTest(record=record):
+                self.assertIsNone(dispatch.combo_from_in_flight(record))
+
+
+class CapacityWriteDecisionTests(TestCase):
+    """Write the artifact only when the run is evidence about THIS combo."""
+
+    COMBO = dispatch.Combo("cc-builder-2", "qwen3-30b-a3b", "omen-arc")
+
+    def test_a_matching_winner_writes_the_combo(self) -> None:
+        combo, reason = dispatch.capacity_write_decision(self.COMBO, "cc-builder-2")
+        self.assertEqual(combo, self.COMBO)
+        self.assertIsNone(reason)
+
+    def test_no_combo_skips_with_no_combo(self) -> None:
+        for winner in ("cc-builder-2", None):
+            with self.subTest(winner=winner):
+                combo, reason = dispatch.capacity_write_decision(None, winner)
+                self.assertIsNone(combo)
+                self.assertEqual(reason, dispatch.CAPACITY_SKIP_NO_COMBO)
+
+    def test_a_different_or_absent_winner_skips_with_winner_mismatch(self) -> None:
+        for winner in ("cc-builder-3", None, "", "  ", 7, "CC-BUILDER-2"):
+            with self.subTest(winner=winner):
+                combo, reason = dispatch.capacity_write_decision(self.COMBO, winner)
+                self.assertIsNone(combo)
+                self.assertEqual(reason, dispatch.CAPACITY_SKIP_WINNER_MISMATCH)
+
+    def test_exactly_one_of_the_two_is_ever_returned(self) -> None:
+        for combo in (None, self.COMBO):
+            for winner in (None, "cc-builder-2", "cc-builder-3"):
+                with self.subTest(combo=combo, winner=winner):
+                    got, reason = dispatch.capacity_write_decision(combo, winner)
+                    self.assertEqual(got is None, reason is not None)
 
 
 class PendingPlanTests(TestCase):

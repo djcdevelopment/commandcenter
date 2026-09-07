@@ -56,6 +56,28 @@ _WORTH = {
     ],
 }
 
+# B-04-R1 fixture. The ids above (`bbb_high`, ...) are shorthand and name NO
+# combo, which is now the "no-combo" branch -- correct for them, but it means
+# they can never exercise the capacity-artifact path. This table is the shape a
+# real priced candidate has: `prefer_validation:<builder>|<model>|<backend>`
+# (tools/workflow/project_experiments.py L290 + `_combo`), with the SAME builder
+# the scripted conductor reports as the winner, which is the condition for the
+# artifact to be written at all. Worth ordering is preserved so the same tests
+# still pick the high one first, then `ccc_mid`.
+_COMBO_BUILDER = "cc-builder-2"
+_COMBO_MODEL = "qwen3-30b-a3b"
+_COMBO_BACKEND = "omen-arc"
+_COMBO_CANDIDATE = (f"prefer_validation:{_COMBO_BUILDER}|{_COMBO_MODEL}"
+                    f"|{_COMBO_BACKEND}")
+_COMBO_WORTH = {
+    "contract_version": "candidate-worth.v1",
+    "entries": [
+        {"candidate_id": _COMBO_CANDIDATE, "worth_points": 10,
+         "reason": "r", "author": "derek"},
+        {"candidate_id": "ccc_mid", "worth_points": 5, "reason": "r", "author": "derek"},
+    ],
+}
+
 _EMPTY_RESULTS = {"contract_version": "experiment-results.v1", "results": []}
 
 
@@ -320,6 +342,16 @@ class _TickHarness(TestCase):
 
     def _arm(self, scope: str = "all") -> None:
         drain.set_armed(True, "test", path=self.arm_path, scope=scope)
+
+    def _use_combo_worth(self) -> str:
+        """Swap in the combo-shaped worth table (see _COMBO_WORTH) and return
+        the candidate id, which is also the experiment_id and the artifact key.
+
+        Used by every test that asserts a capacity artifact IS written: the
+        shorthand fixture ids name no combo, so under B-04-R1 they cannot.
+        """
+        _write_json(self.worth_path, _COMBO_WORTH)
+        return _COMBO_CANDIDATE
 
     def _add_authored(self, name: str = "0001-authored_thing.md",
                       body: str = "An authored brief body.") -> Path:
@@ -927,17 +959,26 @@ class DispatchWriteBackTests(_CycleHarness):
         self.assertEqual(len(self.submits), 1, "a write-back tick never dispatches")
 
     def test_a_named_winner_also_lands_a_capacity_observation(self) -> None:
+        # FIXTURE CHANGE (B-04-R1): the combo-shaped candidate, whose builder is
+        # the winner the scripted conductor reports. Every assertion below is
+        # the original one plus the two fields the repair adds.
+        experiment_id = self._use_combo_worth()
         self._arm("candidate")
         dispatch_id = self._tick()["detail"]["dispatch_id"]
-        self._finish_run(ok=True, winner="cc-builder-2")
+        self._finish_run(ok=True, winner=_COMBO_BUILDER)
         self._tick()
         path = backlog_dispatch.observation_artifact_path(
-            self.corpus_root, dispatch_id, "bbb_high")
+            self.corpus_root, dispatch_id, experiment_id)
         self.assertTrue(path.is_file())
         observation = json.loads(path.read_text(encoding="utf-8"))
-        self.assertEqual(observation["builder_id"], "cc-builder-2")
+        self.assertEqual(observation["builder_id"], _COMBO_BUILDER)
         self.assertEqual(observation["outcome"], "success")
         self.assertEqual(observation["decision_id"], f"dec_{dispatch_id}")
+        # The repair: a real combo, never None and never "unknown".
+        self.assertEqual(observation["model_id"], _COMBO_MODEL)
+        self.assertEqual(observation["backend"], _COMBO_BACKEND)
+        self.assertNotIn(backlog_dispatch.CAPACITY_SKIP_FIELD,
+                         self._events(dispatch_id)[1]["payload"])
 
     def test_a_run_with_no_winner_records_the_outcome_and_no_capacity_evidence(self) -> None:
         """No builder was named, so there is nothing to file evidence against.
@@ -951,16 +992,84 @@ class DispatchWriteBackTests(_CycleHarness):
         self.assertFalse(backlog_dispatch.observation_artifact_path(
             self.corpus_root, dispatch_id, "bbb_high").is_file())
         self.assertEqual(self._events(dispatch_id)[1]["outcome"], "no_winner")
+        # B-04-R1: and the record now says WHY there is no artifact. bbb_high
+        # names no combo, so the reason is no-combo, not the winner.
+        self.assertEqual(self._events(dispatch_id)[1]["payload"]
+                         [backlog_dispatch.CAPACITY_SKIP_FIELD],
+                         backlog_dispatch.CAPACITY_SKIP_NO_COMBO)
 
     def test_a_failed_run_is_recorded_as_failed(self) -> None:
+        # FIXTURE CHANGE (B-04-R1): combo-shaped candidate, and the winner is
+        # now the combo's builder -- a run that FAILED on the combo under test
+        # is still evidence about that combo, which is what this asserts.
+        experiment_id = self._use_combo_worth()
         self._arm("candidate")
         dispatch_id = self._tick()["detail"]["dispatch_id"]
-        self._finish_run(ok=False, winner="cc-builder-3")
+        self._finish_run(ok=False, winner=_COMBO_BUILDER)
         report = self._tick()
         self.assertEqual(report["reason"], "observed:failed")
         observation = json.loads(backlog_dispatch.observation_artifact_path(
-            self.corpus_root, dispatch_id, "bbb_high").read_text(encoding="utf-8"))
+            self.corpus_root, dispatch_id, experiment_id).read_text(encoding="utf-8"))
         self.assertEqual(observation["outcome"], "error")
+        self.assertEqual(observation["model_id"], _COMBO_MODEL)
+        self.assertEqual(observation["backend"], _COMBO_BACKEND)
+
+    def test_a_winner_that_is_not_the_candidates_builder_files_no_evidence(self) -> None:
+        """B-04-R1: the run happened, but on a machine the candidate is not
+        asking about. Filing it against this combo would be a lie; the event
+        records the outcome, the winner, and the reason there is no artifact."""
+        experiment_id = self._use_combo_worth()
+        self._arm("candidate")
+        dispatch_id = self._tick()["detail"]["dispatch_id"]
+        self._finish_run(ok=True, winner="cc-builder-9")
+        report = self._tick()
+        self.assertEqual(report["reason"], "observed:succeeded")
+        self.assertFalse(backlog_dispatch.observation_artifact_path(
+            self.corpus_root, dispatch_id, experiment_id).is_file())
+        payload = self._events(dispatch_id)[1]["payload"]
+        self.assertEqual(payload[backlog_dispatch.CAPACITY_SKIP_FIELD],
+                         backlog_dispatch.CAPACITY_SKIP_WINNER_MISMATCH)
+        self.assertEqual(payload["winner"], "cc-builder-9")
+        self.assertEqual(payload["result_ok"], True)
+        self.assertTrue(payload["result_path"])
+        self.assertEqual(report["detail"][backlog_dispatch.CAPACITY_SKIP_FIELD],
+                         backlog_dispatch.CAPACITY_SKIP_WINNER_MISMATCH)
+        # The candidate is still SUPPRESSED: the experiment ran, and the plan
+        # is published, so a result row exists (with outcome no_observation).
+        self.assertEqual(self._slot(), None)
+        self.assertEqual(len(self._published_plans()), 1)
+
+    def test_an_authored_brief_files_no_capacity_evidence_at_all(self) -> None:
+        """B-04-R1: an authored brief is a human work item, not a combo
+        experiment. There is nothing for a capacity observation to be about,
+        whoever won it."""
+        self._arm("authored")
+        self._add_authored()
+        dispatch_id = self._tick()["detail"]["dispatch_id"]
+        self._finish_run(ok=True, winner="cc-builder-2")
+        report = self._tick()
+        self.assertEqual(report["reason"], "observed:succeeded")
+        self.assertFalse(backlog_dispatch.observation_artifact_path(
+            self.corpus_root, dispatch_id, "authored:0001-authored_thing").is_file())
+        self.assertEqual(self._events(dispatch_id)[1]["payload"]
+                         [backlog_dispatch.CAPACITY_SKIP_FIELD],
+                         backlog_dispatch.CAPACITY_SKIP_NO_COMBO)
+        plan = json.loads(self._published_plans()[0].read_text(encoding="utf-8"))
+        self.assertIsNone(plan["subject"]["builder_id"])
+        self.assertIsNone(plan["subject"]["model_id"])
+        self.assertIsNone(plan["subject"]["backend"])
+
+    def test_a_candidate_plan_subject_is_the_combo_the_candidate_names(self) -> None:
+        """B-04-R1 scope 2, end to end: the plan the tick actually writes."""
+        self._use_combo_worth()
+        self._arm("candidate")
+        self._tick()
+        plan = json.loads(self._published_plans()[0].read_text(encoding="utf-8"))
+        self.assertEqual(plan["subject"]["builder_id"], _COMBO_BUILDER)
+        self.assertEqual(plan["subject"]["model_id"], _COMBO_MODEL)
+        self.assertEqual(plan["subject"]["backend"], _COMBO_BACKEND)
+        self.assertEqual(plan["experiment_type"], "prefer_validation")
+        self.assertEqual(plan["derived_from_candidate"], _COMBO_CANDIDATE)
 
     def test_re_running_a_finished_cycle_appends_nothing_new(self) -> None:
         """Idempotency: the tick after the write-back starts a fresh dispatch,
@@ -1222,6 +1331,30 @@ class CrashMatrixTests(_CycleHarness):
         self.assertEqual(len(self._events(dispatch_id)), 2,
                          "the deterministic event_id is the real guard")
         self.assertIsNone(self._slot())
+
+    def test_8b_a_replayed_write_back_never_rewrites_the_capacity_artifact(self) -> None:
+        """B-04-R1: the capacity artifact is written INSIDE the same guarded
+        block as the observation event, before the append. A crash after the
+        append must leave exactly one artifact, byte-identical on replay --
+        otherwise a retried write-back would file the same evidence twice."""
+        experiment_id = self._use_combo_worth()
+        self._arm("candidate")
+        dispatch_id = self._tick()["detail"]["dispatch_id"]
+        self._finish_run(ok=True, winner=_COMBO_BUILDER)
+        self._crash("observation")
+        path = backlog_dispatch.observation_artifact_path(
+            self.corpus_root, dispatch_id, experiment_id)
+        self.assertTrue(path.is_file())
+        before = path.read_bytes()
+
+        report = self._tick()
+        self.assertEqual(report["reason"], "observed:succeeded")
+        self.assertTrue(report["detail"]["observation_already_recorded"])
+        self.assertEqual(path.read_bytes(), before)
+        self.assertEqual(len(self._events(dispatch_id)), 2)
+        self.assertEqual(
+            len(list((self.corpus_root / "runs").rglob("artifacts/observations/*.json"))),
+            1)
 
     def test_9_a_crash_after_the_marker_clears_the_slot_and_appends_nothing(self) -> None:
         self._arm("candidate")
@@ -1534,9 +1667,14 @@ class SuppressionLoopTests(_CycleHarness):
         return outputs[RESULTS_FILE]
 
     def test_a_completed_cycle_becomes_a_result_row_that_suppresses_it(self) -> None:
+        # FIXTURE CHANGE (B-04-R1): a capacity observation only joins to the
+        # plan when the run is evidence about the candidate's combo, so this
+        # test now uses the combo-shaped candidate and the matching winner.
+        # Every assertion is the original one, re-keyed to that id.
+        experiment_id = self._use_combo_worth()
         self._arm("candidate")
         self._tick()
-        self._finish_run(ok=True, winner="cc-builder-2")
+        self._finish_run(ok=True, winner=_COMBO_BUILDER)
         self._tick()
 
         results = self._rebuild()
@@ -1544,12 +1682,13 @@ class SuppressionLoopTests(_CycleHarness):
         self.assertEqual(results["unresolved_refs"], 0)
         row = results["results"][0]
         self.assertEqual(row["contract_version"], "experiment-result.v1")
-        self.assertEqual(row["experiment_id"], "bbb_high")
+        self.assertEqual(row["experiment_id"], experiment_id)
         self.assertEqual(row["outcome"], "success",
                          "the capacity observation joined to the plan")
 
         # The projected file is what the selection reads. Point the tick at it.
-        self.assertIn("bbb_high", backlog_sources.already_run_ids(results["results"]))
+        self.assertIn(experiment_id,
+                      backlog_sources.already_run_ids(results["results"]))
         report = self._tick(results_path=self.rebuilt_results_path)
         self.assertTrue(report["reason"].startswith("dispatched:"))
         self.assertEqual(report["detail"]["source_ref"], "ccc_mid",
@@ -1575,12 +1714,15 @@ class SuppressionLoopTests(_CycleHarness):
     def test_a_failed_run_still_suppresses_the_candidate(self) -> None:
         """A dispatch that ran and failed HAS been tried; re-dispatching it every
         30 minutes forever is the bug this item exists to fix."""
+        # FIXTURE CHANGE (B-04-R1): combo candidate + matching winner, so the
+        # failure is still evidence about that combo and the row reads "error".
+        experiment_id = self._use_combo_worth()
         self._arm("candidate")
         self._tick()
-        self._finish_run(ok=False, winner="cc-builder-3")
+        self._finish_run(ok=False, winner=_COMBO_BUILDER)
         self._tick()
         results = self._rebuild()
-        self.assertEqual(results["results"][0]["experiment_id"], "bbb_high")
+        self.assertEqual(results["results"][0]["experiment_id"], experiment_id)
         self.assertEqual(results["results"][0]["outcome"], "error")
         self.assertEqual(self._tick(results_path=self.rebuilt_results_path)
                          ["detail"]["source_ref"], "ccc_mid")
@@ -1595,6 +1737,31 @@ class SuppressionLoopTests(_CycleHarness):
         self.assertEqual(row["experiment_id"], "bbb_high")
         self.assertEqual(row["outcome"], "no_observation")
         self.assertEqual(row["observation_ids"], [])
+
+    def test_a_mismatched_winner_still_suppresses_with_a_no_observation_row(self) -> None:
+        """B-04-R1's required outcome for a winner-mismatch: the experiment RAN,
+        so the plan is published and the candidate becomes ineligible; but no
+        capacity observation joined, so the row honestly reads no_observation
+        rather than claiming evidence about a combo that never served it."""
+        experiment_id = self._use_combo_worth()
+        self._arm("candidate")
+        self._tick()
+        self._finish_run(ok=True, winner="cc-builder-9")
+        self._tick()
+
+        results = self._rebuild()
+        self.assertEqual(results["plan_count"], 1)
+        self.assertEqual(results["unresolved_refs"], 0)
+        row = results["results"][0]
+        self.assertEqual(row["experiment_id"], experiment_id)
+        self.assertEqual(row["outcome"], "no_observation")
+        self.assertEqual(row["observation_ids"], [])
+        self.assertIn(experiment_id,
+                      backlog_sources.already_run_ids(results["results"]))
+        self.assertEqual(self._tick(results_path=self.rebuilt_results_path)
+                         ["detail"]["source_ref"], "ccc_mid",
+                         "a run that happened is still a run: it must not be "
+                         "re-dispatched forever just because the winner differed")
 
     def test_two_cycles_produce_two_distinct_rows(self) -> None:
         self._arm("candidate")
@@ -1611,6 +1778,116 @@ class SuppressionLoopTests(_CycleHarness):
         self.assertEqual(second["plan_count"], 2)
         self.assertEqual({row["experiment_id"] for row in second["results"]},
                          {"bbb_high", "ccc_mid"})
+
+
+class CapacityProjectionTests(_CycleHarness):
+    """B-04-R1's own proof, run through the REAL capacity projector.
+
+    ``tools.workflow.project_capacity.materialize_knowledge`` is what builds
+    ``knowledge/capacity_estimates.json`` / ``known_good_models.json`` in
+    production. It is called here unchanged over the events and artifacts the
+    drain actually wrote, into a temp knowledge dir. What is being proven is
+    negative and specific: the combo key it derives
+    (``project_capacity._combo_key``, L35-41) never contains the ``"unknown"``
+    segment that a null model_id/backend would have produced.
+    """
+
+    def _project_capacity(self, tag: str) -> dict:
+        from tools.workflow.project_capacity import (CAPACITY_ESTIMATES_FILE,
+                                                     KNOWN_GOOD_FILE,
+                                                     collect_event_files,
+                                                     materialize_knowledge)
+        # A fresh knowledge dir per call: the A2 regression guard compares a new
+        # projection against the file already on disk, and these scenarios
+        # deliberately project DIFFERENT corpora.
+        knowledge = self.tmp / "knowledge-capacity" / tag
+        event_files = collect_event_files([self.corpus_root / "runs"])
+        outputs = materialize_knowledge(event_files, knowledge)
+        self.capacity_knowledge_dir = knowledge
+        return {"estimates": outputs[CAPACITY_ESTIMATES_FILE],
+                "known_good": outputs[KNOWN_GOOD_FILE]}
+
+    def _assert_no_unknown_segment(self, estimates: dict) -> None:
+        for key, combo in estimates["combos"].items():
+            self.assertNotIn(backlog_dispatch.UNKNOWN_COMBO_SEGMENT, key.split("|"),
+                             f"combo key {key!r} carries the projection's "
+                             f"'unknown' placeholder")
+            for field in ("builder_id", "model_id", "backend"):
+                self.assertNotEqual(combo[field],
+                                    backlog_dispatch.UNKNOWN_COMBO_SEGMENT)
+
+    def test_a_matching_winner_projects_the_candidates_own_combo(self) -> None:
+        self._use_combo_worth()
+        self._arm("candidate")
+        self._tick()
+        self._finish_run(ok=True, winner=_COMBO_BUILDER)
+        self._tick()
+
+        projected = self._project_capacity("match")
+        estimates = projected["estimates"]
+        self.assertEqual(estimates["observation_count"], 1)
+        self.assertEqual(estimates["unresolved_observation_refs"], 0)
+        key = f"{_COMBO_BUILDER}|{_COMBO_MODEL}|{_COMBO_BACKEND}"
+        self.assertEqual(list(estimates["combos"]), [key],
+                         "the projection must bucket this run under the combo "
+                         "the candidate named, and nothing else")
+        combo = estimates["combos"][key]
+        self.assertEqual(combo["builder_id"], _COMBO_BUILDER)
+        self.assertEqual(combo["model_id"], _COMBO_MODEL)
+        self.assertEqual(combo["backend"], _COMBO_BACKEND)
+        self.assertEqual(combo["samples"], 1)
+        self.assertEqual(combo["successes"], 1)
+        self._assert_no_unknown_segment(estimates)
+        # ... and the derived belief file names the same real combo.
+        entries = projected["known_good"]["entries"]
+        self.assertEqual(len(entries), 1)
+        self.assertEqual((entries[0]["builder_id"], entries[0]["model_id"],
+                          entries[0]["backend"]),
+                         (_COMBO_BUILDER, _COMBO_MODEL, _COMBO_BACKEND))
+
+    def test_a_mismatched_winner_projects_nothing_at_all(self) -> None:
+        self._use_combo_worth()
+        self._arm("candidate")
+        self._tick()
+        self._finish_run(ok=True, winner="cc-builder-9")
+        self._tick()
+
+        estimates = self._project_capacity("mismatch")["estimates"]
+        self.assertEqual(estimates["observation_count"], 0)
+        self.assertEqual(estimates["combos"], {})
+        self.assertEqual(estimates["unresolved_observation_refs"], 0,
+                         "no artifact ref was written, so none is dangling")
+        self._assert_no_unknown_segment(estimates)
+
+    def test_an_authored_brief_projects_nothing_at_all(self) -> None:
+        self._arm("authored")
+        self._add_authored()
+        self._tick()
+        self._finish_run(ok=True, winner="cc-builder-2")
+        self._tick()
+
+        estimates = self._project_capacity("authored")["estimates"]
+        self.assertEqual(estimates["observation_count"], 0)
+        self.assertEqual(estimates["combos"], {})
+        self._assert_no_unknown_segment(estimates)
+
+    def test_the_pre_repair_shape_is_exactly_what_the_projector_would_bucket(self) -> None:
+        """The bug, demonstrated rather than asserted about: an observation with
+        a null model_id/backend -- what B-04 wrote -- lands in a
+        <builder>|unknown|unknown bucket. This is why the artifact is now
+        combo-gated and why build_capacity_observation refuses to build one."""
+        from tools.workflow.project_capacity import reduce_capacity
+        pre_repair = {"builder_id": _COMBO_BUILDER, "model_id": None,
+                      "backend": None, "outcome": "success",
+                      "timestamp": "2026-09-07T11:00:00Z"}
+        self.assertEqual(list(reduce_capacity([pre_repair])),
+                         [f"{_COMBO_BUILDER}|unknown|unknown"])
+        # And the guard now makes that document unbuildable by the drain.
+        with self.assertRaises(ValueError):
+            backlog_dispatch.build_capacity_observation(
+                "hearth-d-1", "x", timestamp="2026-09-07T11:00:00Z",
+                builder_id=_COMBO_BUILDER, model_id=None, backend=None,
+                succeeded=True)
 
 
 class BenignNoOpCLITests(TestCase):

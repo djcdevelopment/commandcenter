@@ -18,8 +18,25 @@ Three artifacts/records, in the order a tick writes them:
      ``artifact_refs`` entry, plus the decision/run ids that tie the eventual
      observation back to the plan.
   3. **the observation** (``retrospective.created``, plus a
-     ``capacity-observation.v1`` artifact when a builder is actually named) —
-     the terminal record of what the run did.
+     ``capacity-observation.v1`` artifact when — and only when — the run's
+     winner IS the combo the candidate names) — the terminal record of what the
+     run did.
+
+**The combo rule (B-04-R1).** A capacity observation is evidence about one
+``builder_id|model_id|backend`` combo. The drain does not choose the builder
+(ADR-0008) and cannot name the model or the backend a conductor run used, so
+the only combo it may honestly write is the one the *candidate itself* names:
+a priced experiment candidate exists to test a specific combo, and
+``project_experiments._combo`` encodes that combo in the ``candidate_id``.
+``combo_from_candidate_id`` decodes it back. Everything else — an authored or
+refined brief, a candidate whose id names no combo, a candidate whose combo
+carries the literal ``"unknown"`` that ``_combo`` writes for a missing field —
+yields NO combo, and therefore no capacity artifact. A winner that is not the
+combo's builder yields no artifact either: the run happened on someone else's
+machine, so it is not evidence about this combo. In both cases the observation
+EVENT still records the outcome and gains
+``payload.capacity_artifact_skipped``, and the experiment-result row then reads
+``no_observation`` — which is the truth.
 
 **Why those two event types.** ``contracts/workflow-event.schema.json`` closes
 ``event_type`` to a 21-value enum with no dispatch/observation family for an
@@ -61,7 +78,7 @@ import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, NamedTuple, Optional
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
@@ -113,6 +130,42 @@ PLAN_EXPERIMENT_TYPES = frozenset({
 # member; coverage_probe is the honest nearest neighbour: the corpus has no
 # observation of this work, and the dispatch exists to get one.
 DEFAULT_EXPERIMENT_TYPE = "coverage_probe"
+
+# --- which candidate ids name a combo, and how ---------------------------------
+#
+# SOURCE OF TRUTH: tools/workflow/project_experiments.py::_combo --
+#     "|".join(subject.get(f) or "unknown" for f in ("builder_id","model_id","backend"))
+# and the candidate_id literals that embed it. Four experiment types put the
+# combo straight after the type:
+#     f"known_bad_retest:{_combo(subject)}"       (L244)
+#     f"uncertain_resolution:{_combo(subject)}"   (L267)
+#     f"regression_probe:{_combo(subject)}"       (L276)
+#     f"prefer_validation:{_combo(subject)}"      (L290)
+COMBO_EXPERIMENT_TYPES = frozenset({
+    "known_bad_retest",
+    "uncertain_resolution",
+    "regression_probe",
+    "prefer_validation",
+})
+# A coverage_probe candidate is "coverage_probe:" + the GAP id
+# (project_experiments L169), and only two gap ids are combo-shaped:
+#     f"unobserved_combo:{'|'.join(combo)}"    (project_coverage L74)
+#     f"unmeasured_metrics:{'|'.join(combo)}"  (project_coverage L134)
+# where `combo` is _combo_of(record) -> (builder_id, model_id, backend), same
+# order, same "unknown" filler. The third shape, `single_workflow_evidence`,
+# ALSO contains "|" -- it joins "name=value" invariant pairs -- so gating on the
+# gap type is what keeps an invariant list from being misread as a combo.
+COMBO_COVERAGE_GAP_TYPES = frozenset({"unobserved_combo", "unmeasured_metrics"})
+# The literal `_combo` writes for a field the corpus does not know. It is a
+# placeholder, never an identity: a candidate id carrying it names no combo.
+# Real examples in knowledge/experiment_candidates.json today:
+#     prefer_validation:claude-frontier|gemini-3.5-flash|unknown
+UNKNOWN_COMBO_SEGMENT = "unknown"
+
+# Why a capacity artifact was NOT written, recorded on the observation event.
+CAPACITY_SKIP_FIELD = "capacity_artifact_skipped"
+CAPACITY_SKIP_NO_COMBO = "no-combo"
+CAPACITY_SKIP_WINNER_MISMATCH = "winner-mismatch"
 
 # Terminal outcomes an observation event can carry (the event schema's `outcome`
 # is a free string; these are this lane's closed vocabulary).
@@ -238,6 +291,115 @@ def experiment_type_for(brief: Brief) -> str:
     return DEFAULT_EXPERIMENT_TYPE
 
 
+class Combo(NamedTuple):
+    """The ``builder_id|model_id|backend`` triple a candidate is about.
+
+    Every field is a non-empty string that is not the ``"unknown"`` placeholder
+    — ``combo_from_candidate_id`` returns None rather than build a Combo with a
+    hole in it, which is what makes ``Combo`` safe to write into a
+    ``capacity-observation.v1``.
+    """
+    builder_id: str
+    model_id: str
+    backend: str
+
+
+def combo_from_candidate_id(candidate_id) -> Optional[Combo]:
+    """Decode the combo a candidate id names, or None if it names none.
+
+    THE DERIVATION RULE. ``Brief`` carries no structural combo field (it is
+    ``slug/title/body/builders/task_class/est_tokens/requires/max_age_s/source/
+    source_ref`` and nothing else) and ``sources.candidate_brief`` copies only
+    ``candidate_id``/``worth_points``/``reason`` off the worth entry, so the id
+    IS the carrier. Splitting it:
+
+    * on the FIRST ``:`` only — a model_id may itself contain ``:``
+      (``prefer_validation:omen-5070|qwen2.5:14b|ollama-cuda``) or ``/``
+      (a .gguf path), so a last-colon or a naive 3-way split is wrong;
+    * a second time for ``coverage_probe``, whose id embeds a gap id;
+    * then on ``|`` into EXACTLY three parts.
+
+    A part that is empty or the literal ``"unknown"`` voids the whole combo:
+    ``"unknown"`` is what ``project_experiments._combo`` writes for a field the
+    corpus does not know, and it is precisely the value that must never reach
+    ``project_capacity._combo_key``'s bucket of the same name.
+
+    Every other id shape yields None by construction, and deliberately:
+    ``prediction_bias_calibration:<model>:<metric>``,
+    ``backend_comparison:<model>:<b1>+<b2>``,
+    ``qualification_run:<capability_id>``,
+    ``coverage_probe:single_workflow_evidence:...`` and
+    ``confidence_calibration:corpus`` name no builder+model+backend triple, so
+    there is nothing to file evidence against.
+    """
+    if not isinstance(candidate_id, str) or ":" not in candidate_id:
+        return None
+    head, rest = candidate_id.split(":", 1)
+    if head == "coverage_probe":
+        if ":" not in rest:
+            return None
+        gap_type, rest = rest.split(":", 1)
+        if gap_type not in COMBO_COVERAGE_GAP_TYPES:
+            return None
+    elif head not in COMBO_EXPERIMENT_TYPES:
+        return None
+    parts = rest.split("|")
+    if len(parts) != 3:
+        return None
+    if any(not part.strip() or part == UNKNOWN_COMBO_SEGMENT for part in parts):
+        return None
+    return Combo(*parts)
+
+
+def combo_for_source(source, source_ref) -> Optional[Combo]:
+    """The combo a (source, source_ref) pair names. Only candidates have one.
+
+    Authored and refined briefs are human work items, not combo experiments:
+    ``authored:<slug>`` and ``refined:<intent_id>`` name a task, never a
+    builder+model+backend.
+    """
+    if source != "candidate":
+        return None
+    return combo_from_candidate_id(source_ref)
+
+
+def combo_for(brief: Brief) -> Optional[Combo]:
+    return combo_for_source(brief.source, brief.source_ref)
+
+
+def combo_from_in_flight(record: Optional[dict]) -> Optional[Combo]:
+    """The combo behind a persisted slot, recomputed rather than stored.
+
+    The in-flight record already carries ``source`` and ``source_ref``, and
+    ``combo_from_candidate_id`` is pure, so the combo is fully recoverable at
+    write-back time. That is why B-04-R1 adds NO key to the record and leaves
+    the contract at ``bankedfire-drain-inflight.v1``: a stored copy could
+    disagree with the id it was derived from, and a slot written by an older
+    build would carry no copy at all.
+    """
+    if not isinstance(record, dict):
+        return None
+    return combo_for_source(record.get("source"), record.get("source_ref"))
+
+
+def capacity_write_decision(combo: Optional[Combo],
+                            winner) -> tuple[Optional[Combo], Optional[str]]:
+    """(combo to file evidence against, skip reason). Exactly one is non-None.
+
+    * no combo -> ``no-combo``: an authored/refined brief, or a candidate whose
+      id names no combo. There is nothing to be evidence ABOUT.
+    * a combo, but the winner is not its ``builder_id`` (including no winner at
+      all) -> ``winner-mismatch``: the run happened, but not on the machine the
+      candidate is asking about, so filing it against this combo would be a
+      lie. The event still records the outcome and the winner.
+    """
+    if combo is None:
+        return None, CAPACITY_SKIP_NO_COMBO
+    if not isinstance(winner, str) or winner != combo.builder_id:
+        return None, CAPACITY_SKIP_WINNER_MISMATCH
+    return combo, None
+
+
 def artifact_stem(experiment_id: str) -> str:
     """The filename an experiment_id is stored under.
 
@@ -303,15 +465,19 @@ def build_drain_experiment_plan(brief: Brief, dispatch_id: str, *,
                                 backend: Optional[str] = None) -> dict:
     """An ``experiment-plan.v1`` for one idle-drain dispatch.
 
-    ``subject`` deliberately leaves builder_id/model_id/backend NULL. The drain
-    gates on ``omen-arc`` occupancy, but the brief runs on a conductor builder
-    the drain does not choose and cannot name at dispatch time — stamping the
-    gating rung here would file evidence against a backend that never served the
-    work. ``task_kind`` is the brief's own task_class, which IS known.
-    ``gate_opened`` is null: an idle-drain dispatch opens no policy gate, it
-    spends an idle slot.
+    ``subject`` is the combo the candidate NAMES (``combo_from_candidate_id``)
+    — that is what the eventual experiment-result row describes, and it is
+    knowable at dispatch time because the candidate was proposed about it. It
+    is emphatically NOT the gating rung: the drain gates on ``omen-arc``
+    occupancy while the brief runs on a conductor builder the drain does not
+    choose, so stamping the rung here would file evidence against a backend
+    that never served the work. An authored/refined brief, or a candidate whose
+    id names no combo, keeps all three NULL. ``task_kind`` is the brief's own
+    task_class, which IS known. ``gate_opened`` is null: an idle-drain dispatch
+    opens no policy gate, it spends an idle slot.
     """
     experiment_id = experiment_id_for(brief)
+    combo = combo_for(brief)
     if brief.source == "candidate":
         reason = (f"idle-drain dispatch of priced experiment candidate "
                   f"{brief.source_ref!r}: the corpus proposed it and "
@@ -333,9 +499,9 @@ def build_drain_experiment_plan(brief: Brief, dispatch_id: str, *,
         "decision_id": decision_id_for(dispatch_id),
         "timestamp": timestamp,
         "subject": {
-            "builder_id": None,
-            "model_id": None,
-            "backend": None,
+            "builder_id": combo.builder_id if combo else None,
+            "model_id": combo.model_id if combo else None,
+            "backend": combo.backend if combo else None,
             "task_kind": brief.task_class,
             "metric": None,
         },
@@ -412,21 +578,54 @@ def build_dispatch_event(brief: Brief, dispatch_id: str, *, timestamp: str,
     }
 
 
+def _require_identity(field: str, value) -> str:
+    """A capacity observation's combo fields must be REAL, or there is no
+    observation to write.
+
+    ``project_capacity`` buckets an observation under
+    ``builder_id|model_id|backend`` and maps a missing field to the literal
+    ``"unknown"`` (``_combo_key`` L35-41, ``reduce_capacity`` L100-102). A
+    written artifact carrying None — or the string ``"unknown"`` itself —
+    therefore lands real evidence in a ``<builder>|unknown|unknown`` bucket
+    naming no machine anyone can act on. The combo derivation already refuses
+    those ids; this refuses them again at the one place an artifact is built,
+    so no call site can reach the projection's fallback.
+    """
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(
+            f"capacity observation needs a non-empty {field}; got {value!r}")
+    if value == UNKNOWN_COMBO_SEGMENT:
+        raise ValueError(
+            f"capacity observation {field} may not be {UNKNOWN_COMBO_SEGMENT!r}: "
+            "that is the projection's placeholder for a field nobody knows, "
+            "not an identity to file evidence against")
+    return value
+
+
 def build_capacity_observation(dispatch_id: str, experiment_id: str, *,
                                timestamp: str, builder_id: str,
+                               model_id: str, backend: str,
                                succeeded: bool,
                                task_kind: Optional[str] = None,
                                est_tokens: Optional[int] = None) -> dict:
     """A ``capacity-observation.v1`` for a finished drain run.
 
-    Only ever built when a builder is actually named (``winner``): the contract
-    requires a non-empty ``builder_id``, and filling it with "unknown" would
-    file real evidence against a combo nobody ran. A run with no winner gets the
+    Only ever built for a run whose winner IS the combo's builder, so all three
+    identity fields are known and real; ``_require_identity`` raises otherwise.
+    ``model_id``/``backend`` are REQUIRED keyword arguments, so a call site
+    cannot silently forget them and leave the projection to fill in "unknown".
+    A run that names no combo, or whose winner is some other builder, gets the
     observation EVENT (the outcome is on the record) and no capacity artifact —
     the experiment result then reads ``no_observation``, which is true.
+
+    ``hardware_profile_id`` stays null: the conductor does not report the
+    hardware lineage a run was taken under, and inventing one would defeat that
+    field's whole purpose (not conflating pre- and post-hardware-change
+    evidence).
     """
-    if not isinstance(builder_id, str) or not builder_id.strip():
-        raise ValueError("capacity observation needs a non-empty builder_id")
+    builder_id = _require_identity("builder_id", builder_id)
+    model_id = _require_identity("model_id", model_id)
+    backend = _require_identity("backend", backend)
     return {
         "contract_version": OBSERVATION_CONTRACT,
         "observation_id": observation_event_id(dispatch_id),
@@ -435,8 +634,8 @@ def build_capacity_observation(dispatch_id: str, experiment_id: str, *,
         "run_id": run_id_for(dispatch_id),
         "timestamp": timestamp,
         "builder_id": builder_id,
-        "model_id": None,
-        "backend": None,
+        "model_id": model_id,
+        "backend": backend,
         "hardware_profile_id": None,
         "workload_shape": {
             "task_kind": task_kind or "unknown",

@@ -642,10 +642,21 @@ def _write_back(state: dict, record: dict, outcome: str, *, arm_state_path: Path
     extra["observation_written"] = not already
     if not already:
         observation_ref = None
-        winner = payload.get("winner")
-        if isinstance(winner, str) and winner.strip():
+        # WHICH COMBO, and may we file against it? The combo is RECOMPUTED from
+        # the slot's own source/source_ref (dispatch.combo_from_in_flight), not
+        # stored -- see that function for why the record contract is unchanged.
+        # A capacity observation is evidence about one builder|model|backend, so
+        # it is written only when the candidate names a combo AND the run's
+        # winner is that combo's builder. Otherwise the event says why not,
+        # instead of the corpus growing a combo nobody ran.
+        named_combo = backlog_dispatch.combo_from_in_flight(record)
+        combo, skip_reason = backlog_dispatch.capacity_write_decision(
+            named_combo, payload.get("winner"))
+        if combo is not None:
             observation = backlog_dispatch.build_capacity_observation(
-                dispatch_id, experiment_id, timestamp=timestamp, builder_id=winner,
+                dispatch_id, experiment_id, timestamp=timestamp,
+                builder_id=combo.builder_id, model_id=combo.model_id,
+                backend=combo.backend,
                 succeeded=outcome == backlog_dispatch.OUTCOME_SUCCEEDED,
                 task_kind=record.get("task_class"), est_tokens=record.get("est_tokens"))
             observation_path = backlog_dispatch.observation_artifact_path(
@@ -653,6 +664,11 @@ def _write_back(state: dict, record: dict, outcome: str, *, arm_state_path: Path
             backlog_dispatch.write_json_atomic(observation_path, observation)
             observation_ref = backlog_dispatch.corpus_ref(corpus_root, observation_path)
             extra["capacity_observation"] = observation_ref
+        else:
+            # A NEW dict: the caller's payload must not be mutated, and the
+            # reason belongs on the permanent record, not only in the tick log.
+            payload = {**payload, backlog_dispatch.CAPACITY_SKIP_FIELD: skip_reason}
+            extra[backlog_dispatch.CAPACITY_SKIP_FIELD] = skip_reason
         backlog_dispatch.append_corpus_event(events, backlog_dispatch.build_observation_event(
             dispatch_id, experiment_id, timestamp=timestamp, outcome=outcome,
             payload=payload, observation_ref=observation_ref))

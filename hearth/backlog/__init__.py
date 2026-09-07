@@ -16,6 +16,35 @@ Nothing in this package creates ``hearth/var``. The ``DEFAULT_*`` constants in
 ``sources`` name those paths; scanning an absent backlog returns an empty scan.
 """
 from hearth.backlog.briefs import SOURCES, Brief, parse, safe_slug
+from hearth.backlog.dispatch import (
+    DEFAULT_EXPERIMENT_TYPE,
+    IN_FLIGHT_CONTRACT,
+    PHASE_ATTEMPTED,
+    PHASE_PREPARED,
+    PHASE_SUBMITTED,
+    PLAN_EXPERIMENT_TYPES,
+    RUN_NAMESPACE,
+    WORKFLOW_ID,
+    append_corpus_event,
+    build_capacity_observation,
+    build_dispatch_event,
+    build_drain_experiment_plan,
+    build_observation_event,
+    completion_outcome,
+    event_already_recorded,
+    events_path,
+    experiment_id_for,
+    experiment_type_for,
+    in_flight_phase,
+    new_dispatch_id,
+    new_in_flight,
+    observed_marker_path,
+    plan_artifact_path,
+    publish_plan,
+    read_result,
+    run_id_for,
+    write_pending_plan,
+)
 from hearth.backlog.select import PRIORITY, SCOPES, select_next
 from hearth.backlog.sources import (
     CANDIDATE_TASK_CLASS,
@@ -53,4 +82,15 @@ __all__ = [
     "DEFAULT_BACKLOG_ROOT", "DEFAULT_QUEUED_DIR", "DEFAULT_DISPATCHED_DIR",
     "DEFAULT_DONE_DIR", "DEFAULT_REFINE_DIR",
     "DEFAULT_CANDIDATE_WORTH_PATH", "DEFAULT_EXPERIMENT_RESULTS_PATH",
+    # dispatch (B-04): the corpus records a dispatch leaves behind.
+    "WORKFLOW_ID", "RUN_NAMESPACE", "IN_FLIGHT_CONTRACT",
+    "PLAN_EXPERIMENT_TYPES", "DEFAULT_EXPERIMENT_TYPE",
+    "PHASE_PREPARED", "PHASE_ATTEMPTED", "PHASE_SUBMITTED",
+    "new_dispatch_id", "run_id_for", "experiment_id_for", "experiment_type_for",
+    "build_drain_experiment_plan", "build_dispatch_event",
+    "build_observation_event", "build_capacity_observation",
+    "write_pending_plan", "publish_plan", "plan_artifact_path",
+    "events_path", "observed_marker_path", "append_corpus_event",
+    "event_already_recorded", "new_in_flight", "in_flight_phase",
+    "read_result", "completion_outcome",
 ]

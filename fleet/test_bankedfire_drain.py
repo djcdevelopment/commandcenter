@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import json
+import os
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
-from unittest import TestCase
+from unittest import TestCase, mock
 
 from fleet import bankedfire_drain as drain
+from hearth.backlog import dispatch as backlog_dispatch
 from hearth.backlog import sources as backlog_sources
 from hearth.toolsurface.task_lane import _ccmeta_header
+from tools.workflow.validate_events import validate_event, validate_file
 
 
 def _write_json(path: Path, data: dict) -> Path:
@@ -292,9 +298,10 @@ class _TickHarness(TestCase):
     """Shared run_tick fixture. Holds no tests of its own so subclasses do not
     re-run each other's.
 
-    Every path is a temp path, INCLUDING the two backlog roots: the authored
-    queue and the refine store default to hearth/var/..., and a tick that fell
-    back to those defaults would both read live state and create hearth/var."""
+    Every path is a temp path, INCLUDING all four backlog roots and the corpus:
+    they default to hearth/var/... and <repo>/runs, and a tick that fell back to
+    those defaults would read live state, create hearth/var, and (since B-04)
+    write a dispatch record into the repo's own event corpus."""
 
     def setUp(self) -> None:
         self.tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
@@ -303,7 +310,10 @@ class _TickHarness(TestCase):
         self.worth_path = _write_json(self.tmp / "worth.json", _WORTH)
         self.results_path = _write_json(self.tmp / "results.json", _EMPTY_RESULTS)
         self.queued_dir = self.tmp / "backlog" / "queued"
+        self.dispatched_dir = self.tmp / "backlog" / "dispatched"
+        self.done_dir = self.tmp / "backlog" / "done"
         self.refine_dir = self.tmp / "refine"
+        self.corpus_root = self.tmp / "corpus"
         self.queued_dir.mkdir(parents=True)
         self.refine_dir.mkdir(parents=True)
         self.ledger = _FakeLedger()
@@ -335,7 +345,10 @@ class _TickHarness(TestCase):
             worth_path=self.worth_path,
             results_path=self.results_path,
             queued_dir=self.queued_dir,
+            dispatched_dir=self.dispatched_dir,
+            done_dir=self.done_dir,
             refine_dir=self.refine_dir,
+            corpus_root=self.corpus_root,
             occupancy_check=lambda name: {"occupancy": "available"},
             acquire_lease=lambda name, pinned=False: _FakeLease(True),
             submit_task_fn=_fake_submit,
@@ -345,6 +358,28 @@ class _TickHarness(TestCase):
         )
         kwargs.update(overrides)
         return drain.run_tick(**kwargs)
+
+    # -- shorthands the B-04 suites share ----------------------------------
+
+    def _slot(self):
+        return drain.load_arm_state(self.arm_path)["in_flight"]
+
+    def _events(self, dispatch_id: str) -> list[dict]:
+        path = backlog_dispatch.events_path(self.corpus_root, dispatch_id)
+        if not path.is_file():
+            return []
+        return [json.loads(line) for line in
+                path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+    def _run_dirs(self) -> list[Path]:
+        root = self.corpus_root / "runs" / backlog_dispatch.RUN_NAMESPACE
+        return sorted(p for p in root.glob("*") if p.is_dir()) if root.is_dir() else []
+
+    def _published_plans(self) -> list[Path]:
+        return sorted((self.corpus_root / "runs").rglob("artifacts/experiments/*.json"))
+
+    def _pending_plans(self) -> list[Path]:
+        return sorted((self.corpus_root / "runs").rglob("artifacts/experiments/*.pending"))
 
 
 class RunTickTests(_TickHarness):
@@ -385,10 +420,18 @@ class RunTickTests(_TickHarness):
         # source_ref is the candidate_id verbatim -- the tick detail names WHICH
         # backlog item was chosen, which is what detail["candidate"] used to say.
         self.assertIn("bbb_high", report["detail"]["source_ref"])
-        state = drain.load_arm_state(self.arm_path)
-        self.assertIsNotNone(state["last_dispatch_plan_id"])
+        # The slot is a RECORD now, not a bare plan-id string: same assertion
+        # ("something is in flight and we know what"), against the v2 contract.
+        slot = self._slot()
+        self.assertIsNotNone(slot)
+        self.assertIsNotNone(slot["plan_id"])
+        self.assertEqual(slot["experiment_id"], "bbb_high")
 
     def test_prior_dispatch_still_running_is_in_flight_noop(self) -> None:
+        """A pre-B-04 arm file (bare last_dispatch_plan_id) still blocks.
+
+        Adopting the legacy string rather than dropping it is the safe read: a
+        forgotten slot means a second dispatch beside a live run."""
         self._arm()
         state = drain.load_arm_state(self.arm_path)
         state["last_dispatch_plan_id"] = "hearth-drain-prior-12345678"
@@ -396,13 +439,26 @@ class RunTickTests(_TickHarness):
         report = self._tick(task_status_fn=lambda plan_id: {"ok": True, "done": False})
         self.assertEqual(report["reason"], "in-flight")
 
-    def test_prior_dispatch_done_clears_slot_and_allows_new_dispatch(self) -> None:
+    def test_prior_dispatch_done_is_written_back_first_then_the_next_tick_dispatches(self) -> None:
+        """A finished run is recorded BEFORE anything new is chosen.
+
+        This is the tick that used to dispatch in the same breath as clearing
+        the slot. It must not: the selection reads knowledge/, and knowledge/ is
+        rebuilt from the corpus this write-back has only just appended to -- so
+        dispatching in the same tick would re-pick the candidate that just
+        finished. Same guarantee as before ("a finished run does not block the
+        lane"), now spread across two ticks with the record in between."""
         self._arm()
         state = drain.load_arm_state(self.arm_path)
         state["last_dispatch_plan_id"] = "hearth-drain-prior-12345678"
         drain.save_arm_state(state, self.arm_path)
-        report = self._tick(task_status_fn=lambda plan_id: {"ok": True, "done": True})
-        self.assertTrue(report["reason"].startswith("dispatched:"))
+        first = self._tick(task_status_fn=lambda plan_id: {"ok": True, "done": True})
+        self.assertTrue(first["reason"].startswith("observed:"))
+        self.assertTrue(first["detail"]["legacy_slot"],
+                        "a legacy slot has no run dir to write back into")
+        self.assertIsNone(self._slot())
+        second = self._tick()
+        self.assertTrue(second["reason"].startswith("dispatched:"))
 
     def test_lease_refused_is_noop_busy(self) -> None:
         self._arm()
@@ -594,15 +650,20 @@ class BacklogSelectionTests(_TickHarness):
         self.assertEqual(report["detail"]["backlog_counts"]["candidate"], 3,
                          "the candidate source still has work; the scope excluded it")
 
-    def test_the_submitted_prompt_is_the_briefs_rendered_text(self) -> None:
+    def test_the_submitted_prompt_is_the_briefs_body_not_its_rendered_text(self) -> None:
+        """B-03 sent brief.render(), so the inbox file carried TWO CCMETA
+        headers (submit_task prepends its own). The conductor's _extract_ccmeta
+        uses .search, so the first one -- submit_task's -- won and the brief's
+        became inert body text. The body is what goes on the wire now."""
         self._arm("all")
+        from hearth.backlog import authored_source
         self._add_authored(body="An authored brief body.")
+        brief = authored_source(self.queued_dir).briefs[0]
         seen: dict = {}
         self._tick(submit_task_fn=lambda **kw: seen.update(kw) or {
             "ok": True, "plan_id": f"hearth-{kw['plan_id_hint']}-abcd1234"})
-        from hearth.backlog import authored_source
-        brief = authored_source(self.queued_dir).briefs[0]
-        self.assertEqual(seen["prompt"], brief.render())
+        self.assertEqual(seen["prompt"], brief.body)
+        self.assertNotIn("<!-- CCMETA", seen["prompt"])
         self.assertEqual(seen["task_class"], "build")
 
     def test_requires_and_max_age_ride_the_submit_call(self) -> None:
@@ -770,6 +831,836 @@ class LedgerSemanticsTests(_TickHarness):
                 if not event["ok"]:
                     self.assertTrue(event["error"],
                                     "ok:false must always name its failure")
+
+
+class _CycleHarness(_TickHarness):
+    """One completed drain cycle, driven tick by tick with a scripted conductor.
+
+    ``self.status`` is what ``task_status`` will say next; the tests move it
+    from "still running" to "done" the way the conductor would."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.status: dict = {"ok": True, "done": False}
+        self.submits: list[dict] = []
+
+    def _submit(self, **kwargs) -> dict:
+        self.submits.append(kwargs)
+        plan_id = f"hearth-{kwargs['plan_id_hint'].lower().replace('_', '-')}-abcd1234"
+        return {"ok": True, "plan_id": plan_id,
+                "inbox_path": f"~/work/commandcenter/inbox/{plan_id}.md",
+                "result_path": f"~/work/commandcenter/runs/{plan_id}/result.json"}
+
+    def _tick(self, **overrides):
+        kwargs = dict(submit_task_fn=self._submit,
+                      task_status_fn=lambda plan_id: dict(self.status))
+        kwargs.update(overrides)
+        return super()._tick(**kwargs)
+
+    def _finish_run(self, ok: bool = True, winner: str = "cc-builder-2") -> None:
+        self.status = {"ok": True, "done": True,
+                       "plan_id": self._slot()["plan_id"],
+                       "result_path": self._slot()["result_path"],
+                       "result": {"ok": ok, "winner": winner}}
+
+
+class DispatchWriteBackTests(_CycleHarness):
+    """The full cycle: dispatch -> in-flight -> observation -> next brief."""
+
+    def test_one_cycle_writes_a_plan_an_event_a_slot_and_one_submit(self) -> None:
+        self._arm("candidate")
+        report = self._tick()
+        self.assertTrue(report["reason"].startswith("dispatched:"))
+        dispatch_id = report["detail"]["dispatch_id"]
+
+        # the plan, published (the dispatch reached the conductor)
+        plan_path = backlog_dispatch.plan_artifact_path(
+            self.corpus_root, dispatch_id, "bbb_high")
+        self.assertTrue(plan_path.is_file())
+        self.assertEqual(self._pending_plans(), [])
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        self.assertEqual(plan["experiment_id"], "bbb_high")
+        self.assertEqual(plan["derived_from_candidate"], "bbb_high")
+        self.assertEqual(plan["contract_version"], "experiment-plan.v1")
+
+        # the dispatch event, referencing it
+        events = self._events(dispatch_id)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["event_type"], "work.accepted")
+        self.assertEqual(events[0]["run_id"], f"hearth-drain/{dispatch_id}")
+        self.assertEqual(events[0]["artifact_refs"][0]["artifact_type"],
+                         "experiment_plan")
+
+        # the slot, and exactly one submit
+        slot = self._slot()
+        self.assertEqual(slot["experiment_id"], "bbb_high")
+        self.assertTrue(slot["submitted"])
+        self.assertTrue(slot["inbox_path"])
+        self.assertEqual(len(self.submits), 1)
+
+    def test_the_second_tick_is_a_no_op_that_appends_nothing(self) -> None:
+        self._arm("candidate")
+        dispatch_id = self._tick()["detail"]["dispatch_id"]
+        before = self._events(dispatch_id)
+        report = self._tick()
+        self.assertEqual(report["reason"], "in-flight")
+        self.assertEqual(self._events(dispatch_id), before)
+        self.assertEqual(len(self.submits), 1, "an in-flight tick must not dispatch")
+
+    def test_the_finishing_tick_writes_one_observation_and_frees_the_slot(self) -> None:
+        self._arm("candidate")
+        dispatch_id = self._tick()["detail"]["dispatch_id"]
+        self._finish_run(ok=True, winner="cc-builder-2")
+        report = self._tick()
+
+        self.assertEqual(report["reason"], "observed:succeeded")
+        self.assertEqual(report["detail"]["observation_outcome"], "succeeded")
+        events = self._events(dispatch_id)
+        self.assertEqual(len(events), 2)
+        self.assertEqual(events[1]["event_type"], "retrospective.created")
+        self.assertEqual(events[1]["outcome"], "succeeded")
+        self.assertEqual(events[1]["decision_id"], events[0]["decision_id"])
+        self.assertEqual(events[1]["payload"]["experiment_id"], "bbb_high")
+        self.assertTrue(backlog_dispatch.observed_marker_path(
+            self.corpus_root, dispatch_id, "bbb_high").is_file())
+        self.assertIsNone(self._slot())
+        self.assertEqual(len(self.submits), 1, "a write-back tick never dispatches")
+
+    def test_a_named_winner_also_lands_a_capacity_observation(self) -> None:
+        self._arm("candidate")
+        dispatch_id = self._tick()["detail"]["dispatch_id"]
+        self._finish_run(ok=True, winner="cc-builder-2")
+        self._tick()
+        path = backlog_dispatch.observation_artifact_path(
+            self.corpus_root, dispatch_id, "bbb_high")
+        self.assertTrue(path.is_file())
+        observation = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(observation["builder_id"], "cc-builder-2")
+        self.assertEqual(observation["outcome"], "success")
+        self.assertEqual(observation["decision_id"], f"dec_{dispatch_id}")
+
+    def test_a_run_with_no_winner_records_the_outcome_and_no_capacity_evidence(self) -> None:
+        """No builder was named, so there is nothing to file evidence against.
+        The outcome is still on the record -- as an event, not as a capacity
+        observation about a combo nobody ran."""
+        self._arm("candidate")
+        dispatch_id = self._tick()["detail"]["dispatch_id"]
+        self._finish_run(ok=True, winner=None)
+        report = self._tick()
+        self.assertEqual(report["reason"], "observed:no_winner")
+        self.assertFalse(backlog_dispatch.observation_artifact_path(
+            self.corpus_root, dispatch_id, "bbb_high").is_file())
+        self.assertEqual(self._events(dispatch_id)[1]["outcome"], "no_winner")
+
+    def test_a_failed_run_is_recorded_as_failed(self) -> None:
+        self._arm("candidate")
+        dispatch_id = self._tick()["detail"]["dispatch_id"]
+        self._finish_run(ok=False, winner="cc-builder-3")
+        report = self._tick()
+        self.assertEqual(report["reason"], "observed:failed")
+        observation = json.loads(backlog_dispatch.observation_artifact_path(
+            self.corpus_root, dispatch_id, "bbb_high").read_text(encoding="utf-8"))
+        self.assertEqual(observation["outcome"], "error")
+
+    def test_re_running_a_finished_cycle_appends_nothing_new(self) -> None:
+        """Idempotency: the tick after the write-back starts a fresh dispatch,
+        and the finished run's own dir is never written to again."""
+        self._arm("candidate")
+        first = self._tick()["detail"]["dispatch_id"]
+        self._finish_run()
+        self._tick()
+        after_write_back = self._events(first)
+        self.status = {"ok": True, "done": False}
+        self._tick()
+        self.assertEqual(self._events(first), after_write_back)
+
+    def test_the_fourth_tick_selects_the_next_brief_once_the_rebuild_has_run(self) -> None:
+        """The suppression is not magic: the drain writes the corpus, the
+        rebuild turns it into an experiment_results row, and only THEN is the
+        finished candidate ineligible. Here the rebuild step is stood in for by
+        writing the row the projection produces; SuppressionLoopTests runs the
+        real projector over the real events."""
+        self._arm("candidate")
+        self._tick()
+        self._finish_run()
+        self._tick()
+        _write_json(self.results_path, {"results": [
+            {"contract_version": "experiment-result.v1", "experiment_id": "bbb_high"}]})
+        report = self._tick()
+        self.assertTrue(report["reason"].startswith("dispatched:"))
+        self.assertEqual(report["detail"]["source_ref"], "ccc_mid")
+
+    def test_an_authored_brief_moves_queued_to_dispatched_to_done(self) -> None:
+        self._arm("authored")
+        path = self._add_authored()
+        report = self._tick()
+        self.assertEqual(report["detail"]["backlog_move"], "moved")
+        self.assertFalse(path.exists())
+        plan_id = self._slot()["plan_id"]
+        self.assertTrue((self.dispatched_dir / f"{plan_id}.md").is_file())
+        self._finish_run()
+        self._tick()
+        self.assertTrue((self.done_dir / f"{plan_id}.md").is_file())
+
+    def test_a_candidate_dispatch_moves_no_files(self) -> None:
+        self._arm("candidate")
+        self._tick()
+        self.assertFalse(self.dispatched_dir.exists())
+
+    def test_every_appended_event_validates_against_the_corpus_schema(self) -> None:
+        for scope, setup in (("candidate", lambda: None),
+                             ("authored", self._add_authored),
+                             ("refined", self._add_promoted_refine)):
+            with self.subTest(scope=scope):
+                self.setUp()
+                self._arm(scope)
+                setup()
+                dispatch_id = self._tick()["detail"]["dispatch_id"]
+                self._finish_run()
+                self._tick()
+                path = backlog_dispatch.events_path(self.corpus_root, dispatch_id)
+                self.assertEqual(validate_file(path), [])
+                for event in self._events(dispatch_id):
+                    validate_event(event)
+
+    def test_the_experiment_id_namespaces_authored_and_refined_briefs(self) -> None:
+        self._arm("authored")
+        self._add_authored()
+        self.assertEqual(self._tick()["detail"]["experiment_id"],
+                         "authored:0001-authored_thing")
+        self.setUp()
+        self._arm("refined")
+        intent_id = self._add_promoted_refine()
+        self.assertEqual(self._tick()["detail"]["experiment_id"],
+                         f"refined:{intent_id}")
+
+    def test_exactly_one_ccmeta_header_reaches_the_inbox(self) -> None:
+        """The B-03 double-header bug, stated as the property that fixes it:
+        the body submit_task writes must contain exactly one header, and that
+        header must carry the brief's own requires/max_age_s."""
+        self._arm("refined")
+        self._add_promoted_refine()
+        self._tick()
+        kwargs = self.submits[0]
+        body = _ccmeta_header(
+            kwargs["builders"] or ["cc-builder-2", "cc-builder-3"],
+            task_class=kwargs["task_class"], est_tokens=kwargs["est_tokens"],
+            est_tokens_source="caller", requires=kwargs["requires"],
+            max_age_s=kwargs["max_age_s"]) + kwargs["prompt"]
+        self.assertEqual(body.count("<!-- CCMETA"), 1)
+        header = json.loads(body.split("<!-- CCMETA\n", 1)[1].split("\n-->", 1)[0])
+        self.assertEqual(header["requires"], ["docs/plan.md"])
+        self.assertEqual(kwargs["requires"], ["docs/plan.md"])
+        self.assertIsNone(kwargs["max_age_s"])
+        self.assertNotIn("max_age_s", header)
+
+    def test_the_tick_writes_nothing_outside_the_corpus_and_arm_roots(self) -> None:
+        self._arm("candidate")
+        self._tick()
+        self.assertFalse(backlog_sources.DEFAULT_BACKLOG_ROOT.exists())
+        self.assertFalse((drain.DEFAULT_CORPUS_ROOT / "runs"
+                          / backlog_dispatch.RUN_NAMESPACE).exists())
+
+
+class CrashMatrixTests(_CycleHarness):
+    """Persist-first, proven by killing the tick at each numbered point.
+
+    Every case is: crash at the point, then run the NEXT tick against the state
+    that is actually on disk, and assert what it reconstructs. No sleeps, no
+    timing -- ``crash_after`` raises deterministically."""
+
+    def _crash(self, point: str, **overrides) -> None:
+        with self.assertRaises(drain.InjectedCrash):
+            self._tick(crash_after=point, **overrides)
+
+    def test_the_crash_points_are_the_ones_the_tick_actually_offers(self) -> None:
+        self.assertEqual(len(set(drain.CRASH_POINTS)), len(drain.CRASH_POINTS))
+
+    def test_1_after_lease_nothing_is_written_and_the_next_tick_dispatches(self) -> None:
+        self._arm("candidate")
+        self._crash("lease")
+        self.assertIsNone(self._slot())
+        self.assertEqual(self._run_dirs(), [])
+        self.assertEqual(self.submits, [])
+        report = self._tick()
+        self.assertTrue(report["reason"].startswith("dispatched:"))
+        self.assertEqual(len(self._published_plans()), 1)
+        self.assertEqual(len(self.submits), 1)
+
+    def test_2_after_the_plan_artifact_the_orphan_is_inert(self) -> None:
+        """RULE: an unpublished plan in a run dir with no slot is neither
+        resumed nor deleted. It is the record that an attempt began, and it is
+        invisible to the projection (the ref it would be found by was never
+        written), so it cannot suppress its own candidate."""
+        self._arm("candidate")
+        self._crash("plan_artifact")
+        self.assertIsNone(self._slot())
+        self.assertEqual(len(self._pending_plans()), 1)
+        self.assertEqual(self._published_plans(), [])
+        self.assertEqual(self.submits, [])
+        report = self._tick()
+        self.assertTrue(report["reason"].startswith("dispatched:"))
+        self.assertEqual(len(self._published_plans()), 1,
+                         "exactly one plan is ever published for one dispatch")
+        self.assertEqual(len(self.submits), 1)
+
+    def test_3_after_the_dispatch_event_there_is_still_only_one_submit(self) -> None:
+        self._arm("candidate")
+        self._crash("dispatch_event")
+        orphan = self._run_dirs()[0].name
+        self.assertEqual(len(self._events(orphan)), 1)
+        self.assertIsNone(self._slot())
+        self.assertEqual(self.submits, [])
+
+        report = self._tick()
+        self.assertTrue(report["reason"].startswith("dispatched:"))
+        self.assertEqual(len(self.submits), 1,
+                         "the crashed attempt never submitted, so the total is one")
+        self.assertEqual([kw["plan_id_hint"] for kw in self.submits],
+                         ["candidate-bbb_high"])
+        # The orphan run never published its plan, so the projection sees no
+        # experiment for it and the candidate is not falsely suppressed.
+        self.assertEqual(len(self._published_plans()), 1)
+        self.assertNotIn(orphan, str(self._published_plans()[0]))
+
+    def test_4_after_the_slot_the_next_tick_reconciles_never_submitted(self) -> None:
+        self._arm("candidate")
+        self._crash("slot")
+        slot = self._slot()
+        self.assertIsNotNone(slot)
+        self.assertEqual(backlog_dispatch.in_flight_phase(slot),
+                         backlog_dispatch.PHASE_PREPARED)
+        dispatch_id = slot["dispatch_id"]
+
+        report = self._tick()
+        self.assertEqual(report["reason"], "reconciled:never-submitted")
+        self.assertIsNone(self._slot())
+        self.assertEqual(self.submits, [], "submit count 0 for that experiment")
+        events = self._events(dispatch_id)
+        self.assertEqual(len(events), 2)
+        self.assertEqual(events[1]["outcome"], "reconciled_never_submitted")
+        self.assertEqual(self._published_plans(), [],
+                         "a dispatch that never happened must not suppress itself")
+        # ...and the candidate is still selectable on the tick after that.
+        self.assertEqual(self._tick()["detail"]["source_ref"], "bbb_high")
+
+    def test_4b_after_the_attempt_flag_the_lane_fails_closed(self) -> None:
+        """The one genuinely ambiguous point. The submit call was entered and
+        never returned a plan_id, so whether the inbox write landed is unknown
+        and no primitive can answer it. Holding the slot is the only safe
+        answer: a second dispatch beside a live run is the failure this whole
+        item exists to prevent."""
+        self._arm("candidate")
+        self._crash("submit_attempt")
+        self.assertEqual(backlog_dispatch.in_flight_phase(self._slot()),
+                         backlog_dispatch.PHASE_ATTEMPTED)
+        for _ in range(3):
+            report = self._tick()
+            self.assertEqual(report["reason"], "in-flight:submit-outcome-unknown")
+            self.assertIsNotNone(self._slot())
+            self.assertEqual(self.submits, [])
+
+    def test_5_after_submit_the_slot_holds_rather_than_re_dispatching(self) -> None:
+        self._arm("candidate")
+        self._crash("submit")
+        self.assertEqual(len(self.submits), 1, "the brief DID reach the conductor")
+        self.assertEqual(backlog_dispatch.in_flight_phase(self._slot()),
+                         backlog_dispatch.PHASE_ATTEMPTED)
+        report = self._tick()
+        self.assertEqual(report["reason"], "in-flight:submit-outcome-unknown")
+        self.assertEqual(len(self.submits), 1, "never a second dispatch")
+
+    def test_6_after_the_slot_update_the_run_is_simply_in_flight(self) -> None:
+        self._arm("candidate")
+        self._crash("slot_submitted")
+        slot = self._slot()
+        self.assertEqual(backlog_dispatch.in_flight_phase(slot),
+                         backlog_dispatch.PHASE_SUBMITTED)
+        self.assertTrue(slot["inbox_path"])
+        self.assertEqual(self._tick()["reason"], "in-flight")
+        self.assertEqual(len(self.submits), 1)
+
+    def test_6_the_unpublished_plan_is_published_by_the_write_back(self) -> None:
+        self._arm("candidate")
+        self._crash("slot_submitted")
+        self.assertEqual(len(self._pending_plans()), 1)
+        self.assertEqual(self._published_plans(), [])
+        self._finish_run()
+        report = self._tick()
+        self.assertEqual(report["reason"], "observed:succeeded")
+        self.assertTrue(report["detail"]["plan_published"])
+        self.assertEqual(len(self._published_plans()), 1)
+        self.assertEqual(self._pending_plans(), [])
+
+    def test_7_after_submit_the_authored_file_moves_on_the_next_opportunity(self) -> None:
+        self._arm("authored")
+        path = self._add_authored()
+        self._crash("publish")
+        self.assertTrue(path.exists(), "mark_dispatched never ran")
+        plan_id = self._slot()["plan_id"]
+        self._finish_run()
+        report = self._tick()
+        self.assertEqual(report["detail"]["backlog_move"],
+                         {"dispatched": "moved", "done": "moved"})
+        self.assertFalse(path.exists())
+        self.assertTrue((self.done_dir / f"{plan_id}.md").is_file())
+
+    def test_8_a_crash_after_the_observation_never_appends_it_twice(self) -> None:
+        self._arm("candidate")
+        dispatch_id = self._tick()["detail"]["dispatch_id"]
+        self._finish_run()
+        self._crash("observation")
+        self.assertEqual(len(self._events(dispatch_id)), 2)
+        self.assertFalse(backlog_dispatch.observed_marker_path(
+            self.corpus_root, dispatch_id, "bbb_high").is_file(),
+            "the marker was not reached")
+        self.assertIsNotNone(self._slot(), "the slot is cleared last")
+
+        report = self._tick()
+        self.assertEqual(report["reason"], "observed:succeeded")
+        self.assertTrue(report["detail"]["observation_already_recorded"])
+        self.assertEqual(len(self._events(dispatch_id)), 2,
+                         "the deterministic event_id is the real guard")
+        self.assertIsNone(self._slot())
+
+    def test_9_a_crash_after_the_marker_clears_the_slot_and_appends_nothing(self) -> None:
+        self._arm("candidate")
+        dispatch_id = self._tick()["detail"]["dispatch_id"]
+        self._finish_run()
+        self._crash("observed_marker")
+        self.assertTrue(backlog_dispatch.observed_marker_path(
+            self.corpus_root, dispatch_id, "bbb_high").is_file())
+        self.assertIsNotNone(self._slot())
+
+        report = self._tick()
+        self.assertEqual(report["reason"], "observed:succeeded")
+        self.assertEqual(len(self._events(dispatch_id)), 2)
+        self.assertIsNone(self._slot())
+
+    def test_10_after_the_slot_clear_the_lane_is_clean(self) -> None:
+        self._arm("candidate")
+        dispatch_id = self._tick()["detail"]["dispatch_id"]
+        self._finish_run()
+        self._tick()
+        self.assertIsNone(self._slot())
+        before = self._events(dispatch_id)
+        _write_json(self.results_path, {"results": [
+            {"contract_version": "experiment-result.v1", "experiment_id": "bbb_high"}]})
+        self.status = {"ok": True, "done": False}
+        report = self._tick()
+        self.assertTrue(report["reason"].startswith("dispatched:"))
+        self.assertEqual(report["detail"]["source_ref"], "ccc_mid")
+        self.assertEqual(self._events(dispatch_id), before)
+
+    def test_a_failed_submit_records_the_failure_and_frees_the_slot(self) -> None:
+        self._arm("candidate")
+        report = self._tick(submit_task_fn=lambda **kw: {"ok": False,
+                                                         "error": "ssh timeout"})
+        self.assertEqual(report["reason"], "no-op:dispatch-failed")
+        self.assertIsNone(self._slot())
+        dispatch_id = report["detail"]["dispatch_id"]
+        events = self._events(dispatch_id)
+        self.assertEqual(len(events), 2)
+        self.assertEqual(events[1]["outcome"], "dispatch_failed")
+        self.assertEqual(events[1]["payload"]["submit_error"], "ssh timeout")
+        # The plan stays unpublished: nothing ran, so nothing may be suppressed.
+        self.assertEqual(self._published_plans(), [])
+        self.assertEqual(len(self._pending_plans()), 1)
+        self.assertEqual(self._tick()["detail"]["source_ref"], "bbb_high",
+                         "a failed dispatch leaves the candidate selectable")
+
+    def test_every_crash_point_leaves_a_readable_arm_file(self) -> None:
+        """The slot lives in the arm file, so a torn write there is a lost or
+        phantom run, not a cosmetic problem."""
+        for point in drain.CRASH_POINTS:
+            with self.subTest(point=point):
+                self.setUp()
+                self._arm("candidate")
+                if point in ("observation", "observed_marker"):
+                    self._tick()
+                    self._finish_run()
+                with self.assertRaises(drain.InjectedCrash):
+                    self._tick(crash_after=point)
+                state = drain.load_arm_state(self.arm_path)
+                self.assertTrue(state["armed"], f"{point} left the arm file unreadable")
+                self.assertEqual(state["scope"], "candidate")
+
+
+class DisarmedWithInFlightTests(_CycleHarness):
+    def test_disarm_leaves_the_run_alone_and_status_says_so(self) -> None:
+        self._arm("candidate")
+        self._tick()
+        plan_id = self._slot()["plan_id"]
+        drain.set_armed(False, "pulling the switch", path=self.arm_path)
+        slot = self._slot()
+        self.assertIsNotNone(slot, "the conductor owns that run; forgetting it "
+                                   "would neither stop it nor find its result")
+        self.assertEqual(slot["plan_id"], plan_id)
+        status = drain.status_report(self.arm_path)
+        self.assertTrue(status["disarmed_with_in_flight"])
+        self.assertEqual(status["in_flight_phase"], backlog_dispatch.PHASE_SUBMITTED)
+
+    def test_a_disarmed_tick_still_writes_back_a_finished_run(self) -> None:
+        """Recording the truth is not dispatch."""
+        self._arm("candidate")
+        dispatch_id = self._tick()["detail"]["dispatch_id"]
+        drain.set_armed(False, "pulling the switch", path=self.arm_path)
+        self._finish_run()
+        report = self._tick()
+        self.assertEqual(report["reason"], "disarmed")
+        self.assertTrue(report["detail"]["disarmed_with_in_flight"])
+        self.assertEqual(report["detail"]["in_flight_action"], "observed:succeeded")
+        self.assertEqual(len(self._events(dispatch_id)), 2)
+        self.assertIsNone(self._slot())
+
+    def test_a_disarmed_tick_never_dispatches_after_the_write_back(self) -> None:
+        self._arm("candidate")
+        self._tick()
+        drain.set_armed(False, "pulling the switch", path=self.arm_path)
+        self._finish_run()
+        self._tick()
+        report = self._tick()
+        self.assertEqual(report["reason"], "disarmed")
+        self.assertEqual(len(self.submits), 1)
+        self.assertEqual(len(self._run_dirs()), 1)
+
+    def test_a_disarmed_tick_with_a_running_job_reports_it_and_holds(self) -> None:
+        self._arm("candidate")
+        self._tick()
+        drain.set_armed(False, "pulling the switch", path=self.arm_path)
+        report = self._tick()
+        self.assertEqual(report["reason"], "disarmed")
+        self.assertEqual(report["detail"]["in_flight_action"], "in-flight")
+        self.assertIsNotNone(self._slot())
+
+    def test_a_disarmed_tick_leaves_a_legacy_slot_completely_alone(self) -> None:
+        """The live arm file on OMEN is exactly this shape: v1, armed, carrying
+        a July last_dispatch_plan_id, and loading as DISARMED for want of a
+        scope. Resolving that slot would mean an SSH round trip and a rewrite of
+        a human-authored file -- for no record at all, since there is no run
+        directory behind it."""
+        _write_json(self.arm_path, dict(_V1_ARM_FILE))
+        before = self.arm_path.read_bytes()
+        probed: list = []
+        report = self._tick(task_status_fn=lambda p: probed.append(p) or
+                            {"ok": True, "done": True})
+        self.assertEqual(report["reason"], "disarmed")
+        self.assertTrue(report["detail"]["disarmed_with_in_flight"])
+        self.assertEqual(report["detail"]["in_flight_action"], "untouched:legacy-slot")
+        self.assertEqual(probed, [], "a disarmed tick asks the conductor nothing")
+        self.assertEqual(self.arm_path.read_bytes(), before,
+                         "a disarmed tick must not repair the file")
+        self.assertEqual(self._run_dirs(), [])
+
+    def test_re_arming_migrates_the_legacy_slot_and_the_armed_tick_resolves_it(self) -> None:
+        _write_json(self.arm_path, dict(_V1_ARM_FILE))
+        drain.set_armed(True, "re-armed after the scope contract", path=self.arm_path,
+                        scope="candidate")
+        on_disk = json.loads(self.arm_path.read_text(encoding="utf-8"))
+        self.assertNotIn("last_dispatch_plan_id", on_disk)
+        self.assertEqual(on_disk["in_flight"]["plan_id"],
+                         _V1_ARM_FILE["last_dispatch_plan_id"])
+        report = self._tick(task_status_fn=lambda p: {"ok": True, "done": True})
+        self.assertTrue(report["reason"].startswith("observed:"))
+        self.assertTrue(report["detail"]["legacy_slot"])
+        self.assertIsNone(self._slot())
+
+    def test_status_on_a_clean_lane_reports_no_slot(self) -> None:
+        self._arm("candidate")
+        status = drain.status_report(self.arm_path)
+        self.assertFalse(status["disarmed_with_in_flight"])
+        self.assertIsNone(status["in_flight_phase"])
+
+
+class InFlightGateTests(_CycleHarness):
+    def test_an_unreachable_conductor_holds_the_slot_instead_of_clearing_it(self) -> None:
+        """The old behaviour cleared the slot on ok:false so the drain would not
+        wedge on an SSH hiccup -- which let a SECOND dispatch start beside a
+        live run. Unreachable is not resolved."""
+        self._arm("candidate")
+        self._tick()
+        plan_id = self._slot()["plan_id"]
+        report = self._tick(task_status_fn=lambda p: {"ok": False,
+                                                      "error": "ssh exit 255"})
+        self.assertEqual(report["reason"], "in-flight:status-unreachable")
+        self.assertIn("ssh exit 255", report["detail"]["status_error"])
+        self.assertEqual(self._slot()["plan_id"], plan_id)
+        self.assertEqual(len(self.submits), 1)
+
+    def test_a_raising_task_status_holds_the_slot_too(self) -> None:
+        self._arm("candidate")
+        self._tick()
+
+        def boom(plan_id):
+            raise TimeoutError("conductor unreachable")
+
+        report = self._tick(task_status_fn=boom)
+        self.assertEqual(report["reason"], "in-flight:status-unreachable")
+        self.assertIn("TimeoutError", report["detail"]["status_error"])
+        self.assertIsNotNone(self._slot())
+
+    def test_a_nonsense_task_status_shape_holds_the_slot(self) -> None:
+        self._arm("candidate")
+        self._tick()
+        report = self._tick(task_status_fn=lambda p: "not a dict")
+        self.assertEqual(report["reason"], "in-flight:status-unreachable")
+        self.assertIsNotNone(self._slot())
+
+    def test_the_in_flight_gate_runs_before_the_queue_and_occupancy_probes(self) -> None:
+        self._arm("candidate")
+        self._tick()
+        probed: list = []
+        report = self._tick(queue_status_fn=lambda: probed.append("queue") or _idle_queue(),
+                            occupancy_check=lambda n: probed.append("occ") or
+                            {"occupancy": "available"})
+        self.assertEqual(report["reason"], "in-flight")
+        self.assertEqual(probed, [], "a held slot ends the tick before any probe")
+
+    def test_a_missing_in_flight_key_on_a_valid_v2_file_is_an_empty_slot(self) -> None:
+        _write_json(self.arm_path, {
+            "contract_version": "bankedfire-drain-arm.v2", "armed": True,
+            "scope": "candidate", "authored_by": "derek", "reason": "r",
+            "updated": "2026-09-07T10:00:00Z"})
+        self.assertIsNone(drain.load_arm_state(self.arm_path)["in_flight"])
+        self.assertTrue(self._tick()["reason"].startswith("dispatched:"))
+
+    def test_a_junk_in_flight_value_is_an_empty_slot(self) -> None:
+        for junk in ("hearth-x-1", [], 0, {}):
+            with self.subTest(junk=junk):
+                self.setUp()
+                _write_json(self.arm_path, {
+                    "contract_version": "bankedfire-drain-arm.v2", "armed": True,
+                    "scope": "candidate", "authored_by": "derek", "reason": "r",
+                    "updated": "2026-09-07T10:00:00Z", "in_flight": junk})
+                self.assertIsNone(drain.load_arm_state(self.arm_path)["in_flight"])
+
+
+class BudgetAndOccupancyGateTests(_CycleHarness):
+    """The gates, asserted on the tick (not just on check_budget), and asserted
+    to write NOTHING when they refuse."""
+
+    def _assert_refused(self, report, reason: str) -> None:
+        self.assertEqual(report["reason"], reason)
+        self.assertIsNone(self._slot())
+        self.assertEqual(self._run_dirs(), [])
+        self.assertEqual(self.submits, [])
+
+    def test_a_suspended_budget_names_the_failing_field(self) -> None:
+        self._arm("candidate")
+        _write_json(self.budget_path, {**_GOOD_BUDGET, "suspended": True})
+        report = self._tick()
+        self._assert_refused(report, "no-budget")
+        self.assertEqual(report["detail"]["budget_fail_field"], "suspended")
+
+    def test_unattended_dispatch_not_allowed_names_its_field(self) -> None:
+        self._arm("candidate")
+        _write_json(self.budget_path, {**_GOOD_BUDGET,
+                                       "unattended_dispatch_allowed": False})
+        report = self._tick()
+        self._assert_refused(report, "no-budget")
+        self.assertEqual(report["detail"]["budget_fail_field"],
+                         "unattended_dispatch_allowed")
+
+    def test_outside_active_hours_names_its_field(self) -> None:
+        # The tick's clock is injectable, so the window gate is deterministic
+        # rather than "whatever time the suite happened to run".
+        self._arm("candidate")
+        _write_json(self.budget_path, {**_GOOD_BUDGET,
+                                       "active_hours": {"start": "09:00", "end": "17:00"}})
+        outside = datetime(2026, 7, 4, 3, 0, tzinfo=timezone.utc)
+        report = self._tick(now=outside)
+        self._assert_refused(report, "no-budget")
+        self.assertEqual(report["detail"]["budget_fail_field"], "active_hours")
+
+    def test_inside_active_hours_dispatches(self) -> None:
+        self._arm("candidate")
+        _write_json(self.budget_path, {**_GOOD_BUDGET,
+                                       "active_hours": {"start": "09:00", "end": "17:00"}})
+        inside = datetime(2026, 7, 4, 12, 0, tzinfo=timezone.utc)
+        report = self._tick(now=inside)
+        self.assertTrue(report["reason"].startswith("dispatched:"))
+        events = self._events(report["detail"]["dispatch_id"])
+        self.assertEqual(events[0]["timestamp"], "2026-07-04T12:00:00Z",
+                         "the injected clock is the one the corpus records")
+
+    def test_an_unreadable_budget_writes_nothing(self) -> None:
+        self._arm("candidate")
+        self.budget_path.unlink()
+        report = self._tick()
+        self._assert_refused(report, "no-budget")
+        self.assertEqual(report["detail"]["budget_fail_field"], "unreadable")
+
+    def test_a_busy_queue_writes_nothing(self) -> None:
+        self._arm("candidate")
+        self._assert_refused(self._tick(queue_status_fn=lambda: {**_idle_queue(),
+                                                                "running": 1}), "busy")
+
+    def test_an_unreadable_queue_writes_nothing(self) -> None:
+        self._arm("candidate")
+        self._assert_refused(
+            self._tick(queue_status_fn=lambda: {"ok": False, "error": "ssh exit 255"}),
+            "busy:queue-unreadable")
+
+    def test_a_busy_rung_writes_nothing(self) -> None:
+        self._arm("candidate")
+        self._assert_refused(
+            self._tick(occupancy_check=lambda n: {"occupancy": "busy"}), "busy")
+
+    def test_a_refused_lease_writes_nothing(self) -> None:
+        self._arm("candidate")
+        self._assert_refused(
+            self._tick(acquire_lease=lambda n, pinned=False: _FakeLease(False, "busy")),
+            "busy")
+
+    def test_a_disarmed_tick_writes_nothing(self) -> None:
+        self._assert_refused(self._tick(), "disarmed")
+
+
+class SuppressionLoopTests(_CycleHarness):
+    """The loop closed with the REAL projector, over a temp corpus.
+
+    ``project_experiments.materialize_experiments`` is what builds
+    ``knowledge/experiment_results.json`` in production; it is called here
+    unchanged, against the events and artifacts the drain actually wrote, into a
+    temp knowledge dir. Nothing reads or writes the repo's own corpus."""
+
+    def _rebuild(self) -> dict:
+        from tools.workflow.project_experiments import (RESULTS_FILE,
+                                                        materialize_experiments)
+        event_files = sorted((self.corpus_root / "runs").rglob("events.jsonl"))
+        knowledge = self.tmp / "knowledge"
+        outputs = materialize_experiments(event_files, knowledge)
+        self.rebuilt_results_path = knowledge / RESULTS_FILE
+        return outputs[RESULTS_FILE]
+
+    def test_a_completed_cycle_becomes_a_result_row_that_suppresses_it(self) -> None:
+        self._arm("candidate")
+        self._tick()
+        self._finish_run(ok=True, winner="cc-builder-2")
+        self._tick()
+
+        results = self._rebuild()
+        self.assertEqual(results["plan_count"], 1)
+        self.assertEqual(results["unresolved_refs"], 0)
+        row = results["results"][0]
+        self.assertEqual(row["contract_version"], "experiment-result.v1")
+        self.assertEqual(row["experiment_id"], "bbb_high")
+        self.assertEqual(row["outcome"], "success",
+                         "the capacity observation joined to the plan")
+
+        # The projected file is what the selection reads. Point the tick at it.
+        self.assertIn("bbb_high", backlog_sources.already_run_ids(results["results"]))
+        report = self._tick(results_path=self.rebuilt_results_path)
+        self.assertTrue(report["reason"].startswith("dispatched:"))
+        self.assertEqual(report["detail"]["source_ref"], "ccc_mid",
+                         "the finished candidate is ineligible after the rebuild")
+
+    def test_a_run_that_never_reached_the_conductor_produces_no_result_row(self) -> None:
+        """The .pending rule, proven through the projector: an unpublished plan
+        leaves the artifact ref unresolved, so no row exists and the candidate
+        is still selectable."""
+        self._arm("candidate")
+        with self.assertRaises(drain.InjectedCrash):
+            self._tick(crash_after="slot")
+        self._tick()  # reconciles never-submitted
+
+        results = self._rebuild()
+        self.assertEqual(results["plan_count"], 0)
+        self.assertEqual(results["unresolved_refs"], 1,
+                         "the aborted attempt is COUNTED, not silently dropped")
+        self.assertEqual(backlog_sources.already_run_ids(results["results"]), set())
+        report = self._tick(results_path=self.rebuilt_results_path)
+        self.assertEqual(report["detail"]["source_ref"], "bbb_high")
+
+    def test_a_failed_run_still_suppresses_the_candidate(self) -> None:
+        """A dispatch that ran and failed HAS been tried; re-dispatching it every
+        30 minutes forever is the bug this item exists to fix."""
+        self._arm("candidate")
+        self._tick()
+        self._finish_run(ok=False, winner="cc-builder-3")
+        self._tick()
+        results = self._rebuild()
+        self.assertEqual(results["results"][0]["experiment_id"], "bbb_high")
+        self.assertEqual(results["results"][0]["outcome"], "error")
+        self.assertEqual(self._tick(results_path=self.rebuilt_results_path)
+                         ["detail"]["source_ref"], "ccc_mid")
+
+    def test_a_run_with_no_winner_records_a_row_with_no_observation(self) -> None:
+        self._arm("candidate")
+        self._tick()
+        self._finish_run(ok=True, winner=None)
+        self._tick()
+        results = self._rebuild()
+        row = results["results"][0]
+        self.assertEqual(row["experiment_id"], "bbb_high")
+        self.assertEqual(row["outcome"], "no_observation")
+        self.assertEqual(row["observation_ids"], [])
+
+    def test_two_cycles_produce_two_distinct_rows(self) -> None:
+        self._arm("candidate")
+        self._tick()
+        self._finish_run()
+        self._tick()
+        first = self._rebuild()
+        self.status = {"ok": True, "done": False}
+        self._tick(results_path=self.rebuilt_results_path)
+        self._finish_run()
+        self._tick()
+        second = self._rebuild()
+        self.assertEqual(first["plan_count"], 1)
+        self.assertEqual(second["plan_count"], 2)
+        self.assertEqual({row["experiment_id"] for row in second["results"]},
+                         {"bbb_high", "ccc_mid"})
+
+
+class BenignNoOpCLITests(TestCase):
+    """`python -m fleet.bankedfire_drain --json` under a temp HEARTH_ROOT."""
+
+    def setUp(self) -> None:
+        self.tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.live_arm = drain.DEFAULT_ARM_STATE_PATH
+        self.live_arm_existed = self.live_arm.exists()
+        self.live_corpus = drain.DEFAULT_CORPUS_ROOT / "runs" / backlog_dispatch.RUN_NAMESPACE
+        self.live_corpus_existed = self.live_corpus.exists()
+
+    def _run(self, argv):
+        buffer = io.StringIO()
+        with mock.patch.dict(os.environ, {"HEARTH_ROOT": str(self.tmp)}), \
+                contextlib.redirect_stdout(buffer):
+            code = drain.main(argv)
+        return code, buffer.getvalue()
+
+    def test_the_arm_path_follows_hearth_root(self) -> None:
+        with mock.patch.dict(os.environ, {"HEARTH_ROOT": str(self.tmp)}):
+            self.assertEqual(drain.default_arm_state_path(),
+                             self.tmp.resolve() / "var" / drain.ARM_STATE_FILENAME)
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(drain.default_arm_state_path(),
+                             drain.DEFAULT_ARM_STATE_PATH)
+
+    def test_no_arm_file_is_a_disarmed_no_op_that_exits_zero(self) -> None:
+        code, out = self._run(["--json"])
+        self.assertEqual(code, 0)
+        report = json.loads(out)
+        self.assertEqual(report["reason"], "disarmed")
+        self.assertFalse(report["detail"]["armed"])
+
+    def test_the_no_op_creates_nothing_outside_the_temp_root(self) -> None:
+        self._run(["--json"])
+        self.assertEqual(self.live_arm.exists(), self.live_arm_existed,
+                         "the live arm file must not be created or removed")
+        self.assertEqual(self.live_corpus.exists(), self.live_corpus_existed,
+                         "the live drain corpus must not be created")
+        self.assertTrue((self.tmp / "var" / "ledger").is_dir(),
+                        "the tick's ledger row landed inside the temp root")
+
+    def test_status_reports_the_derived_flags(self) -> None:
+        code, out = self._run(["--status"])
+        self.assertEqual(code, 0)
+        status = json.loads(out)
+        self.assertFalse(status["armed"])
+        self.assertIsNone(status["in_flight_phase"])
+        self.assertFalse(status["disarmed_with_in_flight"])
 
 
 class CLITests(TestCase):

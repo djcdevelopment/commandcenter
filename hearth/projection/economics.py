@@ -105,6 +105,91 @@ def _finalize(bucket: dict) -> dict:
     return bucket
 
 
+# C-06: per-caller / per-task attribution over the SAME event filter the buckets
+# use. An event whose caller.id or task_id is null, missing, blank, or not a
+# string is counted under this one key rather than dropped -- a dimension that
+# silently discards rows cannot satisfy sum(rows) == totals, and "we do not know
+# whose this was" is itself a finding worth reading off the document.
+UNSTAMPED_KEY = "(unstamped)"
+
+# Top-N bound for both dimensions. The ledger has an unbounded number of task
+# ids (one per session, forever), so an unbounded array would grow without
+# limit inside a document every reader loads whole. 50 is also the schema's
+# maxItems -- raising it here without raising it there produces a document that
+# fails its own contract.
+DEFAULT_TOP_N = 50
+
+
+def _dimension_key(value: object) -> str:
+    """The row key for a dimension value: the string itself, or UNSTAMPED_KEY."""
+    if isinstance(value, str) and value.strip():
+        return value
+    return UNSTAMPED_KEY
+
+
+def _empty_dimension_acc(key: str) -> dict:
+    return {
+        "key": key,
+        "calls": 0,
+        "ok": 0,
+        "tokens_in": 0,
+        "tokens_out": 0,
+        # calls per cost class -- the row emits these three counts verbatim.
+        "per_class": {"sunk": 0, "trial": 0, "unknown": 0},
+        # Offloaded (sunk+trial) tokens: the two inputs the document's
+        # est_usd_saved is computed from, kept per row so the row's dollar
+        # figure is the SAME arithmetic rather than a second formula. Internal
+        # -- the row emits the dollars, not these.
+        "offloaded_in": 0,
+        "offloaded_out": 0,
+        "last_seen": None,
+        # Internal ordering key only (see _parse_ts / the buckets loop): never
+        # emitted, because a datetime would raise on json.dumps.
+        "last_seen_moment": None,
+    }
+
+
+def _add_dimension(acc: dict, cost_class: str, ok: bool, tokens_in: int, tokens_out: int,
+                   ts: str | None, moment: datetime | None) -> None:
+    acc["calls"] += 1
+    if ok:
+        acc["ok"] += 1
+    acc["tokens_in"] += tokens_in
+    acc["tokens_out"] += tokens_out
+    acc["per_class"][cost_class] += 1
+    if cost_class in ("sunk", "trial"):
+        acc["offloaded_in"] += tokens_in
+        acc["offloaded_out"] += tokens_out
+    if moment is not None and (acc["last_seen_moment"] is None or moment > acc["last_seen_moment"]):
+        acc["last_seen_moment"] = moment
+        acc["last_seen"] = ts
+
+
+def _finalize_dimension(data: dict[str, dict], top_n: int) -> tuple[list[dict], bool, int]:
+    """(rows, truncated, omitted) for one attribution dimension.
+
+    Ordering is fixed and total: calls descending, then key ascending, so the
+    document is a pure function of the ledger bytes even when two keys tie.
+    """
+    ordered = sorted(data.values(), key=lambda acc: (-acc["calls"], acc["key"]))
+    kept = ordered[:top_n]
+    omitted = len(ordered) - len(kept)
+    rows = []
+    for acc in kept:
+        usd = (acc["offloaded_in"] * 3.0 + acc["offloaded_out"] * 15.0) / 1_000_000.0
+        rows.append({
+            "key": acc["key"],
+            "calls": acc["calls"],
+            "ok_rate": round(acc["ok"] / acc["calls"], 4) if acc["calls"] else 0.0,
+            "tokens_in": acc["tokens_in"],
+            "tokens_out": acc["tokens_out"],
+            "per_class": dict(acc["per_class"]),
+            "est_usd_saved_usd": round(usd, 6),
+            "last_seen": acc["last_seen"],
+        })
+    return rows, omitted > 0, omitted
+
+
 def summarize(ledger_path: Path = DEFAULT_LEDGER) -> dict:
     """Summarize the ledger. Returns
     {per_runner_class, per_tool, frontier_vs_local, events, parse_errors}."""
@@ -147,7 +232,8 @@ def summarize(ledger_path: Path = DEFAULT_LEDGER) -> dict:
     }
 
 
-def build_offload_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
+def build_offload_document(ledger_path: Path = DEFAULT_LEDGER, *,
+                           top_n: int = DEFAULT_TOP_N) -> dict:
     """Build the offload.v1 document from the ledger (S2, executor-aware).
 
     Scope: inference-class local_generate events only. Buckets by executor
@@ -160,7 +246,29 @@ def build_offload_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
     string order (see _parse_ts), and both emitted verbatim in the winning event's
     own format, so the document's timestamp spelling is whatever the ledger
     recorded. An event whose ts does not parse cannot win either one.
+
+    Attribution (C-06): `by_caller` and `by_task` answer "what did THIS caller /
+    THIS session save?" over the same event filter, with the same arithmetic --
+    a row's est_usd_saved_usd is the document's own est_usd_saved formula
+    (3.0/15.0 per Mtok of reference frontier price) applied to that row's
+    offloaded (sunk+trial) tokens. Untruncated, sum(rows.calls) == totals.calls
+    and the token sums match too, because a row is never dropped: an event with
+    no caller.id or no task_id lands under the single key "(unstamped)".
+
+    PRIVATE DOCUMENT. `by_caller[].key` is a `caller.id` -- an internal identity
+    from callers.json, not a public handle -- and `by_task[].key` is a caller-
+    chosen task/session id. This document is written to `knowledge/offload.json`,
+    which is private; nothing here is published. The public portfolio projection
+    (`hearth/projection/public_portfolio.py`) has its own explicit key allowlist
+    and does not read these keys. Counts, ids and timestamps only: no prompt
+    text, no arguments, no paths, no error strings ever enter this document.
+
+    `top_n` bounds each dimension (default 50, the schema's maxItems). What is
+    cut is stated, not silently dropped: `by_caller_truncated`/`by_task_truncated`
+    and `by_caller_omitted`/`by_task_omitted` say so on the document itself.
     """
+    if not isinstance(top_n, int) or isinstance(top_n, bool) or top_n < 1:
+        raise ValueError("top_n must be a positive integer")
     totals = {"calls": 0, "tokens_in": 0, "tokens_out": 0}
     per_class = {
         "sunk": {"calls": 0, "tokens_in": 0, "tokens_out": 0},
@@ -173,6 +281,8 @@ def build_offload_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
     # buckets land here), so the usd figure is honestly a floor, not a total.
     real = {"usd": 0.0, "priced_calls": 0, "unpriced_calls": 0}
     buckets_data = {}
+    by_caller_data: dict[str, dict] = {}
+    by_task_data: dict[str, dict] = {}
     newest_ts: str | None = None
     newest_moment: datetime | None = None
     line_count = 0
@@ -258,16 +368,29 @@ def build_offload_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
                     acc["real_usd"] = (acc["real_usd"] or 0.0) + call_usd
 
             ts = event.get("ts")
-            if isinstance(ts, str):
+            moment = _parse_ts(ts) if isinstance(ts, str) else None
+            if moment is not None:
                 # Order by parsed instant, emit the original string (see _parse_ts).
-                moment = _parse_ts(ts)
-                if moment is not None:
-                    if newest_moment is None or moment > newest_moment:
-                        newest_moment = moment
-                        newest_ts = ts
-                    if acc["last_seen_moment"] is None or moment > acc["last_seen_moment"]:
-                        acc["last_seen_moment"] = moment
-                        acc["last_seen"] = ts
+                if newest_moment is None or moment > newest_moment:
+                    newest_moment = moment
+                    newest_ts = ts
+                if acc["last_seen_moment"] is None or moment > acc["last_seen_moment"]:
+                    acc["last_seen_moment"] = moment
+                    acc["last_seen"] = ts
+
+            # C-06: the same event, attributed two more ways. Same filter, same
+            # cost class, same token counts -- so the dimensions cannot disagree
+            # with the totals they are read beside.
+            ok = bool(event.get("ok"))
+            caller_key = _dimension_key((event.get("caller") or {}).get("id")
+                                        if isinstance(event.get("caller"), dict) else None)
+            task_key = _dimension_key(event.get("task_id"))
+            _add_dimension(
+                by_caller_data.setdefault(caller_key, _empty_dimension_acc(caller_key)),
+                cost_class, ok, tokens_in, tokens_out, ts if moment is not None else None, moment)
+            _add_dimension(
+                by_task_data.setdefault(task_key, _empty_dimension_acc(task_key)),
+                cost_class, ok, tokens_in, tokens_out, ts if moment is not None else None, moment)
 
     buckets = []
     for bk, acc in buckets_data.items():
@@ -299,6 +422,9 @@ def build_offload_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
     offloaded_in = per_class["sunk"]["tokens_in"] + per_class["trial"]["tokens_in"]
     usd = (offloaded_in * 3.0 + offloaded_out * 15.0) / 1_000_000.0
 
+    by_caller, by_caller_truncated, by_caller_omitted = _finalize_dimension(by_caller_data, top_n)
+    by_task, by_task_truncated, by_task_omitted = _finalize_dimension(by_task_data, top_n)
+
     # Same content-shaped digest scheme capacity.json uses: changes iff the
     # ledger's non-blank line count changes, stable across checkouts.
     corpus_digest = f"sha256:{hashlib.sha256(f'events.ndjson:{line_count}'.encode('utf-8')).hexdigest()}"
@@ -323,6 +449,13 @@ def build_offload_document(ledger_path: Path = DEFAULT_LEDGER) -> dict:
             "unpriced_calls": real["unpriced_calls"],
         },
         "buckets": buckets,
+        # Attribution dimensions (C-06). Private identifiers; see the docstring.
+        "by_caller": by_caller,
+        "by_caller_truncated": by_caller_truncated,
+        "by_caller_omitted": by_caller_omitted,
+        "by_task": by_task,
+        "by_task_truncated": by_task_truncated,
+        "by_task_omitted": by_task_omitted,
         "corpus_digest": corpus_digest,
         "corpus_event_count": line_count,
     }

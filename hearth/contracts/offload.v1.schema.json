@@ -110,6 +110,56 @@
           "last_seen": { "type": ["string", "null"] }
         }
       }
+    },
+    "by_caller": {
+      "type": "array",
+      "maxItems": 50,
+      "description": "Per-caller attribution over the same events as buckets. Optional: absent on documents built before 2026-09-07. key is a caller.id -- a PRIVATE internal identity from callers.json. This document is private (knowledge/offload.json); it is never published, and the public portfolio projection has its own separate key allowlist. Counts, ids and timestamps only -- no prompt text, arguments, paths or error strings.",
+      "items": { "$ref": "#/$defs/attribution_row" }
+    },
+    "by_caller_truncated": { "type": "boolean" },
+    "by_caller_omitted": { "type": "integer", "minimum": 0 },
+    "by_task": {
+      "type": "array",
+      "maxItems": 50,
+      "description": "Per-task attribution over the same events as buckets. Optional: absent on documents built before 2026-09-07. key is the caller-supplied task_id; events with a null or missing task_id are aggregated under the single key \"(unstamped)\" so they are counted, never dropped.",
+      "items": { "$ref": "#/$defs/attribution_row" }
+    },
+    "by_task_truncated": { "type": "boolean" },
+    "by_task_omitted": { "type": "integer", "minimum": 0 }
+  },
+  "$defs": {
+    "attribution_row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key", "calls", "ok_rate", "tokens_in", "tokens_out", "per_class",
+        "est_usd_saved_usd", "last_seen"
+      ],
+      "properties": {
+        "key": { "type": "string" },
+        "calls": { "type": "integer", "minimum": 0 },
+        "ok_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "tokens_in": { "type": "integer", "minimum": 0 },
+        "tokens_out": { "type": "integer", "minimum": 0 },
+        "per_class": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sunk", "trial", "unknown"],
+          "description": "CALLS per cost class for this row (not tokens).",
+          "properties": {
+            "sunk": { "type": "integer", "minimum": 0 },
+            "trial": { "type": "integer", "minimum": 0 },
+            "unknown": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "est_usd_saved_usd": {
+          "type": "number",
+          "minimum": 0,
+          "description": "The document's own est_usd_saved formula (reference frontier price) applied to this row's offloaded (sunk+trial) tokens."
+        },
+        "last_seen": { "type": ["string", "null"] }
+      }
     }
   }
 }

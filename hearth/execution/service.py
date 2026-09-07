@@ -336,6 +336,7 @@ class ExecutionService:
             "files",
             "quality",
             "task_family",
+            "task_id",  # C-06: ledger attribution only; steers nothing
         }
         unknown = set(normalized) - allowed
         if unknown:

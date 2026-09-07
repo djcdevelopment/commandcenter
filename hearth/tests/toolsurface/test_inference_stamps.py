@@ -217,6 +217,149 @@ class DispatchStampTests(_StampFixture):
         self.assertEqual(event["occupancy"], "available")
 
 
+class TaskIdStampTests(_StampFixture):
+    """C-06 — session attribution: `task_id` rides the result as the private
+    `_ledger_task_id` hint (the same convention `_ledger_model` uses), so the
+    gateway can put it on the ledger row when the MCP `_meta` channel has none.
+
+    It is attribution, not routing: it must reach every returned result including
+    the failures, and must change nothing at all when it is absent.
+    """
+
+    @patch("hearth.toolsurface.inference._post")
+    def test_ok_result_carries_the_hint(self, mock_post) -> None:
+        mock_post.return_value = ({"response": "fine", "model": "m1"}, None)
+        result = local_generate("q", backend="omen-arc", task_id="cc-1a2b3c4d")
+        self.assertEqual(result[inference.LEDGER_TASK_ID_KEY], "cc-1a2b3c4d")
+
+    @patch("hearth.toolsurface.inference._post")
+    def test_failed_dispatch_carries_the_hint_too(self, mock_post) -> None:
+        """A session's failed calls are still its calls; a by_task row that
+        counted only the successes would flatter the session it describes."""
+        mock_post.return_value = (None, "connection refused")
+        result = local_generate("q", backend="omen-arc", task_id="cc-1a2b3c4d")
+        self.assertFalse(result["ok"])
+        self.assertEqual(result[inference.LEDGER_TASK_ID_KEY], "cc-1a2b3c4d")
+
+    def test_the_ask_path_carries_the_hint(self) -> None:
+        result = local_generate("q", quality="best", task_id="cc-1a2b3c4d")
+        self.assertTrue(result["ask"])
+        self.assertEqual(result[inference.LEDGER_TASK_ID_KEY], "cc-1a2b3c4d")
+
+    @patch("hearth.toolsurface.inference._post")
+    def test_a_routing_refusal_carries_the_hint(self, mock_post) -> None:
+        """ADR-0031: an over-budget pin is refused at the door. The refusal is a
+        ledger row too, and it belongs to the session that caused it."""
+        tiny_pool = self.tmp / "tiny.toml"
+        tiny_pool.write_text(textwrap.dedent("""
+            default = "tiny"
+            [[backend]]
+            name = "tiny"
+            endpoint = "http://127.0.0.1:9999"
+            api = "ollama"
+            models = ["m1"]
+            [backend.settings]
+            context_bytes = 16
+        """), encoding="utf-8")
+        with patch.dict(os.environ, {"HEARTH_BACKENDS": str(tiny_pool)}):
+            result = local_generate("q" * 4096, backend="tiny", task_id="cc-1a2b3c4d")
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error_code"], "routing_refusal")
+        self.assertEqual(result[inference.LEDGER_TASK_ID_KEY], "cc-1a2b3c4d")
+        mock_post.assert_not_called()
+
+    @patch("hearth.toolsurface.inference._post")
+    def test_absent_task_id_changes_nothing(self, mock_post) -> None:
+        mock_post.return_value = ({"response": "fine", "model": "m1"}, None)
+        result = local_generate("q", backend="omen-arc")
+        self.assertNotIn(inference.LEDGER_TASK_ID_KEY, result)
+
+    @patch("hearth.toolsurface.inference._post")
+    def test_an_invalid_task_id_is_rejected_before_any_dispatch(self, mock_post) -> None:
+        """Bounds and alphabet are enforced before packing, routing or a token is
+        spent -- a malformed identifier must not be discovered in the ledger."""
+        mock_post.return_value = ({"response": "fine", "model": "m1"}, None)
+        for bad in ("", "   ", "has space", "semi;colon", "brackets<>", "new\nline",
+                    "x" * 129, 7, ["cc-1"]):
+            with self.assertRaises(ValueError, msg=repr(bad)):
+                local_generate("q", backend="omen-arc", task_id=bad)
+        mock_post.assert_not_called()
+
+    @patch("hearth.toolsurface.inference._post")
+    def test_the_accepted_alphabet_is_exactly_the_declared_one(self, mock_post) -> None:
+        mock_post.return_value = ({"response": "fine", "model": "m1"}, None)
+        for good in ("cc-1a2b3c4d", "a", "x" * 128, "A.b_C:d-9", "codex.cli:42"):
+            result = local_generate("q", backend="omen-arc", task_id=good)
+            self.assertEqual(result[inference.LEDGER_TASK_ID_KEY], good)
+
+
+class ExecutionAdapterTaskIdTests(TestCase):
+    """The door lane (`_execution_local_generate`): task_id rides the job
+    arguments the way task_family does, and is restamped onto the PROJECTED
+    result — the projection is rebuilt from the job's observed fields, so the
+    primitive's own hint cannot survive the pipeline (the same reason
+    `_ledger_model` is restamped here)."""
+
+    @staticmethod
+    def _identity():
+        from hearth.observation.identity import DispatchIdentity, dispatch_identity
+        return dispatch_identity(DispatchIdentity("claude", "frontier", "omen",
+                                                  profile="research"))
+
+    def _run(self, **kwargs) -> tuple[dict, dict]:
+        captured: dict = {}
+
+        class _FakeService:
+            def execute_sync(self, **call):
+                captured.update(call)
+                return {"ok": True, "text": "ok", "model": "qwen3-30b-a3b"}
+
+        with patch("hearth.execution.defaults.get_execution_service",
+                   return_value=_FakeService()):
+            with self._identity():
+                result = inference._execution_local_generate("q", **kwargs)
+        return result, captured
+
+    def test_task_id_reaches_the_job_arguments_and_the_result(self) -> None:
+        result, captured = self._run(task_id="cc-1a2b3c4d")
+        self.assertEqual(captured["arguments"]["task_id"], "cc-1a2b3c4d")
+        self.assertEqual(result[inference.LEDGER_TASK_ID_KEY], "cc-1a2b3c4d")
+
+    def test_absent_task_id_is_not_added_to_the_arguments_or_the_result(self) -> None:
+        result, captured = self._run()
+        self.assertNotIn("task_id", captured["arguments"])
+        self.assertNotIn(inference.LEDGER_TASK_ID_KEY, result)
+
+    def test_an_invalid_task_id_is_rejected_before_the_job_is_admitted(self) -> None:
+        class _NeverService:
+            def execute_sync(self, **call):
+                raise AssertionError("dispatched despite an invalid task_id")
+
+        with patch("hearth.execution.defaults.get_execution_service",
+                   return_value=_NeverService()):
+            with self._identity():
+                with self.assertRaises(ValueError):
+                    inference._execution_local_generate("q", task_id="not a task id")
+
+    def test_the_service_argument_allowlist_admits_task_id(self) -> None:
+        """Without the allowlist line, the door lane would refuse its own
+        argument with "unknown inference.generate arguments: task_id"."""
+        from hearth.execution import load_operations
+        from hearth.execution.service import ExecutionService, ExecutionServiceError
+
+        operation = load_operations().get("inference.generate")
+        validate = ExecutionService._validate_arguments
+
+        normalized, _ = validate(None, operation,
+                                 {"prompt": "q", "task_id": "cc-1a2b3c4d"})
+        self.assertEqual(normalized["task_id"], "cc-1a2b3c4d")
+
+        # The allowlist is still closed: this is one named addition, not a hole.
+        with self.assertRaises(ExecutionServiceError):
+            validate(None, operation, {"prompt": "q", "task_identifier": "cc-1a2b3c4d"})
+
+
 class PoolConfigHashTests(TestCase):
     def setUp(self) -> None:
         self.tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))

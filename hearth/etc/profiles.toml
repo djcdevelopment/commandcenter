@@ -192,7 +192,7 @@ capabilities = [
 # the full surface because nobody had said otherwise; that is the thing being
 # fixed. Breadth is not the defect -- silence was.
 #
-# Assigned to: claude-frontier.
+# Assigned to: claude-frontier, codex-cli.
 # GRANTED: 2026-07-20.  REVIEW BY: 2026-10-20.
 # At review, check the ledger's per-caller capability usage (now attributable,
 # because every event carries `profile`) and decide whether this identity has

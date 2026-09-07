@@ -6,7 +6,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest import TestCase
 
-from hearth.projection.economics import build_offload_document, summarize
+from hearth.projection.economics import (
+    DEFAULT_TOP_N,
+    UNSTAMPED_KEY,
+    build_offload_document,
+    summarize,
+)
+
+SCHEMA_PATH = Path(__file__).resolve().parents[2] / "contracts" / "offload.v1.schema.json"
+
+# The marker a privacy proof needs: a string that exists ONLY in fields the
+# offload projection must never read (args_preview, error). If it can be found
+# anywhere in the serialized document, something started copying event fields
+# through instead of counting them.
+PROMPT_MARKER = "SECRET-PROMPT-MARKER-7f3a"
 
 
 def make_offload_event(backend: str, ts: str, *, model: str = "qwen", ok: bool = True) -> dict:
@@ -22,6 +35,30 @@ def make_offload_event(backend: str, ts: str, *, model: str = "qwen", ok: bool =
         "ok": ok,
         "cost": {"tokens_in": 10, "tokens_out": 20},
     }
+
+
+def make_attributed_event(backend: str, ts: str, *, caller_id: str | None = None,
+                          task_id: str | None = None, ok: bool = True,
+                          tokens_in: int = 10, tokens_out: int = 20,
+                          model: str = "qwen", args_preview: str | None = None,
+                          error: str | None = None) -> dict:
+    """An offload-counted event carrying the two attribution fields (C-06).
+
+    `caller_id`/`task_id` left None means the KEY IS ABSENT from the event --
+    the pre-stamping shape the ledger is full of, which must land under
+    "(unstamped)" rather than disappearing.
+    """
+    event = make_offload_event(backend, ts, model=model, ok=ok)
+    event["cost"] = {"tokens_in": tokens_in, "tokens_out": tokens_out}
+    if caller_id is not None:
+        event["caller"] = {"id": caller_id, "runner_class": "frontier", "node": "omen"}
+    if task_id is not None:
+        event["task_id"] = task_id
+    if args_preview is not None:
+        event["args_preview"] = args_preview
+    if error is not None:
+        event["error"] = error
+    return event
 
 
 def make_event(runner_class: str, tool: str, ok: bool, duration_ms: int, tokens_in: int, tokens_out: int) -> dict:
@@ -287,3 +324,256 @@ class TimestampOrderingTests(TestCase):
         document = build_offload_document(self.ledger)
         self.assertNotIn("last_seen_moment", document["buckets"][0])
         json.dumps(document)  # would raise TypeError if a datetime escaped
+
+
+class AttributionDimensionTests(TestCase):
+    """C-06: by_caller / by_task — "what did THIS caller / THIS session save?"
+
+    The dimensions are read beside the totals, so the load-bearing property is
+    not any single row: it is that the rows and the totals are the SAME
+    arithmetic over the SAME events. Every test below either pins the row shape,
+    or proves an event cannot go missing between the two.
+    """
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.ledger = Path(self.tmp.name) / "events.ndjson"
+
+    def write_ledger(self, events: list[dict]) -> None:
+        with self.ledger.open("w", encoding="utf-8", newline="\n") as handle:
+            for event in events:
+                handle.write(json.dumps(event) + "\n")
+
+    def test_row_shape_is_closed_and_carries_the_declared_fields(self) -> None:
+        self.write_ledger([
+            make_attributed_event("omen-arc", "2026-09-05T10:00:00Z",
+                                  caller_id="claude-frontier", task_id="cc-1a2b3c4d",
+                                  tokens_in=1000, tokens_out=2000),
+        ])
+        document = build_offload_document(self.ledger)
+
+        expected_keys = {"key", "calls", "ok_rate", "tokens_in", "tokens_out",
+                         "per_class", "est_usd_saved_usd", "last_seen"}
+        for dimension, key in (("by_caller", "claude-frontier"), ("by_task", "cc-1a2b3c4d")):
+            rows = document[dimension]
+            self.assertEqual(len(rows), 1, dimension)
+            row = rows[0]
+            self.assertEqual(set(row), expected_keys, dimension)
+            self.assertEqual(row["key"], key)
+            self.assertEqual(row["calls"], 1)
+            self.assertEqual(row["ok_rate"], 1.0)
+            self.assertEqual(row["tokens_in"], 1000)
+            self.assertEqual(row["tokens_out"], 2000)
+            self.assertEqual(row["per_class"], {"sunk": 1, "trial": 0, "unknown": 0})
+            self.assertEqual(row["last_seen"], "2026-09-05T10:00:00Z")
+            # Same formula as the document's own est_usd_saved, over this row's
+            # offloaded tokens: (1000*3.0 + 2000*15.0) / 1e6.
+            self.assertEqual(row["est_usd_saved_usd"], round((1000 * 3.0 + 2000 * 15.0) / 1e6, 6))
+            self.assertEqual(row["est_usd_saved_usd"], document["est_usd_saved"]["usd"])
+
+        self.assertFalse(document["by_caller_truncated"])
+        self.assertFalse(document["by_task_truncated"])
+        self.assertEqual(document["by_caller_omitted"], 0)
+        self.assertEqual(document["by_task_omitted"], 0)
+
+    def test_repeated_stamped_calls_aggregate_into_one_row(self) -> None:
+        """Three calls under one task_id are one session, not three rows."""
+        self.write_ledger([
+            make_attributed_event("omen-arc", "2026-09-05T10:00:00Z", caller_id="codex-cli",
+                                  task_id="cc-deadbeef", tokens_in=100, tokens_out=200),
+            make_attributed_event("omen-arc", "2026-09-05T11:00:00Z", caller_id="codex-cli",
+                                  task_id="cc-deadbeef", tokens_in=300, tokens_out=400),
+            make_attributed_event("gcp-gemini", "2026-09-05T12:00:00Z", caller_id="codex-cli",
+                                  task_id="cc-deadbeef", ok=False, model="gemini-3.5-flash",
+                                  tokens_in=50, tokens_out=0),
+        ])
+        document = build_offload_document(self.ledger)
+
+        self.assertEqual(len(document["by_task"]), 1)
+        row = document["by_task"][0]
+        self.assertEqual(row["key"], "cc-deadbeef")
+        self.assertEqual(row["calls"], 3)
+        self.assertEqual(row["tokens_in"], 450)
+        self.assertEqual(row["tokens_out"], 600)
+        self.assertEqual(row["ok_rate"], round(2 / 3, 4))
+        # per_class counts CALLS, and a failed call still names the rung it used.
+        self.assertEqual(row["per_class"], {"sunk": 2, "trial": 1, "unknown": 0})
+        # The newest ts in the row, not the newest in the document by accident.
+        self.assertEqual(row["last_seen"], "2026-09-05T12:00:00Z")
+
+    def test_unstamped_events_are_counted_under_one_key(self) -> None:
+        """The pre-stamping ledger is the common case: absent, null and blank all
+        mean "we do not know whose this was", and all three must still be counted."""
+        absent = make_attributed_event("omen-arc", "2026-09-05T10:00:00Z")
+        null_task = make_attributed_event("omen-arc", "2026-09-05T11:00:00Z")
+        null_task["task_id"] = None
+        null_task["caller"] = {"id": None, "runner_class": "frontier", "node": "omen"}
+        blank_task = make_attributed_event("omen-arc", "2026-09-05T12:00:00Z",
+                                           caller_id="   ", task_id="   ")
+        self.write_ledger([absent, null_task, blank_task])
+
+        document = build_offload_document(self.ledger)
+
+        self.assertEqual([r["key"] for r in document["by_task"]], [UNSTAMPED_KEY])
+        self.assertEqual([r["key"] for r in document["by_caller"]], [UNSTAMPED_KEY])
+        self.assertEqual(document["by_task"][0]["calls"], 3)
+        self.assertEqual(document["by_caller"][0]["calls"], 3)
+        self.assertEqual(document["totals"]["calls"], 3)
+
+    def test_sums_equal_totals_when_not_truncated(self) -> None:
+        """The invariant the dimensions exist to keep: a mixed ledger of stamped
+        and unstamped, ok and failed, sunk and trial events adds up both ways."""
+        events = [
+            make_attributed_event("omen-arc", "2026-09-05T10:00:00Z", caller_id="a",
+                                  task_id="t1", tokens_in=10, tokens_out=20),
+            make_attributed_event("omen-arc", "2026-09-05T10:01:00Z", caller_id="a",
+                                  task_id="t2", tokens_in=30, tokens_out=40, ok=False),
+            make_attributed_event("gcp-gemini", "2026-09-05T10:02:00Z", caller_id="b",
+                                  task_id="t2", model="gemini-3.5-flash",
+                                  tokens_in=50, tokens_out=60),
+            make_attributed_event("unknown-backend", "2026-09-05T10:03:00Z", caller_id="b",
+                                  model="gpt-4", tokens_in=70, tokens_out=80),
+            make_attributed_event("omen-arc", "2026-09-05T10:04:00Z", tokens_in=90,
+                                  tokens_out=100),
+        ]
+        self.write_ledger(events)
+
+        document = build_offload_document(self.ledger)
+        totals = document["totals"]
+
+        for dimension in ("by_caller", "by_task"):
+            rows = document[dimension]
+            self.assertFalse(document[f"{dimension}_truncated"], dimension)
+            self.assertEqual(sum(r["calls"] for r in rows), totals["calls"], dimension)
+            self.assertEqual(sum(r["tokens_in"] for r in rows), totals["tokens_in"], dimension)
+            self.assertEqual(sum(r["tokens_out"] for r in rows), totals["tokens_out"], dimension)
+            # Class counts add up to the per_class call counts too.
+            for cost_class in ("sunk", "trial", "unknown"):
+                self.assertEqual(sum(r["per_class"][cost_class] for r in rows),
+                                 document["per_class"][cost_class]["calls"],
+                                 f"{dimension}/{cost_class}")
+
+    def test_top_n_truncates_and_states_what_was_cut(self) -> None:
+        """60 callers, 50 kept: truncation is a fact ON the document, not a
+        silent shortening a reader would have to notice by counting."""
+        events = []
+        # Caller i makes (i+1) calls, so the ordering is unambiguous and the ten
+        # QUIETEST callers are the ones that must fall off the end.
+        for index in range(60):
+            for call in range(index + 1):
+                events.append(make_attributed_event(
+                    "omen-arc", f"2026-09-05T10:{call:02d}:00Z",
+                    caller_id=f"caller-{index:02d}", task_id=f"task-{index:02d}"))
+        self.write_ledger(events)
+
+        document = build_offload_document(self.ledger)
+
+        for dimension in ("by_caller", "by_task"):
+            rows = document[dimension]
+            self.assertEqual(len(rows), DEFAULT_TOP_N, dimension)
+            self.assertTrue(document[f"{dimension}_truncated"], dimension)
+            self.assertEqual(document[f"{dimension}_omitted"], 10, dimension)
+            # calls descending: the loudest caller (59 -> 60 calls) leads.
+            self.assertEqual([r["calls"] for r in rows], sorted(
+                (r["calls"] for r in rows), reverse=True), dimension)
+            self.assertEqual(rows[0]["calls"], 60)
+            self.assertEqual(rows[-1]["calls"], 11)
+            # Truncated, the sums are deliberately SHORT of the totals -- which is
+            # exactly why the omitted count has to be on the document.
+            self.assertLess(sum(r["calls"] for r in rows), document["totals"]["calls"])
+
+    def test_ties_break_on_key_so_the_document_is_deterministic(self) -> None:
+        self.write_ledger([
+            make_attributed_event("omen-arc", "2026-09-05T10:00:00Z", caller_id="zeta"),
+            make_attributed_event("omen-arc", "2026-09-05T10:01:00Z", caller_id="alpha"),
+            make_attributed_event("omen-arc", "2026-09-05T10:02:00Z", caller_id="mid"),
+        ])
+        first = build_offload_document(self.ledger)
+        second = build_offload_document(self.ledger)
+        self.assertEqual([r["key"] for r in first["by_caller"]], ["alpha", "mid", "zeta"])
+        self.assertEqual(first, second)
+
+    def test_top_n_is_configurable_and_must_be_a_positive_integer(self) -> None:
+        self.write_ledger([
+            make_attributed_event("omen-arc", "2026-09-05T10:00:00Z", caller_id="a"),
+            make_attributed_event("omen-arc", "2026-09-05T10:01:00Z", caller_id="b"),
+        ])
+        narrowed = build_offload_document(self.ledger, top_n=1)
+        self.assertEqual(len(narrowed["by_caller"]), 1)
+        self.assertTrue(narrowed["by_caller_truncated"])
+        self.assertEqual(narrowed["by_caller_omitted"], 1)
+
+        for bad in (0, -1, "50", 1.5, True):
+            with self.assertRaises(ValueError):
+                build_offload_document(self.ledger, top_n=bad)
+
+    def test_document_carries_no_prompt_text_or_arguments(self) -> None:
+        """The privacy invariant, proved rather than promised: a ledger whose
+        events carry a marker in args_preview and in error produces a document
+        the marker cannot be found in, at any depth."""
+        self.write_ledger([
+            make_attributed_event(
+                "omen-arc", "2026-09-05T10:00:00Z", caller_id="claude-frontier",
+                task_id="cc-1a2b3c4d",
+                args_preview=f'{{"prompt": "{PROMPT_MARKER}", "files": ["C:/work/secret.txt"]}}',
+                error=f"RuntimeError: {PROMPT_MARKER} leaked"),
+            make_attributed_event(
+                "gcp-gemini", "2026-09-05T11:00:00Z", caller_id="codex-cli",
+                task_id="cc-deadbeef", ok=False, model="gemini-3.5-flash",
+                args_preview=PROMPT_MARKER, error=PROMPT_MARKER),
+        ])
+
+        serialized = json.dumps(build_offload_document(self.ledger))
+
+        self.assertNotIn(PROMPT_MARKER, serialized)
+        self.assertNotIn("args_preview", serialized)
+        self.assertNotIn("secret.txt", serialized)
+        self.assertNotIn("RuntimeError", serialized)
+        # The rows are still there -- the events were counted, only their content
+        # was left behind.
+        document = json.loads(serialized)
+        self.assertEqual(document["totals"]["calls"], 2)
+        self.assertEqual({r["key"] for r in document["by_task"]}, {"cc-1a2b3c4d", "cc-deadbeef"})
+
+    def test_document_validates_against_the_offload_v1_schema(self) -> None:
+        """offload.v1 is `additionalProperties: false` at every level, so the new
+        keys are only additive if the schema actually declares them."""
+        import jsonschema
+
+        events = [
+            make_attributed_event("omen-arc", "2026-09-05T10:00:00Z", caller_id="a",
+                                  task_id="t1"),
+            make_attributed_event("gcp-gemini", "2026-09-05T10:01:00Z", caller_id="b",
+                                  model="gemini-3.5-flash", ok=False),
+            make_attributed_event("unknown-backend", "2026-09-05T10:02:00Z", model="gpt-4"),
+        ]
+        self.write_ledger(events)
+        schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+
+        document = build_offload_document(self.ledger)
+        jsonschema.Draft202012Validator(schema).validate(document)
+
+        # And the maxItems bound is the same 50 the builder defaults to, so a
+        # default-built document can never fail its own contract.
+        self.assertEqual(schema["properties"]["by_caller"]["maxItems"], DEFAULT_TOP_N)
+        self.assertEqual(schema["properties"]["by_task"]["maxItems"], DEFAULT_TOP_N)
+
+    def test_empty_ledger_yields_empty_dimensions(self) -> None:
+        document = build_offload_document(self.ledger)  # never written
+        self.assertEqual(document["by_caller"], [])
+        self.assertEqual(document["by_task"], [])
+        self.assertFalse(document["by_caller_truncated"])
+        self.assertEqual(document["by_task_omitted"], 0)
+
+    def test_row_last_seen_orders_by_instant_like_the_buckets(self) -> None:
+        """Same _parse_ts rule the buckets use: a bare `Z` must not beat a later
+        fractional ts, and the winner's original spelling is emitted verbatim."""
+        self.write_ledger([
+            make_attributed_event("omen-arc", "2026-07-03T12:00:00Z", task_id="t1"),
+            make_attributed_event("omen-arc", "2026-07-03T12:00:00.123+00:00", task_id="t1"),
+            make_attributed_event("omen-arc", "99-not-a-timestamp", task_id="t1"),
+        ])
+        row = build_offload_document(self.ledger)["by_task"][0]
+        self.assertEqual(row["last_seen"], "2026-07-03T12:00:00.123+00:00")
+        self.assertEqual(row["calls"], 3)  # the unparseable ts is still counted

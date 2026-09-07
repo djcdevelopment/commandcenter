@@ -274,3 +274,82 @@ class DispatchIdentityPushTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self._wrap(fake_boom, "fake_boom")(message="x")
         self.assertIsNone(current_identity())
+
+
+def fake_task_id_stamper(message: str) -> dict[str, Any]:
+    """Returns a result carrying the C-06 _ledger_task_id hint."""
+    return {"ok": True, "echo": message, "_ledger_task_id": "cc-fromtool"}
+
+
+def fake_bad_task_id_stamper(message: str) -> dict[str, Any]:
+    """Returns a result whose _ledger_task_id hint is not a usable string."""
+    return {"ok": True, "echo": message, "_ledger_task_id": {"not": "a string"}}
+
+
+class LedgerTaskIdLiftTest(unittest.TestCase):
+    """C-06: a tool may stamp the ledger's task_id when the MCP `_meta` channel
+    could not — an in-process caller, or a CLI harness with a session id and no
+    meta channel. Precedence is the point: `_meta` is the TRANSPORT speaking
+    about the request and always wins; the result hint fills a None and nothing
+    else, so a tool argument can never re-attribute a call away from the session
+    that actually made it."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        root = Path(self.tmp.name)
+        (root / "knowledge").mkdir()
+        self.ledger = Ledger(root / "ledger")
+        callers = root / "callers.json"
+        callers.write_text(json.dumps({
+            "good-key": {"id": "claude", "runner_class": "frontier", "node": "omen",
+                         "profile": "unrestricted"},
+        }), encoding="utf-8")
+        _map_fixture_tools(self, fake_task_id_stamper="status",
+                           fake_bad_task_id_stamper="status", fake_echo="status")
+        self.auth = AuthRegistry(callers_path=callers, ledger=self.ledger)
+        self.guards = GuardStack(repo_root=root)
+        self.hearth = HearthContext(repo_root=root, ledger=self.ledger)
+
+    def _wrap(self, fn, meta_task_id):
+        return make_wrapper(fn, self.hearth, self.auth, self.guards,
+                            lambda: "good-key", lambda: meta_task_id)
+
+    def _event(self, tool):
+        events = self.ledger.query(tool=tool)
+        self.assertEqual(len(events), 1)
+        return events[0]
+
+    def test_meta_task_id_wins_over_the_result_hint(self):
+        result = self._wrap(fake_task_id_stamper, "meta-task-7")(message="x")
+        self.assertEqual(self._event("fake_task_id_stamper")["task_id"], "meta-task-7")
+        # Popped either way: the caller never sees the private key, even when
+        # the value it carried was ignored.
+        self.assertNotIn("_ledger_task_id", result)
+
+    def test_result_hint_is_used_when_meta_yields_none(self):
+        result = self._wrap(fake_task_id_stamper, None)(message="x")
+        self.assertEqual(self._event("fake_task_id_stamper")["task_id"], "cc-fromtool")
+        self.assertNotIn("_ledger_task_id", result)
+        self.assertEqual(result, {"ok": True, "echo": "x"})
+
+    def test_absent_hint_leaves_the_row_exactly_as_before(self):
+        """The no-task_id case must be byte-identical to pre-C-06 behaviour."""
+        self._wrap(fake_echo, None)(message="hi")
+        self.assertIsNone(self._event("fake_echo")["task_id"])
+
+    def test_a_non_string_hint_fails_closed_to_no_task_id(self):
+        """A malformed hint must not be written into a ledger field the row's own
+        schema validates — no task id is the safe answer, not a coerced one."""
+        result = self._wrap(fake_bad_task_id_stamper, None)(message="x")
+        self.assertIsNone(self._event("fake_bad_task_id_stamper")["task_id"])
+        self.assertNotIn("_ledger_task_id", result)
+
+    def test_the_hint_never_reaches_the_ledgered_result_digest(self):
+        from hearth.kernel.ledger import sha256_digest
+
+        self._wrap(fake_task_id_stamper, "meta-task-7")(message="x")
+        event = self._event("fake_task_id_stamper")
+        self.assertEqual(event["result_digest"],
+                         sha256_digest({"ok": True, "echo": "x"}))
+        self.assertNotIn("_ledger_task_id", json.dumps(event))

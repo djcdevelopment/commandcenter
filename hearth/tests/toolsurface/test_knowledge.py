@@ -391,6 +391,175 @@ class OffloadKnowledgeTests(KnowledgeScopedTestCase):
         self.assertEqual(before, after)
 
 
+class OffloadQueryFilterTests(KnowledgeScopedTestCase):
+    """C-06: query_offload(task_id=..., caller_id=...) — "what did THIS session save?"
+
+    The filters are per-dimension selectors over the document's own by_task /
+    by_caller arrays. They add no tool and no capability: `query_offload` is
+    gated by the `query` capability at the gateway wrapper exactly as before, and
+    a filter can only ever NARROW an unfiltered read of the same file.
+    """
+
+    # Lives ONLY in fields the offload projection must not read. If it can be
+    # found in a filtered result, the tool started returning event content.
+    MARKER = "SECRET-PROMPT-MARKER-9c1d"
+
+    def _event(self, event_id: str, ts: str, caller_id: str, task_id: str | None,
+               backend: str = "omen-arc", model: str = "qwen3-30b-a3b",
+               ok: bool = True, tokens_in: int = 10, tokens_out: int = 50) -> dict:
+        return {
+            "schema": "hearth-event.v1",
+            "event_id": event_id,
+            "ts": ts,
+            "caller": {"id": caller_id, "runner_class": "frontier", "node": "omen"},
+            "tool": "local_generate",
+            "task_class": "inference",
+            "backend": backend,
+            "model": model,
+            "ok": ok,
+            "duration_ms": 1000,
+            "cost": {"tokens_in": tokens_in, "tokens_out": tokens_out, "watt_s": None},
+            "task_id": task_id,
+            # The two fields a privacy leak would come through.
+            "args_preview": f'{{"prompt": "{self.MARKER}", "files": ["C:/work/secret.txt"]}}',
+            "error": None if ok else f"RuntimeError: {self.MARKER}",
+        }
+
+    def _project(self) -> None:
+        ledger = self.scope / "hearth" / "var" / "ledger" / "events.ndjson"
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        events = [
+            self._event("he_a", "2026-09-05T10:00:00+00:00", "claude-frontier", "cc-1a2b3c4d"),
+            self._event("he_b", "2026-09-05T11:00:00+00:00", "claude-frontier", "cc-1a2b3c4d",
+                        tokens_in=20, tokens_out=100),
+            self._event("he_c", "2026-09-05T12:00:00+00:00", "codex-cli", "cc-deadbeef",
+                        backend="gcp-gemini", model="gemini-3.5-flash", ok=False),
+        ]
+        with ledger.open("w", encoding="utf-8", newline="\n") as handle:
+            for event in events:
+                handle.write(json.dumps(event) + "\n")
+        project_offload_knowledge(ledger_path="hearth/var/ledger/events.ndjson")
+
+    def test_unfiltered_read_is_byte_identical_to_the_document(self) -> None:
+        self._project()
+        result = query_offload()
+        self.assertTrue(result["available"])
+        content = result["content"]
+        # The whole document, exactly as before: buckets and all, no filter keys.
+        self.assertIn("buckets", content)
+        self.assertEqual(content["totals"]["calls"], 3)
+        for key in ("filter", "matched", "rows"):
+            self.assertNotIn(key, result)
+        stored = json.loads(
+            (self.scope / "knowledge" / "offload.json").read_text(encoding="utf-8-sig"))
+        self.assertEqual(content, stored)
+
+    def test_filter_by_task_id_returns_only_that_row(self) -> None:
+        self._project()
+        result = query_offload(task_id="cc-1a2b3c4d")
+
+        self.assertTrue(result["available"])
+        self.assertEqual(result["filter"], {"task_id": "cc-1a2b3c4d", "caller_id": None})
+        self.assertEqual(result["matched"], 1)
+        row = result["rows"][0]
+        self.assertEqual(row["dimension"], "by_task")
+        self.assertEqual(row["key"], "cc-1a2b3c4d")
+        self.assertEqual(row["calls"], 2)
+        self.assertEqual(row["tokens_in"], 30)
+        self.assertEqual(row["tokens_out"], 150)
+
+        content = result["content"]
+        self.assertEqual(set(content), {"contract_version", "evidence_watermark", "by_task"})
+        self.assertEqual(content["contract_version"], "offload.v1")
+        self.assertEqual(content["evidence_watermark"], "2026-09-05T12:00:00+00:00")
+        self.assertEqual(len(content["by_task"]), 1)
+
+    def test_filter_by_caller_id_returns_only_that_row(self) -> None:
+        self._project()
+        result = query_offload(caller_id="codex-cli")
+
+        self.assertEqual(result["matched"], 1)
+        row = result["rows"][0]
+        self.assertEqual(row["dimension"], "by_caller")
+        self.assertEqual(row["key"], "codex-cli")
+        self.assertEqual(row["calls"], 1)
+        self.assertEqual(row["ok_rate"], 0.0)
+        self.assertEqual(set(result["content"]),
+                         {"contract_version", "evidence_watermark", "by_caller"})
+
+    def test_both_filters_answer_two_questions_side_by_side(self) -> None:
+        """Not an intersection: offload.v1 records no joint (caller, task)
+        dimension, so both filters return each dimension's own row, labelled."""
+        self._project()
+        result = query_offload(task_id="cc-1a2b3c4d", caller_id="codex-cli")
+
+        self.assertEqual(result["matched"], 2)
+        self.assertEqual([r["dimension"] for r in result["rows"]], ["by_task", "by_caller"])
+        self.assertEqual([r["key"] for r in result["rows"]], ["cc-1a2b3c4d", "codex-cli"])
+        self.assertEqual(set(result["content"]),
+                         {"contract_version", "evidence_watermark", "by_task", "by_caller"})
+
+    def test_no_match_is_an_empty_answer_not_an_error(self) -> None:
+        self._project()
+        result = query_offload(task_id="cc-never-ran", caller_id="nobody")
+
+        self.assertTrue(result["available"])
+        self.assertEqual(result["matched"], 0)
+        self.assertEqual(result["rows"], [])
+        self.assertEqual(result["content"]["by_task"], [])
+        self.assertEqual(result["content"]["by_caller"], [])
+
+    def test_a_filter_can_only_narrow_an_unfiltered_read(self) -> None:
+        """The authorization statement, as a test: every row a filter returns is
+        a row the same caller already gets from the unfiltered document."""
+        self._project()
+        whole = query_offload()["content"]
+        filtered = query_offload(task_id="cc-deadbeef", caller_id="claude-frontier")
+
+        for row in filtered["rows"]:
+            dimension = row["dimension"]
+            plain = {key: value for key, value in row.items() if key != "dimension"}
+            self.assertIn(plain, whole[dimension])
+
+    def test_filtered_result_carries_no_prompt_text_or_arguments(self) -> None:
+        self._project()
+        for kwargs in ({"task_id": "cc-1a2b3c4d"}, {"caller_id": "claude-frontier"},
+                       {"task_id": "cc-deadbeef", "caller_id": "codex-cli"}, {}):
+            serialized = json.dumps(query_offload(**kwargs))
+            self.assertNotIn(self.MARKER, serialized, kwargs)
+            self.assertNotIn("args_preview", serialized, kwargs)
+            self.assertNotIn("secret.txt", serialized, kwargs)
+            self.assertNotIn("RuntimeError", serialized, kwargs)
+
+    def test_a_document_without_the_dimensions_filters_to_nothing(self) -> None:
+        """A pre-C-06 offload.json is missing the arrays entirely. That is an
+        empty answer, not an exception -- the keys are optional by contract."""
+        self._project()
+        path = self.scope / "knowledge" / "offload.json"
+        document = json.loads(path.read_text(encoding="utf-8-sig"))
+        for key in ("by_caller", "by_task", "by_caller_truncated", "by_task_truncated",
+                    "by_caller_omitted", "by_task_omitted"):
+            document.pop(key, None)
+        path.write_text(json.dumps(document), encoding="utf-8")
+
+        result = query_offload(task_id="cc-1a2b3c4d")
+        self.assertTrue(result["available"])
+        self.assertEqual(result["matched"], 0)
+        self.assertEqual(result["rows"], [])
+
+    def test_missing_document_still_reports_unavailable_under_a_filter(self) -> None:
+        result = query_offload(task_id="cc-1a2b3c4d")
+        self.assertFalse(result["available"])
+        self.assertIn("path", result)
+
+    def test_a_filter_must_be_a_non_empty_string(self) -> None:
+        self._project()
+        for kwargs in ({"task_id": ""}, {"task_id": "   "}, {"caller_id": ""},
+                       {"caller_id": 7}, {"task_id": ["cc-1a2b3c4d"]}):
+            with self.assertRaises(ValueError):
+                query_offload(**kwargs)
+
+
 class ModelGuardListTests(KnowledgeScopedTestCase):
     """S2 (scheduler-lane strategy) / DECISIONS-PENDING 2026-07-03 (DECISION-NEEDED-A2):
     guard-test coverage for knowledge/known_good_models.json and known_bad_models.json,

@@ -264,6 +264,31 @@ def _lift_ledger_task_class(result: Any) -> Optional[str]:
     return None
 
 
+LEDGER_TASK_ID_KEY = "_ledger_task_id"
+
+
+def _lift_ledger_task_id(result: Any) -> Optional[str]:
+    """Pop and return the _ledger_task_id hint from a dict result, if present.
+
+    UNLIKE _lift_ledger_task_class, this does NOT override: the MCP `_meta`
+    channel is the authoritative one, because it is the transport speaking about
+    the request rather than the tool speaking about its own arguments. A caller
+    that can set `_meta.task_id` has already said which task this is; an argument
+    the same caller passed cannot outrank it, or a tool argument could silently
+    re-attribute a call away from the session that made it. This hint is
+    therefore consulted only when the provider yielded None -- the in-process and
+    harness case the `_meta` channel cannot reach.
+
+    The key is popped either way, so it never reaches the caller's result.
+    Fails closed on a non-string or empty value: no task id rather than a value
+    that would not survive the ledger row's own validation.
+    """
+    if isinstance(result, dict) and LEDGER_TASK_ID_KEY in result:
+        value = result.pop(LEDGER_TASK_ID_KEY)
+        return value if isinstance(value, str) and value else None
+    return None
+
+
 def _ledger_safe_args(tool_name: str, kwargs: dict[str, Any]) -> dict[str, Any]:
     """Remove prompt content while preserving stable audit correlation."""
     value = copy.deepcopy(kwargs)
@@ -405,6 +430,9 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
 
         result, ok, error, model = None, True, None, None
         event_task_class = task_class
+        # The _meta task_id, if there was one, is already the answer; a result
+        # hint can only fill a None (see _lift_ledger_task_id).
+        event_task_id = task_id
         backend, routed_by, occupancy, error_code = None, None, None, None
         routing_refusal = None
         cost = None
@@ -429,6 +457,11 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
             lifted = _lift_ledger_task_class(result)
             if lifted:
                 event_task_class = lifted
+            # Popped unconditionally so the key never reaches the caller; used
+            # only where the transport channel had nothing to say.
+            lifted_task_id = _lift_ledger_task_id(result)
+            if event_task_id is None and lifted_task_id:
+                event_task_id = lifted_task_id
             if isinstance(result, dict):
                 # S1: routing provenance rides the result dict; only strings are
                 # ledgered (some tools return occupancy as a nested dict).
@@ -456,7 +489,7 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
             hearth.ledger.append(new_event(
                     caller.as_dict(), tool_name, args=ledger_kwargs, result=result,
                 ok=ok, error=error, duration_ms=elapsed_ms(), cost=cost,
-                task_id=task_id, task_class=event_task_class, model=model,
+                task_id=event_task_id, task_class=event_task_class, model=model,
                 backend=backend, routed_by=routed_by, occupancy=occupancy,
                 error_code=error_code, profile=caller.ledger_profile,
                 routing_refusal=routing_refusal,

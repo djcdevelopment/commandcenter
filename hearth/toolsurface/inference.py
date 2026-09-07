@@ -27,6 +27,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -308,6 +309,29 @@ def _resolve_target(endpoint: str, task: Optional[str], backend: Optional[str],
                    named.name if named else None, "default", "available", {})
 
 
+# C-06: the ledger's task_id, supplied by the caller when the MCP `_meta`
+# channel cannot carry one (an in-process caller, or an agent harness that has a
+# session id but no meta channel). Threaded to the gateway wrapper the same way
+# the resolved model is (see gateway.LEDGER_MODEL_KEY): stashed on the result
+# dict, lifted into the ledger event, popped before the caller sees it.
+LEDGER_TASK_ID_KEY = "_ledger_task_id"
+
+# Deliberately narrow: a task_id is an identifier, and it is written verbatim
+# into a ledger field that projections group by and that reaches a private
+# document as a row KEY. No whitespace, no separators, no control characters,
+# nothing that could be read as markup or as a path.
+TASK_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
+
+
+def _validate_task_id(task_id: Optional[str]) -> Optional[str]:
+    """Return the task_id unchanged, or raise before anything is dispatched."""
+    if task_id is None:
+        return None
+    if not isinstance(task_id, str) or not TASK_ID_PATTERN.match(task_id):
+        raise ValueError("task_id must be 1-128 characters of [A-Za-z0-9._:-]")
+    return task_id
+
+
 def _resolve_family(task_family: Optional[str], prompt_tokens: Optional[int],
                     endpoint: str, model: Optional[str]) -> tuple[Optional[dict], Optional[dict]]:
     """The authored family evidence for this call: (recommendation, error_result).
@@ -501,7 +525,8 @@ def local_generate(prompt: str, model: str | None = None,
                    task: str | None = None, backend: str | None = None,
                    files: list[str] | None = None,
                    quality: str | None = None,
-                   task_family: str | None = None) -> dict:
+                   task_family: str | None = None,
+                   task_id: str | None = None) -> dict:
     """Generate text from a configured inference backend.
 
     Routing (Banked Fire): pass ``task`` (e.g. "research") to prefer a tagged
@@ -547,6 +572,13 @@ def local_generate(prompt: str, model: str | None = None,
     prompt — no need to paste file contents. Paths are scope-guarded by the
     HEARTH_SCOPE sandbox; capped at 256 KiB per file and 1 MiB total. The packed
     manifest rides the result as ``files_packed``/``files_bytes``.
+
+    Session attribution (C-06): pass ``task_id`` (e.g. ``"cc-1a2b3c4d"``) to
+    stamp this call's ledger row, so ``knowledge/offload.json``'s ``by_task``
+    dimension can answer what this session offloaded. It is an identifier only
+    -- 1-128 characters of ``[A-Za-z0-9._:-]`` -- and never reaches a model. The
+    MCP ``_meta`` channel remains the authoritative one: when a caller supplies a
+    ``_meta.task_id``, that wins and this argument is ignored for the ledger row.
     """
     if not isinstance(prompt, str) or not prompt.strip():
         raise ValueError("prompt must be a non-empty string")
@@ -561,6 +593,21 @@ def local_generate(prompt: str, model: str | None = None,
     if task_family is not None and (not isinstance(task_family, str)
                                     or not task_family.strip()):
         raise ValueError("task_family must be a non-empty string")
+    # Rejected here, before packing, routing or any dispatch: a malformed
+    # identifier must not be discovered after tokens have been spent.
+    _validate_task_id(task_id)
+
+    def _tag(result: dict) -> dict:
+        """Stamp the caller's task_id on a result on its way out (C-06).
+
+        Applied at EVERY return, not just the successful one: a routing refusal
+        and a family-config error are still ledger rows this session caused, and
+        a by_task row that counted only the successes would flatter the session
+        it describes. The gateway pops the key before the caller sees it.
+        """
+        if task_id is not None and isinstance(result, dict):
+            result[LEDGER_TASK_ID_KEY] = task_id
+        return result
 
     if quality == "best":
         # A3 ASK: quality=best maps to the pro rung, which auto-routing never
@@ -570,8 +617,8 @@ def local_generate(prompt: str, model: str | None = None,
         # `reason` says out loud rather than implying a depth nobody measured.
         ask_recommendation, ask_error = _resolve_family(task_family, None, endpoint, model)
         if ask_error is not None:
-            return ask_error
-        return {
+            return _tag(ask_error)
+        return _tag({
             "ok": True, "ask": True,
             "recommendation": {
                 "backend": "gcp-gemini-pro",
@@ -583,7 +630,7 @@ def local_generate(prompt: str, model: str | None = None,
             "backend": None, "routed_by": "ask:quality-best", "occupancy": "n/a",
             "max_tokens": 0,
             "task_family": task_family, "family_recommendation": ask_recommendation,
-        }
+        })
 
     files_packed_list = None
     files_bytes = 0
@@ -657,7 +704,7 @@ def local_generate(prompt: str, model: str | None = None,
     family_recommendation, family_error = _resolve_family(
         task_family, payload_bytes // 4, endpoint, model)
     if family_error is not None:
-        return family_error
+        return _tag(family_error)
 
     # Precedence, highest first:
     #   endpoint pin > backend pin > model > explicit quality/task
@@ -708,20 +755,20 @@ def local_generate(prompt: str, model: str | None = None,
                                  tags=call_tags)
     except BackendRoutingRefusal as exc:
         refusal = exc.as_dict()
-        return {"ok": False,
-                "error": f"routing refused: {exc.reason_code}",
-                "error_code": "routing_refusal",
-                "routing_refusal": refusal,
-                "payload_bytes": refusal["payload_bytes"],
-                "required_context_bytes": refusal["required_context_bytes"],
-                "endpoint": endpoint, "model": model,
-                "task_family": task_family,
-                "family_recommendation": family_recommendation}
+        return _tag({"ok": False,
+                     "error": f"routing refused: {exc.reason_code}",
+                     "error_code": "routing_refusal",
+                     "routing_refusal": refusal,
+                     "payload_bytes": refusal["payload_bytes"],
+                     "required_context_bytes": refusal["required_context_bytes"],
+                     "endpoint": endpoint, "model": model,
+                     "task_family": task_family,
+                     "family_recommendation": family_recommendation})
     except BackendConfigError as exc:
-        return {"ok": False, "error": f"routing failed: {exc}",
-                "endpoint": endpoint, "model": model,
-                "task_family": task_family,
-                "family_recommendation": family_recommendation}
+        return _tag({"ok": False, "error": f"routing failed: {exc}",
+                     "endpoint": endpoint, "model": model,
+                     "task_family": task_family,
+                     "family_recommendation": family_recommendation})
 
     resolved_model, resolved_max_tokens, resolved_timeout_s = _apply_defaults(
         target, route_model, max_tokens)
@@ -822,7 +869,7 @@ def local_generate(prompt: str, model: str | None = None,
         result["_observation"] = observation
     if first_observation is not None:
         result["_observation_first_attempt"] = first_observation
-    return result
+    return _tag(result)
 
 
 def _execution_local_generate(
@@ -837,6 +884,7 @@ def _execution_local_generate(
     files: list[str] | None = None,
     quality: str | None = None,
     task_family: str | None = None,
+    task_id: str | None = None,
 ) -> dict:
     """Compatibility projection of local_generate over the Execution Ledger.
 
@@ -861,9 +909,18 @@ def _execution_local_generate(
     With no family in play the primitive's string stands, unchanged. There is no
     ``escalation:`` on this lane: one dispatch, and a pinned primitive never
     climbs.
+
+    ``task_id`` (C-06) rides the job arguments the way ``task_family`` does, and
+    is stamped back onto the projected result for the gateway to lift into the
+    ledger row (see ``_ledger_model`` below for why a stamp cannot simply survive
+    the pipeline). It steers nothing: it is attribution, not routing.
     """
     from hearth.execution.defaults import get_execution_service
     from hearth.observation.identity import current_identity
+
+    # Before dispatch, before the job is admitted: an invalid identifier is a
+    # caller error, not something to discover in the ledger afterwards.
+    _validate_task_id(task_id)
 
     identity = current_identity()
     if identity is None:
@@ -877,6 +934,7 @@ def _execution_local_generate(
         ("files", files),
         ("quality", quality),
         ("task_family", task_family),
+        ("task_id", task_id),
     ):
         if value is not None:
             arguments[key] = value
@@ -907,6 +965,12 @@ def _execution_local_generate(
     # door traffic was unattributable.
     if isinstance(result, dict) and result.get("model"):
         result.setdefault("_ledger_model", result["model"])
+    # Same reason, same shape: the projected result is rebuilt from the job's
+    # observed fields, so the primitive's own _ledger_task_id stamp does not
+    # survive the pipeline. Restamp from the argument the caller gave us. The
+    # gateway uses it ONLY when the MCP _meta channel yielded nothing.
+    if task_id is not None and isinstance(result, dict):
+        result.setdefault(LEDGER_TASK_ID_KEY, task_id)
     return result
 
 

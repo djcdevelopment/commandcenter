@@ -331,9 +331,83 @@ def project_offload_knowledge(
     }
 
 
-def query_offload(knowledge_dir: str = DEFAULT_OUT) -> dict:
-    """Return the materialized offload.json (with file mtime) from the sandbox."""
-    return _query_knowledge_file("offload.json", knowledge_dir)
+def _filter_dimension(document: dict, key: str, wanted: str) -> list[dict]:
+    """The rows of one attribution array whose `key` equals `wanted`.
+
+    A document built before C-06 has no such array; that is an empty result, not
+    an error -- a reader that raised on an older document would make the filter
+    a breaking change to a contract that only gained optional keys.
+    """
+    rows = document.get(key)
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows
+            if isinstance(row, dict) and row.get("key") == wanted]
+
+
+def query_offload(knowledge_dir: str = DEFAULT_OUT, task_id: str | None = None,
+                  caller_id: str | None = None) -> dict:
+    """Return the materialized offload.json (with file mtime) from the sandbox.
+
+    Unfiltered, this is the whole document, exactly as before. Pass ``task_id``
+    and/or ``caller_id`` to get only the matching attribution row(s) -- "what did
+    this session save?" without loading a document that carries every other
+    caller's rows.
+
+    The two filters are per-DIMENSION selectors, not a conjunctive row filter:
+    offload.v1 has a `by_task` array and a `by_caller` array and no joint
+    (caller, task) dimension, so passing both returns each dimension's matching
+    row and says which is which via each row's ``dimension`` field. Asking for
+    both is two questions, answered side by side -- it is never an intersection,
+    and it can never name a (caller, task) pair the document does not record.
+
+    A filtered read returns ``content`` reduced to the document's
+    ``contract_version``/``evidence_watermark`` plus only the filtered arrays,
+    together with ``filter``, ``matched`` and a flat ``rows`` list. No match is
+    ``matched: 0``, ``rows: []`` -- an absence, not an error.
+
+    Authorization: this adds no tool and changes no capability. ``query_offload``
+    is gated by the `query` capability at the gateway wrapper exactly as before,
+    and a filter can only NARROW what an unfiltered read of the same file already
+    returns -- every returned row is a row the caller could already read whole.
+    Filtering by another caller's id is therefore a read of a private aggregate
+    the profile already grants, deliberately: the ADR-0023 unrestricted-profile
+    review calls for checking per-caller usage, and that review needs to be able
+    to ask about a caller other than itself.
+
+    Privacy: the rows are counts, private-internal ids and timestamps. The
+    offload document carries no prompt text, no `args_preview`, no paths and no
+    error strings by construction (see build_offload_document), so no filtered
+    read can surface any.
+    """
+    for name, value in (("task_id", task_id), ("caller_id", caller_id)):
+        if value is not None and (not isinstance(value, str) or not value.strip()):
+            raise ValueError(f"{name} must be a non-empty string")
+
+    result = _query_knowledge_file("offload.json", knowledge_dir)
+    if task_id is None and caller_id is None:
+        return result
+    if not result.get("available"):
+        return result
+
+    document = result["content"]
+    content: dict = {
+        "contract_version": document.get("contract_version"),
+        "evidence_watermark": document.get("evidence_watermark"),
+    }
+    rows: list[dict] = []
+    for dimension, wanted in (("by_task", task_id), ("by_caller", caller_id)):
+        if wanted is None:
+            continue
+        matches = _filter_dimension(document, dimension, wanted)
+        content[dimension] = matches
+        rows.extend({"dimension": dimension, **row} for row in matches)
+
+    result["content"] = content
+    result["filter"] = {"task_id": task_id, "caller_id": caller_id}
+    result["matched"] = len(rows)
+    result["rows"] = rows
+    return result
 
 
 def rebuild_knowledge(sources: list[str] | None = None, out: str = DEFAULT_OUT,

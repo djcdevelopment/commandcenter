@@ -1,0 +1,16 @@
+interface:
+  display_name: "Rung"
+  short_description: "Pick the rung and model for a task from authored evidence"
+  default_prompt: "Use $rung to choose the rung and model for this task before offloading."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "hearth"
+      description: "Local-first HEARTH model and fleet gateway"
+      transport: "streamable_http"
+      # The door binds loopback only. A hostname here does not reach it.
+      url: "http://127.0.0.1:8710/mcp"
+policy:
+  # Explicit invocation only: choosing a rung is a deliberate step, and a
+  # recommendation that fires implicitly inside an unrelated task is noise.
+  allow_implicit_invocation: false

@@ -653,6 +653,27 @@ staged-load one-liner) — parked verbatim in the O-track briefs; verify on node
       This also makes the outstanding <code>.mcp.json</code> <code>"timeout": 600000</code> recommendation
       <em>load-bearing rather than optional</em>: the door-side budget must stay below the MCP client's idle timeout, so
       600s client &gt; 420s door is the nesting that has to hold. Still Derek's config to apply.</li>
+  <li><strong>2026-09-06 — B-03: the brief becomes the unit of unattended work (NOT activated).</strong>
+      New <code>hearth/backlog/</code>: one <code>Brief</code> contract (CCMETA header + body, rendered by
+      <code>task_lane._ccmeta_header</code> and parsed back with <code>assay_acceptance._CCMETA_RE</code>),
+      three pluggable sources — authored <code>.md</code> files in <code>hearth/var/backlog/queued/</code>
+      (oldest mtime first), commander refine intents carrying a <code>backlog-promote.v1</code> sidecar,
+      and the priced experiment candidates — and one deterministic
+      <code>select_next(scope, sources)</code> with priority <span class="kpi">authored &gt; refined &gt;
+      candidate</span>. <strong>Two live defects fixed:</strong> the drain's occupancy gate probed
+      <code>am4-oxen</code>, whose probe was deleted on 2026-08-21 (<code>check_occupancy</code> returns
+      "available" unconditionally for a rung with no probe — the gate had been decorative), so it now
+      gates on <code>omen-arc</code> <em>and</em> on <code>queue_status()</code> being idle, with an
+      unreadable queue failing closed as <span class="kpi">busy:queue-unreadable</span>; and candidate
+      selection compared <code>candidate_id</code> against results rows that are
+      <code>experiment-result.v1</code> and carry <code>experiment_id</code>, so a finished candidate could
+      be re-dispatched forever. Arm file goes to <span class="kpi">bankedfire-drain-arm.v2</span> with an
+      explicit <code>scope</code> (default <code>all</code>, Derek's decision, written not implied); a v1
+      file with <code>armed: true</code> and no scope key loads as <strong>DISARMED</strong> naming the
+      re-arm command — no silent grandfathering. <strong class="warn">Nothing was activated:</strong> the
+      <code>drain</code> timer stays in <code>HEARTH_TIMERS_DISABLE</code>, no arm file was written, and
+      B-04 still owns dispatch write-back. Suite <span class="kpi">1647 → 1748</span> in
+      <code>hearth/tests</code> plus the fleet group <span class="kpi">120 → 155</span>.</li>
 </ul></div>
 
 </main>

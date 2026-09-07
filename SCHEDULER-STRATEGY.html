@@ -85,7 +85,12 @@ the solver <b>proposes</b> but does not yet <b>act</b>, and per
   <div class="label" style="margin-top:14px">Hard rules — do not improvise around these</div>
   <ul class="rule">
     <li><b>JS5 stays inert</b> until ADR-0016 is ratified by Derek (H1). Landing actuation <i>code</i> is in scope; turning it <i>on</i> is not.</li>
-    <li><b>Never dispatch new work to fleet builders without Derek's cue.</b> Everything below is executable locally (OMEN + reads from cc-conductor).</li>
+    <li><del><b>Never dispatch new work to fleet builders without Derek's cue.</b></del>
+        <span class="pill todo">SUPERSEDED 2026-09-06</span>
+        <b>The backlog drain dispatches unattended within the arm file (scope + reason) and
+        <code>knowledge/operating-budget.json</code>; the arm file is the cue and the kill switch.</b>
+        The timer stays disabled until the activation gate — the drain is not live. Everything below
+        is still executable locally (OMEN + reads from cc-conductor).</li>
     <li><b>No new tooling.</b> This doc, existing scripts, and existing HEARTH door tools are the entire toolkit. If a step seems to need a new dashboard/script/service, it doesn't — write a committed report file instead.</li>
     <li>Machine lane is mshome/LAN (<a href="docs/adr/0014-machine-lanes-off-the-tailnet.md">ADR-0014</a>): conductor = <code>claude@cc-conductor.mshome.net</code>, repo <code>~/work/commandcenter</code>.</li>
   </ul>

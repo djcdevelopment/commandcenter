@@ -14,15 +14,31 @@ One drain tick, in order (every check is ledgered, every tick, no-op or not):
      ``operating-budget.json`` already uses: authored_by/reason/suspended,
      flipped by a human, never inferred). Default DISARMED. State file:
      ``hearth/var/bankedfire_drain_arm.json`` (gitignored, like the rest of
-     hearth/var/). Disarmed -> no-op, reason "disarmed".
-  2. Occupancy — reuses the existing P2 probe
-     (``hearth.toolsurface.occupancy.check_occupancy``) against the
-     ``am4-oxen`` backend. "Idle" requires ``occupancy == "available"``;
-     "unknown" is NOT idle (fail-closed for this lane — Banked Fire design
-     principle #4, "mechnet jobs always win", plus the P2 module's own
-     opportunistic-call rule: unknown resolves to busy). Busy/unknown -> no-op,
-     reason "busy".
-  3. Operating budget — ``knowledge/operating-budget.json``, validated with
+     hearth/var/). Disarmed -> no-op, reason "disarmed". Since v2 the file also
+     carries a ``scope`` naming which backlog sources unattended dispatch may
+     draw from; a file with ``armed: true`` and NO scope key loads as DISARMED
+     (no silent grandfathering — see load_arm_state).
+  2. Single in-flight dispatch — the drain's own last dispatch (tracked in the
+     same arm-state file) is checked via ``task_lane.task_status`` before a
+     new one is allowed. Not yet done -> no-op, reason "in-flight". This is
+     the drain's own lease discipline, layered on top of (not replacing) the
+     occupancy Lease from P2.
+  3. Idle — TWO questions, both of which must say idle:
+     (a) the conductor's own queue via ``task_lane.queue_status``: ``running``
+         and ``queued`` must both be 0. An unreadable queue (ok:false, a raise,
+         or counts that are not integers) -> no-op, reason
+         "busy:queue-unreadable" — never "available by default".
+     (b) the P2 occupancy probe (``occupancy.check_occupancy``) against
+         ``omen-arc``. "Idle" requires ``occupancy == "available"``; "unknown"
+         is NOT idle (fail-closed for this lane — Banked Fire design principle
+         #4, "mechnet jobs always win", plus the P2 module's own
+         opportunistic-call rule: unknown resolves to busy).
+     The backend is ``omen-arc`` because it is the only rung with a REAL probe:
+     the am4-oxen/am4-moe probes were removed on 2026-08-21 when the B70s left
+     AM4, so the old ``am4-oxen`` gate had been decorative ever since —
+     ``check_occupancy`` on a backend with no registered probe returns
+     "available" unconditionally.
+  4. Operating budget — ``knowledge/operating-budget.json``, validated with
      the existing ``tools.workflow.validate_budget`` schema check (never a
      hand-rolled parse). Honored to the extent the object actually expresses:
      ``suspended`` must be false, and ``unattended_dispatch_allowed`` must be
@@ -32,22 +48,16 @@ One drain tick, in order (every check is ledgered, every tick, no-op or not):
      sensor, not something this tick can read today) — so those fields are
      ledgered as "declared but not live-checked" rather than silently ignored
      or invented. Any budget gate fails -> no-op, reason "no-budget".
-  4. Candidate selection — the highest ``worth_points`` entry in
-     ``knowledge/candidate_worth.json`` whose ``candidate_id`` has not already
-     appeared in ``knowledge/experiment_results.json``'s ``results[]``. Ties
-     break on candidate_id (deterministic). None left -> no-op, reason
-     "no-candidates".
-  5. Single in-flight dispatch — the drain's own last dispatch (tracked in the
-     same arm-state file) is checked via ``task_lane.task_status`` before a
-     new one is allowed. Not yet done -> no-op, reason "in-flight". This is
-     the drain's own lease discipline, layered on top of (not replacing) the
-     occupancy Lease from P2.
+  5. Brief selection — ``hearth.backlog.select_next(scope, sources)`` over the
+     three pluggable sources (authored files, promoted refined intents, priced
+     experiment candidates), priority authored > refined > candidate, scoped by
+     the arm file. Nothing to run -> no-op, reason "no-candidates".
   6. Dispatch — acquire a ``hearth.toolsurface.occupancy.Lease`` for
-     ``am4-oxen`` (P2's reusable helper, built explicitly for this), then
-     ``hearth.toolsurface.task_lane.submit_task`` with a ``hearth-drain-``
-     prefixed plan_id hint carrying the candidate's worth. Every tick (dispatch
-     or no-op) appends one ``bankedfire_drain`` event to the HEARTH kernel
-     ledger, the same ledger P4's watchdog uses (separate from the
+     ``omen-arc`` (P2's reusable helper, built explicitly for this), then
+     ``hearth.toolsurface.task_lane.submit_task(**brief.submit_kwargs())`` — so
+     the brief's ``requires``/``max_age_s`` ride the CCMETA header. Every tick
+     (dispatch or no-op) appends one ``bankedfire_drain`` event to the HEARTH
+     kernel ledger, the same ledger P4's watchdog uses (separate from the
      knowledge/belief-projection sources, so drain bookkeeping can never
      pollute beliefs — Banked Fire's "why not a second connector" rule, same
      spirit).
@@ -55,15 +65,16 @@ One drain tick, in order (every check is ledgered, every tick, no-op or not):
 Run:
     python -m fleet.bankedfire_drain              # one tick
     python -m fleet.bankedfire_drain --json        # machine-readable
-    python -m fleet.bankedfire_drain --arm "reason"    # arm (authored)
+    python -m fleet.bankedfire_drain --arm "reason" [--scope all]  # arm (authored)
     python -m fleet.bankedfire_drain --disarm "reason" # disarm (authored)
-    python -m fleet.bankedfire_drain --status      # show current arm state
+    python -m fleet.bankedfire_drain --status      # show current arm state + scope
 
-Stdlib + hearth.kernel.ledger + hearth.toolsurface.{occupancy,task_lane} +
-tools.workflow.validate_budget. No new network surface: occupancy and
-submit_task are the exact P2/P3 primitives, reused, not rebuilt (design
-principle #1: one scheduler; the conductor owns the queue, this only decides
-*whether* to knock on its door this tick).
+Stdlib + hearth.backlog + hearth.kernel.ledger +
+hearth.toolsurface.{occupancy,task_lane} + tools.workflow.validate_budget. No
+new network surface: occupancy, queue_status and submit_task are the exact
+P2/P3/G3 primitives, reused, not rebuilt (design principle #1: one scheduler;
+the conductor owns the queue, this only decides *whether* to knock on its door
+this tick).
 """
 from __future__ import annotations
 
@@ -78,25 +89,46 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from hearth.backlog import select as backlog_select  # noqa: E402
+from hearth.backlog import sources as backlog_sources  # noqa: E402
 from hearth.toolsurface import occupancy as occ_mod  # noqa: E402
 from hearth.toolsurface import task_lane  # noqa: E402
 from tools.workflow.validate_budget import ValidationError, validate_budget  # noqa: E402
 
 DRAIN_CALLER = {"id": "bankedfire-drain", "runner_class": "human", "node": "omen"}
-DRAIN_BACKEND = "am4-oxen"
+# The rung this lane gates on. Was "am4-oxen" until 2026-09-06: the AM4 probes
+# were deleted on 2026-08-21 when the B70s moved to OMEN, and check_occupancy on
+# a backend with NO registered probe returns "available" unconditionally — so
+# the gate had been answering "idle" without measuring anything. omen-arc is the
+# rung that actually has a probe (slot/KV goodput + tenancy fence).
+DRAIN_BACKEND = "omen-arc"
 PLAN_ID_PREFIX = "hearth-drain-"
-# Drain dispatches are PROOFING runs (retests/experiments on sunk idle compute),
-# not production build work. The tag rides submit_task(task_class=) so ledger
-# consumers — capacity buckets, scheduler hindsight — can separate them from
-# real jobs instead of reading an empty retest lap as a 20s "build".
-DRAIN_TASK_CLASS = "proofing"
+# Candidate dispatches are PROOFING runs (retests/experiments on sunk idle
+# compute), not production build work. The tag rides submit_task(task_class=) so
+# ledger consumers — capacity buckets, scheduler hindsight — can separate them
+# from real jobs instead of reading an empty retest lap as a 20s "build".
+# Defined once, in hearth.backlog.sources, and re-exported here.
+DRAIN_TASK_CLASS = backlog_sources.CANDIDATE_TASK_CLASS
 
 DEFAULT_ARM_STATE_PATH = _REPO_ROOT / "hearth" / "var" / "bankedfire_drain_arm.json"
 DEFAULT_BUDGET_PATH = _REPO_ROOT / "knowledge" / "operating-budget.json"
-DEFAULT_CANDIDATE_WORTH_PATH = _REPO_ROOT / "knowledge" / "candidate_worth.json"
-DEFAULT_EXPERIMENT_RESULTS_PATH = _REPO_ROOT / "knowledge" / "experiment_results.json"
+DEFAULT_CANDIDATE_WORTH_PATH = backlog_sources.DEFAULT_CANDIDATE_WORTH_PATH
+DEFAULT_EXPERIMENT_RESULTS_PATH = backlog_sources.DEFAULT_EXPERIMENT_RESULTS_PATH
+DEFAULT_QUEUED_DIR = backlog_sources.DEFAULT_QUEUED_DIR
+DEFAULT_REFINE_DIR = backlog_sources.DEFAULT_REFINE_DIR
 
-ARM_CONTRACT_VERSION = "bankedfire-drain-arm.v1"
+ARM_CONTRACT_VERSION = "bankedfire-drain-arm.v2"
+ARM_CONTRACT_VERSION_V1 = "bankedfire-drain-arm.v1"
+
+# Which backlog sources an armed drain may draw from. The enum is the one in
+# hearth.backlog.select — a scope the chooser does not know is not a scope.
+ARM_SCOPES = tuple(sorted(backlog_select.SCOPES))
+# Derek's decision (2026-09-06): unattended dispatch may draw from authored AND
+# self-generated sources from day one, so an --arm with no --scope writes "all"
+# EXPLICITLY. The default is materialized in the file, never implied by absence.
+DEFAULT_SCOPE = "all"
+MISSING_SCOPE_REASON = (
+    'arm file predates the scope contract; re-arm with --arm "<reason>" --scope all')
 
 
 # ---------------------------------------------------------------------------
@@ -107,6 +139,7 @@ def _default_arm_state() -> dict:
     return {
         "contract_version": ARM_CONTRACT_VERSION,
         "armed": False,
+        "scope": DEFAULT_SCOPE,
         "authored_by": None,
         "reason": "default: idle-drain ships disarmed until a human arms it",
         "updated": None,
@@ -121,6 +154,21 @@ def load_arm_state(path: Path = DEFAULT_ARM_STATE_PATH) -> dict:
     fail-safe, mirroring the occupancy probe's fail-open-to-busy discipline
     for opportunistic work (P2 module docstring): when in doubt, don't spend
     the mechnet unattended.
+
+    SCOPE (v2, 2026-09-06). The arm file now says WHICH backlog sources
+    unattended dispatch may draw from. Two ways that can be wrong, both of which
+    load as DISARMED rather than being repaired here:
+
+      * ``armed: true`` with NO ``scope`` key — a v1 file, written before the
+        sources existed. Grandfathering it to "all" would silently widen a
+        human's authorization from "run priced experiment candidates" to "run
+        anything anyone drops in a directory". The reason names the exact
+        re-arm command instead, so the human re-authorizes explicitly.
+      * ``armed: true`` with a scope the chooser does not know — a typo must
+        fail the tick, never fall back to a default.
+
+    A file that is already disarmed keeps its own reason: there is nothing to
+    fail closed about.
     """
     if not path.is_file():
         return _default_arm_state()
@@ -132,6 +180,18 @@ def load_arm_state(path: Path = DEFAULT_ARM_STATE_PATH) -> dict:
         return _default_arm_state()
     state = _default_arm_state()
     state.update(data)
+    if data.get("armed"):
+        if "scope" not in data:
+            state["armed"] = False
+            state["scope"] = None
+            state["reason"] = MISSING_SCOPE_REASON
+            state["disarmed_by"] = "missing-scope"
+        elif data.get("scope") not in backlog_select.SCOPES:
+            state["armed"] = False
+            state["reason"] = (
+                f"arm file names an unknown scope {data.get('scope')!r}; "
+                f"re-arm with --arm \"<reason>\" --scope {'|'.join(ARM_SCOPES)}")
+            state["disarmed_by"] = "unknown-scope"
     return state
 
 
@@ -141,15 +201,29 @@ def save_arm_state(state: dict, path: Path = DEFAULT_ARM_STATE_PATH) -> None:
 
 
 def set_armed(armed: bool, reason: str, authored_by: str = "derek",
-             path: Path = DEFAULT_ARM_STATE_PATH) -> dict:
+             path: Path = DEFAULT_ARM_STATE_PATH,
+             scope: Optional[str] = None) -> dict:
     """Authored ARM/DISARM ceremony: a human names a reason, it's timestamped
     and persisted. Never flips itself — callers are the CLI (--arm/--disarm)
-    or, eventually, a kernel_change-style tool; there is no auto-arm path."""
+    or, eventually, a kernel_change-style tool; there is no auto-arm path.
+
+    Arming ALWAYS writes an explicit ``scope`` (default ``"all"``) and bumps the
+    file to the v2 contract, so the file that authorizes a dispatch always says
+    what it authorizes."""
     state = load_arm_state(path)
+    if armed:
+        chosen = DEFAULT_SCOPE if scope is None else scope
+    else:
+        chosen = scope if scope is not None else (state.get("scope") or DEFAULT_SCOPE)
+    if chosen not in backlog_select.SCOPES:
+        raise ValueError(f"scope must be one of {ARM_SCOPES}; got {chosen!r}")
+    state["contract_version"] = ARM_CONTRACT_VERSION
     state["armed"] = bool(armed)
+    state["scope"] = chosen
     state["authored_by"] = authored_by
     state["reason"] = reason
     state["updated"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    state.pop("disarmed_by", None)
     save_arm_state(state, path)
     return state
 
@@ -223,36 +297,20 @@ def check_budget(path: Path = DEFAULT_BUDGET_PATH,
 
 
 # ---------------------------------------------------------------------------
-# Candidate selection
+# Candidate selection — MOVED to hearth.backlog.sources (B-03).
+#
+# The logic now lives beside the other two backlog sources so all three obey one
+# ordering/reporting contract, and so the "already run" comparison could be
+# fixed in one place: it used to compare candidate_id to candidate_id on
+# experiment_results.json rows, which are experiment-result.v1 and carry
+# experiment_id — no candidate_id key exists on them, so the skip set was always
+# empty. See sources.RESULT_CANDIDATE_FIELDS for which fields are honoured now.
+#
+# This name is kept as a thin re-export (NOT a reimplementation) so any importer
+# of ``drain.select_candidate`` keeps working with the fixed behaviour.
 # ---------------------------------------------------------------------------
 
-def _load_json(path: Path, default: dict) -> dict:
-    if not path.is_file():
-        return default
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return default
-
-
-def select_candidate(worth_path: Path = DEFAULT_CANDIDATE_WORTH_PATH,
-                     results_path: Path = DEFAULT_EXPERIMENT_RESULTS_PATH) -> Optional[dict]:
-    """Highest-worth priced candidate not yet present in experiment_results.json.
-
-    Deterministic tie-break on candidate_id so two ticks with an identical
-    worth table always pick the same candidate (no hidden randomness in an
-    unattended dispatch).
-    """
-    worth_doc = _load_json(worth_path, {"entries": []})
-    results_doc = _load_json(results_path, {"results": []})
-    already_run = {r.get("candidate_id") for r in results_doc.get("results", [])
-                  if isinstance(r, dict)}
-    entries = [e for e in worth_doc.get("entries", [])
-              if isinstance(e, dict) and e.get("candidate_id") not in already_run]
-    if not entries:
-        return None
-    entries.sort(key=lambda e: (-int(e.get("worth_points", 0)), e["candidate_id"]))
-    return entries[0]
+select_candidate = backlog_sources.select_candidate
 
 
 # ---------------------------------------------------------------------------
@@ -262,9 +320,22 @@ def select_candidate(worth_path: Path = DEFAULT_CANDIDATE_WORTH_PATH,
 # Every no-op branch a healthy tick can take. Reaching one of these means the
 # drain evaluated its gates and correctly decided not to dispatch -- that IS the
 # tick doing its job, so it is ok:true. Only a malfunction is ok:false.
+# "busy:queue-unreadable" is here on purpose. It IS the tick doing its job: the
+# conductor's queue could not be read, so the drain fail-closed and dispatched
+# nothing. `ok` has meant "this tick did its job" since the 592-false-alarm fix,
+# not "everything is healthy" — and the condition is NOT hidden, because it
+# carries its own low-cardinality `outcome` label, which is what the projection
+# buckets on. A conductor that has been unreachable all day shows up as a stack
+# of busy:queue-unreadable ticks, not as an invisible zero.
 BENIGN_OUTCOMES = frozenset({
-    "disarmed", "busy", "no-budget", "no-candidates", "in-flight",
+    "disarmed", "busy", "busy:queue-unreadable", "no-budget", "no-candidates",
+    "in-flight",
 })
+
+REASON_QUEUE_UNREADABLE = "busy:queue-unreadable"
+# Bound what a no-op ledgers about a rejected backlog: a queued dir full of
+# broken files must not turn one tick record into an unbounded blob.
+MAX_REJECTED_REPORTED = 20
 
 
 def _outcome_for(reason: str) -> str:
@@ -327,20 +398,45 @@ def _record_tick(reason: str, detail: dict, ledger=None) -> Optional[str]:
 # One tick
 # ---------------------------------------------------------------------------
 
+def _read_queue(queue_status_fn: Callable[[], dict]) -> tuple[Optional[dict], Optional[str]]:
+    """(counts, error). Fail-closed: anything but two integers is an error.
+
+    A missing key, a None, or a raise all mean the same thing operationally —
+    we do not know whether the conductor is idle — and the one answer this gate
+    must never give in that state is "available by default".
+    """
+    try:
+        queue = queue_status_fn()
+    except Exception as exc:  # noqa: BLE001 - an SSH/probe fault must not crash the task
+        return None, f"{type(exc).__name__}: {exc}"
+    if not isinstance(queue, dict):
+        return None, f"queue_status returned {type(queue).__name__}, expected a dict"
+    if not queue.get("ok"):
+        return None, str(queue.get("error") or "queue_status returned ok:false")
+    running, queued = queue.get("running"), queue.get("queued")
+    if not isinstance(running, int) or isinstance(running, bool) \
+            or not isinstance(queued, int) or isinstance(queued, bool):
+        return None, "queue_status returned no integer queued/running counts"
+    return {"queued": queued, "running": running}, None
+
+
 def run_tick(arm_state_path: Path = DEFAULT_ARM_STATE_PATH,
             budget_path: Path = DEFAULT_BUDGET_PATH,
             worth_path: Path = DEFAULT_CANDIDATE_WORTH_PATH,
             results_path: Path = DEFAULT_EXPERIMENT_RESULTS_PATH,
+            queued_dir: Path = DEFAULT_QUEUED_DIR,
+            refine_dir: Path = DEFAULT_REFINE_DIR,
             occupancy_check: Callable[[str], dict] = occ_mod.check_occupancy,
             acquire_lease: Callable[..., occ_mod.Lease] = occ_mod.acquire_lease,
             submit_task_fn: Callable[..., dict] = task_lane.submit_task,
             task_status_fn: Callable[..., dict] = task_lane.task_status,
+            queue_status_fn: Callable[[], dict] = task_lane.queue_status,
             ledger=None, write_ledger: bool = True) -> dict:
     """Run exactly one drain tick and return its report. Every path through
     this function ledgers exactly one bankedfire_drain.tick event (unless
     write_ledger=False, for offline unit tests)."""
     state = load_arm_state(arm_state_path)
-    detail: dict = {"armed": state["armed"]}
+    detail: dict = {"armed": state["armed"], "scope": state.get("scope")}
 
     def _finish(reason: str, extra: Optional[dict] = None) -> dict:
         detail.update(extra or {})
@@ -348,7 +444,16 @@ def run_tick(arm_state_path: Path = DEFAULT_ARM_STATE_PATH,
         return {"reason": reason, "detail": detail, "ledger_event_id": event_id}
 
     if not state["armed"]:
-        return _finish("disarmed")
+        return _finish("disarmed", {"disarmed_by": state.get("disarmed_by"),
+                                    "arm_reason": state.get("reason")})
+
+    # Defensive duplicate of load_arm_state's scope rule, stated locally so this
+    # function is total: select_next raises on an unknown scope, and a raise here
+    # would skip the ledger row that every tick owes.
+    scope = state.get("scope")
+    if scope not in backlog_select.SCOPES:
+        return _finish("disarmed", {"disarmed_by": "unknown-scope",
+                                    "arm_reason": state.get("reason")})
 
     # Single-in-flight rule: a prior drain dispatch with no result yet blocks
     # this tick outright, before even probing occupancy again.
@@ -362,6 +467,17 @@ def run_tick(arm_state_path: Path = DEFAULT_ARM_STATE_PATH,
         state["last_dispatch_plan_id"] = None
         save_arm_state(state, arm_state_path)
 
+    # Idle, question 1: is the conductor's own queue empty? Occupancy answers
+    # for the RUNG; this answers for the QUEUE, and unattended work must not
+    # jump a backlog a human is already waiting on.
+    queue, queue_error = _read_queue(queue_status_fn)
+    if queue is None:
+        return _finish(REASON_QUEUE_UNREADABLE, {"queue_error": queue_error})
+    detail["queue"] = queue
+    if queue["running"] or queue["queued"]:
+        return _finish("busy", {"busy_reason": "conductor-queue-not-idle"})
+
+    # Idle, question 2: the P2 occupancy probe on the rung that HAS one.
     occ_result = occupancy_check(DRAIN_BACKEND)
     occupancy = occ_result.get("occupancy", "unknown")
     detail["occupancy"] = occupancy
@@ -373,33 +489,33 @@ def run_tick(arm_state_path: Path = DEFAULT_ARM_STATE_PATH,
     if not has_headroom:
         return _finish("no-budget")
 
-    candidate = select_candidate(worth_path, results_path)
-    if candidate is None:
-        return _finish("no-candidates")
-    detail["candidate"] = {"candidate_id": candidate["candidate_id"],
-                           "worth_points": candidate.get("worth_points")}
+    scans = {
+        "authored": backlog_sources.authored_source(queued_dir),
+        "refined": backlog_sources.refined_source(refine_dir),
+        "candidate": backlog_sources.candidate_source(worth_path, results_path),
+    }
+    detail["backlog_counts"] = {name: len(scan) for name, scan in scans.items()}
+    brief = backlog_select.select_next(scope, scans)
+    if brief is None:
+        rejected = [row for scan in scans.values() for row in scan.rejected]
+        return _finish("no-candidates",
+                       {"backlog_rejected": rejected[:MAX_REJECTED_REPORTED],
+                        "backlog_rejected_total": len(rejected)})
+    detail["source"] = brief.source
+    detail["source_ref"] = brief.source_ref
+    detail["slug"] = brief.slug
 
     lease = acquire_lease(DRAIN_BACKEND, pinned=False)
     if not lease.granted:
         return _finish("busy", {"occupancy_detail": {"occupancy": lease.occupancy_at_grant}})
 
-    prompt = (
-        f"Idle-drain dispatch (Banked Fire P5). Run experiment candidate "
-        f"{candidate['candidate_id']!r} (worth_points={candidate.get('worth_points')}): "
-        f"{candidate.get('reason', '')}\n\n"
-        f"This is unattended, gated, opportunistic fleet work — treat it as a normal build."
-    )
     # Token hole #1 (M3): every submit_task call site stamps task_class AND
-    # est_tokens. The drain's brief is short and its deliverable is a retest
-    # report, so the proofing allowance dominates; the number is derived here
-    # (not left for submit_task to fill in) so the tick's own ledger row and
-    # the CCMETA header agree even when a fake submitter is injected.
-    est_tokens = task_lane.estimate_tokens(prompt, DRAIN_TASK_CLASS)
-    detail["est_tokens"] = est_tokens
-    submit_result = submit_task_fn(
-        prompt, plan_id_hint=f"drain-{candidate['candidate_id'][:40]}",
-        task_class=DRAIN_TASK_CLASS, est_tokens=est_tokens,
-    )
+    # est_tokens. submit_kwargs() derives est_tokens from the RENDERED brief when
+    # the brief does not declare one, so the tick's own ledger row and the CCMETA
+    # header agree even when a fake submitter is injected.
+    kwargs = brief.submit_kwargs()
+    detail["est_tokens"] = kwargs["est_tokens"]
+    submit_result = submit_task_fn(**kwargs)
     if not submit_result.get("ok"):
         return _finish("no-op:dispatch-failed", {"submit_error": submit_result.get("error")})
 
@@ -420,17 +536,23 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("--disarm", metavar="REASON", help="authored DISARM (requires a reason)")
     ap.add_argument("--status", action="store_true", help="print current arm state, run nothing")
     ap.add_argument("--authored-by", default="derek")
+    ap.add_argument("--scope", choices=ARM_SCOPES, default=None,
+                    help=(f"backlog sources an armed drain may draw from "
+                          f"(default {DEFAULT_SCOPE!r}, written explicitly)"))
     args = ap.parse_args(argv)
 
     if args.status:
+        # --status prints the LOADED state, so a v1 file with no scope shows the
+        # armed:false + re-arm reason the tick would actually see, not the raw
+        # bytes on disk.
         print(json.dumps(load_arm_state(), indent=2))
         return 0
     if args.arm is not None:
-        state = set_armed(True, args.arm, authored_by=args.authored_by)
+        state = set_armed(True, args.arm, authored_by=args.authored_by, scope=args.scope)
         print(json.dumps(state, indent=2))
         return 0
     if args.disarm is not None:
-        state = set_armed(False, args.disarm, authored_by=args.authored_by)
+        state = set_armed(False, args.disarm, authored_by=args.authored_by, scope=args.scope)
         print(json.dumps(state, indent=2))
         return 0
 

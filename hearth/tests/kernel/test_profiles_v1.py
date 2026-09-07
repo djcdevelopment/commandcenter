@@ -11,6 +11,7 @@ being denied a tool it just added. This test turns that into a red build.
 
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 from unittest import TestCase
 
@@ -63,6 +64,64 @@ class UnrestrictedProfileTests(TestCase):
         for tool in caps.TOOL_CAPABILITY:
             allowed, _ = caps.check_tool_access(self.profiles["unrestricted"], tool)
             self.assertTrue(allowed, f"unrestricted must reach {tool}")
+
+
+class OrchestratorProfileTests(TestCase):
+    """The role `mechnet-orchestrator` is assigned (2026-09-06, OPS-06).
+
+    An identity that can START a long-running pour but not CLOSE its receipt
+    leaves an open build request nobody holds, so `build_request` belongs to the
+    role that dispatches the pour — not only to `operator` above it.
+    """
+
+    def setUp(self) -> None:
+        self.profiles = caps.load_profiles(PROFILES)
+
+    def test_orchestrator_grants_the_receipt_lane(self) -> None:
+        self.assertTrue(self.profiles["orchestrator"].grants("build_request"))
+        for tool in ("create_build_request", "get_build_request", "list_build_requests",
+                     "update_build_request", "execute_build_request", "close_build_request"):
+            with self.subTest(tool=tool):
+                allowed, capability = caps.check_tool_access(self.profiles["orchestrator"], tool)
+                self.assertTrue(allowed, f"orchestrator should reach {tool}")
+                self.assertEqual(capability, "build_request")
+
+    def test_orchestrator_keeps_what_it_already_had(self) -> None:
+        """A new grant must not be a rewrite. dispatch/queue/schedule/harvest come
+        from the role itself, read/generate from the inherited chain."""
+        for capability in ("dispatch", "queue", "schedule", "harvest",
+                           "test", "write", "repo_content", "repo_write",
+                           "read", "query", "generate", "execution", "status",
+                           "repo_metadata"):
+            with self.subTest(capability=capability):
+                self.assertTrue(self.profiles["orchestrator"].grants(capability))
+
+    def test_orchestrator_still_stops_short_of_the_operator_console(self) -> None:
+        """Widening one capability must not quietly promote the role. These are
+        operator-and-above grants and must stay outside orchestrator."""
+        for capability in ("kernel_admin", "rotation_admin", "summon", "health",
+                           "commander", "dream", "knowledge_write", "catalog_write",
+                           "image_generate", "image_session_admin", "media_generate",
+                           "media_render"):
+            with self.subTest(capability=capability):
+                self.assertFalse(self.profiles["orchestrator"].grants(capability))
+
+    def test_the_duplicate_grant_across_inheritance_is_accepted(self) -> None:
+        """`operator` declares `build_request` DIRECTLY and now also inherits it
+        from `orchestrator`. That duplicate is a set union in `_resolve`, not an
+        error — this pins that reading, because the alternative (deleting the
+        operator line) would make operator's grant depend on a parent it does not
+        control. Asserted against the raw TOML so it cannot pass by accident once
+        the direct declaration is gone."""
+        with PROFILES.open("rb") as handle:
+            raw = tomllib.load(handle)["profile"]
+        self.assertIn("build_request", raw["operator"]["capabilities"])
+        self.assertIn("build_request", raw["orchestrator"]["capabilities"])
+        self.assertEqual(raw["operator"]["inherits"], "orchestrator")
+        # The loader takes the file as it stands — no exception, both roles resolved.
+        profiles = caps.load_profiles(PROFILES)
+        self.assertTrue(profiles["operator"].grants("build_request"))
+        self.assertTrue(profiles["orchestrator"].grants("build_request"))
 
 
 class OperatorProfileTests(TestCase):

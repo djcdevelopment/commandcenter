@@ -132,12 +132,24 @@ capabilities = [
 # --- orchestrator -------------------------------------------------------------
 # DEFINED BUT UNASSIGNED in v1. Fleet-shaping reach: queue inspection, scheduler
 # advice, run harvesting.
+#
+# ASSIGNED 2026-09-06 to `mechnet-orchestrator` (OPERATOR_ACTIONS/OPS-06 mints the
+# key; this file only says what the role may do). The v1 line above is kept
+# because it dates the role's origin, not its current tenancy. That identity is
+# the MechNet pour: it submits a long-running fleet build through the door and
+# then works the receipt for it, so it needs `build_request` as well as
+# `dispatch` -- a pour that can be started but not closed leaves an open receipt
+# nobody holds. Adding it here does NOT widen `operator`, which already declares
+# `build_request` directly (a duplicate grant across inheritance is a set union
+# in hearth/kernel/capabilities.py::_resolve, not an error).
 [profile.orchestrator]
 inherits = "builder"
 capabilities = [
-    "queue",      # queue_status
-    "schedule",   # propose_schedule, schedule_hindsight
-    "harvest",    # harvest_fleet_run, list_fleet_runs
+    "queue",          # queue_status
+    "schedule",       # propose_schedule, schedule_hindsight
+    "harvest",        # harvest_fleet_run, list_fleet_runs
+    "build_request",  # create/get/list/update/execute/close_build_request -- the
+                      # receipt lane a MechNet pour is dispatched and closed through
 ]
 
 # --- operator -----------------------------------------------------------------

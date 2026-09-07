@@ -1,0 +1,51 @@
+{
+  "schema": "hearth-offload-targets/v1",
+  "description": "The single distribution list read by tools/ops/sync-offload-block.mjs. Every repository that should carry the canonical HEARTH offload block appears here exactly once. Adding a repository here is the whole of enrolling it; the tool reads nothing else. `repo` is an absolute path to the directory holding the file, `file` is the file name inside it, and `name` is the label used only when the tool has to create the file from scratch (heading `# AGENTS.md - <name>`). Note that lumberjacks-platform/Lumberjacks is a subdirectory of the lumberjacks-platform git repository, not a repository of its own; the tool resolves each target's git root itself.",
+  "targets": [
+    {
+      "repo": "C:\\work\\commandcenter",
+      "file": "AGENTS.md",
+      "name": "commandcenter"
+    },
+    {
+      "repo": "C:\\work\\articleblitz",
+      "file": "AGENTS.md",
+      "name": "articleblitz"
+    },
+    {
+      "repo": "C:\\work\\baseline",
+      "file": "AGENTS.md",
+      "name": "baseline"
+    },
+    {
+      "repo": "C:\\work\\comfy-quest",
+      "file": "AGENTS.md",
+      "name": "comfy-quest"
+    },
+    {
+      "repo": "C:\\work\\isolate",
+      "file": "AGENTS.md",
+      "name": "isolate"
+    },
+    {
+      "repo": "C:\\work\\lumberjacks-platform",
+      "file": "AGENTS.md",
+      "name": "lumberjacks-platform"
+    },
+    {
+      "repo": "C:\\work\\lumberjacks-platform\\Lumberjacks",
+      "file": "AGENTS.md",
+      "name": "Lumberjacks"
+    },
+    {
+      "repo": "C:\\work\\networksense",
+      "file": "AGENTS.md",
+      "name": "networksense"
+    },
+    {
+      "repo": "C:\\work\\sovereign-shards",
+      "file": "AGENTS.md",
+      "name": "sovereign-shards"
+    }
+  ]
+}

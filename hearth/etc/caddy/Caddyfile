@@ -1,4 +1,13 @@
-## HEARTH Funnel-facing reverse proxy.
+## HEARTH reverse proxies -- two sites in one Caddy process.
+#
+#   :8711  Funnel-facing hop in front of the HEARTH gateway (/mcp -> :8710).
+#   :8083  VM inference proxy in front of llama-swap (/v1 -> :8081). See
+#          hearth/etc/caddy/README.md; added 2026-09-06 (B-06).
+#
+# ONE PROCESS, TWO BLAST RADII: a syntax error, a bind failure or a crash here
+# takes the PUBLIC Funnel door down with it. Run `caddy validate` before every
+# commit, and do not introduce a listener whose address might not exist at boot
+# (see the bind note on :8083 below).
 #
 # HEARTH's gateway serves exactly one HTTP path (/mcp, streamable-http; see
 # hearth/kernel/gateway.py's module docstring) and binds 127.0.0.1:8710 only.
@@ -89,5 +98,99 @@
 	# 404s rather than reaching the gateway process at all.
 	handle {
 		respond 404
+	}
+}
+
+## ── VM inference proxy (added 2026-09-06, B-06) ──────────────────────────────
+#
+# Builder VMs decode on an 8 GB fx99 sidecar because llama-swap on 127.0.0.1:8081
+# mixes an OpenAI-compatible /v1 surface with UNAUTHENTICATED admin endpoints
+# (/api/models/unload*, /upstream/*, /running, /unload, /ui, /logs, /metrics).
+# Binding :8081 beyond loopback would let any VM unload production. This block
+# narrows the surface to inference only and injects the upstream bearer, so the
+# VMs can reach the B70 rung without ever seeing an admin path or a token.
+#
+#   VM -> omen.mshome.net:8083 (here) -> 127.0.0.1:8081 (llama-swap) -> :8082
+#
+# LISTENER BOUNDARY -- `:8083` binds every interface, same as :8711 above, and
+# the boundary is ONE inbound firewall rule scoped to the Default Switch
+# interface (README.md has the exact command; Derek runs it). The tempting
+# alternative -- `bind omen.mshome.net`, so the listener follows the Default
+# Switch prefix across its reboot drift -- was MEASURED and REJECTED on
+# 2026-09-06: that name resolves to TWO addresses here, 172.31.96.1 (the live
+# switch) and 172.25.96.1 (a stale registration bound to no interface). A bind
+# of the stale one fails with WSAEADDRNOTAVAIL, and Caddy exits rather than
+# starting partially -- which would take the PUBLIC :8711 door down at every
+# boot. Never make this process's startup depend on an address that may not
+# exist yet.
+:8083 {
+	# Same redaction as the Funnel block. The global `log default` above already
+	# covers reverse_proxy's own warnings for BOTH sites.
+	log {
+		output file C:\work\commandcenter\hearth\var\caddy-vm-proxy-access.log {
+			roll_size 10MiB
+			roll_keep 3
+		}
+		format filter {
+			wrap console
+			fields {
+				request>headers>X-Hearth-Key delete
+				request>headers>Authorization delete
+				request>headers>Cookie delete
+			}
+		}
+	}
+
+	# 32 MiB. The rung serves 2 slots x 64k tokens; the door's own files= pack
+	# cap is 1 MiB, and a 64k-token prompt is well under 1 MiB of JSON. This is
+	# ~30x the largest legitimate request -- it can never truncate real work,
+	# and it bounds a hostile body far below anything that pressures the host.
+	request_body {
+		max_size 32MiB
+	}
+
+	# FAIL CLOSED. With the launcher started without the token, `{env....}`
+	# expands to empty and we would forward `Bearer ` upstream. llama-server on
+	# :8082 does enforce LLAMA_API_KEY (fleet/arcserve/serve-arc-swap.cmd sets it
+	# from OMEN_ARC_TOKEN; fleet/arcserve/cutover.ps1 step D asserts a bare
+	# request gets 401), so a decode would still be refused -- but llama-swap
+	# answers parts of /v1 (e.g. the model list) from its OWN config without
+	# touching the upstream, and whether v251 gates those on a bearer is not
+	# knowable from anything tracked in this repo. So the refusal is made HERE,
+	# where it is ours to guarantee: no token, no proxy, for any path.
+	@noauth expression {env.OMEN_ARC_TOKEN} == ""
+
+	route {
+		respond @noauth "vm inference proxy: upstream credential unavailable" 503
+
+		handle /v1/* {
+			reverse_proxy 127.0.0.1:8081 {
+				# `header_up <name> <value>` is a SET: it replaces whatever the
+				# client sent, so a VM cannot substitute its own bearer. Do NOT
+				# "harden" this by adding `header_up -Authorization` first --
+				# Caddy's header handler applies deletes AFTER sets, so the pair
+				# would strip the credential we just injected and every request
+				# would 401. The proof
+				# (hearth/tests/proxy/test_vm_proxy_caddyfile.py) sends
+				# `Authorization: Bearer evil` and asserts the upstream sees the
+				# injected value instead.
+				header_up Authorization "Bearer {env.OMEN_ARC_TOKEN}"
+
+				# llama-swap routes on its own config, but keep the Host honest
+				# and loopback-shaped for the same reason as the :8711 block.
+				header_up Host 127.0.0.1:8081
+			}
+		}
+
+		# Everything that is not /v1 -- the whole admin surface included -- 404s
+		# without a dial. Deliberately ONE catch-all rather than an enumerated
+		# `handle /api/*`: an explicit admin list would be redundant here and
+		# would invite the reading that only the listed paths are blocked. The
+		# rule is an allow-list of exactly /v1/*; the proof asserts 404 for
+		# /api/models, /upstream/x, /running, /unload, /ui, /metrics, /logs and
+		# /, and asserts the upstream saw none of them.
+		handle {
+			respond 404
+		}
 	}
 }

@@ -296,6 +296,10 @@ via = "mshome"
 host = "omen"
 expect = "optional"   # PARKED 2026-08-24 (see FLEET HOLD note above); restore to "up" when the VMs restart
 runner_class = "local"   # runner.json: openai -> fx99-ollama qwen2.5-coder:7b (re-pointed 2026-08-29; was AM4 vllama-planner over the tailnet, a dead oxen facade)
+# 2026-09-06 (B-06): target after the repoint is `http://omen.mshome.net:8083/v1`, model
+# `qwen3-30b-a3b` -- the B70 rung through the new authenticated Caddy proxy (see
+# hearth/etc/caddy/README.md). NOT YET REPOINTED: the proxy is committed but the process
+# restart, Derek's firewall rule and the from-VM decode proof are all still pending.
 purpose = "Builder VM (local oxen-planner runner)."
 checks = [
   { service = "ssh", port = 22 },
@@ -309,6 +313,10 @@ via = "mshome"
 host = "omen"
 expect = "optional"   # PARKED 2026-08-24 (see FLEET HOLD note above); restore to "up" when the VMs restart
 runner_class = "local"   # runner.json: openai -> fx99-ollama qwen2.5:14b (re-pointed 2026-08-29; same model, but was aimed at OMEN Ollama :11434, dead since ADR-0034)
+# 2026-09-06 (B-06): target after the repoint is `http://omen.mshome.net:8083/v1`, model
+# `qwen3-30b-a3b` -- the B70 rung through the new authenticated Caddy proxy (see
+# hearth/etc/caddy/README.md). NOT YET REPOINTED: the proxy is committed but the process
+# restart, Derek's firewall rule and the from-VM decode proof are all still pending.
 purpose = "Builder + assay VM (rebuilt 2026-07-01, standalone disk). Current assay node while claudefarm1 is down."
 checks = [
   { service = "ssh", port = 22 },

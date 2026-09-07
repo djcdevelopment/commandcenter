@@ -87,10 +87,14 @@ def plan_execution(
     """Resolve Operation, Provider, and policy without content or dispatch.
 
     ``task_family`` (e.g. "quote_retrieval") consults the authored family
-    evidence in ``hearth/etc/routing-families.toml``: with no ``model`` given it
-    resolves the family's recommended model when a live provider serves it, and
-    the recommendation itself always rides back as ``family_recommendation``.
-    A caller-supplied ``model``/``backend`` still wins. Nothing is dispatched.
+    evidence in ``hearth/etc/routing-families.toml``. With no caller signal the
+    family routes — by the rung it names when that rung is pin-only, else by the
+    family's tags — and ``routed_by`` comes back family-prefixed, exactly the
+    route ``submit_execution`` would take for the same arguments (one helper
+    decides for both, so a plan cannot promise a rung the dispatch would not
+    use). A caller-supplied ``model``/``backend`` still wins, and the
+    recommendation always rides back as ``family_recommendation``. Nothing is
+    dispatched.
     """
     _identity()
     return _get_service().plan(

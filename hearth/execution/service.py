@@ -11,7 +11,7 @@ import copy
 import threading
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
-from typing import Any, Callable, Mapping, Optional
+from typing import Any, Callable, Mapping, NamedTuple, Optional
 
 from hearth.observation.identity import (DispatchIdentity, current_identity,
                                          dispatch_identity)
@@ -30,6 +30,79 @@ GenerateCallable = Callable[..., dict[str, Any]]
 
 class ExecutionServiceError(RuntimeError):
     pass
+
+
+class FamilyRoute(NamedTuple):
+    """How one llm_chat submission is routed once the family evidence is read.
+
+    One value, three consumers: ``plan`` (advice), ``submit`` (admission) and
+    ``_run_job`` (dispatch) all build it the same way from the same arguments, so
+    a plan that promised one rung and a job that used another is no longer
+    reachable. C-05 filled the model in ``plan`` alone and left the two dispatch
+    paths choosing for themselves -- which is exactly how the door came to stamp
+    ``task_family`` on every ledger row without ever routing by it.
+
+    ``model`` is what ``select_backend`` is ASKED for and is ``None`` on a tag
+    route: passing a model there would take ``select_backend``'s by-model branch
+    and the tag would never be consulted. ``preferred_model`` carries the
+    family's recommendation instead, and ``resolve_model`` applies it once the
+    provider is known -- never handing a rung a model it does not declare, which
+    is the rung/model mismatch C-05 could produce.
+    """
+
+    backend: Optional[str]
+    model: Optional[str]
+    tags: Optional[list[str]]
+    family_prefix: Optional[str]
+    recommendation: Optional[dict[str, Any]]
+    preferred_model: Optional[str] = None
+    default_model: Optional[str] = None
+
+    def label(self, inner: str) -> str:
+        """``routed_by`` for this route: the family prefix, then the inner reason.
+
+        Same grammar as the primitive's (``family:<name>:tag:<t>``,
+        ``family:<name>:pinned:<rung>``), so the dashboard's outermost-prefix
+        rule counts door traffic in the same bucket as an in-process call. There
+        is no ``family:<name>:escalation:...`` on this lane: the service
+        dispatches once, and the primitive it calls is pinned, so the A2 climb
+        never fires here.
+        """
+        return f"{self.family_prefix}{inner}" if self.family_prefix else inner
+
+    def resolve_model(self, provider: Backend) -> Optional[str]:
+        """The model to dispatch, once ``select_backend`` has named the provider.
+
+        A route that asked for a model by name keeps it. A tag route takes the
+        family's recommended model when the chosen rung declares it, then the
+        operation default on the same condition, then the rung's own first
+        model -- the historical fallback. Every step checks ``provider.models``,
+        so the answer is always a model that rung actually serves.
+        """
+        if self.model is not None:
+            return self.model
+        for candidate in (self.preferred_model, self.default_model):
+            if candidate and candidate in provider.models:
+                return candidate
+        return provider.models[0] if provider.models else None
+
+    def refusal(self, exc: BackendConfigError) -> str:
+        """The routing error, saying which family sent the call where.
+
+        Prefix only: ``str(exc)`` already carries the reason code, the payload
+        size and every rung weighed (ADR-0031), and boundaries downstream match
+        on those. A family route that cannot be served must never fall back to
+        the operation default -- the caller asked to be routed by authored
+        evidence, and a quiet substitution is the failure mode this lane exists
+        to make visible.
+        """
+        if self.family_prefix is None or not self.recommendation:
+            return str(exc)
+        return (
+            f"task family {self.recommendation['family']!r} recommends model "
+            f"{self.recommendation['model_id']!r} on rung "
+            f"{self.recommendation['backend_hint']!r}: {exc}"
+        )
 
 
 class ExecutionService:
@@ -290,6 +363,109 @@ class ExecutionService:
             raise ExecutionServiceError("files must be a list of non-empty path strings")
         return normalized, encoded
 
+    def _family_route(
+        self,
+        operation: Operation,
+        arguments: Mapping[str, Any],
+        prompt_bytes: int,
+    ) -> FamilyRoute:
+        """Resolve one llm_chat submission's route, family evidence included.
+
+        Precedence, highest first::
+
+            endpoint pin > backend pin > caller model > explicit quality/task
+                         > task_family > operation default
+
+        The first four are the caller speaking about THIS call; authored family
+        evidence is a standing preference and yields to any of them (it is still
+        stamped, so the advice that was overridden stays on the record). Note
+        what ``quality``/``task`` do here: they do not route on this lane -- the
+        service passes neither to ``select_backend`` -- but they are caller
+        signals, so they suppress the family exactly as a pin does.
+
+        With no caller signal the family routes: by an explicit named pin when
+        the recommended rung carries no tags (opportunistic routing would never
+        land there), otherwise by the family's tags. A caller-named ``model``
+        suppressing the family is the C-05-R1 repair: sending the caller's model
+        to a rung chosen for a different one produced a mismatch the router
+        cannot see.
+
+        Raises ``ExecutionServiceError`` when the evidence cannot be read --
+        loudly, with no dispatch, rather than routing on a default nobody
+        authored.
+        """
+        caller_model = arguments.get("model")
+        backend = arguments.get("backend")
+        task_family = arguments.get("task_family")
+        default_model = operation.default_model
+        plain = FamilyRoute(
+            backend=backend,
+            model=caller_model or default_model,
+            tags=None,
+            family_prefix=None,
+            recommendation=None,
+            default_model=default_model,
+        )
+        if task_family is None:
+            return plain
+        if not isinstance(task_family, str) or not task_family.strip():
+            raise ExecutionServiceError("task_family must be a non-empty string")
+        # Local import: hearth.scheduler.__init__ pulls in the CP-SAT solver, and
+        # admitting a job must not start depending on ortools being installed.
+        from hearth.scheduler.families import recommend as recommend_family
+        from hearth.scheduler.families import tags_for
+
+        try:
+            recommendation = recommend_family(task_family, prompt_bytes // 4)
+        except Exception as exc:  # noqa: BLE001 — loud: never route on a guess
+            raise ExecutionServiceError(
+                f"task family config error: {type(exc).__name__}: {exc}") from exc
+        caller_signalled = (
+            backend is not None
+            or arguments.get("endpoint") is not None
+            or caller_model is not None
+            or arguments.get("quality") is not None
+            or arguments.get("task") is not None
+        )
+        if caller_signalled:
+            return plain._replace(recommendation=recommendation)
+        prefix = f"family:{recommendation['family']}:"
+        if recommendation["pin_required"] and recommendation["backend_hint"]:
+            return FamilyRoute(
+                backend=recommendation["backend_hint"],
+                model=recommendation["model_id"],
+                tags=None,
+                family_prefix=prefix,
+                recommendation=recommendation,
+                preferred_model=recommendation["model_id"],
+                default_model=default_model,
+            )
+        return FamilyRoute(
+            backend=None,
+            model=None,
+            tags=tags_for(recommendation["family"]),
+            family_prefix=prefix,
+            recommendation=recommendation,
+            preferred_model=recommendation["model_id"],
+            default_model=default_model,
+        )
+
+    @staticmethod
+    def _select_for_route(
+        pool: Any, route: FamilyRoute, payload_bytes: int
+    ) -> tuple[Backend, str, dict[str, Any]]:
+        """``select_backend`` for a resolved route, with the family named on failure."""
+        try:
+            return select_backend(
+                pool,
+                backend=route.backend,
+                model=route.model,
+                tags=route.tags,
+                payload_bytes=payload_bytes,
+            )
+        except BackendConfigError as exc:
+            raise ExecutionServiceError(route.refusal(exc)) from exc
+
     def submit(
         self,
         *,
@@ -337,12 +513,6 @@ class ExecutionService:
                     f"limit is {operation.max_prompt_bytes}"
                 )
         policy_value = self.operations.policy_for(operation, policy)
-        if is_delegated:
-            # Capacity for a render is a calibrated B70 lane, not a model
-            # provider, so the whole backend-selection path is skipped.
-            model = None
-        else:
-            model = arguments_value.get("model") or operation.default_model
         backend = None if is_delegated else arguments_value.get("backend")
         endpoint = None if is_delegated else arguments_value.get("endpoint")
         pool = None if is_delegated else load_pool()
@@ -357,15 +527,16 @@ class ExecutionService:
             backend = provider.name
             arguments_value["backend"] = backend
         if not is_delegated:
-            try:
-                select_backend(
-                    pool,
-                    backend=backend,
-                    model=model,
-                    payload_bytes=len(prompt_bytes),
-                )
-            except BackendConfigError as exc:
-                raise ExecutionServiceError(str(exc)) from exc
+            # Admission-time selection, resolved by the SAME helper _run_job uses
+            # at dispatch, so a submission that would be refused (or family-pinned
+            # onto a rung that cannot hold the payload) is refused here, before a
+            # Job exists. Capacity for a render is a calibrated B70 lane, not a
+            # model provider, so delegated handlers skip the whole path.
+            self._select_for_route(
+                pool,
+                self._family_route(operation, arguments_value, len(prompt_bytes)),
+                len(prompt_bytes),
+            )
 
         if idempotency_key is not None:
             if not isinstance(idempotency_key, str) or not idempotency_key.strip():
@@ -463,13 +634,13 @@ class ExecutionService:
         """Resolve policy and provider without storing content or dispatching work.
 
         ``task_family`` consults the authored family evidence
-        (``hearth/etc/routing-families.toml``). It fills in the model ONLY when
-        the caller named none and a non-retired provider in the pool actually
-        serves the recommended one — a recommendation nothing can run is a wish,
-        and answering with it would make the plan lie about what would happen.
-        A caller-supplied ``model`` or ``backend`` still wins. The recommendation
-        always rides back as ``family_recommendation``, so the caller can see the
-        advice that was not taken. Still content-free: no dispatch, no ledger row.
+        (``hearth/etc/routing-families.toml``) through the SAME ``_family_route``
+        helper ``submit`` and ``_run_job`` use, so what a plan promises is what a
+        submission would do — a plan that could disagree with the dispatch is
+        worse than no plan, because it is believed. A caller-supplied
+        ``model``/``backend`` still wins, and the recommendation always rides
+        back as ``family_recommendation`` so the caller can see the advice that
+        was not taken. Still content-free: no dispatch, no ledger row.
         """
         operation = self.operations.get(operation_name)
         if (
@@ -481,37 +652,18 @@ class ExecutionService:
             raise ExecutionServiceError(
                 f"prompt_bytes must be between 0 and {operation.max_prompt_bytes}"
             )
-        if task_family is not None and (not isinstance(task_family, str)
-                                        or not task_family.strip()):
-            raise ExecutionServiceError("task_family must be a non-empty string")
         resolved_policy = self.operations.policy_for(operation, policy)
-        resolved_model = model or operation.default_model
-        family_recommendation: Optional[dict[str, Any]] = None
-        if task_family is not None:
-            from hearth.scheduler.families import recommend as recommend_family
-            try:
-                family_recommendation = recommend_family(task_family, prompt_bytes // 4)
-            except Exception as exc:  # noqa: BLE001 — loud: never plan on a guess
-                raise ExecutionServiceError(
-                    f"task family config error: {type(exc).__name__}: {exc}") from exc
-            # Precedence, same chain the door uses: a caller pin outranks the
-            # family. A pinned provider that does not serve the recommended model
-            # would otherwise turn a working plan into a routing error -- the
-            # family would be overriding the pin by the back door.
-            if model is None and backend is None and family_recommendation["providers"]:
-                resolved_model = family_recommendation["model_id"]
-        try:
-            provider, routed_by, occupancy = select_backend(
-                load_pool(),
-                backend=backend,
-                model=resolved_model,
-                payload_bytes=prompt_bytes,
-            )
-        except BackendConfigError as exc:
-            raise ExecutionServiceError(str(exc)) from exc
-        resolved_model = resolved_model or (
-            provider.models[0] if provider.models else None
+        route = self._family_route(
+            operation,
+            {"model": model, "backend": backend, "task_family": task_family},
+            prompt_bytes,
         )
+        provider, routed_by, occupancy = self._select_for_route(
+            load_pool(), route, prompt_bytes
+        )
+        resolved_model = route.resolve_model(provider)
+        routed_by = route.label(routed_by)
+        family_recommendation = route.recommendation
         return {
             "operation": operation.name,
             "provider": provider.name,
@@ -574,22 +726,29 @@ class ExecutionService:
         prompt_metadata = desired["input_artifact"]
         prompt = self.artifacts.read(prompt_metadata).decode("utf-8")
         policy = ExecutionPolicy(**desired["policy"])
-        model = arguments.get("model") or operation.default_model
-        backend_hint = arguments.get("backend")
+        payload_bytes = len(prompt.encode("utf-8"))
         started_waiting = time.monotonic()
         deadline = started_waiting + policy.deadline_s
         invocation_id = new_invocation_id()
         provider: Optional[Backend] = None
         lease_id: Optional[str] = None
+        route = FamilyRoute(None, None, None, None, None)
 
         try:
-            provider, routed_by, occupancy = select_backend(
-                load_pool(),
-                backend=backend_hint,
-                model=model,
-                payload_bytes=len(prompt.encode("utf-8")),
+            route = self._family_route(operation, arguments, payload_bytes)
+            provider, routed_by, occupancy = self._select_for_route(
+                load_pool(), route, payload_bytes
             )
-            model = model or (provider.models[0] if provider.models else None)
+            routed_by = route.label(routed_by)
+            # Which routed_by the Invocation (and therefore execute_sync's
+            # compatibility projection) reports. The primitive is handed
+            # `backend=<provider>` below, so it always answers `pinned:<provider>`
+            # -- an echo of the service's own pin, which says nothing about WHY
+            # that rung was chosen. For a family-routed job the service's label
+            # wins; with no family the primitive's string stands, byte-identical
+            # to every door result before this repair.
+            family_routed_by = routed_by if route.family_prefix is not None else None
+            model = route.resolve_model(provider)
             if model is None:
                 raise ExecutionServiceError(
                     f"provider {provider.name!r} declares no default model"
@@ -624,6 +783,14 @@ class ExecutionService:
                 "queue_ms": round((time.monotonic() - started_waiting) * 1000),
                 "lease_id": lease_id,
             }
+            if route.recommendation is not None:
+                # Beside routed_by on the Job record, so get_execution shows the
+                # evidence this route was decided on -- including when the family
+                # was overridden by a caller signal and only advised. Added ONLY
+                # when a family was asked for: a submission that never named one
+                # keeps a byte-identical record.
+                dispatch_observed["task_family"] = arguments["task_family"]
+                dispatch_observed["family_recommendation"] = route.recommendation
             self._append("job.dispatched", state, observed=dispatch_observed)
             self._append(
                 "invocation.started",
@@ -639,10 +806,12 @@ class ExecutionService:
                 "max_tokens": policy.max_tokens,
                 "timeout_s": max(1, int(deadline - time.monotonic())),
             }
-            # task_family reaches the provider as evidence, not as a route: the
-            # provider is already pinned above (backend=provider.name), and a
-            # caller pin outranks a family. Forwarded anyway so the stamp is on
-            # the result and the ledger rather than silently dropped.
+            # task_family reaches the provider as evidence, not as a second
+            # route: THIS service already consulted the family above and pinned
+            # the rung it chose (backend=provider.name), which the primitive
+            # correctly reads as a caller pin. Forwarding it anyway keeps the
+            # stamp on the provider's own result and on the observation record,
+            # rather than silently dropping the reason the rung was picked.
             for optional in ("system", "task", "files", "quality", "task_family"):
                 if arguments.get(optional) is not None:
                     call_arguments[optional] = arguments[optional]
@@ -662,7 +831,7 @@ class ExecutionService:
                     "invocation.failed",
                     state,
                     invocation_id=invocation_id,
-                    observed=self._result_observed(result),
+                    observed=self._result_observed(result, routed_by=family_routed_by),
                     reason=reason,
                 )
                 self._append("job.failed", state, reason=reason)
@@ -674,7 +843,7 @@ class ExecutionService:
                     "invocation.failed",
                     state,
                     invocation_id=invocation_id,
-                    observed=self._result_observed(result),
+                    observed=self._result_observed(result, routed_by=family_routed_by),
                     reason=reason,
                 )
                 self._append("job.failed", state, reason=reason)
@@ -688,7 +857,7 @@ class ExecutionService:
                 "invocation.succeeded",
                 state,
                 invocation_id=invocation_id,
-                observed=self._result_observed(result),
+                observed=self._result_observed(result, routed_by=family_routed_by),
             )
             self._append(
                 "artifact.recorded",
@@ -725,11 +894,18 @@ class ExecutionService:
                 self.leases.release(lease_id)
 
     @staticmethod
-    def _result_observed(result: Mapping[str, Any]) -> dict[str, Any]:
+    def _result_observed(
+        result: Mapping[str, Any], *, routed_by: Optional[str] = None
+    ) -> dict[str, Any]:
         # P8: `occupancy` was dropped at the execution-ledger cutover (the kernel
         # row kept it; the invocation record did not) and `rung_state` /
         # `pool_config_hash` are the dispatch stamps inference.py adds. All three
         # ride `observed`, whose contract is an open object.
+        #
+        # `routed_by` overrides the provider's own reason when the SERVICE routed
+        # this job by task family (see _run_job): the primitive was pinned by us,
+        # so its `pinned:<provider>` is an echo, not a reason. None leaves the
+        # provider's string exactly as it was.
         allowed = {
             "backend",
             "model",
@@ -743,7 +919,12 @@ class ExecutionService:
             "max_tokens",
             "timeout_s",
         }
-        return {key: copy.deepcopy(value) for key, value in result.items() if key in allowed}
+        observed = {
+            key: copy.deepcopy(value) for key, value in result.items() if key in allowed
+        }
+        if routed_by is not None:
+            observed["routed_by"] = routed_by
+        return observed
 
     def get_job(self, job_id: str) -> Optional[dict[str, Any]]:
         return self.ledger.get_job(job_id)
@@ -880,6 +1061,14 @@ class ExecutionService:
             "duration_ms",
             "max_tokens",
             "timeout_s",
+            # C-05-R1: the family stamps come from the Invocation, where
+            # _run_job wrote the SERVICE's own decision -- so the door caller
+            # (and the gateway ledger row built from this result) sees which
+            # family routed the call, not just that one was named. Both keys are
+            # absent unless a family was asked for, so a call that never passes
+            # task_family gets a byte-identical result.
+            "task_family",
+            "family_recommendation",
         ):
             if key in observed:
                 result[key] = observed[key]

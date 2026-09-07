@@ -515,11 +515,19 @@ def local_generate(prompt: str, model: str | None = None,
     the authored family evidence in ``hearth/etc/routing-families.toml`` steer
     the route. Full precedence, highest first::
 
-        endpoint pin > backend pin > explicit quality/task > task_family > default
+        endpoint pin > backend pin > model > explicit quality/task
+                     > task_family > default
 
-    A caller pin routes exactly as it does today and the family is stamped
-    advisory-only. Otherwise the family routes by TAG when its recommended model
-    is opportunistically reachable (``routed_by`` "family:<name>:<inner>"), or by
+    A caller pin, or a caller-named ``model``, routes exactly as it does today
+    and the family is stamped advisory-only — a family route picks a rung for the
+    model IT recommends, so honouring both at once would send your model to a
+    rung that may not serve it. The ``HEARTH_OLLAMA`` operator override (the
+    legacy default-endpoint escape hatch) still sits above a family TAG route,
+    as it does above any tag route: it applies whenever no backend and no task
+    were named. It does not affect a family PIN, which names a backend.
+
+    Otherwise the family routes by TAG when its recommended model is
+    opportunistically reachable (``routed_by`` "family:<name>:<inner>"), or by
     an explicit, named pin when the recommended rung carries no routing tags
     (``routed_by`` "family:<name>:pinned:<rung>"); an escalated family route
     reads "family:<name>:escalation:<a>-><b>". A family pin obeys ADR-0031 like
@@ -652,14 +660,24 @@ def local_generate(prompt: str, model: str | None = None,
         return family_error
 
     # Precedence, highest first:
-    #   endpoint pin > backend pin > explicit quality/task > task_family > default
-    # A caller pin (either kind) and an explicit quality tier or task tag are all
-    # the caller speaking about THIS call; authored family evidence is a standing
-    # preference and yields to them. When it does route, it routes VISIBLY —
-    # every path below writes its own routed_by prefix.
+    #   endpoint pin > backend pin > model > explicit quality/task
+    #                > task_family > default
+    # A caller pin (either kind), a caller-named model, and an explicit quality
+    # tier or task tag are all the caller speaking about THIS call; authored
+    # family evidence is a standing preference and yields to them. When it does
+    # route, it routes VISIBLY — every path below writes its own routed_by prefix.
+    #
+    # `model` earns its rung above the family (C-05-R1) because the two choose
+    # DIFFERENT things and cannot be merged: the family picks a rung for the
+    # model IT recommends, so sending the caller's model there produces a pairing
+    # nothing checked — `_resolve_target` never validates that the routed rung
+    # serves the requested model, and llama-server answers a request for a model
+    # it does not host with a fault, not a substitution. Stamping the
+    # recommendation while routing for the caller's model is the honest reading:
+    # the caller named the harder constraint.
     caller_pinned = endpoint != DEFAULT_ENDPOINT or backend is not None
     family_routes = (family_recommendation is not None and not caller_pinned
-                     and quality is None and task is None)
+                     and model is None and quality is None and task is None)
     route_backend = backend
     route_model = model
     family_prefix = None
@@ -672,7 +690,7 @@ def local_generate(prompt: str, model: str | None = None,
             # pin is refused at the door with the recommendation attached, never
             # quietly re-routed) and pins never escalate.
             route_backend = family_recommendation["backend_hint"]
-            route_model = model or family_recommendation["model_id"]
+            route_model = family_recommendation["model_id"]
         else:
             call_tags = _family_tags(family_recommendation["family"])
 
@@ -827,15 +845,22 @@ def _execution_local_generate(
     every other adapter. The module-level ``local_generate`` remains the raw
     provider primitive used by the scheduler and by offline provider tests.
 
-    ``task_family`` rides through the pipeline into the provider call. Note what
-    that does and does not buy on THIS lane: ``ExecutionService._run_job``
-    selects the provider itself and hands the primitive ``backend=<provider>``,
-    which is a caller pin — so through the door the family is stamped as
-    advisory evidence on the result and the ledger, and does not re-route.
-    Direct in-process callers of ``local_generate`` (the scheduler, experiment
-    harnesses, doorcheck) get the full routing behaviour. Making the execution
-    lane itself family-route means teaching ``_run_job``'s ``select_backend``
-    call about families, which is a separate decision, not this parameter.
+    ``task_family`` rides through the pipeline and STEERS it (C-05-R1).
+    ``ExecutionService`` reads the family in its own ``_family_route`` helper,
+    shared by ``plan``, ``submit`` and ``_run_job``, and then pins the rung it
+    chose — so the primitive below still sees ``backend=<provider>``, but that
+    pin is now the family's choice rather than a decision taken without it. The
+    precedence is the primitive's, applied a level up: an endpoint or backend
+    pin, a caller ``model``, or an explicit ``quality``/``task`` all outrank the
+    family and reduce it to a stamp.
+
+    Which ``routed_by`` you get back: the JOB's, whenever the family routed
+    (``family:<name>:tag:<t>`` / ``family:<name>:pinned:<rung>``). The primitive
+    answers ``pinned:<provider>`` on this lane no matter what — it is echoing our
+    own pin — so that string would say nothing about why the rung was chosen.
+    With no family in play the primitive's string stands, unchanged. There is no
+    ``escalation:`` on this lane: one dispatch, and a pinned primitive never
+    climbs.
     """
     from hearth.execution.defaults import get_execution_service
     from hearth.observation.identity import current_identity

@@ -4,7 +4,8 @@ The authored family evidence (hearth/etc/routing-families.toml, R10/ADR-0039)
 had one consumer and never reached a dispatch. These tests pin the contract that
 lets it steer a route WITHOUT a second scheduler and WITHOUT hidden substitution:
 
-  precedence: endpoint pin > backend pin > explicit quality/task > task_family > default
+  precedence: endpoint pin > backend pin > model > explicit quality/task
+                           > task_family > default
 
 and the routed_by grammar that makes every family route visible on the ledger:
 
@@ -233,6 +234,72 @@ class CallerPinBeatsTaskFamilyTests(_HermeticDoor):
         self.assertEqual(result["backend"], "omen-arc")
         self.assertEqual(result["task_family"], "document_ocr")
         self.assertEqual(result["family_recommendation"]["model_id"], "gemini-3.5-flash")
+
+
+class CallerModelBeatsTaskFamilyTests(_HermeticDoor):
+    """Precedence rung 3 (C-05-R1): a caller-named `model` suppresses the family.
+
+    Not a preference — a correctness rule. A family route picks a rung for the
+    model IT recommends, so honouring both at once pairs the caller's model with
+    someone else's rung, and nothing on the path checks that pairing:
+    `_resolve_target` never validates the routed rung against the requested
+    model, and a llama-server asked for a model it does not host answers with a
+    fault, not a substitution. Measured on the pre-repair code with this very
+    fixture: `model="qwen3-30b-a3b"` + `task_family="document_ocr"` dispatched
+    qwen3-30b-a3b to the cloud-overflow rung, which declares only
+    gemini-3.5-flash. The recommendation is still stamped — the caller can see
+    the advice their model overrode.
+    """
+
+    def assertRungServesModel(self, result: dict) -> None:
+        rung = load_pool().by_name(result["backend"])
+        self.assertIsNotNone(rung, f"unknown rung {result['backend']!r}")
+        self.assertIn(result["model"], rung.models,
+                      f"rung {result['backend']!r} was dispatched a model it does "
+                      f"not declare (routed_by {result['routed_by']})")
+
+    def test_caller_model_suppresses_a_pin_required_family_route(self) -> None:
+        self.assertFloorsStillDerived()
+        result = local_generate(self.prompt(_DEEP_BYTES), model="qwen3-30b-a3b",
+                                task_family="quote_retrieval")
+        self.assertNotIn("family:", result["routed_by"])
+        self.assertEqual(result["routed_by"], "default")
+        self.assertEqual(result["backend"], "omen-arc")
+        self.assertEqual(result["model"], "qwen3-30b-a3b")
+        self.assertRungServesModel(result)
+        # Advisory only, but on the record: the deep recommendation was the
+        # pin-only 27B rung, and the caller's model went elsewhere.
+        self.assertEqual(result["task_family"], "quote_retrieval")
+        self.assertEqual(result["family_recommendation"]["model_id"], "qwen38-27b")
+        self.assertEqual(result["family_recommendation"]["backend_hint"],
+                         "omen-arc-27b")
+
+    def test_caller_model_suppresses_a_family_tag_route(self) -> None:
+        """The mismatch the tag branch could produce: the vision family's tag
+        routes to the cloud rung, which serves no local model at all."""
+        result = local_generate("q", model="qwen3-30b-a3b", task_family="document_ocr")
+        self.assertNotIn("family:", result["routed_by"])
+        self.assertEqual(result["backend"], "omen-arc")
+        self.assertEqual(result["model"], "qwen3-30b-a3b")
+        self.assertRungServesModel(result)
+        self.assertEqual(result["family_recommendation"]["model_id"],
+                         "gemini-3.5-flash")
+
+    def test_no_family_route_ever_lands_a_model_its_rung_does_not_declare(self) -> None:
+        self.assertFloorsStillDerived()
+        cases = [
+            ("family pin", self.prompt(_DEEP_BYTES), {"task_family": "quote_retrieval"}),
+            ("family tag", "q", {"task_family": "reasoning_planning"}),
+            ("family vision", "q", {"task_family": "document_ocr"}),
+            ("model + family pin", self.prompt(_DEEP_BYTES),
+             {"model": "qwen3-30b-a3b", "task_family": "quote_retrieval"}),
+            ("model + family tag", "q",
+             {"model": "qwen3-30b-a3b", "task_family": "document_ocr"}),
+            ("model + no family", "q", {"model": "qwen3-30b-a3b"}),
+        ]
+        for label, prompt, kwargs in cases:
+            with self.subTest(case=label):
+                self.assertRungServesModel(local_generate(prompt, **kwargs))
 
 
 class FamilyTagRouteTests(_HermeticDoor):

@@ -13,6 +13,7 @@ Edit the file in this directory, run the tests, then re-install — never the re
 | skill | tracked at | Claude Code counterpart |
 |---|---|---|
 | `rung` | `docs/agents/codex-skills/rung/` | `.claude/skills/rung/` |
+| `hearth` | `docs/agents/codex-skills/hearth/` | the canonical block in `AGENTS.md` (Claude reads it there) |
 
 `rung` turns "what should run this task, on which rung?" into an evidence-cited
 recommendation and one ready-to-run generate call. It recommends; it never schedules

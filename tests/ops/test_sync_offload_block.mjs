@@ -134,8 +134,10 @@ test('canonical block states the doctrine it exists to carry', () => {
     BLOCK.includes('<!-- synced by tools/ops/sync-offload-block.mjs from docs/agents/hearth-offload-block.md; edit the source, not this copy -->'),
     'canonical block is missing its provenance footer',
   );
-  // task_family is not live until C-05 lands; the block may name it only as pending.
-  assert.ok(/task_family=.*after C-05 lands/.test(BLOCK), 'task_family must be hedged as pending');
+  // task_family routing is live on the door since C-05 (promoted 2026-09-06, mounted at the
+  // 2026-09-07 restart): the block must name it as usable, not hedge it as pending.
+  assert.ok(/task_family=/.test(BLOCK), 'the block must show how to pass task_family=');
+  assert.equal(/after C-05 lands/.test(BLOCK), false, 'the pre-C-05 hedge must be gone');
 });
 
 test('real manifest lists the nine targets, commandcenter first', () => {

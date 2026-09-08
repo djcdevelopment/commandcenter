@@ -1,0 +1,14 @@
+interface:
+  display_name: "HEARTH"
+  short_description: "Offload work and record engineering receipts"
+  default_prompt: "Use $hearth to delegate suitable work and record validated engineering outcomes."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "hearth"
+      description: "Local-first HEARTH model and fleet gateway"
+      transport: "streamable_http"
+      # The door binds loopback only. A hostname here does not reach it.
+      url: "http://127.0.0.1:8710/mcp"
+policy:
+  allow_implicit_invocation: true

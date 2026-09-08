@@ -1,7 +1,9 @@
-# AGENTS.md — commandcenter
+---
+name: hearth
+description: Offload bounded work through the local HEARTH MCP gateway and record substantial engineering work with validated receipts. Use for suitable subtasks during larger work, or when explicitly invoked as $hearth.
+---
 
-<!-- hearth-offload:begin -->
-## Local-first offload (HEARTH)
+# HEARTH
 
 HEARTH is the MCP gateway at `http://127.0.0.1:8710/mcp`. Delegate suitable
 self-contained work through `mcp__hearth__local_generate`: summaries of files/logs/diffs,
@@ -83,5 +85,4 @@ Ordinary questions and small offloads do not require a build request.
   authorization and the active execution mode. These instructions do not override a
   restriction on mutations.
 
-<!-- synced by tools/ops/sync-offload-block.mjs from docs/agents/hearth-offload-block.md; edit the source, not this copy -->
-<!-- hearth-offload:end -->
+<!-- body mirrored from docs/agents/hearth-offload-block.md (the canonical offload block); edit the block, then regenerate this file: the tracked copy here is the source of the installed ~/.codex/skills/hearth -->

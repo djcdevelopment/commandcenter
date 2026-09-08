@@ -1,0 +1,2 @@
+{"backend": "omen-arc-27b", "caller_id": "codex-cli", "error_code": null, "excluded": "infra:cold_start", "model": "qwen38-27b", "timestamp": "2026-09-08T21:35:02.575753+00:00"}
+{"backend": "omen-arc-27b", "caller_id": "codex-cli", "error_code": null, "excluded": "infra:cold_start", "model": "qwen38-27b", "timestamp": "2026-09-08T22:06:15.372609+00:00"}

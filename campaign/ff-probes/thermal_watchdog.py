@@ -27,10 +27,18 @@ _the_real_series``. (I first wrote "~24 s" here from eyeballing the table; the t
 It is a back-off, not a scoring term, and the absolute limit still catches a slow climb the slope
 rule is designed to ignore.
 
-BLINDNESS IS NOT SAFETY. If the stream carries no temperature rows for a card, or its rows have
-gone stale, the verdict is ``blind`` -- never ``ok``. A watchdog that cannot see must stop the run,
-because "no reading" and "cool" are the same value to a naive check and opposite facts to a card.
-This is the ADR-0034-era lesson restated: a port probe passing is not a rung serving.
+BLINDNESS IS NOT SAFETY. If the stream carries no temperature rows for a card, or the stream has
+stopped growing, the verdict is ``blind`` -- never ``ok``. A watchdog that cannot see must stop the
+run, because "no reading" and "cool" are the same value to a naive check and opposite facts to a
+card. This is the ADR-0034-era lesson restated: a port probe passing is not a rung serving.
+
+⚠ BUT A QUIET TEMPERATURE IS NOT BLINDNESS, and the first version of this module got that wrong.
+It aged out a card whose temperature had not been reported for 90 s. Temperature counters emit ON
+CHANGE, so a perfectly healthy card sitting at a stable temperature reports nothing: the 98-minute
+capture of 2026-09-09 carried 13 GPU readings from the idle card, about one every 4-8 minutes.
+That version would have called it blind almost continuously. Liveness is now the STREAM growing --
+energy does stream per tick -- and stability is allowed to look like silence. The defect surfaced
+only when the module was wired into a real cell; ``--once`` against fresh data never showed it.
 
 KILLING. By RECORDED PID, never by image name. ``restart-arc.cmd`` does ``taskkill /IM
 llama-server.exe`` image-wide, which is why a hand-launched experiment server dies to any ArcServe
@@ -43,8 +51,8 @@ the scored term can never drift apart. The abort line is Derek's call, made 2026
 Timebase and row shape are the stream's own (see ``sat_cell_runner.thermal_summary``): ``t`` is
 NANOSECONDS on the boot-relative perf_counter clock; identity rows are ``k=="ai"`` carrying the
 durable PCI BDF; measurements are ``k=="ms"`` with ``n`` the counter and ``v`` the value. The
-temperature counters are emitted ON CHANGE, not per tick, which is why staleness is measured
-against a generous bound and reported rather than assumed.
+temperature counters are emitted ON CHANGE, not per tick, which is why liveness is measured on the
+stream and never on the recency of a reading.
 """
 from __future__ import annotations
 
@@ -79,10 +87,18 @@ SLOPE_FLOOR_C = 85.0
 #: Inherited from the 2026-08-27 harness, which carried ``temperature_resume_below_c: 80``.
 RESUME_BELOW_C = 80.0
 
-#: A reading older than this is stale. The counters are emitted on change, and a 260 s capture
-#: carried only 7-13 readings per counter, so this is deliberately loose -- it catches a DEAD
-#: stream, not a quiet one. Staleness yields ``blind``, never ``ok``.
-STALE_AFTER_S = 90.0
+#: How long the STREAM may go without growing before we call it dead.
+#:
+#: ⚠ THIS IS DELIBERATELY NOT "how long since the last temperature reading", and the first version
+#: of this module got that wrong. Temperature counters emit ON CHANGE, so a card sitting at a
+#: stable temperature emits NOTHING -- correctly. Measured on the 98-minute capture of 2026-09-09:
+#: the idle card produced 13 GPU and 12 VRAM readings in 98 minutes, roughly one every 4-8
+#: minutes. A 90-second recency bound on readings would have declared that card blind almost
+#: continuously while it sat there, perfectly healthy, at 26.6 W.
+#:
+#: The energy counter DOES stream per tick, so the honest liveness signal is whether the file is
+#: still growing. A quiet temperature is stability; a static file is a dead collector.
+STREAM_DEAD_AFTER_S = 90.0
 
 #: Poll cadence. The 2026-08-27 watchdog used 10 s and caught a 48 s excursion with 4 samples.
 POLL_INTERVAL_S = 10.0
@@ -148,6 +164,10 @@ class ThermalState:
         self.prev: dict = {}   # (bdf, counter) -> (t_ns, celsius)
         self.peak: dict = {}   # (bdf, counter) -> celsius
         self.offset = 0
+        #: Wall clock of the last poll at which the FILE grew. Liveness lives here, not in the
+        #: recency of a temperature reading -- see STREAM_DEAD_AFTER_S.
+        self.last_growth_ns: int | None = None
+        self.polls = 0
 
     def b70_adapters(self) -> dict:
         """Adapter -> BDF, B70s only. The iGPU is not part of the board's thermal picture."""
@@ -168,14 +188,26 @@ class ThermalState:
                 self.last[key] = (t_ns, celsius)
                 self.peak[key] = max(self.peak.get(key, celsius), celsius)
 
-    def poll(self, events_path) -> None:
+    def poll(self, events_path, now_ns: int | None = None) -> None:
+        before = self.offset
         readings, ident, self.offset = read_temperatures(events_path, self.offset)
         self.ingest(readings, ident)
+        self.polls += 1
+        now_ns = time.perf_counter_ns() if now_ns is None else now_ns
+        if self.offset > before or self.last_growth_ns is None:
+            # First poll counts as growth so a just-started capture is not born dead.
+            self.last_growth_ns = now_ns
+
+    def stream_idle_s(self, now_ns: int | None = None) -> float | None:
+        if self.last_growth_ns is None:
+            return None
+        now_ns = time.perf_counter_ns() if now_ns is None else now_ns
+        return (now_ns - self.last_growth_ns) / NS
 
 
 # ------------------------------------------------------------------------- the verdict --
 def evaluate(state: ThermalState, now_ns: int | None = None,
-             stale_after_s: float = STALE_AFTER_S) -> dict:
+             stale_after_s: float = STREAM_DEAD_AFTER_S) -> dict:
     """``{"verdict", "reason", "breaches", "warnings", "readings", "hottest"}``.
 
     Verdicts, in the order they are checked:
@@ -252,15 +284,15 @@ def evaluate(state: ThermalState, now_ns: int | None = None,
                           % ", ".join("%s/%s" % k for k in missing),
                 "breaches": [], "warnings": warnings, "readings": readings, "hottest": hottest}
 
-    if now_ns is not None:
-        stale = [("%s/%s" % k, round((now_ns - t) / NS, 1))
-                 for k, (t, _v) in state.last.items() if (now_ns - t) / NS > stale_after_s]
-        if stale:
-            return {"verdict": "blind",
-                    "reason": "every reading for %s is older than %.0f s -- the stream is dead, "
-                              "not quiet" % (", ".join(n for n, _a in sorted(stale)), stale_after_s),
-                    "breaches": [], "warnings": warnings, "readings": readings,
-                    "hottest": hottest}
+    idle_s = state.stream_idle_s(now_ns)
+    if idle_s is not None and idle_s > stale_after_s:
+        # The FILE stopped growing. Not "the temperature stopped changing", which is what a
+        # healthy stable card looks like and is why this check moved off reading recency.
+        return {"verdict": "blind",
+                "reason": "the stream has not grown for %.0f s (limit %.0f) -- a dead collector, "
+                          "not a quiet card" % (idle_s, stale_after_s),
+                "breaches": [], "warnings": warnings, "readings": readings,
+                "hottest": hottest, "stream_idle_s": round(idle_s, 1)}
 
     if warnings:
         first = warnings[0]
@@ -341,7 +373,7 @@ def watch(events_path, pids, *, poll_interval_s: float = POLL_INTERVAL_S,
     started = clock()
     samples: list = []
     while True:
-        state.poll(events_path)
+        state.poll(events_path, now_ns=clock())
         verdict = evaluate(state, now_ns=clock())
         samples.append({"at_ns": clock(), "verdict": verdict["verdict"],
                         "reason": verdict["reason"], "hottest": verdict["hottest"]})

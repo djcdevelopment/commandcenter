@@ -170,13 +170,42 @@ class BlindnessTests(unittest.TestCase):
         self.assertEqual(v["verdict"], "blind")
         self.assertIn("04:00.0/vram.temperature_c", v["reason"])
 
-    def test_stale_readings_are_blind(self):
+    def test_a_stream_that_stopped_growing_is_blind(self):
+        # Liveness is the FILE growing, because energy streams per tick. A static file is a dead
+        # collector and must stop the run.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = stream(Path(tmp) / "events.jsonl", cool(1.0))
+            state = tw.ThermalState()
+            state.poll(path, now_ns=int(1 * NS))
+            state.poll(path, now_ns=int(200 * NS))   # nothing new appended
+            v = tw.evaluate(state, now_ns=int(200 * NS))
+        self.assertEqual(v["verdict"], "blind")
+        self.assertIn("dead collector", v["reason"])
+
+    def test_A_QUIET_TEMPERATURE_IS_NOT_BLINDNESS(self):
+        # THE REGRESSION TEST. The first version of this module aged out a card whose temperature
+        # had not been reported recently. Counters emit ON CHANGE, so the idle card in the real
+        # 98-minute capture reported ~once every 4-8 minutes while sitting healthy at 26.6 W.
+        # That version would have called it blind almost continuously.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = stream(Path(tmp) / "events.jsonl", cool(1.0))
+            state = tw.ThermalState()
+            state.poll(path, now_ns=int(1 * NS))
+            # 10 minutes pass. The card is stable, so it emits no temperature at all -- but the
+            # stream keeps growing, because energy ticks every second.
+            for minute in range(1, 11):
+                append(path, [(A04, "gpu.energy_j_counter", 60.0 * minute, 1000.0 * minute)])
+                state.poll(path, now_ns=int(60 * minute * NS))
+            v = tw.evaluate(state, now_ns=int(600 * NS))
+        self.assertEqual(v["verdict"], "ok",
+                         "a stable card that stopped emitting must not be called blind")
+
+    def test_the_first_poll_of_a_fresh_capture_is_not_born_dead(self):
         with tempfile.TemporaryDirectory() as tmp:
             state = tw.ThermalState()
-            state.poll(stream(Path(tmp) / "events.jsonl", cool(1.0)))
-            v = tw.evaluate(state, now_ns=int(500 * NS))
-        self.assertEqual(v["verdict"], "blind")
-        self.assertIn("dead", v["reason"])
+            state.poll(stream(Path(tmp) / "events.jsonl", cool(1.0)), now_ns=int(9000 * NS))
+            v = tw.evaluate(state, now_ns=int(9000 * NS))
+        self.assertEqual(v["verdict"], "ok")
 
     def test_a_missing_file_is_blind(self):
         state = tw.ThermalState()

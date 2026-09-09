@@ -225,9 +225,12 @@ DUTY_THRESHOLD_FRAC = 0.9
 DUTY_REFERENCE_CAVEAT = (
     "the reference is a ~92 s prefill burst at 2 clients; the workloads it stands in for run "
     "for hours (longest measured: a 3.59 h imagegen session at pool duty 1.90/2, ~140x this "
-    "window). It is neither a power ceiling (a real cell peaked 181.2 W over a 159.92 W "
-    "reference p50) nor a thermal steady state (no sustained capture exists on this box). "
-    "Duty means 'above 0.9x a 92 s burst', not 'as loaded as a real long workload'."
+    "window). It is not a power ceiling -- a real cell peaked 181.2 W over a 159.92 W reference "
+    "p50. Duty means 'above 0.9x a 92 s burst', not 'as loaded as a real long workload'. "
+    "UPDATED 2026-09-09: a sustained capture NOW EXISTS (98.5 min, cap-20260909T173248Z, claim "
+    "register #33) and it found the first thermal plateau measured on this box -- 72 C within "
+    "9 min at 112 W tile power on one card. That capture is a MIXED workload well below burst "
+    "power, so it is frozen BESIDE this reference and does not replace it as the denominator."
 )
 
 # ---------------------------------------------------------------- gate 8: thermal --
@@ -257,6 +260,12 @@ GPU_WARN_C = 88.0
 DELTA_WARN_C = 15.0
 
 #: The two counters b70tools already writes into every cell's stream.
+#: The cooldown line the 2026-08-27 harness enforced (``temperature_resume_below_c: 80``) and this
+#: runner does NOT. It is printed when a cell aborts thermally so the operator has the number, but
+#: nothing here blocks a re-run: resuming is a decision about Derek's own hardware, not the
+#: runner's to make. ``thermal_watchdog.RESUME_BELOW_C`` is the same value for the same reason.
+THERMAL_RESUME_BELOW_C = 80.0
+
 THERMAL_COUNTERS = ("gpu.temperature_c", "vram.temperature_c")
 
 #: idle = the coolest reading in the capture's LEADING QUARTER, before the load window.
@@ -351,6 +360,10 @@ RECEIPT_FIELDS = (
     # against and the per-card outcome. ``thermal_exceeded`` is the top-level flag: like
     # ``over_admitted`` it KEEPS the row and excludes it from the surface, never drops it.
     "thermal", "thermal_exceeded",
+    # ``thermal_live`` is the LIVE watchdog's record: what it saw while the load was running,
+    # and whether it stopped the cell. Gate 8 above scores a stream that has already finished --
+    # it protects the dataset and cannot protect the cards. This field is the other half.
+    "thermal_live",
     # --- instrument, NOT a gate: per-round launch skew from the server's own log -----------
     # The prereg's 2026-09-09 protocol addition. Nothing in GATES reads it and no status
     # depends on it; it exists so a bimodal cell says which mode it landed in instead of
@@ -1627,6 +1640,89 @@ def _worst(outcomes: list) -> str:
     return max(outcomes or ["null"], key=lambda o: _THERMAL_RANK.get(o, 0))
 
 
+class LiveThermalGuard:
+    r"""Poll the growing b70tools stream WHILE the load runs, and stop the cell on a breach.
+
+    Gate 8 is the other half of this and it is not a substitute: it parses a stream that has
+    already self-terminated, so it can mark a cell that reached 95 C but it cannot prevent one.
+    The 2026-08-27 replica abort was caught by a live 10-second poll that no longer exists, and
+    the shape that produced it climbed 78 -> 96 C in FORTY-EIGHT SECONDS. A gate that reads the
+    corpse is not protection for that.
+
+    ⚠ BLIND IS TOLERATED FOR A GRACE PERIOD HERE, unlike the standalone watchdog. A cell's stream
+    is launched moments before the load, so the first polls legitimately see no adapters and no
+    counters yet. Aborting on that would kill every cell in its first seconds. After ``grace_s``
+    the tolerance ends, because running the replica shape with no thermal visibility is precisely
+    what this exists to prevent.
+
+    ⚠ A QUIET TEMPERATURE IS NOT BLINDNESS -- liveness is the stream growing, not the recency of a
+    reading. See ``thermal_watchdog.STREAM_DEAD_AFTER_S``; the counters emit ON CHANGE and a stable
+    card correctly reports nothing for minutes at a time.
+
+    The thread only ever OBSERVES. Stopping the load is the caller's, by the pid it launched --
+    never by image name, which on this box has taken down production services.
+    """
+
+    def __init__(self, events_path, poll_s: float = 5.0, grace_s: float = 90.0) -> None:
+        self.events_path = Path(events_path)
+        self.poll_s = poll_s
+        self.grace_s = grace_s
+        self.breach: dict | None = None
+        self.samples: list = []
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._started_ns: int | None = None
+
+    def _run(self) -> None:
+        import thermal_watchdog as watchdog  # local: the runner must import cleanly without it
+        state = watchdog.ThermalState()
+        while not self._stop.is_set():
+            try:
+                state.poll(self.events_path)
+                verdict = watchdog.evaluate(state)
+            except Exception as exc:  # noqa: BLE001 - instrumentation must not crash a cell
+                self.samples.append({"verdict": "error", "reason": str(exc)})
+                self._stop.wait(self.poll_s)
+                continue
+            elapsed = (time.perf_counter_ns() - (self._started_ns or 0)) / 1_000_000_000
+            self.samples.append({"at_s": round(elapsed, 1), "verdict": verdict["verdict"],
+                                 "reason": verdict["reason"], "hottest": verdict["hottest"]})
+            if verdict["verdict"] in ("abort_absolute", "abort_slope"):
+                self.breach = {**verdict, "at_s": round(elapsed, 1)}
+                return
+            if verdict["verdict"] == "blind" and elapsed > self.grace_s:
+                self.breach = {**verdict, "at_s": round(elapsed, 1),
+                               "reason": "%s (and the %.0fs grace period has passed -- a cell "
+                                         "cannot run unseen)" % (verdict["reason"], self.grace_s)}
+                return
+            self._stop.wait(self.poll_s)
+
+    def start(self) -> None:
+        self._started_ns = time.perf_counter_ns()
+        self._thread = threading.Thread(target=self._run, name="live-thermal", daemon=True)
+        self._thread.start()
+
+    def stop(self) -> dict:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=self.poll_s + 5)
+        verdicts = [s["verdict"] for s in self.samples]
+        return {
+            "polls": len(self.samples),
+            "poll_s": self.poll_s,
+            "grace_s": self.grace_s,
+            "stopped_the_cell": self.breach is not None,
+            "breach": self.breach,
+            "hottest_seen": max((s.get("hottest") for s in self.samples
+                                 if s.get("hottest")), key=lambda h: h["c"], default=None),
+            "verdict_counts": {v: verdicts.count(v) for v in sorted(set(verdicts))},
+            "samples": self.samples[-40:],
+            "note": ("live poll during the load; gate 8 scores the finished stream separately. "
+                     "blind is tolerated for the grace period because the stream starts moments "
+                     "before the load."),
+        }
+
+
 def score_thermal(summary: dict, thresholds: dict | None = None) -> dict:
     """Score ``thermal_summary`` against the module constants. Gate 8's whole verdict.
 
@@ -2288,9 +2384,44 @@ def run_cell(cell: str, python: str, args) -> dict:
     ff_json = cell_dir / "ff-cell-row.json"
     ff_argv = ff_cell_argv(python, cell, args.reps, load_cmd, ff_json)
     row["load_command"] = load_cmd
-    ff_proc = subprocess.run(ff_argv, capture_output=True, text=True, errors="replace",
-                             env=child_env)
+
+    # --- the LIVE thermal guard runs for exactly as long as the load does -------------------
+    # Gate 8 below scores the finished stream and cannot stop anything. This can. On a breach the
+    # load is terminated by ITS OWN PID -- never by image name, which on this box has taken down
+    # three production services.
+    guard = LiveThermalGuard(events) if stream is not None else None
+    if guard is not None:
+        guard.start()
+    else:
+        row["notes"].append("live thermal guard NOT running: no b70tools stream for this cell")
+
+    load_proc = subprocess.Popen(ff_argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                 text=True, errors="replace", env=child_env)
+    thermal_stop = None
+    while True:
+        try:
+            load_stdout, load_stderr = load_proc.communicate(timeout=2)
+            break
+        except subprocess.TimeoutExpired:
+            pass
+        if guard is not None and guard.breach is not None:
+            thermal_stop = guard.breach
+            try:
+                load_proc.terminate()
+                load_stdout, load_stderr = load_proc.communicate(timeout=60)
+            except Exception:  # noqa: BLE001
+                load_proc.kill()
+                load_stdout, load_stderr = load_proc.communicate()
+            break
+    ff_proc = subprocess.CompletedProcess(ff_argv, load_proc.returncode,
+                                          stdout=load_stdout, stderr=load_stderr)
     cell_ended_wall = time.time()
+    row["thermal_live"] = guard.stop() if guard is not None else {
+        "polls": 0, "stopped_the_cell": False, "breach": None,
+        "note": "no b70tools stream, so no live thermal guard ran"}
+    if thermal_stop is not None:
+        row["notes"].append("LIVE THERMAL ABORT at t+%ss: %s -- the load was terminated by pid"
+                            % (thermal_stop.get("at_s"), thermal_stop.get("reason")))
 
     samples = poller.stop()
     status, body = _http("http://127.0.0.1:%d/metrics" % PRODUCTION_PORT, token)
@@ -2439,6 +2570,17 @@ def run_cell(cell: str, python: str, args) -> dict:
     # Gate 8 outranks the softer exclusions: a card that crossed the abort limit is the
     # loudest thing about this cell. The row is KEPT either way (like over_admitted) --
     # the status is what excludes it from the surface.
+    # The LIVE guard outranks gate 8's post-hoc read, because it acted. A cell it stopped is
+    # thermally exceeded whatever the finished stream later averages out to -- the load did not
+    # run to completion, so its throughput is not a measurement of anything.
+    live_breach = (row.get("thermal_live") or {}).get("breach")
+    if live_breach:
+        row["thermal_exceeded"] = True
+        return _finish(row, cell_dir, args, "thermal_exceeded",
+                       "LIVE thermal guard stopped the load at t+%ss: %s; row kept, excluded "
+                       "from the surface, and the sweep halts"
+                       % (live_breach.get("at_s"), live_breach.get("reason")))
+
     if row.get("thermal_exceeded"):
         return _finish(row, cell_dir, args, "thermal_exceeded",
                        "%s; row kept, excluded from the surface"
@@ -2923,6 +3065,12 @@ def _dry_gate_preview(args) -> None:
           % (", ".join(THERMAL_COUNTERS), VRAM_ABORT_C, VRAM_WARN_C, DELTA_WARN_C,
              THERMAL_ATTRIBUTION))
     print("                            %s" % THERMAL_AMBIENT_NOTE)
+    print("                            LIVE GUARD (2026-09-09): a thermal watchdog polls this "
+          "stream every %.0fs WHILE the load runs and terminates the load by pid on a breach. "
+          "Gate 8 below scores the FINISHED stream and cannot stop anything. A thermally "
+          "exceeded cell now HALTS THE SWEEP -- it did not before, so the next cell used to "
+          "launch onto a card that had just hit %.0f C. Cooldown line %.0f C is printed, not "
+          "enforced." % (5.0, GPU_ABORT_C, THERMAL_RESUME_BELOW_C))
     print("                            a fail marks status_reason and thermal_exceeded and "
           "KEEPS the row, exactly like over_admitted")
     print("  maintenance sentinel    : %s -> %s"
@@ -3034,8 +3182,17 @@ def main(argv: list | None = None) -> int:
         print(json.dumps({k: row[k] for k in ("cell", "status", "status_reason", "jobs_per_hour",
                                               "slot_busy_fraction", "over_admitted")},
                          ensure_ascii=False))
-        if row["status"] in ("REFUSED_GUARD", "STOPPED_AFTER_CELL", "REFUSED_NOT_WARM"):
+        # ``thermal_exceeded`` added 2026-09-09. It was NOT here, which meant a cell that reached
+        # the 95 C abort line was marked, excluded from the surface, and then the NEXT CELL
+        # LAUNCHED -- onto a card that had just hit the limit. Gate 8 protected the dataset and
+        # nothing protected the cards. A cooldown is a human decision, so this stops and says so.
+        if row["status"] in ("REFUSED_GUARD", "STOPPED_AFTER_CELL", "REFUSED_NOT_WARM",
+                             "thermal_exceeded"):
             print("STOP: %s -- %s" % (row["status"], row["status_reason"]))
+            if row["status"] == "thermal_exceeded":
+                print("      Cards reached the abort line. Let them cool below %.0f C before the "
+                      "next cell -- the 2026-08-27 harness held that resume line and this runner "
+                      "does not enforce one." % THERMAL_RESUME_BELOW_C)
             rc = 1
             break
     if args.restore_np:

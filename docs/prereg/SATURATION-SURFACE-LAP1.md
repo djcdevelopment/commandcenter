@@ -458,6 +458,47 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
 > 16.1 GB. Warm rep-1 105.93 against 105.61 warm (ratio 1.003) — still no idle, so P7's second half
 > remains untested until the deliberate-idle repeat.
 
+> **FINDING — the noise floor at this cell is bimodal, and the mode has a mechanism
+> (2026-09-09).** Across the fixed-instrument repeats, jobs/hour splits into two values rather than
+> scattering: 2,097.4 / 2,100.0 (r6, r7) against 2,203.7 (r8), a 5% step. The cheap reading is
+> "noise". It is not.
+>
+> Every affected cell has exactly one slow round, and in that round the two requests do not run
+> together. Their server-reported work says so directly: prefill runs at **1,995 tok/s — the
+> single-stream rate measured earlier — instead of the 1,468 two concurrent prefills get**, and
+> decode falls from 66.7 to 58.5 tok/s. The round costs ~11%; the cell ~5%.
+>
+> **Where the gap is, from the server's own launch records** (`hearth/var/arc-serve.log`, per-round
+> interval between the two slots' `new prompt` lines, 440-token requests only):
+>
+> | cell | round 1 | round 2 | round 3 |
+> |---|---:|---:|---:|
+> | r7 | 0.2 ms | 0.2 ms | **222.0 ms** |
+> | r8 | 0.2 ms | 0.2 ms | 0.1 ms |
+> | r9 | 0.2 ms | 0.2 ms | **222.4 ms** |
+>
+> Two occurrences, **222.0 and 222.4 ms** — quantized, not jitter. And it is **not the client**: the
+> harness's own rows put the two requests' `started_at` within **0.0–12.5 ms** in every cell,
+> including the affected ones. The server released the previous round's two slots within 1 ms of
+> each other and then re-launched one slot 10 ms later and the other 222 ms later.
+>
+> **A hypothesis this refuted, recorded because it was mine.** I first supposed the campaign's own
+> instrument was the co-tenant — that `ff_cell`'s single-stream rate probe or the discarded warm
+> load still held a slot when the measured load began, serializing the first round. The log says
+> otherwise: in both cells checked, the lone warm request *released* **24–32 ms before** the
+> measured pair launched, and the pair then launched within 0.2 ms. The instrument was not
+> contending with itself; the delay is inside the server.
+>
+> **What follows.** This is channel (b) — a submission-side gap — observed inside `llama-server`
+> rather than at the client, on the very cell meant to establish the floor. It means the floor here
+> is **not Gaussian and must not be averaged**: the honest statistic is how often a round is delayed,
+> not the spread of cell means. Averaging would erase a real mechanism and inflate the floor that
+> every later comparison is judged against. **Protocol addition (dated):** each cell records
+> per-round launch skew, so every point on the surface reports whether it hit this event instead of
+> having it smeared into a variance. Cause not yet named — a quantized 222 ms is a timeout or a
+> periodic service, not contention — and naming it is a separate, bounded probe, not a blocker for
+> the sweep.
+
 ## Analysis plan
 
 - Per cell: jobs/hour, p50/p95/p99 latency and TTFT (nearest-rank, as the harness computes them),

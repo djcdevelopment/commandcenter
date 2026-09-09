@@ -1,8 +1,8 @@
 # The HEARTH Wire: The Honesty Engine
-## What Happened After We Were Right (6 Chapters)
+## What Happened After We Were Right (7 Chapters)
 
 **Series Title:** The Honesty Engine: The Instruments Turn On Their Author
-**Episode Duration:** ~25 minutes (6 episodic chapters)
+**Episode Duration:** ~30 minutes (7 episodic chapters)
 **Production Standard:** `mediagen.podcast-script.v1`
 **Location:** `c:\work\commandcenter\docs\podcast\the-honesty-engine\`
 **Primary Sources:** `docs/CLAIM-REGISTER.md` rows 25–33; the eight commits `4efe332` → `b53cae2`;
@@ -21,7 +21,9 @@ operational — baked into the configuration, the gates, and the register that t
 Seven hours went into that and not one new number was produced.
 
 And then the machinery built to keep the work honest started firing on the person who built it.
-Six separate times, in six different ways, on the same afternoon. Every time, it was right.
+Seven separate times, in seven different ways, on the same afternoon. Six were tools catching
+their author. The seventh was a tool catching itself, and only because it was finally used for
+real.
 
 That is the through-line: **a lab is only as honest as the instruments it lets catch itself.**
 
@@ -45,6 +47,7 @@ That is the through-line: **a lab is only as honest as the instruments it lets c
 | 4 | A Gate That Scores the Corpse | The thermal gate reads a stream that has already finished. It marks the cell and launches the next one. Building the one that actually stops. |
 | 5 | The Drone Photographer | The operator needed the machine for photographs. That made it the ideal condition for the two things that had been waiting for it. |
 | 6 | Three Empty Files Named After My Own Prose | Six corrections in one afternoon, ending with the shell eating the arrows out of a sentence. |
+| 7 | The Seventh Refusal | Wiring the watchdog in found a bug in the watchdog. It had passed 28 tests and would have killed every long cell for the crime of a card being stable. |
 
 ---
 

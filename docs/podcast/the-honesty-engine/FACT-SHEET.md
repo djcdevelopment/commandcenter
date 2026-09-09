@@ -84,6 +84,7 @@ because the correction is the content.
   across every dataset. At the abort its own GPU tile read **75 °C** while its VRAM read **96**.
   **No GPU tile has ever exceeded 81 °C on this box.**
 - Watchdog: **28 tests**; kills by recorded pid only; blindness returns `blind` and stops the run.
+- ⚠ See Chapter 7: this watchdog had a defect that only appeared when it was wired into a real cell.
 
 ## Chapter 5 — The Drone Photographer
 
@@ -138,3 +139,30 @@ The six refusals, in order:
 
 **Suite through the session:** 3,155 → 3,162 → 3,190 → 3,206 passing.
 **Claim register rows added or corrected today:** 25, 26, 27, 28 (corrected), 29, 30, 31, 32, 33.
+
+## Chapter 7 — The Seventh Refusal
+
+- Commit `405317a`. The live guard polls the growing stream every **5 s** during the load and
+  terminates the load **by its own pid**. Blind is tolerated for a **90 s grace period** because a
+  cell's stream starts moments before its load.
+- `thermal_exceeded` **added to the sweep-halt list**. It was absent: a cell at 95 C was marked,
+  kept, excluded from the surface, and **the next cell launched onto the hot card**. The halt now
+  prints the **80 C** resume line the 2026-08-27 harness enforced — printed, not enforced, because
+  resuming is Derek's call about his own cards.
+- ⚠⚠ **THE DEFECT THE WIRING FOUND.** The watchdog aged out a card whose temperature had not been
+  reported for **90 s** and called it **blind**, and blind stops a run.
+- **Why that is backwards:** the counters emit **ON CHANGE**. A stable card correctly reports
+  nothing. Measured on the same day's 98-minute capture: the idle card produced **13 GPU readings
+  in 98 minutes** — about one every 4–8 minutes — while healthy at **26.6 W**. The rule would have
+  declared it blind almost continuously and **killed every long cell**, including the soak cell it
+  was built to protect.
+- **Why 28 tests missed it:** every test evaluated the state **once**, against freshly written data.
+  A single evaluation never ages anything out. There was a passing test named "stale readings are
+  blind" — it verified that the wrong mechanism worked.
+- **Fix:** liveness moved from temperature recency to **stream growth**. Energy ticks every second,
+  so a growing file is the honest signal. A quiet temperature is stability; a static file is a dead
+  collector. Regression test simulates **10 minutes** of a stable card emitting no temperature and
+  asserts the verdict stays `ok`.
+- Verified against the real **24 MB** capture: guard returns `ok` and identifies the hottest counter
+  at **74 C**, matching the reduction's independent figure.
+- **14 new tests. Suite green at 3,216.**

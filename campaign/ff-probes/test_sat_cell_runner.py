@@ -670,6 +670,48 @@ class TestDutyCycle(unittest.TestCase):
         self.assertIn("no frozen reference", out["cards"]["0000:04:00.0"]["reason"])
         self.assertEqual(out["cards"]["0000:09:00.0"]["duty_cycle"], 1.0)
 
+    def test_the_denominator_caveat_rides_on_every_duty_result(self):
+        # A duty cycle is a fraction OF a ~92 s burst standing in for hours-long workloads.
+        # A receipt that carries the fraction without the denominator is a numerator, so the
+        # caveat and the reference's own burst window are part of the result, not a docstring.
+        with tempfile.TemporaryDirectory() as tmp:
+            cards, reference = self._fixture(tmp, [180.0] * 4, [180.0] * 4)
+            out = runner.duty_cycle(cards, reference)
+        self.assertEqual(out["reference_caveat"], runner.DUTY_REFERENCE_CAVEAT)
+        self.assertIn("92 s", out["reference_caveat"])
+        self.assertIn("reference_burst_window", out)
+
+    def test_the_caveat_survives_a_reference_that_predates_it(self):
+        # An old frozen receipt has no `caveat` key; the fraction still must not ship bare.
+        with tempfile.TemporaryDirectory() as tmp:
+            cards, reference = self._fixture(tmp, [180.0] * 4, [180.0] * 4)
+            reference.pop("caveat", None)
+            out = runner.duty_cycle(cards, reference)
+        self.assertEqual(out["reference_caveat"], runner.DUTY_REFERENCE_CAVEAT)
+
+    def test_the_burst_window_is_read_from_the_receipt_not_asserted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = write_reference(Path(tmp), 159.92, 114.05)
+            doc = json.loads(path.read_text(encoding="utf-8"))
+            doc["burst"] = {"seconds": 90.0, "clients": 2, "prompt_tokens": 8192,
+                            "requests": 22}
+            doc["power"]["cards"][BUS9]["burst"]["intervals"] = 92
+            doc["power"]["cards"][BUS4]["burst"]["intervals"] = 92
+            path.write_text(json.dumps(doc, indent=1), encoding="utf-8")
+            ref = runner.load_reference(path)
+        self.assertEqual(ref["burst_window"]["declared_s"], 90.0)
+        self.assertEqual(ref["burst_window"]["clients"], 2)
+        self.assertEqual(ref["burst_window"]["measured_intervals_s"], 92)
+        self.assertEqual(ref["caveat"], runner.DUTY_REFERENCE_CAVEAT)
+
+    def test_a_reference_with_no_burst_block_still_loads(self):
+        # The fixture (and any pre-2026-09-09 receipt) carries no top-level `burst`.
+        with tempfile.TemporaryDirectory() as tmp:
+            ref = runner.load_reference(write_reference(Path(tmp), 159.92, 114.05))
+        self.assertIsNone(ref["burst_window"]["declared_s"])
+        self.assertIsNone(ref["burst_window"]["measured_intervals_s"])
+        self.assertEqual(ref["cards"]["0000:09:00.0"]["burst_p50_w"], 159.92)
+
     def test_a_stream_without_the_counter_fails_loudly(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "events.jsonl"

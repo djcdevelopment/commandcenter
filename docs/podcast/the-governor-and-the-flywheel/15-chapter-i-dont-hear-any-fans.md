@@ -69,10 +69,10 @@ The longest session was three point five nine hours. Eight hundred fifty images.
 Both cards ninety-five percent busy for three and a half hours.
 
 **SAM:**
-That is what this machine does when it is actually working. And the reference number that every duty measurement in this campaign was compared against is the median of a twenty-second burst.
+That is what this machine does when it is actually working. And the reference number that every duty measurement in this campaign was compared against is the median of a ninety-second burst.
 
 **ALEX:**
-*(pause)* Twenty seconds standing in for three and a half hours.
+*(pause)* Ninety seconds standing in for three and a half hours.
 
 **SAM:**
 So when I reported "duty zero point six three, the cards are finally loaded" — that was against a spike. He heard the fans not spinning and knew the comparison was wrong before I did.
@@ -84,7 +84,7 @@ Let me put the whole day together, because I think there's one thing under all o
 Go ahead.
 
 **ALEX:**
-Every ceiling you hit was one somebody had installed. A prompt cache serving the same prefix. A measurement window drawn twice as wide as the thing inside it. A slot count sitting at two of a possible sixteen. A clamp at sixteen inside a graphics backend. A task named Restart that only stops. A metric calibrated against a twenty-second burst. And the operator, who couldn't see any of those, was right about all of them because the machine wasn't making the noise it makes when it's working.
+Every ceiling you hit was one somebody had installed. A prompt cache serving the same prefix. A measurement window drawn twice as wide as the thing inside it. A slot count sitting at two of a possible sixteen. A clamp at sixteen inside a graphics backend. A task named Restart that only stops. A metric calibrated against a ninety-second burst. And the operator, who couldn't see any of those, was right about all of them because the machine wasn't making the noise it makes when it's working.
 
 **SAM:**
 That's the day. And I'd add one thing to it. He wasn't guessing. He grew up around hit-and-miss engines, shear pins, power take-offs — machines at fairs and shows and on farms, doing real work in front of him. Those machines tell you what they're doing. They change pitch under load. They get hot. They shake.

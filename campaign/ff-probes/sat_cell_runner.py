@@ -53,7 +53,9 @@ WHAT IT ADDS (the only new logic)
      if that shared lock appears while production is stopping.
   5. Board duty cycle against the FROZEN reference receipt (read from the receipt, never
      hardcoded): the fraction of CELL WALL TIME each card's dJ/dt is above 0.9x ITS OWN
-     reference burst p50, per card, keyed by PCI BDF.
+     reference burst p50, per card, keyed by PCI BDF. ⚠ That reference is a ~92-second
+     prefill burst standing in for workloads that run hours, so every duty fraction ships
+     with ``reference_caveat`` and ``reference_burst_window`` -- see ``DUTY_REFERENCE_CAVEAT``.
   6. Prefill that is real (gate 7): the load runs with ``--no-cache-prompt``, and the
      server's own ``llamacpp:prompt_tokens_total`` delta is checked against the prompt
      tokens the cell's rows report. The surface's size axis (512 / 8K / 32K) IS prefill, so
@@ -198,6 +200,35 @@ FLATNESS_MAX_ITERATIONS = 6
 
 #: Duty cycle: above 0.9x THIS card's own frozen reference burst p50 (card, gate 5).
 DUTY_THRESHOLD_FRAC = 0.9
+
+#: ⚠ THE DENOMINATOR IS A TRANSIENT, AND EVERY DUTY NUMBER IN THIS CAMPAIGN INHERITS IT.
+#:
+#: The frozen reference is a ~92-second prefill burst at 2 clients (``ref-20260909T085437Z``,
+#: frozen ``7d06fb0``). The workloads it stands in for run for hours -- the longest real one
+#: measured on this box is a 3.59-hour imagegen session, 850 images at a pool duty of 1.90 of
+#: 2, roughly 140x the reference window. Derek's field observation of that lane is 90 C within
+#: thirty minutes and three to four hours of bouncing off it.
+#:
+#: So a duty number answers "was this card above 0.9x what a 92-second prefill burst drew",
+#: NOT "was this card working as hard as it does under a real long workload". Two things
+#: follow, and neither is hypothetical:
+#:   * The reference is not a ceiling. A real serving cell has already exceeded it -- 181.2 W
+#:     peak at ``-np 8`` with 16 clients against a 159.92 W reference p50 (claim register #28).
+#:   * It is not a thermal steady state either. NO sustained-load capture exists on this box:
+#:     the longest in the corpus is ~260 ticks, and every burn-in file carries exactly one
+#:     temperature sample per adapter. A burst p50 cannot show throttling that arrives at
+#:     minute thirty.
+#:
+#: This rides on every receipt (``duty_cycle()["reference_caveat"]``) so a consumer cannot read
+#: the fraction without the denominator. It is retired by CAPTURING a sustained reference --
+#: a passive b70tools collector alongside a real hours-long run -- not by rewording it.
+DUTY_REFERENCE_CAVEAT = (
+    "the reference is a ~92 s prefill burst at 2 clients; the workloads it stands in for run "
+    "for hours (longest measured: a 3.59 h imagegen session at pool duty 1.90/2, ~140x this "
+    "window). It is neither a power ceiling (a real cell peaked 181.2 W over a 159.92 W "
+    "reference p50) nor a thermal steady state (no sustained capture exists on this box). "
+    "Duty means 'above 0.9x a 92 s burst', not 'as loaded as a real long workload'."
+)
 
 # ---------------------------------------------------------------- gate 8: thermal --
 #: THE ABORT LIMIT IS DEREK'S CALL, MADE 2026-09-09: 95 C. In his words -- "if we hit that,
@@ -1328,6 +1359,11 @@ def load_reference(receipt_path: Path = REFERENCE_RECEIPT) -> dict:
     b70tools adapter id, which is derived from the LUID and therefore session-scoped; the
     durable identity is the PCI BDF (ADR-0042), so the sibling ``b70/events.jsonl`` is read
     to resolve adapter -> BDF and the result is keyed by BDF whenever that succeeds.
+
+    ⚠ The returned dict carries ``burst_window`` -- the reference's OWN declared seconds and
+    client count, read from the receipt, not asserted here -- and ``caveat``, because the
+    denominator is a transient: see ``DUTY_REFERENCE_CAVEAT``. A caller that reports a duty
+    fraction without one of them is reporting a numerator.
     """
     path = Path(receipt_path)
     doc = json.loads(path.read_text(encoding="utf-8-sig"))
@@ -1358,10 +1394,20 @@ def load_reference(receipt_path: Path = REFERENCE_RECEIPT) -> dict:
             "burst_p50_w": burst.get("p50_w"), "burst_p95_w": burst.get("p95_w"),
             "ambient_p50_w": ambient.get("p50_w"),
         }
+    burst = doc.get("burst") or {}
+    intervals = [(card.get("burst") or {}).get("intervals")
+                 for card in (power.get("cards") or {}).values()]
+    intervals = [n for n in intervals if isinstance(n, (int, float))]
     return {"source": str(path), "counter": power.get("counter"),
             "keyed_by": "bdf" if bdf_by_adapter else "adapter",
             "frozen": "2026-09-09 compute control; the render half is not applicable "
                       "(lane paused under the Hatchet cutover; compute 0.0% during encode)",
+            "burst_window": {"declared_s": burst.get("seconds"),
+                             "clients": burst.get("clients"),
+                             "prompt_tokens": burst.get("prompt_tokens"),
+                             "requests": burst.get("requests"),
+                             "measured_intervals_s": max(intervals) if intervals else None},
+            "caveat": DUTY_REFERENCE_CAVEAT,
             "cards": cards}
 
 
@@ -1373,6 +1419,11 @@ def duty_cycle(cards: dict, reference: dict, window_ns: tuple | None = None,
     inside ``window_ns``; one straddling an edge is counted in neither and reported. A card
     with no reference entry, or a reference with no burst p50, yields ``None`` -- never a
     number derived from the other card's reference.
+
+    ⚠ The result carries ``reference_caveat`` and ``reference_burst_window`` beside the
+    fraction, and they are NOT decoration: the denominator is a ~92 s burst standing in for
+    workloads that run hours (``DUTY_REFERENCE_CAVEAT``). Anything that renders duty -- a
+    receipt, the reducer, a card, an article -- carries them with it or reports a numerator.
     """
     ref_cards = (reference or {}).get("cards") or {}
     out: dict = {}
@@ -1416,7 +1467,9 @@ def duty_cycle(cards: dict, reference: dict, window_ns: tuple | None = None,
     return {"threshold_frac": threshold_frac, "window_ns": list(window_ns) if window_ns else None,
             "reference_source": (reference or {}).get("source"), "cards": out,
             "definition": "fraction of cell wall time this card's dJ/dt exceeded "
-                          "%.2fx its own frozen reference burst p50" % threshold_frac}
+                          "%.2fx its own frozen reference burst p50" % threshold_frac,
+            "reference_burst_window": (reference or {}).get("burst_window"),
+            "reference_caveat": (reference or {}).get("caveat") or DUTY_REFERENCE_CAVEAT}
 
 
 # ----------------------------------------------------- b70tools stream -> gate 8: thermal --
@@ -2850,6 +2903,12 @@ def _dry_gate_preview(args) -> None:
                      if card.get("burst_p50_w") else None))
         print("                            read from %s, keyed by %s -- never hardcoded"
               % (ref["source"], ref["keyed_by"]))
+        window = ref.get("burst_window") or {}
+        print("                            DENOMINATOR: a %s s burst at %s clients (%s "
+              "one-second intervals measured)"
+              % (window.get("declared_s"), window.get("clients"),
+                 window.get("measured_intervals_s")))
+        print("                            CAVEAT: %s" % DUTY_REFERENCE_CAVEAT)
     except Exception as exc:  # noqa: BLE001
         print("  gate 5 duty_cycle       : frozen reference unreadable (%s) -> duty null" % exc)
     print("  gate 6 depth0_fraction  : session manifest %s -> %s"

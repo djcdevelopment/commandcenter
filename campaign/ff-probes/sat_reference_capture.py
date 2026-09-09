@@ -6,6 +6,18 @@ never captured. The BF6 lane's own calibration shows ``compute 0.0%`` during a r
 candidate reference is a COMPUTE control: a prefill burst on production, recorded by b70tools at
 1 Hz, reduced to watts per card. See docs/prereg/SATURATION-SURFACE-LAP1.md, gate 5.
 
+⚠ WHAT THIS CAPTURE IS NOT, and every duty number downstream inherits it. The burst is ~92
+one-second intervals. The workloads its p50 stands in for run for HOURS: the longest real one
+measured on this box is a 3.59-hour imagegen session, 850 images at a pool duty of 1.90 of 2 --
+roughly 140x this window -- which Derek reports reaching 90 C within thirty minutes. A burst p50
+is therefore neither a power ceiling (a real serving cell has already peaked 181.2 W against the
+159.92 W reference p50, claim register #28) nor a thermal steady state: NO sustained-load capture
+exists on this box at all, the longest in the corpus being ~260 ticks, and each burn-in file
+carries exactly one temperature sample per adapter. The honest retirement of this caveat is to
+CAPTURE a sustained reference -- a passive ``b70tools --run`` collector running alongside a real
+hours-long imagegen session, which needs no fence of its own -- and re-freeze against it. Until
+then ``sat_cell_runner.DUTY_REFERENCE_CAVEAT`` rides on every receipt that reports a duty cycle.
+
 What this does, in order (``--live``; the default is a dry run that prints the plan):
   1. rung state BEFORE (hearth.health.rungstate; a sample older than this run is `unknown`)
   2. start b70tools ``--run --ticks N --cadence-ms 1000 --flush-every-tick`` (self-terminating)

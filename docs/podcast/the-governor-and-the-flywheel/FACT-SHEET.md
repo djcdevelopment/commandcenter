@@ -83,6 +83,10 @@ avoided in dialogue unless they are the point.
 - ADR-0006: a 22 GB host-RAM preflight floor, tied to an OOM cascade that once cost a BIOS reflash.
 - THE UNUSED LEVER: vllama launches with q8_0 KV quantization. Production runs f16 —
   6,144 MiB of K plus 6,144 of V. q8_0 would free about 3 GB per card.
+  ⚠ AND IT IS NOT FREE — priced 2026-09-09 against our own FF4 measurement (claim register #29):
+  q8_0 costs 4.7% of decode (33.23 → 31.68, reproducible to 0.4%) and buys no prefill. It is a
+  CEILING lever, never a speed lever. Stranger still, q4_0 decode BEATS q8_0 by 1.9% — the wider
+  type is the slower one on this Vulkan path. An episode that calls this lever free is wrong.
 - It would not run today: its config points at a D: drive that no longer exists.
 
 ## Chapter 8 — the wrong variable
@@ -213,7 +217,11 @@ avoided in dialogue unless they are the point.
 ## Chapter 15 — original notes
 - Derek: imagegen turns the machine into a small star after three to four hours and bounces off
   90 °C after thirty minutes, even in cool weather.
-- The reference every duty number is measured against is the p50 of a TWENTY-SECOND prefill burst.
+- The reference every duty number is measured against is the p50 of a ~92-SECOND prefill burst at
+  two clients. ⚠ CORRECTED 2026-09-09 from "twenty-second": twenty was the AMBIENT window; the
+  burst is 90 s declared and 92 one-second intervals measured, read from the frozen receipt
+  (`ref-20260909T085437Z`). The point survives the correction and gets sharper — 92 seconds still
+  stands in for a 3.59-hour workload, ~140x the window. See claim register #30.
 - No sustained-load capture exists on this box. Every thermal record is a single-tick snapshot or
   a run under five minutes. The longest is about 260 ticks.
 - Measured across four cells inside ninety minutes: idle VRAM baseline swings 56–62 °C while the

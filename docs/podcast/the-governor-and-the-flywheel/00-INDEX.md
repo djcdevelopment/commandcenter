@@ -24,7 +24,7 @@ before the data and appended to, never edited, across the whole day.
 Every time the instruments said *we are at the limit*, they were wrong. Not once was the limit the
 silicon. It was a prompt cache, a span boundary, a scheduling event inside the server, a
 configuration knob left at two when the answer was sixteen, and — at the end — a reference number
-that turned out to be a twenty-second spike standing in for a four-hour workload.
+that turned out to be a ninety-second spike standing in for a three-and-a-half-hour workload.
 
 The operator, sitting next to the machine, hearing no fans and feeling no heat, was right the whole
 time and said so repeatedly. This is the story of the instruments catching up with him.

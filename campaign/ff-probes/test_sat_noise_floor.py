@@ -757,5 +757,49 @@ class TestThermalFields(unittest.TestCase):
         self.assertEqual(doc["n_excluded"], 0)
 
 
+class TestDutyReferenceDenominator(unittest.TestCase):
+    """Averaging a duty cycle over repeats does not lengthen its denominator."""
+
+    CAVEAT = ("the reference is a ~92 s prefill burst at 2 clients; the workloads it stands "
+              "in for run for hours")
+
+    def _with_caveat(self, rep: int, **kw) -> dict:
+        row = receipt(rep, **kw)
+        row["duty_cycle"]["reference_caveat"] = self.CAVEAT
+        row["duty_cycle"]["reference_burst_window"] = {
+            "declared_s": 90.0, "clients": 2, "prompt_tokens": 8192, "requests": 22,
+            "measured_intervals_s": 92}
+        row["duty_cycle"]["reference_source"] = r"E:\ref\receipt.json"
+        return row
+
+    def test_the_caveat_is_carried_up_from_the_receipts(self):
+        doc = reduce([self._with_caveat(1), self._with_caveat(2)])
+        ref = doc["duty_reference"]
+        self.assertTrue(ref["from_receipts"])
+        self.assertEqual(ref["caveat"], self.CAVEAT)
+        self.assertEqual(ref["burst_window"]["declared_s"], 90.0)
+        self.assertEqual(ref["source"], r"E:\ref\receipt.json")
+
+    def test_receipts_that_predate_the_caveat_still_get_one(self):
+        # Silence would read as "no caveat applies", which is the opposite of true.
+        doc = reduce([receipt(1), receipt(2)])
+        ref = doc["duty_reference"]
+        self.assertFalse(ref["from_receipts"])
+        self.assertIn("predate", ref["caveat"])
+        self.assertIsNone(ref["burst_window"])
+
+    def test_a_report_with_no_duty_field_carries_no_denominator_note(self):
+        doc = reduce([receipt(1, omit=("duty_cycle",)), receipt(2, omit=("duty_cycle",))])
+        self.assertFalse(any(n.startswith("duty_cycle[") for n in doc["fields"]))
+        self.assertIsNone(doc["duty_reference"])
+
+    def test_the_rendered_report_states_the_denominator_beside_the_table(self):
+        doc = reduce([self._with_caveat(1), self._with_caveat(2)])
+        text = nf.render_markdown(doc, cell_prefix="np2-p512-c2")
+        self.assertIn("What `duty_cycle[...]` is a fraction of", text)
+        self.assertIn("92 s prefill burst", text)
+        self.assertIn("90.0 s", text)
+
+
 if __name__ == "__main__":
     unittest.main()

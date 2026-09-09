@@ -484,6 +484,32 @@ def score_unwarmed_rep1(receipts: list) -> dict:
 
 
 # --------------------------------------------------------------------- the reduction --
+def duty_reference_note(receipts: list, fields: dict) -> dict | None:
+    """The denominator behind every ``duty_cycle[...]`` field, carried up from the receipts.
+
+    A duty cycle is a fraction of a REFERENCE, and that reference is a ~92-second prefill
+    burst standing in for workloads that run hours (``sat_cell_runner.DUTY_REFERENCE_CAVEAT``).
+    Aggregating duty over repeats does not make the denominator any longer, so the report
+    carries it out loud. Returns ``None`` when the report has no duty field at all; returns a
+    row saying so when it has duty fields but the receipts predate the caveat -- silence would
+    read as "no caveat applies", which is the opposite of true.
+    """
+    if not any(name.startswith("duty_cycle[") for name in fields):
+        return None
+    for receipt in receipts:
+        caveat = dig(receipt, ("duty_cycle", "reference_caveat"))
+        if caveat:
+            return {"caveat": caveat,
+                    "burst_window": dig(receipt, ("duty_cycle", "reference_burst_window")),
+                    "source": dig(receipt, ("duty_cycle", "reference_source")),
+                    "from_receipts": True}
+    return {"caveat": "these receipts predate the recorded caveat; the frozen reference is "
+                      "still a ~92 s prefill burst standing in for hours-long workloads",
+            "burst_window": None,
+            "source": dig(receipts[0] if receipts else {}, ("duty_cycle", "reference_source")),
+            "from_receipts": False}
+
+
 def reduce_repeats(receipts: list, *, floors: dict | None = None,
                    seed: int = 20260909, resamples: int = 10000,
                    include_cached: bool = False) -> dict:
@@ -534,6 +560,7 @@ def reduce_repeats(receipts: list, *, floors: dict | None = None,
         "load_requests_seen": requests_seen,
         "floors": floors,
         "fields": fields,
+        "duty_reference": duty_reference_note(included, fields),
         "launch_skew": launch_skew_summary(included),
         "bootstrap": {"jobs_per_hour": ci},
         "guards": {"rows": guards, "all_at_rate": all_at_rate},
@@ -608,6 +635,25 @@ def render_markdown(doc: dict, *, cell_prefix: str, skipped: list | None = None)
             % (name, row["n"], missing, _cell(row["min"]), _cell(row["max"]),
                _cell(row["mean"]), _cell(row["spread_pct"]), _cell(row["cv_pct"])))
     add("")
+
+    # A duty cycle is a fraction OF something, and averaging it across repeats does not
+    # lengthen the denominator. The rendered table is the last place a reader sees these
+    # numbers before quoting them, so the denominator goes here, not only in the JSON.
+    duty_ref = red.get("duty_reference")
+    if duty_ref:
+        window = duty_ref.get("burst_window") or {}
+        add("⚠ **What `duty_cycle[...]` is a fraction of.** %s" % duty_ref["caveat"])
+        if window.get("declared_s"):
+            add("")
+            add("- reference burst: **%s s** at **%s** client(s), %s-token prompts, %s requests"
+                % (window.get("declared_s"), window.get("clients"),
+                   window.get("prompt_tokens"), window.get("requests")))
+        if duty_ref.get("source"):
+            add("- frozen reference: `%s`" % duty_ref["source"])
+        if not duty_ref.get("from_receipts"):
+            add("- ⚠ read from this reducer, **not** from the receipts: they predate the "
+                "recorded caveat")
+        add("")
 
     # The bimodality, said out loud rather than left inside the launch_skew rows. The prereg
     # (2026-09-09) found this cell's floor is not Gaussian: an affected repeat has one round

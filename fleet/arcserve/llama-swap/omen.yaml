@@ -40,6 +40,35 @@ logToStdout: both
 startPort: 18300
 globalTTL: 0
 
+# ---- TWO THINGS TO KNOW BEFORE EDITING PRODUCTION'S SHAPE (measured 2026-09-09) ---------------------
+#
+# 1. `-c` IS THE TOTAL AND THE BUILD DIVIDES IT. `-c 131072 -np 8` gives 8 slots of 16,384 tokens,
+#    not 8 of 131,072 -- the server's own log says `n_ctx 131072, n_ctx_slot 16384`. So the door's
+#    declared budget MUST move with `-np`: hearth/etc/backends.toml `context_bytes` is 57344 at
+#    ~3.5 B/token for a 16,384-token slot, and it was 229376 when this line read `-np 2`. Change one
+#    without the other and llama-server SILENTLY TRUNCATES the overflow -- it never rejects an
+#    over-long prompt (measured 2026-07-18: a 17.5k request against a 16k slot returned ok with
+#    normal timing). `parallel_slots` in the same file is the lease limit and tracks `-np` too.
+#    ⚠ Total KV does NOT scale with `-np` on this build -- 12,288 MiB at 2, 4 and 8 alike, and the
+#    compute buffers FALL (712 -> 456 -> 328 MiB/card). The June vllama build DID multiply it 4x
+#    (ArgVectorBuilder.cs:41), so this is version-dependent: re-read the load report after a bump.
+#
+# 2. THE KV TYPE IS f16 ON PURPOSE, AND THE LEVER IS COSTED, NOT UNTRIED. This line carries no
+#    `-ctk`/`-ctv`, so KV is f16: the load report reads `K (f16) 6144.00 MiB, V (f16) 6144.00 MiB`.
+#    `-ctk q8_0 -ctv q8_0` would roughly halve that and free ~3 GB PER CARD -- headroom that could
+#    fund a deeper `-c`, more slots, or a co-resident side model (the rotation lane's binding
+#    constraint). Derek's own vllama has shipped q8_0 on this rig since June.
+#    ⚠ It is NOT free, and FF4 measured the price on 2026-08-29 (30B-A3B, single B70, depth 8192):
+#    decode 33.23 f16 -> 31.68 q8_0, a REAL -4.7%, reproducible to 0.4%, while prefill was flat
+#    (461.4 vs 461.1-468.5, inside the 1.6% repeat spread). So KV quant is a CEILING lever, never a
+#    speed lever -- adopting it for throughput would be a mistake.
+#    ⚠ And it is non-monotonic in bit-width: q4_0 decode BEATS q8_0 by +1.9%, reproducibly, so if
+#    the ceiling is what you want, q4_0 is the better arm and q8_0 is the worse of the two.
+#    Not taken because it is a tenancy call (this rung serves every consumer on :8082) and a quality
+#    question nobody here has measured. It belongs to the residency work or a deliberate arm.
+#    Sources: docs/CLAIM-REGISTER.md #29, docs/FACTORY-FRONTIER-CARDS.md "FF4 first result",
+#    docs/prereg/SATURATION-SURFACE-LAP1.md.
+#
 models:
   # ---- PRODUCTION (the omen-arc rung, ADR-0034): today's serve-arc.cmd line, port fixed ----------------
   "qwen3-30b-a3b":

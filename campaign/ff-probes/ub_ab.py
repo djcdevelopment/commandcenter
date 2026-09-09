@@ -120,10 +120,11 @@ def timers(action):
 def measure_arm(ub, token, reps, prefills, conc_reps):
     print("\n=== arm: -ub %s ===" % (ub if ub else "512 (default, no flag)"))
     set_ub(ub)
-    t0 = datetime.now()
-    subprocess.run(["schtasks", "/Run", "/TN", "ArcServeRestart"], capture_output=True)
-    if not ff_cell.wait_for_ready(since=t0):
-        raise RuntimeError("incumbent never reported ready on -ub %s" % ub)
+    rec = ff_cell.restart_incumbent()
+    if not rec["ok"]:
+        raise RuntimeError("incumbent never reported ready on -ub %s%s" % (
+            ub, "; PRODUCTION MAY BE DOWN, recover with: " + rec["recovery_command"]
+            if rec.get("production_may_be_down") else ""))
     epoch = ff_cell.incumbent_epoch()
 
     # Warm up, discarded. Never measure the first requests after a load (ADR-0043).
@@ -212,9 +213,11 @@ def main() -> int:
         # Restore the file first, then the server, then the timers -- in that order, so a
         # crash never leaves production running a config that is not in git.
         set_ub(None if original == 512 else original)
-        t0 = datetime.now()
-        subprocess.run(["schtasks", "/Run", "/TN", "ArcServeRestart"], capture_output=True)
-        ok = ff_cell.wait_for_ready(since=t0)
+        rec = ff_cell.restart_incumbent()
+        ok = rec["ok"]
+        if rec.get("production_may_be_down"):
+            print("  !! PRODUCTION MAY BE DOWN after restore. Recover with: %s"
+                  % rec["recovery_command"])
         dirty = subprocess.run(["git", "diff", "--stat", "--", SERVE_CMD],
                                capture_output=True, text=True,
                                cwd=r"C:\work\commandcenter").stdout.strip()

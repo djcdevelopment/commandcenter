@@ -229,10 +229,12 @@ CLASSES = ["control", "vulkan-load-noinfer", "vulkan-load-infer", "cpu-only", "i
 def run_class(kind, rung, reps, dwell, no_ledger):
     print("\n=== W-B class: %s ===" % kind)
     print("  restarting incumbent ...")
-    t0 = datetime.now()
-    subprocess.run(["schtasks", "/Run", "/TN", "ArcServeRestart"], capture_output=True)
-    if not ff_cell.wait_for_ready(since=t0):
+    rec = ff_cell.restart_incumbent()
+    if not rec["ok"]:
         print("  FAIL -- incumbent ready marker never appeared. Class void.")
+        if rec.get("production_may_be_down"):
+            print("  !! PRODUCTION MAY BE DOWN. Recover with: %s"
+                  % rec["recovery_command"])
         return {"class": kind, "verdict": "INCONCLUSIVE",
                 "reason": "incumbent never came back after restart"}
     epoch = ff_cell.incumbent_epoch()

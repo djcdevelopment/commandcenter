@@ -37,6 +37,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -47,8 +48,100 @@ LEDGER = r"E:\work\battlemage\ff-probes\ff-receipts.jsonl"
 SERVE_LOG = r"C:\work\commandcenter\hearth\var\arc-serve.log"
 READY_MARKER = "model loaded"
 
+#: ``ArcServeRestart`` IS STOP-ONLY -- it is not a restart despite the name.
+#: ``fleet/arcserve/restart-arc.cmd`` ends the task tree, force-kills llama-swap and
+#: llama-server, and then RETURNS EARLY if the shared maintenance sentinel exists; even
+#: without the sentinel it refuses to boot when a process survives ~120 s. So a caller
+#: that fires it and waits for the ready marker can sit there while production is simply
+#: gone. That happened for real on 2026-09-09: the yaml was edited, ArcServeRestart
+#: fired, ``wait_for_ready`` timed out, and nothing listened on 8081 or 8082 with the
+#: serve log frozen. Recovery is the BOOT task -- a second, separate scheduled task.
+#: Use :func:`restart_incumbent`, never the bare stop.
+ARCSERVE_STOP_TASK = "ArcServeRestart"
+ARCSERVE_BOOT_TASK = "ArcServeBoot"
+RECOVERY_COMMAND = "schtasks /Run /TN %s" % ARCSERVE_BOOT_TASK
+
+#: Shared with the imagegen lane. NOT ours to delete: while it exists the stop task is a
+#: deliberate stop-only control and another tenant is holding the pool down.
+MAINTENANCE_STOP = r"C:\work\commandcenter\hearth\var\arc-maintenance.stop"
+PRODUCTION_PORT = 8082
+
 # llama-server stamps each line with elapsed MM.SS.mmm.uuu since process start.
 ELAPSED_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)\.(\d+)\s")
+
+
+def port_listening(port: int = PRODUCTION_PORT) -> bool:
+    """True while something holds the port. Cheap, no dependencies, no side effects."""
+    import socket
+    sock = socket.socket()
+    sock.settimeout(0.5)
+    try:
+        sock.connect(("127.0.0.1", port))
+        return True
+    except OSError:
+        return False
+    finally:
+        sock.close()
+
+
+def restart_incumbent(timeout_s: int = 420, wait_stop_s: int = 90) -> dict:
+    """Stop production and BOOT it again, in that order. Never raises.
+
+    The bare stop task is not a restart (see ``ARCSERVE_STOP_TASK``). This runs the
+    sequence the launcher's own header prescribes: stop -> confirm the port is free ->
+    boot -> wait for the REAL ready marker, never ``/health``.
+
+    Refuses before touching anything if the shared maintenance sentinel exists, and
+    re-checks it after the stop -- if another tenant took the pool in between, booting
+    would fight them for it. On any failure the record carries ``production_may_be_down``
+    and the recovery command, because the worst outcome here is a caller that reports its
+    own timeout and quietly leaves the server stopped.
+    """
+    rec = {"ok": False, "steps": [], "production_may_be_down": False,
+           "recovery_command": RECOVERY_COMMAND}
+
+    def step(name, ok, **kw):
+        rec["steps"].append(dict(step=name, ok=bool(ok), **kw))
+
+    if os.path.exists(MAINTENANCE_STOP):
+        step("sentinel", False,
+             detail="%s exists -- a shared maintenance lock is held; refusing to "
+                    "restart production" % MAINTENANCE_STOP)
+        return rec
+
+    since = datetime.now()
+    stop = subprocess.run(["schtasks", "/Run", "/TN", ARCSERVE_STOP_TASK],
+                          capture_output=True, text=True, errors="replace")
+    step("stop", stop.returncode == 0, returncode=stop.returncode,
+         detail="%s is STOP-ONLY; the boot step below is what brings it back"
+                % ARCSERVE_STOP_TASK)
+
+    deadline = time.time() + wait_stop_s
+    while time.time() < deadline and port_listening():
+        time.sleep(2)
+    still = port_listening()
+    step("wait_for_stop", not still, still_listening=still,
+         detail="port %d free before booting" % PRODUCTION_PORT)
+
+    if os.path.exists(MAINTENANCE_STOP):
+        step("sentinel_after_stop", False,
+             detail="sentinel appeared during the stop; NOT booting into a held lock")
+        rec["production_may_be_down"] = True
+        return rec
+
+    boot = subprocess.run(["schtasks", "/Run", "/TN", ARCSERVE_BOOT_TASK],
+                          capture_output=True, text=True, errors="replace")
+    step("boot", boot.returncode == 0, returncode=boot.returncode)
+
+    ready = wait_for_ready(timeout_s=timeout_s, since=since)
+    step("ready_marker", bool(ready),
+         detail="the REAL %r marker in the serve log, never /health" % READY_MARKER)
+    if not ready:
+        rec["production_may_be_down"] = True
+        return rec
+
+    rec["ok"] = True
+    return rec
 
 
 def incumbent_epoch():
@@ -154,11 +247,16 @@ def main() -> int:
     print("  incumbent epoch: %s" % (epoch.get("epoch_start") or epoch.get("reason")))
 
     if args.restart:
-        print("  restarting incumbent (ArcServeRestart) ...")
-        t0 = datetime.now()
-        subprocess.run(["schtasks", "/Run", "/TN", "ArcServeRestart"], capture_output=True)
-        if not wait_for_ready(since=t0):
-            print("  FAIL -- ready marker %r never appeared. Refusing to measure." % READY_MARKER)
+        print("  restarting incumbent (stop -> wait -> boot) ...")
+        rec = restart_incumbent()
+        for st in rec["steps"]:
+            print("    %-18s %s%s" % (st["step"], "ok" if st["ok"] else "FAIL",
+                                      "  " + st["detail"] if st.get("detail") else ""))
+        if not rec["ok"]:
+            print("  FAIL -- incumbent did not come back. Refusing to measure.")
+            if rec.get("production_may_be_down"):
+                print("  !! PRODUCTION MAY BE DOWN. Recover with: %s"
+                      % rec["recovery_command"])
             return 1
         epoch = incumbent_epoch()
         print("  new epoch: %s" % epoch.get("epoch_start"))

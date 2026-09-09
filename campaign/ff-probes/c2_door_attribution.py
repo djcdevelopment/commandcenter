@@ -167,10 +167,12 @@ def main() -> int:
 
     print("=== C2: door vs rung attribution ===")
     if args.restart:
-        t0 = datetime.now()
-        subprocess.run(["schtasks", "/Run", "/TN", "ArcServeRestart"], capture_output=True)
-        if not ff_cell.wait_for_ready(since=t0):
+        rec = ff_cell.restart_incumbent()
+        if not rec["ok"]:
             print("  FAIL -- incumbent never reported ready.")
+            if rec.get("production_may_be_down"):
+                print("  !! PRODUCTION MAY BE DOWN. Recover with: %s"
+                      % rec["recovery_command"])
             return 1
     epoch = ff_cell.incumbent_epoch()
     epoch_start = datetime.fromisoformat(epoch["epoch_start"]).replace(tzinfo=None)

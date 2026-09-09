@@ -85,10 +85,12 @@ def main() -> int:
 
     print("=== W-B2: %s ===" % args.label)
     if args.restart:
-        t0 = datetime.now()
-        subprocess.run(["schtasks", "/Run", "/TN", "ArcServeRestart"], capture_output=True)
-        if not ff_cell.wait_for_ready(since=t0):
+        rec = ff_cell.restart_incumbent()
+        if not rec["ok"]:
             print("  FAIL -- incumbent never reported ready. Aborting.")
+            if rec.get("production_may_be_down"):
+                print("  !! PRODUCTION MAY BE DOWN. Recover with: %s"
+                      % rec["recovery_command"])
             return 1
     epoch = ff_cell.incumbent_epoch()
     print("  epoch: %s" % epoch.get("epoch_start"))

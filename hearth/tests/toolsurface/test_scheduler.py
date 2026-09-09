@@ -179,6 +179,50 @@ class CapacityLookupTests(TestCase):
         self.assertEqual(lookup_duration_s(job, machine, None),
                          DEFAULT_DURATIONS_S["default"])
 
+    def _enqueue_only_capacity(self) -> dict:
+        """A bucket shaped exactly like the real one: a fire-and-forget door tool."""
+        return {
+            "contract_version": "capacity.v1",
+            "evidence_watermark": None,
+            "buckets": [
+                # knowledge/capacity.json, measured 2026-09-09: submit_render p50 48.6 ms,
+                # p90 54.7 ms over 17 calls. That times the door handler, which validates
+                # and hands off; the render itself runs for minutes.
+                {"task_class": None, "node": "local-a", "runner_class": "frontier",
+                 "model": None, "tool": "submit_render", "calls": 17, "ok_rate": 1.0,
+                 "duration_ms": {"p50": 48.6, "p90": 54.7, "mean": 49.0, "max": 65.6},
+                 "tokens_out_per_s_p50": None, "last_seen": None},
+            ],
+        }
+
+    def test_an_enqueue_only_tool_bucket_is_refused_not_believed(self) -> None:
+        # The trap: submit_render returns AT ENQUEUE, so its bucket holds door-call
+        # latency. Believing it schedules a multi-minute render as 55 milliseconds.
+        job = Job(plan_id="j1", task_class="submit_render")
+        machine = _machine("local-a", "frontier", 0.0)
+        got = lookup_duration_s(job, machine, self._enqueue_only_capacity())
+        self.assertNotAlmostEqual(got, 0.0547, places=3)
+        self.assertEqual(got, DEFAULT_DURATIONS_S["default"])
+
+    def test_a_caller_supplied_duration_still_wins_for_an_enqueue_only_tool(self) -> None:
+        # Refusing the bucket must not refuse a real number the caller actually knows.
+        job = Job(plan_id="j1", task_class="submit_render", est_duration_s=2400.0)
+        machine = _machine("local-a", "frontier", 0.0)
+        self.assertEqual(lookup_duration_s(job, machine, self._enqueue_only_capacity()), 2400.0)
+
+    def test_a_task_class_bucket_of_the_same_name_is_still_honoured(self) -> None:
+        # Only the TOOL fallback is refused. If a real task_class bucket ever carries
+        # measured work duration under that name, it is used.
+        capacity = self._enqueue_only_capacity()
+        capacity["buckets"].append(
+            {"task_class": "submit_render", "node": "local-a", "runner_class": "frontier",
+             "model": None, "tool": "run_render", "calls": 9, "ok_rate": 1.0,
+             "duration_ms": {"p50": 90000, "p90": 120000, "mean": 95000, "max": 140000},
+             "tokens_out_per_s_p50": None, "last_seen": None})
+        job = Job(plan_id="j1", task_class="submit_render")
+        machine = _machine("local-a", "frontier", 0.0)
+        self.assertEqual(lookup_duration_s(job, machine, capacity), 120.0)
+
     def test_est_duration_s_overrides_capacity(self) -> None:
         # U1: a caller-supplied per-job duration wins over every lookup path.
         capacity = {

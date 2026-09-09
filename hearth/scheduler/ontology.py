@@ -27,6 +27,24 @@ DEFAULT_DURATIONS_S: dict[str, float] = {
     "default": 600.0,
 }
 
+#: Door tools that RETURN AT ENQUEUE. Their capacity buckets time the handler, not the
+#: work -- the tool validates arguments, hands the job to a dispatcher and returns, so
+#: the recorded duration is a few tens of milliseconds while the job itself runs for
+#: minutes. Measured 2026-09-09 in `knowledge/capacity.json`: `submit_image` p50 81 ms
+#: over 2,917 calls; `submit_render` p50 49 ms, p90 55 ms over 17. A scheduler asking
+#: how long a render takes would be told a twentieth of a second.
+#:
+#: `lookup_duration_s` therefore refuses these buckets rather than believing them. The
+#: fall-through to `DEFAULT_DURATIONS_S['default']` is a coarse guess, but a coarse guess
+#: is a schedulable quantity and 55 ms is not. Real per-job durations for the image lane
+#: live in its own receipts (median ~25 s, p90 ~30 s across 2,588 jobs) and would have to
+#: be projected into a bucket before this list can shrink.
+ENQUEUE_ONLY_TOOLS: frozenset[str] = frozenset({
+    "submit_image", "submit_render", "submit_media_pipeline", "submit_podcast",
+    "submit_video_animation", "submit_task", "submit_batch", "submit_execution",
+    "submit_delegated_execution", "start_image_session",
+})
+
 # Builders eligible for async fleet tasks today. A hypothetical frontier builder
 # carries a high token-cost weight so the token objective only reaches for it when
 # deadlines force parallelism it cannot avoid. Used only when inventory/backends
@@ -523,7 +541,8 @@ def lookup_duration_s(job: Job, machine: Machine, capacity: Optional[dict],
       0. model gen-rate: est_out_tokens / expected_gen_tps  (JS7b, only when the job
          names a required_model that the catalog supplies a gen-rate for)
       1. capacity (task_class x node) p90
-      2. capacity (tool x node) p90       — tool taken as the job's task_class
+      2. capacity (tool x node) p90       — tool taken as the job's task_class, EXCEPT
+         for `ENQUEUE_ONLY_TOOLS`, whose buckets time the door call and not the work
       3. DEFAULT_DURATIONS_S[task_class]  — else DEFAULT_DURATIONS_S['default']
 
     `machine.name` is used as the capacity `node` key; when no node-specific bucket
@@ -537,11 +556,14 @@ def lookup_duration_s(job: Job, machine: Machine, capacity: Optional[dict],
         if spec is not None and spec.expected_gen_tps:
             return float(job.est_out_tokens) / float(spec.expected_gen_tps)
     if capacity is not None:
+        tool_key = None if job.task_class in ENQUEUE_ONLY_TOOLS else job.task_class
         for node in (machine.name, None):
             hit = _bucket_p90(capacity, task_class=job.task_class, tool=None, node=node)
             if hit is not None:
                 return hit / 1000.0
-            hit = _bucket_p90(capacity, task_class=None, tool=job.task_class, node=node)
+            if tool_key is None:
+                continue        # an enqueue-only tool's bucket times the door, not the job
+            hit = _bucket_p90(capacity, task_class=None, tool=tool_key, node=node)
             if hit is not None:
                 return hit / 1000.0
     return DEFAULT_DURATIONS_S.get(job.task_class, DEFAULT_DURATIONS_S["default"])

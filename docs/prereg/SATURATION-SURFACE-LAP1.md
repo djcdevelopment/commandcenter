@@ -733,6 +733,44 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
 > finding; the N=8/16/24 cells lengthen the window further and will separate the two readings
 > cleanly.
 
+> **FINDING — prefill runs in three separable modes, and which mode a cell falls into is what
+> moves its throughput (2026-09-09 ~12:15Z).** Each request's own `prompt_tokens_per_s` is a
+> log-free classifier: it needs no server log, no uptime anchor, and survives the truncation a
+> restart causes. Across all ten real-prefill cells the per-request values do not scatter — they
+> land in three tight bands with empty space between them:
+>
+> | mode | per-request prefill | interpretation |
+> |---|---:|---|
+> | **alone** | 1,982–1,995 tok/s | nothing else on the card. Every N=1 request, and the first of a pair. |
+> | **beside a decode** | 1,840–1,890 tok/s | this slot prefills while the other decodes |
+> | **batched** | 1,460–1,476 tok/s | both slots prefill in the same pass — slower each, **~2,940 aggregate** |
+>
+> **The association across cells is clean:**
+>
+> | cell | jobs/hour | requests not batched | median prefill | median decode |
+> |---|---:|---:|---:|---:|
+> | N=1 ×3 | 1,514 | 100% (by construction) | 1,990 | 93.4 |
+> | N=2 r8 | **2,203.7** | **0%** | 1,469 | 67.5 |
+> | N=2 r6, r7, r9, r10 | 2,097–2,125 | 33% | 1,466–1,475 | 66.1–67.1 |
+> | N=4 r1 | 2,124.2 | 33% | 1,474 | 66.7 |
+> | N=4 r2 | **1,998.5** | **100%** | 1,861 | 59.3 |
+>
+> **The cell that batched everything is the fastest; the cell that batched nothing is the slowest.**
+> The single clean N=2 repeat and the fully-staggered N=4 repeat are the two extremes, 10% apart.
+>
+> **Mechanism, proposed and consistent with all ten cells.** Two requests admitted together prefill
+> together, decode together, finish together, and the next pair arrives together — a synchronised
+> loop that keeps prefill batched. A delayed admission (the 222–250 ms event) knocks the pair out of
+> phase; thereafter each prefill lands beside the other slot's decode instead of beside its prefill,
+> and **the offset persists** because nothing re-synchronises them. That is why one delayed round
+> costs a whole cell ~5% rather than one round ~11%: it is not the delay that is expensive, it is
+> the phase change the delay causes.
+>
+> This is a hypothesis with strong support, not a proven mechanism: the modes and the association
+> are measured, the persistence is inferred. It is also directly actionable if it holds — keeping
+> arrivals in phase is a submission-side lever worth ~5–10% here, which is Lap 2's territory, and it
+> predicts that batched-prefill fraction, not client count, is the variable to control.
+
 ## Analysis plan
 
 - Per cell: jobs/hour, p50/p95/p99 latency and TTFT (nearest-rank, as the harness computes them),

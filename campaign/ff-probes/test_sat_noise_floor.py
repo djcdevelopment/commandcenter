@@ -62,6 +62,9 @@ def receipt(rep: int, *, jobs_per_hour=2300.0, status="scored", over_admitted=Fa
         "incumbent_rate_fraction_pre": 0.9934,
         "incumbent_rate_fraction_post": 0.9639,
         "over_admitted": over_admitted,
+        # real-prefill regime by default (gate 7 era); block-1 receipts omit both keys
+        "cache_prompt": False,
+        "prefill_cached": False,
         "load_requests": 6,
         "ts": "2026-09-09T03:34:05-07:00",
         "warm": {"unwarmed_rep1_tok_s": unwarmed, "final_decode_tok_s": warm,
@@ -141,6 +144,58 @@ class TestInclusion(unittest.TestCase):
         self.assertIsNone(doc["regime"])
         self.assertEqual(doc["fields"]["jobs_per_hour"]["n"], 0)
         self.assertIsNone(doc["fields"]["jobs_per_hour"]["spread_pct"])
+
+    # -- regime: the surface is real prefill; block-1 (cached-prefix) receipts stay out --
+    def test_a_block1_receipt_without_cache_prompt_is_excluded_by_default(self):
+        rows = [receipt(1), receipt(2), receipt(3, omit=("cache_prompt", "prefill_cached"))]
+        doc = reduce(rows)
+        self.assertEqual(doc["n_included"], 2)
+        (excluded,) = doc["excluded"]
+        self.assertEqual(excluded["repeat"], "np2-p512-c2-r3")
+        self.assertIn("cached-prefix regime", excluded["reason"])
+        self.assertIn("--include-cached", excluded["reason"])
+        self.assertIn("real-prefill regime only", doc["regime_filter"])
+
+    def test_cache_prompt_true_is_the_cached_regime_too(self):
+        doc = reduce([receipt(1), receipt(2), receipt(3, cache_prompt=True)])
+        self.assertEqual(doc["n_included"], 2)
+        self.assertIn("cached-prefix regime", doc["excluded"][0]["reason"])
+
+    def test_gate7_prefill_cached_excludes_even_with_cache_prompt_false(self):
+        doc = reduce([receipt(1), receipt(2), receipt(3, prefill_cached=True)])
+        self.assertEqual(doc["n_included"], 2)
+        (excluded,) = doc["excluded"]
+        self.assertIn("prefill_cached", excluded["reason"])
+        self.assertIn("gate 7", excluded["reason"])
+
+    def test_include_cached_reduces_block1_on_purpose(self):
+        rows = [receipt(k, omit=("cache_prompt", "prefill_cached")) for k in (1, 2, 3)]
+        self.assertEqual(reduce(rows)["n_included"], 0)
+        doc = reduce(rows, include_cached=True)
+        self.assertEqual(doc["n_included"], 3)
+        self.assertEqual(doc["n_excluded"], 0)
+        self.assertIn("included on request", doc["regime_filter"])
+
+    def test_include_cached_never_admits_non_scored_or_over_admitted(self):
+        rows = [receipt(1, omit=("cache_prompt",)),
+                receipt(2, omit=("cache_prompt",), over_admitted=True),
+                receipt(3, omit=("cache_prompt",), status="STOPPED_AFTER_CELL")]
+        doc = reduce(rows, include_cached=True)
+        self.assertEqual(doc["n_included"], 1)
+        self.assertEqual(doc["n_excluded"], 2)
+
+    def test_cli_include_cached_flag_reaches_the_reduction(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_cells(root, (1, 2, 3), omit=("cache_prompt", "prefill_cached"))
+            rc, out, _ = run_cli(["--cells-root", str(root), "--cell-prefix", "np2-p512-c2",
+                                  "--resamples", "50"])
+            self.assertEqual(rc, 2)          # every receipt excluded -> fewer than 2 repeats
+            self.assertIn("repeats excluded: **3**", out)
+            rc, out, _ = run_cli(["--cells-root", str(root), "--cell-prefix", "np2-p512-c2",
+                                  "--resamples", "50", "--include-cached"])
+            self.assertEqual(rc, 0)
+            self.assertIn("repeats included: **3**", out)
 
 
 # ----------------------------------------------------------------------- the statistics --

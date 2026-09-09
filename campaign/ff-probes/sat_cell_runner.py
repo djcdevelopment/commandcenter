@@ -37,6 +37,10 @@ WHAT IT ADDS (the only new logic)
      at N=2 so a deep block warms its own KV paths. Never a single discarded request.
   2. In-flight capture: ``/slots`` polled at 1 s with the bearer -> slot-busy fraction;
      ``/metrics`` scraped before and after -> ``llamacpp:n_busy_slots_per_decode`` delta.
+     EVERY poll is kept, and the gate-4 figures are computed over the LOAD window
+     (``min(started_at)``..``max(completed_at)`` on the load's own rows) because the
+     bracket also contains ff_cell's single-stream pre- and post-rate probes -- the span
+     fractions are span-diluted and are recorded beside the window ones, never instead.
   3. Admission: budget headroom per card from the b70tools stream; negative -> the row is
      flagged ``over_admitted`` and KEPT (excluded from the surface, never dropped).
   4. Phase 2 ``-np``: token-exact edit of the PRODUCTION entry in
@@ -48,6 +52,11 @@ WHAT IT ADDS (the only new logic)
   5. Board duty cycle against the FROZEN reference receipt (read from the receipt, never
      hardcoded): the fraction of CELL WALL TIME each card's dJ/dt is above 0.9x ITS OWN
      reference burst p50, per card, keyed by PCI BDF.
+  6. Prefill that is real (gate 7): the load runs with ``--no-cache-prompt``, and the
+     server's own ``llamacpp:prompt_tokens_total`` delta is checked against the prompt
+     tokens the cell's rows report. The surface's size axis (512 / 8K / 32K) IS prefill, so
+     a cached prefix is a refused cell -- ``status_reason`` marked and the row KEPT, like
+     ``over_admitted`` -- rather than a quietly nulled rate.
 
 TIMEBASE. b70tools' ``t`` on ``ms`` rows is NANOSECONDS on the boot-relative perf_counter
 clock -- never QPC ticks; reading it as 10 MHz ticks is wrong by 100x and once turned a
@@ -165,6 +174,7 @@ GATES = (
     (4, "in_flight"),
     (5, "board_duty_cycle"),
     (6, "depth0_fraction"),
+    (7, "prefill_real"),
 )
 
 #: Every field a SAT-L1 receipt carries. Present or ``null`` -- never absent, never dropped.
@@ -184,13 +194,21 @@ RECEIPT_FIELDS = (
     # --- gate 2: the production guard --------------------------------------------------
     "guard_before", "guard_after", "guard_verdict",
     # --- the load itself ----------------------------------------------------------------
-    "load_command", "load_rows_path", "load_requests", "summary",
+    "load_command", "load_rows_path", "load_requests", "summary", "cache_prompt",
     "jobs_per_hour", "latency_p50_s", "latency_p95_s", "latency_p99_s",
     "ttft_p50_s", "ttft_p95_s", "ttft_p99_s",
     "decode_rate_p50_tokens_per_s", "prefill_rate_p50_tokens_per_s",
     # --- gate 4: in-flight ----------------------------------------------------------------
+    # The span fields bracket the whole ff_cell subprocess, which runs its OWN single-stream
+    # pre- and post-rate probes around the load; the _load_window fields cover only the
+    # load's own rows and are the term gate 4 scores. Both are kept: a diluted figure that
+    # is LABELLED diluted is evidence, a diluted figure presented as the cell is not.
     "slots_poll", "slot_busy_fraction", "both_slots_busy_fraction",
+    "slots_poll_load_window", "slot_busy_fraction_load_window",
+    "both_slots_busy_fraction_load_window",
     "metrics_before", "metrics_after", "n_busy_slots_per_decode_delta",
+    # --- gate 7: prefill was real, not served from the prompt cache -------------------------
+    "prefill_real", "prefill_cached",
     # --- gate 3: admission ------------------------------------------------------------------
     "commit_free_gb_before", "commit_free_gb_after", "budget_headroom", "over_admitted",
     # --- gate 5: board duty cycle against the frozen reference ---------------------------
@@ -428,41 +446,132 @@ def append_epoch_boundary(baselines_path: Path, row: dict) -> dict:
 
 
 # ------------------------------------------------------------------ /slots, /metrics --
-def slot_busy(samples: list) -> dict:
-    """Slot occupancy from 1 Hz ``/slots`` polls.
+SPAN_VS_WINDOW_NOTE = ("span figures include ff_cell's single-stream pre/post probes; "
+                       "load-window figures are the gate-4 term")
 
-    A sample is ``{"t": <wall epoch>, "slots": [...]}`` or ``{"t": ..., "error": "..."}``.
-    Fractions are over the OK polls only; with none, every fraction is ``None`` rather
-    than 0.0 -- ``null != 0`` is a campaign invariant.
+
+def poll_rows(samples: list) -> list:
+    """Every ``/slots`` poll as one compact row: when, how many busy, how many slots.
+
+    Kept, not reduced away. The span figures answer "how busy was the bracket"; only the
+    per-poll rows can answer "which request waited" -- r4's last request sat 0.45 s behind
+    a slot (TTFT 0.510 s against 20-90 ms elsewhere, server-side work normal) and
+    ``slots_poll.polls == 19`` could not say so.
+
+    Accepts the poller's raw shape (``{"t": ..., "slots": [...]}`` or ``{"t": ...,
+    "error": ...}``) and rows already in this compact shape, so a receipt's own
+    ``slots_poll.samples`` can be re-windowed offline without the raw slot detail.
     """
-    ok = [s for s in samples or () if isinstance(s.get("slots"), list)]
-    errors = [s for s in samples or () if not isinstance(s.get("slots"), list)]
+    rows = []
+    for s in samples or ():
+        if not isinstance(s, dict):
+            continue
+        t_wall = s.get("t_wall", s.get("t"))
+        slots = s.get("slots")
+        if isinstance(slots, list):
+            busy = sum(1 for slot in slots if isinstance(slot, dict) and slot.get("is_processing"))
+            rows.append({"t_wall": t_wall, "n_busy": busy, "n_slots": len(slots), "ok": True})
+            continue
+        if "n_busy" in s or "n_slots" in s:
+            row = {"t_wall": t_wall, "n_busy": s.get("n_busy"), "n_slots": s.get("n_slots"),
+                   "ok": bool(s.get("ok", True))}
+        else:
+            row = {"t_wall": t_wall, "n_busy": None, "n_slots": None, "ok": False}
+        if s.get("error") is not None:
+            row["error"] = s.get("error")
+            row["ok"] = False
+        rows.append(row)
+    return rows
+
+
+def _busy_fields(rows: list) -> dict:
+    """The occupancy figures over compact poll rows. OK polls only; none -> ``None``.
+
+    ``null != 0`` is a campaign invariant: a window nothing was polled in is unknown, not
+    idle.
+    """
+    ok = [r for r in rows if r.get("ok")]
+    errors = [r for r in rows if not r.get("ok")]
+    out = {"polls": len(rows), "ok_polls": len(ok), "error_polls": len(errors),
+           "slots_seen": None, "any_busy_fraction": None, "all_busy_fraction": None,
+           "mean_busy_slots": None, "busy_slot_fraction": None,
+           "error_sample": (errors[0].get("error") if errors else None)}
     if not ok:
-        return {"polls": len(samples or ()), "ok_polls": 0, "error_polls": len(errors),
-                "slots_seen": None, "any_busy_fraction": None, "all_busy_fraction": None,
-                "mean_busy_slots": None, "busy_slot_fraction": None,
-                "error_sample": (errors[0].get("error") if errors else None)}
-    busy_counts, totals, per_poll_frac = [], [], []
-    for s in ok:
-        slots = s["slots"]
-        busy = sum(1 for slot in slots if slot.get("is_processing"))
-        busy_counts.append(busy)
-        totals.append(len(slots))
-        per_poll_frac.append((busy / len(slots)) if slots else 0.0)
-    slots_seen = max(totals) if totals else None
+        return out
     n = len(ok)
-    return {
-        "polls": len(samples or ()),
-        "ok_polls": n,
-        "error_polls": len(errors),
-        "slots_seen": slots_seen,
+    busy_counts = [int(r.get("n_busy") or 0) for r in ok]
+    totals = [int(r.get("n_slots") or 0) for r in ok]
+    out.update({
+        "slots_seen": max(totals) if totals else None,
         "any_busy_fraction": round(sum(1 for b in busy_counts if b >= 1) / n, 4),
         "all_busy_fraction": round(
             sum(1 for b, t in zip(busy_counts, totals) if t and b == t) / n, 4),
         "mean_busy_slots": round(sum(busy_counts) / n, 4),
-        "busy_slot_fraction": round(sum(per_poll_frac) / n, 4),
-        "error_sample": (errors[0].get("error") if errors else None),
-    }
+        "busy_slot_fraction": round(
+            sum((b / t) if t else 0.0 for b, t in zip(busy_counts, totals)) / n, 4),
+    })
+    return out
+
+
+def slot_busy(samples: list) -> dict:
+    """Slot occupancy from 1 Hz ``/slots`` polls, over the WHOLE poller span.
+
+    A sample is ``{"t": <wall epoch>, "slots": [...]}`` or ``{"t": ..., "error": "..."}``.
+    Fractions are over the OK polls only; with none, every fraction is ``None`` rather
+    than 0.0 -- ``null != 0`` is a campaign invariant.
+
+    The span is the whole ``ff_cell`` subprocess, which runs its own single-stream pre- and
+    post-rate probes around the load, so these fractions are DILUTED: 0.47-0.53 over the
+    first live repeats where the load itself held both slots. ``window_slot_busy`` is the
+    gate-4 term. Every per-poll row rides along in ``samples``.
+    """
+    rows = poll_rows(samples)
+    out = _busy_fields(rows)
+    out["samples"] = rows
+    return out
+
+
+def window_slot_busy(samples: list, t0: float | None, t1: float | None) -> dict:
+    """The same occupancy figures over ``t0 <= t_wall <= t1`` only, plus ``n_samples``.
+
+    Pure: no clock, no I/O. ``t0``/``t1`` are wall epoch seconds -- for a cell they are
+    ``min(started_at)`` and ``max(completed_at)`` over the load's OWN rows, so the
+    single-stream probes ff_cell runs around the load fall outside the window. Either
+    bound missing selects nothing and every figure is ``None``: an unknown window is not
+    an empty one.
+    """
+    rows = poll_rows(samples)
+    reason = None
+    if t0 is None or t1 is None:
+        selected = []
+        reason = ("no load window: the cell's rows carry no started_at/completed_at pair, so "
+                  "the polls cannot be attributed to the load")
+    else:
+        selected = [r for r in rows
+                    if isinstance(r.get("t_wall"), (int, float)) and t0 <= r["t_wall"] <= t1]
+        if not selected:
+            reason = "no /slots poll fell inside the load window"
+    out = _busy_fields(selected)
+    out["n_samples"] = len(selected)
+    out["t0"] = t0
+    out["t1"] = t1
+    out["window_s"] = round(t1 - t0, 3) if t0 is not None and t1 is not None else None
+    out["reason"] = reason
+    out["definition"] = ("polls inside [min(started_at), max(completed_at)] over the load's "
+                         "own rows; " + SPAN_VS_WINDOW_NOTE)
+    return out
+
+
+def load_window_bounds(rows: list) -> tuple:
+    """``(min(started_at), max(completed_at))`` over harness rows, as wall epoch seconds.
+
+    ``(None, None)`` when either end is underivable -- half a window is not a window.
+    """
+    starts = [t for t in (_iso_epoch(r.get("started_at")) for r in rows or ()) if t is not None]
+    ends = [t for t in (_iso_epoch(r.get("completed_at")) for r in rows or ()) if t is not None]
+    if not starts or not ends:
+        return None, None
+    return min(starts), max(ends)
 
 
 _PROM = re.compile(r"^(?P<name>[A-Za-z_:][\w:]*)(?P<labels>\{[^}]*\})?\s+(?P<value>[-+0-9.eEnaN]+)\s*$")
@@ -496,6 +605,85 @@ def busy_slots_delta(before: dict | None, after: dict | None) -> float | None:
     if b is None or a is None:
         return None
     return round(a - b, 6)
+
+
+PROMPT_TOKENS_SERIES = "llamacpp:prompt_tokens_total"
+PROMPT_TOKENS_CACHED_SERIES = "llamacpp:prompt_tokens_cached_total"
+
+#: Gate 7 passes when the server processed at least this much of the prompt tokens the
+#: cell's own rows asked for. Not 1.0: the bracket is a scrape pair, and a request may
+#: legitimately share a prefix with its immediate predecessor inside one slot.
+PREFILL_REAL_MIN_FRACTION = 0.9
+
+
+def _series_delta(before: dict | None, after: dict | None, key: str, default=None):
+    if not isinstance(before, dict) or not isinstance(after, dict):
+        return default
+    b, a = before.get(key), after.get(key)
+    if b is None or a is None:
+        return default
+    return a - b
+
+
+def prefill_real(before: dict | None, after: dict | None, rows: list,
+                 min_fraction: float = PREFILL_REAL_MIN_FRACTION) -> dict:
+    r"""Did the server actually prefill this cell's prompts, or serve them from its cache?
+
+    The harness's own ``_performed_full_prefill`` check NULLS the prefill rate on a cache
+    hit; that is the right thing for a rate and the wrong thing for this surface, whose
+    size axis (512 / 8K / 32K prompts) IS prefill. So the question is asked of the SERVER's
+    own counters rather than of the harness rows:
+
+      ``uncached``  delta of ``llamacpp:prompt_tokens_total``   -- tokens really processed
+      ``cached``    delta of ``llamacpp:prompt_tokens_cached_total`` -- tokens served warm
+                    (0 when the build carries no such series -- absent, not unknown)
+      ``expected``  the sum of ``prompt_tokens`` over the cell's own load rows
+
+    Measured on the first live repeats (np2-p512-c2-r4): uncached moved 64 while cached
+    moved 3,073 for 6 x 440 = 2,640 expected tokens -- fraction 0.024, a cell whose prefill
+    was never measured.
+
+    NOTHING is subtracted for ff_cell's single-stream pre/post rate probes, which are
+    inside the same scrape bracket and prefill the ratecheck prompt: an unknown correction
+    is not applied silently. Their contribution is reported as ``uncached - expected`` when
+    that is positive, so a reader can see the bracket is wider than the load.
+    """
+    expected = None
+    counted = 0
+    for r in rows or ():
+        value = (r or {}).get("prompt_tokens")
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            expected = (expected or 0) + int(value)
+            counted += 1
+    uncached = _series_delta(before, after, PROMPT_TOKENS_SERIES)
+    cached = _series_delta(before, after, PROMPT_TOKENS_CACHED_SERIES, default=0.0)
+    doc = {"uncached": uncached, "cached": cached, "expected": expected, "fraction": None,
+           "outcome": "null", "reason": None, "min_fraction": min_fraction,
+           "rows_counted": counted, "probe_contribution": None,
+           "series": {"uncached": PROMPT_TOKENS_SERIES, "cached": PROMPT_TOKENS_CACHED_SERIES},
+           "note": ("the /metrics bracket also contains ff_cell's single-stream pre/post rate "
+                    "probes, which prefill the ratecheck prompt; nothing is subtracted for "
+                    "them -- their contribution shows as probe_contribution when positive")}
+    if uncached is None:
+        doc["reason"] = ("no %s in both scrapes -- prefill is unknown, never assumed real"
+                         % PROMPT_TOKENS_SERIES)
+        return doc
+    if not expected:
+        doc["reason"] = "no prompt_tokens on the cell's load rows -- nothing to compare against"
+        return doc
+    doc["fraction"] = round(uncached / expected, 4)
+    if uncached > expected:
+        doc["probe_contribution"] = round(uncached - expected, 3)
+    if uncached >= min_fraction * expected:
+        doc["outcome"] = "pass"
+        doc["reason"] = ("%s processed %s of the %s prompt tokens the cell's rows asked for "
+                         "(>= %.2f)" % (PROMPT_TOKENS_SERIES, uncached, expected, min_fraction))
+    else:
+        doc["outcome"] = "fail"
+        doc["reason"] = ("prefill was served from the prompt cache: %s tokens processed, %s "
+                         "cached, against %s expected (%.4f < %.2f)"
+                         % (uncached, cached, expected, doc["fraction"], min_fraction))
+    return doc
 
 
 # ---------------------------------------------------- b70tools stream -> duty cycle --
@@ -789,7 +977,7 @@ def assert_receipt_complete(row: dict) -> dict:
 
 
 def gate_outcomes(row: dict) -> list:
-    """All six gates, always all six, each with an outcome and its reason."""
+    """All seven gates, always all seven, each with an outcome and its reason."""
     out = []
     for number, name in GATES:
         outcome, detail = "null", None
@@ -830,13 +1018,25 @@ def gate_outcomes(row: dict) -> list:
                 outcome, detail = "pass", "budget headroom stayed non-negative"
         elif name == "in_flight":
             poll = row.get("slots_poll") or {}
-            if not poll or not poll.get("ok_polls"):
+            window = row.get("slots_poll_load_window") or {}
+            span_detail = ("span %s polls, all-slots-busy %s (%s)"
+                           % (poll.get("ok_polls"), poll.get("all_busy_fraction"),
+                              SPAN_VS_WINDOW_NOTE))
+            if not poll.get("ok_polls"):
                 outcome, detail = "null", "no successful /slots poll"
+            elif not window.get("ok_polls"):
+                outcome = "null"
+                detail = ("no /slots poll inside the load window (%s); %s"
+                          % (window.get("reason") or "window underivable", span_detail))
             else:
+                # P5 is scored on the LOAD, so the load window is the term; the span figure
+                # is reported beside it and never used as the outcome.
                 outcome = "pass"
-                detail = ("%d polls, all-slots-busy %s, busy-slots/decode delta %s"
-                          % (poll.get("ok_polls"), poll.get("all_busy_fraction"),
-                             row.get("n_busy_slots_per_decode_delta")))
+                detail = ("load window %s polls over %ss, all-slots-busy %s, "
+                          "busy-slot fraction %s; %s; busy-slots/decode delta %s"
+                          % (window.get("ok_polls"), window.get("window_s"),
+                             window.get("all_busy_fraction"), window.get("busy_slot_fraction"),
+                             span_detail, row.get("n_busy_slots_per_decode_delta")))
         elif name == "board_duty_cycle":
             duty = ((row.get("duty_cycle") or {}).get("cards") or {})
             values = [c.get("duty_cycle") for c in duty.values() if c.get("duty_cycle") is not None]
@@ -856,13 +1056,27 @@ def gate_outcomes(row: dict) -> list:
                 detail = depth0.get("reason") or "no capture; recorded, not dropped"
             else:
                 outcome, detail = "pass", "f0 %s" % (depth0.get("f0"),)
+        elif name == "prefill_real":
+            prefill = row.get("prefill_real") or {}
+            outcome = prefill.get("outcome") or "null"
+            detail = prefill.get("reason") or "no /metrics bracket; prefill unknown"
+            if prefill.get("fraction") is not None:
+                detail = ("%s [uncached %s / cached %s / expected %s, fraction %s]"
+                          % (detail, prefill.get("uncached"), prefill.get("cached"),
+                             prefill.get("expected"), prefill.get("fraction")))
         out.append({"gate": number, "name": name, "outcome": outcome, "detail": detail})
     return out
 
 
 # --------------------------------------------------------------- command construction --
 def load_argv(python: str, cell: str, depth: int, n: int, run_id: str | None = None) -> list:
-    """The card's load-generator invocation, verbatim, with this cell's knobs."""
+    """The card's load-generator invocation, verbatim, with this cell's knobs.
+
+    ``--no-cache-prompt`` on EVERY cell (gate 7). The harness builds a byte-identical prompt
+    per request, so without it llama-server's prompt cache serves the prefix and the
+    surface's size axis measures nothing: on np2-p512-c2-r4 the server processed 64 prompt
+    tokens and served 3,073 from cache for 6 x 440 expected.
+    """
     return [python, str(QWEN38), "load",
             "--run-id", run_id or ("sat-l1-" + cell),
             "--endpoint", "http://127.0.0.1:%d" % PRODUCTION_PORT,
@@ -870,7 +1084,7 @@ def load_argv(python: str, cell: str, depth: int, n: int, run_id: str | None = N
             "--concurrency", str(n), "--prompt-tokens", str(depth),
             "--max-tokens", str(MAX_TOKENS),
             "--requests-per-client", str(REQUESTS_PER_CLIENT),
-            "--seed", str(SEED), "--disable-thinking"]
+            "--seed", str(SEED), "--disable-thinking", "--no-cache-prompt"]
 
 
 def ff_cell_argv(python: str, cell: str, reps: int, load_cmd: str, json_out: Path,
@@ -1105,7 +1319,10 @@ def run_cell(cell: str, python: str, args) -> dict:
                 "phase": plan["phase"], "regime": copy.deepcopy(plan["regime"]),
                 "bearer": plan["bearer"], "runner_commit": _git_head(),
                 "receipt_path": str(cell_dir / "receipt.json"), "notes": [],
-                "load_rows_path": None, "status": "running"})
+                "load_rows_path": None, "status": "running",
+                # Gate 7: load_argv passes --no-cache-prompt on every cell, so the surface's
+                # size axis measures prefill instead of the server's prompt cache.
+                "cache_prompt": False})
 
     # --- gate 2: the production guard, before anything is measured -------------------
     try:
@@ -1176,6 +1393,7 @@ def run_cell(cell: str, python: str, args) -> dict:
     row["slots_poll"] = slot_busy(samples)
     row["slot_busy_fraction"] = row["slots_poll"].get("busy_slot_fraction")
     row["both_slots_busy_fraction"] = row["slots_poll"].get("all_busy_fraction")
+    row["notes"].append(SPAN_VS_WINDOW_NOTE)
     row["commit_free_gb_after"] = telemetry.commit_free_gb()
 
     # --- ff_cell's row: the nine provenance fields, folded in, not re-derived --------
@@ -1212,6 +1430,26 @@ def run_cell(cell: str, python: str, args) -> dict:
                 row[key] = summary.get(key)
     else:
         row["notes"].append("no harness rows at %s -- load fields stay null" % rows_path)
+
+    # --- gate 4, the term that is NOT span-diluted ----------------------------------
+    # metrics_before / the poller / metrics_after bracket the whole ff_cell subprocess,
+    # which runs its own single-stream pre- and post-rate probes around the load. P5 asks
+    # about the LOAD, so the gate is scored over [min(started_at), max(completed_at)] on
+    # the load's own rows; the span figures stay beside it, labelled.
+    window_t0, window_t1 = load_window_bounds(harness_rows)
+    row["slots_poll_load_window"] = window_slot_busy(samples, window_t0, window_t1)
+    row["slot_busy_fraction_load_window"] = row["slots_poll_load_window"].get("busy_slot_fraction")
+    row["both_slots_busy_fraction_load_window"] = row["slots_poll_load_window"].get(
+        "all_busy_fraction")
+
+    # --- gate 7: was the prefill real, or did the prompt cache serve it? -------------
+    row["prefill_real"] = prefill_real(
+        row["metrics_before"] if isinstance(row["metrics_before"], dict) else None,
+        row["metrics_after"] if isinstance(row["metrics_after"], dict) else None,
+        harness_rows)
+    prefill_outcome = row["prefill_real"].get("outcome")
+    if prefill_outcome in ("pass", "fail"):
+        row["prefill_cached"] = prefill_outcome == "fail"
 
     # --- stream: wait for it to self-terminate, then reduce -------------------------
     if stream is not None:
@@ -1272,6 +1510,11 @@ def run_cell(cell: str, python: str, args) -> dict:
 
 def _finish(row: dict, cell_dir: Path, args, status: str, reason: str) -> dict:
     row["status"] = status
+    if row.get("prefill_cached"):
+        # Gate 7 marks the reason and never the status: the row is real data about a real
+        # cell, KEPT and excluded from the surface, exactly like over_admitted.
+        reason = ("%s; prefill cached -- gate 7 refused this cell's prefill (%s)"
+                  % (reason, (row.get("prefill_real") or {}).get("reason")))
     row["status_reason"] = reason
     row["ts"] = dt.datetime.now(dt.timezone.utc).astimezone().replace(microsecond=0).isoformat()
     row["gates"] = gate_outcomes(row)
@@ -1562,7 +1805,10 @@ def _dry_gate_preview(args) -> None:
           "(max %d)" % (FLATNESS_SPREAD_PCT, FLATNESS_MAX_ITERATIONS))
     print("  gate 3 admission        : b70tools budget-usage headroom; negative => over_admitted "
           "(row kept, excluded)")
-    print("  gate 4 in_flight        : /slots at 1 Hz + %s delta" % BUSY_SLOTS_SERIES)
+    print("  gate 4 in_flight        : /slots at 1 Hz + %s delta; scored over the LOAD "
+          "window (min started_at .. max completed_at on the load's own rows), with the "
+          "span figures -- which include ff_cell's single-stream pre/post probes -- kept "
+          "beside it" % BUSY_SLOTS_SERIES)
     try:
         ref = load_reference(Path(args.reference))
         for key, card in sorted(ref["cards"].items()):
@@ -1577,6 +1823,10 @@ def _dry_gate_preview(args) -> None:
     print("  gate 6 depth0_fraction  : session manifest %s -> %s"
           % (ETW_SESSION_MANIFEST, "present" if ETW_SESSION_MANIFEST.is_file()
              else "ABSENT; depth-0 cells carry null and tracing is never started"))
+    print("  gate 7 prefill_real     : the load carries --no-cache-prompt; delta %s must be "
+          ">= %.2f x the prompt tokens the cell's own rows report (delta %s is reported "
+          "beside it). A fail marks status_reason and KEEPS the row"
+          % (PROMPT_TOKENS_SERIES, PREFILL_REAL_MIN_FRACTION, PROMPT_TOKENS_CACHED_SERIES))
     print("  maintenance sentinel    : %s -> %s"
           % (MAINTENANCE_STOP, "PRESENT (Phase 2 restarts refused)"
              if MAINTENANCE_STOP.exists() else "absent"))

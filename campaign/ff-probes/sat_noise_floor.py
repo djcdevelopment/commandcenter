@@ -171,11 +171,18 @@ def percentile(sorted_values: list, q: float):
 
 
 # ------------------------------------------------------------------- the include rule --
-def include_reason(receipt: dict) -> str | None:
+def include_reason(receipt: dict, *, include_cached: bool = False) -> str | None:
     """``None`` when the receipt belongs in the surface, else why it does not.
 
     The rule is the runner's: scored, and not over-admitted. An ``over_admitted`` row is
     real data about a real cell -- it is excluded from the surface and KEPT in the report.
+
+    Regime (added 2026-09-09 after block 1): the surface is the REAL-PREFILL regime. A receipt
+    is in it only when it says so -- top-level ``cache_prompt`` is ``False`` and the runner's
+    gate 7 did not mark it ``prefill_cached``. Block-1 receipts (r1-r5 of np2-p512-c2) predate
+    both fields: the load harness sent one identical prompt per request with the server's
+    prompt cache on, so they are the cached-prefix regime and are excluded by default, never
+    silently averaged in. ``include_cached`` reduces them on purpose.
     """
     status = receipt.get("status")
     if status != "scored":
@@ -184,15 +191,22 @@ def include_reason(receipt: dict) -> str | None:
         return "status is %r, not 'scored'%s" % (status, detail)
     if receipt.get("over_admitted"):
         return "over_admitted: budget headroom went negative during the cell"
+    if not include_cached:
+        if receipt.get("prefill_cached"):
+            return ("prefill_cached: gate 7 found the server served the prompts from cache; "
+                    "cached-prefix regime, not the surface (pass --include-cached to reduce it)")
+        if receipt.get("cache_prompt") is not False:
+            return ("cached-prefix regime: receipt carries no cache_prompt:false (predates gate 7 "
+                    "-- block-1 instrument-validation run); pass --include-cached to reduce it")
     return None
 
 
-def partition(receipts: list) -> tuple:
+def partition(receipts: list, *, include_cached: bool = False) -> tuple:
     """Split into (included, excluded) preserving order; excluded rows carry a reason."""
     included, excluded = [], []
     for i, receipt in enumerate(receipts):
         rid = repeat_id(receipt, "receipt[%d]" % i)
-        reason = include_reason(receipt)
+        reason = include_reason(receipt, include_cached=include_cached)
         if reason is None:
             included.append(receipt)
         else:
@@ -369,12 +383,13 @@ def score_unwarmed_rep1(receipts: list) -> dict:
 
 # --------------------------------------------------------------------- the reduction --
 def reduce_repeats(receipts: list, *, floors: dict | None = None,
-                   seed: int = 20260909, resamples: int = 10000) -> dict:
+                   seed: int = 20260909, resamples: int = 10000,
+                   include_cached: bool = False) -> dict:
     """Pure reduction over receipt dicts. No I/O, no clock, no globals mutated."""
     floors = dict(FF6_FLOORS if floors is None else floors)
     floor_pct = float(floors.get("pp512", FF6_FLOORS["pp512"]))
 
-    included, excluded = partition(receipts)
+    included, excluded = partition(receipts, include_cached=include_cached)
     fields = collect_fields(included)
 
     jph_values = [v for v in (dig(r, ("jobs_per_hour",)) for r in included) if is_number(v)]
@@ -405,6 +420,8 @@ def reduce_repeats(receipts: list, *, floors: dict | None = None,
         "schema_version": SCHEMA_VERSION,
         "n_included": len(included),
         "n_excluded": len(excluded),
+        "regime_filter": ("cached receipts included on request" if include_cached
+                          else "real-prefill regime only (cache_prompt:false, not prefill_cached)"),
         "repeats": [repeat_id(r, "receipt[%d]" % i) for i, r in enumerate(included)],
         "excluded": excluded,
         "prereg_min_repeats": PREREG_MIN_REPEATS,
@@ -619,6 +636,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--seed", type=int, default=20260909,
                     help="bootstrap seed; the CI is deterministic for a given seed")
     ap.add_argument("--resamples", type=int, default=10000, help="bootstrap draws")
+    ap.add_argument("--include-cached", action="store_true",
+                    help="also reduce cached-prefix receipts (no cache_prompt:false, or "
+                         "prefill_cached) -- block-1 regime; excluded by default")
     ap.add_argument("--floor-pct", type=float, default=None,
                     help="override the FF6 pp512 floor (default %.2f)" % FF6_FLOORS["pp512"])
     return ap
@@ -645,7 +665,8 @@ def main(argv: list | None = None) -> int:
         floors["pp512"] = args.floor_pct
 
     reduction = reduce_repeats(receipts, floors=floors, seed=args.seed,
-                               resamples=args.resamples)
+                               resamples=args.resamples,
+                               include_cached=bool(args.include_cached))
     prefix = args.cell_prefix or infer_prefix(receipts)
 
     doc = {"probe": PROBE, "schema_version": SCHEMA_VERSION, "cell_prefix": prefix,

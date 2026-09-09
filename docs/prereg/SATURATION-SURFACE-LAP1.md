@@ -477,7 +477,10 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
 > | r8 | 0.2 ms | 0.2 ms | 0.1 ms |
 > | r9 | 0.2 ms | 0.2 ms | **222.4 ms** |
 >
-> Two occurrences, **222.0 and 222.4 ms** — quantized, not jitter. And it is **not the client**: the
+> Two occurrences, **222.0 and 222.4 ms**. *(Corrected same day: a third, r6, measures **250.7 ms**,
+> so "quantized" was an overstatement resting on n=2. The event is large and consistent — hundreds of
+> milliseconds against a 0.2 ms norm — but not a single fixed value. See the launch-skew instrument
+> result below.)* And it is **not the client**: the
 > harness's own rows put the two requests' `started_at` within **0.0–12.5 ms** in every cell,
 > including the affected ones. The server released the previous round's two slots within 1 ms of
 > each other and then re-launched one slot 10 ms later and the other 222 ms later.
@@ -498,6 +501,135 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
 > having it smeared into a variance. Cause not yet named — a quantized 222 ms is a timeout or a
 > periodic service, not contention — and naming it is a separate, bounded probe, not a blocker for
 > the sweep.
+
+> **RESULT — noise-floor block 2 complete, `np2-p512-c2` repeats 6–10, 2026-09-09 11:03–11:31Z** —
+> five repeats on the fixed instrument; reduction
+> `E:\work\battlemage\sat-l1\noise-floor\np2-p512-c2-block2-real-prefill.{json,md}`. All five
+> scored, all seven gates, gate 7 with **zero cached tokens** every time. The reducer's regime
+> filter keeps block 1's five cached-prefix receipts out automatically (5 included, 5 excluded).
+>
+> | | min | max | mean | spread | cv |
+> |---|---:|---:|---:|---:|---:|
+> | jobs/hour | 2,097.4 | 2,203.7 | **2,128.3** | 5.00% | 1.84% |
+> | p50 latency | 3.270 | 3.344 | 3.311 s | 2.26% | 0.88% |
+> | p95 latency | 3.277 | 3.648 | 3.552 s | 10.45% | 3.93% |
+> | decode p50 | 66.06 | 67.49 | 66.79 tok/s | 2.14% | 0.75% |
+> | both slots busy, **load window** | 1.00 | 1.00 | **1.00** | 0% | 0% |
+>
+> Bootstrap 95% CI on the mean **[2,102.0, 2,167.3]**. Production `at_rate` on a fresh sample after
+> every repeat; duty **0.0** on both cards throughout.
+>
+> **P7 half 1 — repeat spread: REFUTED, and the refutation is informative.** 5.00% against the
+> borrowed 1.5% pp512 floor. But the p50 spread is 2.26% and decode 2.14% while p95 spreads 10.45%:
+> the variance lives entirely in the tail, and the tail is the quantized 222 ms event above. Three
+> of the five repeats carry one delayed round; two do not. The floor is a **two-state distribution,
+> not a scatter**, so a single spread number misrepresents it — which is why per-round launch skew
+> is becoming a recorded field rather than something inferred afterwards from a log.
+>
+> **P7 half 2 — unwarmed rep-1: UNTESTABLE as configured, with the reason and the price.** The
+> repeat was deliberately preceded by a **200 s** window with no traffic from this campaign
+> (04:23:15 → 04:26:35 local). Rep-1 still read **106.71 tok/s against 106.26 warm — a ratio of
+> 1.004**, the highest of its three reps. The rung had not decayed because **it is never idle**: the
+> server log shows a 1-token completion arriving every **~31 s** without interruption through the
+> whole window, and `hearth/var/arc-keepalive.jsonl` confirms it — 04:29:28, 04:29:59, 04:30:30,
+> 04:31:01, 04:31:32, exactly 31 s apart, with an occasional deep row (108.89 tok/s at 04:31:49).
+>
+> That is the ADR-0043 keep-alive, and it is the same signal `hearth/health/rungstate.py` and
+> `guard.py` read to produce the rung verdict that gates **every cell in this campaign**. **The
+> instrument that lets the campaign gate on rung state is the same one that prevents it from
+> observing idle decay.** Every "unwarmed rep-1" figure in this campaign so far therefore describes
+> a rung that was never allowed to go cold, and ADR-0043's own 68/69/74/92 readings deserve
+> re-reading against whether the keep-alive was running when they were taken.
+>
+> > **CORRECTION, same day, on Derek's recollection.** I first wrote this half up as *untestable as
+> > configured*. That was wrong, and the error was mine: I identified the prober from its log
+> > without looking for a way to pause it. Derek recalled setting the keep-alive up on **fx99**
+> > "because it was needed to keep performance up" — which is ADR-0043's reason — and that is
+> > exactly what it is. Verified: the host is **`ai-1`, 192.168.12.220**, running
+> > `arc-keepalive.timer` (~30 s) and `arc-keepalive-deep.timer` (5 min), both `active`, reaching
+> > OMEN's `:8082` over the LAN; passwordless `ssh` from OMEN works.
+> >
+> > **A pause mechanism already exists in this repo and is precedented** —
+> > `campaign/ff-probes/ub_ab.py:106` (`"""Stop/start the fx99 keep-alive timers over SSH. Best
+> > effort, never fatal."""`), and the same helper in `b3_topology_crossover.py`,
+> > `b4_flash_coresidency.py` and `b5_dense_vs_moe.py`: `sudo systemctl {stop|start}
+> > arc-keepalive.timer arc-keepalive-deep.timer`. Four sibling probes in this campaign family
+> > already stop it for the duration of a measurement and start it again afterwards.
+> >
+> > So P7's second half is **testable**, at a stated cost: while the timers are stopped, `guard.py`'s
+> > passive rung state goes stale, so gate 2 is blind for that window — which is precisely why the
+> > cold reading is possible. It is also strictly smaller and more reversible than the Phase 2
+> > production restarts already authorized. Scored below when run; the restore is verified by the
+> > timers reading `active` again **and** by `arc-keepalive.jsonl` resuming, not by the `ssh` exit
+> > code alone.
+>
+> **Eliminated, with evidence:** the keep-alive is *not* the cause of the 222 ms event. Its 1-token
+> tasks are ~22 ms and appear at 1001.12 and 1001.43 of server uptime, while r9's delayed round is
+> at 1001.19 — no keep-alive task is in flight when the delay occurs.
+
+> **RESULT — the N=1 control, `np2-p512-c1-r1`, 2026-09-09 ~11:35Z** (repeat 1 of 3). All seven
+> gates; gate 7 passes with **zero cached** tokens; duty 0.0; production `at_rate` both ends.
+>
+> | | N=1 (this cell) | N=2 (block 2 mean) | ratio |
+> |---|---:|---:|---:|
+> | jobs/hour | **1,515.0** | 2,128.3 | **1.405×** |
+> | p50 / p95 latency | 2.373 / 2.387 s | 3.311 / 3.552 s | — |
+> | decode p50, per request | **93.4** tok/s | 66.8 | 0.72× per request, **1.43× aggregate** |
+> | prefill p50, per request | **1,991** tok/s | 1,470 | 0.74× per request, **1.48× aggregate** |
+> | both slots busy, load window | **0.00** | 1.00 | — |
+>
+> **A cross-check worth keeping.** The cell's single-stream prefill, **1,991 tok/s**, lands within
+> **2%** of the **2,035 tok/s** measured by the standalone `cache_prompt` probe hours earlier
+> through a different code path (raw `/v1/chat/completions`, its own prompt, its own reduction).
+> Two independent methods agreeing at 2% is the strongest evidence so far that the prefill numbers
+> now mean what they say.
+>
+> **P2 — the N=1→2 gain, predicted 1.3×–1.8× jobs/hour: on track at 1.405×**, inside the band, but
+> **not scored**: the card requires 3 repeats at N=1 and one is in hand. Both prefill and decode
+> gain from the second slot in the same proportion (1.48× and 1.43×), which is why the jobs/hour
+> ratio sits where it does. `both_slots_busy` reading exactly **0.00** at N=1 and **1.00** at N=2 is
+> also the gate-4 instrument validating itself at the two extremes it should bracket.
+
+> **RESULT — P7 half 2 SCORED at last, and it is refuted on the severe side (2026-09-09 ~11:45Z).**
+> Receipts `E:\work\battlemage\sat-l1\probes\p7-half2-cold-rung-20260909.json` and
+> `remediation-20260909.json`. Method: stop the fx99 timers, verify stopped, idle, measure, restore
+> in a `finally` proven two ways — the mechanism the sibling probes already use.
+>
+> **The idle was real, for the first time in this campaign.** `arc-keepalive.jsonl` shows a single
+> **299 s gap** (04:38:45 → 04:43:43) and nothing else touched `:8082`.
+>
+> | reading | tok/s | vs baseline 106.0 |
+> |---|---|---:|
+> | cold measure, 3 reps | 41.97 / 28.00 / 28.19 | **40% → 27%** |
+> | second measure, immediately after | 30.06 / 25.81 / 26.30 | 28% → 25% |
+> | after 24 sustained concurrent requests | 72.0 / 50.06 / 30.44 (spread **81.8%**) | **48%, unstable** |
+> | after one restart, first warm iteration | 106.45 / 106.25 / 106.19 (spread **0.24%**) | **100%** |
+>
+> **P7's prediction was an unwarmed rep-1 at 65–90% of warm. Observed ~33% of baseline** — the decay
+> is far *deeper* than ADR-0043's own 68/69/74/92 readings, which is consistent with those having
+> been taken against a rung the keep-alive never let go fully cold. **Refuted, on the side of more
+> decay, not less.**
+>
+> **A rule I was carrying is wrong, and this falsified it.** I had been applying "a degraded rung is
+> a stop condition; restart is not the remedy — warm instead." Here **warming did not work**: 24
+> sustained concurrent requests moved it 33% → 48% and left it wildly unstable (81.8% spread across
+> three reps, each *lower* than the last). **One restart restored 100% on the first warm iteration
+> at 0.24% spread.** The correct rule was already recorded and I had over-generalized past it: a rung
+> collapsed by a real idle, with the keep-alive now pinging it, is held near 40% rather than
+> recovered — *restart first, then let the keep-alive hold*. `ff_ratecheck`'s own guidance names the
+> restart as the **discriminator**: cleared by one ⇒ ADR-0043 idle collapse; survives one ⇒
+> INC-2026-08-30-A class. It cleared, so this is classified idle collapse.
+>
+> **A defect in my own probe, recorded.** Its scoring compared cold rep-1 against a "warm" reference
+> measured six requests later — which was *itself still collapsed* — and printed "no decay
+> observed". A wrong verdict from a right measurement. Any cold-rung probe must reference a
+> baseline established **before** the idle, never a recovery sample taken after it.
+>
+> **Cost, stated plainly.** I degraded production for roughly 7 minutes (≈04:39–04:46 local) to run
+> this. **No real traffic was affected** — the gateway ledgers carry no dispatch in that window —
+> and the keep-alive logged two `ok:false` rows during the restart before recovering. The intact
+> restore was verified by `systemctl is-active` reading `active/active`, a fresh keep-alive row, and
+> production measuring 106.30 tok/s.
 
 ## Analysis plan
 

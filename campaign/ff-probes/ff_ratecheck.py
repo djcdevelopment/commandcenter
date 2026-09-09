@@ -116,6 +116,37 @@ def measure(rung: dict, reps: int) -> dict:
             "repeat_spread_pct": round(spread, 2) if spread is not None else None}
 
 
+#: The standing ADR-0044 warning, appended to every epoch label this tool writes. It is the
+#: sentence that stops a shared epoch from being read as a comparability guarantee, and it
+#: must survive a re-baseline -- the old label carried it, and dropping it while replacing
+#: the identity would trade one error for another.
+EPOCH_CONTRACT_NOTE = (
+    "EPOCH-SCOPED IS NOT EPOCH-HOMOGENEOUS: this labels the reference CONTRACT, not a "
+    "guarantee that the machine was stationary within it -- multiple stable regimes have "
+    "occurred inside a single epoch. Two readings sharing an epoch are NOT thereby comparable."
+)
+
+
+def epoch_label(explicit: str, ts: str, note: str) -> str:
+    """The epoch label to record beside a new baseline. Never the previous one.
+
+    An explicit ``--epoch`` wins and is returned as given, with the standing ADR-0044
+    contract note appended if the caller did not write one. With no explicit label, one is
+    DERIVED from the baseline's own timestamp and note, so the label always names the epoch
+    the number was actually measured in.
+    """
+    if explicit.strip():
+        label = explicit.strip()
+    else:
+        stamp = (ts or "").split(".")[0]
+        label = "%s incumbent epoch" % stamp
+        if note.strip():
+            label += " (%s)" % note.strip()
+    if "EPOCH-SCOPED IS NOT EPOCH-HOMOGENEOUS" in label:
+        return label
+    return "%s. %s" % (label.rstrip(". "), EPOCH_CONTRACT_NOTE)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Assert a rung's known-good serving rate")
     ap.add_argument("--rung", default="omen-arc")
@@ -124,6 +155,12 @@ def main() -> int:
                     help="record the measurement AS the new baseline (use only on a rung "
                          "you have just verified by other means)")
     ap.add_argument("--note", default="")
+    ap.add_argument("--epoch", default="",
+                    help="the epoch label this baseline belongs to, recorded with it. A "
+                         "re-baseline almost always FOLLOWS a restart, and a restart ENDS "
+                         "an epoch (ADR-0044), so keeping the old label would attach the "
+                         "new number to an epoch that is over. Omit and one is derived "
+                         "from the baseline timestamp and note; the old label is never kept.")
     ap.add_argument("--no-ledger", action="store_true")
     args = ap.parse_args()
 
@@ -157,8 +194,18 @@ def main() -> int:
             rung["baseline_decode_tok_s"] = m["decode_tok_s"]
             rung["baseline_set"] = ts
             rung["baseline_note"] = args.note or rung.get("baseline_note", "")
+            # The epoch label MUST move with the number. Found stale 2026-09-09: the -np 8
+            # re-baseline updated the rate, the config and the note but left the label
+            # naming the 2026-08-29 epoch -- an epoch the restart had already ended -- and
+            # `query_rung_state` served that stale label to every consumer of the door's
+            # health verdict. A re-baseline almost always follows a restart, and a restart
+            # ends an epoch (ADR-0044), so carrying the old label forward is never right.
+            rung["baseline_epoch"] = epoch_label(args.epoch, ts, rung["baseline_note"])
             json.dump(baselines, io.open(BASELINES, "w", encoding="utf-8"), indent=2)
             print("  baseline SET to %.2f tok/s" % m["decode_tok_s"])
+            print("  baseline epoch: %s" % rung["baseline_epoch"])
+            if not args.epoch:
+                print("      (derived -- pass --epoch to name it yourself)")
             verdict = "BASELINE-SET"
         elif not base:
             print("  no baseline recorded -- run with --set-baseline on a verified rung")

@@ -10,7 +10,7 @@
       "baseline_decode_tok_s": 105.33,
       "baseline_set": "2026-09-09T07:06:00-07:00",
       "baseline_note": "sat-l1 -np 8 -ub 1024 (production entry, -c 131072 => 16384 tok/slot)",
-      "baseline_epoch": "2026-08-29T18:22 incumbent epoch, dual-split asserted by b70tools BDF. EPOCH-SCOPED IS NOT EPOCH-HOMOGENEOUS: this labels the reference CONTRACT, not a guarantee that the machine was stationary within it -- multiple stable regimes have occurred inside a single epoch. Two readings sharing an epoch are NOT thereby comparable.",
+      "baseline_epoch": "2026-09-09T07:05:18-07:00 incumbent epoch (baseline set 07:06:00, 42 s later), -np 8 shape: the server log reads n_ctx_slot = 16384. Opened by the RESTORE to -np 8 after the Lap 1B sweep finished its -np 16 arms at 07:04, NOT by the slot change itself -- the sweep ran 2 -> 4 -> 8 -> 16 and came back. Epoch start derived the only way available (arc-serve.log elapsed stamp subtracted from mtime; llama-server runs under an S4U task whose StartTime is inaccessible). Dual-split asserted per-BDF on this epoch by the sat-l1 cells, not carried over from the 2026-08-29 epoch this label replaced. EPOCH-SCOPED IS NOT EPOCH-HOMOGENEOUS: this labels the reference CONTRACT, not a guarantee that the machine was stationary within it -- multiple stable regimes have occurred inside a single epoch. Two readings sharing an epoch are NOT thereby comparable.",
       "acceptance_envelope": {
         "fail_below_frac": 0.8,
         "warn_below_frac": 0.9,
@@ -43,6 +43,12 @@
       "reason": "ArcServeBoot -> llama-swap cutover (Derek 2026-09-03, ADR-0045 / plan P13); ts filled by cutover.ps1 -Live",
       "baseline_preserved": true,
       "note": "ADR-0044: a boundary, not a re-baseline. baseline_decode_tok_s stays 106.0 and the envelope is still a fraction of THAT baseline; readings across this boundary are two epochs, not one. || 2026-09-03 12:35:29: FIRST ATTEMPT ABORTED at the placement assertion (a parser false alarm: llama-swap /logs is a 10 KB tail) and ROLLED BACK to the direct launcher within 36 s -- but the incumbent epoch (pid 20416, resident since 2026-08-30 07:40Z) ENDED here regardless; production now runs a new epoch on the direct launcher (pid 4340). Readings across this timestamp are two epochs."
+    },
+    {
+      "ts": "2026-09-09T07:05:18-07:00",
+      "reason": "SAT-L1 Lap 1B: production restored to -np 8 (-ub 1024) after the -np sweep ran 2 -> 4 -> 8 -> 16; the last -np 16 cell finished 07:04:26. A -np change is a configuration change, so no baseline carries across it (ADR-0044).",
+      "baseline_preserved": false,
+      "note": "Re-baselined by ff_ratecheck --set-baseline at 07:06:00, 42 s after the ready marker; baseline_decode_tok_s=105.33. Recorded 2026-09-09 while baking Lap 1B in: the sweep re-baselined but appended no boundary, and --set-baseline did not move baseline_epoch, so the label still named the 2026-08-29 epoch. Readings across this timestamp are two epochs, not one."
     }
   ]
 }

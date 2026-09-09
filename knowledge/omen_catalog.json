@@ -33,7 +33,7 @@
       "vram_gb": 29.96,
       "per_card_gb": 15.44,
       "expected_gen_tps": 106.0,
-      "rate_epoch": "2026-09-09T07:06 incumbent epoch, -np 8 shape (RB baseline_decode_tok_s 105.33; the 2026-08-29T18:22 epoch was the -np 2 shape). ADR-0044: epoch-scoped is not epoch-homogeneous.",
+      "rate_epoch": "2026-09-09T07:05:18 incumbent epoch (baseline set 07:06), -np 8 shape (RB baseline_decode_tok_s 105.33). Opened by the RESTORE to -np 8 after the Lap 1B sweep ran 2->4->8->16; the 2026-08-29T18:22 epoch it replaced was the -np 2 shape. ADR-0044: epoch-scoped is not epoch-homogeneous.",
       "prefill_tps": null,
       "load_s_steady": 8.175,
       "load_s_first_in_window": 26.58,

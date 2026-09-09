@@ -388,6 +388,21 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
 > sched_reserve:  Vulkan0 compute 712.08 MiB    Vulkan1 compute 712.08 MiB
 > ```
 >
+> Read at source, not relayed: `ArgVectorBuilder.cs:41` carries the comment *"llama-server's
+> n_parallel=auto picks 4 and allocates 4x the KV cache (ADR-0007)"* — so on the June build KV
+> **did** scale with `n_parallel`. This build does not. That is a version-dependent behaviour, which
+> is exactly why the Phase 2 restart check below is a real check and not paranoia.
+>
+> **A lever we are not using, found in the same file.** vllama launches with `-ctk q8_0 -ctv q8_0`
+> (`ArgVectorBuilder.cs:65`, `config/models.json:20,66` — `kv_type` defaults to `q8_0`), proven on
+> this rig in June. Production runs **unquantized KV**: its log says `K (f16) 6144.00 MiB,
+> V (f16) 6144.00 MiB`. Quantizing KV to q8_0 would cut the 12,288 MiB roughly in half and free
+> **~3 GB per card** — headroom that could fund a deeper `-c` (the size axis), more slots, or a
+> co-resident side model (the rotation lane's binding constraint). Recorded as a named lever with
+> its numbers, **not** taken: changing production's KV type is a tenancy call and a quality
+> question, and Lap 1's surface must be measured at one KV type. It belongs to part 2's residency
+> work, or to a deliberate Phase 2 arm if Derek wants one.
+>
 > **`-c` is the total and the build divides it**: `n_ctx_slot = 65536` at `-np 2`, so P8's premise
 > (64K/32K/16K per slot at `-np` 2/4/8) is the build's own arithmetic, not an assumption. The
 > per-card sums — 16,088 and 15,149 MiB — reconcile with the admission gate's committed readings

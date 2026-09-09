@@ -70,6 +70,15 @@ Rows land in `E:\work\battlemage\qwen38-bench-2026-08\results\requests\<run-id>.
 gives jobs/hour (**busiest-client wall**, per its definition) and nearest-rank p50/p95/p99.
 If `:8082` answers 401, set `QWEN38_API_KEY`; it is not expected to.
 
+> **Correction 2026-09-09 (verified live before any cell):** `:8082` answers `/health` 200 but
+> `/slots` and `/metrics` **401 "Invalid API Key"** — production requires a bearer for everything
+> except health. The bearer is the ArcServe token, which lives only in the gitignored
+> `hearth\var\gateway.cmd` and must never appear in a transcript or receipt. The cell-runner
+> obtains it through `hearth\etc\with-gateway-env.cmd` (invoked as
+> `cmd /c "hearth\etc\with-gateway-env.cmd <command>"` from PowerShell, never Git Bash) and passes
+> it to the harness as `QWEN38_API_KEY` and to the `/slots` poller as `Authorization: Bearer`.
+> Receipts record the bearer's *source variable name and length*, never its value.
+
 **Cells** — Phase 1 (no restart, co-resident): `-np 2` × depth {512, 8192, 32768} × N {1, 2, 4, 8, 16, 24}.
 Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
 `schtasks /Run /TN ArcServeRestart` from PowerShell, never Git Bash — **a tenancy call, Derek's**):
@@ -91,9 +100,21 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
 4. *In-flight, unelevated:* poll `http://127.0.0.1:8082/slots` at 1 s during the cell → slot-busy
    fraction; scrape `/metrics` before and after.
 5. *Board duty cycle (FF6):* `saturation_duty_cycle` and `time_to_saturation` against the frozen
-   render-lane reference, gated by `symmetry_check` — **`[PENDING: locate or declare absent]`**. If the
-   gate code or the reference profile does not exist, the power-derived fields are `null` on every row
-   and P5's duty-cycle half is scored *untested*, never inferred from `/slots`.
+   render-lane reference, gated by `symmetry_check`. **Resolved 2026-09-09, verified at source:**
+   - The symmetry gate **exists** — `corpus/verdict.py` (lines 186–212), a CLI over a b70tools
+     `events.jsonl` stream: `ratio = min(samples)/max(samples)` across adapters sharing a
+     description, warn below `0.5`. It was never called by any FF harness; this card calls it per
+     cell and records `ratio`. Below 0.5 the row is `partially_scored`.
+   - The render-lane reference profile, `saturation_duty_cycle` and `time_to_saturation` **do not
+     exist** — prose in the FF6 card only; present in 0 of 410 receipt rows. Until the reference is
+     captured (one BF6 render-lane run with b70tools recording per-card power; freeze p50), the
+     power-derived fields are `null` on every row and **P5's duty-cycle half is scored *untested***,
+     never inferred from `/slots`. Capturing it is a named ops item, Derek's call.
+   - *In-flight proxy, verified live through the wrapper:* `/slots` (per-slot `is_processing`,
+     `n_prompt_tokens`, `next_token`) and `/metrics` (`llamacpp:n_busy_slots_per_decode`,
+     `llamacpp:predicted_tokens_seconds`, 15 series) both answer 200 with the bearer. Slot-busy
+     fraction comes from both — client-side poll and the server's own busy-slots series — and is
+     recorded on every cell.
 6. *Depth-0 fraction (ETW4):* the analyzers consume `report.json`, and the only producer today is the
    **elevated** short-session path (`etw1_feasibility.ps1`); the circular ring (`etw6`) has no
    packager. Protocol: one elevated capture per depth block at N=2 and N=16, run by Derek (or by a

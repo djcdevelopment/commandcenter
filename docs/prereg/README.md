@@ -23,4 +23,4 @@ prediction that was quietly edited after the fact is not a prediction.
 
 | card | tag | status |
 |---|---|---|
-| [SATURATION-SURFACE-LAP1.md](SATURATION-SURFACE-LAP1.md) — the B70 saturation surface under concurrent intake | `prereg-saturation-lap1-20260909` (pending ack) | predictions committed; no cell run |
+| [SATURATION-SURFACE-LAP1.md](SATURATION-SURFACE-LAP1.md) — the B70 saturation surface under concurrent intake | `prereg-saturation-lap1-20260909` (pending ack) | predictions committed `b662991`; protocol facts corrected 2026-09-09 (bearer required on `:8082`; symmetry gate located; duty-cycle reference absent); no cell run |

@@ -1122,11 +1122,23 @@ only remaining move — which is a result, not a failure.
 > clients; his matrix covered his use cases and likely other weights and shapes. What is measured
 > here is that **for this model at this prompt size, the peak is `-np 8`.**
 >
-> - **Q4 — the stock-8 control: SUPPORTED, first serving-load evidence for PR 27652.** At `-np 16`,
->   the stock window gives **1,953.6 jobs/hour against 2,206.9 / 2,439.5 with the window widened to
->   16 — a 15.9% loss**, larger than the widened cells' own 10% spread. Per-request decode 7.1 vs
->   8.1/8.8. ⚠ n=1 control against n=2 widened; a second control repeat is running before this is
->   cited upstream.
+> - **Q4 — SUPPORTED with two repeats per arm and non-overlapping ranges. The first serving-load
+>   evidence for PR 27652.**
+>
+>   | `GGML_VK_MMV_MAX_COLS` | cells | jobs/hour | mean | decode/req |
+>   |---:|---|---|---:|---|
+>   | **16** (widened) | r1, r2 | 2,206.9 / 2,439.5 | **2,323.2** | 8.1 / 8.8 |
+>   | **8** (stock) | r3, r4 | 1,953.6 / 2,059.5 | **2,006.6** | 7.1 / 7.5 |
+>
+>   **The widened window is worth 15.8%**, and the two arms' ranges do not overlap — 2,207–2,440
+>   against 1,954–2,060. Per-request decode separates the same way. Same binary, same model, same
+>   `-np 16`, same prompts; the only change is the environment variable, set in
+>   `fleet/arcserve/serve-arc.cmd` and inherited through llama-swap. Restored to 16 afterwards and
+>   verified byte-identical to the committed file.
+>
+>   This is what the knee campaign never had: the knob measured **under llama-server concurrency**
+>   rather than `llama-bench` or frame pacing, which is the per-vendor serving evidence PR 27652's
+>   maintainer named as the blocker.
 > - **The window clamps at 16** (`serve-arc.cmd:32`: *"clamps silently above 16"*), so 16 is the
 >   knob's ceiling, not a chosen value. `-np` beyond 16 would push the decode batch past the window
 >   with no way to follow it — which is the mechanism behind Derek's "16 is best for this hardware".

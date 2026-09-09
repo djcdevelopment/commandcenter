@@ -795,6 +795,35 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
 > is physical, but the end points are thin and the remaining N=8/16/24 blocks are what thicken them.
 > Reducer: `E:\work\battlemage\sat-l1\probes\solo_fraction.py`.
 
+> **RESULT — the N=4 cell complete (5 repeats), 2026-09-09 ~12:30Z.** Mean **2,127.1 jobs/hour**,
+> CI [2,058.5, 2,175.8]. All five scored, gate 7 zero cached each, both slots busy **1.00** of the
+> load window in all five, duty **0.0** on both cards throughout.
+>
+> | | N=2 (5 reps) | N=4 (5 reps) | change |
+> |---|---:|---:|---:|
+> | jobs/hour | 2,128.3 | **2,127.1** | **−0.06%** |
+> | p95 latency | 3.552 s | **7.006 s** | **×1.97** |
+> | TTFT p50 | 0.329 s | 3.632 s | ×11.0 |
+> | both slots busy | 1.00 | 1.00 | — |
+> | duty, both cards | 0.0 | 0.0 | — |
+>
+> **Doubling the clients changed throughput by six hundredths of a percent and almost exactly
+> doubled p95.** Five repeats a side.
+>
+> - **P1** ("jobs/hour flat within ±10% from N=2 through N=24"): **holding, and far tighter than the
+>   band** — 0.06% at the first doubling. Not scored until N=24.
+> - **P3** ("p95 exceeds **1.5×** the N=2 baseline **by N=4**, then ~linear in N/2"): its first
+>   clause is **SUPPORTED with the required repeats** — 1.97× where 1.5× was the bar. The linear
+>   form also holds exactly at this point (N/2 = 2, ratio 1.97), but "thereafter" needs N=8/16/24
+>   and stays open.
+>
+> Note the two spreads are not the same kind of number: jobs/hour across the *cell means* moves
+> 0.06% between N=2 and N=4, while *within* the N=4 cell it spreads 9.25% — because the repeats
+> land in different batching modes. The mode is the variance; the client count is not.
+>
+> **N=4's five repeats, by mode** (adding r5 at 100%): 100% → 2,195.3 and 2,168.8; 67% → 2,124.2 and
+> 2,148.6; 0% → 1,998.5. Monotone again, within a single cell this time.
+
 ## Analysis plan
 
 - Per cell: jobs/hour, p50/p95/p99 latency and TTFT (nearest-rank, as the harness computes them),

@@ -231,6 +231,19 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
    >   emits through `etw2_join.epoch` before writing.
    > - **Bounds:** the ring wrapped at ~48 min, not the 42 estimated; a full 19 GB conversion is ~2 h
    >   and ~20–25 GB of XML, so per-cell snapshots are converted with `--max-dump-mb`, promptly.
+   > - **Ring state on 2026-09-09:** no `lz_dxgk_ring` session running (`lz_dxgk_ring.etl` last
+   >   written Sep 3); `session-manifest.json` dates from Aug 30 with `server_pid 20416` — a stale
+   >   epoch, and the pinned per-process queue handles with it. Derek's one elevated step
+   >   (`etw6_session.ps1 -Start`) must therefore write a fresh manifest; the Aug 30 `healthy_floor`
+   >   is re-licensed on the new epoch, not carried over. Until then depth-0 fields are `null`.
+
+   > **The cell runner exists (2026-09-09):** `campaign/ff-probes/sat_cell_runner.py` composes
+   > `ff_cell.py` (one additive `--json-out` flag) with the qwen38 `load`; 83 tests; dry run for
+   > `np2-p512-c2-r1` verified by me — every step printed, bearer value absent, nothing written.
+   > `--dry-run` is the default; `--live --one-cell <cell>` runs one cell; `--sweep` is explicit.
+   > Machine state is pinned to the live checkout, so live cells and every Phase 2 restart run from
+   > `C:\work\commandcenter`, never a worktree. Reference thresholds are read from the frozen receipt,
+   > never hardcoded; duty cycle is keyed by PCI BDF.
 
 ## Analysis plan
 

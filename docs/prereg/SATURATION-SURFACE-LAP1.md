@@ -631,6 +631,46 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
 > restore was verified by `systemctl is-active` reading `active/active`, a fresh keep-alive row, and
 > production measuring 106.30 tok/s.
 
+> **The launch-skew instrument, landed and reading (merged `9f9fa23`, 291 tests).** Per-round
+> admission skew is now a receipt field on every cell, with the reducer counting how many repeats
+> carried a delayed round. Two of my own claims are corrected by it:
+> - **Not quantized.** A third instance (r6) measures **250.7 ms**, against 222.0 and 222.4. The
+>   event is large and consistent — hundreds of milliseconds against a 0.2 ms norm — but it is not a
+>   single fixed value, and "quantized" rested on n=2.
+> - **Four of five, not three.** r10 had never been analysed. Per-round TTFT asymmetry in the
+>   harness rows — a route independent of the server log — gives r6 [267, 13, 1], r7 [0, 0, 239],
+>   r8 [1, 1, 1], r9 [0, 0, 237], r10 [242, 12, 1] ms. Only **r8** is clean.
+>
+> The discriminator is crisp and needs no log at all: **every delayed cell peaks at the
+> single-stream prefill rate (1,982–1,995 tok/s) with minimum decode 58.5–59.4**, while clean r8
+> peaks at 1,471 with minimum decode 67.3. The four delayed cells land at 2,097–2,125 jobs/hour
+> against r8's 2,203.7.
+>
+> ⚠ **Operational limit found while verifying: `llama-server` truncates `hearth/var/arc-serve.log`
+> on every start** — the restart above took it from 78 MB to 569 KB, erasing r6–r10's launch
+> records. The instrument therefore only ever sees the current epoch. That is sufficient (a cell
+> always runs after any restart) but it means **Phase 2's `-np` restarts destroy prior skew
+> evidence**, and the log-free TTFT-asymmetry route above is what survives.
+>
+> **RESULT — N=1 reproduces to 0.08% *across a production restart*, 2026-09-09 ~11:55Z.**
+> `np2-p512-c1-r2` on the post-restart epoch (`2026-09-09T04:45:43`, runner `9f9fa23`) against r1 on
+> the old one:
+>
+> | | r1 (old epoch) | r2 (new epoch) | spread |
+> |---|---:|---:|---:|
+> | jobs/hour | 1,515.0 | 1,516.2 | **0.08%** |
+> | p50 latency | 2.373 s | 2.369 s | 0.17% |
+> | decode p50 | 93.4 | 93.6 | 0.21% |
+> | prefill p50 | 1,991 | 1,990 | 0.05% |
+>
+> Two things follow. First, the restart did not move the machine: an epoch change that leaves every
+> figure inside 0.21% is evidence for comparability across it, not merely an assumption of it.
+> Second, and more useful: **the N=1 cell reproduces at 0.08% while the N=2 cell spreads 5.00%.**
+> The variance at N=2 is therefore not general measurement noise — it is specific to admitting a
+> second concurrent request, which is exactly what the delayed-round event is. `launch_skew` says so
+> itself on this cell, refusing to report a number with the reason that a round of one request has
+> no skew to measure and every value would be zero by construction.
+
 ## Analysis plan
 
 - Per cell: jobs/hour, p50/p95/p99 latency and TTFT (nearest-rank, as the harness computes them),

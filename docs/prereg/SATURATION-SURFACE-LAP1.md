@@ -209,6 +209,29 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
    dropped; the channel-(b) verdict for those cells rests on `/slots` + duty cycle and is flagged
    lower-confidence.
 
+   > **Resolved 2026-09-09 — the packager exists and the elevation dependency shrinks to one step.**
+   > `campaign/lz-probes/etw10_package.py` (47 tests) turns an `etw6` ring snapshot plus the load
+   > harness's per-request rows into the `report.json` that `etw4_depth.py` / `etw7_verdict.py` consume;
+   > verified end to end on the 2026-09-01 INC-A capture (non-null `f0` on every queue; healthy arms
+   > agree) and, on the archived 2026-08-30 trace, reproduced the campaign's frozen healthy floor
+   > (`mean_depth` 3.895/3.903 vs 3.9075; `f_depth0` 0.121/0.115 vs 0.118).
+   > - **`tracerpt` on an existing `.etl` needs no elevation** — measured by the builder and re-run by me
+   >   as `OMEN\derek`, `IsInRole(Administrator)=False`: exit 0, 70,148,788 bytes, byte-identical in
+   >   size to the elevated script's dump. Only the ETW *session lifecycle* is privileged.
+   > - **Depth-0 protocol, revised:** Derek starts the ring **once** for all of Lap 1
+   >   (`etw6_session.ps1 -Start`); per depth-0 cell the runner, unelevated, snapshots the ring right
+   >   after the cell, converts with `tracerpt`, packages with the cell's **real** harness rows as arms
+   >   (never synthetic in a scored cell), runs `etw4_depth.py`, and records `f0` per queue. No session
+   >   → the cell carries `null`; the runner never starts or stops tracing.
+   > - **Two traps the builder measured, now fixtured in the packager:** a dump's span must be taken over
+   >   DxgKrnl events only — session-header events from a wrapped ring make the naive bound ~178,646 s
+   >   against a 164 s trace (a ~1000× error that would license an arm anywhere in two days); and the
+   >   archived `etw1-20260830-043447.json` carries a `start_epoch` 28,800 s (8 h) wrong, masked only
+   >   because the readers re-derive epochs from the ISO strings — the packager re-reads every epoch it
+   >   emits through `etw2_join.epoch` before writing.
+   > - **Bounds:** the ring wrapped at ~48 min, not the 42 estimated; a full 19 GB conversion is ~2 h
+   >   and ~20–25 GB of XML, so per-cell snapshots are converted with `--max-dump-mb`, promptly.
+
 ## Analysis plan
 
 - Per cell: jobs/hour, p50/p95/p99 latency and TTFT (nearest-rank, as the harness computes them),

@@ -1,0 +1,518 @@
+r"""Fixtures for the SAT-L1 noise-floor reducer. Pure offline: no rung, no GPU, no E:\.
+
+Every case here is a place where the reducer could otherwise report a floor that is not a
+floor:
+
+  * a non-scored or over-admitted receipt must be EXCLUDED and LISTED -- a silent drop turns
+    a bad block into a tight one;
+  * spread and cv must be the population figures over the repeats that were actually
+    present, with missing values counted rather than treated as zero;
+  * the bootstrap must be deterministic for a seed and must bracket the mean it describes;
+  * P7's two halves must be scored separately -- an already-warm rep-1 is ``untested``, never
+    "supported", because a rung that never went cold cannot confirm a claim about cold rungs;
+  * discovery must sort ``r10`` after ``r2`` (numeric, not lexical), or a tenth repeat
+    silently reorders the table;
+  * one repeat must EXIT 2 -- a "noise floor" over a single reading is not a floor.
+
+Run: fleet-worker-node\.venv-omen\Scripts\python.exe -m pytest campaign/ff-probes/test_sat_noise_floor.py -q
+"""
+from __future__ import annotations
+
+import io
+import json
+import contextlib
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import sat_noise_floor as nf  # noqa: E402
+
+BDF_A = "0000:04:00.0"
+BDF_B = "0000:09:00.0"
+ADAPTER_A = "adapter_00016def"
+ADAPTER_B = "adapter_000171de"
+
+
+def receipt(rep: int, *, jobs_per_hour=2300.0, status="scored", over_admitted=False,
+            unwarmed=105.0, warm=105.0, runner_commit="abc1234", latency_p95=3.16,
+            slot_busy=0.6842, duty_a=0.0, duty_b=0.0, headroom_a=16.0,
+            omit=(), **extra) -> dict:
+    """A receipt shaped like ``sat_cell_runner``'s, trimmed to what the reducer reads."""
+    row = {
+        "schema_version": 1,
+        "probe": "SAT-L1",
+        "cell": "np2-p512-c2-r%d" % rep,
+        "status": status,
+        "status_reason": "cell completed with the incumbent healthy before and after",
+        "runner_commit": runner_commit,
+        "regime": {"model": "qwen3-30b-a3b", "quant": "Q4_K_M", "depth_tokens": 512,
+                   "concurrency": 2, "np": 2, "ctx": 131072, "placement": "both-b70",
+                   "repeat": rep},
+        "jobs_per_hour": jobs_per_hour,
+        "latency_p50_s": 3.14,
+        "latency_p95_s": latency_p95,
+        "latency_p99_s": latency_p95,
+        "ttft_p50_s": 0.0534,
+        "ttft_p95_s": 0.0826,
+        "decode_rate_p50_tokens_per_s": 64.19,
+        "slot_busy_fraction": slot_busy,
+        "both_slots_busy_fraction": 0.5263,
+        "incumbent_rate_fraction_pre": 0.9934,
+        "incumbent_rate_fraction_post": 0.9639,
+        "over_admitted": over_admitted,
+        "load_requests": 6,
+        "ts": "2026-09-09T03:34:05-07:00",
+        "warm": {"unwarmed_rep1_tok_s": unwarmed, "final_decode_tok_s": warm,
+                 "iterations_used": 1, "flat": True},
+        "symmetry": {"ratio": 0.996},
+        "guard_before": {"verdict": "at_rate"},
+        "guard_after": {"verdict": "at_rate"},
+        "duty_cycle": {"cards": {BDF_A: {"duty_cycle": duty_a, "reference_p50_w": 114.05},
+                                 BDF_B: {"duty_cycle": duty_b, "reference_p50_w": 159.92}}},
+        "power": {"cards": {ADAPTER_A: {"burst": {"p50_w": 73.64}},
+                            ADAPTER_B: {"burst": {"p50_w": 73.67}}}},
+        "budget_headroom": {"cards": {BDF_A: {"min_headroom_gb": headroom_a},
+                                      BDF_B: {"min_headroom_gb": 15.019}}},
+    }
+    for key in omit:
+        row.pop(key, None)
+    row.update(extra)
+    return row
+
+
+def reduce(receipts, **kw):
+    kw.setdefault("resamples", 200)
+    return nf.reduce_repeats(receipts, **kw)
+
+
+def write_cells(root: Path, reps, **kw) -> None:
+    """Lay out ``<root>/np2-p512-c2-r<k>/receipt.json`` for each rep in ``reps``."""
+    for rep in reps:
+        directory = root / ("np2-p512-c2-r%d" % rep)
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / "receipt.json").write_text(
+            json.dumps(receipt(rep, **kw)), encoding="utf-8")
+
+
+def run_cli(argv):
+    """Run ``main`` capturing stdout/stderr. Returns (rc, stdout, stderr)."""
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        rc = nf.main(argv)
+    return rc, out.getvalue(), err.getvalue()
+
+
+# --------------------------------------------------------------------- the include rule --
+class TestInclusion(unittest.TestCase):
+    def test_a_non_scored_receipt_is_excluded_and_listed(self):
+        rows = [receipt(1), receipt(2),
+                receipt(3, status="REFUSED_GUARD",
+                        status_reason="production read degraded before the cell")]
+        doc = reduce(rows)
+        self.assertEqual(doc["n_included"], 2)
+        self.assertEqual(doc["n_excluded"], 1)
+        (excluded,) = doc["excluded"]
+        self.assertEqual(excluded["repeat"], "np2-p512-c2-r3")
+        self.assertIn("REFUSED_GUARD", excluded["reason"])
+        self.assertIn("degraded", excluded["reason"])
+        self.assertNotIn("np2-p512-c2-r3", doc["repeats"])
+
+    def test_an_over_admitted_receipt_is_kept_and_excluded(self):
+        rows = [receipt(1), receipt(2), receipt(3, over_admitted=True)]
+        doc = reduce(rows)
+        self.assertEqual(doc["n_included"], 2)
+        (excluded,) = doc["excluded"]
+        self.assertEqual(excluded["repeat"], "np2-p512-c2-r3")
+        self.assertTrue(excluded["over_admitted"])
+        self.assertIn("over_admitted", excluded["reason"])
+
+    def test_exclusions_reach_the_markdown(self):
+        rows = [receipt(1), receipt(2), receipt(3, over_admitted=True)]
+        doc = reduce(rows)
+        text = nf.render_markdown(doc, cell_prefix="np2-p512-c2")
+        self.assertIn("repeats excluded: **1**", text)
+        self.assertIn("np2-p512-c2-r3", text.split("## Per-field")[0])
+
+    def test_nothing_included_is_not_a_crash(self):
+        doc = reduce([receipt(1, status="STOPPED_AFTER_CELL")])
+        self.assertEqual(doc["n_included"], 0)
+        self.assertIsNone(doc["regime"])
+        self.assertEqual(doc["fields"]["jobs_per_hour"]["n"], 0)
+        self.assertIsNone(doc["fields"]["jobs_per_hour"]["spread_pct"])
+
+
+# ----------------------------------------------------------------------- the statistics --
+class TestSpreadAndCv(unittest.TestCase):
+    def test_known_values(self):
+        rows = [receipt(1, jobs_per_hour=90.0), receipt(2, jobs_per_hour=100.0),
+                receipt(3, jobs_per_hour=110.0)]
+        field = reduce(rows)["fields"]["jobs_per_hour"]
+        self.assertEqual(field["n"], 3)
+        self.assertEqual(field["min"], 90.0)
+        self.assertEqual(field["max"], 110.0)
+        self.assertEqual(field["mean"], 100.0)
+        self.assertEqual(field["median"], 100.0)
+        # (110 - 90) / 100 * 100
+        self.assertEqual(field["spread_pct"], 20.0)
+        # population stddev of {90,100,110} is sqrt(200/3) = 8.16497
+        self.assertEqual(field["cv_pct"], 8.16)
+
+    def test_a_zero_mean_gives_null_not_a_division_error(self):
+        rows = [receipt(1, duty_a=0.0), receipt(2, duty_a=0.0)]
+        field = reduce(rows)["fields"]["duty_cycle[%s]" % BDF_A]
+        self.assertEqual(field["mean"], 0.0)
+        self.assertIsNone(field["spread_pct"])
+        self.assertIsNone(field["cv_pct"])
+
+    def test_a_missing_value_is_counted_not_zeroed(self):
+        rows = [receipt(1, jobs_per_hour=100.0), receipt(2, jobs_per_hour=None),
+                receipt(3, jobs_per_hour=110.0)]
+        field = reduce(rows)["fields"]["jobs_per_hour"]
+        self.assertEqual(field["n"], 2)
+        self.assertEqual(field["missing"], 1)
+        self.assertEqual(field["mean"], 105.0)
+
+    def test_a_structured_slot_busy_fraction_is_skipped_and_said_so(self):
+        rows = [receipt(1), receipt(2, slot_busy={"any": 0.84, "all": 0.52})]
+        field = reduce(rows)["fields"]["slot_busy_fraction"]
+        self.assertTrue(field["skipped"])
+        self.assertIn("np2-p512-c2-r2", field["skip_reason"])
+        self.assertIn("dict", field["skip_reason"])
+        self.assertIsNone(field["mean"])
+        # a sibling scalar field is untouched by the skip
+        self.assertEqual(reduce(rows)["fields"]["both_slots_busy_fraction"]["n"], 2)
+
+    def test_per_card_fields_are_keyed_by_their_own_identifier(self):
+        fields = reduce([receipt(1), receipt(2)])["fields"]
+        self.assertIn("duty_cycle[%s]" % BDF_A, fields)
+        self.assertIn("duty_cycle[%s]" % BDF_B, fields)
+        self.assertIn("power.burst_p50_w[%s]" % ADAPTER_A, fields)
+        self.assertIn("min_headroom_gb[%s]" % BDF_B, fields)
+        self.assertEqual(fields["min_headroom_gb[%s]" % BDF_A]["mean"], 16.0)
+
+    def test_symmetry_ratio_is_reached_through_its_nesting(self):
+        field = reduce([receipt(1), receipt(2)])["fields"]["symmetry.ratio"]
+        self.assertEqual(field["n"], 2)
+        self.assertEqual(field["mean"], 0.996)
+
+
+# ------------------------------------------------------------------------- the bootstrap --
+class TestBootstrap(unittest.TestCase):
+    def test_deterministic_for_a_seed(self):
+        rows = [receipt(1, jobs_per_hour=2280.0), receipt(2, jobs_per_hour=2300.0),
+                receipt(3, jobs_per_hour=2340.0)]
+        a = nf.reduce_repeats(rows, seed=20260909, resamples=2000)["bootstrap"]["jobs_per_hour"]
+        b = nf.reduce_repeats(rows, seed=20260909, resamples=2000)["bootstrap"]["jobs_per_hour"]
+        self.assertEqual(a, b)
+
+    def test_the_seed_actually_moves_the_ci(self):
+        """At n=3 it CANNOT: P(all-min resample) = 1/27 > 2.5%, so both tails pin to the
+        extremes for every seed. That is a property of a 3-repeat bootstrap, not
+        determinism -- so seed sensitivity is asserted at n=6, where the tails are free."""
+        three = [receipt(i, jobs_per_hour=jph) for i, jph in
+                 enumerate((2280.0, 2300.0, 2340.0), start=1)]
+        pinned = [nf.reduce_repeats(three, seed=s, resamples=500)["bootstrap"]["jobs_per_hour"]
+                  for s in (1, 20260909)]
+        self.assertEqual((pinned[0]["lo"], pinned[0]["hi"]), (2280.0, 2340.0))
+        self.assertEqual((pinned[1]["lo"], pinned[1]["hi"]), (2280.0, 2340.0))
+
+        six = [receipt(i, jobs_per_hour=jph) for i, jph in
+               enumerate((2200.0, 2260.0, 2290.0, 2310.0, 2360.0, 2420.0), start=1)]
+        free = [nf.reduce_repeats(six, seed=s, resamples=300)["bootstrap"]["jobs_per_hour"]
+                for s in (1, 20260909)]
+        self.assertNotEqual((free[0]["lo"], free[0]["hi"]), (free[1]["lo"], free[1]["hi"]))
+
+    def test_the_ci_brackets_the_mean(self):
+        rows = [receipt(1, jobs_per_hour=2280.0), receipt(2, jobs_per_hour=2300.0),
+                receipt(3, jobs_per_hour=2340.0)]
+        ci = nf.reduce_repeats(rows, seed=20260909, resamples=4000)["bootstrap"]["jobs_per_hour"]
+        self.assertAlmostEqual(ci["mean"], (2280.0 + 2300.0 + 2340.0) / 3)
+        self.assertLessEqual(ci["lo"], ci["mean"])
+        self.assertGreaterEqual(ci["hi"], ci["mean"])
+        self.assertGreaterEqual(ci["lo"], 2280.0)
+        self.assertLessEqual(ci["hi"], 2340.0)
+
+    def test_identical_repeats_give_a_degenerate_ci(self):
+        rows = [receipt(1, jobs_per_hour=100.0), receipt(2, jobs_per_hour=100.0)]
+        ci = reduce(rows)["bootstrap"]["jobs_per_hour"]
+        self.assertEqual((ci["lo"], ci["hi"]), (100.0, 100.0))
+
+    def test_one_repeat_gets_no_ci_and_says_why(self):
+        ci = reduce([receipt(1)])["bootstrap"]["jobs_per_hour"]
+        self.assertIsNone(ci["lo"])
+        self.assertIn("fewer than 2", ci["reason"])
+
+
+# ---------------------------------------------------------------------- guards, commits --
+class TestGuardsAndProvenance(unittest.TestCase):
+    def test_all_at_rate(self):
+        doc = reduce([receipt(1), receipt(2)])
+        self.assertTrue(doc["guards"]["all_at_rate"])
+        self.assertEqual(len(doc["guards"]["rows"]), 2)
+
+    def test_a_warn_after_breaks_all_at_rate(self):
+        rows = [receipt(1), receipt(2, guard_after={"verdict": "degraded"})]
+        doc = reduce(rows)
+        self.assertFalse(doc["guards"]["all_at_rate"])
+        self.assertEqual(doc["guards"]["rows"][1]["guard_after"], "degraded")
+
+    def test_mixed_runner_commits_are_flagged(self):
+        same = reduce([receipt(1), receipt(2)])
+        self.assertEqual(same["runner_commits"], ["abc1234"])
+        self.assertFalse(same["mixed_runner_commits"])
+        mixed = reduce([receipt(1, runner_commit="d18ab09"),
+                        receipt(2, runner_commit="b982a1e")])
+        self.assertEqual(mixed["runner_commits"], ["d18ab09", "b982a1e"])
+        self.assertTrue(mixed["mixed_runner_commits"])
+
+    def test_regime_comes_from_the_first_included_receipt(self):
+        rows = [receipt(1, status="REFUSED_GUARD"), receipt(2), receipt(3)]
+        doc = reduce(rows)
+        self.assertEqual(doc["regime"]["repeat"], 2)
+
+    def test_prereg_repeat_count_is_reported(self):
+        self.assertFalse(reduce([receipt(i) for i in (1, 2, 3)])["meets_prereg_repeats"])
+        self.assertTrue(reduce([receipt(i) for i in range(1, 6)])["meets_prereg_repeats"])
+
+
+# ------------------------------------------------------------------------------ P7 halves --
+class TestP7RepeatSpread(unittest.TestCase):
+    def test_within_the_floor(self):
+        # 1% spread against the 1.5% pp512 floor
+        rows = [receipt(1, jobs_per_hour=99.5), receipt(2, jobs_per_hour=100.5)]
+        half = reduce(rows)["p7"]["repeat_spread"]
+        self.assertEqual(half["observed_spread_pct"], 1.0)
+        self.assertEqual(half["floor_pct"], 1.5)
+        self.assertTrue(half["within_floor"])
+        self.assertEqual(half["outcome"], "supported")
+
+    def test_beyond_the_floor(self):
+        rows = [receipt(1, jobs_per_hour=95.0), receipt(2, jobs_per_hour=105.0)]
+        half = reduce(rows)["p7"]["repeat_spread"]
+        self.assertEqual(half["observed_spread_pct"], 10.0)
+        self.assertFalse(half["within_floor"])
+        self.assertEqual(half["outcome"], "refuted")
+
+    def test_the_floor_is_overridable(self):
+        rows = [receipt(1, jobs_per_hour=95.0), receipt(2, jobs_per_hour=105.0)]
+        half = reduce(rows, floors={"pp512": 12.0})["p7"]["repeat_spread"]
+        self.assertTrue(half["within_floor"])
+        self.assertEqual(half["floor_pct"], 12.0)
+
+    def test_the_note_says_the_comparison_is_not_like_for_like(self):
+        half = reduce([receipt(1), receipt(2)])["p7"]["repeat_spread"]
+        self.assertIn("SINGLE-STREAM", half["note"])
+        self.assertIn("CONCURRENT", half["note"])
+        self.assertIn("6 request", half["note"])
+
+    def test_latency_p95_spread_is_reported_alongside(self):
+        rows = [receipt(1, latency_p95=3.0), receipt(2, latency_p95=3.3)]
+        half = reduce(rows)["p7"]["repeat_spread"]
+        self.assertAlmostEqual(half["latency_p95_spread_pct"], 9.52, places=2)
+
+    def test_the_outcome_is_never_unclear(self):
+        for jph in (100.0, 200.0):
+            rows = [receipt(1, jobs_per_hour=100.0), receipt(2, jobs_per_hour=jph)]
+            self.assertIn(reduce(rows)["p7"]["repeat_spread"]["outcome"],
+                          ("supported", "refuted", "untested"))
+
+
+class TestP7UnwarmedRep1(unittest.TestCase):
+    def test_untested_when_every_rep1_was_already_warm(self):
+        rows = [receipt(1, unwarmed=104.13, warm=104.68),
+                receipt(2, unwarmed=105.95, warm=106.13),
+                receipt(3, unwarmed=106.02, warm=106.0)]
+        half = reduce(rows)["p7"]["unwarmed_rep1"]
+        self.assertEqual(half["outcome"], "untested")
+        self.assertIn("already warm at every repeat", half["reason"])
+        self.assertIn("back-to-back", half["reason"])
+        self.assertTrue(all(r["already_warm"] for r in half["ratios"]))
+
+    def test_supported_for_a_ratio_of_080(self):
+        rows = [receipt(1, unwarmed=80.0, warm=100.0), receipt(2, unwarmed=105.0, warm=105.0)]
+        half = reduce(rows)["p7"]["unwarmed_rep1"]
+        self.assertEqual(half["ratios"][0]["ratio"], 0.8)
+        self.assertTrue(half["ratios"][0]["in_band"])
+        self.assertFalse(half["ratios"][0]["already_warm"])
+        self.assertEqual(half["outcome"], "supported")
+
+    def test_refuted_for_a_ratio_of_050(self):
+        rows = [receipt(1, unwarmed=50.0, warm=100.0), receipt(2, unwarmed=80.0, warm=100.0)]
+        half = reduce(rows)["p7"]["unwarmed_rep1"]
+        self.assertEqual(half["ratios"][0]["ratio"], 0.5)
+        self.assertFalse(half["ratios"][0]["in_band"])
+        self.assertEqual(half["outcome"], "refuted")
+
+    def test_a_ratio_above_the_band_but_below_warm_also_refutes(self):
+        # 0.93: cold enough to be scored, too fast to sit in ADR-0043's 65-90 band
+        rows = [receipt(1, unwarmed=93.0, warm=100.0), receipt(2, unwarmed=105.0, warm=105.0)]
+        half = reduce(rows)["p7"]["unwarmed_rep1"]
+        self.assertEqual(half["outcome"], "refuted")
+
+    def test_a_missing_warm_block_is_untested_not_a_crash(self):
+        rows = [receipt(1, omit=("warm",)), receipt(2, omit=("warm",))]
+        half = reduce(rows)["p7"]["unwarmed_rep1"]
+        self.assertEqual(half["outcome"], "untested")
+        self.assertIsNone(half["ratios"][0]["ratio"])
+
+    def test_a_zero_warm_rate_does_not_divide(self):
+        rows = [receipt(1, unwarmed=80.0, warm=0.0), receipt(2)]
+        half = reduce(rows)["p7"]["unwarmed_rep1"]
+        self.assertIsNone(half["ratios"][0]["ratio"])
+        self.assertEqual(half["outcome"], "untested")
+
+
+# -------------------------------------------------------------------------- discovery --
+class TestDiscovery(unittest.TestCase):
+    def test_r10_sorts_after_r2(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_cells(root, [1, 2, 3, 10])
+            paths, skipped = nf.discover_receipts(root, "np2-p512-c2")
+            self.assertEqual(skipped, [])
+            names = [p.parent.name for p in paths]
+            self.assertEqual(names, ["np2-p512-c2-r1", "np2-p512-c2-r2",
+                                     "np2-p512-c2-r3", "np2-p512-c2-r10"])
+
+    def test_a_directory_without_a_receipt_is_listed_not_dropped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_cells(root, [1, 2])
+            (root / "np2-p512-c2-r4").mkdir()
+            paths, skipped = nf.discover_receipts(root, "np2-p512-c2")
+            self.assertEqual(len(paths), 2)
+            self.assertEqual(len(skipped), 1)
+            self.assertIn("np2-p512-c2-r4", skipped[0]["path"])
+            self.assertIn("no receipt.json", skipped[0]["reason"])
+
+    def test_another_prefix_is_not_swept_in(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_cells(root, [1, 2])
+            (root / "np2-p512-c16-r1").mkdir()
+            paths, _ = nf.discover_receipts(root, "np2-p512-c2")
+            self.assertEqual(len(paths), 2)
+
+    def test_an_unreadable_receipt_is_listed_not_fatal(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_cells(root, [1, 2])
+            bad = root / "np2-p512-c2-r3"
+            bad.mkdir()
+            (bad / "receipt.json").write_text("{not json", encoding="utf-8")
+            paths, _ = nf.discover_receipts(root, "np2-p512-c2")
+            receipts, skipped = nf.load_receipts(paths)
+            self.assertEqual(len(receipts), 2)
+            self.assertEqual(len(skipped), 1)
+            self.assertIn("unreadable", skipped[0]["reason"])
+
+    def test_a_missing_root_is_reported(self):
+        paths, skipped = nf.discover_receipts(Path(tempfile.gettempdir()) / "no-such-sat-root",
+                                              "np2-p512-c2")
+        self.assertEqual(paths, [])
+        self.assertIn("not a directory", skipped[0]["reason"])
+
+
+# --------------------------------------------------------------------------------- CLI --
+class TestCli(unittest.TestCase):
+    def test_a_full_run_exits_zero_and_prints_the_report(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_cells(Path(tmp), [1, 2, 3])
+            rc, out, _ = run_cli(["--cells-root", tmp, "--cell-prefix", "np2-p512-c2"])
+            self.assertEqual(rc, 0)
+            self.assertIn("# SAT-L1 noise floor -- np2-p512-c2", out)
+            self.assertIn("repeats included: **3**", out)
+            self.assertIn("| `jobs_per_hour` |", out)
+            self.assertIn("95% CI", out)
+            self.assertIn("half 1 -- repeat spread", out)
+            self.assertIn("half 2 -- unwarmed rep-1", out)
+            self.assertNotIn("%%", out)
+
+    def test_a_single_receipt_exits_two(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_cells(Path(tmp), [1])
+            rc, out, err = run_cli(["--cells-root", tmp, "--cell-prefix", "np2-p512-c2"])
+            self.assertEqual(rc, 2)
+            self.assertIn("repeats included: **1**", out)
+            self.assertIn("FEWER THAN 2 REPEATS", err)
+
+    def test_explicit_receipt_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_cells(Path(tmp), [1, 2])
+            args = []
+            for rep in (1, 2):
+                args += ["--receipt", str(Path(tmp) / ("np2-p512-c2-r%d" % rep) / "receipt.json")]
+            rc, out, _ = run_cli(args)
+            self.assertEqual(rc, 0)
+            # the prefix is inferred from the receipts' own cell ids
+            self.assertIn("# SAT-L1 noise floor -- np2-p512-c2", out)
+
+    def test_no_selection_exits_two(self):
+        rc, _, err = run_cli([])
+        self.assertEqual(rc, 2)
+        self.assertIn("--cells-root", err)
+
+    def test_json_out_round_trips(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "cells"
+            root.mkdir()
+            write_cells(root, [1, 2, 3])
+            out_path = Path(tmp) / "nested" / "noise-floor.json"
+            rc, _, _ = run_cli(["--cells-root", str(root), "--cell-prefix", "np2-p512-c2",
+                                "--json-out", str(out_path), "--seed", "7",
+                                "--resamples", "500"])
+            self.assertEqual(rc, 0)
+            doc = json.loads(out_path.read_text(encoding="utf-8"))
+            self.assertEqual(doc["probe"], nf.PROBE)
+            self.assertEqual(doc["cell_prefix"], "np2-p512-c2")
+            self.assertEqual(len(doc["receipt_paths"]), 3)
+            reduction = doc["reduction"]
+            self.assertEqual(reduction["n_included"], 3)
+            self.assertEqual(reduction["bootstrap"]["jobs_per_hour"]["seed"], 7)
+            self.assertEqual(reduction["bootstrap"]["jobs_per_hour"]["resamples"], 500)
+            # the JSON is the same document the pure reducer produces
+            paths, _ = nf.discover_receipts(root, "np2-p512-c2")
+            receipts, _ = nf.load_receipts(paths)
+            expected = nf.reduce_repeats(receipts, seed=7, resamples=500)
+            self.assertEqual(reduction, expected)
+            # and it re-renders to the same markdown
+            self.assertTrue(nf.render_markdown(doc, cell_prefix="np2-p512-c2"))
+
+    def test_floor_pct_override_reaches_the_score(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for rep, jph in ((1, 95.0), (2, 105.0)):
+                directory = root / ("np2-p512-c2-r%d" % rep)
+                directory.mkdir()
+                (directory / "receipt.json").write_text(
+                    json.dumps(receipt(rep, jobs_per_hour=jph)), encoding="utf-8")
+            rc, out, _ = run_cli(["--cells-root", tmp, "--cell-prefix", "np2-p512-c2",
+                                  "--floor-pct", "20"])
+            self.assertEqual(rc, 0)
+            self.assertIn("half 1 -- repeat spread: **SUPPORTED**", out)
+
+    def test_the_report_flags_a_mixed_build(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for rep, commit in ((1, "d18ab09"), (2, "b982a1e")):
+                directory = root / ("np2-p512-c2-r%d" % rep)
+                directory.mkdir()
+                (directory / "receipt.json").write_text(
+                    json.dumps(receipt(rep, runner_commit=commit)), encoding="utf-8")
+            _, out, _ = run_cli(["--cells-root", tmp, "--cell-prefix", "np2-p512-c2"])
+            self.assertIn("MIXED", out)
+
+    def test_the_run_writes_nothing_when_json_out_is_absent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_cells(root, [1, 2])
+            before = sorted(p.relative_to(root).as_posix() for p in root.rglob("*"))
+            run_cli(["--cells-root", tmp, "--cell-prefix", "np2-p512-c2"])
+            after = sorted(p.relative_to(root).as_posix() for p in root.rglob("*"))
+            self.assertEqual(before, after)
+
+
+if __name__ == "__main__":
+    unittest.main()

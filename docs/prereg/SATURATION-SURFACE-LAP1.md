@@ -929,6 +929,46 @@ only remaining move — which is a result, not a failure.
 > actually *fell*, 712.08 → 456.08 MiB per card. Re-baselined: **106.25 tok/s, spread 0.07%** — the
 > same single-stream rate as `-np 2`, so the regime change costs nothing at N=1.
 
+> **RESULT — the throttle mattered. `np4-p512-c4-r1`, 2026-09-09 ~13:04Z.** First cell of the new
+> epoch, all seven gates, gate 7 zero cached, no delayed rounds.
+>
+> | | `-np 2` (best of 16 cells) | **`-np 4`, N=4** |
+> |---|---:|---:|
+> | jobs/hour | 2,163.6 | **2,918.1** — **×1.37** |
+> | p95 latency | 13.684 s (at N=8) | **4.944 s** |
+> | decode per request | 66.8 | 44.3 |
+> | **aggregate decode** | 133.6 | **177.2** — ×1.33 |
+> | prefill per request | 1,470 | 1,050 |
+> | slots busy, load window | 1.00 (of 2) | **1.00 (of 4)** |
+> | board power, p50 | ~73 / ~73 W | **99.01 / 74.35 W** |
+> | board duty | 0.0 | 0.0 |
+>
+> **Adding slots did what adding clients could not.** Throughput rose 37% against the ceiling that
+> sixteen cells of client-sweeping could not move by more than 1.7%, and p95 *fell* — 4.94 s at four
+> clients on four slots against 13.68 s at eight clients on two.
+>
+> - **Q3 supported**: per-request decode falls 66.8 → 44.3 while aggregate rises 133.6 → 177.2.
+>   Exactly the batching trade, not a regression.
+> - **Q2 on track, not yet met**: 1.37× against a predicted ≥1.5×. This is `-np 4` at its matched
+>   client count; `-np 8` and `-np 16` are where the prediction is actually tested.
+> - **Q1 not yet**: duty still reads 0.0 — but **board power moved 73 → 99 W on one card, +36%**.
+>   ⚠ **This exposes a limitation in the duty metric itself**: its threshold is 90% of a *prefill
+>   burst* reference (143.9 W), which is the wrong yardstick for a decode-heavy cell. Power is the
+>   honest signal here and it is rising; duty may stay 0.0 while the cards genuinely load. Raw watts
+>   are now reported beside duty rather than behind it.
+> - **New observation:** power is **asymmetric for the first time** — 99.01 vs 74.35 W, where every
+>   `-np 2` cell read ~73/73. The wider batch is landing unevenly across the pair.
+>
+> **Thermal headroom, checked before pushing further.** The corpus records the replica-per-card
+> experiment being **quarantined at 96 °C on VRAM of `0000:04:00.0`** at only p512-c4, and the 131K
+> context tier failing the same way. Every receipt in this campaign already carried
+> `gpu.temperature_c` and `vram.temperature_c` and I had not been reading them. Measured across the
+> `-np 2` cells: VRAM p50 **58–64 °C**, max **68 °C** at N=8; GPU max **65 °C**. The hotter card is
+> consistently `adapter_00016def` = **`0000:04:00.0`** — the same card the corpus flagged, by 2–4 °C.
+> **~28 °C of margin to the abort point**, rising ~1 °C per doubling of load. Safe to continue, and
+> a thermal gate is now warranted before the partition step, which *is* the configuration that hit
+> 96 °C.
+
 ## Pass gate
 
 The surface is the deliverable. **Pass** = every planned `-np 2` cell carries all six gate outcomes,

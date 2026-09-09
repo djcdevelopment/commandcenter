@@ -283,6 +283,65 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
 >    records `null` with its age and never gets copied. **The ring is dead (5.2 days); Derek's one
 >    elevated `etw6_session.ps1 -Start` is the step that makes any depth-0 cell scoreable.**
 
+> **RESULT — noise-floor block 1, `np2-p512-c2` repeats 1–5, 2026-09-09 09:38–10:46Z** — receipts
+> `E:\work\battlemage\sat-l1\cells\np2-p512-c2-r{1..5}\receipt.json`; reduction
+> `E:\work\battlemage\sat-l1\noise-floor\np2-p512-c2-block1-cached-prefix.{json,md}` by
+> `campaign/ff-probes/sat_noise_floor.py` (merged `03549e1`, 45 tests). Same regime as r1 above;
+> runner builds `d18ab09` (r1), `b982a1e` (r2), `5534179` (r3–r5) — gate scoring changed between
+> them, the load path did not. **Status: all five scored; block is an instrument-validation block,
+> not the surface's noise floor — see the three defects below.**
+>
+> | repeat | jobs/h | p50 / p95 s | decode p50 | both slots busy (span) | duty | incumbent pre → post | guard | symmetry |
+> |---|---:|---|---:|---:|---|---|---|---:|
+> | r1 | 2,334.0 | 3.032 / 3.205 | 66.8 | 0.474 | 0 / 0 | 98.6% → 98.9% | at_rate / at_rate | 0.999 |
+> | r2 | 2,284.1 | 3.149 / 3.172 | 64.5 | 0.474 | 0 / 0 | 99.5% → 99.5% | at_rate / at_rate | 0.998 |
+> | r3 | 2,285.1 | 3.143 / 3.162 | 64.2 | 0.526 | 0 / 0 | 99.3% → 96.4% | at_rate / at_rate | 0.996 |
+> | r4 | 2,188.6 | 3.158 / **3.531** | 63.4 | 0.526 | 0 / 0 | 100.1% → 99.8% | at_rate / at_rate | 0.993 |
+> | r5 | 2,285.5 | 3.142 / 3.165 | 64.3 | 0.474 | 0 / 0 | 99.0% → 99.5% | at_rate / at_rate | 0.996 |
+>
+> Jobs/hour mean **2,275.5**, bootstrap 95% CI **[2,227.2, 2,314.2]** over repeats, spread
+> **6.39%**, cv 2.08%; p95 spread 11.38% (all of it r4); decode 63.4–66.8; board p50 73.1–73.9 W on
+> both cards (spread < 1%); admission headroom 15.0 / 16.1 GB on r2–r5 (r1's 31.0 GB stands as the
+> superseded per-process figure, defect 1 above). Production `at_rate` on a fresh sample after every
+> repeat; the one soft post-cell reading (r3, 96.4%) was above the warn line and recovered by r4.
+>
+> **P7 as the reducer scores it:** half 1 (repeat spread) **refuted on the borrowed floor** —
+> 6.39% against the 1.5% pp512 figure, with the caveat the card itself owes: the FF6 floors are
+> single-stream `llama-bench` spreads and this is a six-job concurrent wall, where one 0.45 s wait
+> moves jobs/hour 6%. Half 2 (unwarmed rep-1 at 65–90% of warm) **untested** — every repeat's rep-1
+> read 0.995–1.000 of warm because back-to-back cells never let the rung idle. The kill gate
+> ("repeats drift beyond the floor → fix the gate, then resume") is taken literally: nothing from
+> this block enters the surface, and the block is re-run on the fixed instrument.
+>
+> **Three instrument defects the block exposed (fix in flight, one builder):**
+> 1. **Prefill is served from the prompt cache.** The load harness sends a byte-identical prompt on
+>    every request and never sets `cache_prompt`; across r4's and r5's windows the server's
+>    `prompt_tokens_total` moved **64** while `prompt_tokens_cached_total` moved **3,073** (six
+>    requests × 440 tokens = 2,640; the rest is the rate probes). Per request the server processed
+>    ~1 token in ~16 ms (27k tok/s "prefill"), which the harness's own cache check already nulls
+>    out of the prefill rate — so every receipt's prefill p50 is `null`. At 512 the cached prefix
+>    is ~9% of a 3.1 s job; at 8K and 32K it is the whole size axis, and P4's arithmetic assumes
+>    real prefill. Fix: the harness gains `--no-cache-prompt` (`cache_prompt: false`, the same
+>    mechanism the runner's readiness probe already uses), the runner passes it on every cell, and a
+>    **seventh gate `prefill_real`** requires uncached prompt tokens ≥ 0.9× the prompts sent.
+>    Concern stated once: cache-off is the pessimistic bound for callers that share a system-prompt
+>    prefix; the cached regime is a second, cheaper regime, and block 1 is its only record.
+> 2. **Gate 4 is span-diluted.** `metrics_before/after` and the `/slots` poller bracket the whole
+>    `ff_cell` span, which includes its own single-stream pre- and post-rate probes (that is the
+>    ~650 surplus predicted tokens per window). "Both slots busy 47–53%" is over that span; within
+>    the load both slots were busy essentially throughout. P5's `/slots ≥ 90%` half must be read
+>    over the load window (`min started_at … max completed_at` from the load rows). Fix: the
+>    receipt keeps every poll sample and reports load-window figures beside the span figures.
+> 3. **The r4 outlier is a waiting term with no attributable cause.** Its last request did normal
+>    server-side work (prompt 24.9 ms + predicted 3,020.7 ms) but waited **0.510 s** for a slot
+>    (TTFT elsewhere 20–90 ms); no HEARTH ledger dispatch touched production in that window; per-poll
+>    samples were discarded (`slots_poll.polls` = 19), so the slot's occupant is unrecoverable.
+>    Same fix as 2. This is the thesis in miniature — the loss was a wait, not a kernel.
+>
+> **Protocol additions (dated, additive):** the unwarmed half of P7 needs a deliberate idle — one
+> extra repeat per depth block is preceded by ≥ 120 s with no traffic, so rep-1 can read cold; the
+> cached-prefix regime is named as such wherever block 1 is cited.
+
 ## Analysis plan
 
 - Per cell: jobs/hour, p50/p95/p99 latency and TTFT (nearest-rank, as the harness computes them),

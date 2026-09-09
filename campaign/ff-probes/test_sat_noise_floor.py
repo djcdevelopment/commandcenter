@@ -671,5 +671,91 @@ class TestLaunchSkewFields(unittest.TestCase):
         self.assertEqual(doc["n_excluded"], 0)
 
 
+# ------------------------------------------------- gate 8: the thermal trend, surfaced --
+def thermal(*, vram_a=66, vram_b=62, gpu_a=60, gpu_b=59, idle=60, outcome="pass"):
+    """A ``thermal`` block shaped like ``sat_cell_runner.score_thermal``'s output."""
+    def counters(vram_max, gpu_max):
+        return {
+            "vram.temperature_c": {"idle_c": float(idle), "busy_p50_c": float(vram_max) - 2,
+                                   "busy_p95_c": float(vram_max), "max_c": float(vram_max),
+                                   "delta_c": round(float(vram_max) - idle, 1),
+                                   "samples": 9, "outcome": outcome, "reason": None,
+                                   "warn_c": 88.0, "abort_c": 95.0},
+            "gpu.temperature_c": {"idle_c": float(idle) - 4, "busy_p50_c": float(gpu_max) - 1,
+                                  "busy_p95_c": float(gpu_max), "max_c": float(gpu_max),
+                                  "delta_c": round(float(gpu_max) - (idle - 4), 1),
+                                  "samples": 12, "outcome": outcome, "reason": None,
+                                  "warn_c": 88.0, "abort_c": 95.0},
+        }
+    return {"outcome": outcome, "exceeded": outcome == "fail",
+            "thresholds": {"vram.temperature_c": {"warn_c": 88.0, "abort_c": 95.0},
+                           "delta_warn_c": 15.0,
+                           "attribution": "abort 95 C is Derek's call, 2026-09-09"},
+            "cards": {ADAPTER_A: {"adapter": ADAPTER_A, "bdf": BDF_A, "outcome": outcome,
+                                  "counters": counters(vram_a, gpu_a)},
+                      ADAPTER_B: {"adapter": ADAPTER_B, "bdf": BDF_B, "outcome": outcome,
+                                  "counters": counters(vram_b, gpu_b)}}}
+
+
+class TestThermalFields(unittest.TestCase):
+    """A thermal drift across repeats has to be VISIBLE, not inferred from the receipts."""
+
+    def test_the_per_card_thermal_families_are_declared(self):
+        labels = [label for label, _m, _i, _u in nf.CARD_FAMILIES]
+        for wanted in ("thermal.gpu.max_c[%s]", "thermal.gpu.delta_c[%s]",
+                       "thermal.vram.max_c[%s]", "thermal.vram.delta_c[%s]"):
+            self.assertIn(wanted, labels)
+
+    def test_the_absolute_and_the_rise_both_spread_across_repeats(self):
+        doc = reduce([receipt(1, thermal=thermal(vram_a=66, idle=60)),
+                      receipt(2, thermal=thermal(vram_a=67, idle=61)),
+                      receipt(3, thermal=thermal(vram_a=68, idle=62))])
+        # The absolute climbed 2 C across the repeats...
+        absolute = doc["fields"]["thermal.vram.max_c[%s]" % ADAPTER_A]
+        self.assertEqual(absolute["n"], 3)
+        self.assertEqual(absolute["values"], [66.0, 67.0, 68.0])
+        # ...while the workload-attributable rise did not move at all. That difference is
+        # the whole point of reporting both: this is ambient, not the load.
+        rise = doc["fields"]["thermal.vram.delta_c[%s]" % ADAPTER_A]
+        self.assertEqual(rise["values"], [6.0, 6.0, 6.0])
+        self.assertEqual(rise["spread_pct"], 0.0)
+
+    def test_each_card_is_reported_separately(self):
+        doc = reduce([receipt(1, thermal=thermal(vram_a=66, vram_b=62)),
+                      receipt(2, thermal=thermal(vram_a=66, vram_b=62))])
+        fields = doc["fields"]
+        self.assertEqual(fields["thermal.vram.max_c[%s]" % ADAPTER_A]["mean"], 66.0)
+        self.assertEqual(fields["thermal.vram.max_c[%s]" % ADAPTER_B]["mean"], 62.0)
+        self.assertIn("thermal.gpu.max_c[%s]" % ADAPTER_B, fields)
+
+    def test_a_receipt_written_before_gate_8_reports_the_fields_as_missing(self):
+        doc = reduce([receipt(1, thermal=thermal()), receipt(2)])  # r2 predates gate 8
+        field = doc["fields"]["thermal.vram.max_c[%s]" % ADAPTER_A]
+        self.assertEqual(field["n"], 1)
+        self.assertEqual(field["missing"], 1)
+
+    def test_the_thermal_columns_reach_the_markdown(self):
+        doc = reduce([receipt(1, thermal=thermal()), receipt(2, thermal=thermal())])
+        text = nf.render_markdown(doc, cell_prefix="np2-p512-c2")
+        self.assertIn("`thermal.vram.max_c[%s]`" % ADAPTER_A, text)
+        self.assertIn("`thermal.vram.delta_c[%s]`" % ADAPTER_A, text)
+
+    def test_a_thermal_exceeded_repeat_is_excluded_and_listed_never_dropped(self):
+        doc = reduce([receipt(1, thermal=thermal()),
+                      receipt(2, thermal=thermal(vram_a=96, outcome="fail"),
+                              thermal_exceeded=True),
+                      receipt(3, thermal=thermal())])
+        self.assertEqual(doc["n_included"], 2)
+        self.assertEqual(doc["n_excluded"], 1)
+        self.assertEqual(doc["excluded"][0]["repeat"], "np2-p512-c2-r2")
+        self.assertIn("thermal_exceeded", doc["excluded"][0]["reason"])
+
+    def test_a_warn_does_not_exclude_a_repeat(self):
+        doc = reduce([receipt(1, thermal=thermal(vram_a=90, outcome="warn")),
+                      receipt(2, thermal=thermal())])
+        self.assertEqual(doc["n_included"], 2)
+        self.assertEqual(doc["n_excluded"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()

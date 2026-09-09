@@ -1102,6 +1102,36 @@ only remaining move — which is a result, not a failure.
 > exceeds the window and must fall onto the matmul path. That is the cliff PR 27652 exists to let
 > users avoid, measured under real serving load for the first time.
 
+> **RESULT — `-np 16` regresses, and Q4's control lands. 2026-09-09 ~13:55Z.**
+>
+> | cell | MMV window | jobs/hour | p50 | decode/req | admission skew |
+> |---|---:|---:|---:|---:|---|
+> | `np8-p512-c8-r1` | 16 | **3,358.2** | 8.42 s | 25.4 | 674–943 ms |
+> | `np8-p512-c16-r1` | 16 | **3,407.2** | 16.86 s | 25.2 | 449–905 ms |
+> | `np16-p512-c16-r1` | 16 | 2,206.9 | 25.57 s | 8.1 | **2,402–2,932 ms** |
+> | `np16-p512-c16-r2` | 16 | 2,439.5 | 23.39 s | 8.8 | **1,865–1,951 ms** |
+> | `np16-p512-c16-r3` | **8 (stock)** | **1,953.6** | 29.28 s | 7.1 | anchor ambiguous |
+>
+> **`-np 16` is ~32% worse than `-np 8` on this workload** (2,323 mean vs 3,383). Per-request decode
+> collapses 25 → 8 tok/s and aggregate decode falls with it, 202 → ~135. The admission event that has
+> grown all afternoon reaches **2–3 seconds**. Board power goes spiky rather than sustained — peaks of
+> 166–183 W over a p50 of only 66–73 W. The engine is misfiring, not making power.
+>
+> ⚠ **This does not contradict Derek's prior** (*"16 is best for this hardware for most our use
+> cases"*) — it bounds it. This cell is a 30B **MoE** at 512-token prompts with 16 concurrent
+> clients; his matrix covered his use cases and likely other weights and shapes. What is measured
+> here is that **for this model at this prompt size, the peak is `-np 8`.**
+>
+> - **Q4 — the stock-8 control: SUPPORTED, first serving-load evidence for PR 27652.** At `-np 16`,
+>   the stock window gives **1,953.6 jobs/hour against 2,206.9 / 2,439.5 with the window widened to
+>   16 — a 15.9% loss**, larger than the widened cells' own 10% spread. Per-request decode 7.1 vs
+>   8.1/8.8. ⚠ n=1 control against n=2 widened; a second control repeat is running before this is
+>   cited upstream.
+> - **The window clamps at 16** (`serve-arc.cmd:32`: *"clamps silently above 16"*), so 16 is the
+>   knob's ceiling, not a chosen value. `-np` beyond 16 would push the decode batch past the window
+>   with no way to follow it — which is the mechanism behind Derek's "16 is best for this hardware".
+> - **Q5/P8 restated:** at `-np 16` a slot holds 8,192 tokens. Confirmed in the load report.
+
 ## Pass gate
 
 The surface is the deliverable. **Pass** = every planned `-np 2` cell carries all six gate outcomes,

@@ -35,3 +35,28 @@ they reuse these same tools.
 Rules: env vars latch at process start; never time rep 1; internal server timings only;
 every receipt row records co-residency; `--no-repack` on every `-ot` run; no
 `ZE_AFFINITY_MASK`, ever.
+
+## ETW lane — from a continuous ring back to the analyzers
+
+`etw2_join.py` / `etw3_perqueue.py` / `etw4_depth.py` all read one `report.json` shape, and
+until now the only producer of it was `etw1_feasibility.ps1` (elevated, short Sequential
+sessions). The continuous recorder — `etw6_session.ps1` (elevated, owns the `lz_dxgk_ring`
+session) plus `etw6_watch.py` (unelevated, snapshots to `cap-<stamp>-<tag>.etl` + a
+`cap-*.json` manifest) — had no path back into them.
+
+- `etw10_package.py --manifest cap-X.json --requests rows.jsonl (--dump D.xml | --etl cap-X.etl) --out report.json`
+  closes that gap: pure post-processing, **unelevated** (tracerpt on an existing `.etl`
+  needs no elevation — measured, see the module docstring), read-only over captures. Arms
+  come from a load-harness JSONL (`campaign/qwen38/qwen38_campaign.py load` rows), one per
+  `run_id` (or per client with `--group-by client`). `--describe` prints a dump's time span
+  and the groups a request log would produce without writing anything.
+  Fixtures: `test_etw10_package.py`.
+
+Two things to know before using it. The analyzers derive the arm label from the dump
+**filename** (`"etw-" + dump.split("-r")[-1].split(".")[0]`), so a trace's name is the join
+key and the packager materialises one `-rN.dump.xml` name per arm over the single
+underlying XML — N traces are N *windows* on one capture, not N captures. And a 19 GB ring
+snapshot converts to far more XML than fits anywhere comfortable, so `--max-dump-mb` stops
+the converter at a budget and repairs the partial XML to well-formed; a budgeted dump holds
+only the **earliest** part of the trace, and the packager refuses arms that fall outside the
+dump's span rather than reporting them as 100% starved.

@@ -119,7 +119,39 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
      exist** — prose in the FF6 card only; present in 0 of 410 receipt rows. Until the reference is
      captured (one BF6 render-lane run with b70tools recording per-card power; freeze p50), the
      power-derived fields are `null` on every row and **P5's duty-cycle half is scored *untested***,
-     never inferred from `/slots`. Capturing it is a named ops item, Derek's call.
+     never inferred from `/slots`. Capturing it is a named ops item, Derek's call — **acked
+     2026-09-09: capture first.**
+
+   > **Reference-capture protocol, added 2026-09-09 (verified at source, not relayed):**
+   > - `submit_render` takes **no** tenancy fence — zero references to `arc-maintenance`, `fence`,
+   >   `tenancy` or `image_session` under `hearth/media/`; only the imagegen lane writes the sentinel.
+   >   The capture is therefore **co-resident with production**, not an outage. It contends, so it
+   >   runs under the same guard as a cell: `at_rate` on a fresh sample before, `wait_for_fresh` after,
+   >   `degraded` recorded as a finding about co-residency rather than hidden. No render-lane
+   >   telemetry has ever been captured; this is the first.
+   > - **Power is derived, not sampled.** The real IGCL collector emits only cumulative
+   >   `gpu.energy_j_counter` / `vram.energy_j_counter` / `card.energy_j_counter`; `reference_p50_power`
+   >   is the p50 over ticks of ΔJ/Δt per card at 1 Hz (`b70tools --run --ticks N --cadence-ms 1000
+   >   --flush-every-tick`). `gpu.power_w` exists only in the fake collector and is never read.
+   > - **Oracle validity condition.** The BF6 lane is QSV media-engine encode; ADR-0036's two-lane
+   >   proof measured ~28–30% *media-engine* utilization, and fixed-function encode need not drive
+   >   board power to what Vulkan compute reaches. The capture therefore records absolute p50 W per
+   >   card for the render run **and** for a compute control (a pp8192 prefill burst on production at
+   >   N=2, same capture cadence). If render p50 < compute-control p50, the oracle is inverted:
+   >   `saturation_duty_cycle` stays `null`, P5's duty-cycle half is scored *untested*, and the
+   >   reference question is re-opened with the compute control as the candidate oracle. This is
+   >   decided by the numbers, before any Lap 1 cell is scored.
+   > - **The lane's own calibration already points that way** (`list_render_lanes`, calibrated
+   >   2026-08-25, read 2026-09-09): during a real QSV encode each B70's engine profile is
+   >   `videodecode` 77.2 / 76.9%, `3d` 12.5 / 20.3%, **`compute` 0.0 / 0.0%**. The encode does not
+   >   exercise the compute engines at all, and the coexistence acceptance measured its effect on
+   >   production at −0.44%/+1.24% (one lane) and −1.34%/+0.87% (two lanes) — consistent with that.
+   >   The compute control is therefore expected to *be* the oracle; the render capture is still
+   >   taken, so the comparison is measured rather than argued.
+   > - **Executor dependency:** the gateway cannot render (session 0); `interactive_executor_available`
+   >   is `false` with the render agent's heartbeat ~11.9 days stale. The render half of the capture
+   >   needs the agent started in an interactive session first — Derek's step. The compute-control
+   >   half needs no executor and can run first.
    - *In-flight proxy, verified live through the wrapper:* `/slots` (per-slot `is_processing`,
      `n_prompt_tokens`, `next_token`) and `/metrics` (`llamacpp:n_busy_slots_per_decode`,
      `llamacpp:predicted_tokens_seconds`, 15 series) both answer 200 with the bearer. Slot-busy

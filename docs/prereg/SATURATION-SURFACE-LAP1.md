@@ -97,6 +97,16 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
    `local_committed_gb`, temps; the live `QueryVideoMemoryInfo` budget where the tensor lab's
    `device_budget` path can read it. A cell whose budget headroom goes negative is `over_admitted`:
    kept in the receipt, excluded from the surface.
+
+   > **Correction 2026-09-09 (finding A12, `campaign/ff-probes/ff_cell.py`):** `local_committed`
+   > is an activity-window counter that reads ~0.00 on an *idle* server even with the model resident
+   > and serving — 22 of 25 archived adapter-probe captures were `indeterminate` for this reason. The
+   > "before" sample is therefore taken **inside the warm-up traffic window** (gate 1), never on an
+   > idle rung, and the "after" sample inside the cell's last request. The cell-runner is built on
+   > `ff_cell.py`'s ordering (rate → sample-inside-window → gate → one cell → rate → one receipt row),
+   > and every Phase 2 receipt records the incumbent **epoch** (ADR-0044) — a `-np` restart starts a
+   > new one, so its rate baseline is re-established by `ff_ratecheck` after the restart, never
+   > carried over.
 4. *In-flight, unelevated:* poll `http://127.0.0.1:8082/slots` at 1 s during the cell → slot-busy
    fraction; scrape `/metrics` before and after.
 5. *Board duty cycle (FF6):* `saturation_duty_cycle` and `time_to_saturation` against the frozen

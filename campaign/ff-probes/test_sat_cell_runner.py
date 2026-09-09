@@ -19,7 +19,9 @@ from __future__ import annotations
 
 import json
 import sys
+import os
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -502,7 +504,7 @@ class TestBudgetHeadroom(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = self._stream(tmp, [
                 {"k": "ms", "a": BUS9, "n": runner.BUDGET, "v": 30 * gb, "t": 1},
-                {"k": "ms", "a": BUS9, "n": runner.USAGE, "v": 16 * gb, "t": 2},
+                {"k": "ms", "a": BUS9, "n": runner.COMMITTED, "v": 16 * gb, "t": 2},
             ])
             out = runner.budget_headroom(path)
         self.assertEqual(out["cards"]["0000:09:00.0"]["min_headroom_gb"], 14.0)
@@ -513,8 +515,8 @@ class TestBudgetHeadroom(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = self._stream(tmp, [
                 {"k": "ms", "a": BUS9, "n": runner.BUDGET, "v": 30 * gb, "t": 1},
-                {"k": "ms", "a": BUS9, "n": runner.USAGE, "v": 16 * gb, "t": 2},
-                {"k": "ms", "a": BUS9, "n": runner.USAGE, "v": 31 * gb, "t": 3},
+                {"k": "ms", "a": BUS9, "n": runner.COMMITTED, "v": 16 * gb, "t": 2},
+                {"k": "ms", "a": BUS9, "n": runner.COMMITTED, "v": 31 * gb, "t": 3},
             ])
             out = runner.budget_headroom(path)
         self.assertIs(out["over_admitted"], True)
@@ -525,6 +527,68 @@ class TestBudgetHeadroom(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             out = runner.budget_headroom(self._stream(tmp, []))
         self.assertIsNone(out["over_admitted"])
+
+    def test_the_per_process_usage_metric_is_never_the_headroom_term(self):
+        # First live cell, 2026-09-09: DXGI CurrentUsage through b70tools reported b70tools'
+        # OWN 4,096 bytes on a card holding 16 GB of weights, and "budget - usage" was ~31 GB on
+        # every cell -- a green gate proving nothing. The adapter-wide committed figure is the term.
+        gb = 1024 ** 3
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._stream(tmp, [
+                {"k": "ms", "a": BUS9, "n": runner.BUDGET, "v": 33 * gb, "t": 1},
+                {"k": "ms", "a": BUS9, "n": runner.PROCESS_USAGE, "v": 4096, "t": 1},
+                {"k": "ms", "a": BUS9, "n": runner.COMMITTED, "v": 16 * gb, "t": 1},
+                {"k": "ms", "a": BUS9, "n": runner.AVAILABLE, "v": 17 * gb, "t": 1},
+            ])
+            out = runner.budget_headroom(path)
+        card = out["cards"]["0000:09:00.0"]
+        self.assertEqual(card["min_headroom_gb"], 17.0)
+        self.assertEqual(card["committed_gb"], 16.0)
+        self.assertEqual(card["available_for_reservation_gb"], 17.0)
+        self.assertEqual(card["process_usage_gb"], 0.0)
+        self.assertIs(out["over_admitted"], False)
+        self.assertIn(runner.COMMITTED, out["headroom_term"])
+
+    def test_budget_plus_process_usage_alone_is_unknown_not_a_vacuous_pass(self):
+        gb = 1024 ** 3
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._stream(tmp, [
+                {"k": "ms", "a": BUS9, "n": runner.BUDGET, "v": 33 * gb, "t": 1},
+                {"k": "ms", "a": BUS9, "n": runner.PROCESS_USAGE, "v": 4096, "t": 1},
+            ])
+            out = runner.budget_headroom(path)
+        self.assertIsNone(out["over_admitted"])
+        self.assertIsNone(out["cards"]["0000:09:00.0"]["min_headroom_gb"])
+        self.assertEqual(out["cards"]["0000:09:00.0"]["samples"], 0)
+
+
+class TestRingLiveness(unittest.TestCase):
+    def _ring(self, tmp, age_s):
+        path = Path(tmp) / "lz_dxgk_ring.etl"
+        path.write_bytes(b"x")
+        stamp = time.time() - age_s
+        os.utime(path, (stamp, stamp))
+        return path
+
+    def test_a_ring_written_seconds_ago_is_live(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            live, age = runner.ring_is_live(self._ring(tmp, 10))
+        self.assertTrue(live)
+        self.assertLess(age, 60)
+
+    def test_a_ring_last_written_minutes_ago_is_dead(self):
+        # 2026-09-09: manifest from Aug 30 + ring last written Sep 3 both EXISTED; a file-exists
+        # check passed, 19 GB were copied and tracerpt ran before the packager refused.
+        with tempfile.TemporaryDirectory() as tmp:
+            live, age = runner.ring_is_live(self._ring(tmp, 6 * 24 * 3600))
+        self.assertFalse(live)
+        self.assertGreater(age, runner.ETW_RING_LIVE_S)
+
+    def test_a_missing_ring_is_dead_with_no_age(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            live, age = runner.ring_is_live(Path(tmp) / "absent.etl")
+        self.assertFalse(live)
+        self.assertIsNone(age)
 
 
 # ------------------------------------------------------------------- gate 6: depth-0 --

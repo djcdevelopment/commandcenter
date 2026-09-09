@@ -645,19 +645,31 @@ def duty_cycle(cards: dict, reference: dict, window_ns: tuple | None = None,
 
 
 # ------------------------------------------------------------------------ admission --
-BUDGET = "vram.local.budget_bytes"
-USAGE = "vram.local.current_usage_bytes"
+BUDGET = "vram.local.budget_bytes"                          # adapter-wide DXGI budget
+COMMITTED = "gpu.adapter.vram.local.bytes_committed"        # adapter-wide, ALL processes
+AVAILABLE = "vram.local.available_for_reservation_bytes"    # adapter-wide free, independent cross-check
+PROCESS_USAGE = "vram.local.current_usage_bytes"            # b70tools' OWN usage -- never the headroom term
+USAGE = PROCESS_USAGE                                       # kept for callers; see the trap below
 NON_LOCAL_USAGE = "vram.non_local.current_usage_bytes"
 _GB = 1024.0 ** 3
 
 
 def budget_headroom(events_path: Path) -> dict:
-    """Live ``QueryVideoMemoryInfo`` headroom per card: budget - current usage.
+    """Adapter-wide VRAM headroom per card: DXGI budget - bytes committed by ALL processes.
 
-    Both series are emitted sparsely by this b70tools build, so each is forward-filled and
-    headroom is evaluated at every tick where BOTH are known. ``over_admitted`` is True when
-    any card's headroom goes negative, ``None`` when the stream never carried the pair --
-    unknown is recorded as unknown, and the row is kept either way (the card, gate 3).
+    The trap this replaces (first live cell, 2026-09-09): DXGI ``QueryVideoMemoryInfo``'s
+    ``CurrentUsage`` is PER-PROCESS. Read through b70tools it reports b70tools' own footprint
+    -- 4,096 bytes on a card holding 16 GB of production weights -- so budget minus that
+    "usage" was ~31 GB on every cell and the gate could never fire. That is the A12 idle
+    counter in a new coat: a green gate proving nothing. ``gpu.adapter.vram.local.bytes_committed``
+    is adapter-wide (it agrees with ff_cell's per-BDF placement evidence to the 0.1 GB) and
+    ``available_for_reservation`` is an independent adapter-wide free figure recorded beside it.
+
+    Cadence: this b70tools build samples these DXGI series ONCE PER CAPTURE, not per tick, so
+    ``samples`` is typically 1 and the headroom is a bracket over the cell, not continuous
+    coverage. ``over_admitted`` is True when any card's headroom goes negative, ``None`` when
+    the stream never carried the pair -- unknown is recorded as unknown, and the row is kept
+    either way (the card, gate 3).
     """
     ident: dict = {}
     series: dict = {}
@@ -672,7 +684,8 @@ def budget_headroom(events_path: Path) -> dict:
                 continue
             if row.get("k") == "ai":
                 ident[row.get("a")] = {"desc": row.get("desc") or "", "bdf": row.get("bdf")}
-            elif row.get("k") == "ms" and row.get("n") in (BUDGET, USAGE, NON_LOCAL_USAGE):
+            elif row.get("k") == "ms" and row.get("n") in (
+                    BUDGET, COMMITTED, AVAILABLE, PROCESS_USAGE, NON_LOCAL_USAGE):
                 series.setdefault(row.get("a"), []).append(
                     (int(row.get("t") or 0), row["n"], float(row["v"])))
     cards: dict = {}
@@ -681,22 +694,28 @@ def budget_headroom(events_path: Path) -> dict:
         if "B70" not in (info.get("desc") or ""):
             continue
         rows.sort()
-        budget = usage = non_local = None
+        budget = committed = available = process_usage = non_local = None
         headrooms: list[float] = []
         for _t, name, value in rows:
             if name == BUDGET:
                 budget = value
-            elif name == USAGE:
-                usage = value
+            elif name == COMMITTED:
+                committed = value
+            elif name == AVAILABLE:
+                available = value
+            elif name == PROCESS_USAGE:
+                process_usage = value
             else:
                 non_local = value
-            if budget is not None and usage is not None:
-                headrooms.append(budget - usage)
+            if budget is not None and committed is not None:
+                headrooms.append(budget - committed)
         key = info.get("bdf") or adapter
         cards[key] = {
             "adapter": adapter, "bdf": info.get("bdf"), "desc": info.get("desc"),
             "budget_gb": round(budget / _GB, 3) if budget is not None else None,
-            "usage_gb": round(usage / _GB, 3) if usage is not None else None,
+            "committed_gb": round(committed / _GB, 3) if committed is not None else None,
+            "available_for_reservation_gb": round(available / _GB, 3) if available is not None else None,
+            "process_usage_gb": round(process_usage / _GB, 3) if process_usage is not None else None,
             "non_local_usage_gb": round(non_local / _GB, 3) if non_local is not None else None,
             "samples": len(headrooms),
             "min_headroom_gb": round(min(headrooms) / _GB, 3) if headrooms else None,
@@ -705,9 +724,12 @@ def budget_headroom(events_path: Path) -> dict:
     negatives = [c["min_headroom_gb"] for c in cards.values() if c["min_headroom_gb"] is not None]
     over = None if not negatives else any(v < 0 for v in negatives)
     return {"cards": cards, "over_admitted": over,
-            "note": "budget - current usage from the live QueryVideoMemoryInfo series; "
-                    "sparse in this b70tools build, so both series are forward-filled. "
-                    "An over_admitted row is KEPT and excluded from the surface, not dropped."}
+            "headroom_term": "%s - %s (adapter-wide); %s recorded as a cross-check; %s is b70tools' "
+                             "own per-process usage and is never the headroom term"
+                             % (BUDGET, COMMITTED, AVAILABLE, PROCESS_USAGE),
+            "note": "sampled ONCE PER CAPTURE by this b70tools build (not per tick): the headroom "
+                    "is a bracket over the cell, not continuous coverage. An over_admitted row is "
+                    "KEPT and excluded from the surface, not dropped."}
 
 
 # --------------------------------------------------------------------- depth-0 (ETW) --
@@ -1306,6 +1328,24 @@ def _summarize(rows: list) -> list:
         return []
 
 
+ETW_RING_LIVE_S = 120.0   # a live circular session rewrites the ring continuously
+
+
+def ring_is_live(ring: Path, now: float | None = None, max_age_s: float = ETW_RING_LIVE_S) -> tuple:
+    """(live, age_s). A file that exists but has not been written for ``max_age_s`` is a DEAD ring.
+
+    First live cell, 2026-09-09: the manifest from Aug 30 and the ring last written Sep 3 both
+    existed, so a file-exists check passed, the runner copied 19 GB, and tracerpt ran for
+    minutes before the packager (correctly) refused a Sep 9 arm against a Sep 4 span. Liveness is
+    the session writing the ring, not the file being there.
+    """
+    try:
+        age = (now if now is not None else time.time()) - os.path.getmtime(ring)
+    except OSError:
+        return False, None
+    return age <= max_age_s, round(age, 1)
+
+
 def _depth0(cell: str, parts: dict, python: str, cell_dir: Path, rows_path) -> dict:
     """Snapshot the ring, package it, read f0. Never starts or stops an ETW session."""
     base = {"f0": None, "f0_by_queue": None, "arms": None, "reason": None, "report": None}
@@ -1315,6 +1355,15 @@ def _depth0(cell: str, parts: dict, python: str, cell_dir: Path, rows_path) -> d
     if not ETW_SESSION_MANIFEST.is_file() or not ETW_RING.is_file():
         base["reason"] = ("no ETW session (%s). The runner never starts or stops tracing; "
                           "recorded as null, not dropped" % ETW_SESSION_MANIFEST)
+        return base
+    live, age_s = ring_is_live(ETW_RING)
+    if not live:
+        base["reason"] = ("ETW session not live: %s last written %s s ago (a live circular session "
+                          "rewrites it continuously; the manifest is stale with it). A dead ring is "
+                          "never snapshotted. Start the session (etw6_session.ps1 -Start, elevated) "
+                          "-- the runner never does. Recorded as null, not dropped"
+                          % (ETW_RING, age_s))
+        base["ring_age_s"] = age_s
         return base
     if not rows_path or not Path(rows_path).is_file():
         base["reason"] = "no REAL harness rows for this cell; synthetic arms are never scored"

@@ -245,6 +245,44 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
    > `C:\work\commandcenter`, never a worktree. Reference thresholds are read from the frozen receipt,
    > never hardcoded; duty cycle is keyed by PCI BDF.
 
+> **RESULT — first live cell `np2-p512-c2-r1` (repeat 1 of 5), 2026-09-09 ~09:43Z** — receipt
+> `E:\work\battlemage\sat-l1\cells\np2-p512-c2-r1\receipt.json`; runner at `04837d9`, fixes at
+> `b982a1e`. **Regime:** Qwen3-30B-A3B Q4_K_M, dual layer-split, `-np 2 -ub 1024 -c 131072`
+> (64K/slot), incumbent epoch 2026-09-08T11:37:28-07:00, placement both-B70 by BDF (14.96 / 16.03 GB),
+> N=2 clients × 3 requests, 512-token prompts, 200-token output. **Status: scored.**
+>
+> | field | value |
+> |---|---|
+> | completed jobs/hour | **2,334** (6 jobs; busiest-client wall ≈ 9.25 s) |
+> | latency p50 / p95 / p99 | 3.03 / 3.20 / 3.20 s; TTFT p50 39 ms, p95 74 ms |
+> | decode per request, p50 | 66.8 tok/s at N=2 (single-stream baseline 106) |
+> | `ff_cell` incumbent rate, pre → post | **98.6% → 98.9%** of the 106.0 baseline — production unaffected, measured |
+> | guard before → after | `at_rate` 106.32 → `at_rate` 109.50 (fresh) |
+> | warm (gate 1) | flat at 0.98% after **1** iteration; unwarmed rep-1 104.13 (the rung was already warm) |
+> | in-flight (gate 4) | 19 polls: any slot busy 84%, **both slots busy 47%**, busy-slot fraction 0.658; `n_busy_slots_per_decode` Δ 0.035 |
+> | board duty cycle (gate 5) | **0.0% on both cards** above 0.9× their reference p50 (143.9 / 102.6 W); cell-window p50 **73.1 / 73.2 W**, ambient 26.7; symmetry 0.999 |
+> | admission (gate 3), re-scored | headroom 16.1 / 15.0 GB (budget 31.05 GiB − committed 14.96 / 16.03), `over_admitted` **false** — see defect 1 |
+> | depth-0 (gate 6) | **null** — ETW session not live; see defect 2 |
+>
+> **Read against the predictions:** at N=2/512 the cards sit at ~73 W against a 160 / 114 W prefill
+> reference — duty 0.0 — while the two slots are simultaneously busy under half the time. One repeat
+> of one cell scores nothing yet (the card asks ≥5 here); it is consistent with P5's direction and
+> establishes the noise-floor cell runs end to end under all six gates.
+>
+> **Two defects the receipt exposed, fixed before repeat 2 (`b982a1e`):**
+> 1. *Admission gate vacuous by construction.* It used DXGI `CurrentUsage`, which is **per-process**:
+>    through b70tools it reported b70tools' own 4,096 bytes on a card holding 16 GB, so "headroom"
+>    read ~31 GB on any cell and could never fire — the A12 idle counter in a new coat, a green gate
+>    proving nothing. The term is now the adapter-wide `gpu.adapter.vram.local.bytes_committed`
+>    (agrees with the placement evidence to the byte), `available_for_reservation` beside it as a
+>    cross-check, cadence stated (once per capture). r1's admission is re-scored above from its own
+>    stream; the original receipt's 31 GB "headroom" stands as recorded and superseded.
+> 2. *Depth-0 copied a dead ring.* The Aug 30 manifest and the Sep 3 ring both *existed*, so a
+>    file-exists check passed, 19.3 GB were copied (15.7 s) and `tracerpt` ran before the packager
+>    correctly refused a Sep 9 arm against a Sep 4 span. Liveness is now the ring's mtime; a dead ring
+>    records `null` with its age and never gets copied. **The ring is dead (5.2 days); Derek's one
+>    elevated `etw6_session.ps1 -Start` is the step that makes any depth-0 cell scoreable.**
+
 ## Analysis plan
 
 - Per cell: jobs/hour, p50/p95/p99 latency and TTFT (nearest-rank, as the harness computes them),

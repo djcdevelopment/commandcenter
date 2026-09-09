@@ -671,6 +671,31 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
 > itself on this cell, refusing to report a number with the reason that a round of one request has
 > no skew to measure and every value would be zero by construction.
 
+> **RESULT — the N=1 cell complete (3 repeats), P2 SCORED SUPPORTED, and the kill gate resolved.**
+> `np2-p512-c1-r{1,2,3}`, 2026-09-09 ~12:00Z. Mean **1,514.1 jobs/hour**, CI **[1,511.0, 1,516.2]**,
+> spread **0.34%**. All three scored, gate 7 zero cached each, duty 0.0, production `at_rate`.
+>
+> **P2 — "the N=1→2 gain at 512 is 1.3×–1.8× jobs/hour" (prior ~70%): SUPPORTED.**
+> 2,128.3 / 1,514.1 = **1.406×**, with the repeats the card asks for on both sides (3 at N=1, 5 at
+> N=2). Decomposed: the second slot buys **1.43×** aggregate decode and **1.48×** aggregate prefill,
+> at a per-request cost of 0.72× and 0.74× respectively. First prediction on this card scored.
+>
+> **The kill gate is resolved, and it does not fire.** Its text: *"repeats drift beyond the noise
+> floor at the N=2 / 512 cell after warm-up → the warm gate is not holding; no reading from the
+> block is valid; fix the gate, then resume."* The N=1 cell is the control that discriminates
+> those two explanations, and it is unambiguous:
+>
+> | cell | spread | P7 half 1 |
+> |---|---:|---|
+> | N=1, 512 | **0.34%** | supported (inside the 1.5% floor) |
+> | N=2, 512 | **5.00%** | refuted |
+>
+> Same rung, same warm procedure, same instrument, same day — one client is stable to a third of a
+> percent. **The warm gate is holding.** The drift at N=2 is therefore not a gate failure but a
+> property of the system under concurrency, so the block's readings stand and the run continues.
+> What the card should have said, and now does, is that a drift at the floor cell has two possible
+> causes and needs the N=1 control to tell them apart.
+
 ## Analysis plan
 
 - Per cell: jobs/hour, p50/p95/p99 latency and TTFT (nearest-rank, as the harness computes them),

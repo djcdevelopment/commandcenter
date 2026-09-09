@@ -1,0 +1,325 @@
+{
+  "concurrency": {
+    "busy_hours": 4.328,
+    "duty_cycle": 0.003389,
+    "intervals_by_in_flight": [
+      {
+        "count": 782,
+        "value": 1
+      },
+      {
+        "count": 322,
+        "value": 2
+      },
+      {
+        "count": 56,
+        "value": 3
+      },
+      {
+        "count": 5,
+        "value": 4
+      }
+    ],
+    "peak_in_flight": 4,
+    "samples": 838,
+    "span_hours": 1276.808
+  },
+  "contract_version": "workload.v1",
+  "corpus": {
+    "earliest": "2026-07-04T00:20:04.858034Z",
+    "events": 243411,
+    "latest": "2026-09-09T08:03:02.407744Z",
+    "profiles": [
+      {
+        "count": 123874,
+        "value": "irc-adapter"
+      },
+      {
+        "count": 47539,
+        "value": "imagegen-admin"
+      },
+      {
+        "count": 35995,
+        "value": null
+      },
+      {
+        "count": 21110,
+        "value": "probe"
+      },
+      {
+        "count": 12064,
+        "value": "bf6-render"
+      },
+      {
+        "count": 1751,
+        "value": "unrestricted"
+      },
+      {
+        "count": 985,
+        "value": "operator"
+      },
+      {
+        "count": 74,
+        "value": "generation-proxy"
+      },
+      {
+        "count": 13,
+        "value": "research"
+      },
+      {
+        "count": 4,
+        "value": "legacy-unrestricted"
+      }
+    ],
+    "tools": [
+      {
+        "count": 53018,
+        "value": "kernel_status"
+      },
+      {
+        "count": 43957,
+        "value": "get_image_status"
+      },
+      {
+        "count": 30902,
+        "value": "list_execution_providers"
+      },
+      {
+        "count": 30900,
+        "value": "list_operations"
+      },
+      {
+        "count": 30872,
+        "value": "list_owned_executions"
+      },
+      {
+        "count": 15695,
+        "value": "mechnet_watchdog.patrol_snapshot"
+      },
+      {
+        "count": 11976,
+        "value": "get_render_status"
+      },
+      {
+        "count": 5452,
+        "value": "mechnet_watchdog.watchfire"
+      },
+      {
+        "count": 5434,
+        "value": "mechnet_watchdog.patrol_trend"
+      },
+      {
+        "count": 4820,
+        "value": "mechnet_watchdog.hindsight"
+      },
+      {
+        "count": 2917,
+        "value": "submit_image"
+      },
+      {
+        "count": 1934,
+        "value": "bankedfire_drain.tick"
+      },
+      {
+        "count": 1330,
+        "value": "local_generate"
+      },
+      {
+        "count": 1007,
+        "value": "mechnet_watchdog.rung_state"
+      },
+      {
+        "count": 1004,
+        "value": "mechnet_watchdog.dream"
+      }
+    ],
+    "unparseable": 0,
+    "wall_hours_recorded": 22.646
+  },
+  "inference": {
+    "backends": [
+      {
+        "count": 259,
+        "value": "gcp-gemini"
+      },
+      {
+        "count": 226,
+        "value": "am4-oxen"
+      },
+      {
+        "count": 191,
+        "value": "gcp-gemini-pro"
+      },
+      {
+        "count": 84,
+        "value": "am4-moe"
+      },
+      {
+        "count": 65,
+        "value": "omen-arc"
+      },
+      {
+        "count": 8,
+        "value": "omen-ollama"
+      },
+      {
+        "count": 3,
+        "value": "omen-swap"
+      },
+      {
+        "count": 1,
+        "value": null
+      },
+      {
+        "count": 1,
+        "value": "fx99-ollama"
+      }
+    ],
+    "callers": [
+      {
+        "count": 756,
+        "value": "claude-frontier"
+      },
+      {
+        "count": 63,
+        "value": "docker-open-notebook-facade"
+      },
+      {
+        "count": 10,
+        "value": "codex-cli"
+      },
+      {
+        "count": 4,
+        "value": "peer-inference"
+      },
+      {
+        "count": 3,
+        "value": "gcp-adk-test"
+      },
+      {
+        "count": 2,
+        "value": "omen-worker-1"
+      }
+    ],
+    "calls": 838,
+    "depth": {
+      "at_or_above": {
+        "2048": {
+          "calls": 164,
+          "share": 0.195704
+        },
+        "32768": {
+          "calls": 18,
+          "share": 0.02148
+        },
+        "8192": {
+          "calls": 107,
+          "share": 0.127685
+        }
+      },
+      "max": 205022,
+      "median": 192,
+      "min": 6,
+      "p90": 10815,
+      "p95": 17404
+    },
+    "occupancy": [
+      {
+        "count": 517,
+        "value": "available"
+      },
+      {
+        "count": 226,
+        "value": "busy"
+      },
+      {
+        "count": 95,
+        "value": null
+      }
+    ],
+    "share_of_events": 0.003443,
+    "sunk_share": 0.461814,
+    "tokens_in": 3168190,
+    "tokens_out": 397077,
+    "wall_hours": 4.328
+  },
+  "reading": "capability audit, not a demand curve -- see module docstring",
+  "reconciliation": {
+    "call_gap": 469,
+    "ledger_inference_calls": 838,
+    "ledger_tokens_in": 3168190,
+    "note": "tokens reconcile exactly; the projection counts more CALLS than the ledger has token-bearing rows, so some dispatches reach the projection without a recorded cost -- the gap is a finding, not a rounding error",
+    "offload_projection_calls": 1307,
+    "offload_projection_tokens_in": 3168190,
+    "tokens_in_match": true
+  },
+  "routing": {
+    "family": 3,
+    "note": "a caller pin suppresses authored family evidence in _family_route, so depth_override (ADR-0039) cannot fire on a pinned call",
+    "opportunistic_tag": 70,
+    "pinned": 746,
+    "pinned_share": 0.890215,
+    "routed_by": [
+      {
+        "count": 246,
+        "value": "pinned:gcp-gemini"
+      },
+      {
+        "count": 226,
+        "value": "pinned:am4-oxen"
+      },
+      {
+        "count": 191,
+        "value": "pinned:gcp-gemini-pro"
+      },
+      {
+        "count": 66,
+        "value": "tag:research"
+      },
+      {
+        "count": 62,
+        "value": "pinned:omen-arc"
+      },
+      {
+        "count": 13,
+        "value": "pinned:am4-moe"
+      },
+      {
+        "count": 10,
+        "value": "quality-good:tag:cloud-overflow"
+      },
+      {
+        "count": 4,
+        "value": "pinned:omen-ollama"
+      },
+      {
+        "count": 3,
+        "value": "default"
+      },
+      {
+        "count": 3,
+        "value": "pinned:omen-swap"
+      },
+      {
+        "count": 3,
+        "value": "tag:reasoning"
+      },
+      {
+        "count": 2,
+        "value": "family:drafting:tag:default"
+      },
+      {
+        "count": 2,
+        "value": "payload:cloud-overflow:gcp-gemini"
+      },
+      {
+        "count": 1,
+        "value": "escalation:omen-ollama->am4-moe"
+      },
+      {
+        "count": 1,
+        "value": "escalation:omen-ollama->gcp-gemini"
+      }
+    ]
+  }
+}

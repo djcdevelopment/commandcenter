@@ -57,6 +57,16 @@ WHAT IT ADDS (the only new logic)
      tokens the cell's rows report. The surface's size axis (512 / 8K / 32K) IS prefill, so
      a cached prefix is a refused cell -- ``status_reason`` marked and the row KEPT, like
      ``over_admitted`` -- rather than a quietly nulled rate.
+  7. Per-round launch skew (INSTRUMENT, not a gate -- the prereg's 2026-09-09 protocol
+     addition). After the load, the tail of ``hearth\var\arc-serve.log`` is read and the
+     server's own ``new prompt`` lines for THIS cell's rounds are timed against each other.
+     The noise-floor cell's jobs/hour is bimodal because one round per affected cell has its
+     two concurrent requests launched ~222 ms apart instead of ~0.2 ms; recording the skew
+     per round means a point on the surface SAYS whether it hit the event, rather than
+     having it averaged into a variance. There is no eighth gate, no existing gate reads
+     ``launch_skew``, and a delayed round never changes a cell's status. A missing log or an
+     anchor that cannot be established is a LOUD NULL (``{"rounds": null, "reason": ...}``),
+     never an exception and never a silent zero.
 
 TIMEBASE. b70tools' ``t`` on ``ms`` rows is NANOSECONDS on the boot-relative perf_counter
 clock -- never QPC ticks; reading it as 10 MHz ticks is wrong by 100x and once turned a
@@ -91,6 +101,7 @@ import json
 import os
 import re
 import shlex
+import statistics
 import subprocess
 import sys
 import threading
@@ -123,6 +134,10 @@ LIVE_ROOT = Path(os.environ.get("SAT_L1_LIVE_ROOT") or r"C:\work\commandcenter")
 OMEN_YAML = LIVE_ROOT / "fleet" / "arcserve" / "llama-swap" / "omen.yaml"
 BASELINES = Path(ff_ratecheck.BASELINES)
 MAINTENANCE_STOP = LIVE_ROOT / "hearth" / "var" / "arc-maintenance.stop"
+#: llama-server's own log, at ``-lv 5``. READ-ONLY here, and only its tail: see
+#: ``parse_serve_log_launches``. This is production's log in the live checkout, never a
+#: worktree copy, for the same reason omen.yaml is pinned above.
+SERVE_LOG = LIVE_ROOT / "hearth" / "var" / "arc-serve.log"
 QWEN38 = REPO / "campaign" / "qwen38" / "qwen38_campaign.py"
 VERDICT_PY = REPO / "corpus" / "verdict.py"
 ETW10 = REPO / "campaign" / "lz-probes" / "etw10_package.py"
@@ -215,6 +230,11 @@ RECEIPT_FIELDS = (
     "reference", "power", "duty_cycle", "symmetry", "b70_stream",
     # --- gate 6: depth-0 ---------------------------------------------------------------------
     "depth0",
+    # --- instrument, NOT a gate: per-round launch skew from the server's own log -----------
+    # The prereg's 2026-09-09 protocol addition. Nothing in GATES reads it and no status
+    # depends on it; it exists so a bimodal cell says which mode it landed in instead of
+    # having the event smeared into a variance.
+    "launch_skew",
     # --- bookkeeping -------------------------------------------------------------------------
     "bearer", "ff_cell", "gates", "notes",
 )
@@ -683,6 +703,482 @@ def prefill_real(before: dict | None, after: dict | None, rows: list,
         doc["reason"] = ("prefill was served from the prompt cache: %s tokens processed, %s "
                          "cached, against %s expected (%.4f < %.2f)"
                          % (uncached, cached, expected, doc["fraction"], min_fraction))
+    return doc
+
+
+# ------------------------------------------- per-round launch skew (instrument only) --
+# WHY THIS EXISTS. The prereg's 2026-09-09 FINDING: the noise-floor cell's jobs/hour is
+# BIMODAL, not scattered. Every affected cell has exactly one round in which the server
+# launched the two concurrent requests ~222 ms apart instead of ~0.2 ms; that round's
+# prefill drops to the single-stream rate and its decode falls, costing the cell ~5%. It is
+# server-side -- the harness's own rows put both requests' ``started_at`` within 0.0-12.5 ms.
+# The card's protocol addition is that EVERY cell records its per-round launch skew, so a
+# point on the surface says whether it hit the event instead of having it averaged into a
+# variance. This is INSTRUMENTATION: there is no eighth gate, no existing gate reads it, and
+# a delayed round never changes a cell's status.
+#
+# TIMEBASE TRAP. ``hearth\var\arc-serve.log`` (llama-server at ``-lv 5``) stamps every line
+# with MINUTES.SS.mmm.uuu of SERVER UPTIME -- not wall clock, and the minutes field runs past
+# 60 without rolling into hours (the live log reaches 1006.51.450.090). There is no wall
+# stamp on these lines at all, so the uptime clock must be anchored to wall time before a
+# cell's own window can be located in it. See ``anchor_serve_log``.
+
+#: A launch line:
+#:   991.07.423.118 I slot  operator (): id  0 | task 30994 | new prompt, n_ctx_slot = 65536,
+#:                                                            n_keep = 0, task.n_tokens = 440
+#: The function name column is llama.cpp's truncated ``launch_slot_with_task`` and renders as
+#: ``operator ()``; it is matched loosely on purpose. ``[^\n]`` keeps a match inside ONE
+#: physical line -- the log does concatenate records without a newline (a ``D No parser
+#: definition detected...`` line runs straight into the next timestamp), and finditer must not
+#: be allowed to straddle that seam.
+_SERVE_TS = r"(?P<minutes>\d+)\.(?P<seconds>\d{2})\.(?P<millis>\d{3})\.(?P<micros>\d{3})"
+_SERVE_LAUNCH = re.compile(
+    _SERVE_TS + r"\s+\w\s+slot\s+[^\n|]*?id\s+(?P<slot>\d+)\s*\|\s*task\s+(?P<task>\d+)\s*\|"
+                r"\s*new prompt\b[^\n]*?task\.n_tokens\s*=\s*(?P<n>\d+)")
+#: A release line:
+#:   991.11.042.317 I slot      release: id  0 | task 30994 | stop processing: n_tokens = 106
+_SERVE_RELEASE = re.compile(
+    _SERVE_TS + r"\s+\w\s+slot\s+release:\s*id\s+(?P<slot>\d+)\s*\|\s*task\s+(?P<task>\d+)\s*\|"
+                r"\s*stop processing[^\n]*?n_tokens\s*=\s*(?P<n>\d+)")
+
+#: Read this much of the log's tail by default. At ``-lv 5`` under load the server writes
+#: ~1 MB/min, so 16 MiB is ~15 min of BUSY logging -- comfortably more than one cell's load
+#: window -- while never loading the whole 70 MB file.
+SERVE_LOG_TAIL_BYTES = 16 * 1024 * 1024
+SERVE_LOG_TAIL_MAX_BYTES = 96 * 1024 * 1024
+
+#: A round is "delayed" above this skew. Chosen to sit far above the clean 0.2 ms case and
+#: far below the 222 ms event, so neither jitter nor the event can land near the edge.
+LAUNCH_SKEW_THRESHOLD_MS = 50.0
+
+#: The anchor's own tolerances. ``OFFSET_TOLERANCE_S`` is the one that matters: repeats of
+#: this cell run ~5 min apart and each is preceded by a DISCARDED warm load of the same shape
+#: and duration, so duration matching ALONE is degenerate -- it happily anchors a cell onto
+#: its own discarded warm load 16 s earlier (measured, 2026-09-09, on np2-p512-c2-r9). The
+#: coarse mtime offset is what separates them, and it is worth ~20 ms in practice.
+ANCHOR_OFFSET_TOLERANCE_S = 5.0
+ANCHOR_ACCEPT_RESIDUAL_S = 1.0
+ANCHOR_DISTINCT_OFFSET_S = 0.5
+ANCHOR_SEPARATION_S = 0.2
+
+#: The launch window is padded BEFORE the load's first ``started_at`` so the lone warm
+#: request that precedes the measured pair is visible rather than silently cropped -- it is
+#: the evidence that refuted "the instrument was contending with itself". It is not a round,
+#: and ``round_launch_skews`` is required to keep it out of one.
+LAUNCH_WINDOW_PAD_BEFORE_S = 1.0
+LAUNCH_WINDOW_PAD_AFTER_S = 0.5
+
+
+def _serve_uptime_s(match) -> float:
+    """MINUTES.SS.mmm.uuu of server uptime -> seconds. Minutes are NOT capped at 60."""
+    return (int(match.group("minutes")) * 60 + int(match.group("seconds"))
+            + int(match.group("millis")) / 1e3 + int(match.group("micros")) / 1e6)
+
+
+def parse_serve_log_launches(text_or_lines, *, n_tokens=None) -> list:
+    """``new prompt`` / ``release ... stop processing`` events out of an arc-serve.log tail.
+
+    Returns ``{"uptime_s", "slot", "task", "n_tokens", "event"}`` per event, sorted by
+    ``uptime_s``. Anything the two patterns do not understand is skipped in silence -- the
+    log is 99% lines this instrument has no opinion about.
+
+    ``n_tokens`` FILTERS ASYMMETRICALLY, and deliberately. On a launch line the number is
+    ``task.n_tokens``, the PROMPT the slot is about to process; on a release line the same
+    key names the tokens GENERATED (106 for a 440-token prompt). Filtering releases by their
+    own number would therefore drop exactly the releases belonging to the launches that were
+    kept. So: launches are filtered on their own ``task.n_tokens``, and a release is kept
+    when its TASK id belongs to a kept launch. Each event still reports the number its own
+    line carried, which is why a release's ``n_tokens`` is not the launch's.
+    """
+    if isinstance(text_or_lines, (bytes, bytearray)):
+        text = bytes(text_or_lines).decode("utf-8", "replace")
+    elif isinstance(text_or_lines, str):
+        text = text_or_lines
+    else:
+        text = "\n".join(str(line) for line in text_or_lines)
+
+    events, kept_tasks = [], set()
+    for match in _SERVE_LAUNCH.finditer(text):
+        count = int(match.group("n"))
+        if n_tokens is not None and count != n_tokens:
+            continue
+        task = int(match.group("task"))
+        kept_tasks.add(task)
+        events.append({"uptime_s": _serve_uptime_s(match), "slot": int(match.group("slot")),
+                       "task": task, "n_tokens": count, "event": "launch"})
+    for match in _SERVE_RELEASE.finditer(text):
+        task = int(match.group("task"))
+        if n_tokens is not None and task not in kept_tasks:
+            continue
+        events.append({"uptime_s": _serve_uptime_s(match), "slot": int(match.group("slot")),
+                       "task": task, "n_tokens": int(match.group("n")), "event": "release"})
+    events.sort(key=lambda event: (event["uptime_s"], event["event"], event["task"]))
+    return events
+
+
+def read_serve_log_tail(path, max_bytes: int = SERVE_LOG_TAIL_BYTES) -> dict:
+    """Seek to ``max_bytes`` from the end and decode only that. Never loads the whole file.
+
+    ``{"text", "path", "bytes_read", "file_bytes", "mtime_epoch", "truncated", "reason"}``.
+    A missing or unreadable log is a LOUD NULL: ``text`` is ``None`` and ``reason`` says why.
+    """
+    doc = {"text": None, "path": str(path), "bytes_read": 0, "file_bytes": None,
+           "mtime_epoch": None, "truncated": None, "reason": None}
+    try:
+        target = Path(path)
+        stat = target.stat()
+        doc["file_bytes"] = stat.st_size
+        doc["mtime_epoch"] = stat.st_mtime
+        want = max(0, min(int(max_bytes), stat.st_size))
+        with io.open(target, "rb") as handle:
+            handle.seek(stat.st_size - want)
+            raw = handle.read(want)
+    except OSError as exc:
+        doc["reason"] = "serve log unreadable: %s" % exc
+        return doc
+    doc["bytes_read"] = len(raw)
+    doc["truncated"] = len(raw) < (doc["file_bytes"] or 0)
+    doc["text"] = raw.decode("utf-8", "replace")
+    if not doc["text"].strip():
+        doc["reason"] = "serve log tail is empty"
+        doc["text"] = None
+    return doc
+
+
+def round_launch_skews(launches, *, expected_concurrency: int,
+                       threshold_ms: float = LAUNCH_SKEW_THRESHOLD_MS) -> dict:
+    """Group launch events into rounds and report the launch skew of each.
+
+    ``launches`` may be the mixed launch/release list ``parse_serve_log_launches`` returns;
+    the release events are used, not ignored.
+
+    THE GROUPING RULE, stated so it can be argued with. Walking the launches in uptime
+    order, a NEW round starts when any of these holds:
+
+      (a) the current round already holds ``expected_concurrency`` launches; or
+      (b) the gap to the previous launch exceeds ``split_gap_s`` = half the MEDIAN ROUND
+          DURATION (median of ``release - launch`` over tasks that have both events); or
+      (c) some launch already in the current round had RELEASED before this one launched --
+          they never ran concurrently, so they were not a round.
+
+    (c) is the rule that earns its keep. A cell is preceded by a single warm request that is
+    not part of any round, and on the measured cells it launches only ~0.6 s ahead of the
+    first real round -- far inside any gap threshold derived from a 3.3 s round, so (b)
+    alone would fold it into round 1 and shift every round by one launch. It released ~25 ms
+    before that round launched, so (c) separates it correctly and by physics rather than by
+    a tuned constant.
+
+    With no releases to measure, ``split_gap_s`` is ``None``, only (a) applies, and
+    ``reason`` says so -- a degraded reading that announces itself.
+
+    A group of fewer than 2 launches has no skew and is NOT a round: it is counted in
+    ``partial_groups``. A group split by (c) also increments ``serialized_splits``, so a
+    regime in which the server stopped batching entirely shows up as splits rather than as a
+    quietly clean ``max_skew_ms``.
+    """
+    events = list(launches or ())
+    starts = sorted((e for e in events if e.get("event") == "launch"),
+                    key=lambda e: e["uptime_s"])
+    released: dict = {}
+    for event in events:
+        if event.get("event") == "release":
+            task = event.get("task")
+            if task not in released or event["uptime_s"] < released[task]:
+                released[task] = event["uptime_s"]
+
+    doc = {"rounds": [], "max_skew_ms": None, "median_skew_ms": None, "delayed_rounds": 0,
+           "threshold_ms": float(threshold_ms), "reason": None,
+           "expected_concurrency": int(expected_concurrency), "launches": len(starts),
+           "split_gap_s": None, "partial_groups": 0, "serialized_splits": 0,
+           "rule": "new round on (a) round full, (b) gap > half the median round duration, "
+                   "(c) a member of the current round released before this launch"}
+    reasons = []
+    if not starts:
+        doc["reason"] = "no launches to group"
+        return doc
+    if expected_concurrency < 1:
+        doc["reason"] = "expected_concurrency %r is not a concurrency" % (expected_concurrency,)
+        return doc
+
+    durations = [released[s["task"]] - s["uptime_s"] for s in starts
+                 if s["task"] in released and released[s["task"]] > s["uptime_s"]]
+    if durations:
+        doc["split_gap_s"] = 0.5 * statistics.median(durations)
+    else:
+        reasons.append("no release events for these launches -- rounds are grouped by "
+                       "concurrency alone, so a round boundary can only be inferred from "
+                       "count")
+
+    split_gap = doc["split_gap_s"]
+    groups: list = []
+    current: list = []
+    for start in starts:
+        if current:
+            if len(current) >= expected_concurrency:
+                groups.append(current)
+                current = []
+            elif split_gap is not None and (start["uptime_s"] - current[-1]["uptime_s"]) > split_gap:
+                groups.append(current)
+                current = []
+            elif any(released.get(member["task"], float("inf")) <= start["uptime_s"]
+                     for member in current):
+                doc["serialized_splits"] += 1
+                groups.append(current)
+                current = []
+        current.append(start)
+    if current:
+        groups.append(current)
+
+    skews = []
+    for group in groups:
+        if len(group) < 2:
+            doc["partial_groups"] += 1
+            continue
+        skew_ms = (group[-1]["uptime_s"] - group[0]["uptime_s"]) * 1000.0
+        skews.append(skew_ms)
+        doc["rounds"].append({"index": len(doc["rounds"]), "skew_ms": round(skew_ms, 4),
+                              "slots": [member["slot"] for member in group],
+                              "tasks": [member["task"] for member in group],
+                              "t0_uptime_s": round(group[0]["uptime_s"], 6),
+                              "size": len(group),
+                              "complete": len(group) == expected_concurrency})
+    if skews:
+        doc["max_skew_ms"] = round(max(skews), 4)
+        doc["median_skew_ms"] = round(statistics.median(skews), 4)
+        doc["delayed_rounds"] = sum(1 for value in skews if value > threshold_ms)
+    else:
+        reasons.append("no group held 2 or more launches -- there is no round to time")
+    if expected_concurrency == 1:
+        reasons.append("expected_concurrency is 1: a round of one request has no launch "
+                       "skew to measure, and every skew here is 0 by construction")
+    if doc["partial_groups"]:
+        reasons.append("%d group(s) held fewer than 2 launches (the lone warm request that "
+                       "precedes a cell is the expected one)" % doc["partial_groups"])
+    doc["reason"] = "; ".join(reasons) or None
+    return doc
+
+
+def anchor_serve_log(events, rows, *, log_end_epoch, log_end_uptime_s=None,
+                     prompt_tokens=None,
+                     offset_tolerance_s: float = ANCHOR_OFFSET_TOLERANCE_S,
+                     accept_residual_s: float = ANCHOR_ACCEPT_RESIDUAL_S) -> dict:
+    """Solve ``offset = wall_epoch - server_uptime_s`` for ONE cell, or refuse to.
+
+    THE METHOD, in the order the terms are trusted:
+
+      1. COARSE, from the file itself. The newest slot event in the tail is, to within a
+         write flush, the last thing written to the log, so
+         ``offset0 = log mtime - max(uptime_s)``. Measured 2026-09-09 against four recorded
+         cells this is good to ~20 ms -- the client-to-server latency of the first request.
+      2. CANDIDATES. Launches whose IMPLIED offset (``first started_at - launch uptime``)
+         sits within ``offset_tolerance_s`` of ``offset0``. This step is load-bearing: each
+         cell is preceded by a DISCARDED warm load of identical shape ~16 s earlier, and
+         without the coarse constraint the fit below anchors onto it just as happily
+         (r9 anchored 16.6 s early, residual 0.0243 s vs the true 0.0218 s -- no separation).
+      3. FIT. For each candidate, offset it and ask, for EVERY request in the cell, how far
+         its predicted uptime lands from the nearest launch. The score is the WORST of those
+         residuals, so a candidate has to explain the whole cell, not its first request.
+      4. CONFIRM against the duration the brief names: ``release - launch`` for the winning
+         task against that request's own ``latency_s``, reported as ``duration_residual_s``.
+      5. REFUSE. If the best score exceeds ``accept_residual_s``, or another candidate at a
+         materially different offset scores within ``ANCHOR_SEPARATION_S`` of it, the anchor
+         is AMBIGUOUS and ``offset`` is ``None`` with a reason. It is never guessed.
+    """
+    doc = {"offset": None, "method": None, "coarse_offset": None, "log_end_uptime_s": None,
+           "log_end_epoch": log_end_epoch, "candidates": 0, "residual_s": None,
+           "runner_up_residual_s": None, "duration_residual_s": None,
+           "anchor_task": None, "anchor_uptime_s": None, "requests": 0, "reason": None,
+           # True only when the failure is "this window of the log does not reach the cell",
+           # which a bigger tail can fix. An ambiguous or badly-fitting anchor sets it False:
+           # reading more log would not make either of those any more true.
+           "coverage_limited": False}
+    doc["method"] = ("offset = log mtime - newest slot-event uptime (coarse, ~20 ms), then "
+                     "the launch within %.1f s of that offset whose whole-cell worst "
+                     "residual is smallest; refused if > %.1f s or ambiguous"
+                     % (offset_tolerance_s, accept_residual_s))
+    launches = [e for e in (events or ()) if e.get("event") == "launch"]
+    if not events and log_end_uptime_s is None:
+        doc["reason"] = "no slot events parsed from the serve log tail"
+        return doc
+    # The log's END is the whole file's newest slot event -- NOT the newest of the events
+    # that survived an ``n_tokens`` filter, which can sit minutes short of it and would
+    # silently bias the coarse offset by exactly that much.
+    doc["log_end_uptime_s"] = (float(log_end_uptime_s) if log_end_uptime_s is not None
+                               else max(e["uptime_s"] for e in events))
+    if log_end_epoch is None:
+        doc["reason"] = "no wall stamp for the log's end -- the uptime clock cannot be anchored"
+        return doc
+    doc["coarse_offset"] = log_end_epoch - doc["log_end_uptime_s"]
+
+    starts, latencies = [], []
+    for row in rows or ():
+        epoch = _iso_epoch(row.get("started_at"))
+        if epoch is None:
+            continue
+        starts.append(epoch)
+        latencies.append(row.get("latency_s"))
+    order = sorted(range(len(starts)), key=lambda i: starts[i])
+    starts = [starts[i] for i in order]
+    latencies = [latencies[i] for i in order]
+    doc["requests"] = len(starts)
+    if not starts:
+        doc["reason"] = "the cell's rows carry no parsable started_at"
+        return doc
+    matching = [l for l in launches
+                if prompt_tokens is None or l.get("n_tokens") == prompt_tokens]
+    if not matching:
+        doc["coverage_limited"] = True
+        doc["reason"] = ("no launch in the tail carries task.n_tokens = %s -- the cell's own "
+                         "prompt size is not in this window of the log" % (prompt_tokens,))
+        return doc
+
+    predicted_first = starts[0] - doc["coarse_offset"]
+    candidates = [l for l in matching
+                  if abs(l["uptime_s"] - predicted_first) <= offset_tolerance_s]
+    doc["candidates"] = len(candidates)
+    if not candidates:
+        doc["coverage_limited"] = True
+        doc["reason"] = ("no %s-token launch within %.1f s of the coarse anchor (predicted "
+                         "uptime %.3f s); the tail may not cover this cell"
+                         % (prompt_tokens, offset_tolerance_s, predicted_first))
+        return doc
+
+    scored = []
+    for candidate in candidates:
+        offset = starts[0] - candidate["uptime_s"]
+        worst = max(min(abs(l["uptime_s"] - (start - offset)) for l in matching)
+                    for start in starts)
+        scored.append((worst, offset, candidate))
+    scored.sort(key=lambda item: item[0])
+    best_score, best_offset, best = scored[0]
+    doc["residual_s"] = round(best_score, 6)
+    runner_up = next((item for item in scored[1:]
+                      if abs(item[1] - best_offset) > ANCHOR_DISTINCT_OFFSET_S), None)
+    if runner_up is not None:
+        doc["runner_up_residual_s"] = round(runner_up[0], 6)
+    if best_score > accept_residual_s:
+        # Retryable: the commonest way to fit the FIRST request and miss the LAST is a tail
+        # that starts partway through the cell. A bigger read can fix that, so say so.
+        doc["coverage_limited"] = True
+        doc["reason"] = ("best whole-cell residual %.4f s exceeds %.2f s -- nothing in this "
+                         "log window explains the cell" % (best_score, accept_residual_s))
+        return doc
+    if runner_up is not None and (runner_up[0] - best_score) < ANCHOR_SEPARATION_S:
+        doc["reason"] = ("ambiguous anchor: a candidate %.3f s away scores %.4f s against "
+                         "the best %.4f s (separation < %.2f s)"
+                         % (abs(runner_up[1] - best_offset), runner_up[0], best_score,
+                            ANCHOR_SEPARATION_S))
+        return doc
+
+    released = {}
+    for event in events:
+        if event.get("event") == "release":
+            task = event.get("task")
+            if task not in released or event["uptime_s"] < released[task]:
+                released[task] = event["uptime_s"]
+    if best["task"] in released and isinstance(latencies[0], (int, float)):
+        duration = released[best["task"]] - best["uptime_s"]
+        doc["duration_residual_s"] = round(abs(duration - float(latencies[0])), 6)
+    doc["offset"] = best_offset
+    doc["anchor_task"] = best["task"]
+    doc["anchor_uptime_s"] = round(best["uptime_s"], 6)
+    return doc
+
+
+def launch_skew_for_cell(rows, *, expected_concurrency: int, log_path=SERVE_LOG,
+                         max_bytes: int = SERVE_LOG_TAIL_BYTES,
+                         threshold_ms: float = LAUNCH_SKEW_THRESHOLD_MS) -> dict:
+    """The receipt's ``launch_skew`` field: skews for THIS cell's rounds, or a loud null.
+
+    ``{"rounds": None, "reason": "..."}`` whenever the log is missing, the cell's prompt size
+    is absent from the tail, or the anchor cannot be established -- never an exception, never
+    a silent zero. A recorded delayed round is an OBSERVATION, not a failure: no gate reads
+    this field.
+    """
+    doc = {"rounds": None, "reason": None, "log_path": str(log_path),
+           "log_bytes_read": None, "log_file_bytes": None, "tail_attempts": [], "anchor": None,
+           "prompt_tokens": None, "expected_concurrency": int(expected_concurrency),
+           "window_uptime_s": None, "launches_in_window": None,
+           "threshold_ms": float(threshold_ms),
+           "note": "instrument only -- a delayed round is a recorded observation, not a "
+                   "failure, and no gate reads this field"}
+
+    prompt_tokens = None
+    for row in rows or ():
+        value = row.get("prompt_tokens")
+        if isinstance(value, (int, float)) and value > 0:
+            prompt_tokens = int(value)
+            break
+    doc["prompt_tokens"] = prompt_tokens
+    if prompt_tokens is None:
+        doc["reason"] = ("the cell's rows report no prompt_tokens -- the launch lines cannot "
+                         "be narrowed to this cell's own requests")
+        return doc
+
+    window_t0, window_t1 = load_window_bounds(rows)
+    if window_t0 is None or window_t1 is None:
+        doc["reason"] = "no load window over the cell's rows -- half a window is not a window"
+        return doc
+
+    # Read the tail, and GROW IT -- bounded, at most twice -- only when the anchor's own
+    # failure says the window did not reach back to this cell. An ambiguous or badly-fitting
+    # anchor is never retried: more log cannot make a degenerate fit less degenerate.
+    size = int(max_bytes)
+    events: list = []
+    anchor: dict = {}
+    while True:
+        tail = read_serve_log_tail(log_path, size)
+        doc["log_bytes_read"] = tail["bytes_read"]
+        doc["log_file_bytes"] = tail["file_bytes"]
+        doc["tail_attempts"] = (doc.get("tail_attempts") or []) + [tail["bytes_read"]]
+        if tail["text"] is None:
+            doc["reason"] = tail["reason"] or "serve log unreadable"
+            return doc
+        end_uptime = max((e["uptime_s"] for e in parse_serve_log_launches(tail["text"])),
+                         default=None)
+        if end_uptime is None:
+            doc["reason"] = "no slot events in the serve log tail"
+            return doc
+        events = parse_serve_log_launches(tail["text"], n_tokens=prompt_tokens)
+        anchor = anchor_serve_log(events, rows, log_end_epoch=tail["mtime_epoch"],
+                                  log_end_uptime_s=end_uptime, prompt_tokens=prompt_tokens)
+        if anchor.get("offset") is not None or not anchor.get("coverage_limited"):
+            break
+        if not tail["truncated"] or size >= SERVE_LOG_TAIL_MAX_BYTES:
+            break
+        size = min(size * 4, SERVE_LOG_TAIL_MAX_BYTES)
+    doc["anchor"] = anchor
+    if anchor.get("offset") is None:
+        doc["reason"] = "anchor failed: %s" % (anchor.get("reason") or "unstated")
+        return doc
+
+    offset = anchor["offset"]
+    lo = window_t0 - offset - LAUNCH_WINDOW_PAD_BEFORE_S
+    hi = window_t1 - offset + LAUNCH_WINDOW_PAD_AFTER_S
+    doc["window_uptime_s"] = [round(lo, 6), round(hi, 6)]
+    in_window = [e for e in events
+                 if e["event"] == "launch" and lo <= e["uptime_s"] <= hi]
+    doc["launches_in_window"] = len(in_window)
+    if not in_window:
+        doc["reason"] = ("the anchor held but no %s-token launch falls inside the cell's own "
+                         "load window" % prompt_tokens)
+        return doc
+    # Pair each in-window launch with its OWN first following release, rather than keeping
+    # every event that shares a task id. Live task ids are unique and monotonic so the two
+    # are the same set -- but an id that ever repeated would otherwise drag a different
+    # cell's rounds into this one's, which is the class of error this instrument exists to
+    # avoid making.
+    releases = [e for e in events if e["event"] == "release"]
+    scoped = list(in_window)
+    for launch in in_window:
+        following = [e for e in releases
+                     if e["task"] == launch["task"] and e["uptime_s"] >= launch["uptime_s"]]
+        if following:
+            scoped.append(min(following, key=lambda e: e["uptime_s"]))
+    skews = round_launch_skews(scoped, expected_concurrency=expected_concurrency,
+                               threshold_ms=threshold_ms)
+    doc.update(skews)
+    doc["log_path"] = str(log_path)
     return doc
 
 
@@ -1173,21 +1669,28 @@ def plan_cell(cell: str, python: str, args) -> dict:
                      "provenance fields"},
             {"step": 8, "what": "scrape /metrics (after) and stop the /slots poller",
              "how": "busy-slots/decode delta = after - before"},
-            {"step": 9, "what": "wait for the b70tools stream to exit, then reduce",
+            {"step": 9, "what": "per-round launch skew (INSTRUMENT -- there is no gate 8)",
+             "how": "read the last %d MiB of %s and time this cell's rounds against each "
+                    "other; a round whose two launches are > %.0f ms apart is RECORDED, "
+                    "never failed. Anchor: log mtime - newest slot-event uptime, then the "
+                    "best whole-cell fit; unanchorable -> launch_skew is a loud null"
+                    % (SERVE_LOG_TAIL_BYTES // (1024 * 1024), SERVE_LOG,
+                       LAUNCH_SKEW_THRESHOLD_MS)},
+            {"step": 10, "what": "wait for the b70tools stream to exit, then reduce",
              "how": "sat_reference_capture.reduce_stream(events, 'gpu', window_ns) + "
                     "card_intervals(events) for the time-weighted duty cycle"},
-            {"step": 10, "what": "symmetry gate",
+            {"step": 11, "what": "symmetry gate",
              "argv": [python, str(VERDICT_PY), str(cell_dir / "b70" / "events.jsonl"), "--json"],
              "note": "ratio < %.1f -> the row is partially_scored" % SYMMETRY_PARTIAL_BELOW},
-            {"step": 11, "what": "duty cycle against the FROZEN reference",
+            {"step": 12, "what": "duty cycle against the FROZEN reference",
              "how": "per card, fraction of cell wall time dJ/dt > %.2f x its own reference "
                     "burst p50, read from %s" % (DUTY_THRESHOLD_FRAC, REFERENCE_RECEIPT)},
-            {"step": 12, "what": "depth-0 (ETW4)",
+            {"step": 13, "what": "depth-0 (ETW4)",
              "how": _depth0_plan(cell, parts, python, cell_dir)},
-            {"step": 13, "what": "guard.wait_for_fresh after the cell ENDED",
+            {"step": 14, "what": "guard.wait_for_fresh after the cell ENDED",
              "how": "a rung sample whose reading predates the cell is `unknown`, never a "
                     "pass; a sample taken during the cell is kept as rung_during"},
-            {"step": 14, "what": "write ONE receipt and append ONE ledger row",
+            {"step": 15, "what": "write ONE receipt and append ONE ledger row",
              "how": "%s + %s (probe=%s)" % (cell_dir / "receipt.json", LEDGER, PROBE)},
         ],
         "ledger": str(LEDGER),
@@ -1441,6 +1944,29 @@ def run_cell(cell: str, python: str, args) -> dict:
     row["slot_busy_fraction_load_window"] = row["slots_poll_load_window"].get("busy_slot_fraction")
     row["both_slots_busy_fraction_load_window"] = row["slots_poll_load_window"].get(
         "all_busy_fraction")
+
+    # --- instrument (no gate): per-round launch skew from llama-server's own log -----
+    # Read AFTER the load completes, so the tail already holds the cell's own launch lines.
+    # The cell's ACTUAL prompt size is taken from the rows (440), never the requested figure
+    # (512) -- filtering on 512 would match nothing at all. Any failure here is a loud null
+    # in the field and a note; it never raises and never touches a gate.
+    try:
+        row["launch_skew"] = launch_skew_for_cell(harness_rows, expected_concurrency=n,
+                                                  log_path=SERVE_LOG)
+    except Exception as exc:  # noqa: BLE001 - instrumentation must never fail a cell
+        row["launch_skew"] = {"rounds": None,
+                              "reason": "launch skew instrument raised: %s" % exc,
+                              "log_path": str(SERVE_LOG)}
+    if (row["launch_skew"] or {}).get("rounds") is None:
+        row["notes"].append("launch skew not recorded: %s"
+                            % (row["launch_skew"] or {}).get("reason"))
+    else:
+        row["notes"].append(
+            "launch skew: %d round(s), max %s ms, %d above %s ms -- a delayed round is a "
+            "RECORDED OBSERVATION, not a failure; no gate reads this field"
+            % (len(row["launch_skew"]["rounds"]), row["launch_skew"].get("max_skew_ms"),
+               row["launch_skew"].get("delayed_rounds") or 0,
+               row["launch_skew"].get("threshold_ms")))
 
     # --- gate 7: was the prefill real, or did the prompt cache serve it? -------------
     row["prefill_real"] = prefill_real(

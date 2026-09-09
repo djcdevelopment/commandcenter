@@ -17,6 +17,7 @@ Run: fleet-worker-node\.venv-omen\Scripts\python.exe -m pytest campaign/ff-probe
 """
 from __future__ import annotations
 
+import datetime as dt
 import json
 import sys
 import os
@@ -1096,6 +1097,420 @@ class TestFfCellJsonOut(unittest.TestCase):
         self.assertIn("--json-out", argv)
         self.assertIn("--no-ledger", argv)
         self.assertTrue(hasattr(ff_cell, "incumbent_epoch"))
+
+
+# ------------------------------------------------- per-round launch skew (instrument) --
+#: Realistic ``-lv 5`` lines. The timestamp is MINUTES.SS.mmm.uuu of SERVER UPTIME, the
+#: minutes field runs past 60, the function column renders as ``operator ()``, and a release
+#: line's ``n_tokens`` is the tokens GENERATED (106), not the 440-token prompt.
+SERVE_LOG_FIXTURE = """\
+991.07.423.118 I slot  operator (): id  0 | task 30994 | new prompt, n_ctx_slot = 65536, n_keep = 0, task.n_tokens = 440
+991.07.423.281 I slot  operator (): id  1 | task 30996 | new prompt, n_ctx_slot = 65536, n_keep = 0, task.n_tokens = 440
+991.07.500.000 D srv  update_slots: decoding batch, n_tokens = 2
+this line is not a log line at all
+991.10.745.402 I slot      release: id  0 | task 30994 | stop processing: n_tokens = 106, truncated = 0
+991.10.745.517 I slot      release: id  1 | task 30996 | stop processing: n_tokens = 106, truncated = 0
+991.10.760.001 I slot  operator (): id  0 | task 31100 | new prompt, n_ctx_slot = 65536, n_keep = 0, task.n_tokens = 7
+991.11.020.113 I slot      release: id  0 | task 31100 | stop processing: n_tokens = 32, truncated = 0
+"""
+
+
+def launch_line(uptime_s: float, slot: int, task: int, n_tokens: int = 440) -> str:
+    minutes = int(uptime_s // 60)
+    rest = uptime_s - minutes * 60
+    seconds = int(rest)
+    micros = int(round((rest - seconds) * 1e6))
+    return ("%d.%02d.%03d.%03d I slot  operator (): id  %d | task %d | new prompt, "
+            "n_ctx_slot = 65536, n_keep = 0, task.n_tokens = %d"
+            % (minutes, seconds, micros // 1000, micros % 1000, slot, task, n_tokens))
+
+
+def release_line(uptime_s: float, slot: int, task: int, generated: int = 106) -> str:
+    minutes = int(uptime_s // 60)
+    rest = uptime_s - minutes * 60
+    seconds = int(rest)
+    micros = int(round((rest - seconds) * 1e6))
+    return ("%d.%02d.%03d.%03d I slot      release: id  %d | task %d | stop processing: "
+            "n_tokens = %d, truncated = 0"
+            % (minutes, seconds, micros // 1000, micros % 1000, slot, task, generated))
+
+
+def synth_cell(skews_ms, *, t0=59460.0, period=3.32, duration=3.30, warm=False,
+               trailing_partial=False, n_tokens=440, task_base=30000):
+    """A whole cell's launch/release lines: one round per entry in ``skews_ms``.
+
+    ``task_base`` exists because llama-server's task ids are unique and monotonic across the
+    whole process lifetime; two synthetic cells sharing ids would be a fixture that the real
+    log can never produce.
+    """
+    lines, task = [], task_base
+    if warm:
+        # A lone warm request that RELEASES ~25 ms before round 1 launches. It is only ~0.6 s
+        # ahead, far inside any gap threshold a 3.3 s round can produce -- the case the
+        # non-overlap rule exists for.
+        lines.append(launch_line(t0 - 0.60, 1, task, n_tokens))
+        lines.append(release_line(t0 - 0.025, 1, task))
+        task += 1
+    for index, skew_ms in enumerate(skews_ms):
+        start = t0 + index * period
+        lines.append(launch_line(start, 0, task, n_tokens))
+        lines.append(launch_line(start + skew_ms / 1000.0, 1, task + 1, n_tokens))
+        lines.append(release_line(start + duration, 0, task))
+        lines.append(release_line(start + duration + skew_ms / 1000.0, 1, task + 1))
+        task += 2
+    if trailing_partial:
+        start = t0 + len(skews_ms) * period
+        lines.append(launch_line(start, 0, task, n_tokens))
+    return "\n".join(lines) + "\n"
+
+
+class TestServeLogParser(unittest.TestCase):
+    def test_uptime_is_minutes_seconds_millis_micros(self):
+        events = runner.parse_serve_log_launches(SERVE_LOG_FIXTURE)
+        first = [e for e in events if e["task"] == 30994 and e["event"] == "launch"][0]
+        # 991 MINUTES, not hours and not wall clock: 991*60 + 7.423118
+        self.assertAlmostEqual(first["uptime_s"], 991 * 60 + 7.423118, places=6)
+
+    def test_both_event_kinds_are_returned_and_junk_is_skipped(self):
+        events = runner.parse_serve_log_launches(SERVE_LOG_FIXTURE)
+        kinds = sorted((e["event"], e["task"]) for e in events)
+        self.assertEqual(kinds, [("launch", 30994), ("launch", 30996), ("launch", 31100),
+                                 ("release", 30994), ("release", 30996), ("release", 31100)])
+        # the decoding-batch line and the prose line contribute nothing and raise nothing
+        self.assertEqual(len(events), 6)
+
+    def test_slots_and_tokens_come_off_the_line(self):
+        events = runner.parse_serve_log_launches(SERVE_LOG_FIXTURE)
+        launch = [e for e in events if e["task"] == 30996 and e["event"] == "launch"][0]
+        self.assertEqual(launch["slot"], 1)
+        self.assertEqual(launch["n_tokens"], 440)
+
+    def test_the_filter_keeps_the_releases_of_the_launches_it_kept(self):
+        # A release line reports GENERATED tokens (106), so filtering releases on their own
+        # number would drop exactly the releases belonging to the 440-token launches.
+        events = runner.parse_serve_log_launches(SERVE_LOG_FIXTURE, n_tokens=440)
+        self.assertEqual(sorted({e["task"] for e in events}), [30994, 30996])
+        releases = [e for e in events if e["event"] == "release"]
+        self.assertEqual(len(releases), 2)
+        self.assertEqual({e["n_tokens"] for e in releases}, {106})
+
+    def test_the_filter_drops_other_prompt_sizes(self):
+        events = runner.parse_serve_log_launches(SERVE_LOG_FIXTURE, n_tokens=7)
+        self.assertEqual(sorted({e["task"] for e in events}), [31100])
+
+    def test_lines_may_be_passed_as_a_sequence(self):
+        events = runner.parse_serve_log_launches(SERVE_LOG_FIXTURE.splitlines(), n_tokens=440)
+        self.assertEqual(len(events), 4)
+
+    def test_a_concatenated_record_is_still_found(self):
+        # The live log runs records together with no newline; a match must not straddle the
+        # seam, and the record after it must still be found.
+        glued = ("991.07.400.000 D No parser definition detected, assuming pure content "
+                 "parser." + launch_line(59227.5, 0, 42, 440))
+        events = runner.parse_serve_log_launches(glued, n_tokens=440)
+        self.assertEqual([e["task"] for e in events], [42])
+
+    def test_empty_input_is_an_empty_list(self):
+        self.assertEqual(runner.parse_serve_log_launches(""), [])
+
+
+class TestReadServeLogTail(unittest.TestCase):
+    def test_only_the_tail_is_read(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "arc-serve.log"
+            path.write_bytes(b"x" * 4096 + b"TAIL\n")
+            doc = runner.read_serve_log_tail(path, max_bytes=16)
+            self.assertEqual(doc["bytes_read"], 16)
+            self.assertEqual(doc["file_bytes"], 4101)
+            self.assertTrue(doc["truncated"])
+            self.assertTrue(doc["text"].endswith("TAIL\n"))
+
+    def test_a_missing_file_is_a_loud_null(self):
+        doc = runner.read_serve_log_tail(Path("no-such-directory") / "arc-serve.log")
+        self.assertIsNone(doc["text"])
+        self.assertIn("unreadable", doc["reason"])
+
+
+class TestRoundLaunchSkews(unittest.TestCase):
+    def skews(self, text, concurrency=2, **kw):
+        events = runner.parse_serve_log_launches(text, n_tokens=440)
+        return runner.round_launch_skews(events, expected_concurrency=concurrency, **kw)
+
+    def test_a_clean_cell_is_three_rounds_near_zero(self):
+        doc = self.skews(synth_cell([0.2, 0.2, 0.1]))
+        self.assertEqual(len(doc["rounds"]), 3)
+        self.assertEqual([r["size"] for r in doc["rounds"]], [2, 2, 2])
+        self.assertTrue(all(r["complete"] for r in doc["rounds"]))
+        self.assertLess(doc["max_skew_ms"], 1.0)
+        self.assertEqual(doc["delayed_rounds"], 0)
+        self.assertEqual(doc["threshold_ms"], 50.0)
+
+    def test_one_delayed_round_is_counted_and_does_not_move_the_median(self):
+        doc = self.skews(synth_cell([0.2, 0.2, 222.0]))
+        self.assertEqual([round(r["skew_ms"], 1) for r in doc["rounds"]], [0.2, 0.2, 222.0])
+        self.assertAlmostEqual(doc["max_skew_ms"], 222.0, places=1)
+        self.assertAlmostEqual(doc["median_skew_ms"], 0.2, places=1)
+        self.assertEqual(doc["delayed_rounds"], 1)
+
+    def test_a_leading_lone_warm_request_never_forms_a_round(self):
+        # It launches 0.6 s ahead -- inside any gap threshold a 3.3 s round yields -- so only
+        # the non-overlap rule can separate it. If it were folded into round 1, every round
+        # would shift by one launch and the 222 ms round would vanish.
+        doc = self.skews(synth_cell([0.2, 0.2, 222.0], warm=True))
+        self.assertEqual(len(doc["rounds"]), 3)
+        self.assertEqual([round(r["skew_ms"], 1) for r in doc["rounds"]], [0.2, 0.2, 222.0])
+        self.assertEqual(doc["partial_groups"], 1)
+        self.assertGreaterEqual(doc["serialized_splits"], 1)
+        self.assertIn("fewer than 2 launches", doc["reason"])
+
+    def test_an_incomplete_trailing_round_is_partial_not_a_round(self):
+        doc = self.skews(synth_cell([0.2, 0.2], trailing_partial=True))
+        self.assertEqual(len(doc["rounds"]), 2)
+        self.assertEqual(doc["partial_groups"], 1)
+        self.assertEqual(doc["delayed_rounds"], 0)
+
+    def test_the_threshold_is_what_decides_delayed(self):
+        text = synth_cell([0.2, 60.0, 222.0])
+        self.assertEqual(self.skews(text)["delayed_rounds"], 2)
+        self.assertEqual(self.skews(text, threshold_ms=100.0)["delayed_rounds"], 1)
+        self.assertEqual(self.skews(text, threshold_ms=500.0)["delayed_rounds"], 0)
+
+    def test_no_launches_is_a_stated_reason_not_an_exception(self):
+        doc = runner.round_launch_skews([], expected_concurrency=2)
+        self.assertEqual(doc["rounds"], [])
+        self.assertIsNone(doc["max_skew_ms"])
+        self.assertEqual(doc["delayed_rounds"], 0)
+        self.assertIn("no launches", doc["reason"])
+
+    def test_without_releases_the_rule_degrades_and_says_so(self):
+        launches = [e for e in runner.parse_serve_log_launches(synth_cell([0.2, 0.2, 222.0]),
+                                                               n_tokens=440)
+                    if e["event"] == "launch"]
+        doc = runner.round_launch_skews(launches, expected_concurrency=2)
+        self.assertIsNone(doc["split_gap_s"])
+        self.assertIn("no release events", doc["reason"])
+        # chunking by concurrency alone still recovers the rounds when nothing is missing
+        self.assertEqual([round(r["skew_ms"], 1) for r in doc["rounds"]], [0.2, 0.2, 222.0])
+
+    def test_concurrency_one_has_no_skew_to_measure(self):
+        doc = self.skews(synth_cell([0.2, 0.2, 0.2]), concurrency=1)
+        self.assertEqual(doc["rounds"], [])
+        self.assertEqual(doc["partial_groups"], 6)
+        self.assertIn("no launch skew to measure", doc["reason"])
+
+
+class TestAnchorServeLog(unittest.TestCase):
+    """The uptime clock carries no wall stamp, so it has to be anchored -- or refused."""
+
+    T0 = 59460.0
+    OFFSET = 1788892648.72
+
+    def rows(self, starts_uptime, latency=3.30, prompt_tokens=440):
+        out = []
+        for uptime in starts_uptime:
+            started = dt.datetime.fromtimestamp(self.OFFSET + uptime, dt.timezone.utc)
+            completed = dt.datetime.fromtimestamp(self.OFFSET + uptime + latency,
+                                                  dt.timezone.utc)
+            out.append({"started_at": started.isoformat().replace("+00:00", "Z"),
+                        "completed_at": completed.isoformat().replace("+00:00", "Z"),
+                        "latency_s": latency, "prompt_tokens": prompt_tokens})
+        return out
+
+    def cell(self, **kw):
+        text = synth_cell([0.2, 0.2, 222.0], t0=self.T0, **kw)
+        events = runner.parse_serve_log_launches(text, n_tokens=440)
+        starts = [self.T0, self.T0, self.T0 + 3.32, self.T0 + 3.32,
+                  self.T0 + 6.64, self.T0 + 6.64]
+        return events, self.rows(starts)
+
+    def test_the_offset_is_recovered_and_the_method_recorded(self):
+        events, rows = self.cell()
+        end = max(e["uptime_s"] for e in events)
+        doc = runner.anchor_serve_log(events, rows, log_end_epoch=self.OFFSET + end,
+                                      log_end_uptime_s=end, prompt_tokens=440)
+        self.assertAlmostEqual(doc["offset"], self.OFFSET, places=3)
+        self.assertLess(doc["residual_s"], 0.01)
+        self.assertIn("log mtime", doc["method"])
+        self.assertIsNotNone(doc["duration_residual_s"])
+        self.assertFalse(doc["coverage_limited"])
+
+    def test_a_prompt_size_absent_from_the_tail_is_refused_as_coverage(self):
+        events, rows = self.cell()
+        end = max(e["uptime_s"] for e in events)
+        doc = runner.anchor_serve_log(events, rows, log_end_epoch=self.OFFSET + end,
+                                      log_end_uptime_s=end, prompt_tokens=8192)
+        self.assertIsNone(doc["offset"])
+        self.assertTrue(doc["coverage_limited"])
+        self.assertIn("task.n_tokens", doc["reason"])
+
+    def test_a_tail_that_does_not_reach_the_cell_is_refused_as_coverage(self):
+        events, rows = self.cell()
+        end = max(e["uptime_s"] for e in events)
+        # the log's end is an hour later than the cell: the coarse anchor points nowhere near
+        doc = runner.anchor_serve_log(events, rows, log_end_epoch=self.OFFSET + end + 3600,
+                                      log_end_uptime_s=end, prompt_tokens=440)
+        self.assertIsNone(doc["offset"])
+        self.assertTrue(doc["coverage_limited"])
+        self.assertIn("coarse anchor", doc["reason"])
+
+    def test_no_wall_stamp_means_no_anchor(self):
+        events, rows = self.cell()
+        doc = runner.anchor_serve_log(events, rows, log_end_epoch=None, prompt_tokens=440)
+        self.assertIsNone(doc["offset"])
+        self.assertIn("cannot be anchored", doc["reason"])
+
+    def test_rows_without_a_started_at_are_refused(self):
+        events, _ = self.cell()
+        end = max(e["uptime_s"] for e in events)
+        doc = runner.anchor_serve_log(events, [{"prompt_tokens": 440}],
+                                      log_end_epoch=self.OFFSET + end,
+                                      log_end_uptime_s=end, prompt_tokens=440)
+        self.assertIsNone(doc["offset"])
+        self.assertIn("started_at", doc["reason"])
+
+    def test_an_ambiguous_anchor_is_refused_rather_than_guessed(self):
+        # Two identical cells 2 s apart, both inside the coarse tolerance: the fit cannot
+        # tell them apart, so it must say so instead of picking one.
+        text = (synth_cell([0.2, 0.2, 0.2], t0=self.T0, task_base=30000)
+                + synth_cell([0.2, 0.2, 0.2], t0=self.T0 + 2.0, task_base=31000))
+        events = runner.parse_serve_log_launches(text, n_tokens=440)
+        rows = self.rows([self.T0, self.T0 + 3.32, self.T0 + 6.64])
+        end = max(e["uptime_s"] for e in events)
+        doc = runner.anchor_serve_log(events, rows, log_end_epoch=self.OFFSET + end,
+                                      log_end_uptime_s=end, prompt_tokens=440)
+        self.assertIsNone(doc["offset"])
+        self.assertIn("ambiguous", doc["reason"])
+        self.assertFalse(doc["coverage_limited"])
+
+
+class TestLaunchSkewForCell(unittest.TestCase):
+    OFFSET = 1788892648.72
+    T0 = 59460.0
+
+    def rows(self, starts_uptime, latency=3.30, prompt_tokens=440):
+        out = []
+        for uptime in starts_uptime:
+            started = dt.datetime.fromtimestamp(self.OFFSET + uptime, dt.timezone.utc)
+            completed = dt.datetime.fromtimestamp(self.OFFSET + uptime + latency,
+                                                  dt.timezone.utc)
+            out.append({"started_at": started.isoformat().replace("+00:00", "Z"),
+                        "completed_at": completed.isoformat().replace("+00:00", "Z"),
+                        "latency_s": latency, "prompt_tokens": prompt_tokens})
+        return out
+
+    def write_log(self, tmp, text, *, end_uptime=None):
+        path = Path(tmp) / "arc-serve.log"
+        path.write_text(text, encoding="utf-8")
+        end = end_uptime if end_uptime is not None else max(
+            e["uptime_s"] for e in runner.parse_serve_log_launches(text))
+        os.utime(path, (self.OFFSET + end, self.OFFSET + end))
+        return path
+
+    def cell_rows(self):
+        return self.rows([self.T0, self.T0, self.T0 + 3.32, self.T0 + 3.32,
+                          self.T0 + 6.64, self.T0 + 6.64])
+
+    def test_the_measured_cell_is_timed_and_the_warm_request_is_not_a_round(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self.write_log(tmp, synth_cell([0.2, 0.2, 222.0], t0=self.T0, warm=True))
+            doc = runner.launch_skew_for_cell(self.cell_rows(), expected_concurrency=2,
+                                              log_path=path)
+        self.assertEqual([round(r["skew_ms"], 1) for r in doc["rounds"]], [0.2, 0.2, 222.0])
+        self.assertEqual(doc["delayed_rounds"], 1)
+        self.assertEqual(doc["prompt_tokens"], 440)
+        self.assertEqual(doc["partial_groups"], 1)
+        self.assertIn("not a failure", doc["note"])
+
+    def test_the_prompt_size_comes_from_the_rows_not_the_request(self):
+        # The cell ASKS for 512 and the harness reports 440. Filtering on 512 matches nothing.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self.write_log(tmp, synth_cell([0.2, 0.2, 0.2], t0=self.T0))
+            doc = runner.launch_skew_for_cell(self.cell_rows(), expected_concurrency=2,
+                                              log_path=path)
+        self.assertEqual(doc["prompt_tokens"], 440)
+        self.assertIsNotNone(doc["rounds"])
+
+    def test_the_discarded_warm_load_16s_earlier_is_not_mistaken_for_the_cell(self):
+        # Each cell is preceded by a discarded warm load of IDENTICAL shape. Duration
+        # matching alone anchors onto it happily; the coarse mtime offset is what separates
+        # them. This is the r9 failure, reproduced.
+        with tempfile.TemporaryDirectory() as tmp:
+            text = (synth_cell([0.2, 0.2, 221.6], t0=self.T0 - 16.6, task_base=30000)
+                    + synth_cell([0.2, 0.2, 222.4], t0=self.T0, task_base=31000))
+            path = self.write_log(tmp, text)
+            doc = runner.launch_skew_for_cell(self.cell_rows(), expected_concurrency=2,
+                                              log_path=path)
+        self.assertAlmostEqual(doc["max_skew_ms"], 222.4, places=1)
+        self.assertAlmostEqual(doc["anchor"]["offset"], self.OFFSET, places=3)
+
+    def test_a_missing_log_is_a_loud_null(self):
+        doc = runner.launch_skew_for_cell(self.cell_rows(), expected_concurrency=2,
+                                          log_path=Path("no-such-dir") / "arc-serve.log")
+        self.assertIsNone(doc["rounds"])
+        self.assertIn("unreadable", doc["reason"])
+
+    def test_no_matching_launches_is_a_loud_null(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self.write_log(tmp, synth_cell([0.2, 0.2], t0=self.T0, n_tokens=7))
+            doc = runner.launch_skew_for_cell(self.cell_rows(), expected_concurrency=2,
+                                              log_path=path)
+        self.assertIsNone(doc["rounds"])
+        self.assertIn("anchor failed", doc["reason"])
+
+    def test_an_anchor_failure_is_a_loud_null(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            # the log's end is stamped an hour after its newest event: the coarse offset is
+            # wrong by an hour and nothing can be matched
+            text = synth_cell([0.2, 0.2, 0.2], t0=self.T0)
+            end = max(e["uptime_s"] for e in runner.parse_serve_log_launches(text))
+            path = self.write_log(tmp, text, end_uptime=end + 3600)
+            doc = runner.launch_skew_for_cell(self.cell_rows(), expected_concurrency=2,
+                                              log_path=path)
+        self.assertIsNone(doc["rounds"])
+        self.assertIn("anchor failed", doc["reason"])
+
+    def test_rows_without_prompt_tokens_are_a_loud_null(self):
+        rows = [{"started_at": "2026-09-09T11:08:29.507594Z",
+                 "completed_at": "2026-09-09T11:08:32.830296Z", "latency_s": 3.32}]
+        doc = runner.launch_skew_for_cell(rows, expected_concurrency=2,
+                                          log_path=Path("unused.log"))
+        self.assertIsNone(doc["rounds"])
+        self.assertIn("prompt_tokens", doc["reason"])
+
+    def test_no_load_window_is_a_loud_null(self):
+        rows = [{"prompt_tokens": 440, "latency_s": 3.32}]
+        doc = runner.launch_skew_for_cell(rows, expected_concurrency=2,
+                                          log_path=Path("unused.log"))
+        self.assertIsNone(doc["rounds"])
+        self.assertIn("window", doc["reason"])
+
+    def test_the_tail_grows_only_for_a_coverage_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self.write_log(tmp, synth_cell([0.2, 0.2, 222.0], t0=self.T0))
+            doc = runner.launch_skew_for_cell(self.cell_rows(), expected_concurrency=2,
+                                              log_path=path, max_bytes=200)
+        # 200 bytes cannot reach the cell; the read grows, bounded, until it can
+        self.assertIsNotNone(doc["rounds"])
+        self.assertGreater(len(doc["tail_attempts"]), 1)
+        self.assertAlmostEqual(doc["max_skew_ms"], 222.0, places=1)
+
+
+class TestLaunchSkewIsNotAGate(unittest.TestCase):
+    def test_the_receipt_carries_the_field(self):
+        self.assertIn("launch_skew", runner.RECEIPT_FIELDS)
+        self.assertIsNone(runner.blank_receipt()["launch_skew"])
+
+    def test_there_is_still_no_eighth_gate(self):
+        self.assertEqual(len(runner.GATES), 7)
+        self.assertNotIn("launch_skew", [name for _, name in runner.GATES])
+
+    def test_a_delayed_round_changes_no_gate_outcome(self):
+        clean = runner.blank_receipt()
+        clean["launch_skew"] = {"rounds": [], "max_skew_ms": 0.2, "delayed_rounds": 0}
+        delayed = runner.blank_receipt()
+        delayed["launch_skew"] = {"rounds": [{"index": 0, "skew_ms": 222.0}],
+                                  "max_skew_ms": 222.0, "delayed_rounds": 1}
+        self.assertEqual(runner.gate_outcomes(clean), runner.gate_outcomes(delayed))
 
 
 if __name__ == "__main__":

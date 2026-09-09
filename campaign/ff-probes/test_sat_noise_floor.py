@@ -588,5 +588,88 @@ class TestCli(unittest.TestCase):
             self.assertEqual(before, after)
 
 
+# ---------------------------------------------- the launch-skew instrument, surfaced --
+def launch_skew(*skews_ms, threshold_ms=50.0):
+    """A ``launch_skew`` block shaped like the runner's, one round per skew."""
+    rounds = [{"index": i, "skew_ms": s, "slots": [0, 1], "tasks": [30000 + 2 * i,
+                                                                   30001 + 2 * i],
+               "t0_uptime_s": 59460.0 + 3.32 * i, "size": 2, "complete": True}
+              for i, s in enumerate(skews_ms)]
+    return {"rounds": rounds, "max_skew_ms": max(skews_ms), "median_skew_ms": sorted(skews_ms)[
+        len(skews_ms) // 2], "delayed_rounds": sum(1 for s in skews_ms if s > threshold_ms),
+        "threshold_ms": threshold_ms, "reason": None, "expected_concurrency": 2,
+        "log_path": r"C:\work\commandcenter\hearth\var\arc-serve.log"}
+
+
+class TestLaunchSkewFields(unittest.TestCase):
+    """The prereg's bimodality has to be VISIBLE here, not buried in the receipts."""
+
+    def test_the_three_scalars_are_in_the_per_field_table(self):
+        names = [name for name, _, _ in nf.SCALAR_FIELDS]
+        for wanted in ("launch_skew.max_skew_ms", "launch_skew.median_skew_ms",
+                       "launch_skew.delayed_rounds"):
+            self.assertIn(wanted, names)
+
+    def test_the_scalars_spread_across_repeats(self):
+        doc = reduce([receipt(1, jobs_per_hour=2097.4,
+                              launch_skew=launch_skew(0.2, 0.2, 222.0)),
+                      receipt(2, jobs_per_hour=2203.7,
+                              launch_skew=launch_skew(0.2, 0.2, 0.1)),
+                      receipt(3, jobs_per_hour=2125.2,
+                              launch_skew=launch_skew(0.2, 0.2, 222.4))])
+        field = doc["fields"]["launch_skew.max_skew_ms"]
+        self.assertEqual(field["n"], 3)
+        self.assertEqual(sorted(field["values"]), [0.2, 222.0, 222.4])
+        delayed = doc["fields"]["launch_skew.delayed_rounds"]
+        self.assertEqual(sorted(delayed["values"]), [0.0, 1.0, 1.0])
+        # the median skew stays clean in every repeat -- the event is ONE round, not a drift
+        self.assertEqual(doc["fields"]["launch_skew.median_skew_ms"]["max"], 0.2)
+
+    def test_the_count_of_affected_repeats_is_reported(self):
+        doc = reduce([receipt(1, launch_skew=launch_skew(0.2, 0.2, 222.0)),
+                      receipt(2, launch_skew=launch_skew(0.2, 0.2, 0.1)),
+                      receipt(3, launch_skew=launch_skew(0.2, 0.2, 222.4))])
+        summary = doc["launch_skew"]
+        self.assertEqual(summary["measured"], 3)
+        self.assertEqual(summary["unmeasured"], 0)
+        self.assertEqual(summary["repeats_with_delayed_round"], 2)
+
+    def test_a_loud_null_counts_as_unmeasured_not_as_clean(self):
+        # "the instrument did not run" and "it ran and saw nothing" are different facts.
+        doc = reduce([receipt(1, launch_skew=launch_skew(0.2, 0.2, 222.0)),
+                      receipt(2, launch_skew={"rounds": None,
+                                              "reason": "anchor failed: ambiguous anchor"}),
+                      receipt(3)])  # written before the instrument existed
+        summary = doc["launch_skew"]
+        self.assertEqual(summary["measured"], 1)
+        self.assertEqual(summary["unmeasured"], 2)
+        self.assertEqual(summary["repeats_with_delayed_round"], 1)
+        reasons = [row["reason"] for row in summary["rows"] if not row["measured"]]
+        self.assertIn("anchor failed: ambiguous anchor", reasons)
+        self.assertTrue(any("no launch_skew field" in r for r in reasons))
+
+    def test_the_markdown_states_how_many_repeats_were_affected(self):
+        doc = reduce([receipt(1, launch_skew=launch_skew(0.2, 0.2, 222.0)),
+                      receipt(2, launch_skew=launch_skew(0.2, 0.2, 0.1)),
+                      receipt(3, launch_skew=launch_skew(0.2, 0.2, 222.4))])
+        text = nf.render_markdown(doc, cell_prefix="np2-p512-c2")
+        self.assertIn("launch skew: **2 of 3** included repeats had at least one delayed "
+                      "round", text)
+        self.assertIn("RECORDED OBSERVATION, not a failure", text)
+        self.assertIn("`launch_skew.max_skew_ms`", text)
+
+    def test_the_markdown_says_when_repeats_were_never_measured(self):
+        doc = reduce([receipt(1, launch_skew=launch_skew(0.2, 0.2, 222.0)), receipt(2)])
+        text = nf.render_markdown(doc, cell_prefix="np2-p512-c2")
+        self.assertIn("launch skew: **1 of 1** included repeats", text)
+        self.assertIn("**1** repeat(s) carry no launch-skew measurement", text)
+
+    def test_a_delayed_round_never_excludes_a_repeat(self):
+        doc = reduce([receipt(1, launch_skew=launch_skew(222.0, 222.0, 222.0)),
+                      receipt(2, launch_skew=launch_skew(0.2, 0.2, 0.1))])
+        self.assertEqual(doc["n_included"], 2)
+        self.assertEqual(doc["n_excluded"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -40,6 +40,15 @@ WHAT IT SCORES
 
   Neither half ever returns "unclear".
 
+THE FLOOR HERE IS BIMODAL, AND THE REPORT SAYS SO. The prereg's 2026-09-09 FINDING: this
+cell's jobs/hour splits into two values rather than scattering, and every affected repeat has
+exactly one round in which the server launched its two concurrent requests ~222 ms apart
+instead of ~0.2 ms. The runner now records that per round as ``launch_skew``; this reducer
+spreads ``max_skew_ms`` / ``median_skew_ms`` / ``delayed_rounds`` in the per-field table and
+states, in one line, HOW MANY included repeats had at least one delayed round. That count --
+not the spread of cell means -- is the honest statistic for a non-Gaussian floor. It changes
+no outcome: no repeat is excluded for a delayed round and no gate reads the field.
+
 EXCLUSIONS ARE LISTED, NEVER DROPPED. A receipt is included only when ``status ==
 "scored"`` and ``over_admitted`` is false -- the same rule the runner states for the surface
 ("an over_admitted row is KEPT and excluded from the surface, not dropped"). Every excluded
@@ -106,6 +115,15 @@ SCALAR_FIELDS = (
     ("incumbent_rate_fraction_pre", ("incumbent_rate_fraction_pre",), "fraction"),
     ("incumbent_rate_fraction_post", ("incumbent_rate_fraction_post",), "fraction"),
     ("symmetry.ratio", ("symmetry", "ratio"), "ratio"),
+    # The runner's per-round launch-skew INSTRUMENT (prereg FINDING, 2026-09-09). This cell's
+    # jobs/hour is bimodal, and the mode is one round whose two concurrent requests were
+    # launched ~222 ms apart instead of ~0.2 ms. Spreading it here is what stops the event
+    # being read as variance: `max_skew_ms` is bimodal in exactly the same repeats the
+    # jobs/hour is, and `delayed_rounds` counts the occurrences directly. Receipts written
+    # before the instrument existed report `null`, which is honest -- they never measured it.
+    ("launch_skew.max_skew_ms", ("launch_skew", "max_skew_ms"), "millis"),
+    ("launch_skew.median_skew_ms", ("launch_skew", "median_skew_ms"), "millis"),
+    ("launch_skew.delayed_rounds", ("launch_skew", "delayed_rounds"), "count"),
 )
 
 #: (report label, path to the per-key mapping, path inside each entry, unit)
@@ -127,6 +145,10 @@ ROUNDING = {
     "gb": 3,
     "watts": 2,
     "percent": 2,
+    "millis": 3,
+    # A count, but its MEAN over repeats is fractional and that fraction is the whole point
+    # ("0.75 delayed rounds per repeat"), so it is not rounded to an integer.
+    "count": 2,
 }
 
 
@@ -267,6 +289,49 @@ def collect_field(receipts: list, path, unit: str) -> dict:
     row = summarize(values, unit, missing)
     row["values"] = [round_unit(v, unit) for v in values]
     return row
+
+
+def launch_skew_summary(receipts: list) -> dict:
+    """How many repeats hit the launch-skew event -- the count, not the spread.
+
+    The prereg's FINDING is that this cell's floor is NOT Gaussian: an affected repeat has
+    exactly one round whose two concurrent requests launched ~222 ms apart, and that repeat
+    lands in the lower jobs/hour mode. The honest statistic for a bimodal floor is HOW OFTEN
+    a round was delayed, so it is counted here rather than left to be inferred from the
+    spread of ``max_skew_ms``.
+
+    A repeat whose receipt has no ``launch_skew``, or has one with ``rounds: null``, is
+    UNMEASURED -- counted separately and never as a clean repeat, because "the instrument did
+    not run" and "the instrument ran and saw nothing" are different facts.
+    """
+    doc = {"n_included": len(receipts), "measured": 0, "unmeasured": 0,
+           "repeats_with_delayed_round": 0, "rows": [],
+           "note": "a delayed round is a recorded observation, not a failure: no gate reads "
+                   "launch_skew and no repeat is excluded for having one"}
+    for i, receipt in enumerate(receipts):
+        skew = receipt.get("launch_skew")
+        row = {"repeat": repeat_id(receipt, "receipt[%d]" % i), "rounds": None,
+               "max_skew_ms": None, "delayed_rounds": None, "threshold_ms": None,
+               "measured": False, "reason": None}
+        if not isinstance(skew, dict):
+            row["reason"] = "receipt carries no launch_skew field (written before the instrument)"
+        elif skew.get("rounds") is None:
+            row["reason"] = skew.get("reason") or "launch_skew recorded a null"
+        else:
+            row["measured"] = True
+            row["rounds"] = len(skew["rounds"]) if isinstance(skew["rounds"], list) else None
+            row["max_skew_ms"] = round_unit(skew.get("max_skew_ms"), "millis")
+            row["threshold_ms"] = skew.get("threshold_ms")
+            delayed = skew.get("delayed_rounds")
+            row["delayed_rounds"] = int(delayed) if is_number(delayed) else None
+        if row["measured"]:
+            doc["measured"] += 1
+            if row["delayed_rounds"]:
+                doc["repeats_with_delayed_round"] += 1
+        else:
+            doc["unmeasured"] += 1
+        doc["rows"].append(row)
+    return doc
 
 
 def card_keys(receipts: list, mapping_path) -> list:
@@ -439,6 +504,7 @@ def reduce_repeats(receipts: list, *, floors: dict | None = None,
         "load_requests_seen": requests_seen,
         "floors": floors,
         "fields": fields,
+        "launch_skew": launch_skew_summary(included),
         "bootstrap": {"jobs_per_hour": ci},
         "guards": {"rows": guards, "all_at_rate": all_at_rate},
         "p7": {
@@ -512,6 +578,23 @@ def render_markdown(doc: dict, *, cell_prefix: str, skipped: list | None = None)
             % (name, row["n"], missing, _cell(row["min"]), _cell(row["max"]),
                _cell(row["mean"]), _cell(row["spread_pct"]), _cell(row["cv_pct"])))
     add("")
+
+    # The bimodality, said out loud rather than left inside the launch_skew rows. The prereg
+    # (2026-09-09) found this cell's floor is not Gaussian: an affected repeat has one round
+    # whose two concurrent requests launched ~222 ms apart and sits in the lower jobs/hour
+    # mode. Counting the occurrences is the honest statistic; averaging them is not.
+    skew = red.get("launch_skew") or {}
+    if skew:
+        line = ("- launch skew: **%d of %d** included repeats had at least one delayed round "
+                "(> the receipt's own threshold)"
+                % (skew.get("repeats_with_delayed_round") or 0, skew.get("measured") or 0))
+        if skew.get("unmeasured"):
+            line += ("; **%d** repeat(s) carry no launch-skew measurement and are counted as "
+                     "neither" % skew["unmeasured"])
+        add(line)
+        add("- a delayed round is a RECORDED OBSERVATION, not a failure: no gate reads "
+            "`launch_skew`, and no repeat is excluded for having one")
+        add("")
 
     ci = red["bootstrap"]["jobs_per_hour"]
     add("## Bootstrap CI")

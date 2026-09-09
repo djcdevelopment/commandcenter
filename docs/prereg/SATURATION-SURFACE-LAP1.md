@@ -1,8 +1,8 @@
 # Prediction Card — SAT-L1 : the B70 saturation surface under concurrent intake
 
-`[prereg tag: prereg-saturation-lap1-20260909 — NOT YET TAGGED until predictions finalized + Derek's ack]`
+`[prereg tag: prereg-saturation-lap1-20260909 — TAGGED 2026-09-09 on Derek's ack; predictions final]`
 
-- **Committed:** `pending tag`  **Advisor ack:** `pending (Derek)`
+- **Committed:** `2026-09-09` (tag `prereg-saturation-lap1-20260909`)  **Advisor ack:** `2026-09-09, Derek` — ack and tag; Phase 2 `-np` restarts authorized, interleaved; capture the render-lane reference before the first cell; build the ring→report packager before depth-0 cells
 - **Maps to:** R&D program *"saturate the B70s with concurrent work, then solve residency"*, Lap 1;
   loss channels (a) intake, (b) submission gaps, (d) over-admission, (e) idle decay
 - **Format:** copied from `E:\work\denning\prereg\TEMPLATE-prediction-card.md`. Predictions below are

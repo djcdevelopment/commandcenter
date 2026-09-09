@@ -1,0 +1,926 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8">
+  <title>HEARTH Sovereign Control Plane — Complete Architecture Suite</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #070a12;
+      --bg-alt: #0c1222;
+      --surface: #111a30;
+      --surface-border: #1e2c4f;
+      --surface-hover: #16223f;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --cyan: #38bdf8;
+      --cyan-dim: rgba(56, 189, 248, 0.12);
+      --emerald: #34d399;
+      --emerald-dim: rgba(52, 211, 153, 0.12);
+      --amber: #fbbf24;
+      --amber-dim: rgba(251, 191, 36, 0.12);
+      --rose: #f43f5e;
+      --rose-dim: rgba(244, 63, 94, 0.12);
+      --indigo: #818cf8;
+      --indigo-dim: rgba(129, 140, 248, 0.12);
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; background: var(--bg); color: var(--text); font-family: var(--font-sans); }
+    body { line-height: 1.6; min-height: 100vh; overflow-x: hidden; }
+
+    /* Top Navigation */
+    .top-nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(7, 10, 18, 0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--surface-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 32px;
+      height: 64px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: #fff;
+    }
+    .brand-flame {
+      width: 24px;
+      height: 24px;
+      background: linear-gradient(135deg, #f59e0b, #ef4444, #38bdf8);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 16px rgba(245, 158, 11, 0.35);
+    }
+    .brand-name {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 1.15rem;
+      letter-spacing: 0.08em;
+    }
+    .brand-tag {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: var(--cyan-dim);
+      color: var(--cyan);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      font-weight: 600;
+    }
+    .nav-links {
+      display: flex;
+      gap: 18px;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.86rem;
+      font-weight: 500;
+      transition: color 0.15s;
+    }
+    .nav-links a:hover { color: var(--cyan); }
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      color: var(--emerald);
+      background: var(--emerald-dim);
+      padding: 4px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(52, 211, 153, 0.25);
+    }
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--emerald);
+      box-shadow: 0 0 8px var(--emerald);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    /* Layout */
+    .page-layout {
+      display: flex;
+      max-width: 1680px;
+      margin: 0 auto;
+      position: relative;
+    }
+
+    /* Sidebar ToC */
+    .sidebar {
+      width: 290px;
+      position: sticky;
+      top: 64px;
+      height: calc(100vh - 64px);
+      overflow-y: auto;
+      padding: 36px 24px;
+      border-right: 1px solid var(--surface-border);
+      flex-shrink: 0;
+    }
+    .toc-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+      margin-bottom: 16px;
+      font-weight: 600;
+    }
+    .toc-nav { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+    .toc-link {
+      display: block;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      padding: 6px 12px;
+      border-radius: 6px;
+      transition: all 0.15s;
+      border-left: 2px solid transparent;
+    }
+    .toc-link:hover {
+      color: #fff;
+      background: var(--surface);
+      border-left-color: var(--cyan);
+    }
+    .toc-sublink {
+      padding-left: 20px;
+      font-size: 0.78rem;
+      color: var(--text-dim);
+    }
+
+    /* Main Content */
+    .main-content {
+      flex: 1;
+      padding: 48px 48px 120px;
+      max-width: 1390px;
+    }
+
+    /* Hero */
+    .hero {
+      margin-bottom: 56px;
+      border-bottom: 1px solid var(--surface-border);
+      padding-bottom: 48px;
+    }
+    .hero-kicker {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--cyan);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 12px;
+    }
+    .hero-title {
+      font-size: 2.75rem;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1.15;
+      margin-bottom: 16px;
+      letter-spacing: -0.02em;
+    }
+    .hero-subtitle {
+      font-size: 1.25rem;
+      color: var(--text-muted);
+      max-width: 960px;
+      margin-bottom: 32px;
+      font-weight: 300;
+      line-height: 1.55;
+    }
+    .receipts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .receipt-card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+    }
+    .receipt-val {
+      font-family: var(--font-mono);
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #fff;
+    }
+    .receipt-lbl {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 4px;
+    }
+
+    /* Section Styling */
+    .doc-section {
+      margin-bottom: 80px;
+      scroll-margin-top: 96px;
+    }
+    .section-header {
+      margin-bottom: 24px;
+    }
+    .section-tag {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 4px 10px;
+      border-radius: 999px;
+      margin-bottom: 12px;
+    }
+    .tag-atlas { background: var(--indigo-dim); color: var(--indigo); border: 1px solid rgba(129,140,248,0.25); }
+    .tag-arch { background: var(--cyan-dim); color: var(--cyan); border: 1px solid rgba(56,189,248,0.25); }
+    .tag-life { background: var(--emerald-dim); color: var(--emerald); border: 1px solid rgba(52,211,153,0.25); }
+    .tag-seq { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(251,191,36,0.25); }
+    .tag-dfd { background: var(--rose-dim); color: var(--rose); border: 1px solid rgba(244,63,94,0.25); }
+    .tag-adr { background: var(--indigo-dim); color: var(--indigo); border: 1px solid rgba(129,140,248,0.25); }
+
+    .section-title {
+      font-size: 1.85rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 12px;
+      letter-spacing: -0.01em;
+    }
+    .section-desc {
+      color: var(--text-muted);
+      font-size: 1.05rem;
+      max-width: 980px;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+
+    /* Viewer Container */
+    .viewer-frame-card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 28px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+    }
+    .viewer-toolbar {
+      background: rgba(11, 17, 32, 0.95);
+      border-bottom: 1px solid var(--surface-border);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .toolbar-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .toolbar-name {
+      font-family: var(--font-mono);
+      font-size: 0.88rem;
+      color: #fff;
+      font-weight: 600;
+    }
+    .toolbar-meta {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+    }
+    .toolbar-right {
+      display: flex;
+      gap: 10px;
+    }
+    .action-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      padding: 6px 12px;
+      border-radius: 6px;
+      text-decoration: none;
+      background: var(--surface-hover);
+      color: var(--text);
+      border: 1px solid var(--surface-border);
+      transition: all 0.15s;
+    }
+    .action-btn:hover {
+      background: var(--surface-border);
+      color: #fff;
+      border-color: var(--cyan);
+    }
+    .action-btn.primary {
+      background: var(--cyan-dim);
+      color: var(--cyan);
+      border-color: rgba(56,189,248,0.3);
+    }
+    .action-btn.primary:hover {
+      background: rgba(56,189,248,0.22);
+      border-color: var(--cyan);
+    }
+    .viewer-iframe {
+      width: 100%;
+      height: 680px;
+      border: none;
+      display: block;
+      background: #000;
+    }
+
+    /* Narrative / ADR Grid */
+    .takeaways-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 20px;
+      margin-top: 24px;
+    }
+    .takeaway-card {
+      background: var(--bg-alt);
+      border: 1px solid var(--surface-border);
+      border-radius: 8px;
+      padding: 20px;
+    }
+    .takeaway-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .takeaway-body {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+    .adr-badge {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--indigo-dim);
+      color: var(--indigo);
+      text-decoration: none;
+    }
+    .adr-badge:hover { text-decoration: underline; }
+
+    /* ADR Register Table */
+    .adr-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+      background: var(--surface);
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--surface-border);
+    }
+    .adr-table th {
+      background: rgba(11,17,32,0.8);
+      text-align: left;
+      padding: 12px 16px;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--surface-border);
+    }
+    .adr-table td {
+      padding: 14px 16px;
+      font-size: 0.88rem;
+      border-bottom: 1px solid var(--surface-border);
+      color: var(--text-muted);
+    }
+    .adr-table tr:last-child td { border-bottom: none; }
+    .adr-table tr:hover td { background: var(--surface-hover); color: var(--text); }
+    .adr-id {
+      font-family: var(--font-mono);
+      color: var(--cyan);
+      font-weight: 600;
+    }
+
+    /* Fleet Cards */
+    .fleet-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+    .fleet-node {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 10px;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+    }
+    .node-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 12px;
+    }
+    .node-name {
+      font-family: var(--font-mono);
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #fff;
+    }
+    .node-role {
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      color: var(--cyan);
+      text-transform: uppercase;
+    }
+    .node-specs {
+      list-style: none;
+      font-size: 0.86rem;
+      color: var(--text-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+    .node-specs strong { color: #fff; }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--surface-border);
+      padding: 40px 0;
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 0.85rem;
+      margin-top: 80px;
+    }
+    footer a { color: var(--cyan); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 1024px) {
+      .sidebar { display: none; }
+      .main-content { padding: 32px 20px 80px; }
+      .hero-title { font-size: 2.1rem; }
+      .viewer-iframe { height: 520px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header Navigation -->
+  <header class="top-nav">
+    <a href="#" class="brand">
+      <div class="brand-flame">🔥</div>
+      <span class="brand-name">HEARTH</span>
+      <span class="brand-tag">Sovereign Control Plane</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#atlas">Atlas (ToC)</a></li>
+      <li><a href="#architecture">Architecture</a></li>
+      <li><a href="#lifecycle">Lifecycle</a></li>
+      <li><a href="#sequence">Sequence</a></li>
+      <li><a href="#dataflow">Data Flow</a></li>
+      <li><a href="#adrs">ADR Register</a></li>
+      <li><a href="#fleet">Fleet</a></li>
+    </ul>
+    <div class="status-badge">
+      <span class="status-dot"></span>
+      <span>Funnel Live · 5 Showcase Diagrams</span>
+    </div>
+  </header>
+
+  <div class="page-layout">
+
+    <!-- Sticky Table of Contents Sidebar -->
+    <aside class="sidebar">
+      <div class="toc-title">Table of Contents</div>
+      <ul class="toc-nav">
+        <li><a href="#atlas" class="toc-link">00. Architecture Atlas (ToC)</a></li>
+        <li><a href="#architecture" class="toc-link">01. Control Plane Architecture</a></li>
+        <li><a href="#lifecycle" class="toc-link">02. Deterministic Lifecycle</a></li>
+        <li><a href="#sequence" class="toc-link">03. FastMCP Execution Trace</a></li>
+        <li><a href="#dataflow" class="toc-link">04. Provenance & Proof Loop</a></li>
+        <li><a href="#adrs" class="toc-link">05. Architectural Decisions</a></li>
+        <li><a href="#fleet" class="toc-link">06. Hardware Fleet Topology</a></li>
+      </ul>
+
+      <div class="toc-title" style="margin-top: 36px;">Showcase Diagrams</div>
+      <ul class="toc-nav">
+        <li><a href="hearth-atlas.html" target="_blank" class="toc-link toc-sublink">↗ 00 Atlas [Workflow]</a></li>
+        <li><a href="hearth-control-plane.html" target="_blank" class="toc-link toc-sublink">↗ 01 Topology [Architecture]</a></li>
+        <li><a href="hearth-agent-run.html" target="_blank" class="toc-link toc-sublink">↗ 02 Pipeline [Lifecycle]</a></li>
+        <li><a href="hearth-mcp-trace.html" target="_blank" class="toc-link toc-sublink">↗ 03 Trace [Sequence]</a></li>
+        <li><a href="hearth-provenance-loop.html" target="_blank" class="toc-link toc-sublink">↗ 04 Proof Loop [Dataflow]</a></li>
+      </ul>
+    </aside>
+
+    <!-- Main Content Stream -->
+    <main class="main-content">
+
+      <!-- Hero Section -->
+      <section id="overview" class="hero">
+        <div class="hero-kicker">Autonomous Systems Architecture</div>
+        <h1 class="hero-title">HEARTH: Sovereign Autonomous Agent Control Plane</h1>
+        <p class="hero-subtitle">
+          The architectural atlas, component topology, deterministic state machine, distributed call trace, and append-only provenance loop of an on-premises multi-agent engineering platform.
+        </p>
+
+        <div class="receipts-grid">
+          <div class="receipt-card">
+            <span class="receipt-val">5 Types</span>
+            <span class="receipt-lbl">All 5 Archify Models</span>
+          </div>
+          <div class="receipt-card">
+            <span class="receipt-val">229,488+</span>
+            <span class="receipt-lbl">Ledgered Events</span>
+          </div>
+          <div class="receipt-card">
+            <span class="receipt-val">3,000,000+</span>
+            <span class="receipt-lbl">Tokens Routed</span>
+          </div>
+          <div class="receipt-card">
+            <span class="receipt-val">63</span>
+            <span class="receipt-lbl">Published ADRs</span>
+          </div>
+          <div class="receipt-card">
+            <span class="receipt-val">Showcase</span>
+            <span class="receipt-lbl">Archify Quality (9/9)</span>
+          </div>
+        </div>
+
+        <p style="color: var(--text-muted); font-size: 0.95rem; max-width: 980px;">
+          Designed and operated by <strong>Derek Ciula</strong>, HEARTH enforces complete separation between agent intent, orchestration, and GPU execution. Every dispatch is governed by immutable state invariants, fail-closed access controls, and append-only provenance on disk fixtures. Below is the complete verifiable suite rendered via <a href="https://github.com/tt-a1i/archify" target="_blank" style="color: var(--cyan);">Archify</a>, starting with the interactive Architecture Atlas navigation diagram.
+        </p>
+      </section>
+
+      <!-- Section 0: Atlas ToC Diagram -->
+      <section id="atlas" class="doc-section">
+        <div class="section-header">
+          <span class="section-tag tag-atlas">00 · System Atlas (Workflow)</span>
+          <h2 class="section-title">HEARTH Architecture Navigation Atlas</h2>
+          <p class="section-desc">
+            The visual Table of Contents charting the cross-layer journey from an incoming external agent request through the control plane, deterministic execution pipeline, and hardware rungs to the immutable provenance loop and public portfolio proof.
+          </p>
+        </div>
+
+        <div class="viewer-frame-card">
+          <div class="viewer-toolbar">
+            <div class="toolbar-left">
+              <span class="toolbar-name">hearth-atlas.html</span>
+              <span class="toolbar-meta">Workflow (v2) · 4 Operational Lanes · Cross-Document Spine</span>
+            </div>
+            <div class="toolbar-right">
+              <a href="hearth-atlas.html" target="_blank" class="action-btn primary">Open Standalone ↗</a>
+              <a href="hearth-atlas.workflow.json" target="_blank" class="action-btn">JSON Spec</a>
+              <a href="hearth-atlas.visual-check.html" target="_blank" class="action-btn">Contact Sheet</a>
+            </div>
+          </div>
+          <iframe src="hearth-atlas.html" class="viewer-iframe" loading="lazy"></iframe>
+        </div>
+
+        <div class="takeaways-grid">
+          <div class="takeaway-card">
+            <div class="takeaway-title">🗺️ Cross-Document Navigation</div>
+            <div class="takeaway-body">Each node along the main rail represents a layer detailed in the sections below: §01 Topology, §02 Lifecycle, §03 Trace, and §04 Proof Loop.</div>
+          </div>
+          <div class="takeaway-card">
+            <div class="takeaway-title">📐 All 5 Archify Models in One Suite</div>
+            <div class="takeaway-body">By combining <strong>Workflow</strong>, <strong>Architecture</strong>, <strong>Lifecycle</strong>, <strong>Sequence</strong>, and <strong>Dataflow</strong>, the platform exercises every topological model Archify supports.</div>
+          </div>
+          <div class="takeaway-card">
+            <div class="takeaway-title">🔄 The Full Recursive Loop</div>
+            <div class="takeaway-body">From Claude Code tool calls on the left to public career verification on the right, the diagram maps how autonomous execution feeds the evidence ledger that proves its own existence.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 1: Architecture -->
+      <section id="architecture" class="doc-section">
+        <div class="section-header">
+          <span class="section-tag tag-arch">01 · Component Topology (Architecture)</span>
+          <h2 class="section-title">HEARTH Sovereign Control Plane</h2>
+          <p class="section-desc">
+            Physical 3-node cluster topology on the local network. Separates the FastMCP perimeter and NATS JetStream dispatch from physical GPU compute rungs, governed by the Rung Scheduler (<a href="#adrs" class="adr-badge">ADR-0031</a>) and Anti-Drift Guard (<a href="#adrs" class="adr-badge">ADR-0003</a>).
+          </p>
+        </div>
+
+        <div class="viewer-frame-card">
+          <div class="viewer-toolbar">
+            <div class="toolbar-left">
+              <span class="toolbar-name">hearth-control-plane.html</span>
+              <span class="toolbar-meta">Architecture · Deployment-Ownership Profile · Trace Motion</span>
+            </div>
+            <div class="toolbar-right">
+              <a href="hearth-control-plane.html" target="_blank" class="action-btn primary">Open Standalone ↗</a>
+              <a href="hearth-control-plane.architecture.json" target="_blank" class="action-btn">JSON Spec</a>
+              <a href="hearth-control-plane.visual-check.html" target="_blank" class="action-btn">Contact Sheet</a>
+            </div>
+          </div>
+          <iframe src="hearth-control-plane.html" class="viewer-iframe" loading="lazy"></iframe>
+        </div>
+
+        <div class="takeaways-grid">
+          <div class="takeaway-card">
+            <div class="takeaway-title">🛡️ Fail-Closed MCP Perimeter (<a href="#adrs" class="adr-badge">ADR-0021</a>)</div>
+            <div class="takeaway-body">All external callers (Claude Code, Gemini, local CLI) enter through the FastMCP door on port 8710. Discovery mirrors authorization: unclassified tools raise at boot and close the door.</div>
+          </div>
+          <div class="takeaway-card">
+            <div class="takeaway-title">⚡ GPU Leaves the Control Plane (<a href="#adrs" class="adr-badge">ADR-0036</a>)</div>
+            <div class="takeaway-body">Inference happens on physical Arc hardware (A770 16GB, A580 8GB, B580 12GB). Control loops never block on Vulkan execution; dispatches ride NATS JetStream with explicit acks.</div>
+          </div>
+          <div class="takeaway-card">
+            <div class="takeaway-title">🔒 Anti-Drift State Invariants (<a href="#adrs" class="adr-badge">ADR-0003</a>)</div>
+            <div class="takeaway-body">The Anti-Drift Guard continuously reconciles in-memory agent state against immutable on-disk fixtures. Any detected state drift halts execution immediately.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 2: Lifecycle -->
+      <section id="lifecycle" class="doc-section">
+        <div class="section-header">
+          <span class="section-tag tag-life">02 · Execution Pipeline (Lifecycle)</span>
+          <h2 class="section-title">Deterministic Agent Run Lifecycle</h2>
+          <p class="section-desc">
+            The 7-stage state machine that governs every agent execution from accepted ingest to committed provenance. Features rate-limit throttling, human intent frontiers, and automatic hardware failover.
+          </p>
+        </div>
+
+        <div class="viewer-frame-card">
+          <div class="viewer-toolbar">
+            <div class="toolbar-left">
+              <span class="toolbar-name">hearth-agent-run.html</span>
+              <span class="toolbar-meta">Lifecycle · 4 Lanes · Recoverable Failure Transitions</span>
+            </div>
+            <div class="toolbar-right">
+              <a href="hearth-agent-run.html" target="_blank" class="action-btn primary">Open Standalone ↗</a>
+              <a href="hearth-agent-run.lifecycle.json" target="_blank" class="action-btn">JSON Spec</a>
+              <a href="hearth-agent-run.visual-check.html" target="_blank" class="action-btn">Contact Sheet</a>
+            </div>
+          </div>
+          <iframe src="hearth-agent-run.html" class="viewer-iframe" loading="lazy"></iframe>
+        </div>
+
+        <div class="takeaways-grid">
+          <div class="takeaway-card">
+            <div class="takeaway-title">⏱️ Non-Scalar Rate Throttles (<a href="#adrs" class="adr-badge">ADR-0044</a>)</div>
+            <div class="takeaway-body">Rate limits are not simple counters; budget holds throttle token velocity before hardware limits trigger memory faults, holding runs in a paused but recoverable state.</div>
+          </div>
+          <div class="takeaway-card">
+            <div class="takeaway-title">👤 Commander Intent Frontier (<a href="#adrs" class="adr-badge">ADR-0012</a>)</div>
+            <div class="takeaway-body">Major architectural moves pause for Commander review at the frontier lane without abandoning the execution context or losing trace correlation.</div>
+          </div>
+          <div class="takeaway-card">
+            <div class="takeaway-title">🔄 Hardware Rung Swap</div>
+            <div class="takeaway-body">If OMEN's Arc B580 experiences out-of-memory or driver stalls, the scheduler automatically swaps execution to AM4's 16GB Arc A770 and resumes the task graph.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 3: Sequence -->
+      <section id="sequence" class="doc-section">
+        <div class="section-header">
+          <span class="section-tag tag-seq">03 · Request Trace (Sequence)</span>
+          <h2 class="section-title">FastMCP Execution Sequence</h2>
+          <p class="section-desc">
+            Nanosecond-level API trace showing an incoming <code>local_generate</code> tool call traversing authentication, memory arithmetic checks, physical GPU compute, OpenTelemetry span emission, and double-write ledgering.
+          </p>
+        </div>
+
+        <div class="viewer-frame-card">
+          <div class="viewer-toolbar">
+            <div class="toolbar-left">
+              <span class="toolbar-name">hearth-mcp-trace.html</span>
+              <span class="toolbar-meta">Sequence · 7 Participants · Distributed Tracing Spans</span>
+            </div>
+            <div class="toolbar-right">
+              <a href="hearth-mcp-trace.html" target="_blank" class="action-btn primary">Open Standalone ↗</a>
+              <a href="hearth-mcp-trace.sequence.json" target="_blank" class="action-btn">JSON Spec</a>
+              <a href="hearth-mcp-trace.visual-check.html" target="_blank" class="action-btn">Contact Sheet</a>
+            </div>
+          </div>
+          <iframe src="hearth-mcp-trace.html" class="viewer-iframe" loading="lazy"></iframe>
+        </div>
+
+        <div class="takeaways-grid">
+          <div class="takeaway-card">
+            <div class="takeaway-title">🔑 One Door, One Host (<a href="#adrs" class="adr-badge">ADR-0028</a>)</div>
+            <div class="takeaway-body">FastMCP on loopback :8710 is the sole ingress. Keys resolve to capability profiles, and list_tools is filtered by that exact profile.</div>
+          </div>
+          <div class="takeaway-card">
+            <div class="takeaway-title">📐 Arithmetic Before Dispatch (<a href="#adrs" class="adr-badge">ADR-0031</a>)</div>
+            <div class="takeaway-body">A pin picks the rung, not a waiver of physics. Over-budget prompts are rejected at the door rather than dying mid-generation on the GPU.</div>
+          </div>
+          <div class="takeaway-card">
+            <div class="takeaway-title">✍️ Record-Event Double-Write (<a href="#adrs" class="adr-badge">ADR-0011</a>)</div>
+            <div class="takeaway-body">Every dispatch writes to the on-disk event ledger before the ToolResult is returned to the caller, ensuring zero unrecorded execution.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 4: Dataflow -->
+      <section id="dataflow" class="doc-section">
+        <div class="section-header">
+          <span class="section-tag tag-dfd">04 · Data Lineage (Dataflow)</span>
+          <h2 class="section-title">Provenance & Public Proof Loop</h2>
+          <p class="section-desc">
+            The closed-loop data pipeline from raw agent token execution through the append-only event stream (229K+ events), CQRS projections, and knowledge graph extraction to the public portfolio claim export.
+          </p>
+        </div>
+
+        <div class="viewer-frame-card">
+          <div class="viewer-toolbar">
+            <div class="toolbar-left">
+              <span class="toolbar-name">hearth-provenance-loop.html</span>
+              <span class="toolbar-meta">Dataflow · 5 Processing Stages · Hash-Checked Proof Gate</span>
+            </div>
+            <div class="toolbar-right">
+              <a href="hearth-provenance-loop.html" target="_blank" class="action-btn primary">Open Standalone ↗</a>
+              <a href="hearth-provenance-loop.dataflow.json" target="_blank" class="action-btn">JSON Spec</a>
+              <a href="hearth-provenance-loop.visual-check.html" target="_blank" class="action-btn">Contact Sheet</a>
+            </div>
+          </div>
+          <iframe src="hearth-provenance-loop.html" class="viewer-iframe" loading="lazy"></iframe>
+        </div>
+
+        <div class="takeaways-grid">
+          <div class="takeaway-card">
+            <div class="takeaway-title">📥 Ingest Owns Truth (<a href="#adrs" class="adr-badge">ADR-0010</a>)</div>
+            <div class="takeaway-body">events.jsonl is append-only and immutable. Projections replay state from genesis; UI surfaces only interpret, never mutate.</div>
+          </div>
+          <div class="takeaway-card">
+            <div class="takeaway-title">🕸️ 26K-Node Knowledge Graph</div>
+            <div class="takeaway-body">Entity extraction transforms unstructured agent output into 26,000+ typed triples and 87,000+ semantic edges for persistent cross-session memory.</div>
+          </div>
+          <div class="takeaway-card">
+            <div class="takeaway-title">🌐 Governed Public Proof</div>
+            <div class="takeaway-body">The export-public gate verifies SHA-256 receipts before publishing public-career-proof.v1.json, creating a cryptographic audit trail for all career claims.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 5: ADR Register -->
+      <section id="adrs" class="doc-section">
+        <div class="section-header">
+          <span class="section-tag tag-adr">05 · Governance</span>
+          <h2 class="section-title">Architectural Decision Records (ADRs)</h2>
+          <p class="section-desc">
+            HEARTH architecture is governed by 63 formal ADRs. Key decisions referenced in the diagrams above:
+          </p>
+        </div>
+
+        <table class="adr-table">
+          <thead>
+            <tr>
+              <th style="width: 130px;">ADR ID</th>
+              <th style="width: 280px;">Title</th>
+              <th>Architectural Principle</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="adr-id">ADR-0003</td>
+              <td><strong>Anti-Drift Disk Fixtures</strong></td>
+              <td>In-memory working state must reconcile against immutable disk fixtures every cycle. State drift fails closed immediately.</td>
+            </tr>
+            <tr>
+              <td class="adr-id">ADR-0010</td>
+              <td><strong>Two Ledgers, Two Contexts</strong></td>
+              <td>Operational telemetry and career proof remain separated bounded contexts with one-way projections.</td>
+            </tr>
+            <tr>
+              <td class="adr-id">ADR-0011</td>
+              <td><strong>Record-Event Double-Write</strong></td>
+              <td>Tool execution and ledger commitment occur synchronously before the result is delivered to the caller.</td>
+            </tr>
+            <tr>
+              <td class="adr-id">ADR-0012</td>
+              <td><strong>Commander Intent Frontier</strong></td>
+              <td>Human intervention pauses execution at the frontier without tearing down execution state or losing OTel trace correlation.</td>
+            </tr>
+            <tr>
+              <td class="adr-id">ADR-0014</td>
+              <td><strong>Machine Lanes Off Tailnet</strong></td>
+              <td>Internal M2M lanes use LAN / mshome addresses; Tailscale is strictly reserved for human access and the public Funnel proxy.</td>
+            </tr>
+            <tr>
+              <td class="adr-id">ADR-0021</td>
+              <td><strong>Fail-Closed Routing</strong></td>
+              <td>Unclassified tools raise at startup. A gateway that only half-knows its security policy stays shut.</td>
+            </tr>
+            <tr>
+              <td class="adr-id">ADR-0031</td>
+              <td><strong>Pin Chooses a Rung</strong></td>
+              <td>Pinning selects a hardware rung but cannot waive memory arithmetic. Over-budget prompts are rejected at the door.</td>
+            </tr>
+            <tr>
+              <td class="adr-id">ADR-0036</td>
+              <td><strong>GPU Leaves Control Plane</strong></td>
+              <td>Physical GPU execution is an external compute resource accessed via durable messaging, never bound inside the orchestrator.</td>
+            </tr>
+            <tr>
+              <td class="adr-id">ADR-0044</td>
+              <td><strong>Rate is Not a Scalar</strong></td>
+              <td>Token rates are velocity vectors across GPU memory thresholds, driving proactive backpressure rather than reactive recovery.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Section 6: Fleet Topology -->
+      <section id="fleet" class="doc-section">
+        <div class="section-header">
+          <span class="section-tag tag-arch">06 · Physical Hardware</span>
+          <h2 class="section-title">Physical Fleet Topology</h2>
+          <p class="section-desc">
+            The bare-metal hardware running HEARTH inference, storage, and external ingress:
+          </p>
+        </div>
+
+        <div class="fleet-grid">
+          <div class="fleet-node">
+            <div class="node-header">
+              <span class="node-name">OMEN</span>
+              <span class="node-role">Primary Compute</span>
+            </div>
+            <ul class="node-specs">
+              <li><strong>CPU:</strong> Intel Core i7 (16 Cores)</li>
+              <li><strong>RAM:</strong> 32 GB DDR5</li>
+              <li><strong>GPU:</strong> Intel Arc B580 (12 GB VRAM)</li>
+              <li><strong>Role:</strong> Vulkan inference, FastMCP gateway host</li>
+            </ul>
+          </div>
+
+          <div class="fleet-node">
+            <div class="node-header">
+              <span class="node-name">AM4</span>
+              <span class="node-role">Heavy Rung</span>
+            </div>
+            <ul class="node-specs">
+              <li><strong>CPU:</strong> AMD Ryzen 7 5700X</li>
+              <li><strong>RAM:</strong> 32 GB DDR4</li>
+              <li><strong>GPU:</strong> Intel Arc A770 (16 GB VRAM)</li>
+              <li><strong>Role:</strong> High-capacity local LLM inference</li>
+            </ul>
+          </div>
+
+          <div class="fleet-node">
+            <div class="node-header">
+              <span class="node-name">i5</span>
+              <span class="node-role">Utility Rung</span>
+            </div>
+            <ul class="node-specs">
+              <li><strong>CPU:</strong> Intel Core i5-10400</li>
+              <li><strong>RAM:</strong> 16 GB DDR4</li>
+              <li><strong>GPU:</strong> Intel Arc A580 (8 GB VRAM)</li>
+              <li><strong>Role:</strong> Embedding generation & critique seats</li>
+            </ul>
+          </div>
+
+          <div class="fleet-node">
+            <div class="node-header">
+              <span class="node-name">FX99 (ai-1)</span>
+              <span class="node-role">Edge & Storage</span>
+            </div>
+            <ul class="node-specs">
+              <li><strong>Host:</strong> Ubuntu 24.04 (192.168.12.220)</li>
+              <li><strong>RAM:</strong> 16 GB / NVIDIA RTX 2070 Super</li>
+              <li><strong>Ingress:</strong> Caddy :8190 + Tailscale Funnel</li>
+              <li><strong>Storage:</strong> Multi-SSD Samba read-only shares</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- Footer -->
+      <footer>
+        <p style="margin-bottom: 8px;">
+          <strong>HEARTH Sovereign Autonomous Agent Architecture</strong> · Designed & Built by <strong>Derek Ciula</strong>
+        </p>
+        <p>
+          <a href="https://github.com/djcdevelopment" target="_blank">GitHub</a> · 
+          <a href="https://www.linkedin.com/in/derekciula/" target="_blank">LinkedIn</a> · 
+          <a href="https://steppeintegrations.com" target="_blank">steppeintegrations.com</a>
+        </p>
+      </footer>
+
+    </main>
+  </div>
+
+</body>
+</html>

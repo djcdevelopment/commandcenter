@@ -1,0 +1,105 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "HEARTH Architectural Atlas & Document Journey",
+    "output": "hearth-atlas.html",
+    "visual_preset": "blueprint",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "full-journey",
+        "label": "Full System Journey",
+        "focus": ["caller", "door", "cluster", "router", "lifecycle", "trace", "vulkan", "guard", "ledger", "provenance_loop", "public_gate"],
+        "note": "Follow the complete architectural journey across all 4 documented showcase layers."
+      },
+      {
+        "id": "diagram-suite",
+        "label": "The 4 Showcase Diagrams",
+        "focus": ["cluster", "lifecycle", "trace", "provenance_loop"],
+        "note": "The four core diagrams in the showcase: Architecture, Lifecycle, Sequence, and Dataflow."
+      },
+      {
+        "id": "governance-trail",
+        "label": "Governance & Proof Trail",
+        "focus": ["door", "guard", "ledger", "public_gate", "public_site"],
+        "note": "How ADR-backed invariants and disk fixtures guarantee public career claims."
+      }
+    ]
+  },
+  "lanes": [
+    { "id": "ingress", "label": "External Surfaces" },
+    { "id": "control", "label": "Control Plane (§01 Architecture)" },
+    { "id": "execution", "label": "Execution Pipeline (§02 Lifecycle & §03 Sequence)" },
+    { "id": "provenance", "label": "Provenance Engine (§04 Dataflow)" }
+  ],
+  "phases": [
+    { "id": "intake", "label": "Intake & Topology", "fromCol": 0, "toCol": 1 },
+    { "id": "orchestration", "label": "Routing & Execution", "fromCol": 2, "toCol": 3, "variant": "emphasis" },
+    { "id": "commit", "label": "Governance & Proof Loop", "fromCol": 4, "toCol": 4, "variant": "dashed" }
+  ],
+  "groups": [
+    { "id": "control_group", "label": "Gateway perimeter", "lane": "control", "fromCol": 0, "toCol": 2, "variant": "security" },
+    { "id": "exec_group", "label": "Hardware rungs", "lane": "execution", "fromCol": 1, "toCol": 4, "variant": "emphasis" },
+    { "id": "prov_group", "label": "Immutable storage", "lane": "provenance", "fromCol": 2, "toCol": 4, "variant": "dashed" }
+  ],
+  "mainPath": ["caller", "door", "cluster", "lifecycle", "trace", "vulkan", "guard"],
+  "nodes": [
+    { "id": "caller", "lane": "ingress", "col": 0, "type": "external", "label": "Agent Caller", "sublabel": "Claude / Gemini", "width": 128 },
+    { "id": "door", "lane": "control", "col": 0, "type": "security", "label": "FastMCP Door", "sublabel": "port :8710", "tag": "one host", "width": 128 },
+    { "id": "cluster", "lane": "control", "col": 1, "type": "cloud", "label": "§01 Topology", "sublabel": "hearth-control-plane", "tag": "3-node cluster", "width": 128 },
+    { "id": "lifecycle", "lane": "execution", "col": 1, "type": "backend", "label": "§02 Lifecycle", "sublabel": "hearth-agent-run", "tag": "7-stage state", "width": 128 },
+    { "id": "router", "lane": "control", "col": 2, "type": "backend", "label": "Rung Scheduler", "sublabel": "ADR-0031 budget", "width": 128 },
+    { "id": "trace", "lane": "execution", "col": 2, "type": "messagebus", "label": "§03 FastMCP Trace", "sublabel": "hearth-mcp-trace", "tag": "call sequence", "width": 128 },
+    { "id": "ledger", "lane": "provenance", "col": 2, "type": "database", "label": "events.jsonl", "sublabel": "229K+ verified", "tag": "append-only", "width": 128 },
+    { "id": "vulkan", "lane": "execution", "col": 3, "type": "cloud", "label": "Vulkan Compute", "sublabel": "Intel Arc GPUs", "tag": "B580 / A770", "width": 128 },
+    { "id": "provenance_loop", "lane": "provenance", "col": 3, "type": "database", "label": "§04 Proof Loop", "sublabel": "hearth-provenance-loop", "tag": "CQRS + KG", "width": 128 },
+    { "id": "guard", "lane": "execution", "col": 4, "type": "security", "label": "Anti-Drift Guard", "sublabel": "ADR-0003 fixtures", "tag": "fail-closed", "width": 128 },
+    { "id": "public_gate", "lane": "provenance", "col": 4, "type": "security", "label": "export-public", "sublabel": "hash-checked gate", "tag": "career proof", "width": 128 },
+    { "id": "public_site", "lane": "ingress", "col": 4, "type": "frontend", "label": "Public Portfolio", "sublabel": "steppeintegrations.com", "width": 128 }
+  ],
+  "edges": [
+    { "id": "caller-door", "from": "caller", "to": "door", "label": "tool call", "variant": "emphasis" },
+    { "id": "door-cluster", "from": "door", "to": "cluster", "label": "routes into", "variant": "default" },
+    { "id": "cluster-router", "from": "cluster", "to": "router", "label": "schedules", "variant": "default" },
+    { "id": "cluster-lifecycle", "from": "cluster", "to": "lifecycle", "label": "initiates", "variant": "emphasis" },
+    { "id": "lifecycle-trace", "from": "lifecycle", "to": "trace", "label": "pipeline trace", "variant": "emphasis" },
+    { "id": "router-trace", "from": "router", "to": "trace", "label": "rung parameters", "variant": "default" },
+    { "id": "trace-vulkan", "from": "trace", "to": "vulkan", "label": "dispatches GPU", "variant": "emphasis" },
+    { "id": "vulkan-guard", "from": "vulkan", "to": "guard", "label": "reconciles", "variant": "security" },
+    { "id": "trace-ledger", "from": "trace", "to": "ledger", "label": "double-write", "variant": "security" },
+    { "id": "ledger-proof", "from": "ledger", "to": "provenance_loop", "label": "materializes", "variant": "default" },
+    { "id": "proof-gate", "from": "provenance_loop", "to": "public_gate", "label": "verifies SHA-256", "variant": "security" },
+    { "id": "gate-site", "from": "public_gate", "to": "public_site", "label": "proves career claims", "variant": "emphasis", "role": "return", "fromSide": "right", "toSide": "right", "route": "outside-right", "width": 1.2 }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Architectural Atlas",
+      "items": [
+        "Unifies all four specialized diagram layers into one readable system map",
+        "Every phase links directly to a verifiable showcase document",
+        "Demonstrates all five canonical Archify diagram types in one portfolio"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Separation of Concerns",
+      "items": [
+        "External callers interface strictly with the FastMCP door on :8710",
+        "Orchestration, deterministic scheduling, and GPU compute occupy distinct lanes",
+        "Hardware failures trigger automatic rung swaps without losing trace state"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "The Closed Proof Loop",
+      "items": [
+        "Execution emits append-only events (229,000+ verified events)",
+        "CQRS and Knowledge Graph pipelines extract verified career claims",
+        "The public site proves the architecture that built the public site"
+      ]
+    }
+  ]
+}

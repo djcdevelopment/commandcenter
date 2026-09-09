@@ -836,6 +836,77 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
 - Every number carries its regime: model, depth, N, `-np`, placement. The claim register is updated
   for any figure the surface corrects.
 
+## CLOSING BLOCK — Lap 1 at `-np 2` is closed, 2026-09-09 ~12:40Z
+
+Derek stopped this lap: *"it feels like we're performance testing now instead of R&D verification
+that helps us plan how we're going to increase local AI lab throughput."* He is right, and the
+card's own numbers say so. **What is scored, what is not, and why — nothing is quietly dropped.**
+
+| prediction | verdict | evidence |
+|---|---|---|
+| **P1** flat within ±10%, N=2→24 | **supported through N=8** | 2,128.3 / 2,127.1 / 2,163.6 jobs/h — ±1.7% |
+| **P2** N=1→2 gain of 1.3–1.8× | **supported** | 1.406× (3 repeats at N=1, 5 at N=2) |
+| **P3** p95 > 1.5× by N=4, then linear in N/2 | **supported** | 1.97× at N=4; linear across three doublings — 3.552 → 7.006 → 13.684 s |
+| **P5** *the server saturates, the cards do not* | **supported at every N** | both slots busy **1.00**, duty **0.0**, boards ~73 W vs their own 160/114 W reference |
+| **P7** half 1, repeat spread vs the FF6 floor | **refuted, informatively** | 5.00% vs 1.5%; the variance is a discrete batching mode, not scatter |
+| **P7** half 2, unwarmed rep-1 at 65–90% of warm | **refuted, on the severe side** | ~33% of baseline after a verified 299 s idle |
+| **P4** 32K ≤ 1/50 of 512 | **unrun** | needs the 32K regime, which now gets measured on the deep card where it matters |
+| **P6** SLO knee at `-np 8` | **unrun — and reinstated** | see the `-np` pre-registration below |
+| **P8** 32K inadmissible at `-np 8` | **unrun — and reinstated** | same |
+
+**Cancelled with cause:** N=16 and N=24 at 512, and the dual-split 8K/32K depth blocks. At `-np 2`
+the server admits two requests; every additional client queues, which P3 already measures exactly.
+Another ~40 minutes of machine time would re-confirm flatness.
+
+**The finding that ends the lap.** Across N=1, 2, 4 and 8 the two boards never left ~73 W against a
+frozen 160 W / 114 W prefill reference — **duty 0.0 at every point**, while `/slots` showed both
+slots busy 100% of every load window. The server is fully occupied and the hardware is at roughly
+half the power it demonstrably draws. That is channel **(a), intake starvation by configuration**,
+and it means the lever is not more clients, and not a feeder: it is **what runs on the cards**.
+
+---
+
+## PRE-REGISTRATION — the `-np` sweep (Lap 1B), committed before any data
+
+**Why this is not more performance testing.** `-np` is named in this card's own measurement
+protocol as *"the one production knob that caps concurrent admission, never swept server-side"*, and
+it was never swept. Worse, the axis interacts with a patch this lab authored: **PR 27652**
+(`ggml-org/llama.cpp`, ours, open) replaces Vulkan's hardcoded `mul_mat_vec_max_cols = 8` with the
+runtime override `GGML_VK_MMV_MAX_COLS`. Past that width the decode dispatch leaves the mul-mat-vec
+path for matmul, measured on a B70 at **40.7 s/pass against MMV's 3.1–5.8 s** — a cliff.
+
+Verified at source 2026-09-09: **production runs the patched binary**
+(`E:\work\llamacpp-knee\build\bin\llama-server.exe`) and `fleet/arcserve/serve-arc.cmd:34` already
+exports **`GGML_VK_MMV_MAX_COLS=16`**, inherited by llama-swap and every server it spawns. **So the
+decode batch may be 16 columns wide, and production runs `-np 2`.** Eight-fold headroom, bought and
+never used. The whole N sweep above varied *clients*, which only queue, instead of *slots*, which
+are what widen the batch.
+
+**Matrix.** `-np` ∈ {4, 8, 16} at fixed `-c 131072` (per-slot context 32,768 / 16,384 / 8,192),
+prompt 512, clients matched to slots (N = `np` and N = 2·`np`), 3 repeats per cell. `-np 2` is the
+control and is already measured.
+
+| # | prediction | prior |
+|---|---|---|
+| **Q1** | Board duty cycle **rises above 0.0** by `-np 8` and is **≥ 0.25** on at least one card at `-np 16`. It has been exactly 0.0 in all 16 cells so far. | ~70% |
+| **Q2** | Aggregate jobs/hour at the best `-np` is **≥ 1.5×** the `-np 2` ceiling of ~2,130. | ~65% |
+| **Q3** | Per-request decode falls with `np` while aggregate decode rises — the batching trade, not a regression. | ~85% |
+| **Q4** | At `-np 16`, a control repeat with `GGML_VK_MMV_MAX_COLS=8` is **materially worse** than the same cell at 16 — the cliff is real under serving load, not just llama-bench. | ~75% |
+| **Q5** | P8 restated: at `-np 16` a slot holds 8,192 tokens, so **32K prompts are refused or truncated**. Near-deterministic; recorded so it is a protocol fact. | ~90% |
+
+**Q4 is the one that pays twice.** PR 27652's maintainer named per-vendor measurement as the
+blocker, and nothing in the knee campaign measured the knob under **llama-server concurrency** — it
+was llama-bench and frame pacing. This would be its first serving-load evidence.
+
+**Gates:** the same seven, unchanged. Plus, at every restart, capture the server's own
+`llama_kv_cache: size` and per-card buffer lines — **a KV total that scales with `np` is a stop
+condition** (the June build multiplied KV by `n_parallel`; this one divides `-c`, and that must be
+re-confirmed per epoch, not assumed).
+
+**Kill gate:** if duty is still 0.0 at `-np 16` with the batch at the window's edge, then this
+configuration cannot load the cards at all, `-np` is exhausted as a lever, and the partition is the
+only remaining move — which is a result, not a failure.
+
 ## Pass gate
 
 The surface is the deliverable. **Pass** = every planned `-np 2` cell carries all six gate outcomes,

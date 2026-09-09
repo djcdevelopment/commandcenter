@@ -907,6 +907,28 @@ re-confirmed per epoch, not assumed).
 configuration cannot load the cards at all, `-np` is exhausted as a lever, and the partition is the
 only remaining move — which is a result, not a failure.
 
+### Lap 1B operational notes, dated 2026-09-09
+
+> **⚠ `ArcServeRestart` is STOP-ONLY. It took production down and left it down.** The `--set-np 4`
+> sequence edited the yaml (token-exact, backed up), issued `schtasks /Run /TN ArcServeRestart`, and
+> then failed at the ready marker. Checked immediately: **no listener on 8081 or 8082**, the serve
+> log's last write predating the restart, and the yaml reading `-np 4`. `serve-arc.cmd`'s own header
+> states the procedure — *"ArcServeRestart (stop-only), delete the sentinel, then `schtasks /Run /TN
+> ArcServeBoot`"* — and following it brought llama-swap back immediately and production ~3 minutes
+> later (`model loaded`, `listening on http://127.0.0.1:8082`, llama-swap's own health check passed).
+> An earlier restart in this session appeared to self-recover, which is consistent with
+> `ArcServeBoot`'s `RestartCount 3` firing rather than with `ArcServeRestart` restarting anything.
+> **`sat_cell_runner.set_np()` assumes the restart brings production back; it does not, and the
+> runner must issue `ArcServeBoot` after the stop.** Fix before the next `-np` change.
+>
+> **✅ The KV stop condition does NOT fire — measured, not assumed.** At `-np 4` the new epoch's own
+> load report reads `llama_kv_cache: size = 12288.00 MiB (32768 cells, 48 layers, 4/4 seqs)`,
+> `Vulkan0 6400.00 + Vulkan1 5888.00 MiB`, `n_slots = 4, n_ctx_slot = 32768`. **Byte-identical KV
+> total to `-np 2`.** So `-c` is the total and the build divides it; KV does not scale with `np` on
+> this build, and the June-build behaviour vllama recorded does not apply here. Compute buffers
+> actually *fell*, 712.08 → 456.08 MiB per card. Re-baselined: **106.25 tok/s, spread 0.07%** — the
+> same single-stream rate as `-np 2`, so the regime change costs nothing at N=1.
+
 ## Pass gate
 
 The surface is the deliverable. **Pass** = every planned `-np 2` cell carries all six gate outcomes,

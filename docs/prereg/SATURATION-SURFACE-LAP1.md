@@ -1000,6 +1000,38 @@ only remaining move — which is a result, not a failure.
 > load shape than anything measured here. Its Δ is unknown. The gate must be live during that run,
 > not inferred beforehand.
 
+> **RESULT — the `-np` axis through 8 slots, 2026-09-09 ~13:25Z. Q2 met; Q1 met at `-np 8`.**
+> Each row is the cell at matched clients (N = `np`); all scored, gate 7 zero cached throughout.
+>
+| `-np` | tok/slot | jobs/hour | vs `-np 2` | decode/req | **aggregate decode** | p95 | board p50 / max W | **duty** |
+> |---:|---:|---:|---:|---:|---:|---:|---|---|
+> | 2 | 65,536 | 2,128 | — | 66.8 | 133.6 | 3.55 s | 73 / 82 | 0.0 / 0.0 |
+> | 4 | 32,768 | **2,769** (3 reps) | ×1.30 | 44.3 | 177.2 | 4.94 s | 77–99 / **140** | 0.0 / **0.062** |
+> | 8 | 16,384 | **3,358** | **×1.58** | 25.4 | **203.2** | 9.43 s | 119 / **171** | **0.168 / 0.126** |
+>
+> - **Q2 — "aggregate jobs/hour at the best `-np` ≥ 1.5× the ~2,130 ceiling": MET at `-np 8`**
+>   (×1.58). The knob that was never swept is worth more than half again the throughput that sixteen
+>   cells of client-sweeping could not move by 1.7%.
+> - **Q1 — "duty rises above 0.0 by `-np 8`": MET.** 0.168 and 0.126, both cards, first time in the
+>   campaign. The `≥0.25 at -np 16` half is still open.
+> - **Q3 — supported and monotone**: per-request decode 66.8 → 44.3 → 25.4 while aggregate rises
+>   133.6 → 177.2 → 203.2. The batching trade, exactly.
+> - **Peak power now exceeds the reference.** 171.4 W max on `0000:09:00.0` against the frozen
+>   prefill-burst reference of **159.92 W**. The cards are, at peak, working harder than the burst
+>   the whole duty metric is calibrated against — while `-np 2` never left ~73 W.
+> - **The delayed-round event scales with `np` too**: ~222 ms at `-np 2`, 434–589 at `-np 4`,
+>   **674–943 at `-np 8`**, and at `-np 8` all three rounds were delayed. It is not disappearing as
+>   the batch widens; it is growing.
+>
+> **KV still does not scale.** At `-np 8`: `size = 12288.00 MiB (16384 cells, 48 layers, 8/8 seqs)` —
+> byte-identical to `-np 2` and `-np 4`. Compute buffers keep shrinking as slots rise, 712 → 456 →
+> 328 MiB per card. The stop condition has now been checked at every value and never fired.
+>
+> **The restart sequence, corrected and used.** `ArcServeRestart` (stop) → confirm nothing listens on
+> 8082 → `ArcServeBoot` → the real ready marker → `/health` **and** a real completion → re-baseline.
+> Ran clean at the `-np 8` transition; baseline 105.25 tok/s. ⚠ Gate 2 reads `stale` for roughly six
+> minutes after any restart until a deep keep-alive sample lands — normal, not a fault.
+
 ## Pass gate
 
 The surface is the deliverable. **Pass** = every planned `-np 2` cell carries all six gate outcomes,

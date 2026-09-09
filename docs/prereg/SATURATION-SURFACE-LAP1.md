@@ -1077,6 +1077,31 @@ only remaining move — which is a result, not a failure.
 > **A partition would give each card its own whole model and its own queue**, which is exactly the
 > imbalance this measurement exposes. Recorded as an observation from one cell, not a law.
 
+### The sweep stops at `-np 16` — Derek's prior result, 2026-09-09
+
+> *"yeah i tested those step matrix already 16 is best for this hardware for most our use cases, can
+> you move it yes, does that really matter after 16, not unless we're running really small model
+> weights"*
+>
+> **The `-np` axis ends at 16.** Derek has already swept the step matrix on this hardware; 16 is the
+> operating point for this model class, and values beyond it only matter for much smaller weights.
+> So `-np 24/32` are **not run** — not cancelled for time, but because the answer is already known
+> from work that predates this card, and re-deriving it would be exactly the performance-testing the
+> pivot was called on.
+>
+> **This reframes what Lap 1B measured.** It did not discover the operating point; it measured *the
+> distance production was sitting from a known one* — `-np 2` against a settled 16 — and priced that
+> gap at **×1.58 by `-np 8` alone**, with duty going 0.0 → 0.63. The finding is not "16 is good", it
+> is **"production had been running at 2 for months while the answer was 16"**, and nothing in the
+> lab's instrumentation surfaced it. `-np 16` is now live.
+>
+> **It also explains the `GGML_VK_MMV_MAX_COLS=16` in `serve-arc.cmd`.** The MMV window and the slot
+> count are the same number, and that is not a coincidence — the widened window is what makes a
+> 16-wide decode batch viable at all. **Which makes the one remaining `-np 16` measurement the
+> sharpest version of Q4 available**: at 16 slots with the window at its stock 8, the decode batch
+> exceeds the window and must fall onto the matmul path. That is the cliff PR 27652 exists to let
+> users avoid, measured under real serving load for the first time.
+
 ## Pass gate
 
 The surface is the deliverable. **Pass** = every planned `-np 2` cell carries all six gate outcomes,

@@ -1153,8 +1153,13 @@ method.
 
 ## Kill / pivot gate
 
-- Production reads `degraded` on a fresh sample after any cell → **stop**; do not restart; warm and
-  re-verify before any further cell (ADR-0043: restart is not the remedy).
+- Production reads `degraded` on a fresh sample after any cell → **stop**. Then the remedy depends
+  on depth (ADR-0043 as **amended 2026-09-09**, by this campaign's own P7 result):
+  **shallow (≥ ~64% of baseline) → warm and re-verify**, unchanged. **Collapsed (~33%, the state a
+  verified idle produces) → restart, then let the keep-alive hold it** — warming a collapsed rung
+  moved it only 33% → 48% and left it unstable at 81.8% spread, while one restart restored 100% at
+  0.24% spread. `ff_ratecheck` names the discriminator: cleared by one restart ⇒ idle collapse;
+  survives one ⇒ a different class, and *that* is when restarting again is wrong.
 - Repeats drift beyond the noise floor at the N=2 / 512 cell after warm-up → the warm gate is not
   holding; no reading from the block is valid; fix the gate, then resume.
 - P5 refuted (duty cycle ≥ 50% at `-np 2`) → the cards are compute-bound at two slots: **pivot** away

@@ -2185,9 +2185,23 @@ def run_cell(cell: str, python: str, args) -> dict:
     row["warm"] = warm_to_flatness(lambda: ff_ratecheck.measure(rung, FLATNESS_REPS))
     row["unwarmed_rep1_tok_s"] = row["warm"].get("unwarmed_rep1_tok_s")
     if not row["warm"].get("flat"):
+        # ADR-0043 AS AMENDED 2026-09-09 (by this campaign's own P7 result). The old text
+        # here read "warm, do not restart" -- which is exactly wrong in the case that makes
+        # this branch fire. A rung that will not settle is usually a COLLAPSED rung, and
+        # warming a collapsed rung does not recover it: measured 33% -> 48% over 24 sustained
+        # requests, each rep LOWER than the last, 81.8% spread, while one restart restored
+        # 100% at 0.24%. Report the depth so the operator can tell the two apart, and name
+        # the discriminator rather than prescribing a remedy from here.
+        settled = row["warm"].get("final_decode_tok_s")
+        base = rung.get("baseline_decode_tok_s") or rung.get("baseline_tok_s")
+        frac = ("%.0f%% of baseline" % (100.0 * settled / base)
+                if settled and base else "fraction unknown")
         return _finish(row, cell_dir, args, "REFUSED_NOT_WARM",
-                       "the rung never settled within %.1f%%; ADR-0043 says warm, do not restart"
-                       % FLATNESS_SPREAD_PCT)
+                       "the rung never settled within %.1f%% (%s). ADR-0043 amended: shallow decay "
+                       "(>=~64%%) -> warm; a COLLAPSE (~33%%) does not warm back -- restart once, "
+                       "then let the keep-alive hold it. The restart is the discriminator: cleared "
+                       "by one => idle collapse; survives one => a different class, and restarting "
+                       "again is wrong." % (FLATNESS_SPREAD_PCT, frac))
     warm_argv = load_argv(python, cell, depth, 2, run_id="sat-l1-%s-warmdiscard" % cell)
     warm_proc = subprocess.run(warm_argv, capture_output=True, text=True, errors="replace",
                                env=child_env)

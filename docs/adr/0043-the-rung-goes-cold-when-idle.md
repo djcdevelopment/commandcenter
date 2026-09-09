@@ -1,6 +1,6 @@
 # 0043 — The rung goes cold when idle: keep it warm, don't restart it
 
-**Status:** Accepted (2026-08-29) — measured on three independent runs; mitigation proven and **shipped** (`fleet/fx99-keepalive/`, scheduled from fx99) — **Addendum 2026-09-03:** held through the 2026-09-03 cutover and rotation proof; rung state is now code (`hearth/health/rungstate.py`).
+**Status:** Accepted (2026-08-29) — measured on three independent runs; mitigation proven and **shipped** (`fleet/fx99-keepalive/`, scheduled from fx99) — **Addendum 2026-09-03:** held through the 2026-09-03 cutover and rotation proof; rung state is now code (`hearth/health/rungstate.py`) — **Amended 2026-09-09:** Decision 2 ("restart is no longer the prescribed remedy") is **narrowed to shallow decay**. Against a *verified* idle the rung collapses to ~33% and warming does **not** recover it (24 sustained requests: 33% → 48%, unstable); one restart restored 100%. The keep-alive this ADR shipped is also why the collapse had never been observed — the rung is never idle. See the amendment under Decision 2.
 
 **Supersedes the trigger in:** `docs/adr#0041` (co-residency poisons the incumbent). That record's
 *rule* — restart before you trust a measurement — remains sound and is what kept the campaign
@@ -111,6 +111,39 @@ restarting them.**
 2. **Restart is no longer the prescribed remedy.** It works only because a freshly loaded server is
    immediately measured; it treats the symptom at the cost of a full weight load. Warming is
    cheaper and does not disturb the epoch.
+
+   > **⚠ AMENDED 2026-09-09 — this holds for a shallow decay and FAILS for a full collapse.**
+   > Decision 2 was written from idle gaps that left the rung at 64–87% of baseline, where warming
+   > does recover it. It had never been tested against a *verified* idle, because the keep-alive
+   > this ADR shipped means the rung is never idle: a one-token completion arrives every ~31 s, so
+   > every "unwarmed" reading in the corpus describes a rung that was never allowed to go cold.
+   >
+   > Measured with the fx99 timers deliberately stopped (a single **299-second** gap in
+   > `arc-keepalive.jsonl`, nothing else touching `:8082`), on the `-np 8` production shape:
+   >
+   > | state | reading | vs 106.0 baseline |
+   > |---|---|---:|
+   > | after 240 s of verified idle | 41.97 / 28.00 / 28.19 tok/s | **~33%** |
+   > | after **24 sustained concurrent requests** | 72.0 / 50.06 / 30.44, spread **81.8%** | **~48%, unstable** |
+   > | after **one restart**, first warm iteration | 106.45 / 106.25 / 106.19, spread **0.24%** | **100%** |
+   >
+   > Warming did not converge — each of the three reads was *lower* than the last. One restart
+   > restored the rung completely. So the remedy depends on depth:
+   >
+   > - **Shallow (≥ ~64% of baseline, the state Decision 2 was written from): warm.** Unchanged.
+   > - **Collapsed (~33%, after a real idle): restart, then let the keep-alive hold it.** Warming a
+   >   collapsed rung holds it near 40–48% rather than recovering it — which the operating notes
+   >   already said and this ADR generalised past.
+   >
+   > `ff_ratecheck`'s own guidance already names the discriminator and it is the right one: **the
+   > restart is the test.** Cleared by one restart ⇒ idle collapse. Survives one ⇒ a different class
+   > with an unknown cause, and *that* is when restarting again is the wrong move.
+   >
+   > ⚠ Cost of the measurement, stated: production ran degraded for ~7 minutes. No real traffic was
+   > affected — the gateway ledgers carry no dispatch in that window. Receipts:
+   > `E:\work\battlemage\sat-l1\probes\p7-half2-cold-rung-20260909.json` and
+   > `remediation-20260909.json`; scored on the SAT-L1 card as P7's second half, **refuted on the
+   > severe side** (predicted 65–90% of warm, observed ~33%).
 3. **ADR-0041's trigger is re-stated.** The rule fires on **idle**, not on co-residency. A
    co-resident cell still invalidates the incumbent's rate — but by leaving it idle for minutes,
    which is a property of *running any experiment*, not of sharing the cards.

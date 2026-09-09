@@ -771,6 +771,30 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
 > arrivals in phase is a submission-side lever worth ~5–10% here, which is Lap 2's territory, and it
 > predicts that batched-prefill fraction, not client count, is the variable to control.
 
+> **QUANTIFIED — batching is worth 10.1%, and it, not the client count, is what varies
+> (2026-09-09 ~12:25Z).** Reducing all twelve real-prefill cells to one number each — the fraction
+> of a cell's requests that shared a prefill pass — against their jobs/hour:
+>
+> | batched | cells | jobs/hour mean | range | which cells |
+> |---:|---:|---:|---|---|
+> | **100%** | 2 | **2,199.5** | 2,195.3 – 2,203.7 | N=2 r8, **N=4 r3** |
+> | **67%** | 6 | **2,118.4** | 2,097.4 – 2,148.6 | N=2 r6/r7/r9/r10, **N=4 r1/r4** |
+> | **0%** | 1 | **1,998.5** | — | N=4 r2 |
+>
+> **Fully batched against fully unbatched: 2,199.5 vs 1,998.5 — batching is worth 10.1%.**
+>
+> The decisive detail is *which* cells share a row. The 100% group holds one N=2 cell and one N=4
+> cell, 0.4% apart. The 67% group holds four N=2 cells and two N=4 cells, all inside 2.4%. **Client
+> count does not separate the groups; batching mode does.** Decode confirms it independently: 66.1–
+> 67.8 tok/s in every batched-or-partly-batched cell regardless of N, and 59.2 in the one unbatched
+> cell.
+>
+> This is a better account of the surface than P1's own wording. Jobs/hour *is* flat in N — and the
+> ±5–10% that would otherwise be written off as noise is a **discrete mode variable**, not scatter.
+> ⚠ The 0% group is a single cell; the 100% group is two. The ordering is monotone and the mechanism
+> is physical, but the end points are thin and the remaining N=8/16/24 blocks are what thicken them.
+> Reducer: `E:\work\battlemage\sat-l1\probes\solo_fraction.py`.
+
 ## Analysis plan
 
 - Per cell: jobs/hour, p50/p95/p99 latency and TTFT (nearest-rank, as the harness computes them),

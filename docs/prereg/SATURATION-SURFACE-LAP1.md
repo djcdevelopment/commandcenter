@@ -152,6 +152,51 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
    >   is `false` with the render agent's heartbeat ~11.9 days stale. The render half of the capture
    >   needs the agent started in an interactive session first — Derek's step. The compute-control
    >   half needs no executor and can run first.
+   > - **Corrected same day:** `hearth/var/render/PAUSED` reads "Hatchet production authority; legacy
+   >   workers held for rollback" (2026-08-28). The door's render lane is the *legacy* path, paused by
+   >   design; the live authority is Hatchet, whose intake (`:18777`) is **not listening on OMEN**. The
+   >   render half is not drivable without operator action on either authority.
+
+   > **RESULT — compute control captured 2026-09-09 08:54:37Z** (`campaign/ff-probes/
+   > sat_reference_capture.py --live --ledger`; receipt `E:\work\battlemage\sat-l1\reference\
+   > ref-20260909T085437Z\receipt.json`; ledger rows `SAT-L1-REFERENCE` and the post-burst
+   > `FF-RATECHECK`). **Regime:** Qwen3-30B-A3B Q4_K_M, dual layer-split `-ts 1,1`, `-np 2 -ub 1024`,
+   > epoch 2026-08-29T18:22; N=2 clients, **pp6033** per request (the 8192 target tokenized denser;
+   > the receipt carries the true `prompt_n`), `cache_prompt: false`, 22/22 requests over 94 s,
+   > prefill 1540.8 tok/s median (server timings), request wall p50 8.43 s.
+   >
+   > | per-card GPU-tile power (ΔJ/Δt, 1 Hz, `gpu.energy_j_counter`) | ambient p50 | **burst p50** | burst p95 | burst max | ticks / irregular |
+   > |---|---|---|---|---|---|
+   > | bus 9 · `0000:09:00.0` · b70b | 26.67 W | **159.92 W** | 184.74 | 191.81 | 140 / 0 |
+   > | bus 4 · `0000:04:00.0` · b70a | 26.60 W | **114.05 W** | 164.37 | 192.83 | 140 / 0 |
+   >
+   > Symmetry 0.964 (788 vs 760 samples). `card.energy_j_counter` was emitted once per capture in
+   > this b70tools build and is not differenceable; the reference is the GPU-tile counter, stated as
+   > such. `vram.` is absent.
+   >
+   > **Oracle decision (per the condition above):** the compute control reaches ~6× ambient and
+   > ~192 W peak on both cards; the render lane's own calibration shows `compute 0.0%` during encode
+   > and the lane is paused under the Hatchet cutover. **The compute control is the reference.**
+   > `reference_p50_power` is **per card** (159.92 / 114.05 W); `saturation_duty_cycle` for a cell is
+   > the fraction of wall time each card spends above 0.9 × its own reference p50, reported per card.
+   > The render half is scored *not applicable — lane paused, compute idle during encode*, not
+   > "untested".
+   >
+   > **Two observations recorded, not claimed** (one capture, one regime):
+   > 1. **Layer-split prefill is power-unbalanced at N=2** — a 46 W gap in p50 between the cards while
+   >    both peak at ~192 W. Consistent with pipeline bubbles (one card holds while the other works);
+   >    it is the waiting thesis showing up as power, and it is a hypothesis for Lap 1 to test, not a
+   >    result.
+   > 2. **The keep-alive deep probe fired 28 s into the burst and read 3.56 tok/s (3.4% of baseline).**
+   >    Post-burst `ff_ratecheck`: **104.90 tok/s = 99%** (reps 104.48 / 104.46 / 105.75, spread 1.23%,
+   >    PASS). So that reading was queueing behind two full slots — P3's waiting term, landing on the
+   >    lab's own probe — not damage. Protocol consequence: a rung sample counts as "after" only if taken
+   >    after the burst **ended**; a sample inside the burst is kept as `rung_during`. The script was
+   >    corrected accordingly the same hour.
+   >
+   > **FROZEN 2026-09-09 on Derek's ack:** the compute control above is the SAT-L1 saturation
+   > reference. The render half is *not applicable* (lane paused under the Hatchet cutover; compute
+   > idle during encode). P5's duty-cycle half is now testable on every Lap 1 cell.
    - *In-flight proxy, verified live through the wrapper:* `/slots` (per-slot `is_processing`,
      `n_prompt_tokens`, `next_token`) and `/metrics` (`llamacpp:n_busy_slots_per_decode`,
      `llamacpp:predicted_tokens_seconds`, 15 series) both answer 200 with the bearer. Slot-busy

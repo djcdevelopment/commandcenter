@@ -532,14 +532,33 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
 > 04:31:01, 04:31:32, exactly 31 s apart, with an occasional deep row (108.89 tok/s at 04:31:49).
 >
 > That is the ADR-0043 keep-alive, and it is the same signal `hearth/health/rungstate.py` and
-> `guard.py` read to produce the rung verdict that gates **every cell in this campaign**. So P7's
-> second half cannot be tested by waiting: testing it means pausing the keep-alive, which blinds
-> gate 2 for the duration. **The instrument that lets the campaign gate on rung state is the same
-> one that prevents it from observing idle decay.** Recorded as `untestable` with that trade-off
-> named — a tenancy call, not something to take unilaterally — rather than as `untested`. It also
-> means every "unwarmed rep-1" figure in this campaign so far describes a rung that was never
-> allowed to go cold, and ADR-0043's 68/69/74/92 readings deserve re-reading against whether the
-> keep-alive was running when they were taken.
+> `guard.py` read to produce the rung verdict that gates **every cell in this campaign**. **The
+> instrument that lets the campaign gate on rung state is the same one that prevents it from
+> observing idle decay.** Every "unwarmed rep-1" figure in this campaign so far therefore describes
+> a rung that was never allowed to go cold, and ADR-0043's own 68/69/74/92 readings deserve
+> re-reading against whether the keep-alive was running when they were taken.
+>
+> > **CORRECTION, same day, on Derek's recollection.** I first wrote this half up as *untestable as
+> > configured*. That was wrong, and the error was mine: I identified the prober from its log
+> > without looking for a way to pause it. Derek recalled setting the keep-alive up on **fx99**
+> > "because it was needed to keep performance up" — which is ADR-0043's reason — and that is
+> > exactly what it is. Verified: the host is **`ai-1`, 192.168.12.220**, running
+> > `arc-keepalive.timer` (~30 s) and `arc-keepalive-deep.timer` (5 min), both `active`, reaching
+> > OMEN's `:8082` over the LAN; passwordless `ssh` from OMEN works.
+> >
+> > **A pause mechanism already exists in this repo and is precedented** —
+> > `campaign/ff-probes/ub_ab.py:106` (`"""Stop/start the fx99 keep-alive timers over SSH. Best
+> > effort, never fatal."""`), and the same helper in `b3_topology_crossover.py`,
+> > `b4_flash_coresidency.py` and `b5_dense_vs_moe.py`: `sudo systemctl {stop|start}
+> > arc-keepalive.timer arc-keepalive-deep.timer`. Four sibling probes in this campaign family
+> > already stop it for the duration of a measurement and start it again afterwards.
+> >
+> > So P7's second half is **testable**, at a stated cost: while the timers are stopped, `guard.py`'s
+> > passive rung state goes stale, so gate 2 is blind for that window — which is precisely why the
+> > cold reading is possible. It is also strictly smaller and more reversible than the Phase 2
+> > production restarts already authorized. Scored below when run; the restore is verified by the
+> > timers reading `active` again **and** by `arc-keepalive.jsonl` resuming, not by the `ssh` exit
+> > code alone.
 >
 > **Eliminated, with evidence:** the keep-alive is *not* the cause of the 222 ms event. Its 1-token
 > tasks are ~22 ms and appear at 1001.12 and 1001.43 of server uptime, while r9's delayed round is

@@ -995,6 +995,20 @@ only remaining move — which is a result, not a failure.
 > and warns at 88 °C, with the attribution carried in the code so it is not quietly "tightened"
 > later. A thermal failure **keeps** the row and excludes it from the surface, like `over_admitted`.
 >
+> **Three corrections to the above, from building the gate (merged 2026-09-09, 338 tests):**
+> 1. **The temperature counters are emitted ON CHANGE, not per tick** — 7–31 readings per counter per
+>    card across a 175–260 s capture, irregularly spaced. Percentiles are therefore over *readings*,
+>    not time-weighted, and a counter can have **zero** in-window readings (one card's VRAM has 7
+>    samples, none inside the load window) — those percentiles are `null` with a stated reason while
+>    `max_c` still evaluates the abort. `max_c` is deliberately **capture-wide** so a spike just
+>    outside the load window cannot slip past the limit.
+> 2. **My "0–4 °C rise" was a VRAM figure. GPU deltas reach 7–8 °C.** Still far under the 15 °C delta
+>    warn, but the number I quoted was the coolest of the two counters.
+> 3. **The "idle" baseline is not a cold idle.** The runner warms to flatness and runs a discarded
+>    load *before* the b70 stream starts, so the pre-window readings are a post-warm cooldown —
+>    temperature falls monotonically through that segment in all four captures. The reported rise is
+>    conservative as a result.
+>
 > ⚠ **What this does not license:** extrapolating the partition's thermals from these cells. The
 > quarantined experiment was replica-per-card — a whole model on each card, a different and heavier
 > load shape than anything measured here. Its Δ is unknown. The gate must be live during that run,

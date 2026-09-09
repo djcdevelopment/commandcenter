@@ -419,6 +419,45 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
 > the size axis matters sooner than P4 assumes; if it does not fall at all, the flag did not reach
 > the load path and the gate 7 evidence must be read again.
 
+> **RESULT — first cell on the fixed instrument, `np2-p512-c2-r6`, 2026-09-09 ~11:07Z** — receipt
+> `E:\work\battlemage\sat-l1\cells\np2-p512-c2-r6\receipt.json`; runner `defa9e0`; same regime as
+> block 1, now with `cache_prompt: false`. **Status: scored, all seven gates.** The derived
+> expectation recorded above, before this data existed, was 2,100–2,160 jobs/hour and p50 ≈ 3.35 s.
+>
+> | field | block 1 (cached) | r6 (real prefill) | expectation |
+> |---|---:|---:|---|
+> | jobs/hour | 2,275.5 | **2,097.4** | 2,100–2,160 |
+> | p50 latency | 3.14 s | **3.344 s** | ≈3.35 s |
+> | p95 latency | 3.25 s | 3.648 s | — |
+> | TTFT p50 | 0.043 s | **0.332 s** | — |
+> | decode p50 | 64.6 | 66.1 | unchanged |
+> | prefill p50 | `null` (every cell) | **1,465.0 tok/s** | — |
+> | duty, both cards | 0.0 | **0.0** | ~0 |
+>
+> **Gate 7 passes with zero cached tokens**: 3,136 uncached against 2,640 asked for (the 496 surplus
+> is `ff_cell`'s own rate probes, reported as `probe_contribution`, nothing subtracted). The prompt
+> cache is defeated, and prefill is a measured number for the first time in this campaign rather
+> than a `null`. It lands at **1,465 tok/s at N=2** against the **2,035 tok/s** the single-stream
+> probe read — two slots prefilling together cost per-request rate, as expected; the regimes are
+> named and neither is a capacity claim. TTFT rising 0.043 → 0.332 s is that same prefill becoming
+> visible where it always belonged.
+>
+> **Gate 4, now scored where it means something.** Over the load window: **10 polls, 10.30 s, both
+> slots busy 1.00, busy-slot fraction 1.00**. Over the old span: 20 polls, both slots busy 0.50. The
+> dilution was almost exactly 2×, as the r4 replay predicted. **P5's `/slots` half is measurable at
+> last, and at N=2 it reads 100%.**
+>
+> **What that already implies for the sweep.** With both slots saturated at N=2, more clients at
+> `-np 2` cannot raise slot occupancy — it is pinned at 1.00. So P1 (jobs/hour flat from N=2) and P3
+> (p95 growing with N) are two readings of the same fact, and the `-np 2` block's shape is close to
+> determined before it is run. Meanwhile the cards sit at 73–74 W against a 160/114 W reference:
+> **duty 0.0 while the server is 100% occupied** — P5's exact signature, visible at N=2 rather than
+> the N≥4 it was predicted for. Not scored until the block is complete and the sweep is run.
+>
+> Production 99.5% before and after; guard `at_rate` both ends; symmetry 1.000; headroom 15.0 /
+> 16.1 GB. Warm rep-1 105.93 against 105.61 warm (ratio 1.003) — still no idle, so P7's second half
+> remains untested until the deliberate-idle repeat.
+
 ## Analysis plan
 
 - Per cell: jobs/hour, p50/p95/p99 latency and TTFT (nearest-rank, as the harness computes them),

@@ -33,7 +33,7 @@
       "vram_gb": 29.96,
       "per_card_gb": 15.44,
       "expected_gen_tps": 106.0,
-      "rate_epoch": "2026-08-29T18:22 incumbent epoch (RB baseline_epoch)",
+      "rate_epoch": "2026-09-09T07:06 incumbent epoch, -np 8 shape (RB baseline_decode_tok_s 105.33; the 2026-08-29T18:22 epoch was the -np 2 shape). ADR-0044: epoch-scoped is not epoch-homogeneous.",
       "prefill_tps": null,
       "load_s_steady": 8.175,
       "load_s_first_in_window": 26.58,
@@ -45,7 +45,7 @@
       "unload_drain_s_max": 27,
       "swap_entry": null,
       "exclusive_group": null,
-      "notes": "production rung omen-arc :8082; -c 131072 -np 2 -ub 1024",
+      "notes": "production rung omen-arc :8082; -c 131072 -np 8 -ub 1024 (8 slots x 16384 tok/slot). Slots 2 -> 8 on 2026-09-09, SAT-L1 Lap 1B: 3,358 jobs/h vs 2,128 at -np 2 (x1.58) at 512-token prompts; -np 16 regresses ~32%, so 8 is the peak for THIS model at THIS depth. -c is the TOTAL and the build divides it, so per-slot context fell 65536 -> 16384 and backends.toml context_bytes went 229376 -> 57344 in lockstep. expected_gen_tps below is single-stream and is unchanged by the slot count (measured 106.41 after the change); per-request decode at 8 concurrent is ~25.4 with ~203 aggregate.",
       "receipts": {
         "vram_gb": "campaign/ff-probes/rate-baselines.json baseline_note (14.52 + 15.44)",
         "per_card_gb": "campaign/ff-probes/rate-baselines.json baseline_note: 14.52/15.44 (max card)",

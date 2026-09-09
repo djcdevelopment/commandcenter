@@ -341,6 +341,31 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
 > **Protocol additions (dated, additive):** the unwarmed half of P7 needs a deliberate idle — one
 > extra repeat per depth block is preceded by ≥ 120 s with no traffic, so rep-1 can read cold; the
 > cached-prefix regime is named as such wherever block 1 is cited.
+>
+> **The fix's premise, measured before the re-run (2026-09-09 ~11:05Z)** — receipt
+> `E:\work\battlemage\sat-l1\probes\cache-prompt-oai-verdict-20260909.json`, probe kept beside it.
+> `cache_prompt` is a llama.cpp *native*-endpoint field and the harness posts to
+> `/v1/chat/completions`; whether the OpenAI-compatible handler forwards it was an assumption the
+> whole re-run rides on, so it was measured: two arms of four identical requests each, own nonce
+> prefix, `/metrics` bracketed, co-resident with production.
+>
+> | arm | payload | uncached / sent | per-request `prompt_n` | prefill |
+> |---|---|---:|---|---|
+> | A (today's harness) | no `cache_prompt` key | 456 / 1,812 = **0.25** | 453, then **1, 1, 1** | 10.7–10.9 ms |
+> | B (the fix) | `cache_prompt: false` | 1,828 / 1,828 = **1.00** | 457, 457, 457, 457 | 224.5–225.4 ms |
+>
+> **`cache_prompt: false` is honoured on the OAI endpoint.** It also gives the first real
+> single-stream prefill figure at this depth: **457 tokens in 224.5 ms ≈ 2,035 tok/s**, dual
+> layer-split, co-resident, N=1 — the regime named, not a capacity claim. Production `ff_ratecheck`
+> after the probe: 104.75 tok/s, **99% of baseline, PASS**.
+>
+> **Derived expectation, recorded before the re-run data exists:** block 1's jobs carried ~10.8 ms
+> of prefill; real prefill adds ~214 ms per job to a 3.14 s job, so the re-run's jobs/hour should
+> land **~5–8% below** block 1 — roughly **2,100–2,160** — with p50 near 3.35 s, decode unchanged,
+> and duty still ~0 (224 ms of prefill per 3.4 s job cannot lift a card to 0.9× a prefill-burst
+> reference). If the re-run instead falls far more than 8%, prefill is contending for the cards and
+> the size axis matters sooner than P4 assumes; if it does not fall at all, the flag did not reach
+> the load path and the gate 7 evidence must be read again.
 
 ## Analysis plan
 

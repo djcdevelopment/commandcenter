@@ -22,8 +22,14 @@ rem Device rule (ADR-0042): NO GGML_VK_VISIBLE_DEVICES for the dual-split produc
 rem selects by device type and llama.cpp drops the iGPU. Side entries carry index envs ONLY as sibling
 rem candidates; placement is asserted from the -lv 5 load report, never assumed.
 rem
-rem Shape (2026-08-24, unchanged): -c 131072 -np 2 -ub 1024 -- raise backends.toml context_bytes AND
+rem Shape (2026-09-09): -c 131072 -np 8 -ub 1024 -- raise backends.toml context_bytes AND
 rem parallel_slots in lockstep; re-run the shared-usage assert after any -c/-np change.
+rem WAS -np 2 until 2026-09-09 (SAT-L1 Lap 1B: 3,358 jobs/h vs 2,128, x1.58, at 512-token
+rem prompts; -np 16 REGRESSES ~32 percent). -c is the TOTAL and the build divides it, so per-slot
+rem context went 65536 -> 16384 tokens and context_bytes went 229376 -> 57344 with it.
+rem The lockstep above is not advice: the old budget outlived the -np change by ~an hour,
+rem in which the door would have admitted 4x what a slot holds and llama-server would have
+rem SILENTLY TRUNCATED it. It never rejects an over-long prompt.
 rem
 rem ROLLBACK: copy serve-arc-direct.cmd over this file, drop hearth\var\arc-maintenance.stop, run
 rem ArcServeRestart (stop-only), delete the sentinel, then schtasks /Run /TN ArcServeBoot.

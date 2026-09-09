@@ -310,7 +310,12 @@ class PackagedPoolTests(TestCase):
         # Widened from 16k/slot on 2026-08-24 for Hermes Agent's 64000-token
         # floor; must track serve-arc.cmd's -c/-np, since llama-server silently
         # truncates over-long prompts rather than rejecting them.
-        self.assertEqual(pool.by_name("omen-arc").context_bytes(), 229376)
+        # NARROWED back on 2026-09-09: production moved to -np 8, so a slot holds
+        # 16384 tokens, not 65536. At ~3.5 bytes/token that is 57344. The old value
+        # outlived the -np change by about an hour, during which the door would have
+        # admitted 4x what a slot can hold and the server would have truncated it
+        # silently. This assertion is the regression guard for exactly that drift.
+        self.assertEqual(pool.by_name("omen-arc").context_bytes(), 57344)
         self.assertEqual(pool.by_name("omen-arc-oss").context_bytes(), 57344)
         self.assertEqual(pool.by_name("am4-oxen").context_bytes(), 57344)
         self.assertEqual(pool.by_name("am4-moe").context_bytes(), 57344)

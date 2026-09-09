@@ -175,7 +175,20 @@ SEED = 38027
 MAX_TOKENS = 200
 REQUESTS_PER_CLIENT = 3
 TOTAL_CTX = 131072          # -c 131072, fixed; per-slot context is TOTAL_CTX // np
-BASE_NP = 2                 # production's standing value, restored at the end of a sweep
+BASE_NP = 8                 # production's standing value, restored by --restore-np.
+#: 2 -> 8 on 2026-09-09 (SAT-L1 Lap 1B): 3,358 jobs/h vs 2,128 at -np 2 (x1.58) for
+#: Qwen3-30B-A3B at 512-token prompts, dual layer-split. -np 16 REGRESSES ~32%, so 8 is
+#: the peak for THIS model at THIS depth -- a regime, not a universal setting.
+#: LOAD-BEARING FOR --restore-np: leaving it at 2 would silently revert the operating
+#: point at the end of a sweep and re-break the backends.toml lockstep (context_bytes
+#: 57344 / parallel_slots 8 track -c/-np; a slot holds 16384 tokens now).
+
+CARD_NP = 2                 # the -np the Lap 1 card's predictions were REGISTERED at.
+#: Split out from BASE_NP on 2026-09-09, when production moved to 8 and the two meanings
+#: stopped coinciding. This one is HISTORY and must not track production: the noise-floor
+#: cell (N=2 / 512) and P5 were pre-registered, run and scored on the -np 2 surface, and
+#: changing what "phase 1" or "the noise floor" refers to after the fact would silently
+#: re-point a tagged pre-registration at cells it never covered.
 UB = 1024                   # production's -ub, named in every re-baseline note
 
 #: ADR-0043 warm gate. Three consecutive reps within +-2% (the card's gate 1).
@@ -345,9 +358,9 @@ def repeats_for(np_slots: int, depth: int, n: int) -> int:
     -np 2 surface at N>=4. P6 is scored at -np 8 / 512; the grid carries N=4 and N=8, the
     two that bracket its predicted knee of 4-6.
     """
-    if np_slots == BASE_NP and depth == 512 and n == 2:
+    if np_slots == CARD_NP and depth == 512 and n == 2:
         return 5
-    if np_slots == BASE_NP and n >= 4:
+    if np_slots == CARD_NP and n >= 4:
         return 5
     if np_slots == 8 and depth == 512 and n in (4, 8):
         return 5
@@ -365,7 +378,7 @@ def is_depth0_cell(n: int, rep: int) -> bool:
 def plan_cells(phase: int = 1) -> list[str]:
     """Depth blocks OUTERMOST, N ascending -- so a warm rung is never measured cold."""
     cells: list[str] = []
-    nps = (BASE_NP,) if phase == 1 else PHASE2_NP
+    nps = (CARD_NP,) if phase == 1 else PHASE2_NP
     ns = PHASE1_N if phase == 1 else PHASE2_N
     for np_slots in nps:
         for depth in DEPTHS:
@@ -1946,7 +1959,7 @@ def plan_cell(cell: str, python: str, args) -> dict:
     warm_id = "sat-l1-%s-warmdiscard" % cell
     load_cmd = subprocess.list2cmdline(load_argv(python, cell, depth, n))
     return {
-        "cell": cell, "phase": 1 if np_slots == BASE_NP else 2,
+        "cell": cell, "phase": 1 if np_slots == CARD_NP else 2,
         "regime": {"model": MODEL_ALIAS, "quant": "Q4_K_M", "depth_tokens": depth,
                    "concurrency": n, "np": np_slots, "ub": UB, "ctx": TOTAL_CTX,
                    "per_slot_ctx": per_slot_ctx(np_slots), "repeat": rep,

@@ -54,7 +54,7 @@ class OmenSwapYamlTests(unittest.TestCase):
         entry = _entry(_text(), "qwen3-30b-a3b")
         serve = SERVE_ARC.read_text(encoding="utf-8", errors="replace")
         for flag in ("-ngl 99 -sm layer -ts 1,1", "-fa on", "--no-mmap -dio -fit off",
-                     "-c 131072 -np 2 -ub 1024", "--slots --jinja --metrics",
+                     "-c 131072 -np 8 -ub 1024", "--slots --jinja --metrics",
                      "Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf", "--alias qwen3-30b-a3b"):
             self.assertIn(flag, entry, flag)
             self.assertIn(flag, serve, "serve-arc.cmd no longer carries %r" % flag)

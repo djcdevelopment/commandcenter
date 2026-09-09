@@ -210,7 +210,7 @@ class TestNpEdit(unittest.TestCase):
                 path.write_text(new_text, encoding="utf-8", newline="")
             self.assertEqual(path.read_bytes(), original)
 
-    def test_the_real_production_entry_reads_np_2(self):
+    def test_the_real_production_entry_reads_the_standing_np(self):
         text = runner.read_exact(runner.REPO / "fleet" / "arcserve" / "llama-swap" / "omen.yaml")
         self.assertEqual(runner.read_np_yaml(text), runner.BASE_NP)
         edited, old = runner.edit_np_yaml(text, 8)

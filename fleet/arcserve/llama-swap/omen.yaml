@@ -50,7 +50,7 @@ models:
       -ngl 99 -sm layer -ts 1,1
       -fa on
       --no-mmap -dio -fit off
-      -c 131072 -np 2 -ub 1024
+      -c 131072 -np 8 -ub 1024
       --host 127.0.0.1 --port 8082
       --slots --jinja --metrics
       -lv 5 --log-file C:\work\commandcenter\hearth\var\arc-serve.log

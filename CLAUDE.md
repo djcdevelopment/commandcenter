@@ -39,8 +39,15 @@ they can inspect themselves is fair game.
 rung that actually serves you was missing entirely:
 
 - `omen-arc` — **THE DOOR DEFAULT** (ADR-0034). Qwen3-30B-A3B on the dual Arc Pro
-  B70s in OMEN, llama-server :8082, `-c 131072 -np 2` (2 slots × 64k tokens),
-  `context_bytes = 229376`. Truly sunk cost — this is the rung to spend freely.
+  B70s in OMEN, llama-server :8082, `-c 131072 -np 8` (8 slots × 16k tokens),
+  `context_bytes = 57344`. Truly sunk cost — this is the rung to spend freely.
+  ⚠ **Slots went 2 → 8 on 2026-09-09** (SAT-L1 Lap 1B, tag
+  `prereg-np-sweep-lap1b-20260909`): 3,358 jobs/h against 2,128 at `-np 2`, ×1.58,
+  at Qwen3-30B-A3B / 512-token prompts / dual layer-split. `-np 16` **regresses
+  ~32%**, so 8 is the peak for this model at this depth — regime, not a universal.
+  **`-c` is the TOTAL and the build divides it**, so per-slot context fell 65,536 →
+  16,384 tokens and the payload budget narrowed with it. A pack over 57344 is now
+  refused at the door rather than silently truncated at the server.
   Boot-started by `ArcServeBoot`. **~108 tok/s single-stream decode**, measured
   live 2026-08-24 (short prompt, shallow context). Deep-context harness numbers
   from the burn-in campaign are much lower (~57) — decode rate falls with KV
@@ -90,9 +97,14 @@ occupancy — a busy rung serves you from its own queue — but a pin whose payl
 exceeds that rung's declared `context_bytes` is **refused at the door**
 (`ok:false`, `error_code:"routing_refusal"`, reason
 `payload_over_budget_for_pinned_backend`) instead of dispatching and dying at the
-server. Current budgets (2026-08-24): **`omen-arc` 229376** — widened from 57344
-on 2026-08-24, so the default rung now takes `files=` packs ~4x larger than
-before, at the cost of 2 concurrent slots instead of 4; `omen-arc-oss` 57344;
+server. Current budgets (2026-09-09): **`omen-arc` 57344** — narrowed back from
+229376 when production moved to `-np 8`, because `-c` is the total and per-slot
+context fell to 16,384 tokens. ⚠ The old figure outlived the `-np` change by about
+an hour, in which the door would have admitted 4× what a slot holds and
+llama-server would have **silently truncated** it (it never rejects an over-long
+prompt). The 2026-08-24 widening bought a 64,000-token floor for Hermes Agent,
+which is parked; the trade is a loud refusal instead of a quiet wrong answer.
+`omen-arc-oss` 57344;
 both gemini rungs effectively unlimited at 2–4 MiB. The dead rungs still carry
 declared budgets (omen-ollama 98304, the AM4 pair 57344) — that is a tombstone,
 not an offer. `plan_execution` resolves a provider content-free if you want to

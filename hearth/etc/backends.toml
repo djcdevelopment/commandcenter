@@ -89,14 +89,38 @@ hardware_profile_id = "omen-285k-dual-b70-2026H2"   # rebuilt box, 2026-08-20 (A
 # returned ok with normal timing), so context_bytes is the only real guard.
 # Slots halved 4 -> 2 because -c 262144 -np 4 SPILLED (10.24 GB shared, -22%
 # throughput); -c 131072 -np 2 is clean at 0.24 GB and 109.31 tok/s.
-context_bytes = 229376
+#
+# 2026-09-09: NARROWED 229376 -> 57344 because production moved -np 2 -> -np 8
+# (SAT-L1 Lap 1B: 3,358 jobs/h vs 2,128 at -np 2, x1.58, prereg tag
+# prereg-np-sweep-lap1b-20260909). -c is the TOTAL and the build divides it, so
+# per-slot context went 65536 -> 16384 tokens; at this file's own ~3.5 bytes/token
+# convention that is 57344, exactly a quarter, and exactly the pre-2026-08-24 value.
+# The old figure survived the -np change for about an hour: the door would have
+# accepted 4x what a slot can hold and returned a SILENTLY TRUNCATED answer with
+# normal timing. Nothing was dispatched in that window.
+# COST, stated: this breaks the 64000-token floor the August widening bought for
+# Hermes Agent (itself parked since 2026-08-24). The trade is a LOUD refusal at the
+# door -- payload_over_budget_for_pinned_backend -- instead of a silent truncation
+# at the server, and unpinned over-budget callers route to a cloud rung instead.
+context_bytes = 57344
 max_tokens = 8192
 timeout_s = 1000
 # 2 slots (was 4): 64k-deep slots cost more than the knee ladder predicted —
 # that ladder varied -c via -np at a fixed 8192/slot, so it never sampled slot
 # depth and is blind to attention compute buffers. Re-run the shared-usage
 # assert after any -c/-np change.
-parallel_slots = 2
+#
+# 2026-09-09: 8 slots. Swept server-side for the first time (SAT-L1 Lap 1B), at
+# Qwen3-30B-A3B Q4_K_M, 512-token prompts, dual layer-split -- REGIME MATTERS, this
+# is not a universal setting. Measured jobs/hour at matched clients: 2,128 at -np 2,
+# 2,769 at -np 4, 3,358 at -np 8, and 2,323 at -np 16 -- so 16 REGRESSES ~32% here
+# and 8 is the peak for this model at this depth. Per-request decode falls
+# 66.8 -> 44.3 -> 25.4 while aggregate decode rises 133.6 -> 177.2 -> 203.2: the
+# batching trade, not a regression. KV does NOT scale with -np on this build --
+# 12,288 MiB total at 2, 4 and 8 alike -- and compute buffers FALL, 712 -> 456 -> 328
+# MiB per card. The widened GGML_VK_MMV_MAX_COLS (serve-arc.cmd, clamps at 16) is
+# worth 15.8% at -np 16; at -np 8 the decode batch sits inside the window.
+parallel_slots = 8
 
 [[backend]]
 name     = "omen-arc-oss"                     # BANKED FIRE (pin-only, NOT resident):

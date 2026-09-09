@@ -48,6 +48,14 @@ rem 65536 tokens instead of 16384. Nous Hermes Agent hard-refuses any model
 rem offering under 64000 tokens per conversation. Two slots, not four: see below.
 rem Raise backends.toml context_bytes AND parallel_slots in lockstep.
 rem
+rem 2026-09-09: -np 2 -> -np 8 HERE TOO, so a rollback preserves the operating point
+rem rather than silently reverting it. Each slot now holds 16384 tokens again and
+rem context_bytes went 229376 -> 57344 with it; the Hermes 64000 floor is breached
+rem deliberately (that agent is parked, and a loud refusal at the door beats the
+rem silent truncation llama-server does with an over-long prompt).
+rem Measured, SAT-L1 Lap 1B: 3,358 jobs/h at -np 8 vs 2,128 at -np 2 (x1.58) for
+rem Qwen3-30B-A3B at 512-token prompts; -np 16 REGRESSES ~32 percent.
+rem
 rem MEASURED 2026-08-24 — the burn-in ladder does NOT extrapolate to slot depth.
 rem The Q3 knee ladder varied total -c by raising -np at a FIXED 8192 tokens/slot,
 rem so its 96.7 KiB/token slope captures KV growth but is blind to attention
@@ -70,7 +78,13 @@ call C:\work\commandcenter\hearth\var\gateway.cmd
 
 rem STEP 2 of 2 (2026-08-24): opt in to the widened mul_mat_vec crossover.
 rem
-rem ⚠ MEASURED INERT AT THE CURRENT -np. Live A/B on this box, single stream,
+rem ⚠ NO LONGER INERT (2026-09-09): production moved to -np 8, so the batch can now
+rem reach the gate this knob moves. Measured under real serving load at -np 16:
+rem widened window 2,207 and 2,440 jobs/h vs stock-8 1,954 and 2,060 -- +15.8%, and
+rem the two arms' ranges do not overlap. The paragraph below is the -np 2 finding and
+rem is kept because it is why the knob was left set: it armed the moment -np rose.
+rem
+rem ⚠ MEASURED INERT AT THE -np 2 SHAPE. Live A/B on this box, single stream,
 rem 3 reps each, same prompt/n_predict/temperature:
 rem     stock b10549            tg ~104.5 tok/s
 rem     knee build, default 8   tg ~108.2 tok/s   (+3.5%, from 32 upstream builds)
@@ -140,7 +154,7 @@ E:\work\llamacpp-knee\build\bin\llama-server.exe ^
   -ngl 99 -sm layer -ts 1,1 ^
   -fa on ^
   --no-mmap -dio -fit off ^
-  -c 131072 -np 2 -ub 1024 ^
+  -c 131072 -np 8 -ub 1024 ^
   --host 127.0.0.1 --port 8082 ^
   --slots --jinja --metrics ^
   --api-key %OMEN_ARC_TOKEN% > "C:\work\commandcenter\hearth\var\arc-serve.log" 2>&1

@@ -499,6 +499,52 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
 > periodic service, not contention — and naming it is a separate, bounded probe, not a blocker for
 > the sweep.
 
+> **RESULT — noise-floor block 2 complete, `np2-p512-c2` repeats 6–10, 2026-09-09 11:03–11:31Z** —
+> five repeats on the fixed instrument; reduction
+> `E:\work\battlemage\sat-l1\noise-floor\np2-p512-c2-block2-real-prefill.{json,md}`. All five
+> scored, all seven gates, gate 7 with **zero cached tokens** every time. The reducer's regime
+> filter keeps block 1's five cached-prefix receipts out automatically (5 included, 5 excluded).
+>
+> | | min | max | mean | spread | cv |
+> |---|---:|---:|---:|---:|---:|
+> | jobs/hour | 2,097.4 | 2,203.7 | **2,128.3** | 5.00% | 1.84% |
+> | p50 latency | 3.270 | 3.344 | 3.311 s | 2.26% | 0.88% |
+> | p95 latency | 3.277 | 3.648 | 3.552 s | 10.45% | 3.93% |
+> | decode p50 | 66.06 | 67.49 | 66.79 tok/s | 2.14% | 0.75% |
+> | both slots busy, **load window** | 1.00 | 1.00 | **1.00** | 0% | 0% |
+>
+> Bootstrap 95% CI on the mean **[2,102.0, 2,167.3]**. Production `at_rate` on a fresh sample after
+> every repeat; duty **0.0** on both cards throughout.
+>
+> **P7 half 1 — repeat spread: REFUTED, and the refutation is informative.** 5.00% against the
+> borrowed 1.5% pp512 floor. But the p50 spread is 2.26% and decode 2.14% while p95 spreads 10.45%:
+> the variance lives entirely in the tail, and the tail is the quantized 222 ms event above. Three
+> of the five repeats carry one delayed round; two do not. The floor is a **two-state distribution,
+> not a scatter**, so a single spread number misrepresents it — which is why per-round launch skew
+> is becoming a recorded field rather than something inferred afterwards from a log.
+>
+> **P7 half 2 — unwarmed rep-1: UNTESTABLE as configured, with the reason and the price.** The
+> repeat was deliberately preceded by a **200 s** window with no traffic from this campaign
+> (04:23:15 → 04:26:35 local). Rep-1 still read **106.71 tok/s against 106.26 warm — a ratio of
+> 1.004**, the highest of its three reps. The rung had not decayed because **it is never idle**: the
+> server log shows a 1-token completion arriving every **~31 s** without interruption through the
+> whole window, and `hearth/var/arc-keepalive.jsonl` confirms it — 04:29:28, 04:29:59, 04:30:30,
+> 04:31:01, 04:31:32, exactly 31 s apart, with an occasional deep row (108.89 tok/s at 04:31:49).
+>
+> That is the ADR-0043 keep-alive, and it is the same signal `hearth/health/rungstate.py` and
+> `guard.py` read to produce the rung verdict that gates **every cell in this campaign**. So P7's
+> second half cannot be tested by waiting: testing it means pausing the keep-alive, which blinds
+> gate 2 for the duration. **The instrument that lets the campaign gate on rung state is the same
+> one that prevents it from observing idle decay.** Recorded as `untestable` with that trade-off
+> named — a tenancy call, not something to take unilaterally — rather than as `untested`. It also
+> means every "unwarmed rep-1" figure in this campaign so far describes a rung that was never
+> allowed to go cold, and ADR-0043's 68/69/74/92 readings deserve re-reading against whether the
+> keep-alive was running when they were taken.
+>
+> **Eliminated, with evidence:** the keep-alive is *not* the cause of the 222 ms event. Its 1-token
+> tasks are ~22 ms and appear at 1001.12 and 1001.43 of server uptime, while r9's delayed round is
+> at 1001.19 — no keep-alive task is in flight when the delay occurs.
+
 ## Analysis plan
 
 - Per cell: jobs/hour, p50/p95/p99 latency and TTFT (nearest-rank, as the harness computes them),

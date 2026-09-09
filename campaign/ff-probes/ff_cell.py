@@ -134,6 +134,13 @@ def main() -> int:
     ap.add_argument("--restart", action="store_true",
                     help="restart the incumbent first and wait for the real ready marker")
     ap.add_argument("--no-ledger", action="store_true")
+    ap.add_argument("--json-out", default=None,
+                    help="also write the receipt row to this path as JSON. Added for composing "
+                         "harnesses (SAT-L1's cell runner) that must fold THIS row's nine "
+                         "provenance fields into their own single receipt: scraping stdout would "
+                         "be fragile and re-deriving them would duplicate the invariant. Written "
+                         "on every exit path, including a refusal, and independently of "
+                         "--no-ledger. Default off; nothing else changes.")
     args = ap.parse_args()
 
     baselines = json.load(io.open(ff_ratecheck.BASELINES, encoding="utf-8"))
@@ -239,13 +246,13 @@ def main() -> int:
     if not gate_pass:
         row["result"] = "REFUSED - cell not run"
         print("  *** REFUSING to run the cell. A measurement taken now would be unattributable.")
-        _append(row, args.no_ledger)
+        _append(row, args.no_ledger, args.json_out)
         return 1
 
     if not args.command:
         row["result"] = "gate-only dry run (no --command given)"
         print("  dry run: gate passed, no cell to execute")
-        _append(row, args.no_ledger)
+        _append(row, args.no_ledger, args.json_out)
         return 0
 
     # --- step 5: exactly one experimental cell
@@ -276,11 +283,16 @@ def main() -> int:
     else:
         row["result"] = "cell completed with the incumbent healthy before and after"
 
-    _append(row, args.no_ledger)
+    _append(row, args.no_ledger, args.json_out)
     return 0 if row["receipt_status"] not in ("POISONED_DURING_CELL",) else 1
 
 
-def _append(row, skip):
+def _append(row, skip, json_out=None):
+    if json_out:
+        os.makedirs(os.path.dirname(os.path.abspath(json_out)), exist_ok=True)
+        with io.open(json_out, "w", encoding="utf-8", newline="\n") as f:
+            f.write(json.dumps(row, ensure_ascii=False, indent=1))
+        print("  -> row written to %s" % json_out)
     if skip:
         print("  (--no-ledger: row not appended)")
         return

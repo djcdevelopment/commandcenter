@@ -231,13 +231,32 @@ class TestSpreadAndCv(unittest.TestCase):
 
     def test_a_structured_slot_busy_fraction_is_skipped_and_said_so(self):
         rows = [receipt(1), receipt(2, slot_busy={"any": 0.84, "all": 0.52})]
-        field = reduce(rows)["fields"]["slot_busy_fraction"]
+        field = reduce(rows)["fields"]["slot_busy_fraction_span"]
         self.assertTrue(field["skipped"])
         self.assertIn("np2-p512-c2-r2", field["skip_reason"])
         self.assertIn("dict", field["skip_reason"])
         self.assertIsNone(field["mean"])
         # a sibling scalar field is untouched by the skip
-        self.assertEqual(reduce(rows)["fields"]["both_slots_busy_fraction"]["n"], 2)
+        self.assertEqual(reduce(rows)["fields"]["both_slots_busy_fraction_span"]["n"], 2)
+
+    # -- the load-window pair is the gate-4 term; the span pair is a different measurement --
+    def test_the_load_window_pair_is_reported_separately_from_the_span_pair(self):
+        rows = [receipt(k, both_slots_busy_fraction_load_window=1.0,
+                        slot_busy_fraction_load_window=1.0) for k in (1, 2)]
+        fields = reduce(rows)["fields"]
+        self.assertEqual(fields["both_slots_busy_fraction_load_window"]["mean"], 1.0)
+        self.assertEqual(fields["slot_busy_fraction_load_window"]["mean"], 1.0)
+        # the span figures are the diluted ones and are kept, not replaced
+        self.assertEqual(fields["both_slots_busy_fraction_span"]["mean"], 0.5263)
+
+    def test_a_receipt_without_load_window_fields_reports_them_as_missing(self):
+        fields = reduce([receipt(1), receipt(2)])["fields"]
+        lw = fields["both_slots_busy_fraction_load_window"]
+        self.assertEqual(lw["n"], 0)
+        self.assertEqual(lw["missing"], 2)
+        self.assertIsNone(lw["mean"])
+        # ...while the span pair still reduces, so the report is never blank
+        self.assertEqual(fields["both_slots_busy_fraction_span"]["n"], 2)
 
     def test_per_card_fields_are_keyed_by_their_own_identifier(self):
         fields = reduce([receipt(1), receipt(2)])["fields"]

@@ -94,8 +94,15 @@ SCALAR_FIELDS = (
     ("latency_p99_s", ("latency_p99_s",), "seconds"),
     ("ttft_p50_s", ("ttft_p50_s",), "seconds"),
     ("decode_rate_p50_tokens_per_s", ("decode_rate_p50_tokens_per_s",), "tokens_per_s"),
-    ("both_slots_busy_fraction", ("both_slots_busy_fraction",), "fraction"),
-    ("slot_busy_fraction", ("slot_busy_fraction",), "fraction"),
+    # The LOAD-WINDOW pair is the gate-4 term (P5's `/slots` half) -- listed first so the
+    # report leads with it. The span pair is kept beside it and is NOT the same measurement:
+    # it also covers ff_cell's single-stream pre/post rate probes, which halved it on the
+    # 512/N=2 cell (span 0.50 vs load window 1.00). Receipts that predate the runner's
+    # load-window fields report `null` here, which is honest -- they never measured it.
+    ("both_slots_busy_fraction_load_window", ("both_slots_busy_fraction_load_window",), "fraction"),
+    ("slot_busy_fraction_load_window", ("slot_busy_fraction_load_window",), "fraction"),
+    ("both_slots_busy_fraction_span", ("both_slots_busy_fraction",), "fraction"),
+    ("slot_busy_fraction_span", ("slot_busy_fraction",), "fraction"),
     ("incumbent_rate_fraction_pre", ("incumbent_rate_fraction_pre",), "fraction"),
     ("incumbent_rate_fraction_post", ("incumbent_rate_fraction_post",), "fraction"),
     ("symmetry.ratio", ("symmetry", "ratio"), "ratio"),

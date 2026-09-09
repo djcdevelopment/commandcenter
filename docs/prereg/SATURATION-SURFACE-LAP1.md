@@ -564,6 +564,29 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
 > tasks are ~22 ms and appear at 1001.12 and 1001.43 of server uptime, while r9's delayed round is
 > at 1001.19 — no keep-alive task is in flight when the delay occurs.
 
+> **RESULT — the N=1 control, `np2-p512-c1-r1`, 2026-09-09 ~11:35Z** (repeat 1 of 3). All seven
+> gates; gate 7 passes with **zero cached** tokens; duty 0.0; production `at_rate` both ends.
+>
+> | | N=1 (this cell) | N=2 (block 2 mean) | ratio |
+> |---|---:|---:|---:|
+> | jobs/hour | **1,515.0** | 2,128.3 | **1.405×** |
+> | p50 / p95 latency | 2.373 / 2.387 s | 3.311 / 3.552 s | — |
+> | decode p50, per request | **93.4** tok/s | 66.8 | 0.72× per request, **1.43× aggregate** |
+> | prefill p50, per request | **1,991** tok/s | 1,470 | 0.74× per request, **1.48× aggregate** |
+> | both slots busy, load window | **0.00** | 1.00 | — |
+>
+> **A cross-check worth keeping.** The cell's single-stream prefill, **1,991 tok/s**, lands within
+> **2%** of the **2,035 tok/s** measured by the standalone `cache_prompt` probe hours earlier
+> through a different code path (raw `/v1/chat/completions`, its own prompt, its own reduction).
+> Two independent methods agreeing at 2% is the strongest evidence so far that the prefill numbers
+> now mean what they say.
+>
+> **P2 — the N=1→2 gain, predicted 1.3×–1.8× jobs/hour: on track at 1.405×**, inside the band, but
+> **not scored**: the card requires 3 repeats at N=1 and one is in hand. Both prefill and decode
+> gain from the second slot in the same proportion (1.48× and 1.43×), which is why the jobs/hour
+> ratio sits where it does. `both_slots_busy` reading exactly **0.00** at N=1 and **1.00** at N=2 is
+> also the gate-4 instrument validating itself at the two extremes it should bracket.
+
 ## Analysis plan
 
 - Per cell: jobs/hour, p50/p95/p99 latency and TTFT (nearest-rank, as the harness computes them),

@@ -352,6 +352,38 @@ class RequestContractTests(unittest.TestCase):
         self.assertIn(position, {0.1, 0.5, 0.9})
         self.assertIn(expected, payload["messages"][0]["content"])
 
+    def test_the_prompt_cache_is_left_to_the_server_by_default(self) -> None:
+        # Absent key == the server's own default. Every existing leg was run this way, so a
+        # payload that suddenly carried cache_prompt would not be the same measurement.
+        payload, _, _ = campaign._performance_payload("m", 512, 200, 38027)
+        self.assertNotIn("cache_prompt", payload)
+
+    def test_no_cache_prompt_defeats_the_cache_on_the_wire(self) -> None:
+        # The leg's prompt is byte-identical per request, so without this the server serves
+        # the prefix from its prompt cache and a size axis (512 / 8K / 32K) measures nothing:
+        # one live SAT-L1 cell moved prompt_tokens_total by 64 and the cached counter by
+        # 3,073 for 6 x 440 prompt tokens.
+        payload, _, _ = campaign._performance_payload("m", 512, 200, 38027, cache_prompt=False)
+        self.assertIs(payload["cache_prompt"], False)
+        base, _, _ = campaign._performance_payload("m", 512, 200, 38027)
+        self.assertEqual(payload["messages"], base["messages"])   # prompt content unchanged
+        self.assertEqual(payload["seed"], base["seed"])
+
+    def test_the_load_subcommand_carries_the_flag_and_defaults_to_cached(self) -> None:
+        common = ["load", "--run-id", "r", "--endpoint", "http://x", "--candidate", "c",
+                  "--topology", "t", "--model", "m", "--prompt-tokens", "512"]
+        parser = campaign.build_parser()
+        self.assertFalse(parser.parse_args(common).no_cache_prompt)
+        self.assertTrue(parser.parse_args(common + ["--no-cache-prompt"]).no_cache_prompt)
+
+    def test_every_row_records_whether_the_prompt_cache_was_allowed(self) -> None:
+        result = campaign.HttpResult(True, 200, response("x" * 40), None, 1.0)
+        common = dict(run_id="r", request_key="k", candidate="c", topology="t",
+                      endpoint="http://x", model="m", test_kind="performance", result=result,
+                      started_at="2026-09-09T00:00:00Z", concurrency=2, mtp=False)
+        self.assertIs(campaign.make_row(**common)["cache_prompt"], True)
+        self.assertIs(campaign.make_row(cache_prompt=False, **common)["cache_prompt"], False)
+
     def test_repeat_assay_has_exactly_three_unique_seeds(self) -> None:
         fake = campaign.HttpResult(
             True,

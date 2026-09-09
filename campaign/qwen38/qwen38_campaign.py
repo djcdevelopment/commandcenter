@@ -956,6 +956,7 @@ def make_row(
     commit_postload_gb: float | None = None,
     client_id: int | None = None,
     disable_thinking: bool = False,
+    cache_prompt: bool = True,
 ) -> dict[str, Any]:
     prompt_tokens, completion_tokens = _usage(result.response)
     integrity_ok, integrity_failure = completion_integrity(result.response) if result.ok else (False, "request_failed")
@@ -997,6 +998,10 @@ def make_row(
         "task_family": task.get("family") if task else None,
         "mtp_enabled": mtp,
         "thinking_disabled": bool(disable_thinking),
+        # True == the server's own default (the prefix may be served from the prompt
+        # cache); False == this request sent cache_prompt:false and prefilled for real.
+        # A row without the key predates the flag and is therefore cached.
+        "cache_prompt": bool(cache_prompt),
         "seed": seed,
         "concurrency": concurrency,
         "slot_depth": slot_depth,
@@ -1368,6 +1373,7 @@ def _performance_payload(
     seed: int,
     retrieval_key: str | None = None,
     disable_thinking: bool = False,
+    cache_prompt: bool = True,
 ) -> tuple[dict[str, Any], str | None, float | None]:
     # Four ASCII words are approximately five Qwen tokens. Usage receipts record
     # the real token count, so the approximation is never presented as measured.
@@ -1400,6 +1406,14 @@ def _performance_payload(
     }
     if disable_thinking:
         payload["chat_template_kwargs"] = {"enable_thinking": False}
+    if not cache_prompt:
+        # Every request in a leg builds the SAME filler prompt, so llama-server's default
+        # prompt cache serves the prefix and prefill is never measured: across one live
+        # SAT-L1 cell the server's prompt_tokens_total moved by 64 while
+        # prompt_tokens_cached_total moved by 3,073 for 6 x 440 prompt tokens. A size axis
+        # (512 / 8K / 32K) IS prefill, so the cache is DEFEATED here rather than detected
+        # afterwards by _performed_full_prefill. Absent key == server default == cached.
+        payload["cache_prompt"] = False
     return payload, expected, retrieval_position
 
 
@@ -1411,6 +1425,7 @@ def run_load(args: argparse.Namespace) -> Path:
     existing = _existing_ids(output, "success")
     api_key = os.environ.get(args.api_key_env) if args.api_key_env else None
     deadline = time.monotonic() + args.duration_s if args.duration_s else None
+    cache_prompt = not bool(getattr(args, "no_cache_prompt", False))
 
     def client(client_id: int) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
@@ -1439,6 +1454,7 @@ def run_load(args: argparse.Namespace) -> Path:
                 args.seed + client_id,
                 key if args.retrieval else None,
                 disable_thinking=args.disable_thinking,
+                cache_prompt=cache_prompt,
             )
             started_at = utc_now()
             result = post_chat(endpoint, payload, api_key, args.timeout_s, stream=True)
@@ -1466,6 +1482,7 @@ def run_load(args: argparse.Namespace) -> Path:
                 commit_postload_gb=args.commit_postload_gb,
                 client_id=client_id,
                 disable_thinking=args.disable_thinking,
+                cache_prompt=cache_prompt,
             )
             row["requested_prompt_tokens"] = args.prompt_tokens
             row["requested_max_tokens"] = args.max_tokens
@@ -1496,6 +1513,7 @@ def run_load(args: argparse.Namespace) -> Path:
                 min(args.max_tokens, 32),
                 args.seed + index,
                 disable_thinking=args.disable_thinking,
+                cache_prompt=cache_prompt,
             )
             post_chat(
                 endpoint,
@@ -2565,6 +2583,13 @@ def build_parser() -> argparse.ArgumentParser:
     load.add_argument("--duration-s", type=int, default=0)
     load.add_argument("--seed", type=int, default=38027)
     load.add_argument("--retrieval", action="store_true", help="mechanically verify a buried context code")
+    load.add_argument(
+        "--no-cache-prompt",
+        action="store_true",
+        help="send cache_prompt:false so every request prefills for real; the leg's prompt is "
+             "byte-identical per request, so the server's prompt cache otherwise serves the "
+             "prefix and the size axis measures nothing",
+    )
     load.set_defaults(func=command_load)
 
     summarize = sub.add_parser("summarize", help="derive configuration summaries from raw request JSONL")

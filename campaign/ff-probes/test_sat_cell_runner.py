@@ -304,6 +304,113 @@ class TestSlotBusy(unittest.TestCase):
         self.assertEqual(out["polls"], 0)
         self.assertIsNone(out["busy_slot_fraction"])
 
+    def test_every_poll_survives_beside_the_span_figures(self):
+        # `slots_poll.polls = 19` could not attribute r4's 0.45 s slot wait to a request.
+        samples = [slots_sample(10.0, True, True),
+                   {"t": 11.0, "error": "HTTP 401: Invalid API Key"},
+                   slots_sample(12.0, True, False)]
+        out = runner.slot_busy(samples)
+        for field in ("polls", "ok_polls", "error_polls", "slots_seen", "any_busy_fraction",
+                      "all_busy_fraction", "mean_busy_slots", "busy_slot_fraction",
+                      "error_sample"):
+            self.assertIn(field, out)      # the old names, unchanged
+        rows = out["samples"]
+        self.assertEqual([r["t_wall"] for r in rows], [10.0, 11.0, 12.0])
+        self.assertEqual([r["ok"] for r in rows], [True, False, True])
+        self.assertEqual([r["n_busy"] for r in rows], [2, None, 1])
+        self.assertEqual([r["n_slots"] for r in rows], [2, None, 2])
+        self.assertIn("401", rows[1]["error"])
+
+    def test_a_receipts_own_samples_can_be_re_reduced_offline(self):
+        rows = runner.slot_busy([slots_sample(float(i), True, True) for i in range(4)])["samples"]
+        again = runner.slot_busy(rows)
+        self.assertEqual(again["all_busy_fraction"], 1.0)
+        self.assertEqual(again["ok_polls"], 4)
+
+
+class TestLoadWindowSlotBusy(unittest.TestCase):
+    """Gate 4 must be scored over the LOAD, not over the whole ff_cell subprocess.
+
+    ``metrics_before`` / the poller / ``metrics_after`` bracket ff_cell, which runs its own
+    single-stream pre- and post-rate probes around the load. Across the first live repeats
+    that made ``both_slots_busy_fraction`` read 0.47-0.53 while both slots were busy the
+    whole time INSIDE the load -- and P5 asks about the load.
+    """
+
+    def _span(self):
+        pre = [slots_sample(float(i), True, False) for i in range(0, 5)]
+        load = [slots_sample(float(i), True, True) for i in range(5, 15)]
+        post = [slots_sample(float(i), True, False) for i in range(15, 20)]
+        return pre + load + post
+
+    def test_only_in_window_polls_are_counted(self):
+        out = runner.window_slot_busy(self._span(), 5.0, 14.0)
+        self.assertEqual(out["n_samples"], 10)
+        self.assertEqual(out["ok_polls"], 10)
+        self.assertEqual(out["all_busy_fraction"], 1.0)
+        self.assertEqual(out["busy_slot_fraction"], 1.0)
+        self.assertEqual((out["t0"], out["t1"], out["window_s"]), (5.0, 14.0, 9.0))
+
+    def test_the_span_figure_is_diluted_by_ff_cells_own_probes(self):
+        span = runner.slot_busy(self._span())
+        self.assertEqual(span["all_busy_fraction"], 0.5)          # the diluted reading
+        window = runner.window_slot_busy(self._span(), 5.0, 14.0)
+        self.assertEqual(window["all_busy_fraction"], 1.0)        # the gate-4 term
+
+    def test_both_bounds_are_inclusive(self):
+        samples = [slots_sample(1.0, True, True), slots_sample(2.0, True, True),
+                   slots_sample(3.0, True, True)]
+        self.assertEqual(runner.window_slot_busy(samples, 1.0, 3.0)["n_samples"], 3)
+        self.assertEqual(runner.window_slot_busy(samples, 1.5, 2.5)["n_samples"], 1)
+
+    def test_no_poll_inside_the_window_is_null_not_zero(self):
+        out = runner.window_slot_busy([slots_sample(0.0, True, True)], 100.0, 200.0)
+        self.assertEqual(out["n_samples"], 0)
+        self.assertIsNone(out["all_busy_fraction"])
+        self.assertIsNone(out["busy_slot_fraction"])
+        self.assertIn("inside the load window", out["reason"])
+
+    def test_a_missing_bound_selects_nothing_and_says_why(self):
+        out = runner.window_slot_busy([slots_sample(0.0, True, True)], None, 5.0)
+        self.assertEqual(out["n_samples"], 0)
+        self.assertIsNone(out["all_busy_fraction"])
+        self.assertIn("no load window", out["reason"])
+
+    def test_the_compact_rows_can_be_windowed_directly(self):
+        rows = runner.slot_busy(self._span())["samples"]
+        self.assertEqual(runner.window_slot_busy(rows, 5.0, 14.0)["all_busy_fraction"], 1.0)
+
+
+class TestLoadWindowBounds(unittest.TestCase):
+    def test_min_started_at_and_max_completed_at(self):
+        rows = [{"started_at": "2026-09-09T10:36:14.826836Z",
+                 "completed_at": "2026-09-09T10:36:17.947447Z"},
+                {"started_at": "2026-09-09T10:36:15.000000Z",
+                 "completed_at": "2026-09-09T10:36:21.500000Z"}]
+        t0, t1 = runner.load_window_bounds(rows)
+        self.assertEqual(t0, runner._iso_epoch(rows[0]["started_at"]))
+        self.assertEqual(t1, runner._iso_epoch(rows[1]["completed_at"]))
+        self.assertAlmostEqual(t1 - t0, 6.673164, places=5)
+
+    def test_the_stamp_parser_accepts_z_and_an_explicit_offset(self):
+        self.assertEqual(runner._iso_epoch("2026-09-09T10:36:14.826836Z"),
+                         runner._iso_epoch("2026-09-09T10:36:14.826836+00:00"))
+        # The harness writes UTC; a naive stamp is read as UTC, never as local time.
+        self.assertEqual(runner._iso_epoch("2026-09-09T10:36:14.826836"),
+                         runner._iso_epoch("2026-09-09T10:36:14.826836Z"))
+
+    def test_an_unparsable_stamp_is_none_not_a_guess(self):
+        for bad in (None, "", "not a timestamp", 1757413000.0):
+            with self.subTest(bad=bad):
+                self.assertIsNone(runner._iso_epoch(bad))
+
+    def test_half_a_window_is_not_a_window(self):
+        self.assertEqual(runner.load_window_bounds([]), (None, None))
+        self.assertEqual(runner.load_window_bounds([{"started_at": "2026-09-09T10:36:14Z"}]),
+                         (None, None))
+        self.assertEqual(runner.load_window_bounds([{"completed_at": "2026-09-09T10:36:14Z"}]),
+                         (None, None))
+
 
 METRICS = """\
 # HELP llamacpp:n_busy_slots_per_decode Average busy slots per decode
@@ -328,6 +435,87 @@ class TestMetrics(unittest.TestCase):
     def test_a_missing_series_is_null_not_zero(self):
         self.assertIsNone(runner.busy_slots_delta({}, runner.parse_prometheus(METRICS)))
         self.assertIsNone(runner.busy_slots_delta(runner.parse_prometheus(METRICS), None))
+
+
+# ------------------------------------------------------------- gate 7: real prefill --
+def prompt_metrics(uncached, cached=None):
+    out = {runner.PROMPT_TOKENS_SERIES: float(uncached)}
+    if cached is not None:
+        out[runner.PROMPT_TOKENS_CACHED_SERIES] = float(cached)
+    return out
+
+
+def load_rows(count=6, prompt_tokens=440):
+    return [{"prompt_tokens": prompt_tokens} for _ in range(count)]
+
+
+class TestPrefillReal(unittest.TestCase):
+    """The surface's size axis (512 / 8K / 32K) IS prefill, so a cached prefix is a defect.
+
+    The harness's own ``_performed_full_prefill`` NULLS a cached rate, which is right for a
+    rate and wrong for this surface: the cache has to be defeated, and the SERVER's own
+    counters are the only witness that it was.
+    """
+
+    def test_the_measured_cache_hit_fails(self):
+        # np2-p512-c2-r4, measured 2026-09-09: prompt_tokens_total moved 64 while
+        # prompt_tokens_cached_total moved 3,073, against 6 x 440 = 2,640 expected.
+        out = runner.prefill_real(prompt_metrics(172631, 20647),
+                                  prompt_metrics(172695, 23720), load_rows())
+        self.assertEqual((out["uncached"], out["cached"], out["expected"]), (64.0, 3073.0, 2640))
+        self.assertEqual(out["fraction"], 0.0242)
+        self.assertEqual(out["outcome"], "fail")
+        self.assertIn("prompt cache", out["reason"])
+
+    def test_real_prefill_passes(self):
+        out = runner.prefill_real(prompt_metrics(1000, 500),
+                                  prompt_metrics(3640, 500), load_rows())
+        self.assertEqual(out["outcome"], "pass")
+        self.assertEqual(out["fraction"], 1.0)
+        self.assertEqual(out["cached"], 0.0)
+        self.assertIsNone(out["probe_contribution"])
+
+    def test_ninety_percent_is_the_line(self):
+        rows = load_rows()                                  # 2,640 expected -> 2,376
+        self.assertEqual(
+            runner.prefill_real(prompt_metrics(0), prompt_metrics(2376), rows)["outcome"], "pass")
+        self.assertEqual(
+            runner.prefill_real(prompt_metrics(0), prompt_metrics(2375), rows)["outcome"], "fail")
+
+    def test_an_absent_cached_series_is_zero_not_unknown(self):
+        out = runner.prefill_real(prompt_metrics(0), prompt_metrics(2640), load_rows())
+        self.assertNotIn(runner.PROMPT_TOKENS_CACHED_SERIES, prompt_metrics(0))
+        self.assertEqual(out["cached"], 0.0)
+        self.assertEqual(out["outcome"], "pass")
+
+    def test_ff_cells_probes_are_reported_never_subtracted(self):
+        # The scrape bracket also holds ff_cell's single-stream pre/post rate probes, which
+        # prefill the ratecheck prompt. An unknown correction is never applied silently.
+        out = runner.prefill_real(prompt_metrics(0), prompt_metrics(3520), load_rows())
+        self.assertEqual(out["probe_contribution"], 880.0)
+        self.assertEqual(out["outcome"], "pass")
+        self.assertIn("nothing is subtracted", out["note"])
+
+    def test_missing_metrics_are_null_never_a_pass(self):
+        for before, after in ((None, prompt_metrics(10)), (prompt_metrics(10), None),
+                              ({}, {}), ({"http_status": 401}, {"http_status": 401})):
+            out = runner.prefill_real(before, after, load_rows())
+            with self.subTest(before=before):
+                self.assertEqual(out["outcome"], "null")
+                self.assertIsNone(out["uncached"])
+                self.assertIsNone(out["fraction"])
+
+    def test_rows_without_prompt_tokens_are_null_not_zero(self):
+        out = runner.prefill_real(prompt_metrics(0), prompt_metrics(64), [{"latency_s": 3.0}])
+        self.assertEqual(out["outcome"], "null")
+        self.assertIsNone(out["expected"])
+        self.assertEqual(out["rows_counted"], 0)
+
+    def test_the_series_are_the_ones_the_live_server_publishes(self):
+        # Both names come off the real /metrics scrape recorded in np2-p512-c2-r4's receipt.
+        self.assertEqual(runner.PROMPT_TOKENS_SERIES, "llamacpp:prompt_tokens_total")
+        self.assertEqual(runner.PROMPT_TOKENS_CACHED_SERIES,
+                         "llamacpp:prompt_tokens_cached_total")
 
 
 # ------------------------------------------------ gate 5: duty cycle vs the reference --
@@ -637,6 +825,16 @@ class TestReceiptSchema(unittest.TestCase):
                       "guard_verdict", "regime", "gates"):
             self.assertIn(field, row)
 
+    def test_the_load_window_and_prefill_fields_are_in_the_schema(self):
+        row = runner.blank_receipt()
+        for field in ("cache_prompt", "prefill_real", "prefill_cached",
+                      "slots_poll_load_window", "slot_busy_fraction_load_window",
+                      "both_slots_busy_fraction_load_window"):
+            self.assertIn(field, row)
+        # The span fields stay; they are labelled, not replaced.
+        self.assertIn("slot_busy_fraction", row)
+        self.assertIn("both_slots_busy_fraction", row)
+
     def test_the_nine_provenance_fields_are_present(self):
         row = runner.blank_receipt()
         for field in ("incumbent_process_epoch", "incumbent_restarted_since_cotenancy",
@@ -662,7 +860,7 @@ class TestReceiptSchema(unittest.TestCase):
         row["gates"] = runner.gate_outcomes(row)
         json.dumps(row)  # must not raise
 
-    def test_the_written_receipt_carries_every_field_and_all_six_gates(self):
+    def test_the_written_receipt_carries_every_field_and_all_seven_gates(self):
         args = runner.build_parser().parse_args(["--one-cell", "np2-p512-c2-r1", "--no-ledger"])
         with tempfile.TemporaryDirectory() as tmp:
             cell_dir = Path(tmp) / "np2-p512-c2-r1"
@@ -671,7 +869,7 @@ class TestReceiptSchema(unittest.TestCase):
             runner._finish(row, cell_dir, args, "REFUSED_GUARD", "guard read 'stale'")
             written = json.loads((cell_dir / "receipt.json").read_text(encoding="utf-8"))
         self.assertEqual(set(written), set(runner.RECEIPT_FIELDS))
-        self.assertEqual(len(written["gates"]), 6)
+        self.assertEqual(len(written["gates"]), 7)
         self.assertEqual(written["status"], "REFUSED_GUARD")
         self.assertIsNotNone(written["ts"])
         # Every unmeasured field is an explicit null, never absent.
@@ -681,9 +879,9 @@ class TestReceiptSchema(unittest.TestCase):
 
 
 class TestGateOutcomes(unittest.TestCase):
-    def test_all_six_gates_are_always_present(self):
+    def test_all_seven_gates_are_always_present(self):
         gates = runner.gate_outcomes(runner.blank_receipt())
-        self.assertEqual([g["gate"] for g in gates], [1, 2, 3, 4, 5, 6])
+        self.assertEqual([g["gate"] for g in gates], [1, 2, 3, 4, 5, 6, 7])
         self.assertEqual([g["name"] for g in gates], [name for _n, name in runner.GATES])
         self.assertTrue(all(g["outcome"] == "null" for g in gates))
 
@@ -700,6 +898,44 @@ class TestGateOutcomes(unittest.TestCase):
         gate = next(g for g in runner.gate_outcomes(row) if g["name"] == "admission")
         self.assertEqual(gate["outcome"], "over_admitted")
         self.assertIn("kept", gate["detail"])
+
+    def test_gate_four_scores_the_load_window_and_still_reports_the_span(self):
+        row = runner.blank_receipt()
+        row["slots_poll"] = {"ok_polls": 20, "all_busy_fraction": 0.5}
+        row["slots_poll_load_window"] = {"ok_polls": 10, "all_busy_fraction": 1.0,
+                                         "busy_slot_fraction": 1.0, "window_s": 9.0}
+        gate = next(g for g in runner.gate_outcomes(row) if g["name"] == "in_flight")
+        self.assertEqual(gate["outcome"], "pass")
+        self.assertIn("load window 10 polls", gate["detail"])
+        self.assertIn("all-slots-busy 1.0", gate["detail"])
+        self.assertIn("span 20 polls, all-slots-busy 0.5", gate["detail"])
+        self.assertIn("pre/post probes", gate["detail"])
+
+    def test_gate_four_is_null_when_nothing_was_polled_inside_the_load(self):
+        row = runner.blank_receipt()
+        row["slots_poll"] = {"ok_polls": 20, "all_busy_fraction": 0.5}
+        row["slots_poll_load_window"] = {"ok_polls": 0,
+                                         "reason": "no /slots poll fell inside the load window"}
+        gate = next(g for g in runner.gate_outcomes(row) if g["name"] == "in_flight")
+        self.assertEqual(gate["outcome"], "null")
+        self.assertIn("span 20 polls", gate["detail"])
+
+    def test_gate_seven_carries_the_prefill_verdict_and_its_numbers(self):
+        for outcome in ("pass", "fail", "null"):
+            row = runner.blank_receipt()
+            row["prefill_real"] = {"outcome": outcome, "reason": "the reason", "uncached": 64,
+                                   "cached": 3073, "expected": 2640, "fraction": 0.0242}
+            gate = next(g for g in runner.gate_outcomes(row) if g["name"] == "prefill_real")
+            with self.subTest(outcome=outcome):
+                self.assertEqual(gate["outcome"], outcome)
+                self.assertIn("fraction 0.0242", gate["detail"])
+                self.assertIn("cached 3073", gate["detail"])
+
+    def test_gate_seven_on_an_unmeasured_cell_is_null(self):
+        gate = next(g for g in runner.gate_outcomes(runner.blank_receipt())
+                    if g["name"] == "prefill_real")
+        self.assertEqual(gate["outcome"], "null")
+        self.assertIn("prefill unknown", gate["detail"])
 
     def test_a_stop_verdict_and_an_unknowable_verdict_are_distinguished(self):
         for verdict, expected in (("at_rate", "pass"), ("degraded", "fail"),
@@ -760,11 +996,68 @@ class TestPlanAndBearer(unittest.TestCase):
         self.assertEqual(argv[argv.index("--concurrency") + 1], "2")
         self.assertIn("warmdiscard", argv[argv.index("--run-id") + 1])
 
+    def test_every_cell_defeats_the_prompt_cache(self):
+        argv = runner.load_argv("py", "np2-p512-c2-r1", 512, 2)
+        self.assertIn("--no-cache-prompt", argv)
+
+    def test_the_warm_discard_and_the_measured_load_both_defeat_the_cache(self):
+        plan = runner.plan_cell("np2-p512-c2-r1", "py", self._args())
+        step3 = next(s for s in plan["steps"] if s["step"] == 3)
+        step7 = next(s for s in plan["steps"] if s["step"] == 7)
+        self.assertIn("--no-cache-prompt", step3["argv"])
+        command = step7["argv"][step7["argv"].index("--command") + 1]
+        self.assertIn("--no-cache-prompt", command)
+
     def test_the_regime_carries_model_depth_n_np_placement_and_epoch(self):
         regime = runner.plan_cell("np8-p512-c4-r2", "py", self._args())["regime"]
         for key in ("model", "depth_tokens", "concurrency", "np", "placement", "epoch"):
             self.assertIn(key, regime)
         self.assertEqual((regime["np"], regime["per_slot_ctx"]), (8, 16384))
+
+
+class TestPrefillCachedIsKeptNotDropped(unittest.TestCase):
+    """A gate-7 fail marks the reason and NEVER the status -- exactly like over_admitted.
+
+    The row is real data about a real cell. Changing ``status`` would make the reducer treat
+    it as a refusal instead of an exclusion, and the cell would vanish from the reconciliation
+    between what is on disk and what is in the surface.
+    """
+
+    def _finish(self, tmp, **fields):
+        args = runner.build_parser().parse_args(["--one-cell", "np2-p512-c2-r1", "--no-ledger"])
+        cell_dir = Path(tmp) / "np2-p512-c2-r1"
+        row = runner.blank_receipt()
+        row.update({"probe": runner.PROBE, "cell": "np2-p512-c2-r1"})
+        row.update(fields)
+        runner._finish(row, cell_dir, args, "scored", "cell completed")
+        return json.loads((cell_dir / "receipt.json").read_text(encoding="utf-8"))
+
+    def test_a_cached_prefill_marks_the_reason_and_keeps_the_status(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            written = self._finish(
+                tmp, prefill_cached=True,
+                prefill_real={"outcome": "fail", "reason": "served from the prompt cache",
+                              "uncached": 64, "cached": 3073, "expected": 2640,
+                              "fraction": 0.0242})
+        self.assertEqual(written["status"], "scored")
+        self.assertIn("prefill cached", written["status_reason"])
+        self.assertIn("cell completed", written["status_reason"])
+        self.assertIs(written["prefill_cached"], True)
+        gate = next(g for g in written["gates"] if g["name"] == "prefill_real")
+        self.assertEqual(gate["outcome"], "fail")
+
+    def test_a_real_prefill_leaves_the_reason_untouched(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            written = self._finish(tmp, prefill_cached=False,
+                                   prefill_real={"outcome": "pass", "reason": "ok"})
+        self.assertEqual(written["status_reason"], "cell completed")
+        self.assertIs(written["prefill_cached"], False)
+
+    def test_an_unmeasured_prefill_leaves_the_reason_untouched(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            written = self._finish(tmp)
+        self.assertEqual(written["status_reason"], "cell completed")
+        self.assertIsNone(written["prefill_cached"])
 
 
 # ------------------------------------------- the one extension made to ff_cell.py --

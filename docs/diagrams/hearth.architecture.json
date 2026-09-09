@@ -1,0 +1,274 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "HEARTH, inside the door",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "authz",
+        "label": "Authorization",
+        "focus": [
+          "callers",
+          "auth",
+          "gateway",
+          "caps"
+        ],
+        "note": "A key resolves a caller to a profile, and discovery is filtered by the same profile that authorizes the call."
+      },
+      {
+        "id": "offload",
+        "label": "Offload path",
+        "focus": [
+          "gateway",
+          "surface",
+          "router",
+          "rungs"
+        ],
+        "note": "local_generate from the tool surface to whichever rung the router picks."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "auth",
+      "type": "security",
+      "label": "AuthRegistry",
+      "sublabel": "X-Hearth-Key to profile",
+      "pos": [
+        290,
+        200
+      ],
+      "size": [
+        180,
+        64
+      ]
+    },
+    {
+      "id": "ledger",
+      "type": "database",
+      "label": "ledger",
+      "sublabel": "append-only events",
+      "pos": [
+        570,
+        200
+      ],
+      "size": [
+        180,
+        64
+      ]
+    },
+    {
+      "id": "knowledge",
+      "type": "database",
+      "label": "knowledge/",
+      "sublabel": "offload, capacity, beliefs",
+      "pos": [
+        850,
+        200
+      ],
+      "size": [
+        180,
+        64
+      ]
+    },
+    {
+      "id": "callers",
+      "type": "external",
+      "label": "Callers",
+      "sublabel": "Claude Code, agents, scripts",
+      "pos": [
+        20,
+        330
+      ],
+      "size": [
+        180,
+        64
+      ]
+    },
+    {
+      "id": "gateway",
+      "type": "backend",
+      "label": "kernel/gateway",
+      "sublabel": "FastMCP :8710",
+      "tag": "one door, one host",
+      "pos": [
+        290,
+        330
+      ],
+      "size": [
+        180,
+        64
+      ]
+    },
+    {
+      "id": "surface",
+      "type": "backend",
+      "label": "toolsurface/",
+      "sublabel": "provider modules",
+      "pos": [
+        570,
+        330
+      ],
+      "size": [
+        180,
+        64
+      ]
+    },
+    {
+      "id": "router",
+      "type": "backend",
+      "label": "inference router",
+      "sublabel": "rung + budget check",
+      "tag": "ADR-0031",
+      "pos": [
+        850,
+        330
+      ],
+      "size": [
+        180,
+        64
+      ]
+    },
+    {
+      "id": "rungs",
+      "type": "cloud",
+      "label": "rungs",
+      "sublabel": "omen-arc, gemini, swap",
+      "pos": [
+        1120,
+        330
+      ],
+      "size": [
+        180,
+        64
+      ]
+    },
+    {
+      "id": "caps",
+      "type": "security",
+      "label": "capabilities",
+      "sublabel": "fail closed on unclassified",
+      "pos": [
+        290,
+        460
+      ],
+      "size": [
+        180,
+        64
+      ]
+    },
+    {
+      "id": "lanes",
+      "type": "messagebus",
+      "label": "task + build lanes",
+      "sublabel": "submit_task, build_request",
+      "pos": [
+        570,
+        460
+      ],
+      "size": [
+        180,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "security-group",
+      "label": "one door, one host",
+      "wraps": [
+        "auth",
+        "gateway",
+        "caps"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "call",
+      "from": "callers",
+      "to": "gateway",
+      "label": "MCP + key",
+      "variant": "emphasis"
+    },
+    {
+      "id": "resolve",
+      "from": "auth",
+      "to": "gateway",
+      "label": "resolves caller",
+      "variant": "security",
+      "labelDy": 53
+    },
+    {
+      "id": "classify",
+      "from": "caps",
+      "to": "gateway",
+      "variant": "security"
+    },
+    {
+      "id": "dispatch",
+      "from": "gateway",
+      "to": "surface",
+      "label": "dispatch",
+      "variant": "emphasis",
+      "labelDy": 18
+    },
+    {
+      "id": "generate",
+      "from": "surface",
+      "to": "router",
+      "label": "local_generate",
+      "variant": "emphasis"
+    },
+    {
+      "id": "route",
+      "from": "router",
+      "to": "rungs",
+      "label": "routes"
+    },
+    {
+      "id": "observe",
+      "from": "gateway",
+      "to": "ledger",
+      "label": "every call"
+    },
+    {
+      "id": "project",
+      "from": "ledger",
+      "to": "knowledge",
+      "label": "projects"
+    },
+    {
+      "id": "async",
+      "from": "surface",
+      "to": "lanes"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Authorization mirrors discovery",
+      "items": [
+        "An unprofiled caller is denied every tool, not granted every tool",
+        "list_tools is filtered by the same profile that authorizes the call, so a caller cannot even see what it may not run"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Fail closed",
+      "items": [
+        "Every registered tool must be classified in TOOL_CAPABILITY, checked against what actually registered",
+        "An unclassified tool raises at startup: a door that half-knows its own policy stays shut"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "The door routes itself",
+      "items": [
+        "Just call local_generate and pin only with cause; trust routed_by on the result",
+        "A pin picks the rung, not the physics: an over-budget payload is refused at the door, never dispatched to die at the server"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "commandcenter",
+    "quality_profile": "showcase",
+    "views": [
+      { "id": "control", "label": "Control plane", "focus": ["claude", "hearth", "fleet", "inbox"], "note": "What an agent touches: the door, the map of the metal, and the task intake." },
+      { "id": "record", "label": "The record", "focus": ["ledger", "knowledge", "corpus", "adr"], "note": "Event-sourced and two-tier: sources before views, always." }
+    ]
+  },
+  "components": [
+    { "id": "tools", "type": "backend", "label": "tools/ops", "sublabel": "session hooks, adr_index", "pos": [20, 200], "size": [180, 64] },
+    { "id": "hearth", "type": "backend", "label": "hearth/", "sublabel": "MCP door + kernel", "tag": "the door", "pos": [290, 200], "size": [180, 64] },
+    { "id": "ledger", "type": "database", "label": "hearth/var", "sublabel": "append-only ledger", "pos": [570, 200], "size": [180, 64] },
+    { "id": "knowledge", "type": "database", "label": "knowledge/", "sublabel": "projections + beliefs", "pos": [850, 200], "size": [180, 64] },
+    { "id": "claude", "type": "external", "label": "Claude Code", "sublabel": "CLAUDE.md + skills", "pos": [20, 330], "size": [180, 64] },
+    { "id": "fleet", "type": "backend", "label": "fleet/", "sublabel": "inventory, ping, watchdog", "pos": [290, 330], "size": [180, 64] },
+    { "id": "inbox", "type": "messagebus", "label": "inbox/", "sublabel": "conductor task intake", "pos": [570, 330], "size": [180, 64] },
+    { "id": "corpus", "type": "database", "label": "corpus/", "sublabel": "events + transcripts", "pos": [850, 330], "size": [180, 64] },
+    { "id": "nodes", "type": "backend", "label": "per-node trees", "sublabel": "am4, fx99, worker, zen", "pos": [570, 460], "size": [180, 64] },
+    { "id": "adr", "type": "database", "label": "docs/adr", "sublabel": "130 records, 11 registers", "tag": "cite register#number", "pos": [850, 460], "size": [180, 64] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "control plane", "wraps": ["hearth", "fleet"] },
+    { "kind": "region", "label": "the record, event-sourced", "wraps": ["knowledge", "corpus", "adr"] }
+  ],
+  "connections": [
+    { "id": "offload", "from": "claude", "to": "hearth", "label": "local_generate", "variant": "emphasis" },
+    { "id": "hooks", "from": "tools", "to": "claude", "label": "session hooks", "variant": "dashed", "labelDy": 53 },
+    { "id": "appends", "from": "hearth", "to": "ledger", "label": "every call", "variant": "emphasis" },
+    { "id": "projects", "from": "ledger", "to": "knowledge", "label": "projects" },
+    { "id": "dispatch", "from": "hearth", "to": "inbox", "label": "submit_task" },
+    { "id": "drains", "from": "inbox", "to": "nodes" },
+    { "id": "reach", "from": "fleet", "to": "nodes", "label": "reachability" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "One repo, three altitudes", "items": ["hearth/ is the door and the kernel; fleet/ is the map of the metal", "The per-node trees are what each machine actually runs"] },
+    { "dot": "emerald", "title": "Sources before views", "items": ["The decision record is two-tier and event-sourced: read the JSONL log and the ADRs before any generated HTML", "Never hand-edit a file whose header says it was generated deterministically; run its renderer"] },
+    { "dot": "amber", "title": "Citing a decision", "items": ["130 records across 11 registers in four naming conventions, and 20 numbers collide", "A bare ADR number is not a resolvable reference; cite register#number"] }
+  ]
+}

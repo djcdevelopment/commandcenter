@@ -27,3 +27,6 @@ runs/run/
 # Audio Lab: WAV artifacts are large (~120 MB) and regenerable via pacing_bench.py.
 # The JSON receipts and LISTENING_SCORECARD.md ARE tracked -- they are the durable record.
 tools/audio-lab/samples/
+
+# archify visual-check evidence: regenerable browser captures beside each artifact
+docs/diagrams/*.visual-check.*

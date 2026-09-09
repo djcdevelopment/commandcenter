@@ -1,0 +1,302 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "mechnet",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "serving",
+        "label": "What serves",
+        "focus": [
+          "claude",
+          "door",
+          "swap",
+          "arc",
+          "gcp"
+        ],
+        "note": "The live inference surface: the door, the resident rung on the B70s, and the Vertex overflow lane."
+      },
+      {
+        "id": "builders",
+        "label": "Task lane",
+        "focus": [
+          "door",
+          "conductor",
+          "builders",
+          "fx99"
+        ],
+        "note": "Async fleet work: the conductor drains plans to the builder VMs, whose local runners point at fx99."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "human",
+      "type": "external",
+      "label": "i5-laptop, phone",
+      "sublabel": "roaming access",
+      "pos": [
+        20,
+        130
+      ],
+      "size": [
+        180,
+        64
+      ]
+    },
+    {
+      "id": "gcp",
+      "type": "cloud",
+      "label": "gcp-gemini",
+      "sublabel": "Vertex, trial credits",
+      "tag": "overflow lane",
+      "pos": [
+        1120,
+        130
+      ],
+      "size": [
+        180,
+        64
+      ]
+    },
+    {
+      "id": "claude",
+      "type": "external",
+      "label": "Claude Code",
+      "sublabel": "on OMEN",
+      "pos": [
+        20,
+        260
+      ],
+      "size": [
+        180,
+        64
+      ]
+    },
+    {
+      "id": "door",
+      "type": "backend",
+      "label": "HEARTH door",
+      "sublabel": "gateway :8710",
+      "tag": "expect=up",
+      "pos": [
+        290,
+        260
+      ],
+      "size": [
+        180,
+        64
+      ]
+    },
+    {
+      "id": "swap",
+      "type": "backend",
+      "label": "llama-swap",
+      "sublabel": "lifecycle :8081",
+      "pos": [
+        570,
+        260
+      ],
+      "size": [
+        180,
+        64
+      ]
+    },
+    {
+      "id": "arc",
+      "type": "backend",
+      "label": "omen-arc",
+      "sublabel": "llama-server :8082",
+      "tag": "resident",
+      "pos": [
+        850,
+        260
+      ],
+      "size": [
+        180,
+        64
+      ]
+    },
+    {
+      "id": "conductor",
+      "type": "backend",
+      "label": "cc-conductor",
+      "sublabel": "dashboard :8080",
+      "pos": [
+        290,
+        390
+      ],
+      "size": [
+        180,
+        64
+      ]
+    },
+    {
+      "id": "builders",
+      "type": "backend",
+      "label": "builder VMs",
+      "sublabel": "cc-builder-1..3, claudefarm1",
+      "tag": "mshome.net",
+      "pos": [
+        290,
+        520
+      ],
+      "size": [
+        180,
+        64
+      ]
+    },
+    {
+      "id": "fx99",
+      "type": "backend",
+      "label": "fx99",
+      "sublabel": "ollama :11434, samba",
+      "pos": [
+        570,
+        520
+      ],
+      "size": [
+        180,
+        64
+      ]
+    },
+    {
+      "id": "am4",
+      "type": "backend",
+      "label": "AM4",
+      "sublabel": "services host, RTX 5070",
+      "tag": "expect=up",
+      "pos": [
+        850,
+        520
+      ],
+      "size": [
+        180,
+        64
+      ]
+    },
+    {
+      "id": "oxen",
+      "type": "external",
+      "label": "oxen facade",
+      "sublabel": "port 8090 answers",
+      "pos": [
+        1120,
+        520
+      ],
+      "size": [
+        180,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "OMEN, two Arc Pro B70s",
+      "wraps": [
+        "door",
+        "swap",
+        "arc"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "home LAN 192.168.12.0/24",
+      "wraps": [
+        "fx99",
+        "am4",
+        "oxen"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "call",
+      "from": "claude",
+      "to": "door",
+      "variant": "emphasis"
+    },
+    {
+      "id": "roam",
+      "from": "human",
+      "to": "door",
+      "label": "human only",
+      "variant": "dashed"
+    },
+    {
+      "id": "serve",
+      "from": "door",
+      "to": "swap",
+      "label": "routes",
+      "variant": "emphasis"
+    },
+    {
+      "id": "resident",
+      "from": "swap",
+      "to": "arc",
+      "label": "keeps it resident",
+      "variant": "emphasis"
+    },
+    {
+      "id": "overflow",
+      "from": "door",
+      "to": "gcp",
+      "label": "vertex egress",
+      "fromSide": "top",
+      "toSide": "left"
+    },
+    {
+      "id": "tasks",
+      "from": "door",
+      "to": "conductor",
+      "label": "submit_task",
+      "labelDy": 38
+    },
+    {
+      "id": "drains",
+      "from": "conductor",
+      "to": "builders"
+    },
+    {
+      "id": "runners",
+      "from": "builders",
+      "to": "fx99",
+      "label": "local runners"
+    },
+    {
+      "id": "facade",
+      "from": "am4",
+      "to": "oxen",
+      "label": "ready:false",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Addressing is a decision",
+      "items": [
+        "Machine lanes never ride the tailnet: builder VMs over mshome.net, physical AM4 over the home LAN",
+        "Tailscale is for humans and roaming access only, never in the control loop"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "What actually serves",
+      "items": [
+        "omen-arc is the live inference surface: llama-server on the dual B70s, resident from boot, no cold-start tax",
+        "It binds 127.0.0.1:8082, so the builder VMs on the Default Switch cannot reach it at all"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "A port is not capacity",
+      "items": [
+        "The oxen facade still answers and still lists models, every one ready:false",
+        "A port probe and a health check both pass against a rung that cannot emit a token"
+      ]
+    }
+  ]
+}

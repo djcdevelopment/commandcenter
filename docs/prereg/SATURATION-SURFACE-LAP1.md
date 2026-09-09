@@ -1046,6 +1046,37 @@ only remaining move — which is a result, not a failure.
 > Ran clean at the `-np 8` transition; baseline 105.25 tok/s. ⚠ Gate 2 reads `stale` for roughly six
 > minutes after any restart until a deep keep-alive sample lands — normal, not a fault.
 
+> **RESULT — the cards are finally loaded. `np8-p512-c16-r1`, 2026-09-09 ~13:35Z.**
+>
+> | | `-np 8`, N=8 | `-np 8`, **N=16** |
+> |---|---:|---:|
+> | jobs/hour | 3,358.2 | **3,407.2** (+1.5%) |
+> | p95 latency | 9.43 s | 17.14 s |
+> | board p50 W, `0000:09:00.0` | 118.7 | **154.68** |
+> | board max W | 171.4 | **181.19** |
+> | **duty, `0000:09:00.0`** | 0.168 | **0.632** |
+> | duty, `0000:04:00.0` | 0.126 | 0.123 |
+>
+> **Duty 0.63 against a 159.92 W reference, sustained at 154.7 W p50.** That is the closest this
+> campaign has come to the thing it set out to find — a card actually kept busy — and it took the
+> slot count, not the client count, to get there.
+>
+> **A correction to my own summary of an hour ago.** I said "throughput is set by slots, latency by
+> clients". The first half holds — 3,358 → 3,407 is 1.5%. The second half was incomplete:
+> **clients past the slot count barely move throughput but massively move *utilisation*** (duty
+> 0.168 → 0.632, p50 power +30%). Eight clients on eight slots leaves gaps between rounds; sixteen
+> keeps the slots fed. Both halves matter, and I had only measured one.
+>
+> ⚠ **Efficiency got worse, not better.** Same throughput for 30% more power. The delayed-round
+> count doubled with the client count (3 → 6, skews 449–905 ms). The extra clients are buying
+> occupancy, not work.
+>
+> ⚠ **The split is badly unbalanced, and it is an argument for the partition.** Card `0000:09:00.0`
+> sits at 154.7 W p50 / 0.632 duty while `0000:04:00.0` sits at 81.5 W / 0.123 — under `-sm layer
+> -ts 1,1`, which is supposed to divide the model evenly. One card is doing roughly twice the work.
+> **A partition would give each card its own whole model and its own queue**, which is exactly the
+> imbalance this measurement exposes. Recorded as an observation from one cell, not a law.
+
 ## Pass gate
 
 The surface is the deliverable. **Pass** = every planned `-np 2` cell carries all six gate outcomes,

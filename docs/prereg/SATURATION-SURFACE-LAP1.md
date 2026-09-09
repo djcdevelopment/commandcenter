@@ -696,6 +696,43 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
 > What the card should have said, and now does, is that a drift at the floor cell has two possible
 > causes and needs the N=1 control to tell them apart.
 
+> **RESULT — N=4, repeat 1 of 5 (`np2-p512-c4-r1`), 2026-09-09 ~12:05Z.** The cell where P1 and P3
+> stop being predictions. All seven gates; gate 7 zero cached; duty 0.0.
+>
+> | | N=1 (3 reps) | N=2 (5 reps) | **N=4 (rep 1)** |
+> |---|---:|---:|---:|
+> | jobs/hour | 1,514.1 | 2,128.3 | **2,124.2** |
+> | p50 latency | 2.373 s | 3.311 s | **6.553 s** |
+> | p95 latency | 2.387 s | 3.552 s | **7.214 s** |
+> | TTFT p50 | 0.243 s | 0.329 s | **3.577 s** |
+> | decode p50 | 93.4 | 66.8 | 66.6 |
+> | prefill p50 | 1,991 | 1,470 | 1,473 |
+> | both slots busy, load window | 0.00 | 1.00 | **1.00** |
+> | board duty, both cards | 0.0 | 0.0 | **0.0** |
+>
+> **Doubling the clients moved throughput by 0.2% and doubled latency.** Jobs/hour 2,124.2 against
+> 2,128.3 — inside the N=2 cell's own 5% floor and far inside P1's ±10%. p50 rose 1.98×, p95 2.03×,
+> against a client count that rose 2.00×. That is the waiting term, measured directly and almost
+> exactly linear, and TTFT carries it: **0.329 s → 3.577 s, a 10.9× rise** in time spent before the
+> first token, while decode and prefill *per request* are unchanged to within 0.3%.
+>
+> - **P1** ("flat within ±10% from N=2 through N=24"): **on track**, 0.2% at the first test point.
+> - **P3** ("p95 exceeds 1.5× the N=2 baseline by N=4, then ~linear in N/2"): **on track and
+>   quantitatively so** — 2.03× at N=4 where 1.5× was the bar, and the linear form holds at the only
+>   ratio available so far.
+> - **P5's signature holds at N=4**: both slots busy 100% of the load window while both boards sit at
+>   **duty 0.0** against a 160/114 W reference. The server is saturated; the cards are not.
+>
+> Neither is scored yet — the card asks 5 repeats here and this is one.
+>
+> **A refinement to the delayed-round finding, from the skew instrument's first multi-round cell.**
+> N=4 gives 6 rounds instead of 3, and **2 were delayed** (245.6 ms and 236.2 ms) against 1 of 3 at
+> N=2. Per round the rate is unchanged (~1 in 3), but the load window also doubled, 10.3 s → 20.3 s.
+> **Both cells are consistent with roughly one event per 10 seconds of load rather than one per three
+> rounds** — a time-periodic source, not a per-request one. Two points is a hypothesis, not a
+> finding; the N=8/16/24 cells lengthen the window further and will separate the two readings
+> cleanly.
+
 ## Analysis plan
 
 - Per cell: jobs/hour, p50/p95/p99 latency and TTFT (nearest-rank, as the harness computes them),

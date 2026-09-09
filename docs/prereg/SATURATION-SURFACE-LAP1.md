@@ -477,7 +477,10 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
 > | r8 | 0.2 ms | 0.2 ms | 0.1 ms |
 > | r9 | 0.2 ms | 0.2 ms | **222.4 ms** |
 >
-> Two occurrences, **222.0 and 222.4 ms** — quantized, not jitter. And it is **not the client**: the
+> Two occurrences, **222.0 and 222.4 ms**. *(Corrected same day: a third, r6, measures **250.7 ms**,
+> so "quantized" was an overstatement resting on n=2. The event is large and consistent — hundreds of
+> milliseconds against a 0.2 ms norm — but not a single fixed value. See the launch-skew instrument
+> result below.)* And it is **not the client**: the
 > harness's own rows put the two requests' `started_at` within **0.0–12.5 ms** in every cell,
 > including the affected ones. The server released the previous round's two slots within 1 ms of
 > each other and then re-launched one slot 10 ms later and the other 222 ms later.
@@ -586,6 +589,47 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
 > gain from the second slot in the same proportion (1.48× and 1.43×), which is why the jobs/hour
 > ratio sits where it does. `both_slots_busy` reading exactly **0.00** at N=1 and **1.00** at N=2 is
 > also the gate-4 instrument validating itself at the two extremes it should bracket.
+
+> **RESULT — P7 half 2 SCORED at last, and it is refuted on the severe side (2026-09-09 ~11:45Z).**
+> Receipts `E:\work\battlemage\sat-l1\probes\p7-half2-cold-rung-20260909.json` and
+> `remediation-20260909.json`. Method: stop the fx99 timers, verify stopped, idle, measure, restore
+> in a `finally` proven two ways — the mechanism the sibling probes already use.
+>
+> **The idle was real, for the first time in this campaign.** `arc-keepalive.jsonl` shows a single
+> **299 s gap** (04:38:45 → 04:43:43) and nothing else touched `:8082`.
+>
+> | reading | tok/s | vs baseline 106.0 |
+> |---|---|---:|
+> | cold measure, 3 reps | 41.97 / 28.00 / 28.19 | **40% → 27%** |
+> | second measure, immediately after | 30.06 / 25.81 / 26.30 | 28% → 25% |
+> | after 24 sustained concurrent requests | 72.0 / 50.06 / 30.44 (spread **81.8%**) | **48%, unstable** |
+> | after one restart, first warm iteration | 106.45 / 106.25 / 106.19 (spread **0.24%**) | **100%** |
+>
+> **P7's prediction was an unwarmed rep-1 at 65–90% of warm. Observed ~33% of baseline** — the decay
+> is far *deeper* than ADR-0043's own 68/69/74/92 readings, which is consistent with those having
+> been taken against a rung the keep-alive never let go fully cold. **Refuted, on the side of more
+> decay, not less.**
+>
+> **A rule I was carrying is wrong, and this falsified it.** I had been applying "a degraded rung is
+> a stop condition; restart is not the remedy — warm instead." Here **warming did not work**: 24
+> sustained concurrent requests moved it 33% → 48% and left it wildly unstable (81.8% spread across
+> three reps, each *lower* than the last). **One restart restored 100% on the first warm iteration
+> at 0.24% spread.** The correct rule was already recorded and I had over-generalized past it: a rung
+> collapsed by a real idle, with the keep-alive now pinging it, is held near 40% rather than
+> recovered — *restart first, then let the keep-alive hold*. `ff_ratecheck`'s own guidance names the
+> restart as the **discriminator**: cleared by one ⇒ ADR-0043 idle collapse; survives one ⇒
+> INC-2026-08-30-A class. It cleared, so this is classified idle collapse.
+>
+> **A defect in my own probe, recorded.** Its scoring compared cold rep-1 against a "warm" reference
+> measured six requests later — which was *itself still collapsed* — and printed "no decay
+> observed". A wrong verdict from a right measurement. Any cold-rung probe must reference a
+> baseline established **before** the idle, never a recovery sample taken after it.
+>
+> **Cost, stated plainly.** I degraded production for roughly 7 minutes (≈04:39–04:46 local) to run
+> this. **No real traffic was affected** — the gateway ledgers carry no dispatch in that window —
+> and the keep-alive logged two `ok:false` rows during the restart before recovering. The intact
+> restore was verified by `systemctl is-active` reading `active/active`, a fresh keep-alive row, and
+> production measuring 106.30 tok/s.
 
 ## Analysis plan
 

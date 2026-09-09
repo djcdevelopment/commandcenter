@@ -359,6 +359,43 @@ Phase 2 (each `-np` value is a **production restart** — edit `omen.yaml`, then
 > layer-split, co-resident, N=1 — the regime named, not a capacity claim. Production `ff_ratecheck`
 > after the probe: 104.75 tok/s, **99% of baseline, PASS**.
 >
+> **Prior art found 2026-09-09, and a Phase 2 risk it raised, resolved.** `E:\work\vllama` (Derek's
+> own, June 2026, the stage after b70tools — .NET 9 lifecycle + OpenAI facade over `llama-server`,
+> last commit `c130d76` 2026-06-17) already holds two contracts this campaign re-derived:
+> - **vllama ADR-0007 Decision 1: "readiness means *can serve*, not *process up*."** A control
+>   endpoint resolves the alias exactly as the proxy does and issues a real one-token generation;
+>   a resident-but-wedged model fails loudly with `reason` and `remedy`. That is the same finding as
+>   this campaign's "HTTP 200 ≠ serving" (the co-resident canary that held `/health` at 200 while
+>   production ran at 10.3%), written three months earlier from a different failure — a judge that
+>   503'd mid-run. `hearth/health/guard.py`'s rung-state gate is an independent re-derivation, and
+>   the citation belongs to vllama ADR-0007.
+> - **vllama ADR-0007 Decision 4** names the per-card co-residency VRAM gate as deferred, and names
+>   the b70tools field for it (`per_adapter_vram.local_last_gb`) — an independent arrival at the
+>   same term this card's admission gate now uses (`gpu.adapter.vram.local.bytes_committed`).
+>
+> Its Decision 3 also flagged a latent **`n_parallel × n_ctx` KV over-allocation** in the June build.
+> Phase 2 raises `-np` to 4 and 8 at fixed `-c 131072` on a restarted production server, so whether
+> `-c` is per-slot or total decides whether those restarts are routine or a large over-allocation on
+> a rig whose own docs record an OOM cascade that once cost a BIOS reflash. **Settled from the
+> running server's log, no restart needed** (`hearth/var/arc-serve.log`):
+>
+> ```
+> llama_context: n_ctx = 131072   n_ctx_seq = 65536   n_seq_max = 2   kv_unified = false
+> srv load_model: initializing, n_slots = 2, n_ctx_slot = 65536
+> llama_kv_cache: size = 12288.00 MiB (65536 cells, 48 layers, 2/2 seqs)
+> llama_kv_cache: Vulkan0 KV buffer 6400.00 MiB   Vulkan1 KV buffer 5888.00 MiB
+> load_tensors:   Vulkan0 model 8975.63 MiB   Vulkan1 model 8548.79 MiB
+> sched_reserve:  Vulkan0 compute 712.08 MiB    Vulkan1 compute 712.08 MiB
+> ```
+>
+> **`-c` is the total and the build divides it**: `n_ctx_slot = 65536` at `-np 2`, so P8's premise
+> (64K/32K/16K per slot at `-np` 2/4/8) is the build's own arithmetic, not an assumption. The
+> per-card sums — 16,088 and 15,149 MiB — reconcile with the admission gate's committed readings
+> (16.03 / 14.96 GB), so that gate is now cross-checked against the server's own declared
+> allocation. **Open and answerable at the first Phase 2 restart, not before:** whether total KV
+> stays 12,288 MiB when `-np` rises at fixed `-c`. The restart's log lines above are captured into
+> the cell receipt and compared; a KV total that scales with `-np` is a stop condition for `-np 8`.
+>
 > **Derived expectation, recorded before the re-run data exists:** block 1's jobs carried ~10.8 ms
 > of prefill; real prefill adds ~214 ms per job to a 3.14 s job, so the re-run's jobs/hour should
 > land **~5–8% below** block 1 — roughly **2,100–2,160** — with p50 near 3.35 s, decode unchanged,

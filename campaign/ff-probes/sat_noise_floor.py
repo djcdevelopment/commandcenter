@@ -49,11 +49,20 @@ states, in one line, HOW MANY included repeats had at least one delayed round. T
 not the spread of cell means -- is the honest statistic for a non-Gaussian floor. It changes
 no outcome: no repeat is excluded for a delayed round and no gate reads the field.
 
+THERMAL TREND (gate 8, added 2026-09-09). The runner now reduces b70tools' own
+``gpu.temperature_c`` / ``vram.temperature_c`` into every receipt, and this reducer spreads
+``thermal.<counter>.max_c`` and ``.delta_c`` PER CARD across the repeats. Both, deliberately:
+the absolute is dominated by ambient (idle VRAM swung 56-62 C across four cells in one
+session while the load added only 0-4 C), so ``max_c`` alone drifts with the season and
+``delta_c`` alone cannot see a hot room. A thermal trend across repeats is now visible in the
+same table as everything else instead of having to be inferred.
+
 EXCLUSIONS ARE LISTED, NEVER DROPPED. A receipt is included only when ``status ==
-"scored"`` and ``over_admitted`` is false -- the same rule the runner states for the surface
-("an over_admitted row is KEPT and excluded from the surface, not dropped"). Every excluded
-receipt appears in the report with its reason, as does every discovered directory that had
-no readable receipt, so ``n`` is always reconcilable against what is on disk.
+"scored"``, ``over_admitted`` is false and ``thermal_exceeded`` is false -- the same rule the
+runner states for the surface ("an over_admitted row is KEPT and excluded from the surface,
+not dropped"; gate 8 keeps a too-hot row the same way). Every excluded receipt appears in the
+report with its reason, as does every discovered directory that had no readable receipt, so
+``n`` is always reconcilable against what is on disk.
 
 DISCOVERY is numeric, not lexical: ``<cells-root>/<prefix>-r<k>/receipt.json`` sorted by the
 integer ``k``, so ``r10`` follows ``r9`` instead of ``r1``.
@@ -127,12 +136,26 @@ SCALAR_FIELDS = (
 )
 
 #: (report label, path to the per-key mapping, path inside each entry, unit)
-#: ``duty_cycle`` and ``budget_headroom`` are keyed by PCI BDF; ``power`` is keyed by the
-#: b70tools adapter id. They are NOT the same key space and are never merged.
+#: ``duty_cycle`` and ``budget_headroom`` are keyed by PCI BDF; ``power`` and ``thermal`` are
+#: keyed by the b70tools adapter id. They are NOT the same key space and are never merged.
+#:
+#: The thermal pair (gate 8, added 2026-09-09) is BOTH the absolute and the rise on purpose.
+#: Absolute temperature here is dominated by ambient -- the idle VRAM baseline swung 56-62 C
+#: across four cells in one session while the load added only 0-4 C -- so ``max_c`` alone
+#: would trend with the season and ``delta_c`` alone would miss a hot room. Spreading both
+#: across repeats is what makes a thermal drift visible instead of inferred.
 CARD_FAMILIES = (
     ("duty_cycle[%s]", ("duty_cycle", "cards"), ("duty_cycle",), "fraction"),
     ("power.burst_p50_w[%s]", ("power", "cards"), ("burst", "p50_w"), "watts"),
     ("min_headroom_gb[%s]", ("budget_headroom", "cards"), ("min_headroom_gb",), "gb"),
+    ("thermal.gpu.max_c[%s]", ("thermal", "cards"),
+     ("counters", "gpu.temperature_c", "max_c"), "celsius"),
+    ("thermal.gpu.delta_c[%s]", ("thermal", "cards"),
+     ("counters", "gpu.temperature_c", "delta_c"), "celsius"),
+    ("thermal.vram.max_c[%s]", ("thermal", "cards"),
+     ("counters", "vram.temperature_c", "max_c"), "celsius"),
+    ("thermal.vram.delta_c[%s]", ("thermal", "cards"),
+     ("counters", "vram.temperature_c", "delta_c"), "celsius"),
 )
 
 #: decimal places by unit; percentages are always 2.
@@ -144,6 +167,8 @@ ROUNDING = {
     "ratio": 4,
     "gb": 3,
     "watts": 2,
+    # The counters report whole degrees; one place is enough to carry a mean over repeats.
+    "celsius": 1,
     "percent": 2,
     "millis": 3,
     # A count, but its MEAN over repeats is fractional and that fraction is the whole point
@@ -220,6 +245,11 @@ def include_reason(receipt: dict, *, include_cached: bool = False) -> str | None
         return "status is %r, not 'scored'%s" % (status, detail)
     if receipt.get("over_admitted"):
         return "over_admitted: budget headroom went negative during the cell"
+    if receipt.get("thermal_exceeded"):
+        # Gate 8 (2026-09-09). Belt and braces: the runner also sets status to
+        # ``thermal_exceeded``, but the flag alone must be enough to exclude the row -- a
+        # cell that crossed the abort limit is real data and is KEPT, never averaged in.
+        return "thermal_exceeded: a card crossed gate 8's abort limit during the cell"
     if not include_cached:
         if receipt.get("prefill_cached"):
             return ("prefill_cached: gate 7 found the server served the prompts from cache; "

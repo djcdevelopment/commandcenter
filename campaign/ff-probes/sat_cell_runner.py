@@ -44,11 +44,13 @@ WHAT IT ADDS (the only new logic)
   3. Admission: budget headroom per card from the b70tools stream; negative -> the row is
      flagged ``over_admitted`` and KEPT (excluded from the surface, never dropped).
   4. Phase 2 ``-np``: token-exact edit of the PRODUCTION entry in
-     ``fleet/arcserve/llama-swap/omen.yaml`` -> ``schtasks /Run /TN ArcServeRestart`` via
-     PowerShell -> ``/health`` 200 AND a real completion -> ``ff_ratecheck --set-baseline``
-     whose ``--note`` names ``-np`` and ``-ub`` -> a row appended to ``epoch_boundaries`` ->
-     warm. ``-np 2`` restored at the end. Refused outright while
-     ``hearth\var\arc-maintenance.stop`` exists.
+     ``fleet/arcserve/llama-swap/omen.yaml`` -> ``schtasks /Run /TN ArcServeRestart``, which
+     is STOP-ONLY -> poll until nothing listens on 8081/8082 -> ``schtasks /Run /TN
+     ArcServeBoot`` -> the REAL ready marker -> ``/health`` 200 AND a real completion ->
+     ``ff_ratecheck --set-baseline`` whose ``--note`` names ``-np`` and ``-ub`` -> a row
+     appended to ``epoch_boundaries`` -> warm. ``-np 2`` restored at the end. Refused
+     outright while ``hearth\var\arc-maintenance.stop`` exists, and aborted BEFORE the boot
+     if that shared lock appears while production is stopping.
   5. Board duty cycle against the FROZEN reference receipt (read from the receipt, never
      hardcoded): the fraction of CELL WALL TIME each card's dJ/dt is above 0.9x ITS OWN
      reference burst p50, per card, keyed by PCI BDF.
@@ -63,10 +65,20 @@ WHAT IT ADDS (the only new logic)
      The noise-floor cell's jobs/hour is bimodal because one round per affected cell has its
      two concurrent requests launched ~222 ms apart instead of ~0.2 ms; recording the skew
      per round means a point on the surface SAYS whether it hit the event, rather than
-     having it averaged into a variance. There is no eighth gate, no existing gate reads
-     ``launch_skew``, and a delayed round never changes a cell's status. A missing log or an
-     anchor that cannot be established is a LOUD NULL (``{"rounds": null, "reason": ...}``),
-     never an exception and never a silent zero.
+     having it averaged into a variance. NO gate reads ``launch_skew`` -- not gate 8, which
+     is the thermal gate and reads only the temperature counters -- and a delayed round
+     never changes a cell's status. A missing log or an anchor that cannot be established
+     is a LOUD NULL (``{"rounds": null, "reason": ...}``), never an exception and never a
+     silent zero.
+  8. Thermal (gate 8, added 2026-09-09). b70tools already streams ``gpu.temperature_c`` and
+     ``vram.temperature_c`` into every cell's ``b70/events.jsonl`` and nothing read them.
+     ``thermal_summary`` reduces them per card and per counter to an idle baseline, busy
+     p50/p95, max and delta; ``score_thermal`` scores that against the module constants.
+     BOTH the absolute and the delta are reported, because absolute temperature is dominated
+     by AMBIENT: measured across four cells in one session the idle VRAM baseline swung
+     56-62 C while the workload-attributable rise was only 0-4 C. An absolute-only gate is
+     seasonally optimistic; a delta-only gate misses a genuinely hot room. A ``fail`` KEEPS
+     the row and excludes it from the surface, exactly like ``over_admitted``.
 
 TIMEBASE. b70tools' ``t`` on ``ms`` rows is NANOSECONDS on the boot-relative perf_counter
 clock -- never QPC ticks; reading it as 10 MHz ticks is wrong by 100x and once turned a
@@ -98,9 +110,11 @@ import copy
 import datetime as dt
 import io
 import json
+import math
 import os
 import re
 import shlex
+import socket
 import statistics
 import subprocess
 import sys
@@ -171,6 +185,63 @@ FLATNESS_MAX_ITERATIONS = 6
 
 #: Duty cycle: above 0.9x THIS card's own frozen reference burst p50 (card, gate 5).
 DUTY_THRESHOLD_FRAC = 0.9
+
+# ---------------------------------------------------------------- gate 8: thermal --
+#: THE ABORT LIMIT IS DEREK'S CALL, MADE 2026-09-09: 95 C. In his words -- "if we hit that,
+#: we back off. i've cooked these cards plenty of time, they'll be fine."
+#:
+#: That is a TENANCY decision about his own hardware, not a datasheet number and not a
+#: margin someone else gets to shave. DO NOT lower it as a "safety improvement" without
+#: asking him: a tighter limit would abort cells he has decided are fine to run, and the
+#: surface would quietly lose points to a threshold nobody chose.
+#:
+#: What it answers is a real precedent, not a hypothetical: the replica-per-card experiment
+#: was quarantined at 96 C on the VRAM of 0000:04:00.0 at only p512-c4
+#: (E:\work\battlemage\qwen38-bench-2026-08\results\quarantine\performance-cells.jsonl;
+#: docs/adr/0038).
+VRAM_ABORT_C = 95.0
+VRAM_WARN_C = 88.0
+GPU_ABORT_C = 95.0
+GPU_WARN_C = 88.0
+
+#: The WORKLOAD-ATTRIBUTABLE rise (busy p95 - idle), not an absolute, and it warns rather
+#: than aborts. Absolute temperature here is dominated by AMBIENT: that 96 C abort was during
+#: a hot week in late summer and it is now approaching fall. Measured across four cells in
+#: one session the idle VRAM baseline swung 56-62 C (6 C of room) while the rise under load
+#: was only 0-4 C. So an absolute-only gate is seasonally optimistic and a delta-only gate
+#: misses a genuinely hot room -- BOTH are reported, and either can raise a warn.
+DELTA_WARN_C = 15.0
+
+#: The two counters b70tools already writes into every cell's stream.
+THERMAL_COUNTERS = ("gpu.temperature_c", "vram.temperature_c")
+
+#: idle = the coolest reading in the capture's LEADING QUARTER, before the load window.
+THERMAL_IDLE_FRACTION = 0.25
+
+#: Short names for the gate's own prose. The counters keep their b70tools names everywhere
+#: else, so a receipt field is always searchable by the name the stream uses.
+THERMAL_LABELS = {"gpu.temperature_c": "GPU", "vram.temperature_c": "VRAM"}
+
+THERMAL_ATTRIBUTION = ("abort %.0f C is Derek's call, 2026-09-09 -- a tenancy decision about "
+                       "his own cards, not a datasheet limit; do not tighten it without "
+                       "asking him" % VRAM_ABORT_C)
+THERMAL_AMBIENT_NOTE = ("absolute readings track AMBIENT (idle VRAM swung 56-62 C across four "
+                        "cells in one session while the load added only 0-4 C), so the delta "
+                        "is reported beside the absolute and the 96 C quarantine precedent "
+                        "was a late-summer reading, not a fixed property of the board")
+
+
+def thermal_thresholds() -> dict:
+    """The gate's numbers as data, so a receipt carries what it was scored against."""
+    return {
+        "gpu.temperature_c": {"warn_c": GPU_WARN_C, "abort_c": GPU_ABORT_C},
+        "vram.temperature_c": {"warn_c": VRAM_WARN_C, "abort_c": VRAM_ABORT_C},
+        "delta_warn_c": DELTA_WARN_C,
+        "attribution": THERMAL_ATTRIBUTION,
+        "ambient": THERMAL_AMBIENT_NOTE,
+    }
+
+
 #: corpus/verdict.py's own warn level. Below it the row is partially_scored, not dropped.
 SYMMETRY_PARTIAL_BELOW = 0.5
 
@@ -190,6 +261,7 @@ GATES = (
     (5, "board_duty_cycle"),
     (6, "depth0_fraction"),
     (7, "prefill_real"),
+    (8, "thermal"),
 )
 
 #: Every field a SAT-L1 receipt carries. Present or ``null`` -- never absent, never dropped.
@@ -230,6 +302,11 @@ RECEIPT_FIELDS = (
     "reference", "power", "duty_cycle", "symmetry", "b70_stream",
     # --- gate 6: depth-0 ---------------------------------------------------------------------
     "depth0",
+    # --- gate 8: thermal, off the same b70tools stream ----------------------------------------
+    # ``thermal`` is the per-card/per-counter summary PLUS the thresholds it was scored
+    # against and the per-card outcome. ``thermal_exceeded`` is the top-level flag: like
+    # ``over_admitted`` it KEEPS the row and excludes it from the surface, never drops it.
+    "thermal", "thermal_exceeded",
     # --- instrument, NOT a gate: per-round launch skew from the server's own log -----------
     # The prereg's 2026-09-09 protocol addition. Nothing in GATES reads it and no status
     # depends on it; it exists so a bimodal cell says which mode it landed in instead of
@@ -714,8 +791,9 @@ def prefill_real(before: dict | None, after: dict | None, rows: list,
 # server-side -- the harness's own rows put both requests' ``started_at`` within 0.0-12.5 ms.
 # The card's protocol addition is that EVERY cell records its per-round launch skew, so a
 # point on the surface says whether it hit the event instead of having it averaged into a
-# variance. This is INSTRUMENTATION: there is no eighth gate, no existing gate reads it, and
-# a delayed round never changes a cell's status.
+# variance. This is INSTRUMENTATION: NO gate reads ``launch_skew`` -- gate 8 exists but it is
+# the thermal gate and reads only the temperature counters -- and a delayed round never
+# changes a cell's status.
 #
 # TIMEBASE TRAP. ``hearth\var\arc-serve.log`` (llama-server at ``-lv 5``) stamps every line
 # with MINUTES.SS.mmm.uuu of SERVER UPTIME -- not wall clock, and the minutes field runs past
@@ -1328,6 +1406,241 @@ def duty_cycle(cards: dict, reference: dict, window_ns: tuple | None = None,
                           "%.2fx its own frozen reference burst p50" % threshold_frac}
 
 
+# ----------------------------------------------------- b70tools stream -> gate 8: thermal --
+def _temp_percentile(ordered: list, q: float):
+    """Nearest-rank, the convention the harness uses for its own p50/p95/p99.
+
+    Deliberately NOT the interpolating median ``sat_reference_capture._stats`` uses for
+    watts. These counters are emitted ON CHANGE, so a cell can carry two or three readings;
+    nearest-rank never invents a temperature between two readings and never returns a p95
+    BELOW the p50, which an ``int(0.95 * (n - 1))`` index does at n = 2.
+    """
+    if not ordered:
+        return None
+    rank = max(1, math.ceil(q * len(ordered)))
+    return ordered[min(rank, len(ordered)) - 1]
+
+
+def _temp_stats(values: list) -> tuple:
+    """(p50, p95) over readings, nearest-rank. ``(None, None)`` for no readings."""
+    if not values:
+        return None, None
+    ordered = sorted(values)
+    return (round(_temp_percentile(ordered, 0.50), 1),
+            round(_temp_percentile(ordered, 0.95), 1))
+
+
+def thermal_summary(events_path: Path, window_ns: tuple | None = None) -> dict:
+    """Per-B70, per-counter temperatures from the stream every cell already writes.
+
+    Same parse and same timebase as ``card_intervals`` / ``reduce_stream``: ``t`` is
+    NANOSECONDS on the boot-relative perf_counter clock, cards are keyed by the b70tools
+    ADAPTER id (session-scoped, derived from the LUID) and each carries the durable PCI BDF
+    beside it (ADR-0042) so the report can name the card.
+
+    Per counter, per card:
+      ``idle_c``      the COOLEST reading in the capture's leading quarter, taken before the
+                      load window -- the ambient baseline this room and this season give the
+                      board, not a property of the board;
+      ``busy_p50_c`` / ``busy_p95_c``  over the samples inside ``window_ns`` (over the whole
+                      capture, said so in ``reason``, when no window is given);
+      ``max_c``       the hottest reading ANYWHERE in the capture. The abort term must not be
+                      able to miss a spike that lands just outside the load window;
+      ``delta_c``     ``busy_p95_c - idle_c`` -- the workload-attributable rise;
+      ``samples``     how many readings there were at all.
+
+    CADENCE, measured 2026-09-09 and stated because it changes what these numbers mean:
+    this b70tools build emits the temperature counters ON CHANGE, not per tick. A 260 s
+    capture carried 7-13 readings per counter per card, irregularly spaced. So the
+    percentiles are nearest-rank over READINGS, NOT time-weighted, and a leading quarter can
+    legitimately hold one sample or none -- which is recorded as a reason, never as a zero.
+
+    An absent counter is a LOUD NULL with a stated reason, never an implied "cool".
+    """
+    ident: dict = {}
+    samples: dict = {}
+    present: set = set()
+    cap_lo = cap_hi = None
+    with Path(events_path).open(encoding="utf-8-sig") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            if row.get("k") == "ai":
+                ident[row.get("a")] = {"desc": row.get("desc") or "", "bdf": row.get("bdf")}
+                continue
+            if row.get("k") != "ms":
+                continue
+            try:
+                t = int(row.get("t") or 0)
+            except (TypeError, ValueError):
+                continue
+            cap_lo = t if cap_lo is None else min(cap_lo, t)
+            cap_hi = t if cap_hi is None else max(cap_hi, t)
+            name = row.get("n")
+            if name in THERMAL_COUNTERS:
+                present.add(name)
+                try:
+                    samples.setdefault((row.get("a"), name), []).append((t, float(row["v"])))
+                except (KeyError, TypeError, ValueError):
+                    continue
+
+    idle_hi = None
+    if cap_lo is not None and cap_hi is not None:
+        idle_hi = cap_lo + int((cap_hi - cap_lo) * THERMAL_IDLE_FRACTION)
+        if window_ns is not None:
+            idle_hi = min(idle_hi, int(window_ns[0]))
+
+    cards: dict = {}
+    for adapter, info in ident.items():
+        if "B70" not in (info.get("desc") or ""):
+            continue  # the iGPU is not part of the board's thermal picture
+        counters: dict = {}
+        for name in THERMAL_COUNTERS:
+            rows = sorted(samples.get((adapter, name)) or ())
+            entry = {"idle_c": None, "busy_p50_c": None, "busy_p95_c": None, "max_c": None,
+                     "delta_c": None, "samples": len(rows), "idle_samples": 0,
+                     "busy_samples": 0, "reason": None}
+            if not rows:
+                entry["reason"] = ("stream carries no %r" % name if name not in present
+                                   else "no %r samples for this adapter" % name)
+                counters[name] = entry
+                continue
+            reasons: list = []
+            entry["max_c"] = round(max(v for _t, v in rows), 1)
+            idle = [v for t, v in rows if idle_hi is not None and t <= idle_hi]
+            entry["idle_samples"] = len(idle)
+            if idle:
+                entry["idle_c"] = round(min(idle), 1)
+            else:
+                reasons.append("no reading in the capture's leading quarter before the load "
+                               "window, so there is no idle baseline: this build emits "
+                               "temperatures ON CHANGE, not per tick")
+            if window_ns is None:
+                busy = [v for _t, v in rows]
+                reasons.append("no load window given: the busy figures cover the whole capture")
+            else:
+                lo, hi = int(window_ns[0]), int(window_ns[1])
+                busy = [v for t, v in rows if lo <= t <= hi]
+                if not busy:
+                    reasons.append("no %r sample inside the load window" % name)
+            entry["busy_samples"] = len(busy)
+            entry["busy_p50_c"], entry["busy_p95_c"] = _temp_stats(busy)
+            if entry["busy_p95_c"] is not None and entry["idle_c"] is not None:
+                entry["delta_c"] = round(entry["busy_p95_c"] - entry["idle_c"], 1)
+            entry["reason"] = "; ".join(reasons) or None
+            counters[name] = entry
+        cards[adapter] = {"adapter": adapter, "bdf": info.get("bdf"), "desc": info.get("desc"),
+                          "counters": counters}
+    return {
+        "counters": list(THERMAL_COUNTERS),
+        "counters_present": sorted(present),
+        "capture_ns": [cap_lo, cap_hi] if cap_lo is not None else None,
+        "window_ns": [int(window_ns[0]), int(window_ns[1])] if window_ns else None,
+        "idle_window_ns": [cap_lo, idle_hi] if idle_hi is not None else None,
+        "idle_fraction": THERMAL_IDLE_FRACTION,
+        "timebase": "t is ns on the perf_counter clock",
+        "cards": cards,
+        "cadence": "this b70tools build emits the temperature counters ON CHANGE, not per "
+                   "tick: percentiles are over readings, not time-weighted",
+        "definition": "idle = coolest reading in the capture's leading %d%% before the load "
+                      "window; busy = readings inside the load window; max = hottest reading "
+                      "anywhere in the capture; delta = busy p95 - idle"
+                      % round(THERMAL_IDLE_FRACTION * 100),
+    }
+
+
+_THERMAL_RANK = {"null": 0, "pass": 1, "warn": 2, "fail": 3}
+
+
+def _worst(outcomes: list) -> str:
+    return max(outcomes or ["null"], key=lambda o: _THERMAL_RANK.get(o, 0))
+
+
+def score_thermal(summary: dict, thresholds: dict | None = None) -> dict:
+    """Score ``thermal_summary`` against the module constants. Gate 8's whole verdict.
+
+    Returns the summary WITH the thresholds it was scored against and an outcome on every
+    counter, every card and the board -- ``pass`` / ``warn`` / ``fail`` / ``null``. The
+    absolute term is ``max_c`` (a spike that lands outside the load window is still a spike);
+    the delta term warns only. ``exceeded`` is the top-level flag the receipt carries.
+
+    A ``fail`` does NOT drop the cell. Like ``over_admitted`` the row is kept and excluded
+    from the surface, because a cell that ran hot is real data about a real cell.
+    """
+    thresholds = thermal_thresholds() if thresholds is None else thresholds
+    doc = copy.deepcopy(summary or {})
+    doc["thresholds"] = thresholds
+    delta_warn = thresholds.get("delta_warn_c", DELTA_WARN_C)
+    hottest = None
+    card_outcomes = []
+    for card in (doc.get("cards") or {}).values():
+        counter_outcomes = []
+        for name, entry in (card.get("counters") or {}).items():
+            limits = thresholds.get(name) or {}
+            warn_c, abort_c = limits.get("warn_c"), limits.get("abort_c")
+            entry["warn_c"], entry["abort_c"] = warn_c, abort_c
+            max_c, delta_c = entry.get("max_c"), entry.get("delta_c")
+            note = None
+            if max_c is None or abort_c is None:
+                entry["outcome"] = "null"
+            elif max_c >= abort_c:
+                entry["outcome"] = "fail"
+                note = ("%.1f C at or above the %.0f C abort limit; %s"
+                        % (max_c, abort_c, thresholds.get("attribution")))
+            elif warn_c is not None and max_c >= warn_c:
+                entry["outcome"] = "warn"
+                note = "%.1f C at or above the %.0f C warn line" % (max_c, warn_c)
+            elif delta_c is not None and delta_c >= delta_warn:
+                entry["outcome"] = "warn"
+                note = ("rise of %.1f C at or above the %.0f C delta warn line -- the absolute "
+                        "is fine, the WORKLOAD is heating the card" % (delta_c, delta_warn))
+            else:
+                entry["outcome"] = "pass"
+            # The measurement caveat (a missing idle baseline, an empty window) is kept and
+            # the score's own reason is appended to it -- neither overwrites the other.
+            entry["reason"] = "; ".join(x for x in (entry.get("reason"), note) if x) or None
+            counter_outcomes.append(entry["outcome"])
+            if max_c is not None and (hottest is None or max_c > hottest["max_c"]):
+                hottest = {"card": card.get("bdf") or card.get("adapter"),
+                           "adapter": card.get("adapter"), "counter": name,
+                           "label": THERMAL_LABELS.get(name, name), "max_c": max_c,
+                           "busy_p95_c": entry.get("busy_p95_c"), "idle_c": entry.get("idle_c"),
+                           "delta_c": delta_c, "outcome": entry["outcome"]}
+        card["outcome"] = _worst(counter_outcomes)
+        card_outcomes.append(card["outcome"])
+    outcome = _worst(card_outcomes)
+    doc["outcome"] = outcome
+    doc["hottest"] = hottest
+    doc["exceeded"] = None if outcome == "null" else (outcome == "fail")
+    doc["detail"] = _thermal_detail(doc, thresholds)
+    return doc
+
+
+def _thermal_detail(doc: dict, thresholds: dict) -> str:
+    """The gate's sentence: what was measured, what the limit is, and WHOSE call it is."""
+    hottest = doc.get("hottest")
+    if not hottest:
+        absent = ", ".join(n for n in THERMAL_COUNTERS
+                           if n not in (doc.get("counters_present") or ()))
+        return ("no thermal reading in this cell's stream (%s absent); abort %.0f C (%s) was "
+                "never evaluated. %s"
+                % (absent or "counters absent", VRAM_ABORT_C, thresholds.get("attribution"),
+                   thresholds.get("ambient")))
+    return ("%s p95 %s C (idle %s, delta %s, max %s) on %s; abort %.0f C, warn %.0f C, delta "
+            "warn %.0f C. %s. %s"
+            % (hottest["label"], hottest.get("busy_p95_c"), hottest.get("idle_c"),
+               hottest.get("delta_c"), hottest.get("max_c"), hottest.get("card"),
+               (thresholds.get(hottest["counter"]) or {}).get("abort_c") or VRAM_ABORT_C,
+               (thresholds.get(hottest["counter"]) or {}).get("warn_c") or VRAM_WARN_C,
+               thresholds.get("delta_warn_c", DELTA_WARN_C),
+               thresholds.get("attribution"), thresholds.get("ambient")))
+
+
 # ------------------------------------------------------------------------ admission --
 BUDGET = "vram.local.budget_bytes"                          # adapter-wide DXGI budget
 COMMITTED = "gpu.adapter.vram.local.bytes_committed"        # adapter-wide, ALL processes
@@ -1473,7 +1786,7 @@ def assert_receipt_complete(row: dict) -> dict:
 
 
 def gate_outcomes(row: dict) -> list:
-    """All seven gates, always all seven, each with an outcome and its reason."""
+    """All eight gates, always all eight, each with an outcome and its reason."""
     out = []
     for number, name in GATES:
         outcome, detail = "null", None
@@ -1560,6 +1873,16 @@ def gate_outcomes(row: dict) -> list:
                 detail = ("%s [uncached %s / cached %s / expected %s, fraction %s]"
                           % (detail, prefill.get("uncached"), prefill.get("cached"),
                              prefill.get("expected"), prefill.get("fraction")))
+        elif name == "thermal":
+            thermal = row.get("thermal") or {}
+            outcome = thermal.get("outcome") or "null"
+            detail = thermal.get("detail")
+            if not detail:
+                detail = ("no thermal reduction for this cell; abort %.0f C (%s) was never "
+                          "evaluated. %s"
+                          % (VRAM_ABORT_C, THERMAL_ATTRIBUTION, THERMAL_AMBIENT_NOTE))
+            if outcome == "fail":
+                detail = "%s -- row KEPT and excluded from the surface, never dropped" % detail
         out.append({"gate": number, "name": name, "outcome": outcome, "detail": detail})
     return out
 
@@ -1669,7 +1992,8 @@ def plan_cell(cell: str, python: str, args) -> dict:
                      "provenance fields"},
             {"step": 8, "what": "scrape /metrics (after) and stop the /slots poller",
              "how": "busy-slots/decode delta = after - before"},
-            {"step": 9, "what": "per-round launch skew (INSTRUMENT -- there is no gate 8)",
+            {"step": 9, "what": "per-round launch skew (INSTRUMENT -- no gate reads it; "
+                                "gate 8 is thermal and reads only the temperature counters)",
              "how": "read the last %d MiB of %s and time this cell's rounds against each "
                     "other; a round whose two launches are > %.0f ms apart is RECORDED, "
                     "never failed. Anchor: log mtime - newest slot-event uptime, then the "
@@ -1678,7 +2002,8 @@ def plan_cell(cell: str, python: str, args) -> dict:
                        LAUNCH_SKEW_THRESHOLD_MS)},
             {"step": 10, "what": "wait for the b70tools stream to exit, then reduce",
              "how": "sat_reference_capture.reduce_stream(events, 'gpu', window_ns) + "
-                    "card_intervals(events) for the time-weighted duty cycle"},
+                    "card_intervals(events) for the time-weighted duty cycle + "
+                    "thermal_summary(events, window_ns) for gate 8"},
             {"step": 11, "what": "symmetry gate",
              "argv": [python, str(VERDICT_PY), str(cell_dir / "b70" / "events.jsonl"), "--json"],
              "note": "ratio < %.1f -> the row is partially_scored" % SYMMETRY_PARTIAL_BELOW},
@@ -2007,9 +2332,17 @@ def run_cell(cell: str, python: str, args) -> dict:
             row["duty_cycle"] = duty_cycle(card_intervals(events, "gpu"), row["reference"], window)
         except Exception as exc:  # noqa: BLE001
             row["notes"].append("duty cycle failed: %s" % exc)
+        # --- gate 8: thermal, off the same stream ------------------------------------
+        try:
+            row["thermal"] = score_thermal(thermal_summary(events, window))
+            row["thermal_exceeded"] = row["thermal"].get("exceeded")
+            row["notes"].append("thermal: %s" % row["thermal"].get("detail"))
+        except Exception as exc:  # noqa: BLE001 - a loud null, never a silent "cool"
+            row["thermal"] = {"outcome": "null", "detail": "thermal reduction failed: %s" % exc}
+            row["notes"].append("thermal reduction failed: %s" % exc)
     else:
-        row["notes"].append("no b70tools events.jsonl -- power, duty cycle and admission "
-                            "fields stay null")
+        row["notes"].append("no b70tools events.jsonl -- power, duty cycle, thermal and "
+                            "admission fields stay null")
 
     # --- gate 6: depth-0 ------------------------------------------------------------
     row["depth0"] = _depth0(cell, parts, python, cell_dir, rows_path)
@@ -2022,6 +2355,14 @@ def run_cell(cell: str, python: str, args) -> dict:
     except guard.ProductionDegraded as exc:
         row["guard_after"] = {"verdict": "stop", "error": str(exc)}
         return _finish(row, cell_dir, args, "STOPPED_AFTER_CELL", str(exc))
+
+    # Gate 8 outranks the softer exclusions: a card that crossed the abort limit is the
+    # loudest thing about this cell. The row is KEPT either way (like over_admitted) --
+    # the status is what excludes it from the surface.
+    if row.get("thermal_exceeded"):
+        return _finish(row, cell_dir, args, "thermal_exceeded",
+                       "%s; row kept, excluded from the surface"
+                       % ((row.get("thermal") or {}).get("detail") or "thermal abort"))
 
     partial = (row.get("symmetry") or {}).get("ratio")
     if partial is not None and partial < SYMMETRY_PARTIAL_BELOW:
@@ -2173,13 +2514,98 @@ def _depth0(cell: str, parts: dict, python: str, cell_dir: Path, rows_path) -> d
 
 
 # ------------------------------------------------------------------- Phase 2: -np --
+#: ``ArcServeRestart`` IS STOP-ONLY. It is not a restart despite the name: it ends the task
+#: tree and nothing brings it back. ``fleet\arcserve\serve-arc.cmd``'s own header spells the
+#: procedure out -- "ArcServeRestart (stop-only), delete the sentinel, then schtasks /Run /TN
+#: ArcServeBoot". This module assumed the name and took production DOWN on 2026-09-09: the
+#: yaml was edited, ArcServeRestart fired, ``wait_for_ready`` timed out, and nothing listened
+#: on 8081 or 8082 with the serve log frozen. Running ArcServeBoot brought llama-swap back at
+#: once and production ~3 min later.
+ARCSERVE_STOP_TASK = "ArcServeRestart"
+ARCSERVE_BOOT_TASK = "ArcServeBoot"
+RECOVERY_COMMAND = "schtasks /Run /TN %s" % ARCSERVE_BOOT_TASK
+
+#: The stop has to be OBSERVED, not assumed, before the boot is issued. llama-swap owns the
+#: lifecycle on 8081 and the production upstream answers on 8082 (ADR-0045), so both must go
+#: quiet; booting a second llama-swap while the first still holds 8081 would leave production
+#: serving the PREVIOUS config while this runner recorded the new one -- exactly the silent
+#: no-op class this lab exists to catch.
+STOP_PORTS = (8081, PRODUCTION_PORT)
+STOP_TIMEOUT_S = 60.0
+STOP_POLL_S = 2.0
+
+
+def port_listening(port: int, host: str = "127.0.0.1", timeout: float = 1.0,
+                   connect=None) -> bool:
+    """True when something accepts a TCP connection on ``host:port``.
+
+    ``connect`` is the injection seam: a callable taking ``(host, port, timeout)`` that
+    raises ``OSError`` when nothing is listening. Defaults to ``socket.create_connection``,
+    so the real probe needs no network mocking to be tested -- pass a stub instead.
+    """
+    opener = socket.create_connection if connect is None else connect
+    try:
+        sock = opener((host, int(port)), timeout)
+    except OSError:
+        return False
+    try:
+        close = getattr(sock, "close", None)
+        if callable(close):
+            close()
+    except OSError:  # pragma: no cover - closing a probe socket is not a measurement
+        pass
+    return True
+
+
+def wait_for_stop(ports=STOP_PORTS, timeout_s: float = STOP_TIMEOUT_S,
+                  poll_s: float = STOP_POLL_S, probe=port_listening,
+                  sleep=time.sleep, clock=time.monotonic) -> dict:
+    """Poll until nothing listens on any of ``ports``, or ``timeout_s`` expires.
+
+    Bounded and recorded either way: a timeout is reported with the ports still listening,
+    never swallowed. ``probe`` / ``sleep`` / ``clock`` are injectable so this is exercised
+    without touching the network or the wall clock.
+    """
+    ports = tuple(ports)
+    started = clock()
+    polls = 0
+    listening = list(ports)
+    while True:
+        polls += 1
+        listening = [p for p in ports if probe(p)]
+        waited = clock() - started
+        if not listening:
+            return {"stopped": True, "ports": list(ports), "still_listening": [],
+                    "polls": polls, "waited_s": round(waited, 2), "timeout_s": timeout_s,
+                    "detail": "nothing listens on %s -- the stop took effect"
+                              % ", ".join(str(p) for p in ports)}
+        if waited >= timeout_s:
+            return {"stopped": False, "ports": list(ports), "still_listening": listening,
+                    "polls": polls, "waited_s": round(waited, 2), "timeout_s": timeout_s,
+                    "detail": "still listening on %s after %.0fs -- the stop did NOT take "
+                              "effect within the bound"
+                              % (", ".join(str(p) for p in listening), timeout_s)}
+        sleep(poll_s)
+
+
 def set_np(np_slots: int, python: str, args) -> dict:
     """The whole Phase 2 sequence for one ``-np`` value. A tenancy call -- Derek's.
 
     Refused outright while the shared maintenance sentinel exists, and after any
     ``preflight`` NO-GO. Each step is recorded so the restart itself is auditable.
+
+    THE SEQUENCE IS stop -> observe the stop -> boot, not "restart". ``ArcServeRestart`` only
+    tears the tree down (see ``ARCSERVE_STOP_TASK``), so ``ArcServeBoot`` is issued explicitly
+    afterwards and ``wait_for_ready`` gates on the marker the NEW epoch writes.
+
+    THE SENTINEL IS NEVER DELETED HERE. ``hearth\\var\\arc-maintenance.stop`` is a SHARED
+    lock (imagegen holds it too). This function refuses to start while it exists, and if it
+    appears between the preflight and the stop it aborts BEFORE booting rather than booting
+    into a lock someone else is holding. Dropping another tenant's lock on their behalf is
+    not this code's call -- the operator clears it and re-runs.
     """
-    record = {"np": np_slots, "ub": UB, "steps": [], "ok": False}
+    record = {"np": np_slots, "ub": UB, "steps": [], "ok": False,
+              "production_may_be_down": False, "recovery_command": None}
     if MAINTENANCE_STOP.exists():
         record["steps"].append({"step": "sentinel", "ok": False,
                                 "detail": "%s exists -- a shared maintenance lock is held; "
@@ -2207,19 +2633,72 @@ def set_np(np_slots: int, python: str, args) -> dict:
                             "detail": "only the -np token inside the %r block changed"
                                       % PRODUCTION_MODEL_KEY})
 
+    # --- 1/3: the STOP. ArcServeRestart ends the tree and does not bring it back. -------
+    stop = subprocess.run(["powershell", "-NoProfile", "-Command",
+                           "schtasks /Run /TN %s" % ARCSERVE_STOP_TASK],
+                          capture_output=True, text=True, errors="replace")
+    record["steps"].append({"step": "stop", "ok": stop.returncode == 0,
+                            "task": ARCSERVE_STOP_TASK,
+                            "returncode": stop.returncode,
+                            "stdout_tail": (stop.stdout or "")[-400:],
+                            "detail": "%s is STOP-ONLY -- it tears the task tree down and "
+                                      "NOTHING restarts it; %s is issued below "
+                                      "(fleet/arcserve/serve-arc.cmd's own header). schtasks "
+                                      "via PowerShell, never Git Bash"
+                                      % (ARCSERVE_STOP_TASK, ARCSERVE_BOOT_TASK)})
+
+    # --- 2/3: observe the stop, bounded. A boot on top of a live llama-swap would leave
+    #          production on the OLD config while this record claimed the new one. --------
+    stopped = wait_for_stop()
+    record["steps"].append({"step": "wait_for_stop", "ok": bool(stopped.get("stopped")),
+                            "wait": stopped, "detail": stopped.get("detail")})
+
+    # --- the sentinel, re-read AFTER the stop: a lock taken while we were stopping means
+    #     production stays down until its holder is finished. Booting into it is not ours
+    #     to do, and neither is deleting it. --------------------------------------------
+    if MAINTENANCE_STOP.exists():
+        record["production_may_be_down"] = True
+        record["recovery_command"] = RECOVERY_COMMAND
+        record["steps"].append({
+            "step": "abort_before_boot", "ok": False,
+            "detail": "%s appeared between the preflight and the stop. Production is now "
+                      "STOPPED and this run refuses to boot into a held maintenance lock. "
+                      "The sentinel is a SHARED lock and is NOT deleted here: when its "
+                      "holder releases it, bring production back with `%s`."
+                      % (MAINTENANCE_STOP, RECOVERY_COMMAND)})
+        return record
+
+    # --- 3/3: the BOOT. ``since`` is taken here, not before the stop: the stop itself
+    #          writes shutdown lines, so a ``since`` from before it would let the PREVIOUS
+    #          epoch's "model loaded" satisfy the marker check. -------------------------
     issued = dt.datetime.now()
-    restart = subprocess.run(["powershell", "-NoProfile", "-Command",
-                              "schtasks /Run /TN ArcServeRestart"],
-                             capture_output=True, text=True, errors="replace")
-    record["steps"].append({"step": "restart", "ok": restart.returncode == 0,
-                            "returncode": restart.returncode,
-                            "stdout_tail": (restart.stdout or "")[-400:],
-                            "detail": "schtasks via PowerShell, never Git Bash"})
+    boot = subprocess.run(["powershell", "-NoProfile", "-Command",
+                           "schtasks /Run /TN %s" % ARCSERVE_BOOT_TASK],
+                          capture_output=True, text=True, errors="replace")
+    record["steps"].append({"step": "boot", "ok": boot.returncode == 0,
+                            "task": ARCSERVE_BOOT_TASK,
+                            "returncode": boot.returncode,
+                            "stdout_tail": (boot.stdout or "")[-400:],
+                            "detail": "the half %s does not do; llama-swap comes back on "
+                                      "8081 and preloads the production upstream on %d"
+                                      % (ARCSERVE_STOP_TASK, PRODUCTION_PORT)})
+
     ready = ff_cell.wait_for_ready(since=issued)
     record["steps"].append({"step": "ready_marker", "ok": bool(ready),
                             "detail": "ff_cell.wait_for_ready on the REAL %r marker in "
                                       "arc-serve.log" % ff_cell.READY_MARKER})
     if not ready:
+        record["production_may_be_down"] = True
+        record["recovery_command"] = RECOVERY_COMMAND
+        record["steps"].append({
+            "step": "production_may_be_down", "ok": False,
+            "detail": "PRODUCTION MAY BE DOWN. %s was stopped and %s was issued, but no %r "
+                      "marker appeared in %s within the timeout. Check whether anything "
+                      "listens on %s; if not, recover with `%s` and re-check /health and a "
+                      "real completion before treating the rung as available."
+                      % (ARCSERVE_STOP_TASK, ARCSERVE_BOOT_TASK, ff_cell.READY_MARKER,
+                         SERVE_LOG, " or ".join(str(p) for p in STOP_PORTS),
+                         RECOVERY_COMMAND)})
         return record
     health_ok, completion = _health_and_completion()
     record["steps"].append({"step": "health_and_completion", "ok": bool(health_ok and completion),
@@ -2353,6 +2832,13 @@ def _dry_gate_preview(args) -> None:
           ">= %.2f x the prompt tokens the cell's own rows report (delta %s is reported "
           "beside it). A fail marks status_reason and KEEPS the row"
           % (PROMPT_TOKENS_SERIES, PREFILL_REAL_MIN_FRACTION, PROMPT_TOKENS_CACHED_SERIES))
+    print("  gate 8 thermal          : %s from the same b70tools stream; abort %.0f C / warn "
+          "%.0f C absolute (GPU and VRAM alike), delta warn %.0f C. %s"
+          % (", ".join(THERMAL_COUNTERS), VRAM_ABORT_C, VRAM_WARN_C, DELTA_WARN_C,
+             THERMAL_ATTRIBUTION))
+    print("                            %s" % THERMAL_AMBIENT_NOTE)
+    print("                            a fail marks status_reason and thermal_exceeded and "
+          "KEEPS the row, exactly like over_admitted")
     print("  maintenance sentinel    : %s -> %s"
           % (MAINTENANCE_STOP, "PRESENT (Phase 2 restarts refused)"
              if MAINTENANCE_STOP.exists() else "absent"))
@@ -2409,9 +2895,20 @@ def main(argv: list | None = None) -> int:
             print("  edit %s: the -np token inside the %r block only, %s -> %d"
                   % (OMEN_YAML, PRODUCTION_MODEL_KEY,
                      read_np_yaml(read_exact(OMEN_YAML)), target))
-            print("  $ powershell -NoProfile -Command \"schtasks /Run /TN ArcServeRestart\"")
+            print("  $ powershell -NoProfile -Command \"schtasks /Run /TN %s\"   "
+                  "# STOP-ONLY: this does NOT bring production back"
+                  % ARCSERVE_STOP_TASK)
+            print("  wait (max %.0fs): poll until nothing listens on %s"
+                  % (STOP_TIMEOUT_S, ", ".join(str(p) for p in STOP_PORTS)))
+            print("  re-read the sentinel: if it appeared while stopping, ABORT here -- "
+                  "production stays down until its holder clears it, and this runner never "
+                  "deletes a shared lock")
+            print("  $ powershell -NoProfile -Command \"schtasks /Run /TN %s\"   "
+                  "# the half the stop does not do" % ARCSERVE_BOOT_TASK)
             print("  wait: the REAL %r marker, then /health 200 AND a real completion"
                   % ff_cell.READY_MARKER)
+            print("  on a marker timeout the record says PRODUCTION MAY BE DOWN and names "
+                  "`%s`" % RECOVERY_COMMAND)
             print("  $ %s %s --rung omen-arc --set-baseline --note "
                   "\"sat-l1 -np %d -ub %d (production entry, -c %d => %d tok/slot)\""
                   % (python, HERE / "ff_ratecheck.py", target, UB, TOTAL_CTX,

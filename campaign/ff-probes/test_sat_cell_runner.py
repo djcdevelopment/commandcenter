@@ -11,20 +11,31 @@ than null:
   * a receipt must carry every field or an explicit null;
   * ``/slots`` fractions must be over OK polls only, and ``None`` (not 0.0) with none;
   * duty cycle must be time-weighted, windowed, and read each card's OWN frozen reference
-    p50 out of the receipt -- never a hardcoded 159.92/114.05.
+    p50 out of the receipt -- never a hardcoded 159.92/114.05;
+  * ``ArcServeRestart`` is STOP-ONLY. ``set_np`` assumed it restarted, and on 2026-09-09 that
+    took production down for real: yaml edited, task fired, ``wait_for_ready`` timed out,
+    nothing listening on 8081 or 8082. The sequence must be stop -> OBSERVE the stop ->
+    ``ArcServeBoot``, it must abort before booting into a maintenance lock taken while we
+    were stopping, and a marker timeout must SAY production may be down and name the
+    recovery command;
+  * gate 8's thermal reduction must report the absolute AND the rise -- absolute readings
+    track ambient here -- and an absent counter must be a loud null, never an implied "cool".
 
 Run: fleet-worker-node\.venv-omen\Scripts\python.exe -m pytest campaign/ff-probes/test_sat_cell_runner.py
 """
 from __future__ import annotations
 
+import contextlib
 import datetime as dt
 import json
 import sys
 import os
 import tempfile
 import time
+import types
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import sat_cell_runner as runner  # noqa: E402
@@ -861,7 +872,7 @@ class TestReceiptSchema(unittest.TestCase):
         row["gates"] = runner.gate_outcomes(row)
         json.dumps(row)  # must not raise
 
-    def test_the_written_receipt_carries_every_field_and_all_seven_gates(self):
+    def test_the_written_receipt_carries_every_field_and_all_eight_gates(self):
         args = runner.build_parser().parse_args(["--one-cell", "np2-p512-c2-r1", "--no-ledger"])
         with tempfile.TemporaryDirectory() as tmp:
             cell_dir = Path(tmp) / "np2-p512-c2-r1"
@@ -870,7 +881,7 @@ class TestReceiptSchema(unittest.TestCase):
             runner._finish(row, cell_dir, args, "REFUSED_GUARD", "guard read 'stale'")
             written = json.loads((cell_dir / "receipt.json").read_text(encoding="utf-8"))
         self.assertEqual(set(written), set(runner.RECEIPT_FIELDS))
-        self.assertEqual(len(written["gates"]), 7)
+        self.assertEqual(len(written["gates"]), 8)
         self.assertEqual(written["status"], "REFUSED_GUARD")
         self.assertIsNotNone(written["ts"])
         # Every unmeasured field is an explicit null, never absent.
@@ -880,9 +891,9 @@ class TestReceiptSchema(unittest.TestCase):
 
 
 class TestGateOutcomes(unittest.TestCase):
-    def test_all_seven_gates_are_always_present(self):
+    def test_all_eight_gates_are_always_present(self):
         gates = runner.gate_outcomes(runner.blank_receipt())
-        self.assertEqual([g["gate"] for g in gates], [1, 2, 3, 4, 5, 6, 7])
+        self.assertEqual([g["gate"] for g in gates], [1, 2, 3, 4, 5, 6, 7, 8])
         self.assertEqual([g["name"] for g in gates], [name for _n, name in runner.GATES])
         self.assertTrue(all(g["outcome"] == "null" for g in gates))
 
@@ -1500,8 +1511,10 @@ class TestLaunchSkewIsNotAGate(unittest.TestCase):
         self.assertIn("launch_skew", runner.RECEIPT_FIELDS)
         self.assertIsNone(runner.blank_receipt()["launch_skew"])
 
-    def test_there_is_still_no_eighth_gate(self):
-        self.assertEqual(len(runner.GATES), 7)
+    def test_no_gate_is_named_for_the_instrument(self):
+        # Gate 8 exists now, but it is the THERMAL gate. Nothing reads launch_skew.
+        self.assertEqual(len(runner.GATES), 8)
+        self.assertEqual(runner.GATES[7], (8, "thermal"))
         self.assertNotIn("launch_skew", [name for _, name in runner.GATES])
 
     def test_a_delayed_round_changes_no_gate_outcome(self):
@@ -1511,6 +1524,526 @@ class TestLaunchSkewIsNotAGate(unittest.TestCase):
         delayed["launch_skew"] = {"rounds": [{"index": 0, "skew_ms": 222.0}],
                                   "max_skew_ms": 222.0, "delayed_rounds": 1}
         self.assertEqual(runner.gate_outcomes(clean), runner.gate_outcomes(delayed))
+
+
+# ------------------------------------------ ArcServeRestart is STOP-ONLY (2026-09-09) --
+def fake_clock(step: float = 1.0):
+    """A monotonic clock that advances ``step`` seconds on every read."""
+    state = {"t": 0.0}
+
+    def clock():
+        now = state["t"]
+        state["t"] += step
+        return now
+    return clock
+
+
+class TestPortListening(unittest.TestCase):
+    def test_a_refused_connection_is_not_listening(self):
+        def refuse(address, timeout):
+            raise OSError("connection refused")
+        self.assertFalse(runner.port_listening(8082, connect=refuse))
+
+    def test_an_accepted_connection_is_listening_and_the_probe_socket_is_closed(self):
+        closed = []
+
+        class Sock:
+            def close(self):
+                closed.append(True)
+
+        seen = {}
+
+        def accept(address, timeout):
+            seen["address"], seen["timeout"] = address, timeout
+            return Sock()
+
+        self.assertTrue(runner.port_listening(8082, connect=accept))
+        self.assertEqual(seen["address"], ("127.0.0.1", 8082))
+        self.assertEqual(closed, [True])
+
+    def test_the_default_probe_is_a_real_socket_and_is_never_reached_here(self):
+        # The other way round: no injection, so the default must be socket.create_connection.
+        # Patched to refuse, so this test still touches no network.
+        with mock.patch.object(runner.socket, "create_connection",
+                               side_effect=OSError("refused")) as fake:
+            self.assertFalse(runner.port_listening(9, timeout=0.25))
+        fake.assert_called_once_with(("127.0.0.1", 9), 0.25)
+
+
+class TestWaitForStop(unittest.TestCase):
+    def test_the_bound_covers_both_lifecycle_ports(self):
+        # llama-swap owns 8081 and the production upstream answers on 8082 (ADR-0045).
+        self.assertIn(runner.PRODUCTION_PORT, runner.STOP_PORTS)
+        self.assertIn(8081, runner.STOP_PORTS)
+        self.assertEqual(runner.STOP_TIMEOUT_S, 60.0)
+
+    def test_an_already_quiet_rung_stops_on_the_first_poll(self):
+        doc = runner.wait_for_stop(ports=(8081, 8082), probe=lambda port: False,
+                                   sleep=lambda s: None, clock=lambda: 0.0)
+        self.assertTrue(doc["stopped"])
+        self.assertEqual(doc["polls"], 1)
+        self.assertEqual(doc["still_listening"], [])
+
+    def test_it_keeps_polling_until_the_ports_go_quiet(self):
+        seen = {"n": 0}
+
+        def probe(port):
+            seen["n"] += 1
+            return seen["n"] <= 4          # two full rounds of both ports, then silence
+
+        slept = []
+        doc = runner.wait_for_stop(ports=(8081, 8082), probe=probe, sleep=slept.append,
+                                   clock=fake_clock(1.0))
+        self.assertTrue(doc["stopped"])
+        self.assertEqual(doc["polls"], 3)
+        self.assertEqual(slept, [runner.STOP_POLL_S, runner.STOP_POLL_S])
+
+    def test_a_stop_that_never_lands_times_out_loudly(self):
+        doc = runner.wait_for_stop(ports=(8082,), timeout_s=5.0, probe=lambda port: True,
+                                   sleep=lambda s: None, clock=fake_clock(2.0))
+        self.assertFalse(doc["stopped"])
+        self.assertEqual(doc["still_listening"], [8082])
+        self.assertIn("did NOT take effect", doc["detail"])
+        self.assertLessEqual(doc["waited_s"], 10.0)
+
+
+class FakeRun:
+    """Records every command line ``set_np`` hands to ``subprocess.run``."""
+
+    def __init__(self, failures=()):
+        self.calls: list = []
+        self.failures = tuple(failures)
+
+    def __call__(self, argv, **kwargs):
+        text = " ".join(str(a) for a in argv)
+        self.calls.append(text)
+        rc = 1 if any(needle in text for needle in self.failures) else 0
+        return types.SimpleNamespace(returncode=rc, stdout="", stderr="")
+
+    def index_of(self, needle: str) -> int:
+        for i, text in enumerate(self.calls):
+            if needle in text:
+                return i
+        return -1
+
+
+@contextlib.contextmanager
+def set_np_env(*, ready=True, stopped=True, sentinel_before=False,
+               sentinel_during_stop=False, failures=()):
+    """``set_np`` with every outside effect replaced. No schtasks, no rung, no network."""
+    with tempfile.TemporaryDirectory() as tmp, contextlib.ExitStack() as stack:
+        root = Path(tmp)
+        yaml_path = root / "omen.yaml"
+        yaml_path.write_text(YAML_FIXTURE, encoding="utf-8", newline="")
+        sentinel = root / "arc-maintenance.stop"
+        if sentinel_before:
+            sentinel.write_text("held", encoding="utf-8")
+        baselines = root / "rate-baselines.json"
+        baselines.write_text(json.dumps({"rungs": {"omen-arc": {
+            "baseline_decode_tok_s": 108.0}}, "epoch_boundaries": []}), encoding="utf-8")
+        run = FakeRun(failures)
+
+        def fake_wait_for_stop(*a, **kw):
+            if sentinel_during_stop:
+                sentinel.write_text("taken by imagegen while we were stopping",
+                                    encoding="utf-8")
+            return {"stopped": stopped, "ports": list(runner.STOP_PORTS),
+                    "still_listening": [] if stopped else [runner.PRODUCTION_PORT],
+                    "polls": 1, "waited_s": 0.0, "timeout_s": runner.STOP_TIMEOUT_S,
+                    "detail": "fixture stop: stopped=%s" % stopped}
+
+        stack.enter_context(mock.patch.object(runner.subprocess, "run", run))
+        stack.enter_context(mock.patch.object(runner, "OMEN_YAML", yaml_path))
+        stack.enter_context(mock.patch.object(runner, "MAINTENANCE_STOP", sentinel))
+        stack.enter_context(mock.patch.object(runner, "BASELINES", baselines))
+        stack.enter_context(mock.patch.object(runner, "wait_for_stop", fake_wait_for_stop))
+        stack.enter_context(mock.patch.object(runner.ff_cell, "wait_for_ready",
+                                              lambda **kw: ready))
+        stack.enter_context(mock.patch.object(
+            runner, "_health_and_completion",
+            lambda: (True, {"predicted_per_second": 100.0, "prompt_per_second": 1500.0})))
+        stack.enter_context(mock.patch.object(
+            runner.ff_ratecheck, "measure",
+            lambda rung, reps: measurement([100.0, 100.5, 100.2])))
+        args = runner.build_parser().parse_args(
+            ["--set-np", "4", "--live", "--out", str(root), "--no-ledger"])
+        yield types.SimpleNamespace(run=run, args=args, yaml=yaml_path, sentinel=sentinel,
+                                    baselines=baselines, root=root)
+
+
+class TestSetNpStopThenBoot(unittest.TestCase):
+    """2026-09-09: ``ArcServeRestart`` stopped production and nothing brought it back."""
+
+    def test_the_boot_is_issued_and_it_is_issued_after_the_stop(self):
+        with set_np_env() as env:
+            record = runner.set_np(4, "py.exe", env.args)
+            stop_at = env.run.index_of("schtasks /Run /TN ArcServeRestart")
+            boot_at = env.run.index_of("schtasks /Run /TN ArcServeBoot")
+            self.assertNotEqual(boot_at, -1, "ArcServeBoot was never issued")
+            self.assertNotEqual(stop_at, -1, "the stop was never issued")
+            self.assertLess(stop_at, boot_at)
+        names = [s["step"] for s in record["steps"]]
+        self.assertEqual(names[:6], ["preflight", "yaml", "stop", "wait_for_stop", "boot",
+                                     "ready_marker"])
+
+    def test_the_stop_step_says_it_is_stop_only_and_names_the_boot(self):
+        with set_np_env() as env:
+            record = runner.set_np(4, "py.exe", env.args)
+        step = next(s for s in record["steps"] if s["step"] == "stop")
+        self.assertIn("STOP-ONLY", step["detail"])
+        self.assertIn("ArcServeBoot", step["detail"])
+        self.assertEqual(step["task"], "ArcServeRestart")
+
+    def test_the_stop_is_waited_for_before_the_boot_goes_out(self):
+        order = []
+
+        with set_np_env() as env:
+            original = env.run.__call__
+
+            def watch(argv, **kwargs):
+                text = " ".join(str(a) for a in argv)
+                if "ArcServeBoot" in text:
+                    order.append("boot")
+                if "ArcServeRestart" in text:
+                    order.append("stop")
+                return original(argv, **kwargs)
+
+            with mock.patch.object(runner.subprocess, "run", watch):
+                with mock.patch.object(runner, "wait_for_stop",
+                                       lambda *a, **kw: (order.append("waited") or {
+                                           "stopped": True, "ports": [], "polls": 1,
+                                           "still_listening": [], "waited_s": 0.0,
+                                           "timeout_s": 60.0, "detail": "fixture"})):
+                    runner.set_np(4, "py.exe", env.args)
+        self.assertEqual(order, ["stop", "waited", "boot"])
+
+    def test_a_full_sequence_succeeds_and_the_yaml_really_moved(self):
+        with set_np_env() as env:
+            record = runner.set_np(4, "py.exe", env.args)
+            self.assertIn("-np 4", env.yaml.read_text(encoding="utf-8"))
+        self.assertTrue(record["ok"])
+        self.assertFalse(record["production_may_be_down"])
+        self.assertIsNone(record["recovery_command"])
+
+    def test_a_sentinel_taken_while_we_were_stopping_aborts_before_the_boot(self):
+        with set_np_env(sentinel_during_stop=True) as env:
+            record = runner.set_np(4, "py.exe", env.args)
+            self.assertEqual(env.run.index_of("ArcServeBoot"), -1,
+                             "booted into a held maintenance lock")
+            # A SHARED lock is never deleted on someone else's behalf.
+            self.assertTrue(env.sentinel.exists())
+        names = [s["step"] for s in record["steps"]]
+        self.assertIn("abort_before_boot", names)
+        self.assertNotIn("boot", names)
+        self.assertFalse(record["ok"])
+        self.assertTrue(record["production_may_be_down"])
+        self.assertEqual(record["recovery_command"], runner.RECOVERY_COMMAND)
+        abort = next(s for s in record["steps"] if s["step"] == "abort_before_boot")
+        self.assertIn("NOT deleted here", abort["detail"])
+        self.assertIn(runner.RECOVERY_COMMAND, abort["detail"])
+
+    def test_a_sentinel_already_held_refuses_before_anything_is_touched(self):
+        with set_np_env(sentinel_before=True) as env:
+            record = runner.set_np(4, "py.exe", env.args)
+            self.assertEqual(env.run.calls, [])
+            self.assertIn("-np 2", env.yaml.read_text(encoding="utf-8"))
+            self.assertTrue(env.sentinel.exists())
+        self.assertEqual([s["step"] for s in record["steps"]], ["sentinel"])
+
+    def test_a_ready_timeout_says_production_may_be_down_and_names_the_recovery(self):
+        with set_np_env(ready=False) as env:
+            record = runner.set_np(4, "py.exe", env.args)
+        self.assertFalse(record["ok"])
+        self.assertTrue(record["production_may_be_down"])
+        self.assertEqual(record["recovery_command"], "schtasks /Run /TN ArcServeBoot")
+        step = next(s for s in record["steps"] if s["step"] == "production_may_be_down")
+        self.assertIn("PRODUCTION MAY BE DOWN", step["detail"])
+        self.assertIn("schtasks /Run /TN ArcServeBoot", step["detail"])
+        self.assertIn("8081", step["detail"])
+
+    def test_a_stop_that_did_not_take_effect_is_recorded_as_not_ok(self):
+        with set_np_env(stopped=False) as env:
+            record = runner.set_np(4, "py.exe", env.args)
+            self.assertNotEqual(env.run.index_of("ArcServeBoot"), -1)
+        wait = next(s for s in record["steps"] if s["step"] == "wait_for_stop")
+        self.assertFalse(wait["ok"])
+        self.assertEqual(wait["wait"]["still_listening"], [runner.PRODUCTION_PORT])
+
+    def test_the_docstring_says_the_sentinel_is_never_deleted_here(self):
+        self.assertIn("NEVER DELETED HERE", runner.set_np.__doc__)
+
+
+# --------------------------------------------------------------- gate 8: thermal --
+def thermal_stream(path: Path, points_by_key: dict, extra_rows: list | None = None) -> Path:
+    """A b70tools-shaped stream carrying only identity rows and temperature readings.
+
+    ``points_by_key`` maps ``(adapter, counter)`` to ``[(t_ns, celsius), ...]``.
+    """
+    lines = [
+        json.dumps({"k": "ai", "a": BUS9, "desc": B70, "bdf": "0000:09:00.0"}),
+        json.dumps({"k": "ai", "a": BUS4, "desc": B70, "bdf": "0000:04:00.0"}),
+        json.dumps({"k": "ai", "a": "adapter_igpu", "desc": "Intel(R) Graphics",
+                    "bdf": "0000:00:02.0"}),
+    ]
+    for (adapter, counter), points in points_by_key.items():
+        for t, v in points:
+            lines.append(json.dumps({"k": "ms", "a": adapter, "n": counter, "v": v, "t": t,
+                                     "u": "Celsius", "d": "Thermal"}))
+    lines.extend(extra_rows or [])
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
+#: A 100 s capture: leading quarter 0-25 s, load window 30-70 s.
+CAPTURE_WINDOW = (30 * NS, 70 * NS)
+COOL_POINTS = {
+    (BUS4, "vram.temperature_c"): [(0, 62), (5 * NS, 60), (35 * NS, 64), (60 * NS, 66),
+                                   (90 * NS, 63)],
+    (BUS4, "gpu.temperature_c"): [(0, 58), (5 * NS, 56), (35 * NS, 59), (60 * NS, 60),
+                                  (90 * NS, 57)],
+    (BUS9, "vram.temperature_c"): [(0, 60), (35 * NS, 62), (60 * NS, 62), (90 * NS, 58)],
+    (BUS9, "gpu.temperature_c"): [(0, 57), (35 * NS, 58), (60 * NS, 59), (90 * NS, 56)],
+    ("adapter_igpu", "gpu.temperature_c"): [(0, 45), (35 * NS, 99), (90 * NS, 44)],
+}
+
+
+class TestThermalSummary(unittest.TestCase):
+    def _summary(self, points=None, window=CAPTURE_WINDOW):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = thermal_stream(Path(tmp) / "events.jsonl",
+                                  COOL_POINTS if points is None else points)
+            return runner.thermal_summary(path, window)
+
+    def test_idle_is_the_coolest_reading_in_the_leading_quarter(self):
+        card = self._summary()["cards"][BUS4]["counters"]["vram.temperature_c"]
+        self.assertEqual(card["idle_c"], 60.0)      # min(62, 60), both before 25 s
+        self.assertEqual(card["idle_samples"], 2)
+
+    def test_busy_percentiles_and_delta_come_off_the_load_window(self):
+        card = self._summary()["cards"][BUS4]["counters"]["vram.temperature_c"]
+        self.assertEqual(card["busy_samples"], 2)    # 35 s and 60 s; 90 s is outside
+        self.assertEqual(card["busy_p50_c"], 64.0)
+        self.assertEqual(card["busy_p95_c"], 66.0)
+        self.assertEqual(card["delta_c"], 6.0)       # busy p95 - idle
+
+    def test_max_is_the_hottest_reading_anywhere_in_the_capture(self):
+        # A spike outside the load window is still a spike: the abort term must see it.
+        points = dict(COOL_POINTS)
+        points[(BUS4, "vram.temperature_c")] = [(0, 62), (35 * NS, 64), (90 * NS, 96)]
+        card = self._summary(points)["cards"][BUS4]["counters"]["vram.temperature_c"]
+        self.assertEqual(card["max_c"], 96.0)
+        self.assertEqual(card["busy_p95_c"], 64.0)
+
+    def test_the_card_carries_its_bdf_so_the_report_can_name_it(self):
+        cards = self._summary()["cards"]
+        self.assertEqual(cards[BUS4]["bdf"], "0000:04:00.0")
+        self.assertEqual(cards[BUS9]["bdf"], "0000:09:00.0")
+
+    def test_the_igpu_is_not_part_of_the_board(self):
+        self.assertNotIn("adapter_igpu", self._summary()["cards"])
+
+    def test_an_absent_counter_is_a_loud_null_not_an_implied_cool(self):
+        points = {k: v for k, v in COOL_POINTS.items() if k[1] != "vram.temperature_c"}
+        summary = self._summary(points)
+        entry = summary["cards"][BUS4]["counters"]["vram.temperature_c"]
+        self.assertIsNone(entry["max_c"])
+        self.assertIsNone(entry["delta_c"])
+        self.assertEqual(entry["samples"], 0)
+        self.assertIn("stream carries no 'vram.temperature_c'", entry["reason"])
+        self.assertNotIn("vram.temperature_c", summary["counters_present"])
+
+    def test_a_counter_present_for_one_card_only_says_so_for_the_other(self):
+        points = {k: v for k, v in COOL_POINTS.items()
+                  if k != (BUS9, "vram.temperature_c")}
+        entry = self._summary(points)["cards"][BUS9]["counters"]["vram.temperature_c"]
+        self.assertIsNone(entry["max_c"])
+        self.assertIn("no 'vram.temperature_c' samples for this adapter", entry["reason"])
+
+    def test_a_single_sample_counter_is_that_sample_everywhere(self):
+        points = dict(COOL_POINTS)
+        points[(BUS9, "vram.temperature_c")] = [(40 * NS, 71)]
+        entry = self._summary(points)["cards"][BUS9]["counters"]["vram.temperature_c"]
+        self.assertEqual(entry["samples"], 1)
+        self.assertEqual((entry["busy_p50_c"], entry["busy_p95_c"], entry["max_c"]),
+                         (71.0, 71.0, 71.0))
+        # No reading in the leading quarter, so there is no baseline and no delta.
+        self.assertIsNone(entry["idle_c"])
+        self.assertIsNone(entry["delta_c"])
+        self.assertIn("no reading in the capture's leading quarter", entry["reason"])
+
+    def test_no_sample_inside_the_window_is_a_stated_reason(self):
+        points = dict(COOL_POINTS)
+        points[(BUS9, "gpu.temperature_c")] = [(0, 57), (90 * NS, 58)]
+        entry = self._summary(points)["cards"][BUS9]["counters"]["gpu.temperature_c"]
+        self.assertEqual(entry["busy_samples"], 0)
+        self.assertIsNone(entry["busy_p95_c"])
+        self.assertIsNone(entry["delta_c"])
+        self.assertIn("no 'gpu.temperature_c' sample inside the load window", entry["reason"])
+        self.assertEqual(entry["max_c"], 58.0)      # the capture still saw readings
+
+    def test_t_is_read_as_nanoseconds(self):
+        # The same trap the duty cycle carries: reading t as 10 MHz ticks is wrong by 100x.
+        summary = self._summary(window=(30 * NS, 70 * NS))
+        self.assertEqual(summary["capture_ns"], [0, 90 * NS])
+        self.assertEqual(summary["idle_window_ns"], [0, int(0.25 * 90 * NS)])
+        self.assertIn("ns on the perf_counter clock", summary["timebase"])
+
+    def test_without_a_window_the_busy_figures_say_they_cover_the_capture(self):
+        entry = self._summary(window=None)["cards"][BUS4]["counters"]["vram.temperature_c"]
+        self.assertEqual(entry["busy_samples"], 5)
+        self.assertIn("no load window given", entry["reason"])
+
+
+class TestThermalGate(unittest.TestCase):
+    """Gate 8's thresholds and its four outcomes."""
+
+    def _scored(self, points=None, window=CAPTURE_WINDOW):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = thermal_stream(Path(tmp) / "events.jsonl",
+                                  COOL_POINTS if points is None else points)
+            return runner.score_thermal(runner.thermal_summary(path, window))
+
+    def _gate(self, scored):
+        row = runner.blank_receipt()
+        row["thermal"] = scored
+        return next(g for g in runner.gate_outcomes(row) if g["name"] == "thermal")
+
+    def test_the_abort_limit_is_the_number_derek_set(self):
+        self.assertEqual(runner.VRAM_ABORT_C, 95.0)
+        self.assertEqual(runner.GPU_ABORT_C, 95.0)
+        self.assertEqual(runner.VRAM_WARN_C, 88.0)
+        self.assertEqual(runner.GPU_WARN_C, 88.0)
+        self.assertEqual(runner.DELTA_WARN_C, 15.0)
+
+    def test_the_attribution_travels_with_the_number(self):
+        # Whoever reads a receipt, or the constant, must see WHOSE call 95 C is before
+        # "improving" it. Both the source comment and the receipt carry it.
+        source = Path(runner.__file__).read_text(encoding="utf-8")
+        self.assertIn("DEREK'S CALL", source.upper())
+        self.assertIn("VRAM_ABORT_C = 95.0", source)
+        self.assertIn("Derek", runner.THERMAL_ATTRIBUTION)
+        self.assertIn("2026-09-09", runner.THERMAL_ATTRIBUTION)
+        self.assertIn("Derek", runner.thermal_thresholds()["attribution"])
+
+    def test_a_cool_cell_passes_and_the_detail_states_the_precedent_and_the_ambient(self):
+        scored = self._scored()
+        self.assertEqual(scored["outcome"], "pass")
+        self.assertFalse(scored["exceeded"])
+        gate = self._gate(scored)
+        self.assertEqual(gate["outcome"], "pass")
+        self.assertIn("abort 95 C", gate["detail"])
+        self.assertIn("Derek", gate["detail"])
+        self.assertIn("ambient", gate["detail"].lower())
+        self.assertIn("VRAM p95 66.0 C (idle 60.0, delta 6.0", gate["detail"])
+        self.assertIn("0000:04:00.0", gate["detail"])
+
+    def test_a_hot_absolute_below_the_abort_warns(self):
+        points = dict(COOL_POINTS)
+        points[(BUS4, "vram.temperature_c")] = [(0, 62), (35 * NS, 89), (60 * NS, 90)]
+        scored = self._scored(points)
+        self.assertEqual(scored["outcome"], "warn")
+        self.assertFalse(scored["exceeded"])
+        entry = scored["cards"][BUS4]["counters"]["vram.temperature_c"]
+        self.assertEqual(entry["outcome"], "warn")
+        self.assertIn("88 C warn line", entry["reason"])
+
+    def test_a_big_rise_warns_even_when_the_absolute_is_comfortable(self):
+        # The delta half: a cool room but the workload is heating the card.
+        points = dict(COOL_POINTS)
+        points[(BUS4, "vram.temperature_c")] = [(0, 50), (35 * NS, 66), (60 * NS, 70)]
+        scored = self._scored(points)
+        entry = scored["cards"][BUS4]["counters"]["vram.temperature_c"]
+        self.assertEqual(entry["delta_c"], 20.0)
+        self.assertEqual(entry["outcome"], "warn")
+        self.assertIn("WORKLOAD", entry["reason"])
+        self.assertEqual(scored["outcome"], "warn")
+
+    def test_the_abort_limit_fails_the_cell_and_the_row_is_kept(self):
+        points = dict(COOL_POINTS)
+        # 96 C on the VRAM of 0000:04:00.0 -- the real quarantine precedent.
+        points[(BUS4, "vram.temperature_c")] = [(0, 62), (35 * NS, 90), (60 * NS, 96)]
+        scored = self._scored(points)
+        self.assertEqual(scored["outcome"], "fail")
+        self.assertTrue(scored["exceeded"])
+        self.assertEqual(scored["cards"][BUS4]["outcome"], "fail")
+        self.assertEqual(scored["cards"][BUS9]["outcome"], "pass")
+        gate = self._gate(scored)
+        self.assertEqual(gate["outcome"], "fail")
+        self.assertIn("KEPT", gate["detail"])
+        self.assertIn("never dropped", gate["detail"])
+
+    def test_ninety_five_is_the_line_not_ninety_six(self):
+        for peak, expected in ((94, "warn"), (95, "fail"), (96, "fail")):
+            points = dict(COOL_POINTS)
+            points[(BUS4, "gpu.temperature_c")] = [(0, 58), (60 * NS, peak)]
+            with self.subTest(peak=peak):
+                self.assertEqual(self._scored(points)["outcome"], expected)
+
+    def test_an_unmeasured_cell_is_null_and_says_the_limit_was_never_evaluated(self):
+        scored = self._scored({})
+        self.assertEqual(scored["outcome"], "null")
+        self.assertIsNone(scored["exceeded"])
+        gate = self._gate(scored)
+        self.assertEqual(gate["outcome"], "null")
+        self.assertIn("never evaluated", gate["detail"])
+        self.assertIn("Derek", gate["detail"])
+
+    def test_a_receipt_with_no_thermal_block_at_all_is_null_not_a_pass(self):
+        gate = next(g for g in runner.gate_outcomes(runner.blank_receipt())
+                    if g["name"] == "thermal")
+        self.assertEqual(gate["outcome"], "null")
+        self.assertIn("never evaluated", gate["detail"])
+
+    def test_the_thresholds_ride_along_in_the_receipt(self):
+        scored = self._scored()
+        self.assertEqual(scored["thresholds"]["vram.temperature_c"],
+                         {"warn_c": 88.0, "abort_c": 95.0})
+        self.assertEqual(scored["thresholds"]["delta_warn_c"], 15.0)
+        entry = scored["cards"][BUS4]["counters"]["vram.temperature_c"]
+        self.assertEqual((entry["warn_c"], entry["abort_c"]), (88.0, 95.0))
+
+    def test_a_measurement_caveat_is_not_overwritten_by_the_score(self):
+        points = dict(COOL_POINTS)
+        points[(BUS9, "vram.temperature_c")] = [(40 * NS, 90)]   # no idle baseline, warn
+        entry = self._scored(points)["cards"][BUS9]["counters"]["vram.temperature_c"]
+        self.assertIn("no reading in the capture's leading quarter", entry["reason"])
+        self.assertIn("88 C warn line", entry["reason"])
+
+
+class TestThermalExceededKeepsTheRow(unittest.TestCase):
+    """A too-hot cell is real data about a real cell -- exactly like ``over_admitted``."""
+
+    def test_the_receipt_carries_both_fields(self):
+        row = runner.blank_receipt()
+        self.assertIn("thermal", row)
+        self.assertIn("thermal_exceeded", row)
+        self.assertIsNone(row["thermal"])
+        self.assertIsNone(row["thermal_exceeded"])
+
+    def test_the_row_is_written_whole_with_the_status_and_the_reason(self):
+        args = runner.build_parser().parse_args(["--one-cell", "np2-p512-c2-r1", "--no-ledger"])
+        with tempfile.TemporaryDirectory() as tmp:
+            path = thermal_stream(Path(tmp) / "events.jsonl", {
+                (BUS4, "vram.temperature_c"): [(0, 62), (35 * NS, 90), (60 * NS, 96)]})
+            row = runner.blank_receipt()
+            row.update({"probe": runner.PROBE, "cell": "np2-p512-c2-r1",
+                        "jobs_per_hour": 2301.4})
+            row["thermal"] = runner.score_thermal(
+                runner.thermal_summary(path, CAPTURE_WINDOW))
+            row["thermal_exceeded"] = row["thermal"]["exceeded"]
+            cell_dir = Path(tmp) / "cell"
+            runner._finish(row, cell_dir, args, "thermal_exceeded",
+                           "%s; row kept, excluded from the surface" % row["thermal"]["detail"])
+            written = json.loads((cell_dir / "receipt.json").read_text(encoding="utf-8"))
+        # Kept whole: every field, the measured numbers intact, nothing nulled out.
+        self.assertEqual(set(written), set(runner.RECEIPT_FIELDS))
+        self.assertEqual(written["status"], "thermal_exceeded")
+        self.assertTrue(written["thermal_exceeded"])
+        self.assertEqual(written["jobs_per_hour"], 2301.4)
+        self.assertIn("row kept", written["status_reason"])
+        self.assertIn("95 C", written["status_reason"])
+        gate = next(g for g in written["gates"] if g["gate"] == 8)
+        self.assertEqual(gate["outcome"], "fail")
 
 
 if __name__ == "__main__":

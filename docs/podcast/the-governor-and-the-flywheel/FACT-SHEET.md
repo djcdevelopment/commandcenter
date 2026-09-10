@@ -182,11 +182,23 @@ avoided in dialogue unless they are the point.
   - GPU tile: max 78 C on both cards.
 - So the operator's felt number was accurate to within two degrees, and the data to prove it had
   been sitting in the receipts the whole time — never assembled, never plotted, never compared.
-- What genuinely does NOT exist: a continuous stream, and any power measurement at all.
+- What the IMAGEGEN RECEIPTS do not carry: a continuous stream, or any power measurement.
   `power_watts` is **null in 12,940 of 12,940 telemetry samples**. `throttled` likewise null in all
   12,940. `utilization_percent` reads **zero in all 12,940** — the counter is read and never lands.
-- Reason power is missing: the probe captures ONE tick per sample. Watts require two consecutive
-  energy readings to difference. One snapshot yields nothing.
+- Reason power is missing *from the receipts*: the probe captures ONE tick per sample. Watts require
+  two consecutive energy readings to difference. One snapshot yields nothing.
+- ⚠ **SECOND CORRECTION, 2026-09-09 — the line above used to say "what genuinely does NOT exist,"
+  as a claim about the whole box. It is only true of the imagegen receipts.** A continuous stream
+  *does* exist, in a different corpus nobody had looked in: `b70tools` burn-in runs under
+  `E:\work\battlemage\burnin-2026-08\results`. `soak1-b70tools` carries **6.22 hours** of B70
+  telemetry (day2 257.6 min, finale 61.2 min, idle-baseline 10.2 min). It streams
+  `gpu.energy_j_counter` ~10,900 times per card, so **GPU-tile watts are recoverable** and reduce
+  today with `sat_reference_capture.py --reduce ... --counter gpu`: sustained p50 **160.48 W**
+  (bus 9) / **145.15 W** (bus 4). VRAM on bus 4 **peaks 94 °C at hour two**, one degree under the
+  95 °C abort line — the operator's felt number confirmed a second time, from a second corpus.
+- The gap that actually survives both corrections is **board** power, not thermals and not GPU
+  power: `card.energy_j_counter` is emitted **once per capture**, so board watts cannot be
+  differenced out of any file already written. Fixing that needs a b70tools change, not a longer run.
 ### The real shape of an imagegen run
 - Epoch 37, the longest: **3.59 hours, 850 images, 6.83 GPU-hours of work, duty 1.90 out of a
   possible 2.0** — both cards about ninety-five percent busy for three and a half hours.
@@ -222,8 +234,21 @@ avoided in dialogue unless they are the point.
   burst is 90 s declared and 92 one-second intervals measured, read from the frozen receipt
   (`ref-20260909T085437Z`). The point survives the correction and gets sharper — 92 seconds still
   stands in for a 3.59-hour workload, ~140x the window. See claim register #30.
-- No sustained-load capture exists on this box. Every thermal record is a single-tick snapshot or
-  a run under five minutes. The longest is about 260 ticks.
+- ⚠ **WRONG AS ORIGINALLY WRITTEN, corrected 2026-09-09.** These notes said: "No sustained-load
+  capture exists on this box. Every thermal record is a single-tick snapshot or a run under five
+  minutes. The longest is about 260 ticks." That was a **scope error** twice over. "~260 ticks" was
+  the longest in `sat-l1` + `ff-probes` only (296, `ff-probes\statewatch-20260830`); and the
+  "single-tick snapshot" impression came from the **14 one-shot dirs** named
+  `b70tools-<stage>-<timestamp>` in `E:\work\battlemage\burnin-2026-08\results`, while **six
+  sustained runs sat in that same folder** under the reversed convention `<name>-b70tools`. A glob
+  on `b70tools-*` matches all 14 snapshots and **zero** sustained runs.
+- What is actually there: **`soak1-b70tools`, 6.22 hours**, 15,356 B70 temperature readings, VRAM
+  on bus 4 peaking **94 °C at hour two** against a 95 °C abort line and settling 82–84. It had
+  already been reduced and published in August as findings **F7/F8** of
+  `OMEN-LIMIT-TEST-2026-08.html` — F7 records the same 94 °C / 86 °C pair and the 8 °C card-to-card
+  delta; F8 buckets a sustained capture into six windows to show the cardboard duct's 12 °C drop.
+- Same failure as the imagegen receipts, one layer out: **the data existed, the reduction existed,
+  and the claim was written without either.** See claim register #30.
 - Measured across four cells inside ninety minutes: idle VRAM baseline swings 56–62 °C while the
   workload adds only 0–4 °C (VRAM) and 7–8 °C (GPU). Absolute temperature is dominated by ambient.
 - Our peak all day was 68 °C. Derek's limit, set by him: 95 °C.

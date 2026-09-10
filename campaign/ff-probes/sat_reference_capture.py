@@ -11,12 +11,29 @@ one-second intervals. The workloads its p50 stands in for run for HOURS: the lon
 measured on this box is a 3.59-hour imagegen session, 850 images at a pool duty of 1.90 of 2 --
 roughly 140x this window -- which Derek reports reaching 90 C within thirty minutes. A burst p50
 is therefore neither a power ceiling (a real serving cell has already peaked 181.2 W against the
-159.92 W reference p50, claim register #28) nor a thermal steady state: NO sustained-load capture
-exists on this box at all, the longest in the corpus being ~260 ticks, and each burn-in file
-carries exactly one temperature sample per adapter. The honest retirement of this caveat is to
-CAPTURE a sustained reference -- a passive ``b70tools --run`` collector running alongside a real
-hours-long imagegen session, which needs no fence of its own -- and re-freeze against it. Until
-then ``sat_cell_runner.DUTY_REFERENCE_CAVEAT`` rides on every receipt that reports a duty cycle.
+159.92 W reference p50, claim register #28) nor a thermal steady state.
+
+⚠ CORRECTED 2026-09-09. The sentence above used to continue: "NO sustained-load capture exists on
+this box at all, the longest in the corpus being ~260 ticks, and each burn-in file carries exactly
+one temperature sample per adapter." That was a SCOPE error, and the scope is worth naming so it is
+not repeated. "~260 ticks" was the longest in sat-l1 + ff-probes ONLY (296, in
+ff-probes\statewatch-20260830); the "one sample per adapter" reading came from the 14 one-shot
+snapshot dirs named ``b70tools-<stage>-<timestamp>`` under E:\work\battlemage\burnin-2026-08\results
+-- while SIX sustained runs sat in that same folder under the opposite naming convention,
+``<name>-b70tools``. A glob on ``b70tools-*`` matches all 14 snapshots and ZERO sustained runs.
+``soak1-b70tools`` alone carries 6.22 h of B70 telemetry and peaks 94 C on 0000:04:00.0 VRAM at
+hour two -- one degree under the 95 C abort line -- which is exactly the throttling trajectory a
+burst p50 cannot show. It was written up as findings F7/F8 of OMEN-LIMIT-TEST-2026-08.html in
+August: measured, and never read back here.
+
+The caveat's POINT survives the correction and sharpens. Reduced with ``--counter gpu``, soak1's
+sustained per-interval p50 is 160.48 W (bus 9) / 145.15 W (bus 4), ABOVE this burst reference's own
+143.93 / 102.64 by 11.5% and 41.4%, at a duty of 0.602 / 0.603. The denominator is not merely
+short, it is low. So the THERMAL half of the retirement is available FROM DISK -- ``--reduce`` an
+existing stream, below, touching no GPU. What still needs a NEW capture is BOARD power:
+``card.energy_j_counter`` is emitted once per capture (next paragraph), so board watts cannot be
+differenced out of any file already written. That is a b70tools change, not a longer run. Until
+both halves settle, ``sat_cell_runner.DUTY_REFERENCE_CAVEAT`` rides on every receipt reporting duty.
 
 What this does, in order (``--live``; the default is a dry run that prints the plan):
   1. rung state BEFORE (hearth.health.rungstate; a sample older than this run is `unknown`)
@@ -46,6 +63,11 @@ Auth: the bearer comes from the launcher env (``OMEN_ARC_TOKEN``); run through
 
 Reduce an existing stream without touching the GPU:
     python campaign/ff-probes/sat_reference_capture.py --reduce <events.jsonl> --counter gpu
+
+The 6.22-hour sustained stream, which is what retires the thermal half of the caveat above
+(``irregular_intervals`` runs high on it only because that capture ticks at 2.017 s and the
+regularity band here is 0.5-2.0 s; the in-band subset gives the same p50 to ~1%):
+    python campaign/ff-probes/sat_reference_capture.py --counter gpu --reduce E:\work\battlemage\burnin-2026-08\results\soak1-b70tools\events.jsonl
 """
 from __future__ import annotations
 

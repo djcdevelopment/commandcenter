@@ -995,7 +995,7 @@ only remaining move — which is a result, not a failure.
 > and warns at 88 °C, with the attribution carried in the code so it is not quietly "tightened"
 > later. A thermal failure **keeps** the row and excludes it from the surface, like `over_admitted`.
 >
-> **Three corrections to the above, from building the gate (merged 2026-09-09, 338 tests):**
+> **Four corrections to the above, from building the gate (merged 2026-09-09, 338 tests):**
 > 1. **The temperature counters are emitted ON CHANGE, not per tick** — 7–31 readings per counter per
 >    card across a 175–260 s capture, irregularly spaced. Percentiles are therefore over *readings*,
 >    not time-weighted, and a counter can have **zero** in-window readings (one card's VRAM has 7
@@ -1008,6 +1008,22 @@ only remaining move — which is a result, not a failure.
 >    load *before* the b70 stream starts, so the pre-window readings are a post-warm cooldown —
 >    temperature falls monotonically through that segment in all four captures. The reported rise is
 >    conservative as a result.
+> 4. **A sustained reference already exists on disk, and gate 5 did not know it.** Added 2026-09-09
+>    after claim register #30 was corrected. Gate 5 above (and #30) asserted that no sustained-load
+>    capture existed on this box, "the longest in the corpus ~260 ticks". That was true of *this
+>    campaign's* corpus (`sat-l1` + `ff-probes`; longest 296) and false of the box:
+>    `E:\work\battlemage\burnin-2026-08\results\soak1-b70tools\events.jsonl` holds **6.22 h** of B70
+>    telemetry, reducible today with `sat_reference_capture.py --reduce ... --counter gpu`. Its
+>    sustained per-interval p50 is **160.48 W** (bus 9) / **145.15 W** (bus 4) against gate 5's own
+>    frozen burst p50s of 143.93 / 102.64 — the reference is **11.5%** and **41.4%** low. This
+>    corroborates the limitation already recorded further down this file ("the threshold is 90% of a
+>    *prefill burst* reference, which is the wrong yardstick"), and it generalises it: the yardstick
+>    is soft against sustained load, not only against decode-heavy cells.
+>    ⚠ **This does NOT re-point the freeze.** soak1 is a triple-load burn-in from 2026-08-20 at a
+>    different `-np`, pre-duct — a different instrument and load shape, so re-freezing duty against
+>    it would trip R8. The frozen compute control at `ref-20260909T085437Z` stands as acked; soak1 is
+>    a comparison point, not a replacement denominator. Note also that this correction's own
+>    on-change caveat (1, above) applies to it: those are percentiles over readings.
 >
 > ⚠ **What this does not license:** extrapolating the partition's thermals from these cells. The
 > quarantined experiment was replica-per-card — a whole model on each card, a different and heavier

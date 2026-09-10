@@ -214,23 +214,58 @@ DUTY_THRESHOLD_FRAC = 0.9
 #: follow, and neither is hypothetical:
 #:   * The reference is not a ceiling. A real serving cell has already exceeded it -- 181.2 W
 #:     peak at ``-np 8`` with 16 clients against a 159.92 W reference p50 (claim register #28).
-#:   * It is not a thermal steady state either. NO sustained-load capture exists on this box:
-#:     the longest in the corpus is ~260 ticks, and every burn-in file carries exactly one
-#:     temperature sample per adapter. A burst p50 cannot show throttling that arrives at
-#:     minute thirty.
+#:   * It is not a thermal steady state either -- but NOT because the capture is missing.
+#:     ⚠ CORRECTED 2026-09-09. This bullet used to read "NO sustained-load capture exists on
+#:     this box: the longest in the corpus is ~260 ticks, and every burn-in file carries
+#:     exactly one temperature sample per adapter." Both halves were a SCOPE error, not a
+#:     typo. "~260 ticks" was the longest in sat-l1 + ff-probes only (296, in
+#:     ff-probes\statewatch-20260830); and the "one sample per adapter" reading came from the
+#:     14 one-shot snapshot dirs named ``b70tools-<stage>-<timestamp>`` under
+#:     E:\work\battlemage\burnin-2026-08\results -- while SIX sustained runs sat in that same
+#:     folder under the opposite naming convention, ``<name>-b70tools``. A glob on
+#:     ``b70tools-*`` matches all 14 snapshots and ZERO sustained runs. State the scope of a
+#:     search before generalising its emptiness to "this box".
+#:     What is actually on disk: ``soak1-b70tools`` carries 6.22 h of B70 telemetry (then
+#:     day2 257.6 min, finale 61.2 min, idle-baseline 10.2 min). soak1 shows precisely the
+#:     trajectory a burst p50 cannot: 0000:04:00.0 VRAM peaks 94 C at ~2.1-2.6 h -- ONE degree
+#:     under VRAM_ABORT_C -- then settles 82-84, running 4-6 C over 0000:09:00.0 at p50. This
+#:     was already written up as findings F7/F8 of OMEN-LIMIT-TEST-2026-08.html in August; it
+#:     was measured and never read back here.
+#:     The bound SURVIVES the correction and sharpens. Reduced via
+#:     ``sat_reference_capture.py --reduce ... --counter gpu``, soak1's sustained per-interval
+#:     p50 is 160.48 W (bus 9) / 145.15 W (bus 4) -- ABOVE this burst reference's own
+#:     143.93 / 102.64 by 11.5% and 41.4% -- at a duty of 0.602 / 0.603 across the 6.22 h.
+#:     So the denominator is not merely SHORT, it is LOW, and most severely on bus 4.
+#:
+#:     A PURPOSE-BUILT sustained reference landed the same day: 98.5 min, passive,
+#:     ``cap-20260909T173248Z`` (claim register #33), which found the first thermal PLATEAU
+#:     measured here -- 72 C within 9 min at 112 W tile power on the loaded card. Note the two
+#:     captures say different things and #33 does not supersede this one: #33 is a MIXED
+#:     workload well BELOW burst power, so it is frozen BESIDE this reference; soak1 runs
+#:     ABOVE it. #33 is the first sustained reference deliberately frozen, NOT the first
+#:     sustained capture -- soak1 predates it by three weeks and is 3.8x longer.
 #:
 #: This rides on every receipt (``duty_cycle()["reference_caveat"]``) so a consumer cannot read
-#: the fraction without the denominator. It is retired by CAPTURING a sustained reference --
-#: a passive b70tools collector alongside a real hours-long run -- not by rewording it.
+#: the fraction without the denominator. Its THERMAL half is now retired -- by #33 deliberately,
+#: and it was retirable FROM DISK all along: reduce soak1 with ``--reduce ... --counter gpu``,
+#: which touches no GPU. What still needs a NEW capture is BOARD power:
+#: ``card.energy_j_counter`` is emitted once per capture, so watts at the board can never be
+#: differenced out of any file already written. That is a b70tools change, not a longer run.
+#: Neither half is ever retired by rewording.
 DUTY_REFERENCE_CAVEAT = (
     "the reference is a ~92 s prefill burst at 2 clients; the workloads it stands in for run "
     "for hours (longest measured: a 3.59 h imagegen session at pool duty 1.90/2, ~140x this "
     "window). It is not a power ceiling -- a real cell peaked 181.2 W over a 159.92 W reference "
     "p50. Duty means 'above 0.9x a 92 s burst', not 'as loaded as a real long workload'. "
-    "UPDATED 2026-09-09: a sustained capture NOW EXISTS (98.5 min, cap-20260909T173248Z, claim "
-    "register #33) and it found the first thermal plateau measured on this box -- 72 C within "
-    "9 min at 112 W tile power on one card. That capture is a MIXED workload well below burst "
-    "power, so it is frozen BESIDE this reference and does not replace it as the denominator."
+    "UPDATED 2026-09-09: sustained captures EXIST. The purpose-built one is 98.5 min "
+    "(cap-20260909T173248Z, claim register #33); it found the first thermal plateau measured "
+    "here -- 72 C within 9 min at 112 W tile power on one card -- and being a MIXED workload "
+    "well below burst power it is frozen BESIDE this reference, not over it. CORRECTED the same "
+    "day: 'no sustained capture exists' was a SCOPE error and was never true -- soak1-b70tools "
+    "under burnin-2026-08 is 6.22 h from 2026-08-20, peaks 94 C on VRAM at hour two, and its "
+    "sustained p50 (160.48 / 145.15 W) runs ABOVE this burst p50 on BOTH cards, so the "
+    "denominator is LOW as well as short. Board power stays unobtainable at any length: "
+    "card.energy_j_counter is emitted once per capture."
 )
 
 # ---------------------------------------------------------------- gate 8: thermal --

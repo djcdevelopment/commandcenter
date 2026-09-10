@@ -48,16 +48,76 @@ So the number existed and the knowledge didn't.
 Which is a different failure from the one I'd claimed. I said it wasn't measured. It was measured and never read.
 
 **ALEX:**
-What genuinely isn't measured?
+And then you went looking a second time.
 
 **SAM:**
-Power. Not once. There's a field for it in the telemetry contract and it is null in twelve thousand nine hundred forty samples out of twelve thousand nine hundred forty.
+Because "no sustained capture on this machine" was doing a lot of work in that sentence, and I had only ever searched two folders. The campaign's own. There is a third — a burn-in archive from August. Six sustained runs sitting in it.
+
+**ALEX:**
+How sustained?
+
+**SAM:**
+Six hours and thirteen minutes of continuous card telemetry in the longest one. Fifteen thousand three hundred fifty-six temperature readings. And the memory on the same card I had been talking about peaks at ninety-four degrees, two hours in, against an abort line of ninety-five.
+
+**ALEX:**
+Ninety-four. You had said nothing ever recorded ninety.
+
+**SAM:**
+Twice now. And here is the part I would rather not say out loud: somebody had already reduced that file. It is written up in a document in the same repository, from August. Finding seven. Ninety-four on one card, eighty-six on the other, an eight-degree spread between two identical cards under one load.
+
+**ALEX:**
+So it wasn't just unread. It was read, written down, and then contradicted.
+
+**SAM:**
+By me. In a claim register whose entire purpose is to stop exactly that.
+
+**ALEX:**
+How did a six-hour file hide?
+
+**SAM:**
+It didn't. It was named backwards. The one-shot snapshots are called b-seventy-tools-dash-something. The long runs are called something-dash-b-seventy-tools. Same directory. Reversed. I matched the prefix, got fourteen snapshots, every one of them a single tick per card, and concluded that was the whole world.
+
+**ALEX:**
+The search was right and the conclusion was too big for it.
+
+**SAM:**
+An empty result is only ever empty within its scope. If you don't say the scope out loud, "I found nothing" becomes "there is nothing" somewhere between the terminal and the sentence.
+
+**ALEX:**
+So what genuinely isn't measured?
+
+**SAM:**
+Board power. Narrower than I said the first two times. In the imagegen receipts there is a watts field and it is null in twelve thousand nine hundred forty samples out of twelve thousand nine hundred forty.
 
 **ALEX:**
 All of them.
 
 **SAM:**
 Every one. And the reason is almost too tidy: the probe takes a single tick. Watts have to be derived by differencing two consecutive energy readings. One snapshot yields nothing to difference. The probe is correct, the counter is correct, and the arithmetic can never happen.
+
+**ALEX:**
+But the burn-in files stream.
+
+**SAM:**
+They do. Around ten thousand nine hundred energy readings per card. GPU-tile watts come straight out of them — a hundred and sixty on one card, a hundred and forty-five on the other, sustained, across six hours. Which is the uncomfortable part.
+
+**ALEX:**
+Why uncomfortable?
+
+**SAM:**
+Because the yardstick I had been dividing every duty number by is a ninety-two-second burst that reads a hundred and forty-four and a hundred and three. The six-hour workload sits above the burst on both cards. Forty-one percent above, on one of them.
+
+**ALEX:**
+Your reference for "working hard" was softer than the actual work.
+
+**SAM:**
+The caveat I wrote said the denominator was too short. It is also too low. The complaint survives — it just got sharper, and it got sharper from the file I said didn't exist.
+
+**ALEX:**
+And board power?
+
+**SAM:**
+Still nothing, and now it is the only thing. The whole-card energy counter gets emitted once per capture. One number, nothing to difference it against. That gap is real, and no amount of running longer will close it. The tool has to change.
 
 **ALEX:**
 What does a real run look like, now that somebody's added them up?

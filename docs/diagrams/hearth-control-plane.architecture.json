@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "HEARTH Sovereign Control Plane",
+    "output": "hearth-control-plane.html",
+    "visual_preset": "blueprint",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "engineering_profile": "deployment-ownership",
+    "viewBox": [1380, 680],
+    "views": [
+      {
+        "id": "request-path",
+        "label": "The Request Path",
+        "focus": ["claude", "gemini", "farmer", "nats", "ollama"],
+        "note": "Follow an MCP tool call from an external agent through the gateway to GPU inference."
+      },
+      {
+        "id": "gpu-boundary",
+        "label": "GPU Execution Boundary",
+        "focus": ["am4", "i5", "omen", "ollama"],
+        "note": "GPU execution leaves the control plane (ADR-036). Three physical nodes, three Intel Arc GPUs."
+      },
+      {
+        "id": "provenance-trail",
+        "label": "The Provenance Trail",
+        "focus": ["ledger", "otel", "nats", "farmer"],
+        "note": "Every token routed is an append-only event. 229K+ verified events, 3M+ tokens."
+      }
+    ]
+  },
+  "components": [
+    { "id": "claude", "type": "external", "label": "Claude", "sublabel": "Anthropic MCP", "pos": [38, 155], "size": [116, 56] },
+    { "id": "gemini", "type": "external", "label": "Gemini", "sublabel": "Google MCP", "pos": [38, 325], "size": [116, 56] },
+    { "id": "farmer", "type": "security", "label": "Farmer Gateway", "sublabel": "MCP router · fail-closed", "pos": [268, 240], "size": [148, 60], "tag": "control-plane" },
+    { "id": "nats", "type": "messagebus", "label": "NATS JetStream", "sublabel": "durable pub/sub", "pos": [510, 240], "size": [138, 60], "tag": "control-plane" },
+    { "id": "ollama", "type": "backend", "label": "Ollama Runtime", "sublabel": "model serving", "pos": [740, 240], "size": [138, 60], "tag": "gpu-execution" },
+    { "id": "am4", "type": "cloud", "label": "AM4 Node", "sublabel": "Arc A770 · 16 GB", "pos": [510, 95], "size": [138, 52], "tag": "gpu-execution" },
+    { "id": "i5", "type": "cloud", "label": "i5 Node", "sublabel": "Arc A580 · 8 GB", "pos": [740, 95], "size": [138, 52], "tag": "gpu-execution" },
+    { "id": "omen", "type": "cloud", "label": "OMEN Node", "sublabel": "Arc B580 · 12 GB", "pos": [970, 95], "size": [138, 52], "tag": "gpu-execution" },
+    { "id": "ledger", "type": "database", "label": "Provenance Ledger", "sublabel": "append-only · 229K events", "pos": [1160, 155], "size": [150, 60], "tag": "observability" },
+    { "id": "otel", "type": "external", "label": "OpenTelemetry", "sublabel": "traces · metrics", "pos": [1160, 325], "size": [150, 56], "tag": "observability" },
+    { "id": "scheduler", "type": "backend", "label": "Rung Scheduler", "sublabel": "ADR-031 · pin policy", "pos": [510, 430], "size": [138, 56], "tag": "control-plane" },
+    { "id": "drift", "type": "security", "label": "Anti-Drift Guard", "sublabel": "ADR-003 · disk fixtures", "pos": [740, 430], "size": [148, 56], "tag": "control-plane" }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "HEARTH physical cluster · Tailnet", "wraps": ["farmer", "nats", "ollama", "am4", "i5", "omen", "ledger", "otel", "scheduler", "drift"], "pad": 24 },
+    { "kind": "security-group", "label": "MCP gateway perimeter", "wraps": ["farmer"], "pad": 16 },
+    { "kind": "security-group", "label": "GPU execution boundary (ADR-036)", "wraps": ["am4", "i5", "omen", "ollama"], "pad": 14 },
+    { "kind": "security-group", "label": "private observability network", "wraps": ["ledger", "otel"], "pad": 14 },
+    { "kind": "security-group", "label": "control-plane workloads", "wraps": ["scheduler", "drift"], "pad": 14 }
+  ],
+  "connections": [
+    { "from": "claude", "to": "farmer", "label": "MCP tool_call", "variant": "emphasis", "labelAt": [185, 151] },
+    { "from": "gemini", "to": "farmer", "label": "MCP tool_call", "variant": "emphasis", "labelAt": [185, 395] },
+    { "from": "farmer", "to": "nats", "label": "publish dispatch", "variant": "emphasis" },
+    { "from": "nats", "to": "ollama", "label": "deliver + ack", "variant": "emphasis" },
+    { "from": "ollama", "to": "ledger", "label": "provenance event", "variant": "dashed" },
+    { "from": "ollama", "to": "otel", "label": "OTLP spans", "variant": "dashed" },
+    { "from": "am4", "to": "nats", "label": "Vulkan compute", "variant": "default", "route": "orthogonal-v" },
+    { "from": "i5", "to": "ollama", "label": "Vulkan compute", "route": "orthogonal-v" },
+    { "from": "omen", "to": "ledger", "label": "inference log", "variant": "dashed", "fromSide": "right", "toSide": "top" },
+    { "from": "scheduler", "to": "nats", "label": "rung selection", "variant": "default", "route": "orthogonal-v" },
+    { "from": "drift", "to": "ledger", "label": "reconcile", "variant": "security", "fromSide": "right", "toSide": "right", "via": [[930, 458], [1340, 458], [1340, 185]] },
+    { "from": "farmer", "to": "scheduler", "label": "route audit", "variant": "dashed", "route": "orthogonal-v" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Sovereign Infrastructure", "items": ["3 physical nodes: AM4, i5, OMEN with Intel Arc GPUs", "NATS JetStream for durable dispatch with explicit ack", "No cloud dependency for core inference pipeline"] },
+    { "dot": "rose", "title": "Governance Boundaries", "items": ["MCP gateway enforces fail-closed routing (ADR-021)", "GPU execution leaves the control plane (ADR-036)", "Anti-drift guard reconciles against disk fixtures (ADR-003)"] },
+    { "dot": "emerald", "title": "Provenance Trail", "items": ["229,000+ append-only verified events", "3,000,000+ tokens routed with full trace lineage", "Every dispatch, inference, and result is ledgered"] }
+  ]
+}

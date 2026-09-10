@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "HEARTH FastMCP Execution Trace",
+    "output": "hearth-mcp-trace.html",
+    "viewBox": [920, 880],
+    "visual_preset": "blueprint",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "authz-stage",
+        "label": "Authentication & Discovery",
+        "focus": ["caller", "gateway", "auth"],
+        "note": "A key resolves a caller to a profile; list_tools is filtered by that same profile."
+      },
+      {
+        "id": "inference-stage",
+        "label": "Rung Route & Vulkan Execution",
+        "focus": ["gateway", "router", "omen", "otel"],
+        "note": "Payload is verified against memory budget before dispatch to OMEN Arc B580."
+      },
+      {
+        "id": "provenance-stage",
+        "label": "Double-Write & Return",
+        "focus": ["gateway", "ledger", "otel", "caller"],
+        "note": "Every tool call commits to the append-only ledger before returning to the caller."
+      }
+    ]
+  },
+  "participants": [
+    { "id": "caller", "type": "external", "label": "Claude Code", "sublabel": "agent client" },
+    { "id": "gateway", "type": "backend", "label": "FastMCP Door", "sublabel": "kernel :8710" },
+    { "id": "auth", "type": "security", "label": "AuthRegistry", "sublabel": "X-Hearth-Key" },
+    { "id": "router", "type": "backend", "label": "Rung Router", "sublabel": "ADR-0031 policy" },
+    { "id": "omen", "type": "cloud", "label": "OMEN Node", "sublabel": "Arc B580 · 12GB" },
+    { "id": "ledger", "type": "database", "label": "Event Ledger", "sublabel": "append-only" },
+    { "id": "otel", "type": "external", "label": "OpenTelemetry", "sublabel": "distributed spans" }
+  ],
+  "segments": [
+    { "from": 150, "to": 288, "label": "Authorization & Discovery" },
+    { "from": 306, "to": 538, "label": "Rung Selection & GPU Inference" },
+    { "from": 554, "to": 790, "label": "Provenance & Completion" }
+  ],
+  "messages": [
+    { "from": "caller", "to": "gateway", "y": 180, "label": "call_tool(local_generate)", "variant": "emphasis" },
+    { "from": "gateway", "to": "auth", "y": 222, "label": "resolve caller profile", "variant": "security" },
+    { "from": "auth", "to": "gateway", "y": 264, "label": "authorized (advisory profile)", "variant": "return" },
+    { "from": "gateway", "to": "router", "y": 326, "label": "dispatch generate request", "variant": "emphasis" },
+    { "from": "router", "to": "omen", "y": 368, "label": "Vulkan compute dispatch", "variant": "emphasis" },
+    { "from": "omen", "to": "otel", "y": 410, "label": "emit gpu_infer_us span", "variant": "dashed" },
+    { "from": "omen", "to": "router", "y": 452, "label": "tokens + generation metrics", "variant": "return" },
+    { "from": "router", "to": "gateway", "y": 494, "label": "routed result (omen-arc)", "variant": "return" },
+    { "from": "gateway", "to": "ledger", "y": 566, "label": "record_event (double-write)", "variant": "security" },
+    { "from": "ledger", "to": "gateway", "y": 608, "label": "committed (#229K offset)", "variant": "return" },
+    { "from": "gateway", "to": "otel", "y": 650, "label": "finish trace span (200 OK)", "variant": "dashed" },
+    { "from": "gateway", "to": "caller", "y": 692, "label": "ToolResult + trace metadata", "variant": "return" }
+  ],
+  "activations": [
+    { "participant": "gateway", "from": 174, "to": 700, "type": "backend" },
+    { "participant": "auth", "from": 216, "to": 270, "type": "security" },
+    { "participant": "router", "from": 320, "to": 500, "type": "backend" },
+    { "participant": "omen", "from": 362, "to": 458, "type": "cloud" },
+    { "participant": "ledger", "from": 560, "to": 614, "type": "database" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "One Door, One Host",
+      "items": [
+        "Every incoming agent request enters through FastMCP :8710",
+        "A key resolves a caller to a capability profile (ADR-0028)",
+        "Unclassified tools raise at startup: fail-closed policy (ADR-0021)"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Physical Hardware Execution",
+      "items": [
+        "Inference router enforces memory arithmetic before dispatch (ADR-0031)",
+        "GPU execution leaves the control plane to OMEN Arc B580 (ADR-0036)",
+        "OpenTelemetry captures fine-grained GPU inference latency"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Unbroken Provenance",
+      "items": [
+        "Record-event double-write commits every dispatch (ADR-0011)",
+        "Over 229,000 append-only events verified on disk fixtures",
+        "Trace ID correlates agent intent directly to hardware telemetry"
+      ]
+    }
+  ]
+}

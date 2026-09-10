@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "HEARTH Deterministic Execution Pipeline",
+    "output": "hearth-agent-run.html",
+    "viewBox": [1080, 680],
+    "visual_preset": "blueprint",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "main-pipeline",
+        "label": "Deterministic Main Rail",
+        "focus": ["ingest", "dispatch", "execution", "assay", "ledgered"],
+        "note": "Follow an agent run through authentication, rung routing, GPU inference, assay validation, and append-only commit."
+      },
+      {
+        "id": "governance-holds",
+        "label": "Governance & Human Holds",
+        "focus": ["execution", "budget_hold", "assay", "human_review"],
+        "note": "Where execution pauses for rate limits (ADR-0044) or Commander intent frontier review (ADR-0012)."
+      },
+      {
+        "id": "drift-and-recovery",
+        "label": "Rung Swap & Anti-Drift Exits",
+        "focus": ["execution", "rung_swap", "drift_poison", "evicted"],
+        "note": "Rung swap recovers to alternative Arc GPU; anti-drift violations fail closed and quarantine the run."
+      }
+    ]
+  },
+  "lanes": [
+    { "id": "main", "label": "Execution Rail" },
+    { "id": "waiting", "label": "Governance Holds" },
+    { "id": "recovery", "label": "Hardware Recovery" },
+    { "id": "terminal", "label": "Terminal Exits" }
+  ],
+  "states": [
+    { "id": "ingest", "type": "start", "label": "Ingest", "sublabel": "X-Hearth-Key authed", "lane": "main", "col": 0, "step": "01", "tag": "entry" },
+    { "id": "dispatch", "type": "active", "label": "Dispatch", "sublabel": "ADR-0031 rung resolve", "lane": "main", "col": 1, "step": "02", "tag": "router" },
+    { "id": "execution", "type": "active", "label": "Execution", "sublabel": "Arc GPU inference", "lane": "main", "col": 2, "step": "03", "tag": "vulkan" },
+    { "id": "assay", "type": "decision", "label": "Assay Gate", "sublabel": "ADR-0003 disk fixture", "lane": "main", "col": 3, "step": "04", "tag": "invariant" },
+    { "id": "ledgered", "type": "success", "label": "Ledgered", "sublabel": "provenance committed", "lane": "main", "col": 4, "step": "05", "tag": "committed" },
+    { "id": "budget_hold", "type": "waiting", "label": "Budget Throttle", "sublabel": "ADR-0044 token rate", "lane": "waiting", "col": 0, "tag": "throttle" },
+    { "id": "human_review", "type": "waiting", "label": "Commander Hold", "sublabel": "ADR-0012 intent lane", "lane": "waiting", "col": 1, "tag": "frontier" },
+    { "id": "rung_swap", "type": "failure", "label": "Rung Swap", "sublabel": "Arc B580→A770 failover", "lane": "recovery", "col": 0, "yOffset": 78, "tag": "recoverable" },
+    { "id": "drift_poison", "type": "failure", "label": "Poisoned", "sublabel": "ADR-0003 drift violation", "lane": "terminal", "col": 0, "tag": "fail-closed" },
+    { "id": "evicted", "type": "failure", "label": "Evicted", "sublabel": "ADR-0006 idle drain", "lane": "terminal", "col": 1, "tag": "terminal" }
+  ],
+  "transitions": [
+    { "id": "throttle-check", "from": "execution", "to": "budget_hold", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "straight" },
+    { "id": "frontier-hold", "from": "assay", "to": "human_review", "variant": "default", "route": "drop" },
+    { "id": "vulkan-fail", "from": "execution", "to": "rung_swap", "variant": "security", "fromSide": "left", "toSide": "left", "via": [[320, 157], [320, 385]] },
+    { "id": "swap-retry", "from": "rung_swap", "to": "execution", "variant": "emphasis", "fromSide": "left", "toSide": "top", "via": [[20, 385], [20, 80], [402, 80]] },
+    { "id": "commander-abort", "from": "human_review", "to": "evicted", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "straight" },
+    { "id": "throttle-drain", "from": "budget_hold", "to": "drift_poison", "variant": "security", "fromSide": "bottom", "toSide": "top", "via": [[480, 336], [480, 432], [402, 432]] }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Deterministic Rail",
+      "items": [
+        "Every execution step is sequential, observable, and immutable",
+        "Ingest owns truth; authorization mirrors discovery at the door",
+        "Ledgered state is committed only after passing the assay gate"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Governance & Rate Holds",
+      "items": [
+        "Budget hold throttles token rates before hitting hardware thresholds (ADR-0044)",
+        "Commander intent lane holds at the frontier without terminating execution (ADR-0012)",
+        "Wait states preserve execution context and trace ID"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Failover & Fail-Closed",
+      "items": [
+        "Vulkan memory failure triggers rung swap to secondary Arc GPU",
+        "Anti-drift failure fails closed immediately — no partial commits (ADR-0003)",
+        "Idle drain cleans up abandoned runs without corrupting the ledger (ADR-0006)"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "HEARTH Provenance & Public Proof Loop",
+    "output": "hearth-provenance-loop.html",
+    "viewBox": [1080, 780],
+    "visual_preset": "blueprint",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "event-ingest",
+        "label": "Execution to Append-Only Ingest",
+        "focus": ["agents", "kernel", "ledger"],
+        "note": "Every tool call double-writes an immutable event to the on-disk ledger (ADR-0011)."
+      },
+      {
+        "id": "cqrs-projections",
+        "label": "CQRS Materialization & KG",
+        "focus": ["ledger", "cqrs_engine", "kg_extract", "fleet_state", "graph_db"],
+        "note": "Ingest owns truth; projections replay deterministically into fleet state and knowledge graphs."
+      },
+      {
+        "id": "proof-delivery",
+        "label": "Public Proof & Dashboard Loop",
+        "focus": ["fleet_state", "liveview_ui", "export_public", "public_site"],
+        "note": "Governed career claims flow through hash-checked gate into public-career-proof.v1.json."
+      }
+    ]
+  },
+  "stages": [
+    { "label": "Execution" },
+    { "label": "Ledger Ingest" },
+    { "label": "Projections" },
+    { "label": "State & Dashboards" },
+    { "label": "Public Proof" }
+  ],
+  "nodes": [
+    { "id": "agents", "type": "frontend", "label": "External Agents", "sublabel": "Claude / Gemini", "stage": 0, "row": 0, "tag": "MCP callers" },
+    { "id": "kernel", "type": "backend", "label": "HEARTH Kernel", "sublabel": "FastMCP dispatch", "stage": 0, "row": 2, "tag": "one host" },
+    { "id": "ledger", "type": "messagebus", "label": "events.jsonl", "sublabel": "append-only log", "stage": 1, "row": 1, "tag": "229K+ events" },
+    { "id": "cqrs_engine", "type": "backend", "label": "CQRS Projection", "sublabel": "deterministic replay", "stage": 2, "row": 0, "tag": "ADR-0010" },
+    { "id": "kg_extract", "type": "backend", "label": "KG Extractor", "sublabel": "semantic anchoring", "stage": 2, "row": 2, "tag": "typed triples" },
+    { "id": "fleet_state", "type": "database", "label": "Fleet State", "sublabel": "token counts & rungs", "stage": 3, "row": 0, "tag": "read model" },
+    { "id": "liveview_ui", "type": "frontend", "label": "LiveView UI", "sublabel": "real-time telemetry", "stage": 3, "row": 1, "tag": "zero drift" },
+    { "id": "graph_db", "type": "database", "label": "Knowledge Graph", "sublabel": "26K nodes / 87K edges", "stage": 3, "row": 2, "tag": "graph model" },
+    { "id": "export_public", "type": "security", "label": "export-public", "sublabel": "hash-checked gate", "stage": 4, "row": 0, "tag": "gated export" },
+    { "id": "public_site", "type": "cloud", "label": "Public Site", "sublabel": "career proof JSON", "stage": 4, "row": 1, "tag": "public surface" }
+  ],
+  "flows": [
+    { "from": "agents", "to": "ledger", "label": "call evidence", "classification": "tool invocations", "variant": "emphasis", "route": "vertical-channel" },
+    { "from": "kernel", "to": "ledger", "label": "double-write", "classification": "ADR-0011", "variant": "emphasis", "route": "vertical-channel" },
+    { "from": "ledger", "to": "cqrs_engine", "label": "event stream", "classification": "ordered replay", "variant": "emphasis", "route": "vertical-channel" },
+    { "from": "ledger", "to": "kg_extract", "label": "unstructured tokens", "classification": "entity stream", "variant": "default", "route": "vertical-channel" },
+    { "from": "cqrs_engine", "to": "fleet_state", "label": "materialize", "classification": "idempotent view", "variant": "emphasis", "route": "straight" },
+    { "from": "kg_extract", "to": "graph_db", "label": "index edges", "classification": "deterministic graph", "variant": "default", "route": "straight" },
+    { "from": "fleet_state", "to": "export_public", "label": "governed claims", "classification": "ADR audit", "variant": "security", "route": "straight" },
+    { "from": "fleet_state", "to": "liveview_ui", "label": "telemetry stream", "classification": "WebSockets", "variant": "default", "route": "vertical-channel" },
+    { "from": "graph_db", "to": "liveview_ui", "label": "topology facts", "classification": "semantic query", "variant": "default", "route": "vertical-channel" },
+    { "from": "export_public", "to": "public_site", "label": "proof JSON", "classification": "sha256 signed", "variant": "security", "fromSide": "bottom", "toSide": "top", "labelAt": [960, 200] }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Ingest Owns Truth",
+      "items": [
+        "Every event is committed to the append-only ledger before projection",
+        "Replay is deterministic: state can be reconstructed from genesis",
+        "Two ledgers enforce two bounded contexts (ADR-0010)"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Dual Projections",
+      "items": [
+        "CQRS projection powers real-time fleet telemetry with zero UI drift",
+        "Knowledge graph pipeline extracts 26,000+ typed nodes and 87,000+ edges",
+        "Observations are immutable; UI only projects interpretation"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Governed Public Proof",
+      "items": [
+        "export-public verifies SHA-256 checksums and evidence receipts",
+        "Generates public-career-proof.v1.json consumed by steppeintegrations.com",
+        "The system that executes AI work directly proves the career claims"
+      ]
+    }
+  ]
+}

@@ -2088,5 +2088,111 @@ class TestThermalExceededKeepsTheRow(unittest.TestCase):
         self.assertEqual(gate["outcome"], "fail")
 
 
+class LiveThermalGuardTests(unittest.TestCase):
+    """Gate 8 scores a finished stream. This one has to ACT while the load is running."""
+
+    B70D = "Intel(R) Arc(TM) Pro B70 Graphics"
+
+    def _stream(self, path, temps, energy_ticks=3):
+        lines = [json.dumps({"k": "ai", "a": "a04", "desc": self.B70D, "bdf": "0000:04:00.0"}),
+                 json.dumps({"k": "ai", "a": "a09", "desc": self.B70D, "bdf": "0000:09:00.0"})]
+        for i in range(energy_ticks):
+            for adapter in ("a04", "a09"):
+                lines.append(json.dumps({"k": "ms", "a": adapter, "n": "gpu.energy_j_counter",
+                                         "v": 100.0 * i, "t": int(i * NS)}))
+        for adapter, counter, secs, celsius in temps:
+            lines.append(json.dumps({"k": "ms", "a": adapter, "n": counter,
+                                     "v": celsius, "t": int(secs * NS)}))
+        Path(path).write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def _cool(self):
+        return [("a04", "gpu.temperature_c", 1.0, 60.0), ("a04", "vram.temperature_c", 1.0, 62.0),
+                ("a09", "gpu.temperature_c", 1.0, 58.0), ("a09", "vram.temperature_c", 1.0, 60.0)]
+
+    def test_a_cool_cell_is_never_stopped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "events.jsonl"
+            self._stream(path, self._cool())
+            guard = runner.LiveThermalGuard(path, poll_s=0.05, grace_s=30.0)
+            guard.start()
+            time.sleep(0.3)
+            out = guard.stop()
+        self.assertFalse(out["stopped_the_cell"])
+        self.assertIsNone(out["breach"])
+        self.assertGreater(out["polls"], 0)
+
+    def test_a_card_over_the_abort_line_breaches(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "events.jsonl"
+            self._stream(path, self._cool() + [("a04", "vram.temperature_c", 2.0, 97.0)])
+            guard = runner.LiveThermalGuard(path, poll_s=0.05, grace_s=30.0)
+            guard.start()
+            deadline = time.time() + 3
+            while guard.breach is None and time.time() < deadline:
+                time.sleep(0.02)
+            out = guard.stop()
+        self.assertTrue(out["stopped_the_cell"])
+        self.assertEqual(out["breach"]["verdict"], "abort_absolute")
+        self.assertIn("0000:04:00.0", out["breach"]["reason"])
+
+    def test_blind_is_tolerated_during_the_grace_period(self):
+        # A cell's stream starts moments before the load. Aborting on the first empty polls
+        # would kill every cell in its first seconds.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "events.jsonl"
+            path.write_text("", encoding="utf-8")
+            guard = runner.LiveThermalGuard(path, poll_s=0.05, grace_s=60.0)
+            guard.start()
+            time.sleep(0.3)
+            out = guard.stop()
+        self.assertFalse(out["stopped_the_cell"])
+        self.assertIn("blind", out["verdict_counts"])
+
+    def test_blind_past_the_grace_period_breaches(self):
+        # After the grace period the tolerance ends: running the replica shape with no thermal
+        # visibility is exactly what the guard exists to prevent.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "events.jsonl"
+            path.write_text("", encoding="utf-8")
+            guard = runner.LiveThermalGuard(path, poll_s=0.02, grace_s=0.05)
+            guard.start()
+            deadline = time.time() + 3
+            while guard.breach is None and time.time() < deadline:
+                time.sleep(0.02)
+            out = guard.stop()
+        self.assertTrue(out["stopped_the_cell"])
+        self.assertEqual(out["breach"]["verdict"], "blind")
+        self.assertIn("grace period has passed", out["breach"]["reason"])
+
+    def test_the_guard_never_raises_into_the_cell(self):
+        # Instrumentation must not be able to fail a cell it was only supposed to watch.
+        guard = runner.LiveThermalGuard(Path("nope") / "missing.jsonl", poll_s=0.02, grace_s=99.0)
+        guard.start()
+        time.sleep(0.15)
+        out = guard.stop()
+        self.assertFalse(out["stopped_the_cell"])
+
+    def test_thermal_live_is_in_the_receipt_schema(self):
+        # RECEIPT_FIELDS is enforced both ways, so a field the runner writes must be declared.
+        self.assertIn("thermal_live", runner.RECEIPT_FIELDS)
+        self.assertIn("thermal_live", runner.blank_receipt())
+
+
+class SweepHaltTests(unittest.TestCase):
+    def test_a_thermally_exceeded_cell_halts_the_sweep(self):
+        # THE FIX. Before 2026-09-09 this status was absent from the halt list, so a cell that
+        # reached 95 C was marked, excluded, and the NEXT CELL LAUNCHED onto a hot card.
+        source = Path(runner.__file__).read_text(encoding="utf-8")
+        halt = source.split('if row["status"] in (', 1)[1].split("):", 1)[0]
+        for status in ("REFUSED_GUARD", "STOPPED_AFTER_CELL", "REFUSED_NOT_WARM",
+                       "thermal_exceeded"):
+            self.assertIn(status, halt)
+
+    def test_the_halt_message_names_the_resume_line(self):
+        self.assertEqual(runner.THERMAL_RESUME_BELOW_C, 80.0)
+        source = Path(runner.__file__).read_text(encoding="utf-8")
+        self.assertIn("THERMAL_RESUME_BELOW_C", source.split("STOP: %s -- %s", 1)[1][:600])
+
+
 if __name__ == "__main__":
     unittest.main()

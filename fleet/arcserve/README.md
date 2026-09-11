@@ -75,6 +75,20 @@ Intel(R) Graphics`). The siblings were renamed `-vk2 → -vk0` in `92f3cd6`; tho
 the next ArcServe restart, and until then env=1 puts every side model on BDF `0000:04:00.0`. Never
 read a READY side server as correctly placed — its `-lv 5` report decides (`hearth/rotation/`).
 
+## Runtime loader (vulkan-1.dll)
+
+`llama-server.exe` imports `ggml-vulkan.dll` at load, which needs the Vulkan loader
+`vulkan-1.dll`. Windows resolves it from the binary's own directory first, then System32.
+On 2026-09-10 an NVIDIA driver installer removed `C:\Windows\System32\vulkan-1.dll` (04:48
+local); every ArcServe restore that day died at load with `0xc0000135` (STATUS_DLL_NOT_FOUND)
+while the door reported the rung as merely `cold`. The fix in place is an **app-local copy**:
+the Intel driver store's `vulkan-1-64.dll` copied to `E:\work\llamacpp-knee\build\bin\vulkan-1.dll`.
+Reinstalling the Intel Arc driver restores the System32 copy properly; keep the app-local one
+regardless — no script in this repo writes into `llamacpp-knee\build\bin` (the qwen38 campaign
+builds into its own checkout), so only a hand rebuild or `git clean` there can remove it.
+`python -m hearth.callers.doorcheck` now carries an `arc_runtime` facet that checks the loader
+and the two binaries before anything is launched (`/checkmcp`).
+
 ## Restart, stop, rollback
 
 `restart-arc.cmd` (via `ArcServeRestart`): `schtasks /End /TN ArcServeBoot`, `taskkill /IM

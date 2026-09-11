@@ -227,7 +227,7 @@ class FacetAndExitTests(TestCase):
     """Phase 4 contract: door health is independent from backend readiness."""
 
     def _check(self, *, listener=True, auth=True, surface=True, backend=True,
-               config_error=None, strict=False):
+               config_error=None, strict=False, arc=True):
         mcp = {"ok": True, "auth_ok": auth, "tools": 1,
                "tool_names": ["kernel_status"], "handshake_ms": 1}
         with patch.object(doorcheck, "_tcp_up", return_value=listener), \
@@ -238,7 +238,10 @@ class FacetAndExitTests(TestCase):
                  "config_error": config_error}), \
              patch.object(doorcheck, "_last_ledger_event", return_value=None), \
              patch.object(doorcheck, "_build_request_lane", return_value={"ok": True, "line": "lane"}), \
-             patch.object(doorcheck, "_trial_burn_report", return_value="trial"):
+             patch.object(doorcheck, "_trial_burn_report", return_value="trial"), \
+             patch.object(doorcheck, "_arc_runtime_report", return_value={
+                 "ok": arc, "loader": "app-local" if arc else None, "binary_dir": "x",
+                 "missing": [], "line": "arc-runtime: test"}):
             return doorcheck.check(strict=strict)
 
     def test_door_up_backend_cold_default_passes_strict_fails(self):
@@ -269,6 +272,16 @@ class FacetAndExitTests(TestCase):
         self.assertTrue(report["ok"])
         self.assertTrue(all(v == "healthy" for v in report["facets"].values()))
 
+    def test_arc_runtime_failure_is_advisory_by_default_and_gates_strict(self):
+        report = self._check(arc=False)
+        self.assertTrue(report["ok"], "the door aggregate is the ADR-0020 three; a loader "
+                                      "fault must not read as a closed door")
+        self.assertEqual(report["facets"]["arc_runtime"], "failed")
+        strict = self._check(arc=False, strict=True)
+        self.assertFalse(strict["ok"])
+        unknown = self._check(arc=None)
+        self.assertEqual(unknown["facets"]["arc_runtime"], "unknown")
+
     def test_malformed_backend_configuration_is_hard_failure(self):
         report = self._check(config_error="invalid TOML")
         self.assertFalse(report["ok"])
@@ -279,10 +292,12 @@ class FacetAndExitTests(TestCase):
         healthy = {
             "gateway": "up", "revived": False, "mcp": {},
             "toolsurface": {"line": "surface"}, "backends": [],
+            "arc_runtime": {"ok": True, "line": "arc-runtime: ok"},
             "last_ledger_event": None, "build_requests": {"line": "lane"},
             "trial_burn_line": "trial", "facets": {
                 "process_listener": "healthy", "authentication": "healthy",
-                "mcp_surface": "healthy", "backend_dependency": "cold"},
+                "mcp_surface": "healthy", "backend_dependency": "cold",
+                "arc_runtime": "healthy"},
             "requested_facet": "door", "strict": False,
             "hard_failure": False, "ok": True,
         }
@@ -348,3 +363,78 @@ class ProviderStalenessTests(TestCase):
     def test_no_handshake_is_unknown_not_failure(self) -> None:
         report = doorcheck._provider_report(None)
         self.assertIsNone(report["ok"])
+
+
+class ArcRuntimeTests(TestCase):
+    """The omen-arc loader facet: on 2026-09-10 an NVIDIA installer removed System32
+    vulkan-1.dll and every ArcServe restore died at load (0xc0000135) while the door
+    said "cold". Pure filesystem -- nothing here launches or connects to anything."""
+
+    def _bin(self, root, *, exe=True, ggml=True, local=False):
+        d = Path(root) / "bin"
+        d.mkdir()
+        if exe:
+            (d / "llama-server.exe").write_bytes(b"MZ")
+        if ggml:
+            (d / "ggml-vulkan.dll").write_bytes(b"MZ")
+        if local:
+            (d / "vulkan-1.dll").write_bytes(b"MZ")
+        return d
+
+    def test_app_local_loader_is_healthy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d = self._bin(tmp, local=True)
+            report = doorcheck._arc_runtime_report(d, system32_vulkan=Path(tmp) / "absent.dll")
+        self.assertTrue(report["ok"])
+        self.assertEqual(report["loader"], "app-local")
+        self.assertIn("app-local", report["line"])
+
+    def test_system32_loader_is_healthy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d = self._bin(tmp)
+            sys32 = Path(tmp) / "vulkan-1.dll"
+            sys32.write_bytes(b"MZ")
+            report = doorcheck._arc_runtime_report(d, system32_vulkan=sys32)
+        self.assertTrue(report["ok"])
+        self.assertEqual(report["loader"], "system32")
+
+    def test_no_loader_fails_and_names_the_fix(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d = self._bin(tmp)
+            report = doorcheck._arc_runtime_report(d, system32_vulkan=Path(tmp) / "absent.dll")
+        self.assertFalse(report["ok"])
+        self.assertIsNone(report["loader"])
+        self.assertIn("FAILED", report["line"])
+        self.assertIn("vulkan-1-64.dll", report["line"])
+
+    def test_missing_binary_fails_even_with_a_loader(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d = self._bin(tmp, exe=False, local=True)
+            report = doorcheck._arc_runtime_report(d, system32_vulkan=Path(tmp) / "absent.dll")
+        self.assertFalse(report["ok"])
+        self.assertEqual(report["missing"], ["llama-server.exe"])
+
+    def test_binary_dir_comes_from_the_launcher_config(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            yaml = Path(tmp) / "omen.yaml"
+            yaml.write_text(textwrap.dedent("""
+                models:
+                  "qwen3-30b-a3b":
+                    cmd: >
+                      E:\\somewhere\\build\\bin\\llama-server.exe
+                      -m model.gguf --port 8082
+                    proxy: http://127.0.0.1:8082
+            """), encoding="utf-8")
+            found, note = doorcheck._arc_binary_dir(yaml)
+            self.assertEqual(found, Path(r"E:\somewhere\build\bin"))
+            self.assertIsNone(note)
+            missing, note = doorcheck._arc_binary_dir(Path(tmp) / "nope.yaml")
+            self.assertEqual(missing, doorcheck.ARC_BINARY_DIR_FALLBACK)
+            self.assertIn("unreadable", note)
+
+    def test_real_config_names_the_production_binary(self):
+        # Reads the checked-in omen.yaml (a file, not a process): the facet must track
+        # the same launcher config ArcServe runs, or it checks the wrong directory.
+        found, note = doorcheck._arc_binary_dir()
+        self.assertIsNone(note)
+        self.assertEqual(found.name, "bin")

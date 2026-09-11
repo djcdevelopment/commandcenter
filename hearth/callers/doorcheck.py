@@ -16,8 +16,15 @@ interpreter (needs the mcp SDK for the live handshake).
 
 Exit code: default mode answers the door facet (listener + authentication + MCP
 surface); a cold backend is advisory. ``--strict`` requires every facet,
-including the default backend dependency, to be healthy. Exit 1 means the
-requested facet is unhealthy; exit 2 means a hard configuration/auth failure.
+including the default backend dependency and the arc_runtime loader check, to
+be healthy. Exit 1 means the requested facet is unhealthy; exit 2 means a hard
+configuration/auth failure.
+
+arc_runtime (added 2026-09-10): a pure filesystem facet that answers "can the
+production llama-server even load" -- vulkan-1.dll beside the binary or in
+System32, plus llama-server.exe and ggml-vulkan.dll present. It exists because
+an NVIDIA installer removed the System32 loader and every ArcServe restore died
+at load with 0xc0000135 while the door reported the rung as merely "cold".
 
 The --revive launch uses DETACHED_PROCESS so the gateway does NOT die with the
 console that started it — the failure mode that killed it on 2026-07-03.
@@ -73,7 +80,21 @@ KERNEL_BUILTIN_TOOLS = ("kernel_status", "kernel_change")
 # reason as the tool names above: importing the gateway pulls in the mcp SDK).
 BUILTIN_PROVIDER = "hearth.kernel.gateway#builtin"
 FACETS = ("door", "process_listener", "authentication", "mcp_surface",
-          "backend_dependency")
+          "backend_dependency", "arc_runtime")
+
+# arc_runtime facet (2026-09-10): an NVIDIA installer removed System32\vulkan-1.dll;
+# the production llama-server imports ggml-vulkan.dll at load and died with
+# 0xc0000135 (STATUS_DLL_NOT_FOUND) on every restore for hours. Nothing before the
+# exec checked that the binary could load, so the outage read as "cold". The loader
+# resolves either beside the binary (an app-local copy, the fix applied that day) or
+# in System32 (what the Intel driver installs). The binary directory is read from the
+# launcher's own config so this check can never drift from what ArcServe runs.
+ARC_SWAP_YAML = REPO_ROOT / "fleet" / "arcserve" / "llama-swap" / "omen.yaml"
+ARC_PRODUCTION_MODEL = "qwen3-30b-a3b"
+ARC_BINARY_DIR_FALLBACK = Path(r"E:\work\llamacpp-knee\build\bin")
+SYSTEM32_VULKAN = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "vulkan-1.dll"
+ARC_LOADER_FIX = ("copy the Intel driver store's vulkan-1-64.dll beside llama-server.exe as "
+                  "vulkan-1.dll, or reinstall the Intel Arc driver to restore the System32 copy")
 
 _PROVIDERS_RE = re.compile(r"--providers\s+(\S+)")
 
@@ -362,6 +383,57 @@ def _backend_status(backend, probe_cloud: bool) -> dict:
     return entry
 
 
+def _arc_binary_dir(swap_yaml: Path = ARC_SWAP_YAML) -> tuple[Path, str | None]:
+    """Directory of the production llama-server, from the llama-swap config ArcServe runs."""
+    try:
+        text = swap_yaml.read_text(encoding="utf-8")
+    except OSError as exc:
+        return ARC_BINARY_DIR_FALLBACK, (f"{swap_yaml.name} unreadable ({type(exc).__name__}); "
+                                         "using the fallback path")
+    pattern = (rf'"{re.escape(ARC_PRODUCTION_MODEL)}":\s*\n\s*cmd:\s*>?\s*\n\s*'
+               r'(\S+?llama-server\.exe)')
+    match = re.search(pattern, text)
+    if not match:
+        return ARC_BINARY_DIR_FALLBACK, (f"{ARC_PRODUCTION_MODEL} cmd not found in {swap_yaml.name}; "
+                                         "using the fallback path")
+    return Path(match.group(1)).parent, None
+
+
+def _arc_runtime_report(binary_dir: Path | None = None,
+                        system32_vulkan: Path = SYSTEM32_VULKAN) -> dict:
+    """Can the production llama-server load at all? Pure filesystem; no socket, no process.
+
+    ok=True with loader "app-local" or "system32"; ok=False names what is missing and
+    the fix; ok=None only when the directory itself cannot be inspected.
+    """
+    note = None
+    if binary_dir is None:
+        binary_dir, note = _arc_binary_dir()
+    try:
+        exe = binary_dir / "llama-server.exe"
+        ggml = binary_dir / "ggml-vulkan.dll"
+        local = binary_dir / "vulkan-1.dll"
+        missing = [p.name for p in (exe, ggml) if not p.is_file()]
+        loader = ("app-local" if local.is_file()
+                  else "system32" if system32_vulkan.is_file() else None)
+    except OSError as exc:
+        return {"ok": None, "loader": None, "binary_dir": str(binary_dir), "missing": [],
+                "line": f"arc-runtime: unknown ({type(exc).__name__}: {exc})"}
+    ok = not missing and loader is not None
+    if ok:
+        line = (f"arc-runtime: ok - vulkan-1.dll via {loader}; llama-server.exe + "
+                f"ggml-vulkan.dll present in {binary_dir}")
+    elif missing:
+        line = f"arc-runtime: FAILED - {', '.join(missing)} missing from {binary_dir}"
+    else:
+        line = ("arc-runtime: FAILED - no vulkan-1.dll beside llama-server.exe and none in "
+                f"System32; {ARC_LOADER_FIX}")
+    if note:
+        line += f" [{note}]"
+    return {"ok": ok, "loader": loader, "binary_dir": str(binary_dir), "missing": missing,
+            "line": line}
+
+
 def _backends_report(probe_cloud: bool) -> dict:
     try:
         pool = backends_mod.load_pool()
@@ -572,11 +644,15 @@ def _facet_statuses(report: dict) -> dict[str, str]:
     else:
         backend_status = "cold"
 
+    arc_ok = (report.get("arc_runtime") or {}).get("ok")
+    arc_status = "healthy" if arc_ok is True else "failed" if arc_ok is False else "unknown"
+
     return {
         "process_listener": "healthy" if listener else "down",
         "authentication": auth_status,
         "mcp_surface": surface_status,
         "backend_dependency": backend_status,
+        "arc_runtime": arc_status,
     }
 
 
@@ -618,6 +694,7 @@ def check(revive: bool = False, probe_cloud: bool = False,
     report["backends"] = backend_health["backends"]
     report["default_backend_up"] = backend_health["default_up"]
     report["backend_config_error"] = backend_health.get("config_error")
+    report["arc_runtime"] = _arc_runtime_report()
 
     report["last_ledger_event"] = _last_ledger_event()
     report["build_requests"] = _build_request_lane()
@@ -672,6 +749,8 @@ def main(argv: list[str]) -> int:
         print(report["toolsurface"]["line"])
         for entry in report["backends"]:
             print(entry["line"])
+        if report.get("arc_runtime"):
+            print(report["arc_runtime"]["line"])
         print(f"ledger   : last event {report['last_ledger_event'] or 'none'}")
         print(report["build_requests"]["line"])
         print(report["trial_burn_line"])

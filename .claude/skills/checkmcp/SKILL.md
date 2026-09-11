@@ -36,6 +36,15 @@ configuration failure:
 - `mcp_surface` — MCP handshake and tool manifest match.
 - `backend_dependency` — the configured default backend is ready; `cold` is a
   distinct advisory status in default mode.
+- `arc_runtime` — can the production llama-server even load: `vulkan-1.dll`
+  resolves beside the binary (`app-local`) or in System32 (`system32`), and
+  `llama-server.exe` + `ggml-vulkan.dll` are present in the directory named by
+  `fleet/arcserve/llama-swap/omen.yaml`. Pure filesystem, advisory in default
+  mode, required under `--strict`. Added 2026-09-10 after an NVIDIA installer
+  removed the System32 loader and every ArcServe restore died at load
+  (`0xc0000135`) while the door reported the rung as merely `cold`. A `FAILED`
+  line names the fix (copy the Intel driver store's `vulkan-1-64.dll` beside
+  `llama-server.exe` as `vulkan-1.dll`, or reinstall the Intel Arc driver).
 
 Machine-readable output uses `facets` with stable names and statuses. Existing
 top-level `gateway`, `mcp`, `toolsurface`, `backends`, and `ok` fields remain.
@@ -116,7 +125,7 @@ watchdog,bankedfire-drain}-task.log`.
   spends a trickle of GCP trial credit. Run this before pinning
   `backend="gcp-gemini"` for real work.
 - `--json` — machine-readable report with every field above.
-- `--facet {door,process_listener,authentication,mcp_surface,backend_dependency}`
+- `--facet {door,process_listener,authentication,mcp_surface,backend_dependency,arc_runtime}`
   — answer one requested facet; `door` is the default.
 - `--strict` — require every facet, including backend readiness, to pass.
 

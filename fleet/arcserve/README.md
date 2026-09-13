@@ -18,6 +18,7 @@ had to change. Side models (the `omen-swap` rung) load on demand beside it.
 | `serve-arc-direct.cmd` | **the rollback** — the pre-cutover launcher, body unchanged from commit `c6370b0`, launching `llama-server.exe` directly on `:8082`. |
 | `serve-arc-swap.cmd` | the parked copy of the llama-swap launcher. `cutover.ps1 -Live` installs it over `serve-arc.cmd` as its step B, so an `ArcServeBoot` fired by any other lane (a reboot, imagegen recovery) could not cut over un-ceremonied. |
 | `cutover.ps1` | the cutover ceremony: dry-run by default, `-Live` executes, rollback on any abort. |
+| `serve-arc-night.cmd`, `llama-swap/omen-night.yaml` | **the NIGHT shape** (2026-09-12): no production entry; Qwen3.8-Flash-Next (full placement, fork binary) and Qwen3.8-27B in one `swap: true, exclusive: true` group, so the two take turns on BOTH B70s. Run by the `ArcServeNight` task (no trigger). See "The night shape" below. |
 | `warm-arc.ps1`, `arc-serviceability.ps1`, `serve-arc-oss.cmd` | predate the cutover and are not part of it (`warm-arc.ps1` is the fx99 keep-alive's warm probe against `:8082` and is one of the consumers the cutover kept byte-identical). |
 
 ## The launcher, step by step (`serve-arc.cmd`)
@@ -74,6 +75,36 @@ to start without that directory — window `rot-side-20260903-A` died on exactly
 Intel(R) Graphics`). The siblings were renamed `-vk2 → -vk0` in `92f3cd6`; those entries go live at
 the next ArcServe restart, and until then env=1 puts every side model on BDF `0000:04:00.0`. Never
 read a READY side server as correctly placed — its `-lv 5` report decides (`hearth/rotation/`).
+
+## The night shape (`serve-arc-night.cmd` + `llama-swap/omen-night.yaml`)
+
+Added 2026-09-12 for the nightshift guest epochs (Derek's call). Flash-Next at full placement needs
+both B70s entirely (ADR-0040: "epochs remain the shape for Flash-Next"; ADR-0041: a co-resident Flash
+poisoned production until a restart), and production is `persistent` in the day shape, so the night is
+a separate llama-swap config with **no production entry**. One `swap: true, exclusive: true` group holds
+`qwen38-flash-dual` (fork binary `E:\work\llamacpp-qwen38`, `--no-mmap -dio`, `-c 32768 -np 1`,
+`--reasoning-format deepseek`) and `qwen38-27b-dual` (verbatim from `omen.yaml`); a request naming the
+other model makes llama-swap swap the whole card set (Flash ~60-90 s, 27B ~8-27 s). The guest front
+door drives that per phase (`LLM_MODEL=qwen38-flash-dual`, `LLM_MODEL_BUILD=qwen38-27b-dual`).
+
+Ceremony (PowerShell, in this order; every step is one command and observable):
+
+1. `ssh fx99 sudo systemctl stop arc-keepalive.timer arc-keepalive-deep.timer` -- the deep unit's
+   `ExecStartPost` can boot the day shape over the night one via `ArcServeRestart`.
+2. `Set-Content hearth\var\arc-maintenance.stop "nightshift-epoch <stamp>"` -- holds every other
+   day-shape boot (watchdog, imagegen recovery); `serve-arc.cmd` refuses to start under it.
+3. `schtasks /Run /TN ArcServeRestart` (stop-only under the sentinel) -- wait until `llama-swap.exe`
+   and `llama-server.exe` are gone and `:8081`/`:8082` are closed.
+4. `schtasks /Run /TN ArcServeNight` -- `serve-arc-night.cmd` refuses if `:8081`/`:8082` still listen,
+   sources the token, sets `GGML_VK_MMV_MAX_COLS=16` + `LLAMA_API_KEY`, and preloads Flash. Verify the
+   load report in `hearth/var/swap-logs/qwen38-flash-dual.log`: weights on Vulkan0/1 ONLY (no
+   `Vulkan_Host` / `CPU_Mapped` buffers -- that is the mmap trap, 8.9 tok/s instead of 27.7).
+
+Morning: `schtasks /Run /TN ArcServeRestart` -> `Remove-Item hearth\var\arc-maintenance.stop` ->
+`schtasks /Run /TN ArcServeBoot` -> `ssh fx99 sudo systemctl start arc-keepalive.timer
+arc-keepalive-deep.timer` -> `query_rung_state` at_rate within ~15 min. Everything on `:8082` (the
+door's `omen-arc` rung, `ff_ratecheck`, the IRC bot) is down for the epoch by design; the door's router
+escalates or refuses. `omen.yaml` and `serve-arc.cmd` are untouched by any of this.
 
 ## Runtime loader (vulkan-1.dll)
 

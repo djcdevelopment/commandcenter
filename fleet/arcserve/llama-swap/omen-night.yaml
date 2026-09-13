@@ -1,0 +1,88 @@
+# fleet/arcserve/llama-swap/omen-night.yaml -- the NIGHT shape: no production entry, the two Qwen 3.8
+# models take turns on BOTH B70s (Derek's 2026-09-12 call; nightshift guest epochs, plan part 2).
+#
+# WHY A SECOND CONFIG AND NOT AN ENTRY IN omen.yaml:
+#   - Qwen3.8-Flash-Next at full placement (48/48 blocks, 27.7 tok/s in the ladder) needs ~61 GB VRAM +
+#     ~65 GB private commit -- both cards entirely. ADR-0040: "epochs remain the shape for Flash-Next";
+#     ADR-0041: a co-resident Flash poisoned production until a restart. It is a whole-box state.
+#   - production is `persistent: true` in the day shape, so llama-swap could never evict it for Flash.
+#     The night shape simply has no production entry: `ArcServeRestart` (stop) -> `ArcServeNight`
+#     boots this file; the morning is `ArcServeRestart` (stop) -> `ArcServeBoot` (day shape, fresh
+#     epoch -- which ADR-0041 wants after any co-tenancy anyway).
+#   - Flash needs the unsloth fork binary (E:\work\llamacpp-qwen38, branch qwen4exp/qwen3.8-flash-next,
+#     commit f413d64b = the MMV-max-cols patch on that fork). The knee build rejects the qwen4exp arch.
+#
+# GROUP: one `swap: true, exclusive: true` group -> exactly one of the two models is resident; a request
+# naming the other one makes llama-swap unload the resident model and load the requested one. The guest
+# front door drives this per phase (LLM_MODEL=qwen38-flash-dual, LLM_MODEL_BUILD=qwen38-27b-dual).
+# Expected swap cost: Flash ~60-90 s (88 GB from E:), 27B ~8-27 s (catalog load_s_steady / first).
+#
+# FLASH PLACEMENT TRAP (campaign memory, corpus D-flash-next): `-ngl 48` with mmap silently gives the
+# 16-24-block rung (8.9 tok/s). This entry uses --no-mmap -dio like every other resident entry, so the
+# weights are committed allocations; the load report in its --log-file must show weights on Vulkan0/1
+# ONLY (no Vulkan_Host / CPU_Mapped buffers) -- serve-arc-night.cmd's dry run checks that before the
+# guest run is launched.
+#
+# THINKING: both 3.8 models think by default and the 08-27 retro found that consumed whole output
+# budgets. The guest sends chat_template_kwargs.enable_thinking=false per request (nightshift
+# LLM_DISABLE_THINKING=true); --reasoning-format deepseek keeps any residual reasoning out of content.
+#
+# SECRETS: none here. serve-arc-night.cmd exports LLAMA_API_KEY=%OMEN_ARC_TOKEN% and GGML_VK_MMV_MAX_COLS=16
+# exactly like serve-arc.cmd; llama-server reads both from the environment.
+#
+# WHAT IS DOWN DURING THE EPOCH: everything on :8082 -- the door's omen-arc default rung (the router
+# escalates or refuses), the fx99 keep-alive (its timers are STOPPED for the epoch on purpose: the deep
+# unit's ExecStartPost can boot the day shape via ArcServeRestart), ff_ratecheck, the IRC bot.
+# The arc-maintenance.stop sentinel is written for the epoch so nothing else boots the day shape either.
+
+healthCheckTimeout: 600
+logLevel: debug
+logToStdout: both
+startPort: 18400
+globalTTL: 0
+
+models:
+  # ---- Qwen3.8-Flash-Next, full placement, dual-split, fork binary ------------------------------------
+  "qwen38-flash-dual":
+    cmd: >
+      E:\work\llamacpp-qwen38\build\bin\llama-server.exe
+      -m E:\work\battlemage\models\qwen38-flash-next\UD-IQ4_XS\Qwen3.8-Flash-Next-UD-IQ4_XS-00001-of-00003.gguf
+      --alias qwen38-flash-dual
+      --log-file C:/work/commandcenter/hearth/var/swap-logs/qwen38-flash-dual.log
+      -ngl 99 -sm layer -ts 1,1
+      -fa on --no-mmap -dio -fit off
+      -c 32768 -np 1 -ub 1024
+      --host 127.0.0.1 --port ${PORT}
+      --slots --jinja --metrics --reasoning-format deepseek -lv 5
+    ttl: 0
+
+  # ---- Qwen3.8-27B dense, dual-split, knee binary (verbatim from omen.yaml) ---------------------------
+  "qwen38-27b-dual":
+    cmd: >
+      E:\work\llamacpp-knee\build\bin\llama-server.exe
+      -m E:\work\battlemage\models\qwen38\Qwen3.8-27B-Q4_K_M.gguf
+      --alias qwen38-27b-dual
+      --log-file C:/work/commandcenter/hearth/var/swap-logs/qwen38-27b-dual.log
+      -ngl 99 -sm layer -ts 1,1
+      -fa on --no-mmap -dio -fit off
+      -c 32768 -np 1 -ub 1024
+      --host 127.0.0.1 --port ${PORT}
+      --slots --jinja -lv 5 --slot-save-path E:\work\battlemage\kv\
+    ttl: 0
+
+hooks:
+  on_startup:
+    preload:
+      - "qwen38-flash-dual"
+
+routing:
+  router:
+    use: group
+    settings:
+      groups:
+        "guest":
+          swap: true
+          exclusive: true
+          members:
+            - "qwen38-flash-dual"
+            - "qwen38-27b-dual"

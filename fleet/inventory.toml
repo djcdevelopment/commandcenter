@@ -140,6 +140,10 @@ checks = [
   # URL -- with a 502. Nothing watched it, so "the lane is up" stayed true in the
   # map while the lane served errors. It is watched now.
   { service = "funnel-proxy", port = 8711, host = "127.0.0.1", revive = "schtasks /Run /TN HearthFunnelProxyRestart" },
+  # The friend gate (ADR-0046): OpenAI-compatible mouth for an invited friend's own agent, behind
+  # the Funnel's /v1/* route. Same failure class as the funnel proxy if it dies: the public path
+  # would answer 502 while Funnel + Caddy still look "up". Watched here for that reason.
+  { service = "friend-gate", port = 8791, host = "127.0.0.1", revive = "schtasks /Run /TN HearthFriendGateBoot" },
 ]
 
 [[node]]

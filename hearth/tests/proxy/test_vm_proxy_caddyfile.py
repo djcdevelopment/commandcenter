@@ -264,6 +264,16 @@ class _Harness:
         # 5. Move the VM proxy's upstream to the fake llama-swap.  Everything else about
         #    the block -- the /v1 narrowing, the catch-all 404, the bearer injection, the
         #    503 guard, the body cap and the redaction -- stays byte-identical.
+        # the :8711 block's /v1 goes to the FRIEND GATE (ADR-0046), never to llama-swap: point it at
+        # a second closed port so the proof shows it dials its own upstream and not the inference one
+        text = _sub_exactly(
+            text, r"reverse_proxy 127\.0\.0\.1:8791", f"reverse_proxy 127.0.0.1:{self.gate_dead_port}",
+            1, "the :8711 /v1 (friend gate) upstream",
+        )
+        text = _sub_exactly(
+            text, r"header_up Host 127\.0\.0\.1:8791", f"header_up Host 127.0.0.1:{self.gate_dead_port}",
+            1, "the :8711 /v1 upstream Host rewrite",
+        )
         text = _sub_exactly(
             text, r"reverse_proxy 127\.0\.0\.1:8081", f"reverse_proxy 127.0.0.1:{self.upstream_port}",
             1, "the :8083 reverse_proxy upstream",
@@ -293,6 +303,7 @@ class _Harness:
         self.proxy_port = _free_port()
         self.funnel_port = _free_port()
         self.dead_port = _free_port()  # allocated then left closed on purpose
+        self.gate_dead_port = _free_port()  # the friend gate's stand-in: also closed on purpose
 
         self.derived_path.write_text(self.derive(), encoding="utf-8")
 
@@ -659,11 +670,15 @@ class VmProxyWithCredentialTests(unittest.TestCase):
 
     # -- the two site blocks share a process without cross-wiring -----------------
 
-    def test_funnel_block_still_routes_only_mcp_and_not_v1(self) -> None:
+    def test_funnel_block_routes_v1_to_the_gate_and_never_to_llama_swap(self) -> None:
+        # ADR-0046: /v1 on the Funnel is the friend gate's, which has ITS OWN upstream (here: a closed
+        # port, so >= 500). It must never dial the inference upstream and never carry a stamped bearer.
         before = self.harness.recorder.count()
         status, _ = self.harness.request("GET", "/v1/models", port=self.harness.funnel_port)
-        self.assertEqual(404, status, "the :8711 block must not serve the inference surface")
-        self.assertEqual(before, self.harness.recorder.count())
+        self.assertGreaterEqual(status, 500, "the :8711 /v1 route must dial the friend gate's own (here: closed) upstream")
+        self.assertEqual(before, self.harness.recorder.count(), "/v1 on the Funnel reached the inference upstream -- the blocks are cross-wired")
+        status, _ = self.harness.request("GET", "/v2/anything", port=self.harness.funnel_port)
+        self.assertEqual(404, status, "only /v1/* and /mcp* exist on the Funnel block")
 
         status_mcp, _ = self.harness.request("GET", "/mcp", port=self.harness.funnel_port)
         self.assertGreaterEqual(status_mcp, 500, "/mcp must still dial its OWN (here: closed) upstream")

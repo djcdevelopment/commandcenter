@@ -15,8 +15,21 @@ the bind note below for the failure class validate cannot catch.
 
 ## :8711 — the Funnel hop
 
-Unchanged (ADR-0025 as amended 2026-08-24). No secret is stamped; callers present their own
-`X-Hearth-Key` and authenticate per-request at the gateway. Only `/mcp*` is forwarded.
+ADR-0025 as amended 2026-08-24, plus ADR-0046 (2026-09-13). No secret is stamped; callers present
+their own credential and authenticate per-request behind the hop. Two paths are forwarded:
+
+- `/mcp*` → `127.0.0.1:8710`, the HEARTH gateway (`X-Hearth-Key`), as before.
+- `/v1/*` → `127.0.0.1:8791`, the **friend gate** (`hearth/friendgate/`): an OpenAI-compatible
+  chat-completions mouth for an invited friend's OWN agent (OpenHands, aider, Cline, Hermes …),
+  authenticated by a per-friend bearer (`friendctl mint --account <ergo account>`), budgeted,
+  rate-limited and ledgered by the gate, which injects the rung's bearer on the far side. The
+  Funnel hop itself never dials llama-swap for `/v1` — `test_vm_proxy_caddyfile.py` proves the
+  route's upstream is the gate's port only, so this cannot become an anonymous mouth for the rung.
+  Launcher: `fleet/friendgate/serve-friendgate.cmd` (through `with-gateway-env.cmd`; unarmed = 503);
+  boot task `HearthFriendGateBoot` (clone of `HearthFunnelProxyBoot`, needs an elevated shell to
+  register); watched in `fleet/inventory.toml`.
+
+Everything else on `:8711` is 404 without a dial.
 
 ## :8083 — the VM inference proxy (added 2026-09-06)
 

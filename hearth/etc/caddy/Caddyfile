@@ -79,6 +79,23 @@
 		}
 	}
 
+	# Friend gate (ADR-0046): an invited friend's OWN agent (OpenHands, aider, Cline ...) speaks
+	# OpenAI chat-completions here with a per-friend key. The GATE authenticates, budgets, limits
+	# and ledgers; this block only narrows and forwards. Its upstream is the gate on loopback
+	# (:8791), NEVER llama-swap: the Funnel must not become an anonymous mouth for the rung
+	# (hearth/tests/proxy/test_vm_proxy_caddyfile.py proves /v1 here dials the gate's port only).
+	# No bearer is stamped on this hop either -- the friend presents their own key, the gate
+	# injects the rung's on the far side.
+	handle /v1/* {
+		request_body {
+			max_size 32MiB
+		}
+		reverse_proxy 127.0.0.1:8791 {
+			header_up Host 127.0.0.1:8791
+			flush_interval -1
+		}
+	}
+
 	handle /mcp* {
 		reverse_proxy 127.0.0.1:8710 {
 			# HEARTH's gateway allowlists Host by value (loopback only,

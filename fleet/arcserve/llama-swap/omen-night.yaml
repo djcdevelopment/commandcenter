@@ -75,6 +75,10 @@ models:
   # ---- Qwen3.8-27B + draft-MTP (the campaign's largest measured win: 510 -> 1591 jobs/h, acceptance
   # 0.65 -> 0.86; undeployed because temperature-0 outputs were not reproducible -- irrelevant to the
   # guest). Same knee binary, same flags, plus the community MTP head. A/B against qwen38-27b-dual. ----
+  # 2026-09-12 A/B (second reps): decode 50 vs 23.5 tok/s on a tool call (95% accepted), 35 vs 23.6 free-form
+  # (41-51%), 44 vs 20.6 after a 3.5k prompt (100%); cold prefill 653 vs 837 tok/s. Receipt in nightshift/output.
+  # -c 131072: at 32k the entry cost 10.1 / 12.9 GB per card with main KV 1 GB/card, so 128k projects to
+  # ~13.2 / ~16.4 GB (Derek's #1: larger context, one slot). Assert from the load report, never from this note.
   "qwen38-27b-mtp":
     cmd: >
       E:\work\llamacpp-knee\build\bin\llama-server.exe
@@ -83,7 +87,7 @@ models:
       --log-file C:/work/commandcenter/hearth/var/swap-logs/qwen38-27b-mtp.log
       -ngl 99 -sm layer -ts 1,1
       -fa on --no-mmap -dio -fit off
-      -c 32768 -np 1 -ub 1024
+      -c 131072 -np 1 -ub 1024
       --host 127.0.0.1 --port ${PORT}
       --slots --jinja -lv 5 --slot-save-path E:\work\battlemage\kv\
       -md E:\work\battlemage\models\qwen38\mtp-Qwen3.8-27B-Q4_0.gguf --spec-type draft-mtp --spec-default --spec-draft-n-max 3

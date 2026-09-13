@@ -254,7 +254,7 @@ parallel_slots = 1
 "mistral24b-vk1"  = 14336      # -c 4096  x 1
 "mistral24b-vk0"  = 14336
 "qwen38-27b-dual" = 114688     # -c 32768 x 1
-"qwen38-27b-mtp"   = 114688     # -c 32768 x 1 -- NIGHT shape only, draft-MTP A/B entry
+"qwen38-27b-mtp"   = 458752     # -c 131072 x 1 -- NIGHT shape only, draft-MTP entry at 128k
 "qwen38-flash-dual" = 114688   # -c 32768 x 1 -- NIGHT shape only (fleet/arcserve/llama-swap/omen-night.yaml):
                                 # served by ArcServeNight with production DOWN; a pin while the day shape
                                 # runs gets llama-swap's 404 (not declared there). Never tagged.

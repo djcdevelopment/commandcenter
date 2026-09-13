@@ -72,10 +72,27 @@ models:
       --slots --jinja -lv 5 --slot-save-path E:\work\battlemage\kv\
     ttl: 0
 
+  # ---- Qwen3.8-27B + draft-MTP (the campaign's largest measured win: 510 -> 1591 jobs/h, acceptance
+  # 0.65 -> 0.86; undeployed because temperature-0 outputs were not reproducible -- irrelevant to the
+  # guest). Same knee binary, same flags, plus the community MTP head. A/B against qwen38-27b-dual. ----
+  "qwen38-27b-mtp":
+    cmd: >
+      E:\work\llamacpp-knee\build\bin\llama-server.exe
+      -m E:\work\battlemage\models\qwen38\Qwen3.8-27B-Q4_K_M.gguf
+      --alias qwen38-27b-mtp
+      --log-file C:/work/commandcenter/hearth/var/swap-logs/qwen38-27b-mtp.log
+      -ngl 99 -sm layer -ts 1,1
+      -fa on --no-mmap -dio -fit off
+      -c 32768 -np 1 -ub 1024
+      --host 127.0.0.1 --port ${PORT}
+      --slots --jinja -lv 5 --slot-save-path E:\work\battlemage\kv\
+      -md E:\work\battlemage\models\qwen38\mtp-Qwen3.8-27B-Q4_0.gguf --spec-type draft-mtp --spec-default --spec-draft-n-max 3
+    ttl: 0
+
 hooks:
   on_startup:
     preload:
-      - "qwen38-flash-dual"
+      - "qwen38-27b-mtp"
 
 routing:
   router:
@@ -88,3 +105,4 @@ routing:
           members:
             - "qwen38-flash-dual"
             - "qwen38-27b-dual"
+            - "qwen38-27b-mtp"

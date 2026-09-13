@@ -223,7 +223,7 @@ name     = "omen-swap"                        # ROTATION RUNG (pin-only), ADR-00
 endpoint = "http://127.0.0.1:8081"
 api      = "openai"                           # /v1/chat/completions, routed by the body's `model`
 auth_env = "OMEN_ARC_TOKEN"                   # header forwarded to the upstream; harmless on loopback
-models   = ["phi4-vk1", "phi4-vk0", "qwen14b-vk1", "qwen14b-vk0", "gptoss20b-vk1", "gptoss20b-vk0", "mistral24b-vk1", "mistral24b-vk0", "qwen38-27b-dual", "qwen38-flash-dual"]
+models   = ["phi4-vk1", "phi4-vk0", "qwen14b-vk1", "qwen14b-vk0", "gptoss20b-vk1", "gptoss20b-vk0", "mistral24b-vk1", "mistral24b-vk0", "qwen38-27b-dual", "qwen38-flash-dual", "qwen38-27b-mtp"]
 tags     = []                                 # pin-only by design
 # Occupancy: llama-swap /running (occupancy.probe_omen_swap) behind the imagegen tenancy fence.
 [backend.settings]
@@ -254,6 +254,7 @@ parallel_slots = 1
 "mistral24b-vk1"  = 14336      # -c 4096  x 1
 "mistral24b-vk0"  = 14336
 "qwen38-27b-dual" = 114688     # -c 32768 x 1
+"qwen38-27b-mtp"   = 114688     # -c 32768 x 1 -- NIGHT shape only, draft-MTP A/B entry
 "qwen38-flash-dual" = 114688   # -c 32768 x 1 -- NIGHT shape only (fleet/arcserve/llama-swap/omen-night.yaml):
                                 # served by ArcServeNight with production DOWN; a pin while the day shape
                                 # runs gets llama-swap's 404 (not declared there). Never tagged.

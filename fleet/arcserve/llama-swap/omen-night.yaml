@@ -15,7 +15,7 @@
 # GROUP: one `swap: true, exclusive: true` group -> exactly one of the two models is resident; a request
 # naming the other one makes llama-swap unload the resident model and load the requested one. The guest
 # front door drives this per phase (LLM_MODEL=qwen38-flash-dual, LLM_MODEL_BUILD=qwen38-27b-dual).
-# Expected swap cost: Flash ~60-90 s (88 GB from E:), 27B ~8-27 s (catalog load_s_steady / first).
+# Measured swap cost 2026-09-12: Flash 7-14 min (this fork's Vulkan upload path, not the disk), 27B ~30 s.
 #
 # FLASH PLACEMENT TRAP (campaign memory, corpus D-flash-next): `-ngl 48` with mmap silently gives the
 # 16-24-block rung (8.9 tok/s). This entry uses --no-mmap -dio like every other resident entry, so the
@@ -35,7 +35,9 @@
 # unit's ExecStartPost can boot the day shape via ArcServeRestart), ff_ratecheck, the IRC bot.
 # The arc-maintenance.stop sentinel is written for the epoch so nothing else boots the day shape either.
 
-healthCheckTimeout: 600
+# Measured 2026-09-12: the fork uploads Flash to the B70s at ~80 MB/s (31 GB in 6.5 min; the knee build
+# does ~2 GB/s), so a Flash load is 7-14 min. 600 s killed the second load mid-upload.
+healthCheckTimeout: 1800
 logLevel: debug
 logToStdout: both
 startPort: 18400

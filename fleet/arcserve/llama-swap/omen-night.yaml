@@ -12,7 +12,11 @@
 #   - Flash needs the unsloth fork binary (E:\work\llamacpp-qwen38, branch qwen4exp/qwen3.8-flash-next,
 #     commit f413d64b = the MMV-max-cols patch on that fork). The knee build rejects the qwen4exp arch.
 #
-# GROUP: one `swap: true, exclusive: true` group -> exactly one of the two models is resident; a request
+# GROUPS (v3, 2026-09-12): `guest` (swap, NOT exclusive) holds the 27B variants and Flash -- one resident at a
+# time; `helper` holds qwen14b-night beside it. Per-card budget from the load reports: 27B+MTP at a unified
+# 256k pool = ~18 GB (09) / ~20.5 GB (04); the 14B at 16k adds ~10.5 GB on 09 -> ~28.5 of 31.8 GB.
+# A 384k pool (+4 GB/card) does NOT leave room for the helper. Flash needs both cards entirely.
+# GROUP (v1 note): one `swap: true, exclusive: true` group -> exactly one of the two models is resident; a request
 # naming the other one makes llama-swap unload the resident model and load the requested one. The guest
 # front door drives this per phase (LLM_MODEL=qwen38-flash-dual, LLM_MODEL_BUILD=qwen38-27b-dual).
 # Measured swap cost 2026-09-12: Flash 7-14 min (this fork's Vulkan upload path, not the disk), 27B ~30 s.
@@ -87,16 +91,34 @@ models:
       --log-file C:/work/commandcenter/hearth/var/swap-logs/qwen38-27b-mtp.log
       -ngl 99 -sm layer -ts 1,1
       -fa on --no-mmap -dio -fit off
-      -c 131072 -np 1 -ub 1024
+      -c 262144 -np 2 --kv-unified -ub 1024
       --host 127.0.0.1 --port ${PORT}
       --slots --jinja -lv 5 --slot-save-path E:\work\battlemage\kv\
       -md E:\work\battlemage\models\qwen38\mtp-Qwen3.8-27B-Q4_0.gguf --spec-type draft-mtp --spec-default --spec-draft-n-max 3
+    ttl: 0
+
+  # ---- helper: qwen2.5-14B on ONE card (the lighter one), short context. Takes the short, frequent
+  # work -- understand, chat replies, and the research/review specialists (a different model = a real
+  # second opinion). Selected by NAME with -dev; ADR-0042: assert from its load report, never trust
+  # the index. In its own non-exclusive group so it coexists with the 27B. Not with Flash (no room).
+  "qwen14b-night":
+    cmd: >
+      E:\work\llamacpp-knee\build\bin\llama-server.exe
+      -m E:\work\battlemage\models\qwen2.5-14b-instruct-q4_K_M.gguf
+      --alias qwen14b-night
+      --log-file C:/work/commandcenter/hearth/var/swap-logs/qwen14b-night.log
+      -dev Vulkan1 -ngl 99
+      -fa on --no-mmap -dio -fit off
+      -c 16384 -np 1
+      --host 127.0.0.1 --port ${PORT}
+      --slots --jinja -lv 5
     ttl: 0
 
 hooks:
   on_startup:
     preload:
       - "qwen38-27b-mtp"
+      - "qwen14b-night"
 
 routing:
   router:
@@ -105,8 +127,13 @@ routing:
       groups:
         "guest":
           swap: true
-          exclusive: true
+          exclusive: false   # v3: the helper group must survive a guest swap
           members:
             - "qwen38-flash-dual"
             - "qwen38-27b-dual"
             - "qwen38-27b-mtp"
+        "helper":
+          swap: true
+          exclusive: false
+          members:
+            - "qwen14b-night"

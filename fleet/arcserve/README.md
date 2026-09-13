@@ -18,7 +18,7 @@ had to change. Side models (the `omen-swap` rung) load on demand beside it.
 | `serve-arc-direct.cmd` | **the rollback** — the pre-cutover launcher, body unchanged from commit `c6370b0`, launching `llama-server.exe` directly on `:8082`. |
 | `serve-arc-swap.cmd` | the parked copy of the llama-swap launcher. `cutover.ps1 -Live` installs it over `serve-arc.cmd` as its step B, so an `ArcServeBoot` fired by any other lane (a reboot, imagegen recovery) could not cut over un-ceremonied. |
 | `cutover.ps1` | the cutover ceremony: dry-run by default, `-Live` executes, rollback on any abort. |
-| `serve-arc-night.cmd`, `llama-swap/omen-night.yaml` | **the NIGHT shape** (2026-09-12): no production entry; Qwen3.8-Flash-Next (full placement, fork binary) and Qwen3.8-27B in one `swap: true, exclusive: true` group, so the two take turns on BOTH B70s. Run by the `ArcServeNight` task (no trigger). See "The night shape" below. |
+| `serve-arc-night.cmd`, `llama-swap/omen-night.yaml` | **the NIGHT shape** (2026-09-12): no production entry; Qwen3.8-Flash-Next (full placement, fork binary) and Qwen3.8-27B in one `swap: true, exclusive: true` group, so the two take turns on BOTH B70s. Run by the `ArcServeNight` task (no trigger; interactive token, least privilege -- created without elevation, so it needs Derek's session to be logged in, which a night epoch always has). See "The night shape" below. |
 | `warm-arc.ps1`, `arc-serviceability.ps1`, `serve-arc-oss.cmd` | predate the cutover and are not part of it (`warm-arc.ps1` is the fx99 keep-alive's warm probe against `:8082` and is one of the consumers the cutover kept byte-identical). |
 
 ## The launcher, step by step (`serve-arc.cmd`)

@@ -4,8 +4,8 @@ rem Runs llama-swap with fleet\arcserve\llama-swap\omen-night.yaml: NO productio
 rem (full placement, fork binary) and Qwen3.8-27B (knee binary) in one exclusive swap group. Everything on
 rem :8082 is down for the epoch by design (ADR-0040 "epochs remain the shape for Flash-Next").
 rem
-rem Run by the ArcServeNight scheduled task (same principal as ArcServeBoot, NO boot trigger -- a night
-rem epoch is always a deliberate, Derek-called state). Ceremony, all from PowerShell:
+rem Run by the ArcServeNight scheduled task (interactive token, least privilege, NO trigger -- created
+rem without elevation on 2026-09-12; a night epoch is always a deliberate, Derek-called state). Ceremony, all from PowerShell:
 rem   1. ssh fx99 sudo systemctl stop arc-keepalive.timer arc-keepalive-deep.timer   (the deep unit's
 rem      ExecStartPost can boot the day shape over this one via ArcServeRestart)
 rem   2. echo nightshift-epoch %DATE% %TIME% > hearth\var\arc-maintenance.stop   (holds every other

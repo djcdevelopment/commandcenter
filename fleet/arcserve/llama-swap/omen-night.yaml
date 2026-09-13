@@ -48,6 +48,8 @@ startPort: 18400
 globalTTL: 0
 
 models:
+  # -lv 3 (was 5) since 2026-09-13: at -lv 5 llama-server writes request CONTENT into the log file, and the
+  # friend gate (ADR-0046) now sends other people's prompts through these entries. Lower verbosity = no bodies.
   # ---- Qwen3.8-Flash-Next, full placement, dual-split, fork binary ------------------------------------
   "qwen38-flash-dual":
     cmd: >
@@ -59,7 +61,7 @@ models:
       -fa on --no-mmap -dio -fit off
       -c 32768 -np 1 -ub 1024
       --host 127.0.0.1 --port ${PORT}
-      --slots --jinja --metrics --reasoning-format deepseek -lv 5
+      --slots --jinja --metrics --reasoning-format deepseek -lv 3
     ttl: 0
 
   # ---- Qwen3.8-27B dense, dual-split, knee binary (verbatim from omen.yaml) ---------------------------
@@ -73,7 +75,7 @@ models:
       -fa on --no-mmap -dio -fit off
       -c 32768 -np 1 -ub 1024
       --host 127.0.0.1 --port ${PORT}
-      --slots --jinja -lv 5 --slot-save-path E:\work\battlemage\kv\
+      --slots --jinja -lv 3 --slot-save-path E:\work\battlemage\kv\
     ttl: 0
 
   # ---- Qwen3.8-27B + draft-MTP (the campaign's largest measured win: 510 -> 1591 jobs/h, acceptance
@@ -93,7 +95,7 @@ models:
       -fa on --no-mmap -dio -fit off
       -c 262144 -np 2 --kv-unified -ub 1024
       --host 127.0.0.1 --port ${PORT}
-      --slots --jinja -lv 5 --slot-save-path E:\work\battlemage\kv\
+      --slots --jinja -lv 3 --slot-save-path E:\work\battlemage\kv\
       -md E:\work\battlemage\models\qwen38\mtp-Qwen3.8-27B-Q4_0.gguf --spec-type draft-mtp --spec-default --spec-draft-n-max 3
     ttl: 0
 
@@ -111,7 +113,7 @@ models:
       -fa on --no-mmap -dio -fit off
       -c 16384 -np 1
       --host 127.0.0.1 --port ${PORT}
-      --slots --jinja -lv 5
+      --slots --jinja -lv 3
     ttl: 0
 
 hooks:

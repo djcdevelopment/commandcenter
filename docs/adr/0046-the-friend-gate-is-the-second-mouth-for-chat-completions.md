@@ -104,4 +104,7 @@ unattributable (ADR-0018 §3 made that doctrine).
   one; `/mcp` still the gateway's; `/running`, `/v1/running` 404; a streamed German completion
   (*"e.V. steht für eingetragener Verein."*, 12 tokens) with a usage row attributed to the test key;
   the key absent from both Caddy logs.
-- Pending: an agent-harness lap from a second machine (OpenHands on the i5 against the public URL).
+- Agent-harness lap (07:30): the OpenHands SDK inside a container (a stand-in for the friend's machine)
+  against `https://omen.tail8e749c.ts.net/v1` with a test key created `termine.py`, ran it and verified the
+  output — 4 LLM calls, 13.1k in / 310 out, 51 s including the sandbox boot; the four rows are in
+  `usage.ndjson` under the test key. Still to do on a physically separate machine (the i5) when convenient.

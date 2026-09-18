@@ -1,0 +1,7 @@
+# R&D edge log — commandcenter
+
+Lap-selection aid, not a backlog. One edge ends a lap. A clean sample is a result.
+
+| Lap (UTC) | Probe | Edge found | Evidence | Re-run | Not sampled / suspected |
+| --- | --- | --- | --- | --- | --- |
+| 2026-09-18T01:29Z (cc-04e8b85c, lap 1) | Where does the control plane stop a prompt the AM4 dense rung (llama-server, 4096-token slot) cannot hold; which layer, loud or silent | **The validator does not see the pack.** A 5,336-token pack with the envelope claiming `max_context_tokens=4096` validated clean (it prices the envelope's claim against the rung's `context_bytes`, never the bytes it will send); llama-server refused it loudly through the facade — HTTP 400 `exceed_context_size_error` (n_prompt_tokens 5336, n_ctx 4096), no silent truncation; the attempt receipt kept only "HTTP Error 400: Bad Request" and dropped the body that says why | `runs/operator/run-rnd1-over6k-20260918T012916Z` (attempt_ef7e37ea…, `outcome.final` failed, 0.203 s); 400 body via direct curl to `192.168.12.233:8090/v1/chat/completions` | `bash <scratchpad>/rnd_lap1.sh over6k 4096 hearth/operator/proposal.py` from the operator-program worktree with `HEARTH_API_KEY` + `HEARTH_ROOT` set | a 3.5k–4k pack (does `max_tokens=1024` output push a near-full prompt over `n_ctx`?); the same probe through the door (pinned `am4-dense` should refuse at 14,336 bytes before dispatch — untested); drafter counting the pack's bytes itself; ingesting the 400 body into the receipt (suspected 3 lines in `execute.py`, deferred) |

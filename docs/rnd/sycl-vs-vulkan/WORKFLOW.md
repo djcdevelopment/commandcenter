@@ -267,7 +267,15 @@ processing and slower on generation — consistent with the SYCL prefill story a
   ≤16k (decode 19.1 short / 12.3 at 16k vs single-card 21.5 / 12.2; prefill 622 vs single 810) because every layer
   round-trips through the host; output matches Vulkan's. Re-tested at 119k in L4.
 - Trap: cmd splits `.cmd` arguments on `;` and `,` — quote the device selector and `-ts`.
-### L4 — depth ladder — PENDING
+### L4 — depth ladder — DONE 2026-09-19 07:05Z: the knee is gone; tensor split moves decode at depth
+- SYCL dual layer-split (27B, q4_0 KV, both B70s), prefill tok/s at 16k / 30k / 60k / 119k: **813 / 817 / 736 / 614**
+  vs Vulkan dual 609 / 443 / — / 117. 119k prefills in 194 s vs 1,015 s (5.2×). Decode 14.0 / 10.5 / 7.0 / 4.24 vs
+  Vulkan 15.2 / 11.4 / — / 4.9.
+- `-sm tensor` at 119k: prefill 482 tok/s, **decode 6.74 tok/s** (+59 % over SYCL layer, +38 % over Vulkan) — the
+  first thing to move the depth-decode ceiling; output identical to layer-split.
+- D2: the MemSplice multiplier at 119k drops from 9.8× to 1.9× against SYCL-local; the route threshold moves, the
+  scoreboard rationale (B70 prefill time is lost decode time) stands. D3: the depth specialist's engine candidate is
+  SYCL tensor-split.
 ### L5 — jobs/h at -np 8 × 16k — PENDING
 ### L6 — deep concurrency — PENDING
 ### L7 — cross-backend KV — PENDING

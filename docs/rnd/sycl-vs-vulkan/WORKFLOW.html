@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SYCL vs Vulkan — R&amp;D workflow</title>
+<meta name="description" content="Hand-written view of docs/rnd/sycl-vs-vulkan/WORKFLOW.md — the ladder, the decision chain it feeds, baselines, and results filled lap by lap.">
+<style>
+  :root {
+    --bg: #f7f6f2; --fg: #1d1d1b; --muted: #5d5b55; --card: #ffffff; --line: #d9d6cc;
+    --accent: #7a4b1f; --ok: #2f6b3a; --warn: #9a5b12; --bad: #9b2c2c; --pending: #6b6b6b;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161614; --fg: #e8e5dc; --muted: #a29e93; --card: #1f1f1c; --line: #34332e;
+      --accent: #d9a86a; --ok: #7fc48d; --warn: #e0a95a; --bad: #e07c7c; --pending: #8f8f8f;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161614; --fg: #e8e5dc; --muted: #a29e93; --card: #1f1f1c; --line: #34332e;
+    --accent: #d9a86a; --ok: #7fc48d; --warn: #e0a95a; --bad: #e07c7c; --pending: #8f8f8f;
+  }
+  html, body { background: var(--bg); color: var(--fg); }
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  h2 { font-size: 1.15rem; margin: 32px 0 10px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  h3 { font-size: 1rem; margin: 18px 0 6px; }
+  p, li { max-width: 78ch; }
+  .sub { color: var(--muted); margin: 0 0 16px; }
+  code { font-family: var(--mono); font-size: 0.9em; background: color-mix(in srgb, var(--line) 45%, transparent); padding: 1px 4px; border-radius: 3px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+  .card h3 { margin: 0 0 6px; display: flex; align-items: baseline; gap: 8px; }
+  .lap { font-family: var(--mono); color: var(--accent); font-size: 0.85em; }
+  .feeds { color: var(--muted); font-size: 0.9em; margin-top: 8px; }
+  .status { display: inline-block; font-size: 0.75em; font-family: var(--mono); padding: 1px 6px; border-radius: 10px; border: 1px solid currentColor; }
+  .done { color: var(--ok); } .pending { color: var(--pending); } .blocked { color: var(--bad); } .live { color: var(--warn); }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; }
+  dt { font-family: var(--mono); color: var(--accent); }
+  dd { margin: 0; }
+  .decisions li { margin-bottom: 8px; }
+  .note { border-left: 3px solid var(--accent); padding: 6px 12px; background: var(--card); margin: 12px 0; }
+  ul { padding-left: 20px; }
+  @media (max-width: 600px) { dl { grid-template-columns: 1fr; } dt { margin-top: 6px; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>SYCL vs Vulkan on the B70s</h1>
+  <p class="sub">An R&amp;D workflow: is there a faster engine under the fleet? Designed 2026-09-19. Source of truth is <code>WORKFLOW.md</code> beside this page; the register is <code>docs/rnd-log.md</code>.</p>
+
+  <div class="note">
+    <strong>Scope (Derek):</strong> Windows-only, llama.cpp SYCL via oneAPI. A winner may replace anything, production <code>omen-arc</code> included. Open-ended until the ladder is complete; written verdict either way. vLLM is parked with a reopen condition (bottom).<br>
+    <strong>Scoreboard:</strong> total throughput × accuracy of work completed on local hardware, B70s kept decoding — not per-request latency.
+  </div>
+
+  <h2>Why now</h2>
+  <p>Every number shaping decisions today is a Vulkan-on-Xe2 number from one engine (the knee fork, build 52 / <code>60cdd25</code>): the dual-B70 prefill knee 609 → 443 → 117 tok/s from 16k to 119k, decode 4.9 tok/s at 119k with aggregate capped near 6, production's 105 tok/s and 3,358 jobs/h at <code>-np 8</code>. llama.cpp PR #25222 (2026-07-15) put oneDNN/XMX flash attention into the SYCL backend and reports 4.26× prefill at 80k on a B70 — exactly where Vulkan collapses. Against it: the one same-card comparison has Vulkan ahead on 8-stream decode; SYCL on Battlemage carries open correctness bugs. Nothing measures both backends' newest kernels on the same card at the same depth. That gap is the experiment.</p>
+
+  <h2>The decision chain</h2>
+  <ul class="decisions">
+    <li><strong>D1 — production's engine.</strong> SYCL replaces the Vulkan fork only if it clears production's own bar on production's shape: ≥ 105 tok/s single-stream, ≥ 3,358 jobs/h at <code>-np 8</code> × 16k, dual-split MoE loads, T=0 answers equal to Vulkan's, Q4 200-row CV ≤ ~2.3%, zero TDR/WHEA soak. Any miss → not the default.</li>
+    <li><strong>D2 — MemSplice's shape and the long-task route.</strong> If SYCL prefills the 27B near 500 tok/s at 120k on one B70, disaggregation drops from 9.8× to ~3× and the route threshold moves. If SYCL moves the <em>decode</em> ceiling at depth, the depth economics change — the number nobody has published.</li>
+    <li><strong>D3 — the depth specialist rung</strong> (<code>omen-arc-27b</code>). Engine choice is per rung: SYCL can win here and lose D1.</li>
+    <li><strong>D4 — parked upstream work.</strong> The across-layouts KV patch is backend-agnostic and stays. The Vulkan FA rebase (#24406) is measured first so every comparison is best-vs-best.</li>
+    <li><strong>D5 — the door.</strong> Any candidate seat is a pin-only <code>[[backend]]</code> stanza — zero code — so the bake-off lands on the ledger.</li>
+    <li><strong>D6 — the OS.</strong> Untouched. vLLM reopens only on native Linux or a B70 back in AM4; WSL2 is not a path on this host.</li>
+  </ul>
+
+  <h2>The ladder</h2>
+  <div class="grid">
+    <div class="card"><h3><span class="lap">L0</span> Desk research <span class="status done">done</span></h3>vLLM parked; SYCL in; Vulkan FA rebase is an arm; correctness is a gate. Prior attempts re-dated to May–June 2026.<div class="feeds">feeds: this document</div></div>
+    <div class="card"><h3><span class="lap">L1</span> Environment <span class="status pending">pending</span></h3>oneAPI on OMEN (needs Derek's go); build the fork at <code>60cdd25</code> in <code>build-sycl</code>; both B70s enumerate under Level Zero.<div class="feeds">edge: build / enumeration · feeds: go/no-go · stop: blocked → verdict</div></div>
+    <div class="card"><h3><span class="lap">L1b</span> Vulkan arm <span class="status pending">pending</span></h3>Is #24406 merged? If so, <code>build-vk-next</code> from master + cherry-picks; llama-bench vs production Vulkan.<div class="feeds">edge: prefill gain without leaving Vulkan · feeds: D4, sets the Vulkan side of every later lap</div></div>
+    <div class="card"><h3><span class="lap">L2</span> Single-card sanity + correctness <span class="status pending">pending</span></h3>30B-A3B and 27B on one B70, SYCL vs Vulkan; llama-bench; T=0 answers token-for-token; with and without <code>GGML_SYCL_DISABLE_OPT=1</code>.<div class="feeds">edge: garbled / divergent output · feeds: D1 gate, D3 · stop: correctness-blocked</div></div>
+    <div class="card"><h3><span class="lap">L3</span> Production's shapes <span class="status pending">pending</span></h3>MoE dual layer-split at <code>-np 8</code> (does #22885 bite?); 27B dual; <code>-sm tensor</code> once.<div class="feeds">edge: does the production shape exist on SYCL · feeds: D1 (fail → D2/D3 only)</div></div>
+    <div class="card"><h3><span class="lap">L4</span> Depth ladder <span class="status pending">pending</span></h3>27B, q4_0 KV, 16k / 30k / 60k / 119k prefill + decode, SYCL single and dual vs the Vulkan numbers on file.<div class="feeds">edge: does #25222 hold at 120k; decode at depth · feeds: D2, D3</div></div>
+    <div class="card"><h3><span class="lap">L5</span> Jobs/h at <code>-np 8</code> × 16k <span class="status pending">pending</span></h3>SAT-L1 harness through the door (pin-only <code>omen-arc-sycl</code>); also <code>-np 16</code>, where Vulkan's MMV cliff cost 32%.<div class="feeds">edge: the aggregate ratio and the -np curve · feeds: D1 (the scoreboard's unit)</div></div>
+    <div class="card"><h3><span class="lap">L6</span> Deep concurrency <span class="status pending">pending</span></h3>Eight 119k contexts, non-unified with the patch, on a SYCL dual seat.<div class="feeds">edge: the ~6 tok/s ceiling · feeds: D2, D4</div></div>
+    <div class="card"><h3><span class="lap">L7</span> Cross-backend KV <span class="status pending">pending</span></h3>Restore the CUDA-made 119k q4_0 state into a SYCL seat; compare to Vulkan's decoded text.<div class="feeds">edge: a SYCL quantized-KV divergence · feeds: D2</div></div>
+    <div class="card"><h3><span class="lap">L8</span> Soak + verdict <span class="status pending">pending</span></h3>Only if a SYCL shape won: hours-long soak, TDR/WHEA, 200-row CV; ADR verdict — promote / depth specialist only / do_not_promote.<div class="feeds">feeds: D1 / D3 promotion (Derek's action)</div></div>
+  </div>
+  <p class="sub">Order: L1 → L1b → L2 → L3 → L4 → L5 → L6 → L7 → L8. L1 or L2 failing ends the ladder with a verdict; L3 failing removes D1 and continues for D2/D3.</p>
+
+  <h2>Baselines on file</h2>
+  <dl>
+    <dt>production single-stream</dt><dd>105.33 tok/s epoch baseline (deep probe), 110 observed</dd>
+    <dt>production -np 8 × 16k</dt><dd>3,358 jobs/h at 512-token prompts; -np 16 regresses 32%</dd>
+    <dt>27B dual-B70 prefill</dt><dd>609 (16k) / 443 (30k) / 117 (119k) tok/s; single 370 / 247</dd>
+    <dt>27B decode at depth</dt><dd>15.2 / 11.4 / 4.9 tok/s (dual); aggregate ~6 at 119k for 1–8 streams</dd>
+    <dt>AM4 prefill (alternative)</dt><dd>2239 / 2197 / 1898 / 1462 tok/s at 16k / 30k / 60k / 120k</dd>
+    <dt>OMEN-LIMIT-TEST</dt><dd>Q4 200-row CV 2.3%, zero TDR/WHEA over ~6.5 h</dd>
+  </dl>
+
+  <h2>Ceremony and constraints</h2>
+  <ul>
+    <li>Production down only inside: fx99 timers stop → sentinel → <code>ArcServeRestart</code> → … → <code>ArcServeBoot</code> → timers start → one quiet deep-probe tick → <code>query_rung_state</code>.</li>
+    <li>Never rebuild <code>E:\work\llamacpp-knee\build</code> in place; new trees only. SYCL launches source <code>setvars.bat</code>; Vulkan trees need <code>vulkan-1.dll</code> beside the exe.</li>
+    <li>Experiment seats outside llama-swap: <code>:8095</code> Vulkan, <code>:8096</code> SYCL. Imagegen shares the cards.</li>
+    <li>One edge per lap; a clean sample is a result; a can't-answer-why row stops the lap.</li>
+  </ul>
+
+  <h2>Results</h2>
+  <p><strong>L0 — done (2026-09-19).</strong> vLLM parked (Linux-only; WSL2 dual-Arc bridge kernel-dead on this host per ember ADR-0012; no XPU KV connector; no cross-vendor P/D). SYCL in on the strength of PR #25222, gated by #21893 / #20169 / #19276 correctness bugs. Prior attempts re-dated to May–June 2026.</p>
+  <p class="sub">Later laps append here as they close.</p>
+
+  <h2>vLLM — parked</h2>
+  <p>Reopen when OMEN boots Linux natively (<code>vllm/vllm-openai-xpu:latest</code>, v0.29+, TP=2 with the vllm#41663 env set, Qwen3.6-27B / Qwen3.5-35B-A3B FP8 from recipes.vllm.ai) or a B70 returns to AM4. Not before: no Windows wheel, WSL2 bridge dead, no XPU KV connector, no cross-vendor P/D.</p>
+</main>
+</body>
+</html>

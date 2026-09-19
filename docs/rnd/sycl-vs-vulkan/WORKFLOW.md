@@ -221,6 +221,8 @@ processing and slower on generation — consistent with the SYCL prefill story a
 
 ## Results (filled lap by lap)
 
+See also `LEVERS-256K.md` — the inventory of every asset that could move the 256k objective, ranked.
+
 ### L0 — desk research (2026-09-19) — DONE
 - Sources: three read-only sweeps (local estate; vLLM XPU; llama.cpp SYCL / IPEX-LLM), summarised in the
   Context section above; full agent reports in the session transcript for cc-544e4480.
@@ -285,6 +287,51 @@ processing and slower on generation — consistent with the SYCL prefill story a
   tok/s, decode 5.89 tok/s**, correct answer.
 - T=0 output changes with `-ub` (batch-shape sensitivity) — reproducible only for a fixed (backend, ubatch).
 - Levers still untried: f16 on tensor split; f16 on Vulkan; MTP at depth; the oneDNN-for-decode gate; RPC pipeline.
+
+### L4d — decode levers without new hardware — DONE 2026-09-19 10:22Z
+- f16 + tensor split at 119k: decode 10.24 tok/s (layer f16 9.41, +9 %), prefill 555 (layer 713, −22 %) — the two
+  decode gains do not stack; **layer split + f16 is the all-round seat**.
+- MTP on 256k f16 `-ub 4096` overfilled a B70: **WDDM spilled 24.8 GB to system RAM silently** (denning's cliff, live);
+  `gpu-mem-gate.ps1` now checks the adapter counters before a run. Budgeted MTP seat (`-c 131072 -ub 2048`) launched
+  clean but not measured (interrupted).
+- Incident inside the window: a runaway Explore-agent `grep -r` over `E:\workattlemage` (the models dir) saturated
+  E: for ~20 min; two production loads died at llama-swap's 5-min timeout; misdiagnosed as WDDM, cards reset for
+  nothing. Rule recorded in memory: disk counters first; no recursive searches over model trees.
+- **B2 MTP** (`draft-mtp`, n_max 3, layer f16 `-ub 2048`): 119k decode **19.98 tok/s** (9.41 without, 2.1×; 76 % accepted;
+  output identical over 128 tokens); **248k decode 14.37 tok/s** (5.89 without, 2.4×), prefill 442, correct answer.
+- **B3 n-gram** (`ngram-cache`): 6.30 tok/s at 119k — worse than none (12 % accepted on explanatory prose). Negative.
+- Depth-decode arc on the same two cards tonight: 119k 4.24 → 9.41 → **19.98**; 248k 2.24 → 5.89 → **14.37**.
+- Denning detour (read, not run): its spill cliff, admission-control conclusion, `-fit` finding and restore-vs-re-prefill
+  ratios all transfer directly; PDH `non_local` is nearly blind under SYCL — use `b70tools verdict` with that caveat.
+
+### L4e / L4f — Derek's research list — DONE 2026-09-19 11:35Z
+- **Asymmetric KV** (q8_0/q4_1 and f16/q4_0) on SYCL at 119k: decode 5.84 / 5.80 (f16 9.41, q4_0 4.24) — a memory lever
+  (3.4 GB/card at 256k), not a speed lever; f16/q4_0 also loses 44 % prefill (fails the oneDNN type gate).
+- **AOT (`GGML_SYCL_DEVICE_ARCH=bmg-g31`)**: identical to JIT within noise. Negative.
+- **RPC four-GPU pipeline** (AM4's pair + the B70s, 1 GbE): loads and runs; decode **11.7 tok/s at 119k (+24 %)**,
+  prefill 498 (−28 %); one rpc-server for both remote cards halves the wire crossings vs two. On this link it is a
+  decode lever only. Flash-Next shard 1 is a 0-byte file — no MoE+MTP lap until it is re-downloaded.
+- **MTP** was already done (L4d). oneDNN FA was already on.
+
+### L4g — the rest of the list — DONE 2026-09-19 11:55Z: restore into four devices; 24.9 tok/s at 119k
+- Vulkan f16 at 30k: prefill +28 %, decode 10.10 (q4_0 11.4) — the f16 decode unlock is SYCL-only.
+- SYCL q8_0/q8_0: 4.15 tok/s — the KV ladder on SYCL: q8 < q4 < q8/q4_1 ≈ f16/q4 < **f16 9.41**.
+- An f16 119k state saved on the B70s (16 s, 7.97 GB) **restores into the four-device RPC cache** (40 s) and
+  decodes with MTP: 21.6 tok/s; with `-ts 2,2,1,1` **24.9 tok/s** — the fleet's best at depth. n_max 6 is worse (15.0).
+- fx99 as a fifth device: blocked on CUDA arch (AM4's build has no sm_75); `build-sm75` building.
+
+### L4h — 256k on four devices; Flash-Next — DONE 2026-09-19 14:30Z
+- The 27B's 248k f16 state restores into the four-device cache (34–62 s) and decodes with MTP at 13.1–14.0 tok/s —
+  **parity with the dual B70s (14.37)**, not a win: at 256k the NVIDIA cards cannot carry the layer share that won at 119k.
+- **Qwen3.8-Flash-Next (qwen4exp, 512×10 MoE, hybrid) runs across all four GPUs at 262144 context** on the master build:
+  `-ts 4,5,20,19 -ub 512`, B70s at 29.8/29.1 GB (under the cliff, no spill); `--load-mode none --lazy-mode off` pins the
+  27 GB per-layer embedding in host memory (the mmap default page-faults it from disk: 98 → 287 tok/s cold vs warm at 16k).
+  16k: 287 tok/s prefill, 21 tok/s decode, correct answer, T=0 non-deterministic (SYCL MoE).
+  **248k body: 51 min prefill (81 tok/s average, falling with depth), decode 3.5 tok/s (two samples), coherent grounded
+  answer; the hybrid state is 6.5 GB (28 KB/token) and saves in 28 s.** Nothing is saturated at depth — can't-answer-why
+  row. The 27B (8.5 min / 14.4 tok/s with MTP) remains the better 256k worker today.
+- First 256k launch refused loudly (RPC0 compute buffer 6.2 GB at `-ub 1024`) — the fix was the split + ubatch, not memory.
+- Incident, again: five other sessions' `grep -r … /e/work` sweeps (the models dir) had E: at 199–317 % during the runs; killed.
 
 ### L5 — jobs/h at -np 8 × 16k — PENDING
 ### L6 — deep concurrency — PENDING

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Levers for 256k</title>
+<meta name="description" content="Inventory of every asset on the fleet and in the fork that could move a 256k Qwen3.8-27B run — measured, untested, or closed with a reopen condition.">
+<style>
+  :root { --bg:#f7f6f2; --fg:#1d1d1b; --muted:#5d5b55; --card:#fff; --line:#d9d6cc; --accent:#7a4b1f; --ok:#2f6b3a; --warn:#9a5b12; --pending:#6b6b6b; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#161614; --fg:#e8e5dc; --muted:#a29e93; --card:#1f1f1c; --line:#34332e; --accent:#d9a86a; --ok:#7fc48d; --warn:#e0a95a; --pending:#8f8f8f; } }
+  :root[data-theme="dark"] { --bg:#161614; --fg:#e8e5dc; --muted:#a29e93; --card:#1f1f1c; --line:#34332e; --accent:#d9a86a; --ok:#7fc48d; --warn:#e0a95a; --pending:#8f8f8f; }
+  html, body { background: var(--bg); color: var(--fg); }
+  body { margin:0; font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size:1.5rem; margin:0 0 4px; } h2 { font-size:1.15rem; margin:30px 0 10px; border-bottom:1px solid var(--line); padding-bottom:4px; } h3 { font-size:1rem; margin:16px 0 6px; }
+  p, li { max-width: 80ch; } .sub { color: var(--muted); }
+  code { font-family: var(--mono); font-size:.9em; background: color-mix(in srgb, var(--line) 45%, transparent); padding:1px 4px; border-radius:3px; }
+  .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap:12px; }
+  .card { background: var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 14px; }
+  .card h3 { margin:0 0 6px; display:flex; gap:8px; align-items:baseline; }
+  .id { font-family: var(--mono); color: var(--accent); font-size:.85em; }
+  .tag { display:inline-block; font-size:.72em; font-family: var(--mono); padding:1px 6px; border-radius:10px; border:1px solid currentColor; }
+  .measured { color: var(--ok); } .untested { color: var(--warn); } .closed { color: var(--pending); }
+  .cost { color: var(--muted); font-size:.9em; margin-top:8px; }
+  .note { border-left:3px solid var(--accent); padding:6px 12px; background: var(--card); margin:12px 0; }
+  ul { padding-left:20px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Levers for 256k Qwen3.8-27B</h1>
+  <p class="sub">What exists on the fleet and in the fork that could move a 256k run — inventoried 2026-09-19, source of truth <code>LEVERS-256K.md</code>. Nothing here is a "no": each item is measured, untested, or closed with a reopen condition.</p>
+
+  <div class="note"><strong>Where we stand:</strong> both B70s, SYCL, layer split, f16 KV, <code>-ub 4096</code>: 248,515 tokens in <strong>8.5 min</strong> (485 tok/s), decode <strong>5.89 tok/s</strong>, correct answer. AM4+B70 hybrid 7.2 min (q4_0). Bar: ~3 min.</div>
+
+  <h2>Hardware that exists</h2>
+  <ul>
+    <li><strong>OMEN</strong>: 2× Arc Pro B70 32 GB; 285K 24C; 127 GB RAM; Intel iGPU (<code>SYCL2</code>, 69 GB shared); <strong>NPU</strong> (Intel AI Boost); <strong>Marvell AQtion 10GbE</strong> (linked at 1G — far end is 1G) + I226-V 1G; WSL2 + Docker Desktop; NVMe KV parking.</li>
+    <li><strong>AM4</strong>: RTX 4070 Ti 12 GB + RTX 5070 12 GB (CUDA 13.2); 5900X; 30 GB RAM; I211 <strong>1 GbE</strong>; oneAPI 2026.0, no Intel GPU.</li>
+    <li><strong>fx99</strong>: RTX 2070 SUPER 8 GB; Ollama qwen2.5-coder:7b; monitoring + keep-alive + bastion; LAN 1G.</li>
+    <li><strong>Wires</strong>: OMEN↔AM4 direct 1 GbE (112 MB/s); LAN 1G to fx99.</li>
+  </ul>
+
+  <h2>Software that exists</h2>
+  <ul>
+    <li>The knee fork @ <code>60cdd25</code> + across-layouts restore: Vulkan (production), <strong>SYCL</strong> (oneDNN/oneMKL XMX), CUDA on AM4. Backends present but OFF: <strong><code>ggml-rpc</code></strong>, <strong><code>ggml-openvino</code></strong> (CPU/GPU/NPU), <code>ggml-opencl</code>.</li>
+    <li>Flags in this build: <code>-sm layer|tensor</code>, <code>-ot</code>, <code>-nkvo</code>, <code>-dev</code>, <code>--fit</code>, <code>--cache-ram</code>, <code>--ctx-checkpoints</code>, <code>-kvu</code>, speculative <code>draft-mtp | eagle3 | dflash | ngram-*</code>, <code>-md</code>, <strong><code>-devd</code></strong> (draft device).</li>
+    <li>Models: 27B Q4_K_M + <strong><code>mtp-Qwen3.8-27B-Q4_0</code></strong> + mmproj; Flash-Next MTP; 30B-A3B; 70B; others.</li>
+    <li>MemSplice (save → wire → restore, vendor- and backend-agnostic; drivers), <code>sycl-*.cmd</code>, build recipes.</li>
+    <li>OpenVINO 2026.3 venv seeing <code>CPU, GPU.0, GPU.1, GPU.2, NPU</code>; GenAI not installed (Qwen3.8-27B needs 2026.4+; one community number: 13.9 tok/s short decode on a B70).</li>
+    <li>HEARTH door / control plane / scheduler; upstream PR #24406 pending; our PR parked.</li>
+  </ul>
+
+  <h2>Limit A — deep prefill (485 tok/s at 248k; bar ~1,400)</h2>
+  <div class="grid">
+    <div class="card"><h3><span class="id">A1</span> Four-GPU RPC pipeline <span class="tag untested">untested</span></h3>AM4's pair + the B70s as one layer-split model over the direct link. AM4's 128k ceiling vanishes; prefill scales with pipeline depth (~2× → ~4 min); no wire step, no restore.<div class="cost">cost: two GGML_RPC=ON rebuilds + a lap · the structural lever</div></div>
+    <div class="card"><h3><span class="id">A2</span> AM4 carries all 256k <span class="tag untested">untested</span></h3>IQ4_XS/Q3_K_M on AM4 fits 256k q4_0 KV on the 12 GB pair → ~1,200 tok/s ≈ <strong>3.5 min</strong>, then ship. Ship size is the catch (q4_0 5 GB vs f16 16 GB).<div class="cost">cost: a ~15 GB download · pairs with A3</div></div>
+    <div class="card"><h3><span class="id">A3</span> 10 GbE <span class="tag untested">hardware</span></h3>OMEN already has the 10G port; AM4 needs a 2.5/10 GbE NIC. Wire 2.5–10×: an f16 256k state ships in ~16 s.<div class="cost">cost: a $30–100 part</div></div>
+    <div class="card"><h3><span class="id">A4</span> Two-card independent prefill <span class="tag measured">policy</span></h3>SYCL single-card prefill ≈ dual (810 vs 813 at 16k) → two prompts on separate cards ≈ 2× aggregate; decode together on tensor split.<div class="cost">cost: none · job-shop routing</div></div>
+    <div class="card"><h3><span class="id">A5</span> Batch shape <span class="tag measured">spent</span></h3><code>-ub 4096 -b 8192</code> +19 %, next step +3 %.<div class="cost">done</div></div>
+    <div class="card"><h3><span class="id">A6</span> Vulkan #24406 <span class="tag untested">upstream</span></h3>Intel's Xe FA kernels for Vulkan; not merged as of 60081bb; <code>build-vk-next.cmd</code> ready.<div class="cost">cost: wait</div></div>
+    <div class="card"><h3><span class="id">A7</span> OpenVINO GenAI on the B70s <span class="tag untested">untested</span></h3>Paged attention, continuous batching, KV compression; depth unmeasured; short decode 13.9 tok/s (below llama.cpp).<div class="cost">cost: venv bump to 2026.4+, re-export · only if A1–A3 stall</div></div>
+  </div>
+
+  <h2>Limit B — decode at depth (5.89 tok/s at 248k)</h2>
+  <div class="grid">
+    <div class="card"><h3><span class="id">B1</span> f16 KV on tensor split <span class="tag untested">untested</span></h3>Tonight's two decode gains were measured separately; they may stack.<div class="cost">cost: one relaunch</div></div>
+    <div class="card"><h3><span class="id">B2</span> MTP <span class="tag untested">untested at depth</span></h3><code>--spec-type draft-mtp -md mtp-Qwen3.8-27B-Q4_0.gguf</code>. A 4-token verify pays the attention read once; nightshift saw 2.1× on Vulkan at short context.<div class="cost">cost: one flag · check T=0 equivalence</div></div>
+    <div class="card"><h3><span class="id">B3</span> n-gram speculation <span class="tag untested">untested</span></h3><code>--spec-type ngram-cache</code>: drafts from the prompt's own repetition, no draft model. Source-code prompts repeat a lot.<div class="cost">cost: one flag, zero memory</div></div>
+    <div class="card"><h3><span class="id">B4</span> oneDNN for decode <span class="tag untested">fork patch</span></h3>Lower the ≥32-query-token gate for f16 KV at long KV. Unknown whether fused SDPA beats VEC at q=1.<div class="cost">cost: one line + rebuild</div></div>
+    <div class="card"><h3><span class="id">B5</span> Draft model on iGPU/CPU/NPU <span class="tag untested">untested</span></h3><code>-md &lt;small&gt; -devd SYCL2</code> (or CPU; NPU via ggml-openvino is the exotic route). Keeps B70 VRAM for KV.<div class="cost">cost: a ~1 GB draft GGUF download</div></div>
+    <div class="card"><h3><span class="id">B6</span> q8_0 KV <span class="tag untested">untested</span></h3>Middle ground between q4_0 memory and f16 decode speed.<div class="cost">cost: one relaunch</div></div>
+  </div>
+
+  <h2>Exists, but does not move this objective — with the reopen condition</h2>
+  <ul>
+    <li><strong>NPU</strong>: reachable via OpenVINO GenAI and via <code>ggml-openvino</code> (<code>GGML_OPENVINO_DEVICE=NPU</code>); static graph, stateless, ≤8B-class, 256-token prefill chunks, no parallel sequences. Could host a <em>draft</em> model (B5). Reopen: a draft-device path that measurably lifts B70 decode, or NPU hardware with real bandwidth.</li>
+    <li><strong>fx99</strong>: cannot hold the 27B; under A1 it can carry a few layers as a third RPC host over the LAN (~10 % more prefill capacity, pipeline paced by its slowest stage). Reopen after A1 proves out on four GPUs.</li>
+    <li><strong>iGPU</strong>: slowest pipeline stage; plausible draft device (B5). <strong>CPU</strong>: draft device, <code>-ot</code> target. <strong>WSL2/Docker → vLLM</strong>: dual-Arc bridge dead; single-Arc untested since June. <strong>ggml-opencl</strong>: Adreno-focused, untested on Xe2. <strong>Flash-Next</strong>: different model. <strong>llm-scaler</strong>: Linux only.</li>
+  </ul>
+
+  <h2>Recommended order</h2>
+  <ol>
+    <li><strong>B1 + B2 + B3</strong> in one window (~30 min) — decode at depth is where the momentum is.</li>
+    <li><strong>A1</strong> the four-GPU RPC pipeline (~1 h incl. builds) — the only lever that changes the prefill ceiling.</li>
+    <li><strong>A3 + A2</strong> — a NIC for AM4 and an IQ4_XS 27B: the AM4-alone ~3.5-minute path with a 16-second ship.</li>
+    <li><strong>B4</strong> and <strong>A7</strong> only if 1–3 leave the bars unmet.</li>
+  </ol>
+</main>
+</body>
+</html>

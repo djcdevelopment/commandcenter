@@ -585,6 +585,13 @@ def wire_knowledge_guards(guards: GuardStack, providers: dict[str, list[Callable
     for module_name, tools in providers.items():
         if module_name.endswith(KNOWLEDGE_MODULE_SUFFIX):
             guards.register_knowledge_tools(fn.__name__ for fn in tools)
+        else:
+            # Restricted aggregators re-export the original provider functions.
+            # Preserve their verified knowledge-family origin; never grant the
+            # same access to generic read_file or other aggregate members.
+            guards.register_knowledge_tools(
+                fn.__name__ for fn in tools
+                if getattr(fn, "__module__", "").endswith(KNOWLEDGE_MODULE_SUFFIX))
     guards.register_knowledge_tools(EXTRA_KNOWLEDGE_READERS)
 
 

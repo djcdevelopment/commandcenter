@@ -75,7 +75,7 @@ _BACKSLASH_RE = re.compile(r"\\")
 # Never let a Windows absolute path (or a UNC share) reach a fleet worker: the
 # worker's world is a read-only checkout at ~/commandcenter-src, so a drive-letter
 # path is at best meaningless and at worst leaks this box's layout.
-_WINDOWS_PATH_RE = re.compile(r"([A-Za-z]:[\\/]|\\\\[A-Za-z0-9_.$-]+\\)")
+_WINDOWS_PATH_RE = re.compile(r"((?<![A-Za-z0-9_])[A-Za-z]:[\\/]|\\\\[A-Za-z0-9_.$-]+\\)")
 
 # Observed run states (what `status_fn` told us), deliberately coarse: the
 # delegation record stores a decision-relevant summary, not the conductor's blob.
@@ -633,6 +633,22 @@ def _sync_delegation(paths: dict[str, Path], receipt_id: str, projection: dict,
     payload = observed.get("result") if isinstance(observed.get("result"), dict) else {}
     winner = payload.get("winner")
 
+    if delegation.get("promotion_policy") == "manual":
+        # Review-only work stays on the local farmer. Legacy harvest may push to
+        # GitHub, so it is never entered for this policy, including sync replay.
+        promotion = payload.get("promotion") or {}
+        if promotion.get("promoted") is not False or promotion.get("status") != "awaiting_review":
+            raise RuntimeError("manual promotion policy was not confirmed by conductor result")
+        delegation["candidates"] = promotion.get("candidates", [])
+        delegation["promotion"] = promotion
+        delegation["state"] = DELEGATION_COMPLETED
+        delegation["result"] = "awaiting_review"
+        delegation["completed_at"] = now
+        projection["updated_utc"] = now
+        _event(paths, receipt_id, "delegation_awaiting_review", {
+            "plan_id": plan_id, "promotion": promotion, "harvested": False})
+        return _write_projection(paths, projection)
+
     # (a) Harvest exactly once, PERSIST-FIRST. The flag reaches disk before the
     # side effect, so a crash inside harvest_fn (or a second concurrent sync that
     # re-reads the projection afterwards) can never harvest twice. The honest
@@ -782,7 +798,8 @@ def update_build_request(receipt_id: str, status: str | None = None,
 def _delegate_build_request(paths: dict[str, Path], receipt_id: str, projection: dict,
                             backend: str | None, task: str | None, evidence: str,
                             builders: list[str] | None, max_age_s: int | None,
-                            task_class: str, submit_fn: object | None) -> dict:
+                            task_class: str, submit_fn: object | None,
+                            run_policy: dict | None = None) -> dict:
     """Hand one receipt to the fleet task lane. Exactly one delegation per receipt.
 
     Everything that can refuse - a second delegation, missing/invalid deliverables,
@@ -820,7 +837,7 @@ def _delegate_build_request(paths: dict[str, Path], receipt_id: str, projection:
     result: dict = {}
     try:
         raw = submit(prompt, builders=builders, plan_id_hint=plan_id_hint,
-                     task_class=task_class, requires=deliverables, max_age_s=lifetime)
+                     task_class=task_class, requires=deliverables, max_age_s=lifetime, **(run_policy or {}))
         result = raw if isinstance(raw, dict) else {}
         if not result.get("ok"):
             error = str(result.get("error") or "submit_task returned ok:false")
@@ -856,6 +873,7 @@ def _delegate_build_request(paths: dict[str, Path], receipt_id: str, projection:
                 "error": _redact(error)}
 
     delegation = {
+        **(run_policy or {}),
         "plan_id": result["plan_id"],
         "builders": result.get("builders") or builders,
         "requires": deliverables,
@@ -887,7 +905,9 @@ def execute_build_request(receipt_id: str, mode: str = "manual",
                           builders: list[str] | None = None,
                           max_age_s: int | None = None,
                           task_class: str = "build",
-                          submit_fn: object | None = None) -> dict:
+                          submit_fn: object | None = None,
+                          promotion_policy: str | None = None, runner_preset: str | None = None,
+                          operator: str | None = None) -> dict:
     """Record execution start, or actually delegate the request to the fleet.
 
     ``manual``/``agent`` record that the caller is doing the work: backend
@@ -915,9 +935,11 @@ def execute_build_request(receipt_id: str, mode: str = "manual",
     if projection.get("status") in FINAL_STATUSES:
         return {**projection, "duplicate_execution": True}
     if mode == "delegate":
+        run_policy = {k: v for k, v in (("promotion_policy", promotion_policy),
+                      ("runner_preset", runner_preset), ("operator", operator)) if v is not None}
         return _delegate_build_request(paths, receipt_id, projection, backend, task,
                                        evidence, builders, max_age_s, task_class,
-                                       submit_fn)
+                                       submit_fn, run_policy)
     backend_name, routed_by, occupancy = _select_backend(
         backend or projection.get("backend"), task or projection.get("task"))
     projection["status"] = "running"

@@ -75,7 +75,7 @@ def import_receipt(ledger: ExecutionLedger, receipt: dict):
         def append(kind, observed=None):
             event = new_execution_event(kind, request_id=request_id, job_id=job_id,
                 invocation_id=invocation_id if kind.startswith("invocation.") else None,
-                principal={"type": "external_runner", "id": adapter, "authenticated": False},
+                principal={"type": "external_runner", "id": receipt.get("caller_id") or adapter, "authenticated": False},
                 source=source, operation="inference.external",
                 desired={"idempotency_key": key, "receipt_sha256": content_hash,
                          "receipt": receipt} if kind == "request.accepted" else None,

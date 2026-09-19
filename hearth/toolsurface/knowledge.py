@@ -256,8 +256,8 @@ def query_knowledge(topic: str = "", host: str = "", model: str = "",
         if not isinstance(value, str) or len(value) > 160:
             raise ValueError("filters must be strings of at most 160 characters")
     directory = resolve_in_scope(knowledge_dir)
-    files = ("findings.json", "capabilities.json", "am4_gpu_catalog.json",
-             "fx99_gpu_catalog.json", "omen_catalog.json", "capacity.json")
+    files = ("am4_gpu_catalog.json", "fx99_gpu_catalog.json", "omen_catalog.json",
+             "findings.json", "capabilities.json", "capacity.json")
     filters = [x.casefold() for x in (topic, host, model) if x]
     results, sources = [], []
 
@@ -277,11 +277,15 @@ def query_knowledge(topic: str = "", host: str = "", model: str = "",
         if not path.is_file() or path.stat().st_size > 8 * 1024 * 1024:
             continue
         doc = json.loads(path.read_text(encoding="utf-8-sig"))
-        watermark = doc.get("evidence_watermark", doc.get("updated_at"))
+        watermark = doc.get("evidence_watermark", doc.get("updated_at", doc.get("gathered_at")))
         sources.append({"file": name, "watermark": watermark, "mtime": _mtime_iso(path)})
-        for pointer, row in rows(doc):
+        catalog = name.endswith("catalog.json")
+        metadata = {k: v for k, v in doc.items() if not isinstance(v, (list, dict))}
+        candidates = [("", metadata), *rows(doc)] if catalog else rows(doc)
+        for pointer, row in candidates:
             raw = json.dumps(row, ensure_ascii=False, sort_keys=True)
-            if not all(needle in (name + " " + raw).casefold() for needle in filters):
+            haystack = name + " " + raw + (" " + json.dumps(metadata) if catalog else "")
+            if not all(needle in haystack.casefold() for needle in filters):
                 continue
             results.append({"source_id": name + "#" + pointer, "watermark": watermark,
                 "hardware_profile": row.get("hardware_profile_id", doc.get("hardware_profile_id")),

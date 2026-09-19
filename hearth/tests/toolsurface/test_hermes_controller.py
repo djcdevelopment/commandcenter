@@ -27,12 +27,16 @@ def test_denies_unbounded_or_nonlocal_paths(tool, args):
 
 
 def test_builder_qualification_is_required(monkeypatch):
-    args = {'builders':['cc-builder-2','cc-builder-3'], 'max_age_s':900}
-    monkeypatch.delenv('HERMES_LOCAL_BUILDERS_QUALIFIED',raising=False)
+    args = {'builders':['cc-builder-2','cc-builder-3'], 'max_age_s':900, 'mode':'delegate'}
+    def refused():
+        raise PermissionError('not ready')
+    monkeypatch.setattr('hearth.kernel.governed_operator.qualify_builders',refused)
     with pytest.raises(PermissionError):
-        check_governed_call('governed-operator','submit_task',args)
-    monkeypatch.setenv('HERMES_LOCAL_BUILDERS_QUALIFIED','1')
-    check_governed_call('governed-operator','submit_task',args)
+        check_governed_call('governed-operator','execute_build_request',args)
+    monkeypatch.setattr('hearth.kernel.governed_operator.qualify_builders',lambda: None)
+    check_governed_call('governed-operator','execute_build_request',args)
+    assert args['promotion_policy'] == 'manual' and args['operator'] == 'hermes'
+    assert args['runner_preset'] == 'am4-shared-27b'
 
 
 def test_knowledge_filters_bounds_and_provenance(tmp_path, monkeypatch):

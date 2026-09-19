@@ -310,6 +310,23 @@ def status_done(winner=WINNER, plan_id: str = PLAN_ID) -> dict:
 
 
 class DelegatedBuildRequestTests(ReceiptLaneFixture):
+    def test_manual_sync_never_harvests_or_pushes_and_survives_reload(self):
+        receipt = self.delegable()
+        self.delegate(receipt, _SubmitSpy(), promotion_policy="manual",
+                      runner_preset="am4-shared-27b", operator="hermes")
+        observed = status_done()
+        observed["result"]["promotion"] = {"promoted": False, "status": "awaiting_review",
+            "candidates": [{"worker": WINNER, "branch": "local/candidate", "commit": "abc"}]}
+        def forbidden(*args):
+            self.fail("manual sync must not harvest/push")
+        synced = self.sync(receipt, status_fn=_StatusSpy(observed), harvest_fn=forbidden)
+        self.assertEqual(synced["execution"]["delegation"]["result"], "awaiting_review")
+        self.assertFalse(synced["execution"]["delegation"]["harvested"])
+        fresh = importlib.reload(br)
+        again = fresh.update_build_request(receipt["receipt_id"], sync_delegation=True,
+            receipt_dir=str(self.receipts), status_fn=forbidden, harvest_fn=forbidden)
+        self.assertTrue(again["already_synced"])
+
     """execute(mode='delegate') + update(sync_delegation=True).
 
     Every collaborator that would do real git/SSH is injected as a spy: no test in

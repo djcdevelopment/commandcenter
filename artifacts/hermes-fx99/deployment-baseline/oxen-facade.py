@@ -430,7 +430,7 @@ class Handler(BaseHTTPRequestHandler):
             status = resp.status
             self.send_response(resp.status)
             for key, value in resp.getheaders():
-                if key.lower() not in HOP_BY_HOP and not (payload.get("stream") and key.lower() == "content-length"):
+                if key.lower() not in HOP_BY_HOP:
                     self.send_header(key, value)
             self.end_headers()
             sent_headers = True
@@ -439,11 +439,6 @@ class Handler(BaseHTTPRequestHandler):
                 if not chunk:
                     completed = (not payload.get("stream") or
                                  any(line.strip() == b"data: [DONE]" for line in response_capture.splitlines()))
-                    if payload.get("stream") and status == 200 and not completed:
-                        # A 200 header alone is not a completed generation. SDKs
-                        # recognize this SSE error and preserve an explicit failure.
-                        self.wfile.write(b'data: {"error":{"message":"upstream stream ended before DONE","type":"incomplete_stream"}}\n\n')
-                        self.wfile.flush()
                     break
                 if len(response_capture) < 8 * 1024 * 1024:
                     response_capture.extend(chunk)

@@ -15,8 +15,13 @@ out.mkdir(parents=True,exist_ok=True)
 started = time.monotonic()
 metadata = {'started_at':datetime.now(timezone.utc).isoformat(),'ceiling_s':seconds,'task':name}
 with (out/'transcript.log').open('wb') as log:
-    p = subprocess.Popen(['/home/derek/.local/bin/hermes-fleet','chat','--cli','--oneshot',
-        '--ignore-rules','--reasoning','none','--max-turns','8','--query-file',str(root/(name+'.md'))],
+    command = ['/home/derek/.local/bin/hermes-fleet','chat','--cli','--oneshot',
+        '--ignore-rules','--reasoning','none','--max-turns','8',
+        '--run-budget',str(max(30,seconds-15)),'--query-file',str(root/(name+'.md'))]
+    if len(sys.argv) > 3:
+        command.extend(['--resume',sys.argv[3]])
+        metadata['resumed_session'] = sys.argv[3]
+    p = subprocess.Popen(command,
         stdout=log,stderr=subprocess.STDOUT,start_new_session=True,cwd=root)
     try:
         metadata['exit_code'] = p.wait(timeout=seconds)

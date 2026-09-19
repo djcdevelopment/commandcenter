@@ -20,6 +20,7 @@ import re
 import sqlite3
 import threading
 import uuid
+from hearth.append_lock import append_lock
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Optional
@@ -244,7 +245,8 @@ class Ledger:
         self.events_path = self.dir / "events.ndjson"
         self.index_path = self.dir / "index.sqlite"
         self._lock = threading.Lock()
-        self._init_index()
+        with append_lock(self.dir / "events.lock"):
+            self._init_index()
 
     @contextlib.contextmanager
     def _index(self):
@@ -311,7 +313,7 @@ class Ledger:
         index it. Returns the event_id."""
         validate_event(event)
         line = (json.dumps(event, ensure_ascii=False) + "\n").encode("utf-8")
-        with self._lock:
+        with self._lock, append_lock(self.dir / "events.lock"):
             offset = self.events_path.stat().st_size if self.events_path.exists() else 0
             with self.events_path.open("ab") as fh:
                 fh.write(line)
@@ -331,7 +333,7 @@ class Ledger:
         anywhere else in the file is corruption and raises
         LedgerValidationError. Returns the number of events reindexed.
         """
-        with self._lock:
+        with self._lock, append_lock(self.dir / "events.lock"):
             with self._index() as conn:
                 conn.execute("DROP TABLE IF EXISTS events")
             self._init_index()

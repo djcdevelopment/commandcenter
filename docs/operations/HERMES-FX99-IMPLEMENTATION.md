@@ -3,6 +3,64 @@
 Useful artifacts: a pinned SSH/tmux Hermes controller using shared AM4 inference;
 a tested, unmerged fleet-capacity correction produced through governed local work.
 
+Current outcome (22:27 UTC): controller, review-first per-run builder routing,
+and Codex-authored capacity correction implemented. **Local coding qualification
+failed**: neither builder produced required artifacts. Child receipt is failed;
+further local experiments await Derek's retry choice. Real compression remains
+unqualified. Final regression: 286 passed / 86 subtests. Production door OK,
+AM4 native PID unchanged; no B70 inference was used. FX99's resident model changed
+outside this workflow's recorded AM4 calls; do not assert a static fleet.
+
+Current reports:
+- artifacts/hermes-fx99/qualification/CONTROLLER-REPORT.md
+- artifacts/hermes-fx99/qualification/CAPACITY-REPORT.md
+
+The original checkout and main branches are untouched. This isolated branch
+contains the implementation candidate; no external push or deployment of the
+capacity catalog to the original checkout was performed.
+
+## Approved continuation (21:37:44 UTC)
+
+Replacement scope: everyday 128k controller; both builders share existing AM4
+Dense27B via per-run `am4-shared-27b`, never global runner rewrites. Mandatory
+manual promotion; no automatic external harvest/push. Automatic model rotation,
+256k qualification and cross-host MemSplice recovery are explicit follow-ups.
+Receipt: br-20260919-214346-27a442f3. CPU preparation ceiling 22:07:44 UTC;
+fresh 90-minute live window begins only after preparation passes. Live deadlines:
+useful artifact +20 min, candidate +65 min, final25 review/accounting/restoration.
+
+Deployment baseline: copied conductor SHA256
+e320f289cb20ea7dea90fd9db2822fc897cb75301df57e5a08a2cd25425eb0a5;
+both worker sources SHA256
+3496735cc866e85c7c211a3352aac875c1e773b235d04fa86b9c85d14e113e69.
+Remote source under fleet/hermes/remote is a deployment copy, not a claim that
+the isolated repository is the conductor's own source checkout. Deployment
+refuses changed hashes and retains timestamp-labelled backups. Both original
+runner.json hashes are recorded outside model scope in review-deployment.json.
+
+Kernel ledger fix uses OS advisory locking across initialization/append/reindex;
+75 events from three independent processes have verified byte offsets. The
+production gateway still has old code loaded, so Hermes uses its own canonical
+kernel stream under the operator state directory until both writers can be
+upgraded together. No old ledger was rebuilt or silently merged. This deliberate
+isolation avoids restarting the production gateway during this qualification.
+
+Historical notes below describe the earlier window, not this continuation.
+
+Continuation preparation passed at 21:55:48 UTC: 182 tests/36 subtests in the
+broader source regression and 28 current controller/facade/policy/process-lock
+tests. Both trusted worker-side passive preset checks passed; original runner
+hashes unchanged. Idle conductor updated/restarted; native AM4 model not
+restarted. FX99 qwen2.5:7b residency remained unchanged. Logon startup registered
+for the current user (requires login, not an unattended boot service).
+
+Fresh live qualification starts **21:56 UTC**, ceiling **23:26 UTC**; useful new
+artifact cutoff **22:16**, integrated-candidate cutoff **23:01**, final25 reserved.
+Initial farmer main: 303a2f0f7c5cedf192e1f8642d7984822415d742.
+The actual task/acceptance is fleet/hermes/capacity-build.md; Hermes must create
+and execute its own receipt and return its plan ID. First dispatch has a
+five-minute external ceiling; no unbounded framework retries.
+
 Implementation began 16:51:35 UTC. CPU-only preparation checkpoint: 17:21:35 UTC.
 Ask if preparation is not ready then; do not turn preparation into an unbounded
 experiment. The separately approved live qualification is capped at 90 minutes:

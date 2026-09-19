@@ -190,7 +190,9 @@ def _ccmeta_header(builders: list[str], task_class: str | None = None,
                    est_tokens: int | None = None,
                    est_tokens_source: str | None = None,
                    requires: list[str] | None = None,
-                   max_age_s: int | None = None) -> str:
+                   max_age_s: int | None = None,
+                   promotion_policy: str | None = None, runner_preset: str | None = None,
+                   operator: str | None = None) -> str:
     """Render the conductor's CCMETA header.
 
     ``builders`` is what the conductor reads today. ``task_class``,
@@ -208,6 +210,9 @@ def _ccmeta_header(builders: list[str], task_class: str | None = None,
     """
     import json
     meta: dict = {"builders": builders}
+    for key, value in (("promotion_policy", promotion_policy), ("runner_preset", runner_preset), ("operator", operator)):
+        if value is not None:
+            meta[key] = value
     if task_class is not None:
         meta["task_class"] = task_class
     if est_tokens is not None:
@@ -250,7 +255,8 @@ def _ensure_fanout_minimum(builders: list[str]) -> list[str]:
 def submit_task(prompt: str, builders: list[str] | None = None,
                plan_id_hint: str | None = None, task_class: str | None = None,
                est_tokens: int | None = None, requires: list[str] | None = None,
-               max_age_s: int | None = None) -> dict:
+               max_age_s: int | None = None, promotion_policy: str | None = None,
+               runner_preset: str | None = None, operator: str | None = None) -> dict:
     """Submit a research brief / simple build to the fleet via the conductor inbox.
 
     Writes ``inbox/<plan_id>.md`` on cc-conductor with a CCMETA builder-pin
@@ -299,6 +305,11 @@ def submit_task(prompt: str, builders: list[str] | None = None,
     if not isinstance(prompt, str) or not prompt.strip():
         raise ValueError("prompt must be a non-empty string")
     chosen_builders = list(DEFAULT_BUILDERS) if builders is None else list(builders)
+    if promotion_policy not in (None, "auto", "manual") or runner_preset not in (None, "am4-shared-27b"):
+        raise ValueError("unknown promotion policy or runner preset")
+    if operator == "hermes" and (promotion_policy != "manual" or runner_preset != "am4-shared-27b" or
+                                 chosen_builders != ["cc-builder-2", "cc-builder-3"]):
+        raise ValueError("Hermes requires manual promotion and exact preset pair; no auto-padding")
     if not chosen_builders or not all(isinstance(b, str) and b.strip() for b in chosen_builders):
         raise ValueError("builders must be a non-empty list of non-empty strings")
     if task_class is not None and (not isinstance(task_class, str) or not task_class.strip()):
@@ -321,6 +332,9 @@ def submit_task(prompt: str, builders: list[str] | None = None,
         est_tokens_value = caller_est
         est_tokens_source = EST_TOKENS_SOURCE_CALLER
     stamps: dict = {"est_tokens": est_tokens_value, "est_tokens_source": est_tokens_source}
+    for key, value in (("promotion_policy", promotion_policy), ("runner_preset", runner_preset), ("operator", operator)):
+        if value is not None:
+            stamps[key] = value
     if requires_value is not None:
         stamps["requires"] = requires_value
     if max_age_value is not None:
@@ -331,12 +345,13 @@ def submit_task(prompt: str, builders: list[str] | None = None,
         # and pops it before the caller sees the result.
         stamps["_ledger_task_class"] = task_class
 
-    plan_id = _new_plan_id(plan_id_hint)
+    plan_id = _new_plan_id(("hermes-" + (plan_id_hint or "build")) if operator == "hermes" else plan_id_hint)
     body = _ccmeta_header(chosen_builders, task_class=task_class,
                           est_tokens=est_tokens_value,
                           est_tokens_source=est_tokens_source,
                           requires=requires_value,
-                          max_age_s=max_age_value) + prompt
+                          max_age_s=max_age_value, promotion_policy=promotion_policy,
+                          runner_preset=runner_preset, operator=operator) + prompt
     b64 = base64.b64encode(body.encode("utf-8")).decode("ascii")
     remote_path = f"{INBOX_DIR}/{plan_id}.md"
     # mkdir -p is a no-op if inbox/ already exists (it always does); base64 -d

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Optional
@@ -41,6 +42,7 @@ from hearth.scheduler.ontology import (
 )
 from hearth.scheduler.rotation_plan import build_rotation_plan, check_fit, cumulative_overflow
 from hearth.scheduler.solve import solve_schedule
+from hearth.scheduler.native_capacity import normalize_am4_native
 
 DEFAULT_CAPACITY_PATH = "knowledge/capacity.json"
 DEFAULT_AM4_CATALOG_PATH = "knowledge/am4_catalog.json"
@@ -295,6 +297,26 @@ def capture_resource_snapshot(timeout_s: float = 3.0) -> dict:
     pool = load_pool()
     observed_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     result: dict[str, dict] = {}
+    native = pool.by_name("am4-dense")
+    native_state = normalize_am4_native(None, observed_at)
+    if native is not None:
+        try:
+            key_file = os.environ.get("HERMES_AM4_KEY_FILE")
+            key = (Path(key_file).read_text().strip() if key_file
+                   else os.environ.get(native.auth_env or "AM4_OXEN_TOKEN", ""))
+            if not key:
+                native_state["reason"] = "native readiness credential unavailable"
+            else:
+                request = urllib.request.Request(native.endpoint.rstrip("/") + "/oxen/ready?alias=am4-dense-27b",
+                                                  headers={"Authorization": "Bearer " + key})
+                with urllib.request.urlopen(request, timeout=min(timeout_s,5)) as response:
+                    raw = response.read(1024*1024 + 1)
+                    if response.status != 200 or len(raw) > 1024*1024:
+                        raise ValueError("invalid or oversized native readiness response")
+                    native_state = normalize_am4_native(json.loads(raw), observed_at)
+        except (OSError, ValueError, TypeError) as exc:
+            native_state["reason"] = "native readiness failed: " + type(exc).__name__
+    result["am4-dense"] = native_state
     omen = pool.by_name("omen-arc")
     if omen is not None:
         try:
@@ -452,6 +474,11 @@ def propose_schedule(jobs: list[dict], capacity_path: str = DEFAULT_CAPACITY_PAT
     for host, backend, gpu_catalog in (
             ("am4", "am4-ollama", am4_gpu_catalog),
             ("fx99", "fx99-ollama", fx99_gpu_catalog)):
+        # AM4 remains ONE machine. A live native seat takes precedence over an
+        # obsolete Ollama route, but HTTP readiness alone never grants placement.
+        native_state = snapshot.get("am4-dense") or {}
+        if host == "am4" and native_state.get("ready") is True and _fresh_gpu_state(native_state):
+            backend = "am4-dense"
         if not _gpu_catalog_matches(host, gpu_catalog, gpu_inventory):
             resource_rejections.append({"host": host, "backend": backend,
                                         "reason": "catalog does not match the physical GPU inventory"})

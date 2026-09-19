@@ -169,6 +169,7 @@ name = "am4"
 kind = "physical-host"
 gpus = [
   { type = "nvidia-rtx-5070", uuid = "GPU-a1f65cc0-44d9-7854-6785-7d93e686da2f", bdf = "0000:09:00.0", vram_gb = 11.94 },
+  { type = "nvidia-rtx-4070ti", uuid = "GPU-dafbdbfc-23af-0c97-112d-dc17695c2aa8", bdf = "0000:0a:00.0", vram_gb = 11.99 },
 ]
 address = "192.168.12.233"
 alt = ["100.116.82.60", "am4.tail8e749c.ts.net"]   # tailscale STAYS on AM4 (gallery Funnel +
@@ -176,7 +177,7 @@ alt = ["100.116.82.60", "am4.tail8e749c.ts.net"]   # tailscale STAYS on AM4 (gal
    # ufw: 22 + 8090 ALLOW from 192.168.12.0/24 (8090 rule added 2026-07-09).
 via = "lan"
 expect = "up"     # BACK UP 2026-08-24 (cable returned; serving the gallery to a real user)
-purpose = "UP and serving the observability spine, image gallery, IRC stack, oxen facade :8090, and BF6 worker/review API :8787. Ubuntu 26.04, 30 GB RAM, RTX 5070 driver 595.84. Ollama/qwen2.5:14b proved fully GPU-placed during the 2026-09-15 Mechnet pilot; the pilot service and LAN rule were disabled afterward, so current inference readiness must be checked live before counting this card. AM4 is an inference host, not a build VM."
+purpose = "Inference host, not a build VM: RTX 5070 plus RTX 4070 Ti, verified 2026-09-19. Existing Dense27B native :18090 serves 131072 context with one slot behind authenticated oxen facade :8090. Hermes and the per-run cc-builder-2/3 AM4 preset share that SAME physical slot. Ollama and old alias targets are not assumed ready; use passive per-alias readiness. Observability spine, gallery, IRC and BF6 API :8787 remain separate services."
 # ✅ RESOLVED 2026-08-24 (later the same day): Derek enabled wireless on AM4, so
 # the two boxes no longer contend for one link. Both answered simultaneously at
 # 16:5x — AM4 on 192.168.12.233 (wireless) and fx99 on 192.168.12.220 (the wired

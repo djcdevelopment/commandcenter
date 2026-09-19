@@ -13,6 +13,10 @@ New-Item -ItemType Directory -Force -Path $candidateRoot | Out-Null
 
 Push-Location $CommandCenterRoot
 try {
+    # ADR-0047: harvest the research-seat logs first so the candidate sees every
+    # seat that finished since the last timer tick. The harvester is idempotent.
+    python -m hearth.seats.harvest --json
+    if ($LASTEXITCODE -ne 0) { throw 'Research-seat harvest failed' }
     python -m hearth.projection.public_portfolio --out $systemCandidate
     if ($LASTEXITCODE -ne 0) { throw 'HEARTH public projection failed' }
 }

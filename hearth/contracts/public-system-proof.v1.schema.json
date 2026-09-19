@@ -80,7 +80,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["week_start", "operations", "learning", "inference", "media", "work_plane", "other", "suppressed_cells"],
+        "required": ["week_start", "operations", "learning", "inference", "media", "work_plane", "other", "seat_attempts", "suppressed_cells"],
         "properties": {
           "week_start": { "$ref": "#/$defs/day" },
           "operations": { "$ref": "#/$defs/publicCell" },
@@ -89,7 +89,8 @@
           "media": { "$ref": "#/$defs/publicCell" },
           "work_plane": { "$ref": "#/$defs/publicCell" },
           "other": { "$ref": "#/$defs/publicCell" },
-          "suppressed_cells": { "type": "integer", "minimum": 0, "maximum": 6 }
+          "seat_attempts": { "$ref": "#/$defs/publicCell" },
+          "suppressed_cells": { "type": "integer", "minimum": 0, "maximum": 7 }
         }
       }
     },
@@ -113,7 +114,12 @@
       "additionalProperties": false,
       "required": ["boundary", "raw_content_withheld", "minimum_public_cell", "limitations"],
       "properties": {
-        "boundary": { "const": "calls observed at the HEARTH gateway and execution ledgers" },
+        "boundary": {
+          "enum": [
+            "calls observed at the HEARTH gateway and execution ledgers",
+            "calls observed at the HEARTH gateway and execution ledgers, plus research seats harvested from server logs"
+          ]
+        },
         "raw_content_withheld": { "const": true },
         "minimum_public_cell": { "const": 10 },
         "limitations": {
@@ -131,7 +137,22 @@
         "exporter_revision": { "type": "string", "minLength": 1, "maxLength": 64 },
         "exporter_sha256": { "$ref": "#/$defs/digest" },
         "gateway_prefix_sha256": { "$ref": "#/$defs/digest" },
-        "execution_prefix_sha256": { "$ref": "#/$defs/digest" }
+        "execution_prefix_sha256": { "$ref": "#/$defs/digest" },
+        "seat_prefix_sha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "seat_inference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attempts", "measured_attempts", "unknown_usage_attempts", "failed_attempts", "tokens_in", "tokens_out", "seats"],
+      "properties": {
+        "attempts": { "$ref": "#/$defs/count" },
+        "measured_attempts": { "$ref": "#/$defs/count" },
+        "unknown_usage_attempts": { "$ref": "#/$defs/count" },
+        "failed_attempts": { "$ref": "#/$defs/count" },
+        "tokens_in": { "$ref": "#/$defs/count" },
+        "tokens_out": { "$ref": "#/$defs/count" },
+        "seats": { "$ref": "#/$defs/count" }
       }
     },
     "integrity": {

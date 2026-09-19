@@ -38,7 +38,8 @@ def _stamp(seconds: float) -> str:
 
 
 def _header(port: int | None = 8096, api_key: bool = False, stamped: int = 70,
-            filler_offset: int = 0, build: bool = True) -> list[str]:
+            filler_offset: int = 0, build: bool = True, model: bool = True,
+            n_ctx_seq: bool = True, n_ctx_slot: bool = False) -> list[str]:
     lines = []
     if build:
         lines.append("0.00.563.501 I cmn  common_param: common_params_print_info: build 52 (60cdd25) "
@@ -46,9 +47,13 @@ def _header(port: int | None = 8096, api_key: bool = False, stamped: int = 70,
     lines.append("0.00.563.502 I cmn  common_param: common_params_print_info: verbosity = 5")
     if api_key:
         lines.append("0.00.600.000 I srv          init: api_keys: ****abcd")
-    lines.append("0.00.726.633 I llama_model_loader: - kv   5:                               "
-                 "general.name str              = secret-model")
-    lines.append("0.00.939.269 I llama_context: n_ctx_seq             = 131072")
+    if model:
+        lines.append("0.00.726.633 I llama_model_loader: - kv   5:                               "
+                     "general.name str              = secret-model")
+    if n_ctx_seq:
+        lines.append("0.00.939.269 I llama_context: n_ctx_seq             = 131072")
+    if n_ctx_slot:
+        lines.append("0.08.236.471 I srv    load_model: initializing, n_slots = 2, n_ctx_slot = 65536, kv_unified = 'false'")
     while len(lines) < stamped:
         i = len(lines) + filler_offset
         lines.append(f"0.01.{i % 1000:03d}.{(i // 1000) % 1000:03d} D srv          init: serve nocache for file{i}")
@@ -240,18 +245,25 @@ class HarvestTest(unittest.TestCase):
             self.assertEqual(report["totals"]["new_receipts"], 0)
             self.assertFalse(ws.ledger.exists())
             cursor = json.loads(ws.cursor.read_text(encoding="utf-8"))
-            self.assertEqual(set(cursor["logs"]), {"managed-seat", "foreign-port-8082", "still-loading"})
-            self.assertFalse(cursor["logs"]["managed-seat"]["eligible"])
+            by_stem = {Path(k).stem: v for k, v in cursor["logs"].items()}
+            self.assertEqual(set(by_stem), {"managed-seat", "foreign-port-8082", "still-loading"})
+            self.assertFalse(by_stem["managed-seat"]["eligible"])
 
-    def test_short_log_is_deferred(self) -> None:
+    def test_short_log_is_deferred_until_the_server_listens(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             ws = Workspace(Path(tmp))
-            _write_log(ws.logs / "seat-8096.log", _header(stamped=10))
+            # Still loading: a few lines and no listening line yet.
+            _write_log(ws.logs / "seat-8096.log", _header(stamped=10, port=None))
             report = ws.run()
             self.assertEqual(report["logs"][0]["skip_reason"], SKIP_SHORT)
             self.assertFalse(ws.ledger.exists())
             cursor = json.loads(ws.cursor.read_text(encoding="utf-8"))
             self.assertEqual(cursor["logs"], {})
+            # A terse seat whose whole load report is short but complete is eligible.
+            _write_log(ws.logs / "seat-8096.log", _header(stamped=10) + _task(0, 1, 100.0), mtime=MTIME + 5)
+            report = ws.run(now=NOW + timedelta(minutes=15))
+            self.assertTrue(report["logs"][0]["eligible"])
+            self.assertEqual(report["totals"]["new_receipts"], 1)
 
     def test_reharvest_is_a_noop(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -308,7 +320,8 @@ class HarvestTest(unittest.TestCase):
             self.assertEqual(len({r["attempt_id"] for r in rows}), 3)
             self.assertEqual(sum(1 for r in rows if r["seat_id"] == old_seat), 2)
             cursor = json.loads(ws.cursor.read_text(encoding="utf-8"))
-            self.assertEqual(cursor["logs"]["seat-8096"]["seat_id"], new_seat)
+            by_stem = {Path(k).stem: v for k, v in cursor["logs"].items()}
+            self.assertEqual(by_stem["seat-8096"]["seat_id"], new_seat)
 
     def test_dry_run_writes_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -367,6 +380,43 @@ class HarvestTest(unittest.TestCase):
                 _unlock_file(handle)
                 handle.close()
             self.assertEqual(len(ws.rows()), 1)
+
+    def test_campaign_seat_without_header_lines_is_harvested_as_unrecorded(self) -> None:
+        # A -lv 3 campaign seat prints no build line and no general.name, only n_ctx_slot.
+        with tempfile.TemporaryDirectory() as tmp:
+            ws = Workspace(Path(tmp))
+            _write_log(ws.logs / "baseline-p18100.stderr.log",
+                       _header(port=18100, build=False, model=False, n_ctx_seq=False, n_ctx_slot=True)
+                       + _task(0, 1, 100.0, prompt_n=101, predicted_n=64))
+            report = ws.run()
+            self.assertEqual(report["totals"]["eligible_logs"], 1)
+            self.assertEqual(report["totals"]["new_receipts"], 1)
+            row = ws.rows()[0]
+            validate_receipt(row)
+            self.assertEqual(row["provider"]["model_name"], "unrecorded")
+            self.assertEqual(row["provider"]["build"], "unrecorded")
+            self.assertEqual(row["provider"]["n_ctx_seq"], 65536)
+            self.assertEqual(row["log_basename"], "baseline-p18100.stderr")
+
+    def test_multiple_roots_recurse_and_keep_same_basenames_apart(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ws = Workspace(Path(tmp))
+            other = Path(tmp) / "campaign"
+            (other / "b5-dense-moe").mkdir(parents=True)
+            _write_log(ws.logs / "seat.log", _header() + _task(0, 1, 100.0))
+            _write_log(other / "seat.log", _header(port=18195, filler_offset=300) + _task(0, 1, 100.0) + _task(0, 2, 200.0))
+            _write_log(other / "b5-dense-moe" / "dense.err.log", _header(port=18196, filler_offset=600) + _task(0, 1, 100.0))
+            _write_log(other / "twin.log.console", _header() + _task(0, 1, 100.0))
+            report = harvest([ws.logs, other], ws.ledger, ws.cursor, now=NOW)
+            self.assertEqual(report["totals"]["eligible_logs"], 3)
+            self.assertEqual(report["totals"]["seats"], 3)
+            self.assertEqual(report["totals"]["new_receipts"], 4)
+            self.assertEqual(len({r["seat_id"] for r in ws.rows()}), 3)
+            cursor = json.loads(ws.cursor.read_text(encoding="utf-8"))
+            self.assertEqual(len(cursor["logs"]), 3)
+            # A missing root is an absence, not an error.
+            again = harvest([ws.logs, other, Path(tmp) / "absent"], ws.ledger, ws.cursor, now=NOW)
+            self.assertEqual(again["totals"]["new_receipts"], 0)
 
     def test_render_table_names_every_log(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

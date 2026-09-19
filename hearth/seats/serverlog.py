@@ -42,12 +42,18 @@ RELEASE_RE = re.compile(
 BUILD_RE = re.compile(r"common_params_print_info: build (\d+) \(([0-9a-fA-F]+)\)")
 NAME_RE = re.compile(r"general\.name\s+(?:str\s+)?=\s+(.+?)\s*$")
 N_CTX_SEQ_RE = re.compile(r"\bn_ctx_seq\s+=\s+(\d+)")
+#: At ``-lv 3`` the load report prints no build line and no ``general.name``; the
+#: per-slot context from ``load_model: initializing, n_slots = N, n_ctx_slot = M``
+#: is the one identity field every verbosity prints.
+N_CTX_SLOT_RE = re.compile(r"\bn_ctx_slot\s*=\s*(\d+)")
 API_KEYS_RE = re.compile(r"\bapi_keys:")
 LISTEN_RE = re.compile(r"listening on http://127\.0\.0\.1:(\d+)")
 
-#: How many stamped lines the epoch fingerprint covers. Microsecond stamps make
-#: the prefix unique per launch, and 64 lines are written before the model has
-#: finished loading, so the fingerprint is stable while the file grows.
+#: The epoch fingerprint covers the load report: every stamped line up to and
+#: including ``listening on``, capped at this many lines. Microsecond stamps
+#: make the prefix unique per launch, and the report is complete the moment
+#: the server listens, so the fingerprint is stable while the file grows and
+#: exists even for a terse ``-lv 3`` seat whose whole report is twenty lines.
 PREFIX_LINES = 64
 
 
@@ -80,6 +86,7 @@ class ScanResult:
     build: Optional[str] = None
     model_name: Optional[str] = None
     n_ctx_seq: Optional[int] = None
+    n_ctx_slot: Optional[int] = None
     api_keyed: bool = False
     port: Optional[int] = None
     stamped_lines: int = 0
@@ -125,11 +132,11 @@ def scan(path: Path) -> ScanResult:
             if stamp:
                 result.stamped_lines += 1
                 result.last_elapsed_s = elapsed_seconds(stamp)
-                if prefix_count < PREFIX_LINES:
+                if result.prefix_sha256 is None and prefix_count < PREFIX_LINES:
                     prefix.update(line.rstrip("\r\n").encode("utf-8", "replace"))
                     prefix.update(b"\n")
                     prefix_count += 1
-                    if prefix_count == PREFIX_LINES:
+                    if prefix_count == PREFIX_LINES or LISTEN_RE.search(line):
                         result.prefix_sha256 = prefix.hexdigest()
             if result.build is None:
                 m = BUILD_RE.search(line)
@@ -145,6 +152,11 @@ def scan(path: Path) -> ScanResult:
                 m = N_CTX_SEQ_RE.search(line)
                 if m:
                     result.n_ctx_seq = int(m.group(1))
+                    continue
+            if result.n_ctx_slot is None:
+                m = N_CTX_SLOT_RE.search(line)
+                if m:
+                    result.n_ctx_slot = int(m.group(1))
                     continue
             if not result.api_keyed and API_KEYS_RE.search(line):
                 result.api_keyed = True

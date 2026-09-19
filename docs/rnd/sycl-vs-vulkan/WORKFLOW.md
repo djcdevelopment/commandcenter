@@ -230,7 +230,11 @@ processing and slower on generation — consistent with the SYCL prefill story a
   denning P5, intel_ollama findings), not ~Nov 2025.
 
 ### L1 — environment — PENDING (oneAPI install needs Derek's go)
-### L1b — Vulkan arm (#24406) — PENDING
+### L1b — Vulkan arm (#24406) — CHECKED 2026-09-19: NOT MERGED
+- `origin/master` at `60081bb` (2026-09-18) has no Intel Xe FA shaders (`git log --grep`, shader tree). The Vulkan
+  side of every comparison is therefore production's build 52 (`60cdd25`); a master rebase would add general
+  Vulkan work (sparse FA #28105, Flash-Next top-k #28032) but no Xe kernels — optional second data point, not the arm.
+  Re-check #24406 at each later lap; if it lands mid-ladder, `build-vk-next.cmd` is ready.
 ### L2 — single-card sanity + correctness — PENDING
 ### L3 — production shapes — PENDING
 ### L4 — depth ladder — PENDING

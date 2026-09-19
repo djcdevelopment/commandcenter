@@ -278,5 +278,15 @@ processing and slower on generation — consistent with the SYCL prefill story a
   SYCL tensor-split.
 ### L5 — jobs/h at -np 8 × 16k — PENDING
 ### L6 — deep concurrency — PENDING
-### L7 — cross-backend KV — PENDING
+### L7 — cross-backend KV — DONE 2026-09-19 07:20Z (answered inside L4b)
+- The CUDA-made 119k q4_0 slot state restored into a SYCL seat (`n_restored=119203`, 1.2 s) and the B70s
+  continued from it correctly. The slot-state file is vendor- and backend-agnostic; an engine swap does not
+  break the pipeline.
+
+### L4b — 256k (Derek's question) — DONE 2026-09-19 07:25Z: minutes, not an hour; not three
+- 27B at `-c 262144`, both B70s, SYCL layer split, q4_0 KV: loads (2.3 GB KV per card). SYCL alone prefills
+  248,515 tokens in **552.9 s (9.2 min, 449 tok/s)**; decode 2.24 tok/s at 248k; correct answer.
+- Hybrid (AM4's 119k state + 121k tail on the B70s): **433 s (7.2 min)** — the tail runs at 366 tok/s and is the wall.
+- Bar was ~3 min. Path to it: a smaller weight quant on AM4 (IQ4_XS) so the NVIDIA pair holds 256k and does the
+  whole prefill at ~1,200 tok/s (~3.5 min), wire hidden by the streaming detour. Not attempted tonight.
 ### L8 — soak / verdict — PENDING

@@ -320,6 +320,19 @@ See also `LEVERS-256K.md` — the inventory of every asset that could move the 2
   decodes with MTP: 21.6 tok/s; with `-ts 2,2,1,1` **24.9 tok/s** — the fleet's best at depth. n_max 6 is worse (15.0).
 - fx99 as a fifth device: blocked on CUDA arch (AM4's build has no sm_75); `build-sm75` building.
 
+### L4h — 256k on four devices; Flash-Next — DONE 2026-09-19 14:30Z
+- The 27B's 248k f16 state restores into the four-device cache (34–62 s) and decodes with MTP at 13.1–14.0 tok/s —
+  **parity with the dual B70s (14.37)**, not a win: at 256k the NVIDIA cards cannot carry the layer share that won at 119k.
+- **Qwen3.8-Flash-Next (qwen4exp, 512×10 MoE, hybrid) runs across all four GPUs at 262144 context** on the master build:
+  `-ts 4,5,20,19 -ub 512`, B70s at 29.8/29.1 GB (under the cliff, no spill); `--load-mode none --lazy-mode off` pins the
+  27 GB per-layer embedding in host memory (the mmap default page-faults it from disk: 98 → 287 tok/s cold vs warm at 16k).
+  16k: 287 tok/s prefill, 21 tok/s decode, correct answer, T=0 non-deterministic (SYCL MoE).
+  **248k body: 51 min prefill (81 tok/s average, falling with depth), decode 3.5 tok/s (two samples), coherent grounded
+  answer; the hybrid state is 6.5 GB (28 KB/token) and saves in 28 s.** Nothing is saturated at depth — can't-answer-why
+  row. The 27B (8.5 min / 14.4 tok/s with MTP) remains the better 256k worker today.
+- First 256k launch refused loudly (RPC0 compute buffer 6.2 GB at `-ub 1024`) — the fix was the split + ubatch, not memory.
+- Incident, again: five other sessions' `grep -r … /e/work` sweeps (the models dir) had E: at 199–317 % during the runs; killed.
+
 ### L5 — jobs/h at -np 8 × 16k — PENDING
 ### L6 — deep concurrency — PENDING
 ### L7 — cross-backend KV — DONE 2026-09-19 07:20Z (answered inside L4b)

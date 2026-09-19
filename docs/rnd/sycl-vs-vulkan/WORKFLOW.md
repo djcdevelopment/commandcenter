@@ -276,6 +276,16 @@ processing and slower on generation — consistent with the SYCL prefill story a
 - D2: the MemSplice multiplier at 119k drops from 9.8× to 1.9× against SYCL-local; the route threshold moves, the
   scoreboard rationale (B70 prefill time is lost decode time) stands. D3: the depth specialist's engine candidate is
   SYCL tensor-split.
+### L4c — f16 KV and the ubatch knob — DONE 2026-09-19 08:25Z: decode at depth 2.2–2.6×
+- Source read (`fattn.cpp`): the XMX/oneDNN path is prefill-only (≥32 query tokens); decode is TILE/VEC; quantized
+  KV is dequantized per ubatch (prefill) and per step (decode); f16 is native.
+- f16 KV, SYCL dual 27B at 256k (8.2 GB KV per card): 119k decode **9.41 tok/s** (q4_0 4.24, Vulkan 4.9); 248k
+  decode **5.89** (q4_0 2.24). Prefill unchanged (597 / 435) — the cache conversion was not the deep-prefill wall.
+- `-ub 2048 -b 4096`: prefill +16 % at 119k (694); `-ub 4096 -b 8192`: 713. Best 248k run: **512.7 s (8.5 min), 485
+  tok/s, decode 5.89 tok/s**, correct answer.
+- T=0 output changes with `-ub` (batch-shape sensitivity) — reproducible only for a fixed (backend, ubatch).
+- Levers still untried: f16 on tensor split; f16 on Vulkan; MTP at depth; the oneDNN-for-decode gate; RPC pipeline.
+
 ### L5 — jobs/h at -np 8 × 16k — PENDING
 ### L6 — deep concurrency — PENDING
 ### L7 — cross-backend KV — DONE 2026-09-19 07:20Z (answered inside L4b)

@@ -111,6 +111,7 @@
   <p><strong>L4 — done (07:05Z).</strong> SYCL dual 27B prefill 813 / 817 / 736 / 614 tok/s at 16k / 30k / 60k / 119k vs Vulkan 609 / 443 / — / 117 — the knee is gone, 5.2× at 119k. Decode within 8–13% of Vulkan. <strong>Tensor split at 119k decodes 6.74 tok/s</strong> (+38% over Vulkan) with identical output. D2: MemSplice at 119k is 1.9× SYCL-local, not 9.8×. D3: depth specialist → SYCL tensor split.</p>
   <p><strong>L7 — done (07:20Z).</strong> The CUDA-made 119k q4_0 state restored into a SYCL seat (1.2 s) and decoded correctly — the slot state is vendor- and backend-agnostic.</p>
   <p><strong>L4b — 256k (07:25Z).</strong> The 27B at 262,144 loads on both B70s (2.3 GB KV per card). SYCL alone: 248,515 tokens in <strong>552.9 s (9.2 min)</strong>, decode 2.24 tok/s. Hybrid AM4 119k + B70 tail: <strong>433 s (7.2 min)</strong>; the deep tail at 366 tok/s is the wall. Bar was ~3 min; the path there is a smaller quant on AM4 so the NVIDIA pair prefills the whole 256k (~3.5 min).</p>
+  <p><strong>L4c — f16 KV (08:25Z).</strong> The SYCL kernel selector makes decode TILE/VEC with a per-step dequant for quantized KV. With f16 KV: decode at 119k <strong>9.41 tok/s</strong> (q4_0 4.24, Vulkan 4.9), at 248k <strong>5.89</strong> (q4_0 2.24). Prefill unchanged. <code>-ub 4096 -b 8192</code> adds +19% prefill. Best 248k: <strong>8.5 min, decode 5.89 tok/s</strong> — from 9.2 min / 2.24 at the start of the night.</p>
   <p class="sub">Later laps append here as they close.</p>
 
   <h2>vLLM — parked</h2>

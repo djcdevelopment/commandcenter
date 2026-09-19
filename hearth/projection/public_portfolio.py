@@ -26,7 +26,7 @@ from hearth.execution import (
     validate_execution_event,
 )
 from hearth.projection.call_mix_dashboard import FAMILY_ORDER, classify_event
-from hearth.projection.seats_cohort import SeatCohortError, scan_seats
+from hearth.projection.seats_cohort import SeatCohortError, combine, scan_records, scan_seats
 
 
 SCHEMA_ID = "steppe.public-system-proof.v1"
@@ -35,13 +35,14 @@ SCHEMA_PATH = ROOT / "hearth" / "contracts" / "public-system-proof.v1.schema.jso
 DEFAULT_GATEWAY_LEDGER = ROOT / "hearth" / "var" / "ledger" / "events.ndjson"
 DEFAULT_EXECUTION_LEDGER = ROOT / "hearth" / "var" / "execution" / "events.ndjson"
 DEFAULT_SEAT_LEDGER = ROOT / "hearth" / "var" / "seats" / "receipts.ndjson"
+DEFAULT_RECORD_LEDGER = ROOT / "hearth" / "var" / "seats" / "run-records.ndjson"
 BOUNDARY_BASE = "calls observed at the HEARTH gateway and execution ledgers"
-BOUNDARY_WITH_SEATS = ("calls observed at the HEARTH gateway and execution ledgers, "
-                       "plus research seats harvested from server logs")
-SEAT_LIMITATION = (
-    "Research-seat rows are harvested from llama-server timing logs on ports the gateway never "
-    "addresses; they count requests the gateway never saw, only from seats that logged, only "
-    "tokens the server actually processed, and establish neither authorship nor throughput claims."
+BOUNDARY_WITH_RESEARCH = ("calls observed at the HEARTH gateway and execution ledgers, "
+                          "plus research runs harvested from server logs and run records")
+RESEARCH_LIMITATION = (
+    "Research-run rows are harvested from llama-server timing logs and dated run records; they count "
+    "requests the gateway never saw, only from runs that kept a record, only tokens the record itself "
+    "carries, and establish neither authorship nor throughput claims."
 )
 DEFAULT_OUT = ROOT / "hearth" / "var" / "public-portfolio" / "candidate.json"
 MINIMUM_PUBLIC_CELL = 10
@@ -182,7 +183,7 @@ PUBLIC_KEYS = {
     "exporter_revision", "exporter_sha256", "gateway_prefix_sha256",
     "execution_prefix_sha256", "content_sha256",
     "by_family", "by_agent", "media", "work_calls", "jobs_accepted",
-    "seat_inference", "seats", "seat_attempts", "seat_prefix_sha256",
+    "research_runs", "sources", "research_attempts", "seat_prefix_sha256", "record_prefix_sha256",
     "attempts", "measured_attempts", "unknown_usage_attempts", "failed_attempts",
 }
 FORBIDDEN_SOURCE_KEYS = {
@@ -565,7 +566,7 @@ def validate_public_snapshot(snapshot: dict[str, Any]) -> None:
             "schema", "snapshot_id", "source_watermark_day", "observation_window",
             "gateway", "execution", "weekly", "mechnet", "coverage", "provenance", "integrity",
         }
-        if set(snapshot) - {"seat_inference"} != required:
+        if set(snapshot) - {"research_runs"} != required:
             raise PublicProjectionError("public snapshot top-level shape does not match v1")
     else:
         schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
@@ -575,28 +576,28 @@ def validate_public_snapshot(snapshot: dict[str, Any]) -> None:
             raise PublicProjectionError(f"public snapshot schema validation failed: {exc.message}") from exc
 
 
-def _weekly_with_seats(rows: list[dict[str, Any]], seat_weeks: dict[str, int]) -> list[dict[str, Any]]:
-    """Add the research-seat cell to every published week, under the same k rule.
+def _weekly_with_research(rows: list[dict[str, Any]], research_weeks: dict[str, int]) -> list[dict[str, Any]]:
+    """Add the research-run cell to every published week, under the same k rule.
 
-    A week with no seat receipts is 0, an observed absence; a week with fewer
-    than the public minimum is suppressed like any other small cell and counted
-    in that row's suppressed cells.
+    A week with no research receipts is 0, an observed absence; a week with
+    fewer than the public minimum is suppressed like any other small cell and
+    counted in that row's suppressed cells.
     """
     by_week = {row["week_start"]: dict(row) for row in rows}
-    for week in seat_weeks:
-        # A week the seats saw and the gateway did not is still a week: the
+    for week in research_weeks:
+        # A week the research saw and the gateway did not is still a week: the
         # gateway cells are true zeros, not fabrications.
         by_week.setdefault(week, {"week_start": week, **{key: 0 for key in WEEKLY_MACRO_KEYS},
                                   "suppressed_cells": 0})
     merged = []
     for week in sorted(by_week):
         cell = by_week[week]
-        value = seat_weeks.get(week, 0)
+        value = research_weeks.get(week, 0)
         if 0 < value < MINIMUM_PUBLIC_CELL:
-            cell["seat_attempts"] = None
+            cell["research_attempts"] = None
             cell["suppressed_cells"] = cell["suppressed_cells"] + 1
         else:
-            cell["seat_attempts"] = value
+            cell["research_attempts"] = value
         merged.append(cell)
     return merged
 
@@ -605,6 +606,7 @@ def build_snapshot(
     gateway_ledger: Path = DEFAULT_GATEWAY_LEDGER,
     execution_ledger: Path = DEFAULT_EXECUTION_LEDGER,
     seat_ledger: Path = DEFAULT_SEAT_LEDGER,
+    record_ledger: Path = DEFAULT_RECORD_LEDGER,
     *,
     exporter_revision: str | None = None,
 ) -> dict[str, Any]:
@@ -612,13 +614,15 @@ def build_snapshot(
     execution = _scan_execution(Path(execution_ledger))
     try:
         seats = scan_seats(Path(seat_ledger))
+        records = scan_records(Path(record_ledger))
     except SeatCohortError as exc:
         raise PublicProjectionError(str(exc)) from exc
+    research = combine(seats, records)
     first_day = min(gateway["first_day"], execution["first_day"])
     last_day = max(gateway["last_day"], execution["last_day"])
-    if seats is not None:
-        first_day = min(first_day, seats["first_day"])
-        last_day = max(last_day, seats["last_day"])
+    if research is not None:
+        first_day = min(first_day, research["first_day"])
+        last_day = max(last_day, research["last_day"])
     rung = gateway["rung"]
 
     payload: dict[str, Any] = {
@@ -630,7 +634,7 @@ def build_snapshot(
             "by_agent": _agent_lane_rows(gateway["agent_calls"], execution["agent_jobs"]),
         },
         "execution": execution["public"],
-        "weekly": _weekly_with_seats(gateway["weekly"], seats["weekly"] if seats else {}),
+        "weekly": _weekly_with_research(gateway["weekly"], research["weekly"] if research else {}),
         "mechnet": {
             "accelerator": "2 × Intel Arc Pro B70",
             "operating_system": "Windows",
@@ -640,7 +644,7 @@ def build_snapshot(
             "observed_day": rung[0] if rung else None,
         },
         "coverage": {
-            "boundary": BOUNDARY_WITH_SEATS if seats else BOUNDARY_BASE,
+            "boundary": BOUNDARY_WITH_RESEARCH if research else BOUNDARY_BASE,
             "raw_content_withheld": True,
             "minimum_public_cell": MINIMUM_PUBLIC_CELL,
             "limitations": [
@@ -658,10 +662,13 @@ def build_snapshot(
             "execution_prefix_sha256": execution["prefix_sha256"],
         },
     }
-    if seats is not None:
-        payload["seat_inference"] = seats["public"]
-        payload["provenance"]["seat_prefix_sha256"] = seats["prefix_sha256"]
-        payload["coverage"]["limitations"].append(SEAT_LIMITATION)
+    if research is not None:
+        payload["research_runs"] = research["public"]
+        if seats is not None:
+            payload["provenance"]["seat_prefix_sha256"] = seats["prefix_sha256"]
+        if records is not None:
+            payload["provenance"]["record_prefix_sha256"] = records["prefix_sha256"]
+        payload["coverage"]["limitations"].append(RESEARCH_LIMITATION)
     canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
     digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
     snapshot = {**payload, "snapshot_id": f"sha256:{digest}", "integrity": {"content_sha256": digest}}
@@ -670,8 +677,9 @@ def build_snapshot(
 
 
 def write_snapshot(output: Path, gateway_ledger: Path, execution_ledger: Path,
-                   seat_ledger: Path = DEFAULT_SEAT_LEDGER) -> dict[str, Any]:
-    snapshot = build_snapshot(gateway_ledger, execution_ledger, seat_ledger)
+                   seat_ledger: Path = DEFAULT_SEAT_LEDGER,
+                   record_ledger: Path = DEFAULT_RECORD_LEDGER) -> dict[str, Any]:
+    snapshot = build_snapshot(gateway_ledger, execution_ledger, seat_ledger, record_ledger)
     output = Path(output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(snapshot, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -683,11 +691,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--gateway-ledger", type=Path, default=DEFAULT_GATEWAY_LEDGER)
     parser.add_argument("--execution-ledger", type=Path, default=DEFAULT_EXECUTION_LEDGER)
     parser.add_argument("--seat-ledger", type=Path, default=DEFAULT_SEAT_LEDGER,
-                        help="research-seat receipts (ADR-0047); a missing file means no cohort")
+                        help="research-seat receipts (ADR-0047); a missing file means no seats")
+    parser.add_argument("--record-ledger", type=Path, default=DEFAULT_RECORD_LEDGER,
+                        help="run-record receipts (ADR-0047); a missing file means no records")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     args = parser.parse_args(argv)
     try:
-        snapshot = write_snapshot(args.out, args.gateway_ledger, args.execution_ledger, args.seat_ledger)
+        snapshot = write_snapshot(args.out, args.gateway_ledger, args.execution_ledger,
+                                  args.seat_ledger, args.record_ledger)
     except (OSError, PublicProjectionError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

@@ -151,6 +151,78 @@ def validate_receipt(receipt: Any) -> None:
     canonical(receipt)
 
 
+RUN_SCHEMA = "run.record-attempt.v1"
+RUN_SOURCE_TRANSPORT = "run-record"
+RUN_OUTCOMES = {"succeeded", "failed", "unknown"}
+RUN_RECORD_KEYS = {
+    "schema", "run_id", "attempt_id", "record_sha256", "provider", "started_at", "finished_at",
+    "timestamp_derivation", "usage", "usage_unknown_reason", "outcome", "source", "harvested_at",
+}
+RUN_DERIVATION_METHODS = {"record_timestamp", "record_timestamp_naive_local", "run_directory_stamp"}
+RUN_PROVIDER_KEYS = {"execution_class", "identity_sha256", "model_name"}
+
+
+def validate_run_record(receipt: Any) -> None:
+    """A dated run record: one attempt a driver wrote down, admitted as a receipt.
+
+    Looser than a seat receipt in exactly two places, and strict everywhere
+    else: the timestamp may come from the record itself or from the run
+    directory stamp (the derivation names which, with its error bound), and
+    usage may be partial (a record that carries only tokens out keeps them;
+    a field the record never had is null, never guessed).
+    """
+    if not isinstance(receipt, dict):
+        raise SeatReceiptError("run record must be an object")
+    if set(receipt) != RUN_RECORD_KEYS:
+        raise SeatReceiptError(
+            f"bad run record keys: missing={sorted(RUN_RECORD_KEYS - set(receipt))} "
+            f"extra={sorted(set(receipt) - RUN_RECORD_KEYS)}")
+    if receipt["schema"] != RUN_SCHEMA:
+        raise SeatReceiptError("unrecognized run record schema")
+    for key in ("run_id", "attempt_id", "record_sha256", "started_at", "finished_at", "outcome", "harvested_at"):
+        _require_str(receipt, key)
+    if not _HEX64.match(receipt["record_sha256"]):
+        raise SeatReceiptError("record_sha256 must be a sha256 hex digest")
+    if receipt["outcome"] not in RUN_OUTCOMES:
+        raise SeatReceiptError("invalid run outcome")
+    source = receipt.get("source")
+    if (not isinstance(source, dict) or source.get("transport") != RUN_SOURCE_TRANSPORT
+            or not isinstance(source.get("adapter"), str) or not source["adapter"]
+            or source.get("execution_mode") != "external" or source.get("accounting_owner") != "direct"
+            or set(source) != {"transport", "adapter", "execution_mode", "accounting_owner"}):
+        raise SeatReceiptError("run record source must be a direct-owned run-record adapter")
+    provider = receipt.get("provider")
+    if not isinstance(provider, dict) or set(provider) != RUN_PROVIDER_KEYS:
+        raise SeatReceiptError("run provider requires exactly " + ", ".join(sorted(RUN_PROVIDER_KEYS)))
+    if provider["execution_class"] != "local" or not _HEX64.match(str(provider["identity_sha256"])):
+        raise SeatReceiptError("verified local provider identity required")
+    if not isinstance(provider["model_name"], str) or not provider["model_name"]:
+        raise SeatReceiptError("provider.model_name required")
+    derivation = receipt.get("timestamp_derivation")
+    if (not isinstance(derivation, dict) or set(derivation) != {"method", "error_bound_s"}
+            or derivation["method"] not in RUN_DERIVATION_METHODS
+            or type(derivation["error_bound_s"]) is not int or derivation["error_bound_s"] < 0):
+        raise SeatReceiptError("unrecognized run timestamp derivation")
+    usage = receipt["usage"]
+    if usage is None:
+        if not isinstance(receipt["usage_unknown_reason"], str) or not receipt["usage_unknown_reason"]:
+            raise SeatReceiptError("unknown usage requires a reason")
+    else:
+        if receipt["usage_unknown_reason"] is not None:
+            raise SeatReceiptError("recorded usage carries no unknown reason")
+        if not isinstance(usage, dict) or set(usage) != {"tokens_in", "tokens_out"}:
+            raise SeatReceiptError("usage requires exactly tokens_in and tokens_out")
+        if all(value is None for value in usage.values()):
+            raise SeatReceiptError("usage with no fields is unknown usage")
+        for value in usage.values():
+            if value is not None and (type(value) is not int or value < 0):
+                raise SeatReceiptError("usage fields must be nonnegative integers or null")
+    for text in _walk_strings(receipt):
+        if _DRIVE_PATH.search(text):
+            raise SeatReceiptError("a receipt never carries a filesystem path")
+    canonical(receipt)
+
+
 class SeatReceiptsLedger:
     """Append-only NDJSON with a cross-process lock beside it."""
 
@@ -195,15 +267,21 @@ class SeatReceiptsLedger:
         finally:
             handle.close()
 
-    def append(self, receipts: list[dict[str, Any]], timeout_s: float = 30.0) -> int:
+    def append(self, receipts: list[dict[str, Any]], timeout_s: float = 30.0,
+               validator=validate_receipt) -> int:
         """Validate, then append every receipt whose attempt_id is new. Returns the count."""
         for receipt in receipts:
-            validate_receipt(receipt)
+            validator(receipt)
         if not receipts:
             return 0
         with self._locked(timeout_s):
             known = self.attempt_ids()
-            fresh = [r for r in receipts if r["attempt_id"] not in known]
+            fresh = []
+            for receipt in receipts:
+                if receipt["attempt_id"] in known:
+                    continue
+                known.add(receipt["attempt_id"])
+                fresh.append(receipt)
             if not fresh:
                 return 0
             with self.path.open("a", encoding="utf-8") as stream:

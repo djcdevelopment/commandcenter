@@ -17,6 +17,8 @@ try {
     # seat that finished since the last timer tick. The harvester is idempotent.
     python -m hearth.seats.harvest --json
     if ($LASTEXITCODE -ne 0) { throw 'Research-seat harvest failed' }
+    python -m hearth.seats.runrecords --json
+    if ($LASTEXITCODE -ne 0) { throw 'Run-record import failed' }
     python -m hearth.projection.public_portfolio --out $systemCandidate
     if ($LASTEXITCODE -ne 0) { throw 'HEARTH public projection failed' }
 }

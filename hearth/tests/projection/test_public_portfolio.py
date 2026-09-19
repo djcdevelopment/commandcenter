@@ -336,7 +336,7 @@ class PublicPortfolioProjectionTests(unittest.TestCase):
     def _snapshot(self, root: Path, with_seats: bool = False) -> dict:
         gateway, execution = self._ledgers(root)
         seats = self._seat_ledger(root) if with_seats else root / "no-seats.ndjson"
-        return build_snapshot(gateway, execution, seats, exporter_revision="test")
+        return build_snapshot(gateway, execution, seats, root / "no-records.ndjson", exporter_revision="test")
 
     # ---- research seats (ADR-0047 Phase B) ------------------------------
 
@@ -345,17 +345,17 @@ class PublicPortfolioProjectionTests(unittest.TestCase):
             without = self._snapshot(Path(tmp))
         with tempfile.TemporaryDirectory() as tmp:
             with_seats = self._snapshot(Path(tmp), with_seats=True)
-        cohort = with_seats["seat_inference"]
+        cohort = with_seats["research_runs"]
         self.assertEqual(cohort["attempts"], 13)
         self.assertEqual(cohort["measured_attempts"], 12)
         self.assertEqual(cohort["unknown_usage_attempts"], 1)
         self.assertEqual(cohort["failed_attempts"], 0)
-        self.assertEqual(cohort["seats"], 2)
+        self.assertEqual(cohort["sources"], 2)
         self.assertEqual(cohort["tokens_in"], sum(1000 + t for t in range(9)) + sum(1000 + t for t in (0, 1, 2)))
         self.assertEqual(cohort["tokens_out"], sum(10 + t for t in range(9)) + sum(10 + t for t in (0, 1, 2)))
         self.assertIn("seat_prefix_sha256", with_seats["provenance"])
-        self.assertIn("research seats harvested", with_seats["coverage"]["boundary"])
-        self.assertTrue(any("Research-seat rows" in s for s in with_seats["coverage"]["limitations"]))
+        self.assertIn("research runs harvested", with_seats["coverage"]["boundary"])
+        self.assertTrue(any("Research-run rows" in s for s in with_seats["coverage"]["limitations"]))
         self.assertEqual(with_seats["gateway"], without["gateway"])
         self.assertEqual(with_seats["execution"], without["execution"])
         rows_without = {row["week_start"]: row for row in without["weekly"]}
@@ -364,26 +364,26 @@ class PublicPortfolioProjectionTests(unittest.TestCase):
             for key in ("operations", "learning", "inference", "media", "work_plane", "other"):
                 # A week only the seats saw carries true gateway zeros.
                 self.assertEqual(row_with[key], row_without[key] if row_without else 0)
-        seat_cells = {row["week_start"]: row["seat_attempts"] for row in with_seats["weekly"]}
+        seat_cells = {row["week_start"]: row["research_attempts"] for row in with_seats["weekly"]}
         self.assertEqual(seat_cells.get("2026-06-29"), 13)
         self.assertTrue(all(v == 0 for w, v in seat_cells.items() if w != "2026-06-29"))
 
     def test_absent_seat_ledger_emits_no_cohort_and_zero_seat_cells(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             snapshot = self._snapshot(Path(tmp))
-        self.assertNotIn("seat_inference", snapshot)
+        self.assertNotIn("research_runs", snapshot)
         self.assertNotIn("seat_prefix_sha256", snapshot["provenance"])
         self.assertEqual(snapshot["coverage"]["boundary"], "calls observed at the HEARTH gateway and execution ledgers")
-        self.assertTrue(all(row["seat_attempts"] == 0 for row in snapshot["weekly"]))
+        self.assertTrue(all(row["research_attempts"] == 0 for row in snapshot["weekly"]))
 
     def test_small_seat_week_is_suppressed_and_counted(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             gateway, execution = self._ledgers(root)
             rows = self._seat_receipts()[:4]
-            snapshot = build_snapshot(gateway, execution, self._seat_ledger(root, rows), exporter_revision="test")
+            snapshot = build_snapshot(gateway, execution, self._seat_ledger(root, rows), root / "no-records.ndjson", exporter_revision="test")
         row = next(r for r in snapshot["weekly"] if r["week_start"] == "2026-06-29")
-        self.assertIsNone(row["seat_attempts"])
+        self.assertIsNone(row["research_attempts"])
         self.assertGreaterEqual(row["suppressed_cells"], 1)
 
     def test_seat_ledger_faults_fail_closed(self) -> None:
@@ -393,12 +393,52 @@ class PublicPortfolioProjectionTests(unittest.TestCase):
             rows = self._seat_receipts()
             duplicate = self._seat_ledger(root, rows + rows[:1])
             with self.assertRaisesRegex(PublicProjectionError, "repeats an attempt"):
-                build_snapshot(gateway, execution, duplicate, exporter_revision="test")
+                build_snapshot(gateway, execution, duplicate, root / "no-records.ndjson", exporter_revision="test")
             bad = json.loads(json.dumps(rows))
             bad[0]["usage"]["tokens_in"] = -5
             broken = self._seat_ledger(root, bad)
             with self.assertRaisesRegex(PublicProjectionError, "not a valid receipt"):
-                build_snapshot(gateway, execution, broken, exporter_revision="test")
+                build_snapshot(gateway, execution, broken, root / "no-records.ndjson", exporter_revision="test")
+
+    def test_run_records_join_the_research_cohort(self) -> None:
+        from hearth.seats.receipts import identity, provider_identity
+        records = []
+        for index in range(12):
+            run = identity("run", "planning-matrix/secret-run")
+            records.append({
+                "schema": "run.record-attempt.v1", "run_id": run, "attempt_id": identity("att", run + "/" + str(index)),
+                "record_sha256": "c" * 64,
+                "provider": {"execution_class": "local", "identity_sha256": provider_identity("secret-planner", "unrecorded", 0),
+                             "model_name": "secret-planner"},
+                "started_at": "2026-07-06T05:00:00.000000Z", "finished_at": "2026-07-06T05:01:00.000000Z",
+                "timestamp_derivation": {"method": "run_directory_stamp", "error_bound_s": 86400},
+                "usage": {"tokens_in": None, "tokens_out": 100 + index} if index < 10 else None,
+                "usage_unknown_reason": None if index < 10 else "cell record carries no token count",
+                "outcome": "succeeded" if index < 11 else "failed",
+                "source": {"transport": "run-record", "adapter": "planning-matrix", "execution_mode": "external", "accounting_owner": "direct"},
+                "harvested_at": "2026-09-19T00:00:00.000000Z",
+            })
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            gateway, execution = self._ledgers(root)
+            record_ledger = root / "run-records.ndjson"
+            record_ledger.write_text("\n".join(json.dumps(r, sort_keys=True) for r in records) + "\n", encoding="utf-8")
+            both = build_snapshot(gateway, execution, self._seat_ledger(root), record_ledger, exporter_revision="test")
+            only_records = build_snapshot(gateway, execution, root / "no-seats.ndjson", record_ledger, exporter_revision="test")
+        cohort = both["research_runs"]
+        self.assertEqual(cohort["attempts"], 13 + 12)
+        self.assertEqual(cohort["measured_attempts"], 12 + 10)
+        self.assertEqual(cohort["unknown_usage_attempts"], 1 + 2)
+        self.assertEqual(cohort["failed_attempts"], 1)
+        self.assertEqual(cohort["sources"], 2 + 1)
+        self.assertEqual(cohort["tokens_out"], sum(10 + t for t in range(9)) + sum(10 + t for t in (0, 1, 2)) + sum(100 + i for i in range(10)))
+        self.assertIn("seat_prefix_sha256", both["provenance"])
+        self.assertIn("record_prefix_sha256", both["provenance"])
+        cells = {row["week_start"]: row["research_attempts"] for row in both["weekly"]}
+        self.assertEqual(cells.get("2026-07-06"), 12)
+        self.assertEqual(only_records["research_runs"]["attempts"], 12)
+        self.assertNotIn("seat_prefix_sha256", only_records["provenance"])
+        self.assertNotIn("secret-planner", json.dumps(both))
 
     def test_seat_identifiers_never_survive_serialization(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

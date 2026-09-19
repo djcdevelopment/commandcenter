@@ -110,6 +110,20 @@ probe-shaped tasks on disk are in those files (`hearth/rotation/swapclient.py` `
    dropped.** A `--n-predict 1` restore-then-decode research task has the same shape, so a rule
    follows only if a bespoke seat ever produces one; the harvester reports the tally. **OPEN**
    (today: 0).
+10. **Dated run records are admitted beside the seat logs, so the July work can be seen.** Derek,
+   2026-09-19, after a second sweep found the research that pre-dated the seat logs: the 5070
+   overnight lab (07-02), the planning-matrix wind tunnel (07-05 to 07-07 and its doc-adr
+   sweeps), the load test on the resident MoE while the B70s lived in AM4 (07-17/18), and the
+   llama-bench control rows (08-27). A run record is a self-report, so the rule is the smallest
+   one that keeps the count honest: one attempt per recorded cell, request or bench row;
+   re-scoring passes over the same outputs are not counted; tokens only when the record itself
+   carries them, never derived from a target or a chunk count; a record that restates work
+   another receipt covers is excluded (the Qwen3.8 summary rows); an undated record is not
+   admitted; the timestamp is the record's own or the run directory stamp, and the receipt says
+   which. The cohort is one, named **Research runs**; the gallery judge loop is left out on
+   Derek's word (less is more). **LANDED** (`hearth/seats/runrecords.py`,
+   `run.record-attempt.v1`, second ledger `hearth/var/seats/run-records.ndjson`,
+   `provenance.record_prefix_sha256`).
 9. **The August campaign seats are harvested too; what stays outside is named.** The 2026-09-19
    inventory found the same timing-line receipts at `-lv 3` under six roots on the model drive
    (the Vulkan-cliff burn-in, the Qwen3.8 replacement trial, the ff-probes, rotation and Level-Zero
@@ -138,6 +152,17 @@ probe-shaped tasks on disk are in those files (`hearth/rotation/swapclient.py` `
   importer (`hearth/execution/external_inference.py`) and the projection's `external_inference`
   scan are uncommitted on `master`. Phase B builds on them once they land; the seats package
   inlines the two three-line helpers it would otherwise import.
+
+## Verification (2026-09-19, run records admitted)
+
+Run-record import over the four sources: 993 attempts (lab 25, planning matrix 479 with 45
+failed cells, load test 453, llama-bench rows 36), 64,548 prompt and 2,320,457 generated tokens
+where the records carry them, second run a no-op. Combined cohort staged from the real ledgers:
+**11,380 attempts across 214 sources** (177 seat epochs, 37 record runs), 10,878 measured, 502
+unknown usage, 45 failed, **7,759,356 prompt tokens, 4,216,644 generated**; window opens
+2026-07-02. Weekly research cells: 06-29 **27**, 07-06 **448**, 07-13 **453**, 07-20 16, 08-17
+**6,123**, 08-24 **4,204**, 08-31 and 09-07 suppressed, 09-14 102. 50 projection and seat tests;
+site validator, monotonic rules, HTML validation and the studio spec pass on the promoted branch.
 
 ## Verification (2026-09-19, Phase B)
 

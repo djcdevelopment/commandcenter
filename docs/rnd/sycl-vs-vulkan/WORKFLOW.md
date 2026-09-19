@@ -288,7 +288,7 @@ See also `LEVERS-256K.md` — the inventory of every asset that could move the 2
 - T=0 output changes with `-ub` (batch-shape sensitivity) — reproducible only for a fixed (backend, ubatch).
 - Levers still untried: f16 on tensor split; f16 on Vulkan; MTP at depth; the oneDNN-for-decode gate; RPC pipeline.
 
-### L4d — decode levers without new hardware — PARTIAL 2026-09-19 (B1 done; B2/B3 unmeasured)
+### L4d — decode levers without new hardware — DONE 2026-09-19 10:22Z
 - f16 + tensor split at 119k: decode 10.24 tok/s (layer f16 9.41, +9 %), prefill 555 (layer 713, −22 %) — the two
   decode gains do not stack; **layer split + f16 is the all-round seat**.
 - MTP on 256k f16 `-ub 4096` overfilled a B70: **WDDM spilled 24.8 GB to system RAM silently** (denning's cliff, live);
@@ -297,6 +297,10 @@ See also `LEVERS-256K.md` — the inventory of every asset that could move the 2
 - Incident inside the window: a runaway Explore-agent `grep -r` over `E:\workattlemage` (the models dir) saturated
   E: for ~20 min; two production loads died at llama-swap's 5-min timeout; misdiagnosed as WDDM, cards reset for
   nothing. Rule recorded in memory: disk counters first; no recursive searches over model trees.
+- **B2 MTP** (`draft-mtp`, n_max 3, layer f16 `-ub 2048`): 119k decode **19.98 tok/s** (9.41 without, 2.1×; 76 % accepted;
+  output identical over 128 tokens); **248k decode 14.37 tok/s** (5.89 without, 2.4×), prefill 442, correct answer.
+- **B3 n-gram** (`ngram-cache`): 6.30 tok/s at 119k — worse than none (12 % accepted on explanatory prose). Negative.
+- Depth-decode arc on the same two cards tonight: 119k 4.24 → 9.41 → **19.98**; 248k 2.24 → 5.89 → **14.37**.
 - Denning detour (read, not run): its spill cliff, admission-control conclusion, `-fit` finding and restore-vs-re-prefill
   ratios all transfer directly; PDH `non_local` is nearly blind under SYCL — use `b70tools verdict` with that caveat.
 

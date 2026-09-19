@@ -16,6 +16,8 @@ from .model import new_execution_event
 
 SOURCE = {"transport": "external", "adapter": "deepagents-direct", "execution_mode": "external",
           "accounting_owner": "direct"}
+ADAPTERS = {"deepagents.physical-attempt.v1": "deepagents-direct",
+            "hermes.physical-attempt.v1": "hermes-direct"}
 
 
 def canonical(value):
@@ -27,7 +29,7 @@ def identity(prefix, key):
 
 
 def validate_receipt(receipt):
-    if receipt.get("schema") != "deepagents.physical-attempt.v1":
+    if receipt.get("schema") not in ADAPTERS:
         raise ValueError("unrecognized receipt schema")
     if receipt.get("accounting_owner") != "direct" or receipt.get("execution_mode") != "external":
         raise ValueError("only explicitly direct-owned external attempts may be imported")
@@ -54,7 +56,9 @@ def validate_receipt(receipt):
 
 def import_receipt(ledger: ExecutionLedger, receipt: dict):
     validate_receipt(receipt)
-    key = "deepagents/direct/" + receipt["run_id"] + "/" + receipt["attempt_id"]
+    adapter = ADAPTERS[receipt["schema"]]
+    key = adapter.removesuffix("-direct") + "/direct/" + receipt["run_id"] + "/" + receipt["attempt_id"]
+    source = {**SOURCE, "adapter": adapter}
     content_hash = hashlib.sha256(canonical(receipt).encode()).hexdigest()
     job_id, request_id, invocation_id = (identity(prefix, key) for prefix in ("job", "req", "inv"))
     # Use the ledger's existing cross-process append lock, including projection
@@ -71,8 +75,8 @@ def import_receipt(ledger: ExecutionLedger, receipt: dict):
         def append(kind, observed=None):
             event = new_execution_event(kind, request_id=request_id, job_id=job_id,
                 invocation_id=invocation_id if kind.startswith("invocation.") else None,
-                principal={"type": "external_runner", "id": "deepagents-direct", "authenticated": False},
-                source=SOURCE, operation="inference.external",
+                principal={"type": "external_runner", "id": adapter, "authenticated": False},
+                source=source, operation="inference.external",
                 desired={"idempotency_key": key, "receipt_sha256": content_hash,
                          "receipt": receipt} if kind == "request.accepted" else None,
                 observed=observed)

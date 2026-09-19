@@ -1,0 +1,15 @@
+{
+  "id": "20260919_171008_992f00",
+  "model": "am4-dense-27b",
+  "started_at": 1789837820.3533509,
+  "ended_at": 1789837904.2165172,
+  "message_count": 16,
+  "tool_call_count": 7,
+  "input_tokens": 14869,
+  "output_tokens": 1783,
+  "cache_read_tokens": 56309,
+  "api_call_count": 8,
+  "provenance": "Unedited Hermes final answer from state.db",
+  "message_id": 16,
+  "accounting": "Session-reported aggregates; not per-attempt receipts"
+}

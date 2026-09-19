@@ -1,0 +1,12 @@
+[Unit]
+Description=Hermes loopback HEARTH tunnel (LAN, no public MCP listener)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/ssh -NT -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -i /home/derek/.ssh/id_omen -L 127.0.0.1:8712:127.0.0.1:8712 derek@192.168.12.239
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

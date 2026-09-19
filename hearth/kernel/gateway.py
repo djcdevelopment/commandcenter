@@ -417,6 +417,17 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
 
         hearth.caller = caller
 
+        from hearth.kernel.governed_operator import check_governed_call
+        try:
+            check_governed_call(caller.ledger_profile, tool_name, kwargs)
+        except PermissionError as exc:
+            hearth.ledger.append(new_event(
+                caller.as_dict(), tool_name, args=None, ok=False, error=str(exc),
+                duration_ms=elapsed_ms(), task_id=task_id, task_class=task_class,
+                profile=caller.ledger_profile,
+            ))
+            raise
+
         try:
             guards.check(tool_name, kwargs)
         except GuardRejection as exc:

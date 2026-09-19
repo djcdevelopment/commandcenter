@@ -243,6 +243,57 @@ def query_capabilities(knowledge_dir: str = DEFAULT_OUT) -> dict:
     return _query_knowledge_file("capabilities.json", knowledge_dir)
 
 
+def query_knowledge(topic: str = "", host: str = "", model: str = "",
+                    limit: int = 8, knowledge_dir: str = DEFAULT_OUT) -> dict:
+    """Bounded evidence search; historical findings are not current availability.
+
+    Filters are conjunctive case-insensitive literal matches. Source JSON pointers
+    and watermarks survive clipping; no projectors or model calls run here.
+    """
+    if type(limit) is not int or not 1 <= limit <= 20:
+        raise ValueError("limit must be in 1..20")
+    for value in (topic, host, model):
+        if not isinstance(value, str) or len(value) > 160:
+            raise ValueError("filters must be strings of at most 160 characters")
+    directory = resolve_in_scope(knowledge_dir)
+    files = ("findings.json", "capabilities.json", "am4_gpu_catalog.json",
+             "fx99_gpu_catalog.json", "omen_catalog.json", "capacity.json")
+    filters = [x.casefold() for x in (topic, host, model) if x]
+    results, sources = [], []
+
+    def rows(value, pointer=""):
+        if isinstance(value, list):
+            for index, item in enumerate(value):
+                if isinstance(item, dict):
+                    yield f"{pointer}/{index}", item
+        elif isinstance(value, dict):
+            for key, item in value.items():
+                if isinstance(item, (dict, list)):
+                    yield from rows(item, f"{pointer}/{key.replace('~', '~0').replace('/', '~1')}")
+
+    for name in files:
+        # Resolve the child too: a symlink inside knowledge must not escape scope.
+        path = resolve_in_scope(str(directory / name))
+        if not path.is_file() or path.stat().st_size > 8 * 1024 * 1024:
+            continue
+        doc = json.loads(path.read_text(encoding="utf-8-sig"))
+        watermark = doc.get("evidence_watermark", doc.get("updated_at"))
+        sources.append({"file": name, "watermark": watermark, "mtime": _mtime_iso(path)})
+        for pointer, row in rows(doc):
+            raw = json.dumps(row, ensure_ascii=False, sort_keys=True)
+            if not all(needle in (name + " " + raw).casefold() for needle in filters):
+                continue
+            results.append({"source_id": name + "#" + pointer, "watermark": watermark,
+                "hardware_profile": row.get("hardware_profile_id", doc.get("hardware_profile_id")),
+                "uncertainty": row.get("uncertainty", "historical; verify against a live resource snapshot"),
+                "content": raw[:2400], "truncated": len(raw) > 2400})
+            if len(results) == limit:
+                return {"results": results, "sources": sources, "limit_reached": True,
+                        "live_state_precedence": True}
+    return {"results": results, "sources": sources, "limit_reached": False,
+            "live_state_precedence": True}
+
+
 def query_findings(knowledge_dir: str = DEFAULT_OUT) -> dict:
     """Return the materialized findings.json (with file mtime) from the sandbox."""
     return _query_knowledge_file("findings.json", knowledge_dir)
@@ -429,7 +480,7 @@ def rebuild_knowledge(sources: list[str] | None = None, out: str = DEFAULT_OUT,
 
 def get_tools() -> list[Callable]:
     return [
-        record_event, project, query_capabilities, query_findings, query_beliefs_summary,
+        record_event, project, query_capabilities, query_findings, query_beliefs_summary, query_knowledge,
         project_capacity_knowledge, query_capacity, project_offload_knowledge, query_offload,
         rebuild_knowledge,
     ]

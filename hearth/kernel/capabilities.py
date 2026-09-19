@@ -77,6 +77,7 @@ TOOL_CAPABILITY: dict[str, str] = {
     "query_capabilities": "query",
     "query_capacity": "query",
     "query_findings": "query",
+    "query_knowledge": "query",
     "query_offload": "query",
     "query_rung_state": "query",   # rungstate.py -- door-side rung verdict (ADR-0044)
     "recommend_rung": "query",     # rotation.py -- task-family advice, never dispatches

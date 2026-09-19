@@ -90,27 +90,40 @@ probe-shaped tasks on disk are in those files (`hearth/rotation/swapclient.py` `
    release line, a later launch on the same slot, or thirty minutes of quiescence). An in-flight
    task is left pending because receipts are immutable. `failed_attempts` is zero by construction.
    **LANDED**.
-7. **The public page shows the cohort as a disjoint sidebar figure with its own prefix hash.**
-   `seat_inference` beside `external_inference` (six counts plus `seats`),
-   `provenance.seat_prefix_sha256`, the boundary string and one limitation sentence: *"Research-seat
-   rows are harvested from llama-server timing logs on non-production ports the gateway never
-   addresses; they count requests the door never saw, only from seats that logged, only tokens the
-   server actually processed (cached prefixes are not re-counted), and establish neither authorship
-   nor throughput claims."* Four gates change, not one: `PUBLIC_KEYS`, the schema, the
-   no-jsonschema fallback set, and the site's `SYSTEM_KEYS` with a guarded monotonic check.
-   **DECIDED, NOT YET EXECUTED** — Phase B, after two nightly harvests reproduce the table below.
-   Until then the receipts are summarized on the private call-mix dashboard only
-   (`--seats`), apart from the call counts, exactly as the Ollama sentinel is.
+7. **The public page shows the cohort inside the charts that already exist, drawn hollow.** One
+   rule carries it: *solid was observed at the gateway, hollow was harvested from the servers' own
+   logs.* The family chart gains one hollow row under Local inference (`seat_inference.attempts`,
+   on the same log scale) and one clause in its note; the weekly chart moves to a logarithmic
+   height like its neighbour (Derek, 2026-09-19: door checks are truthful but not what matters
+   relative to the other activity) and gains a slim hollow bar beside each week
+   (`weekly[].seat_attempts`, dashed when fewer than ten, a baseline tick when none). Nothing is
+   stacked across the two, no ratio is drawn, and the boundary box does not change. The snapshot
+   carries `seat_inference` (six counts plus `seats`), `provenance.seat_prefix_sha256`, a second
+   boundary string and one limitation sentence. Four gates changed: `PUBLIC_KEYS`, the schema, the
+   no-jsonschema fallback set, and the site's `SYSTEM_KEYS` with a guarded monotonic check (a
+   published cohort may grow but never disappear or shrink). A first draft that added a
+   two-boundary chart pair, caveat lists and event ticks was rejected as off-register; the
+   surviving change is the smallest one that lets the volume be seen. **LANDED** on branches
+   (`hearth/projection/seats_cohort.py`; site branch `copy/field-lab-research-runs`) — Derek
+   merges and pushes; push deploys.
 8. **Probe-shaped tasks (`prompt_n == 1 and predicted_n == 1`) are counted and tallied, not
    dropped.** A `--n-predict 1` restore-then-decode research task has the same shape, so a rule
    follows only if a bespoke seat ever produces one; the harvester reports the tally. **OPEN**
    (today: 0).
-9. **What stays outside this boundary, named.** Seats that do not log (`llama-bench`,
-   `llama-perplexity`, ad-hoc runs without `--log-file`); the driver-side receipt files
-   (`E:\work\battlemage\ff-probes\ff-receipts.jsonl`, `lz-probes\lz-receipts.jsonl`,
-   `C:\work\memsplice\results\*.json`), which are self-reports and several of which hit production
-   `:8082`; and production's `--metrics` counters, which nothing samples. A phase-2 importer with
-   its own reconciliation may follow. **OPEN**.
+9. **The August campaign seats are harvested too; what stays outside is named.** The 2026-09-19
+   inventory found the same timing-line receipts at `-lv 3` under six roots on the model drive
+   (the Vulkan-cliff burn-in, the Qwen3.8 replacement trial, the ff-probes, rotation and Level-Zero
+   seats), so the harvester reads those roots beside the seat directory, admits a seat by the
+   absence of an API key and a port outside the gateway-reachable set (door pool, friend gate,
+   retired Ollama port, llama-swap's ephemeral range) instead of a two-port allowlist, fingerprints
+   the epoch by the load report up to the listening line, and records build and model as
+   `unrecorded` when the verbosity did not print them. **AMENDED and LANDED** (2026-09-19). Still
+   outside, named: seats that do not log (`llama-bench`, `llama-perplexity`, ad-hoc runs without
+   `--log-file`); probes that ran against the live production server with the gateway's own
+   credential (SAT-L1 and the rate checks), whose only trace is driver-side; the driver-side receipt
+   files (`ff-receipts.jsonl`, `lz-receipts.jsonl`, `memsplice/results`), which are self-reports;
+   production's `--metrics` counters, which nothing samples; and the Ollama era, which logged
+   nothing per request. **OPEN** for a phase-2 importer with its own reconciliation.
 
 ## Consequences
 
@@ -126,7 +139,21 @@ probe-shaped tasks on disk are in those files (`hearth/rotation/swapclient.py` `
   scan are uncommitted on `master`. Phase B builds on them once they land; the seats package
   inlines the two three-line helpers it would otherwise import.
 
-## Verification (2026-09-19)
+## Verification (2026-09-19, Phase B)
+
+The ledger was rebuilt from scratch on the load-report fingerprint over the seat directory and
+the six campaign roots: 197 eligible logs, **177 seats, 10,387 attempts** (10,367 timed, 20
+unknown, 6 probe-shaped), **7,694,808 prompt tokens processed, 1,896,187 generated**; 9 logs skipped
+as door-reachable, 249 skipped because they never listened; a second run appended nothing. The
+projection over the real ledgers staged a candidate watermarked 2026-09-19 with the cohort, weekly
+seat cells 08-17 **6,123**, 08-24 **4,161**, 09-07 suppressed, 09-14 102, and gateway and
+execution blocks that the tests prove byte-identical with and without the cohort (44 projection
+and seat tests). The site validator accepted the candidate, the monotonic rules passed
+(282,964 → 303,910 boundary events), and the studio spec still passes with the weekly chart on a
+log height. `pytest hearth/tests`: 2,119 passed; the one failure is the pre-existing
+declared-budgets test that fails on the base commit.
+
+## Verification (2026-09-19, Phase A)
 
 `python -m hearth.seats.harvest --dry-run` over `hearth/var/swap-logs` (32 logs; the L4c lap was
 adding seats while this ran):

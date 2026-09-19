@@ -46,6 +46,13 @@ llama-swap-managed side seats carry the production key and ephemeral ports; the 
 and the friend gate can reach them, so they are listed as skipped and never counted.
 `--dry-run` prints that table and writes nothing.
 
-Today the receipts are summarized on the private call-mix dashboard only
-(`python -m hearth.projection.call_mix_dashboard --seats`). Publishing them as a
-disjoint cohort on the public page is Phase B of ADR-0047 and has not been executed.
+The harvester also reads the historical campaign roots on the model drive (the August
+burn-in, the Qwen3.8 trial, the ff-probes, rotation and Level-Zero seats), so the cohort
+covers every bespoke seat that kept a log, not only the swap-logs directory.
+
+`hearth/projection/seats_cohort.py` scans the receipts ledger as the projection's third
+input and the snapshot carries `seat_inference`, `provenance.seat_prefix_sha256` and a
+weekly `seat_attempts` cell under the same k=10 rule. The page draws the cohort hollow,
+beside the inference the gateway brokered; it is never added to a family, a lane or an
+execution job count. The receipts are also summarized on the private call-mix dashboard
+(`python -m hearth.projection.call_mix_dashboard --seats`).

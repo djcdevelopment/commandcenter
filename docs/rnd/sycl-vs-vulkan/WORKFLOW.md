@@ -229,7 +229,19 @@ processing and slower on generation — consistent with the SYCL prefill story a
 - Correction recorded: the earlier vLLM/SYCL attempts date to May–June 2026 (ember ADR-0009/0012,
   denning P5, intel_ollama findings), not ~Nov 2025.
 
-### L1 — environment — PENDING (oneAPI install needs Derek's go)
+### L1 — environment — DONE 2026-09-19 06:00Z: builds, both cards enumerate
+- oneAPI was already on the box at a custom dir, `E:\omen\tensor\native\toolchain\oneapi` (installed
+  2026-09-08; a ghost registry entry made winget refuse). `installer.exe --action modify` added oneMKL 2026.1 and
+  oneDNN 2026.0. Intel's `setvars.bat` fails here (after the VS init, `call vars.bat` no longer resolves against
+  the cwd) — `E:\work\llamacpp-knee\sycl-env.cmd` reproduces it with full-path calls; `sycl-run.cmd <cmd>`
+  launches anything with the runtime on PATH.
+- `sycl-ls`: `level_zero:0`, `level_zero:1` = Arc Pro B70; `level_zero:2` = iGPU. Seats pick with
+  `ONEAPI_DEVICE_SELECTOR=level_zero:0` (one) or `level_zero:0;level_zero:1` (both). `ZES_ENABLE_SYSMAN=1` for
+  true free-memory figures.
+- `build-sycl.cmd` → `build-sycl\bin\llama-server.exe` = `build 52 (60cdd25)`, `ggml-sycl.dll` 66 MB; cmake found
+  SYCL 20260100, oneDNN (the #25222 XMX FA path), oneMKL 2026.1, Level Zero API on. `--list-devices`: SYCL0/SYCL1
+  B70 31,906 MiB, SYCL2 iGPU.
+- Edge: none in the build — the edges were all environment (ghost install, setvars, heredoc). Ladder open.
 ### L1b — Vulkan arm (#24406) — CHECKED 2026-09-19: NOT MERGED
 - `origin/master` at `60081bb` (2026-09-18) has no Intel Xe FA shaders (`git log --grep`, shader tree). The Vulkan
   side of every comparison is therefore production's build 52 (`60cdd25`); a master rebase would add general

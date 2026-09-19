@@ -108,11 +108,15 @@ ssh_user = "claude"          # default ssh user for reachability/health probes
 [[node]]
 name = "omen"
 kind = "physical-host"
+gpus = [
+  { type = "intel-arc-b70", bdf = "0000:04:00.0", vram_gb = 32.5 },
+  { type = "intel-arc-b70", bdf = "0000:09:00.0", vram_gb = 32.5 },
+]
 address = "omen.mshome.net"
 alt = ["100.124.12.37"]   # tailnet identity stays (i5/phone reach it from another project)
 via = "mshome"
 expect = "up"
-purpose = "Hyper-V hypervisor + HEARTH gateway (:8710) + omen-arc rung (llama-server :8082, dual Arc Pro B70, ADR-0034, -c 131072 -np 2). The whole live inference surface of the fleet as of 2026-08-24. Hosts all builder VMs (currently all Off). THIS box."
+purpose = "Hyper-V host for builder VMs and HEARTH gateway (:8710), with two Arc Pro B70s. The daytime omen-arc Qwen3 production rung serves on :8082 at -np 8; the intentional night epoch serves resident llama-swap models on :8081 while :8082 is down. Advisory scheduling checks the current epoch instead of treating a TCP port as GPU capacity."
 # `revive` (optional, per-check): a shell command the watchdog runs when this
 # service is down on an expect="up" node. Since ADR-0015 the watchdog is an
 # in-gateway daemon timer (the old mechnet-watchdog scheduled task is deregistered).
@@ -163,13 +167,16 @@ checks = [
 [[node]]
 name = "am4"
 kind = "physical-host"
+gpus = [
+  { type = "nvidia-rtx-5070", uuid = "GPU-a1f65cc0-44d9-7854-6785-7d93e686da2f", bdf = "0000:09:00.0", vram_gb = 11.94 },
+]
 address = "192.168.12.233"
 alt = ["100.116.82.60", "am4.tail8e749c.ts.net"]   # tailscale STAYS on AM4 (gallery Funnel +
    # phone/i5 access) — but HEARTH/mechnet lanes use the LAN address (ADR-0014).
    # ufw: 22 + 8090 ALLOW from 192.168.12.0/24 (8090 rule added 2026-07-09).
 via = "lan"
 expect = "up"     # BACK UP 2026-08-24 (cable returned; serving the gallery to a real user)
-purpose = "UP and serving. Ubuntu 26.04, 30 GB RAM, serving NO inference -- it hosts the observability spine (Jaeger :16686, OTel :4317/:4318), the image gallery, the IRC stack (Ergo/TheLounge on loopback, published via its own tailscale Funnel), the oxen facade :8090, and the BF6 worker/review API :8787. The RTX 5070 HAS a working driver since 2026-08-24 (595.84 open kernel module, CUDA 13.2 runtime, nvidia-smi sees the card) but NO inference engine is bound to it and no CUDA toolkit (nvcc) is installed -- driver present is NOT capacity. NOT a build VM."
+purpose = "UP and serving the observability spine, image gallery, IRC stack, oxen facade :8090, and BF6 worker/review API :8787. Ubuntu 26.04, 30 GB RAM, RTX 5070 driver 595.84. Ollama/qwen2.5:14b proved fully GPU-placed during the 2026-09-15 Mechnet pilot; the pilot service and LAN rule were disabled afterward, so current inference readiness must be checked live before counting this card. AM4 is an inference host, not a build VM."
 # ✅ RESOLVED 2026-08-24 (later the same day): Derek enabled wireless on AM4, so
 # the two boxes no longer contend for one link. Both answered simultaneously at
 # 16:5x — AM4 on 192.168.12.233 (wireless) and fx99 on 192.168.12.220 (the wired
@@ -193,9 +200,9 @@ purpose = "UP and serving. Ubuntu 26.04, 30 GB RAM, serving NO inference -- it h
 # The IRC community-compute plan runs on THIS machine. Any work on that lane
 # needs AM4 powered and cabled first; see [[project-irc-community-compute]].
 #
-# Standing up a 5070 rung here is deliberately out of scope (Derek, 2026-08-24;
-# REAFFIRMED 2026-08-28 — offered the reopen explicitly, Derek chose enlisting
-# fx99 instead, ADR-0039). Reopens only with a named CUDA-only workload.
+# HISTORICAL: standing up a 5070 rung was out of scope on 2026-08-24/28. Derek
+# reopened it for the bounded 2026-09-15 Mechnet resource pilot; Ollama is staged
+# with qwen2.5:14b, and its pilot service/firewall activation was restored.
 checks = [
   { service = "ssh", port = 22 },
   { service = "jaeger", port = 16686 },
@@ -210,12 +217,15 @@ checks = [
 [[node]]
 name = "fx99"
 kind = "physical-host"
+gpus = [
+  { type = "nvidia-rtx-2070-super", uuid = "GPU-a07a9263-cdfe-a05c-4874-eec1f730b60e", bdf = "0000:01:00.0", vram_gb = 8.0 },
+]
 address = "192.168.12.220"                      # LAN = the machine lane (ADR-0014)
 alt = ["100.122.130.124", "fx99.tail8e749c.ts.net"]   # tailnet = human lane only
 via = "lan"
 expect = "optional"   # UP 2026-08-24: holds the wired cable; AM4 moved to wireless,
                       # so both boxes are reachable at once now (see am4)
-purpose = "MONITORING NODE + CUDA SIDECAR RUNG (Derek 2026-08-28, ADR-0039). UP - holds the wired link; AM4 moved to wireless so the two no longer contend. Hostname `ai-1`. Ubuntu 6.8.0-137, 15 GB RAM. RTX 2070 SUPER 8 GB (driver 595.84) running Ollama 0.30.10 on :11434 with 12 resident models (3B-14B Q4). ENLISTED as the pin-only `fx99-ollama` HEARTH rung: light critic/utility seats + the cheap local fallback during OMEN maintenance windows. Verified end-to-end through the door 2026-08-28 (routed_by pinned:fx99-ollama, 802 ms)."
+purpose = "Monitoring node and pin-only CUDA sidecar (ADR-0039), with RTX 2070 SUPER 8 GiB and Ollama on LAN :11434. The 2026-09-15 Mechnet pilot verified qwen2.5-coder:7b resident and fully GPU-placed; the 14B runner model used by cc-builder-3 on this endpoint is not qualified as an 8 GiB GPU seat. FX99 and wireless AM4 are simultaneously reachable."
 # ENLISTMENT NOTE 2026-08-28: the earlier "DO NOT WIRE THIS INTO THE FLEET"
 # ruling (2026-08-24) is SUPERSEDED by Derek's explicit call in the rotation-
 # program session -- he chose enlisting fx99 over reopening the AM4-5070 rung.
@@ -295,6 +305,8 @@ checks = [
 [[node]]
 name = "cc-builder-2"
 kind = "vm"
+runner_backend = "fx99-ollama"
+runner_model = "qwen2.5-coder:7b"
 address = "cc-builder-2.mshome.net"
 via = "mshome"
 host = "omen"
@@ -304,7 +316,7 @@ runner_class = "local"   # runner.json: openai -> fx99-ollama qwen2.5-coder:7b (
 # `qwen3-30b-a3b` -- the B70 rung through the new authenticated Caddy proxy (see
 # hearth/etc/caddy/README.md). NOT YET REPOINTED: the proxy is committed but the process
 # restart, Derek's firewall rule and the from-VM decode proof are all still pending.
-purpose = "Builder VM (local oxen-planner runner)."
+purpose = "Active local builder shell using FX99 Ollama qwen2.5-coder:7b; its GPU seat is checked through FX99 serving state."
 checks = [
   { service = "ssh", port = 22 },
 ]
@@ -312,6 +324,8 @@ checks = [
 [[node]]
 name = "cc-builder-3"
 kind = "vm"
+runner_backend = "fx99-ollama"
+runner_model = "qwen2.5:14b"
 address = "cc-builder-3.mshome.net"
 via = "mshome"
 host = "omen"
@@ -321,7 +335,7 @@ runner_class = "local"   # runner.json: openai -> fx99-ollama qwen2.5:14b (re-po
 # `qwen3-30b-a3b` -- the B70 rung through the new authenticated Caddy proxy (see
 # hearth/etc/caddy/README.md). NOT YET REPOINTED: the proxy is committed but the process
 # restart, Derek's firewall rule and the from-VM decode proof are all still pending.
-purpose = "Builder + assay VM (rebuilt 2026-07-01, standalone disk). Current assay node while claudefarm1 is down."
+purpose = "Builder + assay VM. Its original FX99/qwen2.5:14b runner was restored after the 2026-09-15 AM4 pilot; the AM4/5070 path delivered a real source report but is not the current runner mapping."
 checks = [
   { service = "ssh", port = 22 },
 ]

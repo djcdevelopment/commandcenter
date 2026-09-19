@@ -336,4 +336,5 @@ class GatherTemplateProofingTagTests(TestCase):
 class GetToolsTests(TestCase):
     def test_get_tools_exposes_both_scheduler_tools(self) -> None:
         tools = get_tools()
-        self.assertEqual([t.__name__ for t in tools], ["propose_schedule", "schedule_hindsight"])
+        self.assertEqual([t.__name__ for t in tools],
+                         ["propose_schedule", "schedule_hindsight", "capture_resource_snapshot"])

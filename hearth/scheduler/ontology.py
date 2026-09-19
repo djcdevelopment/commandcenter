@@ -56,13 +56,15 @@ _DEFAULT_MACHINES: tuple[dict, ...] = (
      "tags": ["code", "frontier"], "available": True},
     {"name": "cc-builder-2", "kind": "local", "token_cost_weight": 0.0,
      "tags": ["local", "code"], "available": True},
+    {"name": "cc-builder-3", "kind": "local", "token_cost_weight": 0.0,
+     "tags": ["local", "code"], "available": True},
     {"name": "frontier-builder", "kind": "frontier", "token_cost_weight": 1.0,
      "tags": ["frontier"], "available": True},
 )
 
 # Builder names the scheduler treats as async-eligible machines (pool membership;
 # their local-vs-frontier kind comes from the runner-class registry below).
-_POOL_BUILDER_NAMES = {"am4-worker-1", "cc-builder-1", "cc-builder-2"}
+_POOL_BUILDER_NAMES = {"am4-worker-1", "cc-builder-1", "cc-builder-2", "cc-builder-3"}
 
 # Machine.available answers "may the solver PLAN work here?". That is NOT what the
 # inventory's `expect` field means. `expect` is fleet_ping's ALARM flag: "up" = this
@@ -146,7 +148,11 @@ class ModelSpec:
     visible_devices: Optional[str] = None
     vram_gb: Optional[float] = None       # total VRAM footprint
     per_card_gb: Optional[float] = None   # per-card footprint (dual charges both)
+    card_charges_gb: Optional[dict[int, float]] = None  # measured asymmetric dual shape
+    fixed_card_index: Optional[int] = None  # measured placement of a single resident
+    qualified_task_classes: Optional[list[str]] = None  # evidence-backed task eligibility
     expected_gen_tps: Optional[float] = None
+    parallel_gen_tps: Optional[float] = None  # per request at declared serving slots
     warmup_ms_p50: Optional[float] = None
     warmup_ms_max: Optional[float] = None
     sample_count: Optional[int] = None
@@ -207,6 +213,8 @@ class Job:
     deadline_s: Optional[float] = None
     est_tokens: Optional[int] = None
     required_model: Optional[str] = None
+    eligible_models: list[dict] = field(default_factory=list)  # [{backend, model_id}]
+    requires_tools: bool = False  # tool-using work needs a builder shell, not bare inference
     est_out_tokens: Optional[int] = None
     # U1: caller-supplied direct duration — wins over every lookup path.
     est_duration_s: Optional[float] = None
@@ -256,6 +264,10 @@ class Machine:
     # one pool (AM4 under am4-catalog.v1, OMEN under omen-catalog.v1) the solver
     # must not plan an OMEN-only model onto AM4's cards, or vice versa.
     loadable_models: Optional[list[str]] = None
+    backend: Optional[str] = None  # inference rung, or runner rung for a builder
+    runner_model: Optional[str] = None  # model the builder actually asks its rung to serve
+    decode_host: Optional[str] = None  # GPU endpoint's host, distinct from the VM shell
+    parallel_slots: int = 1  # measured serving slots; one is the safe default
 
 
 @dataclass
@@ -315,11 +327,15 @@ def load_machines(inventory_path: str, backends_path: str) -> list[Machine]:
 
     runner_classes = load_runner_classes(inventory_path)
 
-    # Collect backend tags keyed loosely by node hint (best-effort enrichment).
+    # Collect backend tags and physical decode hosts from endpoint declarations.
     backend_tags: list[str] = []
+    backend_hosts: dict[str, str] = {}
     if backends is not None:
         for backend in backends.get("backend", []):
             backend_tags.extend(backend.get("tags", []))
+            host = backend.get("settings", {}).get("node")
+            if isinstance(backend.get("name"), str) and isinstance(host, str):
+                backend_hosts[backend["name"]] = host
 
     machines: list[Machine] = []
     for node in inventory.get("node", []):
@@ -335,6 +351,9 @@ def load_machines(inventory_path: str, backends_path: str) -> list[Machine]:
             token_cost_weight=1.0 if kind == "frontier" else 0.0,
             tags=sorted(set(tags)),
             available=bool(node.get(_SCHEDULABLE_KEY, True)),
+            backend=node.get("runner_backend"),
+            runner_model=node.get("runner_model"),
+            decode_host=backend_hosts.get(node.get("runner_backend")),
         ))
 
     if not any(m.kind == "local" for m in machines):
@@ -366,6 +385,18 @@ def load_machines(inventory_path: str, backends_path: str) -> list[Machine]:
             tags=["local"], available=True,
         ))
     return machines
+
+
+def load_gpu_inventory(inventory_path: str) -> dict[str, list[dict]]:
+    """Physical host -> declared GPUs. Reachability alone is not capacity."""
+    inventory = _read_toml(Path(inventory_path))
+    if inventory is None:
+        return {}
+    return {
+        str(node["name"]): [dict(card) for card in node.get("gpus", [])]
+        for node in inventory.get("node", [])
+        if node.get("kind") == "physical-host" and isinstance(node.get("gpus"), list)
+    }
 
 
 def load_capacity(capacity_path: str) -> Optional[dict]:
@@ -408,7 +439,8 @@ def _bucket_p90(document: dict, *, task_class: Optional[str], tool: Optional[str
 
 AM4_CATALOG_CONTRACT = "am4-catalog.v1"
 OMEN_CATALOG_CONTRACT = "omen-catalog.v1"
-CATALOG_CONTRACTS = (AM4_CATALOG_CONTRACT, OMEN_CATALOG_CONTRACT)
+GPU_CATALOG_CONTRACT = "gpu-catalog.v1"
+CATALOG_CONTRACTS = (AM4_CATALOG_CONTRACT, OMEN_CATALOG_CONTRACT, GPU_CATALOG_CONTRACT)
 
 # llama-swap declares every single-card OMEN model TWICE (`<m>-vk1` env=1,
 # `<m>-vk0` env=0) and the dual 27B once as `<m>-dual` (ADR-0042: the Vulkan index
@@ -424,6 +456,7 @@ def _empty_catalog(contract_version: Optional[str] = None) -> dict:
         "models": {}, "gates": None, "cards": None,
         "contract_version": contract_version, "host": None,
         "resident_models": [], "staging_slots": None, "coresidency": None,
+        "hardware_profile_id": None,
     }
 
 
@@ -438,7 +471,13 @@ def _spec_from_raw(raw: dict, contract_version: str) -> ModelSpec:
         visible_devices=raw.get("visible_devices"),
         vram_gb=raw.get("vram_gb"),
         per_card_gb=raw.get("per_card_gb"),
+        card_charges_gb={int(k): float(v) for k, v in raw["card_charges_gb"].items()}
+        if isinstance(raw.get("card_charges_gb"), dict) else None,
+        fixed_card_index=raw.get("fixed_card_index"),
+        qualified_task_classes=[str(x) for x in raw["qualified_task_classes"]]
+        if isinstance(raw.get("qualified_task_classes"), list) else None,
         expected_gen_tps=raw.get("expected_gen_tps"),
+        parallel_gen_tps=raw.get("parallel_gen_tps"),
         warmup_ms_p50=raw.get("warmup_ms_p50"),
         warmup_ms_max=raw.get("warmup_ms_max"),
         sample_count=raw.get("sample_count"),
@@ -515,6 +554,7 @@ def load_model_catalog(path: str, contracts: tuple[str, ...] = CATALOG_CONTRACTS
         "cards": cards if isinstance(cards, list) else None,
         "contract_version": contract_version,
         "host": document.get("host"),
+        "hardware_profile_id": document.get("hardware_profile_id"),
         "resident_models": [str(m) for m in resident] if isinstance(resident, list) else [],
         "staging_slots": int(staging) if isinstance(staging, int) and not isinstance(staging, bool) else None,
         "coresidency": coresidency if isinstance(coresidency, dict) else None,
@@ -554,7 +594,9 @@ def lookup_duration_s(job: Job, machine: Machine, capacity: Optional[dict],
     if models and job.required_model and job.est_out_tokens:
         spec = models.get(job.required_model)
         if spec is not None and spec.expected_gen_tps:
-            return float(job.est_out_tokens) / float(spec.expected_gen_tps)
+            tps = (spec.parallel_gen_tps if machine.parallel_slots > 1
+                   and spec.parallel_gen_tps else spec.expected_gen_tps)
+            return float(job.est_out_tokens) / float(tps)
     if capacity is not None:
         tool_key = None if job.task_class in ENQUEUE_ONLY_TOOLS else job.task_class
         for node in (machine.name, None):

@@ -1,0 +1,21 @@
+{
+  "contract_version": "gpu-catalog.v1",
+  "gathered_at": "2026-09-15T20:52:00Z",
+  "host": "am4",
+  "hardware_profile_id": "am4-5070-2026H2",
+  "resident_models": [],
+  "staging_slots": 1,
+  "gates": {"vram_headroom_gb": 0.5},
+  "cards": [
+    {"index": 0, "uuid": "GPU-a1f65cc0-44d9-7854-6785-7d93e686da2f", "bdf": "0000:09:00.0", "vram_gb": 11.94, "label": "RTX 5070"}
+  ],
+  "models": [
+    {"model_id": "qwen2.5:14b", "alias": null, "placement": "single",
+     "visible_devices": null, "vram_gb": 9.2, "per_card_gb": 9.2,
+     "expected_gen_tps": 64.69, "warmup_ms_p50": null,
+     "warmup_ms_max": null, "sample_count": 1,
+     "qualified_task_classes": ["inference", "research", "summarization"],
+     "quality_evidence": "2026-09-15 HEARTH pinned am4-ollama/qwen2.5:14b ADR-0008 source extraction, independently checked and corrected; cc-builder-3 from-VM Ollama decode result campaign/results/am4-vm-decode-result.json",
+     "notes": "4096 context; Ollama /api/ps size_vram=size=9,470,098,799 bytes; nvidia-smi 5070 used 9312 MiB versus 80 MiB idle. Planning charge 9.2 GiB includes margin. The 64.69 tok/s rate is one short 107-prompt/80-output-token from-VM sample, not a long-context or sustained rate."}
+  ]
+}

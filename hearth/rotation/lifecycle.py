@@ -43,10 +43,12 @@ def default_fence() -> Optional[str]:
     try:
         from hearth.execution.coordination import GpuTenancyStore
 
-        session = GpuTenancyStore().active_image_session(FENCE_RESOURCE)
+        session = GpuTenancyStore().active_owner(FENCE_RESOURCE)
     except Exception:  # noqa: BLE001
         return "unreadable"
-    return session.session_id if session is not None else None
+    if session is None:
+        return None
+    return ("experiment:" if session.owner == "experiment" else "") + session.session_id
 
 
 SWAP_LOG_DIR = Path("C:/work/commandcenter/hearth/var/swap-logs")

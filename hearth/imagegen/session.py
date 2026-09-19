@@ -149,6 +149,9 @@ class ImageSessionController:
 
     def start(self, *, reason: str = "operator requested art session") -> dict:
         with self._lock:
+            owner = self.store.active_owner(POOL)
+            if owner is not None and owner.owner != "imagegen":
+                return {"ok": False, "error": "GPU pool belongs to " + owner.owner}
             current = self.store.active_image_session(POOL)
             if current is not None:
                 return {"ok": True, "already_active": True, **self.status()}

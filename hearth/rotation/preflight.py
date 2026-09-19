@@ -76,6 +76,10 @@ def gate_fence(fence, activity: Optional[dict] = None) -> dict:
                      "cannot read the omen-b70-pool tenancy store",
                      "fix the store before acting; an unreadable fence is not a free one")
     if fence:
+        if str(fence).startswith("experiment:"):
+            return _gate("G0", "tenancy fence", False,
+                         "held by experiment " + str(fence).split(":", 1)[1],
+                         "wait for the experiment controller to verify resident restoration and release its fence")
         detail = f"held by image session {fence}"
         remedy = "wait for the imagegen lane to release; production is stopped under the fence"
         if isinstance(activity, dict) and activity.get("available"):

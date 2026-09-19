@@ -209,6 +209,50 @@ context_bytes = 24576
 timeout_s = 300
 
 [[backend]]
+name     = "am4-ollama"                       # RTX 5070 pilot: LAN-only CUDA seat
+endpoint = "http://192.168.12.233:11434"
+api      = "ollama"
+models   = ["qwen2.5:14b"]
+tags     = []                                 # advisory and pin-only until qualified
+[backend.settings]
+node                = "am4"
+hardware_profile_id = "am4-5070-2026H2"
+context_bytes       = 14336                  # 4096 tokens x 3.5 bytes; service sets 4K
+max_tokens          = 1024
+timeout_s           = 300
+parallel_slots      = 1
+
+[[backend]]
+name     = "am4-dense"
+endpoint = "http://192.168.12.233:8090"
+api      = "openai"
+auth_env = "AM4_OXEN_TOKEN"
+models   = ["am4-dense-27b"]
+tags     = []                      # pin-only; says nothing about availability (F2)
+[backend.settings]
+node                = "am4"
+hardware_profile_id = "am4-4070ti-5070-2026H2"
+context_bytes       = 14336        # 4096 tokens x ~3.5 bytes/token, one slot; retune if the shape changes
+max_tokens          = 1024
+parallel_slots      = 1
+timeout_s           = 600
+
+[[backend]]
+name     = "am4-read-4070ti"               # READER rung (pin-only): one NVIDIA card, long context, prefill-heavy work
+endpoint = "http://192.168.12.233:8090"
+api      = "openai"
+auth_env = "AM4_OXEN_TOKEN"
+models   = ["am4-read-4070ti"]
+tags     = []
+[backend.settings]
+node                = "am4"
+hardware_profile_id = "am4-4070ti-2026H2"
+context_bytes       = 57344        # 16384 tokens x ~3.5 bytes/token, one slot (q8_0 KV on 12 GB)
+max_tokens          = 1024
+parallel_slots      = 1
+timeout_s           = 600
+
+[[backend]]
 name     = "omen-swap"                        # ROTATION RUNG (pin-only), ADR-0040 Phase 2 / ADR-0045
                                               # (2026-09-03): llama-swap v251 on loopback :8081 owns
                                               # OMEN's model lifecycle and fronts the side seats declared

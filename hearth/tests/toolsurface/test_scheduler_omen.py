@@ -198,7 +198,9 @@ class OmenCatalogTests(_Sandbox):
         self.assertEqual(omen["token_cost_weight"], 0.0)
         detail = result["rotation_plan"]["machine_detail"]
         self.assertEqual(detail["host"], "omen")
-        self.assertEqual(detail["roles"], ["inference"])
+        self.assertIn("inference", detail["roles"])
+        self.assertIn("research", detail["roles"])
+        self.assertNotIn("build", detail["roles"])
         self.assertEqual(detail["staging_slots"], 1)
         self.assertEqual(detail["resident_models"], ["qwen3-30b-a3b"])
         self.assertEqual([c["bdf"] for c in detail["cards"]], [BDF_A, BDF_B])
@@ -420,7 +422,7 @@ class OmenCatalogTests(_Sandbox):
 
 
 class TwoCatalogTests(_Sandbox):
-    def test_each_stateful_host_loads_only_its_own_catalog(self) -> None:
+    def test_historical_am4_b70_catalog_is_not_live_capacity(self) -> None:
         self._write_omen()
         self._write_am4()
         result = propose_schedule([
@@ -428,15 +430,9 @@ class TwoCatalogTests(_Sandbox):
              "est_out_tokens": 300},
             {"plan_id": "c1", "task_class": "inference", "required_model": "phi4-vk1",
              "est_out_tokens": 200}])
-        self.assertTrue(result["ok"])
-        by_plan = {a["plan_id"]: a["machine"] for a in result["proposal"]["assignments"]}
-        self.assertEqual(by_plan["a1"], "am4-worker-1")
-        self.assertEqual(by_plan["c1"], OMEN)
-        loads = {(row["machine"], row["model_id"]) for row in result["proposal"]["loads"]}
-        self.assertEqual(loads, {("am4-worker-1", "qwen3-coder:30b"), (OMEN, "phi4")})
-        # The AM4 model is exempt from OMEN's fit check and absent from its plan.
-        self.assertEqual(result["rotation_plan"]["blocked"], [])
-        self.assertEqual([s["model_id"] for s in _load_steps(result)], ["phi4"])
+        self.assertFalse(result["ok"])
+        self.assertFalse(any(m["name"] == "am4-worker-1" and m["cards"]
+                             for m in result["machines_considered"]))
 
 
 class RealCatalogDemoTests(_Sandbox):

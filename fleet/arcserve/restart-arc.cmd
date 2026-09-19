@@ -10,6 +10,8 @@ rem llama-swap.exe WITH its children (taskkill /T), and -- until the cutover has
 rem direct server was ever started by hand -- any bare llama-server.exe as well. The wait below
 rem requires BOTH images to be gone before ArcServeBoot is started again.
 set "ARC_MAINTENANCE_STOP=C:\work\commandcenter\hearth\var\arc-maintenance.stop"
+C:\work\commandcenter\fleet-worker-node\.venv-omen\Scripts\python.exe C:\work\commandcenter\hearth\execution\maintenance.py --stop-check
+if errorlevel 1 exit /b 0
 schtasks /End /TN ArcServeBoot >nul 2>&1
 taskkill /IM llama-swap.exe /T /F >nul 2>&1
 taskkill /IM llama-server.exe /F >nul 2>&1

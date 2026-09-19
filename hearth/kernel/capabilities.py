@@ -166,6 +166,7 @@ TOOL_CAPABILITY: dict[str, str] = {
     # schedule: scheduler advice + hindsight
     "propose_schedule": "schedule",
     "schedule_hindsight": "schedule",
+    "capture_resource_snapshot": "schedule",
     # catalog_write: the am4 catalog owner (writes its own non-corpus file)
     "gather_am4_catalog": "catalog_write",
     # commander: intent refinement lane

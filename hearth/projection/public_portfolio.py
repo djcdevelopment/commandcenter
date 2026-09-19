@@ -91,6 +91,7 @@ EXECUTION_FAMILY = {
     "media.pipeline": "media_pipeline",
     "llm.chat": "inference",
     "inference.generate": "inference",
+    "inference.external": "inference",
 }
 EXECUTION_FAMILY_ORDER = [
     "image_generation",
@@ -119,6 +120,7 @@ TERMINAL_JOB_EVENTS = {
 # public label derived from a private identifier; the identifier itself is never
 # emitted, and a lane makes no claim of authorship or ownership of the work.
 AGENT_LANE_BY_CALLER = {
+    "deepagents-direct": "deepagents",
     "claude-frontier": "claude_code",
     "codex-cli": "codex",
     "dmos-poc": "dmos_image_client",
@@ -133,6 +135,7 @@ AGENT_LANE_BY_CALLER = {
 }
 AGENT_LANE_BY_ADAPTER = {**AGENT_LANE_BY_CALLER, "bf6-hatchet": "clippy_dispatcher"}
 AGENT_LANE_ORDER = [
+    "deepagents",
     "claude_code",
     "codex",
     "dmos_image_client",
@@ -143,6 +146,7 @@ AGENT_LANE_ORDER = [
     "other",
 ]
 AGENT_LANE_LABELS = {
+    "deepagents": "DeepAgents",
     "claude_code": "Claude Code",
     "codex": "Codex",
     "dmos_image_client": "DMos image client",
@@ -155,6 +159,8 @@ AGENT_LANE_LABELS = {
 UNATTRIBUTED_LANE = "other"
 RUNG_STATES = {"at_rate", "warn", "degraded", "stalled", "stale", "unreachable"}
 PUBLIC_KEYS = {
+    "external_inference", "attempts", "measured_attempts", "unknown_usage_attempts",
+    "failed_attempts", "setup", "task", "restoration", "by_phase",
     "schema", "snapshot_id", "source_watermark_day", "observation_window",
     "first_day", "last_day", "gateway", "execution", "weekly", "mechnet",
     "coverage", "provenance", "integrity", "events", "ok_events",
@@ -392,6 +398,8 @@ def _scan_gateway(path: Path) -> dict[str, Any]:
 
 
 def _scan_execution(path: Path) -> dict[str, Any]:
+    external = {key: 0 for key in ("attempts", "measured_attempts", "unknown_usage_attempts", "failed_attempts", "tokens_in", "tokens_out")}
+    phases = {phase: dict(external) for phase in ("setup", "task", "restoration")}
     event_types: Counter[str] = Counter()
     job_attempts: dict[str, Counter[str]] = defaultdict(Counter)
     job_family: dict[str, str] = {}
@@ -432,6 +440,29 @@ def _scan_execution(path: Path) -> dict[str, Any]:
                     f"execution ledger replay failed at public position {expected_sequence}"
                 ) from exc
             expected_sequence += 1
+            source = event.get("source") or {}
+            if (source.get("execution_mode") == "external" and source.get("accounting_owner") == "direct"
+                    and source.get("adapter") == "deepagents-direct"
+                    and event["event_type"] in {"invocation.succeeded", "invocation.failed"}):
+                from hearth.execution.external_inference import validate_receipt, canonical
+                receipt = (event.get("observed") or {}).get("external_receipt")
+                try:
+                    validate_receipt(receipt)
+                    state = replayed_states[event["job_id"]]
+                    receipt_hash = hashlib.sha256(canonical(receipt).encode()).hexdigest()
+                    if receipt_hash != state["desired"].get("receipt_sha256"):
+                        raise ValueError("receipt digest mismatch")
+                except (TypeError, AttributeError, ValueError) as exc:
+                    raise PublicProjectionError("invalid direct inference receipt") from exc
+                usage = receipt.get("usage") or {}
+                measured = all(type(usage.get(k)) is int for k in ("tokens_in", "tokens_out"))
+                for counter in (external, phases[receipt["phase"]]):
+                    counter["attempts"] += 1
+                    counter["measured_attempts"] += int(measured)
+                    counter["unknown_usage_attempts"] += int(not measured)
+                    counter["failed_attempts"] += int(receipt["outcome"] != "succeeded")
+                    counter["tokens_in"] += usage.get("tokens_in") or 0
+                    counter["tokens_out"] += usage.get("tokens_out") or 0
             event_type = str(event.get("event_type") or "")
             event_types[event_type] += 1
             event_day = _day(event.get("timestamp"))
@@ -506,6 +537,7 @@ def _scan_execution(path: Path) -> dict[str, Any]:
             "by_family": by_family,
         },
         "agent_jobs": agent_jobs,
+        "external_inference": {**external, "by_phase": phases} if external["attempts"] else None,
         "first_day": min(days),
         "last_day": max(days),
         "prefix_sha256": digest.hexdigest(),
@@ -525,6 +557,22 @@ def _walk_keys(value: Any) -> list[str]:
 
 
 def validate_public_snapshot(snapshot: dict[str, Any]) -> None:
+    if "external_inference" in snapshot:
+        external = snapshot["external_inference"]
+        keys = ("attempts", "measured_attempts", "unknown_usage_attempts", "failed_attempts", "tokens_in", "tokens_out")
+        try:
+            phases = external["by_phase"]
+            if set(phases) != {"setup", "task", "restoration"}:
+                raise ValueError("invalid phases")
+            for row in [external, *phases.values()]:
+                if any(type(row[k]) is not int or row[k] < 0 for k in keys):
+                    raise ValueError("invalid count")
+                if row["measured_attempts"] + row["unknown_usage_attempts"] != row["attempts"] or row["failed_attempts"] > row["attempts"]:
+                    raise ValueError("attempt counts do not reconcile")
+            if any(sum(row[k] for row in phases.values()) != external[k] for k in keys):
+                raise ValueError("phase counts do not reconcile")
+        except (KeyError, TypeError, ValueError, AttributeError) as exc:
+            raise PublicProjectionError("invalid external inference aggregate") from exc
     unknown_keys = set(_walk_keys(snapshot)) - PUBLIC_KEYS
     if unknown_keys:
         raise PublicProjectionError(f"public snapshot contains undeclared keys: {sorted(unknown_keys)}")
@@ -553,7 +601,7 @@ def validate_public_snapshot(snapshot: dict[str, Any]) -> None:
             "schema", "snapshot_id", "source_watermark_day", "observation_window",
             "gateway", "execution", "weekly", "mechnet", "coverage", "provenance", "integrity",
         }
-        if set(snapshot) != required:
+        if set(snapshot) - {"external_inference"} != required:
             raise PublicProjectionError("public snapshot top-level shape does not match v1")
     else:
         schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
@@ -612,6 +660,11 @@ def build_snapshot(
             "execution_prefix_sha256": execution["prefix_sha256"],
         },
     }
+    if execution["external_inference"] is not None:
+        payload["external_inference"] = execution["external_inference"]
+        payload["coverage"]["boundary"] = "HEARTH gateway and execution ledgers, including instrumented direct local inference"
+        payload["coverage"]["limitations"][0] = "Uninstrumented model calls and direct shell, file and cloud calls remain outside this boundary."
+        payload["coverage"]["limitations"].append("External inference is a disjoint direct-owned cohort; local tokens include mixed CPU and accelerator placement and do not establish accelerator-hours.")
     canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
     digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
     snapshot = {**payload, "snapshot_id": f"sha256:{digest}", "integrity": {"content_sha256": digest}}

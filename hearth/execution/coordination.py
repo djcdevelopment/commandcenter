@@ -39,7 +39,8 @@ class TenancySnapshot:
 
     def active(self, *, now: Optional[float] = None) -> bool:
         current = time.time() if now is None else now
-        return self.owner == "imagegen" and self.expires_at > current
+        # Experiment ownership survives a lost heartbeat until verified restore.
+        return self.owner == "experiment" or (self.owner == "imagegen" and self.expires_at > current)
 
     def to_dict(self, *, now: Optional[float] = None) -> dict[str, Any]:
         value = asdict(self)
@@ -230,8 +231,10 @@ class GpuTenancyStore:
     def acquire(
         self, *, resource: str, session_id: str, ttl_seconds: float,
         state: str = "draining_llm", reason: Optional[str] = None,
-        now: Optional[float] = None,
+        now: Optional[float] = None, owner: str = "imagegen",
     ) -> TenancySnapshot:
+        if owner not in {"imagegen", "experiment"}:
+            raise ValueError("unsupported tenancy owner")
         if not resource or not session_id or not state:
             raise ValueError("resource, session_id, and state must not be empty")
         if ttl_seconds <= 0:
@@ -243,8 +246,8 @@ class GpuTenancyStore:
                 row = connection.execute(
                     "SELECT * FROM gpu_tenancy WHERE resource = ?", (resource,)
                 ).fetchone()
-                if row is not None and float(row["expires_at"]) > current:
-                    if str(row["owner"]) == "imagegen" and str(row["session_id"]) == session_id:
+                if row is not None and self._snapshot(row).active(now=current):
+                    if str(row["owner"]) == owner and str(row["session_id"]) == session_id:
                         connection.commit()
                         return self._snapshot(row)
                     raise TenancyConflict(
@@ -258,14 +261,14 @@ class GpuTenancyStore:
                     INSERT INTO gpu_tenancy (
                         resource, owner, session_id, epoch, state, reason,
                         acquired_at, updated_at, expires_at
-                    ) VALUES (?, 'imagegen', ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(resource) DO UPDATE SET
-                        owner='imagegen', session_id=excluded.session_id,
+                        owner=excluded.owner, session_id=excluded.session_id,
                         epoch=excluded.epoch, state=excluded.state,
                         reason=excluded.reason, acquired_at=excluded.acquired_at,
                         updated_at=excluded.updated_at, expires_at=excluded.expires_at
                     """,
-                    (resource, session_id, epoch, state, reason, current, current,
+                    (resource, owner, session_id, epoch, state, reason, current, current,
                      current + ttl_seconds),
                 )
                 connection.commit()
@@ -279,7 +282,7 @@ class GpuTenancyStore:
     def transition(
         self, *, resource: str, session_id: str, epoch: int, state: str,
         ttl_seconds: float, reason: Optional[str] = None,
-        now: Optional[float] = None,
+        now: Optional[float] = None, owner: str = "imagegen",
     ) -> TenancySnapshot:
         if ttl_seconds <= 0:
             raise ValueError("ttl_seconds must be positive")
@@ -289,10 +292,10 @@ class GpuTenancyStore:
                 """
                 UPDATE gpu_tenancy
                 SET state = ?, reason = ?, updated_at = ?, expires_at = ?
-                WHERE resource = ? AND owner = 'imagegen'
-                  AND session_id = ? AND epoch = ? AND expires_at > ?
+                WHERE resource = ? AND owner = ?
+                  AND session_id = ? AND epoch = ? AND (expires_at > ? OR owner = 'experiment')
                 """,
-                (state, reason, current, current + ttl_seconds, resource,
+                (state, reason, current, current + ttl_seconds, resource, owner,
                  session_id, epoch, current),
             )
         if cursor.rowcount != 1:
@@ -303,7 +306,7 @@ class GpuTenancyStore:
 
     def renew(
         self, *, resource: str, session_id: str, epoch: int,
-        ttl_seconds: float, now: Optional[float] = None,
+        ttl_seconds: float, now: Optional[float] = None, owner: str = "imagegen",
     ) -> bool:
         if ttl_seconds <= 0:
             raise ValueError("ttl_seconds must be positive")
@@ -312,17 +315,20 @@ class GpuTenancyStore:
             cursor = connection.execute(
                 """
                 UPDATE gpu_tenancy SET updated_at = ?, expires_at = ?
-                WHERE resource = ? AND owner = 'imagegen'
-                  AND session_id = ? AND epoch = ? AND expires_at > ?
+                WHERE resource = ? AND owner = ?
+                  AND session_id = ? AND epoch = ? AND (expires_at > ? OR owner = 'experiment')
                 """,
-                (current, current + ttl_seconds, resource, session_id, epoch, current),
+                (current, current + ttl_seconds, resource, owner, session_id, epoch, current),
             )
         return cursor.rowcount == 1
 
     def release(
         self, *, resource: str, session_id: str, epoch: int,
         reason: Optional[str] = None, now: Optional[float] = None,
+        owner: str = "imagegen", restoration_verified: bool = False,
     ) -> bool:
+        if owner == "experiment" and not restoration_verified:
+            raise TenancyConflict("experiment release requires verified restoration")
         current = time.time() if now is None else now
         with self._connect() as connection:
             cursor = connection.execute(
@@ -330,10 +336,10 @@ class GpuTenancyStore:
                 UPDATE gpu_tenancy
                 SET owner = 'arcserve', state = 'llm', reason = ?,
                     updated_at = ?, expires_at = 0
-                WHERE resource = ? AND owner = 'imagegen'
+                WHERE resource = ? AND owner = ?
                   AND session_id = ? AND epoch = ?
                 """,
-                (reason, current, resource, session_id, epoch),
+                (reason, current, resource, owner, session_id, epoch),
             )
         return cursor.rowcount == 1
 
@@ -345,6 +351,12 @@ class GpuTenancyStore:
         return self._snapshot(row) if row is not None else None
 
     def active_image_session(
+        self, resource: str = "omen-b70-pool", *, now: Optional[float] = None
+    ) -> Optional[TenancySnapshot]:
+        snapshot = self.active_owner(resource, now=now)
+        return snapshot if snapshot is not None and snapshot.owner == "imagegen" else None
+
+    def active_owner(
         self, resource: str = "omen-b70-pool", *, now: Optional[float] = None
     ) -> Optional[TenancySnapshot]:
         snapshot = self.get(resource)

@@ -304,6 +304,15 @@ See also `LEVERS-256K.md` — the inventory of every asset that could move the 2
 - Denning detour (read, not run): its spill cliff, admission-control conclusion, `-fit` finding and restore-vs-re-prefill
   ratios all transfer directly; PDH `non_local` is nearly blind under SYCL — use `b70tools verdict` with that caveat.
 
+### L4e / L4f — Derek's research list — DONE 2026-09-19 11:35Z
+- **Asymmetric KV** (q8_0/q4_1 and f16/q4_0) on SYCL at 119k: decode 5.84 / 5.80 (f16 9.41, q4_0 4.24) — a memory lever
+  (3.4 GB/card at 256k), not a speed lever; f16/q4_0 also loses 44 % prefill (fails the oneDNN type gate).
+- **AOT (`GGML_SYCL_DEVICE_ARCH=bmg-g31`)**: identical to JIT within noise. Negative.
+- **RPC four-GPU pipeline** (AM4's pair + the B70s, 1 GbE): loads and runs; decode **11.7 tok/s at 119k (+24 %)**,
+  prefill 498 (−28 %); one rpc-server for both remote cards halves the wire crossings vs two. On this link it is a
+  decode lever only. Flash-Next shard 1 is a 0-byte file — no MoE+MTP lap until it is re-downloaded.
+- **MTP** was already done (L4d). oneDNN FA was already on.
+
 ### L5 — jobs/h at -np 8 × 16k — PENDING
 ### L6 — deep concurrency — PENDING
 ### L7 — cross-backend KV — DONE 2026-09-19 07:20Z (answered inside L4b)

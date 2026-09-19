@@ -56,7 +56,7 @@ puts the same job past an hour.
 
 ### Limit A — deep prefill: 485 tok/s at 248k; the bar is ~1,400
 
-- **A1. The four-GPU RPC pipeline** — untested, structural. Build both hosts with `GGML_RPC=ON`, run
+- **A1. The four-GPU RPC pipeline** — MEASURED 2026-09-19 (L4f): loads and runs; on 1 GbE prefill 498 tok/s at 119k (dual B70 694) because f32 activations cross per ubatch with no async on RPC devices; decode 11.7 (+24 %). A decode lever until the link is faster. Originally: Build both hosts with `GGML_RPC=ON`, run
   `rpc-server` on AM4, launch OMEN's SYCL server with `--rpc 10.44.0.2:50052 -sm layer -ts …` so the 27B is
   layer-split across AM4's pair *and* the B70s. AM4's 128k ceiling stops mattering (it holds only its layers'
   KV); prefill scales with pipeline depth (expect ~2× the B70-alone rate → the 4-minute neighbourhood at 250k);
@@ -79,18 +79,18 @@ puts the same job past an hour.
 
 ### Limit B — decode at depth: 5.89 tok/s at 248k (f16, layer split); 6.74 at 119k (q4_0, tensor split)
 
-- **B1. f16 KV on tensor split** — the two gains tonight were measured separately; they may stack. One relaunch.
-- **B2. MTP** — `--spec-type draft-mtp -md mtp-Qwen3.8-27B-Q4_0.gguf --spec-draft-n-max 3`. At depth a token's
+- **B1. f16 KV on tensor split** — MEASURED (L4d): 10.24 vs 9.41 — does not stack (+9 %, prefill −22 %).
+- **B2. MTP** — MEASURED (L4d): 119k 19.98 tok/s, 248k 14.37, exact. `--spec-type draft-mtp -md mtp-Qwen3.8-27B-Q4_0.gguf --spec-draft-n-max 3`. At depth a token's
   cost is the attention read; a 4-token verify pays it once. Nightshift measured 2.1× on Vulkan at short context
   (ADR-0038 notes a T=0 divergence to check). One flag.
-- **B3. n-gram speculation** — `--spec-type ngram-cache` / `ngram-map-k4v`: drafts from the prompt's own
+- **B3. n-gram speculation** — MEASURED (L4d): 6.30 tok/s, worse than none on prose. `--spec-type ngram-cache` / `ngram-map-k4v`: drafts from the prompt's own
   repetition, **no draft model**. A 250k prompt of source code is highly repetitive; acceptance could be high.
   One flag, zero memory.
 - **B4. oneDNN for decode** — the selector's ≥32-query-token gate keeps every decode step on TILE/VEC; lowering
   it for f16 KV at long KV is a one-line fork change. Unknown whether oneDNN's fused SDPA beats VEC at q=1.
 - **B5. A draft model on the iGPU or CPU** — `-md <small Qwen> -devd SYCL2` (or CPU): keeps B70 VRAM for KV;
   needs a small draft GGUF on disk (none today; a ~1 GB download).
-- **B6. q8_0 KV** — the middle ground between q4_0's memory and f16's speed; untested on SYCL at depth.
+- **B6. q8_0 / asymmetric KV** — MEASURED (L4e): q8_0/q4_1 5.84 tok/s, f16/q4_0 5.80 — memory lever only; only full f16 reaches 9.41.
 
 ### Limit C — capacity and residency: how many 256k contexts, and where they wait
 

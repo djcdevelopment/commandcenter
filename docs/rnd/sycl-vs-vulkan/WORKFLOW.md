@@ -247,7 +247,19 @@ processing and slower on generation — consistent with the SYCL prefill story a
   side of every comparison is therefore production's build 52 (`60cdd25`); a master rebase would add general
   Vulkan work (sparse FA #28105, Flash-Next top-k #28032) but no Xe kernels — optional second data point, not the arm.
   Re-check #24406 at each later lap; if it lands mid-ladder, `build-vk-next.cmd` is ready.
-### L2 — single-card sanity + correctness — PENDING
+### L2 — single-card sanity + correctness — DONE 2026-09-19 06:15Z
+- llama-bench, one B70, tok/s (Vulkan → SYCL): 30B-A3B pp512 2383 → 1498, pp2048 2170 → 1880, tg128 121.9 → 111.0;
+  27B pp512 756 → 892 (+18 %), pp2048 703 → 1111 (+58 %), tg128 23.9 → 21.5 (−10 %).
+- Cold 16k T=0, 27B: Vulkan prefill 375 tok/s / decode 15.25; SYCL 810 tok/s (2.16×) / 12.23. **Generation
+  byte-identical** (397 chars) with the optimized SYCL kernels — no garbling.
+- Cold 16k T=0, MoE: Vulkan 520 tok/s / 18.85, deterministic; SYCL 1215–1401 tok/s (2.3–2.7×) / 18.8–20.6 —
+  **non-deterministic**: four runs (default ×2, `GGML_SYCL_DISABLE_OPT=1` ×2), four different fluent answers.
+  Not a correctness failure in the garbling sense (the SYCL answers were grounded), but T=0 reproducibility is
+  gone on the MoE path. `DISABLE_OPT` changes neither determinism nor speed.
+- **Edge:** SYCL MoE is non-deterministic at T=0; dense 27B is exact. Byte-equality is the wrong gate for a
+  MoE across backends; D1 now needs (a) the accuracy/CV suite and (b) a determinism policy call (the control
+  plane's replay/verify story assumes T=0 reproducibility). D3 (27B depth specialist) has a strong candidate.
+- Not sampled: SYCL MoE with `-fa off`; Vulkan MoE across `-ub`; the Vulkan↔Level-Zero physical card mapping.
 ### L3 — production shapes — PENDING
 ### L4 — depth ladder — PENDING
 ### L5 — jobs/h at -np 8 × 16k — PENDING

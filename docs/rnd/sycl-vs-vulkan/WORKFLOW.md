@@ -288,6 +288,18 @@ See also `LEVERS-256K.md` — the inventory of every asset that could move the 2
 - T=0 output changes with `-ub` (batch-shape sensitivity) — reproducible only for a fixed (backend, ubatch).
 - Levers still untried: f16 on tensor split; f16 on Vulkan; MTP at depth; the oneDNN-for-decode gate; RPC pipeline.
 
+### L4d — decode levers without new hardware — PARTIAL 2026-09-19 (B1 done; B2/B3 unmeasured)
+- f16 + tensor split at 119k: decode 10.24 tok/s (layer f16 9.41, +9 %), prefill 555 (layer 713, −22 %) — the two
+  decode gains do not stack; **layer split + f16 is the all-round seat**.
+- MTP on 256k f16 `-ub 4096` overfilled a B70: **WDDM spilled 24.8 GB to system RAM silently** (denning's cliff, live);
+  `gpu-mem-gate.ps1` now checks the adapter counters before a run. Budgeted MTP seat (`-c 131072 -ub 2048`) launched
+  clean but not measured (interrupted).
+- Incident inside the window: a runaway Explore-agent `grep -r` over `E:\workattlemage` (the models dir) saturated
+  E: for ~20 min; two production loads died at llama-swap's 5-min timeout; misdiagnosed as WDDM, cards reset for
+  nothing. Rule recorded in memory: disk counters first; no recursive searches over model trees.
+- Denning detour (read, not run): its spill cliff, admission-control conclusion, `-fit` finding and restore-vs-re-prefill
+  ratios all transfer directly; PDH `non_local` is nearly blind under SYCL — use `b70tools verdict` with that caveat.
+
 ### L5 — jobs/h at -np 8 × 16k — PENDING
 ### L6 — deep concurrency — PENDING
 ### L7 — cross-backend KV — DONE 2026-09-19 07:20Z (answered inside L4b)

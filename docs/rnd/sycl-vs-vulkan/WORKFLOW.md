@@ -313,6 +313,13 @@ See also `LEVERS-256K.md` — the inventory of every asset that could move the 2
   decode lever only. Flash-Next shard 1 is a 0-byte file — no MoE+MTP lap until it is re-downloaded.
 - **MTP** was already done (L4d). oneDNN FA was already on.
 
+### L4g — the rest of the list — DONE 2026-09-19 11:55Z: restore into four devices; 24.9 tok/s at 119k
+- Vulkan f16 at 30k: prefill +28 %, decode 10.10 (q4_0 11.4) — the f16 decode unlock is SYCL-only.
+- SYCL q8_0/q8_0: 4.15 tok/s — the KV ladder on SYCL: q8 < q4 < q8/q4_1 ≈ f16/q4 < **f16 9.41**.
+- An f16 119k state saved on the B70s (16 s, 7.97 GB) **restores into the four-device RPC cache** (40 s) and
+  decodes with MTP: 21.6 tok/s; with `-ts 2,2,1,1` **24.9 tok/s** — the fleet's best at depth. n_max 6 is worse (15.0).
+- fx99 as a fifth device: blocked on CUDA arch (AM4's build has no sm_75); `build-sm75` building.
+
 ### L5 — jobs/h at -np 8 × 16k — PENDING
 ### L6 — deep concurrency — PENDING
 ### L7 — cross-backend KV — DONE 2026-09-19 07:20Z (answered inside L4b)

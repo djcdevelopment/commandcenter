@@ -260,7 +260,13 @@ processing and slower on generation — consistent with the SYCL prefill story a
   MoE across backends; D1 now needs (a) the accuracy/CV suite and (b) a determinism policy call (the control
   plane's replay/verify story assumes T=0 reproducibility). D3 (27B depth specialist) has a strong candidate.
 - Not sampled: SYCL MoE with `-fa off`; Vulkan MoE across `-ub`; the Vulkan↔Level-Zero physical card mapping.
-### L3 — production shapes — PENDING
+### L3 — production shapes — DONE 2026-09-19 06:35Z: all load
+- MoE dual layer-split `-c 131072 -np 8`: loads with `-ts 1,1` honoured (8976 / 8549 MiB, production's split);
+  single-stream decode 104.9 tok/s vs production Vulkan 105–110 — parity. #22885 absent at this commit.
+- `-sm tensor` on the 27B: **loads and runs** (meta backend, graph splits = 2) — Vulkan has no such mode. No gain at
+  ≤16k (decode 19.1 short / 12.3 at 16k vs single-card 21.5 / 12.2; prefill 622 vs single 810) because every layer
+  round-trips through the host; output matches Vulkan's. Re-tested at 119k in L4.
+- Trap: cmd splits `.cmd` arguments on `;` and `,` — quote the device selector and `-ts`.
 ### L4 — depth ladder — PENDING
 ### L5 — jobs/h at -np 8 × 16k — PENDING
 ### L6 — deep concurrency — PENDING

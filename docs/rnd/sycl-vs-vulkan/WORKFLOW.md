@@ -221,6 +221,8 @@ processing and slower on generation — consistent with the SYCL prefill story a
 
 ## Results (filled lap by lap)
 
+See also `LEVERS-256K.md` — the inventory of every asset that could move the 256k objective, ranked.
+
 ### L0 — desk research (2026-09-19) — DONE
 - Sources: three read-only sweeps (local estate; vLLM XPU; llama.cpp SYCL / IPEX-LLM), summarised in the
   Context section above; full agent reports in the session transcript for cc-544e4480.

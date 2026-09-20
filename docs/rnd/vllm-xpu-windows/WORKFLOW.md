@@ -256,6 +256,14 @@ Correct, T=0 identical ×3, needle at 11,840 tokens FOUND (~1.9k prompt tok/s). 
 Vulkan llama.cpp): **78 % of its single-stream on one card, and 1,196 tok/s aggregate that no llama.cpp seat has.** The
 captured path still warms over the first 2–3 runs (39 → 82). The sweep took ~35 min for 504 configs (each a Triton JIT).
 
+**L7 (2026-09-20 15:50–17:10Z) — the dense/hybrid 27B at depth: `DENSE-27B-DEPTH.md`.** Qwen3.8-27B is 48
+gated-delta-net + 16 full-attention layers (KV 64 KiB/token → 8 GiB at 128k); it runs on one B70 at 128k context
+(`UTIL=0.93`, V1 runner) once the GDN layer is routed off the faulting SYCL-TLA kernel onto the FLA Triton path.
+Prefill was attention-bound (65 % of device time in `kernel_unified_attention`, `BLOCK_Q=2` query tokens per program
+for GQA-6 at head_dim 256); a tiling sweep gives 3.06× on the kernel → **13.6k prefill 183 → 463 tok/s**; **64k:
+161 tok/s prefill, 6.0 tok/s decode, needle found**. 128k not run (needs a cue, ~20–25 min). The tunables table and
+the Linux-driver delta (IGC 2.11–2.38 validated; Windows driver 9030 available) are in the depth doc.
+
 **Uncertainty list (not sampled):** XPU graphs (`VLLM_XPU_ENABLE_XPU_GRAPH=1`) / `torch.compile` on Windows (the single-stream lever); `max_num_seqs` > 64; the SAT-L1 jobs/h shape; two instances (one per card); the 27B dense int4 (`gptq` linears only, no MoE); why the TLA kernels fault (IGC on Windows vs Linux compute-runtime); MoE grouped-GEMM and paged-decode kernels in
 isolation (only FA2 varlen was isolated); the 30B on `TRITON_ATTN` with int4 + MoE kernels; a driver newer
 than 32.0.101.8974; the 27B dense int4; FA2 vs Triton attention on Xe2; `torch.compile` /

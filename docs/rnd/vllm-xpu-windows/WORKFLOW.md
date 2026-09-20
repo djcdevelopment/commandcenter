@@ -38,7 +38,7 @@ instance per card behind the door. (vllm#41663: TP=2 on dual B70 is unreliable e
 | L2-full | + `_moe_C`, `_xpu_C`, `_vllm_fa2_C` (SYCL-TLA attention/grouped-GEMM + static oneDNN) | extensions import; FA2 varlen + fused MoE run | **built + import** (9 more attempts); **FA2 kernel faults the device** — see L4 |
 | L3 | `vllm serve` a dense model on one B70, Triton attention, eager | correct completion over `/v1/chat/completions` | **pass** — Qwen3-0.6B, T=0 deterministic |
 | L4 | production model family (Qwen3-30B-A3B int4 AWQ/GPTQ) on one card; 27B int4 | lap-8 bodies correct at 16k/30k; T=0 determinism | **FUNCTIONAL on the TLA-free stack** (`moe_wna16` + Triton MoE + Triton attention + oneDNN int4): correct, T=0 deterministic, 599 tok/s aggregate @64 streams, ~2.4k prompt tok/s @12k, needle found at 6k/12k |
-| L5 | jobs/h shape (SAT-L1, 8×16k): one instance, then two (one per card) | vs production 3,358 jobs/h / 105 tok/s | L5a done: torch.compile +20–30% single (25 tok/s), XPU graphs blocked by oneDNN capture, donor MoE table negative; jobs/h + tuner next |
+| L5/L6 | speed: profile, graphs, kernel table | vs production 105 single | **L6: 71.5 tok/s single (3.8×), 286 @8 (3.3×), 602 @64 — XPU graphs for sizes ≤ 8 + eager above; step was launch-bound (GPU idle 85 %)**; jobs/h shape + two seats next |
 | L6 | stretch: `--pipeline-parallel-size 2` over gloo | the 27B at depth on both cards under vLLM | only if L5 says so |
 | L7 | verdict: D1 production engine / D2 concurrency rung `omen-vllm` (:8097, pin-only stanza) / D3 depth stays llama.cpp SYCL | ADR + memory | — |
 
@@ -206,6 +206,35 @@ shape (Radeon 8060S / Strix Halo, keys minus `waves_per_eu`, `SPLIT_K` kept) is 
 CUDA-graph bound, so an XPU tuner is a small port (loop the WNA16 MoE kernel over BLOCK_M/N/K, GROUP_SIZE_M,
 num_warps, num_stages at M = 1…64 on the card). Where the single-stream gap sits: llama.cpp's int4 decode is
 bandwidth-bound near the card's ceiling; vLLM's Triton WNA16 MoE at M=1 with the default config is ~4× off it.
+
+**L6 (2026-09-20 13:55–15:20Z, under `/goal improve speed`) — ⭐⭐ SINGLE-STREAM 3.8×: 18.9 → 71.5 tok/s ON ONE B70.**
+Where the step went (0.6B in-process, `torch.profiler`): device time **~6 ms/step**, CPU **~40 ms/step over ~5,600
+events** — ~380 kernel launches at ~50 µs each on the Windows / Level Zero / torch-xpu eager path, Triton's Python
+launcher at ~215 µs per attention call, ~100 µs CPU per `aten::mm`. The GPU idles ~85 % of every decode step:
+**launch-bound, not compute-bound.** Refuted on the way: the Windows 15.6 ms timer (1 ms resolution in-process → no
+change), the API-server/ZMQ layer (in-process `LLM` = same 46 tok/s, 21.7 ms/step), raw launch cost (4.5 µs async,
+28 µs sync in a microbench). **XPU graphs are the lever, and they work on Windows**: the 0.6B goes 46 → **318 tok/s**
+(6.9×), 1,945 @8. The 30B's earlier capture failure was not the oneDNN op (it captures + replays exactly in
+isolation, `probes\l6_capture.py`) but the *scale* — 86 sizes × piecewise pieces × 48 layers exhausts Level Zero
+(`OUT_OF_RESOURCES`, literal). `cudagraph_mode=FULL_DECODE_ONLY, cudagraph_capture_sizes=[1,2,4,8]` captures in
+22 s; batches > 8 fall through to the eager path, which is *faster* than a captured MoE at batch ≥ 32 (static
+worst-case grid: 317 vs 602 @64 under FULL or PIECEWISE with sizes to 64). `probes\serve_g2.cmd` → `serve-30b.cmd`:
+
+| streams | eager | compile only | **graphs ≤8 + eager above** |
+| --- | --- | --- | --- |
+| 1 | 18.9 | 22–25 | **71.5** |
+| 2 | — | — | 146 |
+| 8 | 87 | 87 | **286** |
+| 32 | 294 | — | 287 |
+| 64 | 599 | 592 | **602** |
+
+T=0 deterministic under graphs (compile-only was not); needle at 11,840 tokens FOUND, ~2.0k prompt tok/s. Production's
+single-stream is 105 (dual-card Vulkan llama.cpp) — one B70 under Windows is now at 68 % of it with 8-stream
+throughput no llama.cpp seat has. Two clean negatives: the pure-Triton W4A16 *linear* kernel is correct on XPU but
+13–50× slower than oneDNN (CUDA tiles) and crashed the compiled engine (0xC0000005) — left as an opt-in fallback;
+the MoE kernel sweep (`probes\l6_moe_tune.py`, an XPU port of `benchmark_moe.py` without ray/CUDA graphs) finds
+1.40× at M=1 for the WNA16 MoE kernel (243 → 173 µs), table written for M = 1/8/32/64 — see the log for the batched
+winners and the end-to-end A/B.
 
 **Uncertainty list (not sampled):** XPU graphs (`VLLM_XPU_ENABLE_XPU_GRAPH=1`) / `torch.compile` on Windows (the single-stream lever); `max_num_seqs` > 64; the SAT-L1 jobs/h shape; two instances (one per card); the 27B dense int4 (`gptq` linears only, no MoE); why the TLA kernels fault (IGC on Windows vs Linux compute-runtime); MoE grouped-GEMM and paged-decode kernels in
 isolation (only FA2 varlen was isolated); the 30B on `TRITON_ATTN` with int4 + MoE kernels; a driver newer

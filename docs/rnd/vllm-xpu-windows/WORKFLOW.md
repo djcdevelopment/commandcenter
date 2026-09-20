@@ -38,7 +38,7 @@ instance per card behind the door. (vllm#41663: TP=2 on dual B70 is unreliable e
 | L2-full | + `_moe_C`, `_xpu_C`, `_vllm_fa2_C` (SYCL-TLA attention/grouped-GEMM + static oneDNN) | extensions import; FA2 varlen + fused MoE run | **built + import** (9 more attempts); **FA2 kernel faults the device** — see L4 |
 | L3 | `vllm serve` a dense model on one B70, Triton attention, eager | correct completion over `/v1/chat/completions` | **pass** — Qwen3-0.6B, T=0 deterministic |
 | L4 | production model family (Qwen3-30B-A3B int4 AWQ/GPTQ) on one card; 27B int4 | lap-8 bodies correct at 16k/30k; T=0 determinism | **FUNCTIONAL on the TLA-free stack** (`moe_wna16` + Triton MoE + Triton attention + oneDNN int4): correct, T=0 deterministic, 599 tok/s aggregate @64 streams, ~2.4k prompt tok/s @12k, needle found at 6k/12k |
-| L5/L6 | speed: profile, graphs, kernel table | vs production 105 single | **L6: 71.5 tok/s single (3.8×), 286 @8 (3.3×), 602 @64 — XPU graphs for sizes ≤ 8 + eager above; step was launch-bound (GPU idle 85 %)**; jobs/h shape + two seats next |
+| L5/L6 | speed: profile, graphs, kernel table | vs production 105 single | **L6/L6b: 82.4 tok/s single (4.4×), 330 @8, 681 @32, 1,196 @64 (2×) — XPU graphs for sizes ≤ 8 + eager above + a swept B70 MoE table; step was launch-bound (GPU idle 85 %)**; jobs/h shape + two seats next |
 | L6 | stretch: `--pipeline-parallel-size 2` over gloo | the 27B at depth on both cards under vLLM | only if L5 says so |
 | L7 | verdict: D1 production engine / D2 concurrency rung `omen-vllm` (:8097, pin-only stanza) / D3 depth stays llama.cpp SYCL | ADR + memory | — |
 
@@ -235,6 +235,26 @@ throughput no llama.cpp seat has. Two clean negatives: the pure-Triton W4A16 *li
 the MoE kernel sweep (`probes\l6_moe_tune.py`, an XPU port of `benchmark_moe.py` without ray/CUDA graphs) finds
 1.40× at M=1 for the WNA16 MoE kernel (243 → 173 µs), table written for M = 1/8/32/64 — see the log for the batched
 winners and the end-to-end A/B.
+
+**L6b (15:20–15:50Z) — ⭐⭐ THE B70 MoE TABLE: 64 streams 2×, single-stream 82 tok/s.** `probes\l6_moe_tune.py` (an
+XPU port of `benchmarks/kernels/benchmark_moe.py` — no ray, no CUDA graphs; sweeps BLOCK_M/N/K, GROUP_SIZE_M, SPLIT_K,
+num_warps, num_stages through vLLM's own `fused_experts` under `override_config`) on card 0 inside the window, Qwen3-30B-A3B
+shapes (E=128, hidden 2048, inter 768, top-8, group 128): vs the default config the Triton WNA16 MoE kernel is **1.40× at
+M=1** (243 → 173 µs), 1.15× at M=8, **2.64× at M=32** (2,861 → 1,085), **2.80× at M=64** (3,236 → 1,158). `BLOCK_SIZE_M=16`
+wins at every M on Xe2 — the default's 32/64-row tiles are the loss (`BLOCK_N=64, BLOCK_K=64, warps 4, stages 2` above
+M=1). Written as `configs/E=128,N=768,device_name=Intel(R)_Arc(TM)_Pro_B70_Graphics,dtype=int4_w4a16.json` (vllm-src
+844a9f2). End to end (`serve-30b.cmd`, graphs ≤ 8 + eager above):
+
+| streams | eager (lap 3) | graphs ≤8 (L6) | **+ B70 MoE table (L6b)** |
+| --- | --- | --- | --- |
+| 1 | 18.9 | 71.5 | **82.4** |
+| 8 | 87 | 286 | **330** |
+| 32 | 294 | 287 | **681** |
+| 64 | 599 | 602 | **1,196** |
+
+Correct, T=0 identical ×3, needle at 11,840 tokens FOUND (~1.9k prompt tok/s). Against production (105 single, dual-card
+Vulkan llama.cpp): **78 % of its single-stream on one card, and 1,196 tok/s aggregate that no llama.cpp seat has.** The
+captured path still warms over the first 2–3 runs (39 → 82). The sweep took ~35 min for 504 configs (each a Triton JIT).
 
 **Uncertainty list (not sampled):** XPU graphs (`VLLM_XPU_ENABLE_XPU_GRAPH=1`) / `torch.compile` on Windows (the single-stream lever); `max_num_seqs` > 64; the SAT-L1 jobs/h shape; two instances (one per card); the 27B dense int4 (`gptq` linears only, no MoE); why the TLA kernels fault (IGC on Windows vs Linux compute-runtime); MoE grouped-GEMM and paged-decode kernels in
 isolation (only FA2 varlen was isolated); the 30B on `TRITON_ATTN` with int4 + MoE kernels; a driver newer

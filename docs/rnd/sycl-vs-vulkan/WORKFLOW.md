@@ -213,6 +213,12 @@ comparison against Vulkan's T=0 output on the fixed prompt bodies; a divergence 
 
 ## vLLM — parked, with the reopen condition written down
 
+**REOPENED 2026-09-19 (later the same day) under an amended condition — a native Windows build path
+exists.** `SystemPanic/vllm-windows` is CUDA-only, but its Windows shims + upstream's XPU platform +
+`vllm-xpu-kernels` built with oneAPI `icx` serve a model from a B70 natively on Windows (Qwen3-0.6B,
+13.7k tok/s aggregate at 256 streams; no XCCL → one instance per card). Ladder and results:
+`docs/rnd/vllm-xpu-windows/WORKFLOW.md`. The paragraph below is the pre-reopen record.
+
 Reopen when either is true: OMEN boots Linux natively (then `vllm/vllm-openai-xpu:latest`, v0.29+, TP=2
 with the vllm#41663 env set, Qwen3.6-27B / Qwen3.5-35B-A3B FP8 from recipes.vllm.ai), or a B70 returns to
 AM4. Not before: no Windows wheel, WSL2 dual-Arc bridge dead on this host, no XPU KV connector, no

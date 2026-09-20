@@ -37,8 +37,8 @@ instance per card behind the door. (vllm#41663: TP=2 on dual B70 is unreliable e
 | L2 | `vllm-xpu-kernels` 0.1.14.1 built with icx on Windows — basic kernels | `_C.pyd` imports; norm/act/rotary match torch | **pass** (9 attempts, 78-line patch) |
 | L2-full | + `_moe_C`, `_xpu_C`, `_vllm_fa2_C` (SYCL-TLA attention/grouped-GEMM + static oneDNN) | extensions import; FA2 varlen + fused MoE run | **built + import** (9 more attempts); **FA2 kernel faults the device** — see L4 |
 | L3 | `vllm serve` a dense model on one B70, Triton attention, eager | correct completion over `/v1/chat/completions` | **pass** — Qwen3-0.6B, T=0 deterministic |
-| L4 | production model family (Qwen3-30B-A3B int4 AWQ/GPTQ) on one card; 27B int4 | lap-8 bodies correct at 16k/30k; T=0 determinism | **loads (15.68 GiB), every path routes; first forward → Level Zero error** — wall = the TLA attention kernel (`DEVICE_LOST` standalone) |
-| L5 | jobs/h shape (SAT-L1, 8×16k): one instance, then two (one per card) | vs production 3,358 jobs/h / 105 tok/s | after L4 |
+| L4 | production model family (Qwen3-30B-A3B int4 AWQ/GPTQ) on one card; 27B int4 | lap-8 bodies correct at 16k/30k; T=0 determinism | **FUNCTIONAL on the TLA-free stack** (`moe_wna16` + Triton MoE + Triton attention + oneDNN int4): correct, T=0 deterministic, 599 tok/s aggregate @64 streams, ~2.4k prompt tok/s @12k, needle found at 6k/12k |
+| L5 | jobs/h shape (SAT-L1, 8×16k): one instance, then two (one per card) | vs production 3,358 jobs/h / 105 tok/s | next — plus XPU graphs / torch.compile (eager today) |
 | L6 | stretch: `--pipeline-parallel-size 2` over gloo | the 27B at depth on both cards under vLLM | only if L5 says so |
 | L7 | verdict: D1 production engine / D2 concurrency rung `omen-vllm` (:8097, pin-only stanza) / D3 depth stays llama.cpp SYCL | ADR + memory | — |
 
@@ -161,7 +161,38 @@ kernels link with. **Next probe:** JIT-only rebuild of the attention lib (`VLLM_
 `VLLM_XPU_XE2_AOT_DEVICES=""`), ~10–15 min; failing that, a driver update (Derek's call) or the
 `TRITON_ATTN` backend with the int4 + MoE kernels (which may themselves be clean — untested in isolation).
 
-**Uncertainty list (not sampled):** JIT-only TLA build; MoE grouped-GEMM and paged-decode kernels in
+**L4b (2026-09-20 13:00–13:35Z, under `/goal`) — ⭐⭐ THE PRODUCTION MODEL RUNS ON A B70 UNDER WINDOWS.**
+JIT-only rebuild of the TLA libraries (`VLLM_XPU_AOT_DEVICES=none`, kernels `windows` f0525c5; ~25 min; .pyds 8×
+smaller) → `flash_attn_varlen_func` still `DEVICE_LOST`, and the fused-MoE grouped GEMM standalone → error 40. **AOT
+theory refuted** (clean sample); `SYCL_UR_USE_LEVEL_ZERO_V2=0`, `UR_L0_V2_FORCE_DISABLE_COPY_OFFLOAD=1`,
+`UR_L0_USE_IMMEDIATE_COMMANDLISTS=0` change nothing; driver 32.0.101.8974 is Aug 2026 (IGC current). Verdict for now:
+the CUTLASS-SYCL (`intel/sycl-tla`) kernels fault on this Windows driver — upstream never claimed Windows.
+**Routed around it — a TLA-free stack:** `--quantization moe_wna16 --moe-backend triton --attention-backend
+TRITON_ATTN` = oneDNN int4 linears (`XPUwNa16LinearKernel`, proven) + vLLM's Triton WNA16 MoE experts + Triton
+attention (proven at L3). Refusals on the way: `auto_gptq` hard-codes `may_have_bias=True` so the Triton MoE refuses
+("expert bias is not supported") → the `moe_wna16` method passes `False`; XPU's `supported_quantization` lacked
+`moe_wna16` (one line); the vLLM banner's block glyphs crash a cp1252 console (`PYTHONUTF8=1` in serve.cmd);
+**a real upstream bug** — `MoeWNA16Config.get_quant_method` builds a fresh `AutoGPTQConfig` per layer, so the
+loader's `maybe_update_config` (fills `modules_in_block_to_quantize` from the checkpoint) and the model's
+`packed_modules_mapping` never reach it → every fused linear reads as unquantized → `'QKVParallelLinear' object has
+no attribute 'data'`; fixed by caching one inner config and delegating the hooks (vllm-src `windows-xpu` 183cf79).
+Result on card 1 (`--enforce-eager --max-model-len 16384 --max-num-seqs 64 --gpu-memory-utilization 0.75`,
+tenancy window as in L4): model 15.64 GiB in 19 s, KV 75,632 tokens; Paris/Seine correct; **T=0 identical ×3**;
+needle at 6,342 and 11,840 prompt tokens FOUND, **~2,000–2,440 prompt tok/s incl. decode** (production's Vulkan
+dual-card prefill at 16k is 609 on the dense 27B and knees hard from there — this is one card, eager). Decode:
+
+| streams | completion tokens | wall | aggregate tok/s | per-stream |
+| --- | --- | --- | --- | --- |
+| 1 | 256 | 13.5 s | 18.9 | 18.9 tok/s |
+| 8 | 2,048 | 23.5 s | 87 | 10.9 |
+| 32 | 8,192 | 27.8 s | 294 | 9.2 |
+| 64 | 16,384 | 27.3 s | 599 | 9.4 |
+
+Single-stream 19 tok/s is the eager + all-Triton floor (production: 105 dual-card Vulkan); the aggregate curve is
+still linear at 64 (`max_num_seqs`), so the concurrency use case is functional today and the ceiling is unmeasured.
+Regime: one B70, eager, Triton everything, fp16, first-shape JIT included in the 1-stream number.
+
+**Uncertainty list (not sampled):** XPU graphs (`VLLM_XPU_ENABLE_XPU_GRAPH=1`) / `torch.compile` on Windows (the single-stream lever); `max_num_seqs` > 64; the SAT-L1 jobs/h shape; two instances (one per card); the 27B dense int4 (`gptq` linears only, no MoE); why the TLA kernels fault (IGC on Windows vs Linux compute-runtime); MoE grouped-GEMM and paged-decode kernels in
 isolation (only FA2 varlen was isolated); the 30B on `TRITON_ATTN` with int4 + MoE kernels; a driver newer
 than 32.0.101.8974; the 27B dense int4; FA2 vs Triton attention on Xe2; `torch.compile` /
 XPU graphs on Windows (`--enforce-eager` skipped inductor, which needs `cl` — present); the production

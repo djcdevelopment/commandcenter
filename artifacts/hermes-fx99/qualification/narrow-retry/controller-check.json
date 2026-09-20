@@ -1,0 +1,31 @@
+{
+  "checked_at": "2026-09-20T01:50:20.160762+00:00",
+  "mcp_tool_count": 19,
+  "credential_read_denied": true,
+  "authored_catalog_sources": [
+    "am4_gpu_catalog.json#",
+    "am4_gpu_catalog.json#/cards/0",
+    "am4_gpu_catalog.json#/cards/1"
+  ],
+  "native_snapshot": {
+    "observed_at": "2026-09-20T01:50:20.590643Z",
+    "ready": true,
+    "parallel_slots": 1,
+    "gpu_placed": null,
+    "gpu_qualified_models": [],
+    "loaded_models": [
+      "Qwen3.8-27B-Q4_K_M.gguf"
+    ],
+    "reason": "native endpoint ready; full GPU placement independently unverified",
+    "physical_resource": "am4:127.0.0.1:18090",
+    "context_length": 131072,
+    "model": "models/Qwen3.8-27B-Q4_K_M.gguf"
+  },
+  "old_am4_route_ready": false,
+  "duplicate_dispatches_suppressed": 2,
+  "manual_review_no_harvest": true,
+  "candidate_commits": [
+    "6d90228d93f72ffd42c4eb4f537b21b86efdb2f6",
+    "a0be0d30ea66602512ae17c0ec8d9e100ef4c9cc"
+  ]
+}

@@ -41,7 +41,8 @@ Preparation21:37:44–21:55:48UTC, inside its30-minute ceiling. Live window star
 was missed; additional local experiments were held. Codex's direct correction
 is not substituted for a passed delegated-code criterion.
 
-A single source-packed helper retry was proposed at22:05; its bounded brief is
-fleet/hermes/capacity-leaf.md. It has NOT been dispatched. Recommendation: one
-small helper+tests run, roughly5–8minutes, with integration/review by Codex,
-instead of repeating repository-wide exploration. Await Derek's preference.
+A single source-packed helper retry was subsequently authorized and dispatched
+on September 20 UTC. Both builders delivered code, tests and reports; independent
+review rejected both helpers' alias handling. Builder 3's 11 tests were integrated
+against the stronger existing helper, with two Codex regression cases added.
+See NARROW-RETRY.md for the bounded run, attribution and remaining limitations.

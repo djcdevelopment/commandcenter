@@ -49,6 +49,21 @@ def test_aliases_cannot_multiply_physical_slots():
     assert not check(payload)['ready']
 
 
+def test_identical_duplicate_is_still_one_ready_slot():
+    payload = copy.deepcopy(PAYLOAD)
+    payload['aliases'].append(copy.deepcopy(payload['aliases'][0]))
+    result = check(payload)
+    assert result['ready'] and result['parallel_slots'] == 1
+
+
+def test_unrelated_unready_alias_cannot_veto_selected_endpoint():
+    payload = copy.deepcopy(PAYLOAD)
+    payload['all_ready'] = False
+    payload['aliases'].append({**payload['aliases'][0], 'alias': 'other', 'ready': False})
+    result = check(payload)
+    assert result['ready'] and result['parallel_slots'] == 1
+
+
 def test_capture_native_is_authenticated_passive_and_not_gpu_qualified(monkeypatch):
     from hearth.toolsurface import scheduler, backends
     node=SimpleNamespace(endpoint='http://fixture',auth_env='FIXTURE_KEY')

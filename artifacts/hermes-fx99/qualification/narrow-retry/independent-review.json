@@ -1,0 +1,492 @@
+{
+  "cc-builder-2": [
+    {
+      "case": "valid",
+      "passed": true,
+      "actual": {
+        "ready": true,
+        "parallel_slots": 1,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "reason": "HTTP readiness does not prove GPU placement; gpu_placed remains unknown",
+        "gpu_placed": null,
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "context_length": 131072,
+        "physical_resource": "am4:127.0.0.1:18090"
+      }
+    },
+    {
+      "case": "ready",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "reason": "ready is not exactly True",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "status",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "reason": "status is not 200",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "model",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "reason": "model basename is not the expected Qwen3.8-27B gguf",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "context_length",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "reason": "context_length is not exactly 131072",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "parallel_slots",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "reason": "parallel_slots is not exactly 1",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "physical_resource",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "reason": "physical_resource is not the expected AM4 endpoint",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "malformed",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "reason": "payload is not a mapping",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "absent",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "reason": "all_ready is not True",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "bad-list",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "reason": "all_ready is not True",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "age--6",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:06+00:00",
+        "reason": "observed_at is outside [-5,+30] second age window",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "age--5",
+      "passed": true,
+      "actual": {
+        "ready": true,
+        "parallel_slots": 1,
+        "observed_at": "2026-09-20T01:47:05+00:00",
+        "reason": "HTTP readiness does not prove GPU placement; gpu_placed remains unknown",
+        "gpu_placed": null,
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "context_length": 131072,
+        "physical_resource": "am4:127.0.0.1:18090"
+      }
+    },
+    {
+      "case": "age-30",
+      "passed": true,
+      "actual": {
+        "ready": true,
+        "parallel_slots": 1,
+        "observed_at": "2026-09-20T01:46:30+00:00",
+        "reason": "HTTP readiness does not prove GPU placement; gpu_placed remains unknown",
+        "gpu_placed": null,
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "context_length": 131072,
+        "physical_resource": "am4:127.0.0.1:18090"
+      }
+    },
+    {
+      "case": "age-31",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:46:29+00:00",
+        "reason": "observed_at is outside [-5,+30] second age window",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "timestamp-",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "",
+        "reason": "observed_at is not a timezone-aware ISO8601 timestamp",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "timestamp-None",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": null,
+        "reason": "observed_at is not a timezone-aware ISO8601 timestamp",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "timestamp-2026-09-20T01:47:00",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:00",
+        "reason": "observed_at is not a timezone-aware ISO8601 timestamp",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "identical-alias",
+      "passed": false,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "reason": "selected alias row is absent or has conflicting duplicates",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "conflicting-alias",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "reason": "selected alias row is absent or has conflicting duplicates",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "another-alias",
+      "passed": true,
+      "actual": {
+        "ready": true,
+        "parallel_slots": 1,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "reason": "HTTP readiness does not prove GPU placement; gpu_placed remains unknown",
+        "gpu_placed": null,
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "context_length": 131072,
+        "physical_resource": "am4:127.0.0.1:18090"
+      }
+    },
+    {
+      "case": "unrelated-unready",
+      "passed": false,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "reason": "all_ready is not True",
+        "gpu_placed": null
+      }
+    }
+  ],
+  "cc-builder-3": [
+    {
+      "case": "valid",
+      "passed": true,
+      "actual": {
+        "ready": true,
+        "parallel_slots": 1,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "context_length": 131072,
+        "physical_resource": "am4:127.0.0.1:18090",
+        "gpu_placed": null,
+        "reason": "HTTP readiness does not prove GPU placement"
+      }
+    },
+    {
+      "case": "ready",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "reason": "alias not ready",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "status",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "reason": "status not 200",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "model",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "reason": "wrong model",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "context_length",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "reason": "wrong context_length",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "parallel_slots",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "reason": "wrong parallel_slots",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "physical_resource",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "reason": "wrong physical_resource",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "malformed",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "reason": "payload not all_ready",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "absent",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "reason": "payload not all_ready",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "bad-list",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "reason": "payload not all_ready",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "age--6",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:06+00:00",
+        "reason": "stale or future timestamp",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "age--5",
+      "passed": true,
+      "actual": {
+        "ready": true,
+        "parallel_slots": 1,
+        "observed_at": "2026-09-20T01:47:05+00:00",
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "context_length": 131072,
+        "physical_resource": "am4:127.0.0.1:18090",
+        "gpu_placed": null,
+        "reason": "HTTP readiness does not prove GPU placement"
+      }
+    },
+    {
+      "case": "age-30",
+      "passed": true,
+      "actual": {
+        "ready": true,
+        "parallel_slots": 1,
+        "observed_at": "2026-09-20T01:46:30+00:00",
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "context_length": 131072,
+        "physical_resource": "am4:127.0.0.1:18090",
+        "gpu_placed": null,
+        "reason": "HTTP readiness does not prove GPU placement"
+      }
+    },
+    {
+      "case": "age-31",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:46:29+00:00",
+        "reason": "stale or future timestamp",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "timestamp-",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "",
+        "reason": "invalid observed_at timestamp",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "timestamp-None",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": null,
+        "reason": "invalid observed_at timestamp",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "timestamp-2026-09-20T01:47:00",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:00",
+        "reason": "invalid observed_at timestamp",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "identical-alias",
+      "passed": false,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "reason": "selected alias absent or conflicting duplicates",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "conflicting-alias",
+      "passed": true,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "reason": "selected alias absent or conflicting duplicates",
+        "gpu_placed": null
+      }
+    },
+    {
+      "case": "another-alias",
+      "passed": true,
+      "actual": {
+        "ready": true,
+        "parallel_slots": 1,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "context_length": 131072,
+        "physical_resource": "am4:127.0.0.1:18090",
+        "gpu_placed": null,
+        "reason": "HTTP readiness does not prove GPU placement"
+      }
+    },
+    {
+      "case": "unrelated-unready",
+      "passed": false,
+      "actual": {
+        "ready": false,
+        "parallel_slots": 0,
+        "observed_at": "2026-09-20T01:47:00+00:00",
+        "reason": "payload not all_ready",
+        "gpu_placed": null
+      }
+    }
+  ]
+}

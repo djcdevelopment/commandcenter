@@ -6,7 +6,7 @@ import sys
 
 spec = importlib.util.spec_from_file_location('deploy_review', Path(__file__).with_name('deploy-review-builds.py'))
 deploy = importlib.util.module_from_spec(spec); spec.loader.exec_module(deploy)
-PLAN = 'hearth-hermes-br-20260919-215719-70852cc4-5f05200a'
+PLAN = sys.argv[1] if len(sys.argv) > 1 else 'hearth-hermes-br-20260919-215719-70852cc4-5f05200a'
 
 for worker in ('cc-builder-2','cc-builder-3'):
     source = f'''

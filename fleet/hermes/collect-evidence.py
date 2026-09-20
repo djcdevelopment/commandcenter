@@ -3,6 +3,7 @@
 No aggregate-to-attempt reconstruction. No raw ledger writes or model calls.
 """
 import importlib.util
+import argparse
 import json
 from pathlib import Path
 import sys
@@ -11,9 +12,16 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT))
 spec = importlib.util.spec_from_file_location('deploy_review', Path(__file__).with_name('deploy-review-builds.py'))
 deploy = importlib.util.module_from_spec(spec); spec.loader.exec_module(deploy)
-OUT = ROOT/'artifacts/hermes-fx99/qualification'
-SESSION = '20260919_215628_f4a9d7'
-PLAN = 'hearth-hermes-br-20260919-215719-70852cc4-5f05200a'
+parser = argparse.ArgumentParser()
+parser.add_argument('--session', default='20260919_215628_f4a9d7')
+parser.add_argument('--since', default='2026-09-19T21:56:00')
+parser.add_argument('--out', default='artifacts/hermes-fx99/qualification')
+parser.add_argument('--import', dest='import_receipts', action='store_true')
+args = parser.parse_args()
+OUT = (ROOT/args.out).resolve()
+if not OUT.is_relative_to(ROOT/'artifacts/hermes-fx99'):
+    raise SystemExit('output must stay within Hermes evidence directory')
+SESSION = args.session
 
 
 def collect():
@@ -34,7 +42,7 @@ print(json.dumps({{'session':stats,'final_messages':summaries}}))
     (OUT/'hermes-session.json').write_text(json.dumps(session,indent=2)+'\n',encoding='utf-8')
     for message in session['final_messages']:
         (OUT/f"hermes-message-{message['id']}.md").write_text(message['content'] or '',encoding='utf-8')
-    attempts = deploy.run('am4', '''
+    attempts = deploy.run('am4', f'''
 import json,sqlite3
 from pathlib import Path
 path=Path('/home/derek/.config/am4-fleet/hermes-attempts.sqlite')
@@ -42,14 +50,14 @@ if not path.exists(): print('[]')
 else:
  with sqlite3.connect('file:'+str(path)+'?mode=ro',uri=True) as db:
   rows=db.execute('SELECT terminal FROM attempts ORDER BY rowid DESC LIMIT 2000').fetchall()
-  print(json.dumps([r for row in reversed(rows) if (r:=json.loads(row[0]))['started_at']>='2026-09-19T21:56:00']))
+  print(json.dumps([r for row in reversed(rows) if (r:=json.loads(row[0]))['started_at']>={args.since!r}]))
 ''')
     (OUT/'physical-attempts.json').write_text(json.dumps(attempts,indent=2)+'\n',encoding='utf-8')
     counts = {}
     for attempt in attempts:
         caller=attempt.get('caller_id','unknown'); counts[caller]=counts.get(caller,0)+1
     print(json.dumps({'session':session['session'],'physical_attempts':len(attempts),'by_caller':counts}))
-    if '--import' in sys.argv:
+    if args.import_receipts:
         from hearth.execution.external_inference import import_receipt
         from hearth.execution.ledger import ExecutionLedger
         ledger = ExecutionLedger(r'C:\work\commandcenter\hearth\var\execution')

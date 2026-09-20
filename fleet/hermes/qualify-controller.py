@@ -2,10 +2,11 @@
 import asyncio
 from datetime import datetime, timezone
 import json
+import sys
 from pathlib import Path
 
 ROOT=Path('/home/derek/.config/hermes-fleet')
-RECEIPT='br-20260919-215719-70852cc4'
+RECEIPT=sys.argv[1] if len(sys.argv) > 1 else 'br-20260919-215719-70852cc4'
 
 
 async def main():

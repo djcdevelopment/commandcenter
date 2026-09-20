@@ -53,6 +53,12 @@ first model file at 03:04:31; functional CLI at 03:07; second model file at
 03:11:37. Setup took too much of this window; delivery recovered inside the
 original ceiling, and no additional generation was run after useful artifacts.
 
+The parent experiment receipt is closed **failed against its strict delegated-
+matrix criterion**, not relabeled fully successful: the matrix was completed by
+Codex, while Hermes delegated the formatter and checklist. The usable deployment
+and both corrected deliveries remain live; this distinction is about the promised
+experiment evidence, not a rollback of working functionality.
+
 Physical costs for this rollout: **20 AM4 calls**, 112787 input / 4418 output
 tokens; **4 OMEN calls**, 6874 input / 1841 output tokens. Input is measured
 request usage, not unique uncached context. Controller receipts were imported

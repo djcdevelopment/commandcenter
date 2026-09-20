@@ -1,0 +1,13 @@
+{
+  "checked_at": "2026-09-20T03:13:37.471763+00:00",
+  "unknown_key_has_no_tools": true,
+  "worker_tool_surface": [
+    "local_generate",
+    "query_omen_worker"
+  ],
+  "worker_file_read_denied": true,
+  "am4_override_denied": true,
+  "real_native_token_overflow_refused_before_generation": true,
+  "controller_has_no_generation_shell_or_rotation": true,
+  "candidate_sync_did_not_harvest_or_promote": true
+}

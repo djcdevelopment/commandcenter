@@ -6,6 +6,8 @@ from .rungstate import query_rung_state
 from .rotation import rotation_status
 from .scheduler import capture_resource_snapshot, propose_schedule
 from .task_lane import task_status
+from .inference import _execution_local_generate
+from hearth.kernel.hermes_worker import query_omen_worker
 from .build_requests import (create_build_request, get_build_request, list_build_requests,
                              execute_build_request, update_build_request, close_build_request)
 
@@ -15,4 +17,5 @@ def get_tools():
             query_beliefs_summary, query_rung_state, rotation_status,
             capture_resource_snapshot, propose_schedule, task_status,
             create_build_request, get_build_request, list_build_requests,
-            execute_build_request, update_build_request, close_build_request]
+            execute_build_request, update_build_request, close_build_request,
+            _execution_local_generate, query_omen_worker]

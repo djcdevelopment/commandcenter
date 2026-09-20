@@ -626,13 +626,30 @@ def register_profile_filtered_list_tools(mcp: FastMCP, auth: AuthRegistry,
         profile = auth.profile_for(caller)
         if profile is None:
             return tools
-        return [tool for tool in tools if check_tool_access(profile, tool.name)[0]]
+        from hearth.kernel.governed_operator import READ_TOOLS, WRITE_TOOLS
+        names = ({'local_generate','query_omen_worker'} if caller.ledger_profile=='hermes-worker'
+                 else READ_TOOLS | WRITE_TOOLS if caller.ledger_profile=='governed-operator'
+                 else None)
+        return [tool for tool in tools if check_tool_access(profile, tool.name)[0]
+                and (names is None or tool.name in names)]
+
+
+def _threaded_tool(fn):
+    """Opt-in for isolated listeners: preserve request context off the event loop."""
+    import asyncio
+    import functools
+
+    @functools.wraps(fn)
+    async def call(**kwargs):
+        return await asyncio.to_thread(fn, **kwargs)
+    return call
 
 
 def build_server(providers_spec: str = "", host: str = DEFAULT_HOST,
                  port: int = DEFAULT_PORT,
                  callers_path: Optional[Path | str] = None,
-                 ledger_dir: Optional[Path | str] = None) -> FastMCP:
+                 ledger_dir: Optional[Path | str] = None,
+                 threaded_tools: bool = False) -> FastMCP:
     """Assemble the gateway: ledger, auth, guards, built-in + provider tools."""
     ledger = Ledger(ledger_dir)
     hearth = HearthContext(repo_root=REPO_ROOT, ledger=ledger)
@@ -729,8 +746,10 @@ def build_server(providers_spec: str = "", host: str = DEFAULT_HOST,
             if fn.__name__ in registered:
                 log.warning("duplicate tool %s from %s skipped", fn.__name__, module_name)
                 continue
-            mcp.add_tool(make_wrapper(fn, hearth, auth, guards, key_provider,
-                                      task_id_provider))
+            wrapped = make_wrapper(fn, hearth, auth, guards, key_provider, task_id_provider)
+            if threaded_tools:
+                wrapped = _threaded_tool(wrapped)
+            mcp.add_tool(wrapped)
             registered.add(fn.__name__)
 
     # ADR-0019 §3: fail closed on an unclassified tool. Checked against the

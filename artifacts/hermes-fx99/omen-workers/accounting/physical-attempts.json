@@ -1,0 +1,722 @@
+[
+  {
+    "schema": "hermes.physical-attempt.v1",
+    "accounting_owner": "direct",
+    "execution_mode": "external",
+    "run_id": "uncorrelated-hermes-eca1dc14130e4a90978a590c22cd16eb",
+    "caller_id": "hermes",
+    "attempt_id": "eca1dc14130e4a90978a590c22cd16eb",
+    "logical_call_id": "eca1dc14130e4a90978a590c22cd16eb",
+    "framework_run_id": "not_supplied_by_client",
+    "supervisor_id": "am4-oxen-facade",
+    "model_alias": "am4-dense-27b",
+    "started_at": "2026-09-20T02:50:51.804323+00:00",
+    "finished_at": "2026-09-20T02:50:55.270051+00:00",
+    "phase": "task",
+    "outcome": "succeeded",
+    "provider": {
+      "execution_class": "local",
+      "node": "am4",
+      "state": {
+        "alias": "am4-dense-27b",
+        "ready": true,
+        "context_length": 131072,
+        "parallel_slots": 1,
+        "physical_resource": "am4:127.0.0.1:18090",
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "status": 200
+      },
+      "identity_sha256": "6dc077029590d969c487a5ad741823082d2e34434b5e1e28116f2e86370932bc"
+    },
+    "usage": {
+      "tokens_in": 3359,
+      "tokens_out": 36
+    },
+    "http_status": 200,
+    "correlation_note": "One physical HTTP attempt; logical retry grouping and framework session not provided."
+  },
+  {
+    "schema": "hermes.physical-attempt.v1",
+    "accounting_owner": "direct",
+    "execution_mode": "external",
+    "run_id": "uncorrelated-hermes-ac5a4a1354e747b6862249b1d98781f8",
+    "caller_id": "hermes",
+    "attempt_id": "ac5a4a1354e747b6862249b1d98781f8",
+    "logical_call_id": "ac5a4a1354e747b6862249b1d98781f8",
+    "framework_run_id": "not_supplied_by_client",
+    "supervisor_id": "am4-oxen-facade",
+    "model_alias": "am4-dense-27b",
+    "started_at": "2026-09-20T02:50:55.541195+00:00",
+    "finished_at": "2026-09-20T02:50:57.855368+00:00",
+    "phase": "task",
+    "outcome": "succeeded",
+    "provider": {
+      "execution_class": "local",
+      "node": "am4",
+      "state": {
+        "alias": "am4-dense-27b",
+        "ready": true,
+        "context_length": 131072,
+        "parallel_slots": 1,
+        "physical_resource": "am4:127.0.0.1:18090",
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "status": 200
+      },
+      "identity_sha256": "6dc077029590d969c487a5ad741823082d2e34434b5e1e28116f2e86370932bc"
+    },
+    "usage": {
+      "tokens_in": 3809,
+      "tokens_out": 49
+    },
+    "http_status": 200,
+    "correlation_note": "One physical HTTP attempt; logical retry grouping and framework session not provided."
+  },
+  {
+    "schema": "hermes.physical-attempt.v1",
+    "accounting_owner": "direct",
+    "execution_mode": "external",
+    "run_id": "uncorrelated-hermes-eda741fa634b4a499a363f0e6286fa44",
+    "caller_id": "hermes",
+    "attempt_id": "eda741fa634b4a499a363f0e6286fa44",
+    "logical_call_id": "eda741fa634b4a499a363f0e6286fa44",
+    "framework_run_id": "not_supplied_by_client",
+    "supervisor_id": "am4-oxen-facade",
+    "model_alias": "am4-dense-27b",
+    "started_at": "2026-09-20T02:50:58.033416+00:00",
+    "finished_at": "2026-09-20T02:51:28.001278+00:00",
+    "phase": "task",
+    "outcome": "succeeded",
+    "provider": {
+      "execution_class": "local",
+      "node": "am4",
+      "state": {
+        "alias": "am4-dense-27b",
+        "ready": true,
+        "context_length": 131072,
+        "parallel_slots": 1,
+        "physical_resource": "am4:127.0.0.1:18090",
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "status": 200
+      },
+      "identity_sha256": "6dc077029590d969c487a5ad741823082d2e34434b5e1e28116f2e86370932bc"
+    },
+    "usage": {
+      "tokens_in": 4977,
+      "tokens_out": 759
+    },
+    "http_status": 200,
+    "correlation_note": "One physical HTTP attempt; logical retry grouping and framework session not provided."
+  },
+  {
+    "schema": "hermes.physical-attempt.v1",
+    "accounting_owner": "direct",
+    "execution_mode": "external",
+    "run_id": "uncorrelated-hermes-d0199f4401e645c48584d1edfb29fbaa",
+    "caller_id": "hermes",
+    "attempt_id": "d0199f4401e645c48584d1edfb29fbaa",
+    "logical_call_id": "d0199f4401e645c48584d1edfb29fbaa",
+    "framework_run_id": "not_supplied_by_client",
+    "supervisor_id": "am4-oxen-facade",
+    "model_alias": "am4-dense-27b",
+    "started_at": "2026-09-20T02:51:28.265408+00:00",
+    "finished_at": "2026-09-20T02:51:35.649544+00:00",
+    "phase": "task",
+    "outcome": "succeeded",
+    "provider": {
+      "execution_class": "local",
+      "node": "am4",
+      "state": {
+        "alias": "am4-dense-27b",
+        "ready": true,
+        "context_length": 131072,
+        "parallel_slots": 1,
+        "physical_resource": "am4:127.0.0.1:18090",
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "status": 200
+      },
+      "identity_sha256": "6dc077029590d969c487a5ad741823082d2e34434b5e1e28116f2e86370932bc"
+    },
+    "usage": {
+      "tokens_in": 7465,
+      "tokens_out": 146
+    },
+    "http_status": 200,
+    "correlation_note": "One physical HTTP attempt; logical retry grouping and framework session not provided."
+  },
+  {
+    "schema": "hermes.physical-attempt.v1",
+    "accounting_owner": "direct",
+    "execution_mode": "external",
+    "run_id": "uncorrelated-hermes-6d1c19b4d00847ddb67b7d8713969841",
+    "caller_id": "hermes",
+    "attempt_id": "6d1c19b4d00847ddb67b7d8713969841",
+    "logical_call_id": "6d1c19b4d00847ddb67b7d8713969841",
+    "framework_run_id": "not_supplied_by_client",
+    "supervisor_id": "am4-oxen-facade",
+    "model_alias": "am4-dense-27b",
+    "started_at": "2026-09-20T02:51:36.444059+00:00",
+    "finished_at": "2026-09-20T02:51:52.210696+00:00",
+    "phase": "task",
+    "outcome": "succeeded",
+    "provider": {
+      "execution_class": "local",
+      "node": "am4",
+      "state": {
+        "alias": "am4-dense-27b",
+        "ready": true,
+        "context_length": 131072,
+        "parallel_slots": 1,
+        "physical_resource": "am4:127.0.0.1:18090",
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "status": 200
+      },
+      "identity_sha256": "6dc077029590d969c487a5ad741823082d2e34434b5e1e28116f2e86370932bc"
+    },
+    "usage": {
+      "tokens_in": 7728,
+      "tokens_out": 398
+    },
+    "http_status": 200,
+    "correlation_note": "One physical HTTP attempt; logical retry grouping and framework session not provided."
+  },
+  {
+    "schema": "hermes.physical-attempt.v1",
+    "accounting_owner": "direct",
+    "execution_mode": "external",
+    "run_id": "uncorrelated-hermes-d31f2b3055f24b5f884672494eb93ee5",
+    "caller_id": "hermes",
+    "attempt_id": "d31f2b3055f24b5f884672494eb93ee5",
+    "logical_call_id": "d31f2b3055f24b5f884672494eb93ee5",
+    "framework_run_id": "not_supplied_by_client",
+    "supervisor_id": "am4-oxen-facade",
+    "model_alias": "am4-dense-27b",
+    "started_at": "2026-09-20T02:52:36.563300+00:00",
+    "finished_at": "2026-09-20T02:52:38.308812+00:00",
+    "phase": "task",
+    "outcome": "succeeded",
+    "provider": {
+      "execution_class": "local",
+      "node": "am4",
+      "state": {
+        "alias": "am4-dense-27b",
+        "ready": true,
+        "context_length": 131072,
+        "parallel_slots": 1,
+        "physical_resource": "am4:127.0.0.1:18090",
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "status": 200
+      },
+      "identity_sha256": "6dc077029590d969c487a5ad741823082d2e34434b5e1e28116f2e86370932bc"
+    },
+    "usage": {
+      "tokens_in": 2714,
+      "tokens_out": 33
+    },
+    "http_status": 200,
+    "correlation_note": "One physical HTTP attempt; logical retry grouping and framework session not provided."
+  },
+  {
+    "schema": "hermes.physical-attempt.v1",
+    "accounting_owner": "direct",
+    "execution_mode": "external",
+    "run_id": "uncorrelated-hermes-3d961a4e22b84b85be70a6a9ddb148d0",
+    "caller_id": "hermes",
+    "attempt_id": "3d961a4e22b84b85be70a6a9ddb148d0",
+    "logical_call_id": "3d961a4e22b84b85be70a6a9ddb148d0",
+    "framework_run_id": "not_supplied_by_client",
+    "supervisor_id": "am4-oxen-facade",
+    "model_alias": "am4-dense-27b",
+    "started_at": "2026-09-20T02:52:38.679857+00:00",
+    "finished_at": "2026-09-20T02:52:40.571258+00:00",
+    "phase": "task",
+    "outcome": "succeeded",
+    "provider": {
+      "execution_class": "local",
+      "node": "am4",
+      "state": {
+        "alias": "am4-dense-27b",
+        "ready": true,
+        "context_length": 131072,
+        "parallel_slots": 1,
+        "physical_resource": "am4:127.0.0.1:18090",
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "status": 200
+      },
+      "identity_sha256": "6dc077029590d969c487a5ad741823082d2e34434b5e1e28116f2e86370932bc"
+    },
+    "usage": {
+      "tokens_in": 3137,
+      "tokens_out": 38
+    },
+    "http_status": 200,
+    "correlation_note": "One physical HTTP attempt; logical retry grouping and framework session not provided."
+  },
+  {
+    "schema": "hermes.physical-attempt.v1",
+    "accounting_owner": "direct",
+    "execution_mode": "external",
+    "run_id": "uncorrelated-hermes-66ed7f178b904ff99550f28b37bf39cd",
+    "caller_id": "hermes",
+    "attempt_id": "66ed7f178b904ff99550f28b37bf39cd",
+    "logical_call_id": "66ed7f178b904ff99550f28b37bf39cd",
+    "framework_run_id": "not_supplied_by_client",
+    "supervisor_id": "am4-oxen-facade",
+    "model_alias": "am4-dense-27b",
+    "started_at": "2026-09-20T02:52:40.813862+00:00",
+    "finished_at": "2026-09-20T02:52:46.557348+00:00",
+    "phase": "task",
+    "outcome": "succeeded",
+    "provider": {
+      "execution_class": "local",
+      "node": "am4",
+      "state": {
+        "alias": "am4-dense-27b",
+        "ready": true,
+        "context_length": 131072,
+        "parallel_slots": 1,
+        "physical_resource": "am4:127.0.0.1:18090",
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "status": 200
+      },
+      "identity_sha256": "6dc077029590d969c487a5ad741823082d2e34434b5e1e28116f2e86370932bc"
+    },
+    "usage": {
+      "tokens_in": 3840,
+      "tokens_out": 135
+    },
+    "http_status": 200,
+    "correlation_note": "One physical HTTP attempt; logical retry grouping and framework session not provided."
+  },
+  {
+    "schema": "hermes.physical-attempt.v1",
+    "accounting_owner": "direct",
+    "execution_mode": "external",
+    "run_id": "uncorrelated-hermes-47f267125c9e457f953944a9dac055a1",
+    "caller_id": "hermes",
+    "attempt_id": "47f267125c9e457f953944a9dac055a1",
+    "logical_call_id": "47f267125c9e457f953944a9dac055a1",
+    "framework_run_id": "not_supplied_by_client",
+    "supervisor_id": "am4-oxen-facade",
+    "model_alias": "am4-dense-27b",
+    "started_at": "2026-09-20T02:53:01.730153+00:00",
+    "finished_at": "2026-09-20T02:53:06.701653+00:00",
+    "phase": "task",
+    "outcome": "succeeded",
+    "provider": {
+      "execution_class": "local",
+      "node": "am4",
+      "state": {
+        "alias": "am4-dense-27b",
+        "ready": true,
+        "context_length": 131072,
+        "parallel_slots": 1,
+        "physical_resource": "am4:127.0.0.1:18090",
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "status": 200
+      },
+      "identity_sha256": "6dc077029590d969c487a5ad741823082d2e34434b5e1e28116f2e86370932bc"
+    },
+    "usage": {
+      "tokens_in": 4625,
+      "tokens_out": 110
+    },
+    "http_status": 200,
+    "correlation_note": "One physical HTTP attempt; logical retry grouping and framework session not provided."
+  },
+  {
+    "schema": "hermes.physical-attempt.v1",
+    "accounting_owner": "direct",
+    "execution_mode": "external",
+    "run_id": "uncorrelated-hermes-8968023fc15f48af8b28f57580034f33",
+    "caller_id": "hermes",
+    "attempt_id": "8968023fc15f48af8b28f57580034f33",
+    "logical_call_id": "8968023fc15f48af8b28f57580034f33",
+    "framework_run_id": "not_supplied_by_client",
+    "supervisor_id": "am4-oxen-facade",
+    "model_alias": "am4-dense-27b",
+    "started_at": "2026-09-20T02:53:06.851473+00:00",
+    "finished_at": "2026-09-20T02:53:09.981852+00:00",
+    "phase": "task",
+    "outcome": "succeeded",
+    "provider": {
+      "execution_class": "local",
+      "node": "am4",
+      "state": {
+        "alias": "am4-dense-27b",
+        "ready": true,
+        "context_length": 131072,
+        "parallel_slots": 1,
+        "physical_resource": "am4:127.0.0.1:18090",
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "status": 200
+      },
+      "identity_sha256": "6dc077029590d969c487a5ad741823082d2e34434b5e1e28116f2e86370932bc"
+    },
+    "usage": {
+      "tokens_in": 4853,
+      "tokens_out": 75
+    },
+    "http_status": 200,
+    "correlation_note": "One physical HTTP attempt; logical retry grouping and framework session not provided."
+  },
+  {
+    "schema": "hermes.physical-attempt.v1",
+    "accounting_owner": "direct",
+    "execution_mode": "external",
+    "run_id": "uncorrelated-hermes-5d39691acd7d4d5fa14a14658b89e838",
+    "caller_id": "hermes",
+    "attempt_id": "5d39691acd7d4d5fa14a14658b89e838",
+    "logical_call_id": "5d39691acd7d4d5fa14a14658b89e838",
+    "framework_run_id": "not_supplied_by_client",
+    "supervisor_id": "am4-oxen-facade",
+    "model_alias": "am4-dense-27b",
+    "started_at": "2026-09-20T02:53:10.460575+00:00",
+    "finished_at": "2026-09-20T02:53:27.891977+00:00",
+    "phase": "task",
+    "outcome": "succeeded",
+    "provider": {
+      "execution_class": "local",
+      "node": "am4",
+      "state": {
+        "alias": "am4-dense-27b",
+        "ready": true,
+        "context_length": 131072,
+        "parallel_slots": 1,
+        "physical_resource": "am4:127.0.0.1:18090",
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "status": 200
+      },
+      "identity_sha256": "6dc077029590d969c487a5ad741823082d2e34434b5e1e28116f2e86370932bc"
+    },
+    "usage": {
+      "tokens_in": 6658,
+      "tokens_out": 416
+    },
+    "http_status": 200,
+    "correlation_note": "One physical HTTP attempt; logical retry grouping and framework session not provided."
+  },
+  {
+    "schema": "hermes.physical-attempt.v1",
+    "accounting_owner": "direct",
+    "execution_mode": "external",
+    "run_id": "uncorrelated-hermes-5ec09d054bf545858f94435db0cde3ca",
+    "caller_id": "hermes",
+    "attempt_id": "5ec09d054bf545858f94435db0cde3ca",
+    "logical_call_id": "5ec09d054bf545858f94435db0cde3ca",
+    "framework_run_id": "not_supplied_by_client",
+    "supervisor_id": "am4-oxen-facade",
+    "model_alias": "am4-dense-27b",
+    "started_at": "2026-09-20T03:01:14.100729+00:00",
+    "finished_at": "2026-09-20T03:01:16.809852+00:00",
+    "phase": "task",
+    "outcome": "succeeded",
+    "provider": {
+      "execution_class": "local",
+      "node": "am4",
+      "state": {
+        "alias": "am4-dense-27b",
+        "ready": true,
+        "context_length": 131072,
+        "parallel_slots": 1,
+        "physical_resource": "am4:127.0.0.1:18090",
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "status": 200
+      },
+      "identity_sha256": "6dc077029590d969c487a5ad741823082d2e34434b5e1e28116f2e86370932bc"
+    },
+    "usage": {
+      "tokens_in": 3213,
+      "tokens_out": 49
+    },
+    "http_status": 200,
+    "correlation_note": "One physical HTTP attempt; logical retry grouping and framework session not provided."
+  },
+  {
+    "schema": "hermes.physical-attempt.v1",
+    "accounting_owner": "direct",
+    "execution_mode": "external",
+    "run_id": "uncorrelated-hermes-160abc52a47f410daa4bef8f0bfcb3d8",
+    "caller_id": "hermes",
+    "attempt_id": "160abc52a47f410daa4bef8f0bfcb3d8",
+    "logical_call_id": "160abc52a47f410daa4bef8f0bfcb3d8",
+    "framework_run_id": "not_supplied_by_client",
+    "supervisor_id": "am4-oxen-facade",
+    "model_alias": "am4-dense-27b",
+    "started_at": "2026-09-20T03:01:17.062825+00:00",
+    "finished_at": "2026-09-20T03:01:41.902968+00:00",
+    "phase": "task",
+    "outcome": "succeeded",
+    "provider": {
+      "execution_class": "local",
+      "node": "am4",
+      "state": {
+        "alias": "am4-dense-27b",
+        "ready": true,
+        "context_length": 131072,
+        "parallel_slots": 1,
+        "physical_resource": "am4:127.0.0.1:18090",
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "status": 200
+      },
+      "identity_sha256": "6dc077029590d969c487a5ad741823082d2e34434b5e1e28116f2e86370932bc"
+    },
+    "usage": {
+      "tokens_in": 4381,
+      "tokens_out": 626
+    },
+    "http_status": 200,
+    "correlation_note": "One physical HTTP attempt; logical retry grouping and framework session not provided."
+  },
+  {
+    "schema": "hermes.physical-attempt.v1",
+    "accounting_owner": "direct",
+    "execution_mode": "external",
+    "run_id": "uncorrelated-hermes-239cf60a732148c2b99dbda5425ba029",
+    "caller_id": "hermes",
+    "attempt_id": "239cf60a732148c2b99dbda5425ba029",
+    "logical_call_id": "239cf60a732148c2b99dbda5425ba029",
+    "framework_run_id": "not_supplied_by_client",
+    "supervisor_id": "am4-oxen-facade",
+    "model_alias": "am4-dense-27b",
+    "started_at": "2026-09-20T03:01:42.357875+00:00",
+    "finished_at": "2026-09-20T03:01:52.403421+00:00",
+    "phase": "task",
+    "outcome": "succeeded",
+    "provider": {
+      "execution_class": "local",
+      "node": "am4",
+      "state": {
+        "alias": "am4-dense-27b",
+        "ready": true,
+        "context_length": 131072,
+        "parallel_slots": 1,
+        "physical_resource": "am4:127.0.0.1:18090",
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "status": 200
+      },
+      "identity_sha256": "6dc077029590d969c487a5ad741823082d2e34434b5e1e28116f2e86370932bc"
+    },
+    "usage": {
+      "tokens_in": 7523,
+      "tokens_out": 207
+    },
+    "http_status": 200,
+    "correlation_note": "One physical HTTP attempt; logical retry grouping and framework session not provided."
+  },
+  {
+    "schema": "hermes.physical-attempt.v1",
+    "accounting_owner": "direct",
+    "execution_mode": "external",
+    "run_id": "uncorrelated-hermes-4d0b65e779594b4cbcdc767055023e1f",
+    "caller_id": "hermes",
+    "attempt_id": "4d0b65e779594b4cbcdc767055023e1f",
+    "logical_call_id": "4d0b65e779594b4cbcdc767055023e1f",
+    "framework_run_id": "not_supplied_by_client",
+    "supervisor_id": "am4-oxen-facade",
+    "model_alias": "am4-dense-27b",
+    "started_at": "2026-09-20T03:01:53.648178+00:00",
+    "finished_at": "2026-09-20T03:02:04.935944+00:00",
+    "phase": "task",
+    "outcome": "succeeded",
+    "provider": {
+      "execution_class": "local",
+      "node": "am4",
+      "state": {
+        "alias": "am4-dense-27b",
+        "ready": true,
+        "context_length": 131072,
+        "parallel_slots": 1,
+        "physical_resource": "am4:127.0.0.1:18090",
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "status": 200
+      },
+      "identity_sha256": "6dc077029590d969c487a5ad741823082d2e34434b5e1e28116f2e86370932bc"
+    },
+    "usage": {
+      "tokens_in": 10589,
+      "tokens_out": 237
+    },
+    "http_status": 200,
+    "correlation_note": "One physical HTTP attempt; logical retry grouping and framework session not provided."
+  },
+  {
+    "schema": "hermes.physical-attempt.v1",
+    "accounting_owner": "direct",
+    "execution_mode": "external",
+    "run_id": "uncorrelated-hermes-6abd7176a2a14c6088af31e21d2762e5",
+    "caller_id": "hermes",
+    "attempt_id": "6abd7176a2a14c6088af31e21d2762e5",
+    "logical_call_id": "6abd7176a2a14c6088af31e21d2762e5",
+    "framework_run_id": "not_supplied_by_client",
+    "supervisor_id": "am4-oxen-facade",
+    "model_alias": "am4-dense-27b",
+    "started_at": "2026-09-20T03:10:43.081181+00:00",
+    "finished_at": "2026-09-20T03:10:45.378471+00:00",
+    "phase": "task",
+    "outcome": "succeeded",
+    "provider": {
+      "execution_class": "local",
+      "node": "am4",
+      "state": {
+        "alias": "am4-dense-27b",
+        "ready": true,
+        "context_length": 131072,
+        "parallel_slots": 1,
+        "physical_resource": "am4:127.0.0.1:18090",
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "status": 200
+      },
+      "identity_sha256": "6dc077029590d969c487a5ad741823082d2e34434b5e1e28116f2e86370932bc"
+    },
+    "usage": {
+      "tokens_in": 3251,
+      "tokens_out": 38
+    },
+    "http_status": 200,
+    "correlation_note": "One physical HTTP attempt; logical retry grouping and framework session not provided."
+  },
+  {
+    "schema": "hermes.physical-attempt.v1",
+    "accounting_owner": "direct",
+    "execution_mode": "external",
+    "run_id": "uncorrelated-hermes-35e5ebdd2a6241ff8ae108838f2e6583",
+    "caller_id": "hermes",
+    "attempt_id": "35e5ebdd2a6241ff8ae108838f2e6583",
+    "logical_call_id": "35e5ebdd2a6241ff8ae108838f2e6583",
+    "framework_run_id": "not_supplied_by_client",
+    "supervisor_id": "am4-oxen-facade",
+    "model_alias": "am4-dense-27b",
+    "started_at": "2026-09-20T03:10:46.603772+00:00",
+    "finished_at": "2026-09-20T03:10:48.924850+00:00",
+    "phase": "task",
+    "outcome": "succeeded",
+    "provider": {
+      "execution_class": "local",
+      "node": "am4",
+      "state": {
+        "alias": "am4-dense-27b",
+        "ready": true,
+        "context_length": 131072,
+        "parallel_slots": 1,
+        "physical_resource": "am4:127.0.0.1:18090",
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "status": 200
+      },
+      "identity_sha256": "6dc077029590d969c487a5ad741823082d2e34434b5e1e28116f2e86370932bc"
+    },
+    "usage": {
+      "tokens_in": 3707,
+      "tokens_out": 49
+    },
+    "http_status": 200,
+    "correlation_note": "One physical HTTP attempt; logical retry grouping and framework session not provided."
+  },
+  {
+    "schema": "hermes.physical-attempt.v1",
+    "accounting_owner": "direct",
+    "execution_mode": "external",
+    "run_id": "uncorrelated-hermes-402e1400e5b64c7b914f5d19e16c76b8",
+    "caller_id": "hermes",
+    "attempt_id": "402e1400e5b64c7b914f5d19e16c76b8",
+    "logical_call_id": "402e1400e5b64c7b914f5d19e16c76b8",
+    "framework_run_id": "not_supplied_by_client",
+    "supervisor_id": "am4-oxen-facade",
+    "model_alias": "am4-dense-27b",
+    "started_at": "2026-09-20T03:10:49.023905+00:00",
+    "finished_at": "2026-09-20T03:11:16.175825+00:00",
+    "phase": "task",
+    "outcome": "succeeded",
+    "provider": {
+      "execution_class": "local",
+      "node": "am4",
+      "state": {
+        "alias": "am4-dense-27b",
+        "ready": true,
+        "context_length": 131072,
+        "parallel_slots": 1,
+        "physical_resource": "am4:127.0.0.1:18090",
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "status": 200
+      },
+      "identity_sha256": "6dc077029590d969c487a5ad741823082d2e34434b5e1e28116f2e86370932bc"
+    },
+    "usage": {
+      "tokens_in": 4875,
+      "tokens_out": 685
+    },
+    "http_status": 200,
+    "correlation_note": "One physical HTTP attempt; logical retry grouping and framework session not provided."
+  },
+  {
+    "schema": "hermes.physical-attempt.v1",
+    "accounting_owner": "direct",
+    "execution_mode": "external",
+    "run_id": "uncorrelated-hermes-85dff96d963847cb8142200466354570",
+    "caller_id": "hermes",
+    "attempt_id": "85dff96d963847cb8142200466354570",
+    "logical_call_id": "85dff96d963847cb8142200466354570",
+    "framework_run_id": "not_supplied_by_client",
+    "supervisor_id": "am4-oxen-facade",
+    "model_alias": "am4-dense-27b",
+    "started_at": "2026-09-20T03:11:16.418228+00:00",
+    "finished_at": "2026-09-20T03:11:24.211664+00:00",
+    "phase": "task",
+    "outcome": "succeeded",
+    "provider": {
+      "execution_class": "local",
+      "node": "am4",
+      "state": {
+        "alias": "am4-dense-27b",
+        "ready": true,
+        "context_length": 131072,
+        "parallel_slots": 1,
+        "physical_resource": "am4:127.0.0.1:18090",
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "status": 200
+      },
+      "identity_sha256": "6dc077029590d969c487a5ad741823082d2e34434b5e1e28116f2e86370932bc"
+    },
+    "usage": {
+      "tokens_in": 9059,
+      "tokens_out": 137
+    },
+    "http_status": 200,
+    "correlation_note": "One physical HTTP attempt; logical retry grouping and framework session not provided."
+  },
+  {
+    "schema": "hermes.physical-attempt.v1",
+    "accounting_owner": "direct",
+    "execution_mode": "external",
+    "run_id": "uncorrelated-hermes-bb514900d6c24c08a5287a36dce04ee0",
+    "caller_id": "hermes",
+    "attempt_id": "bb514900d6c24c08a5287a36dce04ee0",
+    "logical_call_id": "bb514900d6c24c08a5287a36dce04ee0",
+    "framework_run_id": "not_supplied_by_client",
+    "supervisor_id": "am4-oxen-facade",
+    "model_alias": "am4-dense-27b",
+    "started_at": "2026-09-20T03:11:25.784222+00:00",
+    "finished_at": "2026-09-20T03:11:35.888935+00:00",
+    "phase": "task",
+    "outcome": "succeeded",
+    "provider": {
+      "execution_class": "local",
+      "node": "am4",
+      "state": {
+        "alias": "am4-dense-27b",
+        "ready": true,
+        "context_length": 131072,
+        "parallel_slots": 1,
+        "physical_resource": "am4:127.0.0.1:18090",
+        "model": "models/Qwen3.8-27B-Q4_K_M.gguf",
+        "status": 200
+      },
+      "identity_sha256": "6dc077029590d969c487a5ad741823082d2e34434b5e1e28116f2e86370932bc"
+    },
+    "usage": {
+      "tokens_in": 13024,
+      "tokens_out": 195
+    },
+    "http_status": 200,
+    "correlation_note": "One physical HTTP attempt; logical retry grouping and framework session not provided."
+  }
+]

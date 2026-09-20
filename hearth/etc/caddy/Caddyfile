@@ -178,6 +178,14 @@
 	@noauth expression {env.OMEN_ARC_TOKEN} == ""
 
 	route {
+		# Per-worker authenticated MCP route; the model bearer stays on OMEN.
+		handle /hermes-worker/mcp {
+			rewrite * /mcp
+			reverse_proxy 127.0.0.1:8712 {
+				header_up Host 127.0.0.1:8712
+				flush_interval -1
+			}
+		}
 		respond @noauth "vm inference proxy: upstream credential unavailable" 503
 
 		handle /v1/* {

@@ -79,6 +79,7 @@ TOOL_CAPABILITY: dict[str, str] = {
     "query_findings": "query",
     "query_knowledge": "query",
     "query_offload": "query",
+    "query_omen_worker": "status",
     "query_rung_state": "query",   # rungstate.py -- door-side rung verdict (ADR-0044)
     "recommend_rung": "query",     # rotation.py -- task-family advice, never dispatches
     "rotation_status": "query",    # rotation.py -- /running + tenancy + rung state, read-only

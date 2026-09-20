@@ -349,7 +349,8 @@ def claim_task(task_id: str, claim_token: str, traceparent: str = "") -> dict[st
 
 @mcp.tool()
 def run_plan(plan: str, plan_id: str = "spine-stub-001", workdir: str = "",
-             traceparent: str = "", mode: str = "build", runner_preset: str = "") -> dict[str, Any]:
+             traceparent: str = "", mode: str = "build", runner_preset: str = "",
+             max_age_s: int | None = None) -> dict[str, Any]:
     """Deliver a plan and launch a Claude agent to execute it.
 
     The plan is written to ~/projects/plans/<plan_id>.md, then a Claude agent
@@ -361,6 +362,9 @@ def run_plan(plan: str, plan_id: str = "spine-stub-001", workdir: str = "",
     traceparent is propagated into the agent's environment for child spans.
     """
     with FABRIC.capture("run_plan", {"plan_id": plan_id, "traceparent": traceparent}, traceparent=traceparent) as h:
+        if max_age_s is not None and (type(max_age_s) is not int or max_age_s < 1):
+            raise ValueError('positive job deadline required')
+        run_limit = min(BUILD_MAX_WAIT, max_age_s) if max_age_s is not None else BUILD_MAX_WAIT
         COMMS_DIR.mkdir(parents=True, exist_ok=True)
         plan_dir = PROJECT_DIR / "plans"
         plan_dir.mkdir(parents=True, exist_ok=True)
@@ -425,8 +429,8 @@ def run_plan(plan: str, plan_id: str = "spine-stub-001", workdir: str = "",
         # runner "openai" drives any OpenAI /v1 backend (AM4 Qwen3 via hermes, OMEN
         # Ollama, or a frontier API) through the self-contained tool-calling agent.
         runner = rcfg.get("runner", "claude")
-        if runner == "openai":
-            _agent = str(Path(__file__).resolve().parent / "agent_openai.py")
+        if runner in ("openai", "hearth"):
+            _agent = str(Path(__file__).resolve().parent / ("agent_hearth.py" if runner == "hearth" else "agent_openai.py"))
             agent_cmd = [sys.executable, _agent,
                          "--plan-file", str(plan_file), "--workdir", str(run_cwd),
                          "--base-url", rcfg.get("base_url", ""),
@@ -434,7 +438,7 @@ def run_plan(plan: str, plan_id: str = "spine-stub-001", workdir: str = "",
                          "--token-file", rcfg.get("token_file", ""),
                          "--task-id", plan_id, "--reference", str(SRC_REFERENCE),
                          "--max-steps", str(rcfg.get("max_steps", 24)),
-                         "--budget-s", str(max(60, BUILD_MAX_WAIT - BUILD_BUDGET_GRACE))]
+                         "--budget-s", str(max(1, run_limit - BUILD_BUDGET_GRACE))]
         else:
             agent_cmd = [CLAUDE_BIN, "--model", BUILDER_MODEL,
                          "--dangerously-skip-permissions", "-p", prompt]
@@ -446,10 +450,12 @@ def run_plan(plan: str, plan_id: str = "spine-stub-001", workdir: str = "",
         # launcher/reaper module is missing.
         _launcher = str(Path(__file__).resolve().parent / "build_agent_launch.py")
         supervised = _agent_supervisor is not None and os.path.exists(_launcher)
+        if runner_preset and not supervised:
+            raise ValueError('preset jobs require the hard-timeout supervisor')
         if supervised:
             DONE_DIR.mkdir(parents=True, exist_ok=True)
             launch_cmd = [sys.executable, _launcher, plan_id, str(DONE_DIR),
-                          str(BUILD_MAX_WAIT), str(run_cwd), "--"] + agent_cmd
+                          str(run_limit), str(run_cwd), "--"] + agent_cmd
         else:
             launch_cmd = agent_cmd
 
@@ -473,8 +479,9 @@ def run_plan(plan: str, plan_id: str = "spine-stub-001", workdir: str = "",
             "runner": runner,
             "runner_preset": runner_preset or None,
             "resolved_runner": resolved_runner,
-            "runner_model": rcfg.get("model") if runner == "openai" else BUILDER_MODEL,
+            "runner_model": rcfg.get("model") if runner in ("openai", "hearth") else BUILDER_MODEL,
             "supervised": supervised,
+            "hard_timeout_s": run_limit,
             "signal_file": str(DONE_DIR / f"{plan_id}.json") if supervised else None,
             "trace_id": _extract_trace_id(traceparent),
             "agent_traceparent": agent_tp,

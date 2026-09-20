@@ -1,5 +1,12 @@
 # FX99 Hermes implementation — 2026-09-19
 
+**2026-09-20 update:** the AM4-worker arrangement below is superseded by
+[AM4 controller / OMEN workers](../../fleet/hermes/AM4-OMEN-ROLLOUT.md).
+`hermes-fleet fleet-status` is deployed on FX99. Both OMEN-backed builder routes
+have produced real artifacts, reviewed with corrections; original outputs remain
+preserved. The historical failed qualification below remains on the record.
+
+
 Useful artifacts: a pinned SSH/tmux Hermes controller using shared AM4 inference;
 a tested, unmerged fleet-capacity correction produced through governed local work.
 

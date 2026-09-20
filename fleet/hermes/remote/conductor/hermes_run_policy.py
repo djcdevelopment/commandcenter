@@ -2,7 +2,7 @@
 import json
 
 PAIR = ["cc-builder-2", "cc-builder-3"]
-PRESET = "am4-shared-27b"
+PRESET = "omen-resident-hearth"
 
 
 def validate(meta):
@@ -11,9 +11,11 @@ def validate(meta):
         raise ValueError("unknown promotion policy")
     hermes = meta.get("operator") == "hermes"
     if hermes and (meta.get("promotion_policy") != "manual" or
-                   meta.get("runner_preset") != PRESET or meta.get("builders") != PAIR):
-        raise ValueError("Hermes requires manual promotion and the exact AM4 preset pair")
-    if meta.get("runner_preset") not in (None, PRESET):
+                   meta.get("runner_preset") != PRESET or not isinstance(meta.get("builders"), list)
+                   or not meta["builders"] or len(set(meta["builders"])) != len(meta["builders"])
+                   or not set(meta["builders"]) <= set(PAIR)):
+        raise ValueError("Hermes requires manual promotion and explicit OMEN-backed builders")
+    if meta.get("runner_preset") not in (None, PRESET, "am4-shared-27b"):
         raise ValueError("unknown runner preset")
     return dict(meta)
 

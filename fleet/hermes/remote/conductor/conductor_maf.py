@@ -197,7 +197,8 @@ async def call(t, target, tool, **kw):
     tp=tp_now()
     with FABRIC.capture(target=target, tool=tool, payload={**kw,"traceparent":tp}, traceparent=tp) as h:
         res=parse(await t.call_tool(tool, traceparent=tp, **kw)); h["result"]=res; return res
-async def build_one(name, host, plan_id, plan_text, mode="build", runner_preset=None):
+async def build_one(name, host, plan_id, plan_text, mode="build", runner_preset=None, max_age_s=None):
+    started = time.monotonic()
     with TR.start_as_current_span("build."+name, attributes={"worker":name,"plan.id":plan_id}):
         # Connect + branch setup is the transient-prone step (SSH/MCP). Retry once
         # on transport noise (imp10 classifier) so infra blips don't grade as F;
@@ -226,6 +227,11 @@ async def build_one(name, host, plan_id, plan_text, mode="build", runner_preset=
         try:
             task_id=plan_id+"-"+name
             options = {"runner_preset": runner_preset} if runner_preset else {}
+            if max_age_s is not None:
+                remaining = int(max_age_s - (time.monotonic() - started))
+                if remaining < 1:
+                    return name, {'ok':False,'error':'deadline exhausted during setup'}
+                options['max_age_s'] = remaining
             rp=await call(t,name,"run_plan",plan=plan_text,plan_id=task_id,workdir=br.get("workspace",""),mode=mode,**options)
             if rp.get("status") != "launched":
                 return name, {"ok": False, "error": "worker refused launch", "launch": rp}
@@ -417,15 +423,17 @@ def _workflow_for(plan_id, plan_text, builders, assay, storage, target_meta):
     the run's nodes.json snapshot on resume — never a fresh fleet.json read."""
     @executor(id="route")
     async def route_node(msg: dict, ctx: WorkflowContext[dict]) -> None:
-        routing = ({"skipped": "explicit Hermes local pair"} if target_meta.get("operator") == "hermes"
+        routing = ({"skipped": "explicit Hermes local builders"} if target_meta.get("operator") == "hermes"
                    else await route_plan(plan_id, plan_text))
         log.info("[%s] route: %s",plan_id, routing.get("difficulty","?")+"/"+str(routing.get("recommended_runner")) if isinstance(routing,dict) else routing)
         await ctx.send_message({"routing":routing})
     def _mk(name, host):
         @executor(id="build_"+name)
-        async def _build(msg: dict, ctx: WorkflowContext[dict]) -> None:
-            n,entry=await build_one(name,host,plan_id,plan_text,runner_preset=target_meta.get("runner_preset"))
-            await ctx.send_message({"worker":n,"entry":entry,"routing":msg.get("routing")})
+        async def _build(msg: dict, ctx: WorkflowContext[list[dict] if len(builders) == 1 else dict]) -> None:
+            n,entry=await build_one(name,host,plan_id,plan_text,runner_preset=target_meta.get("runner_preset"),
+                                    max_age_s=target_meta.get('max_age_s') if target_meta.get('operator')=='hermes' else None)
+            item = {"worker":n,"entry":entry,"routing":msg.get("routing")}
+            await ctx.send_message([item] if len(builders) == 1 else item)
         return _build
     build_execs=[_mk(n,h) for n,h in builders]
     @executor(id="finalize")
@@ -445,8 +453,12 @@ def _workflow_for(plan_id, plan_text, builders, assay, storage, target_meta):
         await ctx.yield_output({"routing":routing,"builds":results,"assay":assay_res,"winner":winner,
                                 "questions":questions,"promotion":promotion,"target":target_meta})
     wb=WorkflowBuilder(name=plan_id, start_executor=route_node, checkpoint_storage=storage)
-    wb.add_fan_out_edges(route_node, build_execs)
-    wb.add_fan_in_edges(build_execs, finalize)
+    if len(build_execs) == 1:
+        wb.add_edge(route_node, build_execs[0])
+        wb.add_edge(build_execs[0], finalize)
+    else:
+        wb.add_fan_out_edges(route_node, build_execs)
+        wb.add_fan_in_edges(build_execs, finalize)
     return wb.build()
 
 async def run_workflow(plan_id, plan_text):
@@ -551,6 +563,13 @@ async def serve():
                 await run_workflow(plan_id, pf.read_text())
             except Exception as e:
                 log.error("workflow %s errored (isolated): %s",plan_id,str(e)[:200])
+                # Terminal failures must not look like eternally running work.
+                failed = RUNS/plan_id/'result.json'
+                if not failed.exists():
+                    failed.parent.mkdir(parents=True, exist_ok=True)
+                    failed.write_text(json.dumps({'plan_id':plan_id,'status':'error',
+                        'error':type(e).__name__, 'promotion':{'promoted':False,
+                        'reason':'workflow-failed'}},indent=2))
             finally:
                 try: pf.rename(INBOX/"processed"/pf.name)
                 except Exception: pass

@@ -1,0 +1,135 @@
+{
+  "result": {
+    "plan_id": "hearth-hermes-br-20260920-025127-19eb2ef8-e9a2c7e4",
+    "trace_id": "30938d268aa42c5bc6a47c56535867ad",
+    "routing": {
+      "skipped": "explicit Hermes local pair"
+    },
+    "builds": {
+      "cc-builder-2": {
+        "ok": false,
+        "error": "Error executing tool run_plan: asyncio.run() cannot be called from a running event loop"
+      },
+      "cc-builder-3": {
+        "ok": false,
+        "error": "Error executing tool run_plan: asyncio.run() cannot be called from a running event loop"
+      }
+    },
+    "assay": {
+      "plan_id": "hearth-hermes-br-20260920-025127-19eb2ef8-e9a2c7e4",
+      "lap": 1,
+      "grader": "claudefarm1",
+      "winner": "cc-builder-2",
+      "scoreboard": [
+        {
+          "worker": "cc-builder-2",
+          "branch": "ccfarm/hearth-hermes-br-20260920-025127-19eb2ef8-e9a2c7e4/cc-builder-2/lap1",
+          "score": 0,
+          "grade": "F",
+          "risk_score": 1.0,
+          "assay_mode": "static-fallback",
+          "static_score": 0,
+          "behavior_score": 0,
+          "tests_found": 0,
+          "tests_passed": 0,
+          "tests_failed": 0,
+          "imports_ok": 0,
+          "imports_failed": 0,
+          "assay_summary": "workspace not found",
+          "file_count": 0,
+          "code_files": 0,
+          "has_retro": false,
+          "has_result": false,
+          "has_tests": false,
+          "retro_excerpt": ""
+        },
+        {
+          "worker": "cc-builder-3",
+          "branch": "ccfarm/hearth-hermes-br-20260920-025127-19eb2ef8-e9a2c7e4/cc-builder-3/lap1",
+          "score": 0,
+          "grade": "F",
+          "risk_score": 1.0,
+          "assay_mode": "static-fallback",
+          "static_score": 0,
+          "behavior_score": 0,
+          "tests_found": 0,
+          "tests_passed": 0,
+          "tests_failed": 0,
+          "imports_ok": 0,
+          "imports_failed": 0,
+          "assay_summary": "workspace not found",
+          "file_count": 0,
+          "code_files": 0,
+          "has_retro": false,
+          "has_result": false,
+          "has_tests": false,
+          "retro_excerpt": ""
+        }
+      ],
+      "tiebreak": {
+        "method": "human-review",
+        "tied": [],
+        "winner": null
+      }
+    },
+    "winner": "cc-builder-2",
+    "questions": [],
+    "promotion": {
+      "promoted": false,
+      "reason": "manual-review",
+      "status": "awaiting_review",
+      "winner": "cc-builder-2",
+      "candidates": [
+        {
+          "worker": "cc-builder-2",
+          "branch": "ccfarm/hearth-hermes-br-20260920-025127-19eb2ef8-e9a2c7e4/cc-builder-2/lap1",
+          "commit": null,
+          "build": {
+            "ok": false,
+            "error": "Error executing tool run_plan: asyncio.run() cannot be called from a running event loop"
+          },
+          "missing_deliverables": [
+            "OPERATING-MATRIX.md"
+          ],
+          "unchanged_deliverables": [
+            "OPERATING-MATRIX.md"
+          ],
+          "artifact_status": "missing-or-unchanged-deliverables"
+        },
+        {
+          "worker": "cc-builder-3",
+          "branch": "ccfarm/hearth-hermes-br-20260920-025127-19eb2ef8-e9a2c7e4/cc-builder-3/lap1",
+          "commit": null,
+          "build": {
+            "ok": false,
+            "error": "Error executing tool run_plan: asyncio.run() cannot be called from a running event loop"
+          },
+          "missing_deliverables": [
+            "OPERATING-MATRIX.md"
+          ],
+          "unchanged_deliverables": [
+            "OPERATING-MATRIX.md"
+          ],
+          "artifact_status": "missing-or-unchanged-deliverables"
+        }
+      ]
+    },
+    "target": {
+      "builders": [
+        "cc-builder-2",
+        "cc-builder-3"
+      ],
+      "promotion_policy": "manual",
+      "runner_preset": "omen-resident-hearth",
+      "operator": "hermes",
+      "task_class": "drafting",
+      "est_tokens": 2898,
+      "est_tokens_source": "derived",
+      "requires": [
+        "OPERATING-MATRIX.md"
+      ],
+      "max_age_s": 300
+    }
+  },
+  "main": "97d23883d7435f4138e2bc96a313b25fce419b08"
+}

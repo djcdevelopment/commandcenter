@@ -29,6 +29,9 @@ def configuration():
 
 
 def main():
+    if sys.argv[1:2] == ['fleet-status']:
+        from fleet_status import main as fleet_status
+        raise SystemExit(fleet_status(sys.argv[2:]))
     os.environ['HERMES_HOME'] = str(PROFILE / 'sessions')
     for env, name in [('HERMES_AM4_KEY','am4.key'),('HERMES_HEARTH_KEY','hearth.key')]:
         os.environ[env] = (PROFILE/name).read_text().strip()

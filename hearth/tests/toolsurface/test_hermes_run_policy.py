@@ -24,7 +24,8 @@ META = dict(operator='hermes', promotion_policy='manual', runner_preset=policy.P
 
 
 @pytest.mark.parametrize('change', [dict(promotion_policy='auto'), dict(promotion_policy=None),
-                                  dict(runner_preset='fx99'), dict(builders=['cc-builder-2'])])
+                                  dict(runner_preset='fx99'), dict(builders=[]),
+                                  dict(builders=['cc-builder-1']), dict(builders=['cc-builder-2']*2)])
 def test_hermes_fails_closed(change):
     with pytest.raises(ValueError):
         policy.validate({**META, **change})
@@ -67,8 +68,8 @@ def test_preset_snapshot_does_not_touch_default_and_rejects_change(tmp_path):
     (root/'runner-presets').mkdir()
     key = root/'key'; key.write_text('fixture')
     default = root/'runner.json'; default.write_text('{"model":"existing"}')
-    cfg = dict(runner='openai', base_url=presets.BASE_URL, model=presets.MODEL,
-               context_length=131072, max_steps=24, token_file=str(key))
+    cfg = dict(runner='hearth', base_url=presets.BASE_URL, model=presets.MODEL,
+               context_length=16384, max_steps=12, token_file=str(key))
     path = root/'runner-presets'/f'{presets.NAME}.json'; path.write_text(json.dumps(cfg))
     snap = root/'run.json'
     _, before = presets.resolve(root, presets.NAME, snap, probe=False)
@@ -85,10 +86,21 @@ def test_task_lane_metadata_and_no_padding(monkeypatch):
     from hearth.toolsurface import task_lane
     monkeypatch.setattr(task_lane, '_run_ssh', lambda *a: (_ for _ in ()).throw(AssertionError('SSH reached')))
     with pytest.raises(ValueError):
-        task_lane.submit_task('task', builders=['cc-builder-2'], operator='hermes',
+        task_lane.submit_task('task', builders=['cc-builder-1'], operator='hermes',
                               promotion_policy='manual', runner_preset=policy.PRESET)
     header = task_lane._ccmeta_header(policy.PAIR, promotion_policy='manual', runner_preset=policy.PRESET, operator='hermes')
     assert '"promotion_policy": "manual"' in header
+
+
+def test_single_hermes_builder_not_padded(monkeypatch):
+    from hearth.toolsurface import task_lane
+    monkeypatch.setattr(task_lane, '_run_ssh', lambda *a: ('',''))
+    # The transport result can fail; the generic padding helper must never run.
+    monkeypatch.setattr(task_lane, '_ensure_fanout_minimum',
+                        lambda *a: (_ for _ in ()).throw(AssertionError('padding')))
+    task_lane.submit_task('task', builders=['cc-builder-3'], operator='hermes',
+                         promotion_policy='manual', runner_preset=policy.PRESET)
+    assert policy.validate({**META,'builders':['cc-builder-3']})['builders'] == ['cc-builder-3']
 
 
 def test_delegation_url_is_not_a_windows_drive():

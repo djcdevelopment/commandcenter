@@ -305,11 +305,12 @@ def submit_task(prompt: str, builders: list[str] | None = None,
     if not isinstance(prompt, str) or not prompt.strip():
         raise ValueError("prompt must be a non-empty string")
     chosen_builders = list(DEFAULT_BUILDERS) if builders is None else list(builders)
-    if promotion_policy not in (None, "auto", "manual") or runner_preset not in (None, "am4-shared-27b"):
+    if promotion_policy not in (None, "auto", "manual") or runner_preset not in (None, "am4-shared-27b", "omen-resident-hearth"):
         raise ValueError("unknown promotion policy or runner preset")
-    if operator == "hermes" and (promotion_policy != "manual" or runner_preset != "am4-shared-27b" or
-                                 chosen_builders != ["cc-builder-2", "cc-builder-3"]):
-        raise ValueError("Hermes requires manual promotion and exact preset pair; no auto-padding")
+    if operator == "hermes" and (promotion_policy != "manual" or runner_preset != "omen-resident-hearth" or
+                                 not chosen_builders or len(set(chosen_builders)) != len(chosen_builders) or
+                                 not set(chosen_builders) <= {"cc-builder-2", "cc-builder-3"}):
+        raise ValueError("Hermes requires manual promotion and explicit OMEN builders; no auto-padding")
     if not chosen_builders or not all(isinstance(b, str) and b.strip() for b in chosen_builders):
         raise ValueError("builders must be a non-empty list of non-empty strings")
     if task_class is not None and (not isinstance(task_class, str) or not task_class.strip()):
@@ -320,7 +321,8 @@ def submit_task(prompt: str, builders: list[str] | None = None,
     max_age_value = validate_max_age_s(max_age_s)
     # Pad to the conductor's fan-out minimum so a single-builder request runs
     # instead of crashing on dispatch (see _ensure_fanout_minimum).
-    chosen_builders = _ensure_fanout_minimum(chosen_builders)
+    if operator != "hermes":
+        chosen_builders = _ensure_fanout_minimum(chosen_builders)
 
     # Token hole #1: never leave est_tokens empty. A caller-supplied value is
     # kept verbatim and labeled; an absent one is derived and labeled as such.

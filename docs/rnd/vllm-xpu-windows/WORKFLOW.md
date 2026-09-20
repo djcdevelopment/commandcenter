@@ -38,7 +38,7 @@ instance per card behind the door. (vllm#41663: TP=2 on dual B70 is unreliable e
 | L2-full | + `_moe_C`, `_xpu_C`, `_vllm_fa2_C` (SYCL-TLA attention/grouped-GEMM + static oneDNN) | extensions import; FA2 varlen + fused MoE run | **built + import** (9 more attempts); **FA2 kernel faults the device** — see L4 |
 | L3 | `vllm serve` a dense model on one B70, Triton attention, eager | correct completion over `/v1/chat/completions` | **pass** — Qwen3-0.6B, T=0 deterministic |
 | L4 | production model family (Qwen3-30B-A3B int4 AWQ/GPTQ) on one card; 27B int4 | lap-8 bodies correct at 16k/30k; T=0 determinism | **FUNCTIONAL on the TLA-free stack** (`moe_wna16` + Triton MoE + Triton attention + oneDNN int4): correct, T=0 deterministic, 599 tok/s aggregate @64 streams, ~2.4k prompt tok/s @12k, needle found at 6k/12k |
-| L5 | jobs/h shape (SAT-L1, 8×16k): one instance, then two (one per card) | vs production 3,358 jobs/h / 105 tok/s | next — plus XPU graphs / torch.compile (eager today) |
+| L5 | jobs/h shape (SAT-L1, 8×16k): one instance, then two (one per card) | vs production 3,358 jobs/h / 105 tok/s | L5a done: torch.compile +20–30% single (25 tok/s), XPU graphs blocked by oneDNN capture, donor MoE table negative; jobs/h + tuner next |
 | L6 | stretch: `--pipeline-parallel-size 2` over gloo | the 27B at depth on both cards under vLLM | only if L5 says so |
 | L7 | verdict: D1 production engine / D2 concurrency rung `omen-vllm` (:8097, pin-only stanza) / D3 depth stays llama.cpp SYCL | ADR + memory | — |
 
@@ -191,6 +191,21 @@ dual-card prefill at 16k is 609 on the dense 27B and knees hard from there — t
 Single-stream 19 tok/s is the eager + all-Triton floor (production: 105 dual-card Vulkan); the aggregate curve is
 still linear at 64 (`max_num_seqs`), so the concurrency use case is functional today and the ceiling is unmeasured.
 Regime: one B70, eager, Triton everything, fp16, first-shape JIT included in the 1-stream number.
+
+**L5a (13:33–13:50Z) — the single-stream lever, first pass.** `torch.compile` WORKS on Windows (inductor via `cl`,
+60 s for the (1, 2048) range; cache under `~/.cache/vllm/torch_compile_cache`). **XPU graph capture does not**:
+`VLLM_XPU_ENABLE_XPU_GRAPH=1` → error 40 inside `cudagraph_utils.capture` at the oneDNN `int4_gemm_w4a16` (oneDNN
+primitives inside a Level Zero command-list capture) → run compiled with `-cc.cudagraph_mode=none`. Compiled, one
+B70, 30B-A3B int4: single **22.5–25 tok/s** (eager 18.9), 8 streams 87, 64 streams **592** (first compiled sample
+read 500 — JIT warm-up in the compiled path; re-sample). ⚠ **T=0 determinism is lost under compile** (2 variants
+in 3 runs; eager was identical ×3) — same shape of finding as the SYCL MoE one in the sibling program. The engine
+warns `Using default MoE config… Config file not found` for
+`E=128,N=768,device_name=Intel(R)_Arc(TM)_Pro_B70_Graphics,dtype=int4_w4a16.json`; the only donor table for this
+shape (Radeon 8060S / Strix Halo, keys minus `waves_per_eu`, `SPLIT_K` kept) is **worse** on the B70 — 19.0 single,
+80 @8, 428 @64 — deleted. Clean negative: Xe2 needs its own sweep; the upstream `benchmark_moe.py` tuner is ray +
+CUDA-graph bound, so an XPU tuner is a small port (loop the WNA16 MoE kernel over BLOCK_M/N/K, GROUP_SIZE_M,
+num_warps, num_stages at M = 1…64 on the card). Where the single-stream gap sits: llama.cpp's int4 decode is
+bandwidth-bound near the card's ceiling; vLLM's Triton WNA16 MoE at M=1 with the default config is ~4× off it.
 
 **Uncertainty list (not sampled):** XPU graphs (`VLLM_XPU_ENABLE_XPU_GRAPH=1`) / `torch.compile` on Windows (the single-stream lever); `max_num_seqs` > 64; the SAT-L1 jobs/h shape; two instances (one per card); the 27B dense int4 (`gptq` linears only, no MoE); why the TLA kernels fault (IGC on Windows vs Linux compute-runtime); MoE grouped-GEMM and paged-decode kernels in
 isolation (only FA2 varlen was isolated); the 30B on `TRITON_ATTN` with int4 + MoE kernels; a driver newer

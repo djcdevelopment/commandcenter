@@ -35,9 +35,9 @@ instance per card behind the door. (vllm#41663: TP=2 on dual B70 is unreliable e
 | L0 | Desk: what the port supports; what a native XPU build needs | written above | **done** 2026-09-19 |
 | L1 | venv + torch 2.13.0+xpu + triton-xpu 3.7.2 on Windows | 2 devices; a Triton kernel *executes* on xpu:0 | **pass** |
 | L2 | `vllm-xpu-kernels` 0.1.14.1 built with icx on Windows — basic kernels | `_C.pyd` imports; norm/act/rotary match torch | **pass** (9 attempts, 78-line patch) |
-| L2-full | + `_moe_C`, `_xpu_C`, `_vllm_fa2_C` (SYCL-TLA attention/grouped-GEMM + static oneDNN) | extensions import; FA2 varlen + fused MoE run | **pending — 30–60 min build, needs Derek's cue** |
+| L2-full | + `_moe_C`, `_xpu_C`, `_vllm_fa2_C` (SYCL-TLA attention/grouped-GEMM + static oneDNN) | extensions import; FA2 varlen + fused MoE run | **built + import** (9 more attempts); **FA2 kernel faults the device** — see L4 |
 | L3 | `vllm serve` a dense model on one B70, Triton attention, eager | correct completion over `/v1/chat/completions` | **pass** — Qwen3-0.6B, T=0 deterministic |
-| L4 | production model family (Qwen3-30B-A3B int4 AWQ/GPTQ) on one card; 27B int4 | lap-8 bodies correct at 16k/30k; T=0 determinism | blocked on L2-full (MoE + int4 paths need `_moe_C`/`_xpu_C`) |
+| L4 | production model family (Qwen3-30B-A3B int4 AWQ/GPTQ) on one card; 27B int4 | lap-8 bodies correct at 16k/30k; T=0 determinism | **loads (15.68 GiB), every path routes; first forward → Level Zero error** — wall = the TLA attention kernel (`DEVICE_LOST` standalone) |
 | L5 | jobs/h shape (SAT-L1, 8×16k): one instance, then two (one per card) | vs production 3,358 jobs/h / 105 tok/s | after L4 |
 | L6 | stretch: `--pipeline-parallel-size 2` over gloo | the 27B at depth on both cards under vLLM | only if L5 says so |
 | L7 | verdict: D1 production engine / D2 concurrency rung `omen-vllm` (:8097, pin-only stanza) / D3 depth stays llama.cpp SYCL | ADR + memory | — |
@@ -115,8 +115,55 @@ nothing on a 0.6B; 256 is the default `max_num_seqs`, so no knee was reached. Th
 (continuous batching + paged KV) running on a B70 under Windows; it says nothing yet about the 30B-A3B or
 the 27B, which need L2-full.
 
-**Uncertainty list (not sampled):** the full kernel build on Windows (SYCL-TLA attention/grouped-GEMM,
-static oneDNN — each may have its own MSVC walls); FA2 vs Triton attention on Xe2; `torch.compile` /
+**L2-full (2026-09-19 22:50Z → 2026-09-20 00:00Z, Derek's cue; build attempts 1–9):**
+1. `-j16` → `LLVM ERROR: out of memory` in the SYCL device compile of the chunk-prefill attention
+   templates (four `clang-cl -cc1 -triple spir64_gen` died at once at 700/1402). The default build
+   instantiates **all 216 chunk-prefill + 384 paged-decode variants**; `chunk_prefill_default` /
+   `paged_decode_default` (~13 + ~24, Qwen/Llama covered) drop the graph to 848 objects. `MAX_JOBS=6`
+   holds 76 GB free. (⚠ a killed `-j16` ninja kept draining an in-flight device compile for minutes;
+   two later attempts ran underneath it — check for live `clang-cl.exe` before relaunching.)
+2. `ssize_t` in `mem_alloc.cpp` (xpumem_allocator) → `BaseTsd.h` typedef on `_WIN32`.
+3. Every incremental re-configure discarded the cmake cache: setup.py passes `shutil.which('icx')` =
+   `...\icx.EXE` while the toolchain file says `.../icx.exe` → "changed compiler" → cache deleted →
+   `VLLM_PYTHON_EXECUTABLE` gone. Fix: on Windows setup.py passes no compiler (toolchain file is the
+   authority). Cost: one near-full recompile when the command lines changed spelling.
+4. `xpumem_allocator.pyd`: `LNK1104 python312.lib` — it drops `Py_LIMITED_API`, so `pyconfig.h`
+   auto-links the versioned lib via `#pragma comment(lib)`; add `Python_LIBRARY_DIRS`.
+5. `_vllm_fa2_C.pyd` / `mhc_kernels_xe_2.dll`: `LNK2019 cutlass_chunk_prefill_xe2`,
+   `launch_mhc_post_opt` — the SHARED `*_xe_2` TLA libraries export nothing (no `dllexport`), so their
+   import libs are empty → `CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON`. MHC additionally: the `extern`
+   declaration lacks the definition's `__restrict` qualifiers, which **MSVC mangles** (Itanium doesn't).
+6. Install step: `Access is denied: _C.pyd` — the L3 seat still had it loaded (`kill-seat.ps1`).
+Result: `_C` 38 MB, `_moe_C` 55 MB, `_xpu_C` 86 MB, `_vllm_fa2_C`, `xpumem_allocator` — **all five build,
+install and import** (kernels branch `windows` 5725348). ⚠ The `*_xe_2.dll`, `grouped_gemm_xe_default.dll`
+and the compiler's `libmmd.dll` must be copied beside the `.pyd`s by hand — setup.py's extra-library
+install looks for `.so` names. Registered: `is_xe2_arch()` true, `int4_gemm_w4a16`, `_vllm_fa2_C.varlen_fwd`,
+`_moe_C.topk_softmax`; `FA2_AVAILABLE True`.
+
+**L4 (00:00–00:20Z) — the production model loads; the TLA attention kernel is the wall.**
+`Qwen/Qwen3-30B-A3B-GPTQ-Int4` (official Qwen int4, 15.77 GiB, pulled in 3.6 min to `E:\work\models\hf`).
+Production holds ~14 GB on *each* card (layer split), so this ran in a **tenancy window**: `arc-maintenance.stop`
+sentinel → `schtasks /Run /TN ArcServeRestart` (stop-only with the sentinel) → both cards 31,906 MiB free →
+lap → sentinel removed → `ArcServeRestart` again → `llama-swap` + `llama-server` back, `/health` 200 (window
+≈ 20 min). Seat on card 1 (`ONEAPI_DEVICE_SELECTOR=level_zero:1`), `--max-model-len 16384 --max-num-seqs 64`.
+Every path engaged as designed: `XPUwNa16LinearKernel` for the GPTQ linears, `'XPU' WNA16 MoE backend` for the
+experts, FlashAttention 2; **model loaded 15.68 GiB in 111 s** (17 s warm); profiling passed; KV 11.02 GiB =
+120,384 tokens at 0.9 (7.35× 16k) / 69,312 at 0.75. Then the first real forward: `RuntimeError: level_zero
+backend failed with error: 40 (UR_RESULT_ERROR_OUT_OF_RESOURCES)` — at 0.9 **and** 0.75, in the V2 runner's
+`warmup_kernels` (surfacing in `int4_gemm_w4a16`) and in the V1 runner's `profile_run` (surfacing in the fused
+MoE) — different sites, so the error surfaces at whichever op synchronises next. Isolation: `int4_gemm_w4a16`
+standalone is clean at M = 1…8192; **`flash_attn_varlen_func` standalone → `UR_RESULT_ERROR_DEVICE_LOST`
+(error 20)** — the SYCL-TLA attention kernel faults the B70. Same on the 2026.1 SYCL runtime pips (torch's wheel
+pins 2026.0; the venv now carries 2026.1, harmless). No TDR/WHEA event logged; both cards re-enumerate at full
+memory. Leading suspect: the AOT `spir64_gen` image (`-device pvc,bmg,bmg-g21-a0,bmg-g31-a0`, 2026.1 IGC) vs
+driver 32.0.101.8974; the basic and oneDNN kernels don't use the 2D-block-IO / DPAS SPIR-V extensions the TLA
+kernels link with. **Next probe:** JIT-only rebuild of the attention lib (`VLLM_XPU_AOT_DEVICES=""`,
+`VLLM_XPU_XE2_AOT_DEVICES=""`), ~10–15 min; failing that, a driver update (Derek's call) or the
+`TRITON_ATTN` backend with the int4 + MoE kernels (which may themselves be clean — untested in isolation).
+
+**Uncertainty list (not sampled):** JIT-only TLA build; MoE grouped-GEMM and paged-decode kernels in
+isolation (only FA2 varlen was isolated); the 30B on `TRITON_ATTN` with int4 + MoE kernels; a driver newer
+than 32.0.101.8974; the 27B dense int4; FA2 vs Triton attention on Xe2; `torch.compile` /
 XPU graphs on Windows (`--enforce-eager` skipped inductor, which needs `cl` — present); the production
 model family and any int4 format (AWQ/GPTQ through `_xpu_C`; AutoRound needs `auto_round_lib`); a full
 card with production down; two instances at once; pipeline parallel over gloo; memory behaviour under

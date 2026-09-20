@@ -1,5 +1,11 @@
 # AM4 controller / OMEN workers
 
+Historical rollout record. For the current handoff and later compact-controller
+results, read [HANDOFF.md](HANDOFF.md). The baseline AM4 PID below was preserved
+during this rollout, then replaced by PID 2151074 during the later R&D restoration.
+Earlier "no external push" statements describe that window; subsequent branch
+publication was requested by Derek.
+
 Start 2026-09-20 02:41:24 UTC; delivery ceiling 03:41:24. Latest useful dispatch
 02:51:24; first delegated artifact 02:56:24; candidate 03:26:24; final 15 minutes
 for review, accounting and restoration. Parent: br-20260920-024212-1196097b.

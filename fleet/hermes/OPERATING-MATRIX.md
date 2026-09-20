@@ -1,5 +1,9 @@
 # Hermes local-fleet operating map
 
+Continuation and existing framework-selector source locations: [HANDOFF.md](HANDOFF.md).
+The 16k worker shape below is a deployment choice, not a B70 hardware limit;
+previous SYCL Dense measurements are linked in the handoff.
+
 Placement: FX99 runs Hermes and stores sessions. Its model and compression use
 AM4's existing Dense 27B on the 4070 Ti + 5070: **128k, one shared physical slot**.
 OMEN's B70 pair remains the worker resource; Hermes does not load a model there.

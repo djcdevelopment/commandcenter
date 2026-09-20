@@ -1,5 +1,10 @@
 # FX99 Hermes implementation — 2026-09-19
 
+**Start here:** [current handoff](../../fleet/hermes/HANDOFF.md) and
+[retrospective](../../fleet/hermes/RETROSPECTIVE-20260920.md). This file preserves
+historical outcomes; its "no push" and process-ID statements refer to those
+earlier windows, not the later publication/restoration.
+
 **2026-09-20 update:** the AM4-worker arrangement below is superseded by
 [AM4 controller / OMEN workers](../../fleet/hermes/AM4-OMEN-ROLLOUT.md).
 `hermes-fleet fleet-status` is deployed on FX99. Both OMEN-backed builder routes

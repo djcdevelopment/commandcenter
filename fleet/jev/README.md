@@ -5,8 +5,8 @@ code acceptance still requires independent review**. FX99 now polls active build
 every five seconds (observed 5.66–5.76 seconds including RPC), idle work every
 30 seconds, and schedules a one-second follow-up after review. Human status adds
 an allowlisted wait reason. JEV's first live decision with curated quality history
-completed without changing gates. Ten selected outcomes include one unchanged
-and six assisted deliveries, one incomplete worker result, and two tasks that
+completed without changing gates. Eleven selected outcomes include one unchanged
+and seven assisted deliveries, one incomplete worker result, and two tasks that
 did not reach this worker. Cycle13's whole-file builder run produced no source;
 that HTML quality-table addition was completed directly by Codex. Its proposed
 shorter review format never received a candidate and was rolled back unqualified.
@@ -22,6 +22,9 @@ The separate upstream corruption of ordinary source words is traced in the
 [redaction-fidelity report](REDACTION-FIDELITY-20260921.md). Its boundary-aware
 proposal is source-only and needs policy review before activation; live redaction
 has not changed.
+The [matched-workload correction](MATCHED-WORKLOADS-20260921.md) removes an
+unsupported fastest-route claim from the historical operator report. The new
+offline comparison is exercised here, not activated as JEV multi-route scheduling.
 CPU scheduling remains active for Derek's overnight work;
 AM4 is unloaded between reviews. The new required-evidence gate is saved but
 not loaded because a tool-policy restriction blocked the gateway restart.
@@ -117,8 +120,8 @@ ledger values remain unknown. See overnight cycle 2 for authorship and evidence.
 It is a selected task subset, not a complete benchmark, inferred correctness,
 or automatic training. `authored` means tasks reaching the worker; it excludes
 `not_run`, and does not mean accepted output. Assisted delivery is separate from
-unchanged implementation delivery. The present subset contains ten tasks: eight
-reached a worker (one unchanged, six assisted, one incomplete); two did not run there.
+unchanged implementation delivery. The present subset contains eleven tasks: nine
+reached a worker (one unchanged, seven assisted, one incomplete); two did not run there.
 
 The installed FX99 scheduler prepends only a fixed numeric quality line to the
 matching profile's existing `recent_outcomes`. Descriptions, task IDs and source

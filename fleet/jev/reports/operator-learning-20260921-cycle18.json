@@ -1,0 +1,485 @@
+{
+  "by_host": {
+    "am4": {
+      "completed": 2,
+      "completion_tokens": 195,
+      "duration_s": {
+        "max": 6.109,
+        "mean": 3.125,
+        "min": 0.203,
+        "n": 3
+      },
+      "prompt_tokens": 5418,
+      "reconstructable": 2,
+      "run_ids": [
+        "run-g5-am4-dense-20260918T005630Z",
+        "run-rnd1-over6k-20260918T012916Z",
+        "run-rnd2-reader6k-20260918T013436Z"
+      ],
+      "runs": 3
+    },
+    "omen": {
+      "completed": 4,
+      "completion_tokens": 481,
+      "duration_s": {
+        "max": 34.921,
+        "mean": 23.93,
+        "min": 13.656,
+        "n": 4
+      },
+      "prompt_tokens": 10760,
+      "reconstructable": 4,
+      "run_ids": [
+        "run-deepagents-inventory-20260917T235035Z",
+        "run-g4-acceptance-20260918T001500Z",
+        "run-mechnet-inventory-20260917T235927Z",
+        "run-physical-inventory-20260917T234022Z"
+      ],
+      "runs": 4
+    }
+  },
+  "by_model": {
+    "am4-dense-27b": {
+      "completed": 1,
+      "completion_tokens": 147,
+      "duration_s": {
+        "max": 6.109,
+        "mean": 3.156,
+        "min": 0.203,
+        "n": 2
+      },
+      "prompt_tokens": 317,
+      "reconstructable": 1,
+      "run_ids": [
+        "run-g5-am4-dense-20260918T005630Z",
+        "run-rnd1-over6k-20260918T012916Z"
+      ],
+      "runs": 2
+    },
+    "am4-read-4070ti": {
+      "completed": 1,
+      "completion_tokens": 48,
+      "duration_s": {
+        "max": 3.062,
+        "mean": 3.062,
+        "min": 3.062,
+        "n": 1
+      },
+      "prompt_tokens": 5101,
+      "reconstructable": 1,
+      "run_ids": [
+        "run-rnd2-reader6k-20260918T013436Z"
+      ],
+      "runs": 1
+    },
+    "qwen3-30b-a3b": {
+      "completed": 4,
+      "completion_tokens": 481,
+      "duration_s": {
+        "max": 34.921,
+        "mean": 23.93,
+        "min": 13.656,
+        "n": 4
+      },
+      "prompt_tokens": 10760,
+      "reconstructable": 4,
+      "run_ids": [
+        "run-deepagents-inventory-20260917T235035Z",
+        "run-g4-acceptance-20260918T001500Z",
+        "run-mechnet-inventory-20260917T235927Z",
+        "run-physical-inventory-20260917T234022Z"
+      ],
+      "runs": 4
+    }
+  },
+  "by_route_kind": {
+    "build": {
+      "completed": 1,
+      "completion_tokens": 156,
+      "duration_s": {
+        "max": 17.844,
+        "mean": 17.844,
+        "min": 17.844,
+        "n": 1
+      },
+      "prompt_tokens": 289,
+      "reconstructable": 1,
+      "run_ids": [
+        "run-mechnet-inventory-20260917T235927Z"
+      ],
+      "runs": 1
+    },
+    "direct_inference": {
+      "completed": 5,
+      "completion_tokens": 520,
+      "duration_s": {
+        "max": 34.921,
+        "mean": 14.541,
+        "min": 0.203,
+        "n": 6
+      },
+      "prompt_tokens": 15889,
+      "reconstructable": 5,
+      "run_ids": [
+        "run-deepagents-inventory-20260917T235035Z",
+        "run-g4-acceptance-20260918T001500Z",
+        "run-g5-am4-dense-20260918T005630Z",
+        "run-physical-inventory-20260917T234022Z",
+        "run-rnd1-over6k-20260918T012916Z",
+        "run-rnd2-reader6k-20260918T013436Z"
+      ],
+      "runs": 6
+    }
+  },
+  "by_target": {
+    "am4-dense": {
+      "completed": 1,
+      "completion_tokens": 147,
+      "duration_s": {
+        "max": 6.109,
+        "mean": 3.156,
+        "min": 0.203,
+        "n": 2
+      },
+      "prompt_tokens": 317,
+      "reconstructable": 1,
+      "run_ids": [
+        "run-g5-am4-dense-20260918T005630Z",
+        "run-rnd1-over6k-20260918T012916Z"
+      ],
+      "runs": 2
+    },
+    "am4-read-4070ti": {
+      "completed": 1,
+      "completion_tokens": 48,
+      "duration_s": {
+        "max": 3.062,
+        "mean": 3.062,
+        "min": 3.062,
+        "n": 1
+      },
+      "prompt_tokens": 5101,
+      "reconstructable": 1,
+      "run_ids": [
+        "run-rnd2-reader6k-20260918T013436Z"
+      ],
+      "runs": 1
+    },
+    "deepagents_hearth": {
+      "completed": 1,
+      "completion_tokens": 0,
+      "duration_s": {
+        "max": 29.297,
+        "mean": 29.297,
+        "min": 29.297,
+        "n": 1
+      },
+      "prompt_tokens": 0,
+      "reconstructable": 1,
+      "run_ids": [
+        "run-deepagents-inventory-20260917T235035Z"
+      ],
+      "runs": 1
+    },
+    "direct_hearth": {
+      "completed": 2,
+      "completion_tokens": 325,
+      "duration_s": {
+        "max": 34.921,
+        "mean": 24.288,
+        "min": 13.656,
+        "n": 2
+      },
+      "prompt_tokens": 10471,
+      "reconstructable": 2,
+      "run_ids": [
+        "run-g4-acceptance-20260918T001500Z",
+        "run-physical-inventory-20260917T234022Z"
+      ],
+      "runs": 2
+    },
+    "mechnet_build": {
+      "completed": 1,
+      "completion_tokens": 156,
+      "duration_s": {
+        "max": 17.844,
+        "mean": 17.844,
+        "min": 17.844,
+        "n": 1
+      },
+      "prompt_tokens": 289,
+      "reconstructable": 1,
+      "run_ids": [
+        "run-mechnet-inventory-20260917T235927Z"
+      ],
+      "runs": 1
+    }
+  },
+  "by_task_type": {
+    "engineering": {
+      "completed": 6,
+      "completion_tokens": 676,
+      "duration_s": {
+        "max": 34.921,
+        "mean": 15.013,
+        "min": 0.203,
+        "n": 7
+      },
+      "prompt_tokens": 16178,
+      "reconstructable": 6,
+      "run_ids": [
+        "run-deepagents-inventory-20260917T235035Z",
+        "run-g4-acceptance-20260918T001500Z",
+        "run-g5-am4-dense-20260918T005630Z",
+        "run-mechnet-inventory-20260917T235927Z",
+        "run-physical-inventory-20260917T234022Z",
+        "run-rnd1-over6k-20260918T012916Z",
+        "run-rnd2-reader6k-20260918T013436Z"
+      ],
+      "runs": 7
+    }
+  },
+  "contract_version": "operator-learning.v1",
+  "policy": {
+    "applies_nothing": true,
+    "excludes_test_mode": true,
+    "promotion_requires": [
+      "decision",
+      "adr",
+      "acceptance_gate_recorded_as_run"
+    ]
+  },
+  "recommendations": [
+    {
+      "applied": false,
+      "id": "REC-002",
+      "kind": "drafter_defect",
+      "promotion_path": "fix the drafter only for refusals actually observed; no test matrix",
+      "runs": [
+        "run-g5-am4-dense-20260918T005630Z"
+      ],
+      "statement": "1 run(s) needed more than one proposal before one validated; each rejection names a drafter assumption the validator refused (context claim above the envelope, a target that was a rung but not a LIVE implementation)."
+    },
+    {
+      "applied": false,
+      "id": "REC-003",
+      "kind": "durability",
+      "promotion_path": "D-004 / D-114: wire the second-copy location into artifacts.py; a gate run proves one restore",
+      "statement": "6/7 runs replay reconstructable, but no artifact has a verified recovery location (recovery_locations_verified = 0 everywhere); D-004 second copy is not wired into the artifact store."
+    }
+  ],
+  "route_comparison": {
+    "basis": "Exact recorded intent, criteria, inputs, classification and context limit; not content or quality proof.",
+    "compared_workload_groups": 0,
+    "eligible_runs": 6,
+    "mixed_aggregates_are_not_route_rankings": true,
+    "reason": "no_matching_workload_across_multiple_targets",
+    "workload_groups": 6
+  },
+  "runs": [
+    {
+      "artifact_sha256": "60a50812882dfebdaa777e54a5c3353d94d3cd012a9180d1f114b06fa9fbae78",
+      "attempt_id": "8c5bfa94623aa76804da306b4b7e7e1c509e028a35add00a330fa9830f8dcb26",
+      "attempt_status": "success",
+      "attempts": 1,
+      "catalog_version": "5ef35394ec3ad064962e96fc4269dc2dfd819282cf5ef36a93d25c70e318bbee",
+      "completion_tokens": 0,
+      "duration_s": 29.297,
+      "endpoint": "http://127.0.0.1:8082",
+      "history_verified": true,
+      "host": "omen",
+      "input_paths": 3,
+      "max_context_tokens": 8192,
+      "model": "qwen3-30b-a3b",
+      "mutation_level": "worktree",
+      "prompt_tokens": 0,
+      "proposal_rationale": "Drafted deterministic route targeting deepagents_hearth based on available capacity.",
+      "reconstructable": true,
+      "rejected_proposals": 0,
+      "risk_level": "low",
+      "route_kind": "direct_inference",
+      "run_id": "run-deepagents-inventory-20260917T235035Z",
+      "status": "completed",
+      "target": "deepagents_hearth",
+      "task_type": "engineering",
+      "test_mode": false,
+      "tool_calls": 3,
+      "workload_key": "0526b764695a2957a9f2f1ffb6c05ed0e80b942ac93e1ce0b425a68ca2f05919"
+    },
+    {
+      "artifact_sha256": "5cb73cf9893a9fe7775b9b8e394d49e0090f2944234fdcb4a2c0be6ff33ebaef",
+      "attempt_id": "9756896deb7166ce207ebca193066537b68aac0c53dc7c00af5b05291ae618e4",
+      "attempt_status": "success",
+      "attempts": 1,
+      "catalog_version": "5ef35394ec3ad064962e96fc4269dc2dfd819282cf5ef36a93d25c70e318bbee",
+      "completion_tokens": 167,
+      "duration_s": 34.921,
+      "endpoint": "http://127.0.0.1:8082",
+      "history_verified": true,
+      "host": "omen",
+      "input_paths": 2,
+      "max_context_tokens": 8192,
+      "model": "qwen3-30b-a3b",
+      "mutation_level": "worktree",
+      "prompt_tokens": 10182,
+      "proposal_rationale": "Drafted deterministic route targeting direct_hearth based on available capacity.",
+      "reconstructable": true,
+      "rejected_proposals": 0,
+      "risk_level": "low",
+      "route_kind": "direct_inference",
+      "run_id": "run-g4-acceptance-20260918T001500Z",
+      "status": "completed",
+      "target": "direct_hearth",
+      "task_type": "engineering",
+      "test_mode": false,
+      "tool_calls": 0,
+      "workload_key": "cf09d86735015afff1e1aa818958347729384e986921f1bb4dfb36e551511570"
+    },
+    {
+      "artifact_sha256": "4f4bc833a7651339c0ea7f88a518acc28150404b2e129c46707c9cc318476c13",
+      "attempt_id": "fbbda57baaefd747c0cd187459cf47afc573d523b9a9d69482df454bfe10ca10",
+      "attempt_status": "success",
+      "attempts": 1,
+      "catalog_version": "692e32435e0d2885b38360df91c3f21fb9cf89b4a97b82262a7f50975a84b21d",
+      "completion_tokens": 147,
+      "duration_s": 6.109,
+      "endpoint": "http://192.168.12.233:8090",
+      "history_verified": true,
+      "host": "am4",
+      "input_paths": 3,
+      "max_context_tokens": 4096,
+      "model": "am4-dense-27b",
+      "mutation_level": "worktree",
+      "prompt_tokens": 317,
+      "proposal_rationale": "Drafted deterministic direct_inference route pinned to rung am4-dense (caller's --target) based on available capacity.",
+      "reconstructable": true,
+      "rejected_proposals": 1,
+      "risk_level": "low",
+      "route_kind": "direct_inference",
+      "run_id": "run-g5-am4-dense-20260918T005630Z",
+      "status": "completed",
+      "target": "am4-dense",
+      "task_type": "engineering",
+      "test_mode": false,
+      "tool_calls": 0,
+      "workload_key": "f18ee3fd137ea4601a7595abd3b67933867768e3068719a02891e164f637d262"
+    },
+    {
+      "artifact_sha256": "62f14f9ac06be98cbb67e06d78f380766eb9993bc6badb2cf34c62d77a94f928",
+      "attempt_id": "bfea8b83d3e100688c4abca94b4330d05a287fa6fd77c210380a7de844e6b8a9",
+      "attempt_status": "success",
+      "attempts": 1,
+      "catalog_version": "5ef35394ec3ad064962e96fc4269dc2dfd819282cf5ef36a93d25c70e318bbee",
+      "completion_tokens": 156,
+      "duration_s": 17.844,
+      "endpoint": "http://127.0.0.1:8082",
+      "history_verified": true,
+      "host": "omen",
+      "input_paths": 3,
+      "max_context_tokens": 8192,
+      "model": "qwen3-30b-a3b",
+      "mutation_level": "worktree",
+      "prompt_tokens": 289,
+      "proposal_rationale": "Drafted deterministic route targeting mechnet_build based on available capacity.",
+      "reconstructable": true,
+      "rejected_proposals": 0,
+      "risk_level": "low",
+      "route_kind": "build",
+      "run_id": "run-mechnet-inventory-20260917T235927Z",
+      "status": "completed",
+      "target": "mechnet_build",
+      "task_type": "engineering",
+      "test_mode": false,
+      "tool_calls": 4,
+      "workload_key": "6d69303a18fce05f6f168dd185bef95ed40f44024eec610947ba770f2127eb47"
+    },
+    {
+      "artifact_sha256": "82da82935358aa39de75da8b5d6e47d608c958efad5e05e2937f4e7dd909ca48",
+      "attempt_id": "b229c6b0c583536bef0faa96c5792c613f1d19eb684b4dc9dca700649a43c3cd",
+      "attempt_status": "success",
+      "attempts": 1,
+      "catalog_version": "b2f8d6149e14f682723206b0f236f5758e6f055ffd7f0ecf070996f07935cae2",
+      "completion_tokens": 158,
+      "duration_s": 13.656,
+      "endpoint": "http://127.0.0.1:8082",
+      "history_verified": true,
+      "host": "omen",
+      "input_paths": 3,
+      "max_context_tokens": 8192,
+      "model": "qwen3-30b-a3b",
+      "mutation_level": "worktree",
+      "prompt_tokens": 289,
+      "proposal_rationale": "Drafted deterministic route targeting direct_hearth based on available capacity.",
+      "reconstructable": true,
+      "rejected_proposals": 0,
+      "risk_level": "low",
+      "route_kind": "direct_inference",
+      "run_id": "run-physical-inventory-20260917T234022Z",
+      "status": "completed",
+      "target": "direct_hearth",
+      "task_type": "engineering",
+      "test_mode": false,
+      "tool_calls": null,
+      "workload_key": "2487dddb9db208283c29f4c0500b4cfc05b15f9f23e4c5f08a98179c28a8114f"
+    },
+    {
+      "artifact_sha256": "unknown",
+      "attempt_id": "ef7e37eaecdce44a8df50e0677e948c371e2bdf3e7c2c98f89ec2d6859db0093",
+      "attempt_status": "failure",
+      "attempts": 1,
+      "catalog_version": "692e32435e0d2885b38360df91c3f21fb9cf89b4a97b82262a7f50975a84b21d",
+      "completion_tokens": 0,
+      "duration_s": 0.203,
+      "endpoint": "http://192.168.12.233:8090",
+      "history_verified": true,
+      "host": "am4",
+      "input_paths": 1,
+      "max_context_tokens": 4096,
+      "model": "am4-dense-27b",
+      "mutation_level": "worktree",
+      "prompt_tokens": 0,
+      "proposal_rationale": "Drafted deterministic direct_inference route pinned to rung am4-dense (caller's --target) based on available capacity.",
+      "reconstructable": false,
+      "rejected_proposals": 0,
+      "risk_level": "low",
+      "route_kind": "direct_inference",
+      "run_id": "run-rnd1-over6k-20260918T012916Z",
+      "status": "failed",
+      "target": "am4-dense",
+      "task_type": "engineering",
+      "test_mode": false,
+      "tool_calls": 0,
+      "workload_key": "c92ef9a706fd314cd38495fdde5e851690d9704b9cf648f1d40f53564234f836"
+    },
+    {
+      "artifact_sha256": "ee688d08de3fd514a68b75f689ab13d0d13fb305c7342731dd0712473c855322",
+      "attempt_id": "31624be907c0240f326561987316be53f0beaf6e44c15c10d9f9123be1f6760a",
+      "attempt_status": "success",
+      "attempts": 1,
+      "catalog_version": "acc726413ab4bafaa55f5173ded9c651693b71fcf3b3c63d6b4de22971878c70",
+      "completion_tokens": 48,
+      "duration_s": 3.062,
+      "endpoint": "http://192.168.12.233:8090",
+      "history_verified": true,
+      "host": "am4",
+      "input_paths": 1,
+      "max_context_tokens": 16384,
+      "model": "am4-read-4070ti",
+      "mutation_level": "worktree",
+      "prompt_tokens": 5101,
+      "proposal_rationale": "Drafted deterministic direct_inference route pinned to rung am4-read-4070ti (caller's --target) based on available capacity.",
+      "reconstructable": true,
+      "rejected_proposals": 0,
+      "risk_level": "low",
+      "route_kind": "direct_inference",
+      "run_id": "run-rnd2-reader6k-20260918T013436Z",
+      "status": "completed",
+      "target": "am4-read-4070ti",
+      "task_type": "engineering",
+      "test_mode": false,
+      "tool_calls": 0,
+      "workload_key": "9a563c7716c4e71cec88285504be7f1074f4429893cde04ca2b75333d242c7a5"
+    }
+  ],
+  "runs_considered": 7
+}

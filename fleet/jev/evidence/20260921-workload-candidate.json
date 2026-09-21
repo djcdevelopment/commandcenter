@@ -1,0 +1,164 @@
+{
+  "task_id": "jev-9ecc042aafb4e2717e7dd093",
+  "setup_note": "One local envelope construction failed on budget spelling USD0.10, corrected to the existing contract USD 0.10. No API request or worker dispatch occurred for that failure.",
+  "first_observed_at": "2026-09-21T11:38:52.948898+00:00",
+  "candidate": {
+    "files": {
+      "workload.py": "import hashlib\nimport json\nfrom typing import Any, Dict, List, Optional\n\ndef workload_key(envelope: Dict[str, Any]) -> Optional[str]:\n    \"\"\"\n    Return a deterministic lowercase SHA256 hex digest of a JSON projection containing exactly:\n    - intent\n    - acceptance_criteria\n    - inputs\n    - classification\n    - max_context_tokens (taken from constraints)\n\n    Uses sorted object keys, compact separators, ensure_ascii=True and allow_nan=False.\n    Returns None if any validation fails.\n    \"\"\"\n    # Validate envelope is a dict\n    if not isinstance(envelope, dict):\n        return None\n\n    # Extract required fields\n    intent = envelope.get(\"intent\")\n    acceptance_criteria = envelope.get(\"acceptance_criteria\")\n    inputs = envelope.get(\"inputs\")\n    classification = envelope.get(\"classification\")\n    constraints = envelope.get(\"constraints\")\n\n    # Validate intent is a nonempty string\n    if not isinstance(intent, str) or not intent.strip():\n        return None\n\n    # Validate acceptance_criteria is a nonempty list of nonempty strings\n    if not isinstance(acceptance_criteria, list) or not acceptance_criteria:\n        return None\n    for ac in acceptance_criteria:\n        if not isinstance(ac, str) or not ac.strip():\n            return None\n\n    # Validate inputs\n    if not isinstance(inputs, dict):\n        return None\n    repo = inputs.get(\"repo\")\n    base_commit = inputs.get(\"base_commit\")\n    paths = inputs.get(\"paths\")\n    files = inputs.get(\"files\")\n\n    if not isinstance(repo, str) or not repo.strip():\n        return None\n    if not isinstance(base_commit, str) or len(base_commit) != 40 or not all(c in \"0123456789abcdef\" for c in base_commit):\n        return None\n    if not isinstance(paths, list):\n        return None\n    if not isinstance(files, list):\n        return None\n    for p in paths:\n        if not isinstance(p, str):\n            return None\n    for f in files:\n        if not isinstance(f, str):\n            return None\n\n    # Validate classification\n    if not isinstance(classification, dict):\n        return None\n    required_fields = [\n        \"task_type\", \"repo_size\", \"language\", \"read_vs_reasoning\", \n        \"context_continuity\", \"mutation_level\", \"risk_level\"\n    ]\n    for field in required_fields:\n        if not isinstance(classification.get(field), str) or not classification.get(field).strip():\n            return None\n\n    # Validate constraints\n    if not isinstance(constraints, dict):\n        return None\n    max_context_tokens = constraints.get(\"max_context_tokens\")\n    if not isinstance(max_context_tokens, int) or max_context_tokens <= 0:\n        return None\n\n    # Build the JSON projection with only the required fields\n    projection = {\n        \"intent\": intent,\n        \"acceptance_criteria\": acceptance_criteria,\n        \"inputs\": {\n            \"repo\": repo,\n            \"base_commit\": base_commit,\n            \"paths\": paths,\n            \"files\": files\n        },\n        \"classification\": classification,\n        \"max_context_tokens\": max_context_tokens\n    }\n\n    # Serialize with sorted keys, compact separators, ensure_ascii=True, allow_nan=False\n    json_str = json.dumps(projection, separators=(',', ':'), ensure_ascii=True, allow_nan=False, sort_keys=True)\n\n    # Compute SHA256 hash\n    sha256_hash = hashlib.sha256(json_str.encode('utf-8')).hexdigest().lower()\n\n    return sha256_hash"
+    },
+    "commit": "29fc19393a1fb4d13cdea6eaaeff63a2a4435a58"
+  },
+  "decision": {
+    "material": "f8c8b7083be7d182fd4995ad514533dfc6c4e27f2c137c2fdbcdfa53ee03b15c",
+    "usage": {
+      "provider": "typesafe",
+      "model": "jev-1.13.0",
+      "input_tokens": 947,
+      "output_tokens": 91,
+      "estimated_usd": 0.000039774,
+      "elapsed_s": 0.278,
+      "request_sha256": "007e29d964bf52feed9f5e946390174a1190547376185402de08635e3da0f9cb"
+    },
+    "judgments": [
+      {
+        "candidate_id": "91e6ca6cc679aa0a814aa785ba715a2b",
+        "score": 2.99,
+        "confidence": 0.99,
+        "ambiguity": 0.12,
+        "probabilities": {
+          "0": 0,
+          "1": 0,
+          "2": 0,
+          "3": 1
+        },
+        "eligible": true
+      }
+    ],
+    "candidate_id": "91e6ca6cc679aa0a814aa785ba715a2b",
+    "snapshot_id": "508e7260547fbd83a2d02f56ac607946790d4e4bc5183546d44a607f6296cb44",
+    "wait_reason": null,
+    "quality_history_sha256": "6784bf287ec0ee622ecc71a4efc53970fbaa5f96a3be24b1e9a59e71a630802f"
+  },
+  "review": {
+    "report": "Verdict: NEEDS_WORK\n\nThe candidate fails three acceptance criteria. I reviewed the captured candidate by inspection only — I could not run the compiler check (no shell/execute capability exists in this environment), so the required syntax check was not performed.\n\nFindings:\n\n1. Projection omits extra inputs fields. The spec requires \"Serialize the entire validated inputs ... dictionary, retaining extra JSON fields.\" The candidate rebuilds inputs as exactly {repo, base_commit, paths, files} (projection block in candidate), so two envelopes differing only in an extra input field (e.g. inputs.branch) would produce the same key. That merges different requested work and violates the core goal.\n\n2. bool not rejected for max_context_tokens. Spec: \"strictly positive exact int (not bool)\". The candidate checks `isinstance(max_context_tokens, int) and > 0` but in Python `isinstance(True, int)` is True, so max_context_tokens=True passes validation and is serialized as `true`, producing a key instead of None.\n\n3. Non-JSON values not rejected. Spec: \"return None for non-JSON or nonfinite values.\" The projection embeds the full inputs and classification dicts, but the candidate only validates the specific enumerated fields; an extra field holding a set, tuple, or a float('inf')-like object would be passed to json.dumps and raise (TypeError/ValueError) rather than return None. (allow_nan=False alone doesn't cover non-serializable types.)\n\nMinor (non-blocking): intent and acceptance_criteria use `strip()` so \"   \" is rejected; spec says \"nonempty\", so whitespace-only strings arguably should be accepted and hashed as-is.\n\nCompliant aspects: correct projection fields, sorted keys, compact separators, ensure_ascii, allow_nan, lowercase hex digest, no envelope mutation, list order preserved, ignored top-level fields not projected, base_commit 40-char lowercase hex check, standard-library-only imports.\n\nThe repository target remains the old baseline and the module is not saved; no checks were executed beyond textual review, so no compiler output exists to cite.",
+    "metadata": {
+      "model": "am4-dense-27b",
+      "reviewer": "hermes",
+      "elapsed_s": 35.142,
+      "run_budget_s": 180,
+      "requested_reasoning": "none",
+      "source": "unedited Hermes final assistant message",
+      "message_id": 11,
+      "kv_reused": false,
+      "packet_evidence": {
+        "mode": "unchanged",
+        "reason": "unrecognized_evidence",
+        "original_bytes": 9251,
+        "sent_bytes": 9251,
+        "original_sha256": "46348f3ced120da6bbc9334ce3b94d3479878b4980ce0174a38042f607cc4e25",
+        "sent_sha256": "46348f3ced120da6bbc9334ce3b94d3479878b4980ce0174a38042f607cc4e25"
+      },
+      "reviewer_unloaded": true
+    },
+    "automatic_promotion": false,
+    "semantic_review_is_not_proof": true
+  },
+  "checks": {
+    "executor": "Codex independent execution of the inspected pure helper",
+    "candidate_files_sha256": {
+      "workload.py": "2ab3db7ffdea724a8a5e1451ae2d4fb2ae4245865584ab43575a454d73fe668c"
+    },
+    "cases": [
+      {
+        "name": "actual_task_projection",
+        "passed": true,
+        "actual_exception": null
+      },
+      {
+        "name": "boolean_context_rejected",
+        "passed": false,
+        "actual_exception": null
+      },
+      {
+        "name": "extra_input_included",
+        "passed": false,
+        "actual_exception": null
+      },
+      {
+        "name": "nonfinite_returns_none",
+        "passed": false,
+        "actual_exception": "ValueError"
+      }
+    ],
+    "verdict": "NEEDS_WORK"
+  },
+  "trace": {
+    "path": "/home/claude/.comms/run-hearth-hermes-br-20260921-113705-6956ce46-6931ff66-cc-builder-2.log",
+    "sha256": "284200f0c1f0e7b39f20faef3921cd153f1b403c7b2aa46efa02c2706a41c97b",
+    "bytes": 1472,
+    "records": [
+      {
+        "kind": "attempt",
+        "backend": "omen-arc",
+        "model": "qwen3-30b-a3b",
+        "tokens_in": 1549,
+        "tokens_out": 898,
+        "duration_ms": 13094,
+        "task_id": "hearth-hermes-br-20260921-113705-6956ce46-6931ff66-cc-builder-2",
+        "job_id": "job_1e07c672f693a4a8676c0727fc4c8147",
+        "requested_max_tokens": 4096
+      },
+      {
+        "kind": "action_or_parse",
+        "step": 1,
+        "action": "write_file"
+      },
+      {
+        "kind": "attempt",
+        "backend": "omen-arc",
+        "model": "qwen3-30b-a3b",
+        "tokens_in": 2627,
+        "tokens_out": 88,
+        "duration_ms": 3765,
+        "task_id": "hearth-hermes-br-20260921-113705-6956ce46-6931ff66-cc-builder-2",
+        "job_id": "job_3e4bf189f44c80f5f1b743e811edae72",
+        "requested_max_tokens": 4096
+      },
+      {
+        "kind": "action_or_parse",
+        "step": 2,
+        "action": "run"
+      },
+      {
+        "kind": "attempt",
+        "backend": "omen-arc",
+        "model": "qwen3-30b-a3b",
+        "tokens_in": 2745,
+        "tokens_out": 174,
+        "duration_ms": 5812,
+        "task_id": "hearth-hermes-br-20260921-113705-6956ce46-6931ff66-cc-builder-2",
+        "job_id": "job_c721f1c5e9c077a3a1b495ec8eed214f",
+        "requested_max_tokens": 4096
+      },
+      {
+        "kind": "action_or_parse",
+        "step": 3,
+        "action": "finish"
+      },
+      {
+        "kind": "finished",
+        "steps": 3,
+        "elapsed_s": 23.5
+      }
+    ]
+  },
+  "worker_compile": {
+    "run_actions": [
+      {
+        "step": 2,
+        "exact_py_compile_command": true,
+        "exit_zero": true
+      }
+    ]
+  }
+}

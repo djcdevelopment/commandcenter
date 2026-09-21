@@ -4,11 +4,48 @@ Authority: Derek permitted 4–8 hours of iteration to improve useful local-work
 throughput and quality. The goal remains active. Do not confuse a completed
 cycle or a healthy endpoint with completion of that larger objective.
 
-Previous goal turn classification (cycle16): **progress**. The source-redaction
-cause was established and a precisely bounded source-only policy proposal was
-committed. Activation remains pending; that limitation was recorded honestly.
+Previous goal turn classification (cycle17): **progress**. A live adapter correction
+recovers exact valid model replies discarded by the old parser and writes their
+file contents correctly. The failed candidate and direct correction are separated.
 
-## Latest: cycle17, live JSON-action decoder correction
+## Latest: cycle18, matching-workload route comparisons
+
+[Human report, JSON and evidence](MATCHED-WORKLOADS-20260921.md) correct the
+existing offline operator learner: a fastest-route claim combined different
+recorded work. Exact replay of the frozen five rows removes that claim. The new
+report also retains two later historical runs, with six eligible workloads but
+zero matching cross-route groups. A controlled matched pair still compares;
+an unrelated faster row is excluded. No live route or catalog changed.
+
+Parent `br-20260921-113613-f739a03a`; child `br-20260921-113705-6956ce46`;
+task `jev-9ecc042aafb4e2717e7dd093`; plan
+`hearth-hermes-br-20260921-113705-6956ce46-6931ff66`. OMEN delivered its file on
+the first response, actually ran `py_compile` with exit0, and finished23.5s later
+after three turns. No parser failure. Raw helper semantics still failed; Codex
+corrected them and integrated the existing learner. This is assisted delivery.
+Hermes found the three main defects independently in35.142s, but its raw report
+also has minor factual errors. AM4 was released. No new test files or second
+builder attempt; no automatic promotion.
+
+Window11:30–11:55, first-file target11:37, generation ceiling11:49. Setup used
+too much of the first-artifact allowance, including a local budget-format typo
+corrected before any API request. The missed target was disclosed and Derek was
+asked about finishing the already-queued lap. Worker file observed11:38:52;
+corrected report saved11:45:00. Remaining work was integration/evidence, not extra
+generation. The six-minute delivery reserve remains inside the stated ceiling.
+
+One new JEV estimate USD0.000039774 (947 input tokens); cumulative15 attempts,
+USD0.000498582 known-usage estimates plus USD0.005505024 uncertain reservations,
+USD0.006003606 booked. Limits/gates unchanged; Codex/hardware costs unmetered.
+Selected quality history now has eleven tasks: one unchanged, seven assisted,
+one incomplete and two not_run. These are curated outcomes, not automatic learning
+or evidence that JEV selects among Hearth, DeepAgents and MechNet already.
+This numeric feedback is deployed on FX99, history hash
+`33dc5b422652d6ece1aa33bba66bf70f68fa96237adbffdc92fbf5627285bc92`.
+[Deployment evidence](evidence/20260921-workload-feedback.json); the next decision
+using the updated history has not yet been sampled.
+
+## Cycle17, live JSON-action decoder correction
 
 [Delivery/parser report](ACTION-DECODING-20260921.md): the old worker parser
 discarded valid file-write actions containing literal braces inside strings.

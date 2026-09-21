@@ -18,10 +18,12 @@ from __future__ import annotations
 
 import html
 import json
+import math
 from pathlib import Path
 from typing import Any, Optional
 
 from . import paths
+from .workload import workload_key
 
 CONTRACT_VERSION = "operator-learning.v1"
 
@@ -84,6 +86,7 @@ def _collect_runs(include_test_mode: bool = False) -> list[dict]:
             "risk_level": classification.get("risk_level"),
             "mutation_level": classification.get("mutation_level"),
             "max_context_tokens": (envelope.get("constraints") or {}).get("max_context_tokens"),
+            "workload_key": workload_key(envelope),
             "input_paths": len((envelope.get("inputs") or {}).get("paths") or []),
             "rejected_proposals": max(0, len(state.get("proposals") or []) - 1),
             "catalog_version": receipt.get("catalog_version"),
@@ -116,6 +119,25 @@ def _group(rows: list[dict], key: str) -> dict[str, dict]:
     return dict(sorted(groups.items()))
 
 
+def _comparable_workloads(rows: list[dict]) -> dict[str, list[dict]]:
+    """Group recorded work, never infer comparability from a file count alone."""
+    groups: dict[str, list[dict]] = {}
+    for row in rows:
+        duration, count = row.get("duration_s"), row.get("input_paths")
+        key, target = row.get("workload_key"), row.get("target")
+        if (row.get("status") != "completed" or row.get("history_verified") is not True
+                or row.get("reconstructable") is not True or row.get("test_mode") is not False
+                or row.get("task_type") != "engineering"
+                or type(count) is not int or not 0 <= count <= 3
+                or type(duration) not in (int, float) or not math.isfinite(duration) or duration <= 0
+                or not isinstance(key, str) or len(key) != 64
+                or any(c not in "0123456789abcdef" for c in key)
+                or not isinstance(target, str) or not target):
+            continue
+        groups.setdefault(key, []).append(row)
+    return dict(sorted(groups.items()))
+
+
 def _recommendations(rows: list[dict], by_target: dict[str, dict]) -> list[dict]:
     """Recommendations are statements with the evidence that produced them.
 
@@ -123,19 +145,20 @@ def _recommendations(rows: list[dict], by_target: dict[str, dict]) -> list[dict]
     take (D-xxx + ADR + acceptance gate). Nothing here applies anything.
     """
     recs: list[dict] = []
-    completed = [r for r in rows if r.get("status") == "completed" and r.get("duration_s") is not None]
-    # 1. Fastest route for the small read-only inventory task, as observed.
-    small = [r for r in completed if (r.get("input_paths") or 0) <= 3 and r.get("task_type") == "engineering"]
-    if len(small) >= 2:
+    # 1. Compare routes only inside an identical recorded workload group.
+    for key, small in _comparable_workloads(rows).items():
         by_t: dict[str, list[dict]] = {}
         for r in small:
             by_t.setdefault(str(r["target"]), []).append(r)
+        if len(by_t) < 2:
+            continue
         ranked = sorted(((sum(x["duration_s"] for x in v) / len(v), t, v) for t, v in by_t.items()))
         best_mean, best_target, best_runs = ranked[0]
         recs.append({
-            "id": "REC-001",
+            "id": "REC-001-" + key[:12],
             "kind": "route_preference",
-            "statement": (f"For a small read-only engineering task (<=3 input files), the observed "
+            "workload_key": key,
+            "statement": (f"For recorded engineering workload {key[:12]} (<=3 input files), the observed "
                           f"fastest route is '{best_target}' at {best_mean:.3f}s mean over "
                           f"{len(best_runs)} run(s); the drafter's default remains direct_hearth."),
             "ranking": [{"target": t, "mean_duration_s": round(m, 3), "runs": [x["run_id"] for x in v],
@@ -149,8 +172,10 @@ def _recommendations(rows: list[dict], by_target: dict[str, dict]) -> list[dict]
                 "(one sample is not a regime).",
                 "Durations are end-to-end from the operator's clock and include network and "
                 "harness overhead, not decode rate alone.",
-                "A dense 27B on a 4096-token slot cannot take the 10k-token packs omen-arc served "
-                "at G4; the comparison holds only for the small task shape.",
+                "Matching recorded intent, criteria, inputs, classification and context limit "
+                "does not verify source contents, equal result quality or current capacity.",
+                "Completed/history-verified records are not independent semantic acceptance. "
+                "Other workload groups must not be combined into this ranking.",
             ],
             "applied": False,
             "promotion_path": ("record a decision in the program repository; write "
@@ -190,6 +215,9 @@ def _recommendations(rows: list[dict], by_target: dict[str, dict]) -> list[dict]
 def build_report(include_test_mode: bool = False) -> dict:
     rows = _collect_runs(include_test_mode=include_test_mode)
     by_target = _group(rows, "target")
+    comparisons = _comparable_workloads(rows)
+    comparable_count = sum(len({r["target"] for r in group}) >= 2
+                           for group in comparisons.values())
     report = {
         "contract_version": CONTRACT_VERSION,
         "policy": {"excludes_test_mode": not include_test_mode,
@@ -197,6 +225,14 @@ def build_report(include_test_mode: bool = False) -> dict:
                    "promotion_requires": ["decision", "adr", "acceptance_gate_recorded_as_run"]},
         "runs_considered": len(rows),
         "runs": rows,
+        "route_comparison": {
+            "basis": "Exact recorded intent, criteria, inputs, classification and context limit; not content or quality proof.",
+            "eligible_runs": sum(map(len, comparisons.values())),
+            "workload_groups": len(comparisons),
+            "compared_workload_groups": comparable_count,
+            "reason": None if comparable_count else "no_matching_workload_across_multiple_targets",
+            "mixed_aggregates_are_not_route_rankings": True,
+        },
         "by_target": by_target,
         "by_host": _group(rows, "host"),
         "by_model": _group(rows, "model"),
@@ -225,6 +261,7 @@ def _esc(value: Any) -> str:
 
 def render_html(report: dict) -> str:
     rows = report["runs"]
+    comparison = report.get("route_comparison", {})
     out = [
         "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">",
         "<title>Operator Learning</title>",
@@ -240,6 +277,10 @@ def render_html(report: dict) -> str:
         ".rec{border:1px solid var(--line);border-left:4px solid var(--warn);padding:10px 14px;margin:10px 0;border-radius:6px}"
         ".rec b{color:var(--accent)}.ok{color:var(--ok)}ul{margin:6px 0 0 18px}</style></head><body>",
         "<h1>Operator Learning</h1>",
+        "<p class=muted>Historical observations, not current capacity. Mixed task aggregates below "
+        "are not route rankings. Like-for-like recorded workload groups compared: "
+        f"{_esc(comparison.get('compared_workload_groups', 'unknown'))}. "
+        f"{_esc(comparison.get('reason') or '')}</p>",
         f"<p class=muted>{_esc(report['contract_version'])} &middot; {report['runs_considered']} run(s) considered"
         f" &middot; test_mode {'excluded' if report['policy']['excludes_test_mode'] else 'included'}"
         " &middot; <b>recommends only; applies nothing</b> (promotion = decision + ADR + acceptance gate recorded as a run)</p>",

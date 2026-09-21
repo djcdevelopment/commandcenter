@@ -1,11 +1,25 @@
 {
   "schema": "fleet-work-quality.v1",
   "verified_by": "operator",
-  "curated_at": "2026-09-21T11:24:00Z",
+  "curated_at": "2026-09-21T11:50:00Z",
   "profile": "omen-resident-hearth",
   "model": "qwen3-30b-a3b",
   "scope": "Selected completed task outcomes, not a complete benchmark. authored counts tasks reaching the worker, not successful output. assisted includes any later model/human correction. not_run is excluded from authored.",
   "records": [
+    {
+      "task_id": "jev-9ecc042aafb4e2717e7dd093",
+      "outcome": "assisted_delivery",
+      "description": "OMEN wrote the helper on its first response, ran py_compile successfully and finished in 23.5 seconds. Codex corrected boolean context handling, preservation of extra input fields, serialization errors and literal nonempty-string handling, then integrated the offline workload comparison. Hermes independently identified the three main defects but had minor explanation errors. No second builder attempt or route activation.",
+      "evidence": [
+        "fleet/jev/evidence/20260921-workload-candidate.json",
+        "fleet/jev/evidence/20260921-workload-comparison.json"
+      ],
+      "evidence_sha256": {
+        "fleet/jev/evidence/20260921-workload-candidate.json": "f63cc842834c9bc13b7332bc0b1db85db536027df40af173b28c7fd6e0b2ae42",
+        "fleet/jev/evidence/20260921-workload-comparison.json": "3dd9ac6ddbe6896a3d93f61442b016660d6df522eb2ff4f972f0fb50861ab590"
+      },
+      "candidate_commit": "29fc19393a1fb4d13cdea6eaaeff63a2a4435a58"
+    },
     {
       "task_id": "jev-37a75c99bc3d31573aba4837",
       "outcome": "assisted_delivery",

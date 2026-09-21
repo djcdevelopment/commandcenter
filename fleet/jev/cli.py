@@ -12,6 +12,7 @@ import time
 
 from fleet.jev import policy
 from fleet.jev.client import atomic_json, evaluate
+from fleet.jev.quality import load_quality, quality_line, with_quality
 
 HOME = Path(os.environ.get('FLEET_SCHEDULER_HOME', '/home/derek/.local/state/fleet-scheduler'))
 
@@ -53,7 +54,8 @@ async def lap():
         return
     if not prepared.get('candidates'):
         return
-    state = policy.cloud_state(prepared)
+    quality = load_quality(HOME / 'quality-history.json')
+    state = policy.cloud_state(with_quality(prepared, quality))
     material = policy.digest({'state': state, 'knowledge': prepared.get('knowledge_digest'),
                               'policy': prepared.get('policy_version'),
                               'decision_request': policy.digest(policy.request_for(state))})
@@ -73,6 +75,8 @@ async def lap():
         evidence = {'material': material, 'usage': usage, 'judgments': judgments,
                     'candidate_id': selected, 'snapshot_id': prepared['snapshot_id'],
                     'wait_reason': None if selected else 'needs_clarification'}
+    if quality.get('available') is True:
+        evidence['quality_history_sha256'] = quality['history_sha256']
     atomic_json(previous_file, evidence)
     atomic_json(HOME / 'decisions' / (evidence['usage']['request_sha256'] + '.json'), evidence)
     if selected:
@@ -146,9 +150,14 @@ def format_status_human_readable(status):
 
 def main():
     parser = argparse.ArgumentParser(prog='fleet-scheduler')
-    parser.add_argument('action', choices=['run-once', 'serve', 'status', 'budget'])
+    parser.add_argument('action', choices=['run-once', 'serve', 'status', 'budget', 'quality'])
     parser.add_argument('--json', action='store_true')
     args = parser.parse_args()
+    if args.action == 'quality':
+        value = load_quality(HOME / 'quality-history.json')
+        print(json.dumps(value, indent=2) if args.json else
+              quality_line(value) or 'Work quality: unavailable; no verified history was loaded.')
+        return
     if args.action == 'budget':
         from fleet.jev.budget_view import summarize_budget
         try:

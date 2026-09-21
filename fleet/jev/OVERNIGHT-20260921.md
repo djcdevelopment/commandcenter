@@ -4,11 +4,67 @@ Authority: Derek permitted 4–8 hours of iteration to improve useful local-work
 throughput and quality. The goal remains active. Do not confuse a completed
 cycle or a healthy endpoint with completion of that larger objective.
 
-Previous goal turn classification (cycle 9): **progress**. It delivered complete
-short reviews and demonstrated a false PASS on an actual rejected draft. The
-operating consequence is advisory criticism, not automatic acceptance.
+Previous goal turn classification (cycle 10): **progress**. It delivered the
+human/agent operations page and identified a pure pre-dispatch path refusal.
+The next action moved that same check ahead of queue writes and cloud spending.
 
-## Latest: cycle 10, human/agent operating page; pre-dispatch refusal
+## Latest: cycle 11, deployed work-quality feedback; unchanged local helper
+
+Window 09:40:11–10:00:11 UTC; first scoreboard target 09:45:11, generation ceiling
+09:55:11. Parent `br-20260921-094148-9d008ba6`; child
+`br-20260921-094156-8813ad33`; task `jev-f3b1d7857a35c922cbbe0cd5`.
+The first real five-task scoreboard was saved **09:43:51**, inside the target.
+It was then expanded to include this task's independently checked delivery.
+
+JEV selected the task: fit2.97/confidence0.97/ambiguity0.20, 0.304s, 871 input
+tokens, estimated USD0.000036582. The actual MechNet task completed and produced
+`quality_counts.py`, candidate `3ae4e60c281e96fd121e18f401d5e511ea224bbf`.
+The worker's recorded run reports 2 steps / 13s; submission-to-observed completion
+was about 31s. The existing 162-test farm assay is not the acceptance proof.
+The implementation was retained **unchanged**, apart from a final newline.
+Codex independently checked real curated records, the required mixed-invalid
+example, non-list/empty input and immutability. No new test files.
+
+Automatic Hermes review finished in 35.342s and released AM4. Its static PASS is
+consistent with the source; it incorrectly says nine counters once, then eight
+later. It attempted read-only tool lookups and explicitly did not claim a
+successful syntax/example execution. Acceptance comes from the independent
+source/output checks, not that PASS. The cached gateway still lacks the saved
+required-evidence gate; this review did not receive executed evidence first.
+
+Deployed FX99 `quality.py`, the local-model counter, CLI integration and private
+curated history at **09:48:04**. The existing CLI was hash-checked against HEAD,
+with `.jev-quality-20260921.backup` retained; new targets were required absent.
+CPU service was stopped only while idle, then restarted. The scoreboard has six
+selected tasks: four reached the worker (one unchanged, three assisted), two did
+not run there. Direct Hearth fallback work is not counted as MechNet authorship.
+All labels are explicit operator curation with source evidence hashes, not a
+new autonomous scoring system or a model benchmark.
+
+The installed request builder prepends only a fixed numeric summary to this
+profile's existing `recent_outcomes`; private descriptions/task IDs/evidence
+never enter the request. Other profiles are unchanged. Missing/invalid history
+is unavailable, not zero. Live installed request construction and CLI output were
+verified; **a subsequent live JEV decision using the new quality feedback is not
+yet sampled**. No extra paid re-evaluation of completed work was launched.
+The gates remain unchanged: fit floor2.0, confidence floor0.6, ambiguity
+ceiling0.25; no automatic promotion.
+
+Local enqueue now reuses `_delegation_brief` before persistence/spend. The exact
+cycle-10 Windows-path brief was refused with the queue count unchanged; the real
+new task passed preflight and reached the worker. No bypass, path rewriting or
+gateway restart. Integration/history/preflight/wrapper code is Codex-authored;
+only the counter helper is credited to OMEN. [Initial scoreboard](evidence/20260921-quality-initial-scoreboard.json)
+and [live wiring / raw review / attribution](evidence/20260921-quality-live.json)
+preserve the evidence. The original candidate is retained separately.
+
+At 09:50:38 AM4 was unloaded with no owner. API ledger: 10 attempts, 7,073 known
+input tokens, USD0.000297066 usage estimate, USD0.005505024 uncertain reservations,
+USD0.005802090 booked. Codex effort/local power are not included. This is a
+concrete local artifact and deployed feedback improvement, not proof of higher
+general acceptance rates or an optimized multi-route fleet. Goal remains active.
+
+## Cycle 10, human/agent operating page; pre-dispatch refusal
 
 Window 09:25:55–09:45:55 UTC; first-page target 09:30:55, generation ceiling
 09:40:55. Parent receipt `br-20260921-092652-380e5888`. The actual

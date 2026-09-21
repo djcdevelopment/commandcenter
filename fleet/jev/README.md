@@ -93,6 +93,30 @@ known-usage estimates, uncertain reservations, booked total and remaining cap.
 They do not alter spending limits or reconcile invoices. Missing/inconsistent
 ledger values remain unknown. See overnight cycle 2 for authorship and evidence.
 
+`fleet-scheduler quality` / `quality --json` now reads the operator-curated
+`/home/derek/.local/state/fleet-scheduler/quality-history.json`. The repository's
+`fleet/jev/quality-history.json` records classifications and evidence hashes.
+It is a selected task subset, not a complete benchmark, inferred correctness,
+or automatic training. `authored` means tasks reaching the worker; it excludes
+`not_run`, and does not mean accepted output. Assisted delivery is separate from
+unchanged implementation delivery. The present subset contains six tasks:
+four reached a worker (one unchanged, three assisted); two did not run there.
+
+The installed FX99 scheduler prepends only a fixed numeric quality line to the
+matching profile's existing `recent_outcomes`. Descriptions, task IDs and source
+evidence are not sent to JEV. Missing/malformed history is unavailable, not zero.
+The next decision records the local history hash for audit. Request construction
+was verified in the installed runtime; a later live decision using this new
+feedback has not yet been sampled. Confidence/ambiguity gates and manual
+promotion remain unchanged. Recurate/disable this history when qualifying a new
+model, runner or context regime; do not transfer these labels automatically.
+
+Local `enqueue()` now runs the same pure `_delegation_brief` guard before storing
+a task or requesting paid evaluation. Source examples containing Windows paths
+can be refused just like instructions; author repo-relative briefs, do not
+silently rewrite or encode around the guard. The known cycle-10 brief was refused
+with no queue change. This local submission change required no gateway restart.
+
 The OMEN-side capacity command is now runnable from this worktree:
 
 ```powershell

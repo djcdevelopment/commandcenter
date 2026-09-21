@@ -1,0 +1,86 @@
+{
+  "schema": "fleet-work-quality.v1",
+  "verified_by": "operator",
+  "curated_at": "2026-09-21T09:43:00Z",
+  "profile": "omen-resident-hearth",
+  "model": "qwen3-30b-a3b",
+  "scope": "Selected completed task outcomes, not a complete benchmark. authored counts tasks reaching the worker, not successful output. assisted includes any later model/human correction. not_run is excluded from authored.",
+  "records": [
+    {
+      "task_id": "jev-6b6659cbbf258638035da94e",
+      "outcome": "assisted_delivery",
+      "description": "Status formatter delivered after Codex corrections; raw local candidate failed checks.",
+      "evidence": [
+        "fleet/jev/evidence/20260921-status-execution-evidence.json",
+        "fleet/jev/evidence/20260921-status-integrated-live-status.json"
+      ],
+      "delivery_commit": "f06944e",
+      "evidence_sha256": {
+        "fleet/jev/evidence/20260921-status-execution-evidence.json": "a1d792195f6ebee8676b054138b98cc9367eb1d6b57a40b7981a2244fe3a85f7",
+        "fleet/jev/evidence/20260921-status-integrated-live-status.json": "fb9627ddd5068bb12ca6296edc5f5489745f48c32d76ee7bcd88b623555c4f4c"
+      }
+    },
+    {
+      "task_id": "jev-d2d8cebb2cd971e6ebb5a049",
+      "outcome": "assisted_delivery",
+      "description": "Budget view delivered after local repair plus Codex correction; not unmodified delivery.",
+      "evidence": [
+        "fleet/jev/evidence/20260921-budget-initial-execution.json",
+        "fleet/jev/evidence/20260921-budget-final-execution.json"
+      ],
+      "delivery_commit": "5bfd427",
+      "evidence_sha256": {
+        "fleet/jev/evidence/20260921-budget-initial-execution.json": "429625f5cd492013ed46879be09439de4e1d463ac52bad0610409812bda519d6",
+        "fleet/jev/evidence/20260921-budget-final-execution.json": "7ad1ca3bc6ccee48b0c0c565131dff42e71a228514c0fc2bd1dd3fab8ffd82e5"
+      }
+    },
+    {
+      "task_id": "jev-85c23aa9ba09049946734927",
+      "outcome": "assisted_delivery",
+      "description": "B70 parser delivered after Codex corrections to failed raw local cases.",
+      "evidence": [
+        "fleet/jev/evidence/20260921-capacity-parser-execution.json"
+      ],
+      "delivery_commit": "9e307fa",
+      "evidence_sha256": {
+        "fleet/jev/evidence/20260921-capacity-parser-execution.json": "20df4852bbcefccd6799c31acfa3e18f2440bbabfc8645344b05df4d3e85d13d"
+      }
+    },
+    {
+      "task_id": "jev-0609302367da3133217c5db1",
+      "outcome": "not_run",
+      "description": "JEV held MechNet dispatch. Later direct Hearth fallback is a different harness and excluded here.",
+      "evidence": [
+        "fleet/jev/evidence/20260921-route-execution.json"
+      ],
+      "evidence_sha256": {
+        "fleet/jev/evidence/20260921-route-execution.json": "a901ee10222b959adcdd2f480c2905b801f20405ad5b9da549c4530c2eefc364"
+      }
+    },
+    {
+      "task_id": "jev-c06b692f1dc0c488af2a17cf",
+      "outcome": "not_run",
+      "description": "JEV selected, brief guard refused before worker execution. Codex fallback is not local-builder delivery.",
+      "evidence": [
+        "fleet/jev/evidence/20260921-operations-page.json"
+      ],
+      "evidence_sha256": {
+        "fleet/jev/evidence/20260921-operations-page.json": "c8ecb25aed8b607c93c751bf812c4f30591950f50a27077ba72f56d0aab74ca9"
+      }
+    },
+    {
+      "task_id": "jev-f3b1d7857a35c922cbbe0cd5",
+      "outcome": "unmodified_delivery",
+      "description": "Local helper retained without implementation edits; only final newline normalized. Real curated-record output, specified mixed-input example, None, empty list and immutability independently checked. Hermes advisory static PASS is not the acceptance proof.",
+      "evidence": [
+        "fleet/jev/evidence/20260921-quality-candidate.json",
+        "fleet/jev/evidence/20260921-quality-initial-scoreboard.json"
+      ],
+      "evidence_sha256": {
+        "fleet/jev/evidence/20260921-quality-candidate.json": "86ce27b61e05dff22a032d46f70e855f59740c5b0c5d4b4ba2f46590452fdeb3",
+        "fleet/jev/evidence/20260921-quality-initial-scoreboard.json": "2bc0ce7394a7b608990a52f6085be0928bba86f82b19074a8f852ff2d1f676cf"
+      },
+      "candidate_commit": "3ae4e60c281e96fd121e18f401d5e511ea224bbf"
+    }
+  ]
+}

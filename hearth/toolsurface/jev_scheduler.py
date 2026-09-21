@@ -62,6 +62,12 @@ def enqueue(document):
         for name in (item['output'], item['target']):
             if not re.fullmatch(r'[A-Za-z0-9_./-]+', name) or '..' in Path(name).parts or Path(name).is_absolute():
                 raise ValueError('unsafe_deliverable')
+    # Reuse the actual pure dispatch guard before storing or spending on this task.
+    # Examples are part of the brief too; never silently rewrite a refused path.
+    br._delegation_brief(
+        {'repo': task['inputs']['repo'], 'title': 'JEV scheduled: ' + document['title'],
+         'acceptance_criteria': task['acceptance_criteria']},
+        document['brief'], [item['output'] for item in document['deliverables']])
     task_id = 'jev-' + task['envelope_id'][:24]
     with LOCK, connection() as db:
         envelope.store_envelope(task, task_id)

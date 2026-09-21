@@ -8,7 +8,58 @@ Previous goal turn classification: **progress**. It integrated the count fix,
 verified actual outputs, and established an HTTP 529 hold. The next cycle used
 a new real task after that hold, not a repeat of the completed correction.
 
-## Latest: cycle 4, runnable live capacity command
+## Latest: cycle 5, commit-bound review baselines
+
+Window 08:19:27–08:39:27 UTC. A real reconstructed packet was working and checked
+at **08:22:53**, before the five-minute cutoff. Hermes finished at 08:24:39,
+AM4 was released, and exit checks at 08:26:10 show a fresh/running CPU scheduler
+with no active build or review. Receipt `br-20260921-082020-bce9dd11`.
+
+`fleet/jev/baseline.py:read_baseline()` now reads bounded immutable Git blobs,
+validates the full commit and exact path, distinguishes absent file from missing
+commit, and returns provenance with the content. `artifacts.review_packet()` uses
+that helper, writes `baseline.json`, labels new files, and warns that the current
+worktree may contain later edits. This is **manually verified source**, not code
+loaded into the running gateway. No restart or substitute service was attempted.
+
+The real cycle-4 task was reconstructed from its original envelope and actual VM
+candidate. At base `57f0aca07ab2de3b629958f77ccb5415f89c87e6`,
+`fleet/jev/b70_capacity.py` is absent, while the current worktree contains the
+corrected implementation. The packet now says so. Existing `artifacts.py` baseline
+content is byte-identical to `git show` and differs from today's edited file.
+Missing commit, branch-name and parent-path checks fail rather than silently
+substituting empty/current source. No test files were added.
+
+- Direct Hearth / OMEN attempt: 14.031 s, 2432 input/816 output, job
+  `job_b1f12fdea5f7c8b96e015e1c101bde68`. Unusable: split-on-NUL parsing then
+  required the removed NUL, misparsed ls-tree header fields and never returned
+  absence. Executing existing/absent real paths failed both. No retry.
+- Codex wrote the replacement helper and packet integration. The failed local
+  source is retained, not credited as a successful patch.
+- Hermes / AM4 Dense 27B used the reconstructed packet with a 60-second budget;
+  elapsed 46.676 s, verdict NEEDS_WORK for the original parser. It correctly
+  separated later working-tree fixes from the candidate and identified its bool
+  and non-string-rule faults. It still falsely listed `sorted_unique_string_rules`
+  as passing (the supplied evidence says false). It also mentioned today's
+  working-tree header despite the packet-only instruction. The verdict is useful,
+  but the model is not a reliable substitute for executed checks. No speedup or
+  controlled quality-rate claim is made from this one re-review.
+
+Evidence: [failed local attempt](evidence/20260921-baseline-local-attempt.json),
+[actual Git/packet checks](evidence/20260921-baseline-execution.json),
+[unedited Hermes review](evidence/20260921-baseline-hermes-review.json).
+Private rebuilt packet/baseline are retained at
+`C:/Users/derek/.fleet-scheduler/baseline-cycle5/`; the packet hash and byte count
+are committed in the execution evidence. Original cycle-4 review is unchanged.
+Manual review owner was `jev-531e8784ffe56af3387a6d31`, subsequently released.
+
+No JEV request this lap: the problem was evidence provenance, not task selection.
+Ledger unchanged at seven attempts / 4392 input tokens / USD 0.005689488 booked,
+including USD 0.005505024 uncertain reserves. The wider optimization goal remains
+active. Repeated unusable OMEN synthesis is now substantial evidence to change
+which work it receives, not justification for more identical helper retries.
+
+## Cycle 4, runnable live capacity command
 
 Window 08:08:39–08:28:39 UTC. First working end-to-end command at **08:12:36**,
 inside the five-minute target. JEV dispatched at 08:09:45; local generation and

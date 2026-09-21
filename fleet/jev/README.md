@@ -115,6 +115,16 @@ cycle 4 for local-builder authorship, direct corrections and Hermes findings.
 
 ## Decision and recovery behavior
 
+Pending gateway maintenance: review-packet source now reads baseline files from
+the task envelope's full `base_commit` through bounded read-only Git commands,
+not the current worktree. It records commit/path/presence/SHA256 in private
+`baseline.json`, labels genuinely new files explicitly, and refuses unavailable
+commits rather than treating them as empty files. This was exercised manually on
+a real prior task and used for a saved Hermes review. The already-running gateway
+has **not** loaded this change; its restart restriction has not been bypassed.
+Normal daemon reviews must not be claimed commit-bound until allowed maintenance
+loads and verifies that version. See overnight cycle 5 for evidence and limits.
+
 Only an operator can enqueue an approved source-packed task. JEV receives an
 explicit field allowlist, never raw code, diffs, logs, credentials, commands,
 repository paths or the entire gateway response. Existing knowledge is read,

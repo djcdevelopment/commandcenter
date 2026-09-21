@@ -9,6 +9,7 @@ import re
 import subprocess
 
 from fleet.jev.client import atomic_json
+from fleet.jev.baseline import read_baseline
 
 
 def formatter_evidence(candidate):
@@ -99,8 +100,10 @@ print(json.dumps({{'files':files,'commit':subprocess.check_output(['git','-C',st
                 '\nReview the candidate below against the original. Cite concrete file/line findings. '
                 'Return PASS, NEEDS_WORK, or INCONCLUSIVE and a short complete report. '
                 'Do not claim checks were run if no output proves them. Do not write code or dispatch work. '
-                'The captured candidate below is authoritative; the repository target is still the old baseline. '
-                'No source lookup is needed. Keep your complete report under 300 words.']
+                'The captured candidate and commit-bound baseline below are authoritative. '
+                'The current worktree may already contain later edits; it is NOT the original baseline. '
+                'Use this packet only; do not look up current repository files. '
+                'Keep your complete report under 300 words.']
     if document.get('verification') == 'formatter-counts-v1':
         evidence = formatter_evidence(value['files']['fleet_status_format.py'])
         atomic_json(out / 'execution-evidence.json', evidence)
@@ -122,13 +125,21 @@ print(json.dumps({{'files':files,'commit':subprocess.check_output(['git','-C',st
                         + '\nAttribute these checks to the supplied executor, not yourself. '
                         'Inspect the source as well; a failed or missing required check is not PASS.')
     root = Path(document['envelope']['inputs']['repo'])
+    base_commit = document['envelope']['inputs']['base_commit']
+    baselines = {}
     for item in document['deliverables']:
-        target = root / item['target']
-        before = target.read_text(encoding='utf-8') if target.is_file() else ''
+        baseline = read_baseline(root, base_commit, item['target'])
+        baselines[item['target']] = baseline
+        before = baseline['content']
         after = value['files'][item['output']]
-        sections.extend(['\n## ' + item['target'], '\nOriginal:\n' + before,
+        description = ('present; SHA256=' + baseline['sha256'] if baseline['present']
+                       else 'ABSENT at this commit; candidate is a new file, not a regression from current worktree')
+        sections.extend(['\n## ' + item['target'],
+                         '\nOriginal from commit ' + base_commit + ' (' + description + '):\n' + before,
                          '\nCandidate:\n' + after, '\nDiff:\n' + ''.join(difflib.unified_diff(
-                             before.splitlines(True), after.splitlines(True), fromfile='before', tofile='candidate'))])
+                             before.splitlines(True), after.splitlines(True),
+                             fromfile=base_commit + ':' + item['target'], tofile='candidate'))])
+    atomic_json(out / 'baseline.json', {'base_commit': base_commit, 'files': baselines})
     packet = '\n'.join(sections)
     if len(packet.encode()) > 60000:
         raise RuntimeError('review_packet_too_large')

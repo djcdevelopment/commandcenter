@@ -8,7 +8,62 @@ Previous goal turn classification: **progress**. It integrated the count fix,
 verified actual outputs, and established an HTTP 529 hold. The next cycle used
 a new real task after that hold, not a repeat of the completed correction.
 
-## Latest: cycle 5, commit-bound review baselines
+## Latest: cycle 6, deployed failure-first review packets
+
+Window 08:31:15–08:51:15 UTC. Corrected helper working against the real packet at
+**08:35:40** (within five minutes), deployment verified at **08:36:19**, and
+live review/release finished at 08:37:33. Receipt `br-20260921-083206-da4f68bb`.
+
+Changed the source-generation assignment: Hermes on the existing AM4 Dense seat,
+not another OMEN synthesis retry. No model/topology change or extra permissions.
+Hearth's receipt backend is routing context only; it is not the author here.
+
+- Hermes/Dense source generation: 69.815 seconds, 90-second ceiling, owner
+  `jev-09fd57e8c3f827fde058737b`. It emitted an incorrect first code block, then
+  explicitly corrected itself with a second final block in the same response.
+  Both are preserved. The final block was selected, not silently described as a
+  clean one-block answer.
+- The selected helper preserved all failing cases and candidate source on the
+  real packet. One defect remained: comparing the replacement JSON size with the
+  entire old packet could enlarge small evidence sections. A direct check grew
+  2115 to 2358 bytes while claiming compaction. Codex changed that guard to
+  compare complete packets. The rest of the selected helper is Hermes-authored;
+  integration/deployment/checks are Codex. This is assisted delivery, not a
+  wholly accepted unmodified model patch.
+- The real packet fell from **27,284 to 16,070 bytes** (about 41%). Every failed
+  row, non-case evidence field and candidate prefix/suffix matched exactly.
+  Failure summary correctly says four passed/four failed. Missing/duplicate
+  markers, malformed/nonboolean evidence and no size benefit leave input intact.
+  No test files or broad assay were added.
+- Live deployed Hermes review: 36.793 seconds, one assistant/no tool messages,
+  NEEDS_WORK. Prior uncompressed run: 46.676 seconds, five assistant/four tool
+  messages (four assistant tool-call messages). Counts were read from actual
+  state databases. This single pair does not prove a general speedup or isolate
+  the effect of payload size from changed model behavior.
+- The new review named all four failed checks correctly, but claimed a list was
+  hashable and invented a justification for dropping an empty-string rule. Those
+  statements are false. The compaction is a payload/traceability improvement,
+  **not evidence of reliable semantic review**. Acceptance stays grounded in
+  executed evidence; no automatic promotion.
+
+Deployed on FX99: `fleet/jev/review.py` and `review_evidence.py`; verified imports
+and exact hashes. Existing review file backed up as
+`review.py.jev-evidence-review-20260921.backup`; no overwriting old backups.
+The idle CPU scheduler was stopped only for installation and restarted. Fresh
+installs now include `review_evidence.py` and the previously omitted `budget_view.py`.
+No gateway/conductor restart or capability expansion. The baseline fix and
+required-execution-evidence gate remain pending gateway maintenance.
+
+Every live review now retains original/sent packets and packing metadata as
+mode-0600 files. The audit hashes matched their actual bytes during the live run.
+Review owner `jev-c087547d4ec649048eb0d1d0` was released; AM4 returned to unloaded.
+JEV API ledger is unchanged: no API call was needed for this review-path change.
+
+Evidence: [Hermes source](evidence/20260921-review-packing-hermes-candidate.json),
+[executed preservation checks](evidence/20260921-review-packing-execution.json),
+[live review and audit](evidence/20260921-review-packing-live.json).
+
+## Cycle 5, commit-bound review baselines
 
 Window 08:19:27–08:39:27 UTC. A real reconstructed packet was working and checked
 at **08:22:53**, before the five-minute cutoff. Hermes finished at 08:24:39,

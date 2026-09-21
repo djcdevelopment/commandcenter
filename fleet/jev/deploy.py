@@ -19,7 +19,8 @@ def stage():
     # Nothing here starts inference. No secrets occur in remote command arguments.
     base = '/home/derek/.local/share/fleet-scheduler/'
     files = [transport.file(base + 'fleet/jev/' + name, (ROOT / 'fleet/jev' / name).read_bytes(), mode=0o600)
-             for name in ('__init__.py', 'cli.py', 'client.py', 'policy.py', 'review.py')]
+             for name in ('__init__.py', 'cli.py', 'client.py', 'policy.py',
+                          'review.py', 'review_evidence.py', 'budget_view.py')]
     files += [transport.file(base + 'install_key.py', (ROOT / 'fleet/jev/install_key.py').read_bytes(), mode=0o600),
               transport.file('/home/derek/.config/systemd/user/fleet-scheduler.service',
                              (ROOT / 'fleet/jev/fleet-scheduler.service').read_bytes(), mode=0o600),

@@ -1,5 +1,6 @@
 """Run pinned Hermes once, export its final answer, release the review seat."""
 import asyncio
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -9,15 +10,27 @@ import subprocess
 import time
 
 from fleet.jev.client import atomic_json
+from fleet.jev.review_evidence import compact_review_packet
 
 
 def run_hermes(packet, root, run_budget_s=180):
     if type(run_budget_s) is not int or not 30 <= run_budget_s <= 180:
         raise ValueError('review_budget_out_of_bounds')
     root.mkdir(parents=True, exist_ok=False, mode=0o700)
+    original_packet = packet
+    packet, packing = compact_review_packet(packet)
+    original_path = root / 'packet-original.md'
+    original_path.write_text(original_packet, encoding='utf-8')
+    os.chmod(original_path, 0o600)
     packet_path = root / 'packet.md'
-    packet_path.write_text(packet)
+    packet_path.write_text(packet, encoding='utf-8')
     os.chmod(packet_path, 0o600)
+    packet_evidence = {**packing,
+        'original_bytes': len(original_packet.encode('utf-8')),
+        'sent_bytes': len(packet.encode('utf-8')),
+        'original_sha256': hashlib.sha256(original_packet.encode('utf-8')).hexdigest(),
+        'sent_sha256': hashlib.sha256(packet.encode('utf-8')).hexdigest()}
+    atomic_json(root / 'packet-evidence.json', packet_evidence)
     profile = Path('/home/derek/.config/hermes-fleet')
     environment = dict(os.environ)
     environment.update(HERMES_HOME=str(root), HERMES_AM4_KEY=(profile / 'am4.key').read_text().strip(),
@@ -60,7 +73,8 @@ def run_hermes(packet, root, run_budget_s=180):
         report = row['content']
     metadata = {'model': 'am4-dense-27b', 'reviewer': 'hermes', 'elapsed_s': round(time.monotonic() - start, 3),
                 'run_budget_s': run_budget_s,
-                'source': 'unedited Hermes final assistant message', 'message_id': row['id'], 'kv_reused': False}
+                'source': 'unedited Hermes final assistant message', 'message_id': row['id'],
+                'kv_reused': False, 'packet_evidence': packet_evidence}
     atomic_json(root / 'result.json', {'report': report, 'metadata': metadata})
     return report, metadata
 

@@ -1,0 +1,55 @@
+{
+  "report": "NEEDS_WORK\n\nSource review of `fleet/jev/b70_capacity.py` (candidate, 92 lines) against the acceptance criteria:\n\n**Confirmed defects (source evidence):**\n\n1. **bool accepted as int** — Line `if not isinstance(value, int) or value < 0: continue` (Step 3). In Python, `isinstance(True, int)` is `True`, so `v: true` passes the guard and clobbers a prior valid value. This is exactly what the operator's `boolean_must_not_replace_valid` case shows: after a valid `12`, a later `v: true` yields `adapter_local_committed_bytes: true`. Fix: `isinstance(value, int) and not isinstance(value, bool)`.\n\n2. **dvm bool not rejected** — Step 1 uses the same `isinstance(record.get('dvm'), int) and >= 0` pattern. The operator's `boolean_total_unknown` case confirms `dvm: true` produces `total_bytes: true` in the output.\n\n3. **Non-string rule added to set** — Step 4: `if rule:` (truthy check) then `rules[adapter_id].add(rule)`. A list `[\"bad\"]` is truthy and hashable, so it's added to the set. The operator's `ignore_non_string_rule` case hit a `TypeError` (the list became unhashable in a way that broke downstream, or mixed types in `sorted()`). Fix: `isinstance(rule, str)`.\n\n4. **Empty string rule included** — `if rule:` treats `\"\"` as falsy, so it's excluded. The operator's `sorted_unique_string_rules` case expects `[\"a\", \"b\"]` (excluding `\"\"`), which the candidate produces, but the test still failed — likely due to the non-string rule handling in the same code path. The empty-string exclusion is actually correct per the criteria (\"string rule\" implies non-empty is reasonable, but the spec doesn't explicitly exclude empty; the test failure here is attributed to the combined rule-handling defect).\n\n**Correct aspects:**\n- Two-pass structure (identities collected in Step 1 before metrics in Step 3) handles identity-after-metrics correctly.\n- Non-dict rows skipped via `isinstance(record, dict)` check.\n- `free_bytes` hardcoded to `None`.\n- Last-valid-wins ordering preserved (sequential overwrite in Step 3).\n- Sorted output by `adapter_id` via `sorted(identities.keys())`.\n- `disagreement_rules` sorted unique via `sorted(list(set))`.\n- No I/O, no process, no network calls — pure function as required.\n\n**Operator evidence attribution:** The 4 failed checks (`boolean_must_not_replace_valid`, `boolean_total_unknown`, `ignore_non_string_rule`, `sorted_unique_string_rules`) are attributed to the Codex executor per the supplied packet. The 4 passed checks (`actual_b70_capture`, `identity_after_metrics`, `zero_last_valid_and_wrong_source`, `missing_metrics_unknown`) corroborate the correct aspects above.\n\n**Verdict:** NEEDS_WORK — three concrete bugs (bool-as-int in metrics, bool-as-int in dvm, non-string rule addition) must be fixed before PASS.",
+  "metadata": {
+    "model": "am4-dense-27b",
+    "reviewer": "hermes",
+    "elapsed_s": 36.793,
+    "run_budget_s": 60,
+    "source": "unedited Hermes final assistant message",
+    "message_id": 2,
+    "kv_reused": false,
+    "packet_evidence": {
+      "mode": "compacted",
+      "passed_count": 4,
+      "failed_count": 4,
+      "original_bytes": 27284,
+      "sent_bytes": 16070,
+      "original_sha256": "20886ed19b62d660af78c2378cf3b15e4ae66e08df55769a770be4bdba72b5a7",
+      "sent_sha256": "7503ca3bd8c8a688194f3fcf27f92752e264546aaad3b4362baac696eb5aea11"
+    }
+  },
+  "audit_files": {
+    "packet-original.md": {
+      "bytes": 27284,
+      "sha256": "20886ed19b62d660af78c2378cf3b15e4ae66e08df55769a770be4bdba72b5a7",
+      "mode": "0o600"
+    },
+    "packet.md": {
+      "bytes": 16070,
+      "sha256": "7503ca3bd8c8a688194f3fcf27f92752e264546aaad3b4362baac696eb5aea11",
+      "mode": "0o600"
+    },
+    "packet-evidence.json": {
+      "bytes": 291,
+      "sha256": "5bc119c598cc39b6d2f52be3a443051d60862af053b45f7a52c88c9e86f62b89",
+      "mode": "0o600"
+    }
+  },
+  "message_counts": {
+    "jev-531e8784ffe56af3387a6d31": {
+      "roles": {
+        "assistant": 5,
+        "tool": 4,
+        "user": 2
+      },
+      "assistant_messages_with_tools": 4
+    },
+    "jev-c087547d4ec649048eb0d1d0": {
+      "roles": {
+        "assistant": 1,
+        "user": 1
+      },
+      "assistant_messages_with_tools": 0
+    }
+  }
+}

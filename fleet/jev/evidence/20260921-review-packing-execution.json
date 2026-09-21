@@ -1,0 +1,31 @@
+{
+  "executor": "Codex direct content and boundary checks; not Hermes",
+  "original_bytes": 27284,
+  "sent_bytes": 16070,
+  "original_sha256": "20886ed19b62d660af78c2378cf3b15e4ae66e08df55769a770be4bdba72b5a7",
+  "sent_sha256": "7503ca3bd8c8a688194f3fcf27f92752e264546aaad3b4362baac696eb5aea11",
+  "packing": {
+    "mode": "compacted",
+    "passed_count": 4,
+    "failed_count": 4
+  },
+  "checks": {
+    "failed_rows_complete": true,
+    "noncase_fields_preserved": true,
+    "source_prefix_exact": true,
+    "source_suffix_exact": true,
+    "summary_4_pass_4_fail": true,
+    "strictly_smaller": true,
+    "no_marker_unchanged": true,
+    "duplicate_marker_unchanged": true,
+    "malformed_unchanged": true,
+    "nonboolean_unchanged": true,
+    "no_size_benefit_unchanged": true
+  },
+  "helper_sha256": "b3e914adef40aed76345bb3a67977d36096b192a399206b7d66e46917e7d00a8",
+  "raw_candidate_size_bug": {
+    "original_bytes": 2115,
+    "sent_bytes": 2358,
+    "incorrect_mode": "compacted"
+  }
+}

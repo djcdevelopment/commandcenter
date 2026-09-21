@@ -125,6 +125,20 @@ has **not** loaded this change; its restart restriction has not been bypassed.
 Normal daemon reviews must not be claimed commit-bound until allowed maintenance
 loads and verifies that version. See overnight cycle 5 for evidence and limits.
 
+Live on FX99: `run_hermes()` now makes recognized execution-evidence sections
+failure-first. It preserves every failing row, all non-case evidence fields and
+candidate source; passing rows retain their names/results. An explicit summary
+lists the failing names and counts. Unrecognized input or a non-smaller result is
+left unchanged. Every run saves private `packet-original.md`, `packet.md` and
+`packet-evidence.json` with byte counts and hashes. The full original remains the
+audit record; no evidence was deleted to make a verdict look better. This client
+change was deployed independently of the still-pending gateway changes.
+
+The actual qualification packet shrank from 27,284 to 16,070 bytes. The observed
+review used no lookup tools, but still made factual mistakes in its explanation.
+Use direct check results as the authority for acceptance; the prose review is
+advisory. See overnight cycle 6 for authorship and the exact deployment backup.
+
 Only an operator can enqueue an approved source-packed task. JEV receives an
 explicit field allowlist, never raw code, diffs, logs, credentials, commands,
 repository paths or the entire gateway response. Existing knowledge is read,

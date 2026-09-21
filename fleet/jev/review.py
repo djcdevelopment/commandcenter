@@ -13,11 +13,13 @@ from fleet.jev.client import atomic_json
 from fleet.jev.review_evidence import compact_review_packet
 
 
-def run_hermes(packet, root, run_budget_s=180, reasoning='none'):
+def run_hermes(packet, root, run_budget_s=180, reasoning='none', *, packet_only=False):
     if type(run_budget_s) is not int or not 30 <= run_budget_s <= 180:
         raise ValueError('review_budget_out_of_bounds')
     if reasoning not in ('none', 'low'):
         raise ValueError('unsupported_reasoning_setting')
+    if type(packet_only) is not bool:
+        raise ValueError('packet_only_must_be_bool')
     root.mkdir(parents=True, exist_ok=False, mode=0o700)
     original_packet = packet
     packet, packing = compact_review_packet(packet)
@@ -45,6 +47,11 @@ def run_hermes(packet, root, run_budget_s=180, reasoning='none'):
         'auxiliary': {'compression': provider, 'title_generation': {'enabled': False}, 'background_review': {'enabled': False}},
         'mcp_servers': {'hearth': {'url': 'http://127.0.0.1:8713/mcp', 'headers': {'X-Hearth-Key': '${HERMES_REVIEW_KEY}'}}},
         'platform_toolsets': {'cli': ['hearth']}, 'display': {'interface': 'cli'}}
+    if packet_only:
+        # Hermes subtracts disabled toolsets last, including discovered MCP tools.
+        # Keep the existing Hearth-only selection/read-only key as the fallback
+        # authority; an empty enabled-toolsets list means defaults, not no tools.
+        configuration['agent'] = {'disabled_toolsets': ['all']}
     atomic_json(root / 'config.yaml', configuration)  # JSON is valid YAML; private directory/file.
     environment['OPENAI_API_KEY'] = provider['api_key']
     environment['OPENAI_BASE_URL'] = provider['base_url']
@@ -69,12 +76,19 @@ def run_hermes(packet, root, run_budget_s=180, reasoning='none'):
         raise RuntimeError('hermes_review_failed')
     with sqlite3.connect('file:' + str(root / 'state.db') + '?mode=ro', uri=True) as db:
         db.row_factory = sqlite3.Row
+        tool_call_messages = db.execute("SELECT COUNT(*) FROM messages WHERE role='assistant' "
+                                       "AND tool_calls IS NOT NULL AND tool_calls NOT IN ('', '[]')").fetchone()[0]
+        tool_result_messages = db.execute("SELECT COUNT(*) FROM messages WHERE role='tool'").fetchone()[0]
+        if packet_only and (tool_call_messages or tool_result_messages):
+            raise RuntimeError('packet_only_tool_use_detected')
         row = db.execute("SELECT * FROM messages WHERE role='assistant' ORDER BY id DESC LIMIT 1").fetchone()
         if row is None or row['tool_calls'] not in (None, '', '[]') or not row['content']:
             raise RuntimeError('hermes_final_answer_missing')
         report = row['content']
     metadata = {'model': 'am4-dense-27b', 'reviewer': 'hermes', 'elapsed_s': round(time.monotonic() - start, 3),
                 'run_budget_s': run_budget_s, 'requested_reasoning': reasoning,
+                'requested_review_mode': 'packet_only' if packet_only else 'hearth_tools',
+                'tool_call_messages': tool_call_messages, 'tool_result_messages': tool_result_messages,
                 'source': 'unedited Hermes final assistant message', 'message_id': row['id'],
                 'kv_reused': False, 'packet_evidence': packet_evidence}
     atomic_json(root / 'result.json', {'report': report, 'metadata': metadata})

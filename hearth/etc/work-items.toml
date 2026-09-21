@@ -1,0 +1,126 @@
+# The work-item policy: which gate work items exist, where each one may write,
+# and what each one may never ask for (D-113 as amended; WI-G2b condition 3).
+#
+# This is the ONE register. `hearth/etc/operator.toml` used to carry a bare
+# `[test_mode].released_work_items` list, which could say a work item was
+# released while nothing said where it may write or what it may not do; a
+# mode:test proposal naming it was then judged on shape alone. That list is gone
+# and this file replaces it.
+#
+# How it is read (hearth/operator/work_items.py):
+#
+#   * the whole file validates against hearth/contracts/work-items.v1.schema.json
+#     at load, and every entry's `digest` is RECOMPUTED — an entry edited without
+#     updating its digest is refused, loudly, naming the entry;
+#   * only `status = "released"` may be named by a mode:test proposal;
+#   * `repository` is where `base_commit`, `base_tree` and `rollback_ref` are
+#     resolved with `git cat-file` — a well-formed 40-hex id that is not an
+#     object of the right type is refused;
+#   * every isolated input and output must EXIST and resolve inside one of this
+#     work item's `permitted_isolated_roots`, which is stricter than "outside
+#     master": another work item's worktree is another writer's surface;
+#   * a requested authority in `prohibited_authorities` is a policy denial
+#     (`policy_block`), not something a human may approve;
+#   * the digest of this file is bound into every mode:test validation result,
+#     so a run records which register judged it.
+#
+# Recompute a digest with:
+#   python -c "from hearth.operator import work_items; work_items.print_digests()"
+
+contract_version = "work-items.v1"
+policy_version = "operator-work-items.v1"
+
+[[work_item]]
+id = "WI-G1"
+status = "released"
+title = "Entry contract: catalog, capacity snapshot, inspection, authority, CLI and door parity"
+repository = 'C:\work\commandcenter'
+branch = "operator/program"
+permitted_isolated_roots = [
+  'C:\work\worktrees\commandcenter\operator-program',
+  'C:\work\worktrees\commandcenter\g1-entry-evidence',
+]
+prohibited_authorities = ["change_machine_or_network", "merge_push_deploy"]
+digest = "0398d795fa970e1b23f68d60580ea1fce36a0a6efca13fec7edee12c2dbb809c"
+
+[[work_item]]
+id = "WI-G2"
+status = "released"
+title = "Envelope, proposal, validation, approval boundary, history, replay (first candidate)"
+repository = 'C:\work\commandcenter'
+branch = "operator/g2-envelope"
+permitted_isolated_roots = [
+  'C:\work\worktrees\commandcenter\g2-envelope',
+  'C:\work\worktrees\commandcenter\g2-envelope-evidence',
+]
+prohibited_authorities = [
+  "change_machine_or_network",
+  "lease_gpu",
+  "merge_push_deploy",
+  "submit_mechnet_task",
+]
+digest = "362a025425de25a3ca6437d163989fb5cbf6821b02d271aa3675f5bc3a00dc1c"
+
+[[work_item]]
+id = "WI-G2a"
+status = "released"
+title = "Remediation of the failed WI-G2 candidate (second candidate)"
+repository = 'C:\work\commandcenter'
+branch = "operator/g2a-envelope-hardening"
+permitted_isolated_roots = [
+  'C:\work\worktrees\commandcenter\g2a-envelope-hardening',
+  'C:\work\worktrees\commandcenter\g2a-envelope-hardening-evidence',
+]
+prohibited_authorities = [
+  "change_machine_or_network",
+  "lease_gpu",
+  "merge_push_deploy",
+  "submit_mechnet_task",
+]
+digest = "ed910f15cd85e66a35abc62c20243044e26d4562993bb48537c516dcd8fb7cee"
+
+[[work_item]]
+id = "WI-G2b"
+status = "released"
+title = "Targeted contract closure of the WI-G2a conditions (third candidate)"
+repository = 'C:\work\commandcenter'
+branch = "operator/g2b-contract-closure"
+permitted_isolated_roots = [
+  'C:\work\worktrees\commandcenter\g2b-contract-closure',
+  'C:\work\worktrees\commandcenter\g2b-contract-closure-evidence',
+]
+prohibited_authorities = [
+  "change_machine_or_network",
+  "lease_gpu",
+  "merge_push_deploy",
+  "submit_mechnet_task",
+]
+digest = "52aa8c737e9520d36eab370efc0d4f647c2af4cb1956b5a9f8b22a9e36c72226"
+
+# Not released. A mode:test proposal naming one of these is refused: the gate
+# has not been opened, and the worktree it would write in does not exist yet.
+[[work_item]]
+id = "WI-G3"
+status = "planned"
+title = "Execution: leases, dispatch, attempts, verification, outcome"
+repository = 'C:\work\commandcenter'
+branch = "operator/g3-execution"
+permitted_isolated_roots = [
+  'C:\work\worktrees\commandcenter\g3-execution',
+  'C:\work\worktrees\commandcenter\g3-execution-evidence',
+]
+prohibited_authorities = ["change_machine_or_network", "merge_push_deploy"]
+digest = "54f95e136f7701899edd4920bf37d4d503753fe0463c4ec373375cc66dfd349d"
+
+[[work_item]]
+id = "WI-G4"
+status = "planned"
+title = "Minimum acceptance test: two cold orchestrators, one frozen task"
+repository = 'C:\work\commandcenter'
+branch = "operator/g4-acceptance"
+permitted_isolated_roots = [
+  'C:\work\worktrees\commandcenter\g4-acceptance',
+  'C:\work\worktrees\commandcenter\g4-acceptance-evidence',
+]
+prohibited_authorities = ["change_machine_or_network", "merge_push_deploy"]
+digest = "672688c116381144d9fbb5ad34b3e04da58d8bf8257a084d01374cf529de2798"

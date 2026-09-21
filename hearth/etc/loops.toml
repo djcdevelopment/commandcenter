@@ -1,0 +1,109 @@
+# Execution loops and the implementations that exist for them today (WI-G1).
+#
+# A loop is a kind of work (research, planning, build, review, direct
+# inference). An implementation is a concrete way to run it. Both are listed
+# even when nothing live implements the loop: an ABSENT lane that is visible is
+# a fact an orchestrator can plan around, while a missing row is a silence it
+# cannot.
+#
+# Status vocabulary: LIVE | BUILT NOT DEPLOYED | STOPPED | BLOCKED | HISTORICAL | ABSENT.
+# Only LIVE is executable in normal mode (the validation rule lands in WI-G2);
+# every other status stays visible and is rejected with implementation_not_live.
+# Promotion to LIVE is a recorded decision that edits this file and recompiles
+# the catalog — never a quiet edit to a status word.
+contract = "loops.v1"
+
+[[loop]]
+id = "research"
+description = "Minutes-scale independent investigation dispatched to the fleet."
+status = "LIVE"
+
+[[loop.implementation]]
+id = "mechnet_research"
+status = "LIVE"
+entrypoint = "door:submit_task -> door:task_status(plan_id)"
+last_evidence = "hearth/toolsurface/task_lane.py (submit_task, task_status); last live dispatch 2026-09-15 (plan rev 3.1 survey)"
+notes = "The brief must stand alone; fleet workers have read-only source at ~/commandcenter-src."
+
+[[loop]]
+id = "planning"
+description = "Deciding how a unit of work should run before anything is dispatched."
+status = "LIVE"
+
+[[loop.implementation]]
+id = "plan_execution"
+status = "LIVE"
+entrypoint = "door:plan_execution"
+last_evidence = "hearth/execution/service.py plan_execution (content-free resolution, writes no ledger row); 43 recorded calls (plan rev 3.1 survey)"
+notes = "Resolves a provider without spending anything."
+
+[[loop.implementation]]
+id = "propose_schedule"
+status = "BUILT NOT DEPLOYED"
+entrypoint = "door:propose_schedule"
+last_evidence = "hearth/toolsurface/scheduler.py propose_schedule; zero live calls as of the 2026-09-17 survey"
+notes = "CP-SAT advisory job-shop proposal. Implemented and tested, never used in anger."
+
+[[loop]]
+id = "build"
+description = "Auditable engineering work with acceptance criteria and a receipt."
+status = "LIVE"
+
+[[loop.implementation]]
+id = "mechnet_build"
+status = "LIVE"
+entrypoint = "door:create_build_request -> execute_build_request -> update_build_request -> close_build_request"
+last_evidence = 'hearth/toolsurface/build_requests.py; receipts at C:\work\baseline\fieldlab\runs\build-requests; last receipt 2026-09-16'
+notes = "close(status=done) is refused unless every criterion carries a passed row with evidence."
+
+[[loop]]
+id = "review"
+description = "Independent verification of work by something other than its producer."
+status = "ABSENT"
+
+[[loop.implementation]]
+id = "review_second_rung"
+status = "BUILT NOT DEPLOYED"
+entrypoint = "door:local_generate(backend=<rung other than the producer's>, files=[...])"
+last_evidence = "hearth/toolsurface/inference.py (pinned rung + scope-guarded files= pack). Candidate named in plan rev 3.1; never run as a review lane."
+notes = "A candidate, not a lane: no review result has ever been recorded through the control plane."
+
+[[loop.implementation]]
+id = "review_deepagents_independent_verifier"
+status = "BUILT NOT DEPLOYED"
+entrypoint = 'C:\work\deepagents-poc skills/independent-verifier (harness deepagents-run-flash-dense)'
+last_evidence = 'C:\work\deepagents-poc git commit 1bad53c; skills/independent-verifier present at G0 2026-09-17'
+notes = "Second review candidate. Exercised in test mode at G3 only, never promoted by an edit here alone."
+
+[[loop]]
+id = "direct_inference"
+description = "One model call through the door's own router, recorded on the kernel ledger."
+status = "LIVE"
+
+[[loop.implementation]]
+id = "direct_hearth"
+status = "LIVE"
+entrypoint = "door:local_generate (optionally task_id=<run id>, backend pin, files= pack)"
+last_evidence = "hearth/toolsurface/inference.py; every call lands on hearth/var/ledger/events.ndjson with backend and routed_by"
+notes = "The default rung is omen-arc. A pin picks the rung, not the physics: an over-budget pinned payload is refused at the door (ADR-0031)."
+
+[[loop.implementation]]
+id = "am4-dense"
+status = "LIVE"
+entrypoint = "direct:http://192.168.12.233:8090/v1/chat/completions (facade alias am4-dense-27b -> loopback 18084, bearer AM4_OXEN_TOKEN)"
+last_evidence = "OPS-01 / Gate 5, 2026-09-18: am4-qwen38-dense.service active, facade /oxen/ready all_ready:true, /v1/models lists am4-dense-27b from OMEN with the bearer"
+notes = "Dense Qwen3.8-27B on AM4's RTX 4070 Ti + RTX 5070 (measured 1:1 split, 4096-token context, one slot). Pin-only rung; the control plane dispatches to it directly, the door does not route onto it."
+
+[[loop.implementation]]
+id = "am4-read-4070ti"
+status = "LIVE"
+entrypoint = "direct:http://192.168.12.233:8090/v1/chat/completions (facade alias am4-read-4070ti -> loopback 18085, bearer AM4_OXEN_TOKEN)"
+last_evidence = "R&D lap 2, 2026-09-18: qwen2.5-14b-instruct-q4_K_M on the RTX 4070 Ti alone, 16k context, q8_0 KV"
+notes = "Reader rung: NVIDIA prefill takes the file-reading / heavy-context work the B70s and the 4k dense slot should not. Pin-only."
+
+[[loop.implementation]]
+id = "deepagents_hearth"
+status = "LIVE"
+entrypoint = 'deepagents:create_deep_agent (harness C:\\work\\deepagents-poc, model qwen3-30b-a3b on :8082)'
+last_evidence = "C:\\work\\deepagents-poc git commit 1bad53c; tested against ArcServe :8082 on 2026-09-17"
+notes = "Agentic tool-use route using DeepAgents with scoped filesystem tools against dual-B70 ArcServe."

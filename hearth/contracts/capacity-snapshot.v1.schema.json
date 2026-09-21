@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://commandcenter.local/hearth/contracts/capacity-snapshot.v1.schema.json",
+  "title": "Capacity snapshot (caller-neutral, immutable, two-horizon freshness)",
+  "description": "What capacity was observed at one instant. Written once by `operator inspect --refresh` and never modified afterwards. Two horizons (D-106): the planning window (planning_valid_until = observed_at + planning_validity_s) governs whether the snapshot may still be used for deliberation, while every dynamic field carries its own observed_at / ttl_s / fresh_until. A field past its fresh_until must never be described as fresh; a reader reports current freshness under the bundle's presentation object, never by editing this file. No caller identity and no authority appear anywhere in it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "snapshot_id", "kind", "catalog_version", "observed_at",
+               "planning_valid_until", "planning_validity_s", "door", "hosts", "gpus",
+               "rungs", "models", "leases", "holds", "reachability", "trial_runway"],
+  "properties": {
+    "contract_version": {"const": "capacity-snapshot.v1"},
+    "snapshot_id": {"$ref": "#/$defs/identity"},
+    "kind": {"enum": ["planning", "validation"],
+             "description": "G1 writes `planning` only; `validation` is reserved for WI-G2."},
+    "catalog_version": {"$ref": "#/$defs/identity"},
+    "observed_at": {"$ref": "#/$defs/timestamp"},
+    "planning_valid_until": {"$ref": "#/$defs/timestamp"},
+    "planning_validity_s": {"type": "integer", "minimum": 1},
+    "door": {
+      "type": "object", "additionalProperties": false,
+      "required": ["reachable", "kernel_version", "providers_mounted"],
+      "properties": {
+        "reachable": {"$ref": "#/$defs/field"},
+        "kernel_version": {"$ref": "#/$defs/field"},
+        "providers_mounted": {"$ref": "#/$defs/field"}
+      }
+    },
+    "hosts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object", "additionalProperties": false,
+        "required": ["reachable", "services"],
+        "properties": {
+          "reachable": {"$ref": "#/$defs/field"},
+          "services": {"$ref": "#/$defs/field"}
+        }
+      }
+    },
+    "gpus": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object", "additionalProperties": false,
+        "required": ["free_vram_gb"],
+        "properties": {"free_vram_gb": {"$ref": "#/$defs/field"}}
+      }
+    },
+    "rungs": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object", "additionalProperties": false,
+        "required": ["ready", "rung_state", "residency", "occupancy", "free_vram_gb",
+                     "active_slots", "declared_live"],
+        "properties": {
+          "ready": {"$ref": "#/$defs/field"},
+          "rung_state": {"$ref": "#/$defs/field"},
+          "residency": {"$ref": "#/$defs/field"},
+          "occupancy": {"$ref": "#/$defs/field"},
+          "free_vram_gb": {"$ref": "#/$defs/field"},
+          "active_slots": {"$ref": "#/$defs/field"},
+          "declared_live": {"$ref": "#/$defs/field"}
+        }
+      }
+    },
+    "models": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object", "additionalProperties": false,
+        "required": ["resident_on"],
+        "properties": {"resident_on": {"$ref": "#/$defs/field"}}
+      }
+    },
+    "leases": {"$ref": "#/$defs/field",
+               "description": "value is an array of lease records sorted by id, or null with a reason."},
+    "holds": {"$ref": "#/$defs/field",
+              "description": "value is an array of hold records sorted by id, or null with a reason."},
+    "reachability": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sweep"],
+      "properties": {"sweep": {"$ref": "#/$defs/field"}}
+    },
+    "trial_runway": {
+      "type": "object", "additionalProperties": false,
+      "required": ["budget_tokens", "reserve_tokens", "tokens_spent", "suppressed"],
+      "properties": {
+        "budget_tokens": {"$ref": "#/$defs/field"},
+        "reserve_tokens": {"$ref": "#/$defs/field"},
+        "tokens_spent": {"$ref": "#/$defs/field"},
+        "suppressed": {"$ref": "#/$defs/field"}
+      }
+    },
+    "presentation": {
+      "type": "object",
+      "description": "Reserved. Never part of the identity preimage and never written to a snapshot file: a reader computes freshness against its own clock and reports it in the inspection bundle."
+    }
+  },
+  "$defs": {
+    "identity": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "timestamp": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"},
+    "field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "observed_at", "ttl_s", "fresh_until", "source"],
+      "description": "One dynamic fact. fresh_until = observed_at + ttl_s. A null value always carries a reason; a non-null value may carry the source's own explanation.",
+      "properties": {
+        "value": {},
+        "observed_at": {"$ref": "#/$defs/timestamp"},
+        "ttl_s": {"type": "integer", "minimum": 1},
+        "fresh_until": {"$ref": "#/$defs/timestamp"},
+        "source": {"type": "string", "minLength": 1},
+        "reason": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

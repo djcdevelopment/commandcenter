@@ -1,0 +1,350 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://commandcenter.local/hearth/contracts/validation-result.v1.schema.json",
+  "title": "ValidationResult (pure validation check)",
+  "description": "Pure route validation result. Never modifies, substitutes, or rewrites the input proposal. Records what capacity it read (D-106 two-horizon freshness: the proposal's planning snapshot and, when required fields were refreshed, the bound validation snapshot), the approvals it verified (D-112), and a remedy for every refusal.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "validation_id",
+    "proposal_id",
+    "validated_at",
+    "expires_at",
+    "mode",
+    "test_mode",
+    "catalog_version",
+    "snapshot_id",
+    "validation_snapshot_id",
+    "work_item_policy",
+    "capacity",
+    "approvals",
+    "checks",
+    "verdict",
+    "reasons",
+    "proposal_copy"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "validation-result.v1"
+    },
+    "validation_id": {
+      "$ref": "#/$defs/identity"
+    },
+    "proposal_id": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/identity"
+        }
+      ],
+      "description": "Null only when the refused document declared none."
+    },
+    "validated_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "expires_at": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/timestamp"
+        }
+      ],
+      "description": "The earliest of the planning window's close and the freshness horizon of the capacity fields this validation required; null when the document was refused before any horizon could be read."
+    },
+    "mode": {
+      "enum": [
+        "normal",
+        "test"
+      ]
+    },
+    "test_mode": {
+      "type": "boolean"
+    },
+    "catalog_version": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/identity"
+        }
+      ],
+      "description": "Null only when the refused document declared none."
+    },
+    "snapshot_id": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/identity"
+        }
+      ],
+      "description": "The proposal's planning snapshot, cited and never rewritten. Null only when the refused document declared none."
+    },
+    "validation_snapshot_id": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/identity"
+        }
+      ],
+      "description": "D-106: the immutable snapshot captured when a required field was past its fresh_until, bound alongside the planning snapshot."
+    },
+    "work_item_policy": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contract_version",
+            "policy_version",
+            "path",
+            "digest",
+            "work_item",
+            "entry_digest"
+          ],
+          "properties": {
+            "contract_version": {
+              "const": "work-items.v1"
+            },
+            "policy_version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "digest": {
+              "$ref": "#/$defs/identity"
+            },
+            "work_item": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "entry_digest": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/$defs/identity"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "description": "D-113 / WI-G2b: which work-item register judged this validation, and which entry in it. `digest` is the newline-normalized SHA-256 of hearth/etc/work-items.toml; `entry_digest` is the named work item's own declaration digest, null when the register holds no such entry. Null in normal mode, where there is no work item to judge against."
+    },
+    "capacity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "door_reachable",
+        "door_reason",
+        "rungs",
+        "required_fields",
+        "stale_fields",
+        "observed_at"
+      ],
+      "properties": {
+        "door_reachable": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "door_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observed_at": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/timestamp"
+            }
+          ]
+        },
+        "rungs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "ready",
+              "reason",
+              "fresh_until",
+              "fresh",
+              "context_bytes"
+            ],
+            "properties": {
+              "ready": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "fresh_until": {
+                "$ref": "#/$defs/timestamp"
+              },
+              "fresh": {
+                "type": "boolean"
+              },
+              "context_bytes": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "required_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "stale_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "approvals": {
+      "type": "array",
+      "description": "The approval records and decision receipts this validation verified. Empty unless a human-class principal holding `approve` decided a canonical approval record that re-hashes.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "approval_id",
+          "receipt_id",
+          "authorities",
+          "decided_by",
+          "expires_at"
+        ],
+        "properties": {
+          "approval_id": {
+            "$ref": "#/$defs/identity"
+          },
+          "receipt_id": {
+            "$ref": "#/$defs/identity"
+          },
+          "authorities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "decided_by": {
+            "type": "string"
+          },
+          "expires_at": {
+            "$ref": "#/$defs/timestamp"
+          }
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "check_id",
+          "result",
+          "reason_code",
+          "reason",
+          "remedy"
+        ],
+        "properties": {
+          "check_id": {
+            "type": "string"
+          },
+          "result": {
+            "enum": [
+              "passed",
+              "failed",
+              "needs_approval"
+            ]
+          },
+          "reason_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "remedy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the caller does next. Required on every failed or needs_approval row."
+          }
+        }
+      }
+    },
+    "verdict": {
+      "enum": [
+        "validated",
+        "rejected",
+        "needs_approval"
+      ]
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "proposal_copy": {
+      "type": "object",
+      "description": "Byte-for-byte replica of input proposal (pure validation)."
+    },
+    "presentation": {
+      "type": "object",
+      "description": "Reserved; never part of an identity preimage."
+    }
+  },
+  "$defs": {
+    "identity": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    }
+  }
+}

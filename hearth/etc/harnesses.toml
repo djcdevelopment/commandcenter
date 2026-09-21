@@ -1,0 +1,42 @@
+# Agent harnesses known to the control plane (WI-G1).
+#
+# A harness is the thing an orchestrating agent RUNS INSIDE: the client, its
+# tool surface, and its subagents. It is not a route and not a rung. The
+# orchestrating agent is replaceable, so the catalog names harnesses explicitly
+# rather than assuming whoever is reading is the only one there is.
+#
+# Status vocabulary (same words everywhere in this control plane):
+#   LIVE | BUILT NOT DEPLOYED | STOPPED | BLOCKED | HISTORICAL | ABSENT
+#
+# `last_evidence` is an exact local path or a dated record. Authored intent
+# cites evidence; a status with no evidence is not a status.
+contract = "harnesses.v1"
+
+[[harness]]
+id = "claude-code"
+kind = "cli-agent"
+status = "LIVE"
+entrypoint = "claude (Claude Code CLI)"
+subagents = ["Explore", "general-purpose", "Plan"]
+last_evidence = "hearth/etc/profiles.toml (caller claude-frontier holds `unrestricted`, granted 2026-07-20, review by 2026-10-20); tools/ops/hearth-task-id.mjs stamps task_id on its door calls"
+notes = "Reaches the door as the caller whose key it presents. The task_id hook is Claude Code only."
+
+[[harness]]
+id = "codex-cli"
+kind = "cli-agent"
+status = "LIVE"
+entrypoint = "codex (Codex CLI)"
+subagents = []
+last_evidence = "hearth/etc/profiles.toml (caller codex-cli holds `unrestricted`, granted 2026-07-20, review by 2026-10-20)"
+notes = "Carries no task_id: the stamping hook is Claude Code only, so its door rows join by caller and time, not by run."
+
+[[harness]]
+id = "deepagents-run-flash-dense"
+kind = "deepagents"
+status = "BUILT NOT DEPLOYED"
+repository = 'C:\work\deepagents-poc'
+commit = "1bad53cadff5f6b4e4c36e9afbdf81f8667e807c"
+entrypoint = "python -m poc.run_flash_dense agent <root>"
+subagents = ["evidence-worker", "independent-verifier"]
+last_evidence = 'C:\work\deepagents-poc git commit 1bad53c "poc: initial source commit of the DeepAgents runner and skills (D-007, G0 2026-09-17)"'
+notes = "Never yet dispatched THROUGH the control plane. Its own repository holds the source; deepagents-poc/target is a separate git worktree of commandcenter. Promotion to LIVE is a recorded decision, not an edit here."

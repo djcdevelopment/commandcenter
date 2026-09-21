@@ -1,0 +1,84 @@
+# Deterministic tools: the checks whose answer does not depend on a model.
+#
+# These are what a route uses when the right answer is a fact rather than a
+# judgement. Their output is hashable, so a run can record WHAT was checked and
+# WHAT it said, and a later reader can recheck it. `json_output` says whether
+# the tool speaks machine-readable JSON today.
+#
+# Status vocabulary: LIVE | BUILT NOT DEPLOYED | STOPPED | BLOCKED | HISTORICAL | ABSENT.
+contract = "deterministic-tools.v1"
+
+[[tool]]
+id = "run_tests"
+kind = "door"
+invocation = "door:run_tests"
+json_output = true
+status = "LIVE"
+last_evidence = "hearth/toolsurface/testing.py; capability `test` in hearth/kernel/capabilities.py"
+
+[[tool]]
+id = "lint_digest"
+kind = "door"
+invocation = "door:lint_digest"
+json_output = true
+status = "LIVE"
+last_evidence = "hearth/toolsurface/testing.py; capability `test` in hearth/kernel/capabilities.py"
+
+[[tool]]
+id = "git_status"
+kind = "door"
+invocation = "door:git_status"
+json_output = true
+status = "LIVE"
+last_evidence = "hearth/toolsurface/git.py; capability `repo_metadata` (facts, no file contents)"
+
+[[tool]]
+id = "git_log"
+kind = "door"
+invocation = "door:git_log"
+json_output = true
+status = "LIVE"
+last_evidence = "hearth/toolsurface/git.py; capability `repo_metadata` (facts, no file contents)"
+
+[[tool]]
+id = "git_diff"
+kind = "door"
+invocation = "door:git_diff"
+json_output = true
+status = "LIVE"
+last_evidence = "hearth/toolsurface/git.py; capability `repo_content` — it materializes file contents, which is why it is its own capability"
+
+[[tool]]
+id = "adr_index_check"
+kind = "cli"
+invocation = "python -m tools.adr_index --check"
+json_output = false
+status = "LIVE"
+last_evidence = "tools/adr_index.py (--check exits 1 on drift; embeds no wall clock, so it is byte-stable for an unchanged tree)"
+notes = "The byte-stable projection precedent this control plane's catalog follows."
+
+[[tool]]
+id = "doorcheck"
+kind = "cli"
+invocation = "python -m hearth.callers.doorcheck --json"
+json_output = true
+status = "LIVE"
+last_evidence = "hearth/callers/doorcheck.py; facets door, process_listener, authentication, mcp_surface, backend_dependency, arc_runtime"
+notes = "Needs the mcp SDK for the live handshake: run it under fleet-worker-node/.venv-omen."
+
+[[tool]]
+id = "fleet_ping"
+kind = "cli"
+invocation = "python -m fleet.fleet_ping --json"
+json_output = true
+status = "LIVE"
+last_evidence = "fleet/fleet_ping.py over fleet/inventory.toml; exit 1 when an expect=up node is down"
+notes = "A TCP connect proves a port is open, never that a model can emit a token."
+
+[[tool]]
+id = "rotation_preflight"
+kind = "cli"
+invocation = "python -m hearth.rotation.preflight --json"
+json_output = true
+status = "LIVE"
+last_evidence = "hearth/rotation/preflight.py; run before any rotation window (ADR-0045)"

@@ -1,0 +1,381 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://commandcenter.local/hearth/contracts/route-proposal.v1.schema.json",
+  "title": "RouteProposal (orchestrator execution proposal)",
+  "description": "Structured route proposal referencing an immutable TaskEnvelope and capacity snapshot. Any thinking, reasoning, or chain_of_thought field fails validation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "proposal_id",
+    "envelope_id",
+    "catalog_version",
+    "snapshot_id",
+    "snapshot_expires_at",
+    "orchestrator",
+    "policy_version",
+    "eligible_routes",
+    "rejected_routes",
+    "selected_graph",
+    "assumptions",
+    "uncertainty",
+    "expected",
+    "required_authority",
+    "required_approvals",
+    "rationale",
+    "mode"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "route-proposal.v1"
+    },
+    "proposal_id": {
+      "$ref": "#/$defs/identity"
+    },
+    "envelope_id": {
+      "$ref": "#/$defs/identity"
+    },
+    "catalog_version": {
+      "$ref": "#/$defs/identity"
+    },
+    "snapshot_id": {
+      "$ref": "#/$defs/identity"
+    },
+    "snapshot_expires_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "orchestrator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "model",
+        "endpoint_or_version",
+        "client",
+        "harness",
+        "session"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "endpoint_or_version": {
+          "type": "string"
+        },
+        "client": {
+          "type": "string"
+        },
+        "harness": {
+          "type": "string"
+        },
+        "session": {
+          "type": "string"
+        }
+      }
+    },
+    "policy_version": {
+      "$ref": "#/$defs/identity"
+    },
+    "eligible_routes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "route_id",
+          "route_kind",
+          "target",
+          "estimated_cost"
+        ],
+        "properties": {
+          "route_id": {
+            "type": "string"
+          },
+          "route_kind": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "estimated_cost": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "pattern": "^USD (0|[1-9][0-9]*)(\\.[0-9]{1,6})?$"
+              }
+            ],
+            "description": "CANONICAL MONETARY UNIT (WI-G2b): the string 'USD <amount>' with at most six decimal places, compared as integer micro-USD against the envelope's constraints.budget. null declares the cost UNKNOWN, which against a finite budget is refused (cost_unknown) and never treated as zero."
+          }
+        }
+      }
+    },
+    "rejected_routes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "route_id",
+          "route_kind",
+          "target",
+          "reason_code",
+          "reason_detail"
+        ],
+        "properties": {
+          "route_id": {
+            "type": "string"
+          },
+          "route_kind": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "capacity_not_ready",
+              "snapshot_expired",
+              "snapshot_invalidated",
+              "catalog_mismatch",
+              "over_budget_context",
+              "over_budget_attempts",
+              "authority_missing",
+              "human_required",
+              "lane_absent",
+              "implementation_not_live",
+              "policy_block",
+              "cost_over_budget",
+              "not_applicable"
+            ]
+          },
+          "reason_detail": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "selected_graph": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "nodes",
+        "edges"
+      ],
+      "properties": {
+        "nodes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "route_kind",
+              "target",
+              "inputs",
+              "expected"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "route_kind": {
+                "type": "string"
+              },
+              "target": {
+                "type": "string"
+              },
+              "inputs": {
+                "type": "object"
+              },
+              "expected": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "from_node",
+              "to_node"
+            ],
+            "properties": {
+              "from_node": {
+                "type": "string"
+              },
+              "to_node": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "uncertainty": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "confidence",
+        "unknowns"
+      ],
+      "properties": {
+        "confidence": {
+          "type": "string"
+        },
+        "unknowns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "time_s",
+        "attempts",
+        "context_tokens",
+        "resources"
+      ],
+      "properties": {
+        "time_s": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "attempts": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "context_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "resources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "required_authority": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "required_approvals": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "rationale": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "mode": {
+      "enum": [
+        "normal",
+        "test"
+      ],
+      "default": "normal"
+    },
+    "supersedes": {
+      "$ref": "#/$defs/identity",
+      "description": "The proposal_id of an earlier proposal in the same run that this one replaces (WI-G2b, D-112 item 4). Present only when a proposal explicitly supersedes another: the reference is RESOLVED against the run's stored proposals at ingestion, and storing this proposal appends decision.superseded naming both ids, which ends the usability of every approval bound to the superseded proposal and refuses any later validation of it. Absent means this proposal supersedes nothing; the key is omitted rather than null so that no existing proposal identity moves."
+    },
+    "test_mode_fields": {
+      "type": "object",
+      "description": "D-113 as amended: the companions a mode:test proposal must carry. Presence is not enough — the work item is resolved against the released register, the isolated paths must lie outside master, the object ids must be immutable 40-character ids, bounded_authorities is a maximum set that is still evaluated normally, and every test target must exist in the catalog and be testable or built-but-not-live.",
+      "additionalProperties": false,
+      "required": [
+        "work_item",
+        "isolated_inputs",
+        "isolated_outputs",
+        "base_commit",
+        "base_tree",
+        "bounded_authorities",
+        "rollback_ref",
+        "recovery_instructions",
+        "test_targets"
+      ],
+      "properties": {
+        "work_item": {
+          "type": "string",
+          "minLength": 1
+        },
+        "isolated_inputs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "isolated_outputs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "base_commit": {
+          "type": "string"
+        },
+        "base_tree": {
+          "type": "string"
+        },
+        "bounded_authorities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rollback_ref": {
+          "type": "string"
+        },
+        "recovery_instructions": {
+          "type": "string"
+        },
+        "test_targets": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "presentation": {
+      "type": "object",
+      "description": "Reserved; never part of an identity preimage."
+    }
+  },
+  "$defs": {
+    "identity": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    }
+  }
+}

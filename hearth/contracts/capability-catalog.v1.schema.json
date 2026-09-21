@@ -1,0 +1,236 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://commandcenter.local/hearth/contracts/capability-catalog.v1.schema.json",
+  "title": "Capability catalog (caller-neutral, no wall clock, byte-stable)",
+  "description": "What capabilities exist in this control plane. Compiled by `python -m hearth.operator catalog` from the sources listed in generated_from[]. Contains no caller identity, no key, no wall clock: two compilations of an unchanged tree are byte-identical and carry the same catalog_version.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "catalog_version", "generator_version",
+               "source_digest_rule", "generated_from",
+               "hosts", "rungs", "models", "operations", "tools", "harnesses", "loops",
+               "deterministic_tools", "worktree_policy", "test_policy", "artifact_systems"],
+  "properties": {
+    "contract_version": {"const": "capability-catalog.v1"},
+    "catalog_version": {"$ref": "#/$defs/identity"},
+    "generator_version": {"type": "string", "minLength": 1},
+    "source_digest_rule": {
+      "type": "string", "minLength": 1,
+      "description": "How to recompute a generated_from[].sha256. Newlines are normalized because this tree is checked out CRLF on Windows and LF on a fleet node, and a checkout translation must not move catalog_version."},
+    "generated_from": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1,
+                   "description": "Repository-relative source path, forward slashes."},
+          "sha256": {"$ref": "#/$defs/identity"}
+        }
+      }
+    },
+    "hosts": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "kind", "address", "schedulable", "purpose", "gpus"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "kind": {"type": "string"},
+          "address": {"type": ["string", "null"]},
+          "schedulable": {"type": "boolean"},
+          "purpose": {"type": "string"},
+          "gpus": {
+            "type": "array",
+            "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["type", "bdf", "vram_gb", "uuid"],
+              "properties": {
+                "type": {"type": "string"},
+                "bdf": {"type": ["string", "null"]},
+                "vram_gb": {"$ref": "#/$defs/decimal2"},
+                "uuid": {"type": ["string", "null"]}
+              }
+            }
+          }
+        }
+      }
+    },
+    "rungs": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "endpoint", "api", "models", "tags", "pin_only", "retired",
+                     "context_bytes", "context_bytes_by_model", "parallel_slots",
+                     "lifecycle", "cost_class", "node"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "endpoint": {"type": "string"},
+          "api": {"type": "string"},
+          "models": {"type": "array", "items": {"type": "string"}},
+          "tags": {"type": "array", "items": {"type": "string"}},
+          "pin_only": {"type": "boolean",
+                       "description": "tags == [] in backends.toml. Pin-only, never 'unavailable'."},
+          "retired": {"type": "boolean",
+                      "description": "The stanza declares retired = true: a tombstone, not an offer."},
+          "context_bytes": {"type": ["integer", "null"]},
+          "context_bytes_by_model": {
+            "type": "object", "additionalProperties": {"type": "integer"}},
+          "parallel_slots": {"type": ["integer", "null"]},
+          "lifecycle": {"type": ["string", "null"]},
+          "cost_class": {"type": ["string", "null"]},
+          "node": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "models": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "served_by", "resident_on", "loadable_on", "measurements"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "served_by": {"type": "array", "items": {"type": "string"},
+                        "description": "Rung ids whose models[] name this model."},
+          "resident_on": {"type": "array", "items": {"type": "string"},
+                          "description": "Hosts whose GPU catalog lists it as resident."},
+          "loadable_on": {"type": "array", "items": {"type": "string"},
+                          "description": "Hosts whose GPU catalog measured it."},
+          "measurements": {
+            "type": "array",
+            "description": "Only where a structured source exists. Never invented, never inferred.",
+            "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["host", "hardware_profile_id", "placement", "vram_gb",
+                           "per_card_gb", "expected_gen_tps", "sample_count", "source"],
+              "properties": {
+                "host": {"type": "string"},
+                "hardware_profile_id": {"type": "string"},
+                "placement": {"type": ["string", "null"]},
+                "vram_gb": {"oneOf": [{"$ref": "#/$defs/decimal2"}, {"type": "null"}]},
+                "per_card_gb": {"oneOf": [{"$ref": "#/$defs/decimal2"}, {"type": "null"}]},
+                "expected_gen_tps": {"oneOf": [{"$ref": "#/$defs/decimal2"}, {"type": "null"}]},
+                "sample_count": {"type": "integer", "minimum": 0},
+                "source": {"type": "string", "minLength": 1}
+              }
+            }
+          }
+        }
+      }
+    },
+    "operations": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "description", "handler", "default_model", "max_prompt_bytes",
+                     "max_tokens_ceiling", "deadline_ceiling_s"],
+        "properties": {
+          "id": {"type": "string"},
+          "description": {"type": "string"},
+          "handler": {"type": "string"},
+          "default_model": {"type": ["string", "null"]},
+          "max_prompt_bytes": {"type": ["integer", "null"]},
+          "max_tokens_ceiling": {"type": ["integer", "null"]},
+          "deadline_ceiling_s": {"type": ["integer", "null"]}
+        }
+      }
+    },
+    "tools": {
+      "type": "array",
+      "description": "The door surface: every mounted tool and the one capability it requires.",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "capability"],
+        "properties": {
+          "id": {"type": "string"},
+          "capability": {"type": "string"}
+        }
+      }
+    },
+    "harnesses": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "kind", "status", "last_evidence"],
+        "properties": {
+          "id": {"type": "string"},
+          "kind": {"type": "string"},
+          "status": {"$ref": "#/$defs/status"},
+          "repository": {"type": ["string", "null"]},
+          "commit": {"type": ["string", "null"]},
+          "entrypoint": {"type": ["string", "null"]},
+          "subagents": {"type": "array", "items": {"type": "string"}},
+          "last_evidence": {"type": "string", "minLength": 1},
+          "notes": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "loops": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "description", "status", "implementations"],
+        "properties": {
+          "id": {"type": "string"},
+          "description": {"type": "string"},
+          "status": {"$ref": "#/$defs/status"},
+          "implementations": {
+            "type": "array",
+            "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["id", "status", "entrypoint", "last_evidence"],
+              "properties": {
+                "id": {"type": "string"},
+                "status": {"$ref": "#/$defs/status"},
+                "entrypoint": {"type": ["string", "null"]},
+                "last_evidence": {"type": "string", "minLength": 1},
+                "notes": {"type": ["string", "null"]}
+              }
+            }
+          }
+        }
+      }
+    },
+    "deterministic_tools": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "kind", "invocation", "json_output", "status", "last_evidence"],
+        "properties": {
+          "id": {"type": "string"},
+          "kind": {"type": "string", "enum": ["door", "cli"]},
+          "invocation": {"type": "string"},
+          "json_output": {"type": "boolean"},
+          "status": {"$ref": "#/$defs/status"},
+          "last_evidence": {"type": "string", "minLength": 1},
+          "notes": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "worktree_policy": {"type": "object"},
+    "test_policy": {"type": "object"},
+    "artifact_systems": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "path", "kind", "git_tracked", "description"],
+        "properties": {
+          "id": {"type": "string"},
+          "path": {"type": "string"},
+          "kind": {"type": "string"},
+          "git_tracked": {"type": "boolean"},
+          "description": {"type": "string"}
+        }
+      }
+    },
+    "presentation": {
+      "type": "object",
+      "description": "Reserved. Never part of any identity preimage; never written to the compiled catalog."
+    }
+  },
+  "$defs": {
+    "identity": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "decimal2": {"type": "string", "pattern": "^-?[0-9]+\\.[0-9]{2}$",
+                 "description": "A measured value as a fixed-precision decimal STRING: identity preimages carry integers only."},
+    "status": {"enum": ["LIVE", "BUILT NOT DEPLOYED", "STOPPED", "BLOCKED", "HISTORICAL", "ABSENT"]}
+  }
+}

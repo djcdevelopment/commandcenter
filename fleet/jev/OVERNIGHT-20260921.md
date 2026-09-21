@@ -4,10 +4,32 @@ Authority: Derek permitted 4–8 hours of iteration to improve useful local-work
 throughput and quality. The goal remains active. Do not confuse a completed
 cycle or a healthy endpoint with completion of that larger objective.
 
-Previous goal turn classification (cycle19): **progress**. An opt-in packet-only
-wrapper and one actual review artifact were delivered. Qualification stayed
-limited because offered MCP schema absence was not directly captured; the
-automatic review default was not changed.
+Previous goal turn classification (cycle20): **progress**. A live read-only
+decision command was delivered, with assisted attribution. The source/input
+evidence disproved semantic self-correction by retyping a supplied behavioral
+command, changing the next useful action; it did not demonstrate a quality gain.
+
+## Next decision: an AM4 builder comparison is not yet admitted
+
+Read-only live inspection at12:40 UTC confirmed that cc-builder-2 has both preset
+files, but its actual `scripts/runner_presets.py` accepts only
+`omen-resident-hearth`. The resolver SHA-256 is
+`e48b640e0f13fa0bb4c0e629f054b3cbb3c8c0d5adb2c165f658e09cc0fff49a`.
+The parked `am4-shared-27b.json` declares the existing `am4-dense-27b` facade,
+131072 context and24 steps; SHA-256
+`c5fffbd01f6117891279cc0b424e9f9becca86ee4696036a9ed13e1d31c8486c`.
+Its existence is **not** live route qualification. The repository's conductor
+policy also requires the OMEN preset for JEV/Hermes-owned builds. Do not change
+caller labels or bypass those controls to make a comparison run.
+
+AM4 helper status at12:40 was owner null/model absent. No model was loaded,
+queued, or downloaded during this inspection; no new JEV call or code change.
+The next proposed lever is a bounded comparison using the existing Dense model,
+not another similar helper task on the same worker. Derek has been asked whether
+to authorize the scoped runner changes: maximum20 minutes, both AM4 GPUs,
+manual promotion only, no downloads, no pilot-gateway restart, and no permanent
+JEV route switch. **Await that decision before modifying admission or dispatching
+the changed route.** The original overnight goal remains active and unproven.
 
 ## Latest: cycle20, decision explanation and failed behavioral-brief qualification
 

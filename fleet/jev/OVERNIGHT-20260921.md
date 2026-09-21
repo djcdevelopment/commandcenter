@@ -1,8 +1,11 @@
 # Overnight JEV / Hermes work log
 
 Authority: Derek permitted 4–8 hours of iteration to improve useful local-work
-throughput and quality. The goal remains active. Do not confuse a completed
-cycle or a healthy endpoint with completion of that larger objective.
+throughput and quality. The goal was marked **blocked at12:45 UTC**, pending
+Derek's decision on the scoped AM4 builder qualification, after three consecutive
+checks of the same admission/authorization boundary. No build or review remains
+in flight; AM4 is unloaded and the CPU scheduler is ready/idle. Do not confuse a
+completed cycle or a healthy endpoint with completion of the larger objective.
 
 Previous goal turn classification (cycle20): **progress**. A live read-only
 decision command was delivered, with assisted attribution. The source/input
@@ -29,7 +32,8 @@ not another similar helper task on the same worker. Derek has been asked whether
 to authorize the scoped runner changes: maximum20 minutes, both AM4 GPUs,
 manual promotion only, no downloads, no pilot-gateway restart, and no permanent
 JEV route switch. **Await that decision before modifying admission or dispatching
-the changed route.** The original overnight goal remains active and unproven.
+the changed route.** The original overnight objective remains unproven; its
+status is now blocked pending this decision, not completed or voluntarily paused.
 
 ## Latest: cycle20, decision explanation and failed behavioral-brief qualification
 

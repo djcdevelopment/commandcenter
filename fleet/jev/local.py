@@ -74,9 +74,39 @@ def enqueue_smoke():
     print(json.dumps({'task_id': enqueue(doc)}))
 
 
+def enqueue_counts():
+    from hearth.operator.envelope import build_envelope
+    from hearth.toolsurface.jev_scheduler import enqueue
+    prior = json.loads((ROOT / 'fleet/jev/evidence/20260921-worker-candidate.json').read_text())
+    target = 'fleet/hermes/fleet_status_format.py'
+    criteria = [
+        'Write the complete fleet_status_format.py from the supplied candidate; change only the two scheduler count conditions. No test files or refactoring.',
+        'Replace isinstance(active_work_val, int) with type(active_work_val) is int, and likewise for pending_reviews_val. Preserve the >= 0 checks.',
+        'With scheduler ready=True, boolean counts True/False must both render unknown; integer counts 0/2 must render 0/2.',
+        'Preserve the exact legacy four-line output including its trailing newline; retain all scheduler, reviewer, worker and safe-label behavior otherwise.',
+    ]
+    task = build_envelope('Correct two boolean-accepting integer checks in the previous local formatter candidate; preserve everything else.',
+        criteria, inputs={'repo': str(ROOT), 'base_commit': subprocess.check_output(['git','rev-parse','HEAD'], cwd=ROOT, text=True).strip(),
+                          'paths': [target], 'files': [target]},
+        classification={'task_type': 'engineering', 'language': 'python'},
+        constraints={'deadline_s': 1200, 'max_attempts': 1, 'max_context_tokens': 8192, 'budget': 'USD 0.10'},
+        supersedes='8bc92b76ef510e1e3e75c555912c44dd332b9114aa921617ccce0718d0d91377',
+        submitted_by='derek', submission_source='approved onward count-correction lap')
+    brief = ('First action: write the COMPLETE fleet_status_format.py in your current writable workspace root. '
+             'The full source is below. Do not search or read other files, create tests, or refactor. '
+             'Only replace the two isinstance count expressions specified below, leaving all other source unchanged. '
+             'Syntax-check your saved file, then finish.\n\n' + '\n'.join(criteria)
+             + '\n\nCANDIDATE SOURCE:\n```python\n' + prior['files']['fleet_status_format.py'] + '\n```\n')
+    doc = {'approved': True, 'title': 'Reject boolean scheduler counts', 'envelope': task,
+           'summary': 'A mechanical correction of two integer type checks in one pure Python formatter. Complete source, exact replacements, expected outputs and write access are supplied locally. One attempt, one file, syntax check, no tests or infrastructure changes. The qualified resident local builder has all required tools and context.',
+           'brief': brief, 'build_seconds': 180, 'priority': 10, 'verification': 'formatter-counts-v1',
+           'deliverables': [{'output': 'fleet_status_format.py', 'target': target}]}
+    print(json.dumps({'task_id': enqueue(doc)}))
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=['init', 'serve', 'enqueue-smoke', 'inspect'])
+    parser.add_argument('action', choices=['init', 'serve', 'enqueue-smoke', 'enqueue-counts', 'inspect'])
     args = parser.parse_args()
     environment()
     if args.action == 'init':
@@ -89,6 +119,8 @@ def main():
         module.main()
     elif args.action == 'enqueue-smoke':
         enqueue_smoke()
+    elif args.action == 'enqueue-counts':
+        enqueue_counts()
     else:
         from hearth.toolsurface.jev_scheduler import connection
         with connection() as db:

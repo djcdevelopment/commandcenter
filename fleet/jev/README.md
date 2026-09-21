@@ -149,6 +149,17 @@ not blind repeatable overwrite commands; inspect a previous deployment first.
 Do not rerun it to manufacture duplicate work. `local inspect` lists queue IDs,
 states and receipts without source/secret payloads.
 
+`python -m fleet.jev.local enqueue-counts` prepares the separate, source-packed
+correction of the two boolean-accepting count conditions. It explicitly
+supersedes the first envelope; it does not promote or replace the old candidate.
+Only run it during an approved live window, with the prior hold reviewed.
+For this task, `artifacts.py` captures the worker's file, verifies that its AST
+matches exactly the reviewed two-condition correction, and executes four
+bounded formatter cases. The saved `execution-evidence.json` goes into Hermes's
+packet with expected and actual outputs and independent-executor attribution.
+Unexpected source is **INCONCLUSIVE**, not executable permission. This is a
+task-specific check, not a generic Python sandbox or automatic acceptance gate.
+
 - `policy.py`, `client.py`: exact cloud allowlist, questions, gates, spend.
 - `cli.py`: FX99 loop, material-change detection, process lock, hold/status.
 - `hearth/toolsurface/jev_scheduler.py`: queue, operator validation, dispatch,

@@ -40,9 +40,16 @@ Sources: `E:\work\vllm-xpu-win\kernels\build_script\gpu_runtime_packages.json`, 
 
 ## The experiment ladder (each needs a cue; ordered by cost-to-verdict)
 
+E1 is spent (negative). The discriminating experiment is now **E3**: Linux IGC's ISA under the Windows runtime. Mechanism
+that keeps the runtime constant: dump the kernel SPIR-V from the Windows build (`SYCL_DUMP_IMAGES=1`), `ocloc compile
+-spirv_input -device bmg-g31` on AM4 with the validated profile (IGC 2.34.4 + CR 26.18 `.deb`s; `icpx` 2026.0 already
+there), bring the native zebin back and load it under Windows Level Zero (`zeModuleCreate` NATIVE in a small harness,
+or planted into DPC++'s persistent cache). AM4: 24 cores, 30 GB RAM, 22 GB free.
+
+
 | # | experiment | needs | verdict in | what it decides |
 | --- | --- | --- | --- | --- |
-| E1 | **driver 32.0.101.9030**, then `l4_fa2.py`, `l4_moe.py`, the GDN op | Derek (production Vulkan rides it; re-run `vkdevices.py`; ArcServe restart) | 3 min after install | whether the newest Windows IGC line already compiles these kernels correctly — flips every "blocked" row |
+| E1 | **driver 32.0.101.9030** → `l4_fa2.py`, `l4_moe.py` | **DONE 2026-09-20 18:40Z — NEGATIVE.** Installed (Intel installer, UAC; the "Intel Graphics Software" panel component failed, irrelevant; no reboot); `vkdevices.py` map unchanged (B70s at Vulkan 1,2); production restored, health 200. FA2 still `DEVICE_LOST`, MoE still `OUT_OF_RESOURCES`; B70 still advertises `2d_block_io` | 3 min | the newest Windows IGC line does not compile these kernels correctly either — the delta is deeper than "lagging by a release" |
 | E2 | registry `HKLM\SOFTWARE\Intel\IGFX\IGC`: `ShaderDumpEnable=1`, `DisableIGCOptimizations=1`, `Decompose2DBlockFuncsMode`, `TotalGRFNum=256`; NEO `GpuFaultCheckThreshold`, `WddmResidencyLogger` | admin shell (Derek types) | minutes per flag | codegen-vs-execution: a dump of the faulting kernel's ISA + whether any optimisation-off setting makes it run (then bisect) |
 | E3 | Linux-lineage codegen on this hardware: AOT the TLA libs on **AM4** (Ubuntu, IGC 2.3x + ocloc from the Linux compute-runtime) for `bmg-g31`, ship the `spir64_gen` image to OMEN, run under the Windows runtime | AM4 has no B70 but ocloc needs none for AOT; a `-fsycl-targets=spir64_gen`-only build (no SPIR-V fallback) + `UR_LOG_LEVEL_ZERO=level:info` to prove `ZE_MODULE_FORMAT_NATIVE` was loaded | ~1 h | isolates the compiler: Linux IGC's ISA under the Windows runtime |
 | E4 | the reverse: run the Windows-JIT'd kernels' ISA through the Linux IGC's disassembler (`iga64`) from E2's dump and diff against a Linux dump | E2 + AM4 | ~1 h | the exact instruction/message that differs |

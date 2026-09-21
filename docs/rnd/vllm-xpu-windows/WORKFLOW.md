@@ -264,6 +264,13 @@ for GQA-6 at head_dim 256); a tiling sweep gives 3.06× on the kernel → **13.6
 161 tok/s prefill, 6.0 tok/s decode, needle found**. 128k not run (needs a cue, ~20–25 min). The tunables table and
 the Linux-driver delta (IGC 2.11–2.38 validated; Windows driver 9030 available) are in the depth doc.
 
+**L8 (17:15–18:00Z) — the Linux delta: `LINUX-DELTA.md`.** Not a capability gap (every extension the CUTLASS-SYCL
+kernels need is advertised by the B70 on this driver) but a compiler-line gap: Linux validates on IGC 2.11–2.38 (LLVM
+17+); Windows ships a clang-14 `igc-default64` + clang-16 `igc-fallback64` with no exposed 2.x number, and the toolkit's
+`ocloc` is Windows-lineage too (so the AOT build never tested Linux codegen). Env knobs are ignored on Windows (registry,
+admin). Ladder E1–E5 written; E1 = driver 9030 (Derek's call), E3 = Linux-IGC AOT image built on AM4 run under the Windows
+runtime — the experiment that isolates the compiler.
+
 **Uncertainty list (not sampled):** XPU graphs (`VLLM_XPU_ENABLE_XPU_GRAPH=1`) / `torch.compile` on Windows (the single-stream lever); `max_num_seqs` > 64; the SAT-L1 jobs/h shape; two instances (one per card); the 27B dense int4 (`gptq` linears only, no MoE); why the TLA kernels fault (IGC on Windows vs Linux compute-runtime); MoE grouped-GEMM and paged-decode kernels in
 isolation (only FA2 varlen was isolated); the 30B on `TRITON_ATTN` with int4 + MoE kernels; a driver newer
 than 32.0.101.8974; the 27B dense int4; FA2 vs Triton attention on Xe2; `torch.compile` /

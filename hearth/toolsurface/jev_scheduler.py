@@ -153,7 +153,7 @@ def _prepare():
         if active:
             if active['state'] == 'running':
                 outcome = br.update_build_request(active['receipt_id'], sync_delegation=True)
-                delegation = outcome.get('delegation') or {}
+                delegation = outcome.get('execution', {}).get('delegation') or {}
                 if delegation.get('result') == 'awaiting_review':
                     db.execute('UPDATE jobs SET state=?,result=? WHERE id=?',
                                ('review_pending', json.dumps(outcome), active['id']))
@@ -187,7 +187,7 @@ def _prepare():
             deadline = canonical.parse_rfc3339(task['submitted_at']) + timedelta(seconds=task['constraints']['deadline_s'])
             candidates.append({'candidate_id': cid, 'task_id': row['id'], 'summary': doc['summary'],
                 'task_type': task['classification']['task_type'], 'language': task['classification']['language'],
-                'profile': PROFILE, 'profile_summary': 'A local MechNet VM builder with scoped filesystem tools, OMEN resident inference, and manual promotion. Writes a bounded patch; one attempt.',
+                'profile': PROFILE, 'profile_summary': 'Linux MechNet VM with scoped file read/write and Python syntax-check tools. Uses already resident OMEN inference, 16384 context per physical slot. Receives complete original function and exact acceptance criteria in its local prompt. Can write a single Python file in its isolated workspace. One attempt; candidate retained for manual review. No hardware, service or network change is required for this task.',
                 'context_tokens': native['context_length'], 'expected_seconds': None, 'recent_outcomes': recent_outcomes(db),
                 'priority': doc.get('priority', 0), 'deadline_at': canonical.rfc3339(deadline),
                 'submitted_at': task['submitted_at']})
@@ -258,7 +258,7 @@ def _select(candidate_id, snapshot_id, evidence):
             max_age_s=doc['build_seconds'], promotion_policy='manual', runner_preset=PROFILE,
             operator='jev', evidence='JEV decision; operator validation; real OMEN-backed MechNet VM dispatch.')
         db.execute('UPDATE jobs SET state=?,result=? WHERE id=?',
-                   ('running' if result.get('delegation', {}).get('plan_id') else 'failed', json.dumps(result), task_id))
+                   ('running' if result.get('execution', {}).get('delegation', {}).get('plan_id') else 'failed', json.dumps(result), task_id))
         return {'ok': True, 'task_id': task_id, 'receipt_id': receipt_id}
 
 

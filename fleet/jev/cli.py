@@ -52,7 +52,8 @@ async def lap():
         return
     state = policy.cloud_state(prepared)
     material = policy.digest({'state': state, 'knowledge': prepared.get('knowledge_digest'),
-                              'policy': prepared.get('policy_version')})
+                              'policy': prepared.get('policy_version'),
+                              'decision_request': policy.digest(policy.request_for(state))})
     previous_file = HOME / 'last-decision.json'
     previous = json.loads(previous_file.read_text()) if previous_file.exists() else {}
     if previous.get('material') == material:
@@ -70,6 +71,7 @@ async def lap():
                     'candidate_id': selected, 'snapshot_id': prepared['snapshot_id'],
                     'wait_reason': None if selected else 'needs_clarification'}
     atomic_json(previous_file, evidence)
+    atomic_json(HOME / 'decisions' / (evidence['usage']['request_sha256'] + '.json'), evidence)
     if selected:
         accepted = await connect_call('scheduler_select', {'candidate_id': selected,
                    'snapshot_id': prepared['snapshot_id'], 'evidence': evidence})

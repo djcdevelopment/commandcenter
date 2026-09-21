@@ -1,10 +1,11 @@
 # JEV scheduler / on-demand Hermes reviewer
 
-Status at the first live decision, 2026-09-21: **installed pilot, not qualified**.
-The API and existing operator validator worked. JEV held the first task; no
-builder patch or Hermes review exists yet. This is not a production cutover claim.
-The first lap ended at 06:07:01 UTC: AM4 and conductor baselines restored,
-pilot gateway/tunnel stopped, FX99 unit inactive. See the
+Status after Derek's approved retry, 2026-09-21: **real build and review delivered
+with assisted recovery; not qualified for unattended operation**. JEV admitted
+one real OMEN-backed MechNet job. The worker wrote a candidate; Hermes reviewed
+it in 47 seconds but incorrectly returned PASS on a boolean-count bug. The
+candidate remains unpromoted. Original AM4/conductor state is restored and the
+pilot gateway/tunnel and FX99 unit are inactive. Read the
 [handoff and retrospective](HANDOFF-20260921.md) before restarting.
 
 ## What runs where
@@ -41,6 +42,9 @@ The first live window started **05:59:26 UTC, September 21**:
 
 One blocking edge ends the lap. A materially different retry needs Derek's
 decision; do not lower confidence gates merely to get a successful screenshot.
+Derek approved one clearer request after the first lap stopped. The retry used
+the same gates; all inference finished before 06:21 and restoration was verified
+by 06:23:37. Two JEV calls total, not a threshold-search loop.
 
 ## Paths and entry points
 
@@ -97,6 +101,8 @@ allows at most 100 requests and USD 0.10 total, persisted across restarts, not a
 automatically resetting daily budget. HTTP timeout is ten seconds; only one
 short 429/529 retry is allowed. Authentication/transport errors hold execution.
 Repeated identical held inputs do not cause repeated paid calls.
+The cache identity includes the actual question payload; changing the rubric
+does not silently reuse an old decision. Decisions are retained by request hash.
 
 One task may be dispatching/running/reviewing. The queue stores the receipt
 before external dispatch. An interrupted dispatch is held for reconciliation,
@@ -116,6 +122,11 @@ refuses another compute owner or an occupied baseline. It never kills a process
 just because it happens to listen on the familiar port. Review failures retain
 the candidate and expose recovery state. **KV restore is disabled/unqualified**;
 session SQLite persistence is not a KV cache and must not be reported as one.
+The observed empty-command-line startup race is fixed by recording the argv
+actually launched, then verifying process identity after native readiness.
+`repair-start-identity` is an operator-only recovery for that exact historical
+empty-argv fingerprint; it still requires matching owner, PID start ticks and
+the complete captured baseline argv. It is not exposed to JEV.
 
 On an unsuccessful cutover, explicitly release any task-owned review and use
 `review_seat.py restore-baseline` on AM4. Verify native health/capacity and GPU

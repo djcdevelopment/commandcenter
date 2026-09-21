@@ -18,7 +18,7 @@ def helper():
 
 
 def review_packet(document, receipt, out):
-    delegation = receipt['delegation']
+    delegation = receipt['execution']['delegation']
     plan = delegation['plan_id']
     if not re.fullmatch('[a-z0-9-]{1,150}', plan):
         raise ValueError('invalid_plan_id')

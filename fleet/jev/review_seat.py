@@ -72,7 +72,7 @@ def stop(state):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=['capture', 'retire', 'start', 'stop', 'status', 'restore-baseline'])
+    parser.add_argument('action', choices=['capture', 'retire', 'start', 'stop', 'status', 'restore-baseline', 'repair-start-identity'])
     parser.add_argument('--owner', default='cutover')
     args = parser.parse_args()
     if not re.fullmatch(r'(cutover|jev-[0-9a-f]{24})', args.owner):
@@ -106,6 +106,20 @@ def main():
                                     'gpu_uuids': gpus, 'native_context': 131072})
             state = {**identity(pid), 'owner': 'cutover', 'original': True}
             write('state.json', state)
+        elif args.action == 'repair-start-identity':
+            # Operator-only recovery for the observed empty-/proc/cmdline startup
+            # race. Never relax PID/start-time ownership or accept a different argv.
+            if not state or state['owner'] != args.owner or state.get('original'):
+                raise RuntimeError('repair_owner_mismatch')
+            if state['argv_sha256'] != hashlib.sha256(b'[]').hexdigest():
+                raise RuntimeError('not_the_observed_startup_race')
+            config = json.loads(config_file.read_text())
+            actual = identity(state['pid'])
+            expected = hashlib.sha256(json.dumps(config['argv']).encode()).hexdigest()
+            if actual['start_ticks'] != state['start_ticks'] or actual['argv_sha256'] != expected:
+                raise RuntimeError('repair_identity_not_proven')
+            state = {**state, **actual}
+            write('state.json', state)
         elif args.action in ('retire', 'stop'):
             if state:
                 if state['owner'] != args.owner:
@@ -133,7 +147,10 @@ def main():
                 with (ROOT / 'model.log').open('ab') as log:
                     process = subprocess.Popen(config['argv'], env=config['env'], cwd=config['cwd'],
                                                stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
-                state = {**identity(process.pid), 'owner': owner, 'original': False}
+                # /proc/cmdline can be transiently empty just after Popen. Bind
+                # identity to the argv actually launched, not that empty snapshot.
+                state = {**identity(process.pid), 'owner': owner, 'original': False,
+                         'argv_sha256': hashlib.sha256(json.dumps(config['argv']).encode()).hexdigest()}
                 write('state.json', state)
             end = time.monotonic() + 90
             while time.monotonic() < end:
@@ -144,6 +161,8 @@ def main():
                     time.sleep(1)
             else:
                 raise RuntimeError('review_model_start_timeout')
+            if identity(state['pid']) != {k: state[k] for k in ('pid', 'start_ticks', 'argv_sha256')}:
+                raise RuntimeError('started_process_identity_mismatch')
         live = False
         if state:
             try:

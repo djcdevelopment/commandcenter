@@ -1,0 +1,34 @@
+{
+  "verdict": "NEEDS_WORK",
+  "reviewer": "Codex independent execution",
+  "worker_commit": "428aaed3405f5e123f21e6f02055a0045de66f8c",
+  "hermes_verdict": "PASS",
+  "hermes_verdict_accepted": false,
+  "findings": [
+    {
+      "criterion": "Reject booleans in active_work and pending_reviews",
+      "severity": "correctness",
+      "cause": "isinstance(True, int) and isinstance(False, int) are both True.",
+      "lines": [
+        {
+          "line": 59,
+          "text": "if isinstance(active_work_val, int) and active_work_val >= 0:"
+        },
+        {
+          "line": 63,
+          "text": "if isinstance(pending_reviews_val, int) and pending_reviews_val >= 0:"
+        }
+      ],
+      "observed": "With ready=True, active_work=True and pending_reviews=False, output contains active True; pending review False instead of unknown.",
+      "correction": "Use type(value) is int and value >= 0 for both counts."
+    }
+  ],
+  "checks": {
+    "candidate_syntax": true,
+    "legacy_empty_state_equal": true,
+    "legacy_physical_newlines": 4,
+    "legacy_trailing_newline": true,
+    "boolean_values_leak": true
+  },
+  "attribution": "No inference repeated for delivery recovery. Original model candidate and Hermes report are unedited. No branch promotion."
+}

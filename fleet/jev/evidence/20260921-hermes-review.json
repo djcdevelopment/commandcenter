@@ -1,0 +1,15 @@
+{
+  "report": "PASS\n\nI verified by reading the candidate file at fleet/hermes/fleet_status_format.py (line numbers refer to that file):\n\n- No scheduler data: lines 25-54 take the early-return branch and emit the exact original four lines with trailing newline; the logic is copied verbatim from the original, so the absent-scheduler case is preserved exactly.\n- Scheduler ready: lines 24-25 gate on `isinstance(scheduler, dict) and scheduler.get('ready') is True` and emit \"Scheduler: FX99 / JEV: ready; CPU only\"; `is True` makes it independent of controller.ready.\n- Reviewer unloaded: lines 58-62 gate on `isinstance(reviewer, dict) and reviewer.get('state') == 'unloaded'` and emit the required \"intentionally unloaded; that is not a scheduler failure\" text.\n- Scheduler work: lines 65-85 use `isinstance(v, int)` (bools are a subclass of int, so booleans are correctly rejected), require `>= 0` for active_work and pending_reviews, and whitelist only the five allowed wait labels, falling back to \"unknown\" otherwise.\n- Worker capacity checks and policy line: lines 87-98 preserve the original `capacity()` helper and worker/policy output verbatim.\n- No user-controlled labels are rendered (all new lines are constants), and the output contains no control characters.\n\nCaveat on method: I did this as a careful static review against the original text you pasted (cross-checked against the two files my glob found: the original at artifacts/hermes-fx99/omen-workers/... and the candidate at fleet/hermes/). I had no command-execution capability in this sandbox, so I could not execute the function; the above findings are from code reading, not from a run. No code was written and no work was dispatched, per your instructions.",
+  "metadata": {
+    "model": "am4-dense-27b",
+    "reviewer": "hermes",
+    "elapsed_s": 47.135,
+    "source": "unedited Hermes final assistant message",
+    "message_id": 13,
+    "kv_reused": false,
+    "delivery_recovery": "Codex repaired proven empty-argv startup identity; no inference repeated",
+    "reviewer_unloaded": true
+  },
+  "automatic_promotion": false,
+  "semantic_review_is_not_proof": true
+}

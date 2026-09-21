@@ -4,11 +4,46 @@ Authority: Derek permitted 4–8 hours of iteration to improve useful local-work
 throughput and quality. The goal remains active. Do not confuse a completed
 cycle or a healthy endpoint with completion of that larger objective.
 
-Previous goal turn classification (cycle 14): **progress**. Exact saved responses
-proved output truncation; the bounded4096-token correction was deployed. This
-lap used a genuinely new whole-file task to check whether it produces an artifact.
+Previous goal turn classification (cycle 15): **progress**. The larger allowance
+produced a whole-file artifact, corrected renderer provenance was delivered, and
+input evidence located the ordinary-text corruption upstream of the model.
 
-## Latest: cycle 15, whole-file delivery restored; acceptance still assisted
+## Latest: cycle 16, source-fidelity diagnosis; redaction proposal pending review
+
+[Redaction/source-fidelity report](REDACTION-FIDELITY-20260921.md) identifies the
+exact cause: the unanchored credential-prefix pattern matches inside ordinary
+words such as `task-family`, `disk-cache`, `mask-value` and `risk-based`. The
+receipt writer changes the immutable request, which the delegation path then
+reads. This is not a model-generated alteration or an audit-log-only mask.
+
+Window 10:58:21–11:13:21 UTC; initial diagnosis target 11:02:06, final four minutes
+reserved for recording. Parent `br-20260921-105842-997ebb32`. Initial useful report
+saved **11:00:47**, within target. No inference, API requests, new test files,
+service restarts or hardware changes. Actual cycle15 request hash and the exact
+four phrase reproductions are retained in
+[reproduction evidence](evidence/20260921-redaction-reproduction.json).
+
+The source proposal adds a preceding non-identifier boundary to only the affected
+prefix branch. The whole real renderer source now survives the offline replay.
+Eleven synthetic credential contexts match prior redaction; sensitive dictionary
+fields remain fully redacted, recursive handling and input immutability hold.
+[Focused check evidence](evidence/20260921-redaction-boundary-check.json).
+
+**There is a recognition-policy tradeoff:** free text with a credential prefix
+concatenated directly inside a larger identifier no longer matches that branch.
+The evidence explicitly records this difference. It is not being presented as
+unchanged coverage or universal secret detection. Operator/security review is
+required before activation. The proposal is **source-only**, and the earlier
+policy-denied pilot restart was not retried. No historical request was rewritten,
+no alternate listener or encoding workaround was used, and no live guard changed.
+
+FX99 was observed ready/idle with no pending review at 11:03; AM4 helper owner
+null/model absent. Pilot PID39548 still has its original 07:12:36 UTC creation
+time. Existing model configuration and JEV gates remain unchanged. API ledger is
+unchanged from cycle15:13 attempts, USD0.000418572 confirmed usage estimates plus
+USD0.005505024 uncertain reservations. Codex/hardware costs remain unmetered.
+
+## Cycle 15, whole-file delivery restored; acceptance still assisted
 
 The [new human/agent snapshot](reports/fleet-operations-20260921-cycle15.html)
 adds actual renderer-file hashes and Git status scoped to those two files. It

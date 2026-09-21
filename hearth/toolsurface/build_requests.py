@@ -56,8 +56,10 @@ DEFAULT_RECEIPT_DIR = Path(os.environ.get(
 FINAL_STATUSES = {"done", "failed", "blocked", "cancelled"}
 OPEN_STATUSES = {"open", "running", *FINAL_STATUSES}
 SECRET_KEY_RE = re.compile(r"(token|secret|password|apikey|api_key|access[_-]?key|credential)", re.I)
+# A credential prefix must not be the suffix of an ordinary identifier, such as
+# task-family or disk-cache. Sensitive dictionary fields remain fully redacted.
 SECRET_VALUE_RE = re.compile(
-    r"(ya29\.[A-Za-z0-9._-]+|sk-[A-Za-z0-9._-]+|gh[pousr]_[A-Za-z0-9_]+|"
+    r"(ya29\.[A-Za-z0-9._-]+|(?<![A-Za-z0-9_])sk-[A-Za-z0-9._-]+|gh[pousr]_[A-Za-z0-9_]+|"
     r"xox[baprs]-[A-Za-z0-9-]+)",
 )
 _ID_RE = re.compile(r"^br-\d{8}-\d{6}-[a-f0-9]{8}$")

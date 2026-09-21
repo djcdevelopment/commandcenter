@@ -1,0 +1,30 @@
+{
+  "executor": "Codex read-only reproduction",
+  "function": "hearth.toolsurface.build_requests._redact",
+  "pattern": "(ya29\\.[A-Za-z0-9._-]+|sk-[A-Za-z0-9._-]+|gh[pousr]_[A-Za-z0-9_]+|xox[baprs]-[A-Za-z0-9-]+)",
+  "phrases": [
+    {
+      "input": "task-family routing",
+      "actual": "ta[REDACTED] routing"
+    },
+    {
+      "input": "disk-cache state",
+      "actual": "di[REDACTED] state"
+    },
+    {
+      "input": "mask-value rendering",
+      "actual": "ma[REDACTED] rendering"
+    },
+    {
+      "input": "risk-based selection",
+      "actual": "ri[REDACTED] selection"
+    }
+  ],
+  "actual_immutable_request_sha256": "898fdfe0fa3287f365cdc37dd9aa5ddd525651caeede35a8e57fb993907b37c7",
+  "actual_request_contains_original_phrase": false,
+  "actual_request_contains_redacted_phrase": true,
+  "current_source_contains_original_phrase": true,
+  "replayed_source_contains_redacted_phrase": true,
+  "source_revision": "7b2cf34682f1c465d6f6e1b518f25a20860d51f1",
+  "model_inference": false
+}

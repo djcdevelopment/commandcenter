@@ -15,6 +15,10 @@ The cc-builder-2 OMEN adapter now allows 4,096 within the existing gateway limit
 Its next real build wrote a complete file in a 2,525-token response and finished
 in 63 seconds. Acceptance still required Codex corrections. See the
 [worker diagnosis and bounded correction](WORKER-ACTION-DIAGNOSIS-20260921.md).
+The separate upstream corruption of ordinary source words is traced in the
+[redaction-fidelity report](REDACTION-FIDELITY-20260921.md). Its boundary-aware
+proposal is source-only and needs policy review before activation; live redaction
+has not changed.
 CPU scheduling remains active for Derek's overnight work;
 AM4 is unloaded between reviews. The new required-evidence gate is saved but
 not loaded because a tool-policy restriction blocked the gateway restart.

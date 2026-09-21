@@ -8,6 +8,7 @@ executed evidence. CPU scheduling remains active for Derek's overnight work;
 AM4 is unloaded between reviews. The new required-evidence gate is saved but
 not loaded because a tool-policy restriction blocked the gateway restart.
 Read the [overnight work log and current state](OVERNIGHT-20260921.md),
+[human/agent operations page](reports/fleet-operations-20260921.html),
 [source-backed execution-route capability matrix](ROUTE-CAPABILITIES-20260921.md),
 [short-review calibration](REVIEW-CALIBRATION-20260921.md),
 [count-correction handoff](HANDOFF-COUNTS-20260921.md), and
@@ -100,6 +101,17 @@ Set-Location C:/work/commandcenter-jev-scheduler
 # Machine-readable equivalent (performs a fresh observation):
 & C:/work/commandcenter/fleet-worker-node/.venv-omen/Scripts/python.exe -m fleet.jev.capacity --json
 ```
+
+For the combined execution-route/harness registry, qualified pilot limits and
+fresh capacity snapshot, run `python -m fleet.jev.operations_page [--out NEW.html]`
+with the same interpreter/worktree. Existing output files are refused. The
+[saved operations page](reports/fleet-operations-20260921.html) is dated, not live.
+Agents can read `script#fleet-operations` (complete parsed registries, source
+hashes, normalized declared-status rows, pilot configuration and capacity) and
+`script#fleet-capacity` (the original capacity document). Neither is an admission
+decision or permission to load a model. The page and normalizer are Codex fallback
+work: JEV selected the task, but the delegated brief guard refused a Windows path
+in an illustrative registry record before any worker execution. See cycle 10.
 
 It observes the native resident worker, existing `E:/work/b70tools` binary and
 AM4 `nvidia-smi` in parallel. It does not load models, change scheduling, or call

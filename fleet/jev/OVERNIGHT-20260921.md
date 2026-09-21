@@ -4,11 +4,53 @@ Authority: Derek permitted 4–8 hours of iteration to improve useful local-work
 throughput and quality. The goal remains active. Do not confuse a completed
 cycle or a healthy endpoint with completion of that larger objective.
 
-Previous goal turn classification (cycle 8): **progress**. It delivered the
-corrected capability report and recorded dispatch/review failures that changed
-the next action: constrain the real review artifact, not extend its timeout.
+Previous goal turn classification (cycle 9): **progress**. It delivered complete
+short reviews and demonstrated a false PASS on an actual rejected draft. The
+operating consequence is advisory criticism, not automatic acceptance.
 
-## Latest: cycle 9, complete short reviews but false-PASS qualification failure
+## Latest: cycle 10, human/agent operating page; pre-dispatch refusal
+
+Window 09:25:55–09:45:55 UTC; first-page target 09:30:55, generation ceiling
+09:40:55. Parent receipt `br-20260921-092652-380e5888`. The actual
+[operations HTML](reports/fleet-operations-20260921.html) was saved at **09:30:19**,
+inside the first-quarter target. It combines the three execution layers, the
+qualified pilot's limits, all 13 declared loop/harness records, dated evidence,
+source hashes, and a fresh capacity capture. The complete source data is embedded
+as JSON. `python -m fleet.jev.operations_page [--out NEW.html]` regenerates it.
+
+JEV selected `jev-c06b692f1dc0c488af2a17cf`: fit2.99/confidence0.99/ambiguity0.14;
+0.281s, 900 input tokens, estimated USD0.0000378. The CPU scheduler then held on
+`ExceptionGroup`. Child receipt `br-20260921-092700-14f7d1eb` remained open with
+no execution record. Read-only conductor checks found no matching inbox/run.
+The pure `_delegation_brief` check reproduced the refusal: an illustrative TOML
+record carried a Windows absolute path. This guard runs before submit. No
+inference or duplicate dispatch was attempted; no path guard was weakened.
+
+The dispatch edge ended local-builder/Hermes qualification. **Codex wrote the
+normalizer and page**, not the local model. This is artifact delivery with a
+failed delegated arm. The exact brief/decision remains private. Queue state was
+changed from `dispatching` to `operator_held`, the child receipt closed blocked,
+and the known FX99 HOLD archived as `HOLD.windows-brief-cycle10-20260921` before
+restarting the existing CPU service. The gateway/production services were not
+restarted. At 09:35:36 the daemon was running and idle with a fresh observation.
+AM4 was never loaded this lap; the capture showed both NVIDIA cards idle.
+
+Verification used the real page and parsed registries: all 13 rows exactly
+matched source, two complete JSON blocks round-tripped, unknown B70 free memory
+remained null, and an embedded-markup variant created no active tags/scripts.
+One malformed-field/empty-string check and syntax compilation were performed;
+no test files or broad matrix. Chrome rendered the actual local page with a
+separate profile and GPU disabled; the screenshot was visually inspected.
+Long table text was allowed to wrap. [Evidence](evidence/20260921-operations-page.json)
+records the final file hash, source checks, browser capture and dispatch failure.
+
+API ledger: 9 attempts, 6,202 known input tokens, USD0.000260484 usage estimate,
+USD0.005505024 uncertain reservations, USD0.005765508 booked. Reservations are
+not confirmed charges; Codex/power costs remain unmetered here. No default model,
+prompt, routing, admission gate, registry status or GPU topology was changed.
+The broader throughput/quality goal remains active, not satisfied by this page.
+
+## Cycle 9, complete short reviews but false-PASS qualification failure
 
 Window 09:17:36–09:37:36 UTC; first review target 09:22:36, generation ceiling
 09:32:36. Receipt `br-20260921-091819-09a48f31`. The first complete review was

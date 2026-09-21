@@ -1,0 +1,64 @@
+{
+  "executor": "Codex direct inspection/execution, not local-model validation",
+  "page": "fleet\\jev\\reports\\fleet-operations-20260921.html",
+  "sha256": "c28ba6bbf39e53ac174a819cd166e94194f6a09daa5c33a8a810e8c1f51bc6ba",
+  "bytes": 28879,
+  "captured_at": "2026-09-21T09:30:19.608775+00:00",
+  "registry_rows": 13,
+  "raw_registry_equal": true,
+  "json_blocks": [
+    "fleet-capacity",
+    "fleet-operations"
+  ],
+  "complete_json_roundtrip": true,
+  "no_external_assets_or_executable_scripts": true,
+  "markup_variant_roundtrip": true,
+  "unknown_b70_free_preserved": true,
+  "malformed_fields_unknown_and_empty_strings_preserved": true,
+  "browser_rendered": true,
+  "authorship": "Codex fallback; JEV selected but pre-dispatch brief guard refused local builder",
+  "browser": "Chrome headless, isolated profile, GPU disabled",
+  "screenshot": "C:\\Users\\derek\\.fleet-scheduler\\operations-cycle10\\operations-final.png",
+  "render_matches_embedded_source_document": true,
+  "dispatch": {
+    "task_id": "jev-c06b692f1dc0c488af2a17cf",
+    "receipt": "br-20260921-092700-14f7d1eb",
+    "decision": {
+      "material": "d2771262464fbe7672f2ed7eae9cb3838244e120de24c43f23fe57deb0a66aad",
+      "usage": {
+        "provider": "typesafe",
+        "model": "jev-1.13.0",
+        "input_tokens": 900,
+        "output_tokens": 91,
+        "estimated_usd": 0.000037800000000000004,
+        "elapsed_s": 0.281,
+        "request_sha256": "d00054a34e3815b10b312d5cd3ad22580e33332c5bccaaf2311fff30f7b5210a"
+      },
+      "judgments": [
+        {
+          "candidate_id": "caeea3aa3d7ed57e46138e880c9a0a38",
+          "score": 2.99,
+          "confidence": 0.99,
+          "ambiguity": 0.14,
+          "probabilities": {
+            "0": 0,
+            "1": 0,
+            "2": 0,
+            "3": 1
+          },
+          "eligible": true
+        }
+      ],
+      "candidate_id": "caeea3aa3d7ed57e46138e880c9a0a38",
+      "snapshot_id": "d096f20cd362d275dfc61495c6d60e568806fc324c6e5bd73c1021ad2e16d878",
+      "wait_reason": null
+    },
+    "state": "operator_held",
+    "reason": "Windows absolute path in illustrative registry record, refused by pure _delegation_brief before submit",
+    "conductor_matching_inbox_runs_archive": [],
+    "retried": false,
+    "hold_archived": "/home/derek/.local/state/fleet-scheduler/HOLD.windows-brief-cycle10-20260921",
+    "scheduler_started": true,
+    "hermes_review": "not run; dispatch edge ended qualification, Codex fallback checked independently"
+  }
+}

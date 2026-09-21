@@ -11,6 +11,7 @@ from fleet.jev.capacity import capture
 from fleet.jev.capacity_html import render_capacity_page, table, text
 from fleet.jev.local import ROOT, STATE
 from fleet.jev.registry_rows import summarize_registry
+from fleet.jev.quality import load_quality
 
 
 def collect():
@@ -34,6 +35,7 @@ def collect():
                 'promotion': 'manual; Hermes findings are advisory, not acceptance',
                 'kv_reuse_demonstrated': False,
                 'scope': 'Qualified configuration, not fresh service health or permission to dispatch'},
+            'quality': load_quality(ROOT / 'fleet/jev/quality-history.json'),
             'capacity': capture()}
 
 
@@ -56,6 +58,19 @@ def render(document):
               '<p>Hermes has returned PASS while listing real defects. Treat findings as advisory. '
               'Accepted correct artifacts, receipt completion and inference success are different signals. '
               'Logs and knowledge projections are not automatic weight training.</p></section>')
+    intro += '<section><h2>Operator-verified work quality</h2>'
+    quality = document.get('quality')
+    if isinstance(quality, dict) and quality.get('available') is True:
+        metrics = ('tasks', 'authored', 'unmodified_delivery', 'assisted_delivery',
+                   'rejected', 'incomplete', 'not_run')
+        intro += table(['Metric', 'Count'], [
+            ['Reached worker (not successful output)' if name == 'authored' else name,
+             quality.get(name)] for name in metrics])
+        intro += '<p>History SHA256: ' + text(quality.get('history_sha256')) + '</p>'
+        intro += '<p>Selected operator-verified task subset; not a benchmark or automatic acceptance.</p>'
+    else:
+        intro += '<p>Work quality unavailable; no verified history was loaded.</p>'
+    intro += '</section>'
     intro += ('<section><h2>Declared registry — historical evidence included</h2>'
               '<p>LIVE below is a registry declaration, not a fresh readiness probe or pilot admission. '
               'The old AM4 4k/18084 and reader/18085 entries do not describe the current '

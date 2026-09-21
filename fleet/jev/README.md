@@ -5,13 +5,16 @@ code acceptance still requires independent review**. FX99 now polls active build
 every five seconds (observed 5.66–5.76 seconds including RPC), idle work every
 30 seconds, and schedules a one-second follow-up after review. Human status adds
 an allowlisted wait reason. JEV's first live decision with curated quality history
-completed without changing gates. Seven selected outcomes include one unchanged
-and four assisted deliveries, plus two tasks that did not reach this worker.
+completed without changing gates. Eight selected outcomes include one unchanged
+and four assisted deliveries, one incomplete worker result, and two tasks that
+did not reach this worker. The latest whole-file builder run produced no source;
+the HTML quality-table addition was completed directly by Codex. Its proposed
+shorter review format never received a candidate and was rolled back unqualified.
 CPU scheduling remains active for Derek's overnight work;
 AM4 is unloaded between reviews. The new required-evidence gate is saved but
 not loaded because a tool-policy restriction blocked the gateway restart.
 Read the [overnight work log and current state](OVERNIGHT-20260921.md),
-[human/agent operations page](reports/fleet-operations-20260921.html),
+[human/agent operations page with work quality](reports/fleet-operations-20260921-cycle13.html),
 [source-backed execution-route capability matrix](ROUTE-CAPABILITIES-20260921.md),
 [short-review calibration](REVIEW-CALIBRATION-20260921.md),
 [count-correction handoff](HANDOFF-COUNTS-20260921.md), and

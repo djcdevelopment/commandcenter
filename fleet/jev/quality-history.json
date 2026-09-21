@@ -1,11 +1,21 @@
 {
   "schema": "fleet-work-quality.v1",
   "verified_by": "operator",
-  "curated_at": "2026-09-21T10:13:30Z",
+  "curated_at": "2026-09-21T10:26:30Z",
   "profile": "omen-resident-hearth",
   "model": "qwen3-30b-a3b",
   "scope": "Selected completed task outcomes, not a complete benchmark. authored counts tasks reaching the worker, not successful output. assisted includes any later model/human correction. not_run is excluded from authored.",
   "records": [
+    {
+      "task_id": "jev-35f435a106d15feb1147bb14",
+      "outcome": "incomplete",
+      "description": "Worker budget ended after four steps / 126 seconds; commit contains only retro.md and no operations_page.py at root or nested target. No Hermes review ran. Direct Codex HTML delivery is excluded from local-builder delivery counts.",
+      "evidence": ["fleet/jev/evidence/20260921-operations-quality-execution.json"],
+      "evidence_sha256": {
+        "fleet/jev/evidence/20260921-operations-quality-execution.json": "dc5e01537e96bad7ec3c44366963036924ac4d4873c3dda52a314eece206f12b"
+      },
+      "candidate_commit": "950125e55db5c077740d89df02d2c204d76b7a10"
+    },
     {
       "task_id": "jev-aacd8778e90c5ef5a61aa434",
       "outcome": "assisted_delivery",

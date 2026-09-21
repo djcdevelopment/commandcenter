@@ -4,11 +4,71 @@ Authority: Derek permitted 4–8 hours of iteration to improve useful local-work
 throughput and quality. The goal remains active. Do not confuse a completed
 cycle or a healthy endpoint with completion of that larger objective.
 
-Previous goal turn classification (cycle 10): **progress**. It delivered the
-human/agent operations page and identified a pure pre-dispatch path refusal.
-The next action moved that same check ahead of queue writes and cloud spending.
+Previous goal turn classification (cycle 12): **progress**. Active-work polling
+and safe wait reasons were deployed, and a live JEV dispatch used curated
+quality feedback. This does not imply reliable unassisted code delivery.
 
-## Latest: cycle 12, deployed active polling and safe wait reasons
+## Latest: cycle 13, missing worker artifact; useful Codex HTML fallback
+
+The [updated human/agent HTML snapshot](reports/fleet-operations-20260921-cycle13.html)
+now exposes verified work quality alongside the fleet controls and capacity.
+It was captured at **10:27:02 UTC**, not live. Its quality table and embedded
+JSON agree: eight selected tasks, six reached the worker, one unchanged delivery,
+four assisted deliveries, one incomplete, and two that did not run there.
+Those labels are operator-curated; this is not a benchmark or automatic training.
+
+This lap's actual experiment **failed**. Window 10:17:50–10:37:50 UTC, first
+rendered artifact target10:22:50, latest dispatch10:21:30, generation ceiling
+10:32:50, final five minutes reserved for delivery/restoration. JEV dispatched at
+10:20:14; worker result was terminal by10:22:30, but no source artifact existed.
+The direct Codex fallback was first saved at **10:23:06.5188096**, missing the
+first-artifact target by **16.518 seconds**. No generation retry followed.
+
+Parent `br-20260921-101826-9c4871a9`; child `br-20260921-102014-e72849c0`;
+task `jev-35f435a106d15feb1147bb14`; worker commit
+`950125e55db5c077740d89df02d2c204d76b7a10`. JEV fit3.0/confidence1.0/ambiguity0.13,
+957 input tokens,0.249s, estimated USD0.000040194. Its request used history SHA
+`d6a91fa05674982f12434c9002e149f5d0bfea85627453637aa989bb6c9b4922`.
+High task-fit confidence again did not predict useful output.
+
+The resident worker reports four steps /126 seconds, completion reason `budget`.
+Its commit contains only `retro.md`; neither root nor nested `operations_page.py`
+exists. The farm's generic success/162-test assay is not deliverable success.
+The capture failure left the queue review_pending and FX99 held with ExceptionGroup.
+No candidate existed and **no Hermes inference started**. The actual reason the
+four-step run wrote no source is not established by these artifacts; do not
+invent a GPU, context or tool diagnosis. Before another full-file rewrite,
+inspect this run's tool-call outcomes, not private model reasoning.
+
+Codex had temporarily deployed an appended 130-word findings-only review contract
+with a90-second automatic budget. Since no candidate reached it, that change is
+**unqualified and rolled back**, both on FX99 and in source. The old review hash
+`0a50aba9f7e77ca60829886df28cd887a3187c8f2c45a739fb9a2cdf4f6cc0c5` was restored
+from its exact backup. The failed task was marked operator_held, retaining its
+document/decision/result. The reviewed HOLD was archived as
+`HOLD.review-capture-cycle13-20260921`; CPU service resumed while idle. AM4 owner
+was null/model absent. No gateway restart, model rotation, KV reuse or root push.
+
+The actual HTML addition is **entirely Codex work**, not repaired model output.
+It reuses the validated quality loader and existing escaped table renderer,
+retains unknown states and exposes the same quality record/hash to agents.
+Independent checks used the actual rendered snapshot: seven displayed metrics,
+13 registry rows, embedded JSON, absent/malformed/unavailable quality, exact-true
+availability, escaped hostile hash text and existing-output refusal. No new test
+files. A CPU-only headless Chrome render was visually checked; the new table is
+readable and matches the JSON. The failed worker outcome was also hot-deployed
+to FX99's curated history for subsequent JEV decisions.
+
+Evidence: [raw worker result](evidence/20260921-operations-quality-worker.json),
+[actual execution and restoration](evidence/20260921-operations-quality-execution.json),
+[deployed quality feedback](evidence/20260921-operations-quality-feedback.json).
+Private first/final HTML and screenshot are under
+`C:/Users/derek/.fleet-scheduler/advisory-cycle13/`. The original09:30 snapshot
+is preserved. Cumulative JEV ledger:12 attempts, USD0.000377160 confirmed usage
+estimates, USD0.005505024 uncertain reservations, USD0.005882184 booked. Codex
+and local hardware/power costs are not captured by that ledger.
+
+## Cycle 12, deployed active polling and safe wait reasons
 
 Window **09:57:43–10:17:43 UTC**, generation ceiling 10:12:43. Useful artifact:
 deployed adaptive polling, a real worker-authored status-view starting point,

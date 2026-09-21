@@ -1,0 +1,139 @@
+{
+  "ok": true,
+  "done": true,
+  "plan_id": "hearth-hermes-br-20260921-102014-e72849c0-33f9fc2f",
+  "result_path": "/home/claude/work/commandcenter/runs/hearth-hermes-br-20260921-102014-e72849c0-33f9fc2f/result.json",
+  "result": {
+    "plan_id": "hearth-hermes-br-20260921-102014-e72849c0-33f9fc2f",
+    "trace_id": "0228f7ac1b4814fa602765f92c192e2c",
+    "routing": {
+      "skipped": "explicit local builders"
+    },
+    "builds": {
+      "cc-builder-2": {
+        "ok": true,
+        "branch": "ccfarm/hearth-hermes-br-20260921-102014-e72849c0-33f9fc2f/cc-builder-2/lap1",
+        "push_ok": true,
+        "runner": "hearth",
+        "runner_model": "qwen3-30b-a3b",
+        "runner_preset": "omen-resident-hearth",
+        "resolved_runner": {
+          "runner": "hearth",
+          "base_url": "http://omen.mshome.net:8083/hermes-worker/mcp",
+          "model": "qwen3-30b-a3b",
+          "context_length": 16384,
+          "max_steps": 12,
+          "preset": "omen-resident-hearth",
+          "config_sha256": "4dcbed620e9d12aac1c19e88f428f1800057a7652810b9fe8e27e3bf31b27b2d"
+        },
+        "committed": true,
+        "pushed": true,
+        "commits_ahead": 1,
+        "empty_build": false,
+        "done_signal": true,
+        "agent_rc": 0,
+        "agent_timed_out": false,
+        "status": "ok",
+        "reason": "ok"
+      }
+    },
+    "assay": {
+      "plan_id": "hearth-hermes-br-20260921-102014-e72849c0-33f9fc2f",
+      "lap": 1,
+      "grader": "claudefarm1",
+      "winner": "cc-builder-2",
+      "scoreboard": [
+        {
+          "worker": "cc-builder-2",
+          "branch": "ccfarm/hearth-hermes-br-20260921-102014-e72849c0-33f9fc2f/cc-builder-2/lap1",
+          "score": 70,
+          "grade": "B",
+          "risk_score": 0.3,
+          "assay_mode": "behavior",
+          "static_score": 100,
+          "behavior_score": 70,
+          "tests_found": 162,
+          "tests_passed": 162,
+          "tests_failed": 0,
+          "imports_ok": 0,
+          "imports_failed": 0,
+          "assay_summary": "pytest: 162/162 passed; imports: 0/0 ok; score=70; isolation=docker",
+          "file_count": 204,
+          "code_files": 175,
+          "has_retro": true,
+          "has_result": true,
+          "has_tests": true,
+          "retro_excerpt": "# Retro (hearth-hermes-br-20260921-102014-e72849c0-33f9fc2f-cc-builder-2)\n\nBuilt by agent_openai on model qwen3-30b-a3b (completion: budget, 4 steps, 126s).\n\n\n<!-- agent_openai completion: reason=budget steps=4 elapsed_s=126.0 model=qwen3-30b-a3b -->\n"
+        }
+      ],
+      "tiebreak": {
+        "method": "human-review",
+        "tied": [],
+        "winner": null
+      }
+    },
+    "winner": "cc-builder-2",
+    "questions": [],
+    "promotion": {
+      "promoted": false,
+      "reason": "manual-review",
+      "status": "awaiting_review",
+      "winner": "cc-builder-2",
+      "candidates": [
+        {
+          "worker": "cc-builder-2",
+          "branch": "ccfarm/hearth-hermes-br-20260921-102014-e72849c0-33f9fc2f/cc-builder-2/lap1",
+          "commit": "950125e55db5c077740d89df02d2c204d76b7a10",
+          "build": {
+            "ok": true,
+            "branch": "ccfarm/hearth-hermes-br-20260921-102014-e72849c0-33f9fc2f/cc-builder-2/lap1",
+            "push_ok": true,
+            "runner": "hearth",
+            "runner_model": "qwen3-30b-a3b",
+            "runner_preset": "omen-resident-hearth",
+            "resolved_runner": {
+              "runner": "hearth",
+              "base_url": "http://omen.mshome.net:8083/hermes-worker/mcp",
+              "model": "qwen3-30b-a3b",
+              "context_length": 16384,
+              "max_steps": 12,
+              "preset": "omen-resident-hearth",
+              "config_sha256": "4dcbed620e9d12aac1c19e88f428f1800057a7652810b9fe8e27e3bf31b27b2d"
+            },
+            "committed": true,
+            "pushed": true,
+            "commits_ahead": 1,
+            "empty_build": false,
+            "done_signal": true,
+            "agent_rc": 0,
+            "agent_timed_out": false,
+            "status": "ok",
+            "reason": "ok"
+          },
+          "missing_deliverables": [
+            "operations_page.py"
+          ],
+          "unchanged_deliverables": [
+            "operations_page.py"
+          ],
+          "artifact_status": "missing-or-unchanged-deliverables"
+        }
+      ]
+    },
+    "target": {
+      "builders": [
+        "cc-builder-2"
+      ],
+      "promotion_policy": "manual",
+      "runner_preset": "omen-resident-hearth",
+      "operator": "jev",
+      "task_class": "build",
+      "est_tokens": 6870,
+      "est_tokens_source": "derived",
+      "requires": [
+        "operations_page.py"
+      ],
+      "max_age_s": 180
+    }
+  }
+}

@@ -1,11 +1,34 @@
 """HEARTH transport adapter for the existing JSON-action worker loop."""
 import json
+import re
 import sys
 from hearth_client import HearthClient
 from runner_presets import BASE_URL, MODEL, unwrap
 import agent_openai as runner
 
 TASK_ID = ''
+
+
+def extract_action(text):
+    """Decode actions without treating braces inside JSON strings as syntax."""
+    decoder = json.JSONDecoder()
+    candidates = re.findall(r"```(?:json)?\s*(.*?)\s*```", text, re.S)
+    candidates.append(text)
+    for chunk in candidates:
+        index = 0
+        while index < len(chunk):
+            if chunk[index] not in '{["':
+                index += 1
+                continue
+            try:
+                value, end = decoder.raw_decode(chunk, index)
+            except json.JSONDecodeError:
+                # Do not salvage a nested action from an incomplete container.
+                break
+            if isinstance(value, dict) and 'action' in value:
+                return value
+            index = end
+    return None
 
 
 # Whole-file JSON actions exceeded 2048 tokens in the recorded cycle-13 failure.
@@ -32,4 +55,5 @@ def chat(base_url, model, token, messages, max_tokens=4096, timeout=120):
 if __name__ == '__main__':
     TASK_ID = sys.argv[sys.argv.index('--task-id')+1]
     runner.chat = chat
+    runner.extract_action = extract_action
     raise SystemExit(runner.main())

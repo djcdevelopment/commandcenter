@@ -5,8 +5,8 @@ code acceptance still requires independent review**. FX99 now polls active build
 every five seconds (observed 5.66–5.76 seconds including RPC), idle work every
 30 seconds, and schedules a one-second follow-up after review. Human status adds
 an allowlisted wait reason. JEV's first live decision with curated quality history
-completed without changing gates. Nine selected outcomes include one unchanged
-and five assisted deliveries, one incomplete worker result, and two tasks that
+completed without changing gates. Ten selected outcomes include one unchanged
+and six assisted deliveries, one incomplete worker result, and two tasks that
 did not reach this worker. Cycle13's whole-file builder run produced no source;
 that HTML quality-table addition was completed directly by Codex. Its proposed
 shorter review format never received a candidate and was rolled back unqualified.
@@ -15,6 +15,9 @@ The cc-builder-2 OMEN adapter now allows 4,096 within the existing gateway limit
 Its next real build wrote a complete file in a 2,525-token response and finished
 in 63 seconds. Acceptance still required Codex corrections. See the
 [worker diagnosis and bounded correction](WORKER-ACTION-DIAGNOSIS-20260921.md).
+The [subsequent action-parser correction](ACTION-DECODING-20260921.md) is deployed
+on cc-builder-2: exact saved valid-JSON replies discarded by the old parser now
+decode correctly. The raw local candidate still failed; Codex supplied the fix.
 The separate upstream corruption of ordinary source words is traced in the
 [redaction-fidelity report](REDACTION-FIDELITY-20260921.md). Its boundary-aware
 proposal is source-only and needs policy review before activation; live redaction
@@ -114,15 +117,15 @@ ledger values remain unknown. See overnight cycle 2 for authorship and evidence.
 It is a selected task subset, not a complete benchmark, inferred correctness,
 or automatic training. `authored` means tasks reaching the worker; it excludes
 `not_run`, and does not mean accepted output. Assisted delivery is separate from
-unchanged implementation delivery. The present subset contains six tasks:
-four reached a worker (one unchanged, three assisted); two did not run there.
+unchanged implementation delivery. The present subset contains ten tasks: eight
+reached a worker (one unchanged, six assisted, one incomplete); two did not run there.
 
 The installed FX99 scheduler prepends only a fixed numeric quality line to the
 matching profile's existing `recent_outcomes`. Descriptions, task IDs and source
 evidence are not sent to JEV. Missing/malformed history is unavailable, not zero.
-The next decision records the local history hash for audit. Request construction
-was verified in the installed runtime; a later live decision using this new
-feedback has not yet been sampled. Confidence/ambiguity gates and manual
+Each decision records the local history hash for audit. Request construction and
+subsequent live decisions using this numeric feedback are recorded in the
+overnight log. Confidence/ambiguity gates and manual
 promotion remain unchanged. Recurate/disable this history when qualifying a new
 model, runner or context regime; do not transfer these labels automatically.
 

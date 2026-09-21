@@ -1,0 +1,59 @@
+{
+  "replay": {
+    "executor": "Codex offline replay of exact saved local-model responses, no new inference",
+    "records": [
+      {
+        "job_id": "job_13e99eaa7628e91eff27c001a1f6cc66",
+        "artifact_sha256": "42d6299f2ecdd150c38b96bfaa1692e8c5b203a8852c516370de1c444434c315",
+        "bytes": 3387,
+        "whole_reply_json_valid": true,
+        "old_parser_accepted": false,
+        "new_parser_accepted": true,
+        "action": "write_file",
+        "path": "agent_hearth.py",
+        "candidate_sha256": "7d043ca86b39bc314381de04f6e5560b645d93bb2c6852847fc37968abf0e93b",
+        "candidate_bytes": 2773,
+        "candidate_syntax_valid": true,
+        "candidate_has_chat": true
+      },
+      {
+        "job_id": "job_53b71bfe8bbe7cdf99b24aedee294520",
+        "artifact_sha256": "226bad4f676982a5fd739aebf58759e7ce1807b8465a7247e36fec991961e78d",
+        "bytes": 2036,
+        "whole_reply_json_valid": false,
+        "old_parser_accepted": false,
+        "new_parser_accepted": false,
+        "action": null,
+        "path": null,
+        "candidate_sha256": null,
+        "candidate_bytes": 0,
+        "candidate_syntax_valid": null,
+        "candidate_has_chat": false
+      },
+      {
+        "job_id": "job_4fa8c8d3b38d994c096732467aa0a06d",
+        "artifact_sha256": "4db81ee3cfe91f00d80e53e755e16d9c75b73757bf0f62589b2fb4d9651d0ef3",
+        "bytes": 2048,
+        "whole_reply_json_valid": true,
+        "old_parser_accepted": false,
+        "new_parser_accepted": true,
+        "action": "write_file",
+        "path": "agent_hearth.py",
+        "candidate_sha256": "8ff2c02ab0738ab34af1488116ab4e244df645057ef0496531f0cb9e145699a9",
+        "candidate_bytes": 1458,
+        "candidate_syntax_valid": true,
+        "candidate_has_chat": false
+      }
+    ],
+    "scope": "Private reasoning fields are not emitted. Successful action decoding does not prove patch correctness; these recovered candidates were never written by the original worker."
+  },
+  "first_candidate": {
+    "job_id": "job_13e99eaa7628e91eff27c001a1f6cc66",
+    "artifact_sha256": "42d6299f2ecdd150c38b96bfaa1692e8c5b203a8852c516370de1c444434c315",
+    "source": "\"\"\"HEARTH transport adapter for the existing JSON-action worker loop.\"\"\"\nimport json\nimport sys\nfrom hearth_client import HearthClient\nfrom runner_presets import BASE_URL, MODEL, unwrap\nimport agent_openai as runner\n\nTASK_ID = ''\n\n\ndef extract_action(text: str) -> dict | None:\n    \"\"\"Pull the first well-formed JSON object with an 'action' key out of the\n    model's reply (tolerant of code fences / surrounding prose).\"\"\"\n    # Prefer fenced blocks, else scan for balanced braces.\n    candidates = []\n    # Extract content within fenced code blocks (prefer json-fenced)\n    import re\n    candidates.extend(re.findall(r\"```(?:json)?\\s*(\\{.*?\\})\\s*```\", text, re.S))\n    # Append full text as fallback\n    candidates.append(text)\n    \n    for chunk in candidates:\n        # Scan for opening brace\n        for i in range(len(chunk)):\n            if chunk[i] == '{':\n                try:\n                    # Use json.loads with raw_decode to parse the object\n                    obj, end = json.JSONDecoder().raw_decode(chunk, i)\n                    # Ensure the entire object is consumed (no trailing text)\n                    if end == len(chunk):\n                        if isinstance(obj, dict) and 'action' in obj:\n                            return obj\n                except json.JSONDecodeError:\n                    continue\n    return None\n\n\ndef chat(base_url, model, token, messages, max_tokens=4096, timeout=120):\n    if base_url != BASE_URL or model != MODEL:\n        raise ValueError('OMEN-only transport')\n    system = '\\n'.join(m['content'] for m in messages if m['role']=='system')\n    turns = [m for m in messages if m['role']!='system']\n    prompt = ('Conversation history in chronological order. Continue with the next JSON action.\\n'\n              + json.dumps(turns,ensure_ascii=False) + '\\nNext action:')\n    result = unwrap(HearthClient(base_url,token,TASK_ID).call_sync('local_generate',\n        prompt=prompt, system=system, backend='omen-arc', model=MODEL,\n        task_id=TASK_ID, max_tokens=max_tokens, timeout_s=max(1,min(120,int(timeout)))))\n    if not result.get('ok') or result.get('backend') != 'omen-arc':\n        raise RuntimeError('OMEN generation failed: '+str(result.get('error','route mismatch'))[:250])\n    attempt = {k:result.get(k) for k in ('backend','model','tokens_in','tokens_out','duration_ms')}\n    attempt.update(task_id=TASK_ID, job_id=(result.get('execution') or {}).get('job_id'),\n                   requested_max_tokens=max_tokens)\n    print('[hearth_attempt] '+json.dumps(attempt),flush=True)\n    return result.get('text') or ''\n\n\nif __name__ == '__main__':\n    TASK_ID = sys.argv[sys.argv.index('--ta[REDACTED]')+1]\n    runner.chat = chat\n    runner.extract_action = extract_action\n    raise SystemExit(runner.main())\n",
+    "status": "offline recovery only; never written by the original worker",
+    "transport_ast_preserved": true,
+    "quoted_brace_action_passed": true,
+    "surrounding_prose_passed": false
+  }
+}

@@ -1,11 +1,27 @@
 {
   "schema": "fleet-work-quality.v1",
   "verified_by": "operator",
-  "curated_at": "2026-09-21T10:53:00Z",
+  "curated_at": "2026-09-21T11:24:00Z",
   "profile": "omen-resident-hearth",
   "model": "qwen3-30b-a3b",
   "scope": "Selected completed task outcomes, not a complete benchmark. authored counts tasks reaching the worker, not successful output. assisted includes any later model/human correction. not_run is excluded from authored.",
   "records": [
+    {
+      "task_id": "jev-37a75c99bc3d31573aba4837",
+      "outcome": "assisted_delivery",
+      "description": "Local worker wrote an unusable shortened adapter after three parse failures; Codex implemented and deployed the parser correction from the preserved baseline. No raw candidate was accepted or promoted. Offline recovery proves the first discarded response was valid JSON and preserved transport, but its parser still failed surrounding prose and its CLI argument was already corrupted upstream. Recovered output was never written by the original worker; no second builder attempt.",
+      "evidence": [
+        "fleet/jev/evidence/20260921-action-parser-candidate.json",
+        "fleet/jev/evidence/20260921-action-parser-execution.json",
+        "fleet/jev/evidence/20260921-action-parser-recovered.json"
+      ],
+      "evidence_sha256": {
+        "fleet/jev/evidence/20260921-action-parser-candidate.json": "528c5715aedc3b7616229d5d5b498825bed4f53805c1fe732571eb7158d36bf0",
+        "fleet/jev/evidence/20260921-action-parser-execution.json": "d4f0d8d8d796b79e37fa3bde50b7984210964500992169fd2da69a2d4c14160b",
+        "fleet/jev/evidence/20260921-action-parser-recovered.json": "c438773c985abde4d6f0536c3804bd2fa75e04631e4fe946233bcaa7dec234b1"
+      },
+      "candidate_commit": "253d50ee729188f4fb437be933ce31f715c48d95"
+    },
     {
       "task_id": "jev-a3490ba175b53611158fbe6b",
       "outcome": "assisted_delivery",

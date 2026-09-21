@@ -4,11 +4,59 @@ Authority: Derek permitted 4–8 hours of iteration to improve useful local-work
 throughput and quality. The goal remains active. Do not confuse a completed
 cycle or a healthy endpoint with completion of that larger objective.
 
-Previous goal turn classification (cycle 15): **progress**. The larger allowance
-produced a whole-file artifact, corrected renderer provenance was delivered, and
-input evidence located the ordinary-text corruption upstream of the model.
+Previous goal turn classification (cycle16): **progress**. The source-redaction
+cause was established and a precisely bounded source-only policy proposal was
+committed. Activation remains pending; that limitation was recorded honestly.
 
-## Latest: cycle 16, source-fidelity diagnosis; redaction proposal pending review
+## Latest: cycle17, live JSON-action decoder correction
+
+[Delivery/parser report](ACTION-DECODING-20260921.md): the old worker parser
+discarded valid file-write actions containing literal braces inside strings.
+The new cc-builder-2 adapter passes the quoted-brace cases through the unchanged
+action executor and saves exact files. No model/topology/limit/default-runner or
+gateway changes. Other workers are not updated. The backup is
+`agent_hearth.py.jev-json-parser-20260921.backup`.
+
+This was one real JEV / MechNet / Hermes lap: parent
+`br-20260921-111414-b1037727`, child `br-20260921-111419-9a6b8d63`, task
+`jev-37a75c99bc3d31573aba4837`, plan
+`hearth-hermes-br-20260921-111419-9a6b8d63-49402e44`.
+JEV fit2.99/confidence0.99/ambiguity0.16 did not imply a correct patch.
+The raw worker candidate was unusable; Codex authored the final parser correction
+from the preserved baseline. No candidate promotion or second builder attempt occurred.
+
+The actual five-turn trace and saved replies add stronger evidence than the
+initial controlled examples: the first reply was complete JSON, preserved the
+transport function and was discarded by the old parser; the corrected parser
+accepts it. Later output lost code. The recovered first candidate still fails
+prose-suffix handling and contains an upstream-redacted argument. This is delivery
+recovery evidence, not rescued unassisted acceptance or a throughput percentage.
+Cycle13's separate truncation finding remains intact.
+
+Hermes delivered in45.281s, correctly objected to missing import/transport, but
+made other factual mistakes. Its raw report is retained. Evidence arrived after
+review started, so this was not an evidence-first automatic review. AM4 was
+released; the required-evidence gate and redaction proposal remain source-only.
+
+Window11:13–11:33 UTC; first-file target11:18, generation ceiling11:28, final five
+minutes reserved for recording/restoration. Unusable worker file observed11:15:00;
+the corrected direct file was saved before11:18 and independently checked at
+11:18:37. The latter is38 seconds after the target, not an on-time verification.
+Installed file-write replay finished11:19:35. No new test files or further GPU
+generation followed. Selected quality history becomes ten tasks: eight reached
+the worker, one unchanged, six assisted, one incomplete, two not_run.
+That curation is deployed on FX99, hash
+`6784bf287ec0ee622ecc71a4efc53970fbaa5f96a3be24b1e9a59e71a630802f`;
+the next decision using it has not yet been sampled. See
+[feedback deployment](evidence/20260921-action-parser-feedback.json).
+
+One additional JEV request:958 input tokens, USD0.000040236 estimated. Cumulative
+14 attempts, USD0.000458808 known-usage estimates plus USD0.005505024 uncertain
+reservations, USD0.005963832 booked. The USD0.10 cap and all gates are unchanged.
+Codex and hardware costs are not metered here. AM4 owner null/model absent was
+observed11:20; the CPU scheduler continues with no new ready work.
+
+## Cycle16, source-fidelity diagnosis; redaction proposal pending review
 
 [Redaction/source-fidelity report](REDACTION-FIDELITY-20260921.md) identifies the
 exact cause: the unanchored credential-prefix pattern matches inside ordinary

@@ -8,7 +8,40 @@ Previous goal turn classification: **progress**. It integrated the count fix,
 verified actual outputs, and established an HTTP 529 hold. The next cycle used
 a new real task after that hold, not a repeat of the completed correction.
 
-## Latest: cycle 2, read-only budget command
+## Latest: cycle 3, trustworthy capacity evidence
+
+Window 07:57:34–08:17:34 UTC; report and observations completed by 08:07:15,
+ending early after the useful finding. Initial report missed its five-minute
+target by 16 seconds; source discovery and context recovery still cost too much.
+Receipt `br-20260921-080250-98700cbe`.
+
+[Capacity report](CAPACITY-20260921.md) and three machine-readable evidence files
+record actual native slots, AM4 free memory, B70 adapter-vs-process observations,
+and independently corrected local-model analysis. No controller was added.
+
+- Native OMEN: 8 idle slots, 16384 tokens per slot, resident `qwen3-30b-a3b`.
+- AM4: both NVIDIA GPUs effectively idle; reviewer owner null/resident false.
+- Existing b70tools: about 14.58/15.44 GiB adapter-local committed versus 4 KiB
+  DXGI observer-process usage. Do not turn the latter into a free-memory claim.
+  Historical SYCL undercount and current budget disagreements remain explicit.
+- Direct Hearth report: 23.484 s, 6851 input/729 output, job
+  `job_7659232a0d7a8546191a15003512b5bf`. Useful but not independently correct:
+  invented state path, wrong context-check attribution, and imprecise digest
+  claims. Codex corrected from source; no retry or additional model review.
+- JEV only ranks approved tasks for one builder profile. General operator
+  inspection also leaves live VRAM unknown; changing snapshot entrypoints alone
+  is not the missing observation adapter. DeepAgents registry is not readiness.
+
+Recommendation: source-packed work on the resident route, task budget at most
+8192 tokens within the 16k slot, fresh admission at dispatch; keep AM4 sleeping
+between needed reviews. Next implementation lever: per-adapter observations with
+source/scope/freshness/disagreement, initially advisory rather than an allocation
+gate. No new benchmark, test file, model swap, gateway restart, or API request.
+Exit checks at 08:07:14–15 confirm the original hardware state and running CPU
+scheduler. Budget remains USD 0.005652024 booked, of which USD 0.005505024 is
+uncertain reservations, not confirmed charges. Larger goal remains active.
+
+## Cycle 2, read-only budget command
 
 07:34–07:54 UTC window. Delivered `fleet-scheduler budget` and `budget --json`
 on FX99 at 07:50:57. Real reads preserve ledger bytes and `status --json`.

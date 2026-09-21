@@ -1,0 +1,6 @@
+{
+  "observed_window_utc": "2026-09-21 08:07:14–08:07:15 UTC",
+  "attribution": "Codex read-only native/SSH observation; stdout retained verbatim",
+  "exit_code": 0,
+  "output": "{\"backend\": \"omen-arc\", \"model\": \"qwen3-30b-a3b\", \"physical_resource\": \"omen:127.0.0.1:8082\", \"observed_at\": \"2026-09-21T08:07:14.407748+00:00\", \"ready\": true, \"context_length\": 16384, \"parallel_slots\": 8, \"busy_slots\": 0, \"free_slots\": 8, \"reason\": \"native resident verified\"}\r\nNVIDIA GeForce RTX 5070, GPU-a1f65cc0-44d9-7854-6785-7d93e686da2f, 12227 MiB, 88 MiB, 11685 MiB, 0 %\nNVIDIA GeForce RTX 4070 Ti, GPU-dafbdbfc-23af-0c97-112d-dc17695c2aa8, 12282 MiB, 15 MiB, 11862 MiB, 0 %\n{\"ok\": true, \"owner\": null, \"model_resident\": false, \"native_context\": null, \"kv_enabled\": false}\n{\n  \"available\": true,\n  \"calls\": 6,\n  \"input_tokens\": 3500,\n  \"usage_estimate_usd\": 0.00014700000000000002,\n  \"uncertain_reserved_usd\": 0.005505024,\n  \"booked_usd\": 0.005652024,\n  \"remaining_usd\": 0.094347976\n}\nDaemon state: running\nCached snapshot age: 29.0 seconds (fresh)\nLast cycle scheduler state: ready\nLast observed active build: none\nLast observed pending review count: 0\nLAST OBSERVED reviewer state: unloaded\nNote: cached observations are not live hardware residency\n"
+}

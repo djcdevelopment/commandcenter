@@ -1,5 +1,11 @@
 # JEV scheduler / on-demand Hermes reviewer
 
+Latest qualification: the [approved AM4 Dense builder attempt](AM4-BUILDER-QUALIFICATION-20260921.md)
+stopped at HTTP 401 before inference on September 21 at 22:33 UTC. No candidate
+or quality comparison resulted. The owned model was unloaded, all shared runner
+configuration remained unchanged, and no second attempt or JEV call occurred.
+The next prerequisite is the intended builder's authenticated facade access.
+
 Latest addition: [`fleet-scheduler decision`](DECISION-EXPLANATION-20260921.md)
 is live on FX99 in human and JSON forms. It shows saved fit judgments and the
 quality-history digest used, not patch correctness or live capacity. Its builder

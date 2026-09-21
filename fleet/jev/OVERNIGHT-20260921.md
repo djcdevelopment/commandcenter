@@ -1,5 +1,17 @@
 # Overnight JEV / Hermes work log
 
+## Later authorized follow-up: cycle21, AM4 builder authentication edge
+
+Derek approved the scoped AM4 qualification after the original overnight window.
+A fresh 22:30–22:50 UTC window was established; this did not extend or restart
+the old overnight laps. The [single Dense builder attempt](AM4-BUILDER-QUALIFICATION-20260921.md)
+returned HTTP 401 before inference at22:33:14. No code artifact or quality
+comparison exists. The owned model was unloaded by22:34:11; shared runner,
+resolver and preset hashes are unchanged. No credential changes, second attempt,
+JEV call, Hermes review, gateway restart, or permanent route switch occurred.
+The next edge is intended builder authentication, not pending permission for the
+already-completed attempt. Below is the historical overnight handoff.
+
 Authority: Derek permitted 4–8 hours of iteration to improve useful local-work
 throughput and quality. The goal was marked **blocked at12:45 UTC**, pending
 Derek's decision on the scoped AM4 builder qualification, after three consecutive
@@ -12,7 +24,7 @@ decision command was delivered, with assisted attribution. The source/input
 evidence disproved semantic self-correction by retyping a supplied behavioral
 command, changing the next useful action; it did not demonstrate a quality gain.
 
-## Next decision: an AM4 builder comparison is not yet admitted
+## Historical 12:40 decision: an AM4 builder comparison was not yet admitted
 
 Read-only live inspection at12:40 UTC confirmed that cc-builder-2 has both preset
 files, but its actual `scripts/runner_presets.py` accepts only
@@ -31,9 +43,9 @@ The next proposed lever is a bounded comparison using the existing Dense model,
 not another similar helper task on the same worker. Derek has been asked whether
 to authorize the scoped runner changes: maximum20 minutes, both AM4 GPUs,
 manual promotion only, no downloads, no pilot-gateway restart, and no permanent
-JEV route switch. **Await that decision before modifying admission or dispatching
-the changed route.** The original overnight objective remains unproven; its
-status is now blocked pending this decision, not completed or voluntarily paused.
+JEV route switch. That decision was subsequently approved for the single cycle21
+qualification above; it did not authorize permanent admission. The original
+overnight objective remains unproven, not completed or voluntarily paused.
 
 ## Latest: cycle20, decision explanation and failed behavioral-brief qualification
 

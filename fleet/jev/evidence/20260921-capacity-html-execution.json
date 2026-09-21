@@ -1,0 +1,55 @@
+{
+  "html": {
+    "executor": "Codex direct HTMLParser/content checks; no browser rendering claimed",
+    "checks": {
+      "actual_schema": {
+        "one_data_script": true,
+        "json_roundtrip": true,
+        "no_injected_tags": true,
+        "no_event_handlers": true,
+        "static_snapshot_warning": true,
+        "no_live_allocation_claim": true
+      },
+      "markup_and_unknown": {
+        "one_data_script": true,
+        "json_roundtrip": true,
+        "no_injected_tags": true,
+        "no_event_handlers": true,
+        "static_snapshot_warning": true,
+        "no_live_allocation_claim": true
+      }
+    },
+    "saved_page": {
+      "path": "C:\\work\\commandcenter-jev-scheduler\\fleet\\jev\\reports\\capacity-20260921.html",
+      "sha256": "4687eb79f4a9093ff18afcd5cd2dd8930a512c9fd8c87bf8def0ac4f23771c65",
+      "bytes": 7062,
+      "captured_at": "2026-09-21T08:52:13.528206+00:00",
+      "scripts": 1,
+      "observation_sources": [
+        "omen_worker",
+        "omen_b70",
+        "am4_nvidia"
+      ],
+      "b70_free_bytes": [
+        null,
+        null
+      ]
+    }
+  },
+  "hermes_attempt": {
+    "result_exists": false,
+    "state_db_exists": true,
+    "run_budget_s": 90,
+    "requested_reasoning": "low",
+    "roles": {
+      "user": 1
+    },
+    "last_assistant_content_chars": null,
+    "last_assistant_has_tool_calls": false
+  },
+  "attempt_outcome": "hermes_review_deadline; no saved final answer; default reasoning remains none",
+  "first_page_target_utc": "2026-09-21T08:49:13Z",
+  "actual_page_utc": "2026-09-21T08:52:13.528206+00:00",
+  "first_page_target_met": false,
+  "renderer_author": "Codex fallback, no Hermes renderer delivered"
+}

@@ -113,6 +113,21 @@ are reported separately. No new-model-placement decision is authorized by this
 report, and it is **not yet wired into JEV's decision inputs**. See overnight
 cycle 4 for local-builder authorship, direct corrections and Hermes findings.
 
+For a human/agent-readable page, run `python -m fleet.jev.capacity_page` with the
+same OMEN interpreter. It captures fresh observations and saves a new timestamped
+HTML file under the private capacity directory. `--out PATH` chooses another
+new file; an existing file is refused. The page includes the complete original
+JSON in `script#fleet-capacity`, source timestamps/TTLs and explicit stale-snapshot
+warnings. No external assets or executable JavaScript are needed. A committed
+[example snapshot](reports/capacity-20260921.html) was captured at 08:52:13 UTC
+on September 21; it is historical evidence, not current capacity.
+
+`run_hermes(..., reasoning='low')` is now an explicit authoring experiment option;
+the default and all normal review calls remain `none`. The first bounded `low`
+renderer request timed out without a saved assistant answer. It is **not qualified
+as an improved default**. Both the CLI flag and provider wire override are set;
+the metadata reports the requested setting, not proof of hidden model behavior.
+
 ## Decision and recovery behavior
 
 Pending gateway maintenance: review-packet source now reads baseline files from

@@ -8,7 +8,53 @@ Previous goal turn classification: **progress**. It integrated the count fix,
 verified actual outputs, and established an HTTP 529 hold. The next cycle used
 a new real task after that hold, not a repeat of the completed correction.
 
-## Latest: cycle 6, deployed failure-first review packets
+## Latest: cycle 7, human/agent capacity page and failed authoring probe
+
+Window 08:44:13–09:04:13 UTC. The first-page target at **08:49:13 was missed**;
+the actual page was saved at **08:52:13**. Do not count the wrapper or settings
+patch as meeting that artifact deadline. Receipt `br-20260921-084635-8a66fa73`.
+
+Delivered [capacity snapshot HTML](reports/capacity-20260921.html), plus
+`python -m fleet.jev.capacity_page [--out NEW_PATH]` for fresh pages. It uses the
+existing observer, shows native slots/B70 adapter-vs-process memory/AM4 driver
+memory, and embeds the complete source JSON. Timestamps, TTLs and a prominent
+"Snapshot, not live" warning prevent an archived page from masquerading as a
+reservation. B70 free memory remains unknown. Existing output files are refused.
+
+Hermes/Dense was asked to author a small pure renderer using requested reasoning
+`low`, a setting already documented by `E:/work/hermes/local_cli.py` for the custom
+provider. Same model, hardware and context; no topology change. Normal review
+default stays `none`. The optional setting was deployed to FX99 with the guarded
+`review.py.jev-reasoning-option-20260921.backup` retained; the CLI flag and provider
+override both receive it. Metadata calls it requested_reasoning, not proof of the
+model's internal behavior.
+
+The authoring run hit `hermes_review_deadline` with a 90-second application budget
+(the existing wrapper allows up to another 20 seconds before its interrupt/grace
+handling). No final result exists; its database has one user message and no saved
+assistant answer. At 08:50:24 the owned seat was confirmed stopped/released; no
+extension or second generation was launched. Root-cause attribution is unknown:
+this was a different task from the earlier helper, so it does not isolate a
+reasoning-mode effect. Do not call it proof that low reasoning is broken or slow.
+
+Codex wrote the fallback renderer and CLI; **no Hermes-authored renderer shipped**.
+The failed prompt/state remain privately under `html-cycle7` and FX99 review owner
+`jev-9a450e9b7bf742e444aef4d3`. This was a late artifact rescue, not successful local
+authoring. Setup/dispatch overhead and the broad output request still consumed too
+much of the first-quarter reserve.
+
+Actual page: 7062 bytes, captured 08:52:13.528206 UTC. HTMLParser verification on
+the real schema and a markup/unknown-source variant proved one application/json
+script, exact JSON round-trip, no injected tags/event handlers, and explicit
+snapshot/allocation warnings. No browser screenshot or visual render is claimed.
+No test files were added. [Execution evidence](evidence/20260921-capacity-html-execution.json)
+records page hash, preserved unknown B70 fields and the failed model attempt.
+
+The larger goal remains active. JEV API spend is unchanged. This is a useful
+reporting artifact plus negative authoring evidence, not a demonstrated
+throughput/quality improvement from reasoning `low`.
+
+## Cycle 6, deployed failure-first review packets
 
 Window 08:31:15–08:51:15 UTC. Corrected helper working against the real packet at
 **08:35:40** (within five minutes), deployment verified at **08:36:19**, and

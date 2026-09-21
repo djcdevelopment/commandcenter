@@ -1,13 +1,15 @@
 # JEV scheduler / on-demand Hermes reviewer
 
-Latest status, 2026-09-21: **count correction integrated locally; clean live
-cycle still unqualified**. The next JEV lap ended before dispatch after two
-HTTP attempts, ending in HTTP 529. Codex corrected the prior OMEN candidate's
-two count checks and integrated it into this worktree; four actual execution
-cases passed. No new worker or Hermes run occurred. AM4/conductor baseline is
-restored; pilot gateway/tunnel and FX99 unit are inactive. Read the
-[latest handoff](HANDOFF-COUNTS-20260921.md) and
-[first-loop retrospective](HANDOFF-20260921.md) before restarting.
+Latest status, 2026-09-21: **one clean automatic build/review/release cycle;
+code acceptance still requires independent review**. The status command is
+deployed on FX99 after Codex corrections to a real OMEN candidate. Hermes first
+returned a false PASS, then correctly rejected that same candidate when given
+executed evidence. CPU scheduling remains active for Derek's overnight work;
+AM4 is unloaded between reviews. The new required-evidence gate is saved but
+not loaded because a tool-policy restriction blocked the gateway restart.
+Read the [overnight work log and current state](OVERNIGHT-20260921.md),
+[count-correction handoff](HANDOFF-COUNTS-20260921.md), and
+[first-loop retrospective](HANDOFF-20260921.md).
 
 ## What runs where
 
@@ -67,9 +69,10 @@ Commands: `fleet-scheduler run-once`, `fleet-scheduler serve`,
 `fleet-scheduler status --json` under `/home/derek/.local/bin`.
 The installed user unit is `fleet-scheduler.service`; installation alone does
 not start or enable it. A live hold must be reviewed before enabling unattended use.
-Status output is a cached last-cycle observation; check the systemd unit/lock
-for process liveness. The corrected formatter is in this worktree, but the
-scheduler command still emits JSON; no remote status-command deployment is claimed.
+`fleet-scheduler status` now shows observed systemd/PID liveness separately from
+cached cycle fields and snapshot age. It is deployed on FX99. `status --json`
+preserves valid existing JSON output; that document remains a cached observation,
+not proof of process liveness or current hardware residency.
 
 Credentials: `/home/derek/.config/fleet-scheduler`, directory `0700`; key files
 `0600`. `typesafe.key` is reread on every HTTP attempt. Replace that private file
@@ -160,6 +163,13 @@ bounded formatter cases. The saved `execution-evidence.json` goes into Hermes's
 packet with expected and actual outputs and independent-executor attribution.
 Unexpected source is **INCONCLUSIVE**, not executable permission. This is a
 task-specific check, not a generic Python sandbox or automatic acceptance gate.
+
+Other tasks may supply independently produced `execution-evidence.json` with
+`candidate_files_sha256` matching every captured file's UTF-8 source hash. The
+packet rejects mismatched/oversized evidence. New source also supports the task
+flag `review_requires_execution_evidence: true`, leaving review pending until
+that artifact exists, but **the currently running gateway has not loaded this
+gate**; see the overnight log's policy-restricted restart note.
 
 - `policy.py`, `client.py`: exact cloud allowlist, questions, gates, spend.
 - `cli.py`: FX99 loop, material-change detection, process lock, hold/status.

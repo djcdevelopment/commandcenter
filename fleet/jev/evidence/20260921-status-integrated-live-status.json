@@ -1,0 +1,16 @@
+{
+  "live_daemon": "running",
+  "live_command_exit": 0,
+  "live_command_output": "Daemon state: running\nCached snapshot age: 13.5 seconds (fresh)\nLast cycle scheduler state: ready\nLast observed active build: none\nLast observed pending review count: 0\nLAST OBSERVED reviewer state: unloaded\nNote: cached observations are not live hardware residency\n",
+  "json_preserved": true,
+  "malformed_case_output": "Daemon state: running\nCached snapshot age: unknown\nLast cycle scheduler state: unknown\nLast observed active build: unknown\nLast observed pending review count: unknown\nLAST OBSERVED reviewer state: unknown\nNote: cached observations are not live hardware residency",
+  "malformed_case_passed": true,
+  "nonobject_does_not_crash": true,
+  "source_sha256": "97e94bc013707a181291eb59ccee884d58cd121f99e3e71b970fa0cb4e52e7a5",
+  "stopped_check": {
+    "stopped_output": "Daemon state: stopped\nCached snapshot age: 12.7 seconds (fresh)\nLast cycle scheduler state: ready\nLast observed active build: none\nLast observed pending review count: 0\nLAST OBSERVED reviewer state: unloaded\nNote: cached observations are not live hardware residency\n",
+    "stopped_exit": 0,
+    "cached_ready_not_live": true,
+    "json_preserved": true
+  }
+}

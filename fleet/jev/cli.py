@@ -3,8 +3,11 @@ import argparse
 import asyncio
 import fcntl
 import json
+import math
 import os
 from pathlib import Path
+import re
+import subprocess
 import time
 
 from fleet.jev import policy
@@ -82,14 +85,78 @@ async def lap():
     atomic_json(HOME / 'status.json', status)
 
 
+def get_daemon_status():
+    """Observe the actual systemd owner; cached status is never liveness proof."""
+    try:
+        result = subprocess.run([
+            'systemctl', '--user', 'show', 'fleet-scheduler.service',
+            '--property=ActiveState', '--property=MainPID',
+        ], capture_output=True, text=True, timeout=2)
+        if result.returncode:
+            return 'unknown'
+        fields = {}
+        for line in result.stdout.splitlines():
+            key, separator, value = line.partition('=')
+            if not separator or key not in ('ActiveState', 'MainPID') or key in fields:
+                return 'unknown'
+            fields[key] = value
+        if set(fields) != {'ActiveState', 'MainPID'} or not re.fullmatch(r'[0-9]{1,10}', fields['MainPID']):
+            return 'unknown'
+        if fields['ActiveState'] in ('inactive', 'failed'):
+            return 'stopped'
+        pid = int(fields['MainPID'])
+        if fields['ActiveState'] != 'active' or not 0 < pid < 2**31:
+            return 'unknown'
+        os.kill(pid, 0)
+        return 'running'
+    except (OSError, subprocess.TimeoutExpired):
+        return 'unknown'
+
+
+# Status layout originated in OMEN candidate afa3331; validation and preservation
+# of the scheduler functions below were corrected independently by Codex.
+def format_status_human_readable(status):
+    status = status if isinstance(status, dict) else {}
+    def label(name, allowed):
+        value = status.get(name)
+        return value if isinstance(value, str) and value in allowed else 'unknown'
+    scheduler = label('scheduler', {'ready', 'held', 'not_started'})
+    reviewer = label('reviewer', {'unloaded', 'requested', 'recovery_required', 'unknown'})
+    pending = status.get('pending_reviews')
+    pending = str(pending) if type(pending) is int and pending >= 0 else 'unknown'
+    build = status.get('active_build')
+    build = ('none' if build is None else build if isinstance(build, str)
+             and re.fullmatch(r'br-[0-9]{8}-[0-9]{6}-[0-9a-f]{8}', build) else 'unknown')
+    observed = status.get('observed_at')
+    now = time.time()
+    age = 'unknown'
+    if type(observed) in (int, float) and 0 <= observed <= now and math.isfinite(observed):
+        seconds = now - observed
+        age = f'{seconds:.1f} seconds (' + ('stale' if seconds > 90 else 'fresh') + ')'
+    return '\n'.join((
+        'Daemon state: ' + get_daemon_status(),
+        'Cached snapshot age: ' + age,
+        'Last cycle scheduler state: ' + scheduler,
+        'Last observed active build: ' + build,
+        'Last observed pending review count: ' + pending,
+        'LAST OBSERVED reviewer state: ' + reviewer,
+        'Note: cached observations are not live hardware residency',
+    ))
+
+
 def main():
     parser = argparse.ArgumentParser(prog='fleet-scheduler')
     parser.add_argument('action', choices=['run-once', 'serve', 'status'])
     parser.add_argument('--json', action='store_true')
     args = parser.parse_args()
     if args.action == 'status':
-        value = json.loads((HOME / 'status.json').read_text()) if (HOME / 'status.json').exists() else {'scheduler': 'not_started'}
-        print(json.dumps(value, indent=2))
+        try:
+            value = json.loads((HOME / 'status.json').read_text())
+        except FileNotFoundError:
+            value = {'scheduler': 'not_started'}
+        except (OSError, UnicodeError, ValueError):
+            value = {'scheduler': 'unknown'}
+        print(json.dumps(value, indent=2) if args.json else format_status_human_readable(value))
         return
     HOME.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.umask(0o077)

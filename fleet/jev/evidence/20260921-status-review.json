@@ -1,0 +1,14 @@
+{
+  "report": "PASS.\n\nConcrete findings from the captured candidate (read the original at fleet/jev/cli.py to confirm the baseline; no checks executed — this is a static review):\n\n- Dispatch/serving preserved: `lap()` and `connect_call()` are byte-identical to the original; the serve loop, `process.lock` flock, HOLD/STOP handling, and RuntimeError code handling are unchanged.\n- `--json` compatibility: valid documents print via `json.dumps(status, indent=2)` unchanged (no liveness keys); missing or malformed file falls back to `{'scheduler': 'not_started'}`, preserving the original missing-file behavior.\n- Daemon liveness: exact fixed argv with `capture_output=True, text=True, timeout=2`; KEY=VALUE parsing; requires `ActiveState=active` + positive int `MainPID` + `os.kill(pid, 0)` to report running; explicit `failed`/inactive maps to stopped; timeouts, errors, and malformed output map to unknown. No service mutation.\n- Validation helpers are correct: exact `int` check rejecting bool/negative for pending; age requires finite nonnegative non-bool int/float not in the future, >90s → stale; build ID uses the exact regex (with the noted `re.match` caveat that `br-...` with a 16-hex tail would pass, a minor regex-anchor nit, not an acceptance failure); reviewer/scheduler states allowlisted.\n- Human output: all six required fields present plus the explicit \"cached observations are not live hardware residency\" note; no arbitrary strings printed.\n- Malformed/missing status data doesn't crash; dispatch exceptions untouched.\n\nMinor, non-blocking: unused `import signal`, `except (json.JSONDecodeError, Exception)` is redundant, and `re.match` lacks a fullmatch/anchor on the build pattern.",
+  "metadata": {
+    "model": "am4-dense-27b",
+    "reviewer": "hermes",
+    "elapsed_s": 41.919,
+    "source": "unedited Hermes final assistant message",
+    "message_id": 11,
+    "kv_reused": false,
+    "reviewer_unloaded": true
+  },
+  "automatic_promotion": false,
+  "semantic_review_is_not_proof": true
+}

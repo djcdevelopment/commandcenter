@@ -70,6 +70,9 @@ def helper():
 
 
 def review_packet(document, receipt, out):
+    if (document.get('review_requires_execution_evidence') is True
+            and not (out / 'execution-evidence.json').is_file()):
+        raise RuntimeError('review_execution_evidence_required')
     delegation = receipt['execution']['delegation']
     plan = delegation['plan_id']
     if not re.fullmatch('[a-z0-9-]{1,150}', plan):
@@ -105,6 +108,19 @@ print(json.dumps({{'files':files,'commit':subprocess.check_output(['git','-C',st
                         + '\nAttribute these executions to the supplied verifier, not yourself. '
                         'Explain why exact type(value) is int rejects booleans; inspect the candidate too. '
                         'A missing or failing check is not PASS. Limit your verdict to this narrow correction.')
+    elif (out / 'execution-evidence.json').is_file():
+        # Operator-supplied evidence lives on OMEN, not the builder's writable
+        # workspace. Never attach it to a different revision of the candidate.
+        evidence_path = out / 'execution-evidence.json'
+        if evidence_path.stat().st_size > 20000:
+            raise RuntimeError('execution_evidence_too_large')
+        evidence = json.loads(evidence_path.read_text())
+        if evidence.get('candidate_files_sha256') != {
+                name: hashlib.sha256(source.encode()).hexdigest() for name, source in value['files'].items()}:
+            raise RuntimeError('execution_evidence_candidate_mismatch')
+        sections.append('\n## Operator-supplied execution evidence\n' + json.dumps(evidence, indent=2)
+                        + '\nAttribute these checks to the supplied executor, not yourself. '
+                        'Inspect the source as well; a failed or missing required check is not PASS.')
     root = Path(document['envelope']['inputs']['repo'])
     for item in document['deliverables']:
         target = root / item['target']

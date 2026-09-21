@@ -1,5 +1,8 @@
 # Count correction: delivered code, unsuccessful live qualification
 
+Historical cycle. The later [overnight work log](OVERNIGHT-20260921.md) contains
+the deployed status command, review-quality results and current live state.
+
 2026-09-21. Parent Hearth receipt: `br-20260921-065757-d14fdb68`.
 This supersedes the current-state portions of [the first-loop handoff](HANDOFF-20260921.md),
 not its preserved candidate, false-PASS review, or execution evidence.

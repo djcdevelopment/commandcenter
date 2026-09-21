@@ -146,6 +146,15 @@ def recent_outcomes(db):
     return result[:4]
 
 
+def pending_review(row):
+    document = json.loads(row['document'])
+    waiting = (document.get('review_requires_execution_evidence') is True
+               and not (home() / row['id'] / 'execution-evidence.json').is_file())
+    return {'ok': True, 'candidates': [], 'pending_reviews': [] if waiting else [row['id']],
+            'active_build': None, 'reviewer': 'unloaded',
+            'wait_reason': 'review_evidence_pending' if waiting else None}
+
+
 def _prepare():
     who = caller()
     with LOCK, connection() as db:
@@ -157,10 +166,12 @@ def _prepare():
                 if delegation.get('result') == 'awaiting_review':
                     db.execute('UPDATE jobs SET state=?,result=? WHERE id=?',
                                ('review_pending', json.dumps(outcome), active['id']))
-                    return {'ok': True, 'candidates': [], 'pending_reviews': [active['id']], 'active_build': None}
+                    return pending_review(active)
                 if outcome.get('status') in ('failed', 'blocked'):
                     db.execute('UPDATE jobs SET state=?,result=? WHERE id=?', ('failed', json.dumps(outcome), active['id']))
                     return {'ok': True, 'candidates': [], 'pending_reviews': [], 'wait_reason': 'build_failed'}
+            if active['state'] == 'review_pending':
+                return pending_review(active)
             return {'ok': True, 'candidates': [], 'active_build': active['receipt_id'],
                     'pending_reviews': [active['id']] if active['state'] == 'review_pending' else [],
                     'reviewer': 'recovery_required' if active['state'] == 'reviewing' else 'unloaded',

@@ -12,6 +12,9 @@ a new real task after that hold, not a repeat of the completed correction.
 
 07:34–07:54 UTC window. Delivered `fleet-scheduler budget` and `budget --json`
 on FX99 at 07:50:57. Real reads preserve ledger bytes and `status --json`.
+Generation stopped in time; documentation/commit finished at 07:54:14, slightly
+past the delivery ceiling. Final receipt accounting followed; do not report the
+entire cycle as within budget merely because the command was already deployed.
 Output separates USD 0.000147000 usage-based estimates from USD 0.005505024
 uncertain reservations; USD 0.094347976 remains against the unchanged USD 0.10
 cap. Estimates use the configured price, not provider invoice reconciliation.

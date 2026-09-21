@@ -4,11 +4,53 @@ Authority: Derek permitted 4–8 hours of iteration to improve useful local-work
 throughput and quality. The goal remains active. Do not confuse a completed
 cycle or a healthy endpoint with completion of that larger objective.
 
-Previous goal turn classification (cycle 12): **progress**. Active-work polling
-and safe wait reasons were deployed, and a live JEV dispatch used curated
-quality feedback. This does not imply reliable unassisted code delivery.
+Previous goal turn classification (cycle 13): **progress**, with failed local
+qualification. A useful Codex HTML fallback and incomplete-worker feedback were
+delivered. The missing file made action/result diagnosis the next useful step.
 
-## Latest: cycle 13, missing worker artifact; useful Codex HTML fallback
+## Latest: cycle 14, identified output truncation and raised the bounded allowance
+
+[Source-backed worker diagnosis](WORKER-ACTION-DIAGNOSIS-20260921.md) explains
+the exact cycle-13 failure. All three OMEN replies hit 2,048 output tokens and
+were incomplete `write_file` actions for the requested file: their content
+strings never closed. Standard JSON decoding also fails. No file-writing tool
+ran. The runner then created its fallback retrospective and returned exit0.
+The reported fourth step was a budget check, not a fourth model generation.
+This resolves the prior log's "cannot answer why" without blaming GPU residency
+or inventing a parser defect.
+
+Window 10:30:48–10:45:48 UTC; initial diagnosis target 10:34:33, final four minutes
+reserved for delivery. Initial source-backed report saved by **10:34:08**, inside
+the target. Parent `br-20260921-103108-54e5b38e`. No new model/API generation or
+test files. Codex inspected exact worker log events, integrity-checked result
+artifacts and installed source; no private reasoning content was published.
+
+The smallest correction is deployed on **cc-builder-2 only**: the OMEN adapter
+now requests up to 4,096 tokens and logs its requested limit. This is within the
+gateway's existing 1–4,096 admission range. The native guard still requires
+prompt tokens + output allowance +32 to fit the observed slot context. No guard,
+retry policy, model, default runner configuration or wall-clock budget changed.
+No gateway or worker restart. Exact previous source was retained in
+`agent_hearth.py.jev-output-limit-20260921.backup`. cc-builder-3 remains unchanged.
+
+A transport-only execution of the installed adapter verified the 4,096 argument,
+its log field and unchanged backend/model/returned text. The initial probe used
+the wrong system Python; the successful probe used the existing worker-project
+virtual environment. A spy replaced network transport, so this is **not a fresh
+model qualification or measured speedup**. Next useful work is a genuinely new
+whole-file change with requested/emitted token counts and first-file latency.
+Do not repeat the already delivered HTML change to manufacture a passing sample.
+
+Evidence: [action trace](evidence/20260921-worker-action-trace.json),
+[saved-response inspection](evidence/20260921-worker-response-inspection.json),
+[installed correction](evidence/20260921-worker-output-limit-deployment.json),
+[transport check](evidence/20260921-worker-output-limit-transport.json).
+OMEN verified ready at 10:38:47, native16k/eight slots, all free. FX99 idle and
+ready; AM4 helper owner null/model absent at 10:41. JEV ledger unchanged:
+12 attempts, USD0.000377160 confirmed usage estimates, USD0.005505024 uncertain
+reservations, USD0.005882184 booked. Local hardware and Codex costs unmetered.
+
+## Cycle 13, missing worker artifact; useful Codex HTML fallback
 
 The [updated human/agent HTML snapshot](reports/fleet-operations-20260921-cycle13.html)
 now exposes verified work quality alongside the fleet controls and capacity.
@@ -36,9 +78,9 @@ Its commit contains only `retro.md`; neither root nor nested `operations_page.py
 exists. The farm's generic success/162-test assay is not deliverable success.
 The capture failure left the queue review_pending and FX99 held with ExceptionGroup.
 No candidate existed and **no Hermes inference started**. The actual reason the
-four-step run wrote no source is not established by these artifacts; do not
-invent a GPU, context or tool diagnosis. Before another full-file rewrite,
-inspect this run's tool-call outcomes, not private model reasoning.
+four-step run wrote no source was not established by those artifacts. Cycle14
+above subsequently resolved it using saved action/output evidence; this earlier
+lap did not establish that diagnosis.
 
 Codex had temporarily deployed an appended 130-word findings-only review contract
 with a90-second automatic budget. Since no candidate reached it, that change is

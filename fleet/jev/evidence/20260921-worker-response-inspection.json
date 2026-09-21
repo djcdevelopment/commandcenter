@@ -1,0 +1,59 @@
+{
+  "inspection": "Codex read-only inspection of integrity-checked saved output artifacts; no model reasoning or response prose emitted",
+  "results": [
+    {
+      "job_id": "job_8c292214d7578d8c7b70b1dfce6d178d",
+      "result_artifact_id": "art_af391df04e84917090eaa31a545e2ed4",
+      "sha256": "ce2fc9a4e74668fb45c1ba8ed3fdae295b994302b7bbc018f43409d32aba61a9",
+      "bytes": 8390,
+      "characters": 8386,
+      "leading_fence": false,
+      "valid_complete_json": false,
+      "json_error": "Unterminated string starting at",
+      "error_position": 415,
+      "characters_after_error": 7971,
+      "decoded_action": "write_file",
+      "decoded_path": "operations_page.py",
+      "content_value_start": 415,
+      "content_complete": false,
+      "content_error": "Unterminated string starting at",
+      "content_error_position": 415
+    },
+    {
+      "job_id": "job_2bcbea37e7ddb34803d623a428805fac",
+      "result_artifact_id": "art_ee106a681e318fd834dd734d8c5ae462",
+      "sha256": "7bceaef22d1e3ae4ba998803450b867b72935bb23d7a825ffa30e2aa109d93c0",
+      "bytes": 8384,
+      "characters": 8380,
+      "leading_fence": false,
+      "valid_complete_json": false,
+      "json_error": "Unterminated string starting at",
+      "error_position": 376,
+      "characters_after_error": 8004,
+      "decoded_action": "write_file",
+      "decoded_path": "operations_page.py",
+      "content_value_start": 376,
+      "content_complete": false,
+      "content_error": "Unterminated string starting at",
+      "content_error_position": 376
+    },
+    {
+      "job_id": "job_f1de4237896225c0b48768b8002fa2c7",
+      "result_artifact_id": "art_cb4d1f9c52c327d5ee1e88829f7c2438",
+      "sha256": "8abd8fca7b7ddb15ee8d527bb8445b92d1aa919be53d4642af365593e602daaa",
+      "bytes": 8351,
+      "characters": 8347,
+      "leading_fence": false,
+      "valid_complete_json": false,
+      "json_error": "Unterminated string starting at",
+      "error_position": 395,
+      "characters_after_error": 7952,
+      "decoded_action": "write_file",
+      "decoded_path": "operations_page.py",
+      "content_value_start": 395,
+      "content_complete": false,
+      "content_error": "Unterminated string starting at",
+      "content_error_position": 395
+    }
+  ]
+}

@@ -10,6 +10,10 @@ and four assisted deliveries, one incomplete worker result, and two tasks that
 did not reach this worker. The latest whole-file builder run produced no source;
 the HTML quality-table addition was completed directly by Codex. Its proposed
 shorter review format never received a candidate and was rolled back unqualified.
+The missing-file run was traced to three truncated 2,048-token JSON actions.
+The cc-builder-2 OMEN adapter now allows 4,096 within the existing gateway limit;
+transport verified, a new real model build not yet sampled. See the
+[worker diagnosis and bounded correction](WORKER-ACTION-DIAGNOSIS-20260921.md).
 CPU scheduling remains active for Derek's overnight work;
 AM4 is unloaded between reviews. The new required-evidence gate is saved but
 not loaded because a tool-policy restriction blocked the gateway restart.

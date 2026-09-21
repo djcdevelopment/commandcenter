@@ -8,7 +8,9 @@ import agent_openai as runner
 TASK_ID = ''
 
 
-def chat(base_url, model, token, messages, max_tokens=2048, timeout=120):
+# Whole-file JSON actions exceeded 2048 tokens in the recorded cycle-13 failure.
+# The gateway still enforces its 4096-output and native-context admission limits.
+def chat(base_url, model, token, messages, max_tokens=4096, timeout=120):
     if base_url != BASE_URL or model != MODEL:
         raise ValueError('OMEN-only transport')
     system = '\n'.join(m['content'] for m in messages if m['role']=='system')
@@ -21,7 +23,8 @@ def chat(base_url, model, token, messages, max_tokens=2048, timeout=120):
     if not result.get('ok') or result.get('backend') != 'omen-arc':
         raise RuntimeError('OMEN generation failed: '+str(result.get('error','route mismatch'))[:250])
     attempt = {k:result.get(k) for k in ('backend','model','tokens_in','tokens_out','duration_ms')}
-    attempt.update(task_id=TASK_ID, job_id=(result.get('execution') or {}).get('job_id'))
+    attempt.update(task_id=TASK_ID, job_id=(result.get('execution') or {}).get('job_id'),
+                   requested_max_tokens=max_tokens)
     print('[hearth_attempt] '+json.dumps(attempt),flush=True)
     return result.get('text') or ''
 

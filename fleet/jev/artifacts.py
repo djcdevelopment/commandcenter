@@ -23,6 +23,7 @@ def formatter_evidence(candidate):
     for name in ('active_work_val', 'pending_reviews_val'):
         expected = expected.replace(f'isinstance({name}, int)', f'type({name}) is int')
     evidence = {'executor': 'Codex-supplied independent execution, not Hermes',
+                'baseline_commit': 'd69d8685f153962ae1ef1ad987d34efdec8470ba',
                 'candidate_sha256': hashlib.sha256(candidate.encode()).hexdigest(), 'cases': []}
     try:
         tree = ast.parse(candidate)
@@ -35,7 +36,9 @@ def formatter_evidence(candidate):
     namespace = {'__builtins__': safe}
     exec(compile(tree, '<captured-local-candidate>', 'exec'), namespace)
     baseline = {'__builtins__': safe}
-    exec(compile((root / 'fleet/hermes/fleet_status_format.py').read_text(), '<baseline>', 'exec'), baseline)
+    original = subprocess.check_output(['git', 'show', evidence['baseline_commit']
+                                       + ':fleet/hermes/fleet_status_format.py'], cwd=root, text=True)
+    exec(compile(original, '<baseline>', 'exec'), baseline)
     cases = evidence['cases']
     actual = namespace['format_status']({})
     wanted = baseline['format_status']({})

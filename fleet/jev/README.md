@@ -1,12 +1,13 @@
 # JEV scheduler / on-demand Hermes reviewer
 
-Status after Derek's approved retry, 2026-09-21: **real build and review delivered
-with assisted recovery; not qualified for unattended operation**. JEV admitted
-one real OMEN-backed MechNet job. The worker wrote a candidate; Hermes reviewed
-it in 47 seconds but incorrectly returned PASS on a boolean-count bug. The
-candidate remains unpromoted. Original AM4/conductor state is restored and the
-pilot gateway/tunnel and FX99 unit are inactive. Read the
-[handoff and retrospective](HANDOFF-20260921.md) before restarting.
+Latest status, 2026-09-21: **count correction integrated locally; clean live
+cycle still unqualified**. The next JEV lap ended before dispatch after two
+HTTP attempts, ending in HTTP 529. Codex corrected the prior OMEN candidate's
+two count checks and integrated it into this worktree; four actual execution
+cases passed. No new worker or Hermes run occurred. AM4/conductor baseline is
+restored; pilot gateway/tunnel and FX99 unit are inactive. Read the
+[latest handoff](HANDOFF-COUNTS-20260921.md) and
+[first-loop retrospective](HANDOFF-20260921.md) before restarting.
 
 ## What runs where
 
@@ -67,8 +68,8 @@ Commands: `fleet-scheduler run-once`, `fleet-scheduler serve`,
 The installed user unit is `fleet-scheduler.service`; installation alone does
 not start or enable it. A live hold must be reviewed before enabling unattended use.
 Status output is a cached last-cycle observation; check the systemd unit/lock
-for process liveness. The pending worker artifact is not yet integrated into
-the scheduler command's human-readable output.
+for process liveness. The corrected formatter is in this worktree, but the
+scheduler command still emits JSON; no remote status-command deployment is claimed.
 
 Credentials: `/home/derek/.config/fleet-scheduler`, directory `0700`; key files
 `0600`. `typesafe.key` is reread on every HTTP attempt. Replace that private file

@@ -8,7 +8,55 @@ Previous goal turn classification: **progress**. It integrated the count fix,
 verified actual outputs, and established an HTTP 529 hold. The next cycle used
 a new real task after that hold, not a repeat of the completed correction.
 
-## Latest: cycle 7, human/agent capacity page and failed authoring probe
+## Latest: cycle 8, route capability report; dispatch/review qualification failed
+
+Window 09:01:01–09:21:01 UTC; generation ceiling 09:16:01. The first useful report
+target **09:06:01 was missed**. The corrected 579-word
+[capability report](ROUTE-CAPABILITIES-20260921.md) was saved at **09:12:39**.
+Receipt `br-20260921-090324-fc28f750`. This delivered a source-checked report,
+not a successful autonomous JEV → MechNet → Hermes cycle.
+
+JEV held task `jev-0609302367da3133217c5db1`: fit 2.54/3, confidence 0.54
+(below unchanged 0.60), ambiguity 0.19. One call, 0.368s, 910 input tokens,
+estimated USD0.00003822. The live profile summary describes writing a single
+Python file; that is a possible explanation for a Markdown-task mismatch, not
+an established cause of JEV's score. No clearer-summary retry or gate change.
+The untouched ready job had no receipt/dispatch; it was explicitly moved to
+`operator_held` to prevent later implicit execution. Original decision retained.
+
+A direct Hearth fallback on the same resident OMEN model produced a draft in
+51.907s (12,243 input / 1,028 output tokens), job
+`job_e9757e4f1f7ccf62fae3113163a469bb`. The draft conflated catalog status with
+runtime readiness, repeated historical AM4 settings as current, invented a source
+path/test-mode recommendation, and contradicted existing review automation.
+It was **not accepted**. Codex corrected the final report against actual source;
+the [raw draft](evidence/20260921-route-local-draft.json) remains unedited.
+
+One manual Hermes review used the unchanged AM4 model/topology, reasoning `none`,
+60s application budget, owner `jev-86afa060609140988d301900`. Its wrapper reached
+`hermes_review_deadline`; the owned seat was stopped and released. A delivery-only
+inspection found one saved 6,381-character, tool-free assistant entry, but no
+NEEDS_WORK/PASS/INCONCLUSIVE verdict and no completed `result.json`. It is partial
+analysis, not a completed independent review; it remains private. No inference
+retry. Why this run exceeded its budget is not established.
+
+The final report distinguishes gateway/harness/execution layers; declared
+DeepAgents status versus the named undeployed harness; the fixed pilot route;
+planning validity versus field freshness; unknown VRAM; and inference, receipt
+and accepted-work feedback. No claim of automatic hardware optimization or
+weight training. Markdown links and named source entry points were checked.
+No new test files, code changes, benchmarks, deployment or topology changes.
+See [execution evidence](evidence/20260921-route-execution.json) and
+[recovery metadata](evidence/20260921-route-hermes-recovery.json).
+
+Total API ledger now: 8 attempts, known-usage estimate USD0.000222684;
+uncertain reservations USD0.005505024; booked USD0.005727708 of USD0.10.
+Reservations are not confirmed charges. Codex effort and local power are not
+included. CPU scheduler remains active; production is untouched; AM4 is released.
+The larger goal remains active. The next useful change must improve accepted
+work, not turn this failure into more apparatus or a looser confidence threshold.
+
+## Cycle 7, human/agent capacity page and failed authoring probe
 
 Window 08:44:13–09:04:13 UTC. The first-page target at **08:49:13 was missed**;
 the actual page was saved at **08:52:13**. Do not count the wrapper or settings

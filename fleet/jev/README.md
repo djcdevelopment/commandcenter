@@ -8,6 +8,7 @@ executed evidence. CPU scheduling remains active for Derek's overnight work;
 AM4 is unloaded between reviews. The new required-evidence gate is saved but
 not loaded because a tool-policy restriction blocked the gateway restart.
 Read the [overnight work log and current state](OVERNIGHT-20260921.md),
+[source-backed execution-route capability matrix](ROUTE-CAPABILITIES-20260921.md),
 [count-correction handoff](HANDOFF-COUNTS-20260921.md), and
 [first-loop retrospective](HANDOFF-20260921.md).
 

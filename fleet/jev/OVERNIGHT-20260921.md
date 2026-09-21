@@ -8,7 +8,61 @@ Previous goal turn classification (cycle 10): **progress**. It delivered the
 human/agent operations page and identified a pure pre-dispatch path refusal.
 The next action moved that same check ahead of queue writes and cloud spending.
 
-## Latest: cycle 11, deployed work-quality feedback; unchanged local helper
+## Latest: cycle 12, deployed active polling and safe wait reasons
+
+Window **09:57:43–10:17:43 UTC**, generation ceiling 10:12:43. Useful artifact:
+deployed adaptive polling, a real worker-authored status-view starting point,
+and a live JEV decision using curated quality feedback. First working output
+was **10:02:49**, six seconds after the 10:02:43 target; do not call it on time.
+Parent `br-20260921-095909-41874797`; child `br-20260921-100117-3f5abe25`;
+task `jev-aacd8778e90c5ef5a61aa434`. No generation retry or new test files.
+
+Codex changed the scheduler to sleep five seconds while an active build is in
+progress, 30 seconds when idle/held, and one second after a completed review.
+Status records the requested delay without falsely refreshing observation time.
+The actual FX99 active observation gaps were **5.759, 5.658 and 5.667 seconds**.
+The sampler captured the configured one-second post-review delay, not the next
+observation. This is a cadence result, not a jobs/hour benchmark. The previous
+13-second worker / 31-second observed completion gap also includes farm assay
+and transport. Conductor clock was about 1.02–1.32 seconds ahead of OMEN, so
+cross-host file timestamps cannot support precise finish-to-review claims.
+
+One real JEV dispatch: fit3.0/confidence1.0/ambiguity0.14, 950 input tokens,
+0.316 seconds, estimated USD0.0000399. Its recorded quality-history SHA is
+`19d2b3f90fe8db1f3d61bd75c8c78e3ac82f9f70140235de0a41a2f05f8b9212`.
+Gates and spending limits are unchanged. Confidence is task fit, not code proof.
+The OMEN worker produced candidate `2d7c1652c199128a61dce8d13bdea7c48f8ef42c`
+in four recorded steps / 18 seconds. It incorrectly accepted boolean numeric
+values and rendered absent wait reasons as unknown. Codex corrected those
+conditions, extracted the CLI wrapper, and preserved the seven original lines.
+Six focused execution cases pass after correction; four fail on the raw draft.
+The raw draft's real newline joining was already correct; no newline failure
+should be inferred from JSON escaping.
+
+Hermes returned NEEDS_WORK in 55.971 seconds and released AM4. It caught numeric
+bool defects, but incorrectly flagged the original uppercase reviewer label and
+misread the two-stage wait guard. The new-file packet lacked the separate CLI
+baseline. Executed checks were performed afterward, not supplied to that review;
+the saved required-evidence gate remains unloaded. This is **assisted delivery**,
+not unchanged model delivery or independent reviewer correctness.
+
+Adaptive CLI deployed at 09:59:11; corrected status module/wrapper were deployed
+by 10:12:36 with hash checks and distinct recoverable backups. The actual FX99
+command reports eight lines, daemon running, zero pending reviews and no active
+build. AM4 helper verified owner null/model absent; OMEN verified at 10:13:04
+with its unchanged 16k/eight-slot resident and all slots free. No gateway restart,
+production model change, KV reuse, branch promotion or root push occurred.
+
+Curated quality history now has seven selected tasks: five reached the worker,
+one unchanged and four assisted deliveries, two not run. Evidence:
+[complete captured observations](evidence/20260921-polling-status.json),
+[unedited local candidate](evidence/20260921-status-wait-candidate.json), and
+[independent execution](evidence/20260921-status-wait-execution.json).
+Cumulative JEV ledger: 11 attempts, USD0.000336966 confirmed usage estimates,
+USD0.005505024 uncertain reservations, USD0.005841990 booked against USD0.10.
+Codex effort and local hardware/power remain unmetered in that ledger.
+
+## Cycle 11, deployed work-quality feedback; unchanged local helper
 
 Window 09:40:11–10:00:11 UTC; first scoreboard target 09:45:11, generation ceiling
 09:55:11. Parent `br-20260921-094148-9d008ba6`; child

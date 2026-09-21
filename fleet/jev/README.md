@@ -1,10 +1,13 @@
 # JEV scheduler / on-demand Hermes reviewer
 
-Latest status, 2026-09-21: **one clean automatic build/review/release cycle;
-code acceptance still requires independent review**. The status command is
-deployed on FX99 after Codex corrections to a real OMEN candidate. Hermes first
-returned a false PASS, then correctly rejected that same candidate when given
-executed evidence. CPU scheduling remains active for Derek's overnight work;
+Latest status, 2026-09-21: **real build/review/release cycles are operating;
+code acceptance still requires independent review**. FX99 now polls active builds
+every five seconds (observed 5.66–5.76 seconds including RPC), idle work every
+30 seconds, and schedules a one-second follow-up after review. Human status adds
+an allowlisted wait reason. JEV's first live decision with curated quality history
+completed without changing gates. Seven selected outcomes include one unchanged
+and four assisted deliveries, plus two tasks that did not reach this worker.
+CPU scheduling remains active for Derek's overnight work;
 AM4 is unloaded between reviews. The new required-evidence gate is saved but
 not loaded because a tool-policy restriction blocked the gateway restart.
 Read the [overnight work log and current state](OVERNIGHT-20260921.md),

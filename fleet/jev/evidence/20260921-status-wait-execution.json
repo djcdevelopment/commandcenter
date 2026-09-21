@@ -1,0 +1,46 @@
+{
+  "executor": "Codex independent execution/source check",
+  "candidate_sha256": "12b90068219efdfed1fc6ab571e1deaa2e47e2bb93f5d2532543789a1672a5c9",
+  "candidate_commit": "2d7c1652c199128a61dce8d13bdea7c48f8ef42c",
+  "integrated_sha256": "5ccaffef189e811e948e91aecd430b79a2825062e8f0c615bd78097b2b49209a",
+  "cases": [
+    {
+      "name": "eight_real_lines",
+      "candidate_passed": true,
+      "integrated_passed": true
+    },
+    {
+      "name": "absent_wait_is_none",
+      "candidate_passed": false,
+      "integrated_passed": true
+    },
+    {
+      "name": "boolean_pending_unknown",
+      "candidate_passed": false,
+      "integrated_passed": true
+    },
+    {
+      "name": "boolean_observed_unknown",
+      "candidate_passed": false,
+      "integrated_passed": true
+    },
+    {
+      "name": "boolean_now_unknown",
+      "candidate_passed": false,
+      "integrated_passed": true
+    },
+    {
+      "name": "hostile_wait_unknown",
+      "candidate_passed": true,
+      "integrated_passed": true
+    }
+  ],
+  "old_seven_lines_preserved": true,
+  "original_uppercase_reviewer_line_preserved": true,
+  "finite_check_order_preserves_rejection_of_huge_future_observation": true,
+  "first_working_output_utc": "2026-09-21T10:02:49Z",
+  "first_artifact_target_utc": "2026-09-21T10:02:43Z",
+  "qualification": "raw local draft rejected; corrected by Codex; no generation retry",
+  "generated_after_automatic_review": true
+}
+

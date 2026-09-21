@@ -1,0 +1,267 @@
+{
+  "execution": {
+    "executor": "Codex independent execution/source check",
+    "candidate_sha256": "12b90068219efdfed1fc6ab571e1deaa2e47e2bb93f5d2532543789a1672a5c9",
+    "candidate_commit": "2d7c1652c199128a61dce8d13bdea7c48f8ef42c",
+    "integrated_sha256": "5ccaffef189e811e948e91aecd430b79a2825062e8f0c615bd78097b2b49209a",
+    "cases": [
+      {
+        "name": "eight_real_lines",
+        "candidate_passed": true,
+        "integrated_passed": true
+      },
+      {
+        "name": "absent_wait_is_none",
+        "candidate_passed": false,
+        "integrated_passed": true
+      },
+      {
+        "name": "boolean_pending_unknown",
+        "candidate_passed": false,
+        "integrated_passed": true
+      },
+      {
+        "name": "boolean_observed_unknown",
+        "candidate_passed": false,
+        "integrated_passed": true
+      },
+      {
+        "name": "boolean_now_unknown",
+        "candidate_passed": false,
+        "integrated_passed": true
+      },
+      {
+        "name": "hostile_wait_unknown",
+        "candidate_passed": true,
+        "integrated_passed": true
+      }
+    ],
+    "old_seven_lines_preserved": true,
+    "original_uppercase_reviewer_line_preserved": true,
+    "finite_check_order_preserves_rejection_of_huge_future_observation": true,
+    "first_working_output_utc": "2026-09-21T10:02:49Z",
+    "first_artifact_target_utc": "2026-09-21T10:02:43Z",
+    "qualification": "raw local draft rejected; corrected by Codex; no generation retry",
+    "generated_after_automatic_review": true
+  },
+  "cadence": {
+    "elapsed_s": 93.568,
+    "saw_work": true,
+    "samples": [
+      {
+        "sampled_at": 1789984875.948426,
+        "status": {
+          "scheduler": "ready",
+          "gpu_reservation": false,
+          "active_build": null,
+          "pending_reviews": 0,
+          "reviewer": "unloaded",
+          "wait_reason": "no_admissible_ready_task",
+          "observed_at": 1789984845.723746,
+          "next_poll_s": 30
+        }
+      },
+      {
+        "sampled_at": 1789984876.5494964,
+        "status": {
+          "scheduler": "ready",
+          "gpu_reservation": false,
+          "active_build": null,
+          "pending_reviews": 0,
+          "reviewer": "unloaded",
+          "wait_reason": null,
+          "observed_at": 1789984876.450023
+        }
+      },
+      {
+        "sampled_at": 1789984878.7538478,
+        "status": {
+          "scheduler": "ready",
+          "gpu_reservation": false,
+          "active_build": "br-20260921-100117-3f5abe25",
+          "pending_reviews": 0,
+          "reviewer": "unloaded",
+          "wait_reason": null,
+          "observed_at": 1789984876.450023,
+          "selected_task": "jev-aacd8778e90c5ef5a61aa434",
+          "next_poll_s": 5
+        }
+      },
+      {
+        "sampled_at": 1789984884.363928,
+        "status": {
+          "scheduler": "ready",
+          "gpu_reservation": false,
+          "active_build": "br-20260921-100117-3f5abe25",
+          "pending_reviews": 0,
+          "reviewer": "unloaded",
+          "wait_reason": "work_in_progress",
+          "observed_at": 1789984884.2389636,
+          "next_poll_s": 5
+        }
+      },
+      {
+        "sampled_at": 1789984890.1755526,
+        "status": {
+          "scheduler": "ready",
+          "gpu_reservation": false,
+          "active_build": "br-20260921-100117-3f5abe25",
+          "pending_reviews": 0,
+          "reviewer": "unloaded",
+          "wait_reason": "work_in_progress",
+          "observed_at": 1789984889.9981287,
+          "next_poll_s": 5
+        }
+      },
+      {
+        "sampled_at": 1789984895.7858567,
+        "status": {
+          "scheduler": "ready",
+          "gpu_reservation": false,
+          "active_build": "br-20260921-100117-3f5abe25",
+          "pending_reviews": 0,
+          "reviewer": "unloaded",
+          "wait_reason": "work_in_progress",
+          "observed_at": 1789984895.6561244,
+          "next_poll_s": 5
+        }
+      },
+      {
+        "sampled_at": 1789984901.3953981,
+        "status": {
+          "scheduler": "ready",
+          "gpu_reservation": false,
+          "active_build": "br-20260921-100117-3f5abe25",
+          "pending_reviews": 0,
+          "reviewer": "unloaded",
+          "wait_reason": "work_in_progress",
+          "observed_at": 1789984901.3235297,
+          "next_poll_s": 5
+        }
+      },
+      {
+        "sampled_at": 1789984907.20582,
+        "status": {
+          "scheduler": "ready",
+          "gpu_reservation": false,
+          "active_build": null,
+          "pending_reviews": 1,
+          "reviewer": "requested",
+          "wait_reason": null,
+          "observed_at": 1789984907.0201023,
+          "selected_task": "jev-aacd8778e90c5ef5a61aa434"
+        }
+      },
+      {
+        "sampled_at": 1789984969.5157452,
+        "status": {
+          "scheduler": "ready",
+          "gpu_reservation": false,
+          "active_build": null,
+          "pending_reviews": 0,
+          "reviewer": "unloaded",
+          "wait_reason": null,
+          "observed_at": 1789984907.0201023,
+          "selected_task": "jev-aacd8778e90c5ef5a61aa434",
+          "next_poll_s": 1
+        }
+      }
+    ]
+  },
+  "deployment": {
+    "before": {
+      "raw": "ba638bc85ec828b3888037c7bdf90344603750bd365e1f219fd1b29e01bfcace",
+      "lf": "ba638bc85ec828b3888037c7bdf90344603750bd365e1f219fd1b29e01bfcace"
+    },
+    "installed": {
+      "installed": [
+        "/home/derek/.local/share/fleet-scheduler/fleet/jev/cli.py"
+      ]
+    }
+  },
+  "status-deployment": {
+    "installed": {
+      "installed": [
+        "/home/derek/.local/share/fleet-scheduler/fleet/jev/cli.py",
+        "/home/derek/.local/share/fleet-scheduler/fleet/jev/status_view.py"
+      ]
+    },
+    "status": "Daemon state: running\nCached snapshot age: 5.5 seconds (fresh)\nLast cycle scheduler state: ready\nLast observed active build: none\nLast observed pending review count: 0\nLAST OBSERVED reviewer state: unloaded\nLast observed wait reason: no_admissible_ready_task\nNote: cached observations are not live hardware residency\n",
+    "budget": {
+      "available": true,
+      "calls": 11,
+      "input_tokens": 8023,
+      "usage_estimate_usd": 0.00033696600000000007,
+      "uncertain_reserved_usd": 0.005505024000000001,
+      "booked_usd": 0.005841990000000001,
+      "remaining_usd": 0.09415801
+    },
+    "queue_active": [],
+    "backup_suffix": ".jev-status-wait-20260921.backup"
+  },
+  "review": {
+    "report": "Verdict: NEEDS_WORK\n\nThe candidate fails on multiple acceptance criteria. Findings (line numbers refer to the captured candidate text; note the provided \"Original:\" block was empty, so comparison is against the stated acceptance criteria):\n\n1. Bool type leak (lines 27, 33): pending count — `isinstance(True, int)` is True, so `pending_reviews: True` renders as \"True\", not \"unknown\". The spec requires \"nonnegative integer\" and elsewhere explicitly excludes bool (line 34 does exclude bool for observed_at/now; pending does not).\n\n2. Line 34 age check: `isinstance(observed, (int, float)) and math.isfinite(observed)` — works, but note `math.isfinite` on a bool passes; the spec says \"exact int/float types (not bool)\". Candidate does NOT exclude bool here: `isinstance(True, (int, float))` is True and `math.isfinite(True)` is finite, so `observed_at: True` with `now: 2` would produce age \"1.0 seconds (fresh)\" instead of \"unknown\". Same for `now: True`.\n\n3. Line 47: `wait_label = 'none' if wait_reason is None or not isinstance(wait_reason, str) else wait_reason` — spec says LABEL is \"none\" when wait_reason is **absent OR None**; the candidate conflates \"absent\" with \"None\" correctly via `.get()` default (absent → None → 'none', OK), but then \"All other types/strings render unknown\" — a non-string (e.g., 5, True, list) should render \"unknown\", and the candidate does that via the `not isinstance` branch only when wait_reason is not None... actually re-reading: non-string non-None goes to else? No — `wait_reason is None or not isinstance(..., str)` → 'none'. So `wait_reason: 5` renders \"none\", not \"unknown\". That violates \"all other types render unknown, never raw input\". Bug.\n\n4. Line 57: `'LAST OBSERVED reviewer state: '` — uppercase mismatch; original line is presumably \"Last observed reviewer state: \" (the spec says preserve all existing output lines and order). Uppercase changes the existing line, failing \"preserve all existing output lines\".\n\n5. Line 17 scheduler allowed set `{'ready','held','not_started'}` and line 21 reviewer set, line 29 build-ID regex — not verifiable against original since the provided original was empty; cannot confirm these match \"existing behavior\". This makes full verification partial.\n\n6. No syntax check was run (no output proves it); I did not execute the file.\n\nPASS would require: fix pending bool exclusion, exclude bool for observed_at/now, render non-string non-None wait_reason as \"unknown\", restore the reviewer line's original casing, and confirm scheduler/reviewer/build-regex match the true baseline (original source not visible in the capture — empty under \"Original:\").",
+    "metadata": {
+      "model": "am4-dense-27b",
+      "reviewer": "hermes",
+      "elapsed_s": 55.971,
+      "run_budget_s": 180,
+      "requested_reasoning": "none",
+      "source": "unedited Hermes final assistant message",
+      "message_id": 11,
+      "kv_reused": false,
+      "packet_evidence": {
+        "mode": "unchanged",
+        "reason": "unrecognized_evidence",
+        "original_bytes": 7532,
+        "sent_bytes": 7532,
+        "original_sha256": "b8ba57ef38c6e4331301753fd7834b8bd5d65349905c880d23c9396b60541b17",
+        "sent_sha256": "b8ba57ef38c6e4331301753fd7834b8bd5d65349905c880d23c9396b60541b17"
+      },
+      "reviewer_unloaded": true
+    },
+    "automatic_promotion": false,
+    "semantic_review_is_not_proof": true
+  },
+  "decision": {
+    "material": "a59e150aebba6b62ba0f5e63bcc11d823efa3657b051b83463a7a17313c7e65c",
+    "usage": {
+      "provider": "typesafe",
+      "model": "jev-1.13.0",
+      "input_tokens": 950,
+      "output_tokens": 101,
+      "estimated_usd": 0.00003990000000000001,
+      "elapsed_s": 0.316,
+      "request_sha256": "30b296a893e802ef23620063cd23801cd97205ec53c0213a0c5b9fb284bb30f5"
+    },
+    "judgments": [
+      {
+        "candidate_id": "37159f22f0c68b9d6c11011e77008164",
+        "score": 3,
+        "confidence": 1,
+        "ambiguity": 0.14,
+        "probabilities": {
+          "0": 0,
+          "1": 0,
+          "2": 0,
+          "3": 1
+        },
+        "eligible": true
+      }
+    ],
+    "candidate_id": "37159f22f0c68b9d6c11011e77008164",
+    "snapshot_id": "51cca4cd503e1aad7aeebd16e71f859c1348a95b5628ba87cbca3babffea549d",
+    "wait_reason": null,
+    "quality_history_sha256": "19d2b3f90fe8db1f3d61bd75c8c78e3ac82f9f70140235de0a41a2f05f8b9212",
+    "dispatched": true
+  },
+  "review_seat": {
+    "ok": true,
+    "owner": null,
+    "model_resident": false,
+    "native_context": null,
+    "kv_enabled": false
+  },
+  "observed_at": 1789985584.528049
+}
+

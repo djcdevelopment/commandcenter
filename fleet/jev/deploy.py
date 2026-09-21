@@ -21,7 +21,7 @@ def stage():
     files = [transport.file(base + 'fleet/jev/' + name, (ROOT / 'fleet/jev' / name).read_bytes(), mode=0o600)
              for name in ('__init__.py', 'cli.py', 'client.py', 'policy.py',
                           'review.py', 'review_evidence.py', 'budget_view.py',
-                          'quality.py', 'quality_counts.py')]
+                          'quality.py', 'quality_counts.py', 'status_view.py')]
     files.append(transport.file('/home/derek/.local/state/fleet-scheduler/quality-history.json',
                                 (ROOT / 'fleet/jev/quality-history.json').read_bytes(), mode=0o600))
     files += [transport.file(base + 'install_key.py', (ROOT / 'fleet/jev/install_key.py').read_bytes(), mode=0o600),

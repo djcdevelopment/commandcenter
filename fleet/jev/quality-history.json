@@ -1,11 +1,21 @@
 {
   "schema": "fleet-work-quality.v1",
   "verified_by": "operator",
-  "curated_at": "2026-09-21T09:43:00Z",
+  "curated_at": "2026-09-21T10:13:30Z",
   "profile": "omen-resident-hearth",
   "model": "qwen3-30b-a3b",
   "scope": "Selected completed task outcomes, not a complete benchmark. authored counts tasks reaching the worker, not successful output. assisted includes any later model/human correction. not_run is excluded from authored.",
   "records": [
+    {
+      "task_id": "jev-aacd8778e90c5ef5a61aa434",
+      "outcome": "assisted_delivery",
+      "description": "Wait-reason formatter delivered after Codex fixed boolean numeric acceptance and missing wait handling. Hermes correctly rejected the raw draft but also reported unsupported findings. Independent executed evidence, not the review verdict, supports delivery.",
+      "evidence": ["fleet/jev/evidence/20260921-status-wait-execution.json"],
+      "evidence_sha256": {
+        "fleet/jev/evidence/20260921-status-wait-execution.json": "546b19531b836a3f1fa7f61a69319c80a9994149d0076b17da5b79d7783b2499"
+      },
+      "candidate_commit": "2d7c1652c199128a61dce8d13bdea7c48f8ef42c"
+    },
     {
       "task_id": "jev-6b6659cbbf258638035da94e",
       "outcome": "assisted_delivery",

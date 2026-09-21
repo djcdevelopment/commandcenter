@@ -13,6 +13,7 @@ import time
 from fleet.jev import policy
 from fleet.jev.client import atomic_json, evaluate
 from fleet.jev.quality import load_quality, quality_line, with_quality
+from fleet.jev.status_view import render_status
 
 HOME = Path(os.environ.get('FLEET_SCHEDULER_HOME', '/home/derek/.local/state/fleet-scheduler'))
 
@@ -36,6 +37,13 @@ async def connect_call(name, args):
             return value
 
 
+def finish_lap(status, next_poll_s):
+    # This is a control-loop hint, not a refresh of the hardware observation time.
+    status['next_poll_s'] = next_poll_s
+    atomic_json(HOME / 'status.json', status)
+    return next_poll_s
+
+
 async def lap():
     prepared = await connect_call('scheduler_prepare', {})
     status = {'scheduler': 'ready', 'gpu_reservation': False, 'active_build': prepared.get('active_build'),
@@ -50,10 +58,10 @@ async def lap():
         atomic_json(HOME / 'status.json', status)
         await run_review(task_id, connect_call, HOME)
         status.update(reviewer='unloaded', pending_reviews=0)
-        atomic_json(HOME / 'status.json', status)
-        return
+        return finish_lap(status, 1)
     if not prepared.get('candidates'):
-        return
+        active = prepared.get('active_build') and prepared.get('wait_reason') == 'work_in_progress'
+        return finish_lap(status, 5 if active else 30)
     quality = load_quality(HOME / 'quality-history.json')
     state = policy.cloud_state(with_quality(prepared, quality))
     material = policy.digest({'state': state, 'knowledge': prepared.get('knowledge_digest'),
@@ -64,8 +72,7 @@ async def lap():
     if previous.get('material') == material:
         if not previous.get('candidate_id') or previous.get('dispatched'):
             status['wait_reason'] = previous.get('wait_reason') or 'unchanged_decision_inputs'
-            atomic_json(HOME / 'status.json', status)
-            return
+            return finish_lap(status, 30)
         # Reuse judgments with a fresh local snapshot, never repeat cloud spend.
         selected = previous['candidate_id']
         evidence = {**previous, 'snapshot_id': prepared['snapshot_id']}
@@ -86,7 +93,7 @@ async def lap():
         atomic_json(previous_file, {**evidence, 'dispatched': True})
     else:
         status['wait_reason'] = 'needs_clarification'
-    atomic_json(HOME / 'status.json', status)
+    return finish_lap(status, 5 if selected else 30)
 
 
 def get_daemon_status():
@@ -120,32 +127,7 @@ def get_daemon_status():
 # Status layout originated in OMEN candidate afa3331; validation and preservation
 # of the scheduler functions below were corrected independently by Codex.
 def format_status_human_readable(status):
-    status = status if isinstance(status, dict) else {}
-    def label(name, allowed):
-        value = status.get(name)
-        return value if isinstance(value, str) and value in allowed else 'unknown'
-    scheduler = label('scheduler', {'ready', 'held', 'not_started'})
-    reviewer = label('reviewer', {'unloaded', 'requested', 'recovery_required', 'unknown'})
-    pending = status.get('pending_reviews')
-    pending = str(pending) if type(pending) is int and pending >= 0 else 'unknown'
-    build = status.get('active_build')
-    build = ('none' if build is None else build if isinstance(build, str)
-             and re.fullmatch(r'br-[0-9]{8}-[0-9]{6}-[0-9a-f]{8}', build) else 'unknown')
-    observed = status.get('observed_at')
-    now = time.time()
-    age = 'unknown'
-    if type(observed) in (int, float) and 0 <= observed <= now and math.isfinite(observed):
-        seconds = now - observed
-        age = f'{seconds:.1f} seconds (' + ('stale' if seconds > 90 else 'fresh') + ')'
-    return '\n'.join((
-        'Daemon state: ' + get_daemon_status(),
-        'Cached snapshot age: ' + age,
-        'Last cycle scheduler state: ' + scheduler,
-        'Last observed active build: ' + build,
-        'Last observed pending review count: ' + pending,
-        'LAST OBSERVED reviewer state: ' + reviewer,
-        'Note: cached observations are not live hardware residency',
-    ))
+    return render_status(status, get_daemon_status(), time.time())
 
 
 def main():
@@ -199,7 +181,7 @@ def main():
             raise SystemExit('scheduler_already_running')
         while not (HOME / 'STOP').exists():
             try:
-                asyncio.run(lap())
+                next_poll_s = asyncio.run(lap())
             except Exception as error:
                 # Only fixed codes from our own RuntimeErrors reach public status.
                 code = str(error) if type(error) is RuntimeError and str(error).replace('_', '').isalnum() else type(error).__name__
@@ -214,7 +196,7 @@ def main():
                 break
             if args.action == 'run-once':
                 break
-            time.sleep(30)
+            time.sleep(next_poll_s)
 
 
 if __name__ == '__main__':

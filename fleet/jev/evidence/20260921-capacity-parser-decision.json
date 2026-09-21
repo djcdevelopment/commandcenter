@@ -1,0 +1,30 @@
+{
+  "material": "5d17c3d56c956fd1edf18d6737784b00e984d52de9d44c737af44c3494cc7469",
+  "usage": {
+    "provider": "typesafe",
+    "model": "jev-1.13.0",
+    "input_tokens": 892,
+    "output_tokens": 97,
+    "estimated_usd": 0.000037464000000000006,
+    "elapsed_s": 0.437,
+    "request_sha256": "7df145e0633afe25c24d5efb188509b703833ce84256ece29395131324f3b6ce"
+  },
+  "judgments": [
+    {
+      "candidate_id": "11b4d85692b0af35c114691d326b0ff3",
+      "score": 2.97,
+      "confidence": 0.97,
+      "ambiguity": 0.07,
+      "probabilities": {
+        "0": 0,
+        "1": 0.01,
+        "2": 0,
+        "3": 0.99
+      },
+      "eligible": true
+    }
+  ],
+  "candidate_id": "11b4d85692b0af35c114691d326b0ff3",
+  "snapshot_id": "c40a952998c2f79265360cdb23c3b75d091812a8d8e47e0eeb2b8297c418cfb5",
+  "wait_reason": null
+}

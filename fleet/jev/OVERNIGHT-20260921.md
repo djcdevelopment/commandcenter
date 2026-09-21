@@ -8,7 +8,66 @@ Previous goal turn classification: **progress**. It integrated the count fix,
 verified actual outputs, and established an HTTP 529 hold. The next cycle used
 a new real task after that hold, not a repeat of the completed correction.
 
-## Latest: cycle 3, trustworthy capacity evidence
+## Latest: cycle 4, runnable live capacity command
+
+Window 08:08:39–08:28:39 UTC. First working end-to-end command at **08:12:36**,
+inside the five-minute target. JEV dispatched at 08:09:45; local generation and
+Hermes review finished well before 08:23:39. The larger overnight goal is active;
+this is a visibility improvement, not an autonomous hardware-placement policy.
+
+`python -m fleet.jev.capacity [--json]` now produces a real report on OMEN using
+native slot admission, existing B70tools and AM4 nvidia-smi. Source windows/TTL,
+LUID/BDF or NVIDIA UUID identity, raw recording hashes, disagreement names and
+unknown B70 free memory survive into machine-readable output. No inference is
+started by this command. Partial source failures remain unknown individually.
+Two live captures succeeded; the second completed in about 2.9 seconds, with
+unchanged OMEN residency and idle AM4. No timing comparison is claimed.
+
+Parent `br-20260921-080905-510881e7`; task `jev-85c23aa9ba09049946734927`;
+worker receipt `br-20260921-080945-5fafd6b7`; plan
+`hearth-hermes-br-20260921-080945-5fafd6b7-aa436bf8`; raw candidate
+`b2ab223443b2779aff6e129d1fb52693c613ae07` (not promoted).
+
+- JEV: 0.437 s, 892 input tokens, USD 0.000037464 usage estimate; fit 2.97,
+  confidence .97, ambiguity .07. Gates unchanged. This fit score is not a
+  calibrated probability of delivering correct code.
+- MechNet/OMEN `qwen3-30b-a3b`: 84 s, three steps. The parser handled the actual
+  B70 capture, source separation and late identity records. It again used
+  `isinstance(..., int)` despite explicit exact-int requirements, and accepted
+  non-string disagreement rules. Original: four of eight targeted checks pass.
+  Existing MechNet 162-test assay is not acceptance evidence for these failures.
+- Codex: live-probe orchestration/CLI; corrected parser integer/rule guards,
+  combined metric/rule processing into the requested second pass, and guarded
+  identity types. Integrated parser passes all eight direct checks. No test
+  files or second builder retry. The local model's unedited candidate is retained.
+- Hermes / AM4 Dense 27B: 55.561 s, NEEDS_WORK for original candidate. It identified
+  both substantive failures from code and execution evidence. Its statement that
+  failing cases marked `passed:false` are "internally inconsistent" is wrong;
+  the supplied evidence is consistent. Do not repeat that statement as fact.
+
+**New review-packet defect to address next:** `artifacts.review_packet()` reads
+the current worktree target as "Original" instead of the envelope's base commit.
+Here the integration file already contained corrections, so Hermes described
+the original candidate as a regression against those later corrections. The
+verdict is still correct, but baseline attribution is not. No second review or
+plumbing refactor was squeezed into this lap. Preserve base-commit truth before
+using these reviews as learning/quality feedback.
+
+Evidence: [original candidate](evidence/20260921-capacity-parser-candidate.json),
+[executed checks](evidence/20260921-capacity-parser-execution.json),
+[Hermes review](evidence/20260921-capacity-parser-review.json),
+[JEV decision](evidence/20260921-capacity-parser-decision.json),
+[actual command output](evidence/20260921-capacity-command-live.json).
+
+CPU scheduler restarted at 08:16:11; AM4 released by the review lifecycle and
+observed idle in the 08:15 capture. No gateway restart, policy expansion, model
+rotation experiment, automatic promotion, or placement gate. The required-evidence
+gate remains source-only; this lap used operator-paced dispatch/evidence/review.
+Cumulative API ledger: seven attempts, 4392 confirmed input tokens,
+USD 0.000184464 configured-price estimate plus USD 0.005505024 uncertain reserves;
+USD 0.094310512 remains. Codex/local power costs are outside this ledger.
+
+## Cycle 3, trustworthy capacity evidence
 
 Window 07:57:34–08:17:34 UTC; report and observations completed by 08:07:15,
 ending early after the useful finding. Initial report missed its five-minute

@@ -90,6 +90,29 @@ known-usage estimates, uncertain reservations, booked total and remaining cap.
 They do not alter spending limits or reconcile invoices. Missing/inconsistent
 ledger values remain unknown. See overnight cycle 2 for authorship and evidence.
 
+The OMEN-side capacity command is now runnable from this worktree:
+
+```powershell
+Set-Location C:/work/commandcenter-jev-scheduler
+& C:/work/commandcenter/fleet-worker-node/.venv-omen/Scripts/python.exe -m fleet.jev.capacity
+# Machine-readable equivalent (performs a fresh observation):
+& C:/work/commandcenter/fleet-worker-node/.venv-omen/Scripts/python.exe -m fleet.jev.capacity --json
+```
+
+It observes the native resident worker, existing `E:/work/b70tools` binary and
+AM4 `nvidia-smi` in parallel. It does not load models, change scheduling, or call
+JEV. Each source carries its acquisition window and a 30-second TTL; reports are
+observations, not reservations. B70 adapter committed memory stays separate from
+DXGI observer-process usage, and B70 free memory remains unknown. NVIDIA free
+memory comes directly from the driver, not total-minus-used arithmetic.
+
+Latest output and bounded raw observer recordings are retained privately under
+`C:/Users/derek/.fleet-scheduler/capacity/`. Each call retains a new recording;
+this is an on-demand command, not a new background sampler. Unavailable sources
+are reported separately. No new-model-placement decision is authorized by this
+report, and it is **not yet wired into JEV's decision inputs**. See overnight
+cycle 4 for local-builder authorship, direct corrections and Hermes findings.
+
 ## Decision and recovery behavior
 
 Only an operator can enqueue an approved source-packed task. JEV receives an

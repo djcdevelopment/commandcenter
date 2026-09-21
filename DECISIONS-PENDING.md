@@ -972,3 +972,18 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       recorded intention — B-02 owns the harvest/assay half of that.
       Until (a) lands, read the sidecar as *what HEARTH asked for*, never as run state
       (ADR-0033: the run dir is the run; `result.json` is the only terminal marker).
+
+- [ ] 2026-09-20 — **E3 of the Linux-delta ladder: `sudo apt install` the eight validated Linux runtime `.deb`s
+      (IGC 2.34.4 + compute-runtime 26.18 + Level Zero 1.28.2, profile `igc-2.34.4-cr-26.18`) on AM4 so the
+      CUTLASS-SYCL kernels' SPIR-V can be compiled by Linux IGC and run under the Windows runtime.** AM4 is the
+      services host; the packages do not touch the NVIDIA stack. Decides whether the fault is the Windows
+      compiler or the Windows runtime (source: [docs/rnd/vllm-xpu-windows/LINUX-DELTA.md](docs/rnd/vllm-xpu-windows/LINUX-DELTA.md), [ADR-0047 §6](docs/adr/0047-vllm-on-windows-runs-tla-free-one-seat-per-card.md))
+- [ ] 2026-09-20 — **E2: registry-set IGC/NEO debug flags on OMEN** (`HKLM\SOFTWARE\Intel\IGFX\IGC`:
+      `ShaderDumpEnable`, `DisableIGCOptimizations`, `Decompose2DBlockFuncsMode`, `TotalGRFNum`) — admin shell,
+      Derek types (source: [LINUX-DELTA.md](docs/rnd/vllm-xpu-windows/LINUX-DELTA.md))
+- [ ] 2026-09-20 — **Does the vLLM seat become a door rung (`omen-vllm`, pin-only, :8097) before it clears the
+      saturation bar (≥ 3,358 jobs/h at 8×16k, ≥ 105 tok/s single)?** Today it needs production stopped to hold
+      a card; one seat per card is the shape (source: [ADR-0047 §2/§7](docs/adr/0047-vllm-on-windows-runs-tla-free-one-seat-per-card.md))
+- [ ] 2026-09-20 — **Upstream PRs:** `vllm-project/vllm` — the `MoeWNA16Config` loader-hook fix + the Arc Pro B70
+      `int4_w4a16` MoE config JSON (not Windows-specific); `vllm-project/vllm-xpu-kernels` — the Windows build
+      patch set (4 commits on lab branch `windows`) (source: [SESSION-RETRO-2026-09-20.md](SESSION-RETRO-2026-09-20.md))

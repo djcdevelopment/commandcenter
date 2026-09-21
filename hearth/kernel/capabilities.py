@@ -65,6 +65,9 @@ class ProfileError(ValueError):
 # appears exactly once; assert_surface_complete() proves this covers whatever is
 # actually mounted at runtime.
 TOOL_CAPABILITY: dict[str, str] = {
+    "scheduler_prepare": "schedule",
+    "scheduler_select": "dispatch",
+    "scheduler_review": "build_request",
     # read: filesystem reads, scope-limited by the caller's `scope` (ADR-0019 §4)
     "glob_files": "read",
     "list_dir": "read",

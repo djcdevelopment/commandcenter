@@ -46,6 +46,16 @@ WRITE_TOOLS = {"create_build_request", "execute_build_request", "update_build_re
 
 
 def check_governed_call(profile: str, name: str, args: dict) -> None:
+    if profile == 'jev-scheduler':
+        if name not in {'scheduler_prepare', 'scheduler_select', 'scheduler_review'}:
+            raise PermissionError('scheduler may only prepare/select approved work or exchange its review')
+        return
+    if profile == 'hermes-reviewer':
+        if name not in {'read_file', 'list_dir', 'glob_files', 'git_status', 'git_log'}:
+            raise PermissionError('reviewer is read-only and cannot dispatch or promote')
+        if name == 'read_file' and not 1 <= args.get('max_bytes', 200000) <= 200000:
+            raise PermissionError('bounded source reads required')
+        return
     if profile == "hermes-worker":
         if name == "query_omen_worker" and not args:
             return

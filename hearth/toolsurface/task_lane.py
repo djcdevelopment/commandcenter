@@ -307,7 +307,7 @@ def submit_task(prompt: str, builders: list[str] | None = None,
     chosen_builders = list(DEFAULT_BUILDERS) if builders is None else list(builders)
     if promotion_policy not in (None, "auto", "manual") or runner_preset not in (None, "am4-shared-27b", "omen-resident-hearth"):
         raise ValueError("unknown promotion policy or runner preset")
-    if operator == "hermes" and (promotion_policy != "manual" or runner_preset != "omen-resident-hearth" or
+    if operator in ("hermes", "jev") and (promotion_policy != "manual" or runner_preset != "omen-resident-hearth" or
                                  not chosen_builders or len(set(chosen_builders)) != len(chosen_builders) or
                                  not set(chosen_builders) <= {"cc-builder-2", "cc-builder-3"}):
         raise ValueError("Hermes requires manual promotion and explicit OMEN builders; no auto-padding")
@@ -321,7 +321,7 @@ def submit_task(prompt: str, builders: list[str] | None = None,
     max_age_value = validate_max_age_s(max_age_s)
     # Pad to the conductor's fan-out minimum so a single-builder request runs
     # instead of crashing on dispatch (see _ensure_fanout_minimum).
-    if operator != "hermes":
+    if operator not in ("hermes", "jev"):
         chosen_builders = _ensure_fanout_minimum(chosen_builders)
 
     # Token hole #1: never leave est_tokens empty. A caller-supplied value is
@@ -347,7 +347,7 @@ def submit_task(prompt: str, builders: list[str] | None = None,
         # and pops it before the caller sees the result.
         stamps["_ledger_task_class"] = task_class
 
-    plan_id = _new_plan_id(("hermes-" + (plan_id_hint or "build")) if operator == "hermes" else plan_id_hint)
+    plan_id = _new_plan_id(("hermes-" + (plan_id_hint or "build")) if operator in ("hermes", "jev") else plan_id_hint)
     body = _ccmeta_header(chosen_builders, task_class=task_class,
                           est_tokens=est_tokens_value,
                           est_tokens_source=est_tokens_source,

@@ -9,7 +9,7 @@ def validate(meta):
     policy = meta.get("promotion_policy", "auto")
     if policy not in ("auto", "manual"):
         raise ValueError("unknown promotion policy")
-    hermes = meta.get("operator") == "hermes"
+    hermes = meta.get("operator") in ("hermes", "jev")
     if hermes and (meta.get("promotion_policy") != "manual" or
                    meta.get("runner_preset") != PRESET or not isinstance(meta.get("builders"), list)
                    or not meta["builders"] or len(set(meta["builders"])) != len(meta["builders"])
@@ -25,7 +25,7 @@ def persisted_target(snapshot, incoming):
     incoming = validate(incoming)
     saved = snapshot.get("target")
     if saved is None:
-        if incoming.get("operator") == "hermes":
+        if incoming.get("operator") in ("hermes", "jev"):
             raise ValueError("legacy snapshot lacks Hermes policy; use a new run id")
         return incoming
     saved = validate(saved)

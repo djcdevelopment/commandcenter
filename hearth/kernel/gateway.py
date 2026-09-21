@@ -97,6 +97,9 @@ EXTRA_KNOWLEDGE_READERS = {
 # first, then a prefix match against TOOL_CLASS_PREFIXES). Unknown tools get
 # task_class=None rather than a guess.
 TOOL_CLASS: dict[str, str] = {
+    "scheduler_prepare": "dispatch",
+    "scheduler_select": "dispatch",
+    "scheduler_review": "dispatch",
     "local_generate": "inference",
     "submit_task": "dispatch",
     "task_status": "dispatch",
@@ -628,6 +631,8 @@ def register_profile_filtered_list_tools(mcp: FastMCP, auth: AuthRegistry,
             return tools
         from hearth.kernel.governed_operator import READ_TOOLS, WRITE_TOOLS
         names = ({'local_generate','query_omen_worker'} if caller.ledger_profile=='hermes-worker'
+                 else {'scheduler_prepare','scheduler_select','scheduler_review'} if caller.ledger_profile=='jev-scheduler'
+                 else {'read_file','list_dir','glob_files','git_status','git_log'} if caller.ledger_profile=='hermes-reviewer'
                  else READ_TOOLS | WRITE_TOOLS if caller.ledger_profile=='governed-operator'
                  else None)
         return [tool for tool in tools if check_tool_access(profile, tool.name)[0]

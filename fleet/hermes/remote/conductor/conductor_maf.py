@@ -423,7 +423,7 @@ def _workflow_for(plan_id, plan_text, builders, assay, storage, target_meta):
     the run's nodes.json snapshot on resume — never a fresh fleet.json read."""
     @executor(id="route")
     async def route_node(msg: dict, ctx: WorkflowContext[dict]) -> None:
-        routing = ({"skipped": "explicit Hermes local builders"} if target_meta.get("operator") == "hermes"
+        routing = ({"skipped": "explicit local builders"} if target_meta.get("operator") in ("hermes", "jev")
                    else await route_plan(plan_id, plan_text))
         log.info("[%s] route: %s",plan_id, routing.get("difficulty","?")+"/"+str(routing.get("recommended_runner")) if isinstance(routing,dict) else routing)
         await ctx.send_message({"routing":routing})
@@ -431,7 +431,7 @@ def _workflow_for(plan_id, plan_text, builders, assay, storage, target_meta):
         @executor(id="build_"+name)
         async def _build(msg: dict, ctx: WorkflowContext[list[dict] if len(builders) == 1 else dict]) -> None:
             n,entry=await build_one(name,host,plan_id,plan_text,runner_preset=target_meta.get("runner_preset"),
-                                    max_age_s=target_meta.get('max_age_s') if target_meta.get('operator')=='hermes' else None)
+                                    max_age_s=target_meta.get('max_age_s') if target_meta.get('operator') in ('hermes', 'jev') else None)
             item = {"worker":n,"entry":entry,"routing":msg.get("routing")}
             await ctx.send_message([item] if len(builders) == 1 else item)
         return _build
@@ -444,7 +444,7 @@ def _workflow_for(plan_id, plan_text, builders, assay, storage, target_meta):
         if assay:
             assay_res=await run_assay(assay[0],assay[1],plan_id,[b[0] for b in builders]); winner=assay_res.get("winner")
             tb = ({"method": "human-review", "tied": _tied_top(assay_res), "winner": None}
-                  if target_meta.get("operator") == "hermes" else await _tiebreak(plan_id, plan_text, assay_res))
+                  if target_meta.get("operator") in ("hermes", "jev") else await _tiebreak(plan_id, plan_text, assay_res))
             if tb:
                 assay_res["tiebreak"]=tb
                 if tb.get("winner"): winner=tb["winner"]
@@ -463,7 +463,7 @@ def _workflow_for(plan_id, plan_text, builders, assay, storage, target_meta):
 
 async def run_workflow(plan_id, plan_text):
     target_meta, plan_body = _extract_ccmeta(plan_text)
-    if plan_id.startswith(("hermes-", "hearth-hermes-")) and target_meta.get("operator") != "hermes":
+    if plan_id.startswith(("hermes-", "hearth-hermes-")) and target_meta.get("operator") not in ("hermes", "jev"):
         raise ValueError("Hermes-tagged run is missing mandatory policy")
     plan_text=plan_body
     if "blocked-on-ambiguity" not in plan_text: plan_text=plan_text+QPROTO   # L2 (idempotent, resume-safe)
@@ -476,7 +476,7 @@ async def run_workflow(plan_id, plan_text):
         builders, assay = load_nodes()
         builders=_select_builders(builders, target_meta)
         if not builders: log.error("no build workers available"); return {"error":"no builders"}
-        if target_meta.get("operator") == "hermes" and sorted(b[0] for b in builders) != sorted(target_meta["builders"]):
+        if target_meta.get("operator") in ("hermes", "jev") and sorted(b[0] for b in builders) != sorted(target_meta["builders"]):
             raise ValueError("qualified pair unavailable; no substitutions")
         write_snapshot(snap, builders, list(assay) if assay else None, target_meta)
     storage=FileCheckpointStorage(run_dir/"checkpoints")
@@ -510,7 +510,7 @@ async def _promote(plan_id, winner, assay_res=None, questions=None, target_meta=
     L4-gated: grade says how good, risk says how safe. 'high' risk holds for the
     operator (board approve releases it); missing risk data counts as high."""
     meta = validate_run_policy(target_meta or {})
-    if plan_id.startswith(("hermes-", "hearth-hermes-")) and meta.get("operator") != "hermes":
+    if plan_id.startswith(("hermes-", "hearth-hermes-")) and meta.get("operator") not in ("hermes", "jev"):
         raise ValueError("Hermes promotion policy missing")
     if meta.get("promotion_policy") == "manual":
         return await asyncio.to_thread(review_result, meta, plan_id, winner, builds or {}, FARMER_REPO)

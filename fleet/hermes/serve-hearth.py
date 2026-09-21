@@ -14,6 +14,7 @@ from hearth.kernel.gateway import build_server
 
 def main():
     import uvicorn
+    port = int(os.environ.get('HERMES_LISTEN_PORT', '8712'))
     # Share production's leases/tenancy fence, while keeping this listener's
     # append-only execution stream distinct and independently attributable.
     os.environ['HEARTH_COORDINATION_DB'] = 'C:/work/commandcenter/hearth/var/execution/coordination.sqlite'
@@ -42,7 +43,7 @@ def main():
     # canonical execution stream is explicitly this restricted listener's.
     replace_execution_service(ExecutionService(workers=2, recover_pending=False))
     mcp = build_server(
-        providers_spec='hearth.toolsurface.hermes_operator', port=8712,
+        providers_spec=os.environ.get('HERMES_PROVIDERS', 'hearth.toolsurface.hermes_operator'), port=port,
         callers_path=os.environ['HERMES_CALLERS_PATH'],
         ledger_dir=os.environ['HERMES_LEDGER_DIR'], threaded_tools=True,
     )
@@ -55,7 +56,7 @@ def main():
             return
         await upstream(scope, receive, send)
 
-    uvicorn.run(only_mcp, host='127.0.0.1', port=8712, log_level='warning')
+    uvicorn.run(only_mcp, host='127.0.0.1', port=port, log_level='warning')
 
 
 if __name__ == '__main__':

@@ -22,6 +22,12 @@ def collect():
         registries[name] = tomllib.loads(raw.decode('utf-8-sig'))
         sources[name] = {'path': path.relative_to(ROOT).as_posix(),
                          'sha256': hashlib.sha256(raw).hexdigest()}
+    renderer_paths = ['fleet/jev/operations_page.py', 'fleet/jev/capacity_html.py']
+    renderer_source_files = {path: hashlib.sha256((ROOT / path).read_bytes()).hexdigest()
+                             for path in renderer_paths}
+    renderer_worktree_status = subprocess.check_output(
+        ['git', 'status', '--porcelain=v1', '--untracked-files=all', '--', *renderer_paths],
+        cwd=ROOT, text=True).splitlines()
     return {'schema': 'fleet-operations.v1', 'advisory_only': True,
             'captured_at': datetime.now(timezone.utc).isoformat(),
             'source_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
@@ -35,6 +41,8 @@ def collect():
                 'promotion': 'manual; Hermes findings are advisory, not acceptance',
                 'kv_reuse_demonstrated': False,
                 'scope': 'Qualified configuration, not fresh service health or permission to dispatch'},
+            'renderer_source_files': renderer_source_files,
+            'renderer_worktree_status': renderer_worktree_status,
             'quality': load_quality(ROOT / 'fleet/jev/quality-history.json'),
             'capacity': capture()}
 
@@ -78,7 +86,25 @@ def render(document):
     keys = ('kind', 'group', 'id', 'declared_status', 'entrypoint', 'evidence')
     intro += table(['Kind', 'Loop/group', 'ID', 'Declared status', 'Entry point', 'Dated evidence'],
                    [[row[key] for key in keys] for row in document['registry_rows']])
-    intro += '</section><section><h2>Planning and observation limits</h2><p>'
+    intro += '</section><section><h2>Renderer provenance</h2>'
+    renderer_source_files = document.get('renderer_source_files')
+    if isinstance(renderer_source_files, dict):
+        intro += table(['Renderer path', 'SHA256'], list(renderer_source_files.items()))
+    else:
+        intro += '<p>Renderer source hashes unavailable.</p>'
+    status = document.get('renderer_worktree_status')
+    if isinstance(status, list) and all(isinstance(line, str) for line in status):
+        if status:
+            intro += ('<p>Local Git differences reported for these two renderers; '
+                      'hashes describe captured working files.</p>')
+            intro += table(['Local Git differences'], [[line] for line in status])
+        else:
+            intro += '<p>No local Git differences reported for these two renderers.</p>'
+    else:
+        intro += '<p>Renderer Git state unavailable.</p>'
+    intro += ('<p>HEAD is a repository reference, not proof that these working files '
+              'match that commit.</p></section>')
+    intro += '<section><h2>Planning and observation limits</h2><p>'
     intro += ('Planning validity is 300 seconds; per-field freshness is separate: occupancy 30s, '
               'readiness 120s, reachability 300s, trial runway 3600s. The capacity observations '
               'below use their own acquisition times and TTLs. Unknown B70 free VRAM stays unknown. '

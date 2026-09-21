@@ -37,7 +37,15 @@ artifact IDs, hashes, sizes and parse outcomes, not thought fields or response
 prose. The corresponding input prompts were3,149–3,695 tokens, well below the
 16k native slot limit; the hard2,048-output allowance was the immediate limit.
 
-## Bounded correction, not yet live-inference qualified
+## Bounded correction and subsequent delivery qualification
+
+Cycle15 subsequently exercised this correction on a **new** renderer-provenance
+change: first response 2,525 tokens / 54.875s, complete file written; second
+response 202 tokens / 7.250s, finish. The 63-second worker produced a real artifact,
+but its semantics still needed Codex correction. This qualifies delivery beyond
+the old cap, not unassisted code correctness or a controlled speed benchmark.
+See [actual lifecycle evidence](evidence/20260921-provenance-lifecycle.json).
+The transport-only checks below describe the earlier cycle14 state.
 
 Codex changed only the OMEN transport's default allowance to**4,096 tokens** and
 added `requested_max_tokens` to its attempt log. The existing gateway already

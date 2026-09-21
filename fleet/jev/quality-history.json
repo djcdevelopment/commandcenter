@@ -1,11 +1,21 @@
 {
   "schema": "fleet-work-quality.v1",
   "verified_by": "operator",
-  "curated_at": "2026-09-21T10:26:30Z",
+  "curated_at": "2026-09-21T10:53:00Z",
   "profile": "omen-resident-hearth",
   "model": "qwen3-30b-a3b",
   "scope": "Selected completed task outcomes, not a complete benchmark. authored counts tasks reaching the worker, not successful output. assisted includes any later model/human correction. not_run is excluded from authored.",
   "records": [
+    {
+      "task_id": "jev-a3490ba175b53611158fbe6b",
+      "outcome": "assisted_delivery",
+      "description": "At the corrected 4096-token allowance, local worker wrote a complete 2525-token file in its first response. Codex corrected error propagation, missing dirty-source warning and double HTML escaping; original wording was restored after verified upstream input redaction. The raw candidate's embedded JSON round trip passed. Worker did not run a syntax check; independent execution and Hermes review are separately recorded.",
+      "evidence": ["fleet/jev/evidence/20260921-provenance-execution.json"],
+      "evidence_sha256": {
+        "fleet/jev/evidence/20260921-provenance-execution.json": "5890dd3b21a59074cea097af3afec54c65aa7a39d9da2b54d13a28ad45ca7117"
+      },
+      "candidate_commit": "b0d21ac00d6339ec52e04eaf271502ce18288c11"
+    },
     {
       "task_id": "jev-35f435a106d15feb1147bb14",
       "outcome": "incomplete",

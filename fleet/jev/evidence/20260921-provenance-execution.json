@@ -1,0 +1,68 @@
+{
+  "executor": "Codex independent inspection/execution; controlled cases are not model-run tests",
+  "candidate_commit": "b0d21ac00d6339ec52e04eaf271502ce18288c11",
+  "candidate_sha256": "e16a674dfc6c8fa9eb9ea9bd0c4acf26d8bd947de5aca2886ac628da11ec6091",
+  "integrated_sha256": "ba8a77e88564a4d31a9cd554d9ff016a40b5ba55f38260545096fd96cc9d723c",
+  "first_artifact_at": "2026-09-21T10:48:32.877897+00:00",
+  "first_artifact_target": "2026-09-21T10:49:14Z",
+  "actual_renderer_hashes_match": true,
+  "actual_scoped_dirty_status": [
+    " M fleet/jev/operations_page.py"
+  ],
+  "cases": [
+    {
+      "name": "dirty_warning",
+      "candidate_passed": false,
+      "integrated_passed": true
+    },
+    {
+      "name": "original_task_family_text_preserved",
+      "candidate_passed": false,
+      "integrated_passed": true
+    },
+    {
+      "name": "hash_and_status_display_escaped_once",
+      "candidate_passed": false,
+      "integrated_passed": true
+    },
+    {
+      "name": "embedded_json_round_trip",
+      "candidate_passed": true,
+      "integrated_passed": true
+    },
+    {
+      "name": "git_unknown_absent",
+      "candidate_passed": true,
+      "integrated_passed": true
+    },
+    {
+      "name": "git_unknown_wrong_type",
+      "candidate_passed": true,
+      "integrated_passed": true
+    },
+    {
+      "name": "git_unknown_non_string_list",
+      "candidate_passed": true,
+      "integrated_passed": true
+    },
+    {
+      "name": "empty_git_list_explicit_clean",
+      "candidate_passed": true,
+      "integrated_passed": true
+    },
+    {
+      "name": "controlled_git_error_fails_capture",
+      "scenario": "fault injection, not an actual Git outage",
+      "candidate_passed": false,
+      "integrated_passed": true
+    }
+  ],
+  "redaction_observation": {
+    "input_artifact_sha256": "49444b76f8997bc5ded4817c00622d12b6b87ebff8f6f4415d0fe912fd29c735",
+    "input_contains_original_task_family": false,
+    "input_contains_redacted_task_family": true,
+    "candidate_contains_redacted_task_family": true
+  },
+  "acceptance": "assisted delivery; raw candidate not accepted unchanged",
+  "checks_supplied_to_automatic_review": false
+}

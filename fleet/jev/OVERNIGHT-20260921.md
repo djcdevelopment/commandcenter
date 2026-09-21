@@ -4,11 +4,72 @@ Authority: Derek permitted 4–8 hours of iteration to improve useful local-work
 throughput and quality. The goal remains active. Do not confuse a completed
 cycle or a healthy endpoint with completion of that larger objective.
 
-Previous goal turn classification (cycle 13): **progress**, with failed local
-qualification. A useful Codex HTML fallback and incomplete-worker feedback were
-delivered. The missing file made action/result diagnosis the next useful step.
+Previous goal turn classification (cycle 14): **progress**. Exact saved responses
+proved output truncation; the bounded4096-token correction was deployed. This
+lap used a genuinely new whole-file task to check whether it produces an artifact.
 
-## Latest: cycle 14, identified output truncation and raised the bounded allowance
+## Latest: cycle 15, whole-file delivery restored; acceptance still assisted
+
+The [new human/agent snapshot](reports/fleet-operations-20260921-cycle15.html)
+adds actual renderer-file hashes and Git status scoped to those two files. It
+explicitly distinguishes repository HEAD from captured working files. Snapshot
+time **10:53:36 UTC**, not live. Earlier HTML snapshots remain intact.
+
+Window 10:44:14–11:04:14 UTC; first rendered artifact target10:49:14, generation
+ceiling10:59:14, final five minutes reserved for delivery. Parent
+`br-20260921-104511-c970828f`; child `br-20260921-104540-734f1bed`;
+task `jev-a3490ba175b53611158fbe6b`. JEV dispatched at10:45:40 with fit2.95,
+confidence0.95, ambiguity0.15;986 input tokens,0.26s, USD0.000041412 estimated.
+Gates, model, topology and the180-second worker deadline stayed unchanged.
+
+The first real response requested **4,096 tokens**, emitted **2,525 tokens** in
+54.875s and executed `write_file`. It exceeded the old cap without truncation.
+The second response emitted202 tokens in7.250s and executed `finish`. The worker
+reports two steps /63s; its complete9,908-byte candidate was captured by OMEN at
+10:46:56. It **did not run the requested syntax check**. Candidate commit
+`b0d21ac00d6339ec52e04eaf271502ce18288c11`. The corrected rendered artifact was
+saved at **10:48:32.877897**, inside the first-artifact target. Different tasks
+are involved, so this is delivery qualification, not a controlled2x benchmark.
+
+The raw patch remained unacceptable. It silently omits missing renderer files,
+swallows Git errors, omits the required dirty-source warning, and double-escapes
+table cells. Codex corrected those conditions while retaining existing report
+behavior. The raw candidate's embedded JSON round trip **passed**; do not infer
+a JSON-escaping failure from the way nested strings appear in tool output.
+Nine focused comparisons pass on the delivered integration; four fail on the
+raw draft. A controlled Git failure is labeled fault injection, not an observed
+outage. Actual hashes and scoped status were also checked against the real tree.
+
+The apparent `ta[REDACTED]` text corruption originated **before the model**:
+the integrity-checked saved input already lacks `task-family routing` and contains
+the redacted version. Codex restored the original wording. This is an upstream
+input-fidelity issue, not evidence that OMEN invented the corruption. It merits
+a separate bounded diagnosis; no redaction policy was changed in this lap.
+
+Hermes returned NEEDS_WORK in **45.330s**, correctly identifying both capture-error
+violations and the text difference. It missed double HTML escaping and the
+missing dirty warning, and incorrectly described the candidate's nonempty-dict
+check as not requiring nonempty data. Its advisory verdict is not acceptance.
+No executed checks were supplied before that automatic review; the saved required
+gate remains unloaded. AM4 was released. No KV reuse or extra model retry.
+
+The resulting report was checked in CPU-only headless Chrome. Its readable
+provenance section and embedded JSON agree, including the captured modified
+renderer status; unrelated dirty files are excluded. This is **assisted delivery**,
+not an unchanged patch. FX99's updated curated history now records9 selected tasks:
+7 reached the worker,1 unchanged delivery,5 assisted,1 incomplete,2 not run.
+The source/transport allowance has now produced one real whole-file artifact;
+first-pass semantic correctness remains unqualified.
+
+Evidence: [raw candidate](evidence/20260921-provenance-candidate.json),
+[independent execution](evidence/20260921-provenance-execution.json),
+[action trace, JEV decision and unedited Hermes review](evidence/20260921-provenance-lifecycle.json),
+[deployed feedback](evidence/20260921-provenance-feedback.json).
+Cumulative ledger:13 JEV attempts, USD0.000418572 confirmed usage estimates,
+USD0.005505024 uncertain reservations, USD0.005923596 booked. Codex and hardware
+costs are not measured there. Root work remains unmerged and unpushed.
+
+## Cycle 14, identified output truncation and raised the bounded allowance
 
 [Source-backed worker diagnosis](WORKER-ACTION-DIAGNOSIS-20260921.md) explains
 the exact cycle-13 failure. All three OMEN replies hit 2,048 output tokens and

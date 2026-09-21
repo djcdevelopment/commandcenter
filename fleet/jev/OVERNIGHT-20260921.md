@@ -4,11 +4,32 @@ Authority: Derek permitted 4–8 hours of iteration to improve useful local-work
 throughput and quality. The goal remains active. Do not confuse a completed
 cycle or a healthy endpoint with completion of that larger objective.
 
-Previous goal turn classification: **progress**. It integrated the count fix,
-verified actual outputs, and established an HTTP 529 hold. The next cycle used
-a new real task after that hold, not a repeat of the completed correction.
+Previous goal turn classification (cycle 8): **progress**. It delivered the
+corrected capability report and recorded dispatch/review failures that changed
+the next action: constrain the real review artifact, not extend its timeout.
 
-## Latest: cycle 8, route capability report; dispatch/review qualification failed
+## Latest: cycle 9, complete short reviews but false-PASS qualification failure
+
+Window 09:17:36–09:37:36 UTC; first review target 09:22:36, generation ceiling
+09:32:36. Receipt `br-20260921-091819-09a48f31`. The first complete review was
+saved **09:19:28**, inside the first-quarter target. One paired check of the
+actual rejected draft followed; its false PASS ended the lap at 09:21.
+
+Delivered [review calibration and operating consequence](REVIEW-CALIBRATION-20260921.md),
+with both raw model responses. Same Hermes/AM4 model, context, reasoning `none`
+and lifecycle; exact source excerpts, reduced evidence pack and verdict-first
+short output request. The corrected report got a 59-word PASS in 14.065s. The
+rejected draft got a 93-word PASS in 17.576s **despite identifying real defects**.
+The negative review also treated a source record omitted from the compact pack
+as unsupported; the identifier exists in the full registry. Compact evidence
+and verdict-first wording are not a proven general quality improvement.
+
+No default prompt change was deployed. These are advisory findings, not a
+qualified automated acceptance gate. No additional retry, test files, code,
+model/topology change, or JEV/API spend. The two owned review seats were released;
+the CPU scheduler and OMEN worker remain available. Larger goal stays active.
+
+## Cycle 8, route capability report; dispatch/review qualification failed
 
 Window 09:01:01–09:21:01 UTC; generation ceiling 09:16:01. The first useful report
 target **09:06:01 was missed**. The corrected 579-word

@@ -1,0 +1,156 @@
+{
+  "executor": "Codex independent execution; model-guided repair plus Codex finite-input correction",
+  "candidate_files_sha256": {
+    "budget_view.py": "88823df2f120044cc36ecf55b88d73c97ccd64f1fdf93ba03ea6b82ba0de8c40"
+  },
+  "actual_ledger": {
+    "calls": 6,
+    "charged_usd": 0.005652024,
+    "input_tokens": 3500
+  },
+  "configured_price_per_input_token": 4.2e-8,
+  "ceiling_usd": 0.1,
+  "cases": [
+    {
+      "name": "actual_ledger",
+      "input_description": "Unchanged current FX99 ledger",
+      "actual": {
+        "available": true,
+        "calls": 6,
+        "input_tokens": 3500,
+        "usage_estimate_usd": 0.000147,
+        "uncertain_reserved_usd": 0.005505024000000001,
+        "booked_usd": 0.005652024,
+        "remaining_usd": 0.094347976
+      },
+      "passed": true
+    },
+    {
+      "name": "missing_fields",
+      "input_description": "Required fields absent",
+      "actual": {
+        "available": false,
+        "calls": null,
+        "input_tokens": null,
+        "usage_estimate_usd": null,
+        "uncertain_reserved_usd": null,
+        "booked_usd": null,
+        "remaining_usd": null
+      },
+      "passed": true
+    },
+    {
+      "name": "boolean_calls",
+      "input_description": "calls=True",
+      "actual": {
+        "available": false,
+        "calls": null,
+        "input_tokens": null,
+        "usage_estimate_usd": null,
+        "uncertain_reserved_usd": null,
+        "booked_usd": null,
+        "remaining_usd": null
+      },
+      "passed": true
+    },
+    {
+      "name": "nan_price",
+      "input_description": "price_per_token=NaN",
+      "actual": {
+        "available": false,
+        "calls": null,
+        "input_tokens": null,
+        "usage_estimate_usd": null,
+        "uncertain_reserved_usd": null,
+        "booked_usd": null,
+        "remaining_usd": null
+      },
+      "passed": true
+    },
+    {
+      "name": "nan_booked",
+      "input_description": "charged_usd=NaN",
+      "actual": {
+        "available": false,
+        "calls": null,
+        "input_tokens": null,
+        "usage_estimate_usd": null,
+        "uncertain_reserved_usd": null,
+        "booked_usd": null,
+        "remaining_usd": null
+      },
+      "passed": true
+    },
+    {
+      "name": "nan_ceiling",
+      "input_description": "ceiling_usd=NaN",
+      "actual": {
+        "available": false,
+        "calls": null,
+        "input_tokens": null,
+        "usage_estimate_usd": null,
+        "uncertain_reserved_usd": null,
+        "booked_usd": null,
+        "remaining_usd": null
+      },
+      "passed": true
+    },
+    {
+      "name": "inconsistent_ledger",
+      "input_description": "booked0 less than known usage estimate",
+      "actual": {
+        "available": false,
+        "calls": null,
+        "input_tokens": null,
+        "usage_estimate_usd": null,
+        "uncertain_reserved_usd": null,
+        "booked_usd": null,
+        "remaining_usd": null
+      },
+      "passed": true
+    },
+    {
+      "name": "arithmetic_overflow",
+      "input_description": "input_tokens=10**400; float multiplication must not escape",
+      "actual": {
+        "available": false,
+        "calls": null,
+        "input_tokens": null,
+        "usage_estimate_usd": null,
+        "uncertain_reserved_usd": null,
+        "booked_usd": null,
+        "remaining_usd": null
+      },
+      "passed": true
+    },
+    {
+      "name": "exact_integer_type",
+      "input_description": "calls=IntSubclass(6), type is not int despite isinstance(int)",
+      "actual": {
+        "available": false,
+        "calls": null,
+        "input_tokens": null,
+        "usage_estimate_usd": null,
+        "uncertain_reserved_usd": null,
+        "booked_usd": null,
+        "remaining_usd": null
+      },
+      "passed": true
+    },
+    {
+      "name": "over_cap",
+      "input_description": "booked0.2 exceeds cap0.1; remaining should be0",
+      "actual": {
+        "available": true,
+        "calls": 6,
+        "input_tokens": 3500,
+        "usage_estimate_usd": 0.000147,
+        "uncertain_reserved_usd": 0.199853,
+        "booked_usd": 0.2,
+        "remaining_usd": 0
+      },
+      "passed": true
+    }
+  ],
+  "verdict": "PASS"
+}

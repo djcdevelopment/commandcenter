@@ -8,6 +8,57 @@ Previous goal turn classification: **progress**. It integrated the count fix,
 verified actual outputs, and established an HTTP 529 hold. The next cycle used
 a new real task after that hold, not a repeat of the completed correction.
 
+## Latest: cycle 2, read-only budget command
+
+07:34–07:54 UTC window. Delivered `fleet-scheduler budget` and `budget --json`
+on FX99 at 07:50:57. Real reads preserve ledger bytes and `status --json`.
+Output separates USD 0.000147000 usage-based estimates from USD 0.005505024
+uncertain reservations; USD 0.094347976 remains against the unchanged USD 0.10
+cap. Estimates use the configured price, not provider invoice reconciliation.
+
+Parent `br-20260921-073615-8a1052e5`; task `jev-d2d8cebb2cd971e6ebb5a049`;
+worker receipt `br-20260921-073728-1ff691f8`; candidate
+`e20776d4d4ddc17e37f84796f79137fdaf2112b5`, not promoted.
+
+- JEV: 0.374 s, 917 input tokens, USD 0.000038514 estimate; gates unchanged.
+- OMEN/MechNet: isolated helper in 36 s/two steps versus 177 s/five steps for the
+  earlier whole-file task. Different tasks: not a controlled speedup claim.
+- Initial code handled the actual ledger but failed overflow/exact-int criteria.
+  Evidence-first Hermes review rejected it in 51.499 s, but misread a poorly
+  described subclass case and incorrectly treated a soft size target as blocking.
+- One guided HEARTH repair on the same model took 9.016 s, 2158 input/541 output
+  tokens, job `job_ba37615d838b312a11f16ca591fbf741`. It fixed the targeted faults
+  but dropped finite-input checks. No second repair retry was attempted.
+- Codex restored those checks and integrated the CLI. Ten direct contract cases
+  passed, including the actual ledger. No test files were added. Existing broad
+  MechNet assay tests were not treated as acceptance proof.
+- Final evidence-first Hermes review passed in 17.928 s, before 07:49. Its overflow
+  explanation was imprecise: `except OverflowError`, not a later result check,
+  handles conversion failures. Independent execution remains authoritative.
+
+This is one usable **assisted** delivery, zero newly accepted unassisted patches.
+Initial source and repair were OMEN-authored; finite-check correction, integration
+and a bounded review-budget parameter were Codex work. `run_hermes` accepts
+30–180 seconds, retaining its old default; the final review used 45 seconds.
+CPU scheduling resumed; AM4 released. Gateway and conductor remain unchanged;
+the required-evidence gate is still **not loaded**. Dispatch/evidence/review were
+operator-paced with `run-once`, and evidence presence was verified in the packet.
+
+[Initial source](evidence/20260921-budget-initial.py),
+[initial review](evidence/20260921-budget-initial-review.json),
+[repair feedback](evidence/20260921-budget-repair-feedback.json),
+[raw repair](evidence/20260921-budget-repair-result.json),
+[final execution](evidence/20260921-budget-final-execution.json),
+[final review](evidence/20260921-budget-final-review.json),
+[deployed output](evidence/20260921-budget-deployed-budget.json).
+
+Cumulative API ledger: six attempts, 3500 confirmed input tokens. The API figures
+exclude Codex effort and local power/hardware costs. Most cycle wall time was
+operator integration/accounting, not generation. Next work should apply these
+findings to actual hardware-capacity/execution-route artifacts using existing
+knowledge/operator tooling, not keep adding status/billing helpers as substitutes
+for the larger goal. Respect the unresolved gateway-restart restriction.
+
 ## Cycle 1: truthful scheduler status
 
 Useful artifact: `fleet-scheduler status` on FX99 now distinguishes actual

@@ -11,7 +11,9 @@ import time
 from fleet.jev.client import atomic_json
 
 
-def run_hermes(packet, root):
+def run_hermes(packet, root, run_budget_s=180):
+    if type(run_budget_s) is not int or not 30 <= run_budget_s <= 180:
+        raise ValueError('review_budget_out_of_bounds')
     root.mkdir(parents=True, exist_ok=False, mode=0o700)
     packet_path = root / 'packet.md'
     packet_path.write_text(packet)
@@ -33,13 +35,13 @@ def run_hermes(packet, root):
     environment['OPENAI_BASE_URL'] = provider['base_url']
     command = ['/home/derek/.local/share/hermes-fleet/venv/bin/hermes', 'chat', '--cli', '--oneshot',
                '--ignore-rules', '--reasoning', 'none', '--toolsets', 'hearth', '--max-turns', '4',
-               '--run-budget', '180', '--query-file', str(packet_path)]
+               '--run-budget', str(run_budget_s), '--query-file', str(packet_path)]
     start = time.monotonic()
     with (root / 'transcript.log').open('wb') as log:
         process = subprocess.Popen(command, env=environment, stdout=log, stderr=subprocess.STDOUT,
                                    cwd=root, start_new_session=True)
         try:
-            code = process.wait(timeout=200)
+            code = process.wait(timeout=run_budget_s + 20)
         except subprocess.TimeoutExpired:
             os.killpg(process.pid, signal.SIGINT)
             try:
@@ -57,6 +59,7 @@ def run_hermes(packet, root):
             raise RuntimeError('hermes_final_answer_missing')
         report = row['content']
     metadata = {'model': 'am4-dense-27b', 'reviewer': 'hermes', 'elapsed_s': round(time.monotonic() - start, 3),
+                'run_budget_s': run_budget_s,
                 'source': 'unedited Hermes final assistant message', 'message_id': row['id'], 'kv_reused': False}
     atomic_json(root / 'result.json', {'report': report, 'metadata': metadata})
     return report, metadata

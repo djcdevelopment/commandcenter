@@ -85,6 +85,11 @@ Private captured baseline and process identity:
 `/home/derek/.config/fleet-review-seat`. The baseline includes sensitive process
 environment; never display, copy to reports, or commit it.
 
+`fleet-scheduler budget` and `budget --json` provide a read-only breakdown of
+known-usage estimates, uncertain reservations, booked total and remaining cap.
+They do not alter spending limits or reconcile invoices. Missing/inconsistent
+ledger values remain unknown. See overnight cycle 2 for authorship and evidence.
+
 ## Decision and recovery behavior
 
 Only an operator can enqueue an approved source-packed task. JEV receives an

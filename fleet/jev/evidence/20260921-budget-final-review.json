@@ -1,0 +1,12 @@
+{
+  "report": "PASS.\n\nAll 9 required properties hold: pure nonmutating summary; exact nonnegative int calls/input_tokens; finite nonnegative nonbool numeric charge/rate/cap; safe overflow handling; exact seven output fields; unknown on bad input; formulas unchanged; remaining clamped to 0.\n\nThe Codex finite-input correction (inf/nan checks) restored correctness. The exact_integer_type rejection (type(calls) is not int) is strict but acceptable given the requirement for \"exact\" integer type. The inconsistency check (booked < estimate - 1e-12) correctly flags inconsistent ledgers. The overflow guard (float('inf') > usage_estimate_usd) prevents escape on large multiplications. All 10 test cases passed with correct expected outputs, including the over_cap case where remaining is clamped to 0.\n\nOne minor note: the type(calls) is not int check rejects bool and int subclasses, which is stricter than isinstance(calls, int) but defensible. No blocking issues.",
+  "metadata": {
+    "model": "am4-dense-27b",
+    "reviewer": "hermes",
+    "elapsed_s": 17.928,
+    "run_budget_s": 45,
+    "source": "unedited Hermes final assistant message",
+    "message_id": 2,
+    "kv_reused": false
+  }
+}

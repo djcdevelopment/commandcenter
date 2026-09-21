@@ -146,9 +146,30 @@ def format_status_human_readable(status):
 
 def main():
     parser = argparse.ArgumentParser(prog='fleet-scheduler')
-    parser.add_argument('action', choices=['run-once', 'serve', 'status'])
+    parser.add_argument('action', choices=['run-once', 'serve', 'status', 'budget'])
     parser.add_argument('--json', action='store_true')
     args = parser.parse_args()
+    if args.action == 'budget':
+        from fleet.jev.budget_view import summarize_budget
+        try:
+            ledger = json.loads((HOME / 'api-budget.json').read_text())
+        except (OSError, UnicodeError, ValueError):
+            ledger = None
+        value = summarize_budget(ledger, policy.INPUT_USD_PER_TOKEN, policy.MAX_COST_USD)
+        if args.json:
+            print(json.dumps(value, indent=2, allow_nan=False))
+        elif not value['available']:
+            print('API budget: unavailable; ledger missing, malformed, or inconsistent.')
+        else:
+            print('\n'.join((
+                f"API attempts: {value['calls']}; known input tokens: {value['input_tokens']}",
+                f"Usage-based estimate: USD {value['usage_estimate_usd']:.9f}",
+                f"Uncertain reservations: USD {value['uncertain_reserved_usd']:.9f}",
+                f"Booked against cap: USD {value['booked_usd']:.9f} / {policy.MAX_COST_USD:.9f}; "
+                f"remaining USD {value['remaining_usd']:.9f}",
+                'Reservations are not confirmed provider charges.',
+            )))
+        return
     if args.action == 'status':
         try:
             value = json.loads((HOME / 'status.json').read_text())

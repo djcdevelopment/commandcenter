@@ -1,0 +1,48 @@
+{
+  "ok": true,
+  "text": "```python\ndef summarize_budget(ledger, price_per_token, ceiling_usd):\n    \"\"\"\n    Summarize budget usage based on ledger data.\n    \"\"\"\n    unavailable = {\n        'available': False,\n        'calls': None,\n        'input_tokens': None,\n        'usage_estimate_usd': None,\n        'uncertain_reserved_usd': None,\n        'booked_usd': None,\n        'remaining_usd': None\n    }\n\n    if not isinstance(ledger, dict):\n        return unavailable\n\n    required_fields = ['calls', 'input_tokens', 'charged_usd']\n    for field in required_fields:\n        if field not in ledger:\n            return unavailable\n\n    calls = ledger['calls']\n    input_tokens = ledger['input_tokens']\n    charged_usd = ledger['charged_usd']\n\n    if type(calls) is not int or calls < 0:\n        return unavailable\n\n    if type(input_tokens) is not int or input_tokens < 0:\n        return unavailable\n\n    if not isinstance(charged_usd, (int, float)) or charged_usd < 0 or isinstance(charged_usd, bool):\n        return unavailable\n\n    if not isinstance(price_per_token, (int, float)) or price_per_token < 0 or isinstance(price_per_token, bool):\n        return unavailable\n\n    if not isinstance(ceiling_usd, (int, float)) or ceiling_usd < 0 or isinstance(ceiling_usd, bool):\n        return unavailable\n\n    try:\n        usage_estimate_usd = input_tokens * price_per_token\n        if not (float('inf') > usage_estimate_usd > float('-inf')):\n            return unavailable\n\n        booked_usd = charged_usd\n\n        if booked_usd < usage_estimate_usd - 1e-12:\n            return unavailable\n\n        uncertain_reserved_usd = max(0, booked_usd - usage_estimate_usd)\n        if not (float('inf') > uncertain_reserved_usd > float('-inf')):\n            return unavailable\n\n        remaining_usd = max(0, ceiling_usd - booked_usd)\n        if not (float('inf') > remaining_usd > float('-inf')):\n            return unavailable\n\n        return {\n            'available': True,\n            'calls': calls,\n            'input_tokens': input_tokens,\n            'usage_estimate_usd': usage_estimate_usd,\n            'uncertain_reserved_usd': uncertain_reserved_usd,\n            'booked_usd': booked_usd,\n            'remaining_usd': remaining_usd\n        }\n\n    except (OverflowError, TypeError):\n        return unavailable\n```",
+  "execution": {
+    "request_id": "req_948e97e830c92855d8b92b6caae7bb92",
+    "job_id": "job_ba37615d838b312a11f16ca591fbf741",
+    "status": "succeeded",
+    "artifact": {
+      "artifact_id": "art_55b8061a0dc0a3447f28b4f8e1b746e2",
+      "created_at": "2026-09-21T07:43:35.804116Z",
+      "filename": "job_ba37615d838b312a11f16ca591fbf741-result.md",
+      "media_type": "text/plain; charset=utf-8",
+      "role": "result",
+      "sha256": "10ad381c661a3bf1154dd9d95a4e464fb343757fda9d5c9191cf3feb6f8f8845",
+      "size": 2285
+    }
+  },
+  "backend": "omen-arc",
+  "model": "qwen3-30b-a3b",
+  "routed_by": "pinned:omen-arc",
+  "occupancy": "available",
+  "rung_state": {
+    "baseline_epoch": "2026-09-09T07:05:18-07:00 incumbent epoch (baseline set 07:06:00, 42 s later), -np 8 shape: the server log reads n_ctx_slot = 16384. Opened by the RESTORE to -np 8 after the Lap 1B sweep finished its -np 16 arms at 07:04, NOT by the slot change itself -- the sweep ran 2 -> 4 -> 8 -> 16 and came back. Epoch start derived the only way available (arc-serve.log elapsed stamp subtracted from mtime; llama-server runs under an S4U task whose StartTime is inaccessible). Dual-split asserted per-BDF on this epoch by the sat-l1 cells, not carried over from the 2026-08-29 epoch this label replaced. EPOCH-SCOPED IS NOT EPOCH-HOMOGENEOUS: this labels the reference CONTRACT, not a guarantee that the machine was stationary within it -- multiple stable regimes have occurred inside a single epoch. Two readings sharing an epoch are NOT thereby comparable.",
+    "baseline_tok_s": 105.33,
+    "deep_samples": 91,
+    "envelope": {
+      "fail_below": 0.8,
+      "warn_below": 0.9
+    },
+    "excluded_windows": [],
+    "frac_of_baseline": 1.0787,
+    "last_ping_ok": true,
+    "note": "envelope is of THIS baseline epoch, not of capacity (ADR-0044); restart discriminator not applied; no regime names",
+    "observed_age_s": 23.9,
+    "observed_at": "2026-09-21T00:42:57.5187565-07:00",
+    "observed_tok_s": 113.62,
+    "port": 8082,
+    "prefill_stall_recent": false,
+    "rung": "omen-arc",
+    "verdict": "at_rate"
+  },
+  "pool_config_hash": "e8e23807f353",
+  "tokens_in": 2158,
+  "tokens_out": 541,
+  "duration_ms": 9016,
+  "max_tokens": 1800,
+  "timeout_s": 74
+}

@@ -1,0 +1,20 @@
+{
+  "source_commit": "e20776d4d4ddc17e37f84796f79137fdaf2112b5",
+  "hard_failures": [
+    {
+      "input": "ledger.input_tokens = 10**400, price_per_token = 0.000000042",
+      "actual": "OverflowError",
+      "required": "available=False with all six other values None"
+    },
+    {
+      "input": "ledger.calls = IntSubclass(6), where class IntSubclass(int): pass",
+      "actual": "available=True",
+      "required": "False, because the contract requires type(calls) is int (not merely isinstance)"
+    }
+  ],
+  "report_corrections": [
+    "The Hermes review incorrectly described the exact_integer_type case as a charged_usd float. The modified field was ledger.calls, an int subclass.",
+    "'Aim under 75 lines' is a size preference, not a blocking correctness requirement; still reduce duplicated return dictionaries to improve useful output throughput."
+  ],
+  "preserve": "Seven exact keys, no mutation/I/O, unchanged formulas, finite nonnegative numeric inputs excluding bool, tolerance1e-12, unknown rather than invented zeroes."
+}

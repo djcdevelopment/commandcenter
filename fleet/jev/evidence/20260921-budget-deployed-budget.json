@@ -1,0 +1,16 @@
+{
+  "human_exit": 0,
+  "human_output": "API attempts: 6; known input tokens: 3500\nUsage-based estimate: USD 0.000147000\nUncertain reservations: USD 0.005505024\nBooked against cap: USD 0.005652024 / 0.100000000; remaining USD 0.094347976\nReservations are not confirmed provider charges.\n",
+  "json_exit": 0,
+  "budget_json": {
+    "available": true,
+    "calls": 6,
+    "input_tokens": 3500,
+    "usage_estimate_usd": 0.00014700000000000002,
+    "uncertain_reserved_usd": 0.005505024,
+    "booked_usd": 0.005652024,
+    "remaining_usd": 0.094347976
+  },
+  "ledger_unchanged": true,
+  "status_json_preserved": true
+}

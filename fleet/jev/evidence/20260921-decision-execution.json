@@ -1,0 +1,274 @@
+{
+  "schema_version": 1,
+  "parent_receipt_id": "br-20260921-122038-3a759f92",
+  "child_receipt_id": "br-20260921-122244-a163a601",
+  "task_id": "jev-952e640d8b1e110bf3ed6cab",
+  "plan_id": "hearth-hermes-br-20260921-122244-a163a601-5beaf139",
+  "candidate_commit": "449642c08293a76a2ff8ecd762983dee948cfeca",
+  "queued": {
+    "task_id": "jev-952e640d8b1e110bf3ed6cab",
+    "queued_at": 1789993345.8082497,
+    "parent_receipt_id": "br-20260921-122038-3a759f92"
+  },
+  "lap_started_utc": "2026-09-21T12:15:27Z",
+  "first_artifact_target_utc": "2026-09-21T12:22:00Z",
+  "first_observed_worker_file_utc": "2026-09-21T12:23:38Z",
+  "corrected_helper_checked_utc": "2026-09-21T12:26:24Z",
+  "live_cli_verified_utc": "2026-09-21T12:27:58Z",
+  "generation_ceiling_utc": "2026-09-21T12:34:00Z",
+  "delivery_ceiling_utc": "2026-09-21T12:40:00Z",
+  "outcome": "assisted_delivery; behavioral-briefing qualification failed",
+  "worker_completion": {
+    "reason": "budget",
+    "elapsed_s": 138.8,
+    "reported_step": 6,
+    "executed_actions": 5,
+    "write_actions": 3,
+    "run_actions": 2,
+    "behavioral_commands_exit_code": [
+      1,
+      1
+    ],
+    "correct_behavioral_command_completed": false
+  },
+  "failure": {
+    "saved_input_error_evidence": [
+      {
+        "job_id": "job_c93d20e06940e44f7eeeab4185d1cea0",
+        "input_sha256": "a0c7338dabd4aaee71fe35bb7b1f14debcd542ee2205fc90c020f7b6433ded92",
+        "name_errors": [],
+        "format": "stored prompt text"
+      },
+      {
+        "job_id": "job_ec30699c41e1b8b80790609916fae8d6",
+        "input_sha256": "e898c8946ba31f99cda1f83a386acf5be80073b2d2a35387881ad8c21df837e9",
+        "name_errors": [
+          "NameError: name 'true' is not defined"
+        ],
+        "format": "stored prompt text"
+      },
+      {
+        "job_id": "job_00049f48cc36b8195cd9b3a00e4f5b1b",
+        "input_sha256": "7dd7099a04baf031239f0a09bb9290aa5433aadf8656bd3e0bf295a957ccf7de",
+        "name_errors": [
+          "NameError: name 'true' is not defined"
+        ],
+        "format": "stored prompt text"
+      }
+    ],
+    "initial_and_final_implementation_ast_equal": true,
+    "collector_note": "Initial collector assumed JSON input blobs; corrected to the observed prompt-text format. Read-only throughout."
+  },
+  "execution": {
+    "executor": "Codex independent execution of source-reviewed candidate and corrected helper",
+    "candidate_files_sha256": {
+      "decision_view.py": "e62a4d9745e47a23f02e78ed357d73d0f814a643b9b4a963163f0f4e0bc40635"
+    },
+    "cases": [
+      {
+        "name": "real_saved_decision",
+        "expected_available": true,
+        "candidate_passed": true,
+        "delivered_passed": true,
+        "input_unchanged": true
+      },
+      {
+        "name": "reject_boolean_score",
+        "expected_available": false,
+        "candidate_passed": false,
+        "delivered_passed": true,
+        "input_unchanged": true
+      },
+      {
+        "name": "reject_boolean_confidence",
+        "expected_available": false,
+        "candidate_passed": false,
+        "delivered_passed": true,
+        "input_unchanged": true
+      },
+      {
+        "name": "reject_boolean_ambiguity",
+        "expected_available": false,
+        "candidate_passed": false,
+        "delivered_passed": true,
+        "input_unchanged": true
+      },
+      {
+        "name": "reject_duplicate_identity",
+        "expected_available": false,
+        "candidate_passed": false,
+        "delivered_passed": true,
+        "input_unchanged": true
+      },
+      {
+        "name": "reject_empty_identity",
+        "expected_available": false,
+        "candidate_passed": false,
+        "delivered_passed": true,
+        "input_unchanged": true
+      },
+      {
+        "name": "reject_non_ascii_identity",
+        "expected_available": false,
+        "candidate_passed": false,
+        "delivered_passed": true,
+        "input_unchanged": true
+      },
+      {
+        "name": "held_decision",
+        "expected_available": true,
+        "candidate_passed": true,
+        "delivered_passed": true,
+        "input_unchanged": true
+      },
+      {
+        "name": "reject_ineligible_selection",
+        "expected_available": false,
+        "candidate_passed": true,
+        "delivered_passed": true,
+        "input_unchanged": true
+      },
+      {
+        "name": "missing_record",
+        "expected_available": false,
+        "candidate_passed": true,
+        "delivered_passed": true,
+        "input_unchanged": true
+      }
+    ],
+    "delivered_real_view": {
+      "available": true,
+      "state": "dispatched",
+      "candidate_id": "91e6ca6cc679aa0a814aa785ba715a2b",
+      "quality_history_sha256": "6784bf287ec0ee622ecc71a4efc53970fbaa5f96a3be24b1e9a59e71a630802f",
+      "judgments": [
+        {
+          "candidate_id": "91e6ca6cc679aa0a814aa785ba715a2b",
+          "score": 2.99,
+          "confidence": 0.99,
+          "ambiguity": 0.12,
+          "eligible": true
+        }
+      ],
+      "fit_is_correctness": false
+    },
+    "arbitrary_fields_omitted": true,
+    "corrected_sha256": "4f39760ab3fb731036f5e7d72c5fb569892658789f9fbdb3a69f6d74de3d1ec3"
+  },
+  "worker_trace": {
+    "worker_log": [
+      "[agent_openai] start task=hearth-hermes-br-20260921-122244-a163a601-5beaf139-cc-builder-2 model=qwen3-30b-a3b base_url=http://omen.mshome.net:8083/hermes-worker/mcp steps<= 12 budget=149.0s",
+      "[hearth_attempt] {\"backend\": \"omen-arc\", \"model\": \"qwen3-30b-a3b\", \"tokens_in\": 2620, \"tokens_out\": 1430, \"duration_ms\": 25734, \"task_id\": \"hearth-hermes-br-20260921-122244-a163a601-5beaf139-cc-builder-2\", \"job_id\": \"job_c93d20e06940e44f7eeeab4185d1cea0\", \"requested_max_tokens\": 4096}",
+      "[agent_openai] step 1: write_file decision_view.py -> wrote decision_view.py (5522 bytes)",
+      "[hearth_attempt] {\"backend\": \"omen-arc\", \"model\": \"qwen3-30b-a3b\", \"tokens_in\": 4426, \"tokens_out\": 532, \"duration_ms\": 12266, \"task_id\": \"hearth-hermes-br-20260921-122244-a163a601-5beaf139-cc-builder-2\", \"job_id\": \"job_5838b0df45be807a846fd7b15a9d1d90\", \"requested_max_tokens\": 4096}",
+      "[agent_openai] step 2: run python3 -c 'import copy,json; from decision_view import summarize_decision; r={\"candidate_id\": \"91e6ca6cc679aa0a814aa785ba715a2b\", \"dispatched\": true, \"quality_history_sha256\": \"6784bf287ec0ee622ecc71a4efc53970fbaa5f96a3be24b1e9a59e71a630802f\", \"judgments\": [{\"candidate_id\": \"91e6ca6cc679aa0a814aa785ba715a2b\", \"score\": 2.99, \"confidence\": 0.99, \"ambiguity\": 0.12, \"eligible\": true, \"probabilities\": {\"0\": 0.0, \"1\": 0.0, \"2\": 0.0, \"3\": 1.0}}], \"wait_reason\": null}; before=copy.deepcopy(r); v=summarize_decision(r); assert v[\"available\"] is True and v[\"state\"]==\"dispatched\"; assert v[\"candidate_id\"]==r[\"candidate_id\"] and v[\"quality_history_sha256\"]==r[\"quality_history_sha256\"]; assert v[\"fit_is_correctness\"] is False; assert set(v)=={\"available\",\"state\",\"candidate_id\",\"quality_history_sha256\",\"judgments\",\"fit_is_correctness\"}; assert set(v[\"judgments\"][0])=={\"candidate_id\",\"score\",\"confidence\",\"ambiguity\",\"eligible\"}; assert r==before; bad=copy.deepcopy(r); bad[\"judgments\"][0][\"score\"]=True; assert summarize_decision(bad)=={\"available\":False,\"reason\":\"missing_or_malformed_decision\"}; held=copy.deepcopy(r); held[\"candidate_id\"]=None; held[\"dispatched\"]=False; assert summarize_decision(held)[\"state\"]==\"held\"; assert summarize_decision(None)=={\"available\":False,\"reason\":\"missing_or_malformed_decision\"}; print(json.dumps({\"checks\":\"passed\",\"real_saved_decision_view\":v}))' -> exit=1",
+      "[hearth_attempt] {\"backend\": \"omen-arc\", \"model\": \"qwen3-30b-a3b\", \"tokens_in\": 5152, \"tokens_out\": 1482, \"duration_ms\": 36016, \"task_id\": \"hearth-hermes-br-20260921-122244-a163a601-5beaf139-cc-builder-2\", \"job_id\": \"job_ec30699c41e1b8b80790609916fae8d6\", \"requested_max_tokens\": 4096}",
+      "[agent_openai] step 3: write_file decision_view.py -> wrote decision_view.py (5523 bytes)",
+      "[hearth_attempt] {\"backend\": \"omen-arc\", \"model\": \"qwen3-30b-a3b\", \"tokens_in\": 7010, \"tokens_out\": 559, \"duration_ms\": 17079, \"task_id\": \"hearth-hermes-br-20260921-122244-a163a601-5beaf139-cc-builder-2\", \"job_id\": \"job_93f7b93b3bc6aecb290e355e8c509e43\", \"requested_max_tokens\": 4096}",
+      "[agent_openai] step 4: run python3 -c 'import copy,json; from decision_view import summarize_decision; r={\"candidate_id\": \"91e6ca6cc679aa0a814aa785ba715a2b\", \"dispatched\": true, \"quality_history_sha256\": \"6784bf287ec0ee622ecc71a4efc53970fbaa5f96a3be24b1e9a59e71a630802f\", \"judgments\": [{\"candidate_id\": \"91e6ca6cc679aa0a814aa785ba715a2b\", \"score\": 2.99, \"confidence\": 0.99, \"ambiguity\": 0.12, \"eligible\": true, \"probabilities\": {\"0\": 0.0, \"1\": 0.0, \"2\": 0.0, \"3\": 1.0}}], \"wait_reason\": null}; before=copy.deepcopy(r); v=summarize_decision(r); assert v[\"available\"] is True and v[\"state\"]==\"dispatched\"; assert v[\"candidate_id\"]==r[\"candidate_id\"] and v[\"quality_history_sha256\"]==r[\"quality_history_sha256\"]; assert v[\"fit_is_correctness\"] is False; assert set(v)=={\"available\",\"state\",\"candidate_id\",\"quality_history_sha256\",\"judgments\",\"fit_is_correctness\"}; assert set(v[\"judgments\"][0])=={\"candidate_id\",\"score\",\"confidence\",\"ambiguity\",\"eligible\"}; assert r==before; bad=copy.deepcopy(r); bad[\"judgments\"][0][\"score\"]=True; assert summarize_decision(bad)=={\"available\":False,\"reason\":\"missing_or_malformed_decision\"}; held=copy.deepcopy(r); held[\"candidate_id\"]=None; held[\"dispatched\"]=False; assert summarize_decision(held)[\"state\"]==\"held\"; assert summarize_decision(None)=={\"available\":False,\"reason\":\"missing_or_malformed_decision\"}; print(json.dumps({\"checks\":\"passed\",\"real_saved_decision_view\":v}))' -> exit=1",
+      "[hearth_attempt] {\"backend\": \"omen-arc\", \"model\": \"qwen3-30b-a3b\", \"tokens_in\": 7763, \"tokens_out\": 1467, \"duration_ms\": 45609, \"task_id\": \"hearth-hermes-br-20260921-122244-a163a601-5beaf139-cc-builder-2\", \"job_id\": \"job_00049f48cc36b8195cd9b3a00e4f5b1b\", \"requested_max_tokens\": 4096}",
+      "[agent_openai] step 5: write_file decision_view.py -> wrote decision_view.py (5523 bytes)",
+      "[agent_openai] budget: 10s left (< 25s) at step 6; finishing gracefully"
+    ],
+    "commit_files": [
+      "decision_view.py",
+      "retro.md"
+    ]
+  },
+  "hermes": {
+    "report": "PASS — the candidate's code is correct against the spec. I read the file as presented, but per instructions I did not execute it; there is no runtime output, so this is a static-only review.\n\nFindings, all conforming:\n- Malformed gate: non-dict, missing/non-list judgments, or length outside 1-4 each return exactly the required error (lines ~5-35).\n- dispatched: `record.get(\"dispatched\", False)` then exact-bool check; non-bool rejected (lines ~37-42).\n- candidate_id: None or str<=80 accepted; must match an eligible row (lines ~44-49, ~151-156).\n- quality_history_sha256: None/absent or exactly 64 lowercase hex (line ~51-56).\n- Per-row: exact bool `eligible` (no `1/0` pass); `score` in [0,3], `confidence`/`ambiguity` in [0,1]; `math.isfinite` guards NaN/inf; bool score rejected (bool is int subclass but `True`→1 passes — minor, see note).\n- state mapping dispatched/selected/held is correct (lines ~158-166).\n- Output contains only the six required keys; each output judgment only the five required fields; no record/row field leakage (lines ~168-175).\n- No I/O, no mutation, stdlib only.\n\nNote: a boolean `score` (True/False) would pass the `(int,float)` check since `bool` subclasses `int`; the spec says reject bool numerics. This is an edge the inline command may not cover — flag if the integrator tests bool-as-score.\n\nNo checks were executed; no output proves runtime behavior.",
+    "metadata": {
+      "model": "am4-dense-27b",
+      "reviewer": "hermes",
+      "elapsed_s": 25.359,
+      "run_budget_s": 180,
+      "requested_reasoning": "none",
+      "source": "unedited Hermes final assistant message",
+      "message_id": 2,
+      "kv_reused": false,
+      "packet_evidence": {
+        "mode": "unchanged",
+        "reason": "unrecognized_evidence",
+        "original_bytes": 13387,
+        "sent_bytes": 13387,
+        "original_sha256": "9739b1ed94a008468a01483b29b8a58c1f0f921fb2a1390c38ae2e02d203b473",
+        "sent_sha256": "9739b1ed94a008468a01483b29b8a58c1f0f921fb2a1390c38ae2e02d203b473"
+      },
+      "reviewer_unloaded": true
+    },
+    "automatic_promotion": false,
+    "semantic_review_is_not_proof": true
+  },
+  "deployment": {
+    "installed": {
+      "installed": [
+        "/home/derek/.local/share/fleet-scheduler/fleet/jev/cli.py",
+        "/home/derek/.local/share/fleet-scheduler/fleet/jev/decision_view.py"
+      ]
+    },
+    "before": {
+      "cli.py": "ee03d8ab19a9a65e99fd6c7b32d9efcd51fc3503ed91b0be5abfc3b9fd9f31cd",
+      "decision_view.py": null
+    },
+    "after": {
+      "human": "Saved JEV decision: dispatched; candidate ebfe24b1b309b4eb001a4237cbe0d579\nQuality history used: 33dc5b422652d6ece1aa33bba66bf70f68fa96237adbffdc92fbf5627285bc92\nCurrent admission thresholds: fit >= 2; confidence >= 0.6; ambiguity <= 0.25\nTask/profile fit is not patch correctness or current capacity.\nebfe24b1b309b4eb001a4237cbe0d579: fit 2.98/3; confidence 0.98; ambiguity 0.16; eligible true\n",
+      "json": {
+        "available": true,
+        "state": "dispatched",
+        "candidate_id": "ebfe24b1b309b4eb001a4237cbe0d579",
+        "quality_history_sha256": "33dc5b422652d6ece1aa33bba66bf70f68fa96237adbffdc92fbf5627285bc92",
+        "judgments": [
+          {
+            "candidate_id": "ebfe24b1b309b4eb001a4237cbe0d579",
+            "score": 2.98,
+            "confidence": 0.98,
+            "ambiguity": 0.16,
+            "eligible": true
+          }
+        ],
+        "fit_is_correctness": false
+      },
+      "status": {
+        "scheduler": "ready",
+        "gpu_reservation": false,
+        "active_build": null,
+        "pending_reviews": 0,
+        "reviewer": "unloaded",
+        "wait_reason": "no_admissible_ready_task",
+        "observed_at": 1789993669.9155016,
+        "next_poll_s": 30
+      },
+      "budget": {
+        "available": true,
+        "calls": 16,
+        "input_tokens": 12826,
+        "usage_estimate_usd": 0.0005386920000000001,
+        "uncertain_reserved_usd": 0.005505023999999999,
+        "booked_usd": 0.006043715999999999,
+        "remaining_usd": 0.093956284
+      },
+      "hashes": {
+        "cli.py": "dc68c657c710cd7ac15581264c998809d0f718b5081749372552628bf4700f3b",
+        "decision_view.py": "4f39760ab3fb731036f5e7d72c5fb569892658789f9fbdb3a69f6d74de3d1ec3"
+      }
+    },
+    "daemon_restarted": false
+  },
+  "assessment": {
+    "hermes_false_pass": true,
+    "hermes_not_an_acceptance_gate": true,
+    "raw_failed_contract_cases": 6,
+    "old_repository_assay": {
+      "reported_passed": 162,
+      "reported_failed": 0,
+      "coverage_of_new_helper": "not established; the worker committed only decision_view.py and retro.md, and independent helper checks fail"
+    },
+    "changes": "Codex rejects boolean numerics, duplicate/empty/non-ASCII identifiers; retains the remaining local helper and integrates CLI/deployment.",
+    "supplied_behavior_command_retyped_incorrectly": true,
+    "no_second_builder_attempt": true,
+    "no_test_files_added": true,
+    "no_model_or_topology_change": true,
+    "no_gateway_restart": true,
+    "api_cost_is_not_total_cost": true
+  }
+}

@@ -132,9 +132,32 @@ def format_status_human_readable(status):
 
 def main():
     parser = argparse.ArgumentParser(prog='fleet-scheduler')
-    parser.add_argument('action', choices=['run-once', 'serve', 'status', 'budget', 'quality'])
+    parser.add_argument('action', choices=['run-once', 'serve', 'status', 'budget', 'quality', 'decision'])
     parser.add_argument('--json', action='store_true')
     args = parser.parse_args()
+    if args.action == 'decision':
+        from fleet.jev.decision_view import summarize_decision
+        try:
+            record = json.loads((HOME / 'last-decision.json').read_text())
+        except (OSError, UnicodeError, ValueError):
+            record = None
+        value = summarize_decision(record)
+        if args.json:
+            print(json.dumps(value, indent=2, allow_nan=False))
+        elif not value['available']:
+            print('Saved JEV decision: unavailable; record missing, malformed, or inconsistent.')
+        else:
+            print('\n'.join((
+                f"Saved JEV decision: {value['state']}; candidate {value['candidate_id'] or 'none'}",
+                f"Quality history used: {value['quality_history_sha256'] or 'not recorded'}",
+                f"Current admission thresholds: fit >= {policy.MIN_FIT:g}; confidence >= {policy.MIN_CONFIDENCE:g}; "
+                f"ambiguity <= {policy.MAX_AMBIGUITY:g}",
+                'Task/profile fit is not patch correctness or current capacity.',
+            )))
+            for row in value['judgments']:
+                print(f"{row['candidate_id']}: fit {row['score']:g}/3; confidence {row['confidence']:g}; "
+                      f"ambiguity {row['ambiguity']:g}; eligible {str(row['eligible']).lower()}")
+        return
     if args.action == 'quality':
         value = load_quality(HOME / 'quality-history.json')
         print(json.dumps(value, indent=2) if args.json else

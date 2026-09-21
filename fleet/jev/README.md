@@ -1,12 +1,19 @@
 # JEV scheduler / on-demand Hermes reviewer
 
+Latest addition: [`fleet-scheduler decision`](DECISION-EXPLANATION-20260921.md)
+is live on FX99 in human and JSON forms. It shows saved fit judgments and the
+quality-history digest used, not patch correctness or live capacity. Its builder
+behavioral-check experiment failed and delivery needed Codex corrections. The
+[packet-only reviewer](PACKET-ONLY-REVIEW-20260921.md) is opt-in with limited
+qualification; the automatic review mode remains unchanged.
+
 Latest status, 2026-09-21: **real build/review/release cycles are operating;
 code acceptance still requires independent review**. FX99 now polls active builds
 every five seconds (observed 5.66–5.76 seconds including RPC), idle work every
 30 seconds, and schedules a one-second follow-up after review. Human status adds
 an allowlisted wait reason. JEV's first live decision with curated quality history
-completed without changing gates. Eleven selected outcomes include one unchanged
-and seven assisted deliveries, one incomplete worker result, and two tasks that
+completed without changing gates. Twelve selected outcomes include one unchanged
+and eight assisted deliveries, one incomplete worker result, and two tasks that
 did not reach this worker. Cycle13's whole-file builder run produced no source;
 that HTML quality-table addition was completed directly by Codex. Its proposed
 shorter review format never received a candidate and was rolled back unqualified.

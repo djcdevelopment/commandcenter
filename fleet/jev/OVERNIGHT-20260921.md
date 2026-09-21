@@ -4,11 +4,60 @@ Authority: Derek permitted 4–8 hours of iteration to improve useful local-work
 throughput and quality. The goal remains active. Do not confuse a completed
 cycle or a healthy endpoint with completion of that larger objective.
 
-Previous goal turn classification (cycle17): **progress**. A live adapter correction
-recovers exact valid model replies discarded by the old parser and writes their
-file contents correctly. The failed candidate and direct correction are separated.
+Previous goal turn classification (cycle19): **progress**. An opt-in packet-only
+wrapper and one actual review artifact were delivered. Qualification stayed
+limited because offered MCP schema absence was not directly captured; the
+automatic review default was not changed.
 
-## Latest: cycle18, matching-workload route comparisons
+## Latest: cycle20, decision explanation and failed behavioral-brief qualification
+
+[`fleet-scheduler decision`](DECISION-EXPLANATION-20260921.md) is live on FX99,
+with human/JSON views of the saved choice, fit judgments and quality-history
+digest. It distinguishes task/profile fit from correctness and current capacity.
+The existing loop and gates were not changed or restarted.
+
+One JEV/MechNet attempt actually tried the supplied behavioral command twice,
+but retyped Python literals as JSON and received `NameError` before assertions.
+It rewrote the same implementation: initial/final ASTs match. The job finished
+on budget at138.8s after five actions. Codex corrected six independently exposed
+cases and integrated the helper/CLI. This is assisted delivery, not an improved
+self-correction result. Hermes returned PASS in25.359s while acknowledging a
+specification violation; that false PASS and the unrelated162-test farm grade
+did not justify acceptance. No second builder or reviewer attempt occurred.
+
+Parent `br-20260921-122038-3a759f92`; child `br-20260921-122244-a163a601`;
+task `jev-952e640d8b1e110bf3ed6cab`; plan
+`hearth-hermes-br-20260921-122244-a163a601-5beaf139`;
+raw commit `449642c08293a76a2ff8ecd762983dee948cfeca`.
+
+Window12:15:27–12:40, generation ceiling12:34. Setup missed the12:22 first-file
+target; task queued12:22:25, dispatched12:22:45, file observed12:23:38. The miss
+was disclosed and finishing the already-queued attempt was put to Derek. The
+corrected helper passed12:26:24; live CLI verified12:27:58. No window expansion.
+AM4 ownership was independently checked null/model absent at12:32:42.
+
+One JEV call,955 input tokens, USD0.000040110 estimate. Cumulative16 calls,
+USD0.000538692 usage estimates plus USD0.005505024 uncertain reservations;
+USD0.006043716 booked. These are not total Codex/hardware costs. Twelve-task
+curated history is deployed: ten reached the worker, one unchanged, eight
+assisted, one incomplete, two not_run. Hash
+`a53c5a2582e03f7027b469f25a59126c827c8fc465335ccd4b781963eb89a2df`.
+The live decision view correctly retains the older digest actually used; no
+new decision with this updated history has been sampled.
+
+## Cycle19, opt-in packet-only reviewer
+
+[Report](PACKET-ONLY-REVIEW-20260921.md), commit `2866e1d`: supported
+`agent.disabled_toolsets: [all]` in a fresh private profile, preserving the
+Hearth-only CLI pin and read-only authority. One review completed in32.433s with
+zero recorded tool calls, but made unsupported claims and exceeded its word
+limit. Source inspection and a resolver check are not direct proof of offered
+MCP schema absence. No automatic default change; no second inference. FX99 has
+the optional wrapper, but the running daemon still uses its cached old module.
+AM4 released, no added JEV call. Source-inspection time missed the first-quarter
+artifact discipline, explicitly recorded. Receipt `br-20260921-120651-c51d6724`.
+
+## Cycle18, matching-workload route comparisons
 
 [Human report, JSON and evidence](MATCHED-WORKLOADS-20260921.md) correct the
 existing offline operator learner: a fastest-route claim combined different

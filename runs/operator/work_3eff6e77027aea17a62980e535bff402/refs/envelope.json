@@ -1,0 +1,40 @@
+{
+  "acceptance_criteria": [
+    "close_build_request may record knowledge/*.json in informational evidence and changed_files",
+    "actual write tools remain blocked from writing the knowledge store",
+    "fixture-taint protection remains intact",
+    "regression tests cover allowed metadata and refused writes"
+  ],
+  "classification": {
+    "context_continuity": "session",
+    "language": "mixed",
+    "mutation_level": "none",
+    "read_vs_reasoning": "balanced",
+    "repo_size": "standard",
+    "risk_level": "medium",
+    "task_type": "engineering"
+  },
+  "constraints": {
+    "budget": null,
+    "deadline_s": 300,
+    "max_attempts": 2,
+    "max_context_tokens": 16384
+  },
+  "contract_version": "task-envelope.v1",
+  "envelope_id": "19b91cc7741a27bc85ddeb2a8d6622649d1b2f22cdd50104d712c62aac04342d",
+  "inputs": {
+    "base_commit": "81a416bcad9cd3aaacc946cb780938df20a9088b",
+    "files": [
+      "hearth/kernel/guards.py",
+      "hearth/tests/kernel/test_guards.py",
+      "hearth/tests/toolsurface/test_build_requests.py"
+    ],
+    "paths": [],
+    "repo": "C:\\work\\commandcenter-local-work"
+  },
+  "intent": "Fix the knowledge-path guard false positive so close_build_request can record knowledge/*.json as informational evidence and changed_files while actual write tools remain blocked and fixture-taint protection remains intact.",
+  "submission_source": "mcp",
+  "submitted_at": "2026-09-22T06:39:11Z",
+  "submitted_by": "codex-cli",
+  "supersedes": null
+}

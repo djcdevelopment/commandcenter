@@ -1,0 +1,85 @@
+{
+  "artifact": null,
+  "artifact_kind": "unified_diff",
+  "attempts": [
+    {
+      "job_id": "job_9e1daa7090add33439fda70811292851",
+      "number": 1,
+      "repair": false,
+      "request_id": "req_4244a21ff1705835aa1733f3e055b444"
+    },
+    {
+      "job_id": "job_ca9dc3c08546b9015f4c833c0a915eef",
+      "number": 2,
+      "repair": true,
+      "request_id": "req_01a2c39383b8e0f56d02f06f69d5252e"
+    }
+  ],
+  "base_commit": "81a416bcad9cd3aaacc946cb780938df20a9088b",
+  "caller": {
+    "submitted_by": "codex-cli",
+    "validated_by": null
+  },
+  "criteria": [
+    "close_build_request may record knowledge/*.json in informational evidence and changed_files",
+    "actual write tools remain blocked from writing the knowledge store",
+    "fixture-taint protection remains intact",
+    "regression tests cover allowed metadata and refused writes"
+  ],
+  "declared_paths": [
+    "hearth/kernel/guards.py",
+    "hearth/tests/kernel/test_guards.py",
+    "hearth/tests/toolsurface/test_build_requests.py"
+  ],
+  "envelope_id": "19b91cc7741a27bc85ddeb2a8d6622649d1b2f22cdd50104d712c62aac04342d",
+  "failure": "candidate must contain exactly the local-work-candidate.v1 fields",
+  "job_id": "job_ca9dc3c08546b9015f4c833c0a915eef",
+  "prompt": {
+    "context_tokens": 16384,
+    "digest": "f169849d1639fbcc620d264862c2a5f8e64e86fda2e2360f626f260a34b5d4f1",
+    "input_tokens": 12232,
+    "output_reserve_tokens": 4096,
+    "template_sha256": "2d28e4e9cce0aa1a30ff32a22713144d2f282c1ffbaac2521a158ca9e46466f3",
+    "template_version": "local-work-prompts.v1"
+  },
+  "receipt_id": "br-20260922-062128-ea6e3656",
+  "repo": "C:\\work\\commandcenter-local-work",
+  "request_id": "req_01a2c39383b8e0f56d02f06f69d5252e",
+  "route": {
+    "model": "qwen3-30b-a3b",
+    "profile_sha256": "86a01a116fef793d503fb4667f87318858e67192552455bb670e831abcef7856",
+    "profile_version": "local-work-routes.v1",
+    "provider": "omen-arc",
+    "requested_lane": "fast",
+    "selected_lane": "fast",
+    "task_family": null
+  },
+  "schema": "local-work-manifest.v1",
+  "source": {
+    "digest": "46282811ce7d11253efae88939c876084d20fa66cd2c490a26b371bddfd7d943",
+    "files": [
+      {
+        "bytes": 4325,
+        "lines": 100,
+        "path": "hearth/kernel/guards.py",
+        "sha256": "b2e3df29ccb40a030204539fdb7f58e87b0ef905a29b0ffeb090bf4ade987deb"
+      },
+      {
+        "bytes": 6521,
+        "lines": 143,
+        "path": "hearth/tests/kernel/test_guards.py",
+        "sha256": "51e247aa7d614b10eb7900ba6c49ae4bfde7fd5d41e623aa515cc7ddc2c5886c"
+      },
+      {
+        "bytes": 34859,
+        "lines": 724,
+        "path": "hearth/tests/toolsurface/test_build_requests.py",
+        "sha256": "9145a714ecdbbf05be799ea36d7a0bf2bf9a7dd2da6b79b7737534a6f01e722e"
+      }
+    ]
+  },
+  "status": "failed",
+  "target_path": null,
+  "verdict": null,
+  "work_id": "work_8d674721546b38372a49746c0caf0284"
+}

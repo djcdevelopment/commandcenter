@@ -28,7 +28,7 @@ from hearth.toolsurface.backends import Backend, load_pool
 CANDIDATE_SCHEMA = "local-work-candidate.v1"
 MANIFEST_SCHEMA = "local-work-manifest.v1"
 TEMPLATE_VERSION = "local-work-prompts.v1"
-ROUTE_PROFILE_VERSION = "local-work-routes.v1"
+ROUTE_PROFILE_VERSION = "local-work-routes.v2"
 KINDS = frozenset({"markdown", "json", "whole_file", "unified_diff"})
 LANES = frozenset({"auto", "fast", "deep"})
 FINAL = frozenset({"accepted", "rejected", "superseded", "failed"})

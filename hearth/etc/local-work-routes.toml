@@ -1,10 +1,10 @@
 # Local-only workflow lanes. Explicit lanes never substitute another provider.
-# Phase 0 keeps fast on the current resident model; the AM4 qualification
-# commit changes only this backend value after all promotion gates pass.
-version = "local-work-routes.v1"
+# v2 promotes the qualified AM4 CUDA dense seat for bounded fast work.  The
+# one-slot D1 SYCL seat remains the source-backed deep route.
+version = "local-work-routes.v2"
 
 [lane.fast]
-backend = "omen-arc"
+backend = "am4-dense"
 
 [lane.deep]
 backend = "omen-arc-27b"

@@ -193,7 +193,7 @@ class LocalWorkServiceTests(unittest.TestCase):
         self.assertEqual(profile["kv_cache_key_type"], "f16")
         self.assertFalse(profile["speculative"])
 
-    def test_clean_am4_profile_matches_recovered_pin_shape(self) -> None:
+    def test_clean_am4_profile_is_the_qualified_fast_lane(self) -> None:
         config = Path(__file__).resolve().parents[2] / "etc" / "backends.toml"
         provider = load_pool(config).by_name("am4-dense")
         self.assertIsNotNone(provider)
@@ -206,7 +206,8 @@ class LocalWorkServiceTests(unittest.TestCase):
         self.assertEqual(profile["kv_cache_key_type"], "q4_0")
         self.assertEqual(profile["batch_tokens"], 2048)
         routes, _route_digest = LocalWorkService._route_profile()
-        self.assertEqual(routes["fast"], "omen-arc")
+        self.assertEqual(routes["fast"], "am4-dense")
+        self.assertEqual(routes["deep"], "omen-arc-27b")
 
 
 if __name__ == "__main__":

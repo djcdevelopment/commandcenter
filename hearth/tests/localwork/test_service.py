@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -13,7 +14,8 @@ from hearth.execution.artifacts import ArtifactStore
 from hearth.execution.coordination import CapacityLeaseStore
 from hearth.execution.ledger import ExecutionLedger
 from hearth.execution.service import ExecutionService
-from hearth.localwork.service import LocalWorkError, LocalWorkService
+from hearth.localwork.service import LocalWorkError, LocalWorkService, SERVING_PROFILE_KEYS
+from hearth.toolsurface.backends import load_pool
 
 
 def git(repo: Path, *args: str) -> str:
@@ -148,6 +150,48 @@ class LocalWorkServiceTests(unittest.TestCase):
         self.assertEqual(first["work_id"], second["work_id"])
         with self.assertRaisesRegex(LocalWorkError, "different local work"):
             self.submit(idempotency_key="same", intent="different")
+
+    def test_manifest_serving_profile_is_allowlisted_and_digested(self) -> None:
+        manifest = self.submit()
+        route = manifest["route"]
+        profile = route["serving_profile"]
+        self.assertTrue(set(profile).issubset(SERVING_PROFILE_KEYS))
+        self.assertNotIn("context_bytes", profile)
+        self.assertNotIn("timeout_s", profile)
+        expected = hashlib.sha256(json.dumps(
+            profile, sort_keys=True, separators=(",", ":"), ensure_ascii=True,
+        ).encode("utf-8")).hexdigest()
+        self.assertEqual(route["serving_profile_sha256"], expected)
+        reconciled = self.settle(manifest["work_id"])
+        self.assertEqual(reconciled["route"]["serving_profile"], profile)
+        self.assertEqual(reconciled["route"]["serving_profile_sha256"], expected)
+
+    def test_serving_profile_excludes_unrelated_settings(self) -> None:
+        qualified = {
+            "context_tokens": 131072,
+            "parallel_slots": 1,
+            "hardware_profile_id": "omen-285k-dual-b70-2026H2",
+            "engine": "llama.cpp",
+        }
+        polluted = dict(qualified, auth_env="SECRET_ENV", endpoint="http://private.invalid",
+                        node="omen", context_bytes=458752, timeout_s=1000,
+                        nested={"must": "not leak"})
+        clean_profile, clean_digest = LocalWorkService._serving_profile(qualified)
+        polluted_profile, polluted_digest = LocalWorkService._serving_profile(polluted)
+        self.assertEqual(polluted_profile, clean_profile)
+        self.assertEqual(polluted_digest, clean_digest)
+
+    def test_clean_d1_profile_declares_qualified_shape(self) -> None:
+        config = Path(__file__).resolve().parents[2] / "etc" / "backends.toml"
+        provider = load_pool(config).by_name("omen-arc-27b")
+        self.assertIsNotNone(provider)
+        assert provider is not None
+        profile, _digest = LocalWorkService._serving_profile(provider.settings)
+        self.assertEqual(profile["context_tokens"], 131072)
+        self.assertEqual(profile["parallel_slots"], 1)
+        self.assertEqual(profile["device_backend"], "SYCL")
+        self.assertEqual(profile["kv_cache_key_type"], "f16")
+        self.assertFalse(profile["speculative"])
 
 
 if __name__ == "__main__":

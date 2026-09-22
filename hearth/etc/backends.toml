@@ -175,14 +175,32 @@ tags     = []                                 # pin-only by design (ADR-0039)
 [backend.settings]
 node                = "omen"
 hardware_profile_id = "omen-285k-dual-b70-2026H2"
-# ADR-0048 production target: -c 131072 -np 1, one exact-admission deep slot.
-# context_bytes remains the legacy router's conservative byte admission value;
-# local-work additionally uses the server tokenizer and context_tokens.
+# ADR-0048 D1 declared serving profile.  These values describe the qualified
+# llama.cpp SYCL seat and are stamped into LocalWork manifests; they are not a
+# liveness assertion about the currently running server.
+serving_profile_version = "d1-sycl.v1"
+engine              = "llama.cpp"
+engine_build        = "b52-60cdd25"
+model_weight        = "Qwen3.8-27B-Q4_K_M.gguf"
+model_weight_sha256 = "31629F53165AB6A7DAD8C9847DCFD1FDF55829DAC1E6E748F4A68581B0033D34"
+quantization        = "Q4_K_M"
+device_backend      = "SYCL"
+devices             = "SYCL0,SYCL1"
+split_mode          = "layer"
+tensor_split        = "1,1"
 context_tokens = 131072
 context_bytes = 458752
 max_tokens = 8192
 timeout_s = 1000
 parallel_slots = 1
+kv_cache_key_type   = "f16"
+kv_cache_value_type = "f16"
+ubatch_tokens       = 2048
+batch_tokens        = 4096
+flash_attention     = true
+speculative         = false
+reasoning_budget_tokens = 256
+reasoning_effort    = "low"
 
 [[backend]]
 name     = "fx99-ollama"                      # CUDA SIDECAR (pin-only), ADR-0039: the

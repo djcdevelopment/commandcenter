@@ -33,6 +33,17 @@ KINDS = frozenset({"markdown", "json", "whole_file", "unified_diff"})
 LANES = frozenset({"auto", "fast", "deep"})
 FINAL = frozenset({"accepted", "rejected", "superseded", "failed"})
 VISION_FAMILIES = frozenset({"vision", "document_ocr", "image_analysis"})
+# This is deliberately narrower than Backend.settings.  A manifest needs enough
+# declared serving facts to distinguish a qualified run from a later shape, but
+# it must never become a dump of endpoint, credential, or operator settings.
+SERVING_PROFILE_KEYS = frozenset({
+    "serving_profile_version", "hardware_profile_id",
+    "engine", "engine_build", "model_weight", "model_weight_sha256", "quantization",
+    "device_backend", "devices", "split_mode", "tensor_split",
+    "context_tokens", "max_tokens", "parallel_slots",
+    "kv_cache_key_type", "kv_cache_value_type", "batch_tokens", "ubatch_tokens",
+    "flash_attention", "speculative", "reasoning_budget_tokens", "reasoning_effort",
+})
 _DIFF_PATH = re.compile(r"^(?:---|\+\+\+)\s+(?:a/|b/)?([^\t\r\n]+)", re.MULTILINE)
 TokenCounter = Callable[[Backend, str, str], int]
 
@@ -149,6 +160,26 @@ class LocalWorkService:
         return resolved, _digest(raw)
 
     @staticmethod
+    def _serving_profile(settings: Mapping[str, Any]) -> tuple[dict[str, Any], str]:
+        """Return an allowlisted, canonically digested serving declaration.
+
+        This stamps what the selected provider *declared*, not an assertion that
+        a remote server was live or launched with matching flags.  Keeping the
+        projection scalar-only makes the manifest stable and prevents arbitrary
+        nested backend configuration from becoming caller-visible provenance.
+        """
+        profile: dict[str, Any] = {}
+        for key in sorted(SERVING_PROFILE_KEYS):
+            if key not in settings:
+                continue
+            value = settings[key]
+            if not isinstance(value, (str, int, float, bool)) and value is not None:
+                raise LocalWorkError(f"serving profile setting {key!r} must be scalar")
+            profile[key] = value
+        encoded = json.dumps(profile, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        return profile, _digest(encoded)
+
+    @staticmethod
     def _template(kind: str) -> tuple[str, str]:
         mapping = {"unified_diff": "local_work_patch_v1.txt", "whole_file": "local_work_whole_file_v1.txt",
                    "json": "local_work_json_v1.txt", "markdown": "local_work_markdown_v1.txt"}
@@ -232,6 +263,7 @@ class LocalWorkService:
         if context_tokens <= 0 or input_tokens + output_reserve > context_tokens:
             raise LocalWorkError(
                 f"exact context refusal: {input_tokens} input + {output_reserve} output > {context_tokens}")
+        serving_profile, serving_profile_sha256 = self._serving_profile(provider.settings)
 
         work_id = (f"work_{_digest(caller_id + ':' + idempotency_key)[:32]}"
                    if idempotency_key else f"work_{uuid.uuid4().hex}")
@@ -259,7 +291,9 @@ class LocalWorkService:
             "route": {"profile_version": ROUTE_PROFILE_VERSION,
                       "profile_sha256": route_hash,
                       "requested_lane": lane, "selected_lane": selected_lane,
-                      "provider": backend_name, "model": model, "task_family": task_family},
+                      "provider": backend_name, "model": model, "task_family": task_family,
+                      "serving_profile": serving_profile,
+                      "serving_profile_sha256": serving_profile_sha256},
             "artifact_kind": artifact_kind, "target_path": target, "declared_paths": declared,
             "criteria": acceptance_criteria, "attempts": [], "artifact": None,
             "receipt_id": receipt_id, "verdict": None,

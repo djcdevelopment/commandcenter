@@ -269,10 +269,31 @@ tags     = []                      # pin-only; says nothing about availability (
 [backend.settings]
 node                = "am4"
 hardware_profile_id = "am4-4070ti-5070-2026H2"
-context_bytes       = 458752       # planning estimate only: 131072 x 3.5; facade enforces exact template-token count
-max_tokens          = 1024
+# Pin-only F1 recovery profile, measured 2026-09-22 through the authenticated
+# facade alias.  It is deliberately not tagged or named by local-work-routes:
+# admission truth is useful before auto-route promotion is earned.
+serving_profile_version = "f1-cuda.v1"
+engine              = "llama.cpp"
+engine_build        = "b1-81aeaeb"
+model_weight        = "Qwen3.8-27B-Q4_K_M.gguf"
+quantization        = "Q4_K_M"
+device_backend      = "CUDA"
+devices             = "CUDA0,CUDA1"
+split_mode          = "layer"
+tensor_split        = "1,1"
+context_tokens      = 65536
+context_bytes       = 229376       # 65536 tokens x 3.5 B legacy router admission
+max_tokens          = 4096
 parallel_slots      = 1
-timeout_s           = 600
+timeout_s           = 900
+kv_cache_key_type   = "q4_0"
+kv_cache_value_type = "q4_0"
+ubatch_tokens       = 1024
+batch_tokens        = 2048
+flash_attention     = true
+speculative         = false
+reasoning_budget_tokens = 256
+reasoning_effort    = "low"
 
 [[backend]]
 name     = "am4-read-4070ti"               # READER rung (pin-only): one NVIDIA card, long context, prefill-heavy work

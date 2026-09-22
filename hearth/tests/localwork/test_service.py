@@ -193,6 +193,21 @@ class LocalWorkServiceTests(unittest.TestCase):
         self.assertEqual(profile["kv_cache_key_type"], "f16")
         self.assertFalse(profile["speculative"])
 
+    def test_clean_am4_profile_matches_recovered_pin_shape(self) -> None:
+        config = Path(__file__).resolve().parents[2] / "etc" / "backends.toml"
+        provider = load_pool(config).by_name("am4-dense")
+        self.assertIsNotNone(provider)
+        assert provider is not None
+        profile, _digest = LocalWorkService._serving_profile(provider.settings)
+        self.assertEqual(profile["context_tokens"], 65536)
+        self.assertEqual(profile["max_tokens"], 4096)
+        self.assertEqual(profile["parallel_slots"], 1)
+        self.assertEqual(profile["device_backend"], "CUDA")
+        self.assertEqual(profile["kv_cache_key_type"], "q4_0")
+        self.assertEqual(profile["batch_tokens"], 2048)
+        routes, _route_digest = LocalWorkService._route_profile()
+        self.assertEqual(routes["fast"], "omen-arc")
+
 
 if __name__ == "__main__":
     unittest.main()

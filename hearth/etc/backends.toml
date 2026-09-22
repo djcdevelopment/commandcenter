@@ -103,6 +103,7 @@ hardware_profile_id = "omen-285k-dual-b70-2026H2"   # rebuilt box, 2026-08-20 (A
 # door -- payload_over_budget_for_pinned_backend -- instead of a silent truncation
 # at the server, and unpinned over-budget callers route to a cloud rung instead.
 context_bytes = 57344
+context_tokens = 16384
 max_tokens = 8192
 timeout_s = 1000
 # 2 slots (was 4): 64k-deep slots cost more than the knee ladder predicted —
@@ -174,12 +175,14 @@ tags     = []                                 # pin-only by design (ADR-0039)
 [backend.settings]
 node                = "omen"
 hardware_profile_id = "omen-285k-dual-b70-2026H2"
-# ADR-0031 arithmetic, same shape as omen-arc: -c 131072 -np 2 → 2 slots × 65536
-# tokens × ~3.5 bytes/token. Derived, not copied; retune if the serve shape changes.
-context_bytes = 229376
+# ADR-0048 production target: -c 131072 -np 1, one exact-admission deep slot.
+# context_bytes remains the legacy router's conservative byte admission value;
+# local-work additionally uses the server tokenizer and context_tokens.
+context_tokens = 131072
+context_bytes = 458752
 max_tokens = 8192
 timeout_s = 1000
-parallel_slots = 2
+parallel_slots = 1
 
 [[backend]]
 name     = "fx99-ollama"                      # CUDA SIDECAR (pin-only), ADR-0039: the
@@ -221,6 +224,22 @@ context_bytes       = 14336                  # 4096 tokens x 3.5 bytes; service 
 max_tokens          = 1024
 timeout_s           = 300
 parallel_slots      = 1
+
+[[backend]]
+name     = "am4-vllm-moe"
+endpoint = "http://192.168.12.233:8090"
+api      = "openai"
+auth_env = "AM4_OXEN_TOKEN"
+models   = ["am4-vllm-moe"]
+tags     = []  # qualification first; promotion adds default/code tags
+[backend.settings]
+node                = "am4"
+hardware_profile_id = "am4-4070ti-5070-2026H2"
+context_tokens      = 16384
+context_bytes       = 57344
+max_tokens          = 4096
+parallel_slots      = 4
+timeout_s           = 900
 
 [[backend]]
 name     = "am4-dense"

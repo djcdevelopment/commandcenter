@@ -1,0 +1,7 @@
+{
+  "am4-vllm-moe": {
+    "host": "127.0.0.1",
+    "port": 8001,
+    "model_id": "qwen3-30b-a3b-gptq-int4"
+  }
+}

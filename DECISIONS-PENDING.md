@@ -978,9 +978,22 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
       CUTLASS-SYCL kernels' SPIR-V can be compiled by Linux IGC and run under the Windows runtime.** AM4 is the
       services host; the packages do not touch the NVIDIA stack. Decides whether the fault is the Windows
       compiler or the Windows runtime (source: [docs/rnd/vllm-xpu-windows/LINUX-DELTA.md](docs/rnd/vllm-xpu-windows/LINUX-DELTA.md), [ADR-0047 §6](docs/adr/0047-vllm-on-windows-runs-tla-free-one-seat-per-card.md))
-- [ ] 2026-09-20 — **E2: registry-set IGC/NEO debug flags on OMEN** (`HKLM\SOFTWARE\Intel\IGFX\IGC`:
-      `ShaderDumpEnable`, `DisableIGCOptimizations`, `Decompose2DBlockFuncsMode`, `TotalGRFNum`) — admin shell,
-      Derek types (source: [LINUX-DELTA.md](docs/rnd/vllm-xpu-windows/LINUX-DELTA.md))
+      **2026-09-21: E3's input is in hand** — E2 dumped the FA2 library's 156 SPIR-V images to
+      `E:\work\vllm-xpu-win\probes\e2_igc_dump\` (README carries the recipe). Only the AM4 `apt install` cue remains.
+- [x] ~~2026-09-20 — E2: `ShaderDumpEnable` via the registry~~ **resolved 2026-09-21 — negative** (set via RunAs,
+      no dump on 9030's IGC though it JIT'd FA2; `SYCL_DUMP_IMAGES=1` was the mechanism that worked; see
+      [LINUX-DELTA.md](docs/rnd/vllm-xpu-windows/LINUX-DELTA.md) E2 row, [SESSION-RETRO-2026-09-21.md](SESSION-RETRO-2026-09-21.md))
+- [ ] 2026-09-21 — **E2 remaining flags** (`DisableIGCOptimizations=1`, `Decompose2DBlockFuncsMode`, `TotalGRFNum=256`;
+      NEO `GpuFaultCheckThreshold`) — minutes each via RunAs, inside a window; decides codegen-vs-execution
+      (source: [LINUX-DELTA.md](docs/rnd/vllm-xpu-windows/LINUX-DELTA.md))
+- [ ] 2026-09-21 — **PPM Provisioning Package: keep the OEM/WU 1.0.0.200 or force Intel's 1.0.0.264?** Intel's
+      installer declined by policy; `FORCE_PPM_INSTALL=1` on the cached `PPMPackageInstaller.msi` exists. Only with a
+      before/after on the CPU expert lane; System Restore point 2026-09-21 19:20:16 is the rollback
+      (source: [SESSION-RETRO-2026-09-21.md](SESSION-RETRO-2026-09-21.md))
+- [ ] 2026-09-21 — **Optional reboot of OMEN** — nothing functional rides on it (a `DriverStore\Temp` cleanup only);
+      pick a moment when no other work is in progress (source: [SESSION-RETRO-2026-09-21.md](SESSION-RETRO-2026-09-21.md))
+- [ ] 2026-09-21 — **`gpu-mem-gate.ps1` has never been run** (L-2026-09-20-12, pending two retros): run it before the
+      next quoted benchmark, or drop the gate explicitly (source: [SESSION-RETRO-2026-09-21.md](SESSION-RETRO-2026-09-21.md))
 - [ ] 2026-09-20 — **Does the vLLM seat become a door rung (`omen-vllm`, pin-only, :8097) before it clears the
       saturation bar (≥ 3,358 jobs/h at 8×16k, ≥ 105 tok/s single)?** Today it needs production stopped to hold
       a card; one seat per card is the shape (source: [ADR-0047 §2/§7](docs/adr/0047-vllm-on-windows-runs-tla-free-one-seat-per-card.md))

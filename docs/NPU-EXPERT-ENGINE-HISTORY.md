@@ -366,6 +366,32 @@ NPU-19 remains the diagnostic baseline for those future comparisons:
 `compiler DQ + pool size 0 + performance counters off + runtime logging off + NPUW profiling
 off + NPU turbo on`.
 
+### Reopen test 2026-09-21 — NPU driver 32.0.100.5540 (condition 1): not met
+
+Intel DSA offered NPU driver 32.0.100.5540 (2026-08-28; release notes: "fixed a compiler issue
+that could cause incorrect results with grouped INT8 quantized weights", Gemma embedding
+support, OpenVINO 2026.3.1.0). Installed from `E:\work\drivers\npu_win_32.0.100.5540.exe`
+(Authenticode Intel Corporation; PnP `Restart verified` on the NPU at 19:11:07, no reboot; L0
+loader unchanged at 1.32.0; `level_zero:0/1/2` device order unchanged; production `/health`
+200 throughout). NPU-21 was re-run unchanged from its recorded `rerun` command into fresh
+artifact directories, against the same real layer-zero cache:
+
+| run | driver / graph ext | compiler | lowered ops | estimate |
+|---|---|---|---|---|
+| NPU-21 baseline (2026-08-29) | 1.14 / 1.17 (4778) | PLUGIN, VCL 7.8, `524290` | 235 (30 Conv, 20 GroupConv, 30 QuantizeCast, 57 PermuteCast, 20 ShapeCast, 10 Tile, …) | 2030.80 µs |
+| `npu0-drv5540` | 1.16 / 1.18 (5540) | PLUGIN, VCL 7.8, `524290` | identical 235 | **2030.80 µs** |
+| `npu0-drv5540-cid` | 1.16 / 1.18 (5540) | **DRIVER**, `524291` (API 8.3) | identical 235 | **2030.80 µs** |
+
+The driver compiler is the one thing the update changed: NPU-3 had found 4778's compiler-in-
+driver at API 8.1 against the required 8.2, which is why the whole campaign ran on the plugin
+compiler. On 5540 `NPU_COMPILER_TYPE=DRIVER` compiles the faithful 71-input graph
+(`compiler_type_actual = CompilerType.DRIVER`, 405 ms) — and lowers it to the same 235
+operations with the same estimate. Neither compiler moves the 30-Convolution +
+20-GroupConvolution lowering or the 2.03080 ms figure; the family stays closed. `npu21_f16_dq_expert.py`
+now admits `--compiler-type DRIVER` for future comparisons. Side effect worth a later lap: the
+LZ cards parked the NPU embedder seat on 4778's broken embeddings preview; 5540 lists Gemma
+embedding support, which un-parks that test.
+
 ## Lap-by-lap chronology
 
 | Lap | Edge moved or closed |

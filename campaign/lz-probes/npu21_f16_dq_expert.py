@@ -82,7 +82,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="NPU-0 packed-weight cache; defaults to --artifact-dir",
     )
     parser.add_argument("--device", default="NPU", choices=("NPU",))
-    parser.add_argument("--compiler-type", default="PLUGIN", choices=("PLUGIN",))
+    # DRIVER admitted 2026-09-21: NPU driver 32.0.100.5540 exposes compiler API 8.3
+    # (NPU-3 found 4778 at 8.1 vs the required 8.2), so compiler-in-driver is testable.
+    parser.add_argument("--compiler-type", default="PLUGIN", choices=("PLUGIN", "DRIVER"))
     parser.add_argument("--bf6-render-queue", default="unknown")
     parser.add_argument("--coresident", action="store_true")
     parser.add_argument(
@@ -997,7 +999,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
     print(json.dumps({"probe": PROBE, "cell": "graph-contract", **contract}, sort_keys=True), flush=True)
 
     config = {
-        "NPU_COMPILER_TYPE": "PLUGIN",
+        "NPU_COMPILER_TYPE": args.compiler_type,
         "NPU_COMPILER_DYNAMIC_QUANTIZATION": args.enable_compiler_dq,
         "PERFORMANCE_HINT": "LATENCY",
         "PERF_COUNT": False,

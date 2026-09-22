@@ -80,9 +80,33 @@ class GuardStack:
                 hits.append(resolved)
         return hits
 
+    def _close_receipt_write_paths(self, args: dict) -> list[Path]:
+        """Knowledge paths that could control where close_build_request writes.
+
+        `changed_files`, `summary`, and validation evidence are facts stored in
+        the receipt, not filesystem destinations.  The receipt directory is a
+        destination and remains guarded.  Keeping this distinction here avoids
+        granting the build-request module knowledge-writer authority merely so
+        it can accurately describe a change.
+        """
+        hits = []
+        for key, value in args.items():
+            if key in {"changed_files", "summary", "validation"}:
+                continue
+            for text in _iter_strings(value):
+                try:
+                    resolved = ((self.repo_root / text).resolve()
+                                if not Path(text).is_absolute() else Path(text).resolve())
+                except (OSError, ValueError):
+                    continue
+                if resolved == self.knowledge_dir or self.knowledge_dir in resolved.parents:
+                    hits.append(resolved)
+        return hits
+
     def check(self, tool: str, args: dict) -> None:
         """Raise GuardRejection if dispatching `tool` with `args` must be refused."""
-        knowledge_hits = self._knowledge_paths(args)
+        knowledge_hits = (self._close_receipt_write_paths(args)
+                          if tool == "close_build_request" else self._knowledge_paths(args))
         if knowledge_hits and tool not in self.knowledge_tools:
             raise GuardRejection(
                 f"guard: tool {tool!r} references knowledge store path "

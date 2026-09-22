@@ -1,0 +1,10 @@
+# Local-only workflow lanes. Explicit lanes never substitute another provider.
+# Phase 0 keeps fast on the current resident model; the AM4 qualification
+# commit changes only this backend value after all promotion gates pass.
+version = "local-work-routes.v1"
+
+[lane.fast]
+backend = "omen-arc"
+
+[lane.deep]
+backend = "omen-arc-27b"

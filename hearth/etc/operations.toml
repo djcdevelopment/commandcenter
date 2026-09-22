@@ -21,6 +21,14 @@ max_tokens_ceiling = 32768
 deadline_ceiling_s = 1200
 artifact_media_type = "text/plain; charset=utf-8"
 
+[operation."work.produce"]
+description = "Produce a review-only local-work candidate from a pinned repository source pack."
+handler = "llm_chat"
+max_prompt_bytes = 1048576
+max_tokens_ceiling = 8192
+deadline_ceiling_s = 1200
+artifact_media_type = "application/vnd.hearth.local-work-candidate.v1+json"
+
 [operation."media.render"]
 description = "Render a BF6 highlight clip on a leased Arc Pro B70 QSV lane."
 handler = "media_render"

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://commandcenter.local/hearth/contracts/local-work-candidate.v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "artifact_kind", "summary", "target_path", "citations", "content"],
+  "properties": {
+    "schema": {"const": "local-work-candidate.v1"},
+    "artifact_kind": {"enum": ["markdown", "json", "whole_file", "unified_diff"]},
+    "summary": {"type": "string", "minLength": 1},
+    "target_path": {"type": ["string", "null"]},
+    "citations": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["path", "start_line", "end_line"], "properties": {"path": {"type": "string", "minLength": 1}, "start_line": {"type": "integer", "minimum": 1}, "end_line": {"type": "integer", "minimum": 1}}}},
+    "content": {}
+  }
+}

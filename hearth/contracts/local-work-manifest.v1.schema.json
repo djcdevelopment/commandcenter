@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://commandcenter.local/hearth/contracts/local-work-manifest.v1.schema.json",
+  "type": "object",
+  "required": ["schema", "work_id", "envelope_id", "status", "repo", "base_commit", "source", "prompt", "route", "attempts", "caller"],
+  "properties": {
+    "schema": {"const": "local-work-manifest.v1"},
+    "work_id": {"type": "string"}, "envelope_id": {"type": "string"},
+    "status": {"enum": ["queued", "running", "awaiting_review", "accepted", "rejected", "superseded", "failed"]},
+    "repo": {"type": "string"}, "base_commit": {"type": "string"},
+    "source": {"type": "object"}, "prompt": {"type": "object"}, "route": {"type": "object"},
+    "attempts": {"type": "array"}, "caller": {"type": "object"}, "artifact": {"type": ["object", "null"]},
+    "receipt_id": {"type": ["string", "null"]}, "verdict": {"type": ["object", "null"]}
+  }
+}

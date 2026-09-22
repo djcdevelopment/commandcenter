@@ -145,6 +145,14 @@ TOOL_CAPABILITY: dict[str, str] = {
     "submit_delegated_execution": "execution",
     "submit_execution": "execution",
     "watch_execution": "execution",
+    # local_work: bounded, review-only repository candidates.  It shares the
+    # execution authority because every work item is backed by an owned Job;
+    # no tool in this family applies or commits candidate content.
+    "submit_local_work": "execution",
+    "watch_local_work": "execution",
+    "get_local_work": "execution",
+    "get_local_work_artifact": "execution",
+    "record_local_work_verdict": "execution",
     # status: cheap gateway self-report
     "kernel_status": "status",
     # kernel_admin: the kernel change ceremony

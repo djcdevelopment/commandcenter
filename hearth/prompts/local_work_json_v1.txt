@@ -1,0 +1,1 @@
+Return only one JSON object conforming to local-work-candidate.v1. Put the requested structured value in content; do not claim that tests ran. The candidate is review-only.

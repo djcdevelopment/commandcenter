@@ -55,6 +55,24 @@ class GuardStackTest(unittest.TestCase):
     def test_non_knowledge_paths_pass_for_any_tool(self):
         self.guards.check("fs_write", {"path": "docs/notes.md", "content": "acknowledge"})
 
+    def test_close_build_request_may_record_knowledge_metadata(self):
+        self.guards.check("close_build_request", {
+            "receipt_id": "br-test",
+            "status": "done",
+            "summary": "Reviewed knowledge/findings.json as informational evidence",
+            "changed_files": ["knowledge/findings.json"],
+            "validation": [{"criterion": "projection", "status": "passed",
+                            "evidence": "knowledge/findings.json digest verified"}],
+        })
+
+    def test_close_build_request_cannot_place_receipt_in_knowledge_store(self):
+        with self.assertRaisesRegex(GuardRejection, "knowledge store path"):
+            self.guards.check("close_build_request", {
+                "receipt_id": "br-test", "status": "done", "summary": "ok",
+                "changed_files": [], "validation": [],
+                "receipt_dir": "knowledge/receipts",
+            })
+
     def test_fixture_taint_blocked_via_corpus_guard(self):
         with self.assertRaises(GuardRejection) as caught:
             self.guards.check("project_findings", {

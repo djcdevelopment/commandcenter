@@ -374,7 +374,10 @@ class LocalWorkService:
                         self._event(manifest, "outcome.final", {"status": "failed", "reason_sha256": _digest(str(exc))})
                     else:
                         original = self.execution.artifacts.read(job["desired"]["input_artifact"]).decode("utf-8")
-                        repair = original + "\n\nREPAIR: Your prior response was not valid local-work-candidate.v1 JSON. Return only the corrected JSON object."
+                        prior = raw.decode("utf-8", errors="replace")
+                        repair = (original + "\n\nREPAIR: The response below was rejected as malformed. "
+                                  "Return only a corrected object with exactly schema, artifact_kind, "
+                                  "summary, target_path, citations, and content.\nREJECTED RESPONSE:\n" + prior)
                         provider = load_pool().by_name(str(manifest["route"]["provider"]))
                         if provider is None:
                             raise LocalWorkError("repair route provider disappeared")

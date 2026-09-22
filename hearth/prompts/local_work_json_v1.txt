@@ -1,1 +1,1 @@
-Return only one JSON object conforming to local-work-candidate.v1. Put the requested structured value in content; do not claim that tests ran. The candidate is review-only.
+Return only one JSON object with exactly these six fields: `schema`, `artifact_kind`, `summary`, `target_path`, `citations`, and `content`. Set schema to `local-work-candidate.v1`, artifact_kind to `json`, and content to the requested JSON value. Use no markdown fence or extra field. Do not claim that tests ran. The candidate is review-only.

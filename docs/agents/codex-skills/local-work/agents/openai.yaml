@@ -1,0 +1,13 @@
+interface:
+  display_name: "Local work"
+  short_description: "Submit and independently validate immutable local-model candidates"
+  default_prompt: "Use $local-work to submit bounded repository work and record an evidenced verdict."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "hearth"
+      description: "Local-first HEARTH model and workflow gateway"
+      transport: "streamable_http"
+      url: "http://127.0.0.1:8710/mcp"
+policy:
+  allow_implicit_invocation: false

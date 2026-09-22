@@ -222,7 +222,8 @@ class LocalWorkService:
         model = provider.models[0] if provider.models else ""
         request_doc = {"intent": intent, "acceptance_criteria": acceptance_criteria,
                        "artifact_kind": artifact_kind, "target_path": target,
-                       "declared_paths": declared, "source_pack": source_pack}
+                       "declared_paths": declared, "source_files": source_meta,
+                       "source_pack": source_pack}
         prompt = template + "\n\nREQUEST\n" + json.dumps(request_doc, sort_keys=True)
         input_tokens = self.token_counter(provider, model, prompt)
         output_reserve = max_tokens or int(provider.settings.get("max_tokens") or 4096)

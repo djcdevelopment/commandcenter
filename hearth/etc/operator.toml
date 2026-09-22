@@ -1,0 +1,190 @@
+# Local Compute Operator control plane — configuration (WI-G1).
+#
+# Two horizons, decided by Derek 2026-09-17 (D-106). They are NOT the same clock:
+#
+#   * PLANNING VALIDITY (300 s) is how long the shared planning snapshot named by
+#     CURRENT.json may be used for deliberation. `operator inspect` refuses a
+#     snapshot whose window has passed and says so; it never silently refreshes.
+#   * FIELD FRESHNESS is per fact. Every dynamic field in a snapshot carries its
+#     own observed_at, ttl_s and fresh_until. A planning snapshot MAY contain a
+#     field that goes stale during deliberation — it may never describe that
+#     field as currently fresh.
+#
+# The old "expiry is the minimum TTL" rule is superseded: a 30-second occupancy
+# TTL would have expired realistic multi-agent deliberation before proposals
+# returned. There is no minimum-TTL expires_at field anywhere in the snapshot.
+contract = "operator-config.v1"
+
+[snapshot]
+# The planning window on CURRENT.json.
+planning_validity_s = 300
+
+[snapshot.ttl_s]
+# D-106 field freshness classes. Which class a field belongs to is fixed in
+# hearth/operator/inspection.py beside the probe that produces it, so a field
+# can never acquire a longer TTL than the thing it measures.
+readiness = 120        # rung readiness, door liveness, residency
+occupancy = 30         # occupancy, active slot state, leases, holds (matches the
+                       # existing 30 s occupancy cache in hearth/toolsurface/occupancy.py)
+reachability = 300     # host/service reachability sweeps
+trial_runway = 3600    # GCP trial-credit runway
+
+[ingestion]
+# D-115 as amended: provider reasoning fields discarded, per-model think-block
+# redaction by a VERSIONED policy, enable_thinking=false requested by default,
+# removal recorded without content. Changing anything under [ingestion] is a
+# reviewable diff that moves policy_version — and, because this file is hashed
+# into the catalog's generated_from[], catalog_version with it.
+#
+# Removal metadata records exactly four things and never the removed content:
+#   reasoning_removed, removed_bytes, removed_names, policy_version.
+policy_version = "operator-redaction.v2"
+enforced = true
+enable_thinking_default = false
+discard_fields = ["reasoning_content", "reasoning", "thought", "thinking", "chain_of_thought"]
+
+# Model-specific think blocks, by name. Each is removed wherever it appears —
+# in a string, inside a structured payload, or in raw bytes.
+[[ingestion.redact_blocks]]
+name = "think"
+open = "<think>"
+close = "</think>"
+
+[[ingestion.redact_blocks]]
+name = "thinking"
+open = "<thinking>"
+close = "</thinking>"
+
+[[ingestion.redact_blocks]]
+name = "reasoning"
+open = "<reasoning>"
+close = "</reasoning>"
+
+[[ingestion.redact_blocks]]
+name = "analysis-channel"
+open = "<|channel|>analysis<|message|>"
+close = "<|end|>"
+
+# --- approval boundary (D-112) ----------------------------------------------
+[approval]
+# Maximum default lifetime is 24 hours. A longer request is capped, never honoured.
+default_ttl_s = 86400
+max_ttl_s = 86400
+scopes = ["one_use"]
+# The credential is entered interactively with hidden input. It is never accepted
+# through argv, environment variables, repository files, configuration files,
+# shell history, or agent-readable storage — there is deliberately no key field
+# anywhere in this file.
+credential_entry = "interactive_hidden_input_only"
+
+# --- door-assisted proposals and explanations (D-107) ------------------------
+[door]
+# The initial default rung for `route propose --via-door` and door-assisted
+# explanation. A configurable default, not an authority grant or a privileged
+# route. The resolved rung, backend and model identity are recorded; an
+# unavailable default fails explicitly — there is no silent fallback.
+default_rung = "gcp-gemini"
+allowed_rungs = ["gcp-gemini", "gcp-gemini-pro", "omen-arc"]
+
+# --- test mode (D-113) -------------------------------------------------------
+[test_mode]
+# The register of work items a mode:test proposal may name lives in
+# hearth/etc/work-items.toml (contract work-items.v1), NOT here (WI-G2b
+# condition 3). The bare `released_work_items` list that used to sit on this
+# line could say a work item was released while nothing said where it may write
+# or what it may never ask for, so a proposal naming it was judged on shape
+# alone. One register, versioned, digest-verified, and bound into every
+# mode:test validation result.
+#
+# Catalog statuses a test target may hold. Test mode relaxes catalog lifecycle
+# eligibility for the exact nodes in test_targets and nothing else.
+testable_statuses = ["BUILT NOT DEPLOYED", "TESTABLE"]
+
+# --- catalog policy ----------------------------------------------------------
+# Authored facts the compiled catalog carries verbatim. They live here (rather
+# than in code) so changing a policy is a reviewable diff; because the catalog
+# hashes this file into generated_from[], a change here moves catalog_version.
+
+[catalog.worktree_policy]
+control_plane_repository = 'C:\work\commandcenter'
+worktrees_root = 'C:\work\worktrees\commandcenter'
+one_writer_per_mutable_surface = true
+rules = [
+  "One writer per mutable surface: a builder works only in its own worktree and its own evidence drop.",
+  "Never edit another writer's worktree, and never commit in C:\\work\\commandcenter master on behalf of a work item.",
+  "Branch per work item; no push, no merge, no tag without human authority (merge_push_deploy is human-gated).",
+  "Generated files are regenerated by their renderer, never hand-edited.",
+]
+
+[catalog.test_policy]
+interpreter = 'fleet-worker-node\.venv-omen\Scripts\python.exe'
+command = "python -m pytest <suite> -q -p no:cacheprovider"
+note = "The system interpreter lacks other lanes' dependencies. A piped pytest masks its exit code: write the output to a file and read it."
+baseline_suites = ["hearth/tests/toolsurface", "hearth/tests/imagegen", "hearth/tests/projection"]
+baseline_result = "1017 passed, 222 subtests passed, 2 failed (recorded G0 baseline, 2026-09-17)"
+
+[[catalog.test_policy.known_failures]]
+path = "hearth/tests/toolsurface/test_scheduler_gpu.py"
+line = 99
+reason = "Recorded G0 baseline failure. Do not fix as a side effect of another work item."
+
+[[catalog.test_policy.known_failures]]
+path = "hearth/tests/toolsurface/test_scheduler_gpu.py"
+line = 169
+reason = "Recorded G0 baseline failure. Do not fix as a side effect of another work item."
+
+[[catalog.artifact_systems]]
+id = "kernel-ledger"
+path = "hearth/var/ledger/events.ndjson"
+kind = "ndjson-ledger"
+git_tracked = false
+description = "hearth-event.v1 audit ledger: one row per door tool call, digests only, non-replayable by design (ADR-0010)."
+
+[[catalog.artifact_systems]]
+id = "execution-ledger"
+path = "hearth/var/execution/events.ndjson"
+kind = "ndjson-ledger"
+git_tracked = false
+description = "hearth-execution-event.v1 with monotonic sequence and a cross-process append lock."
+
+[[catalog.artifact_systems]]
+id = "build-request-receipts"
+path = 'C:\work\baseline\fieldlab\runs\build-requests'
+kind = "receipt-directory"
+git_tracked = false
+description = "Auditable build-request receipts and their ledger; close(status=done) requires a passed row with evidence per criterion."
+
+[[catalog.artifact_systems]]
+id = "operator-system-history"
+path = "runs/operator/_system/history.ndjson"
+kind = "ndjson-ledger"
+git_tracked = true
+description = "Append-only operator system history: capacity.observed, snapshot.invalidated, catalog.compiled. Digests only, monotonic sequence."
+
+[[catalog.artifact_systems]]
+id = "operator-snapshots"
+path = "hearth/var/operator/snapshots/<snapshot_id>.json"
+kind = "immutable-document-store"
+git_tracked = false
+description = "One file per capacity snapshot, written once and never modified after its identity is assigned."
+
+[[catalog.artifact_systems]]
+id = "operator-inspect-bundles"
+path = "hearth/var/operator/inspect/<caller_id>/latest.json"
+kind = "per-caller-document"
+git_tracked = false
+description = "Noncanonical per-caller inspection bundle. The only operator location that names a caller."
+
+[[catalog.artifact_systems]]
+id = "operator-run-history"
+path = "runs/operator/<run_id>/history.ndjson"
+kind = "ndjson-ledger"
+git_tracked = true
+description = "Append-only domain event log per run. Joined by identifiers, monotonic sequence, digests only."
+
+[[catalog.artifact_systems]]
+id = "operator-artifacts"
+path = "hearth/var/operator/artifacts/<sha256>"
+kind = "content-addressed-store"
+git_tracked = false
+description = "Private immutable artifact store. Joins D-004 and D-105 backup cadence (D-114)."

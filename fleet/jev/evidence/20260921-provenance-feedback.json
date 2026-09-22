@@ -1,0 +1,21 @@
+{
+  "installed": {
+    "installed": [
+      "/home/derek/.local/state/fleet-scheduler/quality-history.json"
+    ]
+  },
+  "quality": {
+    "available": true,
+    "tasks": 9,
+    "authored": 7,
+    "unmodified_delivery": 1,
+    "assisted_delivery": 5,
+    "rejected": 0,
+    "incomplete": 1,
+    "not_run": 2,
+    "invalid_records": 0,
+    "profile": "omen-resident-hearth",
+    "history_sha256": "5435278766f8aeea462836906d0080cc71895cd7a8fcdbbb23300ca95c22b44a",
+    "scope": "Operator-verified selected task subset; not inference success or a benchmark."
+  }
+}

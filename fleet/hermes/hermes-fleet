@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /home/derek/.local/share/hermes-fleet/venv/bin/python /home/derek/.local/share/hermes-fleet/fx99_cli.py "$@"

@@ -407,7 +407,7 @@ class PublicPortfolioProjectionTests(unittest.TestCase):
         )
         self.assertEqual(_row(by_family, "video_highlight_render")["label"], "Clippy · BF6 highlight renders")
 
-    def test_work_is_grouped_into_eight_agent_lanes(self) -> None:
+    def test_work_is_grouped_into_fixed_agent_lanes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             snapshot = self._snapshot(Path(tmp))
         by_agent = snapshot["gateway"]["by_agent"]
@@ -418,6 +418,7 @@ class PublicPortfolioProjectionTests(unittest.TestCase):
                 for row in by_agent
             ],
             [
+                ("deepagents", 0, 0, 0, 0),
                 ("claude_code", 14, 14, 3, 3),
                 ("codex", 2, 2, 1, 0),
                 ("dmos_image_client", 23, 3, 2, 1),
@@ -532,7 +533,8 @@ class PublicPortfolioProjectionTests(unittest.TestCase):
             validate_public_snapshot(_reseal(short))
 
         short_lanes = json.loads(json.dumps(base))
-        short_lanes["gateway"]["by_agent"] = short_lanes["gateway"]["by_agent"][:-1]
+        # Both the historical eight-lane and extended nine-lane contracts pass.
+        short_lanes["gateway"]["by_agent"] = short_lanes["gateway"]["by_agent"][:7]
         with self.assertRaisesRegex(PublicProjectionError, "schema validation failed"):
             validate_public_snapshot(_reseal(short_lanes))
 

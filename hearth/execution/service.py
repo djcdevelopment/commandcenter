@@ -168,6 +168,10 @@ class ExecutionService:
         )
         with self._lock:
             for state in states:
+                if (state.get("source") or {}).get("execution_mode") == "external":
+                    # Imported observations describe work already attempted elsewhere.
+                    # Only the importer may resume their interrupted lifecycle.
+                    continue
                 job_id = state["job_id"]
                 if state["status"] == "cancellation_requested":
                     if self._is_media_job(state) and self._media_dispatcher is not None:
@@ -720,6 +724,8 @@ class ExecutionService:
     def _run_job(self, job_id: str) -> None:
         state = self.ledger.get_job(job_id)
         if state is None or state["status"] in FINAL_JOB_STATUSES:
+            return
+        if (state.get("source") or {}).get("execution_mode") == "external":
             return
         desired = state["desired"]
         operation = self.operations.get(state["operation"])

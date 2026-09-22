@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://commandcenter.local/hearth/contracts/task-envelope.v1.schema.json",
+  "title": "TaskEnvelope (orchestrator-neutral task definition)",
+  "description": "Caller- and orchestrator-neutral task description. Submitting identical content from distinct callers or sessions produces the exact same envelope_id. Contains no orchestrator identity.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "envelope_id",
+    "intent",
+    "acceptance_criteria",
+    "inputs",
+    "classification",
+    "constraints",
+    "supersedes",
+    "submitted_by",
+    "submission_source",
+    "submitted_at"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "task-envelope.v1"
+    },
+    "envelope_id": {
+      "$ref": "#/$defs/identity"
+    },
+    "intent": {
+      "type": "string",
+      "minLength": 1
+    },
+    "acceptance_criteria": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repo",
+        "base_commit",
+        "paths",
+        "files"
+      ],
+      "properties": {
+        "repo": {
+          "type": "string"
+        },
+        "base_commit": {
+          "$ref": "#/$defs/commit_sha"
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "classification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_type",
+        "repo_size",
+        "language",
+        "read_vs_reasoning",
+        "context_continuity",
+        "mutation_level",
+        "risk_level"
+      ],
+      "properties": {
+        "task_type": {
+          "type": "string"
+        },
+        "repo_size": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string"
+        },
+        "read_vs_reasoning": {
+          "type": "string"
+        },
+        "context_continuity": {
+          "type": "string"
+        },
+        "mutation_level": {
+          "type": "string"
+        },
+        "risk_level": {
+          "type": "string"
+        }
+      }
+    },
+    "constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "deadline_s",
+        "max_attempts",
+        "max_context_tokens",
+        "budget"
+      ],
+      "properties": {
+        "deadline_s": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "CANONICAL TIME UNIT: whole seconds. Compared against elapsed time (validation clock minus submitted_at, floored at zero) PLUS the proposal's expected.time_s, so a deadline accounts for the time already spent (WI-G2b)."
+        },
+        "max_attempts": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_context_tokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "budget": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^USD (0|[1-9][0-9]*)(\\.[0-9]{1,6})?$"
+            }
+          ],
+          "description": "CANONICAL MONETARY UNIT (WI-G2b): the string 'USD <amount>' with at most six decimal places, compared as an integer number of micro-USD (1 USD = 1,000,000 microUSD). null means NO monetary budget is declared, which is never read as a budget of zero; a finite budget with an undeclared route cost is refused with cost_unknown, and a cost over it with cost_over_budget."
+        }
+      }
+    },
+    "supersedes": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "submitted_by": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Submission metadata, excluded from envelope_id preimage."
+    },
+    "submission_source": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Submission metadata, excluded from envelope_id preimage."
+    },
+    "submitted_at": {
+      "$ref": "#/$defs/timestamp",
+      "description": "Submission metadata, excluded from envelope_id preimage."
+    },
+    "presentation": {
+      "type": "object",
+      "description": "Reserved; never part of an identity preimage."
+    }
+  },
+  "$defs": {
+    "identity": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "commit_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    }
+  }
+}

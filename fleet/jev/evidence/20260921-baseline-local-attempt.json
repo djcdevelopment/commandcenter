@@ -1,0 +1,64 @@
+{
+  "ok": true,
+  "text": "```python\n\"\"\"Read-only baseline file content from Git with strict validation and integrity checks.\"\"\"\nimport subprocess\nimport hashlib\nfrom pathlib import Path\nimport re\n\ndef read_baseline(repo, commit, path):\n    \"\"\"Read file content from Git at specific commit with full validation.\n\n    Args:\n        repo: Path to Git repository root.\n        commit: Full lowercase 40-hex SHA of commit.\n        path: Relative path with ASCII alnum/underscore/dot/slash/hyphen only.\n\n    Returns:\n        Dict with keys: commit, path, present, content, sha256.\n\n    Raises:\n        RuntimeError: On invalid commit, missing file, Git error, or integrity violation.\n    \"\"\"\n    if not re.fullmatch(r'[a-f0-9]{40}', commit):\n        raise RuntimeError('invalid_commit_sha')\n\n    if not re.fullmatch(r'[^/\\.][a-zA-Z0-9_./-]*[^/\\.]', path):\n        raise RuntimeError('invalid_path')\n\n    # Validate commit exists and is a commit\n    try:\n        result = subprocess.run(\n            ['git', 'cat-file', '-t', commit],\n            cwd=repo, capture_output=True, text=True, check=True, timeout=5\n        )\n        if result.stdout.strip() != 'commit':\n            raise RuntimeError('commit_not_a_commit')\n    except subprocess.CalledProcessError:\n        raise RuntimeError('commit_not_found')\n\n    # Look up path in tree with literal pathspecs\n    try:\n        result = subprocess.run(\n            ['git', 'ls-tree', '-z', commit, '--', path],\n            cwd=repo, capture_output=True, text=False, check=True, timeout=5\n        )\n        lines = result.stdout.split(b'\\0')\n    except subprocess.CalledProcessError:\n        raise RuntimeError('git_ls_tree_failed')\n\n    if not lines or lines[-1] != b'':\n        raise RuntimeError('git_ls_tree_empty')\n\n    # Parse exactly one line: mode type oid<TAB>path<NUL>\n    line = lines[0]\n    if len(lines) != 2 or not line.endswith(b'\\0'):\n        raise RuntimeError('multiple_or_no_matches')\n\n    parts = line[:-1].split(b'\\t')\n    if len(parts) != 2:\n        raise RuntimeError('invalid_ls_tree_output')\n\n    mode, oid = parts\n    if mode not in (b'100644', b'100755'):\n        raise RuntimeError('not_regular_file')\n    if not re.fullmatch(b'blob', parts[1]):\n        raise RuntimeError('not_blob')\n\n    oid_str = oid.decode('ascii')\n\n    # Check blob size limit\n    try:\n        size = subprocess.run(\n            ['git', 'cat-file', '-s', oid_str],\n            cwd=repo, capture_output=True, text=True, check=True, timeout=5\n        )\n        size_int = int(size.stdout.strip())\n        if size_int > 30000:\n            raise RuntimeError('blob_too_large')\n    except subprocess.CalledProcessError:\n        raise RuntimeError('git_cat_file_size_failed')\n\n    # Read blob content\n    try:\n        content_bytes = subprocess.run(\n            ['git', 'cat-file', 'blob', oid_str],\n            cwd=repo, capture_output=True, check=True, timeout=5\n        ).stdout\n    except subprocess.CalledProcessError:\n        raise RuntimeError('git_cat_file_blob_failed')\n\n    # Decode strictly, compute SHA256\n    try:\n        content = content_bytes.decode('utf-8')\n    except UnicodeDecodeError:\n        raise RuntimeError('content_not_utf8')\n\n    sha256 = hashlib.sha256(content_bytes).hexdigest()\n\n    return {\n        'commit': commit,\n        'path': path,\n        'present': True,\n        'content': content,\n        'sha256': sha256\n    }\n```",
+  "execution": {
+    "request_id": "req_d604c7ed59747ea0e1d9c191d862e92b",
+    "job_id": "job_b1f12fdea5f7c8b96e015e1c101bde68",
+    "status": "succeeded",
+    "artifact": {
+      "artifact_id": "art_105e155c77d399b5944968aa8a4a1277",
+      "created_at": "2026-09-21T08:20:50.800248Z",
+      "filename": "job_b1f12fdea5f7c8b96e015e1c101bde68-result.md",
+      "media_type": "text/plain; charset=utf-8",
+      "role": "result",
+      "sha256": "6827112e798a28c35a26f6f1977c6e456ad74f05fc8fa46b4d1690fbc3198066",
+      "size": 3368
+    }
+  },
+  "backend": "omen-arc",
+  "model": "qwen3-30b-a3b",
+  "routed_by": "pinned:omen-arc",
+  "occupancy": "available",
+  "rung_state": {
+    "baseline_epoch": "2026-09-09T07:05:18-07:00 incumbent epoch (baseline set 07:06:00, 42 s later), -np 8 shape: the server log reads n_ctx_slot = 16384. Opened by the RESTORE to -np 8 after the Lap 1B sweep finished its -np 16 arms at 07:04, NOT by the slot change itself -- the sweep ran 2 -> 4 -> 8 -> 16 and came back. Epoch start derived the only way available (arc-serve.log elapsed stamp subtracted from mtime; llama-server runs under an S4U task whose StartTime is inaccessible). Dual-split asserted per-BDF on this epoch by the sat-l1 cells, not carried over from the 2026-08-29 epoch this label replaced. EPOCH-SCOPED IS NOT EPOCH-HOMOGENEOUS: this labels the reference CONTRACT, not a guarantee that the machine was stationary within it -- multiple stable regimes have occurred inside a single epoch. Two readings sharing an epoch are NOT thereby comparable.",
+    "baseline_tok_s": 105.33,
+    "deep_samples": 92,
+    "envelope": {
+      "fail_below": 0.8,
+      "warn_below": 0.9
+    },
+    "excluded_windows": [],
+    "frac_of_baseline": 1.0814,
+    "last_ping_ok": true,
+    "note": "envelope is of THIS baseline epoch, not of capacity (ADR-0044); restart discriminator not applied; no regime names",
+    "observed_age_s": 149.7,
+    "observed_at": "2026-09-21T01:18:21.0570475-07:00",
+    "observed_tok_s": 113.9,
+    "port": 8082,
+    "prefill_stall_recent": false,
+    "rung": "omen-arc",
+    "verdict": "at_rate"
+  },
+  "pool_config_hash": "e8e23807f353",
+  "tokens_in": 2432,
+  "tokens_out": 816,
+  "duration_ms": 14031,
+  "max_tokens": 1700,
+  "timeout_s": 74,
+  "task_family": "drafting",
+  "family_recommendation": {
+    "advisory": true,
+    "backend_hint": "omen-arc",
+    "depth_rule_applied": false,
+    "evidence": "ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K",
+    "family": "drafting",
+    "model_id": "qwen3-30b-a3b",
+    "pin_required": false,
+    "prompt_tokens": 2555,
+    "providers": [
+      "omen-arc"
+    ],
+    "reason": "Qwen 3.8 campaign do_not_promote (12/15) at the 512-token operating point: the 27B delivers 0.687x the incumbent's jobs/hour there, so the door default (omen-arc) serves shallow drafting.",
+    "requested_family": "drafting"
+  }
+}

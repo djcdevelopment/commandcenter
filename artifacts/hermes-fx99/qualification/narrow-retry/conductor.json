@@ -1,0 +1,262 @@
+{
+  "result": {
+    "plan_id": "hearth-hermes-br-20260920-014532-19828821-2115d229",
+    "trace_id": "5cc9fccd2e29aeebade5949889bb54bd",
+    "routing": {
+      "skipped": "explicit Hermes local pair"
+    },
+    "builds": {
+      "cc-builder-2": {
+        "ok": true,
+        "branch": "ccfarm/hearth-hermes-br-20260920-014532-19828821-2115d229/cc-builder-2/lap1",
+        "push_ok": true,
+        "runner": "openai",
+        "runner_model": "am4-dense-27b",
+        "runner_preset": "am4-shared-27b",
+        "resolved_runner": {
+          "runner": "openai",
+          "base_url": "http://192.168.12.233:8090/v1",
+          "model": "am4-dense-27b",
+          "context_length": 131072,
+          "max_steps": 24,
+          "preset": "am4-shared-27b",
+          "config_sha256": "c5fffbd01f6117891279cc0b424e9f9becca86ee4696036a9ed13e1d31c8486c"
+        },
+        "committed": true,
+        "pushed": true,
+        "commits_ahead": 1,
+        "empty_build": false,
+        "done_signal": true,
+        "agent_rc": 0,
+        "agent_timed_out": false,
+        "status": "ok",
+        "reason": "ok"
+      },
+      "cc-builder-3": {
+        "ok": true,
+        "branch": "ccfarm/hearth-hermes-br-20260920-014532-19828821-2115d229/cc-builder-3/lap1",
+        "push_ok": true,
+        "runner": "openai",
+        "runner_model": "am4-dense-27b",
+        "runner_preset": "am4-shared-27b",
+        "resolved_runner": {
+          "runner": "openai",
+          "base_url": "http://192.168.12.233:8090/v1",
+          "model": "am4-dense-27b",
+          "context_length": 131072,
+          "max_steps": 24,
+          "preset": "am4-shared-27b",
+          "config_sha256": "c5fffbd01f6117891279cc0b424e9f9becca86ee4696036a9ed13e1d31c8486c"
+        },
+        "committed": true,
+        "pushed": true,
+        "commits_ahead": 1,
+        "empty_build": false,
+        "done_signal": true,
+        "agent_rc": 0,
+        "agent_timed_out": false,
+        "status": "ok",
+        "reason": "ok"
+      }
+    },
+    "assay": {
+      "plan_id": "hearth-hermes-br-20260920-014532-19828821-2115d229",
+      "lap": 1,
+      "grader": "claudefarm1",
+      "winner": "cc-builder-2",
+      "scoreboard": [
+        {
+          "worker": "cc-builder-2",
+          "branch": "ccfarm/hearth-hermes-br-20260920-014532-19828821-2115d229/cc-builder-2/lap1",
+          "score": 100,
+          "grade": "A",
+          "risk_score": 0.0,
+          "assay_mode": "behavior",
+          "static_score": 100,
+          "behavior_score": 100,
+          "tests_found": 172,
+          "tests_passed": 172,
+          "tests_failed": 0,
+          "imports_ok": 1,
+          "imports_failed": 0,
+          "assay_summary": "pytest: 172/172 passed; imports: 1/1 ok; score=100; isolation=docker",
+          "file_count": 207,
+          "code_files": 178,
+          "has_retro": true,
+          "has_result": true,
+          "has_tests": true,
+          "retro_excerpt": "# Retro (hearth-hermes-br-20260920-014532-19828821-2115d229-cc-builder-2)\n\nBuilt by agent_openai on model am4-dense-27b (completion: finished, 7 steps, 230s).\nBuilt native_capacity.py (pure-stdlib fail-closed helper normalize_am4_native), test_native_capacity.py (10 unittest cases, all passing: Ran 10 tests OK), and CAPACITY-REVIEW.md distinguishing observed test results from assumptions and noting integration is Codex's. Helper rejects stale/stopped/wrong-model/bool-typed payloads, never raises"
+        },
+        {
+          "worker": "cc-builder-3",
+          "branch": "ccfarm/hearth-hermes-br-20260920-014532-19828821-2115d229/cc-builder-3/lap1",
+          "score": 100,
+          "grade": "A",
+          "risk_score": 0.0,
+          "assay_mode": "behavior",
+          "static_score": 100,
+          "behavior_score": 100,
+          "tests_found": 173,
+          "tests_passed": 173,
+          "tests_failed": 0,
+          "imports_ok": 1,
+          "imports_failed": 0,
+          "assay_summary": "pytest: 173/173 passed; imports: 1/1 ok; score=100; isolation=docker",
+          "file_count": 207,
+          "code_files": 178,
+          "has_retro": true,
+          "has_result": true,
+          "has_tests": true,
+          "retro_excerpt": "# Retro (hearth-hermes-br-20260920-014532-19828821-2115d229-cc-builder-3)\n\nBuilt by agent_openai on model am4-dense-27b (completion: finished, 5 steps, 202s).\nBuilt native_capacity.py (pure stdlib helper, <70 lines) implementing normalize_am4_native: validates timezone-aware ISO8601 observed_at within [-5,+30]s, selects the single am4-dense-27b row, requires ready is True, status 200, context_length exactly int 131072, parallel_slots exactly int 1, physical_resource am4:127.0.0.1:18090, model ba"
+        }
+      ],
+      "tiebreak": {
+        "method": "human-review",
+        "tied": [
+          {
+            "worker": "cc-builder-2",
+            "branch": "ccfarm/hearth-hermes-br-20260920-014532-19828821-2115d229/cc-builder-2/lap1",
+            "score": 100,
+            "grade": "A",
+            "risk_score": 0.0,
+            "assay_mode": "behavior",
+            "static_score": 100,
+            "behavior_score": 100,
+            "tests_found": 172,
+            "tests_passed": 172,
+            "tests_failed": 0,
+            "imports_ok": 1,
+            "imports_failed": 0,
+            "assay_summary": "pytest: 172/172 passed; imports: 1/1 ok; score=100; isolation=docker",
+            "file_count": 207,
+            "code_files": 178,
+            "has_retro": true,
+            "has_result": true,
+            "has_tests": true,
+            "retro_excerpt": "# Retro (hearth-hermes-br-20260920-014532-19828821-2115d229-cc-builder-2)\n\nBuilt by agent_openai on model am4-dense-27b (completion: finished, 7 steps, 230s).\nBuilt native_capacity.py (pure-stdlib fail-closed helper normalize_am4_native), test_native_capacity.py (10 unittest cases, all passing: Ran 10 tests OK), and CAPACITY-REVIEW.md distinguishing observed test results from assumptions and noting integration is Codex's. Helper rejects stale/stopped/wrong-model/bool-typed payloads, never raises"
+          },
+          {
+            "worker": "cc-builder-3",
+            "branch": "ccfarm/hearth-hermes-br-20260920-014532-19828821-2115d229/cc-builder-3/lap1",
+            "score": 100,
+            "grade": "A",
+            "risk_score": 0.0,
+            "assay_mode": "behavior",
+            "static_score": 100,
+            "behavior_score": 100,
+            "tests_found": 173,
+            "tests_passed": 173,
+            "tests_failed": 0,
+            "imports_ok": 1,
+            "imports_failed": 0,
+            "assay_summary": "pytest: 173/173 passed; imports: 1/1 ok; score=100; isolation=docker",
+            "file_count": 207,
+            "code_files": 178,
+            "has_retro": true,
+            "has_result": true,
+            "has_tests": true,
+            "retro_excerpt": "# Retro (hearth-hermes-br-20260920-014532-19828821-2115d229-cc-builder-3)\n\nBuilt by agent_openai on model am4-dense-27b (completion: finished, 5 steps, 202s).\nBuilt native_capacity.py (pure stdlib helper, <70 lines) implementing normalize_am4_native: validates timezone-aware ISO8601 observed_at within [-5,+30]s, selects the single am4-dense-27b row, requires ready is True, status 200, context_length exactly int 131072, parallel_slots exactly int 1, physical_resource am4:127.0.0.1:18090, model ba"
+          }
+        ],
+        "winner": null
+      }
+    },
+    "winner": "cc-builder-2",
+    "questions": [],
+    "promotion": {
+      "promoted": false,
+      "reason": "manual-review",
+      "status": "awaiting_review",
+      "winner": "cc-builder-2",
+      "candidates": [
+        {
+          "worker": "cc-builder-2",
+          "branch": "ccfarm/hearth-hermes-br-20260920-014532-19828821-2115d229/cc-builder-2/lap1",
+          "commit": "6d90228d93f72ffd42c4eb4f537b21b86efdb2f6",
+          "build": {
+            "ok": true,
+            "branch": "ccfarm/hearth-hermes-br-20260920-014532-19828821-2115d229/cc-builder-2/lap1",
+            "push_ok": true,
+            "runner": "openai",
+            "runner_model": "am4-dense-27b",
+            "runner_preset": "am4-shared-27b",
+            "resolved_runner": {
+              "runner": "openai",
+              "base_url": "http://192.168.12.233:8090/v1",
+              "model": "am4-dense-27b",
+              "context_length": 131072,
+              "max_steps": 24,
+              "preset": "am4-shared-27b",
+              "config_sha256": "c5fffbd01f6117891279cc0b424e9f9becca86ee4696036a9ed13e1d31c8486c"
+            },
+            "committed": true,
+            "pushed": true,
+            "commits_ahead": 1,
+            "empty_build": false,
+            "done_signal": true,
+            "agent_rc": 0,
+            "agent_timed_out": false,
+            "status": "ok",
+            "reason": "ok"
+          },
+          "missing_deliverables": [],
+          "unchanged_deliverables": [],
+          "artifact_status": "present-unreviewed"
+        },
+        {
+          "worker": "cc-builder-3",
+          "branch": "ccfarm/hearth-hermes-br-20260920-014532-19828821-2115d229/cc-builder-3/lap1",
+          "commit": "a0be0d30ea66602512ae17c0ec8d9e100ef4c9cc",
+          "build": {
+            "ok": true,
+            "branch": "ccfarm/hearth-hermes-br-20260920-014532-19828821-2115d229/cc-builder-3/lap1",
+            "push_ok": true,
+            "runner": "openai",
+            "runner_model": "am4-dense-27b",
+            "runner_preset": "am4-shared-27b",
+            "resolved_runner": {
+              "runner": "openai",
+              "base_url": "http://192.168.12.233:8090/v1",
+              "model": "am4-dense-27b",
+              "context_length": 131072,
+              "max_steps": 24,
+              "preset": "am4-shared-27b",
+              "config_sha256": "c5fffbd01f6117891279cc0b424e9f9becca86ee4696036a9ed13e1d31c8486c"
+            },
+            "committed": true,
+            "pushed": true,
+            "commits_ahead": 1,
+            "empty_build": false,
+            "done_signal": true,
+            "agent_rc": 0,
+            "agent_timed_out": false,
+            "status": "ok",
+            "reason": "ok"
+          },
+          "missing_deliverables": [],
+          "unchanged_deliverables": [],
+          "artifact_status": "present-unreviewed"
+        }
+      ]
+    },
+    "target": {
+      "builders": [
+        "cc-builder-2",
+        "cc-builder-3"
+      ],
+      "promotion_policy": "manual",
+      "runner_preset": "am4-shared-27b",
+      "operator": "hermes",
+      "task_class": "build",
+      "est_tokens": 4917,
+      "est_tokens_source": "derived",
+      "requires": [
+        "native_capacity.py",
+        "test_native_capacity.py",
+        "CAPACITY-REVIEW.md"
+      ],
+      "max_age_s": 300
+    }
+  },
+  "main": "303a2f0f7c5cedf192e1f8642d7984822415d742"
+}

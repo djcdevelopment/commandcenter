@@ -1,0 +1,25 @@
+{
+  "worker": "cc-builder-2",
+  "installed": {
+    "installed": [
+      "/home/claude/fleet-worker-node/scripts/agent_hearth.py"
+    ]
+  },
+  "before": {
+    "sha": "82e09ad5e2e2067fac4382a1f171663a7777f393b16f5dddfe93b78b541c84b8",
+    "normalized_sha": "82e09ad5e2e2067fac4382a1f171663a7777f393b16f5dddfe93b78b541c84b8",
+    "active_agent_pids": [],
+    "runner_sha": "7718d852af0181b02aaee72bcd433a53b82f17588f13505eb4b489ecbe16e79d"
+  },
+  "after": {
+    "sha": "f664a3967c4ce42d32d2c9be61241a848b94647b6c7e6341f44374018da6cdb3",
+    "normalized_sha": "f664a3967c4ce42d32d2c9be61241a848b94647b6c7e6341f44374018da6cdb3",
+    "active_agent_pids": [],
+    "runner_sha": "7718d852af0181b02aaee72bcd433a53b82f17588f13505eb4b489ecbe16e79d"
+  },
+  "requested_default_tokens": 4096,
+  "model_inference_sampled": false,
+  "changed_default_runner_config": false,
+  "service_restart": false,
+  "backup_suffix": ".jev-output-limit-20260921.backup"
+}

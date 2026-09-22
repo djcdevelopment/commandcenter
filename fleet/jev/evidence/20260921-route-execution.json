@@ -1,0 +1,105 @@
+{
+  "window": {
+    "start_utc": "2026-09-21T09:01:01Z",
+    "first_artifact_cutoff_utc": "2026-09-21T09:06:01Z",
+    "generation_ceiling_utc": "2026-09-21T09:16:01Z",
+    "restoration_deadline_utc": "2026-09-21T09:21:01Z"
+  },
+  "receipt": "br-20260921-090324-fc28f750",
+  "task_id": "jev-0609302367da3133217c5db1",
+  "queue_state": "operator_held",
+  "decision": {
+    "material": "b5f922e07265fa85db1d7a0a27eba6adab43fdc25fd4cee01d6b1e51800df64b",
+    "usage": {
+      "provider": "typesafe",
+      "model": "jev-1.13.0",
+      "input_tokens": 910,
+      "output_tokens": 97,
+      "estimated_usd": 0.00003822,
+      "elapsed_s": 0.368,
+      "request_sha256": "4e96c83c95dd4cb21519d5758dc8a787af3bee788bb68a8d32a2fbe0d32ae66b"
+    },
+    "judgments": [
+      {
+        "candidate_id": "71f456c7e067f81a92cae02f022199eb",
+        "score": 2.54,
+        "confidence": 0.54,
+        "ambiguity": 0.19,
+        "probabilities": {
+          "0": 0.1,
+          "1": 0.08,
+          "2": 0.01,
+          "3": 0.81
+        },
+        "eligible": false
+      }
+    ],
+    "candidate_id": null,
+    "snapshot_id": "1fbd25bce233e2dbf9944293786bf488e11fb8df9357999808ce90740797f543",
+    "wait_reason": "needs_clarification"
+  },
+  "local_draft": {
+    "job_id": "job_e9757e4f1f7ccf62fae3113163a469bb",
+    "backend": "omen-arc",
+    "model": "qwen3-30b-a3b",
+    "duration_ms": 51907,
+    "tokens_in": 12243,
+    "tokens_out": 1028,
+    "accepted": false,
+    "defects": [
+      "Conflates catalog status and runtime readiness",
+      "Repeats historical AM4 port/context as current",
+      "Invents fleet.jev.scheduler source path",
+      "Invents test-mode assignment and unsupported qualification requirements",
+      "Claims no review automation despite current pilot source"
+    ]
+  },
+  "hermes_review": {
+    "owner": "jev-86afa060609140988d301900",
+    "run_budget_s": 60,
+    "result": "hermes_review_deadline",
+    "generation_retried": false,
+    "result_exists": false,
+    "saved_messages": {
+      "assistant": 1,
+      "user": 1
+    },
+    "last_assistant_metadata": [
+      2,
+      6381,
+      0
+    ]
+  },
+  "restoration": {
+    "ok": true,
+    "owner": null,
+    "model_resident": false,
+    "native_context": null,
+    "kv_enabled": false
+  },
+  "delivered_report": {
+    "path": "fleet/jev/ROUTE-CAPABILITIES-20260921.md",
+    "author": "Codex source-checked correction; unaccepted OMEN draft retained separately",
+    "words": 579,
+    "saved_utc": "2026-09-21T09:12:39.163318+00:00",
+    "sha256": "dc47c42609b5f811e82bec609bb30a994574f8356e72131ad51c24ef8b2eac7d"
+  },
+  "source_baseline": "b8ed5440ea201d13f919a39c61c746f96d01a099",
+  "source_check": {
+    "executor": "Codex",
+    "checked_paths": [
+      "hearth/etc/loops.toml",
+      "hearth/etc/harnesses.toml",
+      "hearth/etc/operator.toml",
+      "hearth/etc/profiles.toml",
+      "hearth/toolsurface/jev_scheduler.py",
+      "hearth/toolsurface/task_lane.py",
+      "hearth/toolsurface/build_requests.py",
+      "hearth/toolsurface/inference.py",
+      "fleet/jev/review.py",
+      "fleet/jev/README.md"
+    ],
+    "report_links_exist": true
+  },
+  "qualification": "FAILED: JEV did not dispatch; local draft needs material correction; Hermes review did not finish. Corrected report delivered, not a successful autonomous loop."
+}

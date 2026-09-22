@@ -327,7 +327,7 @@ def probe_omen_arc_slots() -> dict:
     try:
         from hearth.execution.coordination import GpuTenancyStore
 
-        session = GpuTenancyStore().active_image_session("omen-b70-pool")
+        session = GpuTenancyStore().active_owner("omen-b70-pool")
     except Exception as exc:
         # Still fail closed -- a late request must not reach a draining server. But say
         # WHICH of the two things happened. This branch means "I could not read the tenancy
@@ -342,9 +342,9 @@ def probe_omen_arc_slots() -> dict:
     if session is not None:
         return {
             "occupancy": "busy", "exclusive": True,
-            "exclusive_reason": "image_session_active",
-            "detail": "B70 pool owned by imagegen session %s epoch %d (%s)" % (
-                session.session_id, session.epoch, session.state),
+            "exclusive_reason": "image_session_active" if session.owner == "imagegen" else "experiment_session_active",
+            "detail": "B70 pool owned by %s session %s epoch %d (%s)" % (
+                session.owner, session.session_id, session.epoch, session.state),
         }
     return probe_moe_slots(
         fetch=lambda url, t: _http_get_json(url, t, token_env=OMEN_ARC_TOKEN_ENV),
@@ -366,7 +366,7 @@ def _tenancy_fence() -> Optional[dict]:
     try:
         from hearth.execution.coordination import GpuTenancyStore
 
-        session = GpuTenancyStore().active_image_session("omen-b70-pool")
+        session = GpuTenancyStore().active_owner("omen-b70-pool")
     except Exception as exc:
         return {"occupancy": "unknown", "exclusive": True,
                 "exclusive_reason": "tenancy_probe_failed",
@@ -375,9 +375,9 @@ def _tenancy_fence() -> Optional[dict]:
     if session is not None:
         return {
             "occupancy": "busy", "exclusive": True,
-            "exclusive_reason": "image_session_active",
-            "detail": "B70 pool owned by imagegen session %s epoch %d (%s)" % (
-                session.session_id, session.epoch, session.state),
+            "exclusive_reason": "image_session_active" if session.owner == "imagegen" else "experiment_session_active",
+            "detail": "B70 pool owned by %s session %s epoch %d (%s)" % (
+                session.owner, session.session_id, session.epoch, session.state),
         }
     return None
 

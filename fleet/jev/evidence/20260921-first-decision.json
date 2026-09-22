@@ -1,0 +1,62 @@
+{
+  "decision": {
+    "material": "b5a89bda727b18d4f31fe37c626c2255f3e98c512ff10add360f76dd73400548",
+    "usage": {
+      "provider": "typesafe",
+      "model": "jev-1.13.0",
+      "input_tokens": 679,
+      "output_tokens": 95,
+      "estimated_usd": 0.000028518000000000004,
+      "elapsed_s": 0.298,
+      "request_sha256": "c4f01b691e875722a2d635732c907ff68569ff133c7048cd98fb9040916658de"
+    },
+    "judgments": [
+      {
+        "candidate_id": "77ec76f36623838a1a3722df60bd10f7",
+        "score": 2.27,
+        "confidence": 0.27,
+        "ambiguity": 0.37,
+        "probabilities": {
+          "0": 0.03,
+          "1": 0.15,
+          "2": 0.33,
+          "3": 0.49
+        },
+        "eligible": false
+      }
+    ],
+    "candidate_id": null,
+    "snapshot_id": "fc259e9bc0ff7acb2c07a2bac42f7d7253d1ad2581bc1cf6648248d7f872559c",
+    "wait_reason": "needs_clarification"
+  },
+  "budget": {
+    "calls": 1,
+    "charged_usd": 0.000028517999999999946,
+    "input_tokens": 679
+  },
+  "status": {
+    "scheduler": "ready",
+    "gpu_reservation": false,
+    "active_build": null,
+    "pending_reviews": 0,
+    "reviewer": "unloaded",
+    "wait_reason": "needs_clarification",
+    "observed_at": 1789970439.5773497
+  },
+  "credential_modes": [
+    "0o700",
+    "0o600"
+  ],
+  "qualification": {
+    "started_utc": "2026-09-21T05:59:26Z",
+    "dispatch_latest_utc": "2026-09-21T06:04:26Z",
+    "ended_utc": "2026-09-21T06:07:01Z",
+    "outcome": "held_before_dispatch",
+    "worker_patch_delivered": false,
+    "hermes_review_delivered": false,
+    "am4_baseline_restored": true,
+    "conductor_baseline_restored": true,
+    "existing_gateways_8710_8712_healthy": true,
+    "pilot_gateway_8713_stopped": true
+  }
+}

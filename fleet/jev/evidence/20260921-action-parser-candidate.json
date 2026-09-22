@@ -1,0 +1,198 @@
+{
+  "candidate": {
+    "files": {
+      "agent_hearth.py": "\"\"\"HEARTH transport adapter for the existing JSON-action worker loop.\"\"\"\nimport json\nimport sys\nfrom hearth_client import HearthClient\nfrom runner_presets import BASE_URL, MODEL, unwrap\nimport agent_openai as runner\n\nTASK_ID = ''\n\n\ndef extract_action(text: str) -> dict | None:\n    \"\"\"Pull the first well-formed JSON object with an 'action' key out of the\n    model's reply (tolerant of code fences / surrounding prose).\"\"\"\n    # Prefer fenced blocks, else scan for balanced braces.\n    candidates = re.findall(r\"```(?:json)?\\s*(\\{.*?\\})\\s*```\", text, re.S)\n    candidates.append(text)\n    for chunk in candidates:\n        try:\n            # Use JSON decoder to handle literal braces, escaped quotes, and nested values\n            obj, end = json.JSONDecoder().raw_decode(chunk)\n            if isinstance(obj, dict) and \"action\" in obj:\n                return obj\n        except json.JSONDecodeError:\n            continue\n    return None\n\n\nif __name__ == '__main__':\n    TASK_ID = sys.argv[sys.argv.index('--ta[REDACTED]')+1]\n    runner.chat = chat\n    runner.extract_action = extract_action\n    raise SystemExit(runner.main())\n"
+    },
+    "commit": "253d50ee729188f4fb437be933ce31f715c48d95"
+  },
+  "first_file": {
+    "observed_at": "2026-09-21T11:15:00.967954+00:00"
+  },
+  "checks": {
+    "executor": "Codex independent focused execution and AST inspection, not Hermes",
+    "candidate_files_sha256": {
+      "agent_hearth.py": "227ef474d1aab9b316b311548478b34c50af8f3e2b2d306719fdc5fae2d14600"
+    },
+    "cases": [
+      {
+        "name": "complete_quoted_brace_action",
+        "passed": false,
+        "expected": "exact complete action dictionary",
+        "actual_exception": "NameError: name 're' is not defined"
+      },
+      {
+        "name": "existing_transport_function_preserved",
+        "passed": false,
+        "expected": "original chat function unchanged",
+        "actual": "chat absent"
+      },
+      {
+        "name": "original_cli_option_preserved",
+        "passed": false,
+        "expected": "original CLI argument name unchanged",
+        "actual": "argument differs; earlier immutable-input redaction is known"
+      }
+    ],
+    "verdict": "NEEDS_WORK",
+    "scope": "This artifact is unusable; no exhaustive parser qualification attempted. The old parser defect is separate from cycle13 truncation. Original argument corruption is investigated as upstream input mutation, not assigned to model authorship."
+  },
+  "review": {
+    "report": "INCONCLUSIVE\n\nI could not complete verification: my only sandbox access (hearth MCP) is a read-only listing/reading API — there is no file-write, exec, or syntax-check tool available, so I could not reconstruct the candidate, run a syntax check, or execute any behavioral tests. The workspace also does not contain agent_hearth.py (read attempt returned \"not a file\"). No checks were run; no output exists to prove any of them.\n\nStatic analysis of the captured candidate text (by inspection only, not execution):\n\n1. Critical: `re.findall(...)` is used in `extract_action` but `import re` does not appear anywhere in the captured candidate (only `json` and `sys` are imported). As written the function raises `NameError` on first call. A syntax check would pass (import re missing is a runtime error, not a syntax error), so this defect would survive the required check and break the acceptance criteria. This alone fails the candidate.\n2. The diff block shows the entire original `chat()` function (transport, routing guard, attempt metadata, output limit, timeout, `[hearth_attempt]` print) deleted, while the `__main__` block still assigns `runner.chat = chat` — the captured candidate is internally inconsistent with its own diff. The acceptance criteria require chat() to remain unchanged. If the capture is literal, chat() is missing.\n3. `TASK_ID = sys.argv[sys.argv.index('--ta[REDACTED]')+1]` — the redacted argument token makes it unverifiable whether this matches the required unchanged `--task-id` main argument.\n4. Behavioral concerns (unverified): `re.findall` on the full text with `re.S` will match across multiple fences (first fence opener to last fence closer) if the model emits more than one fenced block, yielding a chunk that is not a single JSON object; `raw_decode` then fails and the fenced result is silently discarded. Also `candidates.append(text)` scans the whole reply, so a prose example containing a valid `{\"action\": ...}` snippet before the real one could be returned first — contradicting \"prefer fenced JSON blocks\". The fence regex `\\{.*?\\}` is non-greedy and can mismatch nested braces, but the JSON-decode guard mitigates that partially.\n\nConclusion: NEEDS_WORK on the evidence visible — missing `import re`, apparent deletion of `chat()` in the diff, and unverifiable redacted main argument. INCONCLUSIVE as a final verdict because I could not execute the syntax check or behavioral tests the review requires, and the capture's internal inconsistency (candidate body vs. diff) prevents me from knowing which text is authoritative. Do not approve; require a clean re-capture (full candidate file with no redactions, imports included, chat() intact) and an actual syntax-check run before re-review.",
+    "metadata": {
+      "model": "am4-dense-27b",
+      "reviewer": "hermes",
+      "elapsed_s": 45.281,
+      "run_budget_s": 180,
+      "requested_reasoning": "none",
+      "source": "unedited Hermes final assistant message",
+      "message_id": 11,
+      "kv_reused": false,
+      "packet_evidence": {
+        "mode": "unchanged",
+        "reason": "unrecognized_evidence",
+        "original_bytes": 7099,
+        "sent_bytes": 7099,
+        "original_sha256": "56817d420300fb8fb8b96f5a305d441f02d9f1c0db3a22b2acabdbd13c8790d6",
+        "sent_sha256": "56817d420300fb8fb8b96f5a305d441f02d9f1c0db3a22b2acabdbd13c8790d6"
+      },
+      "reviewer_unloaded": true
+    },
+    "automatic_promotion": false,
+    "semantic_review_is_not_proof": true
+  },
+  "decision": {
+    "material": "a515d2160a94dd8e34658877a4f33a97fc000b89c5f221c2ad2672ed8fb4f04f",
+    "usage": {
+      "provider": "typesafe",
+      "model": "jev-1.13.0",
+      "input_tokens": 958,
+      "output_tokens": 97,
+      "estimated_usd": 0.000040236000000000006,
+      "elapsed_s": 0.329,
+      "request_sha256": "1bc35e9d03b49c90b6b8a3bf43c6b081ab71acd3bb8ad28c31c12ca8c3702496"
+    },
+    "judgments": [
+      {
+        "candidate_id": "2265c036fd9b5f0152325b7fa0721d29",
+        "score": 2.99,
+        "confidence": 0.99,
+        "ambiguity": 0.16,
+        "probabilities": {
+          "0": 0,
+          "1": 0,
+          "2": 0,
+          "3": 1
+        },
+        "eligible": true
+      }
+    ],
+    "candidate_id": "2265c036fd9b5f0152325b7fa0721d29",
+    "snapshot_id": "5ab2a7b5e7701dca42079e58d9d5b2810a3adf497a7603c411fd81a718207be9",
+    "wait_reason": null,
+    "quality_history_sha256": "5435278766f8aeea462836906d0080cc71895cd7a8fcdbbb23300ca95c22b44a"
+  },
+  "trace": {
+    "path": "/home/claude/.comms/run-hearth-hermes-br-20260921-111419-9a6b8d63-49402e44-cc-builder-2.log",
+    "sha256": "bd28c3a699d6b330be7910a7a18db9372846be2f60e39912e4ae2ea2b5246f6a",
+    "bytes": 2140,
+    "records": [
+      {
+        "kind": "attempt",
+        "backend": "omen-arc",
+        "model": "qwen3-30b-a3b",
+        "tokens_in": 2005,
+        "tokens_out": 836,
+        "duration_ms": 13282,
+        "task_id": "hearth-hermes-br-20260921-111419-9a6b8d63-49402e44-cc-builder-2",
+        "job_id": "job_13e99eaa7628e91eff27c001a1f6cc66",
+        "requested_max_tokens": 4096
+      },
+      {
+        "kind": "action_or_parse",
+        "step": 1,
+        "action": "no"
+      },
+      {
+        "kind": "attempt",
+        "backend": "omen-arc",
+        "model": "qwen3-30b-a3b",
+        "tokens_in": 2294,
+        "tokens_out": 467,
+        "duration_ms": 7469,
+        "task_id": "hearth-hermes-br-20260921-111419-9a6b8d63-49402e44-cc-builder-2",
+        "job_id": "job_53b71bfe8bbe7cdf99b24aedee294520",
+        "requested_max_tokens": 4096
+      },
+      {
+        "kind": "action_or_parse",
+        "step": 2,
+        "action": "no"
+      },
+      {
+        "kind": "attempt",
+        "backend": "omen-arc",
+        "model": "qwen3-30b-a3b",
+        "tokens_in": 2583,
+        "tokens_out": 472,
+        "duration_ms": 7859,
+        "task_id": "hearth-hermes-br-20260921-111419-9a6b8d63-49402e44-cc-builder-2",
+        "job_id": "job_4fa8c8d3b38d994c096732467aa0a06d",
+        "requested_max_tokens": 4096
+      },
+      {
+        "kind": "action_or_parse",
+        "step": 3,
+        "action": "no"
+      },
+      {
+        "kind": "attempt",
+        "backend": "omen-arc",
+        "model": "qwen3-30b-a3b",
+        "tokens_in": 2872,
+        "tokens_out": 400,
+        "duration_ms": 6985,
+        "task_id": "hearth-hermes-br-20260921-111419-9a6b8d63-49402e44-cc-builder-2",
+        "job_id": "job_338eecf0c0e58e7404d9d504da0fbd58",
+        "requested_max_tokens": 4096
+      },
+      {
+        "kind": "action_or_parse",
+        "step": 4,
+        "action": "write_file"
+      },
+      {
+        "kind": "attempt",
+        "backend": "omen-arc",
+        "model": "qwen3-30b-a3b",
+        "tokens_in": 3351,
+        "tokens_out": 192,
+        "duration_ms": 3891,
+        "task_id": "hearth-hermes-br-20260921-111419-9a6b8d63-49402e44-cc-builder-2",
+        "job_id": "job_ac6252f560b20e4ae3d85a4c59226d66",
+        "requested_max_tokens": 4096
+      },
+      {
+        "kind": "action_or_parse",
+        "step": 5,
+        "action": "finish"
+      },
+      {
+        "kind": "finished",
+        "steps": 5,
+        "elapsed_s": 41
+      }
+    ]
+  },
+  "input_observation": {
+    "immutable_request_sha256": "b5b1f1994119dd79798ba1b2eaa4b8bfce73e69eb0ff336420084cbbb3d48ab5",
+    "contains_redacted_cli_option": true,
+    "contains_original_chat_definition": true,
+    "contains_original_cli_option": false
+  },
+  "evidence_attachment": {
+    "at": "2026-09-21T11:16:01.994213+00:00",
+    "queue_state_at_attachment": "reviewing",
+    "evidence_sha256": "02fd4598ece9e0289ac4c24954649b9738e861867d84bc17317165d39019695f",
+    "automatic_review_may_already_have_started": true
+  }
+}

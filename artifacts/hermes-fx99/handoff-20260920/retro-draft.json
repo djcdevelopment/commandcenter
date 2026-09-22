@@ -1,0 +1,24 @@
+{
+  "provenance": "Unedited HEARTH draft requested by Codex; not Hermes. Rejected factual conflations corrected in final retrospective.",
+  "backend": "omen-arc",
+  "model": "qwen3-30b-a3b",
+  "routed_by": "pinned:omen-arc",
+  "execution": {
+    "request_id": "req_32c65cb2491471bee8231bf1b3e61493",
+    "job_id": "job_d6e87658b526511f3519dee38e6577f8",
+    "status": "succeeded",
+    "artifact": {
+      "artifact_id": "art_8cc38fd4e1193d98ced9c9e1c116401e",
+      "created_at": "2026-09-20T04:29:58.318771Z",
+      "filename": "job_d6e87658b526511f3519dee38e6577f8-result.md",
+      "media_type": "text/plain; charset=utf-8",
+      "role": "result",
+      "sha256": "e0f431ab5f1140c53eeeec015185b90410330a085b56f9a47769d65434d93bb2",
+      "size": 2498
+    }
+  },
+  "tokens_in": 4330,
+  "tokens_out": 634,
+  "duration_ms": 15734,
+  "text": "**Retrospective Summary: AM4-OMEN-ROLLOUT & RND-COMPACT-CONTROLLER-20260920**\n\nThe rollout delivered working local orchestration via Hermes on FX99: the AM4 controller started and observed a healthy OMEN worker lane (16384 context, eight slots, zero busy). The corrected artifacts—`OPERATING-MATRIX.md`, `OPERATIONS-CHECKLIST.md`, and `fleet_status_format.py`—were produced and live, with two successful deliveries via OMEN (receipts `br-20260920-030141-e036eff8` and `br-20260920-031116-00f63902`). Physical service resumed on AM4 and FX99, with native PIDs preserved (AM4 1738436, OMEN 23268). No external pushes, cloud fallback, or GPU claims occurred.\n\nHowever, the **delegated matrix** was not fulfilled: Hermes did not create a `WORK-SHAPING.md` artifact as requested. The **compact-controller R&D** failed to deliver a valid 64k-capacity configuration—despite a real `query_omen_worker` call, the controller omitted required fields, invented receipt IDs, and failed to produce any build artifact. The model’s behavior revealed edge-case flaws in argument handling and JSON structure, but the failure was specific to this prompt and old 14B weights, not a universal verdict on small controllers.\n\nThree concrete mistakes emerged:  \n1. **Anchoring to existing hardware/profile**: The experiment assumed the 4070 Ti was idle and usable, but placement was misaligned (CUDA ordinal ≠ smi UUID). The 5070 was used instead, not confirmed as available.  \n2. **Setup/guards/prose crowding real tasks**: Transfer of a partial Llama3.1-8B model was attempted, but the destination copy was canceled mid-transfer. No test file was written for this, but the process still consumed time.  \n3. **Live native capacity vs. configured labels**: The 14B advertised 65536 context, but native `/props` reported only 32768. This mismatch allowed startup, but no 64k capacity was achieved. The actual slot limit was enforced by the runtime, not the config.\n\nRND confirmed: no new test files unless explicitly named; one useful vertical slice; stop at first observed edge. The log captured “can’t-answer-why” when the controller failed to generate a valid receipt. No automatic promotion or validation was applied.\n\nThe AM4 service was restored post-RND; no model restart was needed. The original production Hermes profile was untouched. No 64k success was claimed.  \n**Lessons**: Validate UUIDs and native capacity before dispatch; reduce setup noise; treat configuration claims as hints, not facts."
+}

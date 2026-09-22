@@ -33,6 +33,7 @@
       "vram_gb": 29.96,
       "per_card_gb": 15.44,
       "expected_gen_tps": 106.0,
+      "parallel_gen_tps": 25.4,
       "rate_epoch": "2026-09-09T07:05:18 incumbent epoch (baseline set 07:06), -np 8 shape (RB baseline_decode_tok_s 105.33). Opened by the RESTORE to -np 8 after the Lap 1B sweep ran 2->4->8->16; the 2026-08-29T18:22 epoch it replaced was the -np 2 shape. ADR-0044: epoch-scoped is not epoch-homogeneous.",
       "prefill_tps": null,
       "load_s_steady": 8.175,
@@ -201,6 +202,50 @@
         "vram_gb": "E:\\work\\battlemage\\rotation-phase1\\w1-receipts.jsonl",
         "per_card_gb": "E:\\work\\battlemage\\rotation-phase1\\w1-receipts.jsonl (single placement = vram_gb)",
         "expected_gen_tps": "E:\\work\\battlemage\\rotation-phase1\\w1-receipts.jsonl solo decode"
+      }
+    },
+    {
+      "model_id": "qwen38-27b-mtp",
+      "alias": "qwen38-27b-mtp",
+      "placement": "dual",
+      "visible_devices": null,
+      "gguf_path": "E:\\work\\battlemage\\models\\qwen38\\Qwen3.8-27B-Q4_K_M.gguf",
+      "vram_gb": 44.24,
+      "per_card_gb": 24.53,
+      "card_charges_gb": {"0": 19.72, "1": 24.53},
+      "qualified_task_classes": ["inference"],
+      "quality_evidence": "nightshift guest epoch uses resident qwen38-27b-mtp; source-analysis quality not yet established in this pilot",
+      "expected_gen_tps": null,
+      "warmup_ms_p50": null,
+      "warmup_ms_max": null,
+      "sample_count": 0,
+      "swap_entry": "qwen38-27b-mtp",
+      "notes": "Night epoch only. VRAM is sum of logged model, KV, recurrent and compute buffers, including draft model; card charges are asymmetric (about 19.72/24.53 GiB). Rate is withheld until a repeatable pilot measurement. Never plan a cold load from this advisory catalog.",
+      "receipts": {
+        "per_card_gb": "hearth/var/swap-logs/qwen38-27b-mtp.log:2148-2337,3521-3660",
+        "vram_gb": "hearth/var/swap-logs/qwen38-27b-mtp.log:2148-2337,3521-3660"
+      }
+    },
+    {
+      "model_id": "qwen14b-night",
+      "alias": "qwen14b-night",
+      "placement": "single",
+      "visible_devices": null,
+      "gguf_path": "E:\\work\\battlemage\\models\\qwen2.5-14b-instruct-q4_K_M.gguf",
+      "vram_gb": 11.34,
+      "per_card_gb": 11.34,
+      "fixed_card_index": 0,
+      "qualified_task_classes": ["inference", "research", "summarization"],
+      "quality_evidence": "2026-09-15 pinned HEARTH omen-swap/qwen14b-night ADR-0008 extraction, independently reviewed and corrected",
+      "expected_gen_tps": null,
+      "warmup_ms_p50": null,
+      "warmup_ms_max": null,
+      "sample_count": 0,
+      "swap_entry": "qwen14b-night",
+      "notes": "Night epoch helper on Vulkan1. Logged model, KV and compute buffers; generation rate not established. Only resident planning is permitted.",
+      "receipts": {
+        "per_card_gb": "hearth/var/swap-logs/qwen14b-night.log:1507-1611",
+        "vram_gb": "hearth/var/swap-logs/qwen14b-night.log:1507-1611"
       }
     }
   ]

@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "receipt_id": "br-20260921-120651-c51d6724",
+  "lap_started_utc": "2026-09-21T11:55:53Z",
+  "implementation_written_utc": "2026-09-21T12:06:51Z",
+  "generation_ceiling_utc": "2026-09-21T12:15:00Z",
+  "delivery_ceiling_utc": "2026-09-21T12:20:00Z",
+  "first_quarter_artifact_target_missed": true,
+  "hermes_commit": "345cd2b057a452236de401d3534b8502a7465e8d",
+  "attribution": {
+    "implementation": "Codex",
+    "review": "Hermes Dense-27B on AM4; unedited",
+    "local_builder_dispatches": 0,
+    "jev_calls": 0,
+    "kv_reused": false
+  },
+  "cpu_checks": {
+    "candidate_syntax": "passed",
+    "diff_check": "passed",
+    "installed_resolver": {
+      "enabled": [
+        "probe_read"
+      ],
+      "disabled_all": []
+    }
+  },
+  "raw_result": {
+    "ok": true,
+    "report": "Verdict: NEEDS_WORK\n\nFindings:\n1. **Critical: Tool Re-enablement** — In `run_hermes`, the subprocess command explicitly passes `--toolsets hearth`. According to the installed Hermes resolver logic (`_select_tool_names`), disabled toolsets are subtracted last, but the CLI `--toolsets hearth` flag re-adds `hearth` to the enabled set. The patch relies on `disabled_toolsets: ['all']` to strip it, but `hearth` is an MCP server name, not a core toolset. The resolver logic shows that `validate_toolset` likely fails for MCP names in the CLI path, and MCP tools are resolved separately. The provided resolver evidence only proves `probe_read` (a custom in-process tool) is stripped. It does not prove that the external MCP `hearth` tools are stripped by `disabled_toolsets: ['all']` when `--toolsets hearth` is active. This violates the \"disabled tools must not be allowed back in\" requirement.\n\n2. **Major: Incomplete Validation** — In `run_hermes`, the packet-only check only verifies the final assistant message and counts tool messages. It does not verify that the `hearth` MCP server was actually disconnected or that its tools were never loaded. If `hearth` tools are loaded and used, then a final message with no tool calls could still be a result of tool usage (if the tool results were ignored or if the tool call happened in a previous turn and the final message is just text). However, the count check `packet_only and (tool_call_messages or tool_result_messages)` does catch any tool activity in the DB. But if the tools are not stripped at load time, the model might still have access to them, potentially influencing the \"packet-only\" reasoning even if it chooses not to call them. The requirement is \"disabled tools must not be allowed back in\", implying they should not be available, not just unused.\n\n3. **Minor: Metadata** — `requested_review_mode` is added, which is good. `tool_call_messages` and `tool_result_messages` are recorded, which is good.\n\nQualification Limits:\n- The resolver evidence is limited to a custom in-process toolset (`probe_read`). It does not cover MCP tools (`hearth`).\n- The patch does not modify the `--toolsets hearth` CLI argument. It relies entirely on the config `disabled_toolsets: ['all']` to override the CLI. This interaction is not fully evidenced.\n- No execution of the actual packet-only mode with `hearth` MCP server was performed.\n\nRecommendation: Remove `--toolsets hearth` from the command when `packet_only=True`, or verify that `disabled_toolsets: ['all']` effectively strips MCP tools in the installed Hermes version.",
+    "metadata": {
+      "model": "am4-dense-27b",
+      "reviewer": "hermes",
+      "elapsed_s": 32.433,
+      "run_budget_s": 90,
+      "requested_reasoning": "none",
+      "requested_review_mode": "packet_only",
+      "tool_call_messages": 0,
+      "tool_result_messages": 0,
+      "source": "unedited Hermes final assistant message",
+      "message_id": 2,
+      "kv_reused": false,
+      "packet_evidence": {
+        "mode": "unchanged",
+        "reason": "unrecognized_evidence",
+        "original_bytes": 19696,
+        "sent_bytes": 19696,
+        "original_sha256": "200daaa35467e5f10732f28281aa9f85eef8dd5c73878f2557ca2b568f376cb2",
+        "sent_sha256": "200daaa35467e5f10732f28281aa9f85eef8dd5c73878f2557ca2b568f376cb2"
+      }
+    },
+    "no_tools_banner": false,
+    "configured_disabled_toolsets": [
+      "all"
+    ],
+    "result_sha256": "6b5c5538588e338739bf7ead99df829a28d929b7974d2a4d50f0719b76dc8344"
+  },
+  "observations": {
+    "session_id": "20260921_120934_8e0d64",
+    "tool_names": null,
+    "tool_call_count": 0,
+    "api_call_count": 1,
+    "input_tokens": 5659,
+    "output_tokens": 595,
+    "requested_max_words": 250,
+    "actual_words": 386
+  },
+  "assessment": {
+    "qualification": "limited smoke; absence of offered MCP tool schemas not directly verified",
+    "default_changed": false,
+    "claim_review": [
+      {
+        "claim": "CLI re-adds Hearth after disabled toolsets",
+        "assessment": "Contradicted by supplied selection order: enabling happens before final subtraction."
+      },
+      {
+        "claim": "In-process resolver does not directly prove real MCP tool absence",
+        "assessment": "Valid qualification limit. Zero calls and tool_names=null are not a captured empty schema list."
+      },
+      {
+        "claim": "MCP server must be disconnected",
+        "assessment": "Not a requirement; selection filtering need not prevent read-only discovery connection."
+      },
+      {
+        "claim": "No live packet-only run performed",
+        "assessment": "No live result was in the pre-run evidence packet. The run itself now exists; the model could not establish its own offered schemas from that packet."
+      },
+      {
+        "claim": "Remove --toolsets hearth",
+        "assessment": "Not adopted: omitting the pin can select defaults and widen available fallback authority."
+      }
+    ]
+  },
+  "deployment": {
+    "host": "fx99",
+    "file": "/home/derek/.local/share/fleet-scheduler/fleet/jev/review.py",
+    "before_sha256": "0a50aba9f7e77ca60829886df28cd887a3187c8f2c45a739fb9a2cdf4f6cc0c5",
+    "after_sha256": "38ebcb8de62b2d05555932a0e88a4b9ca0babdb948408ee1f6505db58227cf8d",
+    "backup_suffix": ".jev-packet-mode-cycle19-20260921.backup",
+    "cpu_scheduler_restarted": false,
+    "pilot_gateway_restarted": false
+  },
+  "restoration": {
+    "ok": true,
+    "owner": null,
+    "model_resident": false,
+    "native_context": null,
+    "kv_enabled": false
+  }
+}

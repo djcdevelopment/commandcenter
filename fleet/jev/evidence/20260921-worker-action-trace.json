@@ -1,0 +1,55 @@
+[
+  {
+    "path": "/home/claude/.comms/run-hearth-hermes-br-20260921-102014-e72849c0-33f9fc2f-cc-builder-2.log",
+    "sha256": "e433e6a2111a0bb1b568bdef1653019f2016e0a8b6263bec7c072d2a2c363e15",
+    "bytes": 1192,
+    "records": [
+      {
+        "kind": "attempt",
+        "backend": "omen-arc",
+        "model": "qwen3-30b-a3b",
+        "tokens_in": 3149,
+        "tokens_out": 2048,
+        "duration_ms": 40781,
+        "task_id": "hearth-hermes-br-20260921-102014-e72849c0-33f9fc2f-cc-builder-2",
+        "job_id": "job_8c292214d7578d8c7b70b1dfce6d178d"
+      },
+      {
+        "kind": "parse_failure",
+        "line": "[agent_openai] step 1: no JSON action parsed; nudging"
+      },
+      {
+        "kind": "attempt",
+        "backend": "omen-arc",
+        "model": "qwen3-30b-a3b",
+        "tokens_in": 3421,
+        "tokens_out": 2048,
+        "duration_ms": 41484,
+        "task_id": "hearth-hermes-br-20260921-102014-e72849c0-33f9fc2f-cc-builder-2",
+        "job_id": "job_2bcbea37e7ddb34803d623a428805fac"
+      },
+      {
+        "kind": "parse_failure",
+        "line": "[agent_openai] step 2: no JSON action parsed; nudging"
+      },
+      {
+        "kind": "attempt",
+        "backend": "omen-arc",
+        "model": "qwen3-30b-a3b",
+        "tokens_in": 3695,
+        "tokens_out": 2048,
+        "duration_ms": 42797,
+        "task_id": "hearth-hermes-br-20260921-102014-e72849c0-33f9fc2f-cc-builder-2",
+        "job_id": "job_f1de4237896225c0b48768b8002fa2c7"
+      },
+      {
+        "kind": "parse_failure",
+        "line": "[agent_openai] step 3: no JSON action parsed; nudging"
+      },
+      {
+        "kind": "budget",
+        "line": "[agent_openai] budget: 23s left (< 25s) at step 4; finishing gracefully"
+      }
+    ]
+  }
+]

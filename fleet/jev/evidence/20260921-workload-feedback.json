@@ -1,0 +1,26 @@
+{
+  "before_sha256": "6784bf287ec0ee622ecc71a4efc53970fbaa5f96a3be24b1e9a59e71a630802f",
+  "after_sha256": "33dc5b422652d6ece1aa33bba66bf70f68fa96237adbffdc92fbf5627285bc92",
+  "summary": {
+    "available": true,
+    "tasks": 11,
+    "authored": 9,
+    "unmodified_delivery": 1,
+    "assisted_delivery": 7,
+    "rejected": 0,
+    "incomplete": 1,
+    "not_run": 2,
+    "invalid_records": 0,
+    "profile": "omen-resident-hearth",
+    "history_sha256": "33dc5b422652d6ece1aa33bba66bf70f68fa96237adbffdc92fbf5627285bc92",
+    "scope": "Operator-verified selected task subset; not inference success or a benchmark."
+  },
+  "cloud_numeric_line": "Operator-verified task subset: worker_tasks=9; unmodified_delivery=1; assisted_delivery=7; rejected=0; incomplete=1; not_run=2. Not a benchmark or automatic acceptance.",
+  "installed": {
+    "installed": [
+      "/home/derek/.local/state/fleet-scheduler/quality-history.json"
+    ]
+  },
+  "service_restart": false,
+  "future_decision_with_new_history_not_yet_sampled": true
+}

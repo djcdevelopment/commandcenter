@@ -1,0 +1,64 @@
+{
+  "ok": true,
+  "text": "# Hearth Capability Report: Derek's Local Fleet (2026-09-18)\n\n## Core Access Points & Control Levers\n\n| Component | Function | Source Path | Registry Status | Runtime Readiness | Pilot Admission |\n|---------|--------|------------|----------------|------------------|----------------|\n| **Hearth** | Default inference, build, planning | `hearth/toolsurface/inference.py`, `build_requests.py` | `LIVE` | `LIVE` | Yes (via JEV) |\n| **DeepAgents** | Agentic tool use, verification | `deepagents-poc/` | `LIVE` (harness), `BUILT NOT DEPLOYED` (run) | `BUILT NOT DEPLOYED` | No (harness not live) |\n| **MechNet** | VM-based build execution | `fleet.jev.scheduler` | `LIVE` (route) | `LIVE` (runner) | Yes (via JEV) |\n\n- **Hearth**: Entry points: `door:local_generate`, `door:create_build_request`, `door:plan_execution`. All implemented and active. `mechnet_build` is live and dispatching. `direct_hearth` and `am4-dense` are active inference rungs.\n- **DeepAgents**: `deepagents-hearth` is `LIVE` and used for agentic tool calls. `deepagents-run-flash-dense` is `BUILT NOT DEPLOYED` — no control plane dispatch yet. The harness is registered in `harnesses.toml` but not promoted.\n- **MechNet**: JEV pilot fixed: `mechnet_build` route with `cc-builder-2` builder and `omen-resident-hearth` runner. No GPU/model routing; only task evaluation.\n\n## Observation & Feedback Signals\n\n- **Planning validity**: 300s window (per `operator.toml`), distinct from field freshness. No automatic refresh.\n- **Field freshness TTLs**: `occupancy=30s`, `readiness=120s`, `reachability=300s`, `trial_runway=3600s`.\n- **Feedback loops**:\n  - Inference success: recorded in `hearth/var/ledger/events.ndjson` (e.g., `direct_hearth`, `am4-dense`).\n  - Receipt completion: verified via `build-request-receipts` directory; `close(status=done)` requires evidence per criterion.\n  - Independent review: `review_second_rung` and `review_deepagents_independent_verifier` are `BUILT NOT DEPLOYED`; no recorded review outcomes.\n- **Logs/knowledge**: `events.ndjson`, `history.ndjson`, `receipts` are audit trails. Not used for automatic weight training.\n\n## Current Runtime State\n\n- **Inference**: `am4-dense` (Qwen3.8-27B) on RTX 4070 Ti + 5070, 4096-token context, 1:1 split, 18084 port, bearer `AM4_OXEN_TOKEN`. `am4-read-4070ti` (Qwen2.5-14b) on 4070 Ti alone, 16k context.\n- **Free VRAM**: Unknown. `rungs.omen-arc` reports `free_vram_gb` as `None`.\n- **On-demand reviewer**: `am4-dense` (27B) on native18090, 128k context, one slot, both GPUs. Released between reviews. Not reused via KV.\n\n## Integration Gaps\n\n- **Missing pilot**: `deepagents-run-flash-dense` is not live. No `TESTABLE` status; cannot be used in `mode:test`.\n- **No KV reuse**: No evidence of model state or context persistence across reviews or runs.\n- **No review automation**: Review result feedback is manual; no `automatic_promotion` in `review.json`.\n\n## Actionable Assignments\n\n- ✅ **Available now**: Assign `deepagents-run-flash-dense` to `mode:test` after testing in `hearth/tests/toolsurface/test_scheduler_gpu.py`, which has two known failures (lines 99, 169) that must not be fixed as side effects.\n- ❌ **Gap**: `review_second_rung` is candidate but never run. Requires `reviewer` identity in `profiles.toml` and `catalog.test_policy` to enable `TESTABLE` status. No `test_targets` in `operator.toml` for it.\n\n> **Note**: `am4-dense` and `am4-read-4070ti` are current runtime facts; `harnesses.toml` and `loops.toml` do not define or reconfigure them. No automatic optimization claimed.",
+  "execution": {
+    "request_id": "req_68837c40236e16162ab5fb66ef1bd687",
+    "job_id": "job_e9757e4f1f7ccf62fae3113163a469bb",
+    "status": "succeeded",
+    "artifact": {
+      "artifact_id": "art_df74c1b04bb4ce31889285cce0b7562f",
+      "created_at": "2026-09-21T09:10:04.100803Z",
+      "filename": "job_e9757e4f1f7ccf62fae3113163a469bb-result.md",
+      "media_type": "text/plain; charset=utf-8",
+      "role": "result",
+      "sha256": "dc77cd9cf5b6fac922b4adcd54d9ac96763d9338690fc056bed8dd8e8e582d14",
+      "size": 3542
+    }
+  },
+  "backend": "omen-arc",
+  "model": "qwen3-30b-a3b",
+  "routed_by": "pinned:omen-arc",
+  "occupancy": "available",
+  "rung_state": {
+    "baseline_epoch": "2026-09-09T07:05:18-07:00 incumbent epoch (baseline set 07:06:00, 42 s later), -np 8 shape: the server log reads n_ctx_slot = 16384. Opened by the RESTORE to -np 8 after the Lap 1B sweep finished its -np 16 arms at 07:04, NOT by the slot change itself -- the sweep ran 2 -> 4 -> 8 -> 16 and came back. Epoch start derived the only way available (arc-serve.log elapsed stamp subtracted from mtime; llama-server runs under an S4U task whose StartTime is inaccessible). Dual-split asserted per-BDF on this epoch by the sat-l1 cells, not carried over from the 2026-08-29 epoch this label replaced. EPOCH-SCOPED IS NOT EPOCH-HOMOGENEOUS: this labels the reference CONTRACT, not a guarantee that the machine was stationary within it -- multiple stable regimes have occurred inside a single epoch. Two readings sharing an epoch are NOT thereby comparable.",
+    "baseline_tok_s": 105.33,
+    "deep_samples": 100,
+    "envelope": {
+      "fail_below": 0.8,
+      "warn_below": 0.9
+    },
+    "excluded_windows": [],
+    "frac_of_baseline": 1.0672,
+    "last_ping_ok": true,
+    "note": "envelope is of THIS baseline epoch, not of capacity (ADR-0044); restart discriminator not applied; no regime names",
+    "observed_age_s": 78.1,
+    "observed_at": "2026-09-21T02:08:46.0120129-07:00",
+    "observed_tok_s": 112.41,
+    "port": 8082,
+    "prefill_stall_recent": false,
+    "rung": "omen-arc",
+    "verdict": "at_rate"
+  },
+  "pool_config_hash": "e8e23807f353",
+  "tokens_in": 12243,
+  "tokens_out": 1028,
+  "duration_ms": 51907,
+  "max_tokens": 1600,
+  "timeout_s": 64,
+  "task_family": "summarization",
+  "family_recommendation": {
+    "advisory": true,
+    "backend_hint": "omen-arc-27b",
+    "depth_rule_applied": true,
+    "evidence": "ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K",
+    "family": "summarization",
+    "model_id": "qwen38-27b",
+    "pin_required": true,
+    "prompt_tokens": 12812,
+    "providers": [
+      "omen-arc-27b"
+    ],
+    "reason": "depth_override: prompt_tokens 12812 >= 8192, so qwen38-27b is preferred over qwen3-30b-a3b for summarization. Qwen 3.8 campaign do_not_promote (12/15) at the 512-token operating point: the 27B delivers 0.687x the incumbent's jobs/hour there, so the door default (omen-arc) serves shallow summarization.",
+    "requested_family": "summarization"
+  }
+}

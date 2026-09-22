@@ -78,9 +78,10 @@ def _resident_charges(machine: Machine, models: dict[str, ModelSpec],
         charge = spec.card_charge_gb()
         if spec.placement == "dual":
             for index in used:
-                used[index] += charge
+                used[index] += (spec.card_charges_gb or {}).get(index, charge)
         else:
-            target = min(used, key=lambda index: (used[index] - budgets[index], index))
+            target = (spec.fixed_card_index if spec.fixed_card_index in used else
+                      min(used, key=lambda index: (used[index] - budgets[index], index)))
             used[target] += charge
     return used
 

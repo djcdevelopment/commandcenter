@@ -1,0 +1,160 @@
+{
+  "schema": "fleet-work-quality.v1",
+  "verified_by": "operator",
+  "curated_at": "2026-09-21T12:31:00Z",
+  "profile": "omen-resident-hearth",
+  "model": "qwen3-30b-a3b",
+  "scope": "Selected completed task outcomes, not a complete benchmark. authored counts tasks reaching the worker, not successful output. assisted includes any later model/human correction. not_run is excluded from authored.",
+  "records": [
+    {
+      "task_id": "jev-952e640d8b1e110bf3ed6cab",
+      "outcome": "assisted_delivery",
+      "description": "The worker attempted the supplied behavioral command twice but retyped Python literals as JSON, receiving NameError before assertions. It rewrote the same implementation and finished on budget after 138.8 seconds. Codex corrected boolean numeric handling and duplicate/empty/non-ASCII identifiers, then integrated the live decision CLI. Hermes returned a contradictory static PASS; neither that nor the inherited 162-test farm grade was acceptance evidence. No second builder attempt.",
+      "evidence": [
+        "fleet/jev/evidence/20260921-decision-candidate.json",
+        "fleet/jev/evidence/20260921-decision-execution.json"
+      ],
+      "evidence_sha256": {
+        "fleet/jev/evidence/20260921-decision-candidate.json": "117956e5c13d6049da663370d0e46526fd0d1411b74c1f76e903134859646479",
+        "fleet/jev/evidence/20260921-decision-execution.json": "899e3332cc8489838e5387fea59b8400fb43c9c8a8d3b34415b9147d4023bb4e"
+      },
+      "candidate_commit": "449642c08293a76a2ff8ecd762983dee948cfeca"
+    },
+    {
+      "task_id": "jev-9ecc042aafb4e2717e7dd093",
+      "outcome": "assisted_delivery",
+      "description": "OMEN wrote the helper on its first response, ran py_compile successfully and finished in 23.5 seconds. Codex corrected boolean context handling, preservation of extra input fields, serialization errors and literal nonempty-string handling, then integrated the offline workload comparison. Hermes independently identified the three main defects but had minor explanation errors. No second builder attempt or route activation.",
+      "evidence": [
+        "fleet/jev/evidence/20260921-workload-candidate.json",
+        "fleet/jev/evidence/20260921-workload-comparison.json"
+      ],
+      "evidence_sha256": {
+        "fleet/jev/evidence/20260921-workload-candidate.json": "f63cc842834c9bc13b7332bc0b1db85db536027df40af173b28c7fd6e0b2ae42",
+        "fleet/jev/evidence/20260921-workload-comparison.json": "3dd9ac6ddbe6896a3d93f61442b016660d6df522eb2ff4f972f0fb50861ab590"
+      },
+      "candidate_commit": "29fc19393a1fb4d13cdea6eaaeff63a2a4435a58"
+    },
+    {
+      "task_id": "jev-37a75c99bc3d31573aba4837",
+      "outcome": "assisted_delivery",
+      "description": "Local worker wrote an unusable shortened adapter after three parse failures; Codex implemented and deployed the parser correction from the preserved baseline. No raw candidate was accepted or promoted. Offline recovery proves the first discarded response was valid JSON and preserved transport, but its parser still failed surrounding prose and its CLI argument was already corrupted upstream. Recovered output was never written by the original worker; no second builder attempt.",
+      "evidence": [
+        "fleet/jev/evidence/20260921-action-parser-candidate.json",
+        "fleet/jev/evidence/20260921-action-parser-execution.json",
+        "fleet/jev/evidence/20260921-action-parser-recovered.json"
+      ],
+      "evidence_sha256": {
+        "fleet/jev/evidence/20260921-action-parser-candidate.json": "528c5715aedc3b7616229d5d5b498825bed4f53805c1fe732571eb7158d36bf0",
+        "fleet/jev/evidence/20260921-action-parser-execution.json": "d4f0d8d8d796b79e37fa3bde50b7984210964500992169fd2da69a2d4c14160b",
+        "fleet/jev/evidence/20260921-action-parser-recovered.json": "c438773c985abde4d6f0536c3804bd2fa75e04631e4fe946233bcaa7dec234b1"
+      },
+      "candidate_commit": "253d50ee729188f4fb437be933ce31f715c48d95"
+    },
+    {
+      "task_id": "jev-a3490ba175b53611158fbe6b",
+      "outcome": "assisted_delivery",
+      "description": "At the corrected 4096-token allowance, local worker wrote a complete 2525-token file in its first response. Codex corrected error propagation, missing dirty-source warning and double HTML escaping; original wording was restored after verified upstream input redaction. The raw candidate's embedded JSON round trip passed. Worker did not run a syntax check; independent execution and Hermes review are separately recorded.",
+      "evidence": ["fleet/jev/evidence/20260921-provenance-execution.json"],
+      "evidence_sha256": {
+        "fleet/jev/evidence/20260921-provenance-execution.json": "5890dd3b21a59074cea097af3afec54c65aa7a39d9da2b54d13a28ad45ca7117"
+      },
+      "candidate_commit": "b0d21ac00d6339ec52e04eaf271502ce18288c11"
+    },
+    {
+      "task_id": "jev-35f435a106d15feb1147bb14",
+      "outcome": "incomplete",
+      "description": "Worker budget ended after four steps / 126 seconds; commit contains only retro.md and no operations_page.py at root or nested target. No Hermes review ran. Direct Codex HTML delivery is excluded from local-builder delivery counts.",
+      "evidence": ["fleet/jev/evidence/20260921-operations-quality-execution.json"],
+      "evidence_sha256": {
+        "fleet/jev/evidence/20260921-operations-quality-execution.json": "dc5e01537e96bad7ec3c44366963036924ac4d4873c3dda52a314eece206f12b"
+      },
+      "candidate_commit": "950125e55db5c077740d89df02d2c204d76b7a10"
+    },
+    {
+      "task_id": "jev-aacd8778e90c5ef5a61aa434",
+      "outcome": "assisted_delivery",
+      "description": "Wait-reason formatter delivered after Codex fixed boolean numeric acceptance and missing wait handling. Hermes correctly rejected the raw draft but also reported unsupported findings. Independent executed evidence, not the review verdict, supports delivery.",
+      "evidence": ["fleet/jev/evidence/20260921-status-wait-execution.json"],
+      "evidence_sha256": {
+        "fleet/jev/evidence/20260921-status-wait-execution.json": "546b19531b836a3f1fa7f61a69319c80a9994149d0076b17da5b79d7783b2499"
+      },
+      "candidate_commit": "2d7c1652c199128a61dce8d13bdea7c48f8ef42c"
+    },
+    {
+      "task_id": "jev-6b6659cbbf258638035da94e",
+      "outcome": "assisted_delivery",
+      "description": "Status formatter delivered after Codex corrections; raw local candidate failed checks.",
+      "evidence": [
+        "fleet/jev/evidence/20260921-status-execution-evidence.json",
+        "fleet/jev/evidence/20260921-status-integrated-live-status.json"
+      ],
+      "delivery_commit": "f06944e",
+      "evidence_sha256": {
+        "fleet/jev/evidence/20260921-status-execution-evidence.json": "a1d792195f6ebee8676b054138b98cc9367eb1d6b57a40b7981a2244fe3a85f7",
+        "fleet/jev/evidence/20260921-status-integrated-live-status.json": "fb9627ddd5068bb12ca6296edc5f5489745f48c32d76ee7bcd88b623555c4f4c"
+      }
+    },
+    {
+      "task_id": "jev-d2d8cebb2cd971e6ebb5a049",
+      "outcome": "assisted_delivery",
+      "description": "Budget view delivered after local repair plus Codex correction; not unmodified delivery.",
+      "evidence": [
+        "fleet/jev/evidence/20260921-budget-initial-execution.json",
+        "fleet/jev/evidence/20260921-budget-final-execution.json"
+      ],
+      "delivery_commit": "5bfd427",
+      "evidence_sha256": {
+        "fleet/jev/evidence/20260921-budget-initial-execution.json": "429625f5cd492013ed46879be09439de4e1d463ac52bad0610409812bda519d6",
+        "fleet/jev/evidence/20260921-budget-final-execution.json": "7ad1ca3bc6ccee48b0c0c565131dff42e71a228514c0fc2bd1dd3fab8ffd82e5"
+      }
+    },
+    {
+      "task_id": "jev-85c23aa9ba09049946734927",
+      "outcome": "assisted_delivery",
+      "description": "B70 parser delivered after Codex corrections to failed raw local cases.",
+      "evidence": [
+        "fleet/jev/evidence/20260921-capacity-parser-execution.json"
+      ],
+      "delivery_commit": "9e307fa",
+      "evidence_sha256": {
+        "fleet/jev/evidence/20260921-capacity-parser-execution.json": "20df4852bbcefccd6799c31acfa3e18f2440bbabfc8645344b05df4d3e85d13d"
+      }
+    },
+    {
+      "task_id": "jev-0609302367da3133217c5db1",
+      "outcome": "not_run",
+      "description": "JEV held MechNet dispatch. Later direct Hearth fallback is a different harness and excluded here.",
+      "evidence": [
+        "fleet/jev/evidence/20260921-route-execution.json"
+      ],
+      "evidence_sha256": {
+        "fleet/jev/evidence/20260921-route-execution.json": "a901ee10222b959adcdd2f480c2905b801f20405ad5b9da549c4530c2eefc364"
+      }
+    },
+    {
+      "task_id": "jev-c06b692f1dc0c488af2a17cf",
+      "outcome": "not_run",
+      "description": "JEV selected, brief guard refused before worker execution. Codex fallback is not local-builder delivery.",
+      "evidence": [
+        "fleet/jev/evidence/20260921-operations-page.json"
+      ],
+      "evidence_sha256": {
+        "fleet/jev/evidence/20260921-operations-page.json": "c8ecb25aed8b607c93c751bf812c4f30591950f50a27077ba72f56d0aab74ca9"
+      }
+    },
+    {
+      "task_id": "jev-f3b1d7857a35c922cbbe0cd5",
+      "outcome": "unmodified_delivery",
+      "description": "Local helper retained without implementation edits; only final newline normalized. Real curated-record output, specified mixed-input example, None, empty list and immutability independently checked. Hermes advisory static PASS is not the acceptance proof.",
+      "evidence": [
+        "fleet/jev/evidence/20260921-quality-candidate.json",
+        "fleet/jev/evidence/20260921-quality-initial-scoreboard.json"
+      ],
+      "evidence_sha256": {
+        "fleet/jev/evidence/20260921-quality-candidate.json": "86ce27b61e05dff22a032d46f70e855f59740c5b0c5d4b4ba2f46590452fdeb3",
+        "fleet/jev/evidence/20260921-quality-initial-scoreboard.json": "2bc0ce7394a7b608990a52f6085be0928bba86f82b19074a8f852ff2d1f676cf"
+      },
+      "candidate_commit": "3ae4e60c281e96fd121e18f401d5e511ea224bbf"
+    }
+  ]
+}

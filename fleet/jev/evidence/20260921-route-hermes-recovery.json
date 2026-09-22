@@ -1,0 +1,9 @@
+{
+  "recoverable": false,
+  "message_id": 2,
+  "characters": 6381,
+  "report": null,
+  "recovery": "Inspected saved tool-free assistant entry after wrapper deadline; no new inference. Entry contains no NEEDS_WORK/PASS/INCONCLUSIVE verdict and is not accepted as a complete review. Partial analysis remains private.",
+  "verdict_matches": [],
+  "explicit_reasoning_tags": false
+}

@@ -1,0 +1,37 @@
+{
+  "before_sha256": "5435278766f8aeea462836906d0080cc71895cd7a8fcdbbb23300ca95c22b44a",
+  "after_sha256": "6784bf287ec0ee622ecc71a4efc53970fbaa5f96a3be24b1e9a59e71a630802f",
+  "installed": {
+    "installed": [
+      "/home/derek/.local/state/fleet-scheduler/quality-history.json"
+    ]
+  },
+  "summary": {
+    "available": true,
+    "tasks": 10,
+    "authored": 8,
+    "unmodified_delivery": 1,
+    "assisted_delivery": 6,
+    "rejected": 0,
+    "incomplete": 1,
+    "not_run": 2,
+    "invalid_records": 0,
+    "profile": "omen-resident-hearth",
+    "history_sha256": "6784bf287ec0ee622ecc71a4efc53970fbaa5f96a3be24b1e9a59e71a630802f",
+    "scope": "Operator-verified selected task subset; not inference success or a benchmark."
+  },
+  "cloud_numeric_line": "Operator-verified task subset: worker_tasks=8; unmodified_delivery=1; assisted_delivery=6; rejected=0; incomplete=1; not_run=2. Not a benchmark or automatic acceptance.",
+  "service_restart": false,
+  "future_decision_with_new_history_not_yet_sampled": true,
+  "initial_after_sha256": "43bc0f61c4e04a5c992641dbefeb65eabfcbd9ca079830dde6bdba5c7783486b",
+  "wording_followup": {
+    "before_sha256": "43bc0f61c4e04a5c992641dbefeb65eabfcbd9ca079830dde6bdba5c7783486b",
+    "after_sha256": "6784bf287ec0ee622ecc71a4efc53970fbaa5f96a3be24b1e9a59e71a630802f",
+    "installed": {
+      "installed": [
+        "/home/derek/.local/state/fleet-scheduler/quality-history.json"
+      ]
+    },
+    "reason": "Clarify no separate builder attempt, rather than implying no internal parser nudges."
+  }
+}

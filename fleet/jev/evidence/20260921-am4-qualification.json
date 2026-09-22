@@ -1,0 +1,105 @@
+{
+  "captured_utc": "2026-09-21T22:34:42Z",
+  "artifacts": {
+    "started.json": {
+      "started_utc": "2026-09-21T22:33:13Z",
+      "task_brief_sha256": "26eeb8b73188090dc3657dd6d486e63f4dee3afe2462af33573ec44634baaea3",
+      "route": {
+        "runner": "openai",
+        "base_url": "http://192.168.12.233:8090/v1",
+        "model": "am4-dense-27b",
+        "context_length": 131072
+      },
+      "source_hashes": {
+        "scripts/agent_openai.py": "9f6d134922e4d63c199eb717ed43474e63d13b37321a2a72c30bde6b5e50d575",
+        "scripts/agent_hearth.py": "9c3dec010663bd52b8f0b3352424a258d0982bfeb6422664c61d7aa3012a66d1",
+        "scripts/runner_presets.py": "e48b640e0f13fa0bb4c0e629f054b3cbb3c8c0d5adb2c165f658e09cc0fff49a",
+        "runner.json": "7718d852af0181b02aaee72bcd433a53b82f17588f13505eb4b489ecbe16e79d",
+        "runner-presets/am4-shared-27b.json": "c5fffbd01f6117891279cc0b424e9f9becca86ee4696036a9ed13e1d31c8486c"
+      },
+      "budget_s": 180,
+      "max_steps": 12,
+      "max_tokens": 4096,
+      "reasoning_effort": "none",
+      "operator_driven": true,
+      "promotion_policy": "manual"
+    },
+    "supervisor.json": {
+      "pid": 50386,
+      "started_utc": "2026-09-21T22:33:13Z",
+      "hard_timeout_s": 200
+    },
+    "result.json": {
+      "exit_code": 3,
+      "elapsed_s": 0.071,
+      "files": {},
+      "finished_utc": "2026-09-21T22:33:14Z"
+    },
+    "trace.json": {
+      "elapsed_s": 0.071,
+      "calls": [],
+      "actions": []
+    }
+  },
+  "log": "[agent_openai] start task=jev-am4-cycle21-20260921 model=am4-dense-27b base_url=http://192.168.12.233:8090/v1 steps<= 12 budget=180.0s\n[agent_openai] step 1: HTTP 401 b'{\\n  \"error\": \"missing or invalid bearer token\"\\n}'\n",
+  "exit_source_hashes": {
+    "scripts/agent_openai.py": "9f6d134922e4d63c199eb717ed43474e63d13b37321a2a72c30bde6b5e50d575",
+    "scripts/agent_hearth.py": "9c3dec010663bd52b8f0b3352424a258d0982bfeb6422664c61d7aa3012a66d1",
+    "scripts/runner_presets.py": "e48b640e0f13fa0bb4c0e629f054b3cbb3c8c0d5adb2c165f658e09cc0fff49a",
+    "runner.json": "7718d852af0181b02aaee72bcd433a53b82f17588f13505eb4b489ecbe16e79d",
+    "runner-presets/am4-shared-27b.json": "c5fffbd01f6117891279cc0b424e9f9becca86ee4696036a9ed13e1d31c8486c"
+  },
+  "schema_version": 1,
+  "parent_receipt_id": "br-20260921-223040-4f487437",
+  "outcome": "blocked_before_inference_authentication_401",
+  "authorization": "One AM4 Dense qualification explicitly approved; no second builder attempt.",
+  "useful_artifact": "Honest qualification report; no code candidate or comparative quality result.",
+  "window": {
+    "start_utc": "2026-09-21T22:30:13Z",
+    "first_artifact_target_utc": "2026-09-21T22:35:00Z",
+    "generation_ceiling_utc": "2026-09-21T22:45:00Z",
+    "delivery_ceiling_utc": "2026-09-21T22:50:00Z"
+  },
+  "shared_sources_unchanged": true,
+  "attempts": {
+    "builder_jobs": 1,
+    "completion_http_requests": 1,
+    "successful_completions": 0,
+    "candidate_files": 0,
+    "hermes_reviews": 0,
+    "jev_requests": 0
+  },
+  "restoration": {
+    "observed_utc": "2026-09-21T22:34:11Z",
+    "owner": null,
+    "model_resident": false,
+    "kv_enabled": false
+  },
+  "comparison_limits": [
+    "Exact cycle20 brief reused; no candidate to compare.",
+    "Standalone operator-run qualification, not JEV/conductor dispatch.",
+    "Same worker loop and corrected decoder; AM4 chat messages use native structure rather than Hearth serialized history.",
+    "AM4 requested reasoning_effort none, 4096 output, 180s loop budget; no successful generation.",
+    "No assessment of model quality or speed is possible from HTTP401."
+  ],
+  "exit_observation": {
+    "checked_utc": "2026-09-21T22:36:31Z",
+    "worker": {
+      "observed_utc": "2026-09-21T22:36:31Z",
+      "supervisor_state": "absent",
+      "running": false
+    },
+    "am4_memory_mib": [
+      88,
+      15
+    ],
+    "am4_compute_processes": 0,
+    "fx99_scheduler_active": true,
+    "fx99_scheduler_pid": 1610478,
+    "cached_scheduler_work": {
+      "active_build": null,
+      "pending_reviews": 0,
+      "reviewer": "unloaded"
+    }
+  }
+}

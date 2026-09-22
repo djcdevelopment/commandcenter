@@ -1,0 +1,12 @@
+{
+  "report": "NEEDS_WORK\n\nVerdict is attributed to the supplied Codex executor; I verified the source text in the packet by inspection (I could not run the candidate or verify its SHA-256 in this session).\n\nConcrete findings (candidate, fleet/jev/b70_capacity.py, lines counted from diff):\n\n1. Step 3 line `if not isinstance(value, int) or value < 0:` (~line 45) — `isinstance(True, int)` is True, so boolean values pass the \"exact int\" check. Executor case `boolean_must_not_replace_valid` confirms the bug: a later `v: true` clobbered valid 12 with `true`. Spec forbids bool and forbids clobbering valid values.\n\n2. Step 1 line `record.get('dvm') if isinstance(record.get('dvm'), int) ... else None` (~line 24) — same bool gap. Executor case `boolean_total_unknown` confirms: `dvm: true` produced `total_bytes: true`.\n\n3. Step 4 rule gate `if rule:` (~line 63) — non-empty but non-string rules pass. Executor case `ignore_non_string_rule` (`rule: [\"bad\"]`) raised TypeError from `set.add` (unhashable list). Spec requires string rules only.\n\nPassing checks (per executor output): actual_b70_capture, identity_after_metrics (two-pass works), sorted_unique_string_rules, zero_last_valid_and_wrong_source (zero preserved, DXGI mislabeled as adapter name ignored, -1 ignored, null row ignored), missing_metrics_unknown. No I/O, no tests, single file, sorted output, free_bytes=None.\n\nNote: the current worktree file differs (header \"OMEN candidate b2ab223\" with `type(...) is int` and `isinstance(rule, str)` fixes) — per instructions I reviewed the captured candidate only; the later fixes do not count.\n\nRequired fixes in the candidate: reject `bool` for `v` and `dvm` (e.g. `type(value) is int` or an explicit `isinstance(value, bool)` guard), and gate rules with `isinstance(rule, str)`. Re-run the full case list after fixing.",
+  "metadata": {
+    "model": "am4-dense-27b",
+    "reviewer": "hermes",
+    "elapsed_s": 46.676,
+    "run_budget_s": 60,
+    "source": "unedited Hermes final assistant message",
+    "message_id": 11,
+    "kv_reused": false
+  }
+}

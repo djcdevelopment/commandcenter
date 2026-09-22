@@ -1,0 +1,107 @@
+{
+  "schema": "fleet-capacity-observation.v1",
+  "captured_at": "2026-09-21T08:15:12.226053+00:00",
+  "advisory_only": true,
+  "new_model_placement_authorized": false,
+  "observations": {
+    "omen_worker": {
+      "observed_from": "2026-09-21T08:15:09.436037+00:00",
+      "observed_until": "2026-09-21T08:15:09.969003+00:00",
+      "ttl_s": 30,
+      "available": true,
+      "data": {
+        "backend": "omen-arc",
+        "model": "qwen3-30b-a3b",
+        "physical_resource": "omen:127.0.0.1:8082",
+        "observed_at": "2026-09-21T08:15:09.881350+00:00",
+        "ready": true,
+        "context_length": 16384,
+        "parallel_slots": 8,
+        "busy_slots": 0,
+        "free_slots": 8,
+        "reason": "native resident verified"
+      }
+    },
+    "omen_b70": {
+      "observed_from": "2026-09-21T08:15:09.436539+00:00",
+      "observed_until": "2026-09-21T08:15:12.225053+00:00",
+      "ttl_s": 30,
+      "available": true,
+      "data": {
+        "source": "b70tools",
+        "adapters": [
+          {
+            "adapter_id": "adapter_7aeb2dbb",
+            "bdf": "0000:04:00.0",
+            "name": "Intel(R) Arc(TM) Pro B70 Graphics",
+            "total_bytes": 34139537408,
+            "adapter_local_committed_bytes": 15650217984,
+            "adapter_non_local_committed_bytes": 15089664,
+            "observer_process_local_bytes": 4096,
+            "free_bytes": null,
+            "disagreement_rules": [
+              "impossible_heap_budget"
+            ]
+          },
+          {
+            "adapter_id": "adapter_7aec453d",
+            "bdf": "0000:09:00.0",
+            "name": "Intel(R) Arc(TM) Pro B70 Graphics",
+            "total_bytes": 34139537408,
+            "adapter_local_committed_bytes": 16578236416,
+            "adapter_non_local_committed_bytes": 343425024,
+            "observer_process_local_bytes": 4096,
+            "free_bytes": null,
+            "disagreement_rules": [
+              "impossible_heap_budget"
+            ]
+          }
+        ],
+        "raw_path": "C:\\Users\\derek\\.fleet-scheduler\\capacity\\b70-ullwx9kp\\events.jsonl",
+        "raw_sha256": "95ec60550a8961c81d350a776ae6e7e93e8ae124852d9dc41de193ced8b28971",
+        "field_sources": {
+          "total_bytes": "DXGI identity: physical dedicated capacity, not available memory",
+          "adapter_local_committed_bytes": "PDH_AdapterMemory: adapter-wide committed",
+          "adapter_non_local_committed_bytes": "PDH_AdapterMemory: adapter-wide non-local committed",
+          "observer_process_local_bytes": "DXGI_VideoMemoryInfo: observer process only",
+          "free_bytes": "unknown: no qualified SYCL-aware free-memory measurement"
+        },
+        "warnings": [
+          "PDH has historically undercounted SYCL allocations.",
+          "Process budgets/usage are not adapter-free memory.",
+          "Three ticks include only one slow memory sample; no trend or spill verdict."
+        ],
+        "allocation_permission": false
+      }
+    },
+    "am4_nvidia": {
+      "observed_from": "2026-09-21T08:15:09.436539+00:00",
+      "observed_until": "2026-09-21T08:15:09.726813+00:00",
+      "ttl_s": 30,
+      "available": true,
+      "data": {
+        "source": "nvidia-smi",
+        "scope": "adapter",
+        "adapters": [
+          {
+            "name": "NVIDIA GeForce RTX 5070",
+            "uuid": "GPU-a1f65cc0-44d9-7854-6785-7d93e686da2f",
+            "total_mib": 12227,
+            "used_mib": 88,
+            "free_mib": 11685,
+            "utilization_pct": 0
+          },
+          {
+            "name": "NVIDIA GeForce RTX 4070 Ti",
+            "uuid": "GPU-dafbdbfc-23af-0c97-112d-dc17695c2aa8",
+            "total_mib": 12282,
+            "used_mib": 15,
+            "free_mib": 11862,
+            "utilization_pct": 0
+          }
+        ],
+        "allocation_permission": false
+      }
+    }
+  }
+}

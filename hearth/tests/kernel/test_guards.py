@@ -129,6 +129,15 @@ class ExtraKnowledgeReadersTest(unittest.TestCase):
         with self.assertRaises(GuardRejection):
             self.guards.check("fs_write", {"path": "knowledge/findings.json", "content": "{}"})
 
+    def test_reexported_knowledge_tools_keep_their_guard_registration(self):
+        from hearth.kernel.gateway import wire_knowledge_guards
+        from hearth.toolsurface.hermes_operator import get_tools
+        wire_knowledge_guards(self.guards, {"hearth.toolsurface.hermes_operator": get_tools()})
+        self.guards.check("query_knowledge", {"knowledge_dir": "knowledge"})
+        self.guards.check("query_beliefs_summary", {"knowledge_dir": "knowledge"})
+        with self.assertRaises(GuardRejection):
+            self.guards.check("read_file", {"path": "knowledge/am4_gpu_catalog.json"})
+
 
 if __name__ == "__main__":
     unittest.main()

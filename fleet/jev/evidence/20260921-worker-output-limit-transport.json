@@ -1,0 +1,13 @@
+{
+  "installed_transport_execution": true,
+  "transport_replaced_by_spy": true,
+  "model_inference": false,
+  "max_tokens_forwarded": 4096,
+  "requested_limit_logged": 4096,
+  "backend_unchanged": true,
+  "model_unchanged": true,
+  "return_text_unchanged": true,
+  "interpreter": "/home/claude/fleet-worker-node/.venv/bin/python",
+  "initial_probe_used_wrong_system_python": true,
+  "process_arg_interpreter_discovery_failed": true
+}

@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://commandcenter.local/hearth/contracts/authority.v1.schema.json",
+  "title": "Authority (caller-specific evaluation, never merged into a snapshot)",
+  "description": "What THIS caller may do, evaluated against the compiled catalog and the policy version. Evaluation only: approval never adds a capability, so a denied authority cannot become granted. Written only to the noncanonical per-caller location; never to CURRENT.json and never into a capacity snapshot.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "caller", "capabilities_granted", "evaluated_against", "authorities"],
+  "properties": {
+    "contract_version": {"const": "authority.v1"},
+    "caller": {
+      "oneOf": [
+        {"type": "null",
+         "description": "No identity presented: every authority is denied with reason no_identity."},
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["id", "profile", "runner_class", "node"],
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "profile": {"type": ["string", "null"]},
+            "runner_class": {"type": "string"},
+            "node": {"type": "string"}
+          }
+        }
+      ]
+    },
+    "capabilities_granted": {"type": "array", "items": {"type": "string"}},
+    "evaluated_against": {
+      "type": "object", "additionalProperties": false,
+      "required": ["catalog_version", "policy_version"],
+      "properties": {
+        "catalog_version": {"$ref": "#/$defs/identity"},
+        "policy_version": {"$ref": "#/$defs/identity",
+                           "description": "sha256 of the canonical JSON of {authority-map.toml sha256, profiles.toml sha256}."}
+      }
+    },
+    "authorities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["read_repo", "write_worktree", "run_tests", "call_door_generate",
+                   "submit_mechnet_task", "create_build_request", "lease_gpu",
+                   "change_machine_or_network", "merge_push_deploy"],
+      "properties": {
+        "read_repo": {"$ref": "#/$defs/decision"},
+        "write_worktree": {"$ref": "#/$defs/decision"},
+        "run_tests": {"$ref": "#/$defs/decision"},
+        "call_door_generate": {"$ref": "#/$defs/decision"},
+        "submit_mechnet_task": {"$ref": "#/$defs/decision"},
+        "create_build_request": {"$ref": "#/$defs/decision"},
+        "lease_gpu": {"$ref": "#/$defs/decision"},
+        "change_machine_or_network": {"$ref": "#/$defs/decision"},
+        "merge_push_deploy": {"$ref": "#/$defs/decision"}
+      }
+    },
+    "presentation": {"type": "object", "description": "Reserved; never part of an identity preimage."}
+  },
+  "$defs": {
+    "identity": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "decision": {
+      "type": "object", "additionalProperties": false,
+      "required": ["result", "required_capabilities", "missing_capabilities",
+                   "human_gate", "reason"],
+      "properties": {
+        "result": {"enum": ["granted", "human_required", "denied"]},
+        "required_capabilities": {"type": "array", "items": {"type": "string"}},
+        "missing_capabilities": {"type": "array", "items": {"type": "string"}},
+        "human_gate": {"type": "boolean"},
+        "reason": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

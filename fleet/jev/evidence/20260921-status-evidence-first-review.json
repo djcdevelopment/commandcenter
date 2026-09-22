@@ -1,0 +1,11 @@
+{
+  "report": "VERDICT: NEEDS_WORK — candidate is not mergeable as-is.\n\nBLOCKING FINDINGS (confirmed by AST inspection and pure-function execution of the candidate; executor: Codex, not me):\n\n1. Required functions missing. `connect_call` and `lap` are absent, yet `main()` calls `lap()` (line: `asyncio.run(lap())`), so `run-once`/`serve` raise NameError before doing any work. This violates the preserve-connect_call/lap requirement outright.\n\n2. Unsafe build labels accepted. `validate_build_id` uses `re.match(...)` without `$`/`\\Z`, so `\"br-20260921-071259-279d5a84\\nINJECTED\"` (newline-suffixed injection) is returned as valid. Executed: actual output equals the injected string, case failed.\n\n3. Nonfinite ages accepted. `validate_age` compares `observed_at < 0 or observed_at > time.time()` — NaN fails both comparisons and produces `age = time.time() - NaN = NaN`, rendered as \"nan\" seconds. Executed: input `NaN` → actual `\"nan\"`, case failed.\n\nNON-BLOCKING (passed): boolean pending count correctly rejected (true → \"unknown\"); malformed JSON falls back to a safe default; `--json` path prints raw status unchanged, preserving existing JSON behavior.\n\nNote: the sandbox repo target is a different version (C:/work/commandcenter-jev-scheduler); I did not substitute it. The findings above are against the exact captured candidate text provided.",
+  "metadata": {
+    "model": "am4-dense-27b",
+    "reviewer": "hermes",
+    "elapsed_s": 32.984,
+    "source": "unedited Hermes final assistant message",
+    "message_id": 11,
+    "kv_reused": false
+  }
+}

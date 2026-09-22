@@ -72,6 +72,7 @@ P2 / ADR-0045 — a rotating stateful host (OMEN, llama-swap)
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 from typing import Optional
 
 from ortools.sat.python import cp_model
@@ -150,7 +151,22 @@ def solve_schedule(
         return models.get(model_id)
 
     def _role_ok(job: Job, machine: Machine) -> bool:
-        return machine.roles is None or job.task_class in machine.roles
+        if job.requires_tools and machine.roles is not None and "inference" in machine.roles:
+            return False
+        if machine.roles is not None and job.task_class not in machine.roles:
+            return False
+        selected = _model_for(job, machine)
+        spec = _spec(selected) if selected else None
+        return (spec is None or spec.qualified_task_classes is None
+                or job.task_class in spec.qualified_task_classes)
+
+    def _model_for(job: Job, machine: Machine) -> Optional[str]:
+        if job.required_model:
+            return job.required_model
+        if not job.eligible_models:
+            return machine.runner_model
+        return next((str(option["model_id"]) for option in job.eligible_models
+                     if option.get("backend") == machine.backend), None)
 
     # Integer-second durations per (job, machine). A job with a saved KV slot on a
     # stateful machine pays the model's hydrate time inside its own interval.
@@ -158,9 +174,11 @@ def solve_schedule(
     kv_hydrate: dict[tuple[str, str], float] = {}
     for job in jobs:
         for machine in available:
-            secs = lookup_duration_s(job, machine, capacity, models)
-            if job.kv_state_available and machine.stateful and job.required_model:
-                spec = _spec(job.required_model)
+            selected_model = _model_for(job, machine)
+            duration_job = replace(job, required_model=selected_model) if selected_model else job
+            secs = lookup_duration_s(duration_job, machine, capacity, models)
+            if job.kv_state_available and machine.stateful and selected_model:
+                spec = _spec(selected_model)
                 if spec is not None and spec.kv_hydrate_s:
                     secs += float(spec.kv_hydrate_s)
                     kv_hydrate[(job.plan_id, machine.name)] = float(spec.kv_hydrate_s)
@@ -211,11 +229,11 @@ def solve_schedule(
     requested_as: dict[tuple[str, str], set[str]] = {}
     exclusive_refusals: set[tuple[str, str]] = set()
     for job in jobs:
-        raw_name = job.required_model
-        if not raw_name:
-            continue
-        M = _canon(raw_name)
         for machine in available:
+            raw_name = _model_for(job, machine)
+            if not raw_name:
+                continue
+            M = _canon(raw_name)
             if machine.name not in stateful or _is_resident(machine, M):
                 continue
             if not _role_ok(job, machine) or not _loadable(machine, M):
@@ -245,8 +263,14 @@ def solve_schedule(
     # Per (job, machine): presence literal + optional interval; per job: start/end.
     presence: dict[tuple[str, str], cp_model.IntVar] = {}
     intervals_by_machine: dict[str, list] = {m.name: [] for m in available}
+    demands_by_machine: dict[str, list[int]] = {m.name: [] for m in available}
+    intervals_by_resource: dict[str, list] = {}
+    demands_by_resource: dict[str, list[int]] = {}
     job_start: dict[str, cp_model.IntVar] = {}
     job_end: dict[str, cp_model.IntVar] = {}
+
+    def _resource_key(machine: Machine) -> Optional[str]:
+        return machine.decode_host or machine.backend
 
     for job in jobs:
         start = model.NewIntVar(0, horizon, f"start_{job.plan_id}")
@@ -262,20 +286,19 @@ def solve_schedule(
         # (catalog absent) -> nothing to enforce against; degrade to stateless
         # behavior rather than INFEASIBLE. Roles apply to every job: a machine
         # that declares them only takes the task classes it lists.
-        if job.required_model and stateful:
-            wanted = _canon(job.required_model)
+        if job.eligible_models or (job.required_model and stateful):
             eligible = [
                 m for m in available
-                if m.stateful and _role_ok(job, m) and (
-                    _is_resident(m, wanted)
-                    or (job.required_model in models
-                        and (m.name, wanted) in load_pairs)
+                if m.stateful and _role_ok(job, m) and _model_for(job, m) and (
+                    _is_resident(m, _model_for(job, m))
+                    or (_model_for(job, m) in models
+                        and (m.name, _canon(_model_for(job, m))) in load_pairs)
                 )
             ]
             if not eligible:
                 notes.append(
-                    f"{job.plan_id}: no stateful machine can serve required_model "
-                    f"{job.required_model!r}")
+                    f"{job.plan_id}: no stateful machine can serve model choices "
+                    f"{job.required_model or job.eligible_models!r}")
                 return ScheduleProposal([], 0.0, 0, "INFEASIBLE", 0.0, notes=notes)
         else:
             eligible = [m for m in available if _role_ok(job, m)]
@@ -297,6 +320,11 @@ def solve_schedule(
             interval = model.NewOptionalIntervalVar(
                 m_start, dur, m_end, lit, f"iv_{job.plan_id}_{machine.name}")
             intervals_by_machine[machine.name].append(interval)
+            demands_by_machine[machine.name].append(1)
+            resource = _resource_key(machine)
+            if resource:
+                intervals_by_resource.setdefault(resource, []).append(interval)
+                demands_by_resource.setdefault(resource, []).append(1)
             # When this machine is chosen, the job's start/end equal this interval's.
             model.Add(start == m_start).OnlyEnforceIf(lit)
             model.Add(end == m_end).OnlyEnforceIf(lit)
@@ -317,7 +345,7 @@ def solve_schedule(
         machine = by_name[mname]
         # jobs that would need model M on machine mname
         needing = [j for j in jobs
-                   if j.required_model and _canon(j.required_model) == M
+                   if _model_for(j, machine) and _canon(_model_for(j, machine)) == M
                    and (j.plan_id, mname) in presence]
         if not needing:  # no eligible job could land here; no load needed
             continue
@@ -340,15 +368,38 @@ def solve_schedule(
         load_iv = model.NewOptionalIntervalVar(ls, setup, le, used, f"ldiv_{mname}_{M}")
         # A load occupies the machine (it cannot run a job while streaming a model).
         intervals_by_machine[mname].append(load_iv)
+        demands_by_machine[mname].append(max(1, machine.parallel_slots))
+        resource = _resource_key(machine)
+        if resource:
+            intervals_by_resource.setdefault(resource, []).append(load_iv)
+            demands_by_resource.setdefault(resource, []).append(max(1, machine.parallel_slots))
         loads_by_host.setdefault(_host_key(machine), []).append((load_iv, used))
 
         # Every job needing M on this machine starts at/after the load end.
         for j in needing:
             model.Add(job_start[j.plan_id] >= le).OnlyEnforceIf(presence[(j.plan_id, mname)])
 
-    # no-overlap per machine (job-shop: one job — or one load — at a time)
+    # Serving slots let one inference host run measured concurrent requests.
+    # A model load claims every slot; builders remain one task per VM.
     for machine in available:
-        model.AddNoOverlap(intervals_by_machine[machine.name])
+        slots = max(1, int(machine.parallel_slots))
+        intervals = intervals_by_machine[machine.name]
+        if slots == 1:
+            model.AddNoOverlap(intervals)
+        else:
+            model.AddCumulative(intervals, demands_by_machine[machine.name], slots)
+
+    # Builder VMs that decode on the same physical GPU host contend with direct
+    # calls, even if they name different API rungs. VM shells add no GPU slots.
+    for resource, intervals in intervals_by_resource.items():
+        users = [m for m in available if _resource_key(m) == resource]
+        slots = max((m.parallel_slots for m in users), default=1)
+        if len(intervals) < 2:
+            continue
+        if slots == 1:
+            model.AddNoOverlap(intervals)
+        else:
+            model.AddCumulative(intervals, demands_by_resource[resource], slots)
 
     # --- P2 exclusive groups (v1): at most one member of a group loads per machine.
     groups: dict[tuple[str, str], list] = {}
@@ -420,10 +471,14 @@ def solve_schedule(
                 chosen_cards = card_indices
                 card_lits = {}
                 for ci in card_indices:
+                    measured = (spec.card_charges_gb or {}).get(ci) if spec else None
+                    card_charge = int(round((measured if measured is not None
+                                             else (spec.card_charge_gb() if spec else 0.0))
+                                            * _GB_SCALE))
                     if loaded_lit is None:
-                        card_terms[ci].append(charge_scaled)  # constant
+                        card_terms[ci].append(card_charge)  # constant
                     else:
-                        card_terms[ci].append(charge_scaled * loaded_lit)
+                        card_terms[ci].append(card_charge * loaded_lit)
                 residency_plan[machine.name][M] = {
                     "placement": "dual", "cards": chosen_cards,
                     "loaded_lit": loaded_lit, "card_lits": None,
@@ -442,6 +497,10 @@ def solve_schedule(
                 else:
                     # on exactly one card iff loaded, none otherwise.
                     model.Add(sum(per_card.values()) == loaded_lit)
+                if spec and spec.fixed_card_index is not None:
+                    for ci, selected in per_card.items():
+                        if ci != spec.fixed_card_index:
+                            model.Add(selected == 0)
                 residency_plan[machine.name][M] = {
                     "placement": "single", "cards": None,
                     "loaded_lit": loaded_lit, "card_lits": per_card,
@@ -520,6 +579,11 @@ def solve_schedule(
                     "start_s": float(start_s),
                     "end_s": float(end_s),
                 }
+                if machine.backend:
+                    row["backend"] = machine.backend
+                chosen_model = _model_for(job, machine)
+                if chosen_model:
+                    row["model_id"] = chosen_model
                 if key in kv_hydrate:
                     row["kv_hydrate_s"] = kv_hydrate[key]
                 assignments.append(row)

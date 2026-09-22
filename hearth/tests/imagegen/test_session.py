@@ -22,6 +22,20 @@ class _Gate:
 
 
 class ImageSessionPrecheckTest(unittest.TestCase):
+    def test_experiment_owner_cannot_be_started_or_stopped_by_image_actions(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {"HEARTH_IMAGEGEN_HANDOFF": temporary}):
+            store = GpuTenancyStore(Path(temporary) / "coord.sqlite")
+            owner = store.acquire(resource="omen-b70-pool", owner="experiment", session_id="exp", ttl_seconds=1, now=1)
+            controller = ImageSessionController(store=store, autostart=False,
+                agent_status=lambda: AgentStatus(False, None, "missing", None),
+                agent_start=lambda: self.fail("image worker must not start"), gate_probe=lambda: _Gate(False))
+            try:
+                self.assertFalse(controller.start()["ok"])
+                self.assertTrue(controller.stop()["already_stopped"])
+                self.assertEqual(store.active_owner(now=99999).epoch, owner.epoch)
+                self.assertEqual(store.active_owner(now=99999).owner, "experiment")
+            finally:
+                controller.close()
     def test_refuses_before_fencing_when_interactive_agent_is_missing(self) -> None:
         with tempfile.TemporaryDirectory() as temporary, patch.dict(
             os.environ, {"HEARTH_IMAGEGEN_HANDOFF": temporary}

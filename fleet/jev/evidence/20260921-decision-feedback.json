@@ -1,0 +1,60 @@
+{
+  "installed": {
+    "installed": [
+      "/home/derek/.local/state/fleet-scheduler/quality-history.json"
+    ]
+  },
+  "before_sha256": "33dc5b422652d6ece1aa33bba66bf70f68fa96237adbffdc92fbf5627285bc92",
+  "after_sha256": "a53c5a2582e03f7027b469f25a59126c827c8fc465335ccd4b781963eb89a2df",
+  "observed": {
+    "quality": {
+      "available": true,
+      "tasks": 12,
+      "authored": 10,
+      "unmodified_delivery": 1,
+      "assisted_delivery": 8,
+      "rejected": 0,
+      "incomplete": 1,
+      "not_run": 2,
+      "invalid_records": 0,
+      "profile": "omen-resident-hearth",
+      "history_sha256": "a53c5a2582e03f7027b469f25a59126c827c8fc465335ccd4b781963eb89a2df",
+      "scope": "Operator-verified selected task subset; not inference success or a benchmark."
+    },
+    "decision": {
+      "available": true,
+      "state": "dispatched",
+      "candidate_id": "ebfe24b1b309b4eb001a4237cbe0d579",
+      "quality_history_sha256": "33dc5b422652d6ece1aa33bba66bf70f68fa96237adbffdc92fbf5627285bc92",
+      "judgments": [
+        {
+          "candidate_id": "ebfe24b1b309b4eb001a4237cbe0d579",
+          "score": 2.98,
+          "confidence": 0.98,
+          "ambiguity": 0.16,
+          "eligible": true
+        }
+      ],
+      "fit_is_correctness": false
+    },
+    "status": {
+      "scheduler": "ready",
+      "gpu_reservation": false,
+      "active_build": null,
+      "pending_reviews": 0,
+      "reviewer": "unloaded",
+      "wait_reason": "no_admissible_ready_task",
+      "observed_at": 1789993945.195559,
+      "next_poll_s": 30
+    }
+  },
+  "am4": {
+    "ok": true,
+    "owner": null,
+    "model_resident": false,
+    "native_context": null,
+    "kv_enabled": false
+  },
+  "next_jev_decision_with_updated_history": "not_sampled",
+  "daemon_restarted": false
+}

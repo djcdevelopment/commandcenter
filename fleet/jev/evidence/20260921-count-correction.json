@@ -1,0 +1,72 @@
+{
+  "executor": "Codex-supplied independent execution, not Hermes",
+  "baseline_commit": "d69d8685f153962ae1ef1ad987d34efdec8470ba",
+  "candidate_sha256": "232bd6a6ce700ac64c26e40c901cad4e917254b19a413a1bb6c31aea20cc324c",
+  "cases": [
+    {
+      "name": "legacy_empty_state_byte_equal",
+      "input": {},
+      "expected": "Controller: FX99 -> AM4 / am4-dense-27b: not ready\nController capacity: unknown tokens per slot; unknown physical slots; unknown busy\nWorker: OMEN / omen-arc / qwen3-30b-a3b: not ready; unknown tokens per slot; unknown/unknown/unknown total/busy/free slots\nAt most 2 OMEN builders; manual review; no cloud or AM4 worker fallback.\n",
+      "actual": "Controller: FX99 -> AM4 / am4-dense-27b: not ready\nController capacity: unknown tokens per slot; unknown physical slots; unknown busy\nWorker: OMEN / omen-arc / qwen3-30b-a3b: not ready; unknown tokens per slot; unknown/unknown/unknown total/busy/free slots\nAt most 2 OMEN builders; manual review; no cloud or AM4 worker fallback.\n",
+      "passed": true
+    },
+    {
+      "name": "boolean_counts",
+      "input": {
+        "scheduler": {
+          "ready": true,
+          "active_work": true,
+          "pending_reviews": false,
+          "wait_reason": "idle"
+        },
+        "reviewer": {
+          "state": "unloaded"
+        }
+      },
+      "expected_work_line": "Scheduler work: active unknown; pending review unknown; wait idle",
+      "actual": "Scheduler: FX99 / JEV: ready; CPU only\nReviewer: Hermes / AM4: intentionally unloaded; that is not a scheduler failure\nScheduler work: active unknown; pending review unknown; wait idle\nWorker: OMEN / omen-arc / qwen3-30b-a3b: not ready; unknown tokens per slot; unknown/unknown/unknown total/busy/free slots\nAt most 2 OMEN builders; manual review; no cloud or AM4 worker fallback.\n",
+      "passed": true
+    },
+    {
+      "name": "integer_counts",
+      "input": {
+        "scheduler": {
+          "ready": true,
+          "active_work": 0,
+          "pending_reviews": 2,
+          "wait_reason": "work_in_progress"
+        },
+        "reviewer": {
+          "state": "unloaded"
+        }
+      },
+      "expected_work_line": "Scheduler work: active 0; pending review 2; wait work_in_progress",
+      "actual": "Scheduler: FX99 / JEV: ready; CPU only\nReviewer: Hermes / AM4: intentionally unloaded; that is not a scheduler failure\nScheduler work: active 0; pending review 2; wait work_in_progress\nWorker: OMEN / omen-arc / qwen3-30b-a3b: not ready; unknown tokens per slot; unknown/unknown/unknown total/busy/free slots\nAt most 2 OMEN builders; manual review; no cloud or AM4 worker fallback.\n",
+      "passed": true
+    },
+    {
+      "name": "invalid_counts_and_label",
+      "input": {
+        "scheduler": {
+          "ready": true,
+          "active_work": -1,
+          "pending_reviews": "2",
+          "wait_reason": "unsafe\nlabel"
+        },
+        "reviewer": {
+          "state": "unloaded"
+        }
+      },
+      "expected_work_line": "Scheduler work: active unknown; pending review unknown; wait unknown",
+      "actual": "Scheduler: FX99 / JEV: ready; CPU only\nReviewer: Hermes / AM4: intentionally unloaded; that is not a scheduler failure\nScheduler work: active unknown; pending review unknown; wait unknown\nWorker: OMEN / omen-arc / qwen3-30b-a3b: not ready; unknown tokens per slot; unknown/unknown/unknown total/busy/free slots\nAt most 2 OMEN builders; manual review; no cloud or AM4 worker fallback.\n",
+      "passed": true
+    }
+  ],
+  "verdict": "PASS",
+  "attribution": "Prior OMEN candidate 428aaed3405f5e123f21e6f02055a0045de66f8c; two count-check corrections and integration by Codex. No worker or Hermes run occurred in this lap.",
+  "live_task_id": "jev-eac82cbcffb2b9b84261c58b",
+  "live_outcome": "held_before_dispatch_jev_http_529",
+  "new_api_attempts": 2,
+  "confirmed_new_usage": null,
+  "uncertain_charge_reserved_usd": 0.005505024
+}

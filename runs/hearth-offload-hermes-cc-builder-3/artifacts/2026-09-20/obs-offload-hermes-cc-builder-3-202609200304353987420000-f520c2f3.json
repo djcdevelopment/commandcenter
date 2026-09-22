@@ -1,0 +1,30 @@
+{
+  "contract_version": "capacity-observation.v1",
+  "observation_id": "obs-offload-hermes-cc-builder-3-202609200304353987420000-f520c2f3",
+  "decision_id": null,
+  "workflow_id": "wf-hearth-offload-hermes-cc-builder-3",
+  "run_id": "hearth-offload-hermes-cc-builder-3",
+  "timestamp": "2026-09-20T03:04:35.398742+00:00",
+  "builder_id": "omen",
+  "model_id": "qwen3-30b-a3b",
+  "backend": "omen-arc",
+  "hardware_profile_id": "omen-285k-dual-b70-2026H2",
+  "workload_shape": {
+    "task_kind": "offload-generate",
+    "estimated_context_tokens": 2084,
+    "requires_gpu": null,
+    "notes": "routed_by=pinned:omen-arc; occupancy=available; runtime_s is wall-clock; rung_state: omen-arc unreachable; pool=7d1f6592ffc8"
+  },
+  "observed": {
+    "runtime_s": 3.531,
+    "ttft_s": null,
+    "tokens_per_s": 51.26,
+    "ram_gb_peak": null,
+    "vram_gb_peak": null,
+    "context_tokens": 2284,
+    "physical": null
+  },
+  "outcome": "success",
+  "failure_class": null,
+  "promotion_status": null
+}

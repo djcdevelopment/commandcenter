@@ -1,0 +1,89 @@
+{
+  "executor": "Codex focused offline replay, no inference or new test files",
+  "checks": [
+    {
+      "name": "ordinary_source_phrase_1",
+      "old_preserved": false,
+      "new_preserved": true
+    },
+    {
+      "name": "ordinary_source_phrase_2",
+      "old_preserved": false,
+      "new_preserved": true
+    },
+    {
+      "name": "ordinary_source_phrase_3",
+      "old_preserved": false,
+      "new_preserved": true
+    },
+    {
+      "name": "ordinary_source_phrase_4",
+      "old_preserved": false,
+      "new_preserved": true
+    },
+    {
+      "name": "synthetic_standalone",
+      "matches_prior_redaction": true,
+      "redacted": true
+    },
+    {
+      "name": "synthetic_quoted",
+      "matches_prior_redaction": true,
+      "redacted": true
+    },
+    {
+      "name": "synthetic_assignment",
+      "matches_prior_redaction": true,
+      "redacted": true
+    },
+    {
+      "name": "synthetic_bearer",
+      "matches_prior_redaction": true,
+      "redacted": true
+    },
+    {
+      "name": "synthetic_url_parameter",
+      "matches_prior_redaction": true,
+      "redacted": true
+    },
+    {
+      "name": "synthetic_path_component",
+      "matches_prior_redaction": true,
+      "redacted": true
+    },
+    {
+      "name": "synthetic_newline",
+      "matches_prior_redaction": true,
+      "redacted": true
+    },
+    {
+      "name": "synthetic_parentheses",
+      "matches_prior_redaction": true,
+      "redacted": true
+    },
+    {
+      "name": "synthetic_ya29_prefix",
+      "matches_prior_redaction": true,
+      "redacted": true
+    },
+    {
+      "name": "synthetic_github_prefix",
+      "matches_prior_redaction": true,
+      "redacted": true
+    },
+    {
+      "name": "synthetic_slack_prefix",
+      "matches_prior_redaction": true,
+      "redacted": true
+    }
+  ],
+  "sensitive_dictionary_values_redacted_in_full": true,
+  "recursive_redaction_and_input_immutability": true,
+  "entire_real_renderer_source_preserved": true,
+  "renderer_source_sha256": "ba8a77e88564a4d31a9cd554d9ff016a40b5ba55f38260545096fd96cc9d723c",
+  "changed_scope": "Only sk-prefix recognition now requires a preceding non-identifier boundary; other token patterns and sensitive field-name behavior unchanged.",
+  "embedded_free_text_prefixed_identifier_matches_old": false,
+  "scope_limit": "A prefix concatenated directly inside an identifier is no longer recognized by this sk heuristic in unstructured text. Sensitive dictionary fields are still fully redacted. This is a proposed precision change, not a universal secret detector or live activation.",
+  "runtime_status": "source-only; cached pilot gateway still uses old rule",
+  "source_sha256": "d19facd2a5272daab5f1d930b3f339ee68ac74042c3da7edfdff91568c8ff034"
+}

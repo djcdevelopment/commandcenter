@@ -97,6 +97,9 @@ EXTRA_KNOWLEDGE_READERS = {
 # first, then a prefix match against TOOL_CLASS_PREFIXES). Unknown tools get
 # task_class=None rather than a guess.
 TOOL_CLASS: dict[str, str] = {
+    "scheduler_prepare": "dispatch",
+    "scheduler_select": "dispatch",
+    "scheduler_review": "dispatch",
     "local_generate": "inference",
     "submit_task": "dispatch",
     "task_status": "dispatch",
@@ -417,6 +420,17 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
 
         hearth.caller = caller
 
+        from hearth.kernel.governed_operator import check_governed_call
+        try:
+            check_governed_call(caller.ledger_profile, tool_name, kwargs)
+        except PermissionError as exc:
+            hearth.ledger.append(new_event(
+                caller.as_dict(), tool_name, args=None, ok=False, error=str(exc),
+                duration_ms=elapsed_ms(), task_id=task_id, task_class=task_class,
+                profile=caller.ledger_profile,
+            ))
+            raise
+
         try:
             guards.check(tool_name, kwargs)
         except GuardRejection as exc:
@@ -574,6 +588,13 @@ def wire_knowledge_guards(guards: GuardStack, providers: dict[str, list[Callable
     for module_name, tools in providers.items():
         if module_name.endswith(KNOWLEDGE_MODULE_SUFFIX):
             guards.register_knowledge_tools(fn.__name__ for fn in tools)
+        else:
+            # Restricted aggregators re-export the original provider functions.
+            # Preserve their verified knowledge-family origin; never grant the
+            # same access to generic read_file or other aggregate members.
+            guards.register_knowledge_tools(
+                fn.__name__ for fn in tools
+                if getattr(fn, "__module__", "").endswith(KNOWLEDGE_MODULE_SUFFIX))
     guards.register_knowledge_tools(EXTRA_KNOWLEDGE_READERS)
 
 
@@ -608,13 +629,32 @@ def register_profile_filtered_list_tools(mcp: FastMCP, auth: AuthRegistry,
         profile = auth.profile_for(caller)
         if profile is None:
             return tools
-        return [tool for tool in tools if check_tool_access(profile, tool.name)[0]]
+        from hearth.kernel.governed_operator import READ_TOOLS, WRITE_TOOLS
+        names = ({'local_generate','query_omen_worker'} if caller.ledger_profile=='hermes-worker'
+                 else {'scheduler_prepare','scheduler_select','scheduler_review'} if caller.ledger_profile=='jev-scheduler'
+                 else {'read_file','list_dir','glob_files','git_status','git_log'} if caller.ledger_profile=='hermes-reviewer'
+                 else READ_TOOLS | WRITE_TOOLS if caller.ledger_profile=='governed-operator'
+                 else None)
+        return [tool for tool in tools if check_tool_access(profile, tool.name)[0]
+                and (names is None or tool.name in names)]
+
+
+def _threaded_tool(fn):
+    """Opt-in for isolated listeners: preserve request context off the event loop."""
+    import asyncio
+    import functools
+
+    @functools.wraps(fn)
+    async def call(**kwargs):
+        return await asyncio.to_thread(fn, **kwargs)
+    return call
 
 
 def build_server(providers_spec: str = "", host: str = DEFAULT_HOST,
                  port: int = DEFAULT_PORT,
                  callers_path: Optional[Path | str] = None,
-                 ledger_dir: Optional[Path | str] = None) -> FastMCP:
+                 ledger_dir: Optional[Path | str] = None,
+                 threaded_tools: bool = False) -> FastMCP:
     """Assemble the gateway: ledger, auth, guards, built-in + provider tools."""
     ledger = Ledger(ledger_dir)
     hearth = HearthContext(repo_root=REPO_ROOT, ledger=ledger)
@@ -711,8 +751,10 @@ def build_server(providers_spec: str = "", host: str = DEFAULT_HOST,
             if fn.__name__ in registered:
                 log.warning("duplicate tool %s from %s skipped", fn.__name__, module_name)
                 continue
-            mcp.add_tool(make_wrapper(fn, hearth, auth, guards, key_provider,
-                                      task_id_provider))
+            wrapped = make_wrapper(fn, hearth, auth, guards, key_provider, task_id_provider)
+            if threaded_tools:
+                wrapped = _threaded_tool(wrapped)
+            mcp.add_tool(wrapped)
             registered.add(fn.__name__)
 
     # ADR-0019 §3: fail closed on an unclassified tool. Checked against the

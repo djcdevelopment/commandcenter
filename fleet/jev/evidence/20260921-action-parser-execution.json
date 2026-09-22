@@ -1,0 +1,206 @@
+{
+  "before": {
+    "source_sha256": "e59652793337f4e97d56af2e372484ffde7e4a2db2b8e4440fc2782ba49f75f9",
+    "cases": [
+      {
+        "name": "ordinary_assignment",
+        "complete_json": true,
+        "old_parser_exact_match": true
+      },
+      {
+        "name": "opening_brace_literal",
+        "complete_json": true,
+        "old_parser_exact_match": false
+      },
+      {
+        "name": "closing_brace_literal",
+        "complete_json": true,
+        "old_parser_exact_match": false
+      }
+    ],
+    "claim": "This independent parser defect is not the previously proven output-truncation cause."
+  },
+  "codex_initial_checks": {
+    "captured_at": "2026-09-21T11:17:16.756404+00:00",
+    "executor": "Codex direct integration and focused replay; not model-authored",
+    "source_sha256": "ddc92820493454f7fbb3d3c5728e03c06ce029c97e40234b41e6639a9321b7fd",
+    "cases": [
+      {
+        "name": "opening_brace_literal",
+        "passed": true
+      },
+      {
+        "name": "closing_brace_literal",
+        "passed": true
+      },
+      {
+        "name": "escaped_quote_backslash_and_nested",
+        "passed": true
+      },
+      {
+        "name": "prose_surrounded",
+        "passed": true
+      },
+      {
+        "name": "fence_preferred",
+        "passed": true
+      },
+      {
+        "name": "plain_code_fence",
+        "passed": true
+      },
+      {
+        "name": "truncated_write",
+        "passed": true
+      },
+      {
+        "name": "empty_text",
+        "passed": true
+      },
+      {
+        "name": "nonaction_object",
+        "passed": true
+      },
+      {
+        "name": "scalar",
+        "passed": true
+      },
+      {
+        "name": "array",
+        "passed": true
+      },
+      {
+        "name": "array_wrapped_action",
+        "passed": false
+      },
+      {
+        "name": "transport_ast_unchanged",
+        "passed": true
+      },
+      {
+        "name": "cli_option_unchanged",
+        "passed": true
+      }
+    ]
+  },
+  "integrated": {
+    "checked_at": "2026-09-21T11:18:37.988343+00:00",
+    "executor": "Codex direct integration and focused replay, not model authorship",
+    "source_sha256": "9c3dec010663bd52b8f0b3352424a258d0982bfeb6422664c61d7aa3012a66d1",
+    "cases": [
+      {
+        "name": "opening_brace_literal",
+        "passed": true
+      },
+      {
+        "name": "closing_brace_literal",
+        "passed": true
+      },
+      {
+        "name": "escaped_quote_backslash_and_nested",
+        "passed": true
+      },
+      {
+        "name": "prose_surrounded",
+        "passed": true
+      },
+      {
+        "name": "fence_preferred",
+        "passed": true
+      },
+      {
+        "name": "plain_code_fence",
+        "passed": true
+      },
+      {
+        "name": "truncated_write",
+        "passed": true
+      },
+      {
+        "name": "empty_text",
+        "passed": true
+      },
+      {
+        "name": "nonaction_object",
+        "passed": true
+      },
+      {
+        "name": "scalar",
+        "passed": true
+      },
+      {
+        "name": "array",
+        "passed": true
+      },
+      {
+        "name": "array_wrapped_action",
+        "passed": true
+      },
+      {
+        "name": "nested_without_top_action",
+        "passed": true
+      },
+      {
+        "name": "malformed_outer_with_nested_action",
+        "passed": true
+      },
+      {
+        "name": "transport_ast_unchanged",
+        "passed": true
+      },
+      {
+        "name": "cli_option_unchanged",
+        "passed": true
+      },
+      {
+        "name": "full_module_syntax",
+        "passed": true
+      }
+    ],
+    "limit": "Fails closed on an incomplete JSON-looking container; does not salvage nested commands. Not a benchmark or exhaustive parser proof."
+  },
+  "deployed": {
+    "before": {
+      "adapter": "f664a3967c4ce42d32d2c9be61241a848b94647b6c7e6341f44374018da6cdb3",
+      "original_runner": "9f6d134922e4d63c199eb717ed43474e63d13b37321a2a72c30bde6b5e50d575",
+      "default_runner": "7718d852af0181b02aaee72bcd433a53b82f17588f13505eb4b489ecbe16e79d"
+    },
+    "after": {
+      "adapter": "9c3dec010663bd52b8f0b3352424a258d0982bfeb6422664c61d7aa3012a66d1",
+      "original_runner": "9f6d134922e4d63c199eb717ed43474e63d13b37321a2a72c30bde6b5e50d575",
+      "default_runner": "7718d852af0181b02aaee72bcd433a53b82f17588f13505eb4b489ecbe16e79d"
+    },
+    "installed": {
+      "installed": [
+        "/home/claude/fleet-worker-node/scripts/agent_hearth.py"
+      ]
+    },
+    "host": "cc-builder-2",
+    "backup_suffix": ".jev-json-parser-20260921.backup",
+    "restarted": false,
+    "other_worker_deployed": false,
+    "active_pilot_tasks_before": 0
+  },
+  "live_replay": {
+    "workspace": "/home/claude/farmer-workspace/parser-cycle17-48grprh_",
+    "cases": [
+      {
+        "name": "opening",
+        "old_parser_accepted": false,
+        "new_parser_accepted": true,
+        "written_content_exact": true,
+        "finished": false,
+        "sha256": "2d90359f30fc279c9287682d3c169d805a2dd70a2a09006a3f57d751600ad100"
+      },
+      {
+        "name": "closing",
+        "old_parser_accepted": false,
+        "new_parser_accepted": true,
+        "written_content_exact": true,
+        "finished": false,
+        "sha256": "0db8adddedaa3cb76da9c1f5a4abc433b38b91989723e902b1b7284743399a15"
+      }
+    ],
+    "transport_output_default": 4096
+  }
+}

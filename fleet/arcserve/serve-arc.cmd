@@ -34,6 +34,8 @@ rem
 rem ROLLBACK: copy serve-arc-direct.cmd over this file, drop hearth\var\arc-maintenance.stop, run
 rem ArcServeRestart (stop-only), delete the sentinel, then schtasks /Run /TN ArcServeBoot.
 
+C:\work\commandcenter\fleet-worker-node\.venv-omen\Scripts\python.exe C:\work\commandcenter\hearth\execution\maintenance.py
+if errorlevel 1 exit /b 0
 call C:\work\commandcenter\hearth\var\gateway.cmd
 rem STEP 2 of 2 (2026-08-24): opt in to the widened mul_mat_vec crossover (inert at -np 2; arms
 rem the moment -np rises; clamps silently above 16).

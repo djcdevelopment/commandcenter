@@ -2,3 +2,7 @@
 # CRLF in a script breaks its shebang, so pin them to LF regardless of the
 # checkout platform.
 *.sh text eol=lf
+# Preserve deployed-source fingerprints and byte-exact archived observations.
+fleet/hermes/remote/** text eol=lf
+am4-fleet-node/scripts/oxen-facade.py text eol=lf
+artifacts/hermes-fx99/deployment-baseline/** -text -whitespace

@@ -1,0 +1,22 @@
+{
+  "session": {
+    "id": "20260920_014451_11042a",
+    "model": "am4-dense-27b",
+    "started_at": 1789868695.250438,
+    "ended_at": 1789868749.3313725,
+    "message_count": 10,
+    "tool_call_count": 4,
+    "input_tokens": 8610,
+    "output_tokens": 1151,
+    "cache_read_tokens": 19314,
+    "api_call_count": 5
+  },
+  "final_messages": [
+    {
+      "id": 40,
+      "role": "assistant",
+      "content": "receipt_id br-20260920-014532-19828821\nplan_id hearth-hermes-br-20260920-014532-19828821-2115d229\nstatus running (delegated to fleet task lane, submitted 2026-09-20T01:45:41Z)\nbuilders cc-builder-2, cc-builder-3 | backend am4-dense | preset am4-shared-27b | max_age_s 300 | promotion manual\n\nDispatched once. No polling per instructions.",
+      "tool_calls": null
+    }
+  ]
+}

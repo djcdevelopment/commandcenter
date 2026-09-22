@@ -1,0 +1,21 @@
+{
+  "report": "PASS\n1. All registry claims (loop/harness status, operator TTL, pilot constants) match the supplied evidence exactly.\n2. No evidence-backed claim contradicts the sources; \"confidence 0.54\" and \"16k/128k\" placements are supported by the runtime and README excerpts.\n3. Unverified but flagged as historical: AM4 4k/18084 and reader/18085 entries — no fresh probe is claimed, consistent with the report's own caveats.",
+  "metadata": {
+    "model": "am4-dense-27b",
+    "reviewer": "hermes",
+    "elapsed_s": 14.065,
+    "run_budget_s": 60,
+    "requested_reasoning": "none",
+    "source": "unedited Hermes final assistant message",
+    "message_id": 2,
+    "kv_reused": false,
+    "packet_evidence": {
+      "mode": "unchanged",
+      "reason": "unrecognized_evidence",
+      "original_bytes": 14373,
+      "sent_bytes": 14373,
+      "original_sha256": "19300c33ac5e80eac34d28f33213e377f097b607f988d5de7d7dee1d368dcd08",
+      "sent_sha256": "19300c33ac5e80eac34d28f33213e377f097b607f988d5de7d7dee1d368dcd08"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "report": "PASS\n\n- DeepAgents row conflates statuses: `deepagents_hearth` is LIVE (loops.toml), but report claims the harness is \"not live\"/not promoted; `deepagents-run-flash-dense` is separately BUILT NOT DEPLOYED (harnesses.toml), yet the report assigns it to `mode:test`, which evidence does not support.\n- Report cites `review_second_rung` and `review_deepagents_independent_verifier`; only \"independent-verifier\" appears in evidence (harnesses.toml subagents), leaving `review_second_rung` unsourced.\n- `am4-read-4070ti`/16k context is labeled a current runtime fact, but cycle8 evidence calls AM4 registry18084/reader18085 historic, not new probes.\n- \"No GPU/model routing; only task evaluation\" is an inference beyond the cited excerpts, though consistent with the single-route evidence.",
+  "metadata": {
+    "model": "am4-dense-27b",
+    "reviewer": "hermes",
+    "elapsed_s": 17.576,
+    "run_budget_s": 60,
+    "requested_reasoning": "none",
+    "source": "unedited Hermes final assistant message",
+    "message_id": 2,
+    "kv_reused": false,
+    "packet_evidence": {
+      "mode": "unchanged",
+      "reason": "unrecognized_evidence",
+      "original_bytes": 13136,
+      "sent_bytes": 13136,
+      "original_sha256": "6e2c6f715ae12372120acdbe1d66b6eb487547555a8d8985e0441a2103b15eef",
+      "sent_sha256": "6e2c6f715ae12372120acdbe1d66b6eb487547555a8d8985e0441a2103b15eef"
+    }
+  }
+}

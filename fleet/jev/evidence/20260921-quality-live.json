@@ -1,0 +1,180 @@
+{
+  "receipt": "br-20260921-094148-9d008ba6",
+  "task_id": "jev-f3b1d7857a35c922cbbe0cd5",
+  "child_receipt": "br-20260921-094156-8813ad33",
+  "decision": {
+    "material": "167740c395f18a29fa4b99e7dce6bbf3f90c8394fcd2fef54aabd35148920cc1",
+    "usage": {
+      "provider": "typesafe",
+      "model": "jev-1.13.0",
+      "input_tokens": 871,
+      "output_tokens": 85,
+      "estimated_usd": 0.000036582,
+      "elapsed_s": 0.304,
+      "request_sha256": "adb2314bde2868f32fd0fd98fadb5ce24f74c184ddf161085c4d89edabe0dfa5"
+    },
+    "judgments": [
+      {
+        "candidate_id": "e31f5f3ed2eee80b479dafcf6aa6383a",
+        "score": 2.97,
+        "confidence": 0.97,
+        "ambiguity": 0.2,
+        "probabilities": {
+          "0": 0,
+          "1": 0.01,
+          "2": 0,
+          "3": 0.99
+        },
+        "eligible": true
+      }
+    ],
+    "candidate_id": "e31f5f3ed2eee80b479dafcf6aa6383a",
+    "snapshot_id": "40a668f0b323c7d31742f0099011b63eaa1b171ba45496502d0d2e65241b64ce",
+    "wait_reason": null
+  },
+  "candidate_commit": "3ae4e60c281e96fd121e18f401d5e511ea224bbf",
+  "worker": {
+    "ok": true,
+    "branch": "ccfarm/hearth-hermes-br-20260921-094156-8813ad33-fee84131/cc-builder-2/lap1",
+    "push_ok": true,
+    "runner": "hearth",
+    "runner_model": "qwen3-30b-a3b",
+    "runner_preset": "omen-resident-hearth",
+    "resolved_runner": {
+      "runner": "hearth",
+      "base_url": "http://omen.mshome.net:8083/hermes-worker/mcp",
+      "model": "qwen3-30b-a3b",
+      "context_length": 16384,
+      "max_steps": 12,
+      "preset": "omen-resident-hearth",
+      "config_sha256": "4dcbed620e9d12aac1c19e88f428f1800057a7652810b9fe8e27e3bf31b27b2d"
+    },
+    "committed": true,
+    "pushed": true,
+    "commits_ahead": 1,
+    "empty_build": false,
+    "done_signal": true,
+    "agent_rc": 0,
+    "agent_timed_out": false,
+    "status": "ok",
+    "reason": "ok"
+  },
+  "helper_implementation_unchanged": true,
+  "normalization": "final newline only",
+  "executed_real_history": {
+    "available": true,
+    "tasks": 6,
+    "authored": 4,
+    "unmodified_delivery": 1,
+    "assisted_delivery": 3,
+    "rejected": 0,
+    "incomplete": 0,
+    "not_run": 2,
+    "invalid_records": 0,
+    "profile": "omen-resident-hearth",
+    "history_sha256": "19d2b3f90fe8db1f3d61bd75c8c78e3ac82f9f70140235de0a41a2f05f8b9212",
+    "scope": "Operator-verified selected task subset; not inference success or a benchmark."
+  },
+  "checks": [
+    "real curated task counts",
+    "required mixed-invalid example",
+    "non-list None",
+    "empty list",
+    "input immutability",
+    "unknown profile unchanged",
+    "missing history unavailable, not zero",
+    "private historical descriptions/task IDs/evidence excluded from cloud request"
+  ],
+  "local_preflight": {
+    "known_windows_brief": "rejected before queue write",
+    "queue_count_unchanged": true,
+    "gateway_restart_needed": false,
+    "gateway_restarted": false
+  },
+  "deployed": {
+    "before": {
+      "cli.py": {
+        "raw": "8214e2647eebb2f43010d12d0f560618338fdbfcaff1159a5680748ae9883d05",
+        "lf": "8214e2647eebb2f43010d12d0f560618338fdbfcaff1159a5680748ae9883d05"
+      },
+      "quality.py": null,
+      "quality_counts.py": null,
+      "history": null
+    },
+    "result": {
+      "installed": [
+        "/home/derek/.local/share/fleet-scheduler/fleet/jev/cli.py",
+        "/home/derek/.local/share/fleet-scheduler/fleet/jev/quality.py",
+        "/home/derek/.local/share/fleet-scheduler/fleet/jev/quality_counts.py",
+        "/home/derek/.local/state/fleet-scheduler/quality-history.json"
+      ]
+    }
+  },
+  "live_request_construction": {
+    "scoreboard": {
+      "available": true,
+      "tasks": 6,
+      "authored": 4,
+      "unmodified_delivery": 1,
+      "assisted_delivery": 3,
+      "rejected": 0,
+      "incomplete": 0,
+      "not_run": 2,
+      "invalid_records": 0,
+      "profile": "omen-resident-hearth",
+      "history_sha256": "19d2b3f90fe8db1f3d61bd75c8c78e3ac82f9f70140235de0a41a2f05f8b9212",
+      "scope": "Operator-verified selected task subset; not inference success or a benchmark."
+    },
+    "feedback": [
+      "Operator-verified task subset: worker_tasks=4; unmodified_delivery=1; assisted_delivery=3; rejected=0; incomplete=0; not_run=2. Not a benchmark or automatic acceptance."
+    ],
+    "request_sha256": "61d0c3957681968dcdc2f73e4c181f3c3857e9e506b82d34b179def335c2e252",
+    "api_called": false,
+    "gates": [
+      2,
+      0.6,
+      0.25
+    ]
+  },
+  "next_live_jev_with_quality": "not yet sampled; installed runtime adds numeric feedback on next eligible task",
+  "hermes_review": {
+    "report": "Verdict: PASS\n\nReport:\n\nCandidate (captured text) vs acceptance criteria:\n\n1. Signature & purity — `def summarize_quality(records)`, single module, no imports, no I/O, no mutation of input. Pass.\n2. Non-list top level — `if not isinstance(records, list):` (line 20 of candidate) returns available=False with all nine counters zero. Pass.\n3. List sets available=True, empty list yields all-zero counters — loop never runs, returned dict has available=True, counters 0. Pass.\n4. Valid-row handling — dict check, then `record.get('outcome')`, `isinstance(outcome, str)`, membership in the 5-name set. Only exact string match counts; `counters[outcome] += 1` only for those five, so no unknown key is ever written. Pass.\n5. invalid_records — non-dict rows (e.g. None) and non-string/unknown outcomes (e.g. `[]`, int) increment only invalid_records and `continue`; no hash of the value occurs (set membership on the string), so unhashable values cannot crash. Pass.\n6. tasks/authored — tasks increments per valid row; authored increments for every valid outcome except not_run. Pass.\n7. No fractions/percentages, no dedup, no coercion (no `str()` of outcome). Pass.\n8. Example — [assisted_delivery, not_run, unmodified_delivery, None, {outcome:[]}]: tasks=3, authored=2, assisted=1, not_run=1, unmodified=1, rejected=0, incomplete=0, invalid=2, available=True. Matches. Pass.\n9. Return dict contains exactly the required keys: available plus the eight integer counters. Pass.\n\nVerification caveat: I reviewed the captured candidate text only (the repo target is the stated old baseline). I attempted to run a syntax check in the sandbox but the only tools available were git_log/list_dir/glob/read; I did not obtain output proving a syntax check or example run was executed. Static review of the code shows no syntax errors (balanced blocks, valid dict/literal syntax).",
+    "metadata": {
+      "model": "am4-dense-27b",
+      "reviewer": "hermes",
+      "elapsed_s": 35.342,
+      "run_budget_s": 180,
+      "requested_reasoning": "none",
+      "source": "unedited Hermes final assistant message",
+      "message_id": 11,
+      "kv_reused": false,
+      "packet_evidence": {
+        "mode": "unchanged",
+        "reason": "unrecognized_evidence",
+        "original_bytes": 7235,
+        "sent_bytes": 7235,
+        "original_sha256": "0f0690e70c5ad02ded32db0d5a3eb9d8d0d4e62cc1a09a2ff94b3fa0ac375fa6",
+        "sent_sha256": "0f0690e70c5ad02ded32db0d5a3eb9d8d0d4e62cc1a09a2ff94b3fa0ac375fa6"
+      },
+      "reviewer_unloaded": true
+    },
+    "automatic_promotion": false,
+    "semantic_review_is_not_proof": true
+  },
+  "hermes_review_caveats": [
+    "Advisory static PASS, not independent execution",
+    "Says nine counters once, eight later; actual eight integer counters",
+    "Attempted tool lookups despite source-complete packet; no claimed successful execution"
+  ],
+  "authorship": {
+    "quality_counts.py": "OMEN qwen3-30b-a3b via MechNet, unchanged implementation",
+    "quality.py/cli/preflight/integration/history": "Codex"
+  },
+  "automatic_promotion": false,
+  "worker_run_report": {
+    "source": "task_status result.assay.scoreboard[0].retro_excerpt",
+    "steps": 2,
+    "seconds": 13,
+    "note": "Worker-recorded run duration; not whole task wall time. The inherited farm assay is not acceptance proof."
+  }
+}

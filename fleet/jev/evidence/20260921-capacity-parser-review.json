@@ -1,0 +1,15 @@
+{
+  "report": "NEEDS_WORK\n\nReport (candidate = the supplied block; on-disk file I read is the original baseline, per the note).\n\nTwo-pass structure: candidate does identity pass then metrics pass, so metrics arriving before the `ai` record are still bound — consistent with identity_after_metrics and zero_last_valid_and_wrong_source (both pass, `actual` correct). Correct in the capture too: DXGI budget (v=33334165504) and Vulkan heap rows are ignored; observer uses only `vram.local.current_usage_bytes`; PDH names split local/non_local; `free_bytes` always None; rows sorted by adapter_id; last-valid-wins with zero preserved and -1 rejected; `sorted(set)` dedups and orders rules; empty-string rule dropped (sorted_unique_string_rules → [\"a\",\"b\"]).\n\nTwo concrete defects in the candidate source (both regressions vs the original):\n\n1. Bool guard dropped. Candidate's metric filter is `not isinstance(value, int) or value < 0`, and total is `isinstance(record.get('dvm'), int)`. In Python `bool` subclasses `int`, so `v: true` and `dvm: true` pass. The original used `type(value) is int` / `type(record.get('dvm')) is int`, which rejects bool. This contradicts the supplied evidence: boolean_must_not_replace_valid is marked `passed: false` yet its `actual` shows `adapter_local_committed_bytes: true`, and boolean_total_unknown shows `total_bytes: true` — exactly the bool leak the candidate introduces. Spec requires \"exact int (not bool)\".\n\n2. Non-string `rule` crashes. Candidate's Step 4 does `if rule: rules[adapter_id].add(rule)` with no `isinstance(rule, str)` check. `rule: [\"bad\"]` is truthy, and `set.add(list)` raises `TypeError` (unhashable) — matching the evidence's `exception: TypeError` for ignore_non_string_rule. The original guarded with `isinstance(record.get('rule'), str)`. Spec requires \"string rule\"; a list must be ignored, not raise.\n\nSo the candidate's captured output is internally inconsistent (cases whose `actual` violates the spec are nonetheless labeled failing, and the two defects above are real in the code). The candidate must restore `type(x) is int` for the metric/dvm checks and an `isinstance(rule, str)` guard before it can pass.",
+  "metadata": {
+    "model": "am4-dense-27b",
+    "reviewer": "hermes",
+    "elapsed_s": 55.561,
+    "run_budget_s": 180,
+    "source": "unedited Hermes final assistant message",
+    "message_id": 11,
+    "kv_reused": false,
+    "reviewer_unloaded": true
+  },
+  "automatic_promotion": false,
+  "semantic_review_is_not_proof": true
+}

@@ -1,0 +1,20 @@
+{
+  "contract_version": "gpu-catalog.v1",
+  "gathered_at": "2026-09-15T20:09:00Z",
+  "host": "fx99",
+  "hardware_profile_id": "fx99-2070super-2026H2",
+  "resident_models": ["qwen2.5-coder:7b"],
+  "staging_slots": 1,
+  "gates": {"vram_headroom_gb": 0.5},
+  "cards": [
+    {"index": 0, "uuid": "GPU-a07a9263-cdfe-a05c-4874-eec1f730b60e", "bdf": "0000:01:00.0", "vram_gb": 8.0, "label": "RTX 2070 SUPER"}
+  ],
+  "models": [
+    {"model_id": "qwen2.5-coder:7b", "alias": null, "placement": "single", "visible_devices": null,
+     "vram_gb": 4.8, "per_card_gb": 4.8, "expected_gen_tps": null,
+     "qualified_task_classes": ["inference", "research", "summarization", "build"],
+     "quality_evidence": "HEARTH job_5607fbe65bc6332cd6f1d03c13be96f4: pinned ADR-0008 extraction checked against source; fleet/inventory.toml records the 2026-08-29 tasklane-revival build proof (162/162 assay)",
+     "warmup_ms_p50": null, "warmup_ms_max": null, "sample_count": 1,
+     "notes": "2026-09-15 live ollama ps: qwen2.5-coder:7b, 100% GPU, 4096 context, 4.7 GB model size; 4.8 GB is a conservative planning charge."}
+  ]
+}

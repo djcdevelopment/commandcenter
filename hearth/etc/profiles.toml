@@ -109,6 +109,24 @@ capabilities = [
     "status",   # kernel_status — is the door up
 ]
 
+# Always-on local fleet controller. Additional argument/tool restrictions live
+# in governed_operator.py; capabilities alone do not establish local-only routing.
+# No inheritance from builder/operator: no repository writes, secrets, shell,
+# projection rebuilds, automatic merge, or generic execution-provider selection.
+[profile.governed-operator]
+capabilities = ["read", "query", "status", "repo_metadata", "dispatch",
+                "queue", "schedule", "build_request"]
+
+[profile.hermes-worker]
+capabilities = ["generate", "status"]
+
+# JEV never receives these credentials; the fixed CPU scheduler holds them.
+[profile.jev-scheduler]
+capabilities = ["query", "status", "schedule", "dispatch", "build_request"]
+
+[profile.hermes-reviewer]
+capabilities = ["read", "query", "status", "repo_metadata"]
+
 # --- builder ------------------------------------------------------------------
 # DEFINED BUT UNASSIGNED in v1. No caller carries this profile yet; it is the
 # documented growth path so the next integration is a config entry rather than

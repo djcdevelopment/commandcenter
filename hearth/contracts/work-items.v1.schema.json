@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://commandcenter.local/hearth/contracts/work-items.v1.schema.json",
+  "title": "Work-item policy (D-113 test mode, WI-G2b)",
+  "description": "The versioned, structured register of gate work items that a mode:test proposal may name. It is the ONE register: `hearth/etc/operator.toml` carries no competing list. Each entry declares its identity and a digest of its own declaration (SHA-256 over the canonical JSON of the entry with `digest` removed), the repository its object ids resolve in, the roots its isolated inputs and outputs must live inside, and the authorities the work item prohibits outright. Validation resolves the work item against this file, recomputes every entry digest on load, and binds the file digest into the validation result, so a run records WHICH register judged it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "policy_version",
+    "work_item"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "work-items.v1"
+    },
+    "policy_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Moves whenever the meaning of this register changes, independently of the file digest, which moves on every edit."
+    },
+    "work_item": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "status",
+          "title",
+          "repository",
+          "permitted_isolated_roots",
+          "prohibited_authorities",
+          "digest"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^WI-[A-Za-z0-9]+$"
+          },
+          "status": {
+            "enum": [
+              "released",
+              "planned",
+              "retired"
+            ],
+            "description": "Only `released` may be named by a mode:test proposal (D-113)."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "repository": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Where this work item's base commit, base tree and rollback commit are resolved, with `git cat-file`."
+          },
+          "branch": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "permitted_isolated_roots": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Absolute roots this work item may read and write. An isolated input or output must resolve inside one of them, which is stricter than `outside master`: another work item's worktree is another writer's surface."
+          },
+          "prohibited_authorities": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Authorities this work item may never request, however the proposal bounds them. A requested authority in this list is a policy denial (`policy_block`), not a human-approvable gate."
+          },
+          "digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "SHA-256 over the canonical JSON of this entry with `digest` removed. Recomputed on every load: an entry edited without updating its digest is refused."
+          }
+        }
+      }
+    }
+  }
+}

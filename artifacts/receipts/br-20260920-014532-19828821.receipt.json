@@ -1,0 +1,375 @@
+{
+  "acceptance_criteria": [
+    "Pure native readiness helper rejects stale/stopped/wrong-model responses and never multiplies one physical AM4 slot by alias count.",
+    "New stdlib unittest cases pass, with GPU placement explicitly unknown; no service or default runner changes."
+  ],
+  "backend": "am4-dense",
+  "changed_files": [
+    "artifacts/hermes-fx99/qualification/CAPACITY-REPORT.md",
+    "artifacts/hermes-fx99/qualification/NARROW-RETRY.md",
+    "artifacts/hermes-fx99/qualification/narrow-retry/",
+    "artifacts/receipts/",
+    "artifacts/receipts/br-20260920-014532-19828821.events.jsonl",
+    "artifacts/receipts/br-20260920-014532-19828821.receipt.json",
+    "artifacts/receipts/br-20260920-014532-19828821.request.md",
+    "artifacts/receipts/ledger.jsonl",
+    "fleet/hermes/capacity-leaf.md",
+    "fleet/hermes/collect-evidence.py",
+    "fleet/hermes/collect-leaf.py",
+    "fleet/hermes/observe-build.py",
+    "fleet/hermes/qualify-controller.py",
+    "hearth/tests/toolsurface/test_hermes_local_capacity.py",
+    "hearth/tests/toolsurface/test_hermes_native_capacity.py"
+  ],
+  "commits": [],
+  "created_utc": "2026-09-20T01:45:32.345548Z",
+  "deliverables": [
+    "native_capacity.py",
+    "test_native_capacity.py",
+    "CAPACITY-REVIEW.md"
+  ],
+  "events_path": "C:\\work\\commandcenter-hermes-fx99\\artifacts\\receipts\\br-20260920-014532-19828821.events.jsonl",
+  "execution": {
+    "backend": "am4-dense",
+    "delegation": {
+      "builders": [
+        "cc-builder-2",
+        "cc-builder-3"
+      ],
+      "candidates": [
+        {
+          "artifact_status": "present-unreviewed",
+          "branch": "ccfarm/hearth-hermes-br-20260920-014532-19828821-2115d229/cc-builder-2/lap1",
+          "build": {
+            "agent_rc": 0,
+            "agent_timed_out": false,
+            "branch": "ccfarm/hearth-hermes-br-20260920-014532-19828821-2115d229/cc-builder-2/lap1",
+            "commits_ahead": 1,
+            "committed": true,
+            "done_signal": true,
+            "empty_build": false,
+            "ok": true,
+            "push_ok": true,
+            "pushed": true,
+            "reason": "ok",
+            "resolved_runner": {
+              "base_url": "http://192.168.12.233:8090/v1",
+              "config_sha256": "c5fffbd01f6117891279cc0b424e9f9becca86ee4696036a9ed13e1d31c8486c",
+              "context_length": 131072,
+              "max_steps": 24,
+              "model": "am4-dense-27b",
+              "preset": "am4-shared-27b",
+              "runner": "openai"
+            },
+            "runner": "openai",
+            "runner_model": "am4-dense-27b",
+            "runner_preset": "am4-shared-27b",
+            "status": "ok"
+          },
+          "commit": "6d90228d93f72ffd42c4eb4f537b21b86efdb2f6",
+          "missing_deliverables": [],
+          "unchanged_deliverables": [],
+          "worker": "cc-builder-2"
+        },
+        {
+          "artifact_status": "present-unreviewed",
+          "branch": "ccfarm/hearth-hermes-br-20260920-014532-19828821-2115d229/cc-builder-3/lap1",
+          "build": {
+            "agent_rc": 0,
+            "agent_timed_out": false,
+            "branch": "ccfarm/hearth-hermes-br-20260920-014532-19828821-2115d229/cc-builder-3/lap1",
+            "commits_ahead": 1,
+            "committed": true,
+            "done_signal": true,
+            "empty_build": false,
+            "ok": true,
+            "push_ok": true,
+            "pushed": true,
+            "reason": "ok",
+            "resolved_runner": {
+              "base_url": "http://192.168.12.233:8090/v1",
+              "config_sha256": "c5fffbd01f6117891279cc0b424e9f9becca86ee4696036a9ed13e1d31c8486c",
+              "context_length": 131072,
+              "max_steps": 24,
+              "model": "am4-dense-27b",
+              "preset": "am4-shared-27b",
+              "runner": "openai"
+            },
+            "runner": "openai",
+            "runner_model": "am4-dense-27b",
+            "runner_preset": "am4-shared-27b",
+            "status": "ok"
+          },
+          "commit": "a0be0d30ea66602512ae17c0ec8d9e100ef4c9cc",
+          "missing_deliverables": [],
+          "unchanged_deliverables": [],
+          "worker": "cc-builder-3"
+        }
+      ],
+      "completed_at": "2026-09-20T01:50:26.534309Z",
+      "harvested": false,
+      "last_status": "done",
+      "last_sync": "2026-09-20T01:50:26.534309Z",
+      "max_age_s": 300,
+      "operator": "hermes",
+      "plan_id": "hearth-hermes-br-20260920-014532-19828821-2115d229",
+      "promotion": {
+        "candidates": [
+          {
+            "artifact_status": "present-unreviewed",
+            "branch": "ccfarm/hearth-hermes-br-20260920-014532-19828821-2115d229/cc-builder-2/lap1",
+            "build": {
+              "agent_rc": 0,
+              "agent_timed_out": false,
+              "branch": "ccfarm/hearth-hermes-br-20260920-014532-19828821-2115d229/cc-builder-2/lap1",
+              "commits_ahead": 1,
+              "committed": true,
+              "done_signal": true,
+              "empty_build": false,
+              "ok": true,
+              "push_ok": true,
+              "pushed": true,
+              "reason": "ok",
+              "resolved_runner": {
+                "base_url": "http://192.168.12.233:8090/v1",
+                "config_sha256": "c5fffbd01f6117891279cc0b424e9f9becca86ee4696036a9ed13e1d31c8486c",
+                "context_length": 131072,
+                "max_steps": 24,
+                "model": "am4-dense-27b",
+                "preset": "am4-shared-27b",
+                "runner": "openai"
+              },
+              "runner": "openai",
+              "runner_model": "am4-dense-27b",
+              "runner_preset": "am4-shared-27b",
+              "status": "ok"
+            },
+            "commit": "6d90228d93f72ffd42c4eb4f537b21b86efdb2f6",
+            "missing_deliverables": [],
+            "unchanged_deliverables": [],
+            "worker": "cc-builder-2"
+          },
+          {
+            "artifact_status": "present-unreviewed",
+            "branch": "ccfarm/hearth-hermes-br-20260920-014532-19828821-2115d229/cc-builder-3/lap1",
+            "build": {
+              "agent_rc": 0,
+              "agent_timed_out": false,
+              "branch": "ccfarm/hearth-hermes-br-20260920-014532-19828821-2115d229/cc-builder-3/lap1",
+              "commits_ahead": 1,
+              "committed": true,
+              "done_signal": true,
+              "empty_build": false,
+              "ok": true,
+              "push_ok": true,
+              "pushed": true,
+              "reason": "ok",
+              "resolved_runner": {
+                "base_url": "http://192.168.12.233:8090/v1",
+                "config_sha256": "c5fffbd01f6117891279cc0b424e9f9becca86ee4696036a9ed13e1d31c8486c",
+                "context_length": 131072,
+                "max_steps": 24,
+                "model": "am4-dense-27b",
+                "preset": "am4-shared-27b",
+                "runner": "openai"
+              },
+              "runner": "openai",
+              "runner_model": "am4-dense-27b",
+              "runner_preset": "am4-shared-27b",
+              "status": "ok"
+            },
+            "commit": "a0be0d30ea66602512ae17c0ec8d9e100ef4c9cc",
+            "missing_deliverables": [],
+            "unchanged_deliverables": [],
+            "worker": "cc-builder-3"
+          }
+        ],
+        "promoted": false,
+        "reason": "manual-review",
+        "status": "awaiting_review",
+        "winner": "cc-builder-2"
+      },
+      "promotion_policy": "manual",
+      "requires": [
+        "native_capacity.py",
+        "test_native_capacity.py",
+        "CAPACITY-REVIEW.md"
+      ],
+      "result": "awaiting_review",
+      "runner_preset": "am4-shared-27b",
+      "state": "completed",
+      "submitted_at": "2026-09-20T01:45:41.348634Z",
+      "task_class": "build"
+    },
+    "evidence": [
+      "delegated to the fleet task lane as hearth-hermes-br-20260920-014532-19828821-2115d229"
+    ],
+    "result": "failed",
+    "routing_reason": "pinned:am4-dense",
+    "tool_calls": [
+      {
+        "backend": "am4-dense",
+        "mode": "delegate",
+        "ok": true,
+        "routing_reason": "pinned:am4-dense",
+        "tool": "execute_build_request"
+      }
+    ]
+  },
+  "id": "br-20260920-014532-19828821",
+  "lane": "hearth",
+  "ledger_path": "C:\\work\\commandcenter-hermes-fx99\\artifacts\\receipts\\ledger.jsonl",
+  "occupancy": {
+    "occupancy": "available"
+  },
+  "pre_existing_dirty_files": [
+    "fleet/hermes/capacity-leaf.md",
+    "fleet/hermes/observe-build.py",
+    "artifacts/hermes-fx99/qualification/NARROW-RETRY.md"
+  ],
+  "receipt_id": "br-20260920-014532-19828821",
+  "receipt_path": "C:\\work\\commandcenter-hermes-fx99\\artifacts\\receipts\\br-20260920-014532-19828821.receipt.json",
+  "repo": "C:\\work\\commandcenter-hermes-fx99",
+  "repo_after": {
+    "branch": "agent/hermes-fx99-20260919",
+    "changed_files": [
+      "artifacts/hermes-fx99/qualification/CAPACITY-REPORT.md",
+      "artifacts/receipts/ledger.jsonl",
+      "fleet/hermes/capacity-leaf.md",
+      "fleet/hermes/collect-evidence.py",
+      "fleet/hermes/observe-build.py",
+      "fleet/hermes/qualify-controller.py",
+      "hearth/tests/toolsurface/test_hermes_native_capacity.py",
+      "artifacts/hermes-fx99/qualification/NARROW-RETRY.md",
+      "artifacts/hermes-fx99/qualification/narrow-retry/",
+      "artifacts/receipts/br-20260920-014532-19828821.events.jsonl",
+      "artifacts/receipts/br-20260920-014532-19828821.receipt.json",
+      "artifacts/receipts/br-20260920-014532-19828821.request.md",
+      "fleet/hermes/collect-leaf.py",
+      "hearth/tests/toolsurface/test_hermes_local_capacity.py"
+    ],
+    "dirty": true,
+    "entries": [
+      {
+        "path": "artifacts/hermes-fx99/qualification/CAPACITY-REPORT.md",
+        "status": "M"
+      },
+      {
+        "path": "artifacts/receipts/ledger.jsonl",
+        "status": "M"
+      },
+      {
+        "path": "fleet/hermes/capacity-leaf.md",
+        "status": "M"
+      },
+      {
+        "path": "fleet/hermes/collect-evidence.py",
+        "status": "M"
+      },
+      {
+        "path": "fleet/hermes/observe-build.py",
+        "status": "M"
+      },
+      {
+        "path": "fleet/hermes/qualify-controller.py",
+        "status": "M"
+      },
+      {
+        "path": "hearth/tests/toolsurface/test_hermes_native_capacity.py",
+        "status": "M"
+      },
+      {
+        "path": "artifacts/hermes-fx99/qualification/NARROW-RETRY.md",
+        "status": "??"
+      },
+      {
+        "path": "artifacts/hermes-fx99/qualification/narrow-retry/",
+        "status": "??"
+      },
+      {
+        "path": "artifacts/receipts/br-20260920-014532-19828821.events.jsonl",
+        "status": "??"
+      },
+      {
+        "path": "artifacts/receipts/br-20260920-014532-19828821.receipt.json",
+        "status": "??"
+      },
+      {
+        "path": "artifacts/receipts/br-20260920-014532-19828821.request.md",
+        "status": "??"
+      },
+      {
+        "path": "fleet/hermes/collect-leaf.py",
+        "status": "??"
+      },
+      {
+        "path": "hearth/tests/toolsurface/test_hermes_local_capacity.py",
+        "status": "??"
+      }
+    ],
+    "head": "91fa8da8bbc4b255b365458b17f0f7ebfa24d4ff",
+    "path": "C:\\work\\commandcenter-hermes-fx99"
+  },
+  "repo_before": {
+    "branch": "agent/hermes-fx99-20260919",
+    "changed_files": [
+      "fleet/hermes/capacity-leaf.md",
+      "fleet/hermes/observe-build.py",
+      "artifacts/hermes-fx99/qualification/NARROW-RETRY.md"
+    ],
+    "dirty": true,
+    "entries": [
+      {
+        "path": "fleet/hermes/capacity-leaf.md",
+        "status": "M"
+      },
+      {
+        "path": "fleet/hermes/observe-build.py",
+        "status": "M"
+      },
+      {
+        "path": "artifacts/hermes-fx99/qualification/NARROW-RETRY.md",
+        "status": "??"
+      }
+    ],
+    "head": "91fa8da8bbc4b255b365458b17f0f7ebfa24d4ff",
+    "path": "C:\\work\\commandcenter-hermes-fx99"
+  },
+  "request_changed_files": [
+    "artifacts/hermes-fx99/qualification/CAPACITY-REPORT.md",
+    "artifacts/hermes-fx99/qualification/NARROW-RETRY.md",
+    "artifacts/hermes-fx99/qualification/narrow-retry/",
+    "artifacts/receipts/",
+    "artifacts/receipts/br-20260920-014532-19828821.events.jsonl",
+    "artifacts/receipts/br-20260920-014532-19828821.receipt.json",
+    "artifacts/receipts/br-20260920-014532-19828821.request.md",
+    "artifacts/receipts/ledger.jsonl",
+    "fleet/hermes/capacity-leaf.md",
+    "fleet/hermes/collect-evidence.py",
+    "fleet/hermes/collect-leaf.py",
+    "fleet/hermes/observe-build.py",
+    "fleet/hermes/qualify-controller.py",
+    "hearth/tests/toolsurface/test_hermes_local_capacity.py",
+    "hearth/tests/toolsurface/test_hermes_native_capacity.py"
+  ],
+  "request_path": "C:\\work\\commandcenter-hermes-fx99\\artifacts\\receipts\\br-20260920-014532-19828821.request.md",
+  "routing_reason": "pinned:am4-dense",
+  "schema_version": 2,
+  "status": "failed",
+  "summary": "Both local builders delivered helper, tests and report inside the authorized remaining window. Independent review found identical-duplicate and unrelated-alias readiness defects in both helpers. Retained existing Codex helper; integrated builder 3's 11 tests with attribution plus two Codex regressions. Delivery succeeded; unassisted correctness qualification failed.",
+  "task": "coding",
+  "title": "Hermes source-packed native capacity helper",
+  "updated_utc": "2026-09-20T01:51:33.408065Z",
+  "validation": [
+    {
+      "criterion": "Pure native readiness helper rejects stale/stopped/wrong-model responses and never multiplies one physical AM4 slot by alias count.",
+      "evidence": "Both originals pass 19/21 independent probes; reject identical duplicates and incorrectly obey aggregate all_ready for unrelated failed aliases. See qualification/narrow-retry/independent-review.json and NARROW-RETRY.md.",
+      "status": "failed"
+    },
+    {
+      "criterion": "New stdlib unittest cases pass, with GPU placement explicitly unknown; no service or default runner changes.",
+      "evidence": "Independent standalone reruns: builder 2 10 tests, builder 3 11 tests pass. Integrated capacity suite 35 passed; receipt/controller/policy 60 passed +11 subtests. Default runner hashes unchanged; no services changed; GPU placement null. Manual branches held; farmer main unchanged.",
+      "status": "passed"
+    }
+  ]
+}

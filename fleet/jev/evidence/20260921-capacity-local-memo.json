@@ -1,0 +1,64 @@
+{
+  "ok": true,
+  "text": "**Dispatch Memo: JEV Adapter Capacity Awareness (2026-09-21 08:03 UTC)**  \n*Source-backed, operator-verified, no automation*\n\nThe current JEV adapter in `hearth/toolsurface/jev_scheduler.py` uses **only bounded, local, and static evidence** for capacity decisions. It relies on:\n\n- `query_omen_worker()` to observe native slot readiness and occupancy: **qwen3-30b-a3b is `ready`, 8 total slots, 0 busy, 8 free**.\n- `capture()` to report: `rungs['omen-arc']['residency'] = ['qwen3-30b-a3b']`, `occupancy = 0`, `active_slots = 8`, and `free_vram_gb = null`.\n- `paths.operator_home()` and `home()` to persist state under `C:/work/commandcenter-jev-scheduler/.hearth`, ensuring no worktree contamination.\n- `recent_outcomes()` to read `known_good_models.json` for historical success rates (not live capacity).\n- `knowledge_digest()` to validate static corpus integrity.\n\n**Critical limitations**:\n- **No live VRAM measurement**: `free_vram_gb` is `null`, and `nvidia-smi` values are not consumed. The adapter does not compute free VRAM from total/used, as the B70 retrospective (2026-06-18) warns: **PDH underreports SYCL allocations** and **driver-reserved memory is not free**.\n- **Slots ≠ GPU memory**: The `8 free` slots are per-physical-slot context, not VRAM. A model may exceed 16384 tokens even if `free_vram_gb` suggests space.\n- **No allocation verification**: No mechanism checks whether a model *fits* in a slot beyond `context_length` comparison. `route()` assumes `context_length` is a hard limit.\n\n**Smallest productive next step (NOW)**:  \nDispatch **one bounded source task** using the **existing `omen-arc` route** with **`model='qwen3-30b-a3b'`** and **`context_length=16384`**.\n\nUse `scheduler_prepare()` → `scheduler_select()` with a candidate whose `task['constraints']['max_context_tokens'] ≤ 16384`, and `native['context_length'] ≥ task['constraints']['max_context_tokens']`.\n\nThis is safe because:\n- `query_omen_worker()` confirms 8 free slots and `ready` state.\n- `validate.validate_proposal()` checks `context_length` at dispatch.\n- `capture()` reports `residency`, `occupancy`, and `active_slots` — all current and accurate.\n\n**Do not**:\n- Propose new controllers or benchmarks.\n- Run model swaps or synthetic tests.\n- Bypass `route()`, `proposal.build_proposal()`, or `validate_proposal()`.\n- Assume `nvidia-smi` free memory = available model space.\n\n**Conclusion**: The adapter is correctly configured to use resident OMEN inference with bounded context. The only active, verified capacity evidence is from `query_omen_worker()` and `capture()` — both confirm sufficient slot availability. The next step is a **source-backed task dispatch** using `omen-arc` with `qwen3-30b-a3b` — **now**, via `scheduler_select()`.",
+  "execution": {
+    "request_id": "req_8a0cd3a070ad528d935272e385c505d5",
+    "job_id": "job_7659232a0d7a8546191a15003512b5bf",
+    "status": "succeeded",
+    "artifact": {
+      "artifact_id": "art_af6ed39b5c839f22254b0758b8ed4d6d",
+      "created_at": "2026-09-21T08:03:51.749974Z",
+      "filename": "job_7659232a0d7a8546191a15003512b5bf-result.md",
+      "media_type": "text/plain; charset=utf-8",
+      "role": "result",
+      "sha256": "e283f5d60d9a15d9584c6f733e00f149c14be60b5a0c534ac24059e0e4d5687d",
+      "size": 2755
+    }
+  },
+  "backend": "omen-arc",
+  "model": "qwen3-30b-a3b",
+  "routed_by": "pinned:omen-arc",
+  "occupancy": "available",
+  "rung_state": {
+    "baseline_epoch": "2026-09-09T07:05:18-07:00 incumbent epoch (baseline set 07:06:00, 42 s later), -np 8 shape: the server log reads n_ctx_slot = 16384. Opened by the RESTORE to -np 8 after the Lap 1B sweep finished its -np 16 arms at 07:04, NOT by the slot change itself -- the sweep ran 2 -> 4 -> 8 -> 16 and came back. Epoch start derived the only way available (arc-serve.log elapsed stamp subtracted from mtime; llama-server runs under an S4U task whose StartTime is inaccessible). Dual-split asserted per-BDF on this epoch by the sat-l1 cells, not carried over from the 2026-08-29 epoch this label replaced. EPOCH-SCOPED IS NOT EPOCH-HOMOGENEOUS: this labels the reference CONTRACT, not a guarantee that the machine was stationary within it -- multiple stable regimes have occurred inside a single epoch. Two readings sharing an epoch are NOT thereby comparable.",
+    "baseline_tok_s": 105.33,
+    "deep_samples": 92,
+    "envelope": {
+      "fail_below": 0.8,
+      "warn_below": 0.9
+    },
+    "excluded_windows": [],
+    "frac_of_baseline": 1.0704,
+    "last_ping_ok": true,
+    "note": "envelope is of THIS baseline epoch, not of capacity (ADR-0044); restart discriminator not applied; no regime names",
+    "observed_age_s": 40.4,
+    "observed_at": "2026-09-21T01:03:11.3058296-07:00",
+    "observed_tok_s": 112.75,
+    "port": 8082,
+    "prefill_stall_recent": false,
+    "rung": "omen-arc",
+    "verdict": "at_rate"
+  },
+  "pool_config_hash": "e8e23807f353",
+  "tokens_in": 6851,
+  "tokens_out": 729,
+  "duration_ms": 23484,
+  "max_tokens": 1100,
+  "timeout_s": 69,
+  "task_family": "summarization",
+  "family_recommendation": {
+    "advisory": true,
+    "backend_hint": "omen-arc",
+    "depth_rule_applied": false,
+    "evidence": "ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K",
+    "family": "summarization",
+    "model_id": "qwen3-30b-a3b",
+    "pin_required": false,
+    "prompt_tokens": 7263,
+    "providers": [
+      "omen-arc"
+    ],
+    "reason": "Qwen 3.8 campaign do_not_promote (12/15) at the 512-token operating point: the 27B delivers 0.687x the incumbent's jobs/hour there, so the door default (omen-arc) serves shallow summarization.",
+    "requested_family": "summarization"
+  }
+}

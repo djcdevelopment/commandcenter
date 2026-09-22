@@ -2,13 +2,14 @@
 
 One HearthContext instance is shared by the gateway and its wrapped tools. The
 gateway sets `caller` to the resolved identity immediately before dispatching a
-tool (tools run synchronously on the event loop, so the field is stable for the
-duration of one call); built-in kernel tools read it for ceremony events.
+tool. Context-local storage also supports the isolated threaded listener without
+letting concurrent worker/status requests overwrite each other's identity.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from contextvars import ContextVar
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
@@ -22,4 +23,13 @@ class HearthContext:
 
     repo_root: Path
     ledger: Ledger
-    caller: Optional[Caller] = None
+    _caller: ContextVar = field(default_factory=lambda: ContextVar('hearth_caller',default=None),
+                                init=False,repr=False)
+
+    @property
+    def caller(self) -> Optional[Caller]:
+        return self._caller.get()
+
+    @caller.setter
+    def caller(self, value: Optional[Caller]) -> None:
+        self._caller.set(value)

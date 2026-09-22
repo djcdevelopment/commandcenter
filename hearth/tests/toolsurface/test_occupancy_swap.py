@@ -10,10 +10,16 @@ from hearth.toolsurface.occupancy import _PROBES, probe_omen_swap
 
 def _no_session():
     return patch("hearth.execution.coordination.GpuTenancyStore",
-                 lambda: SimpleNamespace(active_image_session=lambda resource: None))
+                 lambda: SimpleNamespace(active_owner=lambda resource: None))
 
 
 class ProbeOmenSwapTests(unittest.TestCase):
+    def test_experiment_owner_blocks_all_rotation_http(self) -> None:
+        session = SimpleNamespace(session_id="exp", epoch=4, state="experiment", owner="experiment")
+        with patch("hearth.execution.coordination.GpuTenancyStore",
+                   lambda: SimpleNamespace(active_owner=lambda resource: session)):
+            result = probe_omen_swap(fetch=lambda *_: self.fail("must not contact fenced server"))
+        self.assertEqual(result["exclusive_reason"], "experiment_session_active")
     def test_registered_for_the_omen_swap_rung(self) -> None:
         self.assertIn("omen-swap", _PROBES)
         self.assertIs(_PROBES["omen-swap"], probe_omen_swap)
@@ -62,10 +68,10 @@ class ProbeOmenSwapTests(unittest.TestCase):
         self.assertEqual(seen, ["http://127.0.0.1:18299/running"])
 
     def test_active_image_session_holds_the_rung_closed_before_any_http(self) -> None:
-        session = SimpleNamespace(session_id="imgsess_x", epoch=3, state="imagegen")
+        session = SimpleNamespace(session_id="imgsess_x", epoch=3, state="imagegen", owner="imagegen")
         calls = []
         with patch("hearth.execution.coordination.GpuTenancyStore",
-                   lambda: SimpleNamespace(active_image_session=lambda resource: session)):
+                   lambda: SimpleNamespace(active_owner=lambda resource: session)):
             result = probe_omen_swap(fetch=lambda url, t: calls.append(url) or ({"running": []}, None))
         self.assertEqual(result["occupancy"], "busy")
         self.assertTrue(result["exclusive"])

@@ -1,0 +1,14 @@
+[Unit]
+Description=CPU-only JEV fleet scheduler; on-demand Hermes reviews
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/derek/.local/share/fleet-scheduler
+Environment=PYTHONPATH=/home/derek/.local/share/fleet-scheduler
+ExecStart=/home/derek/.local/share/hermes-fleet/venv/bin/python -m fleet.jev.cli serve
+Restart=no
+UMask=0077
+
+[Install]
+WantedBy=default.target

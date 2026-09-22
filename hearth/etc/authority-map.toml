@@ -1,0 +1,67 @@
+# The nine authorities, mapped to the kernel capabilities that grant them.
+#
+# This file is POLICY and is deliberately small. It does not grant anything by
+# itself: authority is evaluated by intersecting a caller's resolved profile
+# (hearth/etc/profiles.toml, via hearth/kernel/capabilities.py) with the
+# capabilities listed here. WI-G1 evaluates; it never enforces and never
+# approves.
+#
+# Evaluation rules (fixed in hearth/operator/authority.py):
+#   granted        the profile holds EVERY required capability and no human gate applies
+#   human_required the profile holds every required capability and a human gate applies
+#   denied         a required capability is missing, or no identity was presented
+#
+# Approval never adds a capability, so `denied` can never become `granted`.
+# Machine or network changes and merge/push/deploy are ALWAYS human-gated: they
+# are the two authorities whose blast radius leaves the repository.
+#
+# The `approve` capability and the human-operator profile are implemented
+# in WI-G2 (D-112).
+contract = "authority-map.v1"
+
+[authority.read_repo]
+capabilities = ["read"]
+human_gate = false
+description = "Read repository files through the door (read_file, list_dir, glob_files), bounded by the caller's file_scope."
+
+[authority.write_worktree]
+capabilities = ["write"]
+human_gate = false
+description = "Write files (write_file), bounded by the caller's file_scope and the one-writer-per-surface worktree policy."
+
+[authority.run_tests]
+capabilities = ["test"]
+human_gate = false
+description = "Run the test and lint lanes (run_tests, lint_digest) as subprocesses."
+
+[authority.call_door_generate]
+capabilities = ["generate"]
+human_gate = false
+description = "Spend inference through the door's router (local_generate)."
+
+[authority.submit_mechnet_task]
+capabilities = ["dispatch"]
+human_gate = false
+description = "Queue fleet work (submit_task, submit_batch, task_status). The credential is the gateway host's, never the caller's."
+
+[authority.create_build_request]
+capabilities = ["build_request"]
+human_gate = false
+description = "Open, execute, update, and close auditable build receipts."
+
+[authority.lease_gpu]
+capabilities = ["rotation_admin"]
+human_gate = false
+description = "Take and release a rotation window on OMEN's B70s (rotation_window/load/unload/kv_save/kv_restore). Exclusive image-session tenancy is a separate capability (image_session_admin) and is not this authority."
+
+[authority.change_machine_or_network]
+capabilities = ["summon"]
+human_gate = true
+always_human_gated = true
+description = "Start or stop a machine, a service, or a network path (checkpoint_vm, start_ollama, wake_am4). Always human-gated: the blast radius is physical."
+
+[authority.merge_push_deploy]
+capabilities = ["repo_write"]
+human_gate = true
+always_human_gated = true
+description = "Commit and push to a shared branch, merge, tag, or deploy (git_commit_push). Always human-gated: it is the point at which one agent's work becomes everyone's."

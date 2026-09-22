@@ -1,0 +1,163 @@
+{
+  "checked_at": "2026-09-20T03:20:03.456845+00:00",
+  "child_receipts": [
+    {
+      "id": "br-20260920-025127-19eb2ef8",
+      "status": "failed",
+      "summary": "No model artifact: preflight environment/callback failures, then builder nested-event-loop error. Assisted dispatch recorded; original run produced no generation. Codex wrote OPERATING-MATRIX.md separately."
+    },
+    {
+      "id": "br-20260920-030141-e036eff8",
+      "status": "done",
+      "summary": "Assisted result: Hermes authored/dispatched; Codex fixed singleton graph before OMEN generated. Original candidate had nested-type, bool, stale-capacity and label-sanitization defects. Reviewed corrected fleet/hermes/fleet_status_format.py integrated and deployed; targeted regression and actual FX99 CLI passed. Raw candidate NOT promoted."
+    },
+    {
+      "id": "br-20260920-031116-00f63902",
+      "status": "done",
+      "summary": "Hermes dispatched and OMEN wrote a real checklist without intervention, 12.642s worker runtime. Codex corrected command name, output reserve and stop rules before accepting fleet/hermes/OPERATIONS-CHECKLIST.md. Original model output and local candidate commit preserved; no auto merge."
+    }
+  ],
+  "fx99": {
+    "exit_code": 0,
+    "elapsed_s": 1.992,
+    "status": {
+      "controller": {
+        "host": "fx99",
+        "backend": "am4",
+        "model": "am4-dense-27b",
+        "ready": true,
+        "context_length": 131072,
+        "parallel_slots": 1,
+        "busy_slots": null,
+        "free_slots": null,
+        "observed_at": "2026-09-20T03:20:05.575593+00:00"
+      },
+      "worker": {
+        "backend": "omen-arc",
+        "model": "qwen3-30b-a3b",
+        "ready": true,
+        "context_length": 16384,
+        "parallel_slots": 8,
+        "busy_slots": 0,
+        "free_slots": 8,
+        "observed_at": "2026-09-20T03:20:06.892668+00:00"
+      },
+      "policy": {
+        "max_builders": 2,
+        "promotion": "manual",
+        "fallback": "none"
+      },
+      "recent_open_receipts": [],
+      "receipts_available": true
+    }
+  },
+  "am4": {
+    "native_pid": 1738436,
+    "native_pid_alive": true,
+    "comm": "llama-server",
+    "dedicated_worker_callers": [],
+    "revocation_backup_exists": true
+  },
+  "workers": {
+    "cc-builder-2": {
+      "runner.json": "7718d852af0181b02aaee72bcd433a53b82f17588f13505eb4b489ecbe16e79d",
+      "scripts/worker-mcp-server.py": "73a38080518d8a3e950692f665b93a855c12beb5b80c40acdb1d780d8e6f7e8c",
+      "scripts/runner_presets.py": "e48b640e0f13fa0bb4c0e629f054b3cbb3c8c0d5adb2c165f658e09cc0fff49a",
+      "scripts/agent_hearth.py": "82e09ad5e2e2067fac4382a1f171663a7777f393b16f5dddfe93b78b541c84b8",
+      "default_unchanged": true
+    },
+    "cc-builder-3": {
+      "runner.json": "70179c9ae10152c467e655785095631c86c049ffe52c26e90b9d6ed10fc7a8ab",
+      "scripts/worker-mcp-server.py": "73a38080518d8a3e950692f665b93a855c12beb5b80c40acdb1d780d8e6f7e8c",
+      "scripts/runner_presets.py": "e48b640e0f13fa0bb4c0e629f054b3cbb3c8c0d5adb2c165f658e09cc0fff49a",
+      "scripts/agent_hearth.py": "82e09ad5e2e2067fac4382a1f171663a7777f393b16f5dddfe93b78b541c84b8",
+      "default_unchanged": true
+    }
+  },
+  "conductor": {
+    "repos": {
+      "/home/claude/work/commandcenter/farmer-repo": {
+        "main": "303a2f0f7c5cedf192e1f8642d7984822415d742",
+        "reflog": "main@{2026-07-03T01:20:35+00:00}"
+      },
+      "/home/claude/work/commandcenter-ontology/farmer-repo": {
+        "main": "97d23883d7435f4138e2bc96a313b25fce419b08",
+        "reflog": "main@{2026-07-03T13:30:15+00:00}"
+      }
+    },
+    "inbox_empty": true
+  },
+  "omen_attempts": [
+    {
+      "job_id": "job_2c8509c0ac70b4476a404d66ed13542a",
+      "caller": "hermes-cc-builder-3",
+      "task_id": "hearth-hermes-br-20260920-030141-e036eff8-3e247760-cc-builder-3",
+      "started_at": "2026-09-20T03:04:19.240820Z",
+      "invocation_id": "inv_345818ddadee3f3fdd640aead10b4c85",
+      "finished_at": "2026-09-20T03:04:31.553439Z",
+      "backend": "omen-arc",
+      "model": "qwen3-30b-a3b",
+      "tokens_in": 1247,
+      "tokens_out": 865,
+      "duration_ms": 12219
+    },
+    {
+      "job_id": "job_3a233530b933d7a6444aabd3e1d4c189",
+      "caller": "hermes-cc-builder-3",
+      "task_id": "hearth-hermes-br-20260920-030141-e036eff8-3e247760-cc-builder-3",
+      "started_at": "2026-09-20T03:04:31.784244Z",
+      "invocation_id": "inv_bdc8df9877941f142a6bf2735c70a98c",
+      "finished_at": "2026-09-20T03:04:35.402842Z",
+      "backend": "omen-arc",
+      "model": "qwen3-30b-a3b",
+      "tokens_in": 2284,
+      "tokens_out": 181,
+      "duration_ms": 3531
+    },
+    {
+      "job_id": "job_9f80393d02d3631ec0a759dbfc91ce02",
+      "caller": "hermes-cc-builder-2",
+      "task_id": "hearth-hermes-br-20260920-031116-00f63902-27fb0479-cc-builder-2",
+      "started_at": "2026-09-20T03:11:28.233747Z",
+      "invocation_id": "inv_f6d6aad5fd3622c9754721701dfd3704",
+      "finished_at": "2026-09-20T03:11:37.413050Z",
+      "backend": "omen-arc",
+      "model": "qwen3-30b-a3b",
+      "tokens_in": 1310,
+      "tokens_out": 643,
+      "duration_ms": 9078
+    },
+    {
+      "job_id": "job_80b72fff80d7bd6a54c3af0dc9806f10",
+      "caller": "hermes-cc-builder-2",
+      "task_id": "hearth-hermes-br-20260920-031116-00f63902-27fb0479-cc-builder-2",
+      "started_at": "2026-09-20T03:11:37.552684Z",
+      "invocation_id": "inv_cfffa26a9175b9d6eb15256503cb120b",
+      "finished_at": "2026-09-20T03:11:40.364560Z",
+      "backend": "omen-arc",
+      "model": "qwen3-30b-a3b",
+      "tokens_in": 2033,
+      "tokens_out": 152,
+      "duration_ms": 2734
+    }
+  ],
+  "accounting": {
+    "am4_attempts": 20,
+    "am4_usage": {
+      "tokens_in": 112787,
+      "tokens_out": 4418
+    },
+    "omen_attempts": 4,
+    "omen_usage": {
+      "tokens_in": 6874,
+      "tokens_out": 1841
+    }
+  },
+  "controller_worker_inference_overlap": [
+    {
+      "controller_attempt": "bb514900d6c24c08a5287a36dce04ee0",
+      "worker_job": "job_9f80393d02d3631ec0a759dbfc91ce02",
+      "overlap_s": 7.655
+    }
+  ]
+}

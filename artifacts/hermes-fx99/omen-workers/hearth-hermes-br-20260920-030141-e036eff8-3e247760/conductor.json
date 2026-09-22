@@ -1,0 +1,132 @@
+{
+  "result": {
+    "plan_id": "hearth-hermes-br-20260920-030141-e036eff8-3e247760",
+    "trace_id": "29823a4d518393aa0714804373df5598",
+    "routing": {
+      "skipped": "explicit Hermes local builders"
+    },
+    "builds": {
+      "cc-builder-3": {
+        "ok": true,
+        "branch": "ccfarm/hearth-hermes-br-20260920-030141-e036eff8-3e247760/cc-builder-3/lap1",
+        "push_ok": true,
+        "runner": "hearth",
+        "runner_model": "qwen3-30b-a3b",
+        "runner_preset": "omen-resident-hearth",
+        "resolved_runner": {
+          "runner": "hearth",
+          "base_url": "http://omen.mshome.net:8083/hermes-worker/mcp",
+          "model": "qwen3-30b-a3b",
+          "context_length": 16384,
+          "max_steps": 12,
+          "preset": "omen-resident-hearth",
+          "config_sha256": "4dcbed620e9d12aac1c19e88f428f1800057a7652810b9fe8e27e3bf31b27b2d"
+        },
+        "committed": true,
+        "pushed": true,
+        "commits_ahead": 1,
+        "empty_build": false,
+        "done_signal": true,
+        "agent_rc": 0,
+        "agent_timed_out": false,
+        "status": "ok",
+        "reason": "ok"
+      }
+    },
+    "assay": {
+      "plan_id": "hearth-hermes-br-20260920-030141-e036eff8-3e247760",
+      "lap": 1,
+      "grader": "claudefarm1",
+      "winner": "cc-builder-3",
+      "scoreboard": [
+        {
+          "worker": "cc-builder-3",
+          "branch": "ccfarm/hearth-hermes-br-20260920-030141-e036eff8-3e247760/cc-builder-3/lap1",
+          "score": 100,
+          "grade": "A",
+          "risk_score": 0.0,
+          "assay_mode": "behavior",
+          "static_score": 100,
+          "behavior_score": 100,
+          "tests_found": 162,
+          "tests_passed": 162,
+          "tests_failed": 0,
+          "imports_ok": 1,
+          "imports_failed": 0,
+          "assay_summary": "pytest: 162/162 passed; imports: 1/1 ok; score=100; isolation=docker",
+          "file_count": 205,
+          "code_files": 176,
+          "has_retro": true,
+          "has_result": true,
+          "has_tests": true,
+          "retro_excerpt": "# Retro (hearth-hermes-br-20260920-030141-e036eff8-3e247760-cc-builder-3)\n\nBuilt by agent_openai on model qwen3-30b-a3b (completion: finished, 2 steps, 16s).\nImplemented fleet_status_format.py with a pure function that formats OMEN worker fleet status as specified, handling all edge cases including missing fields, invalid types, and non-True readiness values. The output is exactly 4 lines with proper formatting, ending with a newline, and adheres to the fixed policy statement.\n\n<!-- agent_openai"
+        }
+      ],
+      "tiebreak": {
+        "method": "human-review",
+        "tied": [],
+        "winner": null
+      }
+    },
+    "winner": "cc-builder-3",
+    "questions": [],
+    "promotion": {
+      "promoted": false,
+      "reason": "manual-review",
+      "status": "awaiting_review",
+      "winner": "cc-builder-3",
+      "candidates": [
+        {
+          "worker": "cc-builder-3",
+          "branch": "ccfarm/hearth-hermes-br-20260920-030141-e036eff8-3e247760/cc-builder-3/lap1",
+          "commit": "b764b019f4c4be3ba4eab7843a62b6dac00d77e4",
+          "build": {
+            "ok": true,
+            "branch": "ccfarm/hearth-hermes-br-20260920-030141-e036eff8-3e247760/cc-builder-3/lap1",
+            "push_ok": true,
+            "runner": "hearth",
+            "runner_model": "qwen3-30b-a3b",
+            "runner_preset": "omen-resident-hearth",
+            "resolved_runner": {
+              "runner": "hearth",
+              "base_url": "http://omen.mshome.net:8083/hermes-worker/mcp",
+              "model": "qwen3-30b-a3b",
+              "context_length": 16384,
+              "max_steps": 12,
+              "preset": "omen-resident-hearth",
+              "config_sha256": "4dcbed620e9d12aac1c19e88f428f1800057a7652810b9fe8e27e3bf31b27b2d"
+            },
+            "committed": true,
+            "pushed": true,
+            "commits_ahead": 1,
+            "empty_build": false,
+            "done_signal": true,
+            "agent_rc": 0,
+            "agent_timed_out": false,
+            "status": "ok",
+            "reason": "ok"
+          },
+          "missing_deliverables": [],
+          "unchanged_deliverables": [],
+          "artifact_status": "present-unreviewed"
+        }
+      ]
+    },
+    "target": {
+      "builders": [
+        "cc-builder-3"
+      ],
+      "promotion_policy": "manual",
+      "runner_preset": "omen-resident-hearth",
+      "operator": "hermes",
+      "task_class": "build",
+      "est_tokens": 4801,
+      "est_tokens_source": "derived",
+      "requires": [
+        "fleet_status_format.py"
+      ],
+      "max_age_s": 300
+    }
+  },
+  "main": "97d23883d7435f4138e2bc96a313b25fce419b08"
+}

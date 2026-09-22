@@ -1,0 +1,29 @@
+{
+  "contract_version": "gpu-catalog.v1",
+  "gathered_at": "2026-09-19T22:08:56Z",
+  "host": "am4",
+  "hardware_profile_id": "am4-4070ti-5070-2026H2",
+  "resident_models": [],
+  "staging_slots": 1,
+  "gates": {"vram_headroom_gb": 0.5},
+  "cards": [
+    {"index": 0, "uuid": "GPU-a1f65cc0-44d9-7854-6785-7d93e686da2f", "bdf": "0000:09:00.0", "vram_gb": 11.94, "label": "RTX 5070"},
+    {"index": 1, "uuid": "GPU-dafbdbfc-23af-0c97-112d-dc17695c2aa8", "bdf": "0000:0a:00.0", "vram_gb": 11.99, "label": "RTX 4070 Ti"}
+  ],
+  "models": [
+    {"model_id": "Qwen3.8-27B-Q4_K_M.gguf", "alias": "am4-dense-27b", "placement": "dual",
+     "visible_devices": null, "vram_gb": 22.0, "per_card_gb": null,
+     "card_charges_gb": {"0": 11.2, "1": 10.8},
+     "expected_gen_tps": null, "warmup_ms_p50": null, "warmup_ms_max": null,
+     "sample_count": 0, "qualified_task_classes": [],
+     "quality_evidence": "Hermes receipt br-20260919-215719-70852cc4 exercised native tool dispatch; first delegated pair produced no required artifacts. This is not coding-quality qualification.",
+     "notes": "2026-09-19 22:08:56Z nvidia-smi: 11400/12227 MiB on 5070, 10899/12282 MiB on 4070 Ti. Card-wide allocations rounded upward to 11.2/10.8 GiB as conservative planning charges, not model-only attribution or a sustained peak measurement. Existing Dense27B :18090, q4_0 KV, 131072 context, one physical slot; authenticated facade :8090 alias am4-dense-27b. Live readiness and independent placement evidence take precedence. No new rate invented; aliases and the two CPU builders are not additional slots."},
+    {"model_id": "qwen2.5:14b", "alias": null, "placement": "single",
+     "visible_devices": null, "vram_gb": 9.2, "per_card_gb": 9.2,
+     "expected_gen_tps": 64.69, "warmup_ms_p50": null,
+     "warmup_ms_max": null, "sample_count": 1,
+     "qualified_task_classes": ["inference", "research", "summarization"],
+     "quality_evidence": "2026-09-15 HEARTH pinned am4-ollama/qwen2.5:14b ADR-0008 source extraction, independently checked and corrected; cc-builder-3 from-VM Ollama decode result campaign/results/am4-vm-decode-result.json",
+     "notes": "4096 context; Ollama /api/ps size_vram=size=9,470,098,799 bytes; nvidia-smi 5070 used 9312 MiB versus 80 MiB idle. Planning charge 9.2 GiB includes margin. The 64.69 tok/s rate is one short 107-prompt/80-output-token from-VM sample, not a long-context or sustained rate."}
+  ]
+}

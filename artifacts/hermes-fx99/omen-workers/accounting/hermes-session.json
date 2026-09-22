@@ -1,0 +1,22 @@
+{
+  "session": {
+    "id": "20260920_031039_a63634",
+    "model": "am4-dense-27b",
+    "started_at": 1789873842.6609185,
+    "ended_at": 1789873896.2219105,
+    "message_count": 10,
+    "tool_call_count": 4,
+    "input_tokens": 10616,
+    "output_tokens": 1104,
+    "cache_read_tokens": 23300,
+    "api_call_count": 5
+  },
+  "final_messages": [
+    {
+      "id": 80,
+      "role": "assistant",
+      "content": "Done. One receipt created, one dispatch, stopping now \u2014 no polling or retry.\n\nReal IDs:\n- receipt_id: br-20260920-031116-00f63902\n- plan_id: hearth-hermes-br-20260920-031116-00f63902-27fb0479\n\nDispatch details: mode delegate, backend omen-arc (pinned), builders [cc-builder-2], task_class drafting, runner_preset omen-resident-hearth, max_age_s 180, promotion_policy manual, requires [OPERATIONS-CHECKLIST.md]. Delegation state: submitted at 2026-09-20T03:11:25Z, receipt now running. No fallback or second dispatch was made.",
+      "tool_calls": null
+    }
+  ]
+}

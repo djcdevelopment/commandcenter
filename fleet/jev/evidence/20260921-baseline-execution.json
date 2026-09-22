@@ -1,0 +1,75 @@
+{
+  "executor": "Codex direct actual-repository checks, not Hermes",
+  "cases": [
+    {
+      "variant": "OMEN_original",
+      "base_commit": "57f0aca07ab2de3b629958f77ccb5415f89c87e6",
+      "path": "fleet/jev/artifacts.py",
+      "passed": false,
+      "exception": "RuntimeError",
+      "reason": "multiple_or_no_matches"
+    },
+    {
+      "variant": "OMEN_original",
+      "base_commit": "57f0aca07ab2de3b629958f77ccb5415f89c87e6",
+      "path": "fleet/jev/b70_capacity.py",
+      "passed": false,
+      "exception": "RuntimeError",
+      "reason": "multiple_or_no_matches"
+    },
+    {
+      "variant": "Codex_replacement",
+      "base_commit": "57f0aca07ab2de3b629958f77ccb5415f89c87e6",
+      "path": "fleet/jev/artifacts.py",
+      "present": true,
+      "sha256": "abb3f3a9470d5def994f7b65c1eb2eda9cf0ea90db6d107d8fde251328cc5aa9",
+      "passed": true
+    },
+    {
+      "variant": "Codex_replacement",
+      "base_commit": "57f0aca07ab2de3b629958f77ccb5415f89c87e6",
+      "path": "fleet/jev/b70_capacity.py",
+      "present": false,
+      "sha256": null,
+      "passed": true
+    },
+    {
+      "name": "reject_branch_name",
+      "variant": "Codex_replacement",
+      "commit": "HEAD",
+      "path": "fleet/jev/artifacts.py",
+      "passed": true
+    },
+    {
+      "name": "missing_commit_is_error",
+      "variant": "Codex_replacement",
+      "commit": "0000000000000000000000000000000000000000",
+      "path": "fleet/jev/artifacts.py",
+      "passed": true
+    },
+    {
+      "name": "reject_parent_path",
+      "variant": "Codex_replacement",
+      "commit": "57f0aca07ab2de3b629958f77ccb5415f89c87e6",
+      "path": "../artifacts.py",
+      "passed": true
+    }
+  ],
+  "baseline": {
+    "base_commit": "57f0aca07ab2de3b629958f77ccb5415f89c87e6",
+    "files": {
+      "fleet/jev/b70_capacity.py": {
+        "commit": "57f0aca07ab2de3b629958f77ccb5415f89c87e6",
+        "path": "fleet/jev/b70_capacity.py",
+        "present": false,
+        "content": "",
+        "sha256": null
+      }
+    }
+  },
+  "packet_sha256": "20886ed19b62d660af78c2378cf3b15e4ae66e08df55769a770be4bdba72b5a7",
+  "packet_bytes": 27284,
+  "current_worktree_has_new_file": true,
+  "packet_explicit_new_file": true,
+  "existing_file_matches_git_blob": true
+}

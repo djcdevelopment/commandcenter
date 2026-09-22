@@ -65,6 +65,9 @@ class ProfileError(ValueError):
 # appears exactly once; assert_surface_complete() proves this covers whatever is
 # actually mounted at runtime.
 TOOL_CAPABILITY: dict[str, str] = {
+    "scheduler_prepare": "schedule",
+    "scheduler_select": "dispatch",
+    "scheduler_review": "build_request",
     # read: filesystem reads, scope-limited by the caller's `scope` (ADR-0019 §4)
     "glob_files": "read",
     "list_dir": "read",
@@ -77,7 +80,9 @@ TOOL_CAPABILITY: dict[str, str] = {
     "query_capabilities": "query",
     "query_capacity": "query",
     "query_findings": "query",
+    "query_knowledge": "query",
     "query_offload": "query",
+    "query_omen_worker": "status",
     "query_rung_state": "query",   # rungstate.py -- door-side rung verdict (ADR-0044)
     "recommend_rung": "query",     # rotation.py -- task-family advice, never dispatches
     "rotation_status": "query",    # rotation.py -- /running + tenancy + rung state, read-only
@@ -166,6 +171,7 @@ TOOL_CAPABILITY: dict[str, str] = {
     # schedule: scheduler advice + hindsight
     "propose_schedule": "schedule",
     "schedule_hindsight": "schedule",
+    "capture_resource_snapshot": "schedule",
     # catalog_write: the am4 catalog owner (writes its own non-corpus file)
     "gather_am4_catalog": "catalog_write",
     # commander: intent refinement lane

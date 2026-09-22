@@ -1,0 +1,36 @@
+{
+  "executor": "Codex: inspected source and executed the three pure candidate validation functions; no live daemon probe in these checks",
+  "candidate_files_sha256": {
+    "cli.py": "5bee93b27c7dc13f8f1bd2fd67c8bc9448e0697d27476919ab96714bb963c5df"
+  },
+  "verdict": "NEEDS_WORK",
+  "cases": [
+    {
+      "name": "preserve_original_scheduler_functions",
+      "passed": false,
+      "missing": [
+        "connect_call",
+        "lap"
+      ],
+      "method": "AST inspection; missing definitions are still referenced by main"
+    },
+    {
+      "name": "reject_newline_suffix_in_build_id",
+      "input": "br-20260921-071259-279d5a84\nINJECTED",
+      "actual": "br-20260921-071259-279d5a84\nINJECTED",
+      "passed": false
+    },
+    {
+      "name": "reject_nonfinite_snapshot_time",
+      "input": "NaN",
+      "actual": "nan",
+      "passed": false
+    },
+    {
+      "name": "reject_boolean_pending_count",
+      "input": true,
+      "actual": "unknown",
+      "passed": true
+    }
+  ]
+}

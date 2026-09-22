@@ -1,0 +1,126 @@
+{
+  "executor": "Codex; no accepted local candidate existed",
+  "first_artifact_at": "2026-09-21T10:23:06.5188096Z",
+  "first_artifact_target": "2026-09-21T10:22:50Z",
+  "first_target_missed_s": 16.518,
+  "source_sha256": "ac71efc6ed63c63ced324ef28773fb8af4d496c019d8f57795f2a904186dc2ee",
+  "first_html_sha256": "6fd9fde5a5ca8066654dd3f6d41640c505797cf0fad588d7160ca203da05d68f",
+  "checks": {
+    "actual_quality_matches_history": true,
+    "quality_before_registry": true,
+    "json_embeds_exact_counts_and_hash": true,
+    "registry_rows_preserved": 13,
+    "missing_stays_unknown": true,
+    "wrong_type_stays_unknown": true,
+    "unavailable_stays_unknown": true,
+    "not_exact_true_stays_unknown": true,
+    "history_value_html_and_json_escaped": true,
+    "existing_output_refused": true
+  },
+  "quality_at_first_render": {
+    "available": true,
+    "tasks": 7,
+    "authored": 5,
+    "unmodified_delivery": 1,
+    "assisted_delivery": 4,
+    "rejected": 0,
+    "incomplete": 0,
+    "not_run": 2,
+    "invalid_records": 0,
+    "profile": "omen-resident-hearth",
+    "history_sha256": "d6a91fa05674982f12434c9002e149f5d0bfea85627453637aa989bb6c9b4922",
+    "scope": "Operator-verified selected task subset; not inference success or a benchmark."
+  },
+  "worker_commit_changed_paths": [
+    "retro.md"
+  ],
+  "missing_worker_source": "operations_page.py",
+  "restoration": {
+    "task_id": "jev-35f435a106d15feb1147bb14",
+    "review_seat": {
+      "ok": true,
+      "owner": null,
+      "model_resident": false,
+      "native_context": null,
+      "kv_enabled": false
+    },
+    "original_hold": {
+      "reason": "ExceptionGroup"
+    },
+    "restored_review_sha256": "0a50aba9f7e77ca60829886df28cd887a3187c8f2c45a739fb9a2cdf4f6cc0c5",
+    "installed": {
+      "installed": [
+        "/home/derek/.local/share/fleet-scheduler/fleet/jev/review.py"
+      ]
+    },
+    "archive": {
+      "hold_archived": "/home/derek/.local/state/fleet-scheduler/HOLD.review-capture-cycle13-20260921"
+    },
+    "queue_state": "operator_held",
+    "short_contract_qualified": false,
+    "review_was_run": false
+  },
+  "deployment": {
+    "installed": {
+      "installed": [
+        "/home/derek/.local/share/fleet-scheduler/fleet/jev/review.py"
+      ]
+    },
+    "original_sha256": "0a50aba9f7e77ca60829886df28cd887a3187c8f2c45a739fb9a2cdf4f6cc0c5",
+    "backup_suffix": ".jev-advisory-review-20260921.backup",
+    "response_contract": "advisory-findings-130-words-v1",
+    "automatic_review_budget_s": 90
+  },
+  "decision": {
+    "material": "695be0982f99405f0c7522595ebcd60ffa2ff16bde2e847e20003f031b7d1db0",
+    "usage": {
+      "provider": "typesafe",
+      "model": "jev-1.13.0",
+      "input_tokens": 957,
+      "output_tokens": 97,
+      "estimated_usd": 0.00004019400000000001,
+      "elapsed_s": 0.249,
+      "request_sha256": "46bda4dc44e03a71a128364d807d7f89ee68ae184b61235fe2b85887bd28c647"
+    },
+    "judgments": [
+      {
+        "candidate_id": "67c8c63f1dc38c4731c806f5eb0b1a4a",
+        "score": 3,
+        "confidence": 1,
+        "ambiguity": 0.13,
+        "probabilities": {
+          "0": 0,
+          "1": 0,
+          "2": 0,
+          "3": 1
+        },
+        "eligible": true
+      }
+    ],
+    "candidate_id": "67c8c63f1dc38c4731c806f5eb0b1a4a",
+    "snapshot_id": "c207f523625a9d7da73ceee9a975aa320d231f1ed41e5aa6d0a3f53644643a0d",
+    "wait_reason": null,
+    "quality_history_sha256": "d6a91fa05674982f12434c9002e149f5d0bfea85627453637aa989bb6c9b4922",
+    "dispatched": true
+  },
+  "status": {
+    "scheduler": "ready",
+    "gpu_reservation": false,
+    "active_build": null,
+    "pending_reviews": 0,
+    "reviewer": "unloaded",
+    "wait_reason": "no_admissible_ready_task",
+    "observed_at": 1789986317.176939,
+    "next_poll_s": 30
+  },
+  "budget": {
+    "available": true,
+    "calls": 12,
+    "input_tokens": 8980,
+    "usage_estimate_usd": 0.00037716000000000003,
+    "uncertain_reserved_usd": 0.005505024000000001,
+    "booked_usd": 0.005882184,
+    "remaining_usd": 0.094117816
+  },
+  "snapshot_acquisition_started_at": "2026-09-21T10:23:03.649290+00:00"
+}

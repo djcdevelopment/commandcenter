@@ -109,20 +109,28 @@ class PerMemberContextBudgetTests(unittest.TestCase):
         self.assertEqual(attempted["budget_scope"], "model")
 
     def test_declared_budgets_match_the_yaml_command_lines(self) -> None:
-        """The numbers are derived from omen.yaml -- drift there must not go unnoticed."""
+        """The numbers follow the active day or night entry's -c declaration."""
         import re
         from pathlib import Path
-        text = Path("fleet/arcserve/llama-swap/omen.yaml").read_text(encoding="utf-8")
+        configs = {
+            name: Path(f"fleet/arcserve/llama-swap/{name}.yaml").read_text(encoding="utf-8")
+            for name in ("omen", "omen-night")
+        }
         declared = self.rung.settings["context_bytes_by_model"]
         for entry, budget in declared.items():
+            source = next((name for name, body in configs.items()
+                           if f'"{entry}":' in body), None)
+            self.assertIsNotNone(source, f"{entry} is absent from both serving shapes")
+            text = configs[source]
             start = text.find(f'"{entry}":')
-            self.assertNotEqual(start, -1, f"{entry} is declared but absent from omen.yaml")
             nxt = text.find('\n  "', start + 1)
             block = text[start:nxt if nxt != -1 else len(text)]
             ctx = re.search(r"-c (\d+)", block)
-            self.assertIsNotNone(ctx, f"{entry} has no -c in omen.yaml")
-            self.assertEqual(int(int(ctx.group(1)) * 3.5), budget,
-                             f"{entry}: budget {budget} does not match -c {ctx.group(1)} x 3.5")
+            self.assertIsNotNone(ctx, f"{entry} has no -c in {source}.yaml")
+            slots = re.search(r"-np (\d+)", block)
+            per_slot_tokens = int(ctx.group(1)) // (int(slots.group(1)) if slots else 1)
+            self.assertEqual(int(per_slot_tokens * 3.5), budget,
+                             f"{entry}: budget {budget} does not match per-slot -c/-np")
             self.assertNotIn('"', block[len(f'"{entry}":'):].split("cmd")[0],
                              f"{entry}: block parse overran into another entry")
 

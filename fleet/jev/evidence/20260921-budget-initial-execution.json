@@ -1,0 +1,120 @@
+{
+  "executor": "Codex: executed inspected pure candidate against actual ledger and eight contract cases; no ledger writes",
+  "candidate_files_sha256": {
+    "budget_view.py": "2cc01f11731ceee5ac56fd0cbb06afe8c45b52e479db81ef5c9786ce5ff24ee2"
+  },
+  "actual_ledger": {
+    "calls": 6,
+    "charged_usd": 0.005652024,
+    "input_tokens": 3500
+  },
+  "configured_price_per_input_token": 4.2e-8,
+  "ceiling_usd": 0.1,
+  "cases": [
+    {
+      "name": "actual_ledger",
+      "passed": true,
+      "actual": {
+        "available": true,
+        "calls": 6,
+        "input_tokens": 3500,
+        "usage_estimate_usd": 0.000147,
+        "uncertain_reserved_usd": 0.005505024000000001,
+        "booked_usd": 0.005652024,
+        "remaining_usd": 0.094347976
+      },
+      "input_unchanged": true
+    },
+    {
+      "name": "missing_fields",
+      "passed": true,
+      "actual": {
+        "available": false,
+        "calls": null,
+        "input_tokens": null,
+        "usage_estimate_usd": null,
+        "uncertain_reserved_usd": null,
+        "booked_usd": null,
+        "remaining_usd": null
+      },
+      "input_unchanged": true
+    },
+    {
+      "name": "boolean_calls",
+      "passed": true,
+      "actual": {
+        "available": false,
+        "calls": null,
+        "input_tokens": null,
+        "usage_estimate_usd": null,
+        "uncertain_reserved_usd": null,
+        "booked_usd": null,
+        "remaining_usd": null
+      },
+      "input_unchanged": true
+    },
+    {
+      "name": "nan_price",
+      "passed": true,
+      "actual": {
+        "available": false,
+        "calls": null,
+        "input_tokens": null,
+        "usage_estimate_usd": null,
+        "uncertain_reserved_usd": null,
+        "booked_usd": null,
+        "remaining_usd": null
+      },
+      "input_unchanged": true
+    },
+    {
+      "name": "inconsistent_ledger",
+      "passed": true,
+      "actual": {
+        "available": false,
+        "calls": null,
+        "input_tokens": null,
+        "usage_estimate_usd": null,
+        "uncertain_reserved_usd": null,
+        "booked_usd": null,
+        "remaining_usd": null
+      },
+      "input_unchanged": true
+    },
+    {
+      "name": "arithmetic_overflow",
+      "passed": false,
+      "raised": "OverflowError",
+      "input_unchanged": true
+    },
+    {
+      "name": "exact_integer_type",
+      "passed": false,
+      "actual": {
+        "available": true,
+        "calls": 6,
+        "input_tokens": 3500,
+        "usage_estimate_usd": 0.000147,
+        "uncertain_reserved_usd": 0.005505024000000001,
+        "booked_usd": 0.005652024,
+        "remaining_usd": 0.094347976
+      },
+      "input_unchanged": true
+    },
+    {
+      "name": "over_cap",
+      "passed": true,
+      "actual": {
+        "available": true,
+        "calls": 6,
+        "input_tokens": 3500,
+        "usage_estimate_usd": 0.000147,
+        "uncertain_reserved_usd": 0.199853,
+        "booked_usd": 0.2,
+        "remaining_usd": 0
+      },
+      "input_unchanged": true
+    }
+  ],
+  "verdict": "NEEDS_WORK"
+}

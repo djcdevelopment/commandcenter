@@ -1,5 +1,9 @@
 # Overnight JEV / Hermes work log
 
+> **Closed record:** This chronology is superseded for conclusions and reopening
+> criteria by the [final retrospective](RETROSPECTIVE-20260921.md). It remains the
+> detailed evidence trail. It is not a current-state or restart instruction.
+
 ## Later authorized follow-up: cycle21, AM4 builder authentication edge
 
 Derek approved the scoped AM4 qualification after the original overnight window.

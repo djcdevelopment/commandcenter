@@ -1,5 +1,9 @@
 # Hermes local-fleet handoff
 
+> **Historical source:** The later JEV experiment that built on this work is
+> closed in the [JEV/Hermes final retrospective](../jev/RETROSPECTIVE-20260921.md).
+> Re-check live ownership and capacity before using any operational detail here.
+
 Updated 2026-09-20 UTC. Read this before replaying any historical deployment or
 R&D script. Companion: [retrospective](RETROSPECTIVE-20260920.md).
 

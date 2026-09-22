@@ -51,7 +51,19 @@ class OmenCatalogContractTests(TestCase):
         self.assertEqual(self.catalog["contract_version"], "omen-catalog.v1")
         self.assertEqual(self.catalog["host"], "omen")
         self.assertEqual(len(self.catalog["cards"]), 2)
-        self.assertEqual(len(self.catalog["models"]), 6)
+        self.assertEqual(
+            {model["model_id"] for model in self.catalog["models"]},
+            {
+                "qwen3-30b-a3b",
+                "qwen38-27b",
+                "phi4",
+                "qwen14b",
+                "gptoss20b",
+                "mistral24b",
+                "qwen38-27b-mtp",
+                "qwen14b-night",
+            },
+        )
 
     def test_every_measured_number_has_a_receipt(self) -> None:
         for model in self.catalog["models"]:

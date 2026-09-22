@@ -71,7 +71,7 @@ def _run_deepagents(
     """Execute inventory task via DeepAgents tool loop on local compute."""
     sys.path.insert(0, r"C:\work\deepagents-poc\.venv\Lib\site-packages")
     sys.path.insert(0, r"C:\work\deepagents-poc")
-    
+
     try:
         from deepagents import create_deep_agent
         from deepagents.backends.filesystem import FilesystemBackend

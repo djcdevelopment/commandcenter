@@ -1,0 +1,41 @@
+{
+  "format": "b70tools-jsonl-compact-v1",
+  "event_kinds": {
+    "ms":  "MetricSample",
+    "ai":  "AdapterIdentity",
+    "ast": "AdapterStateTransition",
+    "dr":  "DisagreementReport",
+    "seb": "SessionEpochBoundary",
+    "drf": "DriverRuntimeFingerprint",
+    "car": "CollectorAuditRecord"
+  },
+  "collector_audit_fields": {
+    "tp":    "declared_truly_passive",
+    "dp":    "declared_driver_passive",
+    "tb":    "threads_before",
+    "ta":    "threads_after",
+    "mods":  "modules_loaded",
+    "iw":    "init_wall_ns",
+    "rss":   "rss_delta_bytes",
+    "undec": "observed_undeclared_side_effects",
+    "note":  "notes"
+  },
+  "metric_sample_fields": {
+    "k":  "event_kind",
+    "n":  "metric_name",
+    "a":  "adapter_id",
+    "e":  "session_epoch",
+    "d":  "semantic_domain",
+    "v":  "value",
+    "u":  "unit",
+    "s":  "source",
+    "p":  "source_detail",
+    "t":  "timestamp_qpc",
+    "l":  "poll_latency_ns",
+    "w":  "sampling_window_ns",
+    "o":  "observation_kind",
+    "c":  "correlation_method",
+    "f":  "confidence",
+    "g":  "flags"
+  }
+}

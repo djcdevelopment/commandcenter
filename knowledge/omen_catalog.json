@@ -221,7 +221,10 @@
       "sample_count": 0,
       "swap_entry": "qwen38-27b-mtp",
       "notes": "Night epoch only. VRAM is sum of logged model, KV, recurrent and compute buffers, including draft model; card charges are asymmetric (about 19.72/24.53 GiB). Rate is withheld until a repeatable pilot measurement. Never plan a cold load from this advisory catalog.",
-      "receipts": {"vram_gb": "hearth/var/swap-logs/qwen38-27b-mtp.log:2148-2337,3521-3660"}
+      "receipts": {
+        "per_card_gb": "hearth/var/swap-logs/qwen38-27b-mtp.log:2148-2337,3521-3660",
+        "vram_gb": "hearth/var/swap-logs/qwen38-27b-mtp.log:2148-2337,3521-3660"
+      }
     },
     {
       "model_id": "qwen14b-night",
@@ -240,7 +243,10 @@
       "sample_count": 0,
       "swap_entry": "qwen14b-night",
       "notes": "Night epoch helper on Vulkan1. Logged model, KV and compute buffers; generation rate not established. Only resident planning is permitted.",
-      "receipts": {"vram_gb": "hearth/var/swap-logs/qwen14b-night.log:1507-1611"}
+      "receipts": {
+        "per_card_gb": "hearth/var/swap-logs/qwen14b-night.log:1507-1611",
+        "vram_gb": "hearth/var/swap-logs/qwen14b-night.log:1507-1611"
+      }
     }
   ]
 }

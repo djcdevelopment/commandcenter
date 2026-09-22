@@ -1,5 +1,11 @@
 # FX99 Hermes implementation — 2026-09-19
 
+**Later continuation:** The JEV scheduler experiment that used Hermes as an
+on-demand critic is closed in the
+[combined retrospective](../../fleet/jev/RETROSPECTIVE-20260921.md) and told in
+the [podcast-ready journey](../rnd/JOURNEY-2026-09-21-jev-hermes-scheduler.md).
+Those documents supersede current-state implications here; this remains history.
+
 **Start here:** [current handoff](../../fleet/hermes/HANDOFF.md) and
 [retrospective](../../fleet/hermes/RETROSPECTIVE-20260920.md). This file preserves
 historical outcomes; its "no push" and process-ID statements refer to those

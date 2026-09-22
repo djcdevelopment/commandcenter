@@ -1,5 +1,11 @@
 # JEV scheduler / on-demand Hermes reviewer
 
+**Experiment closed (2026-09-21):** land this as historical, manually governed
+tooling—not as an unattended acceptance system. Read the
+[final retrospective](RETROSPECTIVE-20260921.md) and the podcast-ready
+[combined journey](../../docs/rnd/JOURNEY-2026-09-21-jev-hermes-scheduler.md).
+The service/model state below is the last recorded state, not a live assertion.
+
 Latest qualification: the [approved AM4 Dense builder attempt](AM4-BUILDER-QUALIFICATION-20260921.md)
 stopped at HTTP 401 before inference on September 21 at 22:33 UTC. No candidate
 or quality comparison resulted. The owned model was unloaded, all shared runner
@@ -13,7 +19,7 @@ behavioral-check experiment failed and delivery needed Codex corrections. The
 [packet-only reviewer](PACKET-ONLY-REVIEW-20260921.md) is opt-in with limited
 qualification; the automatic review mode remains unchanged.
 
-Latest status, 2026-09-21: **real build/review/release cycles are operating;
+Last recorded status, 2026-09-21: **real build/review/release cycles operated;
 code acceptance still requires independent review**. FX99 now polls active builds
 every five seconds (observed 5.66–5.76 seconds including RPC), idle work every
 30 seconds, and schedules a one-second follow-up after review. Human status adds

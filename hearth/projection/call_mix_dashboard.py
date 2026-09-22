@@ -35,6 +35,7 @@ from hearth.toolsurface._scope import resolve_in_scope
 
 DEFAULT_LEDGER = "hearth/var/ledger/events.ndjson"
 DEFAULT_SENTINEL = "hearth/var/sentinel/ollama-direct.ndjson"
+DEFAULT_SEATS = "hearth/var/seats/receipts.ndjson"
 DEFAULT_OUT = "HEARTH-CALL-MIX.html"
 
 CLOUD_BACKENDS = {"gcp-gemini", "gcp-gemini-pro"}
@@ -240,10 +241,67 @@ def _load_sentinel_summary(path: Path | None) -> dict[str, Any]:
     return summary
 
 
+def _load_seats_summary(path: Path | None) -> dict[str, Any]:
+    """Research-seat receipts (ADR-0047), summarized apart from call counts.
+
+    The seat ledger holds one receipt per task a bespoke llama-server processed
+    on a port the door never names. Like the sentinel it is a coverage note, not
+    a family: its rows are never added to the HEARTH call counts above.
+    """
+    summary = {
+        "available": False,
+        "receipts": 0,
+        "measured": 0,
+        "unknown": 0,
+        "seats": 0,
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "parse_errors": 0,
+        "first_day": None,
+        "last_day": None,
+    }
+    if path is None or not path.exists():
+        return summary
+
+    summary["available"] = True
+    days: list[str] = []
+    seats: set[str] = set()
+    with path.open("r", encoding="utf-8") as stream:
+        for line in stream:
+            if not line.strip():
+                continue
+            try:
+                record = json.loads(line)
+            except (json.JSONDecodeError, TypeError):
+                summary["parse_errors"] += 1
+                continue
+            if not isinstance(record, dict):
+                summary["parse_errors"] += 1
+                continue
+            summary["receipts"] += 1
+            seats.add(str(record.get("seat_id")))
+            usage = record.get("usage")
+            if isinstance(usage, dict):
+                summary["measured"] += 1
+                summary["tokens_in"] += _int_cost(usage.get("tokens_in"))
+                summary["tokens_out"] += _int_cost(usage.get("tokens_out"))
+            else:
+                summary["unknown"] += 1
+            day = str(record.get("finished_at") or "")[:10]
+            if len(day) == 10:
+                days.append(day)
+    summary["seats"] = len(seats)
+    if days:
+        summary["first_day"] = min(days)
+        summary["last_day"] = max(days)
+    return summary
+
+
 def summarize(
     ledger_path: Path,
     sentinel_path: Path | None = None,
     registered_tool_count: int | None = None,
+    seats_path: Path | None = None,
 ) -> dict[str, Any]:
     """Aggregate one HEARTH ledger without carrying content-bearing fields."""
     families: Counter[str] = Counter()
@@ -327,6 +385,7 @@ def summarize(
         "daily": daily_rows,
         "backends": backend_rows,
         "sentinel": _load_sentinel_summary(sentinel_path),
+        "seats": _load_seats_summary(seats_path),
     }
 
 
@@ -492,6 +551,7 @@ def build_html(summary: dict[str, Any], generated_at: datetime | None = None) ->
     tokens_out = sum(row["tokens_out"] for row in summary["backends"])
     operations = families["Health / automation"] + families["Door status"]
     sentinel = summary["sentinel"]
+    seats = summary.get("seats") or _load_seats_summary(None)
     top_tools = list(summary["tool_counts"].items())[:12]
 
     sentinel_text = (
@@ -500,6 +560,17 @@ def build_html(summary: dict[str, Any], generated_at: datetime | None = None) ->
         f'{_esc(sentinel["first_day"])} through {_esc(sentinel["last_day"])}. '
         if sentinel["available"] else
         "No Ollama sentinel file was available at generation time. "
+    )
+    seats_text = (
+        f'The separate research-seat ledger holds <strong>{_fmt_int(seats["receipts"])}</strong> '
+        f'harvested seat receipts across {_fmt_int(seats["seats"])} seats '
+        f'({_fmt_int(seats["measured"])} measured, {_fmt_int(seats["unknown"])} with unknown usage): '
+        f'{_fmt_int(seats["tokens_in"])} prompt and {_fmt_int(seats["tokens_out"])} generated tokens '
+        f'from {_esc(seats["first_day"])} through {_esc(seats["last_day"])}. These are bespoke '
+        "llama-server seats on ports the door never names, read from their own timing logs "
+        "(ADR-0047); they are summarized here and never merged into the call counts above."
+        if seats["available"] else
+        "No research-seat receipts ledger was available at generation time (ADR-0047)."
     )
 
     top_tool_rows = "".join(
@@ -592,6 +663,7 @@ footer {{ margin-top:36px; color:var(--muted); border-top:1px solid var(--line);
   Calls made directly to Ollama, SSH, Git, files, or cloud APIs never become kernel-ledger
   events. {sentinel_text}Those observations are not request counts, can miss short calls,
   and contain no prompt/token data, so this page does not merge them with HEARTH calls.</p>
+  <p>{seats_text}</p>
 </div>
 
 <section>
@@ -652,8 +724,8 @@ footer {{ margin-top:36px; color:var(--muted); border-top:1px solid var(--line);
 </section>
 
 <footer>
-  Source: <code>{_esc(DEFAULT_LEDGER)}</code> plus a non-additive coverage summary from
-  <code>{_esc(DEFAULT_SENTINEL)}</code>. Generated by
+  Source: <code>{_esc(DEFAULT_LEDGER)}</code> plus non-additive coverage summaries from
+  <code>{_esc(DEFAULT_SENTINEL)}</code> and <code>{_esc(DEFAULT_SEATS)}</code>. Generated by
   <code>python -m hearth.projection.call_mix_dashboard</code> and refreshed by the
   six-hour knowledge-rebuild timer. Refreshing the browser only reloads the latest
   static artifact.
@@ -668,8 +740,9 @@ def write_dashboard(
     out_path: Path,
     ledger_path: Path,
     sentinel_path: Path | None = None,
+    seats_path: Path | None = None,
 ) -> dict[str, Any]:
-    summary = summarize(ledger_path, sentinel_path=sentinel_path)
+    summary = summarize(ledger_path, sentinel_path=sentinel_path, seats_path=seats_path)
     rendered = build_html(summary)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(rendered, encoding="utf-8")
@@ -688,14 +761,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--ledger", default=DEFAULT_LEDGER)
     parser.add_argument("--sentinel", default=DEFAULT_SENTINEL)
+    parser.add_argument("--seats", default=DEFAULT_SEATS,
+                        help="research-seat receipts ledger (ADR-0047); summarized apart from call counts")
     parser.add_argument("--out", default=DEFAULT_OUT)
     args = parser.parse_args(sys.argv[1:] if argv is None else argv)
 
     try:
         ledger = resolve_in_scope(args.ledger)
         sentinel = resolve_in_scope(args.sentinel) if args.sentinel else None
+        seats = resolve_in_scope(args.seats) if args.seats else None
         out = resolve_in_scope(args.out)
-        result = write_dashboard(out, ledger, sentinel)
+        result = write_dashboard(out, ledger, sentinel, seats)
     except Exception as exc:
         print(f"call-mix dashboard: FAILED {exc}")
         return 1

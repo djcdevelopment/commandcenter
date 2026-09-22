@@ -171,6 +171,7 @@
           "media",
           "work_plane",
           "other",
+          "research_attempts",
           "suppressed_cells"
         ],
         "properties": {
@@ -195,10 +196,13 @@
           "other": {
             "$ref": "#/$defs/publicCell"
           },
+          "research_attempts": {
+            "$ref": "#/$defs/publicCell"
+          },
           "suppressed_cells": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 6
+            "maximum": 7
           }
         }
       }
@@ -263,7 +267,9 @@
         "boundary": {
           "enum": [
             "calls observed at the HEARTH gateway and execution ledgers",
-            "HEARTH gateway and execution ledgers, including instrumented direct local inference"
+            "HEARTH gateway and execution ledgers, including instrumented direct local inference",
+            "calls observed at the HEARTH gateway and execution ledgers, plus research runs harvested from server logs and run records",
+            "HEARTH gateway and execution ledgers, including instrumented direct local inference, plus research runs harvested from server logs and run records"
           ]
         },
         "raw_content_withheld": {
@@ -305,7 +311,27 @@
         },
         "execution_prefix_sha256": {
           "$ref": "#/$defs/digest"
+        },
+        "seat_prefix_sha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "record_prefix_sha256": {
+          "$ref": "#/$defs/digest"
         }
+      }
+    },
+    "research_runs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attempts", "measured_attempts", "unknown_usage_attempts", "failed_attempts", "tokens_in", "tokens_out", "sources"],
+      "properties": {
+        "attempts": { "$ref": "#/$defs/count" },
+        "measured_attempts": { "$ref": "#/$defs/count" },
+        "unknown_usage_attempts": { "$ref": "#/$defs/count" },
+        "failed_attempts": { "$ref": "#/$defs/count" },
+        "tokens_in": { "$ref": "#/$defs/count" },
+        "tokens_out": { "$ref": "#/$defs/count" },
+        "sources": { "$ref": "#/$defs/count" }
       }
     },
     "integrity": {

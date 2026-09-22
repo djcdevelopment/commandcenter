@@ -294,9 +294,158 @@ class PublicPortfolioProjectionTests(unittest.TestCase):
         )
         return gateway, execution
 
-    def _snapshot(self, root: Path) -> dict:
+    def _seat_receipts(self) -> list[dict]:
+        """Thirteen receipts across two seats: twelve measured, one unknown; all on one week."""
+        from hearth.seats.receipts import attempt_identity, provider_identity, seat_identity
+        rows = []
+        prefix = "b" * 64
+        for seat_index, count in ((0, 9), (1, 4)):
+            seat = seat_identity(f"secret-seat-{seat_index}-8096", prefix)
+            for task in range(count):
+                measured = not (seat_index == 1 and task == 3)
+                rows.append({
+                    "schema": "seat.physical-attempt.v1",
+                    "seat_id": seat,
+                    "attempt_id": attempt_identity(seat, task),
+                    "task": task,
+                    "slot": 0,
+                    "log_basename": f"secret-seat-{seat_index}-8096",
+                    "seat_epoch_sha256": prefix,
+                    "provider": {"execution_class": "local", "identity_sha256": provider_identity("secret-model", "build 1 (abc)", 4096),
+                                 "model_name": "secret-model", "build": "build 1 (abc)", "n_ctx_seq": 4096},
+                    "started_at": f"2026-07-0{seat_index + 1}T10:00:{task:02d}.000000Z",
+                    "finished_at": f"2026-07-0{seat_index + 1}T10:01:{task:02d}.000000Z",
+                    "timestamp_derivation": {"method": "log_mtime_minus_last_elapsed", "epoch_start": "2026-07-01T09:00:00.000000Z",
+                                             "log_mtime": "2026-07-01T12:00:00.000000Z", "error_bound_s": 2},
+                    "usage": {"tokens_in": 1000 + task, "tokens_out": 10 + task} if measured else None,
+                    "usage_unknown_reason": None if measured else "server log has no timing block for this task",
+                    "timing": {"prompt_ms": 12.5, "predicted_ms": 3.25} if measured else None,
+                    "outcome": "succeeded" if measured else "unknown",
+                    "source": {"transport": "server-log", "adapter": "seat-log-harvest",
+                               "execution_mode": "external", "accounting_owner": "direct"},
+                    "harvested_at": "2026-07-02T00:00:00.000000Z",
+                })
+        return rows
+
+    def _seat_ledger(self, root: Path, rows: list[dict] | None = None) -> Path:
+        seats = root / "seats.ndjson"
+        rows = self._seat_receipts() if rows is None else rows
+        seats.write_text("\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n", encoding="utf-8")
+        return seats
+
+    def _snapshot(self, root: Path, with_seats: bool = False) -> dict:
         gateway, execution = self._ledgers(root)
-        return build_snapshot(gateway, execution, exporter_revision="test")
+        seats = self._seat_ledger(root) if with_seats else root / "no-seats.ndjson"
+        return build_snapshot(gateway, execution, seats, root / "no-records.ndjson", exporter_revision="test")
+
+    # ---- research seats (ADR-0047 Phase B) ------------------------------
+
+    def test_seat_cohort_is_aggregated_apart_from_every_other_counter(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            without = self._snapshot(Path(tmp))
+        with tempfile.TemporaryDirectory() as tmp:
+            with_seats = self._snapshot(Path(tmp), with_seats=True)
+        cohort = with_seats["research_runs"]
+        self.assertEqual(cohort["attempts"], 13)
+        self.assertEqual(cohort["measured_attempts"], 12)
+        self.assertEqual(cohort["unknown_usage_attempts"], 1)
+        self.assertEqual(cohort["failed_attempts"], 0)
+        self.assertEqual(cohort["sources"], 2)
+        self.assertEqual(cohort["tokens_in"], sum(1000 + t for t in range(9)) + sum(1000 + t for t in (0, 1, 2)))
+        self.assertEqual(cohort["tokens_out"], sum(10 + t for t in range(9)) + sum(10 + t for t in (0, 1, 2)))
+        self.assertIn("seat_prefix_sha256", with_seats["provenance"])
+        self.assertIn("research runs harvested", with_seats["coverage"]["boundary"])
+        self.assertTrue(any("Research-run rows" in s for s in with_seats["coverage"]["limitations"]))
+        self.assertEqual(with_seats["gateway"], without["gateway"])
+        self.assertEqual(with_seats["execution"], without["execution"])
+        rows_without = {row["week_start"]: row for row in without["weekly"]}
+        for row_with in with_seats["weekly"]:
+            row_without = rows_without.get(row_with["week_start"])
+            for key in ("operations", "learning", "inference", "media", "work_plane", "other"):
+                # A week only the seats saw carries true gateway zeros.
+                self.assertEqual(row_with[key], row_without[key] if row_without else 0)
+        seat_cells = {row["week_start"]: row["research_attempts"] for row in with_seats["weekly"]}
+        self.assertEqual(seat_cells.get("2026-06-29"), 13)
+        self.assertTrue(all(v == 0 for w, v in seat_cells.items() if w != "2026-06-29"))
+
+    def test_absent_seat_ledger_emits_no_cohort_and_zero_seat_cells(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            snapshot = self._snapshot(Path(tmp))
+        self.assertNotIn("research_runs", snapshot)
+        self.assertNotIn("seat_prefix_sha256", snapshot["provenance"])
+        self.assertEqual(snapshot["coverage"]["boundary"], "calls observed at the HEARTH gateway and execution ledgers")
+        self.assertTrue(all(row["research_attempts"] == 0 for row in snapshot["weekly"]))
+
+    def test_small_seat_week_is_suppressed_and_counted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            gateway, execution = self._ledgers(root)
+            rows = self._seat_receipts()[:4]
+            snapshot = build_snapshot(gateway, execution, self._seat_ledger(root, rows), root / "no-records.ndjson", exporter_revision="test")
+        row = next(r for r in snapshot["weekly"] if r["week_start"] == "2026-06-29")
+        self.assertIsNone(row["research_attempts"])
+        self.assertGreaterEqual(row["suppressed_cells"], 1)
+
+    def test_seat_ledger_faults_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            gateway, execution = self._ledgers(root)
+            rows = self._seat_receipts()
+            duplicate = self._seat_ledger(root, rows + rows[:1])
+            with self.assertRaisesRegex(PublicProjectionError, "repeats an attempt"):
+                build_snapshot(gateway, execution, duplicate, root / "no-records.ndjson", exporter_revision="test")
+            bad = json.loads(json.dumps(rows))
+            bad[0]["usage"]["tokens_in"] = -5
+            broken = self._seat_ledger(root, bad)
+            with self.assertRaisesRegex(PublicProjectionError, "not a valid receipt"):
+                build_snapshot(gateway, execution, broken, root / "no-records.ndjson", exporter_revision="test")
+
+    def test_run_records_join_the_research_cohort(self) -> None:
+        from hearth.seats.receipts import identity, provider_identity
+        records = []
+        for index in range(12):
+            run = identity("run", "planning-matrix/secret-run")
+            records.append({
+                "schema": "run.record-attempt.v1", "run_id": run, "attempt_id": identity("att", run + "/" + str(index)),
+                "record_sha256": "c" * 64,
+                "provider": {"execution_class": "local", "identity_sha256": provider_identity("secret-planner", "unrecorded", 0),
+                             "model_name": "secret-planner"},
+                "started_at": "2026-07-06T05:00:00.000000Z", "finished_at": "2026-07-06T05:01:00.000000Z",
+                "timestamp_derivation": {"method": "run_directory_stamp", "error_bound_s": 86400},
+                "usage": {"tokens_in": None, "tokens_out": 100 + index} if index < 10 else None,
+                "usage_unknown_reason": None if index < 10 else "cell record carries no token count",
+                "outcome": "succeeded" if index < 11 else "failed",
+                "source": {"transport": "run-record", "adapter": "planning-matrix", "execution_mode": "external", "accounting_owner": "direct"},
+                "harvested_at": "2026-09-19T00:00:00.000000Z",
+            })
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            gateway, execution = self._ledgers(root)
+            record_ledger = root / "run-records.ndjson"
+            record_ledger.write_text("\n".join(json.dumps(r, sort_keys=True) for r in records) + "\n", encoding="utf-8")
+            both = build_snapshot(gateway, execution, self._seat_ledger(root), record_ledger, exporter_revision="test")
+            only_records = build_snapshot(gateway, execution, root / "no-seats.ndjson", record_ledger, exporter_revision="test")
+        cohort = both["research_runs"]
+        self.assertEqual(cohort["attempts"], 13 + 12)
+        self.assertEqual(cohort["measured_attempts"], 12 + 10)
+        self.assertEqual(cohort["unknown_usage_attempts"], 1 + 2)
+        self.assertEqual(cohort["failed_attempts"], 1)
+        self.assertEqual(cohort["sources"], 2 + 1)
+        self.assertEqual(cohort["tokens_out"], sum(10 + t for t in range(9)) + sum(10 + t for t in (0, 1, 2)) + sum(100 + i for i in range(10)))
+        self.assertIn("seat_prefix_sha256", both["provenance"])
+        self.assertIn("record_prefix_sha256", both["provenance"])
+        cells = {row["week_start"]: row["research_attempts"] for row in both["weekly"]}
+        self.assertEqual(cells.get("2026-07-06"), 12)
+        self.assertEqual(only_records["research_runs"]["attempts"], 12)
+        self.assertNotIn("seat_prefix_sha256", only_records["provenance"])
+        self.assertNotIn("secret-planner", json.dumps(both))
+
+    def test_seat_identifiers_never_survive_serialization(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            snapshot = self._snapshot(Path(tmp), with_seats=True)
+        serialized = json.dumps(snapshot)
+        for identifier in ("secret-seat", "secret-model", "seat-log-harvest", "8096", "build 1"):
+            self.assertNotIn(identifier, serialized)
 
     # ---- structure -----------------------------------------------------
 

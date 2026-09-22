@@ -28,3 +28,31 @@ powershell -ExecutionPolicy Bypass -File hearth\etc\register-public-portfolio-st
 
 Review and promotion happen from the `steppeintegrations-site` repository. A failed
 stage or a machine that is offline leaves the last approved public snapshot intact.
+
+## Research-seat receipts (ADR-0047)
+
+Bench drivers talk to bespoke `llama-server` seats on ports the door never names
+(127.0.0.1:8095 / :8096 today), so neither ledger above sees that traffic. The seat's
+own `-lv 5 --log-file` under `hearth/var/swap-logs/` does, one `print_timing` block per
+task. `python -m hearth.seats.harvest` turns those blocks into immutable
+`seat.physical-attempt.v1` receipts in a third, append-only ledger,
+`hearth/var/seats/receipts.ndjson`, with a cursor beside it. The `seat_harvest` kernel
+timer runs it every 15 minutes and the stage script runs it once more before the
+projection.
+
+The fingerprint decides what is harvested, never the label: a log is a research seat
+only when it has no `api_keys:` line and listens on a research-seat port. The
+llama-swap-managed side seats carry the production key and ephemeral ports; the door
+and the friend gate can reach them, so they are listed as skipped and never counted.
+`--dry-run` prints that table and writes nothing.
+
+The harvester also reads the historical campaign roots on the model drive (the August
+burn-in, the Qwen3.8 trial, the ff-probes, rotation and Level-Zero seats), so the cohort
+covers every bespoke seat that kept a log, not only the swap-logs directory.
+
+`hearth/projection/seats_cohort.py` scans the receipts ledger as the projection's third
+input and the snapshot carries `seat_inference`, `provenance.seat_prefix_sha256` and a
+weekly `seat_attempts` cell under the same k=10 rule. The page draws the cohort hollow,
+beside the inference the gateway brokered; it is never added to a family, a lane or an
+execution job count. The receipts are also summarized on the private call-mix dashboard
+(`python -m hearth.projection.call_mix_dashboard --seats`).

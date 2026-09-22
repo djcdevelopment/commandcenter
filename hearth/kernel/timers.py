@@ -125,6 +125,16 @@ TIMERS: list[TimerSpec] = [
         log_path=VAR_DIR / "fleet-harvest-task.log",
         stagger_s=_stagger_for(5),
     ),
+    # ADR-0047: research-seat logs are rewritten when a launcher reuses a label,
+    # so the harvest runs often enough to catch a seat before its log is
+    # replaced. A relaunch inside one tick is an undercount, never an overcount.
+    TimerSpec(
+        name="seat_harvest",
+        interval_s=900.0,
+        argv_builder=lambda: [sys.executable, "-m", "hearth.seats.harvest", "--json"],
+        log_path=VAR_DIR / "seat-harvest-task.log",
+        stagger_s=_stagger_for(7),
+    ),
 ]
 
 

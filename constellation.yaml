@@ -1,0 +1,206 @@
+# OMEN Core Constellation Manifest
+#
+# Hardware execution control plane, agent task routing, B70 dual-GPU substrate,
+# and private media/highlight pipeline across OMEN and AM4.
+
+schema_version: 1
+
+archetype: engineering-only
+topology: centered
+conformance: canonical
+
+intent: "OMEN host hardware, agent execution control plane, and media substrate"
+
+constellation:
+  name: omen-core
+  description: "OMEN execution control plane, dual Arc Pro B70 substrate, and highlight pipeline"
+  root_path: C:\work\commandcenter
+  pm_workspace: docs/
+
+identity:
+  github_org: djcdevelopment
+
+telemetry:
+  otel_collector_endpoint: "http://127.0.0.1:14317"
+  otel_protocol: http
+  service_name_prefix: omen-core
+
+repos:
+  - name: commandcenter
+    kind: git
+    role: "OMEN execution control plane, agent task routing, and HEARTH authority"
+    producer_type: runtime_execution
+    github: djcdevelopment/commandcenter
+    visibility: private
+    local_path: C:\work\commandcenter
+    primary: true
+    lifecycle: active
+    surfaces:
+      - name: hearth-api
+        kind: web-app
+        lifecycle: active
+      - name: fleet-worker
+        kind: cli
+        lifecycle: active
+
+  - name: clippy
+    kind: git
+    role: "Private local-first highlight pipeline with OTel traces and dual-B70 QSV render workers"
+    producer_type: engine
+    github: djcdevelopment/clippy
+    visibility: private
+    local_path: E:\omen\clippy
+    primary: false
+    depends_on:
+      - commandcenter
+      - b70tools
+    lifecycle: active
+    surfaces:
+      - name: capture-agent
+        kind: bot-daemon
+        lifecycle: active
+      - name: review-ui
+        kind: web-app
+        lifecycle: active
+
+  - name: img
+    kind: git
+    role: "On-demand dual-B70 image generation agent controlled by HEARTH (Tempo.ImageGen)"
+    producer_type: engine
+    github: djcdevelopment/tempo-imagegen
+    visibility: private
+    local_path: E:\work\img
+    primary: false
+    depends_on:
+      - commandcenter
+      - b70tools
+    lifecycle: active
+
+  - name: imagegen
+    kind: filesystem
+    role: "Guard-dog dream run sequential batch driver and manifest logger"
+    producer_type: dev_tooling
+    local_path: C:\work\imagegen
+    primary: false
+    depends_on:
+      - commandcenter
+    lifecycle: active
+
+  - name: b70tools
+    kind: git
+    role: "Intel Arc Pro B70 hardware telemetry, topology joiner, and thermal safety monitor"
+    producer_type: dev_tooling
+    github: djcdevelopment/b70tools
+    visibility: private
+    local_path: E:\work\b70tools
+    primary: false
+    lifecycle: active
+
+  - name: vllama
+    kind: git
+    role: "OpenAI-compatible local inference facade over llama.cpp on dual Arc B70s"
+    producer_type: substrate
+    github: djcdevelopment/vllama
+    visibility: private
+    local_path: E:\work\vllama
+    primary: false
+    depends_on:
+      - b70tools
+    lifecycle: active
+    surfaces:
+      - name: v1-facade
+        kind: web-app
+        lifecycle: active
+
+  - name: memsplice
+    kind: git
+    role: "Memory splicing, context cache, and associative recall substrate"
+    producer_type: substrate
+    github: djcdevelopment/memsplice
+    visibility: private
+    local_path: C:\work\memsplice
+    primary: false
+    lifecycle: active
+
+  - name: vulkancliff
+    kind: git
+    role: "Vulkan acceleration tests and GPU fence validation"
+    producer_type: research_harness
+    github: djcdevelopment/vulkancliff
+    visibility: private
+    local_path: C:\work\vulkancliff
+    primary: false
+    lifecycle: active
+
+  - name: windtunnel
+    kind: git
+    role: "Agent execution harness and performance benchmarking"
+    producer_type: research_harness
+    github: djcdevelopment/windtunnel
+    visibility: private
+    local_path: C:\work\windtunnel
+    primary: false
+    lifecycle: active
+
+  - name: tensor
+    kind: filesystem
+    role: "D3D12 expert tensor execution, dual compute queue scheduling witness, and GPU stream supervisor"
+    producer_type: substrate
+    local_path: E:\omen\tensor
+    primary: false
+    depends_on:
+      - b70tools
+    lifecycle: active
+
+  - name: tuning
+    kind: filesystem
+    role: "Workstation MoE and Ollama local performance evaluation, memory occupancy, and tuning benchmarks"
+    producer_type: research_harness
+    local_path: C:\work\tuning
+    primary: false
+    lifecycle: active
+
+  - name: menu
+    kind: filesystem
+    role: "Nashville private chef menu planning and recipe generation application with HEARTH integration"
+    producer_type: presence_surface
+    local_path: E:\omen\menu
+    primary: false
+    depends_on:
+      - commandcenter
+    lifecycle: active
+
+contracts:
+  - name: hearth-media-lease
+    producer_repo: commandcenter
+    consumer_repos:
+      - clippy
+    contract_doc: docs/adr/0001-hatchet-hearth-workflow-boundary.md
+    stability: stable
+    scope: cross-repo
+
+  - name: hearth-imagegen-dispatch
+    producer_repo: commandcenter
+    consumer_repos:
+      - img
+    contract_doc: docs/WIN11-DUAL-B70.md
+    stability: stable
+    scope: cross-repo
+
+  - name: b70-hardware-telemetry
+    producer_repo: b70tools
+    consumer_repos:
+      - commandcenter
+      - vllama
+      - img
+    contract_doc: README.md
+    stability: stable
+    scope: cross-repo
+
+  - name: clippy-otlp-collector
+    producer_repo: clippy
+    consumer_repos:
+      - img
+    contract_doc: docs/architecture-overview.md
+    stability: stable
+    scope: cross-repo

@@ -48,22 +48,29 @@ class UnrestrictedProfileTests(TestCase):
     def setUp(self) -> None:
         self.profiles = caps.load_profiles(PROFILES)
 
-    def test_unrestricted_covers_the_entire_taxonomy(self) -> None:
-        """If this fails you added a capability without deciding whether the
-        frontier operator gets it. Add it to [profile.unrestricted] (almost
-        always) or document why that identity is excluded."""
+    def test_unrestricted_covers_the_entire_taxonomy_minus_approve(self) -> None:
+        """D-112: `approve` is withheld from `unrestricted` on purpose — the self-approval
+        boundary. Agents (even frontier agents holding unrestricted) may not approve
+        human-gated routes. Every other capability must be granted."""
         every = {c for c in caps.TOOL_CAPABILITY.values() if c}
-        missing = sorted(c for c in every
+        expected = every - {"approve"}
+        missing = sorted(c for c in expected
                          if not self.profiles["unrestricted"].grants(c))
         self.assertEqual(
             missing, [],
             f"[profile.unrestricted] is missing {missing} — a new capability "
             f"silently narrowed the role it is supposed to keep complete")
+        self.assertFalse(
+            self.profiles["unrestricted"].grants("approve"),
+            "[profile.unrestricted] must not grant `approve` (D-112 approval boundary)")
 
-    def test_unrestricted_reaches_every_mounted_tool(self) -> None:
+    def test_unrestricted_reaches_every_mounted_tool_except_operator_approve(self) -> None:
         for tool in caps.TOOL_CAPABILITY:
             allowed, _ = caps.check_tool_access(self.profiles["unrestricted"], tool)
-            self.assertTrue(allowed, f"unrestricted must reach {tool}")
+            if tool == "operator_approve":
+                self.assertFalse(allowed, f"unrestricted must NOT reach {tool} (D-112)")
+            else:
+                self.assertTrue(allowed, f"unrestricted must reach {tool}")
 
 
 class OrchestratorProfileTests(TestCase):
@@ -147,7 +154,8 @@ class OperatorProfileTests(TestCase):
         every = {c for c in caps.TOOL_CAPABILITY.values() if c}
         withheld = sorted(c for c in every
                           if not self.profiles["operator"].grants(c))
-        self.assertEqual(withheld, ["image_session_admin", "kernel_admin", "media_render"])
+        # D-112: `approve` is reserved for `human-operator` and withheld from `operator`.
+        self.assertEqual(withheld, ["approve", "image_session_admin", "kernel_admin", "media_render"])
 
     def test_operator_cannot_change_the_kernel(self) -> None:
         allowed, _ = caps.check_tool_access(self.profiles["operator"], "kernel_change")
@@ -161,6 +169,93 @@ class OperatorProfileTests(TestCase):
                 self.assertTrue(allowed, f"operator should reach {tool}")
 
 
+class HumanOperatorProfileTests(TestCase):
+    """The interactive human operator role (D-112). Holds approve, status, query.
+    Inherits nothing."""
+
+    def setUp(self) -> None:
+        self.profiles = caps.load_profiles(PROFILES)
+
+    def test_human_operator_grants_exact_capabilities(self) -> None:
+        profile = self.profiles["human-operator"]
+        self.assertEqual(profile.capabilities, frozenset({"approve", "status", "query"}))
+
+    def test_human_operator_can_reach_operator_approve(self) -> None:
+        profile = self.profiles["human-operator"]
+        allowed, capability = caps.check_tool_access(profile, "operator_approve")
+        self.assertTrue(allowed)
+        self.assertEqual(capability, "approve")
+
+
+class ApproveIsHeldOnlyByHumanOperatorTests(TestCase):
+    """D-112 item 1, as amended: taxonomy tests must prove that NO other profile
+    obtains `approve` directly, through inheritance, wildcard expansion, or
+    fallback behaviour.
+
+    The WI-G2 verification found the boundary sound but proven only for
+    `unrestricted`; these assertions close the whole roster, the inheritance
+    chains, and the two fallback paths (no profile, unknown profile).
+    """
+
+    def setUp(self) -> None:
+        self.profiles = caps.load_profiles(PROFILES)
+        with PROFILES.open("rb") as handle:
+            self.raw = tomllib.load(handle)["profile"]
+
+    def test_only_human_operator_holds_approve_anywhere_in_the_roster(self) -> None:
+        holders = sorted(name for name, profile in self.profiles.items()
+                         if profile.grants("approve"))
+        self.assertEqual(holders, ["human-operator"])
+
+    def test_no_other_profile_declares_approve_directly_in_the_file(self) -> None:
+        declared = sorted(name for name, table in self.raw.items()
+                          if "approve" in (table.get("capabilities") or []))
+        self.assertEqual(declared, ["human-operator"])
+
+    def test_approve_is_not_reachable_through_any_inheritance_chain(self) -> None:
+        """`human-operator` inherits nothing, so no chain can carry `approve`
+        into another role."""
+        self.assertIsNone(self.raw["human-operator"].get("inherits"))
+        for name, table in self.raw.items():
+            chain, cursor = [], table.get("inherits")
+            while cursor:
+                self.assertNotIn(cursor, chain, f"inheritance cycle at {name}")
+                chain.append(cursor)
+                cursor = self.raw[cursor].get("inherits")
+            with self.subTest(profile=name):
+                self.assertNotIn("human-operator", chain)
+
+    def test_approve_is_mapped_only_to_operator_approve(self) -> None:
+        mapped = sorted(tool for tool, capability in caps.TOOL_CAPABILITY.items()
+                        if capability == "approve")
+        self.assertEqual(mapped, ["operator_approve"])
+
+    def test_no_profile_but_human_operator_reaches_operator_approve(self) -> None:
+        for name, profile in self.profiles.items():
+            allowed, capability = caps.check_tool_access(profile, "operator_approve")
+            with self.subTest(profile=name):
+                if name == "human-operator":
+                    self.assertTrue(allowed)
+                    self.assertEqual(capability, "approve")
+                else:
+                    self.assertFalse(allowed)
+
+    def test_the_fallback_paths_do_not_grant_approve(self) -> None:
+        """An absent profile is not a wide one, and neither is an unknown name."""
+        allowed, _ = caps.check_tool_access(None, "operator_approve")
+        self.assertFalse(allowed)
+        self.assertNotIn("no-such-profile", self.profiles)
+        self.assertIsNone(self.profiles.get("no-such-profile"))
+
+    def test_no_wildcard_expansion_exists_in_the_policy_file(self) -> None:
+        """`unrestricted` is written out capability-by-capability on purpose: a
+        wildcard would silently pick `approve` up as the taxonomy grows."""
+        for name, table in self.raw.items():
+            with self.subTest(profile=name):
+                self.assertNotIn("*", table.get("capabilities") or [])
+                self.assertNotIn("all", table.get("capabilities") or [])
+
+
 class RosterTests(TestCase):
     """Every role named in policy must exist, so an assignment cannot reference
     a profile that was renamed out from under it."""
@@ -168,6 +263,6 @@ class RosterTests(TestCase):
     def test_v1_roles_all_resolve(self) -> None:
         profiles = caps.load_profiles(PROFILES)
         for name in ("research", "generation-proxy", "builder", "orchestrator",
-                     "operator", "irc-adapter", "imagegen-client", "imagegen-admin",
-                     "unrestricted"):
+                      "operator", "irc-adapter", "imagegen-client", "imagegen-admin",
+                      "unrestricted", "human-operator"):
             self.assertIn(name, profiles)

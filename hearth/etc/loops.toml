@@ -38,6 +38,13 @@ last_evidence = "hearth/execution/service.py plan_execution (content-free resolu
 notes = "Resolves a provider without spending anything."
 
 [[loop.implementation]]
+id = "operator_control_plane"
+status = "LIVE"
+entrypoint = "door:operator_inspect|operator_whoami|operator_catalog|operator_approve (hearth.toolsurface.operator, mounted 2026-09-27); cli: python -m hearth.operator inspect|task|route|approve|execute|replay|explain|learn"
+last_evidence = "hearth/operator/* imported d6b0271 (2026-09-20); door provider + human-operator profile + hearth/tests/operator (28 files) landed on omen-linux 2026-09-27; every recorded run under runs/operator/ is Windows-era"
+notes = "Approval (D-112) is held only by profile human-operator; learning recommends and never applies (ADR-0049)."
+
+[[loop.implementation]]
 id = "propose_schedule"
 status = "BUILT NOT DEPLOYED"
 entrypoint = "door:propose_schedule"
@@ -53,7 +60,7 @@ status = "LIVE"
 id = "mechnet_build"
 status = "LIVE"
 entrypoint = "door:create_build_request -> execute_build_request -> update_build_request -> close_build_request"
-last_evidence = 'hearth/toolsurface/build_requests.py; receipts at C:\work\baseline\fieldlab\runs\build-requests; last receipt 2026-09-16'
+last_evidence = 'hearth/toolsurface/build_requests.py; receipts at /home/derek/hearth-production/runs/build-requests (HEARTH_BUILD_REQUEST_DIR, set 2026-09-27); last receipt 2026-09-24'
 notes = "close(status=done) is refused unless every criterion carries a passed row with evidence."
 
 [[loop]]
@@ -71,8 +78,8 @@ notes = "A candidate, not a lane: no review result has ever been recorded throug
 [[loop.implementation]]
 id = "review_deepagents_independent_verifier"
 status = "BUILT NOT DEPLOYED"
-entrypoint = 'C:\work\deepagents-poc skills/independent-verifier (harness deepagents-run-flash-dense)'
-last_evidence = 'C:\work\deepagents-poc git commit 1bad53c; skills/independent-verifier present at G0 2026-09-17'
+entrypoint = '/home/derek/work/deepagents-linux skills/independent-verifier (harness deepagents-run-flash-dense)'
+last_evidence = '/home/derek/work/deepagents-linux git commit 1bad53c; skills/independent-verifier present at G0 2026-09-17'
 notes = "Second review candidate. Exercised in test mode at G3 only, never promoted by an edit here alone."
 
 [[loop]]
@@ -90,22 +97,22 @@ notes = "The default rung is omen-arc. A pin picks the rung, not the physics: an
 [[loop.implementation]]
 id = "am4-dense"
 status = "LIVE"
-entrypoint = "direct:http://192.168.12.233:8090/v1/chat/completions (facade alias am4-dense-27b -> loopback 18084, bearer AM4_OXEN_TOKEN)"
+entrypoint = "direct:http://192.168.12.233:8090/v1/chat/completions (facade alias am4-dense-27b -> loopback 18084, token env AM4_OXEN_TOKEN)"
 last_evidence = "OPS-01 / Gate 5, 2026-09-18: am4-qwen38-dense.service active, facade /oxen/ready all_ready:true, /v1/models lists am4-dense-27b from OMEN with the bearer"
 notes = "Dense Qwen3.8-27B on AM4's RTX 4070 Ti + RTX 5070 (measured 1:1 split, 4096-token context, one slot). Pin-only rung; the control plane dispatches to it directly, the door does not route onto it."
 
 [[loop.implementation]]
 id = "am4-read-4070ti"
 status = "LIVE"
-entrypoint = "direct:http://192.168.12.233:8090/v1/chat/completions (facade alias am4-read-4070ti -> loopback 18085, bearer AM4_OXEN_TOKEN)"
+entrypoint = "direct:http://192.168.12.233:8090/v1/chat/completions (facade alias am4-read-4070ti -> loopback 18085, token env AM4_OXEN_TOKEN)"
 last_evidence = "R&D lap 2, 2026-09-18: qwen2.5-14b-instruct-q4_K_M on the RTX 4070 Ti alone, 16k context, q8_0 KV"
 notes = "Reader rung: NVIDIA prefill takes the file-reading / heavy-context work the B70s and the 4k dense slot should not. Pin-only."
 
 [[loop.implementation]]
 id = "deepagents_hearth"
 status = "LIVE"
-entrypoint = 'deepagents:create_deep_agent (harness C:\\work\\deepagents-poc, model qwen3-30b-a3b on :8082)'
-last_evidence = "C:\\work\\deepagents-poc git commit 1bad53c; tested against ArcServe :8082 on 2026-09-17"
+entrypoint = 'deepagents:create_deep_agent (harness /home/derek/work/deepagents-linux, model qwen3.8-27b on :18095 via --backend omen-dense)'
+last_evidence = "/home/derek/work/deepagents-linux; run_linux_delivery.py deliveries on omen-dense-27b 2026-09-27 (fleet/deepagents_linux.py)"
 notes = "Agentic tool-use route using DeepAgents with scoped filesystem tools against dual-B70 ArcServe."
 
 # --- Linux lane (omen-linux, 2026-09-27) -------------------------------------------
@@ -119,9 +126,9 @@ status = "LIVE"
 
 [[loop.implementation]]
 id = "bankedfire_linux"
-status = "BUILT NOT DEPLOYED"
+status = "LIVE"
 entrypoint = "systemd --user bankedfire-drain.timer -> python -m fleet.bankedfire_linux -> door:submit_local_work (caller bankedfire-drain)"
-last_evidence = "fleet/bankedfire_linux.py; tick ledgered 2026-09-27T18:27Z reason=disarmed (arm file lacks scope); promotion = an authored --arm with --scope authored after one clean supervised cycle"
+last_evidence = "fleet/bankedfire_linux.py; armed by derek 2026-09-27T18:55Z (scope authored); first unattended dispatch 20:26Z -> work_e1b2b704 on omen-dense-27b, job succeeded 20:35Z (candidate at awaiting_review); promoted LIVE 2026-09-27 (recorded decision, this row)"
 notes = "Occupancy = omen-vllm probe (seat gauges + HEARTH jobs + fleet/presence_linux). Legacy conductor slots resolve as no-winner."
 
 [[loop.implementation]]

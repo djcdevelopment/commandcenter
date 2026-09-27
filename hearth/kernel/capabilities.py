@@ -82,6 +82,11 @@ TOOL_CAPABILITY: dict[str, str] = {
     "query_findings": "query",
     "query_knowledge": "query",
     "query_offload": "query",
+    "operator_inspect": "query",   # operator.py -- the inspection bundle, read-only:
+                                   # it reports the CURRENT planning snapshot and never
+                                   # captures, so it stays inside what `query` means.
+    "operator_whoami": "query",    # operator.py -- identity + the nine authorities,
+                                   # evaluation only (it grants nothing and approves nothing)
     "query_omen_worker": "status",
     "query_rung_state": "query",   # rungstate.py -- door-side rung verdict (ADR-0044)
     "recommend_rung": "query",     # rotation.py -- task-family advice, never dispatches
@@ -95,6 +100,13 @@ TOOL_CAPABILITY: dict[str, str] = {
     "project_offload_knowledge": "knowledge_write",
     "rebuild_knowledge": "knowledge_write",
     "record_event": "knowledge_write",
+    "operator_catalog": "knowledge_write",  # operator.py -- compiles and WRITES
+                                   # knowledge/capability_catalog.json, so it belongs with
+                                   # the corpus writers rather than beside operator_inspect.
+    # approve: the human operator approval boundary (D-112). Mapped only to
+    # operator_approve; excluded from unrestricted on purpose and granted only to
+    # profile human-operator, so no agent can self-approve a human-gated route.
+    "operator_approve": "approve",
     # repo_metadata: repository FACTS with no file contents -- branch, changed
     # paths, commit sha/author/date/subject. git_log returns exactly that and no
     # blobs, which is why it is safe to grant alongside a narrowed file_scope.

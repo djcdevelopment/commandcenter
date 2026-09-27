@@ -195,3 +195,52 @@ class DeepAgentsLaneTests(unittest.TestCase):
         with mock.patch.dict("os.environ", {}, clear=False):
             import os; os.environ.pop("BANKEDFIRE_SLOTS", None)
             self.assertEqual(lane.lane_slots().get("deepagents"), 1)
+
+
+class ExperimentExclusivityTests(unittest.TestCase):
+    """2026-09-27 20:56Z, first live tick: the experiment brief and a deepagents brief were
+    dispatched in one loop; the seat swap removed the 27B mid-delivery. Once an experiment is
+    dispatched the tick ends, and while its slot is held nothing else dispatches."""
+
+    def _tick(self, slots, scans_next, caps=None):
+        import json, tempfile
+        from pathlib import Path
+        from hearth.backlog.briefs import Brief
+        exp = Brief(slug="e", title="t", body="seat: 0\ndropin: x.conf\ncampaign: true\n---\ngo", builders=None,
+                    task_class="experiment", est_tokens=None, requires=(), max_age_s=None, source="authored", source_ref="e.md")
+        lw = Brief(slug="w", title="t", body=BRIEF, builders=None, task_class="local-work", est_tokens=None,
+                   requires=(), max_age_s=None, source="authored", source_ref="w.md")
+        briefs = {"experiment": exp, "local-work": lw}
+        calls = []
+        def fake_run_tick(**kw):
+            calls.append(kw)
+            arm = json.loads(Path(kw["arm_state_path"]).read_text())
+            arm["in_flight"] = {"plan_id": f"p{len(calls)}", "source": "authored", "source_ref": "x"}
+            Path(kw["arm_state_path"]).write_text(json.dumps(arm))
+            return {"reason": "dispatched:x"}
+        with tempfile.TemporaryDirectory() as tmp:
+            arm = Path(tmp) / "arm.json"; arm.write_text(json.dumps({"armed": True, "scope": "authored", "in_flight": None}))
+            with mock.patch.object(lane.drain, "default_arm_state_path", return_value=arm), \
+                 mock.patch.object(lane.drain, "run_tick", side_effect=fake_run_tick), \
+                 mock.patch.object(lane, "reconcile_slots", return_value=[]), \
+                 mock.patch.object(lane, "load_slots", return_value=list(slots)), \
+                 mock.patch.object(lane, "save_slots"), \
+                 mock.patch.object(lane, "in_use_by_lane", side_effect=lambda s: {r["lane"]: 1 for r in s}), \
+                 mock.patch.object(lane.backlog_sources, "authored_source", return_value=None), \
+                 mock.patch.object(lane.backlog_sources, "refined_source", return_value=None), \
+                 mock.patch.object(lane.backlog_sources, "candidate_source", return_value=None), \
+                 mock.patch.object(lane.backlog_select, "select_next", side_effect=lambda scope, scans: briefs.get(scans_next.pop(0)) if scans_next else None), \
+                 mock.patch.dict("os.environ", {"BANKEDFIRE_SLOTS": caps or "fast=3,deep=1,experiment=1,deepagents=1"}):
+                return lane.tick(), calls
+
+    def test_an_experiment_dispatch_ends_the_tick(self) -> None:
+        report, calls = self._tick(slots=[], scans_next=["experiment", "local-work"])
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(report["reason"], "dispatched:experiment-holds-the-seats")
+        self.assertEqual([d["lane"] for d in report["dispatched"]], ["experiment"])
+
+    def test_nothing_dispatches_while_an_experiment_slot_is_held(self) -> None:
+        held = [{"plan_id": "exp_1", "lane": "experiment"}]
+        report, calls = self._tick(slots=held, scans_next=["local-work"])
+        self.assertEqual(calls, [])
+        self.assertEqual(report["reason"], "experiment-in-flight")

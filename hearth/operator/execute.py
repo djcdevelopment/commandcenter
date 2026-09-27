@@ -22,8 +22,11 @@ from typing import Any, Callable, Optional
 from hearth.operator import artifacts, canonical, history, paths, replay
 
 CONTRACT_VERSION = "attempt-receipt.v1"
-DEFAULT_OMEN_ARC_ENDPOINT = "http://127.0.0.1:8082"
-DEFAULT_MODEL = "qwen3-30b-a3b"
+# omen-linux (2026-09-27): the default direct rung is the vLLM MoE seat behind HAProxy; the
+# pool (backends TOML) still wins whenever the rung is declared there.
+DEFAULT_OMEN_ARC_ENDPOINT = os.environ.get("HEARTH_OPERATOR_DEFAULT_ENDPOINT", "http://127.0.0.1:18090")
+DEFAULT_MODEL = os.environ.get("HEARTH_OPERATOR_DEFAULT_MODEL", "qwen3-30b-a3b")
+DEFAULT_DIRECT_RUNG = os.environ.get("HEARTH_OPERATOR_DIRECT_RUNG", "omen-vllm" if os.name != "nt" else "omen-arc")
 
 
 class ExecutionError(RuntimeError):
@@ -37,6 +40,9 @@ def _resolve_backend_token(auth_env: Optional[str] = "OMEN_ARC_TOKEN") -> Option
     token = os.environ.get(auth_env)
     if token:
         return token
+    if os.name != "nt":
+        # Linux: the systemd unit/EnvironmentFile is the only token source; there is no gateway.cmd.
+        return None
     try:
         gateway_cmd = paths.hearth_root() / "var" / "gateway.cmd"
     except Exception:
@@ -69,8 +75,17 @@ def _run_deepagents(
     on_tool_call: Optional[Callable[[dict], None]] = None,
 ) -> tuple[str, dict]:
     """Execute inventory task via DeepAgents tool loop on local compute."""
-    sys.path.insert(0, r"C:\work\deepagents-poc\.venv\Lib\site-packages")
-    sys.path.insert(0, r"C:\work\deepagents-poc")
+    if os.name == "nt":
+        sys.path.insert(0, r"C:\work\deepagents-poc\.venv\Lib\site-packages")
+        sys.path.insert(0, r"C:\work\deepagents-poc")
+    else:
+        # omen-linux: the same env names fleet/deepagents_linux.py uses.
+        da_root = os.environ.get("DEEPAGENTS_LINUX", str(Path.home() / "work" / "deepagents-linux"))
+        da_py = Path(os.environ.get("DEEPAGENTS_PYTHON", str(Path.home() / ".venvs" / "deepagents-linux" / "bin" / "python")))
+        site = sorted((da_py.parent.parent / "lib").glob("python3*/site-packages")) if da_py.exists() else []
+        for entry in [str(s) for s in site] + [da_root]:
+            if entry not in sys.path:
+                sys.path.insert(0, entry)
 
     try:
         from deepagents import create_deep_agent
@@ -156,7 +171,7 @@ def _run_mechnet_build(
         acceptance_criteria=br_criteria,
         repo=str(repo_root),
         lane="operator",
-        backend="omen-arc",
+        backend=DEFAULT_DIRECT_RUNG,
     )
     receipt_id = br["receipt_id"]
     if on_tool_call:
@@ -165,20 +180,20 @@ def _run_mechnet_build(
             "args": {
                 "title": br_title,
                 "repo": str(repo_root),
-                "backend": "omen-arc",
+                "backend": DEFAULT_DIRECT_RUNG,
                 "criteria_count": len(br_criteria),
             },
         })
 
     # 2. execute_build_request
-    build_requests.execute_build_request(receipt_id, mode="agent", backend="omen-arc")
+    build_requests.execute_build_request(receipt_id, mode="agent", backend=DEFAULT_DIRECT_RUNG)
     if on_tool_call:
         on_tool_call({
             "name": "execute_build_request",
             "args": {
                 "receipt_id": receipt_id,
                 "mode": "agent",
-                "backend": "omen-arc",
+                "backend": DEFAULT_DIRECT_RUNG,
             },
         })
 
@@ -380,7 +395,7 @@ def execute_run(run_id: str, *, timeout_s: float = 60.0, endpoint: Optional[str]
     route_kind = target_node.get("route_kind", "direct_inference")
 
     is_deepagents = (target == "deepagents_hearth" or route_kind == "deepagents_hearth")
-    is_direct = (target in ("direct_hearth", "omen-arc") or route_kind in ("direct_inference", "direct_hearth"))
+    is_direct = (target in ("direct_hearth", "omen-arc", DEFAULT_DIRECT_RUNG) or route_kind in ("direct_inference", "direct_hearth"))
     is_mechnet = (target in ("mechnet_build", "mechnet_research") or route_kind in ("build", "research", "mechnet_build"))
 
     if not (is_direct or is_deepagents or is_mechnet):
@@ -430,7 +445,7 @@ def execute_run(run_id: str, *, timeout_s: float = 60.0, endpoint: Optional[str]
     if not input_paths:
         raise ExecutionError("envelope inputs declare no paths to inspect")
 
-    repo_root = Path(envelope.get("inputs", {}).get("repo", "C:/work/commandcenter"))
+    repo_root = Path(envelope.get("inputs", {}).get("repo", str(paths.REPO_ROOT)))
 
     started_at_dt = canonical.utc_now()
     started_at = canonical.rfc3339(started_at_dt)

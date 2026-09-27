@@ -1,3 +1,4 @@
+> Start here: `START-HERE.md` — the Local Compute Operator control plane (entry contract, D-103).
 # commandcenter — agent instructions
 
 ## Local-first offload (HEARTH)

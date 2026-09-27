@@ -238,6 +238,19 @@ capabilities = ["image_generate", "image_session_admin"]
 [profile.mediagen-client]
 capabilities = ["media_generate"]
 
+# --- human-operator -----------------------------------------------------------
+# PURPOSE: the interactive human operator boundary (D-112).
+#
+# Holds the sole authority to approve human-gated routes (`approve`), query
+# capacity/catalog, and check status. Inherits nothing. Excluded from agents
+# and unrestricted on purpose so that agents cannot self-approve.
+[profile.human-operator]
+capabilities = [
+    "approve",
+    "status",
+    "query",
+]
+
 [profile.unrestricted]
 capabilities = [
     "build_request", "catalog_write", "commander", "dispatch", "dream",

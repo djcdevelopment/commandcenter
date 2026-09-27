@@ -30,3 +30,6 @@ tools/audio-lab/samples/
 
 # archify visual-check evidence: regenerable browser captures beside each artifact
 docs/diagrams/*.visual-check.*
+
+# operator control plane: the current-snapshot pointer is runtime state (hearth/var/operator holds the snapshots)
+CURRENT.json

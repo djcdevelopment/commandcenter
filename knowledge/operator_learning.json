@@ -1,0 +1,36 @@
+{
+  "by_host": {},
+  "by_model": {},
+  "by_route_kind": {},
+  "by_target": {},
+  "by_task_type": {},
+  "contract_version": "operator-learning.v1",
+  "policy": {
+    "applies_nothing": true,
+    "excludes_test_mode": true,
+    "promotion_requires": [
+      "decision",
+      "adr",
+      "acceptance_gate_recorded_as_run"
+    ]
+  },
+  "recommendations": [
+    {
+      "applied": false,
+      "id": "REC-003",
+      "kind": "durability",
+      "promotion_path": "D-004 / D-114: wire the second-copy location into artifacts.py; a gate run proves one restore",
+      "statement": "0/0 runs replay reconstructable, but no artifact has a verified recovery location (recovery_locations_verified = 0 everywhere); D-004 second copy is not wired into the artifact store."
+    }
+  ],
+  "route_comparison": {
+    "basis": "Exact recorded intent, criteria, inputs, classification and context limit; not content or quality proof.",
+    "compared_workload_groups": 0,
+    "eligible_runs": 0,
+    "mixed_aggregates_are_not_route_rankings": true,
+    "reason": "no_matching_workload_across_multiple_targets",
+    "workload_groups": 0
+  },
+  "runs": [],
+  "runs_considered": 0
+}

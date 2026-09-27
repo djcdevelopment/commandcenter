@@ -305,6 +305,9 @@ def capture_resource_snapshot(timeout_s: float = 3.0) -> dict:
             key = (Path(key_file).read_text().strip() if key_file
                    else os.environ.get(native.auth_env or "AM4_OXEN_TOKEN", ""))
             if not key:
+                # Unknown, not "not ready": without the credential nothing was observed
+                # (the operator snapshot contract reads None as unobserved, False as observed-down).
+                native_state["ready"] = None
                 native_state["reason"] = "native readiness credential unavailable"
             else:
                 request = urllib.request.Request(native.endpoint.rstrip("/") + "/oxen/ready?alias=am4-dense-27b",
@@ -315,6 +318,7 @@ def capture_resource_snapshot(timeout_s: float = 3.0) -> dict:
                         raise ValueError("invalid or oversized native readiness response")
                     native_state = normalize_am4_native(json.loads(raw), observed_at)
         except (OSError, ValueError, TypeError) as exc:
+            native_state["ready"] = None
             native_state["reason"] = "native readiness failed: " + type(exc).__name__
     result["am4-dense"] = native_state
     omen = pool.by_name("omen-arc")

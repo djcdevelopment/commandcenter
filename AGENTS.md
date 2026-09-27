@@ -1,5 +1,7 @@
 # AGENTS.md — commandcenter
 
+> Start here: `START-HERE.md` — the Local Compute Operator control plane (entry contract, D-103).
+
 <!-- hearth-offload:begin -->
 ## Local-first offload (HEARTH)
 

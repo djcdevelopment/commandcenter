@@ -504,6 +504,12 @@ def tick() -> dict[str, Any]:
             report["reason"] = "no-candidates"; break
         lane = brief_lane(nxt)
         used = in_use_by_lane(slots)
+        if used.get("experiment", 0):
+            # 2026-09-27 20:56Z: the first live tick dispatched the seat-0 experiment and then a
+            # deepagents brief in the same loop; the swap took the 27B away and the delivery died
+            # ("rendered prompt check failed: 500"). While an experiment holds a seat, nothing else
+            # dispatches, whatever the other lanes' caps say.
+            report["reason"] = "experiment-in-flight"; report["in_use"] = used; break
         if used.get(lane, 0) >= caps.get(lane, 0):
             report["reason"] = f"lane-full:{lane}"; report["in_use"] = used; break
         if lane == "experiment" and (slots or any(used.values())):
@@ -521,6 +527,8 @@ def tick() -> dict[str, Any]:
             slots.append(rec); save_slots(slots)
             state["in_flight"] = None; drain.save_arm_state(state, arm_path)
         report["dispatched"].append({"plan_id": (rec or {}).get("plan_id"), "lane": lane})
+        if lane == "experiment":
+            report["reason"] = "dispatched:experiment-holds-the-seats"; break
     report["slots"] = [{"plan_id": r.get("plan_id"), "lane": r.get("lane")} for r in slots]
     return report
 

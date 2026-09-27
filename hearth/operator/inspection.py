@@ -276,7 +276,10 @@ def capture(catalog: dict, *, door: Optional[DoorCall] = None,
                 row = local_snap[rung_id]
                 row_source = "local:capture_resource_snapshot"
         if isinstance(row, dict):
-            ready_field = fld(READINESS, bool(row.get("ready")), capture_at,
+            # A probe that observed nothing reports ready=None; keep it unknown rather than
+            # coercing it to "down" (omen-linux 2026-09-27: am4-dense without its credential).
+            ready_value = row.get("ready") if isinstance(row.get("ready"), bool) else None
+            ready_field = fld(READINESS, ready_value, capture_at,
                               row_source,
                               str(row.get("reason")) if row.get("reason") else None)
             loaded = row.get("loaded_models")

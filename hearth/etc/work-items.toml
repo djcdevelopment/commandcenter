@@ -24,6 +24,9 @@
 #   * the digest of this file is bound into every mode:test validation result,
 #     so a run records which register judged it.
 #
+# omen-linux 2026-09-27: repository and permitted roots point at the Linux control-plane
+# checkout and its worktrees root; the Windows C:\work roots were retired with the cutover.
+#
 # Recompute a digest with:
 #   python -c "from hearth.operator import work_items; work_items.print_digests()"
 
@@ -34,24 +37,24 @@ policy_version = "operator-work-items.v1"
 id = "WI-G1"
 status = "released"
 title = "Entry contract: catalog, capacity snapshot, inspection, authority, CLI and door parity"
-repository = 'C:\work\commandcenter'
+repository = '/home/derek/work/commandcenter-linux-flash'
 branch = "operator/program"
 permitted_isolated_roots = [
-  'C:\work\worktrees\commandcenter\operator-program',
-  'C:\work\worktrees\commandcenter\g1-entry-evidence',
+  '/home/derek/work/worktrees/commandcenter/operator-program',
+  '/home/derek/work/worktrees/commandcenter/g1-entry-evidence',
 ]
 prohibited_authorities = ["change_machine_or_network", "merge_push_deploy"]
-digest = "0398d795fa970e1b23f68d60580ea1fce36a0a6efca13fec7edee12c2dbb809c"
+digest = "c3056bc43d53f90e0dc17ea9000f7b90800ad1729eb3c3c252b3086745447224"
 
 [[work_item]]
 id = "WI-G2"
 status = "released"
 title = "Envelope, proposal, validation, approval boundary, history, replay (first candidate)"
-repository = 'C:\work\commandcenter'
+repository = '/home/derek/work/commandcenter-linux-flash'
 branch = "operator/g2-envelope"
 permitted_isolated_roots = [
-  'C:\work\worktrees\commandcenter\g2-envelope',
-  'C:\work\worktrees\commandcenter\g2-envelope-evidence',
+  '/home/derek/work/worktrees/commandcenter/g2-envelope',
+  '/home/derek/work/worktrees/commandcenter/g2-envelope-evidence',
 ]
 prohibited_authorities = [
   "change_machine_or_network",
@@ -59,17 +62,17 @@ prohibited_authorities = [
   "merge_push_deploy",
   "submit_mechnet_task",
 ]
-digest = "362a025425de25a3ca6437d163989fb5cbf6821b02d271aa3675f5bc3a00dc1c"
+digest = "989bc0747410b5fddb0291cff73382dcee8a7c64df695f09a6e24287f166d73e"
 
 [[work_item]]
 id = "WI-G2a"
 status = "released"
 title = "Remediation of the failed WI-G2 candidate (second candidate)"
-repository = 'C:\work\commandcenter'
+repository = '/home/derek/work/commandcenter-linux-flash'
 branch = "operator/g2a-envelope-hardening"
 permitted_isolated_roots = [
-  'C:\work\worktrees\commandcenter\g2a-envelope-hardening',
-  'C:\work\worktrees\commandcenter\g2a-envelope-hardening-evidence',
+  '/home/derek/work/worktrees/commandcenter/g2a-envelope-hardening',
+  '/home/derek/work/worktrees/commandcenter/g2a-envelope-hardening-evidence',
 ]
 prohibited_authorities = [
   "change_machine_or_network",
@@ -77,17 +80,17 @@ prohibited_authorities = [
   "merge_push_deploy",
   "submit_mechnet_task",
 ]
-digest = "ed910f15cd85e66a35abc62c20243044e26d4562993bb48537c516dcd8fb7cee"
+digest = "740ca09b978b741d8635c8e63b38d0344f8dd77119f48f3aba648b1dd159503e"
 
 [[work_item]]
 id = "WI-G2b"
 status = "released"
 title = "Targeted contract closure of the WI-G2a conditions (third candidate)"
-repository = 'C:\work\commandcenter'
+repository = '/home/derek/work/commandcenter-linux-flash'
 branch = "operator/g2b-contract-closure"
 permitted_isolated_roots = [
-  'C:\work\worktrees\commandcenter\g2b-contract-closure',
-  'C:\work\worktrees\commandcenter\g2b-contract-closure-evidence',
+  '/home/derek/work/worktrees/commandcenter/g2b-contract-closure',
+  '/home/derek/work/worktrees/commandcenter/g2b-contract-closure-evidence',
 ]
 prohibited_authorities = [
   "change_machine_or_network",
@@ -95,7 +98,7 @@ prohibited_authorities = [
   "merge_push_deploy",
   "submit_mechnet_task",
 ]
-digest = "52aa8c737e9520d36eab370efc0d4f647c2af4cb1956b5a9f8b22a9e36c72226"
+digest = "51c745ce5da9abd30369f9d4a38a1702addf1d7b86231223a47104fc14a52247"
 
 # Not released. A mode:test proposal naming one of these is refused: the gate
 # has not been opened, and the worktree it would write in does not exist yet.
@@ -103,24 +106,24 @@ digest = "52aa8c737e9520d36eab370efc0d4f647c2af4cb1956b5a9f8b22a9e36c72226"
 id = "WI-G3"
 status = "planned"
 title = "Execution: leases, dispatch, attempts, verification, outcome"
-repository = 'C:\work\commandcenter'
+repository = '/home/derek/work/commandcenter-linux-flash'
 branch = "operator/g3-execution"
 permitted_isolated_roots = [
-  'C:\work\worktrees\commandcenter\g3-execution',
-  'C:\work\worktrees\commandcenter\g3-execution-evidence',
+  '/home/derek/work/worktrees/commandcenter/g3-execution',
+  '/home/derek/work/worktrees/commandcenter/g3-execution-evidence',
 ]
 prohibited_authorities = ["change_machine_or_network", "merge_push_deploy"]
-digest = "54f95e136f7701899edd4920bf37d4d503753fe0463c4ec373375cc66dfd349d"
+digest = "cfa9a5851760919a97519b6a15734cb06ba3057b2d4d388ca56120c3e882e431"
 
 [[work_item]]
 id = "WI-G4"
 status = "planned"
 title = "Minimum acceptance test: two cold orchestrators, one frozen task"
-repository = 'C:\work\commandcenter'
+repository = '/home/derek/work/commandcenter-linux-flash'
 branch = "operator/g4-acceptance"
 permitted_isolated_roots = [
-  'C:\work\worktrees\commandcenter\g4-acceptance',
-  'C:\work\worktrees\commandcenter\g4-acceptance-evidence',
+  '/home/derek/work/worktrees/commandcenter/g4-acceptance',
+  '/home/derek/work/worktrees/commandcenter/g4-acceptance-evidence',
 ]
 prohibited_authorities = ["change_machine_or_network", "merge_push_deploy"]
-digest = "672688c116381144d9fbb5ad34b3e04da58d8bf8257a084d01374cf529de2798"
+digest = "a62e136304499e67ab612f121afdc5aad1ec4b56da0b9404470af3f749a62f7b"

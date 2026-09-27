@@ -656,6 +656,11 @@ class NoAccidentalStateTests(TestCase):
             self.assertEqual(list(root.iterdir()), [])
 
     def test_building_documents_creates_nothing(self) -> None:
+        # 2026-09-27 (omen-linux): the drain went LIVE and its corpus root now exists in the
+        # repo, so "must not exist yet" stopped being true; the invariant is that BUILDING the
+        # documents creates nothing, so compare before and after.
+        corpus_root = _REPO_ROOT / "runs" / dispatch.RUN_NAMESPACE
+        existed_before = corpus_root.exists()
         brief = _brief()
         dispatch.build_drain_experiment_plan(brief, "hearth-d-1",
                                              timestamp="2026-09-07T10:00:00Z")
@@ -664,5 +669,5 @@ class NoAccidentalStateTests(TestCase):
         dispatch.build_observation_event("hearth-d-1", "bbb_high",
                                         timestamp="2026-09-07T11:00:00Z",
                                         outcome=dispatch.OUTCOME_SUCCEEDED)
-        self.assertFalse((_REPO_ROOT / "runs" / dispatch.RUN_NAMESPACE).exists(),
-                         "the live drain corpus root must not exist yet")
+        self.assertEqual(corpus_root.exists(), existed_before,
+                         "building documents must not create the live drain corpus root")

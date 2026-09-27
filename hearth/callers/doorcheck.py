@@ -69,6 +69,18 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 GATEWAY_HOST, GATEWAY_PORT = "127.0.0.1", 8710
 LEDGER = REPO_ROOT / "hearth" / "var" / "ledger" / "events.ndjson"
 START_CMD = REPO_ROOT / "hearth" / "etc" / "start-hearth-gateway.cmd"
+# omen-linux (2026-09-27): the launcher is a systemd user unit, not the .cmd. Its ExecStart
+# carries the same --providers and --callers arguments, so the manifest check reads it there.
+LINUX_UNIT = Path(os.environ.get("HEARTH_GATEWAY_UNIT",
+                                 str(Path.home() / ".config" / "systemd" / "user" / "hearth-production.service")))
+
+
+def _launcher_text() -> str:
+    """The text that names the gateway's providers and callers: the systemd unit on Linux
+    when it exists, otherwise start-hearth-gateway.cmd."""
+    if os.name != "nt" and LINUX_UNIT.is_file():
+        return LINUX_UNIT.read_text(encoding="utf-8", errors="ignore")
+    return _launcher_text()
 CALLER_KEY = "dev-local"  # human runner_class — right identity for a health probe
 RESTART_TASK = "HearthGatewayRestart"
 
@@ -151,7 +163,7 @@ def _providers_from_start_cmd() -> list[str]:
     """Parse the --providers module list from start-hearth-gateway.cmd's
     `-m hearth.kernel.gateway` line — the SAME argument the gateway itself
     reads at boot."""
-    text = START_CMD.read_text(encoding="utf-8", errors="ignore")
+    text = _launcher_text()
     match = _PROVIDERS_RE.search(text)
     if not match:
         raise ValueError(f"no --providers argument found in {START_CMD}")
@@ -212,7 +224,7 @@ def _visible_to(expected: set[str], key: str) -> tuple[set[str], str | None, lis
         from hearth.kernel.auth import AuthRegistry
         from hearth.kernel.capabilities import check_tool_access
 
-        text = START_CMD.read_text(encoding="utf-8", errors="ignore")
+        text = _launcher_text()
         match = _CALLERS_RE.search(text)
         registry = REPO_ROOT / match.group(1).replace("\\", "/") if match else None
         auth = AuthRegistry(callers_path=registry)

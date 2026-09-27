@@ -40,7 +40,7 @@ Arm/disarm with the drain's own CLI (same arm file under $HEARTH_ROOT):
 from __future__ import annotations
 
 import argparse
-from datetime import datetime
+from datetime import datetime, timedelta
 import asyncio
 import json
 import os
@@ -107,6 +107,8 @@ def brief_lane(brief) -> str:
         return "experiment"
     if brief.task_class == DEEPAGENTS_TASK_CLASS:
         return "deepagents"
+    if brief.task_class == PROOFING_TASK_CLASS:
+        return "deep"   # proposals are drafted on the 27B, one at a time
     try:
         fields, _ = parse_local_work_block(brief.body)
     except ValueError:
@@ -303,6 +305,116 @@ def submit_deepagents(body: str, hint: str) -> dict[str, Any]:
             "result_path": str(spec_dir / "state.json"), "unit": f"hearth-deepagents-{run_id}"}
 
 
+PROOFING_TASK_CLASS = backlog_sources.CANDIDATE_TASK_CLASS   # "proofing": a priced candidate
+_CANDIDATE_ID_RE = re.compile(r"Run experiment candidate '([^']+)'")   # candidate_prompt is byte-pinned
+SKIP_DAYS = 7
+
+
+# --- candidate (proofing) briefs ---------------------------------------------------------------
+# A candidate brief is the drain's own prose ("Run experiment candidate '<id>' ..."); on the Windows
+# conductor a builder answered it with proposals/<slug>.md. Here the deep lane drafts that proposal
+# as a whole_file local-work candidate, so the deliverable arrives at awaiting_review with the same
+# review gate as every other Linux brief (ADR-0048). The prompt is enriched from the derived
+# candidate record; it is never edited (test_sources pins its bytes).
+
+def candidate_id_from_body(body: str) -> str:
+    m = _CANDIDATE_ID_RE.search(body)
+    if not m:
+        raise ValueError("proofing brief names no candidate id (candidate_prompt shape changed?)")
+    return m.group(1)
+
+
+def load_candidate_record(candidate_id: str, path: Optional[Path] = None) -> dict[str, Any]:
+    path = path or backlog_sources.DEFAULT_EXPERIMENT_CANDIDATES_PATH
+    try:
+        doc = json.loads(Path(path).read_text())
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"cannot read candidate list {path}: {type(exc).__name__}") from exc
+    for row in doc.get("candidates") or ():
+        if isinstance(row, dict) and row.get("candidate_id") == candidate_id:
+            return row
+    raise ValueError(f"stale candidate: {candidate_id!r} is not in {Path(path).name}")
+
+
+def proofing_args_from_brief(body: str, *, idempotency_key: str, candidates_path: Optional[Path] = None,
+                             repo: Optional[str] = None) -> dict[str, Any]:
+    """submit_local_work arguments for one priced candidate. Pure apart from `git rev-parse`."""
+    candidate_id = candidate_id_from_body(body)
+    rec = load_candidate_record(candidate_id, candidates_path)
+    slug = backlog_sources.safe_slug(candidate_id)
+    subject = rec.get("subject") or {}
+    lines = [body.strip(), "", "Candidate record (knowledge/experiment_candidates.json):",
+             f"- candidate_id: {candidate_id}", f"- experiment_type: {rec.get('experiment_type')}",
+             f"- subject: builder={subject.get('builder_id')} model={subject.get('model_id')} backend={subject.get('backend')} "
+             f"task_kind={subject.get('task_kind')} metric={subject.get('metric')}",
+             f"- question: {rec.get('question')}", f"- evidence_sought: {rec.get('evidence_sought')}",
+             f"- gate: {rec.get('gate')}", f"- risk_accepted: {rec.get('risk_accepted')}",
+             f"- confidence: {rec.get('confidence')}", f"- last_observed: {rec.get('last_observed')}", "",
+             f"Write `proposals/{slug}.md`: an experiment proposal with sections Hypothesis, Workload shape "
+             "(model, backend, prompt depth, concurrency, measurement), Evidence that would move the belief, "
+             "Stop rule, and Runnable on omen-linux (name the lane — omen-vllm, omen-dense-27b, am4-vllm, fx99-vllm — "
+             "or say `not runnable on omen-linux` and why). Run nothing; propose only."]
+    criteria = [f"The proposal names the candidate_id {candidate_id} verbatim in its first section.",
+                "The proposal states the hypothesis and the evidence sought as separate sections.",
+                "The proposal states which omen-linux lane can run it, or says `not runnable on omen-linux` and why."]
+    repo = repo or str(_REPO_ROOT)
+    return {"intent": "\n".join(lines), "acceptance_criteria": criteria, "repo": repo,
+            "base_commit": resolve_commit(repo, "HEAD"), "files": ["knowledge/README.md"],
+            "artifact_kind": "whole_file", "target_path": f"proposals/{slug}.md", "lane": "deep",
+            "task_family": "drafting", "max_tokens": 4096, "deadline_s": 1200, "idempotency_key": idempotency_key}
+
+
+def submit_proofing(body: str, hint: str) -> dict[str, Any]:
+    args = proofing_args_from_brief(body, idempotency_key=f"bankedfire:{hint}")
+    result = call_tool("submit_local_work", args)
+    work_id = result.get("work_id")
+    if not work_id:
+        return {"ok": False, "error": f"submit_local_work returned no work_id: {str(result)[:300]}"}
+    return {"ok": True, "plan_id": work_id, "work_id": work_id, "inbox_path": None,
+            "result_path": str(manifest_path(work_id)), "route": result.get("route"), "status": result.get("status")}
+
+
+# --- skips: candidates the tick will not offer again for a while ---------------------------------
+
+def skips_path() -> Path:
+    return Path(os.environ.get("HEARTH_ROOT", str(Path.home() / "hearth-production"))) / "var" / "bankedfire_linux_skips.json"
+
+
+def load_skips(path: Optional[Path] = None) -> list[dict[str, Any]]:
+    p = path or skips_path()
+    try:
+        return list(json.loads(p.read_text()).get("skips") or [])
+    except (OSError, ValueError):
+        return []
+
+
+def add_skip(source_ref: str, reason: str, *, days: int = SKIP_DAYS, path: Optional[Path] = None,
+             now: Optional[datetime] = None) -> None:
+    p = path or skips_path(); now = now or datetime.utcnow()
+    rows = load_skips(p)
+    rows.append({"source": "candidate", "source_ref": source_ref, "reason": reason[:200],
+                 "at": now.isoformat(timespec="seconds") + "Z",
+                 "until": (now + timedelta(days=days)).isoformat(timespec="seconds") + "Z"})
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_suffix(".tmp"); tmp.write_text(json.dumps({"schema": "bankedfire-linux-skips.v1", "skips": rows}, indent=2)); os.replace(tmp, p)
+
+
+def candidate_exclusions(now: Optional[datetime] = None, *, skips: Optional[Path] = None,
+                         worth_path: Optional[Path] = None, candidates_path: Optional[Path] = None) -> frozenset:
+    """Unexpired skips plus priced ids that no longer exist in the derived candidate list.
+    Stale ids are computed, never written: a rebuild that resurrects an id un-stales it."""
+    now = now or datetime.utcnow(); stamp = now.isoformat(timespec="seconds") + "Z"
+    out = {r["source_ref"] for r in load_skips(skips) if r.get("source") == "candidate" and str(r.get("until", "")) > stamp}
+    try:
+        worth = json.loads(Path(worth_path or backlog_sources.DEFAULT_CANDIDATE_WORTH_PATH).read_text()).get("entries") or []
+        known = {c.get("candidate_id") for c in json.loads(Path(candidates_path or backlog_sources.DEFAULT_EXPERIMENT_CANDIDATES_PATH).read_text()).get("candidates") or []}
+    except (OSError, ValueError):
+        return frozenset(out)
+    out |= {e["candidate_id"] for e in worth if isinstance(e, dict) and isinstance(e.get("candidate_id"), str)
+            and e.get("status") != backlog_sources.CANDIDATE_RETIRED and e["candidate_id"] not in known}
+    return frozenset(out)
+
+
 def submit_task(**kwargs: Any) -> dict[str, Any]:
     """The drain's submit hook. kwargs come from Brief.submit_kwargs() + prompt=body."""
     body = str(kwargs.get("prompt") or "")
@@ -315,6 +427,11 @@ def submit_task(**kwargs: Any) -> dict[str, Any]:
     if kwargs.get("task_class") == DEEPAGENTS_TASK_CLASS:
         try:
             return submit_deepagents(body, hint)
+        except Exception as exc:  # noqa: BLE001
+            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+    if kwargs.get("task_class") == PROOFING_TASK_CLASS:
+        try:
+            return submit_proofing(body, hint)
         except Exception as exc:  # noqa: BLE001
             return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
     try:
@@ -415,16 +532,19 @@ def dry_run() -> dict[str, Any]:
         "authored": backlog_sources.authored_source(backlog_sources.DEFAULT_QUEUED_DIR),
         "refined": backlog_sources.refined_source(backlog_sources.DEFAULT_REFINE_DIR),
         "candidate": backlog_sources.candidate_source(backlog_sources.DEFAULT_CANDIDATE_WORTH_PATH,
-                                                      backlog_sources.DEFAULT_EXPERIMENT_RESULTS_PATH),
+                                                      backlog_sources.DEFAULT_EXPERIMENT_RESULTS_PATH,
+                                                      exclude_refs=candidate_exclusions()),
     }
+    report["excluded"] = sorted(candidate_exclusions())
     report["backlog_counts"] = {k: len(v) for k, v in scans.items()}
     brief = backlog_select.select_next(scope, scans) if scope in backlog_select.SCOPES else None
     if brief is not None:
         report["next"] = {"source": brief.source, "source_ref": brief.source_ref, "slug": brief.slug,
                           "task_class": brief.task_class}
-        if brief.task_class == LOCAL_WORK_TASK_CLASS:
+        if brief.task_class in (LOCAL_WORK_TASK_CLASS, PROOFING_TASK_CLASS):
             try:
-                args = submit_args_from_brief(brief.body)
+                args = (submit_args_from_brief(brief.body) if brief.task_class == LOCAL_WORK_TASK_CLASS
+                        else proofing_args_from_brief(brief.body, idempotency_key="dry-run"))
                 report["next"]["submit_args"] = {k: v for k, v in args.items() if k != "intent"}
             except Exception as exc:  # noqa: BLE001
                 report["next"]["brief_error"] = f"{type(exc).__name__}: {exc}"
@@ -488,6 +608,8 @@ def tick() -> dict[str, Any]:
     report: dict[str, Any] = {"reconciled": reconcile_slots(arm_path), "dispatched": [], "reason": None}
     caps = lane_slots()
     slots = load_slots()
+    excl = candidate_exclusions()
+    report["excluded"] = sorted(excl); report["skipped"] = []
     for _ in range(sum(caps.values()) + 1):
         state = drain.load_arm_state(arm_path)
         if not state.get("armed"):
@@ -497,7 +619,8 @@ def tick() -> dict[str, Any]:
             "authored": backlog_sources.authored_source(backlog_sources.DEFAULT_QUEUED_DIR),
             "refined": backlog_sources.refined_source(backlog_sources.DEFAULT_REFINE_DIR),
             "candidate": backlog_sources.candidate_source(backlog_sources.DEFAULT_CANDIDATE_WORTH_PATH,
-                                                          backlog_sources.DEFAULT_EXPERIMENT_RESULTS_PATH),
+                                                          backlog_sources.DEFAULT_EXPERIMENT_RESULTS_PATH,
+                                                          exclude_refs=excl),
         }
         nxt = backlog_select.select_next(scope, scans) if scope in backlog_select.SCOPES else None
         if nxt is None:
@@ -516,9 +639,15 @@ def tick() -> dict[str, Any]:
             # an experiment swaps a seat: it never overlaps any drain-owned work on any lane
             report["reason"] = "experiment-waits-for-empty-lanes"; report["in_use"] = used; break
         result = drain.run_tick(arm_state_path=arm_path, submit_task_fn=submit_task,
-                                task_status_fn=task_status, queue_status_fn=queue_status)
+                                task_status_fn=task_status, queue_status_fn=queue_status,
+                                exclude_refs=excl)
         report["reason"] = result["reason"]
         if not str(result["reason"]).startswith("dispatched:"):
+            detail = result.get("detail") or {}
+            if result["reason"] == "no-op:dispatch-failed" and detail.get("source") == "candidate" and detail.get("source_ref"):
+                # a candidate that cannot be dispatched must not be re-picked every 30 minutes
+                add_skip(str(detail["source_ref"]), f"dispatch-failed: {detail.get('submit_error')}")
+                report["skipped"].append({"source_ref": detail["source_ref"], "days": SKIP_DAYS})
             break
         state = drain.load_arm_state(arm_path)
         rec = state.get("in_flight")

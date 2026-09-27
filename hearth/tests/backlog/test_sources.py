@@ -13,6 +13,7 @@ import tempfile
 from pathlib import Path
 from unittest import TestCase
 
+import unittest
 from hearth.backlog import sources
 from hearth.backlog.briefs import Brief
 
@@ -474,3 +475,26 @@ class CandidateSourceTests(TestCase):
         rows = [{"candidate_id": "a"}, {"experiment_id": "b"},
                 {"derived_from_candidate": "c"}, {"run_id": "not-an-id"}, "junk"]
         self.assertEqual(sources.already_run_ids(rows), {"a", "b", "c"})
+
+
+class CandidateWorthV2Tests(unittest.TestCase):
+    """candidate-worth.v2 (2026-09-27, omen-linux): the 46 Windows-era prices name builders this
+    host does not have; a retired entry is a recorded "no worth here" and is never ranked, and the
+    Linux tick can exclude ids it has decided not to offer (skips, stale ids)."""
+
+    def test_retired_entries_are_never_ranked(self) -> None:
+        entries = [{"candidate_id": "a", "worth_points": 9, "status": "retired", "retired_reason": "dead-builder"},
+                   {"candidate_id": "b", "worth_points": 3}, {"candidate_id": "c", "worth_points": 5}]
+        self.assertEqual([e["candidate_id"] for e in sources.rank_candidates(entries, set())], ["c", "b"])
+
+    def test_exclude_refs_moves_an_entry_to_rejected(self) -> None:
+        import json, tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            worth = Path(tmp) / "w.json"; results = Path(tmp) / "r.json"
+            worth.write_text(json.dumps({"entries": [{"candidate_id": "x:1", "worth_points": 4, "reason": "r", "author": "derek"},
+                                                     {"candidate_id": "y:2", "worth_points": 2, "reason": "r", "author": "derek"}]}))
+            results.write_text(json.dumps({"results": []}))
+            scan = sources.candidate_source(worth, results, exclude_refs=frozenset({"x:1"}))
+        self.assertEqual([b.source_ref for b in scan.briefs], ["y:2"])
+        self.assertEqual(scan.rejected, ({"source_ref": "x:1", "reason": "excluded"},))

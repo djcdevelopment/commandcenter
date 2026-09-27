@@ -67,6 +67,9 @@ DEFAULT_DONE_DIR = DEFAULT_BACKLOG_ROOT / "done"
 DEFAULT_REFINE_DIR = _REPO_ROOT / "hearth" / "var" / "commander" / "refine"
 DEFAULT_CANDIDATE_WORTH_PATH = _REPO_ROOT / "knowledge" / "candidate_worth.json"
 DEFAULT_EXPERIMENT_RESULTS_PATH = _REPO_ROOT / "knowledge" / "experiment_results.json"
+# The derived candidate list the priced ids must still exist in (a priced id that has fallen
+# out of it is stale, not runnable). Read by the Linux lane to enrich a proofing brief.
+DEFAULT_EXPERIMENT_CANDIDATES_PATH = _REPO_ROOT / "knowledge" / "experiment_candidates.json"
 
 # The promote sidecar contract. A new key is a new version, never a silent add.
 PROMOTE_CONTRACT = "backlog-promote.v1"
@@ -76,6 +79,8 @@ PROMOTE_SUFFIX = ".promote.json"
 # compute), not production build work. Defined HERE and re-exported by
 # fleet.bankedfire_drain so there is exactly one definition.
 CANDIDATE_TASK_CLASS = "proofing"
+# candidate-worth.v2 entry status meaning "priced once, worthless on this host".
+CANDIDATE_RETIRED = "retired"
 
 _PLAN_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
@@ -466,10 +471,16 @@ def rank_candidates(entries, already: set) -> list[dict]:
 
     Pure and total: two ticks over an identical worth table always pick the same
     candidate (no hidden randomness in an unattended dispatch).
+
+    candidate-worth.v2 (2026-09-27): an entry may carry ``status = "retired"`` with a
+    ``retired_reason``; a retired price is a recorded decision that the candidate has no
+    worth on this host (dead builder, dead backend, stale id) and it is never ranked.
+    Entries without ``status`` (every v1 row) rank as before.
     """
     usable = [e for e in entries or ()
               if isinstance(e, dict) and isinstance(e.get("candidate_id"), str)
-              and e["candidate_id"] not in already]
+              and e["candidate_id"] not in already
+              and e.get("status") != CANDIDATE_RETIRED]
     usable.sort(key=lambda e: (-_int_or_zero(e.get("worth_points")), e["candidate_id"]))
     return usable
 
@@ -531,8 +542,14 @@ def candidate_brief(entry: dict) -> Brief:
     )
 
 
-def candidate_source(worth_path, results_path) -> SourceScan:
-    """Every unrun priced candidate as a Brief, highest worth first."""
+def candidate_source(worth_path, results_path, exclude_refs=frozenset()) -> SourceScan:
+    """Every unrun priced candidate as a Brief, highest worth first.
+
+    ``exclude_refs`` (2026-09-27, Linux lane): candidate ids the caller has decided not to
+    offer this tick — a dispatch that failed and is on backoff, or a priced id that no longer
+    exists in the derived candidate list. They land in ``rejected`` with the reason
+    ``excluded`` so the tick report still names them; nothing here decides *why*.
+    """
     worth_doc = _load_json(Path(worth_path), {"entries": []})
     results_doc = _load_json(Path(results_path), {"results": []})
     ranked = rank_candidates(worth_doc.get("entries", []),
@@ -540,6 +557,9 @@ def candidate_source(worth_path, results_path) -> SourceScan:
     briefs: list[Brief] = []
     rejected: list[dict] = []
     for entry in ranked:
+        if entry["candidate_id"] in exclude_refs:
+            rejected.append({"source_ref": entry["candidate_id"], "reason": "excluded"})
+            continue
         try:
             briefs.append(candidate_brief(entry))
         except ValueError as exc:

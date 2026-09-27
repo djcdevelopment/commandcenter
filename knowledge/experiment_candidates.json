@@ -1,11 +1,12 @@
 {
   "contract_version": "experiment-candidates.v1",
-  "source_findings": 49,
+  "source_findings": 53,
   "candidate_counts": {
-    "backend_comparison": 6,
-    "coverage_probe": 70,
+    "backend_comparison": 7,
+    "coverage_probe": 73,
     "known_bad_retest": 1,
-    "prefer_validation": 38,
+    "prefer_validation": 42,
+    "qualification_run": 2,
     "uncertain_resolution": 2
   },
   "candidates": [
@@ -108,6 +109,26 @@
       "risk_accepted": "one dispatch slot per backend; a gated backend must be opened with its own experiment",
       "confidence": null,
       "last_observed": "2026-07-02T06:50:00Z"
+    },
+    {
+      "candidate_id": "backend_comparison:qwen3-30b-a3b:omen-arc+omen-vllm",
+      "experiment_type": "backend_comparison",
+      "subject": {
+        "builder_id": null,
+        "model_id": "qwen3-30b-a3b",
+        "backend": null,
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "which backend serves qwen3-30b-a3b best (omen-arc=known_good, omen-vllm=known_good)?",
+      "worth": "the model already runs on multiple backends but the beliefs were formed on different workloads; a controlled comparison replaces inference with measurement",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "the same workload shape run on each backend yields a per-task recommendation instead of a guess",
+      "risk_accepted": "one dispatch slot per backend; a gated backend must be opened with its own experiment",
+      "confidence": null,
+      "last_observed": "2026-09-25T14:18:20.484633+00:00"
     },
     {
       "candidate_id": "backend_comparison:qwen3-coder:30b:ollama+ollama-cuda+ollama-cuda-contended+omen-ollama+unknown",
@@ -670,26 +691,6 @@
       "last_observed": "2026-07-30T14:54:15.389605+00:00"
     },
     {
-      "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=offload-generate|backend=omen-arc",
-      "experiment_type": "coverage_probe",
-      "subject": {
-        "builder_id": null,
-        "model_id": null,
-        "backend": "omen-arc",
-        "task_kind": "offload-generate",
-        "metric": null
-      },
-      "question": "does 'task_kind=offload-generate, backend=omen-arc' hold outside wf-hearth-offload-experiment-doc-adr-bench?",
-      "worth": "5 consistent sample(s) agree but all come from one workflow; the association engine will not generalize from one workflow",
-      "target_finding_id": null,
-      "target_capability_id": null,
-      "gate": null,
-      "evidence_sought": "one consistent observation from a second distinct workflow lets the invariant generalize into an association (and possibly a capability)",
-      "risk_accepted": "one dispatch slot; the invariant is already consistent where observed",
-      "confidence": null,
-      "last_observed": "2026-09-04T00:57:28.060989+00:00"
-    },
-    {
       "candidate_id": "coverage_probe:single_workflow_evidence:task_backend:task_kind=retro-role-reads|backend=gcp-gemini",
       "experiment_type": "coverage_probe",
       "subject": {
@@ -748,6 +749,26 @@
       "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
       "confidence": null,
       "last_observed": "2026-07-30T14:58:23.491180+00:00"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:am4|qwen3-27b|am4-vllm",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "am4",
+        "model_id": "qwen3-27b",
+        "backend": "am4-vllm",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, ram_gb_peak, vram_gb_peak on am4 + qwen3-27b + am4-vllm?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-09-25T14:19:02.590027+00:00"
     },
     {
       "candidate_id": "coverage_probe:unmeasured_metrics:cc-builder-1|sonnet|claude",
@@ -1108,6 +1129,26 @@
       "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
       "confidence": null,
       "last_observed": "2026-07-21T03:32:12.096022Z"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:fx99|qwen2.5-coder-7b|fx99-vllm",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "fx99",
+        "model_id": "qwen2.5-coder-7b",
+        "backend": "fx99-vllm",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, ram_gb_peak, vram_gb_peak on fx99 + qwen2.5-coder-7b + fx99-vllm?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-09-23T21:35:57.535332+00:00"
     },
     {
       "candidate_id": "coverage_probe:unmeasured_metrics:gcp-adk-test|gemini-3.5-flash|gcp-gemini",
@@ -1527,7 +1568,47 @@
       "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
       "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
       "confidence": null,
-      "last_observed": "2026-09-04T10:19:58.303917+00:00"
+      "last_observed": "2026-09-20T03:11:40.360893+00:00"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen|qwen3-30b-a3b|omen-vllm",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "omen",
+        "model_id": "qwen3-30b-a3b",
+        "backend": "omen-vllm",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, ram_gb_peak, vram_gb_peak on omen + qwen3-30b-a3b + omen-vllm?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-09-25T14:18:20.484633+00:00"
+    },
+    {
+      "candidate_id": "coverage_probe:unmeasured_metrics:omen|qwen3.8-27b|omen-dense-27b",
+      "experiment_type": "coverage_probe",
+      "subject": {
+        "builder_id": "omen",
+        "model_id": "qwen3.8-27b",
+        "backend": "omen-dense-27b",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "what are ttft_s, ram_gb_peak, vram_gb_peak on omen + qwen3.8-27b + omen-dense-27b?",
+      "worth": "predictions of these metrics can never be calibrated while they go unmeasured",
+      "target_finding_id": null,
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a single instrumented run gives the calibration layer its first prediction/observation comparison for each missing metric",
+      "risk_accepted": "none beyond a normal dispatch; only instrumentation is asked for",
+      "confidence": null,
+      "last_observed": "2026-09-27T20:35:33.742030+00:00"
     },
     {
       "candidate_id": "known_bad_retest:omen-wsl|qwen3-30b-a3b-awq|vllm",
@@ -1573,6 +1654,26 @@
       "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
       "confidence": "low",
       "last_observed": "2026-07-30T14:58:23.491180+00:00"
+    },
+    {
+      "candidate_id": "prefer_validation:am4|qwen3-27b|am4-vllm",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "am4",
+        "model_id": "qwen3-27b",
+        "backend": "am4-vllm",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does am4 + qwen3-27b + am4-vllm still hold up (443/443 success)?",
+      "worth": "the preference nudges every dispatch; it must keep earning that",
+      "target_finding_id": "known_good:am4|qwen3-27b|am4-vllm",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "high",
+      "last_observed": "2026-09-25T14:19:02.590027+00:00"
     },
     {
       "candidate_id": "prefer_validation:cc-builder-2|vllama-planner|openai",
@@ -1913,6 +2014,26 @@
       "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
       "confidence": "high",
       "last_observed": "2026-07-21T03:32:12.096022Z"
+    },
+    {
+      "candidate_id": "prefer_validation:fx99|qwen2.5-coder-7b|fx99-vllm",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "fx99",
+        "model_id": "qwen2.5-coder-7b",
+        "backend": "fx99-vllm",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does fx99 + qwen2.5-coder-7b + fx99-vllm still hold up (4/4 success)?",
+      "worth": "the preference nudges every dispatch; it must keep earning that",
+      "target_finding_id": "known_good:fx99|qwen2.5-coder-7b|fx99-vllm",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "high",
+      "last_observed": "2026-09-23T21:35:57.535332+00:00"
     },
     {
       "candidate_id": "prefer_validation:gcp-adk-test|gemini-3.5-flash|gcp-gemini",
@@ -2304,7 +2425,7 @@
         "task_kind": null,
         "metric": null
       },
-      "question": "does omen + qwen3-30b-a3b + omen-arc still hold up (7/7 success)?",
+      "question": "does omen + qwen3-30b-a3b + omen-arc still hold up (16/16 success)?",
       "worth": "the preference nudges every dispatch; it must keep earning that",
       "target_finding_id": "known_good:omen|qwen3-30b-a3b|omen-arc",
       "target_capability_id": null,
@@ -2312,7 +2433,87 @@
       "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
       "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
       "confidence": "high",
-      "last_observed": "2026-09-04T10:19:58.303917+00:00"
+      "last_observed": "2026-09-20T03:11:40.360893+00:00"
+    },
+    {
+      "candidate_id": "prefer_validation:omen|qwen3-30b-a3b|omen-vllm",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "omen",
+        "model_id": "qwen3-30b-a3b",
+        "backend": "omen-vllm",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does omen + qwen3-30b-a3b + omen-vllm still hold up (578/578 success)?",
+      "worth": "the preference nudges every dispatch; it must keep earning that",
+      "target_finding_id": "known_good:omen|qwen3-30b-a3b|omen-vllm",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "high",
+      "last_observed": "2026-09-25T14:18:20.484633+00:00"
+    },
+    {
+      "candidate_id": "prefer_validation:omen|qwen3.8-27b|omen-dense-27b",
+      "experiment_type": "prefer_validation",
+      "subject": {
+        "builder_id": "omen",
+        "model_id": "qwen3.8-27b",
+        "backend": "omen-dense-27b",
+        "task_kind": null,
+        "metric": null
+      },
+      "question": "does omen + qwen3.8-27b + omen-dense-27b still hold up (3/3 success)?",
+      "worth": "the preference nudges every dispatch; it must keep earning that",
+      "target_finding_id": "known_good:omen|qwen3.8-27b|omen-dense-27b",
+      "target_capability_id": null,
+      "gate": null,
+      "evidence_sought": "a failure breaks unanimity, drops confidence, and revokes or defers the preference; another success deepens it",
+      "risk_accepted": "minimal: one run on a proven combo; a failure corrects an overtrusted belief",
+      "confidence": "high",
+      "last_observed": "2026-09-27T20:35:33.742030+00:00"
+    },
+    {
+      "candidate_id": "qualification_run:capability:task_kind=offload-generate|backend=gcp-gemini",
+      "experiment_type": "qualification_run",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "gcp-gemini",
+        "task_kind": "offload-generate",
+        "metric": null
+      },
+      "question": "does the capability 'offload-generate on backend=gcp-gemini' still hold (23.82 evidence-day(s) since last validation)?",
+      "worth": "dispatch decisions schedule against this capability; a stale qualification means they rest on old truth \u2014 the belief is 'capability still holds' and it decays",
+      "target_finding_id": null,
+      "target_capability_id": "capability:task_kind=offload-generate|backend=gcp-gemini",
+      "gate": null,
+      "evidence_sought": "one fresh success on any qualified resource renews last_validated and restores qualified status; a failure demotes that resource and the capability re-derives without it",
+      "risk_accepted": "one dispatch slot on any of 2 previously qualified resource(s); the cost is scheduled, not emergency",
+      "confidence": "high",
+      "last_observed": "2026-09-04T00:57:27.501560+00:00"
+    },
+    {
+      "candidate_id": "qualification_run:capability:task_kind=offload-generate|backend=omen-swap",
+      "experiment_type": "qualification_run",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "omen-swap",
+        "task_kind": "offload-generate",
+        "metric": null
+      },
+      "question": "does the capability 'offload-generate on backend=omen-swap' still hold (23.81 evidence-day(s) since last validation)?",
+      "worth": "dispatch decisions schedule against this capability; a stale qualification means they rest on old truth \u2014 the belief is 'capability still holds' and it decays",
+      "target_finding_id": null,
+      "target_capability_id": "capability:task_kind=offload-generate|backend=omen-swap",
+      "gate": null,
+      "evidence_sought": "one fresh success on any qualified resource renews last_validated and restores qualified status; a failure demotes that resource and the capability re-derives without it",
+      "risk_accepted": "one dispatch slot on any of 2 previously qualified resource(s); the cost is scheduled, not emergency",
+      "confidence": "medium",
+      "last_observed": "2026-09-04T01:02:55.235915+00:00"
     },
     {
       "candidate_id": "uncertain_resolution:am4-worker-1|vllama-planner|openai",
@@ -2364,7 +2565,5 @@
       "confidence": "medium",
       "last_observed": "2026-07-04T04:18:00+00:00"
     }
-  ],
-  "corpus_digest": "sha256:f7e994ec6fffb66b567028d620458a686dc32ba7b8f67efbc46d697e932b341d",
-  "corpus_event_count": 147111
+  ]
 }

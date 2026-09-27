@@ -244,3 +244,88 @@ class ExperimentExclusivityTests(unittest.TestCase):
         report, calls = self._tick(slots=held, scans_next=["local-work"])
         self.assertEqual(calls, [])
         self.assertEqual(report["reason"], "experiment-in-flight")
+
+
+class ProofingBriefTests(unittest.TestCase):
+    """Slice B (2026-09-27): a priced candidate brief ("proofing") is the drain's own prose and used
+    to fail the local-work parse on every tick; it now becomes a whole_file proposal on the deep lane."""
+
+    CANDIDATES = {"candidates": [{"candidate_id": "prefer_validation:omen|qwen3.8-27b|omen-dense-27b",
+                                  "experiment_type": "prefer_validation",
+                                  "subject": {"builder_id": "omen", "model_id": "qwen3.8-27b", "backend": "omen-dense-27b"},
+                                  "question": "Does the dense lane hold its rate?", "evidence_sought": "rate at depth",
+                                  "gate": "g", "risk_accepted": "none", "confidence": 0.4, "last_observed": "2026-09-27"}]}
+
+    def _brief_body(self, cid="prefer_validation:omen|qwen3.8-27b|omen-dense-27b"):
+        from hearth.backlog import sources as src
+        return src.candidate_prompt({"candidate_id": cid, "worth_points": 8, "reason": "dense lane matters"})
+
+    def test_candidate_brief_becomes_whole_file_deep_submit_args(self) -> None:
+        import json, tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            cand = Path(tmp) / "c.json"; cand.write_text(json.dumps(self.CANDIDATES))
+            with mock.patch.object(lane, "resolve_commit", return_value="f" * 40):
+                args = lane.proofing_args_from_brief(self._brief_body(), idempotency_key="k", candidates_path=cand, repo="/r")
+        self.assertEqual((args["lane"], args["artifact_kind"], args["files"]), ("deep", "whole_file", ["knowledge/README.md"]))
+        self.assertEqual(args["target_path"], "proposals/" + lane.backlog_sources.safe_slug("prefer_validation:omen|qwen3.8-27b|omen-dense-27b") + ".md")
+        self.assertEqual(len(args["acceptance_criteria"]), 3)
+        for needle in ("prefer_validation:omen|qwen3.8-27b|omen-dense-27b", "Does the dense lane hold its rate?", "rate at depth"):
+            self.assertIn(needle, args["intent"])
+
+    def test_stale_candidate_fails_before_dispatch(self) -> None:
+        import json, tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            cand = Path(tmp) / "c.json"; cand.write_text(json.dumps(self.CANDIDATES))
+            with self.assertRaises(ValueError):
+                lane.proofing_args_from_brief(self._brief_body("known_bad_retest:omen-wsl|x|vllm"), idempotency_key="k", candidates_path=cand)
+            with mock.patch.object(lane.backlog_sources, "DEFAULT_EXPERIMENT_CANDIDATES_PATH", cand):
+                res = lane.submit_task(prompt=self._brief_body("known_bad_retest:omen-wsl|x|vllm"), plan_id_hint="h", task_class="proofing")
+        self.assertFalse(res["ok"]); self.assertIn("stale candidate", res["error"])
+
+    def test_brief_lane_counts_proofing_against_deep(self) -> None:
+        from hearth.backlog.briefs import Brief
+        b = Brief(slug="s", title="t", body=self._brief_body(), builders=None, task_class="proofing",
+                  est_tokens=None, requires=("proposals/s.md",), max_age_s=None, source="candidate", source_ref="x")
+        self.assertEqual(lane.brief_lane(b), "deep")
+
+
+class SkipsTests(unittest.TestCase):
+    """A candidate whose dispatch failed must not be re-picked every 30 minutes; a priced id that no
+    longer exists in the derived list is stale and excluded without a file row."""
+
+    def test_failed_and_stale_candidates_are_excluded_and_expiry_is_honoured(self) -> None:
+        import json, tempfile
+        from datetime import datetime, timedelta
+        from pathlib import Path
+        now = datetime(2026, 9, 28, 1, 0, 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            skips = Path(tmp) / "skips.json"; worth = Path(tmp) / "w.json"; cand = Path(tmp) / "c.json"
+            worth.write_text(json.dumps({"entries": [{"candidate_id": "live:1", "worth_points": 3},
+                                                     {"candidate_id": "gone:2", "worth_points": 9},
+                                                     {"candidate_id": "old:3", "worth_points": 1, "status": "retired"}]}))
+            cand.write_text(json.dumps({"candidates": [{"candidate_id": "live:1"}, {"candidate_id": "failed:4"}]}))
+            lane.add_skip("failed:4", "dispatch-failed: boom", path=skips, now=now)
+            excl = lane.candidate_exclusions(now + timedelta(days=1), skips=skips, worth_path=worth, candidates_path=cand)
+            self.assertEqual(set(excl), {"failed:4", "gone:2"})   # old:3 is retired, never offered, not "stale"
+            expired = lane.candidate_exclusions(now + timedelta(days=lane.SKIP_DAYS, seconds=1), skips=skips, worth_path=worth, candidates_path=cand)
+            self.assertEqual(set(expired), {"gone:2"})
+
+    def test_scope_all_with_nothing_priced_reports_no_candidates_without_dispatch(self) -> None:
+        import json, tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            arm = Path(tmp) / "arm.json"; arm.write_text(json.dumps({"armed": True, "scope": "all", "in_flight": None}))
+            empty = lane.backlog_sources.SourceScan((), ())
+            with mock.patch.object(lane.drain, "default_arm_state_path", return_value=arm), \
+                 mock.patch.object(lane.drain, "run_tick") as run_tick, \
+                 mock.patch.object(lane, "reconcile_slots", return_value=[]), \
+                 mock.patch.object(lane, "load_slots", return_value=[]), \
+                 mock.patch.object(lane, "candidate_exclusions", return_value=frozenset({"gone:2"})), \
+                 mock.patch.object(lane.backlog_sources, "authored_source", return_value=empty), \
+                 mock.patch.object(lane.backlog_sources, "refined_source", return_value=empty), \
+                 mock.patch.object(lane.backlog_sources, "candidate_source", return_value=empty):
+                report = lane.tick()
+        self.assertEqual(report["reason"], "no-candidates"); self.assertEqual(report["excluded"], ["gone:2"])
+        run_tick.assert_not_called()

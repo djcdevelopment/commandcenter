@@ -795,6 +795,7 @@ def run_tick(arm_state_path: Path = DEFAULT_ARM_STATE_PATH,
             acquire_lease: Callable[..., occ_mod.Lease] = occ_mod.acquire_lease,
             submit_task_fn: Callable[..., dict] = task_lane.submit_task,
             task_status_fn: Callable[..., dict] = task_lane.task_status,
+            exclude_refs: frozenset = frozenset(),
             queue_status_fn: Callable[[], dict] = task_lane.queue_status,
             ledger=None, write_ledger: bool = True,
             now=None, crash_after: Optional[str] = None) -> dict:
@@ -893,7 +894,8 @@ def run_tick(arm_state_path: Path = DEFAULT_ARM_STATE_PATH,
     scans = {
         "authored": backlog_sources.authored_source(queued_dir),
         "refined": backlog_sources.refined_source(refine_dir),
-        "candidate": backlog_sources.candidate_source(worth_path, results_path),
+        "candidate": backlog_sources.candidate_source(worth_path, results_path,
+                                                      exclude_refs=exclude_refs),
     }
     detail["backlog_counts"] = {name: len(scan) for name, scan in scans.items()}
     brief = backlog_select.select_next(scope, scans)

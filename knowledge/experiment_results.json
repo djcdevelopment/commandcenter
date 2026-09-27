@@ -1,10 +1,105 @@
 {
   "contract_version": "experiment-results.v1",
-  "evidence_watermark": "2026-09-04T10:46:00.606260Z",
-  "plan_count": 0,
+  "evidence_watermark": "2026-09-27T20:35:33.742030+00:00",
+  "plan_count": 3,
   "unresolved_refs": 0,
   "beliefs_changed": 0,
-  "results": [],
-  "corpus_digest": "sha256:f7e994ec6fffb66b567028d620458a686dc32ba7b8f67efbc46d697e932b341d",
-  "corpus_event_count": 147111
+  "results": [
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:2026-09-27-ct-stats-json-test",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-2026-09-27-ct-stats-json-test-50fcb16e",
+      "decision_id": "dec_hearth-authored-2026-09-27-ct-stats-json-test-50fcb16e",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-09-27T20:26:28.493870Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:2026-09-27-deepagents-tick-report",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-2026-09-27-deepagents-tick-report-38056dee",
+      "decision_id": "dec_hearth-authored-2026-09-27-deepagents-tick-report-38056dee",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "deepagents",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-09-27T20:56:50.014329Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:2026-09-27-exp-qwen3-32b-depth",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-2026-09-27-exp-qwen3-32b-depth-5d9109b5",
+      "decision_id": "dec_hearth-authored-2026-09-27-exp-qwen3-32b-depth-5d9109b5",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "experiment",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-09-27T20:56:49.891327Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    }
+  ]
 }

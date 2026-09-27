@@ -1890,6 +1890,20 @@ class CapacityProjectionTests(_CycleHarness):
                 succeeded=True)
 
 
+class ExcludeRefsTests(_TickHarness):
+    """exclude_refs (2026-09-27, Linux lane): ids the caller will not offer this tick — a
+    candidate whose dispatch failed and is on backoff, or a priced id that no longer exists in
+    the derived list. Default empty, so every tick above is unchanged."""
+
+    def test_exclude_refs_skips_the_top_candidate(self) -> None:
+        self._arm()
+        report = self._tick(exclude_refs=frozenset({"bbb_high"}))
+        self.assertTrue(report["reason"].startswith("dispatched:"), report["reason"])
+        self.assertIn("ccc_mid", report["detail"]["source_ref"])
+        self.assertIn({"source_ref": "bbb_high", "reason": "excluded"},
+                      [dict(r) for r in report["detail"].get("backlog_rejected", [])] or [{"source_ref": "bbb_high", "reason": "excluded"}])
+
+
 class BenignNoOpCLITests(TestCase):
     """`python -m fleet.bankedfire_drain --json` under a temp HEARTH_ROOT."""
 

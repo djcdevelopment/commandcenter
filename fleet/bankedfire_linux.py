@@ -63,6 +63,7 @@ DOOR_URL = os.environ.get("HEARTH_DOOR_URL", "http://127.0.0.1:8710/mcp")
 KEY_ENV = "HEARTH_DRAIN_KEY"
 LOCAL_WORK_TASK_CLASS = "local-work"
 EXPERIMENT_TASK_CLASS = "experiment"
+DEEPAGENTS_TASK_CLASS = "deepagents"
 DRAIN_CALLER_ID = "bankedfire-drain"
 
 
@@ -70,7 +71,7 @@ def lane_slots() -> dict[str, int]:
     """Per-lane in-flight caps for unattended dispatch (BANKEDFIRE_SLOTS="fast=3,deep=1,experiment=1").
     Deliberately below backends' parallel_slots: the execution plane admits per provider, but
     a job waiting for a slot spins on a worker, and unattended work must leave room for a human."""
-    raw = os.environ.get("BANKEDFIRE_SLOTS", "fast=3,deep=1,experiment=1")
+    raw = os.environ.get("BANKEDFIRE_SLOTS", "fast=3,deep=1,experiment=1,deepagents=1")
     out: dict[str, int] = {}
     for part in raw.split(","):
         if "=" in part:
@@ -104,6 +105,8 @@ def brief_lane(brief) -> str:
     """Which cap a brief counts against before it is dispatched."""
     if brief.task_class == EXPERIMENT_TASK_CLASS:
         return "experiment"
+    if brief.task_class == DEEPAGENTS_TASK_CLASS:
+        return "deepagents"
     try:
         fields, _ = parse_local_work_block(brief.body)
     except ValueError:
@@ -267,6 +270,39 @@ def submit_experiment(body: str, hint: str) -> dict[str, Any]:
             "result_path": str(spec_dir / "state.json"), "unit": f"hearth-experiment-{exp_id}"}
 
 
+def deepagents_spec_from_brief(body: str, run_id: str) -> dict[str, Any]:
+    fields, intent = parse_local_work_block_lenient(body)
+    if not fields.get("source"):
+        raise ValueError("deepagents brief lacks 'source' (the one file the agent may read/edit)")
+    if not intent:
+        raise ValueError("deepagents brief has no task after the '---' line")
+    return {"id": run_id, "source": fields["source"], "task": intent,
+            "backend": fields.get("backend", "omen-dense"),
+            "report": str(fields.get("report", "false")).lower() in ("1", "true", "yes"),
+            "max_report_words": int(fields["max_report_words"]) if fields.get("max_report_words") else None,
+            "work": fields.get("work")}
+
+
+def submit_deepagents(body: str, hint: str) -> dict[str, Any]:
+    from fleet import deepagents_linux
+    run_id = re.sub(r"[^A-Za-z0-9_-]", "-", hint)[:80] + "-" + datetime.now().strftime("%Y%m%dT%H%M")
+    spec = deepagents_spec_from_brief(body, run_id)
+    spec_dir = deepagents_linux.STATE_ROOT / run_id
+    spec_dir.mkdir(parents=True, exist_ok=True)
+    spec_path = spec_dir / "spec.json"; spec_path.write_text(json.dumps(spec, indent=2))
+    env_args = [f"--setenv={k}={os.environ[k]}" for k in
+                ("HEARTH_ROOT", "PYTHONPATH", "PATH", "OMEN_ARC_TOKEN", "AM4_VLLM_TOKEN", "DEEPAGENTS_LINUX", "DEEPAGENTS_PYTHON")
+                if os.environ.get(k)]
+    argv = ["systemd-run", "--user", "--collect", f"--unit=hearth-deepagents-{run_id}",
+            f"--property=WorkingDirectory={_REPO_ROOT}", *env_args,
+            sys.executable, "-m", "fleet.deepagents_linux", "run", "--spec", str(spec_path)]
+    out = subprocess.run(argv, capture_output=True, text=True, timeout=30)
+    if out.returncode:
+        return {"ok": False, "error": f"systemd-run failed: {(out.stderr or out.stdout).strip()[:300]}"}
+    return {"ok": True, "plan_id": f"da_{run_id}", "work_id": None, "inbox_path": None,
+            "result_path": str(spec_dir / "state.json"), "unit": f"hearth-deepagents-{run_id}"}
+
+
 def submit_task(**kwargs: Any) -> dict[str, Any]:
     """The drain's submit hook. kwargs come from Brief.submit_kwargs() + prompt=body."""
     body = str(kwargs.get("prompt") or "")
@@ -274,6 +310,11 @@ def submit_task(**kwargs: Any) -> dict[str, Any]:
     if kwargs.get("task_class") == EXPERIMENT_TASK_CLASS:
         try:
             return submit_experiment(body, hint)
+        except Exception as exc:  # noqa: BLE001
+            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+    if kwargs.get("task_class") == DEEPAGENTS_TASK_CLASS:
+        try:
+            return submit_deepagents(body, hint)
         except Exception as exc:  # noqa: BLE001
             return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
     try:
@@ -305,6 +346,17 @@ def task_status(plan_id: str, out_file: Optional[str] = None) -> dict[str, Any]:
                            "winner": f"experiment:seat{spec.get('seat')}:{spec.get('dropin')}",
                            "failure": None if st.get("outcome") == "succeeded" else st.get("outcome")},
                 "result_path": str(experiment_linux.EXP_ROOT / str(plan_id)[4:] / "state.json")}
+    if str(plan_id).startswith("da_"):
+        from fleet import deepagents_linux
+        st = deepagents_linux.status(str(plan_id)[3:])
+        if st.get("phase") == "missing":
+            return {"ok": False, "error": f"deepagents state missing for {plan_id}"}
+        if st.get("outcome") is None:
+            return {"ok": True, "done": False, "status": st.get("phase")}
+        return {"ok": True, "done": True, "status": st.get("outcome"),
+                "result": {"ok": st.get("outcome") == "succeeded", "winner": "deepagents:" + str(plan_id)[3:],
+                           "failure": None if st.get("outcome") == "succeeded" else "delivery gate or runner failed"},
+                "result_path": str(deepagents_linux.STATE_ROOT / str(plan_id)[3:] / "state.json")}
     if not re.fullmatch(r"work_[0-9a-f]{32}", str(plan_id)):
         # A slot adopted from the Windows era names a conductor plan, not a local-work item.
         # Nothing on this host can read its result, so resolve it honestly as "no winner" and

@@ -130,7 +130,7 @@ class LaneSlotsTests(unittest.TestCase):
             self.assertEqual(lane.lane_slots(), {"fast": 2, "deep": 1, "experiment": 0})
         with mock.patch.dict("os.environ", {}, clear=False):
             import os; os.environ.pop("BANKEDFIRE_SLOTS", None)
-            self.assertEqual(lane.lane_slots(), {"fast": 3, "deep": 1, "experiment": 1})
+            self.assertEqual(lane.lane_slots(), {"fast": 3, "deep": 1, "experiment": 1, "deepagents": 1})
 
     def test_brief_lane_from_block_and_class(self) -> None:
         from hearth.backlog.briefs import Brief
@@ -171,3 +171,27 @@ class HumanWaitsTests(unittest.TestCase):
             with mock.patch.object(lane, "_REPO_ROOT", Path(tmp)):
                 self.assertEqual(lane.queue_status()["running"], 1)
                 self.assertEqual(lane.in_use_by_lane([]), {"fast": 1})
+
+
+class DeepAgentsLaneTests(unittest.TestCase):
+    """A `deepagents` brief runs the existing bounded runner and its idempotent accounting;
+    the candidate stays review_required (research/deepagents.md §5)."""
+
+    def test_spec_needs_source_and_task(self) -> None:
+        spec = lane.deepagents_spec_from_brief("source: /tmp/x.py\nbackend: omen-dense\nreport: true\nmax_report_words: 200\n---\nExplain x.", "r1")
+        self.assertEqual((spec["source"], spec["backend"], spec["report"], spec["max_report_words"], spec["task"]),
+                         ("/tmp/x.py", "omen-dense", True, 200, "Explain x."))
+        with self.assertRaises(ValueError):
+            lane.deepagents_spec_from_brief("backend: omen\n---\nno source", "r2")
+        with self.assertRaises(ValueError):
+            lane.deepagents_spec_from_brief("source: /tmp/x.py\n---\n", "r3")
+
+    def test_status_maps_outcome_and_default_cap(self) -> None:
+        with mock.patch("fleet.deepagents_linux.status", return_value={"phase": "running", "outcome": None}):
+            self.assertFalse(lane.task_status("da_r1")["done"])
+        with mock.patch("fleet.deepagents_linux.status", return_value={"phase": "done", "outcome": "succeeded"}):
+            s = lane.task_status("da_r1")
+            self.assertEqual((s["done"], s["result"]["ok"], s["result"]["winner"]), (True, True, "deepagents:r1"))
+        with mock.patch.dict("os.environ", {}, clear=False):
+            import os; os.environ.pop("BANKEDFIRE_SLOTS", None)
+            self.assertEqual(lane.lane_slots().get("deepagents"), 1)

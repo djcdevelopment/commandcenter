@@ -150,7 +150,12 @@ class LocalWorkService:
 
     @staticmethod
     def _route_profile() -> tuple[dict[str, str], str]:
-        target = Path(__file__).resolve().parents[1] / "etc" / "local-work-routes.toml"
+        # HEARTH_LOCAL_WORK_ROUTES names a per-host route profile (the Linux production
+        # host routes fast/deep to backends that exist in HEARTH_BACKENDS); unset, the
+        # packaged profile applies, so the checked-in tests keep their meaning.
+        override = os.environ.get("HEARTH_LOCAL_WORK_ROUTES", "").strip()
+        target = Path(override) if override else (
+            Path(__file__).resolve().parents[1] / "etc" / "local-work-routes.toml")
         raw = target.read_bytes()
         document = tomllib.loads(raw.decode("utf-8"))
         lanes = document.get("lane") or {}
@@ -205,6 +210,19 @@ class LocalWorkService:
                     return json.loads(response.read().decode("utf-8"))
             except Exception as exc:
                 raise LocalWorkError(f"exact tokenizer endpoint refused: {exc}") from exc
+
+        if str(provider.settings.get("engine") or "").lower() == "vllm":
+            # vLLM's OpenAI server has no /apply-template; its POST /tokenize renders the
+            # chat template itself when given messages and returns {"count", "tokens"}.
+            counted = post("/tokenize", {"model": model,
+                                         "messages": [{"role": "user", "content": prompt}],
+                                         "add_generation_prompt": True,
+                                         "add_special_tokens": False})
+            tokens = counted.get("tokens")
+            count = len(tokens) if isinstance(tokens, list) else counted.get("count")
+            if not isinstance(count, int) or isinstance(count, bool) or count < 1:
+                raise LocalWorkError("exact tokenizer endpoint returned no token count")
+            return count
 
         rendered = post("/apply-template", {"model": model, "messages": [{"role": "user", "content": prompt}]})
         text = rendered.get("prompt") or rendered.get("content")
@@ -346,7 +364,10 @@ class LocalWorkService:
             raise LocalWorkError("candidate content must be text for this artifact kind")
         return candidate
 
-    def _validate_candidate(self, manifest: Mapping[str, Any], candidate: Mapping[str, Any]) -> None:
+    def _validate_candidate(self, manifest: Mapping[str, Any], candidate: Mapping[str, Any]) -> dict[str, Any]:
+        """Mechanical checks only. Returns notes about any mechanical repair applied
+        (today: git apply --recount when hunk line counts are wrong but the hunks apply)."""
+        notes: dict[str, Any] = {}
         repo = Path(str(manifest["repo"]))
         base = str(manifest["base_commit"])
         declared = set(manifest["declared_paths"])
@@ -379,12 +400,33 @@ class LocalWorkService:
                 completed = subprocess.run(["git", "-C", str(clone), "apply", "--check", "--whitespace=error-all", "-"],
                                            input=content, text=True, capture_output=True, timeout=120)
                 if completed.returncode:
-                    raise LocalWorkError(f"git apply --check failed: {completed.stderr.strip()}")
+                    # Local models write correct hunks with wrong @@ line counts far more often than
+                    # wrong hunks (omen-linux, 2026-09-27: attempt 1 of the first Linux candidate).
+                    # --recount ignores the counts and re-derives them; the content still has to apply
+                    # exactly, so this is a mechanical repair, not a semantic retry (ADR-0048).
+                    recount = subprocess.run(["git", "-C", str(clone), "apply", "--check", "--recount",
+                                              "--whitespace=error-all", "-"],
+                                             input=content, text=True, capture_output=True, timeout=120)
+                    if recount.returncode:
+                        raise LocalWorkError(f"git apply --check failed: {completed.stderr.strip()}")
+                    notes["git_apply"] = "recount"
+                    notes["git_apply_strict_error"] = completed.stderr.strip()[:300]
+        return notes
 
     def reconcile(self, work_id: str) -> dict[str, Any]:
         with self._lock:
             manifest = self._read(work_id)
             if manifest["status"] in FINAL or manifest["status"] == "awaiting_review":
+                return manifest
+            if not manifest.get("job_id"):
+                # A submit that raised after the manifest was written (e.g. a refused max_tokens)
+                # leaves no job behind. That is a terminal fact, not a reason to crash the
+                # gateway's startup reconcile (omen-linux, 2026-09-27).
+                manifest["status"] = "failed"
+                manifest["failure"] = "no execution job was recorded for this submission"
+                self._event(manifest, "outcome.final", {"status": "failed",
+                            "reason_sha256": _digest(manifest["failure"])})
+                self._write(manifest)
                 return manifest
             job = self.execution.get_job(str(manifest["job_id"]))
             if job is None:
@@ -443,7 +485,7 @@ class LocalWorkService:
                                     "structural_repair": True})
                 else:
                     try:
-                        self._validate_candidate(manifest, candidate)
+                        mechanical = self._validate_candidate(manifest, candidate)
                     except LocalWorkError as exc:
                         manifest["status"] = "failed"
                         manifest["failure"] = str(exc)
@@ -458,11 +500,15 @@ class LocalWorkService:
                         manifest["artifact"] = {key: metadata[key] for key in
                                                 ("artifact_id", "sha256", "size", "media_type")}
                         manifest["status"] = "awaiting_review"
+                        if mechanical:
+                            manifest["mechanical"] = mechanical
                         self._event(manifest, "attempt.recorded", {"job_id": job["job_id"], "ok": True})
                         self._event(manifest, "artifact.produced", {"artifact_id": metadata["artifact_id"],
                                     "sha256": metadata["sha256"], "size": metadata["size"]})
                         self._event(manifest, "verification.recorded", {"passed": True,
-                                    "checks": ["schema", "citations", "declared_paths", "git_apply_check"]})
+                                    "checks": ["schema", "citations", "declared_paths",
+                                               "git_apply_check_recount" if mechanical.get("git_apply") == "recount"
+                                               else "git_apply_check"]})
             self._write(manifest)
             return manifest
 

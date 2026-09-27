@@ -1,0 +1,110 @@
+{
+  "artifact": {
+    "artifact_id": "art_d1c120f7b29c0208c34985aeea07c1a5",
+    "media_type": "application/vnd.hearth.local-work-candidate.v1+json",
+    "sha256": "bc71924f93d85903c89a4a5fa15a093d2c085f9bec619cfc2ff6360b3dcc4cfd",
+    "size": 3066
+  },
+  "artifact_kind": "whole_file",
+  "attempts": [
+    {
+      "job_id": "job_e5c47d01485fedfe36f688b39eeab7aa",
+      "number": 1,
+      "repair": false,
+      "request_id": "req_1d60d867134a3b13b5761586382ed40d"
+    }
+  ],
+  "base_commit": "4880885649eb95799c9f1593004004f8f3055df6",
+  "caller": {
+    "submitted_by": "claude-frontier",
+    "validated_by": "claude-frontier"
+  },
+  "criteria": [
+    "python3 -m ct.export_transitions --dry-run exits 0 and prints a count summary to stderr",
+    "python3 -m ct.export_transitions prints only JSON lines, each parseable by json.loads, with review_required true and accepted null",
+    "the module imports ledger helpers from ct.ct instead of duplicating event parsing",
+    "no existing file is modified"
+  ],
+  "declared_paths": [
+    "ct/ct.py"
+  ],
+  "envelope_id": "dec700b8cbdd24e6447c6113cf8c3563e5890fc5f10124a6cd2b9e760f96c904",
+  "job_id": "job_e5c47d01485fedfe36f688b39eeab7aa",
+  "prompt": {
+    "context_tokens": 65536,
+    "digest": "740a3e183994f95a0a01cbe9d19f578e4448fc00a09aa66506d05d808e376a48",
+    "input_tokens": 14043,
+    "output_reserve_tokens": 8192,
+    "template_sha256": "94d91a9d66ebef0ec7e97638407e29a8d81d981ed1a05f7ba2e30577fe357b23",
+    "template_version": "local-work-prompts.v1"
+  },
+  "receipt_id": null,
+  "repo": "/home/derek/work/continuity",
+  "request_id": "req_1d60d867134a3b13b5761586382ed40d",
+  "route": {
+    "model": "qwen3.8-27b",
+    "profile_sha256": "e7837026105816bbc55337c2e3253298bf472b568cb66b6a71f406b8e955bab9",
+    "profile_version": "local-work-routes.v2",
+    "provider": "omen-dense-27b",
+    "requested_lane": "auto",
+    "selected_lane": "deep",
+    "serving_profile": {
+      "context_tokens": 65536,
+      "engine": "vllm",
+      "max_tokens": 8192,
+      "parallel_slots": 3
+    },
+    "serving_profile_sha256": "5d113f007758dadd1b033ac3ac262e6169531da85a0fbe2585a0d9c2c345370b",
+    "task_family": "code_fix"
+  },
+  "schema": "local-work-manifest.v1",
+  "source": {
+    "digest": "7b71585cefb8193a5ba16858ce6d0b04902dd0acec368f041e45e5609cca52a1",
+    "files": [
+      {
+        "bytes": 44978,
+        "lines": 899,
+        "path": "ct/ct.py",
+        "sha256": "9d653fb689e24cf6120c9f466e8bcd2a285e50a9583415f24516490ce67f67eb"
+      }
+    ]
+  },
+  "status": "accepted",
+  "target_path": "ct/export_transitions.py",
+  "verdict": {
+    "caller_id": "claude-frontier",
+    "criteria": [
+      {
+        "criterion": "python3 -m ct.export_transitions --dry-run exits 0 and prints a count summary to stderr",
+        "evidence": "worktree at base 4880885 + candidate file: `python3 -m ct.export_transitions --dry-run` -> '14 work item(s) in ledger', exit 0",
+        "status": "passed"
+      },
+      {
+        "criterion": "python3 -m ct.export_transitions prints only JSON lines, each parseable by json.loads, with review_required true and accepted null",
+        "evidence": "`python3 -m ct.export_transitions` -> 14 JSON lines, all json.loads-parseable, review_required=true, accepted=null (0 bad)",
+        "status": "passed"
+      },
+      {
+        "criterion": "the module imports ledger helpers from ct.ct instead of duplicating event parsing",
+        "evidence": "module imports `from ct import ct` and calls its ledger helpers; no local event parsing",
+        "status": "passed"
+      },
+      {
+        "criterion": "no existing file is modified",
+        "evidence": "`git status --short` in the worktree lists only ct/export_transitions.py (new)",
+        "status": "passed"
+      }
+    ],
+    "decision": "accepted",
+    "evidence": [
+      "worktree at base 4880885 + candidate file: `python3 -m ct.export_transitions --dry-run` -> '14 work item(s) in ledger', exit 0",
+      "`python3 -m ct.export_transitions` -> 14 JSON lines, all json.loads-parseable, review_required=true, accepted=null (0 bad)",
+      "module imports `from ct import ct` and calls its ledger helpers; no local event parsing",
+      "`git status --short` in the worktree lists only ct/export_transitions.py (new)",
+      "receipts under continuity work item w-6ed92f596e9b (submit receipt://ecc36973d753b041beb83542)"
+    ],
+    "receipt_id": null,
+    "summary": "Whole-file candidate for ct/export_transitions.py validated in an isolated worktree: dry-run and record output as specified, imports reused from ct.ct, no existing file touched. Accepted; the frontier caller applies it as a normal commit."
+  },
+  "work_id": "work_489bd4367323c25977a3f95d4e8c2ca7"
+}

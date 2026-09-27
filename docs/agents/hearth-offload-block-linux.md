@@ -1,0 +1,70 @@
+## Local-first offload (HEARTH on omen-linux)
+
+HEARTH is the MCP gateway at `http://127.0.0.1:8710/mcp` (registered for Claude Code at user
+scope; for Codex in `~/.codex/config.toml`). Delegate suitable self-contained work through
+`mcp__hearth__local_generate`: summaries of files/logs/diffs, structured extraction,
+classification, boilerplate, and prose drafts. Keep architecture, multi-file logic, ambiguous
+judgment, integration, and final validation with yourself. Do not split tightly coupled work
+merely to force an offload. Offload when the expected benefit exceeds briefing, latency, and
+review costs; handle trivial work directly. Batch related small items into one call.
+
+**Lanes on this host (from `~/hearth-production/backends-linux.toml`):**
+
+- `omen-vllm` (default; tags `default, code, research, reasoning`): Qwen3-30B-A3B MoE behind
+  HAProxy `:18090`, 40,960 ctx, 8 slots. Sunk local compute, resident: spend it freely on grunt work.
+- `omen-dense-27b` (tags `dense, quality, agent`): Qwen3.8-27B behind `:18095`, 65,536 ctx, 3 slots.
+  The only local model that completed the fix task with receipts (continuity output/07). Pin it
+  with `backend="omen-dense-27b"` for code candidates, careful review, or long inputs; it is
+  slower per token, so do not send it grunt work.
+- `am4-vllm` (tags `dense, reasoning`): AM4 27B over the direct cable, 16,384 ctx, 1 slot. Depth
+  specialist for needle retrieval; never route it through the tailnet.
+- `fx99-vllm` (tag `utility`): Qwen2.5-Coder-7B on FX99, 4,096 ctx. Text-only summaries; it cannot
+  produce reliable tool calls.
+- There is no cloud rung in this pool. A refused local lane is terminal; never substitute cloud.
+
+**Routing and context:**
+
+- Task-family routing is live: `task_family="summarization" | "extraction" | "classification" |
+  "drafting" | "reasoning_planning" | "quote_retrieval"`. Explicit `backend=`/`model=` pins override
+  the family; omit them when family routing is intended. `plan_execution(operation="inference.generate",
+  task_family=..., prompt_bytes=...)` inspects a route without dispatching.
+- Don't paste file contents: pass `files=[...]` and the door packs them scope-guarded. Relative paths
+  resolve against the gateway's primary repository (`~/work/commandcenter-linux-flash`); absolute paths
+  under `~/work` reach other repositories. Never include tokens, keys, or credential-file contents.
+- The offloaded model cannot run tools or see the conversation. Supply a standalone brief with the
+  task, constraints, output format, and acceptance criteria.
+
+**Bounded code work → `local-work` (skill `/local-work`, ADR-0048):**
+
+`submit_local_work(intent, acceptance_criteria, repo, base_commit, paths, lane="auto")` freezes the
+named files at a commit, produces an immutable candidate, and stops at `awaiting_review`. `auto`
+sends evidence below 8,192 tokens to `fast` (`omen-vllm`) and above it to `deep` (`omen-dense-27b`).
+Watch with `watch_local_work`, fetch with `get_local_work_artifact`, validate in an isolated worktree,
+then `record_local_work_verdict(accepted|rejected|superseded)` with evidence per criterion. Never apply
+a candidate before the verdict.
+
+Artifact kinds, measured 2026-09-27: prefer `whole_file` (with `target_path`) for any target under
+~6K output tokens; the 27B writes correct edits but unreliable `unified_diff` hunks (wrong counts are
+repaired by the door's `git apply --recount` step and noted in the manifest as `mechanical.git_apply`;
+hallucinated hunk context is not repairable). `max_tokens` is capped at 8,192 per candidate.
+
+**Codex:** `codex exec --approve-for-me ... < /dev/null` is required for unattended HEARTH tool calls;
+interactive Codex prompts per call. Skills are installed under `~/.codex/skills/` from
+`docs/agents/codex-skills/` (the tracked source).
+
+**Memory tie-in (continuity):** for substantial offloads open or reuse a `ct` work item
+(`ct work open --repo <id> --objective ...`) and pass its id as `task_id` on `local_generate` /
+`submit_local_work`; run validation under `ct receipt --work <id> -- <cmd>`. `ct recall` then finds the
+candidate manifest and HEARTH's `query_offload(task_id=...)` finds the spend, correlated by native ids.
+
+**Validation, reporting, recovery:**
+
+- Trust the result metadata, not the model's self-report: check `ok`, then read `text`; `backend`
+  and `routed_by` prove where the work ran.
+- `ok:false` or unusable output → one retry at most, then do the work directly and record the
+  limitation. If the door is down, run `/checkmcp` once (or `python -m hearth.callers.doorcheck --revive`
+  from the flash repo root with `PYTHONPATH` set) before that retry.
+- Every prompt carries `<hearth-task-id>` from the user-level hook; use that id when no `ct` work
+  item exists.
+
+<!-- source: docs/agents/hearth-offload-block-linux.md in commandcenter-linux-flash; ~/.claude/CLAUDE.md is a synced copy — edit the source -->

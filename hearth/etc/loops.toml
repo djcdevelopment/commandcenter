@@ -107,3 +107,38 @@ status = "LIVE"
 entrypoint = 'deepagents:create_deep_agent (harness C:\\work\\deepagents-poc, model qwen3-30b-a3b on :8082)'
 last_evidence = "C:\\work\\deepagents-poc git commit 1bad53c; tested against ArcServe :8082 on 2026-09-17"
 notes = "Agentic tool-use route using DeepAgents with scoped filesystem tools against dual-B70 ArcServe."
+
+# --- Linux lane (omen-linux, 2026-09-27) -------------------------------------------
+# The cutover left the door with --no-timers and the drain pointed at a parked Hyper-V
+# conductor. These implementations put the loops back on the Linux host through the
+# door itself (ADR-0048: candidates only; verdicts stay with the frontier/human).
+[[loop]]
+id = "idle_drain"
+description = "Unattended dispatch of authored briefs while the operator is away (ADR-0006 Banked Fire)."
+status = "LIVE"
+
+[[loop.implementation]]
+id = "bankedfire_linux"
+status = "BUILT NOT DEPLOYED"
+entrypoint = "systemd --user bankedfire-drain.timer -> python -m fleet.bankedfire_linux -> door:submit_local_work (caller bankedfire-drain)"
+last_evidence = "fleet/bankedfire_linux.py; tick ledgered 2026-09-27T18:27Z reason=disarmed (arm file lacks scope); promotion = an authored --arm with --scope authored after one clean supervised cycle"
+notes = "Occupancy = omen-vllm probe (seat gauges + HEARTH jobs + fleet/presence_linux). Legacy conductor slots resolve as no-winner."
+
+[[loop.implementation]]
+id = "bankedfire_conductor"
+status = "STOPPED"
+entrypoint = "python -m fleet.bankedfire_drain (task_lane.submit_task over SSH to cc-conductor)"
+last_evidence = "cc-conductor.mshome.net does not resolve from omen-linux (patrol 2026-09-27T18:26Z); builder VMs parked 2026-08-24"
+notes = "Kept for Windows parity; BANKEDFIRE_BACKEND/BANKEDFIRE_LANE select the Linux lane instead."
+
+[[loop]]
+id = "morning_report"
+description = "What the night produced: candidates awaiting review, backlog moves, drain ticks, lane health."
+status = "LIVE"
+
+[[loop.implementation]]
+id = "hearth_morning_report"
+status = "LIVE"
+entrypoint = "systemd --user hearth-morning-report.timer (06:45) -> tools/hearth-morning-report -> $HEARTH_BACKLOG_ROOT/reports/<date>.md"
+last_evidence = "first report rendered 2026-09-27T18:29Z (1 accepted, 3 failed candidates; 1 disarmed tick)"
+notes = "Read-only. omen-ai-mode status prints the latest report path."

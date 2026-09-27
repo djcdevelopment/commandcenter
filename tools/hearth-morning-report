@@ -1,0 +1,191 @@
+#!/usr/bin/env python3
+"""hearth-morning-report — what the night produced, in one file, for a human with coffee.
+
+Reads only: the authored backlog (queued/dispatched/done), local-work manifests under
+runs/operator, the kernel ledger's bankedfire_drain.tick rows, lane health, presence.
+Writes one Markdown file: $HEARTH_BACKLOG_ROOT/reports/<YYYY-MM-DD>.md (or --out).
+Candidates awaiting review are listed with their manifest path and, for unified diffs,
+the result of `git apply --check` in a throwaway clone at the pinned commit, so the
+reader knows before opening anything whether the diff even applies.
+
+    hearth-morning-report            # today's report, path printed
+    hearth-morning-report --hours 12 # narrower window
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import urllib.request
+from collections import Counter
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+REPO = Path(os.environ.get("PYTHONPATH", "/home/derek/work/commandcenter-linux-flash").split(":")[0])
+HEARTH_ROOT = Path(os.environ.get("HEARTH_ROOT", str(Path.home() / "hearth-production")))
+BACKLOG = Path(os.environ.get("HEARTH_BACKLOG_ROOT", str(HEARTH_ROOT / "var" / "backlog")))
+LEDGER = HEARTH_ROOT / "var" / "ledger" / "events.ndjson"
+LANES = {"door": "http://127.0.0.1:8710/healthz", "omen-vllm :18090": "http://127.0.0.1:18090/health",
+         "omen-dense-27b :18095": "http://127.0.0.1:18095/health", "seat0 :18091": "http://127.0.0.1:18091/health",
+         "seat1 :18092": "http://127.0.0.1:18092/health", "fx99 :18093": "http://192.168.12.220:18093/health"}
+
+
+def _health(url: str) -> str:
+    try:
+        with urllib.request.urlopen(url, timeout=3) as r:
+            return f"{r.status}"
+    except Exception as exc:  # noqa: BLE001
+        return f"down ({type(exc).__name__})"
+
+
+def _iso(s: str | None) -> datetime | None:
+    if not s:
+        return None
+    try:
+        return datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _apply_check(manifest: dict) -> str:
+    if manifest.get("artifact_kind") != "unified_diff":
+        return "n/a (%s)" % manifest.get("artifact_kind")
+    art = manifest.get("artifact") or {}
+    art_id = art.get("artifact_id")
+    art_dir = Path(os.environ.get("HEARTH_ARTIFACT_DIR", str(HEARTH_ROOT / "var/execution/artifacts")))
+    blob = next(iter(art_dir.rglob(f"{art_id}*")), None) if art_id else None
+    if blob is None:
+        return "artifact not found on disk"
+    try:
+        cand = json.loads(blob.read_text())
+        content = cand.get("content", "")
+    except Exception:  # noqa: BLE001
+        return "artifact unreadable"
+    with tempfile.TemporaryDirectory() as tmp:
+        clone = Path(tmp) / "repo"
+        try:
+            subprocess.run(["git", "clone", "-q", "--shared", "--no-checkout", manifest["repo"], str(clone)], check=True, timeout=60)
+            subprocess.run(["git", "-C", str(clone), "checkout", "-q", "--detach", manifest["base_commit"]], check=True, timeout=60)
+        except Exception as exc:  # noqa: BLE001
+            return f"clone failed: {type(exc).__name__}"
+        for label, extra in (("applies", []), ("applies with --recount", ["--recount"])):
+            r = subprocess.run(["git", "-C", str(clone), "apply", "--check", *extra, "-"], input=content, text=True, capture_output=True, timeout=60)
+            if r.returncode == 0:
+                return label
+        return "does not apply: " + (r.stderr.strip().splitlines() or ["?"])[0][:100]
+
+
+def build(hours: int) -> str:
+    now = datetime.now(timezone.utc)
+    since = now - timedelta(hours=hours)
+    L = [f"# Morning report — {now.strftime('%Y-%m-%d %H:%M UTC')} (last {hours} h)\n"]
+
+    # 1. candidates
+    rows = []
+    for m in sorted((REPO / "runs" / "operator").glob("work_*/work-manifest.json")):
+        try:
+            d = json.loads(m.read_text())
+        except Exception:  # noqa: BLE001
+            continue
+        ts = None
+        for ev in reversed(d.get("events") or []):
+            ts = _iso(ev.get("ts") or ev.get("timestamp")) or ts
+        mtime = datetime.fromtimestamp(m.stat().st_mtime, timezone.utc)
+        if (ts or mtime) < since:
+            continue
+        rows.append((d, m, mtime))
+    L.append("## Local-work candidates\n")
+    if not rows:
+        L.append("_none in window_\n")
+    else:
+        L.append("| status | work | lane / model | repo | kind | apply check | manifest |\n|---|---|---|---|---|---|---|")
+        for d, m, mtime in sorted(rows, key=lambda r: r[2], reverse=True):
+            route = d.get("route") or {}
+            st = d.get("status")
+            check = _apply_check(d) if st == "awaiting_review" else (d.get("failure") or "")[:80]
+            L.append(f"| **{st}** | `{d.get('work_id')}` | {route.get('selected_lane')} / {route.get('model')} | `{d.get('repo')}` | {d.get('artifact_kind')} | {check} | `{m}` |")
+        L.append("")
+        awaiting = [r for r in rows if r[0].get("status") == "awaiting_review"]
+        if awaiting:
+            L.append("Review with `/local-work` (Claude Code) or `$local-work` (Codex): fetch `get_local_work_artifact`, validate in a worktree, then `record_local_work_verdict`.\n")
+
+    # 2. backlog
+    L.append("## Authored backlog\n")
+    for name in ("queued", "dispatched", "done"):
+        files = sorted((BACKLOG / name).glob("*.md")) if (BACKLOG / name).exists() else []
+        L.append(f"- **{name}**: {len(files)}" + (" — " + ", ".join(f.name for f in files[:8]) if files else ""))
+    L.append("")
+
+    # 3. drain ticks
+    L.append("## Banked Fire ticks\n")
+    reasons: Counter = Counter()
+    last = None
+    if LEDGER.exists():
+        with LEDGER.open() as fh:
+            for line in fh:
+                if '"bankedfire_drain.tick"' not in line:
+                    continue
+                try:
+                    ev = json.loads(line)
+                except ValueError:
+                    continue
+                ts = _iso(ev.get("ts"))
+                if ts is None or ts < since:
+                    continue
+                try:
+                    outcome = json.loads(ev.get("args_preview") or "{}").get("outcome")
+                except ValueError:
+                    outcome = None
+                reasons[outcome or ev.get("outcome") or "?"] += 1
+                last = ev.get("ts")
+    if reasons:
+        L.append("| outcome | ticks |\n|---|---|")
+        for k, v in reasons.most_common():
+            L.append(f"| {k} | {v} |")
+        L.append(f"\nlast tick: {last}\n")
+    else:
+        L.append("_no ticks in window_ (timer `bankedfire-drain.timer`; arm with `python -m fleet.bankedfire_drain --arm ... --scope authored`)\n")
+    try:
+        arm = json.loads((HEARTH_ROOT / "var" / "bankedfire_drain_arm.json").read_text())
+        L.append(f"arm state: armed={arm.get('armed')} scope={arm.get('scope')} reason={arm.get('reason')!r} in_flight={'yes' if arm.get('in_flight') else 'no'}\n")
+    except Exception:  # noqa: BLE001
+        pass
+
+    # 4. lanes + presence
+    L.append("## Lanes now\n")
+    L.append("| lane | health |\n|---|---|")
+    for name, url in LANES.items():
+        L.append(f"| {name} | {_health(url)} |")
+    L.append("")
+    try:
+        sys.path.insert(0, str(REPO))
+        from fleet.presence_linux import report as presence
+        p = presence()
+        L.append(f"presence: {'away' if p['away'] else 'present'} ({', '.join(p['present_reasons']) or 'idle %d min' % ((p['idle_ms'] or 0) // 60000)}), mode {p['mode']}\n")
+    except Exception as exc:  # noqa: BLE001
+        L.append(f"presence: unreadable ({type(exc).__name__})\n")
+    return "\n".join(L)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--hours", type=int, default=24)
+    ap.add_argument("--out", type=Path, default=None)
+    ap.add_argument("--stdout", action="store_true")
+    args = ap.parse_args()
+    text = build(args.hours)
+    if args.stdout:
+        print(text)
+        return 0
+    out = args.out or (BACKLOG / "reports" / f"{datetime.now().strftime('%Y-%m-%d')}.md")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text)
+    print(out)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

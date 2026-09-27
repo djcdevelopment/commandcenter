@@ -1,0 +1,38 @@
+{
+  "acceptance_criteria": [
+    "python3 -m ct.export_transitions --dry-run exits 0 and prints a count summary to stderr",
+    "python3 -m ct.export_transitions prints only JSON lines, each parseable by json.loads, with review_required true and accepted null",
+    "the module imports ledger helpers from ct.ct instead of duplicating event parsing",
+    "no existing file is modified"
+  ],
+  "classification": {
+    "context_continuity": "session",
+    "language": "mixed",
+    "mutation_level": "none",
+    "read_vs_reasoning": "balanced",
+    "repo_size": "standard",
+    "risk_level": "medium",
+    "task_type": "engineering"
+  },
+  "constraints": {
+    "budget": null,
+    "deadline_s": 1200,
+    "max_attempts": 2,
+    "max_context_tokens": 65536
+  },
+  "contract_version": "task-envelope.v1",
+  "envelope_id": "dec700b8cbdd24e6447c6113cf8c3563e5890fc5f10124a6cd2b9e760f96c904",
+  "inputs": {
+    "base_commit": "4880885649eb95799c9f1593004004f8f3055df6",
+    "files": [
+      "ct/ct.py"
+    ],
+    "paths": [],
+    "repo": "/home/derek/work/continuity"
+  },
+  "intent": "Create a NEW module ct/export_transitions.py (stdlib only, Python 3.12+) for the continuity tool. It reads the local ledger the same way ct/ct.py does (import and reuse ct.ct's existing ledger-loading helpers rather than re-implementing parsing; look at how cmd_recall and cmd_stats iterate events) and emits one JSON object per line on stdout, one per work item (events of type work_item.opened), in this shape: {\"schema\": \"operational_transition.v0\", \"trajectory_id\": <work item id>, \"transition_type\": \"work_item\", \"cutoff_T\": <ISO timestamp of the work_item.opened event>, \"source\": {\"repo_id\": <repo from the opening event>, \"objective\": <objective text>}, \"context_at_T\": {\"receipts\": <count of receipt.recorded events whose work field equals this work item>, \"checkpoints\": <count of checkpoint.observed events linked to it>, \"observations\": <count of observation.recorded events about it>}, \"target\": {\"status\": <latest status.asserted value for it, or null>}, \"review_required\": true, \"accepted\": null}. Provide a main() with argparse: --ledger <path> (default: the same ledger path ct.ct resolves from its config) and --dry-run (print a one-line count summary to stderr instead of records). Keep the module under 200 lines, no third-party imports, no writes to disk.",
+  "submission_source": "mcp",
+  "submitted_at": "2026-09-27T18:20:58Z",
+  "submitted_by": "claude-frontier",
+  "supersedes": null
+}

@@ -1,0 +1,79 @@
+{
+  "artifact": null,
+  "artifact_kind": "unified_diff",
+  "attempts": [
+    {
+      "job_id": "job_c96e8bf125c8365c90a33f42984526ad",
+      "number": 1,
+      "repair": false,
+      "request_id": "req_0a246029b0c082a78f1e343f1593244b"
+    }
+  ],
+  "base_commit": "4880885649eb95799c9f1593004004f8f3055df6",
+  "caller": {
+    "submitted_by": "claude-frontier",
+    "validated_by": null
+  },
+  "criteria": [
+    "`ct stats --json` prints a single JSON object parseable by json.loads and nothing else",
+    "the JSON object's total event count equals the count printed by `ct stats` without --json",
+    "`ct stats` without --json is byte-identical to the current output",
+    "a new unittest in tests/test_ct.py covers --json and the whole suite passes (python3 -m unittest discover -s tests)"
+  ],
+  "declared_paths": [
+    "ct/ct.py",
+    "tests/test_ct.py"
+  ],
+  "envelope_id": "ef9fcf0e3a69e60c6cae898fd4d1045b53db2525efcee57923e7e69bb4b10ffe",
+  "failure": "git apply --check failed: error: corrupt patch at line 36",
+  "job_id": "job_c96e8bf125c8365c90a33f42984526ad",
+  "prompt": {
+    "context_tokens": 65536,
+    "digest": "9e58018afc16b370a10a8acdaee1a213f6b3d42462a3c1d50947ce7a6b9c4111",
+    "input_tokens": 19480,
+    "output_reserve_tokens": 8192,
+    "template_sha256": "124c2a8abde0f29ed1ebadfa65360456869a39aa0e19b9b8e63ebb7deb6a0f42",
+    "template_version": "local-work-prompts.v1"
+  },
+  "receipt_id": null,
+  "repo": "/home/derek/work/continuity",
+  "request_id": "req_0a246029b0c082a78f1e343f1593244b",
+  "route": {
+    "model": "qwen3.8-27b",
+    "profile_sha256": "e7837026105816bbc55337c2e3253298bf472b568cb66b6a71f406b8e955bab9",
+    "profile_version": "local-work-routes.v2",
+    "provider": "omen-dense-27b",
+    "requested_lane": "auto",
+    "selected_lane": "deep",
+    "serving_profile": {
+      "context_tokens": 65536,
+      "engine": "vllm",
+      "max_tokens": 8192,
+      "parallel_slots": 3
+    },
+    "serving_profile_sha256": "5d113f007758dadd1b033ac3ac262e6169531da85a0fbe2585a0d9c2c345370b",
+    "task_family": "code_fix"
+  },
+  "schema": "local-work-manifest.v1",
+  "source": {
+    "digest": "fde2a6050b7ba7a8700ef68948ed268da1e171222c1d493dd12285cb07892fd9",
+    "files": [
+      {
+        "bytes": 44978,
+        "lines": 899,
+        "path": "ct/ct.py",
+        "sha256": "9d653fb689e24cf6120c9f466e8bcd2a285e50a9583415f24516490ce67f67eb"
+      },
+      {
+        "bytes": 18635,
+        "lines": 365,
+        "path": "tests/test_ct.py",
+        "sha256": "3e6d0b998bc4cf7ab427131493f201f3c879aede401d90677f5837fc2d3122b1"
+      }
+    ]
+  },
+  "status": "failed",
+  "target_path": null,
+  "verdict": null,
+  "work_id": "work_a78665d28fb24fadb52572de57cef96c"
+}

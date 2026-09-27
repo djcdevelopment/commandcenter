@@ -57,7 +57,10 @@ from hearth.toolsurface.task_expectations import (  # noqa: E402
 )
 
 # --- Default locations (named, never silently used) ---------------------------
-DEFAULT_BACKLOG_ROOT = _REPO_ROOT / "hearth" / "var" / "backlog"
+# HEARTH_BACKLOG_ROOT relocates the authored backlog off the repo (the Linux production
+# host keeps it under ~/hearth-production/var/backlog); unset, the repo default applies.
+DEFAULT_BACKLOG_ROOT = (Path(os.environ["HEARTH_BACKLOG_ROOT"]).expanduser()
+                        if os.environ.get("HEARTH_BACKLOG_ROOT") else _REPO_ROOT / "hearth" / "var" / "backlog")
 DEFAULT_QUEUED_DIR = DEFAULT_BACKLOG_ROOT / "queued"
 DEFAULT_DISPATCHED_DIR = DEFAULT_BACKLOG_ROOT / "dispatched"
 DEFAULT_DONE_DIR = DEFAULT_BACKLOG_ROOT / "done"

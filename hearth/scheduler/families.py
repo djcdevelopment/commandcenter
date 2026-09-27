@@ -101,10 +101,42 @@ def tags_for(task_family: Optional[str]) -> list[str]:
     Returns a fresh list: the table is shared data and a caller must not be able
     to mutate the next call's route.
     """
+    if task_family:
+        declared = _declared_tags().get(task_family)
+        if declared is not None:
+            return list(declared)
     tags = FAMILY_TAGS.get(task_family) if task_family else None
     if tags is None:
         tags = FAMILY_TAGS[DEFAULT_FAMILY]
     return list(tags)
+
+
+_DECLARED_TAGS_CACHE: dict[str, tuple[float, dict[str, tuple[str, ...]]]] = {}
+
+
+def _declared_tags() -> dict[str, tuple[str, ...]]:
+    """Tags declared per family in the routing-families file in force (a per-host
+    file named by HEARTH_ROUTING_FAMILIES may add families the packaged table does
+    not know). Never raises: a missing or malformed file yields no declared tags,
+    and the loud failure stays where it already is (inference._resolve_family loads
+    the same file before any tag is consulted). Cached by file mtime."""
+    try:
+        resolved = Path(os.environ.get(ENV_VAR, DEFAULT_PATH))
+        mtime = resolved.stat().st_mtime
+        hit = _DECLARED_TAGS_CACHE.get(str(resolved))
+        if hit and hit[0] == mtime:
+            return hit[1]
+        with open(resolved, "rb") as fh:
+            data = tomllib.load(fh)
+        out: dict[str, tuple[str, ...]] = {}
+        for name, raw in (data.get("family") or {}).items():
+            tags = raw.get("tags") if isinstance(raw, dict) else None
+            if isinstance(tags, list) and tags and all(isinstance(t, str) and t.strip() for t in tags):
+                out[name] = tuple(tags)
+        _DECLARED_TAGS_CACHE[str(resolved)] = (mtime, out)
+        return out
+    except Exception:  # noqa: BLE001 -- data lookup, never a route failure
+        return {}
 
 
 class FamiliesConfigError(ValueError):
@@ -133,6 +165,7 @@ class FamilyPreference:
     min_prompt_tokens: Optional[int] = None
     below_threshold_model_id: Optional[str] = None
     depth_override: Optional[DepthRule] = None
+    tags: Optional[tuple[str, ...]] = None   # routing tags declared for this family (optional)
 
 
 @dataclass(frozen=True)
@@ -217,7 +250,18 @@ def _coerce_family(name: str, raw: Any) -> FamilyPreference:
         min_prompt_tokens=min_prompt_tokens,
         below_threshold_model_id=below,
         depth_override=override,
+        tags=_optional_tags(raw, where),
     )
+
+
+def _optional_tags(table: dict, where: str) -> Optional[tuple[str, ...]]:
+    value = table.get("tags")
+    if value is None:
+        return None
+    if (not isinstance(value, list) or not value
+            or not all(isinstance(t, str) and t.strip() for t in value)):
+        raise FamiliesConfigError(f"{where}: tags must be a non-empty list of non-empty strings when present")
+    return tuple(value)
 
 
 def load_families(path: Optional[Path | str] = None) -> Families:

@@ -353,6 +353,107 @@ def probe_omen_arc_slots() -> dict:
 
 
 
+
+# --- omen-vllm: the Linux production rung (two vLLM seats behind HAProxy lanes) ------------
+OMEN_VLLM_METRICS_URLS = tuple(
+    u for u in os.environ.get("OMEN_VLLM_METRICS_URLS",
+                              "http://127.0.0.1:18091/metrics,http://127.0.0.1:18092/metrics").split(",") if u.strip())
+OMEN_VLLM_TOKEN_ENVS = ("OMEN_ARC_TOKEN", "VLLM_API_KEY")
+_VLLM_GAUGES = ("vllm:num_requests_running", "vllm:num_requests_waiting")
+
+
+def _vllm_bearer() -> Optional[str]:
+    for name in OMEN_VLLM_TOKEN_ENVS:
+        value = os.environ.get(name)
+        if value:
+            return value
+    return None
+
+
+def _fetch_vllm_metrics(url: str, timeout_s: float = MOE_HTTP_TIMEOUT_S) -> tuple[Optional[dict], Optional[str]]:
+    """Sum the two request gauges of one vLLM seat from its Prometheus text."""
+    request = urllib.request.Request(url)
+    token = _vllm_bearer()
+    if token:
+        request.add_header("Authorization", "Bearer %s" % token)
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_s) as response:
+            text = response.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as exc:
+        return None, "HTTP %s from %s" % (exc.code, url)
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
+        return None, "%s: %s" % (type(exc).__name__, exc)
+    found: dict[str, float] = {}
+    for line in text.splitlines():
+        for gauge in _VLLM_GAUGES:
+            if line.startswith(gauge + "{") or line.startswith(gauge + " "):
+                try:
+                    found[gauge] = found.get(gauge, 0.0) + float(line.rsplit(" ", 1)[1])
+                except ValueError:
+                    pass
+    if not all(g in found for g in _VLLM_GAUGES):
+        return None, "metrics at %s lack %s" % (url, ", ".join(g for g in _VLLM_GAUGES if g not in found))
+    return found, None
+
+
+def _hearth_active_jobs() -> tuple[Optional[int], Optional[str]]:
+    """Non-legacy HEARTH jobs not yet final, from the execution projection (read-only)."""
+    import json as _json
+    import sqlite3
+    root = os.environ.get("HEARTH_EXECUTION_DIR") or os.path.join(
+        os.environ.get("HEARTH_ROOT", os.path.expanduser("~/hearth-production")), "var", "execution")
+    path = os.path.join(root, "projection.sqlite")
+    try:
+        with sqlite3.connect("file:%s?mode=ro" % path, uri=True) as db:
+            rows = db.execute("SELECT state_json FROM jobs WHERE status NOT IN "
+                              "('succeeded','failed','cancelled','expired')").fetchall()
+    except Exception as exc:  # noqa: BLE001 -- unreadable is a real answer here
+        return None, "projection unreadable: %s" % exc
+    active = 0
+    for (raw,) in rows:
+        try:
+            job = _json.loads(raw)
+        except ValueError:
+            active += 1
+            continue
+        if not (job.get("status") == "queued" and job.get("operation") == "bf6.process_segment"):
+            active += 1
+    return active, None
+
+
+def probe_omen_vllm() -> dict:
+    """Occupancy of the Linux production rung: tenancy fence, then both vLLM seats' request
+    gauges, then HEARTH's own active jobs, then operator presence (fleet.presence_linux).
+    "available" only when every signal reads idle; anything unreadable is "unknown" (busy for
+    opportunistic callers, per the module rule). Presence is reported as "busy" with the
+    reasons, so a drain tick ledgers WHY it yielded."""
+    fence = _tenancy_fence()
+    if fence is not None:
+        return fence
+    detail: dict = {"seats": {}}
+    for url in OMEN_VLLM_METRICS_URLS:
+        gauges, err = _fetch_vllm_metrics(url)
+        if gauges is None:
+            return {"occupancy": "unknown", "detail": {"seat": url, "error": err}}
+        detail["seats"][url] = gauges
+    running = sum(g["vllm:num_requests_running"] for g in detail["seats"].values())
+    waiting = sum(g["vllm:num_requests_waiting"] for g in detail["seats"].values())
+    detail["requests_running"] = running
+    detail["requests_waiting"] = waiting
+    active, err = _hearth_active_jobs()
+    if active is None:
+        return {"occupancy": "unknown", "detail": {**detail, "error": err}}
+    detail["hearth_active_jobs"] = active
+    try:
+        from fleet.presence_linux import report as presence_report
+        presence = presence_report()
+    except Exception as exc:  # noqa: BLE001 -- unreadable presence is "present"
+        presence = {"away": False, "present_reasons": ["presence:unreadable:%s" % type(exc).__name__]}
+    detail["presence"] = {k: presence.get(k) for k in ("away", "mode", "idle_ms", "rdp_sessions", "present_reasons")}
+    busy = running > 0 or waiting > 0 or active > 0 or not presence.get("away")
+    return {"occupancy": "busy" if busy else "available", "detail": detail}
+
+
 OMEN_SWAP_BASE_URL = "http://127.0.0.1:8081"
 
 
@@ -427,6 +528,7 @@ def probe_omen_swap(fetch: Optional[Callable] = None,
 _PROBES: dict[str, Callable[[], dict]] = {
     "omen-arc": probe_omen_arc_slots,  # HTTP slot/KV goodput on the resident rung (ADR-0034)
     "omen-swap": probe_omen_swap,      # llama-swap /running behind the tenancy fence (ADR-0045)
+    "omen-vllm": probe_omen_vllm,      # Linux rung: vLLM seat gauges + HEARTH jobs + operator presence
     # am4-oxen / am4-moe probes removed 2026-08-21: those rungs are tombstones
     # (cards moved into OMEN); a probe that can only ever answer "unreachable"
     # is decoration, per this registry's own rule above.

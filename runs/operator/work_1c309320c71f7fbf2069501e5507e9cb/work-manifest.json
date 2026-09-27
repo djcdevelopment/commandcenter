@@ -1,0 +1,62 @@
+{
+  "artifact": null,
+  "artifact_kind": "whole_file",
+  "attempts": [],
+  "base_commit": "4880885649eb95799c9f1593004004f8f3055df6",
+  "caller": {
+    "submitted_by": "claude-frontier",
+    "validated_by": null
+  },
+  "criteria": [
+    "`ct stats --json` prints a single JSON object parseable by json.loads and nothing else",
+    "the JSON object's total event count equals the count printed by `ct stats` without --json",
+    "`ct stats` without --json is byte-identical to the current output"
+  ],
+  "declared_paths": [
+    "ct/ct.py"
+  ],
+  "envelope_id": "a05ae9fa07fe1ec08a31cba0b462ccaac6228909b2f5420f534ed96f6f5dc34e",
+  "failure": "no execution job was recorded for this submission",
+  "prompt": {
+    "context_tokens": 65536,
+    "digest": "692763984ffe8a3f53eb518a75d7bc07bbe37a804d7be130ca56185995fd5487",
+    "input_tokens": 13896,
+    "output_reserve_tokens": 16384,
+    "template_sha256": "94d91a9d66ebef0ec7e97638407e29a8d81d981ed1a05f7ba2e30577fe357b23",
+    "template_version": "local-work-prompts.v1"
+  },
+  "receipt_id": null,
+  "repo": "/home/derek/work/continuity",
+  "route": {
+    "model": "qwen3.8-27b",
+    "profile_sha256": "e7837026105816bbc55337c2e3253298bf472b568cb66b6a71f406b8e955bab9",
+    "profile_version": "local-work-routes.v2",
+    "provider": "omen-dense-27b",
+    "requested_lane": "auto",
+    "selected_lane": "deep",
+    "serving_profile": {
+      "context_tokens": 65536,
+      "engine": "vllm",
+      "max_tokens": 8192,
+      "parallel_slots": 3
+    },
+    "serving_profile_sha256": "5d113f007758dadd1b033ac3ac262e6169531da85a0fbe2585a0d9c2c345370b",
+    "task_family": "code_fix"
+  },
+  "schema": "local-work-manifest.v1",
+  "source": {
+    "digest": "7b71585cefb8193a5ba16858ce6d0b04902dd0acec368f041e45e5609cca52a1",
+    "files": [
+      {
+        "bytes": 44978,
+        "lines": 899,
+        "path": "ct/ct.py",
+        "sha256": "9d653fb689e24cf6120c9f466e8bcd2a285e50a9583415f24516490ce67f67eb"
+      }
+    ]
+  },
+  "status": "failed",
+  "target_path": "ct/ct.py",
+  "verdict": null,
+  "work_id": "work_1c309320c71f7fbf2069501e5507e9cb"
+}

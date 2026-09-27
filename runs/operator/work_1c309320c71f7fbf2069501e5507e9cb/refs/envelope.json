@@ -1,0 +1,37 @@
+{
+  "acceptance_criteria": [
+    "`ct stats --json` prints a single JSON object parseable by json.loads and nothing else",
+    "the JSON object's total event count equals the count printed by `ct stats` without --json",
+    "`ct stats` without --json is byte-identical to the current output"
+  ],
+  "classification": {
+    "context_continuity": "session",
+    "language": "mixed",
+    "mutation_level": "none",
+    "read_vs_reasoning": "balanced",
+    "repo_size": "standard",
+    "risk_level": "medium",
+    "task_type": "engineering"
+  },
+  "constraints": {
+    "budget": null,
+    "deadline_s": 1200,
+    "max_attempts": 2,
+    "max_context_tokens": 65536
+  },
+  "contract_version": "task-envelope.v1",
+  "envelope_id": "a05ae9fa07fe1ec08a31cba0b462ccaac6228909b2f5420f534ed96f6f5dc34e",
+  "inputs": {
+    "base_commit": "4880885649eb95799c9f1593004004f8f3055df6",
+    "files": [
+      "ct/ct.py"
+    ],
+    "paths": [],
+    "repo": "/home/derek/work/continuity"
+  },
+  "intent": "In ct/ct.py, give `ct stats` a `--json` flag. When present, cmd_stats prints exactly one JSON object (json.dumps, sort_keys=True) containing the same counts the plain text output reports (events, per event_type, edges/subjects as already computed), and prints nothing else. Without the flag the current text output must stay byte-identical. Add a unittest in tests/test_ct.py that builds a small ledger with the existing test helpers, runs the stats command with --json, parses stdout as JSON and asserts the event count and at least one event_type key. Keep the change minimal and stdlib-only; do not touch other commands. Return the complete new contents of ct/ct.py (whole file), changing only cmd_stats and its argparse registration; do not touch tests/test_ct.py in this candidate (the test is a separate follow-up).",
+  "submission_source": "mcp",
+  "submitted_at": "2026-09-27T18:20:16Z",
+  "submitted_by": "claude-frontier",
+  "supersedes": null
+}

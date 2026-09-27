@@ -117,7 +117,9 @@ DRAIN_CALLER = {"id": "bankedfire-drain", "runner_class": "human", "node": "omen
 # a backend with NO registered probe returns "available" unconditionally — so
 # the gate had been answering "idle" without measuring anything. omen-arc is the
 # rung that actually has a probe (slot/KV goodput + tenancy fence).
-DRAIN_BACKEND = "omen-arc"
+# BANKEDFIRE_BACKEND names the rung whose occupancy probe gates the drain; the Linux
+# production host sets "omen-vllm" (hearth.toolsurface.occupancy.probe_omen_vllm).
+DRAIN_BACKEND = os.environ.get("BANKEDFIRE_BACKEND", "omen-arc")
 PLAN_ID_PREFIX = "hearth-drain-"
 # Candidate dispatches are PROOFING runs (retests/experiments on sunk idle
 # compute), not production build work. The tag rides submit_task(task_class=) so

@@ -1,0 +1,30 @@
+{
+  "contract_version": "capacity-observation.v1",
+  "observation_id": "obs-offload-claude-frontier-202609271817372391490000-55cdbb54",
+  "decision_id": null,
+  "workflow_id": "wf-hearth-offload-claude-frontier",
+  "run_id": "hearth-offload-claude-frontier",
+  "timestamp": "2026-09-27T18:17:37.239149+00:00",
+  "builder_id": "omen",
+  "model_id": "qwen3.8-27b",
+  "backend": "omen-dense-27b",
+  "hardware_profile_id": null,
+  "workload_shape": {
+    "task_kind": "offload-generate",
+    "estimated_context_tokens": 17410,
+    "requires_gpu": null,
+    "notes": "routed_by=pinned:omen-dense-27b; occupancy=available; runtime_s is wall-clock; pool=e33598ed4fd1"
+  },
+  "observed": {
+    "runtime_s": 235.781,
+    "ttft_s": null,
+    "tokens_per_s": 4.71,
+    "ram_gb_peak": null,
+    "vram_gb_peak": null,
+    "context_tokens": 19440,
+    "physical": null
+  },
+  "outcome": "success",
+  "failure_class": null,
+  "promotion_status": null
+}

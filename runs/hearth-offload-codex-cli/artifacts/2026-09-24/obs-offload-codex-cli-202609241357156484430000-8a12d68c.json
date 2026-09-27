@@ -1,0 +1,30 @@
+{
+  "contract_version": "capacity-observation.v1",
+  "observation_id": "obs-offload-codex-cli-202609241357156484430000-8a12d68c",
+  "decision_id": null,
+  "workflow_id": "wf-hearth-offload-codex-cli",
+  "run_id": "hearth-offload-codex-cli",
+  "timestamp": "2026-09-24T13:57:15.648443+00:00",
+  "builder_id": "omen",
+  "model_id": "qwen3-30b-a3b",
+  "backend": "omen-vllm",
+  "hardware_profile_id": null,
+  "workload_shape": {
+    "task_kind": "offload-generate",
+    "estimated_context_tokens": 3190,
+    "requires_gpu": null,
+    "notes": "routed_by=pinned:omen-vllm; occupancy=available; runtime_s is wall-clock; pool=7dcf7857ad8a"
+  },
+  "observed": {
+    "runtime_s": 1.138,
+    "ttft_s": null,
+    "tokens_per_s": 65.03,
+    "ram_gb_peak": null,
+    "vram_gb_peak": null,
+    "context_tokens": 3123,
+    "physical": null
+  },
+  "outcome": "success",
+  "failure_class": null,
+  "promotion_status": null
+}

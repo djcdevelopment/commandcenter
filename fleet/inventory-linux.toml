@@ -1,0 +1,41 @@
+# Linux AI fleet TCP reachability from OMEN. The observer separately verifies
+# HTTP readiness, including the authenticated AM4 dense alias. No revive commands.
+[meta]
+updated = "2026-09-23"
+site = "omen-linux"
+
+[[node]]
+name = "omen"
+kind = "physical-host"
+address = "127.0.0.1"
+expect = "up"
+purpose = "Linux HEARTH production and dual-B70 vLLM router"
+checks = [
+  { service = "vllm-router", port = 18090 },
+  { service = "vllm-dense-router", port = 18095 },
+  { service = "hearth-production", port = 8710 },
+  { service = "vllm-seat-0", port = 18091 },
+  { service = "vllm-seat-1", port = 18092 },
+]
+
+[[node]]
+name = "am4"
+kind = "physical-host"
+address = "10.44.0.2"
+expect = "up"
+purpose = "Dual-NVIDIA 27B vLLM via authenticated facade and direct cable"
+checks = [
+  { service = "vllm-facade", port = 8090 },
+  { service = "ssh", host = "192.168.12.233", port = 22 },
+]
+
+[[node]]
+name = "fx99"
+kind = "physical-host"
+address = "192.168.12.220"
+expect = "up"
+purpose = "RTX 2070 SUPER vLLM utility lane"
+checks = [
+  { service = "vllm-utility", port = 18093 },
+  { service = "ssh", port = 22 },
+]

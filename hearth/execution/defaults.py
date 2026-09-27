@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import os
 import threading
 from typing import Optional
 
 from .service import ExecutionService
+from .pause import dispatch_paused
 
 _service: Optional[ExecutionService] = None
 _lock = threading.Lock()
@@ -18,11 +20,14 @@ def get_execution_service() -> ExecutionService:
             # Recovery must see the render dispatcher. Constructing with the
             # default used to terminally fail queued media jobs during the tiny
             # window before _attach_render_subsystem ran on gateway startup.
-            _service = ExecutionService(recover_pending=False)
-            _attach_render_subsystem(_service)
-            _attach_imagegen_subsystem(_service)
-            _attach_mediagen_subsystem(_service)
-            _service.recover_pending()
+            held = dispatch_paused()
+            _service = ExecutionService(recover_pending=False, startup_held=held)
+            if not held:
+                if os.environ.get("HEARTH_SKIP_OPTIONAL_SUBSYSTEMS") != "1":
+                    _attach_render_subsystem(_service)
+                    _attach_imagegen_subsystem(_service)
+                    _attach_mediagen_subsystem(_service)
+                _service.recover_pending()
         return _service
 
 

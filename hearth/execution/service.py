@@ -8,6 +8,7 @@ as artifacts, and projects only concise lifecycle data back to callers.
 from __future__ import annotations
 
 import copy
+import os
 import threading
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -24,6 +25,7 @@ from .ledger import ExecutionLedger, ExecutionLedgerError
 from .model import FINAL_JOB_STATUSES, new_execution_event
 from .operations import ExecutionPolicy, Operation, OperationConfigError, OperationRegistry
 from .operations import load_operations
+from .pause import dispatch_paused
 
 GenerateCallable = Callable[..., dict[str, Any]]
 
@@ -117,6 +119,7 @@ class ExecutionService:
         workers: int = 16,
         max_pending: int = 256,
         recover_pending: bool = True,
+        startup_held: bool = False,
         render_dispatcher: Optional[Any] = None,
         image_dispatcher: Optional[Any] = None,
         media_dispatcher: Optional[Any] = None,
@@ -138,6 +141,7 @@ class ExecutionService:
         self._media_dispatcher = media_dispatcher
         self._futures: dict[str, Future[None]] = {}
         self._cancel_requested: set[str] = set()
+        self._startup_held = startup_held
         self._lock = threading.RLock()
         self._changed = threading.Condition(self._lock)
         if recover_pending:
@@ -166,8 +170,20 @@ class ExecutionService:
                 "cancellation_requested",
             }
         )
+        skipped_operations = {
+            name.strip() for name in os.environ.get("HEARTH_RECOVERY_SKIP_OPERATIONS", "").split(",")
+            if name.strip()
+        }
         with self._lock:
             for state in states:
+                if state.get("operation") in skipped_operations:
+                    # Keep legacy work visible and queued; do not replay or erase it.
+                    continue
+                if (state.get("source") or {}).get("adapter") == "bf6-hatchet":
+                    # BF6WorkflowGateway owns Hatchet dispatch. A queued state
+                    # can have an external run already; its signed callback owns
+                    # reconciliation. Generic recovery must not resubmit it.
+                    continue
                 if (state.get("source") or {}).get("execution_mode") == "external":
                     # Imported observations describe work already attempted elsewhere.
                     # Only the importer may resume their interrupted lifecycle.
@@ -481,6 +497,8 @@ class ExecutionService:
         policy: Optional[dict[str, Any]] = None,
         idempotency_key: Optional[str] = None,
     ) -> dict[str, Any]:
+        if self._startup_held or dispatch_paused():
+            raise ExecutionServiceError("HEARTH dispatch is paused; restart the gateway after resume")
         principal_value = self._validate_principal(principal)
         source_value = self._validate_source(source)
         operation = self.operations.get(operation_name)

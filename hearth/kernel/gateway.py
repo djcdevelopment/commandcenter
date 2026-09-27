@@ -425,6 +425,19 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
 
         hearth.caller = caller
 
+        # A migration hold must cover direct provider tools as well as jobs
+        # admitted through ExecutionService. Health and tool discovery remain
+        # available because they do not invoke this wrapper.
+        from hearth.execution.pause import dispatch_paused
+        if dispatch_paused():
+            refusal = "HEARTH gateway is paused; restart after resume"
+            hearth.ledger.append(new_event(
+                caller.as_dict(), tool_name, args=None, ok=False,
+                error=refusal, duration_ms=elapsed_ms(), task_id=task_id,
+                task_class=task_class, profile=caller.ledger_profile,
+            ))
+            raise PermissionError(refusal)
+
         from hearth.kernel.governed_operator import check_governed_call
         try:
             check_governed_call(caller.ledger_profile, tool_name, kwargs)
@@ -689,11 +702,20 @@ def build_server(providers_spec: str = "", host: str = DEFAULT_HOST,
             bf6_adapter["value"] = BF6WorkflowGateway()
         return bf6_adapter["value"]
 
+    def bf6_pause_response() -> JSONResponse | None:
+        from hearth.execution.pause import dispatch_paused
+        if dispatch_paused():
+            return JSONResponse({"error": "HEARTH gateway is paused"}, status_code=503)
+        return None
+
     @mcp.custom_route("/integrations/bf6/workflows", methods=["POST"], include_in_schema=False)
     async def submit_bf6_workflow(request: Request) -> JSONResponse:
         caller = auth.resolve(request.headers.get(HEADER_NAME))
         if caller is None:
             return JSONResponse({"error": "unauthorized"}, status_code=401)
+        hold = bf6_pause_response()
+        if hold is not None:
+            return hold
         try:
             document = await request.json()
             result = get_bf6_adapter().submit(document, caller=caller)
@@ -707,6 +729,9 @@ def build_server(providers_spec: str = "", host: str = DEFAULT_HOST,
         caller = auth.resolve(request.headers.get(HEADER_NAME))
         if caller is None:
             return JSONResponse({"error": "unauthorized"}, status_code=401)
+        hold = bf6_pause_response()
+        if hold is not None:
+            return hold
         try:
             document = await request.json()
             result = get_bf6_adapter().submit_render(document, caller=caller)
@@ -719,6 +744,9 @@ def build_server(providers_spec: str = "", host: str = DEFAULT_HOST,
         "/integrations/bf6/outcomes/{job_id}", methods=["POST"], include_in_schema=False
     )
     async def receive_bf6_outcome(request: Request) -> JSONResponse:
+        hold = bf6_pause_response()
+        if hold is not None:
+            return hold
         body = await request.body()
         try:
             result = get_bf6_adapter().receive_terminal(

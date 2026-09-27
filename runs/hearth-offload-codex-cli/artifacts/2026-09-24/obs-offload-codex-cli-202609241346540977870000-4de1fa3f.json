@@ -1,0 +1,30 @@
+{
+  "contract_version": "capacity-observation.v1",
+  "observation_id": "obs-offload-codex-cli-202609241346540977870000-4de1fa3f",
+  "decision_id": null,
+  "workflow_id": "wf-hearth-offload-codex-cli",
+  "run_id": "hearth-offload-codex-cli",
+  "timestamp": "2026-09-24T13:46:54.097787+00:00",
+  "builder_id": "am4",
+  "model_id": "qwen3-27b",
+  "backend": "am4-vllm",
+  "hardware_profile_id": null,
+  "workload_shape": {
+    "task_kind": "offload-generate",
+    "estimated_context_tokens": 240,
+    "requires_gpu": null,
+    "notes": "routed_by=pinned:am4-vllm; occupancy=available; runtime_s is wall-clock; pool=7dcf7857ad8a"
+  },
+  "observed": {
+    "runtime_s": 0.783,
+    "ttft_s": null,
+    "tokens_per_s": 15.33,
+    "ram_gb_peak": null,
+    "vram_gb_peak": null,
+    "context_tokens": 265,
+    "physical": null
+  },
+  "outcome": "success",
+  "failure_class": null,
+  "promotion_status": null
+}

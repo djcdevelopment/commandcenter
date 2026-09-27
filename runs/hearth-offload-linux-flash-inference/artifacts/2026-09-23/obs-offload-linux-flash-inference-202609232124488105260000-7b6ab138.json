@@ -1,0 +1,30 @@
+{
+  "contract_version": "capacity-observation.v1",
+  "observation_id": "obs-offload-linux-flash-inference-202609232124488105260000-7b6ab138",
+  "decision_id": null,
+  "workflow_id": "wf-hearth-offload-linux-flash-inference",
+  "run_id": "hearth-offload-linux-flash-inference",
+  "timestamp": "2026-09-23T21:24:48.810526+00:00",
+  "builder_id": "fx99",
+  "model_id": "qwen2.5-coder-7b",
+  "backend": "fx99-vllm",
+  "hardware_profile_id": null,
+  "workload_shape": {
+    "task_kind": "offload-generate",
+    "estimated_context_tokens": 6,
+    "requires_gpu": null,
+    "notes": "routed_by=pinned:fx99-vllm; occupancy=available; runtime_s is wall-clock; pool=7dcf7857ad8a"
+  },
+  "observed": {
+    "runtime_s": 0.13,
+    "ttft_s": null,
+    "tokens_per_s": 15.38,
+    "ram_gb_peak": null,
+    "vram_gb_peak": null,
+    "context_tokens": 34,
+    "physical": null
+  },
+  "outcome": "success",
+  "failure_class": null,
+  "promotion_status": null
+}

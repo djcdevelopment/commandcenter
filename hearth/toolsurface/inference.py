@@ -439,6 +439,9 @@ def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[
     messages.append({"role": "user", "content": prompt})
     payload = {"model": model, "messages": messages,
                "max_tokens": max_tokens, "stream": False}
+    chat_template_kwargs = target.settings.get("chat_template_kwargs")
+    if isinstance(chat_template_kwargs, dict) and chat_template_kwargs:
+        payload["chat_template_kwargs"] = chat_template_kwargs
     headers = {"Authorization": f"Bearer {target.auth_token}"}
 
     started = time.monotonic()

@@ -40,6 +40,7 @@ Arm/disarm with the drain's own CLI (same arm file under $HEARTH_ROOT):
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 import asyncio
 import json
 import os
@@ -61,6 +62,54 @@ from hearth.toolsurface import occupancy as occ_mod  # noqa: E402
 DOOR_URL = os.environ.get("HEARTH_DOOR_URL", "http://127.0.0.1:8710/mcp")
 KEY_ENV = "HEARTH_DRAIN_KEY"
 LOCAL_WORK_TASK_CLASS = "local-work"
+EXPERIMENT_TASK_CLASS = "experiment"
+DRAIN_CALLER_ID = "bankedfire-drain"
+
+
+def lane_slots() -> dict[str, int]:
+    """Per-lane in-flight caps for unattended dispatch (BANKEDFIRE_SLOTS="fast=3,deep=1,experiment=1").
+    Deliberately below backends' parallel_slots: the execution plane admits per provider, but
+    a job waiting for a slot spins on a worker, and unattended work must leave room for a human."""
+    raw = os.environ.get("BANKEDFIRE_SLOTS", "fast=3,deep=1,experiment=1")
+    out: dict[str, int] = {}
+    for part in raw.split(","):
+        if "=" in part:
+            k, v = part.split("=", 1)
+            try:
+                out[k.strip()] = max(0, int(v))
+            except ValueError:
+                pass
+    return out
+
+
+def slots_path() -> Path:
+    return Path(os.environ.get("HEARTH_ROOT", str(Path.home() / "hearth-production"))) / "var" / "bankedfire_linux_slots.json"
+
+
+def load_slots() -> list[dict[str, Any]]:
+    try:
+        data = json.loads(slots_path().read_text())
+        return list(data.get("slots", [])) if isinstance(data, dict) else []
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def save_slots(slots: list[dict[str, Any]]) -> None:
+    p = slots_path(); tmp = p.with_suffix(".tmp")
+    tmp.write_text(json.dumps({"schema": "bankedfire-linux-slots.v1", "slots": slots}, indent=2, default=str))
+    os.replace(tmp, p)
+
+
+def brief_lane(brief) -> str:
+    """Which cap a brief counts against before it is dispatched."""
+    if brief.task_class == EXPERIMENT_TASK_CLASS:
+        return "experiment"
+    try:
+        fields, _ = parse_local_work_block(brief.body)
+    except ValueError:
+        return "deep"
+    lane = str(fields.get("lane", "auto"))
+    return lane if lane in ("fast", "deep") else "deep"   # auto counts against the scarcer lane
 FINAL = {"failed", "rejected", "accepted", "superseded"}
 DONE = FINAL | {"awaiting_review"}
 _LIST_RE = re.compile(r"^\[(.*)\]$")
@@ -173,10 +222,60 @@ def manifest_path(work_id: str) -> Path:
     return _REPO_ROOT / "runs" / "operator" / work_id / "work-manifest.json"
 
 
+def experiment_spec_from_brief(body: str, exp_id: str) -> dict[str, Any]:
+    fields, intent = parse_local_work_block_lenient(body)
+    for required in ("seat", "dropin", "campaign"):
+        if not fields.get(required):
+            raise ValueError(f"experiment brief lacks {required!r}")
+    return {"id": exp_id, "seat": int(fields["seat"]), "dropin": fields["dropin"],
+            "expect_model": fields.get("expect_model"), "campaign": fields["campaign"],
+            "max_minutes": int(fields.get("max_minutes", 240)), "restore_by": fields.get("restore_by", "06:30"),
+            "work": fields.get("work"), "intent": intent}
+
+
+def parse_local_work_block_lenient(body: str) -> tuple[dict[str, Any], str]:
+    """Same front-block grammar as local-work briefs, without local-work's required keys."""
+    head, _, intent = body.partition("\n---")
+    fields: dict[str, Any] = {}
+    for raw in head.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or ":" not in line:
+            continue
+        key, _, value = line.partition(":")
+        fields[key.strip().lower()] = value.split(" #", 1)[0].strip().strip("'\"")
+    return fields, intent.strip()
+
+
+def submit_experiment(body: str, hint: str) -> dict[str, Any]:
+    from fleet import experiment_linux
+    exp_id = re.sub(r"[^A-Za-z0-9._-]", "-", hint)[:60] + "-" + datetime.now().strftime("%Y%m%dT%H%M")
+    spec = experiment_spec_from_brief(body, exp_id)
+    spec_dir = experiment_linux.EXP_ROOT / exp_id
+    spec_dir.mkdir(parents=True, exist_ok=True)
+    spec_path = spec_dir / "spec.json"
+    spec_path.write_text(json.dumps(spec, indent=2))
+    env_args = [f"--setenv={k}={os.environ[k]}" for k in
+                ("HEARTH_ROOT", "HEARTH_COORDINATION_DB", "HEARTH_EXECUTION_DIR", "PYTHONPATH", "PATH", "VLLM_API_KEY", "OMEN_ARC_TOKEN")
+                if os.environ.get(k)]
+    argv = ["systemd-run", "--user", "--collect", f"--unit=hearth-experiment-{exp_id}",
+            f"--property=WorkingDirectory={_REPO_ROOT}", *env_args,
+            sys.executable, "-m", "fleet.experiment_linux", "run", "--spec", str(spec_path)]
+    out = subprocess.run(argv, capture_output=True, text=True, timeout=30)
+    if out.returncode:
+        return {"ok": False, "error": f"systemd-run failed: {(out.stderr or out.stdout).strip()[:300]}"}
+    return {"ok": True, "plan_id": f"exp_{exp_id}", "work_id": None, "inbox_path": None,
+            "result_path": str(spec_dir / "state.json"), "unit": f"hearth-experiment-{exp_id}"}
+
+
 def submit_task(**kwargs: Any) -> dict[str, Any]:
     """The drain's submit hook. kwargs come from Brief.submit_kwargs() + prompt=body."""
     body = str(kwargs.get("prompt") or "")
     hint = str(kwargs.get("plan_id_hint") or "brief")
+    if kwargs.get("task_class") == EXPERIMENT_TASK_CLASS:
+        try:
+            return submit_experiment(body, hint)
+        except Exception as exc:  # noqa: BLE001
+            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
     try:
         args = submit_args_from_brief(body, idempotency_key=f"bankedfire:{hint}")
         result = call_tool("submit_local_work", args)
@@ -192,6 +291,20 @@ def submit_task(**kwargs: Any) -> dict[str, Any]:
 
 def task_status(plan_id: str, out_file: Optional[str] = None) -> dict[str, Any]:
     """The drain's status hook: HEARTH local-work status in the conductor's shape."""
+    if str(plan_id).startswith("exp_"):
+        from fleet import experiment_linux
+        st = experiment_linux.status(str(plan_id)[4:])
+        if st.get("phase") == "missing":
+            return {"ok": False, "error": f"experiment state missing for {plan_id}"}
+        if st.get("outcome") is None:
+            return {"ok": True, "done": False, "status": st.get("phase")}
+        spec = (json.loads((experiment_linux.EXP_ROOT / str(plan_id)[4:] / "spec.json").read_text())
+                if (experiment_linux.EXP_ROOT / str(plan_id)[4:] / "spec.json").exists() else {})
+        return {"ok": True, "done": True, "status": st.get("outcome"),
+                "result": {"ok": st.get("outcome") == "succeeded",
+                           "winner": f"experiment:seat{spec.get('seat')}:{spec.get('dropin')}",
+                           "failure": None if st.get("outcome") == "succeeded" else st.get("outcome")},
+                "result_path": str(experiment_linux.EXP_ROOT / str(plan_id)[4:] / "state.json")}
     if not re.fullmatch(r"work_[0-9a-f]{32}", str(plan_id)):
         # A slot adopted from the Windows era names a conductor plan, not a local-work item.
         # Nothing on this host can read its result, so resolve it honestly as "no winner" and
@@ -222,8 +335,10 @@ def queue_status() -> dict[str, Any]:
     try:
         for m in root.glob("work_*/work-manifest.json"):
             try:
-                if json.loads(m.read_text()).get("status") in {"queued", "running"}:
-                    running += 1
+                d = json.loads(m.read_text())
+                if d.get("status") in {"queued", "running"} and \
+                        (d.get("caller") or {}).get("submitted_by") != DRAIN_CALLER_ID:
+                    running += 1   # a human is waiting on this lane: unattended work yields
             except Exception:  # noqa: BLE001 -- an unreadable manifest counts as busy
                 running += 1
     except Exception as exc:  # noqa: BLE001
@@ -264,10 +379,98 @@ def dry_run() -> dict[str, Any]:
     return report
 
 
+def in_use_by_lane(slots: list[dict[str, Any]]) -> dict[str, int]:
+    """Drain-owned work in flight per lane: our slot records, plus drain-submitted local-work
+    manifests still producing (belt and braces: the manifest is the door's truth)."""
+    counts: dict[str, int] = {}
+    seen = set()
+    for rec in slots:
+        counts[rec.get("lane", "deep")] = counts.get(rec.get("lane", "deep"), 0) + 1
+        seen.add(rec.get("plan_id"))
+    for m in (_REPO_ROOT / "runs" / "operator").glob("work_*/work-manifest.json"):
+        try:
+            d = json.loads(m.read_text())
+        except Exception:  # noqa: BLE001
+            continue
+        if d.get("status") in {"queued", "running"} and (d.get("caller") or {}).get("submitted_by") == DRAIN_CALLER_ID \
+                and d.get("work_id") not in seen:
+            lane = (d.get("route") or {}).get("selected_lane") or "deep"
+            counts[lane] = counts.get(lane, 0) + 1
+    return counts
+
+
+def reconcile_slots(arm_path: Path) -> list[dict[str, Any]]:
+    """Write back every finished slot record through the drain's own write-back (ledgered), free it."""
+    reports = []
+    slots = load_slots()
+    pending = list(slots)          # persisted after every freed record (persist-first)
+    for rec in slots:
+        status = task_status(rec["plan_id"])
+        if not status.get("ok") or not status.get("done"):
+            reports.append({"plan_id": rec["plan_id"], "lane": rec.get("lane"), "status": status.get("status") or status.get("error")})
+            continue
+        result_ok, winner, result_path = drain.backlog_dispatch.read_result(status)
+        outcome = drain.backlog_dispatch.completion_outcome(result_ok, winner)
+        state = drain.load_arm_state(arm_path)
+        extra = drain._write_back(state, rec, outcome, payload={
+            "plan_id": rec.get("plan_id"), "result_path": result_path or rec.get("result_path"),
+            "winner": winner, "result_ok": result_ok, "source": rec.get("source"), "source_ref": rec.get("source_ref"),
+            "lane": rec.get("lane")},
+            arm_state_path=arm_path, corpus_root=Path(rec.get("corpus_root") or drain.DEFAULT_CORPUS_ROOT),
+            queued_dir=drain.DEFAULT_QUEUED_DIR, dispatched_dir=drain.DEFAULT_DISPATCHED_DIR,
+            done_dir=drain.DEFAULT_DONE_DIR, now=None, crash=lambda point: None)
+        drain._record_tick(f"observed:{outcome}", {"lane": rec.get("lane"), "plan_id": rec.get("plan_id"), **extra})
+        reports.append({"plan_id": rec["plan_id"], "lane": rec.get("lane"), "observed": outcome})
+        pending = [r for r in pending if r is not rec]
+        save_slots(pending)
+    save_slots(pending)
+    return reports
+
+
 def tick() -> dict[str, Any]:
-    return drain.run_tick(arm_state_path=drain.default_arm_state_path(),
-                          submit_task_fn=submit_task, task_status_fn=task_status,
-                          queue_status_fn=queue_status)
+    """One Linux tick: reconcile drain-owned slots, then dispatch while lanes have room.
+    Each dispatch is one drain.run_tick (its gates, its persist-first steps, its ledger row);
+    the in_flight record it leaves in the arm file moves into our per-lane slots file so the
+    next run_tick call in the same tick can dispatch again. Every other reason ends the tick."""
+    arm_path = drain.default_arm_state_path()
+    report: dict[str, Any] = {"reconciled": reconcile_slots(arm_path), "dispatched": [], "reason": None}
+    caps = lane_slots()
+    slots = load_slots()
+    for _ in range(sum(caps.values()) + 1):
+        state = drain.load_arm_state(arm_path)
+        if not state.get("armed"):
+            report["reason"] = "disarmed"; break
+        scope = state.get("scope")
+        scans = {
+            "authored": backlog_sources.authored_source(backlog_sources.DEFAULT_QUEUED_DIR),
+            "refined": backlog_sources.refined_source(backlog_sources.DEFAULT_REFINE_DIR),
+            "candidate": backlog_sources.candidate_source(backlog_sources.DEFAULT_CANDIDATE_WORTH_PATH,
+                                                          backlog_sources.DEFAULT_EXPERIMENT_RESULTS_PATH),
+        }
+        nxt = backlog_select.select_next(scope, scans) if scope in backlog_select.SCOPES else None
+        if nxt is None:
+            report["reason"] = "no-candidates"; break
+        lane = brief_lane(nxt)
+        used = in_use_by_lane(slots)
+        if used.get(lane, 0) >= caps.get(lane, 0):
+            report["reason"] = f"lane-full:{lane}"; report["in_use"] = used; break
+        if lane == "experiment" and (slots or any(used.values())):
+            # an experiment swaps a seat: it never overlaps any drain-owned work on any lane
+            report["reason"] = "experiment-waits-for-empty-lanes"; report["in_use"] = used; break
+        result = drain.run_tick(arm_state_path=arm_path, submit_task_fn=submit_task,
+                                task_status_fn=task_status, queue_status_fn=queue_status)
+        report["reason"] = result["reason"]
+        if not str(result["reason"]).startswith("dispatched:"):
+            break
+        state = drain.load_arm_state(arm_path)
+        rec = state.get("in_flight")
+        if rec:
+            rec = dict(rec); rec["lane"] = lane
+            slots.append(rec); save_slots(slots)
+            state["in_flight"] = None; drain.save_arm_state(state, arm_path)
+        report["dispatched"].append({"plan_id": (rec or {}).get("plan_id"), "lane": lane})
+    report["slots"] = [{"plan_id": r.get("plan_id"), "lane": r.get("lane")} for r in slots]
+    return report
 
 
 def main(argv: Optional[list[str]] = None) -> int:

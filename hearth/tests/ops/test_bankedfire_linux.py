@@ -118,3 +118,56 @@ class OmenVllmProbeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LaneSlotsTests(unittest.TestCase):
+    """S4 (2026-09-27): the drain holds one in_flight record; the Linux tick keeps its own
+    per-lane slots so a night can run several candidates on the fast lane while the deep lane
+    stays at one, and an experiment never overlaps anything."""
+
+    def test_caps_parse_and_default(self) -> None:
+        with mock.patch.dict("os.environ", {"BANKEDFIRE_SLOTS": "fast=2,deep=1,experiment=0,junk"}):
+            self.assertEqual(lane.lane_slots(), {"fast": 2, "deep": 1, "experiment": 0})
+        with mock.patch.dict("os.environ", {}, clear=False):
+            import os; os.environ.pop("BANKEDFIRE_SLOTS", None)
+            self.assertEqual(lane.lane_slots(), {"fast": 3, "deep": 1, "experiment": 1})
+
+    def test_brief_lane_from_block_and_class(self) -> None:
+        from hearth.backlog.briefs import Brief
+        mk = lambda body, tc: Brief(slug="s", title="t", body=body, builders=None, task_class=tc,  # noqa: E731
+                                    est_tokens=None, requires=(), max_age_s=None, source="authored", source_ref="s.md")
+        self.assertEqual(lane.brief_lane(mk(BRIEF, "local-work")), "deep")
+        self.assertEqual(lane.brief_lane(mk(BRIEF.replace("lane: deep", "lane: fast"), "local-work")), "fast")
+        self.assertEqual(lane.brief_lane(mk(BRIEF.replace("lane: deep", "lane: auto"), "local-work")), "deep")
+        self.assertEqual(lane.brief_lane(mk("seat: 0\ndropin: x.conf\ncampaign: true\n---\ngo", "experiment")), "experiment")
+
+    def test_experiment_spec_requires_seat_dropin_campaign(self) -> None:
+        spec = lane.experiment_spec_from_brief("seat: 1\ndropin: stage5.conf\ncampaign: echo hi\nexpect_model: m\n---\nwhy", "id1")
+        self.assertEqual((spec["seat"], spec["dropin"], spec["campaign"], spec["expect_model"]), (1, "stage5.conf", "echo hi", "m"))
+        with self.assertRaises(ValueError):
+            lane.experiment_spec_from_brief("seat: 1\n---\nwhy", "id2")
+
+    def test_experiment_status_maps_outcome(self) -> None:
+        with mock.patch("fleet.experiment_linux.status", return_value={"phase": "campaign_running", "outcome": None}):
+            self.assertEqual(lane.task_status("exp_abc")["done"], False)
+        with mock.patch("fleet.experiment_linux.status", return_value={"phase": "done", "outcome": "restore_failed"}):
+            s = lane.task_status("exp_abc")
+            self.assertEqual((s["done"], s["result"]["ok"]), (True, False))
+            self.assertTrue(s["result"]["winner"].startswith("experiment:"))
+
+
+class HumanWaitsTests(unittest.TestCase):
+    def test_only_human_submitted_local_work_counts_as_queue(self) -> None:
+        import json, tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "runs" / "operator"
+            for wid, who, st in (("work_" + "1" * 32, "claude-frontier", "running"),
+                                 ("work_" + "2" * 32, lane.DRAIN_CALLER_ID, "running"),
+                                 ("work_" + "3" * 32, "codex-cli", "accepted")):
+                d = root / wid; d.mkdir(parents=True)
+                (d / "work-manifest.json").write_text(json.dumps({"work_id": wid, "status": st, "caller": {"submitted_by": who},
+                                                                   "route": {"selected_lane": "fast"}}))
+            with mock.patch.object(lane, "_REPO_ROOT", Path(tmp)):
+                self.assertEqual(lane.queue_status()["running"], 1)
+                self.assertEqual(lane.in_use_by_lane([]), {"fast": 1})

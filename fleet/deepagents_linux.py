@@ -35,7 +35,8 @@ STATE_ROOT = HEARTH_ROOT / "var" / "experiments" / "deepagents"
 DA_ROOT = Path(os.environ.get("DEEPAGENTS_LINUX", str(Path.home() / "work" / "deepagents-linux")))
 DA_PYTHON = Path(os.environ.get("DEEPAGENTS_PYTHON", str(Path.home() / ".venvs" / "deepagents-linux" / "bin" / "python")))
 ACCOUNT = Path.home() / ".local" / "bin" / "deepagents-account-run"
-RUN_TIMEOUT_S = 1500  # the runner's own deadline is 1200 s
+RUN_TIMEOUT_S = 2100  # the runner's own deadline is 1800 s (run_linux_delivery.DEADLINE_S) + 300 (sizing-map 2026-09-28)
+POOL = "omen-b70-pool"
 
 
 def utc() -> str:
@@ -59,6 +60,18 @@ class Delivery:
         tmp = self.state_path.with_suffix(".tmp"); tmp.write_text(json.dumps(self.state, indent=2, default=str)); os.replace(tmp, self.state_path)
 
     def run(self) -> int:
+        # 2026-09-27 20:56Z: a delivery launched while the seat experiment had the pool died in 2 s
+        # ("rendered prompt check failed: 500"). The fence is the truth about who owns the seats.
+        try:
+            from hearth.execution.coordination import GpuTenancyStore
+            owner = GpuTenancyStore().active_owner(POOL)
+        except Exception as exc:  # noqa: BLE001 -- an unreadable fence is not a reason to spend
+            owner = None; self.save("fence_unreadable", fence_error=f"{type(exc).__name__}: {exc}")
+        if owner is not None:
+            self.save("done", outcome="failed", finished=utc(), review_required=True,
+                      fence=f"pool owned by {owner.owner} session {owner.session_id}; not launching")
+            print(json.dumps({"id": self.id, "outcome": "failed", "fence": owner.owner}), flush=True)
+            return 1
         run_dir = DA_ROOT / "runs" / self.id
         task_file = self.dir / "task.txt"
         task_file.write_text(str(self.spec["task"]).strip() + "\n")

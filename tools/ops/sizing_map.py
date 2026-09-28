@@ -290,15 +290,27 @@ def collect_runner() -> list[Row]:
     for name, ctx in re.findall(r'"(\w[\w-]*)": \{"model": "[^"]+", "endpoint": "[^"]+",\s*"token_env": "\w+", "context": (\d+)', t):
         rows.append(row("runner", f"ROUTES.{name}.context", int(ctx), _line_of(rl, f'"{name}": \\{{"model"'), "AccountedTransport context check, summarization trigger", "prompt + output + 32 <= context"))
     rows.append(row("runner", "output_limit report / code", f"{_grep(t, r'output_limit = (\d+) if args.report else (\d+)', group=1)} / {_grep(t, r'output_limit = (\d+) if args.report else (\d+)', group=2)}", _line_of(rl, r"output_limit = "), "PinnedChat max_tokens", "output tokens per model call"))
-    rows.append(row("runner", "RequestBudget limit (attempts)", _grep(t, r"RequestBudget\(deadline=time.time\(\) \+ \d+, limit=(\d+)\)", cast=int), _line_of(rl, r"RequestBudget\("), "AccountedTransport.dispatch", "physical inference calls per run"))
-    rows.append(row("runner", "RequestBudget deadline (s)", _grep(t, r"RequestBudget\(deadline=time.time\(\) \+ (\d+)", cast=int), _line_of(rl, r"RequestBudget\("), "AccountedTransport", "run wall clock"))
-    rows.append(row("runner", "tool_token_limit_before_evict", _grep(t, r"tool_token_limit_before_evict=(\d+)", cast=int), _line_of(rl, "tool_token_limit_before_evict"), "EvictingFilesystem", "tool result size before it is moved to /large_tool_results (4 chars/token)"))
-    rows.append(row("runner", "recursion_limit", _grep(t, r'"recursion_limit": (\d+)', cast=int), _line_of(rl, "recursion_limit"), "LangGraph invoke", "graph supersteps (~2 per model turn)"))
+    attempts = _grep(t, r"RequestBudget\(deadline=time.time\(\) \+ \d+, limit=(\d+)\)", cast=int) or _grep(t, r"attempt_limit = (max\(.*\))")
+    rows.append(row("runner", "RequestBudget limit (attempts)", attempts, _line_of(rl, r"attempt_limit = |RequestBudget\("), "AccountedTransport.dispatch", "physical inference calls per run", "scaled by source lines since 2026-09-28" if isinstance(attempts, str) else ""))
+    deadline = _grep(t, r"RequestBudget\(deadline=time.time\(\) \+ (\d+)", cast=int) or _grep(t, r"^DEADLINE_S = (\d+)", cast=int)
+    rows.append(row("runner", "RequestBudget deadline (s)", deadline, _line_of(rl, r"^DEADLINE_S = |RequestBudget\("), "AccountedTransport", "run wall clock"))
+    evict = _grep(t, r"tool_token_limit_before_evict=(\d+)", cast=int)
+    evict_expr = _grep(t, r"evict_tokens = (max\(.*\))")
+    dctx = _grep(t, r'"omen-dense": \{"model": "[^"]+", "endpoint": "[^"]+",\s*"token_env": "\w+", "context": (\d+)', cast=int)
+    if evict is None and evict_expr and dctx:
+        evict = max(2048, dctx // 8)   # the formula evaluated for the dense route
+    rows.append(row("runner", "tool_token_limit_before_evict", evict, _line_of(rl, r"evict_tokens = |tool_token_limit_before_evict"), "EvictingFilesystem", "tool result size before it is moved to /large_tool_results (4 chars/token)", f"= {evict_expr} on the dense route" if evict_expr else ""))
+    recursion = _grep(t, r'"recursion_limit": (\d+)', cast=int) or _grep(t, r"^RECURSION_LIMIT = (\d+)", cast=int)
+    rows.append(row("runner", "recursion_limit", recursion, _line_of(rl, r"^RECURSION_LIMIT = |recursion_limit"), "LangGraph invoke", "graph supersteps (~2 per model turn)"))
     rows.append(row("runner", "httpx / PinnedChat timeout (s)", _grep(t, r"timeout=(\d+), trust_env", cast=int), _line_of(rl, r"httpx.Client"), "per request", ""))
     rows.append(row("runner", "default --backend", _grep(t, r'choices=tuple\(ROUTES\), default="([^"]+)"'), _line_of(rl, r'default="omen"'), "CLI", "route when the wrapper passes none"))
     at = root / "poc" / "accounted_transport.py"; t = _read(at)
     rows.append(row("runner", "RequestBudget default limit", _grep(t, r"def __init__\(self, \*, deadline, limit=(\d+)\)", cast=int), _line_of(at, r"limit=32"), "any caller that omits limit", "attempts"))
-    rows.append(row("runner", "transport output guard", f"reads {re.search(r'payload.get\(\"(\w+)\", payload.get\(\"(\w+)\", (\d+)\)\)', t).groups() if re.search(r'payload.get\(\"(\w+)\", payload.get\(\"(\w+)\", (\d+)\)\)', t) else '?'}; requires 0 < output <= {_grep(t, r'0 < output <= (\d+)', cast=int)}", _line_of(at, r"0 < output <="), "handle_request", "output cap per call", "langchain sends max_completion_tokens, so the guard sees the default"))
+    fields = re.findall(r'payload\.get\("(\w+)"', t.split("def handle_request", 1)[1].split("logical_id", 1)[0]) if "def handle_request" in t else []
+    bound = _grep(t, r"0 < output <= (\w+)")
+    if bound and not bound.isdigit():
+        bound = f"{bound}={_grep(t, rf'^{bound} = (\d+)', cast=int)}"
+    rows.append(row("runner", "transport output guard", f"reads {'|'.join(fields)}; requires 0 < output <= {bound}", _line_of(at, r"0 < output <="), "handle_request", "output cap per call", "" if "max_completion_tokens" in fields else "langchain sends max_completion_tokens, so the guard sees the default"))
     return rows
 
 

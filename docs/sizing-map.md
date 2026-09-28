@@ -97,6 +97,18 @@ default deadline is 1,800 s, the router covers 2,400 s and queues overflow (`max
 `payload // 4 + max_tokens ≤ context_tokens`, and the refusal classes are `policy_refusal` and
 `tokenizer_unavailable`.
 
+## Runner budgets (DeepAgents) after the lap
+
+`~/work/deepagents-linux/run_linux_delivery.py` now scales with the route and the source: attempts
+= 24 + source_lines // 25 (24–64), deadline 1,800 s (the Banked Fire wrapper allows +300), recursion
+96, tool-result eviction = route context // 8, output 6,144 (report) / 4,096 (code), `ROUTES.omen`
+context 40,960, default route `omen-dense`; the transport's output guard reads
+`max_completion_tokens` (what langchain sends) and bounds at 16,384. `poc/experiment_window.py` and
+`poc/flash_dense_agent.py`'s `CONTEXTS` are Windows-era (llama-server `:8082`, 16K/32K) and
+historical. A manual bench run can still restart seat 0 under a delivery; the wrapper refuses to
+launch while the `omen-b70-pool` tenancy is owned by an experiment, and the experiment lane is the
+only unattended path that swaps a seat.
+
 ## What the checker enforces
 
 Each invariant below cites the observation that earned it. A violation is a fact about the
@@ -115,7 +127,7 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| RUN_TIMEOUT_S (wrapper) | `1500` | `repo/fleet/deepagents_linux.py:38` | Delivery.run | outer subprocess timeout |  |
+| RUN_TIMEOUT_S (wrapper) | `2100` | `repo/fleet/deepagents_linux.py:38` | Delivery.run | outer subprocess timeout |  |
 
 ### door
 
@@ -265,18 +277,18 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| ROUTES.am4.context | `16384` | `~/work/deepagents-linux/run_linux_delivery.py:26` | AccountedTransport context check, summarization trigger | prompt + output + 32 <= context |  |
-| ROUTES.omen-dense.context | `65536` | `~/work/deepagents-linux/run_linux_delivery.py:29` | AccountedTransport context check, summarization trigger | prompt + output + 32 <= context |  |
-| ROUTES.omen.context | `16384` | `~/work/deepagents-linux/run_linux_delivery.py:23` | AccountedTransport context check, summarization trigger | prompt + output + 32 <= context |  |
-| RequestBudget deadline (s) | `1200` | `~/work/deepagents-linux/run_linux_delivery.py:163` | AccountedTransport | run wall clock |  |
-| RequestBudget default limit | `32` | `~/work/deepagents-linux/poc/accounted_transport.py:76` | any caller that omits limit | attempts |  |
-| RequestBudget limit (attempts) | `12` | `~/work/deepagents-linux/run_linux_delivery.py:163` | AccountedTransport.dispatch | physical inference calls per run |  |
-| default --backend | `omen` | `~/work/deepagents-linux/run_linux_delivery.py:107` | CLI | route when the wrapper passes none |  |
-| httpx / PinnedChat timeout (s) | `900` | `~/work/deepagents-linux/run_linux_delivery.py:176` | per request | — |  |
-| output_limit report / code | `3072 / 2048` | `~/work/deepagents-linux/run_linux_delivery.py:121` | PinnedChat max_tokens | output tokens per model call |  |
-| recursion_limit | `32` | `~/work/deepagents-linux/run_linux_delivery.py:205` | LangGraph invoke | graph supersteps (~2 per model turn) |  |
-| tool_token_limit_before_evict | `1500` | `~/work/deepagents-linux/run_linux_delivery.py:188` | EvictingFilesystem | tool result size before it is moved to /large_tool_results (4 chars/token) |  |
-| transport output guard | `reads ('max_tokens', 'n_predict', '2048'); requires 0 < output <= 2048` | `~/work/deepagents-linux/poc/accounted_transport.py:127` | handle_request | output cap per call | langchain sends max_completion_tokens, so the guard sees the default |
+| ROUTES.am4.context | `16384` | `~/work/deepagents-linux/run_linux_delivery.py:31` | AccountedTransport context check, summarization trigger | prompt + output + 32 <= context |  |
+| ROUTES.omen-dense.context | `65536` | `~/work/deepagents-linux/run_linux_delivery.py:34` | AccountedTransport context check, summarization trigger | prompt + output + 32 <= context |  |
+| ROUTES.omen.context | `40960` | `~/work/deepagents-linux/run_linux_delivery.py:28` | AccountedTransport context check, summarization trigger | prompt + output + 32 <= context |  |
+| RequestBudget deadline (s) | `1800` | `~/work/deepagents-linux/run_linux_delivery.py:22` | AccountedTransport | run wall clock |  |
+| RequestBudget default limit | `32` | `~/work/deepagents-linux/poc/accounted_transport.py:79` | any caller that omits limit | attempts |  |
+| RequestBudget limit (attempts) | `max(24, min(64, 24 + source_lines // 25))` | `~/work/deepagents-linux/run_linux_delivery.py:132` | AccountedTransport.dispatch | physical inference calls per run | scaled by source lines since 2026-09-28 |
+| default --backend | `omen-dense` | `~/work/deepagents-linux/run_linux_delivery.py` | CLI | route when the wrapper passes none |  |
+| httpx / PinnedChat timeout (s) | `900` | `~/work/deepagents-linux/run_linux_delivery.py:188` | per request | — |  |
+| output_limit report / code | `6144 / 4096` | `~/work/deepagents-linux/run_linux_delivery.py:126` | PinnedChat max_tokens | output tokens per model call |  |
+| recursion_limit | `96` | `~/work/deepagents-linux/run_linux_delivery.py:23` | LangGraph invoke | graph supersteps (~2 per model turn) |  |
+| tool_token_limit_before_evict | `8192` | `~/work/deepagents-linux/run_linux_delivery.py:133` | EvictingFilesystem | tool result size before it is moved to /large_tool_results (4 chars/token) | = max(2048, context // 8) on the dense route |
+| transport output guard | `reads max_completion_tokens\|max_tokens\|n_predict\|stream; requires 0 < output <= OUTPUT_GUARD_MAX=16384` | `~/work/deepagents-linux/poc/accounted_transport.py:133` | handle_request | output cap per call |  |
 
 ### scheduler
 
@@ -321,10 +333,6 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 
 ### invariants
 
-| rule | violation | earned by |
-|---|---|---|
-| `runner-context-equals-seat` | ROUTES.omen.context 16384 != omen-vllm context_tokens 40960 | the runner's own context check and summarization trigger use this number |
-| `eviction-scales-with-context` | tool_token_limit_before_evict 1500 < ROUTES.omen-dense.context / 16 (4096) | 2026-09-27 retry: a 1,500-token preview cap on a 65K lane produced 12 read-only calls and 5 evicted files, and the attempt budget ran out |
-| `guard-reads-the-field-langchain-sends` | transport output guard reads ('max_tokens', 'n_predict', '2048'); requires 0 < output <= 2048 | measured 2026-09-27: every request carried max_completion_tokens=3072 and the guard checked a default 2048 |
+All invariants hold.
 
 <!-- sizing-map:end -->

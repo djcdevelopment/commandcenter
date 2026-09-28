@@ -1,0 +1,18 @@
+# The request sizer's encoder service (ADR-0050): MiniLM-L6 on the Arrow Lake NPU (CPU fallback) behind
+# loopback :8797. BUILT NOT DEPLOYED (2026-09-28): lap N2 found no head that beats the heuristic, so the
+# door's HEARTH_SIZER=npu mode has nothing to gain from this yet. Install when a labelled long-output set
+# earns a head:  cp fleet/systemd/omen-sizer.service ~/.config/systemd/user/ && systemctl --user daemon-reload
+#                && systemctl --user enable --now omen-sizer.service
+[Unit]
+Description=HEARTH request sizer encoder (loopback :8797, MiniLM-L6 on NPU, CPU fallback)
+After=hearth-production.service
+
+[Service]
+WorkingDirectory=/home/derek/work/commandcenter-linux-flash
+EnvironmentFile=/home/derek/.config/hearth/hearth-ops.env
+ExecStart=/home/derek/.venvs/npu/bin/python -m tools.sizer.serve --bind 127.0.0.1 --port 8797 --device NPU --fallback CPU --ir /home/derek/models/minilm-ov/int8 --head /home/derek/work/npu-sizer-20260928/head.npz --cache /home/derek/.cache/ov_npu
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -1,6 +1,6 @@
 # ADR-0050: A request sizer informs admission and the tool-seat split; it never sets a budget or invents a family
 
-- Status: **accepted for the heuristic, proposed for the NPU encoder** (omen-linux, 2026-09-28)
+- Status: **accepted for the heuristic; the NPU encoder is not adopted on current evidence** (omen-linux, 2026-09-28; lap N2 below)
 - Register: commandcenter `docs/adr` (cite as `commandcenter#0050`)
 - Precedents: `commandcenter#0031` (a pin picks the rung, not the physics: admission arithmetic at
   the door), `commandcenter#0039` (depth inversion: prompt depth changes the rung), `commandcenter#0045`
@@ -99,10 +99,16 @@ long class is unevaluated until the N4 pour supplies long briefs.
 - With the gate off nothing changes; that is the default until the N4 pour passes (>= 90 % of l/xl
   briefs on the 5070, zero route changes on pinned or family-routed work, < 5 ms added door latency
   for the heuristic, < 40 ms for the encoder).
-- The NPU encoder (lap N1-N3: linux-npu-driver v1.38.0, OpenVINO 2026.4.0, MiniLM-L6 at a static
-  `[1,256]` window, linear head over the embedding plus the heuristic's numeric features) is
-  admitted to production only if lap N2 shows it lifts l/xl recall over the heuristic on an
-  out-of-campaign set. A "CPU wins" or "no lift" result is recorded, and the heuristic ships alone.
+- The NPU encoder was built (lap N1: OpenVINO 2026.4.0 in `~/.venvs/npu`, MiniLM-L6 exported to IR
+  at a static `[1,256]` window, fp16 cosine 1.000 / int8 0.999; `tools/sizer/serve.py` on
+  `127.0.0.1:8797` with the heuristic as fallback) and measured on the CPU (int8 3.5 ms p50) and the
+  iGPU (5.4 ms); the NPU itself waits on the sudo block in `docs/npu-sizer-bringup.md`. **Lap N2 said
+  no:** a class-weighted softmax head over the embedding scored 66.2 % held-out on whole-campaign
+  folds against the heuristic's 87.6 %, and no labelled set on this host holds a single l/xl output,
+  so the class that decides the seat split cannot be learned from history. The decision rule wrote no
+  `head.npz`; the service serves the heuristic's bin with the encoder's latency and is not deployed.
+  The `npu` mode stays in the code as the seam for a future labelled long-output set (the N4 pour is
+  the first source of one); the NPU bring-up remains a prepared, optional measurement of encoder cost.
 - `tools/ops/sizing_map.py` carries the sizer rows and three invariants: the gate is a known mode,
   `tool-long` sits on exactly the decode seat, and the long rung's budget covers the xl edge.
 - The 34 frozen research scripts and every pinned route are untouched by construction (pins and

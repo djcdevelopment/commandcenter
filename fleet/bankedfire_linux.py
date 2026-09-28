@@ -610,6 +610,7 @@ def tick() -> dict[str, Any]:
     slots = load_slots()
     excl = candidate_exclusions()
     report["excluded"] = sorted(excl); report["skipped"] = []
+    ran_drain = 0
     for _ in range(sum(caps.values()) + 1):
         state = drain.load_arm_state(arm_path)
         if not state.get("armed"):
@@ -641,6 +642,7 @@ def tick() -> dict[str, Any]:
         result = drain.run_tick(arm_state_path=arm_path, submit_task_fn=submit_task,
                                 task_status_fn=task_status, queue_status_fn=queue_status,
                                 exclude_refs=excl)
+        ran_drain += 1
         report["reason"] = result["reason"]
         if not str(result["reason"]).startswith("dispatched:"):
             detail = result.get("detail") or {}
@@ -659,6 +661,14 @@ def tick() -> dict[str, Any]:
         if lane == "experiment":
             report["reason"] = "dispatched:experiment-holds-the-seats"; break
     report["slots"] = [{"plan_id": r.get("plan_id"), "lane": r.get("lane")} for r in slots]
+    if ran_drain == 0:
+        # ADR-0006: every tick is ledgered, including the no-ops. The Linux tick decides
+        # no-candidates / experiment-in-flight / lane-full before drain.run_tick runs, and five
+        # such ticks on 2026-09-27 (22:29Z..00:01Z) left no row. Record them here.
+        report["ledger_event_id"] = drain._record_tick(
+            f"no-op:{report['reason']}",
+            {"backend": drain.DRAIN_BACKEND, "lane": "bankedfire_linux", "excluded": report.get("excluded", []),
+             "in_use": report.get("in_use", {}), "slots": report["slots"]})
     return report
 
 

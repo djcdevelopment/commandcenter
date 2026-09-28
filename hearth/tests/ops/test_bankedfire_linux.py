@@ -222,6 +222,7 @@ class ExperimentExclusivityTests(unittest.TestCase):
             arm = Path(tmp) / "arm.json"; arm.write_text(json.dumps({"armed": True, "scope": "authored", "in_flight": None}))
             with mock.patch.object(lane.drain, "default_arm_state_path", return_value=arm), \
                  mock.patch.object(lane.drain, "run_tick", side_effect=fake_run_tick), \
+                 mock.patch.object(lane.drain, "_record_tick", return_value=None), \
                  mock.patch.object(lane, "reconcile_slots", return_value=[]), \
                  mock.patch.object(lane, "load_slots", return_value=list(slots)), \
                  mock.patch.object(lane, "save_slots"), \
@@ -320,6 +321,7 @@ class SkipsTests(unittest.TestCase):
             empty = lane.backlog_sources.SourceScan((), ())
             with mock.patch.object(lane.drain, "default_arm_state_path", return_value=arm), \
                  mock.patch.object(lane.drain, "run_tick") as run_tick, \
+                 mock.patch.object(lane.drain, "_record_tick", return_value=None), \
                  mock.patch.object(lane, "reconcile_slots", return_value=[]), \
                  mock.patch.object(lane, "load_slots", return_value=[]), \
                  mock.patch.object(lane, "candidate_exclusions", return_value=frozenset({"gone:2"})), \
@@ -329,3 +331,26 @@ class SkipsTests(unittest.TestCase):
                 report = lane.tick()
         self.assertEqual(report["reason"], "no-candidates"); self.assertEqual(report["excluded"], ["gone:2"])
         run_tick.assert_not_called()
+
+    def test_an_early_exit_is_still_a_ledgered_tick(self) -> None:
+        """2026-09-27 22:29Z..00:01Z: five no-candidates ticks left no ledger row because the Linux
+        tick decided before drain.run_tick ran. ADR-0006: every tick is ledgered."""
+        import json, tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            arm = Path(tmp) / "arm.json"; arm.write_text(json.dumps({"armed": True, "scope": "authored", "in_flight": None}))
+            empty = lane.backlog_sources.SourceScan((), ())
+            with mock.patch.object(lane.drain, "default_arm_state_path", return_value=arm), \
+                 mock.patch.object(lane.drain, "run_tick") as run_tick, \
+                 mock.patch.object(lane.drain, "_record_tick", return_value="evt_x") as record, \
+                 mock.patch.object(lane, "reconcile_slots", return_value=[]), \
+                 mock.patch.object(lane, "load_slots", return_value=[]), \
+                 mock.patch.object(lane, "candidate_exclusions", return_value=frozenset()), \
+                 mock.patch.object(lane.backlog_sources, "authored_source", return_value=empty), \
+                 mock.patch.object(lane.backlog_sources, "refined_source", return_value=empty), \
+                 mock.patch.object(lane.backlog_sources, "candidate_source", return_value=empty):
+                report = lane.tick()
+        run_tick.assert_not_called()
+        record.assert_called_once()
+        self.assertEqual(record.call_args.args[0], "no-op:no-candidates")
+        self.assertEqual(report["ledger_event_id"], "evt_x")

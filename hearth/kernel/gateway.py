@@ -833,6 +833,12 @@ def main(argv: Optional[list[str]] = None) -> None:
                         help="path to callers.json (default hearth/etc/callers.json)")
     parser.add_argument("--ledger-dir", default=None,
                         help="ledger directory (default $HEARTH_ROOT/var/ledger)")
+    parser.add_argument("--threaded-tools", action="store_true",
+                        default=os.environ.get("HEARTH_THREADED_TOOLS") == "1",
+                        help="run every tool call off the event loop (asyncio.to_thread). Without it a "
+                             "synchronous tool such as local_generate blocks the loop and the door serves "
+                             "one call at a time: measured 2026-09-28 00:54Z, eight parallel 5 s calls to an "
+                             "8-slot lane completed 5 s apart. Also HEARTH_THREADED_TOOLS=1.")
     parser.add_argument("--no-timers", action="store_true",
                         help="don't start the in-process ops-loop timers (ADR-0015)")
     args = parser.parse_args(argv)
@@ -857,6 +863,7 @@ def main(argv: Optional[list[str]] = None) -> None:
             f"  Not falling back to loopback: you asked for something specific and did not get it.\n"))
 
     mcp = build_server(providers_spec=args.providers, host=host, port=port,
+                       threaded_tools=args.threaded_tools,
                        callers_path=args.callers, ledger_dir=args.ledger_dir)
 
     # The execution ledger is used lazily by protocol adapters, but render

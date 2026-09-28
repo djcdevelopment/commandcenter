@@ -314,6 +314,14 @@ def collect_runner() -> list[Row]:
     return rows
 
 
+def collect_gateway() -> list[Row]:
+    unit = HOME / ".config" / "systemd" / "user" / "hearth-production.service"
+    t = _read(unit); exec_line = next((l for l in t.splitlines() if l.startswith("ExecStart=")), "")
+    return [row("door", "gateway tool dispatch", "threaded (asyncio.to_thread per call)" if "--threaded-tools" in exec_line else "on the event loop (one call at a time)",
+                _rel(unit), "FastMCP", "how many door calls run at once",
+                "measured 2026-09-28: 8 parallel 5 s calls took 45 s serialized, 12 s threaded")]
+
+
 def collect_clients() -> list[Row]:
     rows = []
     cx = HOME / ".codex" / "config.toml"; t = _read(cx)
@@ -362,7 +370,7 @@ def collect_measured() -> list[Row]:
 def collect(live: bool, measured: bool) -> list[Row]:
     rows: list[Row] = []
     for fn in (collect_seats, collect_router, collect_backends, collect_routes_and_families, collect_operations,
-               collect_door_code, collect_lanes, collect_runner, collect_clients):
+               collect_door_code, collect_gateway, collect_lanes, collect_runner, collect_clients):
         rows.extend(fn(live) if fn is collect_seats else fn())
     if measured:
         rows.extend(collect_measured())
@@ -442,6 +450,8 @@ def invariants(rows: list[Row]) -> list[dict]:
         v = _num(_val(rows, key))
         if v is not None and dl and v / scale < dl:
             fail("client-timeouts-cover-the-deadline", f"{who} {v:g}{'ms' if scale == 1000 else 's'} < deadline_ceiling_s {dl:g}", "a door call that outlives its client timeout is reported as a client error, not a result")
+    if str(_val(rows, "gateway tool dispatch", "")).startswith("on the event loop"):
+        fail("door-serves-calls-concurrently", "hearth-production.service runs the gateway without --threaded-tools", "2026-09-28 00:54Z: eight parallel local_generate pins to the 8-slot MoE lane completed 5 s apart; the seat never saw more than one request")
     if _val(rows, "haproxy timeout queue") is None:
         fail("router-queues-overflow", "haproxy has no per-server maxconn and no timeout queue", "with max_num_seqs 16 on both seats, the 17th request waits inside vLLM with no router-side bound")
     # 6. runner budgets vs route

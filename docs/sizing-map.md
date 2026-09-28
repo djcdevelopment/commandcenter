@@ -135,6 +135,7 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 |---|---|---|---|---|---|
 | family depth estimate | `payload_bytes // 4` | `repo/hearth/toolsurface/inference.py:710` | families.recommend | prompt_tokens for depth rules |  |
 | files= per-file / total cap (bytes) | `256 * 1024 / 1024 * 1024` | `repo/hearth/toolsurface/inference.py:61` | _pack_files | packed file bytes | unreachable on Linux: every rung's context_bytes is smaller |
+| gateway tool dispatch | `threaded (asyncio.to_thread per call)` | `~/.config/systemd/user/hearth-production.service` | FastMCP | how many door calls run at once | measured 2026-09-28: 8 parallel 5 s calls took 45 s serialized, 12 s threaded |
 | local_generate DEFAULT_TIMEOUT_S | `1000` | `repo/hearth/toolsurface/inference.py:56` | local_generate | HTTP timeout when neither caller nor rung says | never used on the execution path: it passes deadline - now |
 | local_generate default max_tokens (no rung value) | `1024` | `repo/hearth/toolsurface/inference.py:680` | local_generate | output when neither caller nor rung says |  |
 | payload admission rule (pin and tag route) | `payload_bytes <= context_bytes AND payload_bytes // 4 + max_tokens <= context_tokens` | `repo/hearth/toolsurface/backends.py:320` | select_backend | admission | reserve = caller max_tokens else the rung's |
@@ -203,10 +204,10 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| omen-dense-27b decode tok/s median | `15.5` | `~/hearth-production/var/execution/events.ndjson` | deadline derivation | output / duration (prefill included, so a floor) |  |
-| omen-dense-27b duration_ms p90 / max | `235781 / 544899` | `~/hearth-production/var/execution/events.ndjson` | — | how close jobs come to the deadline |  |
-| omen-dense-27b invocations (n) | `4` | `~/hearth-production/var/execution/events.ndjson` | sizing rules | sample |  |
-| omen-dense-27b tokens_out p90 / max | `1110 / 5690` | `~/hearth-production/var/execution/events.ndjson` | — | how close outputs come to the cap |  |
+| omen-dense-27b decode tok/s median | `10.4` | `~/hearth-production/var/execution/events.ndjson` | deadline derivation | output / duration (prefill included, so a floor) |  |
+| omen-dense-27b duration_ms p90 / max | `333822 / 544899` | `~/hearth-production/var/execution/events.ndjson` | — | how close jobs come to the deadline |  |
+| omen-dense-27b invocations (n) | `5` | `~/hearth-production/var/execution/events.ndjson` | sizing rules | sample |  |
+| omen-dense-27b tokens_out p90 / max | `2245 / 5690` | `~/hearth-production/var/execution/events.ndjson` | — | how close outputs come to the cap |  |
 
 ### operation
 

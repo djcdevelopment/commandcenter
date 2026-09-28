@@ -77,6 +77,10 @@ class DoorTests(unittest.TestCase):
             r["value"] = 2600 if r["layer"] != "client" or "ms" not in r["setting"] else 2600000
         self.assertNotIn("client-timeouts-cover-the-deadline", rules(rows))
 
+    def test_the_door_must_serve_calls_concurrently(self) -> None:
+        self.assertIn("door-serves-calls-concurrently", rules([R("door", "gateway tool dispatch", "on the event loop (one call at a time)")]))
+        self.assertNotIn("door-serves-calls-concurrently", rules([R("door", "gateway tool dispatch", "threaded (asyncio.to_thread per call)")]))
+
     def test_router_must_queue_overflow(self) -> None:
         self.assertIn("router-queues-overflow", rules([R("router", "haproxy timeout queue", None)]))
         self.assertNotIn("router-queues-overflow", rules([R("router", "haproxy timeout queue", 60)]))

@@ -1,8 +1,10 @@
 # NPU sizer bring-up (ADR-0050, laps N1–N3) — omen-linux
 
+**Completed 2026-09-28:** Derek installed all three 1.38.0 packages and reloaded `intel_vpu`. OpenVINO sees Intel AI Boost (3720). NPU fp16 p50 7.94 ms versus CPU int8 3.54 ms at `[1,256]`; NPU allocation +59.94 MiB, full service ~1.04 GiB RSS. First two HTTP requests exceeded 30 ms; subsequent requests completed in ~18 ms. Encoder agreement >0.9995 on ten probes. No head or service promoted. Full evidence and limitations: [N4 recovery and N1 results](rnd/npu-sizer-recovery-20260928.md#n1-completed-after-derek-installed-the-drivers). The commands below are retained for reproduction, not outstanding installation work.
+
 The request sizer's `npu` mode runs MiniLM-L6 on OMEN's Arrow Lake NPU behind a loopback service.
 The kernel side has been ready since the 26.04 install (`intel_vpu` 1.0.0 on 7.0.0-34,
-`/dev/accel/accel0`, group `render`, firmware `vpu_37xx_v1.bin`); the user space is not. This page
+`/dev/accel/accel0`, group `render`, firmware `vpu_37xx_v1.bin`); the user space was installed in the continuation above. This page
 is the exact sequence, split by who runs it. Everything not marked **sudo** was done by the session
 that wrote this page (2026-09-28); the **sudo** block is Derek's.
 

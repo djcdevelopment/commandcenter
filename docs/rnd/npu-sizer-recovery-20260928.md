@@ -105,6 +105,58 @@ suite or tune repeatedly on this source.
 
 **Uncertainty:** one source/prompt per arm; no Ti comparison; no end-to-end long
 report qualified; original read-loop failures remain; no global routing/pin/door
-latency promotion evidence. NPU hardware measurement is independent and awaits
-verified user-space installation; OpenVINO still lacked NPU at 04:11Z despite the
-reported install, and the package log/libraries showed no installation yet.
+latency promotion evidence. NPU sequence length 512, competing CPU load, power use, service warm-up, and trained-head accuracy remain unsampled. Hardware verification completed in the separate lap below.
+
+
+## N1 completed after Derek installed the drivers
+
+The initial reply referred to downloaded packages. Derek then ran all three
+install/reload commands; dpkg now confirms the matched Intel 1.38.0 packages and
+OpenVINO 2026.4.0 sees `NPU`, Intel AI Boost, architecture 3720. No reboot required.
+The busy counter started at zero and advanced during inference.
+
+Static `[1,256]`, 50 measured forwards after five warm-ups, separate fp16/int8 IRs:
+
+| Variant | NPU p50 / p90 | CPU p50 / p90 | NPU cold / cached compile | Busy delta |
+| --- | --- | --- | --- | --- |
+| fp16 | 7.94 / 8.43 ms | 6.70 / 7.22 ms | 0.574 / 0.044 s | +496,639 us |
+| int8 | 8.17 / 9.41 ms | 3.54 / 3.66 ms | 0.611 / 0.042 s | +469,200 us |
+
+NPU memory increases by 62,853,120 bytes (59.94 MiB), above the 68,722,688-byte
+idle driver baseline, and returns to baseline after the process exits. Benchmark
+RSS deltas are process high-water increments, not a standalone service footprint.
+Ten existing export probes compared with CPU-fp16 embeddings: minimum cosine
+0.9999973 (NPU fp16) and 0.9995586 (NPU int8).
+
+The temporary HTTP service was forced to `NPU` with **no CPU fallback**, then driven
+through the existing 30 ms sizer client. First two calls timed out into the local
+heuristic (31.03 / 30.33 ms); next three completed on NPU (18.79 / 17.96 / 18.41 ms).
+The service recorded all five encoder calls and +79,480 us busy time. `/health`
+was already `ok` before the first requests: compilation readiness does not mean
+warm inference readiness. No timeout was increased and no requests were retried.
+After stopping the owned service, heuristic fallback took 0.22 ms.
+
+**The whole service is not a 60 MiB process:** sampled VmRSS after five requests
+was 1,094,648 KiB (~1.04 GiB), including Python/tokenizer/OpenVINO and their loaded
+libraries. RSS and NPU memory may overlap; do not add them as independent totals.
+No head was loaded, so `source` correctly remained `heuristic` while
+`encoder_device=NPU` identified the redundant encoder pass.
+
+Decision: the NPU is a measured, usable encoder device; the CPU INT8 path is faster
+on this unloaded sample. Leave the sizer unit uninstalled/inactive and the global
+routing gate off. CPU-contention/power advantages are hypotheses, not measurements.
+A learned head needs representative successful long-output labels before another
+accuracy comparison. Service warm-up and memory footprint matter only if a useful
+encoder workload earns deployment.
+
+Raw records: `~/work/npu-sizer-recovery-20260928/npu-{fp16,int8,agreement,http}.json`.
+Exact benchmark rerun from the flash repo (new cache directory avoids disturbing
+other users' caches; this is not a request to repeat the sample):
+
+```bash
+~/.venvs/npu/bin/python tools/sizer/bench.py --device NPU --device CPU --ir ~/models/minilm-ov/fp16 --seq 256 --n 50 --cache ~/work/npu-sizer-recovery-20260928/ov-cache/fp16 --json ~/work/npu-sizer-recovery-20260928/npu-fp16.json
+```
+
+Use `int8` in place of `fp16` for that variant. HTTP slice:
+`~/.venvs/hearth-private/bin/python ~/work/npu-sizer-recovery-20260928/npu-http-probe.py`.
+The service process is stopped in `finally`; no systemd unit was installed.

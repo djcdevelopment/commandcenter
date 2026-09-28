@@ -6,7 +6,8 @@ Wraps what already exists and adds nothing to it:
   ~/.local/bin/deepagents-account-run <run> --import   (idempotent import into the HEARTH ledger)
 
 Spec (written by fleet.bankedfire_linux from a `task_class: deepagents` brief):
-  {"id", "source": <one file the agent may read/edit>, "task": <prose>, "backend": omen|am4|omen-dense,
+  {"id", "source": <one file the agent may read/edit>, "task": <prose>,
+   "backend": omen|am4|omen-dense|am4-tool-4070ti|am4-tool-5070,
    "report": bool, "max_report_words": int|null, "work": <ct work id>|null}
 
 Outcome: "succeeded" when the runner exits 0 AND result.json says accepted_shape (the candidate
@@ -37,6 +38,9 @@ DA_PYTHON = Path(os.environ.get("DEEPAGENTS_PYTHON", str(Path.home() / ".venvs" 
 ACCOUNT = Path.home() / ".local" / "bin" / "deepagents-account-run"
 RUN_TIMEOUT_S = 2100  # the runner's own deadline is 1800 s (run_linux_delivery.DEADLINE_S) + 300 (sizing-map 2026-09-28)
 POOL = "omen-b70-pool"
+AM4_ROUTES = ("am4", "am4-tool-4070ti", "am4-tool-5070")
+AM4_PROFILE_OF = {"am4-tool-4070ti": "tool-pair", "am4-tool-5070": "tool-pair", "am4": "dense-tp2"}
+AM4_SSH = "10.44.0.2"   # direct cable (ADR-0014: never the tailnet)
 
 
 def utc() -> str:
@@ -62,16 +66,27 @@ class Delivery:
     def run(self) -> int:
         # 2026-09-27 20:56Z: a delivery launched while the seat experiment had the pool died in 2 s
         # ("rendered prompt check failed: 500"). The fence is the truth about who owns the seats.
-        try:
-            from hearth.execution.coordination import GpuTenancyStore
-            owner = GpuTenancyStore().active_owner(POOL)
-        except Exception as exc:  # noqa: BLE001 -- an unreadable fence is not a reason to spend
-            owner = None; self.save("fence_unreadable", fence_error=f"{type(exc).__name__}: {exc}")
-        if owner is not None:
-            self.save("done", outcome="failed", finished=utc(), review_required=True,
-                      fence=f"pool owned by {owner.owner} session {owner.session_id}; not launching")
-            print(json.dumps({"id": self.id, "outcome": "failed", "fence": owner.owner}), flush=True)
-            return 1
+        backend = str(self.spec.get("backend", "omen-dense"))
+        if backend in AM4_ROUTES:
+            # AM4 routes are fenced by the AM4 profile, not the OMEN B70 pool: refuse unless the
+            # profile that serves this alias is the live one (tool-pair for the per-card seats).
+            live = am4_profile()
+            if live != AM4_PROFILE_OF.get(backend):
+                self.save("done", outcome="failed", finished=utc(), review_required=True,
+                          fence=f"am4 profile is {live or 'unreadable'}; {backend} needs {AM4_PROFILE_OF.get(backend)}; not launching")
+                print(json.dumps({"id": self.id, "outcome": "failed", "fence": f"am4-profile:{live}"}), flush=True)
+                return 1
+        else:
+            try:
+                from hearth.execution.coordination import GpuTenancyStore
+                owner = GpuTenancyStore().active_owner(POOL)
+            except Exception as exc:  # noqa: BLE001 -- an unreadable fence is not a reason to spend
+                owner = None; self.save("fence_unreadable", fence_error=f"{type(exc).__name__}: {exc}")
+            if owner is not None:
+                self.save("done", outcome="failed", finished=utc(), review_required=True,
+                          fence=f"pool owned by {owner.owner} session {owner.session_id}; not launching")
+                print(json.dumps({"id": self.id, "outcome": "failed", "fence": owner.owner}), flush=True)
+                return 1
         run_dir = DA_ROOT / "runs" / self.id
         task_file = self.dir / "task.txt"
         task_file.write_text(str(self.spec["task"]).strip() + "\n")
@@ -111,6 +126,16 @@ class Delivery:
                   candidate=str(run_dir / "agent-fs" / "output"), review_required=True)
         print(json.dumps({"id": self.id, "outcome": outcome, "runner_rc": rc, "accounting_rc": acct_rc}), flush=True)
         return 0 if outcome == "succeeded" else 1
+
+
+def am4_profile(timeout_s: int = 6) -> Optional[str]:
+    """The profile name AM4 says is live (~/.config/am4-fleet/profile, written by am4-profile), or None."""
+    try:
+        out = subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={timeout_s}", AM4_SSH,
+                              "cat ~/.config/am4-fleet/profile"], capture_output=True, text=True, timeout=timeout_s + 4)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return out.stdout.strip() or None if out.returncode == 0 else None
 
 
 def status(run_id: str) -> dict[str, Any]:

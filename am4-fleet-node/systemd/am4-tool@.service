@@ -1,0 +1,16 @@
+# One small tool-use vLLM seat per AM4 card (profile tool-pair, 2026-09-28). Instances: 4070ti, 5070.
+# Mutually exclusive with the dense TP2 seat: both profiles need every card.
+[Unit]
+Description=AM4 tool-use vLLM seat on card %i (profile tool-pair)
+After=network-online.target
+Conflicts=am4-vllm.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/derek
+ExecStartPre=/usr/bin/test -r /home/derek/.config/am4-fleet/seat-%i.env
+ExecStart=/home/derek/bin/start-am4-seat.sh %i
+Restart=on-failure
+RestartSec=20
+TimeoutStopSec=60
+KillMode=mixed

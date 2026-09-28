@@ -1,0 +1,16 @@
+[Unit]
+Description=AM4 Qwen3.8-27B vLLM CUDA backend
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/derek
+ExecStartPre=/usr/bin/test -f /home/derek/models/qwen3-27b-gptq-int4/model.safetensors.index.json
+ExecStart=/home/derek/run-vllm-canary.sh
+Restart=on-failure
+RestartSec=20
+TimeoutStopSec=60
+KillMode=mixed
+
+[Install]
+WantedBy=default.target

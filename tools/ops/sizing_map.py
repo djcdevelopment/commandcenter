@@ -314,6 +314,59 @@ def collect_runner() -> list[Row]:
     return rows
 
 
+AM4_SSH = "10.44.0.2"
+AM4_PROFILE_ALIASES = {"dense-tp2": ["am4-dense-27b"], "tool-pair": ["am4-tool-4070ti", "am4-tool-5070"]}
+
+
+def _ssh_am4(cmd: str, timeout: int = 8) -> Optional[str]:
+    try:
+        out = subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", AM4_SSH, cmd],
+                             capture_output=True, text=True, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return out.stdout if out.returncode == 0 else None
+
+
+def collect_am4(live: bool) -> list[Row]:
+    """AM4 serves one PROFILE at a time; the profile file and the per-seat env files are the declared
+    facts, the facade's /oxen/ready is the live one. Read over the direct cable (ADR-0014)."""
+    rows: list[Row] = []
+    cfg = REPO / "am4-fleet-node" / "config"
+    for seat in ("4070ti", "5070"):
+        env: dict[str, str] = {}
+        for line in _read(cfg / f"seat-{seat}.env").splitlines():
+            if "=" in line and not line.startswith("#"):
+                k, _, v = line.partition("="); env[k.strip()] = v.strip()
+        src = f"repo/am4-fleet-node/config/seat-{seat}.env"
+        rows.append(row("am4-seat", f"am4-tool@{seat} served model", env.get("AM4_SERVED_NAME"), src, "facade alias", "which alias answers"))
+        rows.append(row("am4-seat", f"am4-tool@{seat} max_model_len", int(env.get("AM4_MAX_MODEL_LEN") or 0) or None, src, "vLLM", "input + output tokens per request"))
+        rows.append(row("am4-seat", f"am4-tool@{seat} max_num_seqs", int(env.get("AM4_MAX_NUM_SEQS") or 0) or None, src, "vLLM scheduler", "concurrent sequences"))
+        rows.append(row("am4-seat", f"am4-tool@{seat} gpu_memory_utilization", float(env.get("AM4_GPU_MEM_UTIL") or 0) or None, src, "vLLM", "VRAM fraction on one card"))
+        rows.append(row("am4-seat", f"am4-tool@{seat} tool / reasoning parser", f"{env.get('AM4_TOOL_PARSER')} / {env.get('AM4_REASONING_PARSER')}", src, "vLLM", "native tool-call parsing"))
+        rows.append(row("am4-seat", f"am4-tool@{seat} card", env.get("AM4_GPU_UUID"), src, "CUDA_VISIBLE_DEVICES", "the one card this seat may use (UUID, ADR-0042)"))
+    canary = _read(REPO / "am4-fleet-node" / "scripts" / "run-vllm-canary.sh")
+    rows.append(row("am4-seat", "am4-vllm (dense-tp2) max_model_len", _grep(canary, r"--max-model-len (\d+)", cast=int), "repo/am4-fleet-node/scripts/run-vllm-canary.sh", "vLLM TP2", "window of the dense profile"))
+    rows.append(row("am4-seat", "am4-vllm (dense-tp2) max_num_seqs", _grep(canary, r"--max-num-seqs (\d+)", cast=int), "repo/am4-fleet-node/scripts/run-vllm-canary.sh", "vLLM TP2", "concurrent sequences"))
+    if live:
+        prof = (_ssh_am4("cat ~/.config/am4-fleet/profile") or "").strip() or "unreadable"
+        rows.append(row("am4-live", "am4 profile", prof, "am4:~/.config/am4-fleet/profile", "readiness probe, occupancy probes, DeepAgents wrapper", "which alias set is live"))
+        token = None
+        for line in _read(HOME / ".config" / "omen-vllm" / "hearth-backends.env").splitlines():
+            if line.startswith("AM4_VLLM_TOKEN="):
+                token = line.split("=", 1)[1].strip().strip('"')
+        if token:
+            for alias in ("am4-dense-27b", "am4-tool-4070ti", "am4-tool-5070"):
+                try:
+                    req = urllib.request.Request(f"http://{AM4_SSH}:8090/oxen/ready?alias={alias}", headers={"Authorization": f"Bearer {token}"})
+                    with urllib.request.urlopen(req, timeout=5) as r:
+                        d = json.load(r)
+                    rdy = next((a.get("ready") for a in d.get("aliases", []) if a.get("alias") == alias), None)
+                    rows.append(row("am4-live", f"facade alias {alias} ready", rdy, f"http://{AM4_SSH}:8090/oxen/ready?alias={alias}", "HEARTH rung occupancy", "live readiness of the alias"))
+                except Exception as exc:  # noqa: BLE001
+                    rows.append(row("am4-live", f"facade alias {alias} ready", f"unavailable: {type(exc).__name__}", "", "", ""))
+    return rows
+
+
 def collect_gateway() -> list[Row]:
     unit = HOME / ".config" / "systemd" / "user" / "hearth-production.service"
     t = _read(unit); exec_line = next((l for l in t.splitlines() if l.startswith("ExecStart=")), "")
@@ -370,8 +423,8 @@ def collect_measured() -> list[Row]:
 def collect(live: bool, measured: bool) -> list[Row]:
     rows: list[Row] = []
     for fn in (collect_seats, collect_router, collect_backends, collect_routes_and_families, collect_operations,
-               collect_door_code, collect_gateway, collect_lanes, collect_runner, collect_clients):
-        rows.extend(fn(live) if fn is collect_seats else fn())
+               collect_door_code, collect_gateway, collect_lanes, collect_runner, collect_clients, collect_am4):
+        rows.extend(fn(live) if fn in (collect_seats, collect_am4) else fn())
     if measured:
         rows.extend(collect_measured())
     return sorted(rows, key=lambda r: (r["layer"], r["setting"]))
@@ -468,6 +521,23 @@ def invariants(rows: list[Row]) -> list[dict]:
     guard = str(_val(rows, "transport output guard", ""))
     if "max_completion_tokens" not in guard:
         fail("guard-reads-the-field-langchain-sends", f"transport output guard {guard}", "measured 2026-09-27: every request carried max_completion_tokens=3072 and the guard checked a default 2048")
+    # 6b. AM4 profile rungs
+    for rung, seat in (("am4-tool-4070ti", "am4-tool@4070ti"), ("am4-tool-5070", "am4-tool@5070")):
+        s_ = rungs.get(rung, {}); mml = _val(rows, f"{seat} max_model_len")
+        if s_.get("context_tokens") is not None and mml is not None and int(s_["context_tokens"]) != int(mml):
+            fail("am4-rung-context-equals-seat-window", f"{rung} context_tokens {s_['context_tokens']} != {seat} max_model_len {mml}", "the AM4 tool seats declare their window in seat-*.env; the rung must repeat it exactly")
+        rc = _num(_val(rows, f"ROUTES.{rung}.context")); 
+        if rc is not None and mml is not None and rc != float(mml):
+            fail("runner-context-equals-seat", f"ROUTES.{rung}.context {rc:g} != {seat} max_model_len {mml}", "the runner's own context check uses this number")
+    prof = _val(rows, "am4 profile")
+    if prof in ("dense-tp2", "tool-pair"):
+        expected = {"dense-tp2": ["am4-dense-27b"], "tool-pair": ["am4-tool-4070ti", "am4-tool-5070"]}[prof]
+        for alias in ("am4-dense-27b", "am4-tool-4070ti", "am4-tool-5070"):
+            rdy = _val(rows, f"facade alias {alias} ready")
+            if rdy is None or isinstance(rdy, str):
+                continue
+            if (alias in expected) != bool(rdy):
+                fail("am4-profile-aliases-served", f"profile {prof}: alias {alias} ready={rdy}", "one profile is live at a time; an alias ready outside its profile means the switch left a seat running (or the profile file lies)")
     # 7. stale comments
     for r in rows:
         if r["setting"].endswith("says 'staged'") and r["value"] is True:

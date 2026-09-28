@@ -96,17 +96,19 @@ notes = "The default rung is omen-arc. A pin picks the rung, not the physics: an
 
 [[loop.implementation]]
 id = "am4-dense"
-status = "LIVE"
+status = "HISTORICAL"
 entrypoint = "direct:http://192.168.12.233:8090/v1/chat/completions (facade alias am4-dense-27b -> loopback 18084, token env AM4_OXEN_TOKEN)"
 last_evidence = "OPS-01 / Gate 5, 2026-09-18: am4-qwen38-dense.service active, facade /oxen/ready all_ready:true, /v1/models lists am4-dense-27b from OMEN with the bearer"
 notes = "Dense Qwen3.8-27B on AM4's RTX 4070 Ti + RTX 5070 (measured 1:1 split, 4096-token context, one slot). Pin-only rung; the control plane dispatches to it directly, the door does not route onto it."
+retired = "2026-09-28: row described the llama.cpp 64k pin on 192.168.12.233:18084; AM4 has served vLLM GPTQ TP2 at 16k on :18094 since 2026-09-23 (rung am4-vllm, profile dense-tp2)"
 
 [[loop.implementation]]
 id = "am4-read-4070ti"
-status = "LIVE"
+status = "HISTORICAL"
 entrypoint = "direct:http://192.168.12.233:8090/v1/chat/completions (facade alias am4-read-4070ti -> loopback 18085, token env AM4_OXEN_TOKEN)"
 last_evidence = "R&D lap 2, 2026-09-18: qwen2.5-14b-instruct-q4_K_M on the RTX 4070 Ti alone, 16k context, q8_0 KV"
 notes = "Reader rung: NVIDIA prefill takes the file-reading / heavy-context work the B70s and the 4k dense slot should not. Pin-only."
+retired = "2026-09-28: the 14B llama.cpp reader on :18085 is not served; superseded by the tool-pair profile's per-card seats"
 
 [[loop.implementation]]
 id = "deepagents_hearth"
@@ -119,6 +121,13 @@ notes = "Agentic tool-use route using DeepAgents with scoped filesystem tools ag
 # The cutover left the door with --no-timers and the drain pointed at a parked Hyper-V
 # conductor. These implementations put the loops back on the Linux host through the
 # door itself (ADR-0048: candidates only; verdicts stay with the frontier/human).
+[[loop.implementation]]
+id = "am4_tool_pair"
+status = "BUILT NOT DEPLOYED"
+entrypoint = "am4: am4-profile tool-pair -> am4-tool@4070ti.service + am4-tool@5070.service (Qwen3-8B-AWQ, 32,768 window, hermes tool parser) -> facade aliases am4-tool-4070ti / am4-tool-5070 -> HEARTH rungs of the same names, tag tool-use; DeepAgents routes am4-tool-4070ti / am4-tool-5070"
+last_evidence = "2026-09-28: units, seat envs, scripts and alias entries installed on AM4 (am4-fleet-node/bin, systemd, config); not yet started: AM4 needs a reboot for the 595.84/595.91 driver mismatch; the chore lap decides promotion"
+notes = "Profile, not replacement: Conflicts= keeps dense-tp2 and tool-pair mutually exclusive; ~/.config/am4-fleet/profile names the live one and the readiness probe, occupancy probe and sizing map read it."
+
 [[loop]]
 id = "idle_drain"
 description = "Unattended dispatch of authored briefs while the operator is away (ADR-0006 Banked Fire)."

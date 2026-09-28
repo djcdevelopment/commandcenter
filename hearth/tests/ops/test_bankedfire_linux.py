@@ -354,3 +354,28 @@ class SkipsTests(unittest.TestCase):
         record.assert_called_once()
         self.assertEqual(record.call_args.args[0], "no-op:no-candidates")
         self.assertEqual(report["ledger_event_id"], "evt_x")
+
+
+class Am4AliasProbeTests(unittest.TestCase):
+    """2026-09-28, the AM4 tool-pair profile: a rung with no probe read "available" whatever profile
+    AM4 was serving, so tag routes would have landed on a dead alias. The facade's /oxen/ready for
+    the rung's own alias decides; HEARTH's active jobs on it make it busy."""
+
+    def _ready(self, ready=True, alias="am4-tool-4070ti", error=None):
+        return lambda a, env, t: (None, error) if error else ({"aliases": [{"alias": alias, "ready": ready, "model": "m"}]}, None)
+
+    def test_not_ready_or_unreachable_reads_unknown(self) -> None:
+        self.assertEqual(occ.probe_oxen_alias("am4-tool-4070ti", ready=self._ready(ready=False))["occupancy"], "unknown")
+        self.assertEqual(occ.probe_oxen_alias("am4-tool-4070ti", ready=self._ready(error="URLError: refused"))["occupancy"], "unknown")
+        # a payload for another alias is not this rung's readiness
+        self.assertEqual(occ.probe_oxen_alias("am4-tool-5070", ready=self._ready(alias="am4-tool-4070ti"))["occupancy"], "unknown")
+
+    def test_ready_reads_available_unless_hearth_has_a_job_on_it(self) -> None:
+        with mock.patch.object(occ, "_hearth_active_jobs_for", return_value=(0, None)):
+            self.assertEqual(occ.probe_oxen_alias("am4-tool-4070ti", ready=self._ready())["occupancy"], "available")
+        with mock.patch.object(occ, "_hearth_active_jobs_for", return_value=(1, None)):
+            self.assertEqual(occ.probe_oxen_alias("am4-tool-4070ti", ready=self._ready())["occupancy"], "busy")
+
+    def test_the_registry_names_every_am4_alias_rung(self) -> None:
+        for rung in ("am4-vllm", "am4-tool-4070ti", "am4-tool-5070"):
+            self.assertIn(rung, occ._PROBES)

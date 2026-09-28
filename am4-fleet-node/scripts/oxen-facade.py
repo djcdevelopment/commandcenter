@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Small OpenAI-compatible alias facade for the AM4 Linux llama.cpp backend.
+"""Small OpenAI-compatible alias facade for AM4's Linux inference backends.
 
 This intentionally mirrors the oxen alias contract without depending on
 the Windows-only vllama.exe lifecycle layer.
@@ -55,6 +55,20 @@ def alias_status(alias: str) -> dict:
     b = backend_for(alias)
     try:
         status, _, health = backend_request("GET", "/health", host=b["host"], port=b["port"], timeout=2)
+        if b.get("api") == "vllm":
+            models_status, _, raw = backend_request(
+                "GET", "/v1/models", host=b["host"], port=b["port"], timeout=2)
+            models = decode_json(raw)
+            entries = models.get("data", []) if isinstance(models, dict) else []
+            served = next((item for item in entries if isinstance(item, dict)
+                           and item.get("id") == b["model_id"]), {})
+            context = served.get("max_model_len", 0)
+            return {"alias": alias, "ready": status == 200 and models_status == 200
+                    and isinstance(context, int) and context > 0,
+                    "context_length": context,
+                    "parallel_slots": b.get("parallel_slots", 1),
+                    "physical_resource": f'am4:{b["host"]}:{b["port"]}',
+                    "model": served.get("id"), "status": status}
         props_status, _, raw = backend_request("GET", "/props", host=b["host"], port=b["port"], timeout=2)
         props = decode_json(raw)
         settings = props.get("default_generation_settings", {}) if isinstance(props, dict) else {}
@@ -78,23 +92,63 @@ def guard_context(payload: dict, b: dict, state: dict) -> dict:
         raise ValueError("native engine controls are not exposed")
     if payload.get("n", 1) != 1:
         raise ValueError("one completion per physical request")
-    status, _, data = backend_request("POST", "/apply-template", json.dumps(payload).encode(),
-                                      host=b["host"], port=b["port"], timeout=15)
-    rendered = decode_json(data)
-    if status != 200 or not isinstance(rendered, dict) or not isinstance(rendered.get("prompt"), str):
-        raise RuntimeError("engine template rendering unavailable")
-    status, _, data = backend_request("POST", "/tokenize", json.dumps({
-        "content": rendered["prompt"], "add_special": True, "parse_special": True,
-    }).encode(), host=b["host"], port=b["port"], timeout=15)
+    if b.get("api") == "vllm":
+        request = {"model": b["model_id"], "messages": payload["messages"],
+                   "add_generation_prompt": True}
+        for key in ("tools", "tool_choice", "chat_template_kwargs"):
+            if key in payload:
+                request[key] = payload[key]
+        status, _, data = backend_request("POST", "/tokenize", json.dumps(request).encode(),
+                                          host=b["host"], port=b["port"], timeout=15)
+    else:
+        status, _, data = backend_request("POST", "/apply-template", json.dumps(payload).encode(),
+                                          host=b["host"], port=b["port"], timeout=15)
+        rendered = decode_json(data)
+        if status != 200 or not isinstance(rendered, dict) or not isinstance(rendered.get("prompt"), str):
+            raise RuntimeError("engine template rendering unavailable")
+        status, _, data = backend_request("POST", "/tokenize", json.dumps({
+            "content": rendered["prompt"], "add_special": True, "parse_special": True,
+        }).encode(), host=b["host"], port=b["port"], timeout=15)
     counted = decode_json(data)
-    if status != 200 or not isinstance(counted, dict) or not isinstance(counted.get("tokens"), list):
+    if status != 200 or not isinstance(counted, dict):
         raise RuntimeError("engine token count unavailable")
-    tokens = len(counted["tokens"])
+    tokens = counted.get("count") if b.get("api") == "vllm" else len(counted.get("tokens", []))
+    if not isinstance(tokens, int) or tokens <= 0:
+        raise RuntimeError("engine token count unavailable")
     if tokens + budget + 32 > state["context_length"]:
         raise ValueError(f"rendered prompt {tokens} + output {budget} exceeds context {state['context_length']}")
     payload["max_tokens"] = budget
     payload.pop("max_completion_tokens", None)
     return {"prompt_tokens": tokens, "output_budget": budget}
+
+
+def tokenize_alias(payload: dict, restricted_caller: bool = False) -> dict:
+    """Count a facade alias's rendered vLLM chat prompt for admitted clients."""
+    if not isinstance(payload, dict):
+        raise ValueError("request must be an object")
+    alias = payload.get("model")
+    if restricted_caller and alias != "am4-dense-27b":
+        raise PermissionError("credential permits only am4-dense-27b")
+    if alias not in configured_aliases():
+        raise LookupError("unknown model alias")
+    backend = backend_for(alias)
+    if backend.get("api") != "vllm":
+        raise ValueError("chat token counting requires a vLLM alias")
+    if not isinstance(payload.get("messages"), list) or not payload["messages"]:
+        raise ValueError("messages must be a nonempty list")
+    request = {"model": backend["model_id"], "messages": payload["messages"],
+               "add_generation_prompt": True}
+    for key in ("tools", "tool_choice", "chat_template_kwargs"):
+        if key in payload:
+            request[key] = payload[key]
+    status, _, data = backend_request(
+        "POST", "/tokenize", json.dumps(request).encode(),
+        host=backend["host"], port=backend["port"], timeout=15)
+    counted = decode_json(data)
+    count = counted.get("count") if isinstance(counted, dict) else None
+    if status != 200 or type(count) is not int or count <= 0:
+        raise RuntimeError("engine token count unavailable")
+    return {"count": count}
 
 
 def env(name: str, default: str) -> str:
@@ -137,7 +191,8 @@ def decode_json(data: bytes) -> Any:
 def _global_backend() -> dict:
     return {"host": env("AM4_BACKEND_HOST", "127.0.0.1"),
             "port": int(env("AM4_BACKEND_PORT", "8080")),
-            "model_id": env("AM4_BACKEND_MODEL_ID", "Qwen3-30B-A3B-Instruct-2507-Q4_K_M")}
+            "model_id": env("AM4_BACKEND_MODEL_ID", "Qwen3-30B-A3B-Instruct-2507-Q4_K_M"),
+            "api": "llama"}
 
 
 def _read_alias_map_raw() -> dict:
@@ -179,13 +234,21 @@ def alias_backends() -> dict:
     g = _global_backend()
     m = _read_alias_map_raw()
     if m:
-        return {a: {"host": b.get("host", g["host"]), "port": int(b.get("port", g["port"])),
-                    "model_id": b.get("model_id", g["model_id"])} for a, b in m.items()}
+        return {a: {**g, **b, "port": int(b.get("port", g["port"]))} for a, b in m.items()}
     return {a: dict(g) for a in configured_aliases()}
 
 
 def backend_for(alias: str) -> dict:
     return alias_backends().get(alias, _global_backend())
+
+
+def adapt_payload_for_backend(payload: dict, backend: dict) -> None:
+    """Preserve the facade's no-thinking Hermes behavior on vLLM."""
+    if backend.get("api") == "vllm" and payload.get("reasoning_effort") == "none":
+        payload.pop("reasoning_effort")
+        options = payload.get("chat_template_kwargs")
+        if isinstance(options, dict) or options is None:
+            payload["chat_template_kwargs"] = {**(options or {}), "enable_thinking": False}
 
 
 def token() -> str:
@@ -250,6 +313,10 @@ class Handler(BaseHTTPRequestHandler):
 
         if parsed.path == "/v1/chat/completions":
             self.proxy_chat_completions()
+            return
+
+        if parsed.path == "/tokenize":
+            self.proxy_tokenize()
             return
 
         if parsed.path in {"/oxen/load", "/oxen/swap", "/oxen/unload"}:
@@ -338,6 +405,33 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as exc:  # noqa: BLE001
             return {"alias": alias, "ready": False, "backend": f'{b["host"]}:{b["port"]}', "reason": str(exc)}
 
+    def proxy_tokenize(self) -> None:
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            self.write_json(400, {"error": "invalid content length"})
+            return
+        if not 0 < length <= MAX_BODY or self.headers.get("Transfer-Encoding"):
+            self.write_json(413, {"error": "bounded content length required"})
+            return
+        self.connection.settimeout(30)
+        try:
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            result = tokenize_alias(payload, restricted_caller=self.hermes_caller)
+        except (ValueError, json.JSONDecodeError) as exc:
+            self.write_json(400, {"error": str(exc)})
+            return
+        except PermissionError as exc:
+            self.write_json(403, {"error": str(exc)})
+            return
+        except LookupError as exc:
+            self.write_json(404, {"error": str(exc)})
+            return
+        except Exception as exc:
+            self.write_json(502, {"error": type(exc).__name__})
+            return
+        self.write_json(200, result)
+
     def proxy_chat_completions(self) -> None:
         try:
             length = int(self.headers.get("Content-Length", "0"))
@@ -370,6 +464,7 @@ class Handler(BaseHTTPRequestHandler):
         payload["model"] = b["model_id"]
         if self.hermes_caller:
             payload.setdefault("reasoning_effort", "none")
+        adapt_payload_for_backend(payload, b)
         host = b["host"]
         port = b["port"]
         lease = admission(b)

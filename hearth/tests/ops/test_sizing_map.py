@@ -117,3 +117,21 @@ class RenderTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Am4ProfileTests(unittest.TestCase):
+    """2026-09-28: AM4 serves one profile at a time (dense-tp2 or tool-pair). The rung, the seat env
+    and the runner route must agree on the window, and only the live profile's aliases may be ready."""
+
+    def test_am4_rung_window_must_match_the_seat_env(self) -> None:
+        rows = [R("rung", "am4-tool-4070ti context_tokens", 32768), R("am4-seat", "am4-tool@4070ti max_model_len", 16384)]
+        self.assertIn("am4-rung-context-equals-seat-window", rules(rows))
+        rows[1]["value"] = 32768
+        self.assertNotIn("am4-rung-context-equals-seat-window", rules(rows))
+
+    def test_only_the_live_profiles_aliases_may_be_ready(self) -> None:
+        rows = [R("am4-live", "am4 profile", "dense-tp2"), R("am4-live", "facade alias am4-dense-27b ready", True),
+                R("am4-live", "facade alias am4-tool-4070ti ready", True)]
+        self.assertIn("am4-profile-aliases-served", rules(rows))
+        rows[2]["value"] = False
+        self.assertNotIn("am4-profile-aliases-served", rules(rows))

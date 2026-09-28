@@ -1,0 +1,58 @@
+{
+  "oxen-planner": {
+    "host": "127.0.0.1",
+    "port": 8080,
+    "model_id": "Qwen3-30B-A3B-Instruct-2507-Q4_K_M"
+  },
+  "oxen-critic": {
+    "host": "127.0.0.1",
+    "port": 8081,
+    "model_id": "qwen2.5-14b-instruct"
+  },
+  "oxen": {
+    "host": "127.0.0.1",
+    "port": 8080,
+    "model_id": "Qwen3-30B-A3B-Instruct-2507-Q4_K_M"
+  },
+  "vllama-planner": {
+    "host": "127.0.0.1",
+    "port": 8080,
+    "model_id": "Qwen3-30B-A3B-Instruct-2507-Q4_K_M"
+  },
+  "vllama-critic": {
+    "host": "127.0.0.1",
+    "port": 8081,
+    "model_id": "qwen2.5-14b-instruct"
+  },
+  "hermes": {
+    "host": "127.0.0.1",
+    "port": 8080,
+    "model_id": "Qwen3-30B-A3B-Instruct-2507-Q4_K_M"
+  },
+  "am4-dense-27b": {
+    "host": "127.0.0.1",
+    "port": 18094,
+    "model_id": "qwen3-27b",
+    "api": "vllm",
+    "parallel_slots": 1
+  },
+  "am4-read-4070ti": {
+    "host": "127.0.0.1",
+    "port": 18085,
+    "model_id": "qwen2.5-14b-instruct-q4_K_M"
+  },
+  "am4-tool-4070ti": {
+    "host": "127.0.0.1",
+    "port": 18096,
+    "model_id": "am4-tool-4070ti",
+    "api": "vllm",
+    "parallel_slots": 2
+  },
+  "am4-tool-5070": {
+    "host": "127.0.0.1",
+    "port": 18097,
+    "model_id": "am4-tool-5070",
+    "api": "vllm",
+    "parallel_slots": 2
+  }
+}

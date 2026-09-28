@@ -525,6 +525,78 @@ def probe_omen_swap(fetch: Optional[Callable] = None,
             "detail": "llama-swap resident: %s (others load on demand, ~8 s dio)"
                       % (", ".join(str(m) for m in resident) or "none")}
 
+AM4_FACADE_URL = os.environ.get("HEARTH_AM4_FACADE_URL", "http://10.44.0.2:8090")   # direct cable (ADR-0014)
+
+
+def _facade_ready(alias: str, token_env: str, timeout_s: float) -> tuple[Optional[dict], Optional[str]]:
+    """GET /oxen/ready?alias= on the AM4 facade with the rung's bearer. (payload, error)."""
+    import json as _json
+    import urllib.error
+    import urllib.request
+    token = os.environ.get(token_env, "")
+    if not token:
+        return None, "no %s in the environment" % token_env
+    req = urllib.request.Request("%s/oxen/ready?alias=%s" % (AM4_FACADE_URL, alias),
+                                 headers={"Authorization": "Bearer " + token})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+            return _json.loads(resp.read(65536)), None
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        return None, "%s: %s" % (type(exc).__name__, exc)
+
+
+def probe_oxen_alias(alias: str, token_env: str = "AM4_VLLM_TOKEN", timeout_s: float = OXEN_HTTP_TIMEOUT_S,
+                     ready: Callable[..., tuple[Optional[dict], Optional[str]]] = None) -> dict:
+    """Occupancy of one AM4 facade alias (2026-09-28, the tool-pair profile).
+
+    AM4 serves one PROFILE at a time (dense-tp2 = am4-dense-27b; tool-pair = am4-tool-4070ti and
+    am4-tool-5070), and a rung with no probe reads "available" whatever is live. So: the facade's
+    /oxen/ready for this alias decides. ready -> "available", unless HEARTH already has a job on
+    this provider -> "busy" (one slot per card). Not ready or unreachable -> "unknown": a tag route
+    skips, a pin still proceeds and fails loudly at the seat, which is the fail-open discipline of
+    this registry.
+    """
+    payload, error = (ready or _facade_ready)(alias, token_env, timeout_s)
+    if error is not None:
+        return {"occupancy": "unknown", "detail": {"alias": alias, "reason": error}}
+    rows = [r for r in (payload or {}).get("aliases") or [] if isinstance(r, dict) and r.get("alias") == alias]
+    row = rows[0] if rows else None
+    if not row or row.get("ready") is not True:
+        return {"occupancy": "unknown", "detail": {"alias": alias, "reason": "facade reports not ready",
+                                                    "status": (row or {}).get("status")}}
+    active, err = _hearth_active_jobs_for(alias)
+    detail = {"alias": alias, "ready": True, "model": row.get("model"), "hearth_active_jobs": active}
+    if err:
+        detail["jobs_reason"] = err
+    if active:
+        return {"occupancy": "busy", "detail": detail}
+    return {"occupancy": "available", "detail": detail}
+
+
+def _hearth_active_jobs_for(provider: str) -> tuple[Optional[int], Optional[str]]:
+    """Non-final HEARTH jobs whose dispatch named this provider (execution projection, read-only)."""
+    import json as _json
+    import sqlite3
+    root = os.environ.get("HEARTH_EXECUTION_DIR") or os.path.join(
+        os.environ.get("HEARTH_ROOT", os.path.expanduser("~/hearth-production")), "var", "execution")
+    path = os.path.join(root, "projection.sqlite")
+    try:
+        with sqlite3.connect("file:%s?mode=ro" % path, uri=True) as db:
+            rows = db.execute("SELECT state_json FROM jobs WHERE status NOT IN "
+                              "('succeeded','failed','cancelled','expired')").fetchall()
+    except Exception as exc:  # noqa: BLE001
+        return None, "projection unreadable: %s" % exc
+    n = 0
+    for (state_json,) in rows:
+        try:
+            state = _json.loads(state_json)
+        except ValueError:
+            continue
+        if state.get("provider") == provider or (state.get("desired") or {}).get("arguments", {}).get("backend") == provider:
+            n += 1
+    return n, None
+
+
 _PROBES: dict[str, Callable[[], dict]] = {
     "omen-arc": probe_omen_arc_slots,  # HTTP slot/KV goodput on the resident rung (ADR-0034)
     "omen-swap": probe_omen_swap,      # llama-swap /running behind the tenancy fence (ADR-0045)
@@ -532,6 +604,12 @@ _PROBES: dict[str, Callable[[], dict]] = {
     # am4-oxen / am4-moe probes removed 2026-08-21: those rungs are tombstones
     # (cards moved into OMEN); a probe that can only ever answer "unreachable"
     # is decoration, per this registry's own rule above.
+    # AM4 facade aliases (2026-09-28): one profile is live at a time, so each rung asks the
+    # facade whether ITS alias is ready. Without these, am4-vllm read "available" with its
+    # profile down and the tool rungs would have too.
+    "am4-vllm": lambda: probe_oxen_alias("am4-dense-27b"),
+    "am4-tool-4070ti": lambda: probe_oxen_alias("am4-tool-4070ti"),
+    "am4-tool-5070": lambda: probe_oxen_alias("am4-tool-5070"),
 }
 
 

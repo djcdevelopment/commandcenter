@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# am4-profile [dense-tp2|tool-pair|status] — switch AM4's serving profile. A profile is a mutually exclusive set of
+# units (Conflicts= enforces it); the facade alias map holds every alias of every profile and a dead alias simply
+# reads not-ready, so switching never touches the facade. Writes ~/.config/am4-fleet/profile so OMEN can read
+# which profile is live (readiness probe, sizing map) instead of inferring it.
+set -euo pipefail
+PROFILE_FILE="$HOME/.config/am4-fleet/profile"
+DENSE=(am4-vllm.service)
+TOOL=(am4-tool@4070ti.service am4-tool@5070.service)
+want=${1:-status}
+status() {
+  echo "profile: $(cat "$PROFILE_FILE" 2>/dev/null || echo unknown)"
+  for u in "${DENSE[@]}" "${TOOL[@]}"; do printf '  %-28s %s\n' "$u" "$(systemctl --user is-active "$u" 2>/dev/null || true)"; done
+}
+case "$want" in
+  status) status; exit 0 ;;
+  dense-tp2) stop=("${TOOL[@]}"); start=("${DENSE[@]}"); waits=() ;;
+  tool-pair) stop=("${DENSE[@]}"); start=("${TOOL[@]}"); waits=(4070ti 5070) ;;
+  *) echo "usage: am4-profile [dense-tp2|tool-pair|status]" >&2; exit 2 ;;
+esac
+echo "switching to $want at $(date -u +%FT%TZ)"
+systemctl --user daemon-reload
+for u in "${stop[@]}"; do systemctl --user stop "$u" || true; done
+for u in "${start[@]}"; do systemctl --user start "$u"; done
+if [[ ${#waits[@]} -gt 0 ]]; then
+  for s in "${waits[@]}"; do "$HOME/bin/wait-am4-seat.sh" "$s" "${AM4_PROFILE_WAIT_S:-900}"; done
+else
+  # the dense unit has no wait script of its own: poll its loopback port
+  start_t=$(date +%s)
+  until [ "$(curl -s -m 3 -o /dev/null -w '%{http_code}' http://127.0.0.1:18094/v1/models)" = 200 ]; do
+    [ $(( $(date +%s)-start_t )) -ge "${AM4_PROFILE_WAIT_S:-900}" ] && { echo "dense seat not up after ${AM4_PROFILE_WAIT_S:-900}s"; exit 3; }
+    sleep 3
+  done
+  echo "dense seat healthy after $(( $(date +%s)-start_t ))s"
+fi
+echo "$want" > "$PROFILE_FILE"
+status

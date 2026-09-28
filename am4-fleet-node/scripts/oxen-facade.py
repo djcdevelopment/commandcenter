@@ -127,8 +127,8 @@ def tokenize_alias(payload: dict, restricted_caller: bool = False) -> dict:
     if not isinstance(payload, dict):
         raise ValueError("request must be an object")
     alias = payload.get("model")
-    if restricted_caller and alias != "am4-dense-27b":
-        raise PermissionError("credential permits only am4-dense-27b")
+    if restricted_caller and alias not in fleet_aliases():
+        raise PermissionError("credential permits only " + ",".join(sorted(fleet_aliases())))
     if alias not in configured_aliases():
         raise LookupError("unknown model alias")
     backend = backend_for(alias)
@@ -258,6 +258,13 @@ def token() -> str:
 def hermes_token() -> str:
     path = env("AM4_HERMES_TOKEN_FILE", "")
     return Path(path).read_text().strip() if path and Path(path).is_file() else ""
+
+
+def fleet_aliases() -> set:
+    """Aliases a fleet/Hermes credential may use. Default keeps the original restriction (the dense
+    alias only); AM4_FLEET_ALIASES widens it, e.g. for the tool-pair profile (2026-09-28)."""
+    raw = env("AM4_FLEET_ALIASES", "am4-dense-27b")
+    return {a.strip() for a in raw.split(",") if a.strip()}
 
 
 def fleet_callers() -> dict:
@@ -453,8 +460,8 @@ class Handler(BaseHTTPRequestHandler):
             self.write_json(400, {"error": "request must be an object"})
             return
         alias = payload.get("model")
-        if self.hermes_caller and alias != "am4-dense-27b":
-            self.write_json(403, {"error": "Hermes credential permits only am4-dense-27b"})
+        if self.hermes_caller and alias not in fleet_aliases():
+            self.write_json(403, {"error": "fleet credential permits only " + ",".join(sorted(fleet_aliases()))})
             return
         if alias not in configured_aliases():
             self.write_json(404, {"error": f"unknown model alias '{alias}'", "known": configured_aliases()})

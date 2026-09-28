@@ -19,6 +19,8 @@ case "$want" in
   *) echo "usage: am4-profile [dense-tp2|tool-pair|status]" >&2; exit 2 ;;
 esac
 echo "switching to $want at $(date -u +%FT%TZ)"
+# a failed switch must not leave the old name in the profile file: OMEN reads it as truth
+trap 'rc=$?; [[ $rc -ne 0 ]] && echo "failed:$want" > "$PROFILE_FILE" && echo "profile file: failed:$want"; exit $rc' EXIT
 systemctl --user daemon-reload
 for u in "${stop[@]}"; do systemctl --user stop "$u" || true; done
 for u in "${start[@]}"; do systemctl --user start "$u"; done
@@ -34,4 +36,5 @@ else
   echo "dense seat healthy after $(( $(date +%s)-start_t ))s"
 fi
 echo "$want" > "$PROFILE_FILE"
+trap - EXIT
 status

@@ -393,3 +393,44 @@ class ToolLaneTests(unittest.TestCase):
         self.assertEqual(lane.brief_lane(mk("source: /x.py\nbackend: am4-tool-5070\n---\ngo")), "tool")
         self.assertEqual(lane.brief_lane(mk("source: /x.py\nbackend: omen-dense\n---\ngo")), "deepagents")
         self.assertEqual(lane.brief_lane(mk("source: /x.py\n---\ngo")), "deepagents")
+
+
+class Am4ProfileFollowsQueueTests(unittest.TestCase):
+    """T4 (2026-09-28): the tool-pair seats exist only under that AM4 profile, so the tick switches
+    AM4 to tool-pair when tool-lane briefs are queued and nothing else is in flight on AM4, and back
+    to dense-tp2 when the tool queue and tool slots are empty."""
+
+    def test_wanted_profile(self) -> None:
+        self.assertEqual(lane.am4_profile_wanted(2, [], "dense-tp2"), "tool-pair")
+        self.assertIsNone(lane.am4_profile_wanted(2, [], "tool-pair"))
+        self.assertIsNone(lane.am4_profile_wanted(2, [{"lane": "tool"}], "dense-tp2"))   # never mid-run
+        self.assertEqual(lane.am4_profile_wanted(0, [], "tool-pair"), "dense-tp2")
+        self.assertIsNone(lane.am4_profile_wanted(0, [{"lane": "tool"}], "tool-pair"))
+        self.assertIsNone(lane.am4_profile_wanted(0, [], "dense-tp2"))
+        self.assertIsNone(lane.am4_profile_wanted(2, [], None))   # unreadable profile: do nothing
+
+    def test_tick_switches_only_when_armed_and_records_it(self) -> None:
+        import json, tempfile
+        from pathlib import Path
+        from hearth.backlog.briefs import Brief
+        tool_brief = Brief(slug="c", title="t", body="source: /x.py\nbackend: am4-tool-4070ti\n---\ngo", builders=None,
+                           task_class="deepagents", est_tokens=None, requires=(), max_age_s=None, source="authored", source_ref="c.md")
+        with tempfile.TemporaryDirectory() as tmp:
+            arm = Path(tmp) / "arm.json"; arm.write_text(json.dumps({"armed": True, "scope": "authored", "in_flight": None}))
+            scan = lane.backlog_sources.SourceScan((tool_brief,), ())
+            with mock.patch.object(lane.drain, "default_arm_state_path", return_value=arm), \
+                 mock.patch.object(lane.drain, "run_tick", return_value={"reason": "no-candidates"}), \
+                 mock.patch.object(lane.drain, "_record_tick", return_value=None), \
+                 mock.patch.object(lane, "reconcile_slots", return_value=[]), \
+                 mock.patch.object(lane, "load_slots", return_value=[]), \
+                 mock.patch.object(lane, "candidate_exclusions", return_value=frozenset()), \
+                 mock.patch.object(lane, "am4_profile", return_value="dense-tp2"), \
+                 mock.patch.object(lane, "am4_switch", return_value={"target": "tool-pair", "rc": 0}) as switch, \
+                 mock.patch.object(lane.backlog_sources, "authored_source", return_value=scan), \
+                 mock.patch.object(lane.backlog_sources, "refined_source", return_value=lane.backlog_sources.SourceScan((), ())), \
+                 mock.patch.object(lane.backlog_sources, "candidate_source", return_value=lane.backlog_sources.SourceScan((), ())), \
+                 mock.patch.object(lane.backlog_select, "select_next", return_value=None):
+                report = lane.tick()
+        switch.assert_called_once_with("tool-pair")
+        self.assertEqual(report["am4_profile"]["tool_queued"], 1)
+        self.assertEqual(report["am4_profile"]["switch"]["target"], "tool-pair")

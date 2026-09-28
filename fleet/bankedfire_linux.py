@@ -607,6 +607,40 @@ def reconcile_slots(arm_path: Path) -> list[dict[str, Any]]:
     return reports
 
 
+# --- AM4 profile follows the queue (T4, 2026-09-28) --------------------------------------------
+# The tool-pair seats exist only while AM4 serves that profile, and the dense 27B only while it
+# serves the other one. The tick switches AM4 to tool-pair when tool-lane briefs are queued and
+# nothing else drain-owned is in flight on AM4, and back to dense-tp2 once the tool queue and the
+# tool slots are empty. Both switches go through am4-profile over the direct cable and are recorded
+# in the tick report; a failed switch leaves the profile file saying failed:<target>.
+AM4_SSH = "10.44.0.2"
+AM4_PROFILE_WAIT_S = 240
+
+
+def am4_profile() -> Optional[str]:
+    from fleet import deepagents_linux
+    return deepagents_linux.am4_profile()
+
+
+def am4_switch(target: str) -> dict[str, Any]:
+    try:
+        out = subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=6", AM4_SSH, f"~/bin/am4-profile {target}"],
+                             capture_output=True, text=True, timeout=AM4_PROFILE_WAIT_S + 30)
+        return {"target": target, "rc": out.returncode, "tail": (out.stdout + out.stderr)[-300:]}
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {"target": target, "rc": None, "error": f"{type(exc).__name__}: {exc}"}
+
+
+def am4_profile_wanted(tool_queued: int, slots: list[dict[str, Any]], live: Optional[str]) -> Optional[str]:
+    """The profile the queue wants, or None when nothing should change."""
+    tool_in_flight = any(r.get("lane") == "tool" for r in slots)
+    if tool_queued and live == "dense-tp2" and not tool_in_flight:
+        return "tool-pair"
+    if not tool_queued and not tool_in_flight and live == "tool-pair":
+        return "dense-tp2"
+    return None
+
+
 def tick() -> dict[str, Any]:
     """One Linux tick: reconcile drain-owned slots, then dispatch while lanes have room.
     Each dispatch is one drain.run_tick (its gates, its persist-first steps, its ledger row);
@@ -619,6 +653,17 @@ def tick() -> dict[str, Any]:
     excl = candidate_exclusions()
     report["excluded"] = sorted(excl); report["skipped"] = []
     ran_drain = 0
+    # AM4 profile follows the queue (see am4_profile_wanted)
+    try:
+        queued_scan = backlog_sources.authored_source(backlog_sources.DEFAULT_QUEUED_DIR)
+        tool_queued = sum(1 for b in queued_scan.briefs if brief_lane(b) == "tool")
+        live = am4_profile()
+        want = am4_profile_wanted(tool_queued, slots, live)
+        report["am4_profile"] = {"live": live, "tool_queued": tool_queued, "switch": None}
+        if want and drain.load_arm_state(arm_path).get("armed"):
+            report["am4_profile"]["switch"] = am4_switch(want)
+    except Exception as exc:  # noqa: BLE001 -- the profile step never blocks the OMEN lanes
+        report["am4_profile"] = {"error": f"{type(exc).__name__}: {exc}"}
     for _ in range(sum(caps.values()) + 1):
         state = drain.load_arm_state(arm_path)
         if not state.get("armed"):

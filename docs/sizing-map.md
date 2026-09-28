@@ -121,9 +121,11 @@ on AM4 (`am4-fleet-node/bin/`), which writes `~/.config/am4-fleet/profile`. `den
 prefills faster (2,920 vs 2,493 tok/s on the 14B reader). Each rung's occupancy asks the facade
 for its own alias (`probe_oxen_alias`): not ready reads `unknown`, so tag routes skip the profile
 that is not live; before this, `am4-vllm` read `available` whatever AM4 served. The readiness probe,
-the DeepAgents wrapper and this map read the profile file over the direct cable. The chore lap
-(six read/grep/summarize chores per card against an `omen-dense` control) decides whether the
-`tool_execution` family gets `tags = ["tool-use"]`; until then the tag lives on the rungs only.
+the DeepAgents wrapper and this map read the profile file over the direct cable. The chore lap (six
+read/grep/summarize chores per card against an `omen-dense` control) passed on the third try:
+6/6 on the Ti at a 10 s median once the runner normalised the 8B's citation spellings (the 27B
+control took 2/6 at 172 s), so `tool_execution` now routes by `tags = ["tool-use"]`. Per-card
+fits differ: the Ti holds 24,576, the 5070 only 16,384 (2.5 GiB of KV left at 0.93).
 
 ## What the checker enforces
 
@@ -146,14 +148,14 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
 | am4-tool@4070ti card | `GPU-dafbdbfc-23af-0c97-112d-dc17695c2aa8` | `repo/am4-fleet-node/config/seat-4070ti.env` | CUDA_VISIBLE_DEVICES | the one card this seat may use (UUID, ADR-0042) |  |
-| am4-tool@4070ti gpu_memory_utilization | `0.9` | `repo/am4-fleet-node/config/seat-4070ti.env` | vLLM | VRAM fraction on one card |  |
-| am4-tool@4070ti max_model_len | `32768` | `repo/am4-fleet-node/config/seat-4070ti.env` | vLLM | input + output tokens per request |  |
+| am4-tool@4070ti gpu_memory_utilization | `0.93` | `repo/am4-fleet-node/config/seat-4070ti.env` | vLLM | VRAM fraction on one card |  |
+| am4-tool@4070ti max_model_len | `24576` | `repo/am4-fleet-node/config/seat-4070ti.env` | vLLM | input + output tokens per request |  |
 | am4-tool@4070ti max_num_seqs | `2` | `repo/am4-fleet-node/config/seat-4070ti.env` | vLLM scheduler | concurrent sequences |  |
 | am4-tool@4070ti served model | `am4-tool-4070ti` | `repo/am4-fleet-node/config/seat-4070ti.env` | facade alias | which alias answers |  |
 | am4-tool@4070ti tool / reasoning parser | `hermes / qwen3` | `repo/am4-fleet-node/config/seat-4070ti.env` | vLLM | native tool-call parsing |  |
 | am4-tool@5070 card | `GPU-a1f65cc0-44d9-7854-6785-7d93e686da2f` | `repo/am4-fleet-node/config/seat-5070.env` | CUDA_VISIBLE_DEVICES | the one card this seat may use (UUID, ADR-0042) |  |
-| am4-tool@5070 gpu_memory_utilization | `0.9` | `repo/am4-fleet-node/config/seat-5070.env` | vLLM | VRAM fraction on one card |  |
-| am4-tool@5070 max_model_len | `32768` | `repo/am4-fleet-node/config/seat-5070.env` | vLLM | input + output tokens per request |  |
+| am4-tool@5070 gpu_memory_utilization | `0.93` | `repo/am4-fleet-node/config/seat-5070.env` | vLLM | VRAM fraction on one card |  |
+| am4-tool@5070 max_model_len | `16384` | `repo/am4-fleet-node/config/seat-5070.env` | vLLM | input + output tokens per request |  |
 | am4-tool@5070 max_num_seqs | `2` | `repo/am4-fleet-node/config/seat-5070.env` | vLLM scheduler | concurrent sequences |  |
 | am4-tool@5070 served model | `am4-tool-5070` | `repo/am4-fleet-node/config/seat-5070.env` | facade alias | which alias answers |  |
 | am4-tool@5070 tool / reasoning parser | `hermes / qwen3` | `repo/am4-fleet-node/config/seat-5070.env` | vLLM | native tool-call parsing |  |
@@ -188,13 +190,13 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| BANKEDFIRE_SLOTS default | `fast=3,deep=1,experiment=1,deepagents=1` | `repo/fleet/bankedfire_linux.py:71` | bankedfire_linux.tick | unattended in-flight work per lane | env now: fast=3,deep=1,experiment=1,deepagents=1 |
+| BANKEDFIRE_SLOTS default | `fast=3,deep=1,experiment=1,deepagents=1,tool=2` | `repo/fleet/bankedfire_linux.py:71` | bankedfire_linux.tick | unattended in-flight work per lane | env now: fast=3,deep=1,experiment=1,deepagents=1,tool=2 |
 | PRESENCE idle minutes | `20` | `repo/fleet/presence_linux.py:30` | presence.report | away threshold | env now: 20 |
-| brief deadline_s default | `2400` | `repo/fleet/bankedfire_linux.py:213` | submit_args_from_brief | local-work job deadline |  |
-| door MCP client timeout (s) | `300` | `repo/fleet/bankedfire_linux.py:131` | call_tool | submit / status calls |  |
-| proofing max_tokens / deadline_s | `6144 / 2400` | `repo/fleet/bankedfire_linux.py:364` | proofing_args_from_brief | proposal output / deadline |  |
-| skip backoff (days) | `7` | `repo/fleet/bankedfire_linux.py:310` | candidate_exclusions | failed candidate retry |  |
-| systemd-run launch timeout (s) | `30` | `repo/fleet/bankedfire_linux.py:265` | experiment / deepagents launch | — |  |
+| brief deadline_s default | `2400` | `repo/fleet/bankedfire_linux.py:221` | submit_args_from_brief | local-work job deadline |  |
+| door MCP client timeout (s) | `300` | `repo/fleet/bankedfire_linux.py:139` | call_tool | submit / status calls |  |
+| proofing max_tokens / deadline_s | `6144 / 2400` | `repo/fleet/bankedfire_linux.py:372` | proofing_args_from_brief | proposal output / deadline |  |
+| skip backoff (days) | `7` | `repo/fleet/bankedfire_linux.py:318` | candidate_exclusions | failed candidate retry |  |
+| systemd-run launch timeout (s) | `30` | `repo/fleet/bankedfire_linux.py:273` | experiment / deepagents launch | — |  |
 | tick interval | `30min` | `~/.config/systemd/user/bankedfire-drain.timer` | systemd | how often the night loop looks |  |
 
 ### execution
@@ -216,21 +218,21 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| family chart_diagram | `gemini-3.5-flash` | `~/hearth-production/routing-families-linux.toml:129` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
+| family chart_diagram | `gemini-3.5-flash` | `~/hearth-production/routing-families-linux.toml:134` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family classification | `qwen3-30b-a3b; >= 8192 prompt tokens -> qwen3.8-27b` | `~/hearth-production/routing-families-linux.toml:83` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
-| family code_fix | `qwen3.8-27b; tags ['agent']` | `~/hearth-production/routing-families-linux.toml:157` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
-| family code_review | `qwen3.8-27b; tags ['quality']` | `~/hearth-production/routing-families-linux.toml:164` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
-| family default | `qwen3-30b-a3b; >= 8192 prompt tokens -> qwen3.8-27b` | `~/hearth-production/routing-families-linux.toml:144` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
-| family document_ocr | `gemini-3.5-flash` | `~/hearth-production/routing-families-linux.toml:124` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
+| family code_fix | `qwen3.8-27b; tags ['agent']` | `~/hearth-production/routing-families-linux.toml:162` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
+| family code_review | `qwen3.8-27b; tags ['quality']` | `~/hearth-production/routing-families-linux.toml:169` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
+| family default | `qwen3-30b-a3b; >= 8192 prompt tokens -> qwen3.8-27b` | `~/hearth-production/routing-families-linux.toml:149` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
+| family document_ocr | `gemini-3.5-flash` | `~/hearth-production/routing-families-linux.toml:129` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family drafting | `qwen3-30b-a3b; >= 8192 prompt tokens -> qwen3.8-27b` | `~/hearth-production/routing-families-linux.toml:92` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family extraction | `qwen3-30b-a3b; >= 8192 prompt tokens -> qwen3.8-27b` | `~/hearth-production/routing-families-linux.toml:74` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
-| family long_review | `qwen3.8-27b; >= 8192 -> qwen3.8-27b else qwen3-30b-a3b; tags ['dense']` | `~/hearth-production/routing-families-linux.toml:171` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
+| family long_review | `qwen3.8-27b; >= 8192 -> qwen3.8-27b else qwen3-30b-a3b; tags ['dense']` | `~/hearth-production/routing-families-linux.toml:176` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family quote_retrieval | `qwen3.8-27b; >= 4096 -> qwen3.8-27b else qwen3-30b-a3b` | `~/hearth-production/routing-families-linux.toml:50` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family reasoning_planning | `qwen3-30b-a3b; >= 8192 prompt tokens -> qwen3.8-27b` | `~/hearth-production/routing-families-linux.toml:101` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
-| family screenshot_grounded | `gemini-3.5-flash` | `~/hearth-production/routing-families-linux.toml:134` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
+| family screenshot_grounded | `gemini-3.5-flash` | `~/hearth-production/routing-families-linux.toml:139` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family summarization | `qwen3-30b-a3b; >= 8192 prompt tokens -> qwen3.8-27b` | `~/hearth-production/routing-families-linux.toml:65` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
-| family tool_execution | `qwen3-30b-a3b; >= 8192 prompt tokens -> qwen3.8-27b` | `~/hearth-production/routing-families-linux.toml:110` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
-| family utility_text | `qwen2.5-coder-7b; tags ['utility']` | `~/hearth-production/routing-families-linux.toml:180` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
+| family tool_execution | `am4-tool-4070ti; tags ['tool-use']` | `~/hearth-production/routing-families-linux.toml:117` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
+| family utility_text | `qwen2.5-coder-7b; tags ['utility']` | `~/hearth-production/routing-families-linux.toml:185` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 
 ### local-work
 
@@ -291,14 +293,14 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| am4-tool-4070ti context_bytes | `114688` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
-| am4-tool-4070ti context_tokens | `32768` | `~/hearth-production/backends-linux.toml:17` | backends pool | input + output tokens the seat holds |  |
+| am4-tool-4070ti context_bytes | `86016` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
+| am4-tool-4070ti context_tokens | `24576` | `~/hearth-production/backends-linux.toml:17` | backends pool | input + output tokens the seat holds |  |
 | am4-tool-4070ti endpoint | `http://10.44.0.2:8090` | `~/hearth-production/backends-linux.toml:92` | door | which router port |  |
 | am4-tool-4070ti max_tokens | `4096` | `~/hearth-production/backends-linux.toml:19` | backends pool | default output budget = the reserve local-work subtracts |  |
 | am4-tool-4070ti parallel_slots | `1` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |
 | am4-tool-4070ti timeout_s | `600` | `~/hearth-production/backends-linux.toml:20` | backends pool | HTTP timeout when the caller sets none (execution path always overrides) |  |
-| am4-tool-5070 context_bytes | `114688` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
-| am4-tool-5070 context_tokens | `32768` | `~/hearth-production/backends-linux.toml:17` | backends pool | input + output tokens the seat holds |  |
+| am4-tool-5070 context_bytes | `57344` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
+| am4-tool-5070 context_tokens | `16384` | `~/hearth-production/backends-linux.toml:17` | backends pool | input + output tokens the seat holds |  |
 | am4-tool-5070 endpoint | `http://10.44.0.2:8090` | `~/hearth-production/backends-linux.toml:112` | door | which router port |  |
 | am4-tool-5070 max_tokens | `4096` | `~/hearth-production/backends-linux.toml:19` | backends pool | default output budget = the reserve local-work subtracts |  |
 | am4-tool-5070 parallel_slots | `1` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |
@@ -334,19 +336,19 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| ROUTES.am4-tool-4070ti.context | `32768` | `~/work/deepagents-linux/run_linux_delivery.py:39` | AccountedTransport context check, summarization trigger | prompt + output + 32 <= context |  |
-| ROUTES.am4-tool-5070.context | `32768` | `~/work/deepagents-linux/run_linux_delivery.py:42` | AccountedTransport context check, summarization trigger | prompt + output + 32 <= context |  |
-| ROUTES.am4.context | `16384` | `~/work/deepagents-linux/run_linux_delivery.py:31` | AccountedTransport context check, summarization trigger | prompt + output + 32 <= context |  |
-| ROUTES.omen-dense.context | `65536` | `~/work/deepagents-linux/run_linux_delivery.py:34` | AccountedTransport context check, summarization trigger | prompt + output + 32 <= context |  |
-| ROUTES.omen.context | `40960` | `~/work/deepagents-linux/run_linux_delivery.py:28` | AccountedTransport context check, summarization trigger | prompt + output + 32 <= context |  |
+| ROUTES.am4-tool-4070ti.context | `24576` | `~/work/deepagents-linux/run_linux_delivery.py:56` | AccountedTransport context check, summarization trigger | prompt + output + 32 <= context |  |
+| ROUTES.am4-tool-5070.context | `16384` | `~/work/deepagents-linux/run_linux_delivery.py:59` | AccountedTransport context check, summarization trigger | prompt + output + 32 <= context |  |
+| ROUTES.am4.context | `16384` | `~/work/deepagents-linux/run_linux_delivery.py:48` | AccountedTransport context check, summarization trigger | prompt + output + 32 <= context |  |
+| ROUTES.omen-dense.context | `65536` | `~/work/deepagents-linux/run_linux_delivery.py:51` | AccountedTransport context check, summarization trigger | prompt + output + 32 <= context |  |
+| ROUTES.omen.context | `40960` | `~/work/deepagents-linux/run_linux_delivery.py:45` | AccountedTransport context check, summarization trigger | prompt + output + 32 <= context |  |
 | RequestBudget deadline (s) | `1800` | `~/work/deepagents-linux/run_linux_delivery.py:22` | AccountedTransport | run wall clock |  |
 | RequestBudget default limit | `32` | `~/work/deepagents-linux/poc/accounted_transport.py:79` | any caller that omits limit | attempts |  |
-| RequestBudget limit (attempts) | `max(24, min(64, 24 + source_lines // 25))` | `~/work/deepagents-linux/run_linux_delivery.py:140` | AccountedTransport.dispatch | physical inference calls per run | scaled by source lines since 2026-09-28 |
+| RequestBudget limit (attempts) | `max(24, min(64, 24 + source_lines // 25))` | `~/work/deepagents-linux/run_linux_delivery.py:185` | AccountedTransport.dispatch | physical inference calls per run | scaled by source lines since 2026-09-28 |
 | default --backend | `omen-dense` | `~/work/deepagents-linux/run_linux_delivery.py` | CLI | route when the wrapper passes none |  |
-| httpx / PinnedChat timeout (s) | `900` | `~/work/deepagents-linux/run_linux_delivery.py:196` | per request | — |  |
-| output_limit report / code | `6144 / 4096` | `~/work/deepagents-linux/run_linux_delivery.py:134` | PinnedChat max_tokens | output tokens per model call |  |
+| httpx / PinnedChat timeout (s) | `900` | `~/work/deepagents-linux/run_linux_delivery.py:241` | per request | — |  |
+| output_limit report / code | `6144 / 4096` | `~/work/deepagents-linux/run_linux_delivery.py:179` | PinnedChat max_tokens | output tokens per model call |  |
 | recursion_limit | `96` | `~/work/deepagents-linux/run_linux_delivery.py:23` | LangGraph invoke | graph supersteps (~2 per model turn) |  |
-| tool_token_limit_before_evict | `8192` | `~/work/deepagents-linux/run_linux_delivery.py:141` | EvictingFilesystem | tool result size before it is moved to /large_tool_results (4 chars/token) | = max(2048, context // 8) on the dense route |
+| tool_token_limit_before_evict | `8192` | `~/work/deepagents-linux/run_linux_delivery.py:186` | EvictingFilesystem | tool result size before it is moved to /large_tool_results (4 chars/token) | = max(2048, context // 8) on the dense route |
 | transport output guard | `reads max_completion_tokens\|max_tokens\|n_predict\|stream; requires 0 < output <= OUTPUT_GUARD_MAX=16384` | `~/work/deepagents-linux/poc/accounted_transport.py:133` | handle_request | output cap per call |  |
 
 ### scheduler

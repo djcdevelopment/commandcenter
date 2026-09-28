@@ -123,9 +123,9 @@ notes = "Agentic tool-use route using DeepAgents with scoped filesystem tools ag
 # door itself (ADR-0048: candidates only; verdicts stay with the frontier/human).
 [[loop.implementation]]
 id = "am4_tool_pair"
-status = "BUILT NOT DEPLOYED"
+status = "LIVE"
 entrypoint = "am4: am4-profile tool-pair -> am4-tool@4070ti.service + am4-tool@5070.service (Qwen3-8B-AWQ, 32,768 window, hermes tool parser) -> facade aliases am4-tool-4070ti / am4-tool-5070 -> HEARTH rungs of the same names, tag tool-use; DeepAgents routes am4-tool-4070ti / am4-tool-5070"
-last_evidence = "2026-09-28: units, seat envs, scripts and alias entries installed on AM4 (am4-fleet-node/bin, systemd, config); not yet started: AM4 needs a reboot for the 595.84/595.91 driver mismatch; the chore lap decides promotion"
+last_evidence = "2026-09-28 02:28Z: profile switched both ways under receipts after the reboot; chore lap 3 on am4-tool-4070ti 6/6 at a 10 s median (control omen-dense 2/6 at 172 s); family tool_execution -> tags [tool-use]; promoted LIVE (recorded decision, this row). The profile is switched by the drain when tool briefs are queued, or by hand."
 notes = "Profile, not replacement: Conflicts= keeps dense-tp2 and tool-pair mutually exclusive; ~/.config/am4-fleet/profile names the live one and the readiness probe, occupancy probe and sizing map read it."
 
 [[loop]]

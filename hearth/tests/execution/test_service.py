@@ -75,6 +75,7 @@ class _ServiceFixture(unittest.TestCase):
             os.environ, {"HEARTH_BACKENDS": str(self.backends_path)}
         )
         self.environment.start()
+        os.environ.pop("HEARTH_SIZER", None)   # ADR-0050: a host gate; the service under test is unsized
         self.services: list[ExecutionService] = []
         self.principal = {
             "type": "irc_account",

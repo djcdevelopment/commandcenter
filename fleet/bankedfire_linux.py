@@ -112,7 +112,7 @@ def brief_lane(brief) -> str:
             fields, _ = parse_local_work_block_lenient(brief.body)
         except Exception:  # noqa: BLE001
             fields = {}
-        if str(fields.get("backend", "")).startswith("am4-tool-"):
+        if str(fields.get("backend", "")).startswith("am4-tool"):   # a seat, or "am4-tool" = the sizer picks one
             return "tool"
         return "deepagents"
     if brief.task_class == PROOFING_TASK_CLASS:
@@ -280,17 +280,47 @@ def submit_experiment(body: str, hint: str) -> dict[str, Any]:
             "result_path": str(spec_dir / "state.json"), "unit": f"hearth-experiment-{exp_id}"}
 
 
+SIZED_TOOL_BACKEND = "am4-tool"   # brief `backend: am4-tool` -> the sizer picks the seat (ADR-0050)
+TOOL_SEAT_SHORT = "am4-tool-4070ti"   # prefill seat: short answers, volume
+TOOL_SEAT_LONG = "am4-tool-5070"      # decode seat: l/xl answers
+
+
+def size_tool_seat(intent: str, source: str, max_report_words: Optional[int] = None) -> tuple[str, dict[str, Any]]:
+    """(seat, sizer answer) for a tool chore: the 5070 when the sizer refines tool_execution to
+    tool_long_output (bins l/xl), else the 4070 Ti. Always sizes (heuristic at minimum) because the
+    brief asked for it by naming `am4-tool`; HEARTH_SIZER=npu upgrades the sizer, never disables it."""
+    from hearth.sizer import size_request, sizer_mode
+    try:
+        size = Path(source).stat().st_size
+    except OSError:
+        size = 0
+    text = intent if not max_report_words else f"max_report_words: {max_report_words}\n{intent}"
+    mode = sizer_mode()
+    answer = size_request(text, files=[{"path": source, "bytes": size}], payload_bytes=size + len(intent.encode("utf-8")),
+                          task_family="tool_execution", mode=mode if mode != "off" else "heuristic") or {}
+    seat = TOOL_SEAT_LONG if answer.get("task_family") == "tool_long_output" else TOOL_SEAT_SHORT
+    return seat, answer
+
+
 def deepagents_spec_from_brief(body: str, run_id: str) -> dict[str, Any]:
     fields, intent = parse_local_work_block_lenient(body)
     if not fields.get("source"):
         raise ValueError("deepagents brief lacks 'source' (the one file the agent may read/edit)")
     if not intent:
         raise ValueError("deepagents brief has no task after the '---' line")
-    return {"id": run_id, "source": fields["source"], "task": intent,
-            "backend": fields.get("backend", "omen-dense"),
+    max_words = int(fields["max_report_words"]) if fields.get("max_report_words") else None
+    backend = fields.get("backend", "omen-dense")
+    spec = {"id": run_id, "source": fields["source"], "task": intent,
+            "backend": backend,
             "report": str(fields.get("report", "false")).lower() in ("1", "true", "yes"),
-            "max_report_words": int(fields["max_report_words"]) if fields.get("max_report_words") else None,
+            "max_report_words": max_words,
             "work": fields.get("work")}
+    if backend == SIZED_TOOL_BACKEND:
+        seat, answer = size_tool_seat(intent, fields["source"], max_words)
+        spec["backend"] = seat
+        spec["backend_requested"] = backend
+        spec["sizer"] = answer
+    return spec
 
 
 def submit_deepagents(body: str, hint: str) -> dict[str, Any]:

@@ -127,6 +127,27 @@ read/grep/summarize chores per card against an `omen-dense` control) passed on t
 control took 2/6 at 172 s), so `tool_execution` now routes by `tags = ["tool-use"]`. Per-card
 fits differ: the Ti holds 24,576, the 5070 only 16,384 (2.5 GiB of KV left at 0.93).
 
+## The request sizer (ADR-0050, 2026-09-28)
+
+Every size above is declared by a human; none of them predicts what one call will *write*. The
+ledger says outputs are about a tenth of inputs (p50 77 tokens, p90 279, p99 604 against p50 2.9 KB /
+p90 32 KB in), so a default reserve of 4,096-8,192 over-reserves almost every call, and the one
+quantity that decides which AM4 tool seat should take a chore (decode-bound long answers to the 5070
+at 110 tok/s, prefill-heavy short ones to the Ti at 4,379 tok/s prefill) was read by nothing.
+`hearth.sizer` closes that gap under the host gate `HEARTH_SIZER=off|heuristic|npu` (default off,
+every route byte-identical). It bins the expected output (xs < 128, s < 384, m < 1,024, l < 2,048,
+xl >= 2,048 tokens, reserving the bin's *edge*) from an explicit budget in the text, then a tiny-answer
+phrase, then the instruction's verb class scaled by input depth, then the declared family's ledger
+median. It feeds **admission only** (the reserve `select_backend` checks when the caller named no
+`max_tokens`) and refines a declared `tool_execution` to `tool_long_output` (tag `tool-long`, on the
+5070 alone) for l/xl; it never sets a generation budget and never invents a family for a call that
+named none. `routed_by` carries `sizer:<source>:<bin>:` inside the family prefix; execution rows carry
+`observed.sizer`. Replay over 1,034 ledger prompts (`tools/sizer/replay.py`): 87.7 % exact bin,
+98.2 % within one bin, 0 false long predictions, 0.2 ms. The execution lane's admission now also sees
+the job's own `policy.max_tokens`, which it never did before. The NPU encoder (MiniLM-L6 on the Arrow
+Lake NPU behind `127.0.0.1:8797`, 30 ms client timeout, heuristic fallback) is the `npu` mode and is
+built in laps N1-N3 only if it beats the heuristic on an out-of-campaign set.
+
 ## What the checker enforces
 
 Each invariant below cites the observation that earned it. A violation is a fact about the
@@ -138,10 +159,10 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| am4 profile | `dense-tp2` | `am4:~/.config/am4-fleet/profile` | readiness probe, occupancy probes, DeepAgents wrapper | which alias set is live |  |
-| facade alias am4-dense-27b ready | `True` | `http://10.44.0.2:8090/oxen/ready?alias=am4-dense-27b` | HEARTH rung occupancy | live readiness of the alias |  |
-| facade alias am4-tool-4070ti ready | `unavailable: HTTPError` | — | — | — |  |
-| facade alias am4-tool-5070 ready | `unavailable: HTTPError` | — | — | — |  |
+| am4 profile | `tool-pair` | `am4:~/.config/am4-fleet/profile` | readiness probe, occupancy probes, DeepAgents wrapper | which alias set is live |  |
+| facade alias am4-dense-27b ready | `unavailable: HTTPError` | — | — | — |  |
+| facade alias am4-tool-4070ti ready | `True` | `http://10.44.0.2:8090/oxen/ready?alias=am4-tool-4070ti` | HEARTH rung occupancy | live readiness of the alias |  |
+| facade alias am4-tool-5070 ready | `True` | `http://10.44.0.2:8090/oxen/ready?alias=am4-tool-5070` | HEARTH rung occupancy | live readiness of the alias |  |
 
 ### am4-seat
 
@@ -150,7 +171,7 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | am4-tool@4070ti card | `GPU-dafbdbfc-23af-0c97-112d-dc17695c2aa8` | `repo/am4-fleet-node/config/seat-4070ti.env` | CUDA_VISIBLE_DEVICES | the one card this seat may use (UUID, ADR-0042) |  |
 | am4-tool@4070ti gpu_memory_utilization | `0.93` | `repo/am4-fleet-node/config/seat-4070ti.env` | vLLM | VRAM fraction on one card |  |
 | am4-tool@4070ti max_model_len | `24576` | `repo/am4-fleet-node/config/seat-4070ti.env` | vLLM | input + output tokens per request |  |
-| am4-tool@4070ti max_num_seqs | `2` | `repo/am4-fleet-node/config/seat-4070ti.env` | vLLM scheduler | concurrent sequences |  |
+| am4-tool@4070ti max_num_seqs | `4` | `repo/am4-fleet-node/config/seat-4070ti.env` | vLLM scheduler | concurrent sequences |  |
 | am4-tool@4070ti served model | `am4-tool-4070ti` | `repo/am4-fleet-node/config/seat-4070ti.env` | facade alias | which alias answers |  |
 | am4-tool@4070ti tool / reasoning parser | `hermes / qwen3` | `repo/am4-fleet-node/config/seat-4070ti.env` | vLLM | native tool-call parsing |  |
 | am4-tool@5070 card | `GPU-a1f65cc0-44d9-7854-6785-7d93e686da2f` | `repo/am4-fleet-node/config/seat-5070.env` | CUDA_VISIBLE_DEVICES | the one card this seat may use (UUID, ADR-0042) |  |
@@ -179,11 +200,11 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| family depth estimate | `payload_bytes // 4` | `repo/hearth/toolsurface/inference.py:710` | families.recommend | prompt_tokens for depth rules |  |
-| files= per-file / total cap (bytes) | `256 * 1024 / 1024 * 1024` | `repo/hearth/toolsurface/inference.py:61` | _pack_files | packed file bytes | unreachable on Linux: every rung's context_bytes is smaller |
+| family depth estimate | `payload_bytes // 4` | `repo/hearth/toolsurface/inference.py:712` | families.recommend | prompt_tokens for depth rules |  |
+| files= per-file / total cap (bytes) | `256 * 1024 / 1024 * 1024` | `repo/hearth/toolsurface/inference.py:62` | _pack_files | packed file bytes | unreachable on Linux: every rung's context_bytes is smaller |
 | gateway tool dispatch | `threaded (asyncio.to_thread per call)` | `~/.config/systemd/user/hearth-production.service` | FastMCP | how many door calls run at once | measured 2026-09-28: 8 parallel 5 s calls took 45 s serialized, 12 s threaded |
-| local_generate DEFAULT_TIMEOUT_S | `1000` | `repo/hearth/toolsurface/inference.py:56` | local_generate | HTTP timeout when neither caller nor rung says | never used on the execution path: it passes deadline - now |
-| local_generate default max_tokens (no rung value) | `1024` | `repo/hearth/toolsurface/inference.py:680` | local_generate | output when neither caller nor rung says |  |
+| local_generate DEFAULT_TIMEOUT_S | `1000` | `repo/hearth/toolsurface/inference.py:57` | local_generate | HTTP timeout when neither caller nor rung says | never used on the execution path: it passes deadline - now |
+| local_generate default max_tokens (no rung value) | `1024` | `repo/hearth/toolsurface/inference.py:698` | local_generate | output when neither caller nor rung says |  |
 | payload admission rule (pin and tag route) | `payload_bytes <= context_bytes AND payload_bytes // 4 + max_tokens <= context_tokens` | `repo/hearth/toolsurface/backends.py:320` | select_backend | admission | reserve = caller max_tokens else the rung's |
 
 ### drain
@@ -194,8 +215,8 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | PRESENCE idle minutes | `20` | `repo/fleet/presence_linux.py:30` | presence.report | away threshold | env now: 20 |
 | brief deadline_s default | `2400` | `repo/fleet/bankedfire_linux.py:221` | submit_args_from_brief | local-work job deadline |  |
 | door MCP client timeout (s) | `300` | `repo/fleet/bankedfire_linux.py:139` | call_tool | submit / status calls |  |
-| proofing max_tokens / deadline_s | `6144 / 2400` | `repo/fleet/bankedfire_linux.py:372` | proofing_args_from_brief | proposal output / deadline |  |
-| skip backoff (days) | `7` | `repo/fleet/bankedfire_linux.py:318` | candidate_exclusions | failed candidate retry |  |
+| proofing max_tokens / deadline_s | `6144 / 2400` | `repo/fleet/bankedfire_linux.py:402` | proofing_args_from_brief | proposal output / deadline |  |
+| skip backoff (days) | `7` | `repo/fleet/bankedfire_linux.py:348` | candidate_exclusions | failed candidate retry |  |
 | systemd-run launch timeout (s) | `30` | `repo/fleet/bankedfire_linux.py:273` | experiment / deepagents launch | — |  |
 | tick interval | `30min` | `~/.config/systemd/user/bankedfire-drain.timer` | systemd | how often the night loop looks |  |
 
@@ -203,9 +224,9 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| parallel_slots clamp | `1..128` | `repo/hearth/execution/service.py:723` | lease limit | per-rung concurrency |  |
-| provider HTTP timeout | `max(1, deadline - now)` | `repo/hearth/execution/service.py:832` | _run_job | the '1199' | queue wait counts against the deadline |
-| workers / max_pending | `16 / 256` | `repo/hearth/execution/service.py:119` | executor | concurrent jobs / queue depth |  |
+| parallel_slots clamp | `1..128` | `repo/hearth/execution/service.py:762` | lease limit | per-rung concurrency |  |
+| provider HTTP timeout | `max(1, deadline - now)` | `repo/hearth/execution/service.py:880` | _run_job | the '1199' | queue wait counts against the deadline |
+| workers / max_pending | `16 / 256` | `repo/hearth/execution/service.py:124` | executor | concurrent jobs / queue depth |  |
 
 ### experiment
 
@@ -218,21 +239,22 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| family chart_diagram | `gemini-3.5-flash` | `~/hearth-production/routing-families-linux.toml:134` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
+| family chart_diagram | `gemini-3.5-flash` | `~/hearth-production/routing-families-linux.toml:146` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family classification | `qwen3-30b-a3b; >= 8192 prompt tokens -> qwen3.8-27b` | `~/hearth-production/routing-families-linux.toml:83` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
-| family code_fix | `qwen3.8-27b; tags ['agent']` | `~/hearth-production/routing-families-linux.toml:162` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
-| family code_review | `qwen3.8-27b; tags ['quality']` | `~/hearth-production/routing-families-linux.toml:169` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
-| family default | `qwen3-30b-a3b; >= 8192 prompt tokens -> qwen3.8-27b` | `~/hearth-production/routing-families-linux.toml:149` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
-| family document_ocr | `gemini-3.5-flash` | `~/hearth-production/routing-families-linux.toml:129` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
+| family code_fix | `qwen3.8-27b; tags ['agent']` | `~/hearth-production/routing-families-linux.toml:174` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
+| family code_review | `qwen3.8-27b; tags ['quality']` | `~/hearth-production/routing-families-linux.toml:181` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
+| family default | `qwen3-30b-a3b; >= 8192 prompt tokens -> qwen3.8-27b` | `~/hearth-production/routing-families-linux.toml:161` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
+| family document_ocr | `gemini-3.5-flash` | `~/hearth-production/routing-families-linux.toml:141` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family drafting | `qwen3-30b-a3b; >= 8192 prompt tokens -> qwen3.8-27b` | `~/hearth-production/routing-families-linux.toml:92` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family extraction | `qwen3-30b-a3b; >= 8192 prompt tokens -> qwen3.8-27b` | `~/hearth-production/routing-families-linux.toml:74` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
-| family long_review | `qwen3.8-27b; >= 8192 -> qwen3.8-27b else qwen3-30b-a3b; tags ['dense']` | `~/hearth-production/routing-families-linux.toml:176` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
+| family long_review | `qwen3.8-27b; >= 8192 -> qwen3.8-27b else qwen3-30b-a3b; tags ['dense']` | `~/hearth-production/routing-families-linux.toml:188` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family quote_retrieval | `qwen3.8-27b; >= 4096 -> qwen3.8-27b else qwen3-30b-a3b` | `~/hearth-production/routing-families-linux.toml:50` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family reasoning_planning | `qwen3-30b-a3b; >= 8192 prompt tokens -> qwen3.8-27b` | `~/hearth-production/routing-families-linux.toml:101` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
-| family screenshot_grounded | `gemini-3.5-flash` | `~/hearth-production/routing-families-linux.toml:139` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
+| family screenshot_grounded | `gemini-3.5-flash` | `~/hearth-production/routing-families-linux.toml:151` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family summarization | `qwen3-30b-a3b; >= 8192 prompt tokens -> qwen3.8-27b` | `~/hearth-production/routing-families-linux.toml:65` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family tool_execution | `am4-tool-4070ti; tags ['tool-use']` | `~/hearth-production/routing-families-linux.toml:117` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
-| family utility_text | `qwen2.5-coder-7b; tags ['utility']` | `~/hearth-production/routing-families-linux.toml:185` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
+| family tool_long_output | `am4-tool-5070; tags ['tool-long']` | `~/hearth-production/routing-families-linux.toml:129` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
+| family utility_text | `qwen2.5-coder-7b; tags ['utility']` | `~/hearth-production/routing-families-linux.toml:197` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 
 ### local-work
 
@@ -297,12 +319,12 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | am4-tool-4070ti context_tokens | `24576` | `~/hearth-production/backends-linux.toml:17` | backends pool | input + output tokens the seat holds |  |
 | am4-tool-4070ti endpoint | `http://10.44.0.2:8090` | `~/hearth-production/backends-linux.toml:92` | door | which router port |  |
 | am4-tool-4070ti max_tokens | `4096` | `~/hearth-production/backends-linux.toml:19` | backends pool | default output budget = the reserve local-work subtracts |  |
-| am4-tool-4070ti parallel_slots | `1` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |
+| am4-tool-4070ti parallel_slots | `2` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |
 | am4-tool-4070ti timeout_s | `600` | `~/hearth-production/backends-linux.toml:20` | backends pool | HTTP timeout when the caller sets none (execution path always overrides) |  |
 | am4-tool-5070 context_bytes | `57344` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
 | am4-tool-5070 context_tokens | `16384` | `~/hearth-production/backends-linux.toml:17` | backends pool | input + output tokens the seat holds |  |
 | am4-tool-5070 endpoint | `http://10.44.0.2:8090` | `~/hearth-production/backends-linux.toml:112` | door | which router port |  |
-| am4-tool-5070 max_tokens | `4096` | `~/hearth-production/backends-linux.toml:19` | backends pool | default output budget = the reserve local-work subtracts |  |
+| am4-tool-5070 max_tokens | `6144` | `~/hearth-production/backends-linux.toml:19` | backends pool | default output budget = the reserve local-work subtracts |  |
 | am4-tool-5070 parallel_slots | `1` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |
 | am4-tool-5070 timeout_s | `600` | `~/hearth-production/backends-linux.toml:20` | backends pool | HTTP timeout when the caller sets none (execution path always overrides) |  |
 | am4-vllm context_bytes | `57344` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
@@ -391,6 +413,16 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | omen-vllm@1 cache_dtype | `auto` | `http://127.0.0.1:18092/metrics cache_config_info` | vLLM | block / dtype |  |
 | omen-vllm@1 kv_cache_max_concurrency | `3.26` | `http://127.0.0.1:18092/metrics cache_config_info` | vLLM | KV pool |  |
 | omen-vllm@1 kv_cache_size_tokens | `133680` | `http://127.0.0.1:18092/metrics cache_config_info` | vLLM | KV pool |  |
+
+### sizer
+
+| setting | value | source | consumer | what it bounds | note |
+|---|---|---|---|---|---|
+| HEARTH_SIZER gate (hearth-ops.env) | `unset (off)` | `~/.config/hearth/hearth-ops.env` | size_request | off \| heuristic \| npu | off -> every route byte-identical to the unsized door |
+| encoder service url / client timeout (ms) | `http://127.0.0.1:8797 / 30` | `repo/hearth/sizer/client.py:33` | size_request(mode=npu) | on timeout the heuristic answers and the ledger says fallback_from |  |
+| long bins (tool-long) | `l, xl` | `repo/hearth/sizer/heuristic.py:35` | tool_execution -> tool_long_output refinement | which bins move to the decode seat |  |
+| output bins (upper edge, tokens) | `xs<128 s<384 m<1024 l<2048 xl>=2048` | `repo/hearth/sizer/heuristic.py:32` | size_heuristic -> admission reserve | expected output tokens = the bin's edge | ledger 2026-09-23..28: tokens_out p50 77 / p90 279 / p99 604 -> xs/s/m |
+| rungs tagged tool-long | `am4-tool-5070` | `~/hearth-production/backends-linux.toml` | family tool_long_output | the decode seat(s) | am4-tool-5070 decodes 110 tok/s vs the Ti's 85 (2026-09-28 02:43Z) |
 
 ### invariants
 

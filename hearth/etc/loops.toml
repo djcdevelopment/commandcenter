@@ -128,6 +128,13 @@ entrypoint = "am4: am4-profile tool-pair -> am4-tool@4070ti.service + am4-tool@5
 last_evidence = "2026-09-28 02:28Z: profile switched both ways under receipts after the reboot; chore lap 3 on am4-tool-4070ti 6/6 at a 10 s median (control omen-dense 2/6 at 172 s); family tool_execution -> tags [tool-use]; promoted LIVE (recorded decision, this row). The profile is switched by the drain when tool briefs are queued, or by hand."
 notes = "Profile, not replacement: Conflicts= keeps dense-tp2 and tool-pair mutually exclusive; ~/.config/am4-fleet/profile names the live one and the readiness probe, occupancy probe and sizing map read it."
 
+[[loop.implementation]]
+id = "request_sizer"
+status = "BUILT NOT DEPLOYED"
+entrypoint = "hearth.sizer.size_request (HEARTH_SIZER=off|heuristic|npu in hearth-ops.env) <- local_generate after packing and execution _family_route; npu mode -> omen-sizer.service 127.0.0.1:8797 (tools/sizer/serve.py, MiniLM-L6 on the Arrow Lake NPU) with the heuristic as fallback"
+last_evidence = "2026-09-28 03:15Z: heuristic replay over 1,034 ledger prompts since 09-23 (tools/sizer/replay.py): 87.7% exact bin, 98.2% within one bin, 11% under-reserved, 0 false long predictions, p50 0.2 ms; gate off on the host until the N4 pour"
+notes = "ADR-0050. Admission reserve and the tool_execution -> tool_long_output refinement only; never the generation budget, never a family for a call that named none. Routed_by carries sizer:<source>:<bin>: inside the family prefix; execution rows carry observed.sizer."
+
 [[loop]]
 id = "idle_drain"
 description = "Unattended dispatch of authored briefs while the operator is away (ADR-0006 Banked Fire)."

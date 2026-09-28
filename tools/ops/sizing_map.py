@@ -258,6 +258,28 @@ def collect_door_code() -> list[Row]:
     return rows
 
 
+def collect_sizer() -> list[Row]:
+    """ADR-0050: the request sizer's declared numbers -- bins, gate, service port and timeout -- and
+    which rungs carry the long-output tag it routes to."""
+    rows: list[Row] = []
+    try:
+        from hearth.sizer import BINS, DEFAULT_SIZER_URL, DEFAULT_TIMEOUT_MS
+    except Exception as exc:  # noqa: BLE001
+        return [row("sizer", "hearth.sizer import", f"error: {type(exc).__name__}", "hearth/sizer", "door, execution service", "the sizer package must import")]
+    hp = REPO / "hearth" / "sizer" / "heuristic.py"
+    rows.append(row("sizer", "output bins (upper edge, tokens)", " ".join(f"{n}<{e}" for n, e in BINS[:-1]) + f" xl>={BINS[-2][1]}", _line_of(hp, "^BINS"), "size_heuristic -> admission reserve", "expected output tokens = the bin's edge", "ledger 2026-09-23..28: tokens_out p50 77 / p90 279 / p99 604 -> xs/s/m"))
+    rows.append(row("sizer", "long bins (tool-long)", "l, xl", _line_of(hp, "^LONG_BINS"), "tool_execution -> tool_long_output refinement", "which bins move to the decode seat"))
+    ops_env = HOME / ".config" / "hearth" / "hearth-ops.env"
+    gate = _grep(_read(ops_env), r"^HEARTH_SIZER=(\S+)", default="unset (off)")
+    rows.append(row("sizer", "HEARTH_SIZER gate (hearth-ops.env)", gate, _rel(ops_env), "size_request", "off | heuristic | npu", "off -> every route byte-identical to the unsized door"))
+    cp = REPO / "hearth" / "sizer" / "client.py"
+    rows.append(row("sizer", "encoder service url / client timeout (ms)", f"{DEFAULT_SIZER_URL} / {DEFAULT_TIMEOUT_MS}", _line_of(cp, "^DEFAULT_TIMEOUT_MS"), "size_request(mode=npu)", "on timeout the heuristic answers and the ledger says fallback_from"))
+    path = Path(os.environ.get("HEARTH_BACKENDS", str(PROD / "backends-linux.toml")))
+    long_rungs = [b["name"] for b in _toml(path).get("backend", []) if "tool-long" in (b.get("tags") or [])]
+    rows.append(row("sizer", "rungs tagged tool-long", ", ".join(long_rungs) or "none", _rel(path), "family tool_long_output", "the decode seat(s)", "am4-tool-5070 decodes 110 tok/s vs the Ti's 85 (2026-09-28 02:43Z)"))
+    return rows
+
+
 def collect_lanes() -> list[Row]:
     rows = []
     bf = REPO / "fleet" / "bankedfire_linux.py"; t = _read(bf)
@@ -423,7 +445,8 @@ def collect_measured() -> list[Row]:
 def collect(live: bool, measured: bool) -> list[Row]:
     rows: list[Row] = []
     for fn in (collect_seats, collect_router, collect_backends, collect_routes_and_families, collect_operations,
-               collect_door_code, collect_gateway, collect_lanes, collect_runner, collect_clients, collect_am4):
+               collect_door_code, collect_gateway, collect_lanes, collect_runner, collect_clients, collect_am4,
+               collect_sizer):
         rows.extend(fn(live) if fn in (collect_seats, collect_am4) else fn())
     if measured:
         rows.extend(collect_measured())
@@ -538,6 +561,19 @@ def invariants(rows: list[Row]) -> list[dict]:
                 continue
             if (alias in expected) != bool(rdy):
                 fail("am4-profile-aliases-served", f"profile {prof}: alias {alias} ready={rdy}", "one profile is live at a time; an alias ready outside its profile means the switch left a seat running (or the profile file lies)")
+    # 6c. the request sizer (ADR-0050)
+    gate = str(_val(rows, "HEARTH_SIZER gate (hearth-ops.env)", "unset (off)"))
+    if gate not in ("off", "heuristic", "npu", "unset (off)"):
+        fail("sizer-gate-is-a-known-mode", f"HEARTH_SIZER={gate}", "an unknown value reads as off silently; the operator meant something else")
+    long_rungs = {x.strip() for x in str(_val(rows, "rungs tagged tool-long", "")).split(",") if x.strip() and x.strip() != "none"}
+    if long_rungs and long_rungs != {"am4-tool-5070"}:
+        fail("tool-long-only-on-the-decode-seat", f"rungs tagged tool-long: {sorted(long_rungs)}", "the tag exists to put l/xl output on the faster decoder; a second carrier makes the split a coin toss")
+    bins = str(_val(rows, "output bins (upper edge, tokens)", ""))
+    xl_edge = _num(bins.rsplit(">=", 1)[-1]) if ">=" in bins else None
+    for rung in long_rungs:
+        mt = _num(rungs.get(rung, {}).get("max_tokens"))
+        if xl_edge and mt is not None and mt < xl_edge:
+            fail("long-rung-budget-covers-the-xl-bin", f"{rung} max_tokens {mt:g} < xl bin edge {xl_edge:g}", "the sizer sends xl output here; a rung budget below the edge truncates what the sizer promised room for")
     # 7. stale comments
     for r in rows:
         if r["setting"].endswith("says 'staged'") and r["value"] is True:

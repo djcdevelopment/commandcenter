@@ -59,6 +59,8 @@ class FamilyRoute(NamedTuple):
     recommendation: Optional[dict[str, Any]]
     preferred_model: Optional[str] = None
     default_model: Optional[str] = None
+    sizer: Optional[dict[str, Any]] = None          # ADR-0050: the sizer's answer when consulted
+    admission_max_tokens: Optional[int] = None      # the sizer's output reserve for admission
 
     def label(self, inner: str) -> str:
         """``routed_by`` for this route: the family prefix, then the inner reason.
@@ -70,7 +72,10 @@ class FamilyRoute(NamedTuple):
         dispatches once, and the primitive it calls is pinned, so the A2 climb
         never fires here.
         """
-        return f"{self.family_prefix}{inner}" if self.family_prefix else inner
+        mark = ""
+        if self.sizer:
+            mark = f"sizer:{self.sizer.get('source', 'heuristic')}:{self.sizer.get('output_class', '?')}:"
+        return f"{self.family_prefix}{mark}{inner}" if self.family_prefix else f"{mark}{inner}"
 
     def resolve_model(self, provider: Backend) -> Optional[str]:
         """The model to dispatch, once ``select_backend`` has named the provider.
@@ -419,6 +424,27 @@ class ExecutionService:
         backend = arguments.get("backend")
         task_family = arguments.get("task_family")
         default_model = operation.default_model
+        if task_family is not None and (not isinstance(task_family, str) or not task_family.strip()):
+            raise ExecutionServiceError("task_family must be a non-empty string")
+        # ADR-0050: the sizer (None unless HEARTH_SIZER is on). `plan` carries no
+        # prompt text, so it sizes on the declared family and byte count alone.
+        sizer = None
+        admission_max_tokens = None
+        if "prompt" in arguments or task_family is not None or prompt_bytes:
+            from hearth.sizer import size_request
+
+            sizer = size_request(
+                arguments.get("prompt") or "",
+                system=arguments.get("system"),
+                files=arguments.get("packed_files"),
+                payload_bytes=prompt_bytes,
+                task_family=task_family,
+            )
+        if sizer is not None:
+            if task_family is not None and sizer.get("task_family") and sizer["task_family"] != task_family:
+                task_family = sizer["task_family"]
+            if sizer.get("expected_output_tokens"):
+                admission_max_tokens = int(sizer["expected_output_tokens"])
         plain = FamilyRoute(
             backend=backend,
             model=caller_model or default_model,
@@ -426,11 +452,11 @@ class ExecutionService:
             family_prefix=None,
             recommendation=None,
             default_model=default_model,
+            sizer=sizer,
+            admission_max_tokens=admission_max_tokens,
         )
         if task_family is None:
             return plain
-        if not isinstance(task_family, str) or not task_family.strip():
-            raise ExecutionServiceError("task_family must be a non-empty string")
         # Local import: hearth.scheduler.__init__ pulls in the CP-SAT solver, and
         # admitting a job must not start depending on ortools being installed.
         from hearth.scheduler.families import recommend as recommend_family
@@ -460,6 +486,8 @@ class ExecutionService:
                 recommendation=recommendation,
                 preferred_model=recommendation["model_id"],
                 default_model=default_model,
+                sizer=sizer,
+                admission_max_tokens=admission_max_tokens,
             )
         return FamilyRoute(
             backend=None,
@@ -469,13 +497,22 @@ class ExecutionService:
             recommendation=recommendation,
             preferred_model=recommendation["model_id"],
             default_model=default_model,
+            sizer=sizer,
+            admission_max_tokens=admission_max_tokens,
         )
 
     @staticmethod
     def _select_for_route(
-        pool: Any, route: FamilyRoute, payload_bytes: int
+        pool: Any, route: FamilyRoute, payload_bytes: int,
+        max_tokens: Optional[int] = None,
     ) -> tuple[Backend, str, dict[str, Any]]:
-        """``select_backend`` for a resolved route, with the family named on failure."""
+        """``select_backend`` for a resolved route, with the family named on failure.
+
+        ``max_tokens`` is the output reserve admission checks beside the prompt
+        (ADR-0031 arithmetic): the job's own policy budget when it names one,
+        else the sizer's expected output when consulted, else the rung default
+        inside ``select_backend`` -- the same precedence the door applies.
+        """
         try:
             return select_backend(
                 pool,
@@ -483,6 +520,7 @@ class ExecutionService:
                 model=route.model,
                 tags=route.tags,
                 payload_bytes=payload_bytes,
+                max_tokens=max_tokens if max_tokens is not None else route.admission_max_tokens,
             )
         except BackendConfigError as exc:
             raise ExecutionServiceError(route.refusal(exc)) from exc
@@ -559,6 +597,7 @@ class ExecutionService:
                 pool,
                 self._family_route(operation, arguments_value, len(prompt_bytes)),
                 len(prompt_bytes),
+                max_tokens=policy_value.max_tokens,
             )
 
         if idempotency_key is not None:
@@ -682,7 +721,7 @@ class ExecutionService:
             prompt_bytes,
         )
         provider, routed_by, occupancy = self._select_for_route(
-            load_pool(), route, prompt_bytes
+            load_pool(), route, prompt_bytes, max_tokens=resolved_policy.max_tokens
         )
         resolved_model = route.resolve_model(provider)
         routed_by = route.label(routed_by)
@@ -760,9 +799,14 @@ class ExecutionService:
         route = FamilyRoute(None, None, None, None, None)
 
         try:
-            route = self._family_route(operation, arguments, payload_bytes)
+            # The sizer reads the instruction, so the stored prompt rides along
+            # (arguments never carry it past submit); popped again below.
+            route = self._family_route(
+                operation, {**arguments, "prompt": prompt,
+                            "packed_files": desired.get("packed_files") or []},
+                payload_bytes)
             provider, routed_by, occupancy = self._select_for_route(
-                load_pool(), route, payload_bytes
+                load_pool(), route, payload_bytes, max_tokens=policy.max_tokens
             )
             routed_by = route.label(routed_by)
             # Which routed_by the Invocation (and therefore execute_sync's
@@ -816,6 +860,10 @@ class ExecutionService:
                 # keeps a byte-identical record.
                 dispatch_observed["task_family"] = arguments["task_family"]
                 dispatch_observed["family_recommendation"] = route.recommendation
+            if route.sizer is not None:
+                # ADR-0050: only when consulted, so an unsized job's record is
+                # byte-identical; `observed` is an open object on this schema.
+                dispatch_observed["sizer"] = route.sizer
             self._append("job.dispatched", state, observed=dispatch_observed)
             self._append(
                 "invocation.started",
@@ -943,6 +991,7 @@ class ExecutionService:
             "duration_ms",
             "max_tokens",
             "timeout_s",
+            "sizer",   # ADR-0050: present only on a sized call
         }
         observed = {
             key: copy.deepcopy(value) for key, value in result.items() if key in allowed

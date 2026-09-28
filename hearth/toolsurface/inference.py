@@ -39,6 +39,7 @@ from typing import Callable, NamedTuple, Optional
 
 from hearth.health.rungstate import live_rung_state
 from hearth.observation.emit import record_dispatch
+from hearth.sizer import size_request, sizer_label
 from hearth.toolsurface._scope import resolve_in_scope, scope_root
 from hearth.toolsurface.backends import (BackendConfigError, BackendRoutingRefusal,
                                          Pool, load_pool, pool_config_hash,
@@ -639,6 +640,7 @@ def local_generate(prompt: str, model: str | None = None,
 
     files_packed_list = None
     files_bytes = 0
+    user_prompt = prompt   # the caller's instruction, before packing (the sizer reads this)
     if files is not None:
         if not isinstance(files, list) or not all(isinstance(f, str) and f for f in files):
             raise ValueError("files must be a list of non-empty path strings")
@@ -650,6 +652,22 @@ def local_generate(prompt: str, model: str | None = None,
     # A1: the payload size the router decides with — computed AFTER packing, so
     # a files= call is judged by what actually ships, not the bare prompt.
     payload_bytes = len(prompt.encode("utf-8"))
+
+    # ADR-0050: the request sizer. Consulted only when HEARTH_SIZER is on (off ->
+    # None, and every line below is byte-identical to the unsized door). It may
+    # (a) refine a declared tool family to tool_long_output when the answer will
+    # be long, and (b) supply the output reserve ADMISSION checks when the caller
+    # named no max_tokens. It never sets the generation budget: a wrong bin can
+    # misroute, it cannot truncate.
+    sizer = size_request(user_prompt, system=system, files=files_packed_list,
+                         payload_bytes=payload_bytes, task_family=task_family)
+    sized_family = task_family
+    admission_max_tokens = max_tokens
+    if sizer is not None:
+        if task_family is not None and sizer.get("task_family") and sizer["task_family"] != task_family:
+            sized_family = sizer["task_family"]
+        if max_tokens is None and sizer.get("expected_output_tokens"):
+            admission_max_tokens = int(sizer["expected_output_tokens"])
 
     def _apply_defaults(t: _Target, m: Optional[str],
                         mt: Optional[int]) -> tuple[str, int, int]:
@@ -682,6 +700,18 @@ def local_generate(prompt: str, model: str | None = None,
                 rmt = 1024
             if rmt <= 0:
                 rmt = 1024
+            if sizer is not None and pool_backend is not None:
+                # The sizer admitted this call on ITS reserve, which may be far
+                # below the rung's default budget; a budget the window cannot
+                # hold beside the prompt is a server-side refusal, so the
+                # default is clamped to the room that is actually left.
+                try:
+                    ctx = int(pool_backend.settings.get("context_tokens") or 0)
+                except (TypeError, ValueError):
+                    ctx = 0
+                room = ctx - payload_bytes // 4 if ctx else 0
+                if ctx and room < rmt:
+                    rmt = max(64, room)
         rts = timeout_s
         if rts is None:
             setting = pool_backend.settings.get("timeout_s") if pool_backend else None
@@ -707,7 +737,7 @@ def local_generate(prompt: str, model: str | None = None,
     # already applies to the context-budget arithmetic. //4 is the door's
     # standing bytes->tokens estimate (see rotation.recommend_rung).
     family_recommendation, family_error = _resolve_family(
-        task_family, payload_bytes // 4, endpoint, model)
+        sized_family, payload_bytes // 4, endpoint, model)
     if family_error is not None:
         return _tag(family_error)
 
@@ -746,18 +776,22 @@ def local_generate(prompt: str, model: str | None = None,
         else:
             call_tags = _family_tags(family_recommendation["family"])
 
+    sizer_prefix = sizer_label(sizer)   # "" unless the sizer was consulted
+
     def _label(inner: str) -> str:
         """Compose routed_by. Family and quality are mutually exclusive here:
-        family_prefix is only set when quality is None."""
+        family_prefix is only set when quality is None. A consulted sizer adds
+        its own segment INSIDE the family prefix (family:<f>:sizer:<src>:<bin>:...)
+        so the family bucket is unchanged and the sizer's verdict is on record."""
         if family_prefix is not None:
-            return f"{family_prefix}{inner}"
+            return f"{family_prefix}{sizer_prefix}{inner}"
         if quality is not None:
-            return f"quality-{quality}:{inner}"
-        return inner
+            return f"quality-{quality}:{sizer_prefix}{inner}"
+        return f"{sizer_prefix}{inner}"
 
     try:
         target = _resolve_target(endpoint, task, route_backend, payload_bytes=payload_bytes,
-                                 tags=call_tags, max_tokens=max_tokens)
+                                 tags=call_tags, max_tokens=admission_max_tokens)
     except BackendRoutingRefusal as exc:
         refusal = exc.as_dict()
         return _tag({"ok": False,
@@ -791,8 +825,10 @@ def local_generate(prompt: str, model: str | None = None,
     _stamp_dispatch(result, target.backend)
     # C-05: stamped on the ATTEMPT, not just the returned result, so an escalated
     # call's first-attempt observation says which family sent it there too.
-    result["task_family"] = task_family
+    result["task_family"] = sized_family
     result["family_recommendation"] = family_recommendation
+    if sizer is not None:
+        result["sizer"] = sizer
 
     # A2: ladder escalation — one climb max. A failed non-pinned dispatch
     # excludes the failed rung and re-routes once; a pin (endpoint or name) is
@@ -810,7 +846,7 @@ def local_generate(prompt: str, model: str | None = None,
             second_target = _resolve_target(endpoint, task, route_backend,
                                             payload_bytes=payload_bytes,
                                             exclude=exclude_set,
-                                            tags=call_tags, max_tokens=max_tokens)
+                                            tags=call_tags, max_tokens=admission_max_tokens)
             if second_target.backend != target.backend:
                 second_model, second_max_tokens, second_timeout_s = _apply_defaults(
                     second_target, route_model, max_tokens)
@@ -824,15 +860,17 @@ def local_generate(prompt: str, model: str | None = None,
                 # shape, quality prefix included); a family route keeps ITS
                 # prefix so the ledger still says which family sent the call.
                 escalated = f"escalation:{first_name}->{second_name}"
-                second_result["routed_by"] = (f"{family_prefix}{escalated}"
-                                              if family_prefix is not None else escalated)
+                second_result["routed_by"] = (f"{family_prefix}{sizer_prefix}{escalated}"
+                                              if family_prefix is not None else f"{sizer_prefix}{escalated}")
                 second_result["occupancy"] = second_target.occupancy
                 second_result["max_tokens"] = second_max_tokens
                 second_result["timeout_s"] = second_timeout_s
                 second_result["escalation"] = {"from": first_name, "error": result.get("error")}
                 _stamp_dispatch(second_result, second_target.backend)
-                second_result["task_family"] = task_family
+                second_result["task_family"] = sized_family
                 second_result["family_recommendation"] = family_recommendation
+                if sizer is not None:
+                    second_result["sizer"] = sizer
 
                 # One observation per ATTEMPT (ADR-0027). The escalated result carries the
                 # SECOND rung's backend, so recording only the final attempt would

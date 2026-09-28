@@ -90,6 +90,7 @@ class _HermeticDoor(TestCase):
         # the family, not the shell.
         os.environ.pop("HEARTH_OLLAMA", None)
         os.environ.pop("HEARTH_ROUTING_FAMILIES", None)
+        os.environ.pop("HEARTH_SIZER", None)   # ADR-0050: the sizer is a host gate; the door here is unsized
         self.enterContext(patch("hearth.toolsurface.inference.check_occupancy",
                                 return_value={"occupancy": "available"}))
         self.post = self.enterContext(patch("hearth.toolsurface.inference._post"))
@@ -120,6 +121,7 @@ class FamilyTagTableTests(TestCase):
         self.enterContext(patch.dict(os.environ, {}, clear=False))
         os.environ.pop("HEARTH_BACKENDS", None)
         os.environ.pop("HEARTH_ROUTING_FAMILIES", None)
+        os.environ.pop("HEARTH_SIZER", None)
 
     def test_covers_every_declared_family_and_every_assay_family(self) -> None:
         declared = set(load_families().names())

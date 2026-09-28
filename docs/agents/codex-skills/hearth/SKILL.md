@@ -21,8 +21,9 @@ trivial work directly. Batch related small items into one call when practical.
   candidates, careful review and long inputs — pin with `backend="omen-dense-27b"`; `am4-vllm`
   (27B over the direct cable, 16,384 ctx, 1 slot); `fx99-vllm` (7B utility, 4,096 ctx, text
   only); `am4-tool-4070ti` / `am4-tool-5070` (tag `tool-use`, Qwen3-8B per AM4 card, live only under
-  AM4's `tool-pair` profile) for small one-file chores via `task_family="tool_execution"`. There is
-  no cloud rung in this pool: a refused local lane is terminal.
+  AM4's `tool-pair` profile) for small one-file chores via `task_family="tool_execution"`; the 5070
+  also carries `tool-long` (ADR-0050: long l/xl answers land there when the `HEARTH_SIZER` gate is on).
+  There is no cloud rung in this pool: a refused local lane is terminal.
 - Task-family routing is live. Use `task_family="summarization"`, `"extraction"`,
   `"classification"`, `"drafting"`, `"reasoning_planning"`, `"quote_retrieval"`,
   `"code_fix"`, `"code_review"`, `"long_review"`, `"utility_text"` as appropriate. Explicit

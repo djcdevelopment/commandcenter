@@ -46,7 +46,7 @@
     "port": 18096,
     "model_id": "am4-tool-4070ti",
     "api": "vllm",
-    "parallel_slots": 2
+    "parallel_slots": 4
   },
   "am4-tool-5070": {
     "host": "127.0.0.1",

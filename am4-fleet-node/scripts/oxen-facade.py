@@ -38,15 +38,31 @@ HOP_BY_HOP = {
     "upgrade",
 }
 
-_ADMISSION: dict[tuple[str, int], threading.Lock] = {}
+_ADMISSION: dict[tuple[str, int], tuple[int, threading.BoundedSemaphore]] = {}
 _ADMISSION_GUARD = threading.Lock()
 MAX_BODY = 4 * 1024 * 1024
 
 
-def admission(backend: dict) -> threading.Lock:
-    # Aliases are names, not extra physical serving slots.
+def admission(backend: dict) -> threading.BoundedSemaphore:
+    """One admission gate per physical seat (host, port), sized by the seat's
+    declared ``parallel_slots`` (the alias map; 1 when absent). Aliases are
+    names, not extra slots: two aliases on one port share one gate. Measured
+    2026-09-28: with a bare Lock here, four concurrent requests to a vLLM seat
+    running --max-num-seqs 2 produced exactly single-stream throughput, so the
+    seat's second sequence slot was never used. A changed slot count in the
+    live map replaces the gate on the next request (no restart); the old gate
+    drains on its own as its holders release."""
+    key = (backend["host"], backend["port"])
+    try:
+        slots = max(1, int(backend.get("parallel_slots", 1)))
+    except (TypeError, ValueError):
+        slots = 1
     with _ADMISSION_GUARD:
-        return _ADMISSION.setdefault((backend["host"], backend["port"]), threading.Lock())
+        current = _ADMISSION.get(key)
+        if current is None or current[0] != slots:
+            current = (slots, threading.BoundedSemaphore(slots))
+            _ADMISSION[key] = current
+        return current[1]
 
 
 def alias_status(alias: str) -> dict:

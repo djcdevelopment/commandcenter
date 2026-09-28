@@ -22,11 +22,17 @@ review costs; handle trivial work directly. Batch related small items into one c
 - `fx99-vllm` (tag `utility`): Qwen2.5-Coder-7B on FX99, 4,096 ctx. Text-only summaries; it cannot
   produce reliable tool calls.
 - `am4-tool-4070ti` / `am4-tool-5070` (tag `tool-use`): Qwen3-8B-AWQ, one seat per AM4 card, 24,576 /
-  16,384 ctx, one slot each, live only while AM4's `tool-pair` profile is up (`ssh 10.44.0.2 ~/bin/am4-profile
+  16,384 ctx, the Ti admitting 4 concurrent requests (3 HEARTH leases), the 5070 2, live only while AM4's `tool-pair` profile is up (`ssh 10.44.0.2 ~/bin/am4-profile
   status`). Small OS-local chores on one file (read, grep, summarize with citations) go here through
   `task_family="tool_execution"` or a `deepagents` brief with `backend: am4-tool-4070ti`: 6/6 chores at a
   10 s median where the 27B took 172 s. When the profile is not live the tag resolves to the door default.
 - There is no cloud rung in this pool. A refused local lane is terminal; never substitute cloud.
+- `am4-tool-5070` also carries `tool-long` (ADR-0050): when `HEARTH_SIZER` is on, a `tool_execution`
+  call whose answer the sizer bins l/xl (>= 1,024 expected output tokens: a rewrite, an 800-word report)
+  is refined to `tool_long_output` and lands on the 5070, the faster decoder; the Ti keeps the short,
+  prefill-heavy volume. A `deepagents` brief may say `backend: am4-tool` to have the sizer pick the seat.
+  The gate is off by default; the sizer only fills an absent `max_tokens` for admission and never sets a
+  generation budget or a family for a call that named none.
 
 **Routing and context:**
 

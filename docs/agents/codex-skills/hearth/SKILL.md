@@ -15,27 +15,27 @@ trivial work directly. Batch related small items into one call when practical.
 
 **Routing and context:**
 
-- The door's default rung is `omen-arc` — sunk local compute, resident, no cold-start tax:
-  spend it freely on grunt work. Let the gateway route; pin another backend only with cause.
-- `gcp-gemini` (near-free frontier-class flash on trial credits) is preferred over metered
-  frontier tokens for self-contained *reasoning* — pass `backend="gcp-gemini"` when the
-  sub-task needs frontier-class judgment rather than grunt work, while the credits last.
+- Lanes on omen-linux (`~/hearth-production/backends-linux.toml`): `omen-vllm` is the default
+  (Qwen3-30B-A3B MoE, `:18090`, 40,960 ctx, 8 slots) — sunk local compute, spend it freely;
+  `omen-dense-27b` (Qwen3.8-27B, `:18095`, 65,536 ctx, 2 slots, reserve 16,384) for code
+  candidates, careful review and long inputs — pin with `backend="omen-dense-27b"`; `am4-vllm`
+  (27B over the direct cable, 16,384 ctx, 1 slot); `fx99-vllm` (7B utility, 4,096 ctx, text
+  only). There is no cloud rung in this pool: a refused local lane is terminal.
 - Task-family routing is live. Use `task_family="summarization"`, `"extraction"`,
-  `"classification"`, or `"drafting"` as appropriate. Explicit endpoint/backend/model
-  pins or `quality`/`task` choices override the family; omit them when family routing is intended.
+  `"classification"`, `"drafting"`, `"reasoning_planning"`, `"quote_retrieval"`,
+  `"code_fix"`, `"code_review"`, `"long_review"`, `"utility_text"` as appropriate. Explicit
+  backend/model pins override the family; omit them when family routing is intended.
   Use `plan_execution(operation="inference.generate", task_family=..., prompt_bytes=...)`
   to inspect a route without dispatching.
+- The door admits `input + output reserve <= context` per rung and refuses otherwise (a
+  `routing_refusal`); output ceilings are 16,384 tokens. Sizes are mapped in
+  `docs/sizing-map.md`.
 - Don't paste file contents — pass `files=[...]` and the door packs them scope-guarded.
   Relative paths resolve against the gateway's primary repository, not your current
-  directory; absolute paths anywhere under the HEARTH scope root reach other repositories;
-  only context from outside that root travels in the prompt body. Never include tokens,
+  directory; absolute paths under `~/work` reach other repositories. Never include tokens,
   keys, or credential-file contents in a prompt or a `files=` pack.
 - The offloaded model cannot run tools or see the conversation. Supply a standalone brief
   with the task, constraints, output format, and acceptance criteria.
-- `gcp-gemini-pro` and `omen-arc-oss` are pin-only; omit `max_tokens` for the pro rung.
-  The OSS rung can require a model swap. `omen-swap` is pin-only and requires `model=`.
-  Manage its port 8081 lifecycle only through the gateway's rotation-window tools.
-  Never use the bare llama-swap unload endpoint: it also unloads production on port 8082.
 
 **Work receipts (substantial engineering work):**
 

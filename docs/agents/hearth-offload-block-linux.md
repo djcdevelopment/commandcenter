@@ -12,7 +12,8 @@ review costs; handle trivial work directly. Batch related small items into one c
 
 - `omen-vllm` (default; tags `default, code, research, reasoning`): Qwen3-30B-A3B MoE behind
   HAProxy `:18090`, 40,960 ctx, 8 slots. Sunk local compute, resident: spend it freely on grunt work.
-- `omen-dense-27b` (tags `dense, quality, agent`): Qwen3.8-27B behind `:18095`, 65,536 ctx, 3 slots.
+- `omen-dense-27b` (tags `dense, quality, agent`): Qwen3.8-27B behind `:18095`, 65,536 ctx, 2 slots
+  (its KV pool holds ~1.5 full-window requests), output reserve 16,384.
   The only local model that completed the fix task with receipts (continuity output/07). Pin it
   with `backend="omen-dense-27b"` for code candidates, careful review, or long inputs; it is
   slower per token, so do not send it grunt work.
@@ -38,7 +39,9 @@ review costs; handle trivial work directly. Batch related small items into one c
 
 `submit_local_work(intent, acceptance_criteria, repo, base_commit, paths, lane="auto")` freezes the
 named files at a commit, produces an immutable candidate, and stops at `awaiting_review`. `auto`
-sends evidence below 8,192 tokens to `fast` (`omen-vllm`) and above it to `deep` (`omen-dense-27b`).
+sends `task_family` `code_fix`/`code_review` to `deep` (`omen-dense-27b`) at any size; otherwise
+evidence of 8,192 tokens or more goes to `deep` and less to `fast` (`omen-vllm`). The exact check is
+`input + output reserve <= context_tokens`, so on the deep lane input may reach 65,536 − reserve.
 Watch with `watch_local_work`, fetch with `get_local_work_artifact`, validate in an isolated worktree,
 then `record_local_work_verdict(accepted|rejected|superseded)` with evidence per criterion. Never apply
 a candidate before the verdict.
@@ -46,7 +49,10 @@ a candidate before the verdict.
 Artifact kinds, measured 2026-09-27: prefer `whole_file` (with `target_path`) for any target under
 ~6K output tokens; the 27B writes correct edits but unreliable `unified_diff` hunks (wrong counts are
 repaired by the door's `git apply --recount` step and noted in the manifest as `mechanical.git_apply`;
-hallucinated hunk context is not repairable). `max_tokens` is capped at 8,192 per candidate.
+hallucinated hunk context is not repairable). `max_tokens` is capped at 16,384 per candidate
+(`work.produce` ceiling; the dense rung's reserve is 16,384, measured ~10.4 tok/s, so the default
+`deadline_s` is 1,800 and the ceiling 2,400). Every size on this host is mapped and checked in
+`docs/sizing-map.md` (`python tools/ops/sizing_map.py --check`).
 
 **Codex:** `codex exec --approve-for-me ... < /dev/null` is required for unattended HEARTH tool calls;
 interactive Codex prompts per call. Skills are installed under `~/.codex/skills/` from

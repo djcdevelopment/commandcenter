@@ -31,11 +31,11 @@ class SeatAndRungTests(unittest.TestCase):
         self.assertNotIn("rung-context-equals-seat-window", rules(good))
 
     def test_slots_must_fit_the_kv_pool(self) -> None:
-        # 3 slots x (0.35 x 65,536 + 8,192) = 93,389 < 99,048 passes; 8 slots on the MoE seat do not.
-        rows = [R("rung", "omen-vllm parallel_slots", 8), R("rung", "omen-vllm context_tokens", 40960), R("rung", "omen-vllm max_tokens", 8192),
+        # typical = 0.30 x window + 0.5 x reserve: 8 x (12,288 + 4,096) = 131,072 fits 133,680; 9 do not.
+        rows = [R("rung", "omen-vllm parallel_slots", 9), R("rung", "omen-vllm context_tokens", 40960), R("rung", "omen-vllm max_tokens", 8192),
                 R("seat", "omen-vllm@1 kv_cache_size_tokens", 133680)]
         self.assertIn("slots-fit-the-kv-pool", rules(rows))
-        rows[0]["value"] = 5
+        rows[0]["value"] = 8
         self.assertNotIn("slots-fit-the-kv-pool", rules(rows))
 
     def test_seat_must_admit_at_least_the_leases(self) -> None:
@@ -60,7 +60,7 @@ class DoorTests(unittest.TestCase):
 
     def test_admission_must_reserve_output(self) -> None:
         self.assertIn("door-admission-reserves-output", rules([R("door", "payload admission rule (pin and tag route)", "payload_bytes <= context_bytes")]))
-        self.assertNotIn("door-admission-reserves-output", rules([R("door", "payload admission rule (pin and tag route)", "payload_tokens + max_tokens <= context_tokens")]))
+        self.assertNotIn("door-admission-reserves-output", rules([R("door", "payload admission rule (pin and tag route)", "payload_bytes <= context_bytes AND payload_bytes // 4 + max_tokens <= context_tokens")]))
 
     def test_deadline_covers_the_output_at_the_measured_rate(self) -> None:
         rows = [R("operation", "work.produce deadline_ceiling_s", 1200), R("operation", "work.produce max_tokens_ceiling", 16384),

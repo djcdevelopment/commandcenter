@@ -238,7 +238,10 @@ def collect_door_code() -> list[Row]:
     rows.append(row("door", "files= per-file / total cap (bytes)", f"{_grep(t, r'^FILES_PER_FILE_CAP = (.+)$')} / {_grep(t, r'^FILES_TOTAL_CAP = (.+)$')}", _line_of(inf, "^FILES_PER_FILE_CAP"), "_pack_files", "packed file bytes", "unreachable on Linux: every rung's context_bytes is smaller"))
     rows.append(row("door", "family depth estimate", "payload_bytes // 4", _line_of(inf, r"// 4"), "families.recommend", "prompt_tokens for depth rules"))
     be = REPO / "hearth" / "toolsurface" / "backends.py"
-    rows.append(row("door", "payload admission rule (pin and tag route)", "payload_bytes <= context_bytes", _line_of(be, r"payload_bytes > pinned_context"), "_resolve_target", "admission", "reserves no output tokens"))
+    if "_output_reserve_rejection" in _read(be):
+        rows.append(row("door", "payload admission rule (pin and tag route)", "payload_bytes <= context_bytes AND payload_bytes // 4 + max_tokens <= context_tokens", _line_of(be, r"def _output_reserve_rejection"), "select_backend", "admission", "reserve = caller max_tokens else the rung's"))
+    else:
+        rows.append(row("door", "payload admission rule (pin and tag route)", "payload_bytes <= context_bytes", _line_of(be, r"payload_bytes > pinned_context"), "select_backend", "admission", "reserves no output tokens"))
     lw = REPO / "hearth" / "localwork" / "service.py"; t = _read(lw)
     rows.append(row("local-work", "auto lane floor (evidence tokens -> deep)", _grep(t, r"floor = (\d+) if task_family == \"quote_retrieval\" else (\d+)", group=2, cast=int), _line_of(lw, r"floor = 4096"), "_lane", "fast vs deep", f"quote_retrieval floor {_grep(t, r'floor = (\d+) if', cast=int)}; evidence = source pack only, counted with the fast lane's tokenizer"))
     rows.append(row("local-work", "output_reserve fallback", _grep(t, r'settings.get\("max_tokens"\) or (\d+)', cast=int), _line_of(lw, r"output_reserve ="), "submit", "reserve when the rung declares none"))
@@ -392,7 +395,10 @@ def invariants(rows: list[Row]) -> list[dict]:
             fail("seat-admits-at-least-the-leases", f"{seat} max_num_seqs {seqs:g} < {rung} parallel_slots {slots:g}", "leases would queue on a seat that cannot admit them")
         kv = _num(_val(rows, f"{seat} kv_cache_size_tokens"))
         if kv is not None and slots is not None and s.get("context_tokens") is not None and s.get("max_tokens") is not None:
-            typical = 0.35 * float(s["context_tokens"]) + float(s["max_tokens"])   # a p90 local-work prompt (~19.5K on the 65K lane) plus the full reserve
+            # A realistic concurrent request: measured p90 input on the dense lane was 19.5K of a
+            # 65,536 window (0.30) and p90 output 5.7K of a 16,384 reserve; half the reserve is the
+            # conservative allowance. vLLM preempts when the pool is exhausted, so the sum must fit.
+            typical = 0.30 * float(s["context_tokens"]) + 0.5 * float(s["max_tokens"])
             if slots * typical > kv:
                 fail("slots-fit-the-kv-pool", f"{rung}: {slots:g} slots x typical {typical:.0f} tokens = {slots * typical:.0f} > {seat} KV pool {kv:.0f}", "a work.produce waited 9.3 s for a slot on 2026-09-27 at 3 slots; preemption follows oversubscription")
     # 3. operation ceilings vs rungs
@@ -447,8 +453,8 @@ def invariants(rows: list[Row]) -> list[dict]:
         if " set by " in r["setting"] and "drop-ins" in r["setting"]:
             fail("one-drop-in-per-key", f"{r['setting']}: {r['value']}", "seat 0's max-model-len.conf (40960) is overridden by stage2-27b-mtp.conf (65536); its comment describes the other checkpoint")
     kv_comment = _num(_val(rows, "backends-linux.toml KV-pool comment")); kv_live = _num(_val(rows, "omen-vllm@0 kv_cache_size_tokens"))
-    if kv_comment and kv_live and abs(kv_comment - kv_live) > 1000:
-        fail("kv-comment-matches-live", f"backends-linux.toml says KV pool {kv_comment:.0f}; live seat 0 reports {kv_live:.0f}", "the comment was written for a different gpu-memory-utilization")
+    if kv_comment and kv_live and abs(kv_comment - kv_live) > 0.25 * kv_live:
+        fail("kv-comment-matches-live", f"backends-linux.toml says KV pool {kv_comment:.0f}; live seat 0 reports {kv_live:.0f}", "the pool varies per start (76,706 and 99,048 seen on the same config, 2026-09-27); the comment must say so and stay within 25%")
     return out
 
 

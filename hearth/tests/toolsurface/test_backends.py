@@ -654,3 +654,56 @@ class RetiredBackendTests(TestCase):
         ):
             names = [p["name"] for p in execution_control.list_execution_providers()]
         self.assertEqual(names, ["omen-arc"])
+
+
+_RESERVE_POOL_TOML = textwrap.dedent("""
+    default = "moe"
+
+    [[backend]]
+    name = "moe"
+    endpoint = "http://127.0.0.1:18090"
+    api = "openai"
+    tags = ["default", "code"]
+    settings = { context_tokens = 40960, context_bytes = 143360, max_tokens = 8192 }
+
+    [[backend]]
+    name = "dense"
+    endpoint = "http://127.0.0.1:18095"
+    api = "openai"
+    tags = ["quality"]
+    settings = { context_tokens = 65536, context_bytes = 229376, max_tokens = 16384 }
+""")
+
+
+class OutputReserveAdmissionTests(TestCase):
+    """2026-09-27 (docs/sizing-map.md): the door admitted payload <= context_bytes and reserved
+    nothing for the answer, so a payload that filled the window was accepted and would have
+    overflowed the seat once max_tokens were added. Admission now reserves the output."""
+
+    def setUp(self) -> None:
+        self.tmp = Path(self.enterContext(__import__("tempfile").TemporaryDirectory()))
+        self.pool = load_pool(_write_pool(self.tmp, _RESERVE_POOL_TOML))
+
+    def test_a_payload_that_fits_only_without_its_answer_is_refused_on_a_pin(self) -> None:
+        # 140,000 bytes ~ 35,000 tokens: under context_bytes (143,360) but 35,000 + 8,192 > 40,960.
+        with self.assertRaises(BackendRoutingRefusal) as ctx:
+            select_backend(self.pool, backend="moe", payload_bytes=140_000)
+        refusal = ctx.exception.as_dict()
+        self.assertEqual(refusal["reason"], "payload_over_budget_with_output_reserve_for_pinned_backend")
+        self.assertIn("output_reserve_over_context", refusal["attempted"][0]["rejection_reason"])
+
+    def test_the_callers_smaller_max_tokens_is_the_reserve(self) -> None:
+        chosen, reason, _ = select_backend(self.pool, backend="moe", payload_bytes=140_000, max_tokens=1024)
+        self.assertEqual(chosen.name, "moe")
+
+    def test_a_tag_route_skips_the_rung_the_answer_would_overflow(self) -> None:
+        # "code" only matches moe; the reserve rule skips it and the pool default is moe too, so
+        # the default path refuses rather than dispatching an overflow.
+        with self.assertRaises(BackendRoutingRefusal):
+            select_backend(self.pool, task="code", payload_bytes=140_000,
+                           occupancy_check=lambda name: {"occupancy": "available"})
+
+    def test_small_payloads_route_as_before(self) -> None:
+        chosen, reason, _ = select_backend(self.pool, task="code", payload_bytes=20_000,
+                                           occupancy_check=lambda name: {"occupancy": "available"})
+        self.assertEqual((chosen.name, reason), ("moe", "tag:code"))

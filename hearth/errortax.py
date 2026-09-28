@@ -37,7 +37,14 @@ _RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("timeout", ("timed out", "timeout")),
     ("cold_start", ("connection refused", "connect error", "unreachable",
                     "failed to establish", "no connection could be made")),
-    ("auth_expired", ("401", "403", "unauthorized", "token", "credentials")),
+    # policy_refusal: the door refused the request's SHAPE (an output budget over the
+    # operation ceiling, a deadline over its ceiling). Measured 2026-09-27: "max_tokens must
+    # be between 1 and 8192" was classified auth_expired because "token" matched "max_tokens".
+    ("policy_refusal", ("must be between", "over the ceiling", "exceeds the ceiling", "ceiling")),
+    # tokenizer_unavailable: the exact-count endpoint the local-work lane needs answered 404.
+    ("tokenizer_unavailable", ("tokenizer endpoint",)),
+    ("auth_expired", ("401", "403", "unauthorized", "auth token", "bearer token", "api key",
+                      "no auth token", "credentials")),
     ("quota", ("429", "quota", "resource exhausted", "rate limit")),
     ("parse_error", ("json", "parse", "decode", "expecting value")),
 )
@@ -47,6 +54,7 @@ _RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
 # rather than dropped silently, per its no-silent-caps clause.
 INFRA_ERROR_CODES = frozenset({
     "cold_start", "occupancy_skip", "auth_expired", "quota", "parse_error",
+    "policy_refusal", "tokenizer_unavailable",
 })
 
 # Failures that ARE a statement about the rung's capability at this workload.

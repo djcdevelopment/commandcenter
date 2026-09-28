@@ -44,6 +44,8 @@ SERVING_PROFILE_KEYS = frozenset({
     "kv_cache_key_type", "kv_cache_value_type", "batch_tokens", "ubatch_tokens",
     "flash_attention", "speculative", "reasoning_budget_tokens", "reasoning_effort",
 })
+# Families whose routing evidence pins the quality lane regardless of evidence size.
+DEEP_LANE_FAMILIES = frozenset({"code_fix", "code_review"})
 _DIFF_PATH = re.compile(r"^(?:---|\+\+\+)\s+(?:a/|b/)?([^\t\r\n]+)", re.MULTILINE)
 TokenCounter = Callable[[Backend, str, str], int]
 
@@ -145,6 +147,11 @@ class LocalWorkService:
             raise LocalWorkError("vision task families are unsupported on local-work lanes")
         if lane != "auto":
             return lane
+        if task_family in DEEP_LANE_FAMILIES:
+            # The family's own evidence pins the 27B at every depth (routing families:
+            # code_fix / code_review -> qwen3.8-27b; the 30B failed the fix canary four times).
+            # `auto` used to send small code work to the fast lane anyway (sizing-map 2026-09-27).
+            return "deep"
         floor = 4096 if task_family == "quote_retrieval" else 8192
         return "deep" if evidence_tokens >= floor else "fast"
 

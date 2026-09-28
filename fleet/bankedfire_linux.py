@@ -210,7 +210,7 @@ def submit_args_from_brief(body: str, *, idempotency_key: Optional[str] = None) 
         "artifact_kind": fields.get("artifact_kind", "unified_diff"),
         "lane": fields.get("lane", "auto"),
         "task_family": fields.get("task_family", "code_fix"),
-        "deadline_s": int(fields.get("deadline_s", 1200)),
+        "deadline_s": int(fields.get("deadline_s", 2400)),   # follows the work.produce ceiling (sizing-map)
     }
     if fields.get("target_path"):
         args["target_path"] = fields["target_path"]
@@ -361,7 +361,7 @@ def proofing_args_from_brief(body: str, *, idempotency_key: str, candidates_path
     return {"intent": "\n".join(lines), "acceptance_criteria": criteria, "repo": repo,
             "base_commit": resolve_commit(repo, "HEAD"), "files": ["knowledge/README.md"],
             "artifact_kind": "whole_file", "target_path": f"proposals/{slug}.md", "lane": "deep",
-            "task_family": "drafting", "max_tokens": 4096, "deadline_s": 1200, "idempotency_key": idempotency_key}
+            "task_family": "drafting", "max_tokens": 6144, "deadline_s": 2400, "idempotency_key": idempotency_key}
 
 
 def submit_proofing(body: str, hint: str) -> dict[str, Any]:

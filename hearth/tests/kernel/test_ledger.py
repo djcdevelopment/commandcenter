@@ -123,6 +123,11 @@ class ClassifyErrorTest(unittest.TestCase):
         self.assertEqual(classify_error("Backend busy with 2 tasks"), "occupancy_skip")
         self.assertEqual(classify_error("Failed to establish a new connection"), "cold_start")
         self.assertEqual(classify_error("403 Forbidden"), "auth_expired")
+        # 2026-09-27: two local-work submit refusals were ledgered as auth_expired because the
+        # bare keyword "token" matched "max_tokens" and "tokenizer".
+        self.assertEqual(classify_error("max_tokens must be between 1 and 8192"), "policy_refusal")
+        self.assertEqual(classify_error("exact tokenizer endpoint refused: HTTP 404"), "tokenizer_unavailable")
+        self.assertEqual(classify_error("no auth token for omen-vllm"), "auth_expired")
         self.assertEqual(classify_error("Invalid credentials"), "auth_expired")
         self.assertEqual(classify_error("Unknown error occurred"), "other")
         self.assertEqual(classify_error(""), "other")

@@ -41,7 +41,7 @@ def _owned(work_id: str) -> tuple[LocalWorkService, dict[str, Any], DispatchIden
 def submit_local_work(intent: str, acceptance_criteria: list[str], repo: str,
                       base_commit: str, files: list[str], artifact_kind: str,
                       target_path: str | None = None, lane: str = "auto",
-                      task_family: str | None = None, deadline_s: int = 900,
+                      task_family: str | None = None, deadline_s: int = 1800,
                       max_tokens: int | None = None, receipt_id: str | None = None,
                       idempotency_key: str | None = None) -> dict[str, Any]:
     """Submit bounded repository work to a strictly local lane for later review."""

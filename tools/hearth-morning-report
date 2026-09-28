@@ -67,12 +67,12 @@ def _apply_check(manifest: dict) -> str:
     with tempfile.TemporaryDirectory() as tmp:
         clone = Path(tmp) / "repo"
         try:
-            subprocess.run(["git", "clone", "-q", "--shared", "--no-checkout", manifest["repo"], str(clone)], check=True, timeout=60)
-            subprocess.run(["git", "-C", str(clone), "checkout", "-q", "--detach", manifest["base_commit"]], check=True, timeout=60)
+            subprocess.run(["git", "clone", "-q", "--shared", "--no-checkout", manifest["repo"], str(clone)], check=True, timeout=120)
+            subprocess.run(["git", "-C", str(clone), "checkout", "-q", "--detach", manifest["base_commit"]], check=True, timeout=120)
         except Exception as exc:  # noqa: BLE001
             return f"clone failed: {type(exc).__name__}"
         for label, extra in (("applies", []), ("applies with --recount", ["--recount"])):
-            r = subprocess.run(["git", "-C", str(clone), "apply", "--check", *extra, "-"], input=content, text=True, capture_output=True, timeout=60)
+            r = subprocess.run(["git", "-C", str(clone), "apply", "--check", *extra, "-"], input=content, text=True, capture_output=True, timeout=120)
             if r.returncode == 0:
                 return label
         return "does not apply: " + (r.stderr.strip().splitlines() or ["?"])[0][:100]

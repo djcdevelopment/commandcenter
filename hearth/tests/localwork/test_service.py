@@ -212,3 +212,16 @@ class LocalWorkServiceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DeepLaneFamilyTests(unittest.TestCase):
+    """2026-09-27 (docs/sizing-map.md): the drain's default brief is code_fix on lane auto, so
+    small code work went to the fast MoE lane although the family's own evidence pins the 27B."""
+
+    def test_code_families_take_the_deep_lane_at_any_size(self) -> None:
+        from hearth.localwork.service import LocalWorkService
+        self.assertEqual(LocalWorkService._lane("auto", 500, "code_fix"), "deep")
+        self.assertEqual(LocalWorkService._lane("auto", 500, "code_review"), "deep")
+        self.assertEqual(LocalWorkService._lane("auto", 500, "drafting"), "fast")
+        self.assertEqual(LocalWorkService._lane("auto", 9000, "drafting"), "deep")
+        self.assertEqual(LocalWorkService._lane("fast", 500, "code_fix"), "fast")   # an explicit lane still wins

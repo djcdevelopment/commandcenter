@@ -314,14 +314,48 @@ def pool_config_hash(path: Optional[Path | str] = None) -> Optional[str]:
     return digest
 
 
+PAYLOAD_BYTES_PER_TOKEN = 4   # the same estimate the family depth rules use (inference.py)
+
+
+def _output_reserve_rejection(candidate: Backend, payload_bytes: int,
+                              max_tokens: Optional[int]) -> Optional[str]:
+    """None when `payload // 4 + reserve` fits the rung's `context_tokens`; else the reason.
+
+    The reserve is the caller's max_tokens, else the rung's declared default. Rungs that declare
+    no `context_tokens` are not judged here (the byte budget still applies to them).
+    """
+    settings = candidate.settings or {}
+    try:
+        context_tokens = int(settings.get("context_tokens") or 0)
+    except (TypeError, ValueError):
+        return None
+    if context_tokens <= 0:
+        return None
+    try:
+        reserve = int(max_tokens if max_tokens is not None else (settings.get("max_tokens") or 0))
+    except (TypeError, ValueError):
+        reserve = 0
+    if payload_bytes // PAYLOAD_BYTES_PER_TOKEN + reserve > context_tokens:
+        return (f"output_reserve_over_context: ~{payload_bytes // PAYLOAD_BYTES_PER_TOKEN} input tokens "
+                f"+ {reserve} reserve > {context_tokens}")
+    return None
+
+
 def select_backend(pool: Pool, *, backend: Optional[str] = None,
                    model: Optional[str] = None,
                    task: Optional[str] = None,
                    tags: Optional[list[str]] = None,
                    occupancy_check: Optional[Callable[[str], dict]] = None,
                    payload_bytes: Optional[int] = None,
-                   exclude: Optional[set[str]] = None) -> tuple[Backend, str, dict]:
+                   exclude: Optional[set[str]] = None,
+                   max_tokens: Optional[int] = None) -> tuple[Backend, str, dict]:
     """Pick a backend and return (backend, reason, occupancy).
+
+    `max_tokens` (2026-09-27, docs/sizing-map.md): the output the caller will ask for, or None
+    for the rung's own default. Admission reserves it: a rung is refused (pin) or skipped (tag
+    route) when `payload_bytes // 4 + reserve > context_tokens`, because a payload that fits the
+    window on its own still overflows the seat once the answer is added. The historical
+    `payload_bytes <= context_bytes` check stays; the stricter of the two decides.
 
     `backend` pins by name (error if unknown) — a pin is a deliberate operator
     choice and is not skipped for ordinary occupancy (Banked Fire P2 fail-open
@@ -374,6 +408,24 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
             # am4-oxen ctx miscalculation (0eeb1df) stayed hidden for a month.
             # Callers that pass no payload_bytes (build_requests) are untouched.
             pinned_context = chosen.context_bytes(model)
+            reserve_reason = _output_reserve_rejection(chosen, payload_bytes, max_tokens)
+            if reserve_reason is not None:
+                raise BackendRoutingRefusal(
+                    payload_bytes=payload_bytes,
+                    required_context_bytes=payload_bytes,
+                    attempted=[{
+                        "name": chosen.name,
+                        "context_bytes": pinned_context,
+                        "budget_scope": chosen.context_budget_scope(model),
+                        "model": model,
+                        "occupancy": "not_checked",
+                        "rejection_reason": reserve_reason,
+                        "pinned": True,
+                    }],
+                    default_backend=pool.default,
+                    default_context_bytes=pool.default_backend().context_bytes(),
+                    reason_code="payload_over_budget_with_output_reserve_for_pinned_backend",
+                )
             if pinned_context is not None and payload_bytes > pinned_context:
                 raise BackendRoutingRefusal(
                     payload_bytes=payload_bytes,
@@ -417,6 +469,8 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
                 context = candidate.context_bytes(model)
                 if context is not None and payload_bytes > context:
                     continue
+                if _output_reserve_rejection(candidate, payload_bytes, max_tokens) is not None:
+                    continue
             occupancy = _occ(candidate.name)
             if occupancy.get("occupancy") == "available":
                 return candidate, f"model:{model}", occupancy
@@ -453,6 +507,8 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
                         # A1: the payload cannot fit this rung's declared context —
                         # skip it exactly like a busy candidate.
                         continue
+                    if _output_reserve_rejection(candidate, payload_bytes, max_tokens) is not None:
+                        continue
                 occ = _occ(candidate.name)
                 occupancy = occ.get("occupancy", "unknown")
                 if occupancy == "busy" or (occupancy == "unknown"):
@@ -468,6 +524,8 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
         c_bytes = default.context_bytes()
         if c_bytes is not None and payload_bytes > c_bytes:
             d_overflow = True
+        elif _output_reserve_rejection(default, payload_bytes, max_tokens) is not None:
+            d_overflow = True   # fits the window alone, not with its answer (sizing-map 2026-09-27)
 
     if d_exclude or d_overflow:
         # A1/A2: the default can't take this call (payload too big, or it just
@@ -486,12 +544,13 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
                         continue
                     if payload_bytes is not None:
                         c_bytes = candidate.context_bytes()
-                        if c_bytes is not None and payload_bytes > c_bytes:
+                        reserve_reason = _output_reserve_rejection(candidate, payload_bytes, max_tokens)
+                        if (c_bytes is not None and payload_bytes > c_bytes) or reserve_reason is not None:
                             attempted.append({
                                 "name": candidate.name,
                                 "context_bytes": c_bytes,
                                 "occupancy": "not_checked",
-                                "rejection_reason": "payload_over_budget",
+                                "rejection_reason": reserve_reason or "payload_over_budget",
                                 "ladder": f_tag,
                             })
                             continue

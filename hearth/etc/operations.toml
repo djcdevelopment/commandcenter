@@ -4,29 +4,34 @@
 # backends.toml. Per-request policy (deadline, output budget, priority) is
 # constrained by these operation-level limits.
 
+# Output ceilings (2026-09-27, docs/sizing-map.md): no operation may allow more output than the
+# largest rung reserve declares (omen-dense-27b max_tokens 16384); the door then admits
+# input + reserve <= context per rung. 32768 was an offer no seat could serve.
 [operation."llm.chat"]
 description = "Generate a conversational completion through the HEARTH model router."
 handler = "llm_chat"
 default_model = "gpt-oss-120b"
 max_prompt_bytes = 65536
-max_tokens_ceiling = 32768
-deadline_ceiling_s = 1200
+max_tokens_ceiling = 16384
+deadline_ceiling_s = 2400
 artifact_media_type = "text/markdown; charset=utf-8"
 
 [operation."inference.generate"]
 description = "Compatibility operation for HEARTH's historical local_generate tool."
 handler = "llm_chat"
 max_prompt_bytes = 1048576
-max_tokens_ceiling = 32768
-deadline_ceiling_s = 1200
+max_tokens_ceiling = 16384
+deadline_ceiling_s = 2400
 artifact_media_type = "text/plain; charset=utf-8"
 
 [operation."work.produce"]
 description = "Produce a review-only local-work candidate from a pinned repository source pack."
+# 16384 tokens at the measured 10.4 tok/s on the dense lane is ~1,575 s of decode plus prefill;
+# the deadline ceiling follows (was 8192 / 1200; a 16,384 request was refused 2026-09-27 18:23Z).
 handler = "llm_chat"
 max_prompt_bytes = 1048576
-max_tokens_ceiling = 8192
-deadline_ceiling_s = 1200
+max_tokens_ceiling = 16384
+deadline_ceiling_s = 2400
 artifact_media_type = "application/vnd.hearth.local-work-candidate.v1+json"
 
 [operation."media.render"]

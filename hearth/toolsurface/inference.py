@@ -247,7 +247,8 @@ def _google_access_token(auth_env: Optional[str]) -> tuple[Optional[str], Option
 def _resolve_target(endpoint: str, task: Optional[str], backend: Optional[str],
                     payload_bytes: Optional[int] = None,
                     exclude: Optional[set[str]] = None,
-                    tags: Optional[list[str]] = None) -> _Target:
+                    tags: Optional[list[str]] = None,
+                    max_tokens: Optional[int] = None) -> _Target:
     """Apply the Banked Fire routing policy and return the dispatch target.
 
     Precedence: (1) an explicitly-passed endpoint wins outright, unchanged; then
@@ -295,7 +296,8 @@ def _resolve_target(endpoint: str, task: Optional[str], backend: Optional[str],
                                              tags=tags,
                                              occupancy_check=check_occupancy,
                                              payload_bytes=payload_bytes,
-                                             exclude=exclude)
+                                             exclude=exclude,
+                                             max_tokens=max_tokens)
         token, error = _google_access_token(chosen.auth_env) if chosen.api == "gemini" else (chosen.token(), None)
         return _Target(chosen.endpoint.rstrip("/"), chosen.api, token, error,
                        chosen.auth_env, chosen.name, reason, occ.get("occupancy", "available"),
@@ -755,7 +757,7 @@ def local_generate(prompt: str, model: str | None = None,
 
     try:
         target = _resolve_target(endpoint, task, route_backend, payload_bytes=payload_bytes,
-                                 tags=call_tags)
+                                 tags=call_tags, max_tokens=max_tokens)
     except BackendRoutingRefusal as exc:
         refusal = exc.as_dict()
         return _tag({"ok": False,
@@ -808,7 +810,7 @@ def local_generate(prompt: str, model: str | None = None,
             second_target = _resolve_target(endpoint, task, route_backend,
                                             payload_bytes=payload_bytes,
                                             exclude=exclude_set,
-                                            tags=call_tags)
+                                            tags=call_tags, max_tokens=max_tokens)
             if second_target.backend != target.backend:
                 second_model, second_max_tokens, second_timeout_s = _apply_defaults(
                     second_target, route_model, max_tokens)

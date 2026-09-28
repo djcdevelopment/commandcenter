@@ -1,5 +1,7 @@
 # N4 recovery: delivery is a separate question from seat selection
 
+**Follow-up completed:** [final-text reports in the real read loop](agent-final-report-20260928.md). The delivery lap below is now historical; the next uncertainty is factual fidelity.
+
 2026-09-28 UTC. R&D, not promotion. Build receipt `br-20260928-040334-a342809b`.
 
 ## Recovered state

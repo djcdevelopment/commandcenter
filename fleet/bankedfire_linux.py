@@ -71,7 +71,7 @@ def lane_slots() -> dict[str, int]:
     """Per-lane in-flight caps for unattended dispatch (BANKEDFIRE_SLOTS="fast=3,deep=1,experiment=1").
     Deliberately below backends' parallel_slots: the execution plane admits per provider, but
     a job waiting for a slot spins on a worker, and unattended work must leave room for a human."""
-    raw = os.environ.get("BANKEDFIRE_SLOTS", "fast=3,deep=1,experiment=1,deepagents=1")
+    raw = os.environ.get("BANKEDFIRE_SLOTS", "fast=3,deep=1,experiment=1,deepagents=1,tool=2")
     out: dict[str, int] = {}
     for part in raw.split(","):
         if "=" in part:
@@ -106,6 +106,14 @@ def brief_lane(brief) -> str:
     if brief.task_class == EXPERIMENT_TASK_CLASS:
         return "experiment"
     if brief.task_class == DEEPAGENTS_TASK_CLASS:
+        # AM4 tool-pair routes (2026-09-28) have their own lane: two seats, one job each, and they
+        # must not consume the B70-bound deepagents slot.
+        try:
+            fields, _ = parse_local_work_block_lenient(brief.body)
+        except Exception:  # noqa: BLE001
+            fields = {}
+        if str(fields.get("backend", "")).startswith("am4-tool-"):
+            return "tool"
         return "deepagents"
     if brief.task_class == PROOFING_TASK_CLASS:
         return "deep"   # proposals are drafted on the 27B, one at a time

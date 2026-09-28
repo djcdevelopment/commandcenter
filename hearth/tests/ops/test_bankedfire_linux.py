@@ -130,7 +130,7 @@ class LaneSlotsTests(unittest.TestCase):
             self.assertEqual(lane.lane_slots(), {"fast": 2, "deep": 1, "experiment": 0})
         with mock.patch.dict("os.environ", {}, clear=False):
             import os; os.environ.pop("BANKEDFIRE_SLOTS", None)
-            self.assertEqual(lane.lane_slots(), {"fast": 3, "deep": 1, "experiment": 1, "deepagents": 1})
+            self.assertEqual(lane.lane_slots(), {"fast": 3, "deep": 1, "experiment": 1, "deepagents": 1, "tool": 2})
 
     def test_brief_lane_from_block_and_class(self) -> None:
         from hearth.backlog.briefs import Brief
@@ -379,3 +379,17 @@ class Am4AliasProbeTests(unittest.TestCase):
     def test_the_registry_names_every_am4_alias_rung(self) -> None:
         for rung in ("am4-vllm", "am4-tool-4070ti", "am4-tool-5070"):
             self.assertIn(rung, occ._PROBES)
+
+
+class ToolLaneTests(unittest.TestCase):
+    """2026-09-28: deepagents briefs bound for the AM4 tool-pair seats count against their own
+    `tool` lane (two seats, one job each) rather than the B70-bound deepagents slot."""
+
+    def test_am4_tool_backends_take_the_tool_lane(self) -> None:
+        from hearth.backlog.briefs import Brief
+        mk = lambda body: Brief(slug="s", title="t", body=body, builders=None, task_class="deepagents",  # noqa: E731
+                                est_tokens=None, requires=(), max_age_s=None, source="authored", source_ref="s.md")
+        self.assertEqual(lane.brief_lane(mk("source: /x.py\nbackend: am4-tool-4070ti\n---\ngo")), "tool")
+        self.assertEqual(lane.brief_lane(mk("source: /x.py\nbackend: am4-tool-5070\n---\ngo")), "tool")
+        self.assertEqual(lane.brief_lane(mk("source: /x.py\nbackend: omen-dense\n---\ngo")), "deepagents")
+        self.assertEqual(lane.brief_lane(mk("source: /x.py\n---\ngo")), "deepagents")

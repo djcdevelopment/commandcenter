@@ -1,0 +1,40 @@
+{
+  "name": "seat0-qwen3-32b",
+  "description": "Seat 0 Qwen3-32B-AWQ dense attention with hybrid-thinking, Seat 1 MoE throughput",
+  "evidence_status": "caches every agent turn tail (2.4-2.8 s/turn vs 27B 11-16 s), but failed fix task (151-step edit loop, false 'passes' claim); 27B stays quality lane",
+  "seats": {
+    "0": {
+      "model_dir": "/home/derek/models/qwen3-32b-awq-int4",
+      "served_name": "qwen3-32b",
+      "context": 24576,
+      "max_num_seqs": 4,
+      "haproxy_backend": "omen-dense-27b",
+      "haproxy_port": 18095,
+      "seat_port": 18091,
+      "staged_dropin": "stage5-qwen3-32b.conf.staged",
+      "active_dropin": "stage5-qwen3-32b.conf",
+      "dropins": [
+        "stage0-recipe.conf",
+        "stage2-27b-mtp.conf",
+        "stage2b-batched.conf",
+        "stage2d-prefix-unit.conf",
+        "max-num-seqs.conf",
+        "stage5-qwen3-32b.conf"
+      ]
+    },
+    "1": {
+      "model_dir": "/home/derek/models/qwen3-30b-a3b-gptq-int4",
+      "served_name": "qwen3-30b-a3b",
+      "context": 40960,
+      "max_num_seqs": 8,
+      "haproxy_backend": "omen-vllm",
+      "haproxy_port": 18090,
+      "seat_port": 18092,
+      "dropins": [
+        "stage0-recipe.conf",
+        "max-model-len.conf",
+        "max-num-seqs.conf"
+      ]
+    }
+  }
+}

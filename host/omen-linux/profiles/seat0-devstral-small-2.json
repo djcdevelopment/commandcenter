@@ -1,0 +1,40 @@
+{
+  "name": "seat0-devstral-small-2",
+  "description": "Seat 0 Devstral Small 2 24B AWQ (Mistral arch), Seat 1 MoE throughput",
+  "evidence_status": "cannot load in shared venv (transformers 5.17 removed PixtralRotaryEmbedding; vLLM 0.30 imports it); needs separate venv with pinned transformers",
+  "seats": {
+    "0": {
+      "model_dir": "/home/derek/models/devstral-small-2-24b-awq-int4",
+      "served_name": "devstral-small-2",
+      "context": 65536,
+      "max_num_seqs": 4,
+      "haproxy_backend": "omen-dense-27b",
+      "haproxy_port": 18095,
+      "seat_port": 18091,
+      "staged_dropin": "stage6-devstral.conf.staged",
+      "active_dropin": "stage6-devstral.conf",
+      "dropins": [
+        "stage0-recipe.conf",
+        "stage2-27b-mtp.conf",
+        "stage2b-batched.conf",
+        "stage2d-prefix-unit.conf",
+        "max-num-seqs.conf",
+        "stage6-devstral.conf"
+      ]
+    },
+    "1": {
+      "model_dir": "/home/derek/models/qwen3-30b-a3b-gptq-int4",
+      "served_name": "qwen3-30b-a3b",
+      "context": 40960,
+      "max_num_seqs": 8,
+      "haproxy_backend": "omen-vllm",
+      "haproxy_port": 18090,
+      "seat_port": 18092,
+      "dropins": [
+        "stage0-recipe.conf",
+        "max-model-len.conf",
+        "max-num-seqs.conf"
+      ]
+    }
+  }
+}

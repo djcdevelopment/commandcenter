@@ -1,0 +1,40 @@
+{
+  "name": "seat0-devstral2507",
+  "description": "Seat 0 Devstral Small 1.1 (2507) text-only MistralForCausalLM, Seat 1 MoE throughput",
+  "evidence_status": "serves 5,043 jobs/h, reached correct working tree on fix task (7/7 by receipt) but never committed (107 steps)",
+  "seats": {
+    "0": {
+      "model_dir": "/home/derek/models/devstral-small-2507-awq-int4",
+      "served_name": "devstral-2507",
+      "context": 65536,
+      "max_num_seqs": 4,
+      "haproxy_backend": "omen-dense-27b",
+      "haproxy_port": 18095,
+      "seat_port": 18091,
+      "staged_dropin": "stage7-devstral2507.conf.staged",
+      "active_dropin": "stage7-devstral2507.conf",
+      "dropins": [
+        "stage0-recipe.conf",
+        "stage2-27b-mtp.conf",
+        "stage2b-batched.conf",
+        "stage2d-prefix-unit.conf",
+        "max-num-seqs.conf",
+        "stage7-devstral2507.conf"
+      ]
+    },
+    "1": {
+      "model_dir": "/home/derek/models/qwen3-30b-a3b-gptq-int4",
+      "served_name": "qwen3-30b-a3b",
+      "context": 40960,
+      "max_num_seqs": 8,
+      "haproxy_backend": "omen-vllm",
+      "haproxy_port": 18090,
+      "seat_port": 18092,
+      "dropins": [
+        "stage0-recipe.conf",
+        "max-model-len.conf",
+        "max-num-seqs.conf"
+      ]
+    }
+  }
+}

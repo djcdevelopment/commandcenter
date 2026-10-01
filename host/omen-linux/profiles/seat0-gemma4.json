@@ -1,0 +1,40 @@
+{
+  "name": "seat0-gemma4",
+  "description": "Seat 0 Gemma 4 31B-it AWQ dense attention, Seat 1 MoE throughput",
+  "evidence_status": "staged candidate; next agent-lane candidate, dense attention (50 sliding + 10 full)",
+  "seats": {
+    "0": {
+      "model_dir": "/home/derek/models/gemma-4-31b-it-awq-int4",
+      "served_name": "gemma-4-31b",
+      "context": 65536,
+      "max_num_seqs": 4,
+      "haproxy_backend": "omen-dense-27b",
+      "haproxy_port": 18095,
+      "seat_port": 18091,
+      "staged_dropin": "stage4-gemma4.conf.staged",
+      "active_dropin": "stage4-gemma4.conf",
+      "dropins": [
+        "stage0-recipe.conf",
+        "stage2-27b-mtp.conf",
+        "stage2b-batched.conf",
+        "stage2d-prefix-unit.conf",
+        "max-num-seqs.conf",
+        "stage4-gemma4.conf"
+      ]
+    },
+    "1": {
+      "model_dir": "/home/derek/models/qwen3-30b-a3b-gptq-int4",
+      "served_name": "qwen3-30b-a3b",
+      "context": 40960,
+      "max_num_seqs": 8,
+      "haproxy_backend": "omen-vllm",
+      "haproxy_port": 18090,
+      "seat_port": 18092,
+      "dropins": [
+        "stage0-recipe.conf",
+        "max-model-len.conf",
+        "max-num-seqs.conf"
+      ]
+    }
+  }
+}

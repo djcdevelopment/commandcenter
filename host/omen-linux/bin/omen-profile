@@ -1,0 +1,443 @@
+#!/usr/bin/env python3
+"""omen-profile — switch OMEN's B70 serving profiles with verified boundaries.
+
+Mirrors AM4's am4-profile switch ceremony for OMEN's two B70 seats.
+Profiles are defined as data (JSON/TOML) in host/omen-linux/profiles/ or
+~/.config/omen-vllm/profiles/.
+
+Usage:
+    omen-profile status
+    omen-profile list
+    omen-profile switch <name> [--dry-run]
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import sqlite3
+import subprocess
+import sys
+import time
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Optional
+
+HOME = Path.home()
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+PROFILE_STATE_FILE = HOME / ".config" / "omen-vllm" / "profile"
+PROFILE_DIRS = [
+    HOME / ".config" / "omen-vllm" / "profiles",
+    Path(__file__).resolve().parents[1] / "profiles",
+    REPO_ROOT / "host" / "omen-linux" / "profiles",
+    HOME / "work" / "commandcenter-linux-flash" / "host" / "omen-linux" / "profiles",
+]
+UNIT_DIR = HOME / ".config" / "systemd" / "user"
+SNAPSHOT_DIR = HOME / ".config" / "omen-vllm" / "snapshots"
+START_SCRIPT = HOME / "bin" / "start-vllm-seat.sh"
+WAIT_SCRIPT = HOME / "bin" / "wait-vllm-seat.sh"
+POOL_RESOURCE = "omen-b70-pool"
+
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def get_vllm_key() -> str:
+    key = os.environ.get("VLLM_API_KEY") or os.environ.get("OMEN_ARC_TOKEN")
+    if not key:
+        env_file = HOME / ".config" / "omen-vllm" / "omen-api.env"
+        if env_file.is_file():
+            for line in env_file.read_text().splitlines():
+                if line.startswith("VLLM_API_KEY="):
+                    key = line.split("=", 1)[1].strip().strip('"').strip("'")
+    return key or ""
+
+
+def load_profile(name: str) -> dict[str, Any]:
+    for pdir in PROFILE_DIRS:
+        for ext in (".json", ".toml"):
+            candidate = pdir / f"{name}{ext}"
+            if candidate.is_file():
+                if ext == ".json":
+                    return json.loads(candidate.read_text(encoding="utf-8"))
+                elif ext == ".toml":
+                    import tomllib
+                    return tomllib.loads(candidate.read_text(encoding="utf-8"))
+    raise FileNotFoundError(f"profile {name!r} not found in {[str(d) for d in PROFILE_DIRS]}")
+
+
+def list_profiles() -> list[dict[str, Any]]:
+    seen: set[str] = set()
+    profiles: list[dict[str, Any]] = []
+    for pdir in PROFILE_DIRS:
+        if not pdir.is_dir():
+            continue
+        for f in sorted(pdir.glob("*.json")):
+            if f.stem not in seen:
+                seen.add(f.stem)
+                try:
+                    data = json.loads(f.read_text(encoding="utf-8"))
+                    profiles.append(data)
+                except Exception:
+                    pass
+    return profiles
+
+
+def get_model_positional_limit(model_dir: str | Path) -> Optional[int]:
+    cfg_path = Path(model_dir) / "config.json"
+    if not cfg_path.is_file():
+        return None
+    try:
+        data = json.loads(cfg_path.read_text(encoding="utf-8"))
+        tc = data.get("text_config", data)
+        for key in ("max_position_embeddings", "seq_length", "max_seq_len"):
+            val = tc.get(key)
+            if isinstance(val, int) and val > 0:
+                return val
+    except Exception:
+        pass
+    return None
+
+
+def check_context_limits(profile_data: dict[str, Any]) -> None:
+    seats = profile_data.get("seats", {})
+    for seat_id, sdata in seats.items():
+        model_dir = sdata.get("model_dir")
+        context = sdata.get("context")
+        if not model_dir or not context:
+            continue
+        limit = get_model_positional_limit(model_dir)
+        if limit is not None and context > limit:
+            raise ValueError(
+                f"Context limit violation on seat {seat_id}: requested context {context} "
+                f"exceeds model {sdata.get('served_name')!r} limit {limit} ({model_dir})"
+            )
+
+
+def query_live_models(port: int, key: str) -> list[str]:
+    url = f"http://127.0.0.1:{port}/v1/models"
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {key}"})
+    try:
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.loads(resp.read())
+            return sorted(m["id"] for m in data.get("data", []))
+    except Exception as exc:
+        return [f"error: {exc}"]
+
+
+def query_live_metrics(port: int, key: str) -> dict[str, str]:
+    url = f"http://127.0.0.1:{port}/metrics"
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {key}"})
+    out: dict[str, str] = {}
+    try:
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            for line in resp.read().decode("utf-8", errors="ignore").splitlines():
+                if "vllm:num_requests_running{" in line:
+                    out["running"] = line.split()[-1]
+                elif "vllm:gpu_cache_usage_factor{" in line:
+                    out["cache_factor"] = line.split()[-1]
+    except Exception:
+        pass
+    return out
+
+
+def count_active_jobs() -> int:
+    path = HOME / "hearth-production" / "var" / "execution" / "projection.sqlite"
+    if not path.is_file():
+        return 0
+    try:
+        with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as db:
+            rows = db.execute(
+                "SELECT state_json FROM jobs WHERE status NOT IN "
+                "('succeeded','failed','cancelled','expired')"
+            ).fetchall()
+            active = 0
+            for row in rows:
+                job = json.loads(row[0])
+                if not (job.get("status") == "queued" and job.get("operation") == "bf6.process_segment"):
+                    active += 1
+            return active
+    except Exception:
+        return 0
+
+
+def cmd_status() -> int:
+    active_profile = "two-lane"
+    if PROFILE_STATE_FILE.is_file():
+        active_profile = PROFILE_STATE_FILE.read_text(encoding="utf-8").strip() or "two-lane"
+
+    print(f"profile: {active_profile}")
+    try:
+        pdata = load_profile(active_profile)
+    except Exception:
+        pdata = None
+
+    key = get_vllm_key()
+    all_match = True
+    for seat in (0, 1):
+        port = 18091 + seat
+        unit = f"omen-vllm@{seat}.service"
+        is_active = subprocess.run(["systemctl", "--user", "is-active", unit],
+                                   capture_output=True, text=True).stdout.strip()
+        live_models = query_live_models(port, key)
+        metrics = query_live_metrics(port, key)
+        
+        expected_model = None
+        haproxy_info = ""
+        if pdata and "seats" in pdata and str(seat) in pdata["seats"]:
+            sinfo = pdata["seats"][str(seat)]
+            expected_model = sinfo.get("served_name")
+            haproxy_info = f" -> {sinfo.get('haproxy_backend', '')}:{sinfo.get('haproxy_port', '')}"
+
+        matches = (expected_model in live_models) if expected_model else False
+        if expected_model and not matches:
+            all_match = False
+
+        status_str = f"matches {expected_model}" if matches else f"expected {expected_model}, got {live_models}"
+        running_metric = metrics.get("running", "?")
+        cache_metric = metrics.get("cache_factor", "?")
+
+        print(f"  seat {seat} (port {port}, {unit} {is_active}{haproxy_info}):")
+        print(f"    models:  {live_models} ({status_str})")
+        print(f"    metrics: running_reqs={running_metric}, gpu_cache_factor={cache_metric}")
+
+    return 0 if all_match else 1
+
+
+def cmd_list() -> int:
+    profiles = list_profiles()
+    active_profile = "two-lane"
+    if PROFILE_STATE_FILE.is_file():
+        active_profile = PROFILE_STATE_FILE.read_text(encoding="utf-8").strip() or "two-lane"
+
+    print(f"Available profiles (active: {active_profile}):\n")
+    for p in profiles:
+        name = p.get("name", "unknown")
+        marker = " [ACTIVE]" if name == active_profile else ""
+        print(f"* {name}{marker}:")
+        print(f"    Description: {p.get('description', '')}")
+        print(f"    Evidence:    {p.get('evidence_status', '')}")
+        for seat_id, s in sorted(p.get("seats", {}).items()):
+            print(f"    Seat {seat_id}: {s.get('served_name')} (ctx={s.get('context')}, seqs={s.get('max_num_seqs')}, port={s.get('seat_port')})")
+        print()
+    return 0
+
+
+def build_seat_dry_env(seat: int, sdata: dict[str, Any]) -> dict[str, str]:
+    env = dict(os.environ)
+    env["OMEN_DRY"] = "1"
+    env_file = HOME / ".config" / "omen-vllm" / "omen-api.env"
+    if env_file.is_file():
+        for line in env_file.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                env[k.strip()] = v.strip().strip('"').strip("'")
+
+    service_d = UNIT_DIR / f"omen-vllm@{seat}.service.d"
+    # Load all existing base confs
+    for p in sorted(service_d.glob("*.conf")):
+        for line in p.read_text().splitlines():
+            if line.startswith("Environment="):
+                k, v = line[len("Environment="):].split("=", 1)
+                env[k.strip()] = v.strip()
+
+    # Load active dropin or staged dropin if specified in profile
+    if "staged_dropin" in sdata:
+        staged = service_d / sdata["staged_dropin"]
+        if staged.is_file():
+            for line in staged.read_text().splitlines():
+                if line.startswith("Environment="):
+                    k, v = line[len("Environment="):].split("=", 1)
+                    env[k.strip()] = v.strip()
+
+    return env
+
+
+def cmd_switch(name: str, dry_run: bool = False) -> int:
+    try:
+        profile = load_profile(name)
+        check_context_limits(profile)
+    except (ValueError, FileNotFoundError) as exc:
+        print(f"Refusing switch: {exc}", file=sys.stderr)
+        return 1
+
+    if dry_run:
+        print(f"[DRY-RUN] Switching to profile: {name}")
+        print(f"[DRY-RUN] Description: {profile.get('description')}")
+        print(f"[DRY-RUN] Context limit verification: PASSED (all seats inside model limits)")
+        for seat in (0, 1):
+            sdata = profile.get("seats", {}).get(str(seat), {})
+            print(f"\n--- Seat {seat} Plan ({sdata.get('served_name')}) ---")
+            print(f"Model dir: {sdata.get('model_dir')}")
+            print(f"Context:   {sdata.get('context')}")
+            print(f"Max seqs:  {sdata.get('max_num_seqs')}")
+            env = build_seat_dry_env(seat, sdata)
+            res = subprocess.run([str(START_SCRIPT), str(seat)], env=env, capture_output=True, text=True)
+            if res.returncode != 0:
+                print(f"[DRY-RUN] start-vllm-seat.sh failed:\n{res.stderr}", file=sys.stderr)
+                return 1
+            print("vLLM argv (from start-vllm-seat.sh OMEN_DRY=1):")
+            argv_lines = [l.strip() for l in res.stdout.splitlines() if l.strip()]
+            print("  vllm " + " \\\n    ".join(argv_lines))
+        print("\n[DRY-RUN] Preflight verification successful. No changes made.")
+        return 0
+
+    # Live switch: verify gates
+    active_jobs = count_active_jobs()
+    if active_jobs > 0:
+        print(f"Refusing switch: {active_jobs} active job(s) in progress (omen-ai-mode status)", file=sys.stderr)
+        return 1
+
+    try:
+        from hearth.execution.coordination import GpuTenancyStore
+        store = GpuTenancyStore()
+        active_owner = store.active_owner(POOL_RESOURCE)
+        if active_owner is not None:
+            print(f"Refusing switch: GPU tenancy held by {active_owner.owner} (session {active_owner.session_id})", file=sys.stderr)
+            return 1
+    except Exception as exc:
+        print(f"Tenancy store check failed: {exc}", file=sys.stderr)
+        return 1
+
+    # Take tenancy
+    session_id = f"omen-profile-{int(time.time())}"
+    print(f"Acquiring GPU tenancy for {POOL_RESOURCE} (session {session_id})...")
+    snap = store.acquire(
+        resource=POOL_RESOURCE,
+        session_id=session_id,
+        ttl_seconds=1800,
+        state="profile_switch",
+        reason=f"omen-profile switch to {name}",
+        owner="experiment",
+    )
+
+    # Snapshot current drop-ins
+    ts_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    snap_dir = SNAPSHOT_DIR / ts_str
+    snap_dir.mkdir(parents=True, exist_ok=True)
+    print(f"Saving drop-in snapshot to {snap_dir}...")
+    for seat in (0, 1):
+        s_dir = UNIT_DIR / f"omen-vllm@{seat}.service.d"
+        seat_snap_dir = snap_dir / f"seat_{seat}"
+        seat_snap_dir.mkdir(exist_ok=True)
+        if s_dir.is_dir():
+            for conf in s_dir.glob("*.conf"):
+                shutil.copy2(conf, seat_snap_dir / conf.name)
+
+    def restore_snapshot() -> None:
+        print("Restoring drop-ins from snapshot...", file=sys.stderr)
+        for seat in (0, 1):
+            s_dir = UNIT_DIR / f"omen-vllm@{seat}.service.d"
+            seat_snap_dir = snap_dir / f"seat_{seat}"
+            if s_dir.is_dir():
+                for c in list(s_dir.glob("*.conf")):
+                    c.unlink()
+                if seat_snap_dir.is_dir():
+                    for c in seat_snap_dir.glob("*.conf"):
+                        shutil.copy2(c, s_dir / c.name)
+            subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
+            subprocess.run(["systemctl", "--user", "restart", f"omen-vllm@{seat}.service"], check=True)
+            subprocess.run([str(WAIT_SCRIPT), str(seat), "900"], check=True)
+
+    # Apply profile seat by seat
+    key = get_vllm_key()
+    try:
+        for seat in (0, 1):
+            sdata = profile.get("seats", {}).get(str(seat), {})
+            s_dir = UNIT_DIR / f"omen-vllm@{seat}.service.d"
+            expected_model = sdata.get("served_name")
+
+            if "staged_dropin" in sdata:
+                staged = s_dir / sdata["staged_dropin"]
+                target = s_dir / sdata.get("active_dropin", sdata["staged_dropin"].replace(".staged", ""))
+                if not staged.is_file():
+                    raise RuntimeError(f"staged drop-in {staged} does not exist")
+                shutil.copy2(staged, target)
+            elif name == "two-lane" and seat == 0:
+                # Remove any staged drop-ins that were copied into seat 0
+                for candidate in s_dir.glob("stage[4567]*.conf"):
+                    candidate.unlink()
+
+            print(f"Applying profile changes to seat {seat}...")
+            subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
+            subprocess.run(["systemctl", "--user", "restart", f"omen-vllm@{seat}.service"], check=True)
+            
+            print(f"Waiting for seat {seat} to become healthy...")
+            wait_res = subprocess.run([str(WAIT_SCRIPT), str(seat), "900"], capture_output=True, text=True)
+            if wait_res.returncode != 0:
+                raise RuntimeError(f"seat {seat} did not become healthy: {wait_res.stdout} {wait_res.stderr}")
+
+            # Verify served model
+            live_models = query_live_models(18091 + seat, key)
+            if expected_model and expected_model not in live_models:
+                raise RuntimeError(f"seat {seat} serves {live_models}, expected {expected_model}")
+
+        # Update profile state file
+        PROFILE_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        PROFILE_STATE_FILE.write_text(name, encoding="utf-8")
+
+        # Release tenancy
+        store.release(
+            resource=POOL_RESOURCE,
+            session_id=session_id,
+            epoch=snap.epoch,
+            owner="experiment",
+            restoration_verified=True,
+            reason=f"omen-profile switch to {name} complete",
+        )
+        print(f"Successfully switched to profile {name}.")
+        return cmd_status()
+
+    except Exception as exc:
+        print(f"Profile switch failed: {exc}", file=sys.stderr)
+        try:
+            restore_snapshot()
+            store.release(
+                resource=POOL_RESOURCE,
+                session_id=session_id,
+                epoch=snap.epoch,
+                owner="experiment",
+                restoration_verified=True,
+                reason=f"omen-profile switch failed; restored snapshot",
+            )
+            print("Rollback complete; pool un-fenced.", file=sys.stderr)
+            return 1
+        except Exception as r_exc:
+            print(f"CRITICAL: Rollback failed: {r_exc}", file=sys.stderr)
+            print("Pool remains fenced for safety. Manual intervention required.", file=sys.stderr)
+            return 2
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="OMEN B70 serving profile manager")
+    sub = parser.add_subparsers(dest="subcommand")
+
+    sub.add_parser("status", help="Show current profile and seat status")
+    sub.add_parser("list", help="List defined profiles")
+    sw = sub.add_parser("switch", help="Switch serving profile")
+    sw.add_argument("name", help="Profile name to switch to")
+    sw.add_argument("--dry-run", action="store_true", help="Simulate switch and verify limits without changing seats")
+
+    args = parser.parse_args()
+    cmd = args.subcommand or "status"
+
+    if cmd == "status":
+        return cmd_status()
+    elif cmd == "list":
+        return cmd_list()
+    elif cmd == "switch":
+        return cmd_switch(args.name, dry_run=args.dry_run)
+    else:
+        parser.print_help()
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

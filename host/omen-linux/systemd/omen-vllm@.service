@@ -1,5 +1,5 @@
 [Unit]
-Description=vLLM XPU Qwen3-30B on OMEN B70 %i
+Description=vLLM XPU serving seat on OMEN B70 %i
 
 [Service]
 Type=simple

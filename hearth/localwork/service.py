@@ -343,7 +343,30 @@ class LocalWorkService:
             self._write(manifest)
             self._event(manifest, "step.dispatched", {"job_id": state["job_id"], "attempt": 1,
                         "provider": backend_name, "model": model}, refs={"receipt_id": receipt_id} if receipt_id else {})
+            self._spawn_auto_reconcile(work_id, state["job_id"])
         return self.reconcile(work_id)
+
+    def _auto_reconcile(self, work_id: str, job_id: str) -> None:
+        try:
+            self.execution.watch(job_id=job_id, wait_seconds=3600)
+        except Exception:
+            pass
+        try:
+            self.reconcile(work_id)
+        except Exception:
+            pass
+
+    def _spawn_auto_reconcile(self, work_id: str, job_id: str) -> None:
+        try:
+            thread = threading.Thread(
+                target=self._auto_reconcile,
+                args=(work_id, job_id),
+                daemon=True,
+                name=f"auto-reconcile-{work_id}",
+            )
+            thread.start()
+        except Exception:
+            pass
 
     def _result(self, job: Mapping[str, Any]) -> tuple[dict[str, Any], bytes]:
         artifact_id = job.get("result_artifact_id") or next(
@@ -378,18 +401,39 @@ class LocalWorkService:
         repo = Path(str(manifest["repo"]))
         base = str(manifest["base_commit"])
         declared = set(manifest["declared_paths"])
+        normalized_citations = []
         for citation in candidate["citations"]:
-            if not isinstance(citation, dict) or set(citation) != {"path", "start_line", "end_line"}:
+            if isinstance(citation, str):
+                path = _safe_relative(citation)
+                if path not in declared:
+                    raise LocalWorkError(f"citation path was not declared: {path}")
+                lines = len(_git(repo, "show", f"{base}:{path}").splitlines())
+                normalized_citations.append({"path": path, "start_line": 1, "end_line": max(1, lines)})
+                notes["normalized_bare_citation"] = True
+            elif isinstance(citation, dict):
+                if set(citation) == {"path"}:
+                    path = _safe_relative(str(citation["path"]))
+                    if path not in declared:
+                        raise LocalWorkError(f"citation path was not declared: {path}")
+                    lines = len(_git(repo, "show", f"{base}:{path}").splitlines())
+                    normalized_citations.append({"path": path, "start_line": 1, "end_line": max(1, lines)})
+                    notes["normalized_bare_citation"] = True
+                elif set(citation) == {"path", "start_line", "end_line"}:
+                    path = _safe_relative(str(citation["path"]))
+                    if path not in declared:
+                        raise LocalWorkError(f"citation path was not declared: {path}")
+                    start, end = citation["start_line"], citation["end_line"]
+                    if not isinstance(start, int) or not isinstance(end, int) or start < 1 or end < start:
+                        raise LocalWorkError("citation line range is invalid")
+                    lines = len(_git(repo, "show", f"{base}:{path}").splitlines())
+                    if end > lines:
+                        raise LocalWorkError(f"citation exceeds {path} at pinned commit")
+                    normalized_citations.append({"path": path, "start_line": start, "end_line": end})
+                else:
+                    raise LocalWorkError("citation shape is invalid")
+            else:
                 raise LocalWorkError("citation shape is invalid")
-            path = _safe_relative(str(citation["path"]))
-            if path not in declared:
-                raise LocalWorkError(f"citation path was not declared: {path}")
-            start, end = citation["start_line"], citation["end_line"]
-            if not isinstance(start, int) or not isinstance(end, int) or start < 1 or end < start:
-                raise LocalWorkError("citation line range is invalid")
-            lines = len(_git(repo, "show", f"{base}:{path}").splitlines())
-            if end > lines:
-                raise LocalWorkError(f"citation exceeds {path} at pinned commit")
+        candidate["citations"] = normalized_citations
         if manifest["artifact_kind"] == "whole_file" and candidate["target_path"] != manifest["target_path"]:
             raise LocalWorkError("whole-file target_path mismatch")
         if manifest["artifact_kind"] == "unified_diff":
@@ -419,6 +463,47 @@ class LocalWorkService:
                     notes["git_apply"] = "recount"
                     notes["git_apply_strict_error"] = completed.stderr.strip()[:300]
         return notes
+
+    def _dispatch_repair(self, manifest: dict[str, Any], job: Mapping[str, Any], raw: bytes, exc: Exception) -> None:
+        work_id = str(manifest["work_id"])
+        if len(manifest["attempts"]) >= 2:
+            manifest["status"] = "failed"
+            manifest["failure"] = str(exc)
+            self._event(manifest, "outcome.final", {"status": "failed", "reason_sha256": _digest(str(exc))})
+            return
+        original = self.execution.artifacts.read(job["desired"]["input_artifact"]).decode("utf-8")
+        prior = raw.decode("utf-8", errors="replace")
+        repair = (original + "\n\nREPAIR: The response below was rejected as malformed. "
+                  "Return only a corrected object with exactly schema, artifact_kind, "
+                  "summary, target_path, citations, and content.\nREJECTED RESPONSE:\n" + prior)
+        provider = load_pool().by_name(str(manifest["route"]["provider"]))
+        if provider is None:
+            raise LocalWorkError("repair route provider disappeared")
+        repair_tokens = self.token_counter(
+            provider, str(manifest["route"]["model"]), repair)
+        if repair_tokens + int(manifest["prompt"]["output_reserve_tokens"]) > int(manifest["prompt"]["context_tokens"]):
+            manifest["status"] = "failed"
+            manifest["failure"] = "structural repair does not fit exact context"
+            self._event(manifest, "outcome.final", {"status": "failed",
+                        "reason_sha256": _digest(manifest["failure"])})
+            return
+        state = self.execution.submit(
+            operation_name="work.produce",
+            arguments={"prompt": repair, "backend": manifest["route"]["provider"],
+                       "model": manifest["route"]["model"]},
+            principal=job["principal"], source=job["source"],
+            policy=job["desired"]["policy"],
+            idempotency_key=f"{work_id}:structural-repair")
+        manifest["job_id"] = state["job_id"]
+        manifest["request_id"] = state["request_id"]
+        manifest["status"] = "queued"
+        manifest["attempts"].append({"number": 2, "job_id": state["job_id"],
+                                     "request_id": state["request_id"], "repair": True})
+        self._event(manifest, "attempt.recorded", {"job_id": job["job_id"], "ok": False,
+                    "structural_repair": True, "reason_sha256": _digest(str(exc))})
+        self._event(manifest, "step.dispatched", {"job_id": state["job_id"], "attempt": 2,
+                    "structural_repair": True})
+        self._spawn_auto_reconcile(work_id, state["job_id"])
 
     def reconcile(self, work_id: str) -> dict[str, Any]:
         with self._lock:
@@ -452,53 +537,19 @@ class LocalWorkService:
                 try:
                     candidate = self._parse_candidate(raw, str(manifest["artifact_kind"]))
                 except LocalWorkError as exc:
-                    if len(manifest["attempts"]) >= 2:
-                        manifest["status"] = "failed"
-                        manifest["failure"] = str(exc)
-                        self._event(manifest, "outcome.final", {"status": "failed", "reason_sha256": _digest(str(exc))})
-                    else:
-                        original = self.execution.artifacts.read(job["desired"]["input_artifact"]).decode("utf-8")
-                        prior = raw.decode("utf-8", errors="replace")
-                        repair = (original + "\n\nREPAIR: The response below was rejected as malformed. "
-                                  "Return only a corrected object with exactly schema, artifact_kind, "
-                                  "summary, target_path, citations, and content.\nREJECTED RESPONSE:\n" + prior)
-                        provider = load_pool().by_name(str(manifest["route"]["provider"]))
-                        if provider is None:
-                            raise LocalWorkError("repair route provider disappeared")
-                        repair_tokens = self.token_counter(
-                            provider, str(manifest["route"]["model"]), repair)
-                        if repair_tokens + int(manifest["prompt"]["output_reserve_tokens"]) > int(manifest["prompt"]["context_tokens"]):
-                            manifest["status"] = "failed"
-                            manifest["failure"] = "structural repair does not fit exact context"
-                            self._event(manifest, "outcome.final", {"status": "failed",
-                                        "reason_sha256": _digest(manifest["failure"])})
-                            self._write(manifest)
-                            return manifest
-                        state = self.execution.submit(
-                            operation_name="work.produce",
-                            arguments={"prompt": repair, "backend": manifest["route"]["provider"],
-                                       "model": manifest["route"]["model"]},
-                            principal=job["principal"], source=job["source"],
-                            policy=job["desired"]["policy"],
-                            idempotency_key=f"{work_id}:structural-repair")
-                        manifest["job_id"] = state["job_id"]
-                        manifest["request_id"] = state["request_id"]
-                        manifest["status"] = "queued"
-                        manifest["attempts"].append({"number": 2, "job_id": state["job_id"],
-                                                     "request_id": state["request_id"], "repair": True})
-                        self._event(manifest, "attempt.recorded", {"job_id": job["job_id"], "ok": False,
-                                    "structural_repair": True, "reason_sha256": _digest(str(exc))})
-                        self._event(manifest, "step.dispatched", {"job_id": state["job_id"], "attempt": 2,
-                                    "structural_repair": True})
+                    self._dispatch_repair(manifest, job, raw, exc)
                 else:
                     try:
                         mechanical = self._validate_candidate(manifest, candidate)
                     except LocalWorkError as exc:
-                        manifest["status"] = "failed"
-                        manifest["failure"] = str(exc)
-                        self._event(manifest, "verification.recorded", {"passed": False,
-                                    "reason_sha256": _digest(str(exc))})
-                        self._event(manifest, "outcome.final", {"status": "failed"})
+                        if "citation shape is invalid" in str(exc) and len(manifest["attempts"]) < 2:
+                            self._dispatch_repair(manifest, job, raw, exc)
+                        else:
+                            manifest["status"] = "failed"
+                            manifest["failure"] = str(exc)
+                            self._event(manifest, "verification.recorded", {"passed": False,
+                                        "reason_sha256": _digest(str(exc))})
+                            self._event(manifest, "outcome.final", {"status": "failed"})
                     else:
                         observed = (job.get("invocations") or [{}])[-1].get("observed") or {}
                         manifest["route"].update({key: observed.get(key) for key in
@@ -528,9 +579,14 @@ class LocalWorkService:
         if not base.is_dir():
             return 0
         for target in base.glob("work_*/work-manifest.json"):
-            manifest = json.loads(target.read_text(encoding="utf-8"))
+            try:
+                manifest = json.loads(target.read_text(encoding="utf-8"))
+            except Exception:
+                continue
             if manifest.get("status") not in FINAL and manifest.get("status") != "awaiting_review":
-                self.reconcile(str(manifest["work_id"]))
+                reconciled = self.reconcile(str(manifest["work_id"]))
+                if reconciled.get("status") in {"queued", "running"} and reconciled.get("job_id"):
+                    self._spawn_auto_reconcile(str(reconciled["work_id"]), str(reconciled["job_id"]))
                 count += 1
         return count
 

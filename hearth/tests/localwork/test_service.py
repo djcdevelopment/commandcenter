@@ -110,6 +110,28 @@ class LocalWorkServiceTests(unittest.TestCase):
         self.assertEqual(len(final["attempts"]), 2)
         self.assertTrue(final["attempts"][1]["repair"])
 
+    def test_bare_path_string_citation_normalizes_to_whole_file(self) -> None:
+        cand = json.loads(self.outputs[0])
+        cand["citations"] = ["a.py"]
+        self.outputs[:] = [json.dumps(cand)]
+        manifest = self.submit()
+        final = self.settle(manifest["work_id"], wanted="awaiting_review")
+        self.assertEqual(final["status"], "awaiting_review")
+        self.assertTrue(final.get("mechanical", {}).get("normalized_bare_citation"))
+        artifact = self.service.artifact(final["work_id"])
+        self.assertEqual(artifact["candidate"]["citations"], [{"path": "a.py", "start_line": 1, "end_line": 2}])
+
+    def test_invalid_citation_shape_triggers_repair(self) -> None:
+        bad = json.loads(self.outputs[0])
+        bad["citations"] = [12345]  # invalid citation shape
+        good = json.loads(self.outputs[0])
+        self.outputs[:] = [json.dumps(bad), json.dumps(good)]
+        manifest = self.submit()
+        final = self.settle(manifest["work_id"], wanted="awaiting_review")
+        self.assertEqual(final["status"], "awaiting_review")
+        self.assertEqual(len(final["attempts"]), 2)
+        self.assertTrue(final["attempts"][1]["repair"])
+
     def test_semantically_invalid_candidate_fails_without_retry(self) -> None:
         bad = json.loads(self.outputs[0])
         bad["citations"][0]["end_line"] = 99

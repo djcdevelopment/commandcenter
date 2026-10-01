@@ -28,6 +28,13 @@ REPO = Path(os.environ.get("PYTHONPATH", "/home/derek/work/commandcenter-linux-f
 HEARTH_ROOT = Path(os.environ.get("HEARTH_ROOT", str(Path.home() / "hearth-production")))
 BACKLOG = Path(os.environ.get("HEARTH_BACKLOG_ROOT", str(HEARTH_ROOT / "var" / "backlog")))
 LEDGER = HEARTH_ROOT / "var" / "ledger" / "events.ndjson"
+os.environ.setdefault("HEARTH_EXECUTION_DIR", str(HEARTH_ROOT / "var" / "execution"))
+os.environ.setdefault("HEARTH_ARTIFACT_DIR", str(HEARTH_ROOT / "var" / "execution" / "artifacts"))
+os.environ.setdefault("HEARTH_COORDINATION_DB", str(HEARTH_ROOT / "var" / "execution" / "coordination.sqlite"))
+if (HEARTH_ROOT / "backends-linux.toml").exists():
+    os.environ.setdefault("HEARTH_BACKENDS", str(HEARTH_ROOT / "backends-linux.toml"))
+if (HEARTH_ROOT / "local-work-routes-linux.toml").exists():
+    os.environ.setdefault("HEARTH_LOCAL_WORK_ROUTES", str(HEARTH_ROOT / "local-work-routes-linux.toml"))
 LANES = {"door": "http://127.0.0.1:8710/healthz", "omen-vllm :18090": "http://127.0.0.1:18090/health",
          "omen-dense-27b :18095": "http://127.0.0.1:18095/health", "seat0 :18091": "http://127.0.0.1:18091/health",
          "seat1 :18092": "http://127.0.0.1:18092/health", "fx99 :18093": "http://192.168.12.220:18093/health"}
@@ -55,8 +62,15 @@ def _apply_check(manifest: dict) -> str:
         return "n/a (%s)" % manifest.get("artifact_kind")
     art = manifest.get("artifact") or {}
     art_id = art.get("artifact_id")
+    sha = art.get("sha256")
     art_dir = Path(os.environ.get("HEARTH_ARTIFACT_DIR", str(HEARTH_ROOT / "var/execution/artifacts")))
-    blob = next(iter(art_dir.rglob(f"{art_id}*")), None) if art_id else None
+    blob = None
+    if sha:
+        cand_p = art_dir / "objects" / sha[:2] / sha
+        if cand_p.exists():
+            blob = cand_p
+    if blob is None and art_id:
+        blob = next(iter(art_dir.rglob(f"{art_id}*")), None)
     if blob is None:
         return "artifact not found on disk"
     try:
@@ -90,6 +104,13 @@ def build(hours: int) -> str:
             d = json.loads(m.read_text())
         except Exception:  # noqa: BLE001
             continue
+        if d.get("status") in {"queued", "running"}:
+            try:
+                sys.path.insert(0, str(REPO))
+                from hearth.toolsurface.local_work import _get_service
+                d = _get_service().reconcile(d["work_id"])
+            except Exception:  # noqa: BLE001
+                pass
         ts = None
         for ev in reversed(d.get("events") or []):
             ts = _iso(ev.get("ts") or ev.get("timestamp")) or ts

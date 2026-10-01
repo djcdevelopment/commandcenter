@@ -1,6 +1,6 @@
 # Start here — the Local Compute Operator control plane
 
-You are in `/home/derek/work/commandcenter-linux-flash` (omen-linux; the Windows checkout `C:\work\commandcenter` is history). It is a **control plane for local compute**:
+You are in `/home/derek/work/commandcenter-linux-flash` (omen-linux; the historical Windows checkout `C:\work\commandcenter` is history). It is a **control plane for local compute**:
 one repository that can tell you what capabilities exist, what capacity is
 available right now, what you yourself are allowed to do, and which execution
 route fits a task. You do not need any conversation history to use it, and you
@@ -33,7 +33,7 @@ under `runs/operator/` — read those before trusting a route recommendation.
 |---|---|---|
 | 1 | Read this page. | LIVE |
 | 2 | Read `AGENTS.md` (how to offload work to the local models through the HEARTH door). | LIVE |
-| 3 | `operator inspect --json` — the inspection bundle: capability catalog, capacity snapshot, your authority. | LIVE |
+| 3 | `python -m hearth.operator inspect --json` — the inspection bundle: capability catalog, capacity snapshot, your authority. | LIVE |
 | 4 | `operator task submit <envelope.json>` — freeze the task as a TaskEnvelope. | LIVE (WI-G2) |
 | 5 | `operator route draft <run_id>` / `route propose <run_id> <proposal.json>` — a RouteProposal/v1 you then own. | LIVE (WI-G2) |
 | 6 | `operator route validate <run_id> <proposal_id>` — independent validation; exit 3 = needs a human `operator approve`. | LIVE (WI-G2) |
@@ -42,14 +42,12 @@ under `runs/operator/` — read those before trusting a route recommendation.
 
 ## Step 3, exactly
 
-Run from the repository root. `operator.cmd` forwards to `python -m
-hearth.operator` and does nothing else; use the venv interpreter directly for
-anything that calls the door.
+Run from the repository root. `operator.sh` (or `python -m hearth.operator` with `~/.venvs/hearth-private/bin/python`) runs the operator entry point (historical Windows wrapper: `operator.cmd`).
 
-```
-operator.cmd inspect --json
-operator.cmd whoami
-python -m hearth.operator inspect --json
+```bash
+./operator.sh inspect --json
+./operator.sh whoami
+~/.venvs/hearth-private/bin/python -m hearth.operator inspect --json
 ~/.venvs/hearth-private/bin/python -m hearth.operator inspect --refresh
 ```
 
@@ -74,9 +72,9 @@ The CLI reads **your own door key** from the environment variable
 and the same `hearth/var/callers.json` registry the gateway uses. It is the same
 key you present as the `X-Hearth-Key` header when you call the door.
 
-```
-set HEARTH_API_KEY=<your key>        (cmd)
-$env:HEARTH_API_KEY = "<your key>"   (PowerShell)
+```bash
+export HEARTH_API_KEY="<your key>"
+# (historical Windows syntax: set HEARTH_API_KEY=... in cmd, $env:HEARTH_API_KEY in PowerShell)
 ```
 
 - **With no key**: `whoami` reports `caller: null` and every authority is
@@ -90,8 +88,7 @@ $env:HEARTH_API_KEY = "<your key>"   (PowerShell)
   repository root — so a worktree run can read the deployed registry without
   writing into the deployed tree.
 - Never print, echo, commit, or paste a key. Nothing in `hearth/operator/` reads
-  `hearth/var/gateway.cmd`, the callers registry, or `.mcp.json`; nothing writes
-  a key to any file.
+  the callers registry or `.mcp.json`; nothing writes a key to any file (historical note: formerly hearth/var/gateway.cmd).
 
 ## What you get back
 
@@ -134,8 +131,8 @@ quietly.
 2. **Work in your own worktree**, on your own branch. Never edit another
    writer's worktree, and never commit on the control-plane checkout's branch on
    behalf of a work item.
-3. **Never hand-edit a generated file.** Run its generator instead
-   (`operator catalog`, `python -m tools.adr_index`, `npm run roadmap:render`).
+3. **Never hand-edit a generated file.** Run its renderer instead
+   (`operator catalog`, `python tools/ops/sizing_map.py --render`).
    A file whose header says it is generated means it.
 4. **Never hand-edit a snapshot.** They are immutable. If capacity changed,
    `--refresh` and let the history record the invalidation.
@@ -149,9 +146,7 @@ quietly.
 6. **Do not restart the gateway, change a service, launch a model, or touch the
    firewall** because a document here said to. Those are human-gated, and the
    production door on `127.0.0.1:8710` runs the code it was started with.
-7. **Cite by exact local path**, and cite an ADR as `<register>#<number>` — 130
-   records across 11 registers collide on bare numbers. Resolve one against
-   `/mnt/omen-c-read/work/handoffs/decision-architecture/adr-index.json` (read-only Windows mount; regenerate with `python -m tools.adr_index` when the mount is up).
+7. **Cite by exact local path**, and cite an ADR as `<register>#<number>` — resolve against `docs/adr/` in this repository (historical Windows index: `/mnt/omen-c-read/work/handoffs/decision-architecture/adr-index.json`).
 
 ## Where things are
 

@@ -1,199 +1,112 @@
 > Start here: `START-HERE.md` — the Local Compute Operator control plane (entry contract, D-103).
 # commandcenter — agent instructions
 
-## Local-first offload (HEARTH)
+## Local-first offload (HEARTH on omen-linux)
 
-The HEARTH gateway (always-on MCP door) exposes a local model via
-`mcp__hearth__local_generate`, backed by a boot-started llama-server on OMEN's
-two Arc Pro B70s (`qwen3-30b-a3b` by default — the `omen-arc` rung, ADR-0034;
-the old Ollama default is gone). Before spending your own frontier tokens on a
-self-contained sub-task, delegate it to the local model. Every such call also
-lands on the HEARTH ledger and feeds the learning loop — so offloading is both a
-token saving and an assay observation.
+HEARTH is the MCP gateway at `http://127.0.0.1:8710/mcp` (registered for Claude Code at user
+scope; for Codex in `~/.codex/config.toml`). Delegate suitable self-contained work through
+`mcp__hearth__local_generate`: summaries of files/logs/diffs, structured extraction,
+classification, boilerplate, and prose drafts. Keep architecture, multi-file logic, ambiguous
+judgment, integration, and final validation with yourself. Do not split tightly coupled work
+merely to force an offload. Offload when the expected benefit exceeds briefing, latency, and
+review costs; handle trivial work directly. Batch related small items into one call.
 
-**The door routes itself (A1/A2/A3/A4, live 2026-07-17): just call
-`local_generate` — pin only with cause.** The router weighs the packed payload
-against each rung's declared context budget, skips rungs that can't fit or are
-busy, climbs one rung automatically on failure (`routed_by:"escalation:a->b"`),
-and pulls trial rungs out of opportunistic routing when the GCP credit runway
-is low. Optional `quality=` tier: `"fast"` (default, sunk-first), `"good"`
-(prefer near-free flash while credits last), `"best"` (does NOT dispatch —
-returns `ask:true` recommending a deliberate `backend="gcp-gemini-pro"` pin).
-Trust `routed_by` on the result; the ledger records every decision.
+**Lanes on this host (from `~/hearth-production/backends-linux.toml`):**
 
-**Reach for `local_generate` — don't reason inline — when the sub-task is:**
-- summarizing / condensing a file, log, or diff you have already read
-- extracting structured data (fields, lists, JSON) from unstructured text
-- generating boilerplate (config, test scaffold, docstring, commit-message draft)
-- classifying / labeling / yes-no triage over a chunk of text
-- drafting prose you will then edit (retro notes, PR body first pass)
+- `omen-vllm` (default; tags `default, code, research, reasoning`): Qwen3-30B-A3B MoE behind
+  HAProxy `:18090`, 40,960 ctx, 8 slots. Sunk local compute, resident: spend it freely on grunt work.
+  (historical Windows note: formerly served by omen-arc on :8082).
+- `omen-dense-27b` (tags `dense, quality, agent`): Qwen3.8-27B behind `:18095`, 65,536 ctx, 2 slots
+  (its KV pool holds ~1.5 full-window requests), output reserve 16,384.
+  The only local model that completed the fix task with receipts (continuity output/07). Pin it
+  with `backend="omen-dense-27b"` for code candidates, careful review, or long inputs; it is
+  slower per token, so do not send it grunt work.
+- `am4-vllm` (tags `dense, reasoning`): AM4 27B over the direct cable, 16,384 ctx, 1 slot. Depth
+  specialist for needle retrieval; never route it through the tailnet.
+- `fx99-vllm` (tag `utility`): Qwen2.5-Coder-7B on FX99, 4,096 ctx. Text-only summaries; it cannot
+  produce reliable tool calls.
+- `am4-tool-4070ti` / `am4-tool-5070` (tag `tool-use`): Qwen3-8B-AWQ, one seat per AM4 card, 24,576 /
+  16,384 ctx, the Ti admitting 4 concurrent requests (3 HEARTH leases), the 5070 2, live only while AM4's `tool-pair` profile is up (`ssh 10.44.0.2 ~/bin/am4-profile status`). Small OS-local chores on one file (read, grep, summarize with citations) go here through
+  `task_family="tool_execution"` or a `deepagents` brief with `backend: am4-tool-4070ti`: 6/6 chores at a
+  10 s median where the 27B took 172 s. When the profile is not live the tag resolves to the door default.
+- There is no cloud rung in this pool. A refused local lane is terminal; never substitute cloud.
+- `am4-tool-5070` also carries `tool-long` (ADR-0050): when `HEARTH_SIZER` is on, a `tool_execution`
+  call whose answer the sizer bins l/xl (>= 1,024 expected output tokens: a rewrite, an 800-word report)
+  is refined to `tool_long_output` and lands on the 5070, the faster decoder; the Ti keeps the short,
+  prefill-heavy volume. A `deepagents` brief may say `backend: am4-tool` to have the sizer pick the seat.
+  The gate is off by default; the sizer only fills an absent `max_tokens` for admission and never sets a
+  generation budget or a family for a call that named none.
 
-For **async, minutes-scale** work (research briefs, simple builds), the door also
-has a task lane: `submit_task` dispatches to the fleet via the conductor's inbox
-(returns a `plan_id`; poll `task_status`). The brief must be self-contained, but
-fleet workers do have read-only source at `~/commandcenter-src`, so a git range
-they can inspect themselves is fair game.
+**Routing and context:**
 
-**Backend rungs** (hearth/etc/backends.toml; pass `backend="name"` to pin).
-**Re-synced 2026-08-24 against what is actually listening** — the old list named
-`omen-ollama` as the default and `am4-oxen` as usable; both are dead, and the
-rung that actually serves you was missing entirely:
+- Task-family routing is live: `task_family="summarization" | "extraction" | "classification" |
+  "drafting" | "reasoning_planning" | "quote_retrieval"`. Explicit `backend=`/`model=` pins override
+  the family; omit them when family routing is intended. `plan_execution(operation="inference.generate",
+  task_family=..., prompt_bytes=...)` inspects a route without dispatching.
+- Don't paste file contents: pass `files=[...]` and the door packs them scope-guarded. Relative paths
+  resolve against the gateway's primary repository (`~/work/commandcenter-linux-flash`); absolute paths
+  under `~/work` reach other repositories. Never include tokens, keys, or credential-file contents.
+- The offloaded model cannot run tools or see the conversation. Supply a standalone brief with the
+  task, constraints, output format, and acceptance criteria.
 
-- `omen-arc` — **THE DOOR DEFAULT** (ADR-0034). Qwen3-30B-A3B on the dual Arc Pro
-  B70s in OMEN, llama-server :8082, `-c 131072 -np 8` (8 slots × 16k tokens),
-  `context_bytes = 57344`. Truly sunk cost — this is the rung to spend freely.
-  ⚠ **Slots went 2 → 8 on 2026-09-09** (SAT-L1 Lap 1B, tag
-  `prereg-np-sweep-lap1b-20260909`): 3,358 jobs/h against 2,128 at `-np 2`, ×1.58,
-  at Qwen3-30B-A3B / 512-token prompts / dual layer-split. `-np 16` **regresses
-  ~32%**, so 8 is the peak for this model at this depth — regime, not a universal.
-  **`-c` is the TOTAL and the build divides it**, so per-slot context fell 65,536 →
-  16,384 tokens and the payload budget narrowed with it. A pack over 57344 is now
-  refused at the door rather than silently truncated at the server.
-  Boot-started by `ArcServeBoot`. **~108 tok/s single-stream decode**, measured
-  live 2026-08-24 (short prompt, shallow context). Deep-context harness numbers
-  from the burn-in campaign are much lower (~57) — decode rate falls with KV
-  depth, so always say which regime a figure came from. Since 2026-09-03 12:45
-  it runs **under llama-swap** (ADR-0045): `:8081` owns the lifecycle, `:8082`
-  is unchanged for every consumer.
-- `omen-arc-oss` — banked fire, **pin-only** (`tags = []`, port 8083 normally
-  closed). gpt-oss-120b on the same cards. Costs a model swap, so pin it with cause.
-- `omen-swap` — the **ROTATION rung, pin-only** (`tags = []`; ADR-0045). llama-swap
-  v251 on `127.0.0.1:8081`, models `<m>-vk0` / `<m>-vk1` for phi4 / qwen14b /
-  gptoss20b / mistral24b plus `qwen38-27b-dual` (`fleet/arcserve/llama-swap/omen.yaml`;
-  the `-vk0` siblings activate at the next ArcServe restart — until then env=1 is the
-  only live seat).
-  **Context budgets are PER-MEMBER** (2026-09-04): `context_bytes_by_model` gives phi4/qwen14b
-  **28672**, gptoss20b/mistral24b 14336, qwen38-27b-dual 114688; the rung-wide `context_bytes = 14336`
-  (the MIN) is only the fallback for an undeclared member. Side models load on demand
-  beside production. For anything beyond a pinned `local_generate`, use the
-  door's rotation tools inside a window (`rotation_window` → `rotation_load` …
-  `rotation_unload` → close; see `hearth/rotation/README.md`). **Never** the bare
-  `POST /api/models/unload` — it unloads production too; path form only.
-- ☠ `omen-ollama` — **DEAD, not merely demoted.** :11434 does not listen and
-  `OllamaBoot` is **Disabled for good** (ADR-0034). Routing skips it via
-  `tags = []`, but an explicit pin **fails at connect**. Do not reach for this.
-- ☠ `am4-moe` / `am4-oxen` — **DEAD.** The B70s left AM4 in the 2026-08-20 rebuild.
-  AM4 is back **up** (Ubuntu 26.04, services host) and its RTX 5070 **now has a
-  working NVIDIA driver** — 595.84 open kernel module, CUDA 13.2 runtime,
-  `nvidia_uvm` loaded, `libcuda.so.1` present; installed 2026-08-24 ~23:49 UTC,
-  live since the 23:53 reboot. That does **not** revive these rungs: **no engine
-  is bound to the GPU** (nothing on 8082/11434) and there is no CUDA toolkit
-  (`nvcc`) for building one. The oxen facade on :8090 still *answers* and lists
-  models, every one `ready:false` — a port probe and a health check both pass
-  against a rung that cannot emit a token. "Driver present" ≠ capacity.
-- `gcp-gemini` (Vertex `gemini-3.5-flash` on **GCP trial credits** — near-free
-frontier-class while they last: prefer it over spending metered Sonnet/frontier
-tokens for self-contained reasoning, drafting, and integration proofs),
-`gcp-gemini-pro` (Vertex `gemini-3.1-pro-preview`, same trial credits — the
-premium reach: 1M-token context + frontier agentic/coding for the hard,
-large-context sub-tasks flash can't carry. It is a **thinking** model that burns
-tokens on hidden reasoning before any visible text, so the rung sets a generous
-default output budget (`settings.max_tokens = 16384`, a cap not a charge) that
-the router applies when you omit `max_tokens` — no more empty `text`. Pin it by
-name; it is deliberately untagged so opportunistic routing stays on the cheaper
-flash rung).
+**Bounded code work → `local-work` (skill `/local-work`, ADR-0048):**
 
-**A pin picks the rung, not the physics (ADR-0031).** Pinning still overrides
-occupancy — a busy rung serves you from its own queue — but a pin whose payload
-exceeds that rung's declared `context_bytes` is **refused at the door**
-(`ok:false`, `error_code:"routing_refusal"`, reason
-`payload_over_budget_for_pinned_backend`) instead of dispatching and dying at the
-server. Current budgets (2026-09-09): **`omen-arc` 57344** — narrowed back from
-229376 when production moved to `-np 8`, because `-c` is the total and per-slot
-context fell to 16,384 tokens. ⚠ The old figure outlived the `-np` change by about
-an hour, in which the door would have admitted 4× what a slot holds and
-llama-server would have **silently truncated** it (it never rejects an over-long
-prompt). The 2026-08-24 widening bought a 64,000-token floor for Hermes Agent,
-which is parked; the trade is a loud refusal instead of a quiet wrong answer.
-`omen-arc-oss` 57344;
-both gemini rungs effectively unlimited at 2–4 MiB. The dead rungs still carry
-declared budgets (omen-ollama 98304, the AM4 pair 57344) — that is a tombstone,
-not an offer. `plan_execution` resolves a provider content-free if you want to
-check before spending anything.
+`submit_local_work(intent, acceptance_criteria, repo, base_commit, paths, lane="auto")` freezes the
+named files at a commit, produces an immutable candidate, and stops at `awaiting_review`. `auto`
+sends `task_family` `code_fix`/`code_review` to `deep` (`omen-dense-27b`) at any size; otherwise
+evidence of 8,192 tokens or more goes to `deep` and less to `fast` (`omen-vllm`). The exact check is
+`input + output reserve <= context_tokens`, so on the deep lane input may reach 65,536 − reserve.
+Watch with `watch_local_work`, fetch with `get_local_work_artifact`, validate in an isolated worktree,
+then `record_local_work_verdict(accepted|rejected|superseded)` with evidence per criterion. Never apply
+a candidate before the verdict.
 
-For **auditable infra builds** (checkable acceptance criteria, receipt wanted),
-use the door's **build-request lane**: `create/get/list/update/execute/
-close_build_request`; receipts + ledger at
-`C:\work\baseline\fieldlab\runs\build-requests`. `close(status="done")` is rejected
-unless every criterion has a `passed` row with evidence — write criteria you can
-prove. See hearth/BUILD-REQUESTS.md.
+Artifact kinds, measured 2026-09-27: prefer `whole_file` (with `target_path`) for any target under
+~6K output tokens; the 27B writes correct edits but unreliable `unified_diff` hunks (wrong counts are
+repaired by the door's `git apply --recount` step and noted in the manifest as `mechanical.git_apply`;
+hallucinated hunk context is not repairable). `max_tokens` is capped at 16,384 per candidate
+(`work.produce` ceiling; the dense rung's reserve is 16,384, measured ~10.4 tok/s, so the default
+`deadline_s` is 1,800 and the ceiling 2,400). Every size on this host is mapped and checked in
+`docs/sizing-map.md` (`python tools/ops/sizing_map.py --check`).
 
-**Rules:**
-- The model cannot run tools or see this conversation — but don't paste file
-  contents: pass `files=["repo/relative/path", ...]` and the door packs the
-  scope-guarded contents into the prompt door-side (256 KiB/file, 1 MiB total;
-  the `files_packed` manifest rides the result). The sandbox is multi-root
-  (`HEARTH_SCOPE`, first root primary): repo-relative paths resolve against
-  commandcenter, and **absolute paths under `C:\work` pack files from any other
-  repo** (labeled by absolute path in the manifest). Pair with `gcp-gemini-pro`
-  for subsystem-scale reads. Only context from outside `C:\work` still travels
-  in the prompt body.
-- The door already retries once (A2 auto-escalation) — if the result still
-  comes back `ok:false` or unusable, do the task yourself; never loop on a
-  cold worker.
-- If the door itself is down, run the `/checkmcp` skill (doorcheck `--revive`) once.
-- No cold-start tax on `omen-arc` — `ArcServeBoot` keeps the model resident, so
-  the first call of the day is as fast as the last (~108 tok/s). The old "~12s
-  model-load tax, then ~54 tok/s" note described Ollama, which is retired.
-- Keep frontier reasoning for what needs it: architecture, multi-file logic,
-  judgment, and anything requiring repo-wide context. Offload the grunt work,
-  not the thinking.
-- The gateway runs the code it was started with — after landing anything the
-  door mounts, `schtasks /Run /TN HearthGatewayRestart` (from PowerShell, not
-  Git Bash) then doorcheck (`/checkmcp`). Two rotation-proof attempts were
-  wasted on 2026-09-03 against a door older than the provider.
-- In-process callers of `hearth.toolsurface.inference` (the doc/ADR bench, experiment
-  harnesses, one-off pins under a `DispatchIdentity`) need the launcher's env: run
-  them as `cmd /c "hearth\etc\with-gateway-env.cmd <command> [args]"` from
-  PowerShell (the wrapper `CALL`s `hearth\var\gateway.cmd` silently — never echo
-  that file; Git Bash mangles the `cmd /c "call … && …"` chain). Without it every
-  `omen-*` pin fails with `no auth token for <backend>`.
+**Codex:** `codex exec --approve-for-me ... < /dev/null` is required for unattended HEARTH tool calls;
+interactive Codex prompts per call. Skills are installed under `~/.codex/skills/` from
+`docs/agents/codex-skills/` (the tracked source).
 
-## Reading the decision record (added 2026-07-30)
+**Memory tie-in (continuity):** for substantial offloads open or reuse a `ct` work item
+(`ct work open --repo <id> --objective ...`) and pass its id as `task_id` on `local_generate` /
+`submit_local_work`; run validation under `ct receipt --work <id> -- <cmd>`. `ct recall` then finds the
+candidate manifest and HEARTH's `query_offload(task_id=...)` finds the spend, correlated by native ids.
+
+**Validation, reporting, recovery:**
+
+- Trust the result metadata, not the model's self-report: check `ok`, then read `text`; `backend`
+  and `routed_by` prove where the work ran.
+- `ok:false` or unusable output → one retry at most, then do the work directly and record the
+  limitation. If the door is down, run `/checkmcp` once (or `~/.venvs/hearth-private/bin/python -m hearth.callers.doorcheck --revive`
+  from the flash repo root with `PYTHONPATH` set) before that retry.
+- Every prompt carries `<hearth-task-id>` from the user-level hook; use that id when no `ct` work
+  item exists.
+- The gateway runs under systemd user service `hearth-production.service`. After landing code changes
+  that the door mounts, restart with `systemctl --user restart hearth-production.service` (historical: formerly invoked via Windows schtasks /Run /TN HearthGatewayRestart), then doorcheck.
+- In-process callers of `hearth.toolsurface.inference` run in the environment defined by systemd drop-ins; on Linux no launcher wrapper (historical: formerly with-gateway-env.cmd) is needed.
+
+## Reading the decision record
 
 The decision record here is **two-tier and event-sourced**, so reading it in the obvious
 order gives the wrong answer. Sources before views, always:
 
-1. `C:\work\baseline\Lumberjacks\docs\roadmap\commit-notes.jsonl` — the decision log.
-   295 append-only entries, one JSON object per line. Filter `"kind":"decision"`.
-2. `...\docs\roadmap\valheim-volunteer-roadmap.json` — current milestone truth
-   (`active_milestone`, `platform_readiness`).
-3. `docs\adr\**` across **all twelve** ADR directories (see below).
-4. `DECISIONS-PENDING.md` in `baseline\` and `baseline\fieldlab\` — the live open-question
-   registers.
-5. Only then the `.html` views, and only for presentation.
+1. `docs/adr/` in this repository — architectural decision records.
+2. `~/work/continuity/HANDOFF.md` — current cross-session continuity ledger.
+3. Historical decision logs exist read-only at `/mnt/omen-c-read/Users/derek/` (historical Windows path: `C:\work\handoffs\decision-architecture\`).
 
 **Never edit a file whose header or footer says "Generated deterministically from … do not
-hand-edit this file."** Run its renderer instead: `npm run roadmap:render` /
-`workbench:render` (Node, in `Lumberjacks\scripts\*.mjs`), or `hearth\projection\*.py` for
-the commandcenter dashboards. `roadmap.html` is a 573 KB **view**; its store is the 315 KB
-`commit-notes.jsonl`.
+hand-edit this file."** Run its renderer instead (e.g. `python tools/ops/sizing_map.py --render`).
 
-**ADR citations are ambiguous — cite `<register>#<number>`, never a bare number.** There are
-**130 decision records across 11 registers** in four naming conventions (`NNNN-`, `NNN-`,
-`pd-N-`, `ADR-NNN-`), and **20 numbers collide** — `0001` alone names **eleven** different
-decisions. "See ADR 0013" is not a resolvable reference.
-
-Resolve any citation against the generated index:
-- `C:\work\handoffs\decision-architecture\adr-index.json` — machine-readable
-- `C:\work\handoffs\decision-architecture\adr-index.md` — human-readable
-
-Regenerate with `python -m tools.adr_index` (from `C:\work\commandcenter`); verify with
-`python -m tools.adr_index --check`, which exits 1 when the tree has drifted. It is
-byte-stable for an unchanged tree — it embeds no wall clock — and it renames nothing. It
-also flags **24 groups of byte-identical records** (stale mirrors, e.g.
-`comfy/fieldlab/docs/adr` duplicating `baseline/fieldlab/docs/adr`) and **2 files with
-encoding damage**. Do not delete a duplicate before checking the index for which copy is
-canonical.
+**ADR citations are ambiguous — cite `<register>#<number>`, never a bare number.**
+Resolve any citation against `docs/adr/`.
 
 **Never infer who authored something from filesystem or git metadata.** Agents commit as the
-user; `mtime` cannot distinguish a human from an agent. Measured on this machine:
-`I(state-tuple ; human-present) = 0.088` of `0.971` bits — 9.1%. Use the `author` field in
-`commit-notes.jsonl` (Codex 198 / Claude 97) or the session transcripts.
+user; `mtime` cannot distinguish a human from an agent.
 
 **Never report "no decisions found" from a file search.** Every observation channel here has
-a different blind spot — builds leave no logs, `git worktree add` writes no reflog, the
-largest project in the corpus left no Claude transcript, and append-only loops create no
-files. State which channels you checked and what each cannot see. Full write-up:
-`C:\work\handoffs\decision-architecture\ADR-decision-record-architecture.md` and
-`C:\work\handoffs\ARTIFACT-FINGERPRINT-FORENSICS-2026-07-30.md`.
+a different blind spot. State which channels you checked and what each cannot see.

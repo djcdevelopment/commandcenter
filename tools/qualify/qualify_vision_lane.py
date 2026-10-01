@@ -17,6 +17,7 @@ import json
 import os
 import sys
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
@@ -41,7 +42,7 @@ def _api_key() -> str:
 
 def image_url(image_path: str) -> str:
     # Use PNG variant if SVG is referenced
-    p = ASSETS / image_path.lstrip("assets/")
+    p = ASSETS / image_path.removeprefix("assets/")
     if p.suffix == ".svg":
         png = p.with_suffix(".png")
         if png.exists():
@@ -66,8 +67,9 @@ def call_model(port: int, model: str, prompt: str, image_path: str) -> str:
                 ],
             }
         ],
-        "max_tokens": 256,
+        "max_tokens": 1024,
         "temperature": 0,
+        "chat_template_kwargs": {"enable_thinking": False},
     }
     body = json.dumps(payload).encode()
     headers = {"Content-Type": "application/json"}
@@ -83,7 +85,29 @@ def call_model(port: int, model: str, prompt: str, image_path: str) -> str:
     choices = data.get("choices", [])
     if not choices:
         return f"ERROR: no choices in response: {data}"
-    return choices[0].get("message", {}).get("content", "").strip()
+    msg = choices[0].get("message", {}) or {}
+    content = msg.get("content")
+    if content is None:
+        # Model may have returned a tool_call; try to extract function arguments
+        tool_calls = msg.get("tool_calls", [])
+        if tool_calls:
+            args = tool_calls[0].get("function", {}).get("arguments", "")
+            return args.strip()
+        return ""
+    return content.strip()
+
+
+def _strip_fences(s: str) -> str:
+    """Strip markdown code fences (```json ... ```) if present."""
+    s = s.strip()
+    if s.startswith("```"):
+        lines = s.splitlines()
+        # drop first line (```json or ```) and last line (```)
+        inner = lines[1:] if len(lines) > 1 else lines
+        if inner and inner[-1].strip() == "```":
+            inner = inner[:-1]
+        s = "\n".join(inner).strip()
+    return s
 
 
 def check(actual: str, validator: dict) -> tuple[bool, str]:
@@ -95,14 +119,16 @@ def check(actual: str, validator: dict) -> tuple[bool, str]:
         passed = norm_actual.lower() == norm_exp.lower()
         return passed, f"expected={expected!r} actual={actual!r}"
     elif vtype == "json_equal":
+        clean = _strip_fences(actual)
         try:
-            parsed = json.loads(actual)
-            # coerce numeric strings to int/float
+            parsed = json.loads(clean)
+            # coerce numeric strings to int/float to match expected types
             if isinstance(expected, dict) and isinstance(parsed, dict):
                 coerced = {}
                 for k, v in parsed.items():
                     try:
-                        coerced[k] = type(list(expected.values())[0])(v)
+                        target_type = type(expected[k]) if k in expected else type(v)
+                        coerced[k] = target_type(v)
                     except Exception:
                         coerced[k] = v
                 passed = coerced == expected
@@ -112,7 +138,7 @@ def check(actual: str, validator: dict) -> tuple[bool, str]:
             return False, f"json parse error: {exc}; actual={actual!r}"
         return passed, f"expected={expected} actual={actual!r}"
     else:
-        return True, f"unknown validator type {vtype!r}; actual={actual!r}"
+        return False, f"unknown validator type {vtype!r}; actual={actual!r}"
 
 
 def main() -> int:
@@ -121,7 +147,22 @@ def main() -> int:
     ap.add_argument("--model", default=DEFAULT_MODEL)
     ap.add_argument("--all", action="store_true", dest="run_all",
                     help="Run all 16 vision tasks (default: 2 quick probes)")
+    ap.add_argument("--output", type=Path, help="Write raw responses and verdicts as JSON")
+    ap.add_argument("--recheck", type=Path, help="Recheck saved raw responses without model calls")
     args = ap.parse_args()
+
+    if args.recheck:
+        saved = json.loads(args.recheck.read_text())
+        tasks_by_id = {t["id"]: t for t in json.loads(TASKS_JSON.read_text())["tasks"]}
+        for result in saved["results"]:
+            passed, note = check(result["actual"], tasks_by_id[result["id"]]["validator"])
+            result["passed"], result["note"] = passed, note
+        saved["passed"] = sum(r["passed"] for r in saved["results"])
+        saved["rechecked_utc"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        target = args.output or args.recheck
+        target.write_text(json.dumps(saved, indent=2) + "\n")
+        print(f"Rechecked saved responses: {saved['passed']}/{saved['total']} passed ({target})")
+        return 0 if saved["passed"] == saved["total"] else 1
 
     with open(TASKS_JSON) as f:
         d = json.load(f)
@@ -161,6 +202,13 @@ def main() -> int:
     print(f"Result: {passed_count}/{total} passed")
     print()
     print(json.dumps(results, indent=2))
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps({
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "model": args.model, "port": args.port, "tasks_file": str(TASKS_JSON),
+            "passed": passed_count, "total": total, "results": results,
+        }, indent=2) + "\n")
     return 0 if passed_count == total else 1
 
 

@@ -66,7 +66,7 @@ endpoint = "http://127.0.0.1:18095"
 api = "openai"
 auth_env = "OMEN_ARC_TOKEN"
 models = ["qwen3.8-27b"]
-tags = ["dense", "quality", "agent"]   # distinct from omen-vllm so existing tag routing is unchanged; callers opt in
+tags = ["dense", "quality", "agent", "vision"]   # vision family requires seat0-27b-vision configuration
 
 [backend.settings]
 node = "omen"

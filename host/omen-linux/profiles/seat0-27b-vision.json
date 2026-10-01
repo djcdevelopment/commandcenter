@@ -1,0 +1,39 @@
+{
+  "name": "seat0-27b-vision",
+  "description": "Seat 0 Qwen3.8-27B vision lane (LANGUAGE_MODEL_ONLY unset); Seat 1 MoE throughput lane unchanged. No download: same weights as two-lane, vision tower activated.",
+  "evidence_status": "live task 12; XPU GPTQ int4 image input verified 2026-10-01",
+  "seats": {
+    "0": {
+      "model_dir": "/home/derek/models/qwen3.8-27b-gptq-int4-mtp",
+      "served_name": "qwen3.8-27b",
+      "context": 65536,
+      "max_num_seqs": 4,
+      "haproxy_backend": "omen-dense-27b",
+      "haproxy_port": 18095,
+      "seat_port": 18091,
+      "staged_dropin": "stage8-27b-vision.conf.staged",
+      "active_dropin": "stage8-27b-vision.conf",
+      "dropins": [
+        "stage0-recipe.conf",
+        "stage2b-batched.conf",
+        "stage2d-prefix-unit.conf",
+        "max-num-seqs.conf",
+        "stage8-27b-vision.conf"
+      ]
+    },
+    "1": {
+      "model_dir": "/home/derek/models/qwen3-30b-a3b-gptq-int4",
+      "served_name": "qwen3-30b-a3b",
+      "context": 40960,
+      "max_num_seqs": 8,
+      "haproxy_backend": "omen-vllm",
+      "haproxy_port": 18090,
+      "seat_port": 18092,
+      "dropins": [
+        "stage0-recipe.conf",
+        "max-model-len.conf",
+        "max-num-seqs.conf"
+      ]
+    }
+  }
+}

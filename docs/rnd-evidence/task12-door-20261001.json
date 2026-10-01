@@ -1,0 +1,30 @@
+{
+  "configuration": "seat0-27b-vision",
+  "operation": "inference.generate",
+  "route": "family tag vision -> omen-dense-27b / qwen3.8-27b",
+  "probes": [
+    {
+      "family": "chart_diagram",
+      "job_id": "job_235405b3a033402535799326ac4ff2a8",
+      "image": "campaign/qwen38/assay/assets/chart.png",
+      "image_sha256": "cf798cf7851e722f53e2cf306bd927650604f17259bff80a1bad2ea3e016646b",
+      "expected": "Q3",
+      "actual": "Q3",
+      "status": "succeeded"
+    },
+    {
+      "family": "screenshot_grounded",
+      "job_id": "job_bb453ea7073276938abf2ac14b895862",
+      "image": "campaign/qwen38/assay/assets/dashboard.png",
+      "image_sha256": "bfbd29978cced19a6c66fdca02c196c4e4fe1bda62593739221f2278d9c7bf4a",
+      "expected": "MAINTENANCE",
+      "actual": "MAINTENANCE",
+      "status": "succeeded"
+    }
+  ],
+  "day_check": {
+    "chart_diagram": "policy_refusal: requires configuration 'seat0-27b-vision' (active: 'day')",
+    "screenshot_grounded": "policy_refusal: requires configuration 'seat0-27b-vision' (active: 'day')",
+    "document_ocr": "family:document_ocr:tag:ocr -> omen-perception"
+  }
+}

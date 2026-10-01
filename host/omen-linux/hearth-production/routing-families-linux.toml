@@ -134,9 +134,10 @@ receipt = "/home/derek/work/commandcenter-linux-flash/docs/rnd-log.md"
 reason = "Long tool output is decode-bound; the 5070 is the faster decoder, so l/xl tool work lands there and the Ti keeps the short, prefill-heavy volume."
 
 # ---------------------------------------------------------------------------
-# The three vision families of the assay -> gcp-gemini (Vertex gemini-3.5-flash
-# on trial credits). No local rung has a verified vision path: the 27B rung is
-# text-only and the campaign's vision cells were not promoted.
+# Vision families (task 12 and 13). document_ocr -> omen-perception (CPU Tesseract).
+# chart_diagram and screenshot_grounded -> omen-dense-27b with vision tower active
+# (seat0-27b-vision profile, LANGUAGE_MODEL_ONLY=0). The configuration guard
+# refuses these families under day/two-lane before tag routing.
 # ---------------------------------------------------------------------------
 [family.document_ocr]
 model_id = "tesseract-ocr"
@@ -146,16 +147,20 @@ receipt = "/home/derek/work/commandcenter-linux-flash/perception/measure_multita
 reason = "CPU Tesseract plain text extraction; does not parse tables, formulas or visual layout (task 12 fills layout and charts)"
 
 [family.chart_diagram]
-refusal = "missing capability: no local vision lane (see mechsuit-plan/12)"
-model_id = "gemini-3.5-flash"
-evidence = "ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K"
-reason = "no verified local vision rung (27B text-only, ADR-0039)"
+model_id = "qwen3.8-27b"
+tags = ["vision"]
+requires_configuration = "seat0-27b-vision"
+evidence = "docs/rnd-evidence/task12-vision-20261001.json: chart 6/8 PASS (chart-05 computed 59 vs 49; chart-08 nested Q4 JSON mismatch). XPU GPTQ int4 image input confirmed live."
+receipt = "/home/derek/work/commandcenter-linux-flash/docs/rnd-evidence/task12-vision-20261001.json"
+reason = "Resident 27B quality lane with vision tower active (seat0-27b-vision profile). Under day/two-lane the configuration guard refuses and names seat0-27b-vision."
 
 [family.screenshot_grounded]
-refusal = "missing capability: no local vision lane (see mechsuit-plan/12)"
-model_id = "gemini-3.5-flash"
-evidence = "ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K"
-reason = "no verified local vision rung (27B text-only, ADR-0039)"
+model_id = "qwen3.8-27b"
+tags = ["vision"]
+requires_configuration = "seat0-27b-vision"
+evidence = "docs/rnd-evidence/task12-vision-20261001.json: screen 7/8 PASS (screen-03 prefixed PCI address). UI spatial grounding confirmed live."
+receipt = "/home/derek/work/commandcenter-linux-flash/docs/rnd-evidence/task12-vision-20261001.json"
+reason = "Resident 27B quality lane with vision tower active (seat0-27b-vision profile). Under day/two-lane the configuration guard refuses and names seat0-27b-vision."
 
 # ---------------------------------------------------------------------------
 # default -- any family this file does not name. The door default rung

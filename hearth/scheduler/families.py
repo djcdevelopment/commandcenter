@@ -167,6 +167,7 @@ class FamilyPreference:
     depth_override: Optional[DepthRule] = None
     tags: Optional[tuple[str, ...]] = None   # routing tags declared for this family (optional)
     refusal: Optional[str] = None
+    requires_configuration: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -254,6 +255,7 @@ def _coerce_family(name: str, raw: Any) -> FamilyPreference:
         depth_override=override,
         tags=_optional_tags(raw, where),
         refusal=refusal,
+        requires_configuration=_optional_str(raw, "requires_configuration", where),
     )
 
 
@@ -395,6 +397,10 @@ def resolve_required_model(job: Any, families: Optional[Families] = None) -> Opt
     if families is None:
         families = load_families()
     pref = families.get(task_family)
+    if pref.requires_configuration:
+        from hearth.execution.lab_config import get_active_configuration_name
+        if get_active_configuration_name() != pref.requires_configuration:
+            return None
     if pref.refusal:
         return None
     return _pick_model(pref, job_prompt_tokens(job)).model_id
@@ -436,6 +442,20 @@ def recommend(task_family: Optional[str], prompt_tokens: Optional[int] = None,
         pool = load_pool()
     depth = _as_int(prompt_tokens)
     pref = families.get(task_family)
+    if pref.requires_configuration:
+        from hearth.execution.lab_config import get_active_configuration_name
+        active = get_active_configuration_name()
+        if active != pref.requires_configuration:
+            refusal = (f"missing capability: {pref.name} requires configuration "
+                       f"{pref.requires_configuration!r} (active: {active!r})")
+            return {
+                "family": pref.name, "requested_family": task_family,
+                "model_id": pref.model_id, "backend_hint": None, "providers": [],
+                "evidence": pref.evidence, "reason": refusal,
+                "depth_rule_applied": False, "pin_required": False,
+                "prompt_tokens": depth, "advisory": True,
+                "refused": True, "refusal": refusal,
+            }
     if pref.refusal:
         return {
             "family": pref.name,

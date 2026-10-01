@@ -14,6 +14,20 @@
     "cold_load_s": "continuity/output/07-serving-recipe.md:285 (swaps 31-36 s; healthy in 31 s)"
   },
   "task_families": {
+    "chart_diagram": {
+      "outcome": "observed_limited",
+      "evidence_status": "observed_limited",
+      "task_key": "chart_diagram",
+      "observation": "6/8 exact under seat0-27b-vision; chart-05 arithmetic and chart-08 JSON shape failed",
+      "citation": "docs/rnd-evidence/task12-vision-20261001.json"
+    },
+    "screenshot_grounded": {
+      "outcome": "observed_limited",
+      "evidence_status": "observed_limited",
+      "task_key": "screenshot_grounded",
+      "observation": "7/8 exact under seat0-27b-vision; screen-03 prefixed expected PCI address",
+      "citation": "docs/rnd-evidence/task12-vision-20261001.json"
+    },
     "code_fix": {
       "outcome": "verified_receipt",
       "evidence_status": "verified_receipt",

@@ -370,6 +370,7 @@ class ExecutionService:
             "quality",
             "task_family",
             "task_id",  # C-06: ledger attribution only; steers nothing
+            "image_path",
         }
         unknown = set(normalized) - allowed
         if unknown:
@@ -390,6 +391,9 @@ class ExecutionService:
             if value is not None and (not isinstance(value, str) or not value.strip()):
                 raise ExecutionServiceError(f"{key} must be a non-empty string")
         files = normalized.get("files")
+        image_path = normalized.get("image_path")
+        if image_path is not None and (not isinstance(image_path, str) or not image_path.strip()):
+            raise ExecutionServiceError("image_path must be a non-empty path")
         if files is not None and (
             not isinstance(files, list)
             or not all(isinstance(item, str) and item for item in files)
@@ -998,7 +1002,7 @@ class ExecutionService:
             # correctly reads as a caller pin. Forwarding it anyway keeps the
             # stamp on the provider's own result and on the observation record,
             # rather than silently dropping the reason the rung was picked.
-            for optional in ("system", "task", "files", "quality", "task_family"):
+            for optional in ("system", "task", "files", "quality", "task_family", "image_path"):
                 if arguments.get(optional) is not None:
                     call_arguments[optional] = arguments[optional]
             result = self._generate_call(**call_arguments)
@@ -1105,6 +1109,7 @@ class ExecutionService:
             "max_tokens",
             "timeout_s",
             "sizer",   # ADR-0050: present only on a sized call
+            "image_input",
         }
         observed = {
             key: copy.deepcopy(value) for key, value in result.items() if key in allowed

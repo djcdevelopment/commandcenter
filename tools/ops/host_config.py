@@ -53,6 +53,8 @@ MANIFEST: list[tuple[str, Path]] = [
      HOME / ".config" / "systemd" / "user" / "omen-vllm@0.service.d" / "stage2b-batched.conf"),
     ("systemd/omen-vllm@0.service.d/stage2d-prefix-unit.conf",
      HOME / ".config" / "systemd" / "user" / "omen-vllm@0.service.d" / "stage2d-prefix-unit.conf"),
+    ("systemd/omen-vllm@0.service.d/stage8-27b-vision.conf",
+     HOME / ".config" / "systemd" / "user" / "omen-vllm@0.service.d" / "stage8-27b-vision.conf"),
     ("systemd/omen-vllm@0.service.d/stage4-gemma4.conf.staged",
      HOME / ".config" / "systemd" / "user" / "omen-vllm@0.service.d" / "stage4-gemma4.conf.staged"),
     ("systemd/omen-vllm@0.service.d/stage5-qwen3-32b.conf.staged",
@@ -89,6 +91,7 @@ MANIFEST: list[tuple[str, Path]] = [
     ("bin/omen-offbox-backup.sh", HOME / "bin" / "omen-offbox-backup.sh"),
     ("bin/omen-profile", HOME / "bin" / "omen-profile"),
     ("bin/lab-config", HOME / "bin" / "lab-config"),
+    ("profiles/seat0-27b-vision.json", HOME / ".config" / "omen-vllm" / "profiles" / "seat0-27b-vision.json"),
 
     # config
     ("config/haproxy.cfg", HOME / ".config" / "omen-vllm" / "haproxy.cfg"),
@@ -99,6 +102,16 @@ MANIFEST: list[tuple[str, Path]] = [
     ("hearth-production/routing-families-linux.toml", HOME / "hearth-production" / "routing-families-linux.toml"),
     ("hearth-production/local-work-routes-linux.toml", HOME / "hearth-production" / "local-work-routes-linux.toml"),
 ]
+
+
+def active_manifest() -> list[tuple[str, Path]]:
+    """Check the one active seat-0 recipe, plus all staged recipes."""
+    profile_path = HOME / ".config" / "omen-vllm" / "profile"
+    profile = profile_path.read_text().strip() if profile_path.is_file() else "two-lane"
+    inactive = ("stage2-27b-mtp.conf" if profile == "seat0-27b-vision"
+                else "stage8-27b-vision.conf")
+    return [(rel, live) for rel, live in MANIFEST
+            if not rel.endswith("/" + inactive)]
 
 # Fully captured live directories where extra files (present in live, absent from repo) are checked
 CAPTURED_DIRS: list[tuple[str, Path]] = [
@@ -116,7 +129,8 @@ def check() -> int:
     extra_live: list[str] = []
 
     repo_files = set()
-    for rel_path, live_path in MANIFEST:
+    pairs = active_manifest()
+    for rel_path, live_path in pairs:
         repo_path = HOST_DIR / rel_path
         repo_files.add(rel_path)
 
@@ -163,7 +177,7 @@ def check() -> int:
         print("\n".join(drifted))
 
     if errors == 0:
-        print(f"OK: {len(MANIFEST)} host config pairs byte-identical; 0 drift, 0 extra.")
+        print(f"OK: {len(pairs)} host config pairs byte-identical; 0 drift, 0 extra.")
         return 0
     else:
         print(f"FAILED: {errors} issue(s) detected.")
@@ -172,7 +186,7 @@ def check() -> int:
 
 def diff_pair(name: str) -> int:
     target_pair = None
-    for rel_path, live_path in MANIFEST:
+    for rel_path, live_path in active_manifest():
         if name in (rel_path, live_path.name, str(live_path), f"host/omen-linux/{rel_path}"):
             target_pair = (rel_path, live_path)
             break

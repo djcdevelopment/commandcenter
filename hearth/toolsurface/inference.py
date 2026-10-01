@@ -25,6 +25,8 @@ fail-open resolves unknown -> available for a deliberate pin.
 from __future__ import annotations
 
 import copy
+import base64
+import hashlib
 import json
 import os
 import re
@@ -422,7 +424,8 @@ def _generate_ollama(target: _Target, prompt: str, model: str, system: Optional[
 
 
 def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[str],
-                     max_tokens: int, timeout_s: int) -> dict:
+                     max_tokens: int, timeout_s: int,
+                     image_url: Optional[str] = None) -> dict:
     if target.auth_env and not target.auth_token:
         # error_code is load-bearing: A2 escalation must NOT climb on this. A missing
         # token is a fault in THIS shell's environment, not a statement about the
@@ -439,7 +442,9 @@ def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
-    messages.append({"role": "user", "content": prompt})
+    content = ([{"type": "image_url", "image_url": {"url": image_url}},
+                {"type": "text", "text": prompt}] if image_url else prompt)
+    messages.append({"role": "user", "content": content})
     payload = {"model": model, "messages": messages,
                "max_tokens": max_tokens, "stream": False}
     chat_template_kwargs = target.settings.get("chat_template_kwargs")
@@ -532,7 +537,8 @@ def local_generate(prompt: str, model: str | None = None,
                    files: list[str] | None = None,
                    quality: str | None = None,
                    task_family: str | None = None,
-                   task_id: str | None = None) -> dict:
+                   task_id: str | None = None,
+                   image_path: str | None = None) -> dict:
     """Generate text from a configured inference backend.
 
     Routing (Banked Fire): pass ``task`` (e.g. "research") to prefer a tagged
@@ -579,6 +585,10 @@ def local_generate(prompt: str, model: str | None = None,
     HEARTH_SCOPE sandbox; capped at 256 KiB per file and 1 MiB total. The packed
     manifest rides the result as ``files_packed``/``files_bytes``.
 
+    Vision input: ``image_path`` accepts a scoped PNG or JPEG (up to 8 MiB).
+    It is sent only to the vision-tagged local backend while the
+    ``seat0-27b-vision`` configuration is active; the ledger records its hash.
+
     Session attribution (C-06): pass ``task_id`` (e.g. ``"cc-1a2b3c4d"``) to
     stamp this call's ledger row, so ``knowledge/offload.json``'s ``by_task``
     dimension can answer what this session offloaded. It is an identifier only
@@ -599,6 +609,8 @@ def local_generate(prompt: str, model: str | None = None,
     if task_family is not None and (not isinstance(task_family, str)
                                     or not task_family.strip()):
         raise ValueError("task_family must be a non-empty string")
+    if image_path is not None and (not isinstance(image_path, str) or not image_path.strip()):
+        raise ValueError("image_path must be a non-empty path")
     # Rejected here, before packing, routing or any dispatch: a malformed
     # identifier must not be discovered after tokens have been spent.
     _validate_task_id(task_id)
@@ -725,7 +737,7 @@ def local_generate(prompt: str, model: str | None = None,
 
     def _execute(t: _Target, m: str, mt: int, ts: int) -> dict:
         if t.api == "openai":
-            return _generate_openai(t, prompt, m, system, mt, ts)
+            return _generate_openai(t, prompt, m, system, mt, ts, image_url=image_data_url)
         if t.api == "gemini":
             return _generate_gemini(t, prompt, m, system, mt, ts)
         return _generate_ollama(t, prompt, m, system, mt, ts)
@@ -832,7 +844,27 @@ def local_generate(prompt: str, model: str | None = None,
 
     resolved_model, resolved_max_tokens, resolved_timeout_s = _apply_defaults(
         target, route_model, max_tokens)
+    image_data_url = None
+    image_evidence = None
+    if image_path is not None:
+        from hearth.execution.lab_config import get_active_configuration_name
+        provider = load_pool().by_name(target.backend) if target.backend else None
+        if (target.api != "openai" or provider is None or "vision" not in provider.tags
+                or get_active_configuration_name() != "seat0-27b-vision"):
+            return _tag({"ok": False, "error_code": "policy_refusal",
+                         "error": "policy_refusal: image input requires the seat0-27b-vision configuration and vision backend",
+                         "task_family": sized_family, "family_recommendation": family_recommendation})
+        image = resolve_in_scope(image_path)
+        mime = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}.get(image.suffix.lower())
+        if mime is None or not image.is_file() or image.stat().st_size > 8 * 1024 * 1024:
+            raise ValueError("image_path must be a PNG or JPEG file of at most 8 MiB")
+        image_bytes = image.read_bytes()
+        image_data_url = f"data:{mime};base64,{base64.b64encode(image_bytes).decode('ascii')}"
+        image_evidence = {"path": str(image), "bytes": len(image_bytes),
+                          "sha256": hashlib.sha256(image_bytes).hexdigest()}
     result = _execute(target, resolved_model, resolved_max_tokens, resolved_timeout_s)
+    if image_evidence is not None:
+        result["image_input"] = image_evidence
 
     result["backend"] = target.backend
     result["routed_by"] = _label(target.routed_by)
@@ -867,7 +899,7 @@ def local_generate(prompt: str, model: str | None = None,
     # metered/trial credit to hide a broken environment. Fail loudly on the named rung
     # instead (measured: an unauthenticated shell silently produced
     # routed_by "escalation:omen-arc->gcp-gemini").
-    _no_climb = result.get("error_code") == "auth_not_configured"
+    _no_climb = image_path is not None or result.get("error_code") == "auth_not_configured"
     if result.get("ok") is False and not target.routed_by.startswith("pinned") and not _no_climb:
         exclude_set = {target.backend} if target.backend else set()
         try:
@@ -956,6 +988,7 @@ def _execution_local_generate(
     quality: str | None = None,
     task_family: str | None = None,
     task_id: str | None = None,
+    image_path: str | None = None,
 ) -> dict:
     """Compatibility projection of local_generate over the Execution Ledger.
 
@@ -1006,6 +1039,7 @@ def _execution_local_generate(
         ("quality", quality),
         ("task_family", task_family),
         ("task_id", task_id),
+        ("image_path", image_path),
     ):
         if value is not None:
             arguments[key] = value

@@ -62,6 +62,22 @@ class RouterCapabilityTests(unittest.TestCase):
         self.assertEqual(plan["routed_by"], "family:reasoning_planning:depth_override:omen-dense-27b")
         self.assertFalse(plan["dispatch"])
 
+    def test_vision_families_require_vision_configuration(self) -> None:
+        svc = get_execution_service()
+        for family in ("chart_diagram", "screenshot_grounded"):
+            with self.subTest(family=family, configuration="day"):
+                os.environ["HEARTH_LAB_CONFIGURATION"] = "day"
+                plan = svc.plan(operation_name="inference.generate", prompt_bytes=1000,
+                                task_family=family)
+                self.assertEqual(plan["error_code"], "policy_refusal")
+                self.assertIn("seat0-27b-vision", plan["refusal"])
+            with self.subTest(family=family, configuration="seat0-27b-vision"):
+                os.environ["HEARTH_LAB_CONFIGURATION"] = "seat0-27b-vision"
+                plan = svc.plan(operation_name="inference.generate", prompt_bytes=1000,
+                                task_family=family)
+                self.assertEqual(plan["provider"], "omen-dense-27b")
+                self.assertEqual(plan["routed_by"], f"family:{family}:tag:vision")
+
     def test_planning_prompt_shallow_routes_to_moe(self) -> None:
         """Shallow reasoning_planning below 8192 tokens preserves the MoE door default route."""
         svc = get_execution_service()

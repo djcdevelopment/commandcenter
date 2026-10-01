@@ -357,16 +357,36 @@ def cmd_switch(name: str, dry_run: bool = False) -> int:
             s_dir = UNIT_DIR / f"omen-vllm@{seat}.service.d"
             expected_model = sdata.get("served_name")
             changed = False
+            if seat == 0 and name != "seat0-27b-vision":
+                vision_dropin = s_dir / "stage8-27b-vision.conf"
+                if vision_dropin.exists():
+                    vision_dropin.unlink()
+                    changed = True
+                if "stage2-27b-mtp.conf" in sdata.get("dropins", []):
+                    base = s_dir / "stage2-27b-mtp.conf"
+                    if not base.exists():
+                        source = FLASH_DIR / "host" / "omen-linux" / "systemd" / "omen-vllm@0.service.d" / base.name
+                        if not source.is_file():
+                            raise RuntimeError(f"base drop-in {source} does not exist")
+                        shutil.copy2(source, base)
+                        changed = True
             if "staged_dropin" in sdata:
                 staged = s_dir / sdata["staged_dropin"]
                 target = s_dir / sdata.get("active_dropin", sdata["staged_dropin"].replace(".staged", ""))
                 if not staged.is_file():
                     raise RuntimeError(f"staged drop-in {staged} does not exist")
+                if name == "seat0-27b-vision" and seat == 0:
+                    # Stage 8 replaces the complete Stage 2 recipe. Keeping both
+                    # creates duplicate Environment keys and hides the live value.
+                    base = s_dir / "stage2-27b-mtp.conf"
+                    if base.exists():
+                        base.unlink()
+                        changed = True
                 shutil.copy2(staged, target)
                 changed = True
-            elif name == "two-lane" and seat == 0:
-                # Remove any staged drop-ins that were copied into seat 0
-                for candidate in list(s_dir.glob("stage[4567]*.conf")):
+            elif seat == 0:
+                # Leaving a vision profile must also remove its model override.
+                for candidate in list(s_dir.glob("stage[45678]*.conf")):
                     candidate.unlink()
                     changed = True
 

@@ -139,10 +139,11 @@ reason = "Long tool output is decode-bound; the 5070 is the faster decoder, so l
 # text-only and the campaign's vision cells were not promoted.
 # ---------------------------------------------------------------------------
 [family.document_ocr]
-refusal = "missing capability: no local vision lane (see mechsuit-plan/12)"
-model_id = "gemini-3.5-flash"
-evidence = "ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K"
-reason = "no verified local vision rung (27B text-only, ADR-0039)"
+model_id = "tesseract-ocr"
+tags = ["ocr"]
+evidence = "perception/measure_multitasking.py: 4.15 img/s OCR alone, 3.76 img/s alongside dual GPU seats (<3.1% GPU delta, threads=8); clippy HUD/accolade exact match"
+receipt = "/home/derek/work/commandcenter-linux-flash/perception/measure_multitasking.py"
+reason = "CPU Tesseract plain text extraction; does not parse tables, formulas or visual layout (task 12 fills layout and charts)"
 
 [family.chart_diagram]
 refusal = "missing capability: no local vision lane (see mechsuit-plan/12)"

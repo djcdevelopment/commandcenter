@@ -127,3 +127,21 @@ timeout_s = 600
 parallel_slots = 1
 [backend.settings.chat_template_kwargs]
 enable_thinking = false
+
+# --- omen-perception (task 13: CPU perception lane) ---------------------------
+# CPU OCR (Tesseract) + image scoring (CLIP ViT-L/14 + LAION aesthetic head).
+# Does not occupy GPU VRAM or interfere with vLLM seats (threads=8, <3.1% delta).
+[[backend]]
+name = "omen-perception"
+endpoint = "http://127.0.0.1:18099"
+api = "openai"
+models = ["tesseract-ocr", "clip-vit-l14"]
+tags = ["perception", "ocr"]
+
+[backend.settings]
+node = "omen"
+engine = "perception"
+images_per_second = 4.15
+max_image_bytes = 10485760
+timeout_s = 60
+parallel_slots = 2

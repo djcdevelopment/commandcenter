@@ -73,7 +73,7 @@ class RotationToolsTests(unittest.TestCase):
     def test_provider_contract_shape(self) -> None:
         tools = R.get_tools()
         self.assertEqual([t.__name__ for t in tools],
-                         ["rotation_status", "recommend_rung", "rotation_window", "rotation_load",
+                         ["rotation_status", "rotation_window", "rotation_load",
                           "rotation_unload", "rotation_kv_save", "rotation_kv_restore"])
         for tool in tools:
             self.assertTrue(tool.__doc__, tool.__name__)

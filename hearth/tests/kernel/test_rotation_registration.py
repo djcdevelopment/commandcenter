@@ -42,7 +42,7 @@ LAUNCHER = HEARTH / "etc" / "start-hearth-gateway.cmd"
 
 ROTATION_MODULE = "hearth.toolsurface.rotation"
 RUNGSTATE_MODULE = "hearth.toolsurface.rungstate"
-QUERY_TOOLS = ("rotation_status", "recommend_rung")
+QUERY_TOOLS = ("rotation_status",)
 ADMIN_TOOLS = ("rotation_window", "rotation_load", "rotation_unload",
                "rotation_kv_save", "rotation_kv_restore")
 ROTATION_ADMIN = "rotation_admin"
@@ -81,6 +81,9 @@ class TaxonomyTests(TestCase):
     def test_query_rung_state_is_classified_as_query(self) -> None:
         self.assertEqual(caps.capability_for("query_rung_state"), "query")
 
+    def test_recommend_rung_is_classified_as_query(self) -> None:
+        self.assertEqual(caps.capability_for("recommend_rung"), "query")
+
     def test_surface_complete_over_the_rotation_provider(self) -> None:
         caps.assert_surface_complete(t.__name__ for t in rotation.get_tools())
 
@@ -103,7 +106,7 @@ class ProfileTests(TestCase):
 
     def test_research_reads_but_cannot_actuate(self) -> None:
         research = self.profiles["research"]
-        for name in QUERY_TOOLS + ("query_rung_state",):
+        for name in QUERY_TOOLS + ("query_rung_state", "recommend_rung"):
             with self.subTest(tool=name):
                 allowed, _ = caps.check_tool_access(research, name)
                 self.assertTrue(allowed, f"research should reach {name} via query")
@@ -139,7 +142,7 @@ class LauncherTests(TestCase):
         names = [t.__name__ for tools in providers.values() for t in tools]
         self.assertEqual(len(names), len(set(names)), "duplicate tool names across providers")
         caps.assert_surface_complete(names)
-        for name in QUERY_TOOLS + ADMIN_TOOLS + ("query_rung_state",):
+        for name in QUERY_TOOLS + ADMIN_TOOLS + ("query_rung_state", "recommend_rung"):
             self.assertIn(name, names)
         caps.load_profiles(PROFILES)
 
@@ -150,7 +153,7 @@ class GuardTests(TestCase):
 
     def _guards(self) -> GuardStack:
         guards = GuardStack(repo_root=REPO_ROOT)
-        providers = load_providers(f"{ROTATION_MODULE},hearth.toolsurface.knowledge")
+        providers = load_providers(f"{ROTATION_MODULE},{RUNGSTATE_MODULE},hearth.toolsurface.knowledge")
         wire_knowledge_guards(guards, providers)
         return guards
 

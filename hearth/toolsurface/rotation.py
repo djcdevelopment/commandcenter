@@ -175,23 +175,7 @@ def rotation_status(endpoint: str = DEFAULT_ENDPOINT) -> dict:
     return out
 
 
-def recommend_rung(task_family: str, prompt_bytes: int = 0) -> dict:
-    """Which model/rung the authored task-family evidence recommends (advisory; never dispatches).
-
-    Backed by hearth.scheduler.families (P5). Until that module lands, returns ok:false with the
-    reason rather than guessing.
-    """
-    try:
-        from hearth.scheduler import families as fam  # type: ignore
-    except Exception:  # noqa: BLE001
-        return {"ok": False, "error": "task-family preferences not available (hearth.scheduler.families absent)",
-                "task_family": task_family}
-    try:
-        loaded = fam.load_families()
-        rec = fam.recommend(task_family, max(0, int(prompt_bytes)) // 4, loaded)
-        return {"ok": True, "task_family": task_family, "recommendation": rec}
-    except Exception as exc:  # noqa: BLE001
-        return {"ok": False, "error": f"{type(exc).__name__}: {exc}", "task_family": task_family}
+from hearth.toolsurface.rungstate import recommend_rung
 
 
 # ----------------------------------------------------------------------------- actuators
@@ -322,5 +306,5 @@ def rotation_kv_restore(model_id: str, slot: int, prompt: str, window: str,
 
 
 def get_tools() -> list[Callable]:
-    return [rotation_status, recommend_rung, rotation_window, rotation_load, rotation_unload,
+    return [rotation_status, rotation_window, rotation_load, rotation_unload,
             rotation_kv_save, rotation_kv_restore]

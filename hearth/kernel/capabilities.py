@@ -89,7 +89,7 @@ TOOL_CAPABILITY: dict[str, str] = {
                                    # evaluation only (it grants nothing and approves nothing)
     "query_omen_worker": "status",
     "query_rung_state": "query",   # rungstate.py -- door-side rung verdict (ADR-0044)
-    "recommend_rung": "query",     # rotation.py -- task-family advice, never dispatches
+    "recommend_rung": "query",     # rungstate.py -- task-family advice, never dispatches
     "rotation_status": "query",    # rotation.py -- /running + tenancy + rung state, read-only
     # knowledge_write: writes or derived-state mutation, even where the name
     # sits adjacent to the query family. project/record_event/rebuild_knowledge

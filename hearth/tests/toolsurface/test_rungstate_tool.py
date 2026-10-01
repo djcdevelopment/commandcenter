@@ -27,10 +27,10 @@ def _rung(verdict, **over):
 
 
 class ProviderContractTests(TestCase):
-    def test_get_tools_exposes_query_rung_state(self) -> None:
+    def test_get_tools_exposes_tools(self) -> None:
         tools = R.get_tools()
         self.assertIsInstance(tools, list)
-        self.assertEqual([t.__name__ for t in tools], ["query_rung_state"])
+        self.assertEqual([t.__name__ for t in tools], ["query_rung_state", "recommend_rung"])
 
     def test_tool_is_typed_and_documented(self) -> None:
         for tool in R.get_tools():
@@ -42,6 +42,10 @@ class ProviderContractTests(TestCase):
         sig = inspect.signature(R.query_rung_state)
         self.assertEqual(sig.parameters["rung"].default, "omen-arc")
         self.assertIn(sig.parameters["rung"].annotation, (str, "str"))  # postponed annotations are strings
+        sig_rec = inspect.signature(R.recommend_rung)
+        self.assertEqual(sig_rec.parameters["prompt_bytes"].default, 0)
+        self.assertIn(sig_rec.parameters["task_family"].annotation, (str, "str"))
+        self.assertIn(sig_rec.parameters["prompt_bytes"].annotation, (int, "int"))
 
     def test_module_is_kernel_free_by_source_and_by_import_graph(self) -> None:
         source = inspect.getsource(R)
@@ -62,6 +66,7 @@ class ProviderContractTests(TestCase):
         # P10 registered the provider: the name must appear exactly once across the surface.
         names = [t.__name__ for m in PROVIDERS for t in m.get_tools()]
         self.assertEqual(names.count("query_rung_state"), 1)
+        self.assertEqual(names.count("recommend_rung"), 1)
 
 
 class QueryRungStateTests(TestCase):
@@ -122,3 +127,14 @@ class QueryRungStateTests(TestCase):
         for key in ("ok", "rung", "verdict", "note", "summary"):
             self.assertIn(key, out)
         self.assertEqual(out["rung"], "omen-arc")
+
+
+class RecommendRungTests(TestCase):
+    def test_recommend_rung_happy_path_and_honesty(self) -> None:
+        out = R.recommend_rung("summarization", 0)
+        self.assertIn("ok", out)
+        if out["ok"]:
+            self.assertEqual(out["task_family"], "summarization")
+            self.assertIn("recommendation", out)
+        else:
+            self.assertIn("families", out["error"])

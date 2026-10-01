@@ -51,7 +51,7 @@ LOOPBACK_URL = "http://127.0.0.1:8710/mcp"
 # A tool named in the skill with no entry here fails `test_every_named_tool_is_mapped`
 # -- adding a tool to the prose forces naming the provider that actually serves it.
 PROVIDER_OF = {
-    "recommend_rung": "hearth.toolsurface.rotation",
+    "recommend_rung": "hearth.toolsurface.rungstate",
     "rotation_load": "hearth.toolsurface.rotation",
     "rotation_unload": "hearth.toolsurface.rotation",
     "rotation_window": "hearth.toolsurface.rotation",

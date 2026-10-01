@@ -477,6 +477,18 @@ class ExecutionService:
         if caller_signalled:
             return plain._replace(recommendation=recommendation)
         prefix = f"family:{recommendation['family']}:"
+        if recommendation.get("refused"):
+            return FamilyRoute(
+                backend=None,
+                model=None,
+                tags=None,
+                family_prefix=prefix,
+                recommendation=recommendation,
+                preferred_model=None,
+                default_model=default_model,
+                sizer=sizer,
+                admission_max_tokens=admission_max_tokens,
+            )
         if recommendation["pin_required"] and recommendation["backend_hint"]:
             return FamilyRoute(
                 backend=recommendation["backend_hint"],
@@ -593,9 +605,13 @@ class ExecutionService:
             # onto a rung that cannot hold the payload) is refused here, before a
             # Job exists. Capacity for a render is a calibrated B70 lane, not a
             # model provider, so delegated handlers skip the whole path.
+            route = self._family_route(operation, arguments_value, len(prompt_bytes))
+            if route.recommendation and route.recommendation.get("refused"):
+                refusal = route.recommendation.get("refusal") or "missing capability"
+                raise ExecutionServiceError(f"policy_refusal: {refusal}")
             self._select_for_route(
                 pool,
-                self._family_route(operation, arguments_value, len(prompt_bytes)),
+                route,
                 len(prompt_bytes),
                 max_tokens=policy_value.max_tokens,
             )
@@ -720,6 +736,28 @@ class ExecutionService:
             {"model": model, "backend": backend, "task_family": task_family},
             prompt_bytes,
         )
+        if route.recommendation and route.recommendation.get("refused"):
+            refusal = route.recommendation.get("refusal") or "missing capability"
+            return {
+                "operation": operation.name,
+                "provider": None,
+                "model": None,
+                "routed_by": "policy_refusal",
+                "occupancy": "unknown",
+                "global_parallel_slots": 0,
+                "policy": {
+                    "max_tokens": resolved_policy.max_tokens,
+                    "deadline_s": resolved_policy.deadline_s,
+                    "priority": resolved_policy.priority,
+                },
+                "task_family": task_family,
+                "family_recommendation": route.recommendation,
+                "dispatch": False,
+                "ok": False,
+                "error": f"policy_refusal: {refusal}",
+                "error_code": "policy_refusal",
+                "refusal": refusal,
+            }
         provider, routed_by, occupancy = self._select_for_route(
             load_pool(), route, prompt_bytes, max_tokens=resolved_policy.max_tokens
         )
@@ -805,6 +843,9 @@ class ExecutionService:
                 operation, {**arguments, "prompt": prompt,
                             "packed_files": desired.get("packed_files") or []},
                 payload_bytes)
+            if route.recommendation and route.recommendation.get("refused"):
+                refusal = route.recommendation.get("refusal") or "missing capability"
+                raise ExecutionServiceError(f"policy_refusal: {refusal}")
             provider, routed_by, occupancy = self._select_for_route(
                 load_pool(), route, payload_bytes, max_tokens=policy.max_tokens
             )

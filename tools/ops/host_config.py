@@ -36,6 +36,8 @@ MANIFEST: list[tuple[str, Path]] = [
     ("systemd/hearth-dashboard-snapshot.timer", HOME / ".config" / "systemd" / "user" / "hearth-dashboard-snapshot.timer"),
     ("systemd/mechnet-linux-observer.service", HOME / ".config" / "systemd" / "user" / "mechnet-linux-observer.service"),
     ("systemd/mechnet-linux-observer.timer", HOME / ".config" / "systemd" / "user" / "mechnet-linux-observer.timer"),
+    ("systemd/omen-offbox-backup.service", HOME / ".config" / "systemd" / "user" / "omen-offbox-backup.service"),
+    ("systemd/omen-offbox-backup.timer", HOME / ".config" / "systemd" / "user" / "omen-offbox-backup.timer"),
 
     # systemd drop-ins
     ("systemd/omen-vllm@0.service.d/max-model-len.conf.retired-20260927",
@@ -81,6 +83,7 @@ MANIFEST: list[tuple[str, Path]] = [
     ("bin/mount-omen-e-readonly.sh", HOME / "mount-omen-e-readonly.sh"),
     ("bin/omen-ai-mode", HOME / ".local" / "bin" / "omen-ai-mode"),
     ("bin/mechnet-readiness-probe", HOME / ".local" / "bin" / "mechnet-readiness-probe"),
+    ("bin/omen-offbox-backup.sh", HOME / "bin" / "omen-offbox-backup.sh"),
 
     # config
     ("config/haproxy.cfg", HOME / ".config" / "omen-vllm" / "haproxy.cfg"),

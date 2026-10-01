@@ -413,3 +413,24 @@ class LoaderValidationTests(TestCase):
             self.assertEqual(fam.source, path)
             self.assertEqual(fam.authored, "test")
             self.assertEqual(fam.get("anything").model_id, "alt-model")
+
+    def test_family_with_refusal(self) -> None:
+        fam = self._load("""
+            contract = "routing-families.v1"
+            [family.document_ocr]
+            refusal = "missing capability: no local vision lane"
+            evidence = "none"
+            reason = "no vision model"
+            [family.default]
+            model_id = "default-model"
+            evidence = "e"
+            reason = "r"
+        """)
+        pref = fam.get("document_ocr")
+        self.assertEqual(pref.refusal, "missing capability: no local vision lane")
+        self.assertIsNone(resolve_required_model({"task_family": "document_ocr"}, fam))
+        rec = recommend("document_ocr", 1000, fam)
+        self.assertTrue(rec["refused"])
+        self.assertEqual(rec["refusal"], "missing capability: no local vision lane")
+        self.assertEqual(rec["providers"], [])
+        self.assertIsNone(rec["backend_hint"])

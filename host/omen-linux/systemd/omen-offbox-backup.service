@@ -1,0 +1,8 @@
+[Unit]
+Description=OMEN off-box backup to FX99
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/derek/bin/omen-offbox-backup.sh
+TimeoutStartSec=1800

@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily off-box backup of OMEN run records to FX99
+
+[Timer]
+OnCalendar=*-*-* 07:15:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

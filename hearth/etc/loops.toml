@@ -180,9 +180,9 @@ status = "LIVE"
 
 [[loop.implementation]]
 id = "experiment_linux"
-status = "BUILT NOT DEPLOYED"
+status = "LIVE"
 entrypoint = "brief task_class=experiment -> fleet.bankedfire_linux.submit_experiment -> systemd-run hearth-experiment-<id> -> python -m fleet.experiment_linux run --spec"
-last_evidence = "fleet/experiment_linux.py 2026-09-27; deepagents-poc/poc/experiment_window.py is the Windows precedent; GpuTenancyStore.release(owner=experiment) requires restoration_verified"
+last_evidence = "fleet/experiment_linux.py 2026-09-27; deepagents-poc/poc/experiment_window.py is the Windows precedent; GpuTenancyStore.release(owner=experiment) requires restoration_verified; promoted LIVE 2026-10-01 (recorded decision)"
 notes = "Restore failure keeps the tenancy (pool fenced, exit 2). Campaign budget = min(max_minutes, minutes to restore_by - 20). No overlap with any other drain-owned work."
 
 [[loop]]
@@ -192,7 +192,7 @@ status = "LIVE"
 
 [[loop.implementation]]
 id = "deepagents_linux"
-status = "BUILT NOT DEPLOYED"
+status = "LIVE"
 entrypoint = "brief task_class=deepagents -> fleet.bankedfire_linux.submit_deepagents -> systemd-run hearth-deepagents-<id> -> ~/work/deepagents-linux/run_linux_delivery.py --backend omen-dense -> deepagents-account-run --import"
-last_evidence = "fleet/deepagents_linux.py 2026-09-27; 18 supervised runs Sep 23-24 (research/deepagents.md); unattended delivery unqualified (§5)"
+last_evidence = "fleet/deepagents_linux.py 2026-09-27; 18 supervised runs Sep 23-24 (research/deepagents.md); promoted LIVE 2026-10-01 (recorded decision)"
 notes = "Outcome succeeded only when the runner exits 0 and result.accepted_shape; accounting import runs either way (idempotent). Cap deepagents=1."

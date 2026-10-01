@@ -40,7 +40,7 @@ _RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     # policy_refusal: the door refused the request's SHAPE (an output budget over the
     # operation ceiling, a deadline over its ceiling). Measured 2026-09-27: "max_tokens must
     # be between 1 and 8192" was classified auth_expired because "token" matched "max_tokens".
-    ("policy_refusal", ("must be between", "over the ceiling", "exceeds the ceiling", "ceiling")),
+    ("policy_refusal", ("policy_refusal", "missing capability", "must be between", "over the ceiling", "exceeds the ceiling", "ceiling")),
     # tokenizer_unavailable: the exact-count endpoint the local-work lane needs answered 404.
     ("tokenizer_unavailable", ("tokenizer endpoint",)),
     ("auth_expired", ("401", "403", "unauthorized", "auth token", "bearer token", "api key",

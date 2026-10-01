@@ -764,6 +764,16 @@ def local_generate(prompt: str, model: str | None = None,
     route_model = model
     family_prefix = None
     if family_routes:
+        if family_recommendation.get("refused"):
+            refusal_reason = family_recommendation.get("refusal") or "missing capability"
+            return _tag({
+                "ok": False,
+                "error": f"policy_refusal: {refusal_reason}",
+                "error_code": "policy_refusal",
+                "refusal": refusal_reason,
+                "task_family": sized_family,
+                "family_recommendation": family_recommendation,
+            })
         family_prefix = f"family:{family_recommendation['family']}:"
         if family_recommendation["pin_required"] and family_recommendation["backend_hint"]:
             # The recommended rung declares no routing tags, so opportunistic

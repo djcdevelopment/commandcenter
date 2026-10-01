@@ -139,16 +139,19 @@ reason = "Long tool output is decode-bound; the 5070 is the faster decoder, so l
 # text-only and the campaign's vision cells were not promoted.
 # ---------------------------------------------------------------------------
 [family.document_ocr]
+refusal = "missing capability: no local vision lane (see mechsuit-plan/12)"
 model_id = "gemini-3.5-flash"
 evidence = "ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K"
 reason = "no verified local vision rung (27B text-only, ADR-0039)"
 
 [family.chart_diagram]
+refusal = "missing capability: no local vision lane (see mechsuit-plan/12)"
 model_id = "gemini-3.5-flash"
 evidence = "ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K"
 reason = "no verified local vision rung (27B text-only, ADR-0039)"
 
 [family.screenshot_grounded]
+refusal = "missing capability: no local vision lane (see mechsuit-plan/12)"
 model_id = "gemini-3.5-flash"
 evidence = "ADR-0039: 0.687x jobs/hour @512, 2.63x @8K, 5.49x @32K"
 reason = "no verified local vision rung (27B text-only, ADR-0039)"

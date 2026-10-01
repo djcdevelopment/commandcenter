@@ -166,6 +166,7 @@ class FamilyPreference:
     below_threshold_model_id: Optional[str] = None
     depth_override: Optional[DepthRule] = None
     tags: Optional[tuple[str, ...]] = None   # routing tags declared for this family (optional)
+    refusal: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -240,9 +241,10 @@ def _coerce_family(name: str, raw: Any) -> FamilyPreference:
     override: Optional[DepthRule] = None
     if raw.get("depth_override") is not None:
         override = _coerce_depth_rule(raw["depth_override"], f"{where}.depth_override")
+    refusal = _optional_str(raw, "refusal", where)
     return FamilyPreference(
         name=name,
-        model_id=_require_str(raw, "model_id", where),
+        model_id=_optional_str(raw, "model_id", where) or "none" if refusal else _require_str(raw, "model_id", where),
         evidence=_require_str(raw, "evidence", where),
         reason=_require_str(raw, "reason", where),
         receipt=_optional_str(raw, "receipt", where),
@@ -251,6 +253,7 @@ def _coerce_family(name: str, raw: Any) -> FamilyPreference:
         below_threshold_model_id=below,
         depth_override=override,
         tags=_optional_tags(raw, where),
+        refusal=refusal,
     )
 
 
@@ -392,6 +395,8 @@ def resolve_required_model(job: Any, families: Optional[Families] = None) -> Opt
     if families is None:
         families = load_families()
     pref = families.get(task_family)
+    if pref.refusal:
+        return None
     return _pick_model(pref, job_prompt_tokens(job)).model_id
 
 
@@ -431,6 +436,22 @@ def recommend(task_family: Optional[str], prompt_tokens: Optional[int] = None,
         pool = load_pool()
     depth = _as_int(prompt_tokens)
     pref = families.get(task_family)
+    if pref.refusal:
+        return {
+            "family": pref.name,
+            "requested_family": task_family,
+            "model_id": pref.model_id,
+            "backend_hint": None,
+            "providers": [],
+            "evidence": pref.evidence,
+            "reason": pref.refusal,
+            "depth_rule_applied": False,
+            "pin_required": False,
+            "prompt_tokens": depth,
+            "advisory": True,
+            "refused": True,
+            "refusal": pref.refusal,
+        }
     pick = _pick_model(pref, depth)
     providers = _providers_for(pick.model_id, pool)
     hint = providers[0] if providers else None
@@ -449,6 +470,8 @@ def recommend(task_family: Optional[str], prompt_tokens: Optional[int] = None,
         "pin_required": bool(hint is not None and not hint.tags),
         "prompt_tokens": depth,
         "advisory": True,
+        "refused": False,
+        "refusal": None,
     }
 
 

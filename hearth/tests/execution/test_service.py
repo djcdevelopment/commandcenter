@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+import textwrap
 import threading
 import time
 import unittest
@@ -559,6 +560,38 @@ class PlanTaskFamilyTest(ExecutionServiceTest):
         with self.assertRaisesRegex(ExecutionServiceError, "task_family"):
             self.service_.plan(operation_name="llm.chat", task_family="   ",
                                prompt_bytes=1000)
+
+    def test_refused_family_returns_explicit_refusal(self) -> None:
+        custom_families = self.root / "families_with_refusal.toml"
+        custom_families.write_text(textwrap.dedent("""
+            contract = "routing-families.v1"
+            [family.document_ocr]
+            refusal = "missing capability: no local vision lane"
+            evidence = "none"
+            reason = "no vision model"
+            [family.default]
+            model_id = "default-model"
+            evidence = "e"
+            reason = "r"
+        """), encoding="utf-8")
+        with patch.dict(os.environ, {"HEARTH_ROUTING_FAMILIES": str(custom_families)}):
+            planned = self.service_.plan(
+                operation_name="llm.chat", task_family="document_ocr", prompt_bytes=1000)
+            self.assertFalse(planned["ok"])
+            self.assertEqual("policy_refusal", planned["error_code"])
+            self.assertIn("missing capability: no local vision lane", planned["error"])
+            self.assertIsNone(planned["provider"])
+            self.assertIsNone(planned["model"])
+
+            # submit also raises policy_refusal
+            with self.assertRaises(ExecutionServiceError) as ctx:
+                self.service_.submit(
+                    operation_name="llm.chat",
+                    arguments={"prompt": "read this image", "task_family": "document_ocr"},
+                    principal=self.principal,
+                    source=self.source,
+                )
+            self.assertIn("policy_refusal", str(ctx.exception))
 
 
 class TaskFamilyReachesTheProviderTest(ExecutionServiceTest):

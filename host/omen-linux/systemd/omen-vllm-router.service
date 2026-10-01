@@ -1,0 +1,14 @@
+[Unit]
+Description=OMEN vLLM two-B70 router
+After=omen-vllm@0.service omen-vllm@1.service
+Wants=omen-vllm@0.service omen-vllm@1.service
+
+[Service]
+Type=simple
+ExecStart=/home/derek/opt/haproxy/usr/sbin/haproxy -db -f /home/derek/.config/omen-vllm/haproxy.cfg
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=10
+
+[Install]
+WantedBy=default.target

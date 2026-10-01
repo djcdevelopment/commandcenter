@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+"""Read-only model and gateway readiness checks for OMEN's Mechnet observer."""
+
+from datetime import datetime, timezone
+import json
+from pathlib import Path
+import sys
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
+
+
+def token_from_host_file(name: str) -> str:
+    path = Path.home() / ".config/omen-vllm/hearth-backends.env"
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith(name + "="):
+            return line.split("=", 1)[1].strip().strip('"').strip("'")
+    raise RuntimeError(name + " is absent from host configuration")
+
+
+def probe(name: str, url: str, *, bearer: str = "", kind: str = "http", expect=None) -> dict:
+    headers = {"Authorization": "Bearer " + bearer} if bearer else {}
+    request = Request(url, headers=headers)
+    result = {"check": name, "ready": False}
+    try:
+        with urlopen(request, timeout=4) as response:
+            result["http_status"] = response.status
+            body = response.read(32_768)
+        if kind == "hearth":
+            result["ready"] = json.loads(body).get("status") == "ok"
+        elif kind == "am4":
+            # one facade alias must be ready; `expect` names it (profile-aware since 2026-09-28)
+            data = json.loads(body)
+            aliases = data.get("aliases") or []
+            result["ready"] = (
+                data.get("all_ready") is True
+                and len(aliases) == 1
+                and aliases[0].get("alias") == expect
+                and aliases[0].get("ready") is True
+            )
+        elif kind == "models":
+            # served-model assertion (continuity HANDOFF item 5): a green /health on a lane
+            # that serves the wrong alias is a silent misroute (HAProxy leastconn, 2026-09-27).
+            data = json.loads(body)
+            served = sorted(m.get("id") for m in (data.get("data") or []) if isinstance(m, dict))
+            result["served"] = served
+            result["ready"] = result["http_status"] == 200 and expect in served
+        else:
+            result["ready"] = result["http_status"] == 200
+    except HTTPError as exc:
+        result["http_status"] = exc.code
+        result["error"] = "HTTPError"
+    except (URLError, TimeoutError, OSError, ValueError) as exc:
+        result["error"] = type(exc).__name__
+    return result
+
+
+AM4_PROFILE_ALIASES = {"dense-tp2": ["am4-dense-27b"], "tool-pair": ["am4-tool-4070ti", "am4-tool-5070"]}
+
+
+def am4_profile() -> str:
+    """The profile AM4 says is live (~/.config/am4-fleet/profile, written by am4-profile); dense-tp2 if unreadable."""
+    import subprocess
+    try:
+        out = subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", "10.44.0.2", "cat ~/.config/am4-fleet/profile"],
+                             capture_output=True, text=True, timeout=8)
+        name = out.stdout.strip()
+        if out.returncode == 0 and name in AM4_PROFILE_ALIASES:
+            return name
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return "dense-tp2"
+
+
+def main() -> int:
+    profile = am4_profile()
+    checks = [
+        probe("hearth", "http://127.0.0.1:8710/healthz", kind="hearth"),
+        probe("omen-router", "http://127.0.0.1:18090/health"),
+        probe("omen-dense-router", "http://127.0.0.1:18095/health"),
+        probe("omen-seat-0", "http://127.0.0.1:18091/health"),
+        probe("omen-seat-1", "http://127.0.0.1:18092/health"),
+        *[probe(alias, f"http://10.44.0.2:8090/oxen/ready?alias={alias}",
+                bearer=token_from_host_file("AM4_VLLM_TOKEN"), kind="am4", expect=alias)
+          for alias in AM4_PROFILE_ALIASES[profile]],
+        probe("fx99-utility", "http://192.168.12.220:18093/health"),
+        probe("omen-router-model", "http://127.0.0.1:18090/v1/models",
+              bearer=token_from_host_file("OMEN_ARC_TOKEN"), kind="models", expect="qwen3-30b-a3b"),
+        probe("omen-dense-router-model", "http://127.0.0.1:18095/v1/models",
+              bearer=token_from_host_file("OMEN_ARC_TOKEN"), kind="models", expect="qwen3.8-27b"),
+    ]
+    document = {
+        "schema": "mechnet-linux-readiness.v1",
+        "at": datetime.now(timezone.utc).isoformat(),
+        "am4_profile": profile,
+        "ready": all(row["ready"] for row in checks),
+        "checks": checks,
+    }
+    print(json.dumps(document, separators=(",", ":")))
+    return 0 if document["ready"] else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

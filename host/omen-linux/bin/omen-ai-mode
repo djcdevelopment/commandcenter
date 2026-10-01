@@ -1,0 +1,155 @@
+#!/usr/bin/env python3
+"""Drain and pause OMEN Linux AI work for a Windows gaming session.
+
+Run as derek: omen_ai_mode.py status|hibernate|resume
+"""
+
+from datetime import datetime, timezone
+import json
+import os
+from pathlib import Path
+import sqlite3
+import subprocess
+import sys
+import time
+from urllib.request import urlopen
+
+
+home = Path.home()
+os.umask(0o077)
+root = home / "hearth-production"
+pause = root / "pause.dispatch"
+paused_copy = root / "pause.dispatch.last-hibernate"
+mode_record = root / "ai-mode.json"
+inference = ("omen-vllm@0.service", "omen-vllm@1.service",
+             "omen-vllm-router.service")
+observer = "mechnet-linux-observer.timer"
+gateway = "hearth-production.service"
+final_statuses = {"succeeded", "failed", "cancelled", "expired"}
+
+
+def systemctl(action: str, *units: str) -> None:
+    subprocess.run(["systemctl", "--user", action, *units], check=True)
+
+
+def active(unit: str) -> bool:
+    return subprocess.run(["systemctl", "--user", "is-active", "--quiet", unit],
+                          check=False).returncode == 0
+
+
+def jobs() -> tuple[dict[str, int], list[dict]]:
+    path = root / "var/execution/projection.sqlite"
+    with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as db:
+        statuses = dict(db.execute("SELECT status, COUNT(*) FROM jobs GROUP BY status"))
+        pending = [json.loads(row[0]) for row in db.execute(
+            "SELECT state_json FROM jobs WHERE status NOT IN "
+            "('succeeded','failed','cancelled','expired')")]
+    active_jobs = [job for job in pending
+                   if not (job.get("status") == "queued"
+                           and job.get("operation") == "bf6.process_segment")]
+    return statuses, active_jobs
+
+
+def deepagents_processes() -> list[int]:
+    found = []
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit() or int(entry.name) == os.getpid():
+            continue
+        try:
+            args = (entry / "cmdline").read_bytes().replace(b"\0", b" ")
+        except (OSError, PermissionError):
+            continue
+        if b"run_linux_delivery.py" in args:
+            found.append(int(entry.name))
+    return found
+
+
+def write_mode(mode: str) -> None:
+    os.umask(0o077)
+    mode_record.write_text(json.dumps({
+        "schema": "omen-ai-mode.v1", "mode": mode,
+        "at": datetime.now(timezone.utc).isoformat(),
+    }, indent=2) + "\n", encoding="utf-8")
+
+
+def wait_http(url: str, seconds: int) -> None:
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        try:
+            with urlopen(url, timeout=2) as response:
+                if response.status == 200:
+                    return
+        except Exception:
+            pass
+        time.sleep(1)
+    raise RuntimeError("service did not become healthy: " + url)
+
+
+def status() -> None:
+    counts, active_jobs = jobs()
+    print("mode", "paused" if pause.exists() else "online")
+    print("services", {unit: active(unit) for unit in
+                       (gateway, *inference, observer)})
+    print("jobs", counts, "active_nonlegacy", len(active_jobs))
+    print("deepagents_processes", deepagents_processes())
+    reports = sorted((root / "var/backlog/reports").glob("*.md")) if (root / "var/backlog/reports").is_dir() else []
+    print("morning_report", reports[-1] if reports else "none yet (hearth-morning-report.timer 06:45)")
+
+
+def hibernate() -> None:
+    if not root.is_dir():
+        raise RuntimeError("production state is absent")
+    if not pause.exists():
+        os.umask(0o077)
+        with pause.open("x", encoding="utf-8") as stream:
+            stream.write("OMEN AI gaming hibernate: no new work.\n")
+    deadline = time.monotonic() + 180
+    while True:
+        _, active_jobs = jobs()
+        workers = deepagents_processes()
+        if not active_jobs and not workers:
+            break
+        if time.monotonic() >= deadline:
+            raise RuntimeError(
+                f"work did not drain; gateway remains paused, "
+                f"jobs={len(active_jobs)} deepagents_pids={workers}")
+        time.sleep(2)
+    systemctl("stop", gateway)
+    systemctl("stop", observer)
+    systemctl("stop", *reversed(inference))
+    write_mode("hibernate")
+    status()
+    print("AI hibernated; Windows can be booted now")
+
+
+def resume() -> None:
+    if not pause.exists() and all(active(unit) for unit in (gateway, *inference, observer)):
+        status()
+        print("AI is already online")
+        return
+    for unit in inference:
+        systemctl("start", unit)
+    for port in (18091, 18092):
+        wait_http(f"http://127.0.0.1:{port}/health", 120)
+    wait_http("http://127.0.0.1:18090/health", 30)
+    if pause.exists():
+        os.replace(pause, paused_copy)
+    try:
+        systemctl("restart", gateway)
+        wait_http("http://127.0.0.1:8710/healthz", 30)
+    except Exception:
+        if not pause.exists():
+            pause.write_text("Resume failed; gateway held for inspection.\n",
+                             encoding="utf-8")
+        systemctl("restart", gateway)
+        raise
+    systemctl("start", observer)
+    write_mode("online")
+    status()
+    print("AI resumed on Ubuntu")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2 or sys.argv[1] not in {"status", "hibernate", "resume"}:
+        raise SystemExit(__doc__)
+    {"status": status, "hibernate": hibernate, "resume": resume}[sys.argv[1]]()

@@ -1,0 +1,13 @@
+[Unit]
+Description=HEARTH operator web workspace (loopback :8795, token-gated, read-only runs/operator browser)
+After=hearth-production.service
+
+[Service]
+WorkingDirectory=/home/derek/work/commandcenter-linux-flash
+EnvironmentFile=/home/derek/.config/hearth/hearth-ops.env
+ExecStart=/home/derek/.venvs/hearth-private/bin/python -c "from hearth.operator.web import serve; raise SystemExit(serve('127.0.0.1', 8795))"
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

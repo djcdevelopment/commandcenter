@@ -1,0 +1,14 @@
+# Stage 1 candidate A (plan mossy-stargazing-naur): Qwen3.6-35B-A3B MTP-preserved GPTQ-Int4 on seat 1.
+# Staged as *.staged; renamed to .conf when applied (and stage0-recipe.conf stays: KV bytes, prefix cache, graphs).
+[Service]
+Environment=OMEN_MODEL=/home/derek/models/qwen3.6-35b-a3b-gptq-int4
+Environment=OMEN_SERVED_NAME=qwen3.6-35b-a3b
+Environment=OMEN_TOOL_PARSER=qwen3_xml
+Environment=OMEN_REASONING_PARSER=qwen3
+Environment=OMEN_MAX_MODEL_LEN=65536
+Environment=OMEN_LANGUAGE_MODEL_ONLY=1
+Environment=OMEN_MTP_K=1
+# 35B weights ~19.6 GiB: the Stage 0 fixed KV pool (12.24 GiB) would exceed the device. Clear it and size by
+# utilisation (Windows 09-23 ran the 35B at 0.90 with 311K KV tokens; its 10 full-attention layers need far less KV/token).
+Environment=OMEN_KV_CACHE_BYTES=
+Environment=OMEN_GPU_MEM_UTIL=0.90

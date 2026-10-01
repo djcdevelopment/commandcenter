@@ -1,0 +1,14 @@
+[Unit]
+Description=vLLM XPU Qwen3-30B on OMEN B70 %i
+
+[Service]
+Type=simple
+EnvironmentFile=/home/derek/.config/omen-vllm/omen-api.env
+ExecStart=/home/derek/bin/start-vllm-seat.sh %i
+Restart=on-failure
+RestartSec=20
+TimeoutStopSec=30
+KillMode=mixed
+
+[Install]
+WantedBy=default.target

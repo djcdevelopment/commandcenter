@@ -1,0 +1,129 @@
+# Shadow-only Linux provider pool. Production HEARTH state and caller keys are
+# deliberately absent until the Windows ledger/artifacts are migrated.
+default = "omen-vllm"
+
+[[backend]]
+name = "omen-vllm"
+endpoint = "http://127.0.0.1:18090"
+api = "openai"
+auth_env = "OMEN_ARC_TOKEN"
+models = ["qwen3-30b-a3b"]
+tags = ["default", "code", "research", "reasoning"]
+
+[backend.settings]
+node = "omen"
+engine = "vllm"
+# 2026-09-27: seats run --max-model-len 40960 (was 16384); bytes scaled 3.5 chars/token like the old pair.
+context_tokens = 40960
+context_bytes = 143360
+max_tokens = 8192
+timeout_s = 1000
+parallel_slots = 8
+
+[backend.settings.chat_template_kwargs]
+enable_thinking = false
+
+[[backend]]
+name = "fx99-vllm"
+endpoint = "http://192.168.12.220:18093"
+api = "openai"
+auth_env = "FX99_VLLM_TOKEN"
+models = ["qwen2.5-coder-7b"]
+tags = ["utility"]
+
+[backend.settings]
+node = "fx99"
+engine = "vllm"
+context_tokens = 4096
+context_bytes = 14336
+max_tokens = 1024    # 4K window (sizing-map 2026-09-27)
+timeout_s = 300
+parallel_slots = 1
+
+[[backend]]
+name = "am4-vllm"
+endpoint = "http://10.44.0.2:8090"
+api = "openai"
+auth_env = "AM4_VLLM_TOKEN"
+models = ["am4-dense-27b"]
+tags = ["dense", "reasoning"]
+
+[backend.settings]
+node = "am4"
+engine = "vllm"
+context_tokens = 16384
+context_bytes = 57344
+max_tokens = 4096    # 16K window: an 8K reserve left 8K of input (sizing-map 2026-09-27)
+timeout_s = 1000
+parallel_slots = 1
+
+[backend.settings.chat_template_kwargs]
+enable_thinking = false
+
+[[backend]]
+name = "omen-dense-27b"
+endpoint = "http://127.0.0.1:18095"
+api = "openai"
+auth_env = "OMEN_ARC_TOKEN"
+models = ["qwen3.8-27b"]
+tags = ["dense", "quality", "agent"]   # distinct from omen-vllm so existing tag routing is unchanged; callers opt in
+
+[backend.settings]
+node = "omen"
+engine = "vllm"
+# Qwen3.8-27B GPTQ-Int4 + MTP k=1 on one B70; 65,536 configured (KV pool 76,706-99,048 tokens depending on the start (vLLM profiles free memory) -> ~1.2-1.5 full-length requests, so slots stay small).
+context_tokens = 65536
+context_bytes = 229376
+max_tokens = 16384   # the output reserve; == work.produce ceiling (sizing-map 2026-09-27)
+timeout_s = 1000
+parallel_slots = 2       # KV pool 99,048 tokens holds ~1.5 full requests; 2 x (19.5K in + 16K out) = 71K fits, 3 preempted (9.3 s wait 2026-09-27)
+
+[backend.settings.chat_template_kwargs]
+enable_thinking = false
+
+# --- AM4 profile tool-pair (2026-09-28) --------------------------------------------------------
+# One Qwen3-8B-AWQ seat per card behind the oxen facade, tag `tool-use` for OS-local chores
+# (read / grep / summarize through the DeepAgents runner). Live only while `am4-profile tool-pair`
+# is active on AM4; the occupancy probe asks the facade for the alias, so a dead alias reads
+# "unknown" and tag routes skip it. The 4070 Ti is declared first: it is the prefill seat
+# (2,920 vs 2,493 tok/s on the 14B reader, docs/rnd-log.md 2026-09-18). The family that routes
+# here (`tool_execution` -> tags ["tool-use"]) is retargeted only after the chore lap passes.
+[[backend]]
+name = "am4-tool-4070ti"
+endpoint = "http://10.44.0.2:8090"
+api = "openai"
+models = ["am4-tool-4070ti"]
+tags = ["tool-use"]
+auth_env = "AM4_VLLM_TOKEN"
+[backend.settings]
+node = "am4"
+engine = "vllm"
+hardware_profile_id = "am4-4070ti-2026H2"
+serving_profile_version = "am4-tool-pair.v1"
+context_tokens = 24576   # 32,768 did not fit the KV cache beside the 8B AWQ weights (2026-09-28 01:51Z)
+context_bytes = 86016
+max_tokens = 4096
+timeout_s = 600
+parallel_slots = 3       # seat --max-num-seqs 4, facade slots 4 (measured 4-way 328 tok/s aggregate, linear, 2026-09-28 03:25Z); HEARTH leases 3 because the seat's KV pool is 27,504 tokens and 3 x (0.30 x 24,576 + 0.5 x 1,024 sizer m-bin reserve) = 23.6K fits where 4 x = 31.5K does not
+[backend.settings.chat_template_kwargs]
+enable_thinking = false
+
+[[backend]]
+name = "am4-tool-5070"
+endpoint = "http://10.44.0.2:8090"
+api = "openai"
+models = ["am4-tool-5070"]
+tags = ["tool-use", "tool-long"]   # tool-long (ADR-0050): the decode seat (110 vs 85 tok/s) takes l/xl outputs
+auth_env = "AM4_VLLM_TOKEN"
+[backend.settings]
+node = "am4"
+engine = "vllm"
+hardware_profile_id = "am4-5070-2026H2"
+serving_profile_version = "am4-tool-pair.v1"
+context_tokens = 16384   # the 5070 holds 2.52 GiB of KV at 0.93: 16,384 fits, 24,576 does not (2026-09-28 01:54Z)
+context_bytes = 57344
+max_tokens = 6144        # tool-long budget: prompts up to ~10K tokens still fit beside it (ADR-0050)
+timeout_s = 600
+parallel_slots = 1
+[backend.settings.chat_template_kwargs]
+enable_thinking = false

@@ -1,0 +1,11 @@
+[Unit]
+Description=Observe Linux AI fleet reachability every five minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=true
+Unit=mechnet-linux-observer.service
+
+[Install]
+WantedBy=timers.target

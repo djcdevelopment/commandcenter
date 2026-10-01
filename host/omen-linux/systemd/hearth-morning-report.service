@@ -1,0 +1,10 @@
+[Unit]
+Description=HEARTH morning report: the night's candidates, backlog moves, drain ticks, lane health
+After=hearth-production.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/derek/work/commandcenter-linux-flash
+EnvironmentFile=/home/derek/.config/hearth/hearth-ops.env
+ExecStart=/home/derek/.venvs/hearth-private/bin/python /home/derek/work/commandcenter-linux-flash/tools/hearth-morning-report
+TimeoutStartSec=300

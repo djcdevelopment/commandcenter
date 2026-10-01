@@ -1,0 +1,11 @@
+[Unit]
+Description=Static ops pages (dashboard snapshot, morning reports, research) on loopback :8796
+
+[Service]
+WorkingDirectory=/home/derek/hearth-production/var/pages
+ExecStart=/usr/bin/python3 -m http.server 8796 --bind 127.0.0.1 --directory /home/derek/hearth-production/var/pages
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,11 @@
+# Linux production local-work lanes (HEARTH_LOCAL_WORK_ROUTES). Explicit lanes never
+# substitute another provider (ADR-0048). Backends must exist in backends-linux.toml.
+# fast: qwen3-30b-a3b MoE throughput lane behind HAProxy :18090 (40,960 ctx, 8 slots)
+# deep: qwen3.8-27b dense quality lane behind HAProxy :18095 (65,536 ctx, 3 slots)
+version = "local-work-routes.linux-v1"
+
+[lane.fast]
+backend = "omen-vllm"
+
+[lane.deep]
+backend = "omen-dense-27b"

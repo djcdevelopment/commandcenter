@@ -1,0 +1,11 @@
+[Unit]
+Description=Read-only Linux AI fleet reachability and readiness sweep
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/derek/work/commandcenter-linux-flash
+Environment=PYTHONPATH=/home/derek/work/commandcenter-linux-flash
+ExecStart=/home/derek/.venvs/hearth-shadow/bin/python -m fleet.fleet_ping --inventory /home/derek/work/commandcenter-linux-flash/fleet/inventory-linux.toml --all-services --timeout 2 --json
+ExecStart=/usr/bin/python3 /home/derek/.local/bin/mechnet-readiness-probe

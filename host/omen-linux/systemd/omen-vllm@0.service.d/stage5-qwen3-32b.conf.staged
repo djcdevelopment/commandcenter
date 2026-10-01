@@ -1,0 +1,16 @@
+# Next lap (staged): Qwen3-32B-AWQ - dense attention, GQA-8 x 128 (KV 256 KB/token -> 10 GiB at 40,960), hybrid-thinking generation (thinking off by default).
+# Apply = rename to .conf, restart seat 0 (wait-vllm-seat.sh). Alphabetically after stage2*/stage4*, so it overrides them.
+[Service]
+Environment=OMEN_MODEL=/home/derek/models/qwen3-32b-awq-int4
+Environment=OMEN_SERVED_NAME=qwen3-32b
+Environment=OMEN_QUANTIZATION=awq
+Environment=OMEN_TOOL_PARSER=hermes
+Environment=OMEN_REASONING_PARSER=qwen3
+Environment=OMEN_THINKING_DEFAULT_OFF=1
+Environment=OMEN_MAX_MODEL_LEN=24576
+Environment=OMEN_LANGUAGE_MODEL_ONLY=0
+Environment=OMEN_MTP_K=
+Environment=OMEN_MTP_NO_BLOCK_DROP=0
+Environment=OMEN_PREFIX_MATCH_UNIT=
+Environment=OMEN_KV_CACHE_BYTES=
+Environment=OMEN_GPU_MEM_UTIL=0.90

@@ -1,0 +1,11 @@
+[Unit]
+Description=Banked Fire drain every 30 minutes (every tick is ledgered, no-ops included)
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=30min
+Persistent=true
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

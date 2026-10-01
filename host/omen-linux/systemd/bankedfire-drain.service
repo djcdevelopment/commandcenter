@@ -1,0 +1,13 @@
+[Unit]
+Description=Banked Fire drain tick (ADR-0006) on the Linux lane: authored briefs -> HEARTH local-work candidates
+After=hearth-production.service
+ConditionPathExists=/home/derek/hearth-production/var/bankedfire_drain_arm.json
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/derek/work/commandcenter-linux-flash
+EnvironmentFile=/home/derek/.config/hearth/hearth-ops.env
+EnvironmentFile=/home/derek/.config/omen-vllm/hearth-backends.env
+EnvironmentFile=/home/derek/.config/hearth/bankedfire.env
+ExecStart=/home/derek/.venvs/hearth-private/bin/python -m fleet.bankedfire_linux --json
+TimeoutStartSec=600

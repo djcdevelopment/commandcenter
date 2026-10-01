@@ -84,9 +84,12 @@ MANIFEST: list[tuple[str, Path]] = [
     ("bin/omen-ai-mode", HOME / ".local" / "bin" / "omen-ai-mode"),
     ("bin/mechnet-readiness-probe", HOME / ".local" / "bin" / "mechnet-readiness-probe"),
     ("bin/omen-offbox-backup.sh", HOME / "bin" / "omen-offbox-backup.sh"),
+    ("bin/omen-profile", HOME / "bin" / "omen-profile"),
+    ("bin/lab-config", HOME / "bin" / "lab-config"),
 
     # config
     ("config/haproxy.cfg", HOME / ".config" / "omen-vllm" / "haproxy.cfg"),
+    ("config/lab-configurations.toml", HOME / ".config" / "omen-vllm" / "lab-configurations.toml"),
 
     # hearth-production
     ("hearth-production/backends-linux.toml", HOME / "hearth-production" / "backends-linux.toml"),

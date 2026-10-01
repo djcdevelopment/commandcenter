@@ -115,10 +115,6 @@ class RenderTests(unittest.TestCase):
         self.assertIn("router-queues-overflow", one)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class Am4ProfileTests(unittest.TestCase):
     """2026-09-28: AM4 serves one profile at a time (dense-tp2 or tool-pair). The rung, the seat env
     and the runner route must agree on the window, and only the live profile's aliases may be ready."""
@@ -135,3 +131,59 @@ class Am4ProfileTests(unittest.TestCase):
         self.assertIn("am4-profile-aliases-served", rules(rows))
         rows[2]["value"] = False
         self.assertNotIn("am4-profile-aliases-served", rules(rows))
+
+
+class LabConfigurationTests(unittest.TestCase):
+    """ADR-0052: whole-lab configurations (task 8). Detects configuration, checks expected live
+    backends are serving and absent backends are not routable."""
+
+    def test_unknown_configuration_detected(self) -> None:
+        rows = [R("configuration", "active configuration", "unknown"),
+                R("configuration", "active omen profile", "mystery"),
+                R("configuration", "active am4 profile", "mystery")]
+        self.assertIn("active-configuration-detected", rules(rows))
+
+    def test_expected_live_backend_must_be_serving(self) -> None:
+        rows = [
+            R("configuration", "active configuration", "day"),
+            R("configuration", "config day backend omen-dense-27b", "status=live"),
+            R("seat-live", "omen-vllm@0 live read", "ok"),
+            R("seat-live", "omen-vllm@0 /v1/models", "qwen3-32b"),
+        ]
+        self.assertIn("expected-live-backends-serving", rules(rows))
+        rows[3]["value"] = "qwen3.8-27b"
+        self.assertNotIn("expected-live-backends-serving", rules(rows))
+
+    def test_expected_absent_backend_must_not_be_pinned(self) -> None:
+        rows = [
+            R("configuration", "active configuration", "day"),
+            R("configuration", "config day backend omen-dense-27b", "status=absent"),
+            R("local-work", "lane deep", "omen-dense-27b"),
+        ]
+        self.assertIn("expected-absent-backends-not-routable", rules(rows))
+        rows[2]["value"] = "omen-vllm"
+        # still fails if declared as rung on OMEN without occupancy probe
+        # but without rung declaration, passes:
+        self.assertNotIn("expected-absent-backends-not-routable", rules(rows))
+
+    def test_family_must_not_resolve_to_absent_backend(self) -> None:
+        rows = [
+            R("configuration", "active configuration", "scratch"),
+            R("configuration", "config scratch backend omen-dense-27b", "status=absent"),
+            R("family", "family code_fix", "qwen3.8-27b; tags ['agent']"),
+            R("family", "family code_review", "qwen3.8-27b; tags ['quality']"),
+            R("family", "family long_review", "qwen3.8-27b; tags ['dense']"),
+            R("family", "family quote_retrieval", "qwen3.8-27b"),
+        ]
+        self.assertIn("routing-families-resolve-to-live-backends", rules(rows))
+        # Vision refusal does not fail
+        vision_rows = [
+            R("configuration", "active configuration", "scratch"),
+            R("configuration", "config scratch backend omen-dense-27b", "status=absent"),
+            R("family", "family document_ocr", "refusal: missing capability"),
+        ]
+        self.assertNotIn("routing-families-resolve-to-live-backends", rules(vision_rows))
+
+
+if __name__ == "__main__":
+    unittest.main()

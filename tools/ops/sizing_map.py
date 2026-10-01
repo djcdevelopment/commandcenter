@@ -29,6 +29,8 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 REPO = Path(__file__).resolve().parents[2]
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))
 HOME = Path.home()
 PROD = Path(os.environ.get("HEARTH_ROOT", str(HOME / "hearth-production")))
 DOC = REPO / "docs" / "sizing-map.md"
@@ -206,6 +208,9 @@ def collect_routes_and_families() -> list[Row]:
     fp = Path(os.environ.get("HEARTH_ROUTING_FAMILIES", str(PROD / "routing-families-linux.toml")))
     fam = _toml(fp).get("family", {})
     for name, spec in sorted(fam.items()):
+        if spec.get("refusal"):
+            rows.append(row("family", f"family {name}", f"refusal: {spec['refusal']}", _line_of(fp, rf"\[family\.{name}\]"), "door refusal", "explicit refusal (missing capability)"))
+            continue
         d = spec.get("depth_override") or {}
         val = f"{spec.get('model_id')}"
         if d.get("min_prompt_tokens"):
@@ -442,12 +447,65 @@ def collect_measured() -> list[Row]:
             row("measured", "omen-dense-27b decode tok/s median", round(rate[len(rate) // 2], 1), _rel(path), "deadline derivation", "output / duration (prefill included, so a floor)")]
 
 
+def _detect_omen_profile() -> str:
+    pfile = HOME / ".config" / "omen-vllm" / "profile"
+    if pfile.is_file():
+        text = _read(pfile).strip()
+        if text:
+            return text
+    return "two-lane"
+
+
+def collect_configurations(live: bool) -> list[Row]:
+    """ADR-0052: whole-lab serving configurations (day, tool-night, experiments)."""
+    rows: list[Row] = []
+    cfg_path = Path(os.environ.get("HEARTH_LAB_CONFIGURATIONS", str(REPO / "host" / "lab-configurations.toml")))
+    if not cfg_path.is_file():
+        alt = HOME / ".config" / "omen-vllm" / "lab-configurations.toml"
+        if alt.is_file():
+            cfg_path = alt
+    doc = _toml(cfg_path)
+    configs = doc.get("configuration", {})
+    for cname, cspec in sorted(configs.items()):
+        tuple_val = f"{cspec.get('omen_profile')} / {cspec.get('am4_profile')} / {cspec.get('fx99_state')}"
+        rows.append(row("configuration", f"config {cname} omen/am4/fx99", tuple_val,
+                        _rel(cfg_path), "lab-config", "declared whole-lab profile tuple", cspec.get("description", "")))
+        for bname, bspec in sorted(cspec.get("backends", {}).items()):
+            st = bspec.get("status", "unknown")
+            val = f"status={st}"
+            if st == "live":
+                val += f" ctx={bspec.get('context_tokens')} slots={bspec.get('parallel_slots')} max_tokens={bspec.get('max_tokens')}"
+            rows.append(row("configuration", f"config {cname} backend {bname}", val,
+                            _rel(cfg_path), "routing invariants", "expected backend status under configuration"))
+
+    omen_prof = _detect_omen_profile()
+    if live:
+        am4_prof = (_ssh_am4("cat ~/.config/am4-fleet/profile") or "").strip() or "unreadable"
+        active_name = None
+        for cname, cspec in configs.items():
+            if cspec.get("omen_profile") == omen_prof and cspec.get("am4_profile") == am4_prof:
+                active_name = cname
+                break
+        rows.append(row("configuration", "active configuration", active_name or "unknown",
+                        "omen-profile + am4-profile", "sizing_map invariants", f"omen={omen_prof}, am4={am4_prof}"))
+        rows.append(row("configuration", "active omen profile", omen_prof,
+                        "~/.config/omen-vllm/profile", "lab-config", "active OMEN seat profile"))
+        rows.append(row("configuration", "active am4 profile", am4_prof,
+                        "am4:~/.config/am4-fleet/profile", "lab-config", "active AM4 seat profile"))
+    else:
+        rows.append(row("configuration", "active configuration", "unprobed (requires --live)",
+                        "", "", "pass --live to detect whole-lab configuration"))
+        rows.append(row("configuration", "active omen profile", omen_prof,
+                        "~/.config/omen-vllm/profile", "lab-config", "active OMEN seat profile"))
+    return rows
+
+
 def collect(live: bool, measured: bool) -> list[Row]:
     rows: list[Row] = []
     for fn in (collect_seats, collect_router, collect_backends, collect_routes_and_families, collect_operations,
                collect_door_code, collect_gateway, collect_lanes, collect_runner, collect_clients, collect_am4,
-               collect_sizer):
-        rows.extend(fn(live) if fn in (collect_seats, collect_am4) else fn())
+               collect_sizer, collect_configurations):
+        rows.extend(fn(live) if fn in (collect_seats, collect_am4, collect_configurations) else fn())
     if measured:
         rows.extend(collect_measured())
     return sorted(rows, key=lambda r: (r["layer"], r["setting"]))
@@ -583,6 +641,100 @@ def invariants(rows: list[Row]) -> list[dict]:
     kv_comment = _num(_val(rows, "backends-linux.toml KV-pool comment")); kv_live = _num(_val(rows, "omen-vllm@0 kv_cache_size_tokens"))
     if kv_comment and kv_live and abs(kv_comment - kv_live) > 0.25 * kv_live:
         fail("kv-comment-matches-live", f"backends-linux.toml says KV pool {kv_comment:.0f}; live seat 0 reports {kv_live:.0f}", "the pool varies per start (76,706 and 99,048 seen on the same config, 2026-09-27); the comment must say so and stay within 25%")
+    # 8. Whole-lab configuration invariants (ADR-0052, task 8)
+    active_cfg = _val(rows, "active configuration")
+    if active_cfg is not None and not str(active_cfg).startswith("unprobed"):
+        omen_p = _val(rows, "active omen profile")
+        am4_p = _val(rows, "active am4 profile")
+        if active_cfg == "unknown" or not active_cfg:
+            fail("active-configuration-detected",
+                 f"no lab configuration matches active profiles (omen={omen_p}, am4={am4_p})",
+                 "every operating state of the lab must be a named configuration in host/lab-configurations.toml (ADR-0052, task 8)")
+        else:
+            expected_live: set[str] = set()
+            expected_absent: set[str] = set()
+            cfg_prefix = f"config {active_cfg} backend "
+            for r in rows:
+                if r["layer"] == "configuration" and r["setting"].startswith(cfg_prefix):
+                    bname = r["setting"][len(cfg_prefix):]
+                    val_str = str(r["value"])
+                    if "status=live" in val_str:
+                        expected_live.add(bname)
+                    elif "status=absent" in val_str:
+                        expected_absent.add(bname)
+
+            # Expected live backends must be serving
+            for b in sorted(expected_live):
+                if b == "omen-vllm":
+                    s1_live = _val(rows, "omen-vllm@1 live read")
+                    s1_models = _val(rows, "omen-vllm@1 /v1/models")
+                    if s1_live and "unavailable" in str(s1_live):
+                        fail("expected-live-backends-serving", f"omen-vllm expected live under {active_cfg} but seat 1 is unavailable: {s1_live}", "live backends must be UP and responding to /v1/models")
+                    elif s1_models is None and s1_live is not None:
+                        fail("expected-live-backends-serving", f"omen-vllm expected live under {active_cfg} but seat 1 is not serving", "live backends must be UP and responding to /v1/models")
+                elif b == "omen-dense-27b":
+                    s0_live = _val(rows, "omen-vllm@0 live read")
+                    s0_models = _val(rows, "omen-vllm@0 /v1/models")
+                    if s0_live and "unavailable" in str(s0_live):
+                        fail("expected-live-backends-serving", f"omen-dense-27b expected live under {active_cfg} but seat 0 is unavailable: {s0_live}", "live backends must be UP and responding to /v1/models")
+                    elif s0_models is not None and "qwen3.8-27b" not in str(s0_models):
+                        fail("expected-live-backends-serving", f"omen-dense-27b expected live under {active_cfg} but seat 0 is serving {s0_models}", "live backends must serve their declared model")
+                elif b in ("am4-vllm", "am4-tool-4070ti", "am4-tool-5070"):
+                    alias = "am4-dense-27b" if b == "am4-vllm" else b
+                    rdy = _val(rows, f"facade alias {alias} ready")
+                    if rdy is not None and rdy is not True:
+                        fail("expected-live-backends-serving", f"{b} expected live under {active_cfg} but facade alias {alias} ready={rdy}", "live backends must report ready=True on their facade alias")
+
+            # Expected absent backends must not be routable
+            for b in sorted(expected_absent):
+                if _val(rows, "default rung") == b:
+                    fail("expected-absent-backends-not-routable", f"backend {b} expected absent under {active_cfg} but is default rung", "untagged requests fall through to the default rung")
+                for r in rows:
+                    if r["layer"] == "local-work" and r["setting"].startswith("lane ") and r["value"] == b:
+                        lane_name = r["setting"]
+                        fail("expected-absent-backends-not-routable", f"backend {b} expected absent under {active_cfg} but pinned by {lane_name}", "local-work lanes must not pin absent backends")
+                if b in ("am4-vllm", "am4-tool-4070ti", "am4-tool-5070"):
+                    alias = "am4-dense-27b" if b == "am4-vllm" else b
+                    rdy = _val(rows, f"facade alias {alias} ready")
+                    if rdy is True:
+                        fail("expected-absent-backends-not-routable", f"backend {b} expected absent under {active_cfg} but facade alias {alias} ready=True", "an absent backend must not be ready in the facade")
+                if b == "omen-dense-27b":
+                    if any(r["layer"] == "rung" and r["setting"].startswith("omen-dense-27b ") for r in rows):
+                        fail("expected-absent-backends-not-routable", f"backend {b} expected absent under {active_cfg} but declared in backends pool with tags and no occupancy probe", "an absent backend on OMEN without an occupancy probe accepts tag traffic")
+
+            # Routing families must not resolve to absent backends
+            for r in rows:
+                if r["layer"] != "family":
+                    continue
+                fam_name = r["setting"].split("family ", 1)[1]
+                fam_val = str(r["value"])
+                if "refusal:" in fam_val or fam_name in ("document_ocr", "chart_diagram", "screenshot_grounded"):
+                    continue
+
+                resolved_backend: Optional[str] = None
+                if fam_name in ("code_fix", "code_review", "long_review", "quote_retrieval"):
+                    resolved_backend = "omen-dense-27b"
+                elif fam_name in ("tool_execution",):
+                    ti_ready = _val(rows, "facade alias am4-tool-4070ti ready") is True and "am4-tool-4070ti" not in expected_absent
+                    s5_ready = _val(rows, "facade alias am4-tool-5070 ready") is True and "am4-tool-5070" not in expected_absent
+                    if ti_ready:
+                        resolved_backend = "am4-tool-4070ti"
+                    elif s5_ready:
+                        resolved_backend = "am4-tool-5070"
+                    else:
+                        resolved_backend = _val(rows, "default rung") or "omen-vllm"
+                elif fam_name in ("tool_long_output",):
+                    s5_ready = _val(rows, "facade alias am4-tool-5070 ready") is True and "am4-tool-5070" not in expected_absent
+                    resolved_backend = "am4-tool-5070" if s5_ready else (_val(rows, "default rung") or "omen-vllm")
+                elif fam_name in ("utility_text",):
+                    resolved_backend = "fx99-vllm"
+                else:
+                    resolved_backend = _val(rows, "default rung") or "omen-vllm"
+
+                if resolved_backend in expected_absent:
+                    fail("routing-families-resolve-to-live-backends",
+                         f"family {fam_name} resolves to absent backend {resolved_backend}",
+                         "routing a family to an absent backend produces 500s or hangs (as happened on 2026-09-27)")
     return out
 
 
@@ -642,6 +794,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(f"{'rewrote' if changed else 'unchanged'} {DOC.relative_to(REPO)}")
     viol = invariants(rows)
     if a.check or not a.render:
+        active_cfg = _val(rows, "active configuration")
+        omen_p = _val(rows, "active omen profile")
+        am4_p = _val(rows, "active am4 profile")
+        if active_cfg and not str(active_cfg).startswith("unprobed"):
+            print(f"configuration: {active_cfg} (omen={omen_p}, am4={am4_p})")
         for v in viol:
             print(f"VIOLATION {v['rule']}: {v['detail']}\n    earned by: {v['earned_by']}")
         print(f"{len(rows)} settings, {len(viol)} violation(s)")

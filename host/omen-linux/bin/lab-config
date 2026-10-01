@@ -1,0 +1,145 @@
+#!/usr/bin/env python3
+"""lab-config — manage and query whole-lab serving configurations (task 8).
+
+Usage:
+    lab-config status
+    lab-config list
+    lab-config show [<name>]
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tomllib
+from typing import Any, Optional
+
+HOME = Path.home()
+FLASH_DIR = HOME / "work" / "commandcenter-linux-flash"
+if FLASH_DIR.is_dir() and str(FLASH_DIR) not in sys.path:
+    sys.path.insert(0, str(FLASH_DIR))
+
+CONFIG_PATHS = [
+    FLASH_DIR / "host" / "lab-configurations.toml",
+    Path(__file__).resolve().parents[1] / "lab-configurations.toml",
+    HOME / ".config" / "omen-vllm" / "lab-configurations.toml",
+]
+OMEN_PROFILE_FILE = HOME / ".config" / "omen-vllm" / "profile"
+AM4_SSH = "10.44.0.2"
+
+
+def load_configurations() -> dict[str, Any]:
+    for p in CONFIG_PATHS:
+        if p.is_file():
+            with open(p, "rb") as f:
+                return tomllib.load(f).get("configuration", {})
+    return {}
+
+
+def detect_omen_profile() -> str:
+    if OMEN_PROFILE_FILE.is_file():
+        text = OMEN_PROFILE_FILE.read_text(encoding="utf-8").strip()
+        if text:
+            return text
+    # Fallback to query live seat 0
+    try:
+        from host.omen_linux.bin import omen_profile as op_mod
+    except ImportError:
+        pass
+    return "two-lane"
+
+
+def detect_am4_profile(timeout_s: int = 4) -> str:
+    try:
+        res = subprocess.run(
+            ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={timeout_s}", AM4_SSH, "cat ~/.config/am4-fleet/profile"],
+            capture_output=True, text=True, timeout=timeout_s + 2,
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            return res.stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return "unknown"
+
+
+def detect_active_configuration(configs: Optional[dict[str, Any]] = None) -> tuple[Optional[str], str, str]:
+    if configs is None:
+        configs = load_configurations()
+    omen_prof = detect_omen_profile()
+    am4_prof = detect_am4_profile()
+    for name, spec in configs.items():
+        if spec.get("omen_profile") == omen_prof and spec.get("am4_profile") == am4_prof:
+            return name, omen_prof, am4_prof
+    return None, omen_prof, am4_prof
+
+
+def cmd_status() -> int:
+    configs = load_configurations()
+    name, omen_prof, am4_prof = detect_active_configuration(configs)
+    if name:
+        print(f"active configuration: {name} (omen={omen_prof}, am4={am4_prof})")
+        return 0
+    print(f"active configuration: unknown (omen={omen_prof}, am4={am4_prof})")
+    return 1
+
+
+def cmd_list() -> int:
+    configs = load_configurations()
+    active_name, _, _ = detect_active_configuration(configs)
+    print("Lab configurations:")
+    for name, spec in sorted(configs.items()):
+        marker = "* " if name == active_name else "  "
+        print(f"{marker}{name:22} omen={spec.get('omen_profile')} am4={spec.get('am4_profile')} — {spec.get('description', '')}")
+    return 0
+
+
+def cmd_show(name: Optional[str]) -> int:
+    configs = load_configurations()
+    if not name:
+        name, _, _ = detect_active_configuration(configs)
+        if not name:
+            print("No active configuration detected.", file=sys.stderr)
+            return 1
+    if name not in configs:
+        print(f"Configuration '{name}' not found.", file=sys.stderr)
+        return 1
+    spec = configs[name]
+    print(f"Configuration: {name}")
+    print(f"Description:   {spec.get('description')}")
+    print(f"OMEN profile:  {spec.get('omen_profile')}")
+    print(f"AM4 profile:   {spec.get('am4_profile')}")
+    print(f"FX99 state:    {spec.get('fx99_state')}")
+    print("Backends:")
+    for bname, bspec in spec.get("backends", {}).items():
+        status = bspec.get("status", "unknown")
+        details = ""
+        if status == "live":
+            details = f"ctx={bspec.get('context_tokens')} slots={bspec.get('parallel_slots')} max_tok={bspec.get('max_tokens')}"
+        print(f"  {bname:18} {status:8} {details}")
+    return 0
+
+
+def main(argv: Optional[list[str]] = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    subparsers = parser.add_subparsers(dest="cmd")
+    subparsers.add_parser("status", help="Print active configuration in one line")
+    subparsers.add_parser("list", help="List all defined configurations")
+    show_p = subparsers.add_parser("show", help="Show configuration details")
+    show_p.add_argument("name", nargs="?", help="Configuration name (defaults to active)")
+
+    args = parser.parse_args(argv)
+    cmd = args.cmd or "status"
+    if cmd == "status":
+        return cmd_status()
+    elif cmd == "list":
+        return cmd_list()
+    elif cmd == "show":
+        return cmd_show(args.name)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

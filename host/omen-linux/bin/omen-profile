@@ -26,6 +26,9 @@ from pathlib import Path
 from typing import Any, Optional
 
 HOME = Path.home()
+FLASH_DIR = HOME / "work" / "commandcenter-linux-flash"
+if FLASH_DIR.is_dir() and str(FLASH_DIR) not in sys.path:
+    sys.path.insert(0, str(FLASH_DIR))
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -353,17 +356,24 @@ def cmd_switch(name: str, dry_run: bool = False) -> int:
             sdata = profile.get("seats", {}).get(str(seat), {})
             s_dir = UNIT_DIR / f"omen-vllm@{seat}.service.d"
             expected_model = sdata.get("served_name")
-
+            changed = False
             if "staged_dropin" in sdata:
                 staged = s_dir / sdata["staged_dropin"]
                 target = s_dir / sdata.get("active_dropin", sdata["staged_dropin"].replace(".staged", ""))
                 if not staged.is_file():
                     raise RuntimeError(f"staged drop-in {staged} does not exist")
                 shutil.copy2(staged, target)
+                changed = True
             elif name == "two-lane" and seat == 0:
                 # Remove any staged drop-ins that were copied into seat 0
-                for candidate in s_dir.glob("stage[4567]*.conf"):
+                for candidate in list(s_dir.glob("stage[4567]*.conf")):
                     candidate.unlink()
+                    changed = True
+
+            live_models = query_live_models(18091 + seat, key)
+            if not changed and expected_model and expected_model in live_models:
+                print(f"Seat {seat} already serves {expected_model} and configuration is unchanged; skipping restart.")
+                continue
 
             print(f"Applying profile changes to seat {seat}...")
             subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)

@@ -1,0 +1,81 @@
+{
+  "backend": "omen-vllm",
+  "model": "qwen3-30b-a3b",
+  "node": "omen",
+  "context_tokens": 40960,
+  "parallel_slots": 8,
+  "max_tokens": 8192,
+  "decode_tok_per_s": null,
+  "prefill_tok_per_s": 3456.0,
+  "cold_load_s": null,
+  "citations": {
+    "decode_tok_per_s": "not measured single stream on Linux; C=8 aggregate is 740 tok/s on bench cell 512/200 (continuity/output/07-serving-recipe.md:60)",
+    "prefill_tok_per_s": "continuity/output/07-serving-recipe.md:175 (8K prefill in 2.37 s cold ≈ 3,456 tok/s; 0.05 s cached)",
+    "cold_load_s": null
+  },
+  "task_families": {
+    "summarization": {
+      "outcome": "useful_supported",
+      "evidence_status": "useful_supported",
+      "task_key": "summarization",
+      "observation": "Door default at shallow depth (1.45x jobs/hour @512 vs dense)",
+      "citation": "ADR-0034"
+    },
+    "extraction": {
+      "outcome": "useful_supported",
+      "evidence_status": "useful_supported",
+      "task_key": "extraction",
+      "observation": "1,013/1,039 successful text extraction jobs on Linux ledger",
+      "citation": "ADR-0050"
+    },
+    "classification": {
+      "outcome": "useful_supported",
+      "evidence_status": "useful_supported",
+      "task_key": "classification",
+      "observation": "Door default at shallow depth (1.45x jobs/hour @512 vs dense)",
+      "citation": "ADR-0034"
+    },
+    "drafting": {
+      "outcome": "useful_supported",
+      "evidence_status": "useful_supported",
+      "task_key": "drafting",
+      "observation": "Door default at shallow depth (1.45x jobs/hour @512 vs dense)",
+      "citation": "ADR-0034"
+    },
+    "reasoning_planning": {
+      "outcome": "useful_supported",
+      "evidence_status": "useful_supported",
+      "task_key": "reasoning_planning",
+      "observation": "Door default at shallow depth (<8192 tokens)",
+      "citation": "ADR-0039"
+    },
+    "quote_retrieval": {
+      "outcome": "observed_limited",
+      "evidence_status": "observed_limited",
+      "task_key": "quote_retrieval",
+      "observation": "3/16 line_verbatim recall at depth; paraphrases instead of verbatim recall",
+      "citation": "R10"
+    },
+    "code_fix": {
+      "outcome": "observed_negative",
+      "evidence_status": "observed_negative",
+      "task_key": "resolve_citation",
+      "observation": "Failed resolve_citation canary 4 times (0/4)",
+      "citation": "continuity output/06"
+    },
+    "tool_execution": {
+      "outcome": "useful_supported",
+      "evidence_status": "useful_supported",
+      "task_key": "tool_execution",
+      "observation": "Documented default fallback when tool-use seats are absent or unroutable",
+      "citation": "routing-families-linux.toml"
+    },
+    "default": {
+      "outcome": "useful_supported",
+      "evidence_status": "useful_supported",
+      "task_key": "default",
+      "observation": "Door default rung (ADR-0034)",
+      "citation": "ADR-0034"
+    }
+  }
+}

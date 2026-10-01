@@ -1,0 +1,95 @@
+{
+  "backend": "omen-dense-27b",
+  "model": "qwen3.8-27b",
+  "node": "omen",
+  "context_tokens": 65536,
+  "parallel_slots": 2,
+  "max_tokens": 16384,
+  "decode_tok_per_s": 10.4,
+  "prefill_tok_per_s": 240.0,
+  "cold_load_s": 31.0,
+  "citations": {
+    "decode_tok_per_s": "docs/sizing-map.md:325 (events.ndjson median 10.4 tok/s)",
+    "prefill_tok_per_s": "continuity/output/07-serving-recipe.md:212,267 (243 tok/s cold int4 GEMM rate; ~90 tok/s partial re-prefill)",
+    "cold_load_s": "continuity/output/07-serving-recipe.md:285 (swaps 31-36 s; healthy in 31 s)"
+  },
+  "task_families": {
+    "code_fix": {
+      "outcome": "verified_receipt",
+      "evidence_status": "verified_receipt",
+      "task_key": "resolve_citation",
+      "observation": "9/9 tests OK, commit 57226dd, 10 steps, 36 events",
+      "citation": "receipt://6e92ec80690ce246e8a806d6"
+    },
+    "code_review": {
+      "outcome": "useful_supported",
+      "evidence_status": "useful_supported",
+      "task_key": "code_review",
+      "observation": "27B blind judging vs 30B 44 wins / 42 ties / 4 losses; pass 0.86 vs 0.47",
+      "citation": "continuity output/07-serving-recipe.md"
+    },
+    "long_review": {
+      "outcome": "useful_supported",
+      "evidence_status": "useful_supported",
+      "task_key": "long_review",
+      "observation": "GDN prefix cache on --prefix-match-unit 64 makes 12-17K contexts pay only new turn",
+      "citation": "ADR-0039"
+    },
+    "quote_retrieval": {
+      "outcome": "useful_supported",
+      "evidence_status": "useful_supported",
+      "task_key": "quote_retrieval",
+      "observation": "R10 line_verbatim 13/16 vs 30B-A3B 3/16",
+      "citation": "r10-results.jsonl"
+    },
+    "reasoning_planning": {
+      "outcome": "depth_inversion_faster",
+      "evidence_status": "useful_supported",
+      "task_key": "expand_edges",
+      "observation": "ADR-0039: 2.63x jobs/hour @8K, 5.49x @32K vs MoE; expand_edges shape failed (4,611w > 800 cap)",
+      "citation": "ADR-0039"
+    },
+    "tool_execution": {
+      "outcome": "observed_limited",
+      "evidence_status": "observed_limited",
+      "task_key": "os_local_chores",
+      "observation": "2/6 chores passed at 172 s median; 2 attempt blowouts",
+      "citation": "/home/derek/work/deepagents-linux/runs/chore-collectors-omen-dense-20260927T1913/result.json"
+    },
+    "summarization": {
+      "outcome": "depth_inversion_faster",
+      "evidence_status": "useful_supported",
+      "task_key": "presence_probe",
+      "observation": "ADR-0039: 2.63x jobs/hour @8K, 5.49x @32K; presence probe closed negative",
+      "citation": "ADR-0039"
+    },
+    "extraction": {
+      "outcome": "depth_inversion_faster",
+      "evidence_status": "useful_supported",
+      "task_key": "extraction",
+      "observation": "ADR-0039: 2.63x jobs/hour @8K, 5.49x @32K",
+      "citation": "ADR-0039"
+    },
+    "classification": {
+      "outcome": "depth_inversion_faster",
+      "evidence_status": "useful_supported",
+      "task_key": "classification",
+      "observation": "ADR-0039: 2.63x jobs/hour @8K, 5.49x @32K",
+      "citation": "ADR-0039"
+    },
+    "drafting": {
+      "outcome": "depth_inversion_faster",
+      "evidence_status": "useful_supported",
+      "task_key": "drafting",
+      "observation": "ADR-0039: 2.63x jobs/hour @8K, 5.49x @32K",
+      "citation": "ADR-0039"
+    },
+    "default": {
+      "outcome": "depth_inversion_faster",
+      "evidence_status": "useful_supported",
+      "task_key": "default",
+      "observation": "ADR-0039: 2.63x jobs/hour @8K, 5.49x @32K",
+      "citation": "ADR-0039"
+    }
+  }
+}

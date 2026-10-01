@@ -61,6 +61,8 @@ class FamilyRoute(NamedTuple):
     default_model: Optional[str] = None
     sizer: Optional[dict[str, Any]] = None          # ADR-0050: the sizer's answer when consulted
     admission_max_tokens: Optional[int] = None      # the sizer's output reserve for admission
+    depth_override: bool = False
+    recommendation_reason: Optional[str] = None
 
     def label(self, inner: str) -> str:
         """``routed_by`` for this route: the family prefix, then the inner reason.
@@ -75,6 +77,12 @@ class FamilyRoute(NamedTuple):
         mark = ""
         if self.sizer:
             mark = f"sizer:{self.sizer.get('source', 'heuristic')}:{self.sizer.get('output_class', '?')}:"
+        if self.depth_override and self.backend:
+            inner_reason = f"depth_override:{self.backend}"
+            return f"{self.family_prefix}{mark}{inner_reason}" if self.family_prefix else f"{mark}{inner_reason}"
+        if self.recommendation_reason and self.backend:
+            inner_reason = f"{self.recommendation_reason}:{self.backend}"
+            return f"{self.family_prefix}{mark}{inner_reason}" if self.family_prefix else f"{mark}{inner_reason}"
         return f"{self.family_prefix}{mark}{inner}" if self.family_prefix else f"{mark}{inner}"
 
     def resolve_model(self, provider: Backend) -> Optional[str]:
@@ -501,6 +509,32 @@ class ExecutionService:
                 sizer=sizer,
                 admission_max_tokens=admission_max_tokens,
             )
+        if recommendation.get("depth_rule_applied") and recommendation.get("backend_hint"):
+            return FamilyRoute(
+                backend=recommendation["backend_hint"],
+                model=recommendation["model_id"],
+                tags=None,
+                family_prefix=prefix,
+                recommendation=recommendation,
+                preferred_model=recommendation["model_id"],
+                default_model=default_model,
+                sizer=sizer,
+                admission_max_tokens=admission_max_tokens,
+                depth_override=True,
+            )
+        if recommendation.get("family") == "quote_retrieval" and (prompt_bytes // 4) >= 4096 and recommendation.get("backend_hint"):
+            return FamilyRoute(
+                backend=recommendation["backend_hint"],
+                model=recommendation["model_id"],
+                tags=None,
+                family_prefix=prefix,
+                recommendation=recommendation,
+                preferred_model=recommendation["model_id"],
+                default_model=default_model,
+                sizer=sizer,
+                admission_max_tokens=admission_max_tokens,
+                recommendation_reason="evidence_floor",
+            )
         return FamilyRoute(
             backend=None,
             model=None,
@@ -758,13 +792,40 @@ class ExecutionService:
                 "error_code": "policy_refusal",
                 "refusal": refusal,
             }
-        provider, routed_by, occupancy = self._select_for_route(
-            load_pool(), route, prompt_bytes, max_tokens=resolved_policy.max_tokens
-        )
+        try:
+            provider, routed_by, occupancy = self._select_for_route(
+                load_pool(), route, prompt_bytes, max_tokens=resolved_policy.max_tokens
+            )
+        except ExecutionServiceError as exc:
+            err_msg = str(exc)
+            if "marked absent under active configuration" in err_msg or "lane_absent" in err_msg:
+                return {
+                    "operation": operation.name,
+                    "provider": None,
+                    "model": None,
+                    "routed_by": "policy_refusal",
+                    "occupancy": "absent",
+                    "global_parallel_slots": 0,
+                    "policy": {
+                        "max_tokens": resolved_policy.max_tokens,
+                        "deadline_s": resolved_policy.deadline_s,
+                        "priority": resolved_policy.priority,
+                    },
+                    "task_family": task_family,
+                    "family_recommendation": route.recommendation,
+                    "dispatch": False,
+                    "ok": False,
+                    "error": f"policy_refusal: {err_msg}",
+                    "error_code": "policy_refusal",
+                    "refusal": err_msg,
+                }
+            raise
         resolved_model = route.resolve_model(provider)
         routed_by = route.label(routed_by)
         family_recommendation = route.recommendation
-        return {
+        from hearth.execution.capabilities import get_capability_slice
+        capability_slice = get_capability_slice(provider.name, task_family)
+        res = {
             "operation": operation.name,
             "provider": provider.name,
             "model": resolved_model,
@@ -778,8 +839,13 @@ class ExecutionService:
             },
             "task_family": task_family,
             "family_recommendation": family_recommendation,
+            "capability": capability_slice,
             "dispatch": False,
         }
+        if occupancy.get("lane_not_live"):
+            res["lane_status"] = "lane_not_live"
+            res["note"] = occupancy.get("lane_reason", "lane is not live under active configuration")
+        return res
 
     def _forget(self, job_id: str) -> None:
         with self._lock:
@@ -905,6 +971,12 @@ class ExecutionService:
                 # ADR-0050: only when consulted, so an unsized job's record is
                 # byte-identical; `observed` is an open object on this schema.
                 dispatch_observed["sizer"] = route.sizer
+            from hearth.execution.capabilities import get_capability_slice
+            cap_slice = get_capability_slice(provider.name, arguments.get("task_family"))
+            if cap_slice:
+                dispatch_observed["capability"] = cap_slice
+            if occupancy.get("lane_not_live"):
+                dispatch_observed["lane_status"] = "lane_not_live"
             self._append("job.dispatched", state, observed=dispatch_observed)
             self._append(
                 "invocation.started",

@@ -1,0 +1,32 @@
+{
+  "backend": "am4-tool-5070",
+  "model": "am4-tool-5070",
+  "node": "am4",
+  "context_tokens": 16384,
+  "parallel_slots": 1,
+  "max_tokens": 6144,
+  "decode_tok_per_s": 110.0,
+  "prefill_tok_per_s": 3395.0,
+  "cold_load_s": null,
+  "citations": {
+    "decode_tok_per_s": "docs/sizing-map.md:475 (110 tok/s decode on 5070 tool seat, 2026-09-28 02:43Z)",
+    "prefill_tok_per_s": "continuity/output/08-two-economies.md:59 (3,395 tok/s prefill at 9,250 tokens)",
+    "cold_load_s": null
+  },
+  "task_families": {
+    "tool_long_output": {
+      "outcome": "useful_supported",
+      "evidence_status": "useful_supported",
+      "task_key": "tool_long_output",
+      "observation": "Fast decode seat (110 tok/s vs 85 tok/s) for l/xl outputs >= 1,024 tokens",
+      "citation": "ADR-0050"
+    },
+    "tool_execution": {
+      "outcome": "useful_supported",
+      "evidence_status": "useful_supported",
+      "task_key": "tool_execution",
+      "observation": "Spillover seat for tool_execution under tag tool-use",
+      "citation": "routing-families-linux.toml"
+    }
+  }
+}

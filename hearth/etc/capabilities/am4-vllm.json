@@ -1,0 +1,25 @@
+{
+  "backend": "am4-vllm",
+  "model": "am4-dense-27b",
+  "node": "am4",
+  "context_tokens": 16384,
+  "parallel_slots": 1,
+  "max_tokens": 4096,
+  "decode_tok_per_s": 17.4,
+  "prefill_tok_per_s": null,
+  "cold_load_s": null,
+  "citations": {
+    "decode_tok_per_s": "continuity/output/07-serving-recipe.md:90 (17.4 tok/s output on bench cell 512/200 via authenticated facade)",
+    "prefill_tok_per_s": null,
+    "cold_load_s": null
+  },
+  "task_families": {
+    "long_review": {
+      "outcome": "useful_supported",
+      "evidence_status": "useful_supported",
+      "task_key": "long_review",
+      "observation": "dense-tp2 secondary lane for dense work",
+      "citation": "ADR-0049"
+    }
+  }
+}

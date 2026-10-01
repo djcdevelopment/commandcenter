@@ -775,12 +775,21 @@ def local_generate(prompt: str, model: str | None = None,
                 "family_recommendation": family_recommendation,
             })
         family_prefix = f"family:{family_recommendation['family']}:"
+        depth = family_recommendation.get("prompt_tokens")
+        if depth is None:
+            depth = payload_bytes // 4
         if family_recommendation["pin_required"] and family_recommendation["backend_hint"]:
             # The recommended rung declares no routing tags, so opportunistic
             # routing would never land there — name it. This is a pin in every
             # respect: ADR-0031 arithmetic still applies (an over-budget family
             # pin is refused at the door with the recommendation attached, never
             # quietly re-routed) and pins never escalate.
+            route_backend = family_recommendation["backend_hint"]
+            route_model = family_recommendation["model_id"]
+        elif family_recommendation.get("depth_rule_applied") and family_recommendation.get("backend_hint"):
+            route_backend = family_recommendation["backend_hint"]
+            route_model = family_recommendation["model_id"]
+        elif family_recommendation.get("family") == "quote_retrieval" and depth >= 4096 and family_recommendation.get("backend_hint"):
             route_backend = family_recommendation["backend_hint"]
             route_model = family_recommendation["model_id"]
         else:
@@ -794,6 +803,8 @@ def local_generate(prompt: str, model: str | None = None,
         its own segment INSIDE the family prefix (family:<f>:sizer:<src>:<bin>:...)
         so the family bucket is unchanged and the sizer's verdict is on record."""
         if family_prefix is not None:
+            if family_recommendation and family_recommendation.get("depth_rule_applied") and route_backend == family_recommendation.get("backend_hint"):
+                inner = f"depth_override:{route_backend}"
             return f"{family_prefix}{sizer_prefix}{inner}"
         if quality is not None:
             return f"quality-{quality}:{sizer_prefix}{inner}"
@@ -839,6 +850,13 @@ def local_generate(prompt: str, model: str | None = None,
     result["family_recommendation"] = family_recommendation
     if sizer is not None:
         result["sizer"] = sizer
+    try:
+        from hearth.execution.capabilities import get_capability_slice
+        cap_slice = get_capability_slice(target.backend, sized_family)
+        if cap_slice:
+            result["capability"] = cap_slice
+    except ImportError:
+        pass
 
     # A2: ladder escalation — one climb max. A failed non-pinned dispatch
     # excludes the failed rung and re-routes once; a pin (endpoint or name) is

@@ -1,0 +1,39 @@
+{
+  "backend": "am4-tool-4070ti",
+  "model": "am4-tool-4070ti",
+  "node": "am4",
+  "context_tokens": 24576,
+  "parallel_slots": 3,
+  "max_tokens": 4096,
+  "decode_tok_per_s": 85.0,
+  "prefill_tok_per_s": 4379.0,
+  "cold_load_s": null,
+  "citations": {
+    "decode_tok_per_s": "docs/sizing-map.md:475 (85 tok/s decode on 4070 Ti tool seat, 2026-09-28 02:43Z)",
+    "prefill_tok_per_s": "continuity/output/08-two-economies.md:59 (4,379 tok/s prefill at 9,250 tokens)",
+    "cold_load_s": null
+  },
+  "task_families": {
+    "tool_execution": {
+      "outcome": "shape_accepted",
+      "evidence_status": "observed_limited",
+      "task_key": "os_local_chores",
+      "observation": "6/6 chores passed shape gate at 10 s median (max 25 s, 2-8 attempts); review_required: true on all six; correctness unreviewed",
+      "citation": "/home/derek/work/deepagents-linux/runs/chore-collectors-am4-tool-4070ti-20260927T1928/result.json"
+    },
+    "expand_edges": {
+      "outcome": "observed_negative",
+      "evidence_status": "observed_negative",
+      "task_key": "expand_edges",
+      "observation": "597 words, 7 citations, shape passed, semantic review rejected",
+      "citation": "receipt://w-6ed92f596e9b"
+    },
+    "presence_probe": {
+      "outcome": "closed_negative",
+      "evidence_status": "closed_negative",
+      "task_key": "presence_probe",
+      "observation": "delivery passed (449w, 10 citations), accuracy rejected; closed negative",
+      "citation": "receipt://fa55661ea1398e4db73c139f"
+    }
+  }
+}

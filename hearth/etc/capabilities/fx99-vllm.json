@@ -1,0 +1,25 @@
+{
+  "backend": "fx99-vllm",
+  "model": "qwen2.5-coder-7b",
+  "node": "fx99",
+  "context_tokens": 4096,
+  "parallel_slots": 1,
+  "max_tokens": 1024,
+  "decode_tok_per_s": null,
+  "prefill_tok_per_s": null,
+  "cold_load_s": null,
+  "citations": {
+    "decode_tok_per_s": null,
+    "prefill_tok_per_s": null,
+    "cold_load_s": null
+  },
+  "task_families": {
+    "utility_text": {
+      "outcome": "useful_supported",
+      "evidence_status": "useful_supported",
+      "task_key": "utility_text",
+      "observation": "Pure text processing, short summaries/rewrites fitting 4K context",
+      "citation": "research/limits-found.md"
+    }
+  }
+}

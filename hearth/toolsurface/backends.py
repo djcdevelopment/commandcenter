@@ -401,6 +401,15 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
                 f"backend {backend!r} does not provide model {model!r} "
                 f"(provides: {', '.join(chosen.models) or 'none'})"
             )
+        try:
+            from hearth.execution.lab_config import get_backend_status
+            b_status, cname = get_backend_status(chosen.name)
+            if b_status == "absent":
+                raise BackendConfigError(
+                    f"backend {chosen.name!r} is marked absent under active configuration {cname!r}"
+                )
+        except ImportError:
+            pass
         if payload_bytes is not None:
             # Decided BEFORE _occ() so an unreachable rung costs no probe to
             # refuse. Refusing here is what attributes the failure to the door
@@ -496,9 +505,20 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
         wanted.append(task)
     if tags:
         wanted.extend(tags)
+    tag_candidates_checked = 0
+    tag_candidates_absent = 0
     for tag in wanted:
         for candidate in pool.backends:
             if tag in candidate.tags:
+                tag_candidates_checked += 1
+                try:
+                    from hearth.execution.lab_config import get_backend_status
+                    b_status, cname = get_backend_status(candidate.name)
+                    if b_status == "absent":
+                        tag_candidates_absent += 1
+                        continue
+                except ImportError:
+                    pass
                 if exclude and candidate.name in exclude:
                     continue
                 if payload_bytes is not None:
@@ -575,4 +595,17 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
             default_context_bytes=default.context_bytes(),
         )
 
-    return default, "default", _occ(default.name)
+    occ = _occ(default.name)
+    tag_lane_absent = (tag_candidates_checked > 0 and tag_candidates_absent == tag_candidates_checked)
+    if tag_lane_absent and wanted:
+        try:
+            from hearth.execution.lab_config import get_active_configuration_name
+            active_cfg = get_active_configuration_name()
+        except ImportError:
+            active_cfg = "unknown"
+        occ = dict(occ)
+        occ["lane_not_live"] = True
+        occ["lane_reason"] = f"{wanted[0]} lane is not live under active configuration '{active_cfg}'"
+        return default, f"{wanted[0]}_lane_not_live:default", occ
+
+    return default, "default", occ

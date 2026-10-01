@@ -1,0 +1,13 @@
+# Stage 8 (task 12 vision lane): Qwen3.8-27B vision variant — same weights, OMEN_LANGUAGE_MODEL_ONLY unset.
+# Apply = rename to stage8-27b-vision.conf, daemon-reload, restart seat 0.
+# Reverts to two-lane by switching back to two-lane profile (omen-profile switch two-lane).
+[Service]
+Environment=OMEN_MODEL=/home/derek/models/qwen3.8-27b-gptq-int4-mtp
+Environment=OMEN_SERVED_NAME=qwen3.8-27b
+Environment=OMEN_TOOL_PARSER=qwen3_xml
+Environment=OMEN_REASONING_PARSER=qwen3
+Environment=OMEN_MAX_MODEL_LEN=65536
+Environment=OMEN_LANGUAGE_MODEL_ONLY=0
+Environment=OMEN_MTP_K=1
+Environment=OMEN_KV_CACHE_BYTES=
+Environment=OMEN_GPU_MEM_UTIL=0.90

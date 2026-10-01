@@ -61,6 +61,8 @@ MANIFEST: list[tuple[str, Path]] = [
      HOME / ".config" / "systemd" / "user" / "omen-vllm@0.service.d" / "stage6-devstral.conf.staged"),
     ("systemd/omen-vllm@0.service.d/stage7-devstral2507.conf.staged",
      HOME / ".config" / "systemd" / "user" / "omen-vllm@0.service.d" / "stage7-devstral2507.conf.staged"),
+    ("systemd/omen-vllm@0.service.d/stage8-27b-vision.conf.staged",
+     HOME / ".config" / "systemd" / "user" / "omen-vllm@0.service.d" / "stage8-27b-vision.conf.staged"),
 
     ("systemd/omen-vllm@1.service.d/max-model-len.conf",
      HOME / ".config" / "systemd" / "user" / "omen-vllm@1.service.d" / "max-model-len.conf"),

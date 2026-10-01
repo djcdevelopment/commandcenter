@@ -1,0 +1,14 @@
+[[backend]]
+# omen-dense-27b-vision: Qwen3.8-27B with vision tower active (LANGUAGE_MODEL_ONLY unset).
+# Active under seat0-27b-vision profile only. Same endpoint as omen-dense-27b; distinguished by
+# the serving-side model accepting image inputs. Route chart_diagram and screenshot_grounded here.
+# Evidence: task 12 qualification — see lab-rnd capability_matrix.json (to be added post-switch).
+name = "omen-dense-27b"
+endpoint = "http://127.0.0.1:18095"
+api = "openai"
+auth_env = "OMEN_ARC_TOKEN"
+models = ["qwen3.8-27b"]
+tags = ["dense", "quality", "agent", "vision"]   # "vision" tag enables chart_diagram and screenshot_grounded routing
+
+[backend.settings]
+node = "omen"

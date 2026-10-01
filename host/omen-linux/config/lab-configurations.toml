@@ -95,3 +95,18 @@ am4-tool-4070ti = { status = "absent" }
 am4-tool-5070 = { status = "absent" }
 fx99-vllm = { status = "live", context_tokens = 4096, parallel_slots = 1, max_tokens = 1024 }
 omen-perception = { status = "live", parallel_slots = 2 }
+
+[configuration.seat0-27b-vision]
+description = "Seat 0 Qwen3.8-27B vision lane (LANGUAGE_MODEL_ONLY unset, vision tower active); Seat 1 MoE throughput. No download. Task 12 vision lab configuration."
+omen_profile = "seat0-27b-vision"
+am4_profile = "dense-tp2"
+fx99_state = "live"
+
+[configuration.seat0-27b-vision.backends]
+omen-vllm = { status = "live", context_tokens = 40960, parallel_slots = 8, max_tokens = 8192 }
+omen-dense-27b = { status = "live", context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 }
+am4-vllm = { status = "live", context_tokens = 16384, parallel_slots = 1, max_tokens = 4096 }
+am4-tool-4070ti = { status = "absent" }
+am4-tool-5070 = { status = "absent" }
+fx99-vllm = { status = "live", context_tokens = 4096, parallel_slots = 1, max_tokens = 1024 }
+omen-perception = { status = "live", parallel_slots = 2 }

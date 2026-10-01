@@ -1,4 +1,8 @@
 * text=auto eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+*.vbs text eol=crlf
 
 # Shell scripts in this repo are deployed to Linux fleet nodes (AM4 et al.).
 # CRLF in a script breaks its shebang, so pin them to LF regardless of the

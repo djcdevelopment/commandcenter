@@ -151,6 +151,14 @@ def collect_seats(live: bool) -> list[Row]:
                             rows.append(row("seat-live", f"{unit} {k}", v, f"http://127.0.0.1:{18091 + seat}/metrics cache_config_info", "vLLM", "KV pool" if "kv" in k else "block / dtype"))
             except Exception as exc:  # noqa: BLE001 -- live is best-effort
                 rows.append(row("seat-live", f"{unit} live read", f"unavailable: {type(exc).__name__}", "", "", ""))
+    if live:
+        try:
+            req = urllib.request.Request("http://127.0.0.1:18099/health")
+            with urllib.request.urlopen(req, timeout=5) as r:
+                data = json.load(r)
+            rows.append(row("seat-live", "omen-perception health", f"status={data.get('status')} ips={data.get('images_per_second')}", "http://127.0.0.1:18099/health", "door", "CPU perception lane health"))
+        except Exception as exc:  # noqa: BLE001
+            rows.append(row("seat-live", "omen-perception live read", f"unavailable: {type(exc).__name__}", "", "", ""))
     return rows
 
 
@@ -189,7 +197,9 @@ def collect_backends() -> list[Row]:
         name = b["name"]
         for k, bounds in (("context_tokens", "input + output tokens the seat holds"), ("context_bytes", "payload bytes admitted by the door (3.5 B/token, no output reserve)"),
                           ("max_tokens", "default output budget = the reserve local-work subtracts"), ("timeout_s", "HTTP timeout when the caller sets none (execution path always overrides)"),
-                          ("parallel_slots", "HEARTH lease slots on this rung")):
+                          ("parallel_slots", "HEARTH lease slots on this rung"),
+                          ("images_per_second", "measured perception throughput on CPU"),
+                          ("max_image_bytes", "largest image payload accepted")):
             if k in s:
                 rows.append(row("rung", f"{name} {k}", s[k], _line_of(path, rf"^\s*{k}\s*=") , "backends pool", bounds))
         rows.append(row("rung", f"{name} endpoint", b.get("endpoint"), _line_of(path, f'name = "{name}"'), "door", "which router port"))
@@ -632,6 +642,15 @@ def invariants(rows: list[Row]) -> list[dict]:
         mt = _num(rungs.get(rung, {}).get("max_tokens"))
         if xl_edge and mt is not None and mt < xl_edge:
             fail("long-rung-budget-covers-the-xl-bin", f"{rung} max_tokens {mt:g} < xl bin edge {xl_edge:g}", "the sizer sends xl output here; a rung budget below the edge truncates what the sizer promised room for")
+    # 6d. perception lane invariants (task 13)
+    perc = rungs.get("omen-perception")
+    if perc:
+        ips = _num(perc.get("images_per_second"))
+        mib = _num(perc.get("max_image_bytes"))
+        if ips is None or ips <= 0:
+            fail("perception-declares-throughput", "omen-perception missing images_per_second or <= 0", "perception lane declares images_per_second instead of context_tokens")
+        if mib is None or mib <= 0:
+            fail("perception-declares-max-image-bytes", "omen-perception missing max_image_bytes or <= 0", "perception lane declares max_image_bytes instead of context_bytes")
     # 7. stale comments
     for r in rows:
         if r["setting"].endswith("says 'staged'") and r["value"] is True:
@@ -684,6 +703,10 @@ def invariants(rows: list[Row]) -> list[dict]:
                     rdy = _val(rows, f"facade alias {alias} ready")
                     if rdy is not None and rdy is not True:
                         fail("expected-live-backends-serving", f"{b} expected live under {active_cfg} but facade alias {alias} ready={rdy}", "live backends must report ready=True on their facade alias")
+                elif b == "omen-perception":
+                    p_live = _val(rows, "omen-perception live read")
+                    if p_live and "unavailable" in str(p_live):
+                        fail("expected-live-backends-serving", f"omen-perception expected live under {active_cfg} but perception service is unavailable: {p_live}", "live backends must be UP and responding to /health")
 
             # Expected absent backends must not be routable
             for b in sorted(expected_absent):

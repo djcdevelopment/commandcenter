@@ -1,0 +1,17 @@
+[Unit]
+Description=OMEN CPU perception service (OCR + image scoring)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/derek/work/commandcenter-linux-flash
+Environment=PYTHONPATH=/home/derek/work/commandcenter-linux-flash:/home/derek/work/worktrees/perception
+Environment=PATH=/home/derek/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/home/derek/.venvs/perception/bin/python -m perception.service --port 18099 --threads 8
+Restart=on-failure
+RestartSec=5
+Nice=10
+CPUQuota=800%
+
+[Install]
+WantedBy=default.target

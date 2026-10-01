@@ -19,6 +19,7 @@ am4-vllm = { status = "live", context_tokens = 16384, parallel_slots = 1, max_to
 am4-tool-4070ti = { status = "absent" }
 am4-tool-5070 = { status = "absent" }
 fx99-vllm = { status = "live", context_tokens = 4096, parallel_slots = 1, max_tokens = 1024 }
+omen-perception = { status = "live", parallel_slots = 2 }
 
 [configuration.tool-night]
 description = "Night tool-work configuration: OMEN dual-lane, AM4 tool-pair (dual 8B tool seats), FX99 utility"
@@ -33,6 +34,7 @@ am4-vllm = { status = "absent" }
 am4-tool-4070ti = { status = "live", context_tokens = 24576, parallel_slots = 3, max_tokens = 4096 }
 am4-tool-5070 = { status = "live", context_tokens = 16384, parallel_slots = 1, max_tokens = 6144 }
 fx99-vllm = { status = "live", context_tokens = 4096, parallel_slots = 1, max_tokens = 1024 }
+omen-perception = { status = "live", parallel_slots = 2 }
 
 [configuration.seat0-qwen3-32b]
 description = "Seat 0 Qwen3-32B experiment, AM4 dense-tp2"
@@ -47,6 +49,7 @@ am4-vllm = { status = "live", context_tokens = 16384, parallel_slots = 1, max_to
 am4-tool-4070ti = { status = "absent" }
 am4-tool-5070 = { status = "absent" }
 fx99-vllm = { status = "live", context_tokens = 4096, parallel_slots = 1, max_tokens = 1024 }
+omen-perception = { status = "live", parallel_slots = 2 }
 
 [configuration.seat0-devstral2507]
 description = "Seat 0 Devstral 2507 experiment, AM4 dense-tp2"
@@ -61,6 +64,7 @@ am4-vllm = { status = "live", context_tokens = 16384, parallel_slots = 1, max_to
 am4-tool-4070ti = { status = "absent" }
 am4-tool-5070 = { status = "absent" }
 fx99-vllm = { status = "live", context_tokens = 4096, parallel_slots = 1, max_tokens = 1024 }
+omen-perception = { status = "live", parallel_slots = 2 }
 
 [configuration.seat0-gemma4]
 description = "Seat 0 Gemma 4 31B experiment, AM4 dense-tp2"
@@ -75,6 +79,7 @@ am4-vllm = { status = "live", context_tokens = 16384, parallel_slots = 1, max_to
 am4-tool-4070ti = { status = "absent" }
 am4-tool-5070 = { status = "absent" }
 fx99-vllm = { status = "live", context_tokens = 4096, parallel_slots = 1, max_tokens = 1024 }
+omen-perception = { status = "live", parallel_slots = 2 }
 
 [configuration.seat0-devstral-small-2]
 description = "Seat 0 Devstral Small 2 24B experiment, AM4 dense-tp2"
@@ -89,3 +94,4 @@ am4-vllm = { status = "live", context_tokens = 16384, parallel_slots = 1, max_to
 am4-tool-4070ti = { status = "absent" }
 am4-tool-5070 = { status = "absent" }
 fx99-vllm = { status = "live", context_tokens = 4096, parallel_slots = 1, max_tokens = 1024 }
+omen-perception = { status = "live", parallel_slots = 2 }

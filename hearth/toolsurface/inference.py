@@ -423,7 +423,7 @@ def _generate_ollama(target: _Target, prompt: str, model: str, system: Optional[
 
 def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[str],
                      max_tokens: int, timeout_s: int) -> dict:
-    if not target.auth_token:
+    if target.auth_env and not target.auth_token:
         # error_code is load-bearing: A2 escalation must NOT climb on this. A missing
         # token is a fault in THIS shell's environment, not a statement about the
         # rung's capacity -- the rung is fine, we simply cannot address it. Escalating
@@ -445,7 +445,7 @@ def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[
     chat_template_kwargs = target.settings.get("chat_template_kwargs")
     if isinstance(chat_template_kwargs, dict) and chat_template_kwargs:
         payload["chat_template_kwargs"] = chat_template_kwargs
-    headers = {"Authorization": f"Bearer {target.auth_token}"}
+    headers = {"Authorization": f"Bearer {target.auth_token}"} if target.auth_token else {}
 
     started = time.monotonic()
     body, error = _post(f"{target.endpoint}/v1/chat/completions", payload, timeout_s, headers)

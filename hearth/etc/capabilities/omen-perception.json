@@ -1,0 +1,34 @@
+{
+  "backend": "omen-perception",
+  "model": "tesseract-ocr",
+  "node": "omen",
+  "engine": "perception",
+  "images_per_second": 4.15,
+  "max_image_bytes": 10485760,
+  "parallel_slots": 2,
+  "citations": {
+    "images_per_second": "perception/measure_multitasking.py: 4.15 img/s OCR (0.241 s/img alone, 0.266 s/img alongside dual GPU seats); 4.55 img/s scoring (0.220 s/img alone, 0.273 s/img alongside)",
+    "scoring_fidelity": "omen-perception-status.md / perception/tests/test_perception.py: Ecola State Park 7.0825 (ref 7.08), Crater Lake 5.6536 (ref 5.65)"
+  },
+  "task_families": {
+    "document_ocr": {
+      "outcome": "verified_receipt",
+      "evidence_status": "verified",
+      "task_key": "document_ocr",
+      "observation": "CPU Tesseract plain text extraction; reproduces clippy HUD/accolade tokens; runs alongside dual GPU seats under 3.1% throughput impact with threads=8",
+      "citation": "perception/measure_multitasking.py"
+    },
+    "chart_diagram": {
+      "outcome": "refusal",
+      "evidence_status": "missing_capability",
+      "task_key": "chart_diagram",
+      "observation": "Refused explicitly: requires vision language model (pending task 12)"
+    },
+    "screenshot_grounded": {
+      "outcome": "refusal",
+      "evidence_status": "missing_capability",
+      "task_key": "screenshot_grounded",
+      "observation": "Refused explicitly: requires vision language model (pending task 12)"
+    }
+  }
+}

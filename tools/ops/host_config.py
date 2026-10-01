@@ -38,6 +38,7 @@ MANIFEST: list[tuple[str, Path]] = [
     ("systemd/mechnet-linux-observer.timer", HOME / ".config" / "systemd" / "user" / "mechnet-linux-observer.timer"),
     ("systemd/omen-offbox-backup.service", HOME / ".config" / "systemd" / "user" / "omen-offbox-backup.service"),
     ("systemd/omen-offbox-backup.timer", HOME / ".config" / "systemd" / "user" / "omen-offbox-backup.timer"),
+    ("systemd/omen-perception.service", HOME / ".config" / "systemd" / "user" / "omen-perception.service"),
 
     # systemd drop-ins
     ("systemd/omen-vllm@0.service.d/max-model-len.conf.retired-20260927",

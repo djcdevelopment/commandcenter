@@ -167,6 +167,12 @@ def build(hours: int) -> str:
         for k, v in reasons.most_common():
             L.append(f"| {k} | {v} |")
         L.append(f"\nlast tick: {last}\n")
+        # Check for idle night: queue empty and single outcome
+        if len(reasons) == 1:
+            queued_files = sorted((BACKLOG / "queued").glob("*.md")) if (BACKLOG / "queued").exists() else []
+            if not queued_files:
+                outcome_name, outcome_count = list(reasons.items())[0]
+                L.append(f"Night idle: no briefs queued, all {outcome_count} ticks had outcome '{outcome_name}'\n")
     else:
         L.append("_no ticks in window_ (timer `bankedfire-drain.timer`; arm with `python -m fleet.bankedfire_drain --arm ... --scope authored`)\n")
     try:
@@ -177,6 +183,8 @@ def build(hours: int) -> str:
 
     # 4. lanes + presence
     L.append("## Lanes now\n")
+    probed_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    L.append(f"probed {probed_at}\n")
     L.append("| lane | health |\n|---|---|")
     for name, url in LANES.items():
         L.append(f"| {name} | {_health(url)} |")

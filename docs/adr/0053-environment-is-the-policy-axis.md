@@ -1,7 +1,8 @@
 # 0053 — The environment (dev | prod) is the lab's policy axis: an authored, expiring, ledgered setting that relaxes schedule and presence gates only
 
-**Status:** Accepted (2026-10-02, omen-linux; plan `~/work/devmode-plan/`, task 1). Consumers land in tasks 2–3;
-the two-mode proof lap is task 6.
+**Status:** Accepted and proven (2026-10-02, omen-linux; plan `~/work/devmode-plan/`, all six tasks done). The
+proof lap ran today's three night briefs in the daytime through the real units under dev, then restored prod;
+evidence `~/work/devmode-plan/evidence/`, findings in `docs/rnd-log.md` (2026-10-02 row).
 
 **Companion to:** ADR-0006 (arming is an authored object), lab-rnd ADR 0005 (night queue governance) and 0007
 (acceptance is recomputed from artifacts), D-112 (`approve` only for `human-operator`), `host/lab-configurations.toml`

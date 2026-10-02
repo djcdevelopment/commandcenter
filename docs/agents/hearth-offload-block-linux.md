@@ -74,6 +74,11 @@ interactive Codex prompts per call. Skills are installed under `~/.codex/skills/
 `submit_local_work`; run validation under `ct receipt --work <id> -- <cmd>`. `ct recall` then finds the
 candidate manifest and HEARTH's `query_offload(task_id=...)` finds the spend, correlated by native ids.
 
+**Environment (ADR-0053):** `hearth-env show | set dev|prod --by WHO --reason WHY [--until ISO] | check`.
+Dev relaxes the night window, re-runs and the presence gate for daytime R&D; approvals, `pause.dispatch`,
+ai-mode, tenancy, admission and scope never change. Every receipt carries the environment and the night
+audit excludes dev. Code defaults are prod; a missing or expired file reads as prod.
+
 **Validation, reporting, recovery:**
 
 - Trust the result metadata, not the model's self-report: check `ok`, then read `text`; `backend`

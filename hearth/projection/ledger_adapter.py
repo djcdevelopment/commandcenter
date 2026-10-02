@@ -58,11 +58,13 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from hearth.kernel.ledger import hearth_root
 from tools.workflow.append_event import append_event
 from tools.workflow.validate_events import ValidationError, validate_event
 from tools.workflow.fsio import atomic_write_json
 
-DEFAULT_LEDGER = Path("hearth/var/ledger/events.ndjson")
+# $HEARTH_ROOT (~/hearth-production on Linux) or <repo>/hearth: the ledger the gateway writes.
+DEFAULT_LEDGER = hearth_root() / "var" / "ledger" / "events.ndjson"
 DEFAULT_CURSOR = Path("hearth/var/projection_cursor.json")
 DEFAULT_TARGET = Path("runs/hearth-gateway/events.jsonl")
 

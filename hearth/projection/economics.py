@@ -23,8 +23,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from hearth.projection.gemini_pricing import cost_usd
+from hearth.kernel.ledger import hearth_root
 
-DEFAULT_LEDGER = Path("hearth/var/ledger/events.ndjson")
+# $HEARTH_ROOT (~/hearth-production on Linux) or <repo>/hearth: the ledger the gateway writes.
+DEFAULT_LEDGER = hearth_root() / "var" / "ledger" / "events.ndjson"
 
 # Rides offload.v1's real_usd_spent block so a reader knows which price table
 # produced the number without opening gemini_pricing.py.

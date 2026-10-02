@@ -37,7 +37,10 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-DEFAULT_LEDGER = Path("hearth/var/ledger/events.ndjson")
+from hearth.kernel.ledger import hearth_root
+
+# $HEARTH_ROOT (~/hearth-production on Linux) or <repo>/hearth: the ledger the gateway writes.
+DEFAULT_LEDGER = hearth_root() / "var" / "ledger" / "events.ndjson"
 
 # Trailing windows (days) reported beside the lifetime rate as `calls_<N>d` /
 # `ok_rate_<N>d`. Both field families derive from this tuple so a window can

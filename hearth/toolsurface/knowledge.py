@@ -21,6 +21,13 @@ from typing import Callable
 
 from hearth.toolsurface._scope import resolve_in_scope
 from hearth.projection.capacity import DEFAULT_LEDGER as _CAPACITY_DEFAULT_LEDGER
+
+
+def _ledger_source(ledger_path: str | None) -> Path:
+    """The ledger a projection reads. None = the door's own ledger ($HEARTH_ROOT/var/ledger), opened
+    read-only and never chosen by the caller, so it needs no HEARTH_SCOPE root (a scope root would also
+    make it writable: _scope has no read-only roots). A caller-named path stays scope-checked."""
+    return Path(_CAPACITY_DEFAULT_LEDGER) if ledger_path is None else resolve_in_scope(ledger_path)
 from hearth.projection.capacity import build_capacity_document
 
 # The workflow machinery lives at the repo root this module ships in. Make it importable
@@ -333,7 +340,7 @@ def query_beliefs_summary(knowledge_dir: str = DEFAULT_OUT) -> dict:
 
 
 def project_capacity_knowledge(
-    ledger_path: str = str(_CAPACITY_DEFAULT_LEDGER), out: str = DEFAULT_OUT,
+    ledger_path: str | None = None, out: str = DEFAULT_OUT,
 ) -> dict:
     """Project the HEARTH ledger into knowledge/capacity.json (JS2 scheduler input).
 
@@ -341,7 +348,7 @@ def project_capacity_knowledge(
     token distributions per bucket. Read-only over the ledger; the only write is
     capacity.json inside the sandboxed knowledge dir.
     """
-    ledger = resolve_in_scope(ledger_path)
+    ledger = _ledger_source(ledger_path)
     document = build_capacity_document(ledger)
     out_dir = resolve_in_scope(out)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -363,7 +370,7 @@ def query_capacity(knowledge_dir: str = DEFAULT_OUT) -> dict:
 
 
 def project_offload_knowledge(
-    ledger_path: str = str(_CAPACITY_DEFAULT_LEDGER), out: str = DEFAULT_OUT,
+    ledger_path: str | None = None, out: str = DEFAULT_OUT,
 ) -> dict:
     """Project the HEARTH ledger into knowledge/offload.json (S2 executor economics).
 
@@ -373,7 +380,7 @@ def project_offload_knowledge(
     offload.json inside the sandboxed knowledge dir, corpus-guarded like
     capacity.json.
     """
-    ledger = resolve_in_scope(ledger_path)
+    ledger = _ledger_source(ledger_path)
     document = build_offload_document(ledger)
     out_dir = resolve_in_scope(out)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -466,7 +473,7 @@ def query_offload(knowledge_dir: str = DEFAULT_OUT, task_id: str | None = None,
 
 
 def rebuild_knowledge(sources: list[str] | None = None, out: str = DEFAULT_OUT,
-                      ledger_path: str = str(_CAPACITY_DEFAULT_LEDGER),
+                      ledger_path: str | None = None,
                       allow_fixture_sources: bool = False) -> dict:
     """Rebuild the entire knowledge/ store from zero (CQRS/ES plan step 5).
 

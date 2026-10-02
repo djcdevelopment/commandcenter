@@ -313,7 +313,7 @@ def _validate_staged(staging_dir: Path) -> None:
 
 
 def rebuild_knowledge(sources: list[str] | None = None, out: str = DEFAULT_OUT,
-                      ledger_path: str = DEFAULT_LEDGER_PATH,
+                      ledger_path: str | None = None,
                       allow_fixture_sources: bool = False) -> dict:
     """Replay the full projection DAG from zero and atomically swap it into `out`.
 
@@ -327,7 +327,8 @@ def rebuild_knowledge(sources: list[str] | None = None, out: str = DEFAULT_OUT,
     """
     source_paths = [resolve_in_scope(raw) for raw in (sources or DEFAULT_SOURCES)]
     out_dir = resolve_in_scope(out)
-    ledger = resolve_in_scope(ledger_path)
+    # None = the door's own ledger, read-only and not caller-chosen (see toolsurface.knowledge._ledger_source)
+    ledger = Path(_CAPACITY_DEFAULT_LEDGER) if ledger_path is None else resolve_in_scope(ledger_path)
 
     event_files = collect_event_files(source_paths)
     check_fixture_taint(source_paths + event_files, out_dir, allow=allow_fixture_sources)

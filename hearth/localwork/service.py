@@ -47,6 +47,12 @@ SERVING_PROFILE_KEYS = frozenset({
 # Families whose routing evidence pins the quality lane regardless of evidence size.
 DEEP_LANE_FAMILIES = frozenset({"code_fix", "code_review"})
 _DIFF_PATH = re.compile(r"^(?:---|\+\+\+)\s+(?:a/|b/)?([^\t\r\n]+)", re.MULTILINE)
+# Line-ranged string citations the deep lane writes although the schema asks for objects:
+# "path:N-M", "path:N", "path (line N)", "path (lines N-M)". 2026-10-02 work_d95f7fc93... failed
+# on "host/lab-configurations.toml:10-19" with a declared path. The spelling is normalised; the
+# path is still checked against declared_paths and the range against the pinned commit.
+_STRING_CITATION = re.compile(
+    r"^(?P<path>[^:()\s]+)(?::(?P<a>\d+)(?:-(?P<b>\d+))?|\s*\(lines?\s*(?P<c>\d+)(?:\s*-\s*(?P<d>\d+))?\))?$")
 TokenCounter = Callable[[Backend, str, str], int]
 
 
@@ -402,7 +408,17 @@ class LocalWorkService:
         base = str(manifest["base_commit"])
         declared = set(manifest["declared_paths"])
         normalized_citations = []
+        string_ranges = 0
         for citation in candidate["citations"]:
+            if isinstance(citation, str):
+                match = _STRING_CITATION.match(citation.strip())
+                if match and (match.group("a") or match.group("c")):
+                    start = int(match.group("a") or match.group("c"))
+                    end_text = match.group("b") or match.group("d")
+                    citation = {"path": match.group("path"), "start_line": start,
+                                "end_line": int(end_text) if end_text else start}
+                    string_ranges += 1
+                    notes["normalized_string_citation"] = string_ranges
             if isinstance(citation, str):
                 path = _safe_relative(citation)
                 if path not in declared:

@@ -29,7 +29,10 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Optional
 
-DEFAULT_LEDGER = Path("hearth/var/ledger/events.ndjson")
+from hearth.kernel.ledger import hearth_root
+
+# $HEARTH_ROOT (~/hearth-production on Linux) or <repo>/hearth: the ledger the gateway writes.
+DEFAULT_LEDGER = hearth_root() / "var" / "ledger" / "events.ndjson"
 DEFAULT_OFFLOAD = Path("knowledge/offload.json")
 
 #: ADR-0039 depth thresholds: the 27B delivers 2.63x the incumbent's jobs/hour at 8K

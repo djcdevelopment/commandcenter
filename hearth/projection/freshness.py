@@ -45,6 +45,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from hearth.kernel.ledger import hearth_root
+
 # Four hours of slack over the six-hour rebuild cadence the timer path runs on:
 # a single missed cycle is operational noise, two consecutive misses is a fault.
 # Arbitrary-at-birth, recorded per the D18 arbitrary-but-traced rule; revise here.
@@ -55,7 +57,8 @@ DEFAULT_MAX_LAG_HOURS = 10.0
 # not a reachable steady state.
 DEFAULT_MAX_BRIDGE_BACKLOG = 50
 
-DEFAULT_LEDGER = Path("hearth/var/ledger/events.ndjson")
+# $HEARTH_ROOT (~/hearth-production on Linux) or <repo>/hearth: the ledger the gateway writes.
+DEFAULT_LEDGER = hearth_root() / "var" / "ledger" / "events.ndjson"
 DEFAULT_CURSOR = Path("hearth/var/projection_cursor.json")
 DEFAULT_KNOWLEDGE = Path("knowledge")
 DEFAULT_SOURCES = (Path("runs"),)

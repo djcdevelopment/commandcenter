@@ -30,10 +30,12 @@ from pathlib import Path
 from typing import Any
 
 from hearth.kernel.capabilities import TOOL_CAPABILITY
+from hearth.kernel.ledger import hearth_root
 from hearth.toolsurface._scope import resolve_in_scope
 
 
-DEFAULT_LEDGER = "hearth/var/ledger/events.ndjson"
+# $HEARTH_ROOT (~/hearth-production on Linux) or <repo>/hearth: the ledger the gateway writes.
+DEFAULT_LEDGER = str(hearth_root() / "var" / "ledger" / "events.ndjson")
 DEFAULT_SENTINEL = "hearth/var/sentinel/ollama-direct.ndjson"
 DEFAULT_SEATS = "hearth/var/seats/receipts.ndjson"
 DEFAULT_OUT = "HEARTH-CALL-MIX.html"

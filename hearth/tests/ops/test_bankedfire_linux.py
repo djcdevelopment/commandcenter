@@ -230,7 +230,7 @@ class ExperimentExclusivityTests(unittest.TestCase):
                  mock.patch.object(lane.backlog_sources, "authored_source", return_value=None), \
                  mock.patch.object(lane.backlog_sources, "refined_source", return_value=None), \
                  mock.patch.object(lane.backlog_sources, "candidate_source", return_value=None), \
-                 mock.patch.object(lane.backlog_select, "select_next", side_effect=lambda scope, scans: briefs.get(scans_next.pop(0)) if scans_next else None), \
+                 mock.patch.object(lane.backlog_select, "iter_candidates", side_effect=lambda scope, scans: iter([briefs.get(scans_next.pop(0))] if scans_next else [])), \
                  mock.patch.dict("os.environ", {"BANKEDFIRE_SLOTS": caps or "fast=3,deep=1,experiment=1,deepagents=1"}):
                 return lane.tick(), calls
 

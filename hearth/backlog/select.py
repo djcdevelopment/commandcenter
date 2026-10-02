@@ -26,7 +26,7 @@ draw from.
 """
 from __future__ import annotations
 
-from typing import Iterable, Mapping, Optional
+from typing import Iterable, Iterator, Mapping, Optional
 
 from hearth.backlog.briefs import SOURCES, Brief
 
@@ -43,14 +43,7 @@ SCOPES: dict[str, tuple[str, ...]] = {
 }
 
 
-def select_next(scope: str, sources: Mapping[str, Iterable[Brief]]) -> Optional[Brief]:
-    """The next brief to dispatch under ``scope``, or None when there is none.
-
-    ``sources`` maps a source name to an iterable of already-ordered briefs; a
-    missing key is an empty source. An unknown scope, or an unknown key in
-    ``sources``, raises ValueError — both are programming/authoring errors, and
-    guessing at either would mean dispatching from a source nobody named.
-    """
+def _validate(scope: str, sources: Mapping[str, Iterable[Brief]]) -> None:
     if not isinstance(scope, str) or scope not in SCOPES:
         raise ValueError(
             f"scope must be one of {tuple(SCOPES)}; got {scope!r}")
@@ -59,11 +52,37 @@ def select_next(scope: str, sources: Mapping[str, Iterable[Brief]]) -> Optional[
     for key in sources:
         if key not in SOURCES:
             raise ValueError(f"unknown backlog source {key!r}; known: {SOURCES}")
+
+
+def _walk(scope: str, sources: Mapping[str, Iterable[Brief]]) -> Iterator[Brief]:
     for name in SCOPES[scope]:
         candidates = sources.get(name)
         if candidates is None:
             continue
-        chosen = next(iter(candidates), None)
-        if chosen is not None:
-            return chosen
-    return None
+        yield from candidates
+
+
+def iter_candidates(scope: str, sources: Mapping[str, Iterable[Brief]]) -> Iterator[Brief]:
+    """Every brief ``scope`` admits, in dispatch priority order (lazily).
+
+    The same order ``select_next`` uses — it IS ``select_next``'s order: higher
+    source first, each source's own order within it. A caller whose first choice
+    cannot run (its lane is full) walks on to the next instead of stopping.
+    Validation is eager (the call raises, not the first ``next``), and sources
+    are still consumed lazily: a lower source is only touched once every brief
+    above it has been yielded.
+    """
+    _validate(scope, sources)
+    return _walk(scope, sources)
+
+
+def select_next(scope: str, sources: Mapping[str, Iterable[Brief]]) -> Optional[Brief]:
+    """The next brief to dispatch under ``scope``, or None when there is none.
+
+    ``sources`` maps a source name to an iterable of already-ordered briefs; a
+    missing key is an empty source. An unknown scope, or an unknown key in
+    ``sources``, raises ValueError — both are programming/authoring errors, and
+    guessing at either would mean dispatching from a source nobody named.
+    The first of ``iter_candidates`` — the order is defined once, there.
+    """
+    return next(iter_candidates(scope, sources), None)

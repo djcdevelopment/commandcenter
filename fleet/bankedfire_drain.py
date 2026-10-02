@@ -476,7 +476,19 @@ BENIGN_OUTCOMES = frozenset({
     "disarmed", "busy", "busy:queue-unreadable", "no-budget", "no-candidates",
     "in-flight", "observed", "in-flight:status-unreachable",
     "in-flight:submit-outcome-unknown", "reconciled:never-submitted",
+    # The Linux tick (fleet/bankedfire_linux.tick) decides these before any
+    # run_tick call and ledgers them itself as "no-op:<reason>". Each is a gate
+    # correctly declining to dispatch, so ok:true (they were ok:false until
+    # 2026-10-02, devmode-plan task 4).
+    "no-op:no-candidates", "no-op:disarmed", "no-op:experiment-in-flight",
+    "no-op:experiment-waits-for-empty-lanes",
 })
+# Benign outcome families whose tail names lanes ("no-op:lane-full:deep,tool").
+BENIGN_OUTCOME_PREFIXES = ("no-op:lane-full:",)
+
+
+def _is_benign(outcome: str) -> bool:
+    return outcome in BENIGN_OUTCOMES or outcome.startswith(BENIGN_OUTCOME_PREFIXES)
 
 REASON_QUEUE_UNREADABLE = "busy:queue-unreadable"
 REASON_STATUS_UNREACHABLE = "in-flight:status-unreachable"
@@ -529,7 +541,7 @@ def _record_tick(reason: str, detail: dict, ledger=None) -> Optional[str]:
     the drain's heartbeat as a zero-cost machine estimate. Zero keeps it inert.
     """
     outcome = _outcome_for(reason)
-    ok = outcome == "dispatched" or outcome in BENIGN_OUTCOMES
+    ok = outcome == "dispatched" or _is_benign(outcome)
     try:
         from hearth.kernel.ledger import Ledger, new_event
         led = ledger or Ledger()
@@ -798,7 +810,8 @@ def run_tick(arm_state_path: Path = DEFAULT_ARM_STATE_PATH,
             exclude_refs: frozenset = frozenset(),
             queue_status_fn: Callable[[], dict] = task_lane.queue_status,
             ledger=None, write_ledger: bool = True,
-            now=None, crash_after: Optional[str] = None) -> dict:
+            now=None, crash_after: Optional[str] = None,
+            brief=None) -> dict:
     """Run exactly one drain tick and return its report. Every path through
     this function ledgers exactly one bankedfire_drain.tick event (unless
     write_ledger=False, for offline unit tests).
@@ -807,6 +820,12 @@ def run_tick(arm_state_path: Path = DEFAULT_ARM_STATE_PATH,
     ``CRASH_POINTS`` and raises ``InjectedCrash`` immediately after that persist
     point, so the crash matrix asserts against real on-disk state rather than a
     simulated one. It defaults to None and nothing in production sets it.
+
+    ``brief`` (a hearth.backlog Brief), when given, is the one to dispatch: the
+    caller already walked the backlog (fleet.bankedfire_linux.tick picks the
+    first brief whose lane has room) and an internal re-selection here would
+    put the full-lane head back in front of it. Every gate above selection
+    still runs. None (the default) keeps the drain's own select_next.
     """
     state = load_arm_state(arm_state_path)
     detail: dict = {"armed": state["armed"], "scope": state.get("scope")}
@@ -891,14 +910,21 @@ def run_tick(arm_state_path: Path = DEFAULT_ARM_STATE_PATH,
                         "budget_fail_reason": budget_detail.get("fail_reason")
                         or budget_detail.get("error")})
 
-    scans = {
-        "authored": backlog_sources.authored_source(queued_dir),
-        "refined": backlog_sources.refined_source(refine_dir),
-        "candidate": backlog_sources.candidate_source(worth_path, results_path,
-                                                      exclude_refs=exclude_refs),
-    }
-    detail["backlog_counts"] = {name: len(scan) for name, scan in scans.items()}
-    brief = backlog_select.select_next(scope, scans)
+    if brief is not None:
+        detail["selected_by"] = "caller"
+        if brief.source not in backlog_select.SCOPES[scope]:
+            # the arm scope narrowed between the caller's scan and this load
+            return _finish("no-candidates", {"caller_brief_out_of_scope": brief.source_ref,
+                                             "caller_brief_source": brief.source})
+    else:
+        scans = {
+            "authored": backlog_sources.authored_source(queued_dir),
+            "refined": backlog_sources.refined_source(refine_dir),
+            "candidate": backlog_sources.candidate_source(worth_path, results_path,
+                                                          exclude_refs=exclude_refs),
+        }
+        detail["backlog_counts"] = {name: len(scan) for name, scan in scans.items()}
+        brief = backlog_select.select_next(scope, scans)
     if brief is None:
         rejected = [row for scan in scans.values() for row in scan.rejected]
         return _finish("no-candidates",

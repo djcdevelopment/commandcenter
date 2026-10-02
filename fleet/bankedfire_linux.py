@@ -586,6 +586,16 @@ def dry_run() -> dict[str, Any]:
                 report["next"]["submit_args"] = {k: v for k, v in args.items() if k != "intent"}
             except Exception as exc:  # noqa: BLE001
                 report["next"]["brief_error"] = f"{type(exc).__name__}: {exc}"
+    # what tick() would do with the lanes as they are now (read-only: slots file + manifests)
+    try:
+        slots = load_slots(); used = in_use_by_lane(slots); caps = lane_slots()
+        pick = pick_dispatchable(scope, scans, used, caps, slots)
+        report["pick"] = {"reason": pick["reason"], "lane": pick["lane"], "in_use": used, "caps": caps,
+                          "source_ref": pick["brief"].source_ref if pick["brief"] is not None else None,
+                          "passed_over": pick["passed_over"],
+                          "tool_dispatchable": count_tool_dispatchable(scope, scans, used, caps)}
+    except Exception as exc:  # noqa: BLE001 -- the preview never breaks the dry run
+        report["pick"] = {"error": f"{type(exc).__name__}: {exc}"}
     return report
 
 
@@ -661,14 +671,86 @@ def am4_switch(target: str) -> dict[str, Any]:
         return {"target": target, "rc": None, "error": f"{type(exc).__name__}: {exc}"}
 
 
-def am4_profile_wanted(tool_queued: int, slots: list[dict[str, Any]], live: Optional[str]) -> Optional[str]:
-    """The profile the queue wants, or None when nothing should change."""
+def am4_profile_wanted(tool_queued: int, slots: list[dict[str, Any]], live: Optional[str],
+                       tool_dispatchable: Optional[int] = None) -> Optional[str]:
+    """The profile the queue wants, or None when nothing should change.
+
+    ``tool_dispatchable`` (tool briefs this tick's walk would actually dispatch, see
+    count_tool_dispatchable) gates the switch TO tool-pair; None means "every queued one".
+    The switch BACK still keys on ``tool_queued``: a tool brief that is waiting this tick
+    (an experiment ahead of it, say) must not bounce the profile to dense-tp2 and back."""
     tool_in_flight = any(r.get("lane") == "tool" for r in slots)
-    if tool_queued and live == "dense-tp2" and not tool_in_flight:
+    ready = tool_queued if tool_dispatchable is None else tool_dispatchable
+    if ready and live == "dense-tp2" and not tool_in_flight:
         return "tool-pair"
     if not tool_queued and not tool_in_flight and live == "tool-pair":
         return "dense-tp2"
     return None
+
+
+def backlog_scans(excl: frozenset) -> dict[str, Any]:
+    return {
+        "authored": backlog_sources.authored_source(backlog_sources.DEFAULT_QUEUED_DIR),
+        "refined": backlog_sources.refined_source(backlog_sources.DEFAULT_REFINE_DIR),
+        "candidate": backlog_sources.candidate_source(backlog_sources.DEFAULT_CANDIDATE_WORTH_PATH,
+                                                      backlog_sources.DEFAULT_EXPERIMENT_RESULTS_PATH,
+                                                      exclude_refs=excl),
+    }
+
+
+def pick_dispatchable(scope: Optional[str], scans: dict[str, Any], used: dict[str, int], caps: dict[str, int],
+                      slots: list[dict[str, Any]]) -> dict[str, Any]:
+    """The first brief, in select_next's priority order, whose lane has room (devmode-plan task 4).
+
+    Returns {"brief", "lane", "reason", "passed_over"}; reason is None when a brief was picked.
+    A head whose lane is full is passed over (it keeps its place for the next tick) instead of
+    ending the tick. The experiment rules are unchanged: an experiment in flight stops everything,
+    and an experiment brief the walk reaches either dispatches into empty lanes or waits and stops
+    the walk -- briefs behind a waiting experiment do not jump it, or it would never see empty lanes."""
+    out: dict[str, Any] = {"brief": None, "lane": None, "reason": None, "passed_over": []}
+    full: list[str] = []
+    walk = backlog_select.iter_candidates(scope, scans) if scope in backlog_select.SCOPES else iter(())
+    for cand in walk:
+        if used.get("experiment", 0):
+            # 2026-09-27 20:56Z: the first live tick dispatched the seat-0 experiment and then a
+            # deepagents brief in the same loop; the swap took the 27B away and the delivery died
+            # ("rendered prompt check failed: 500"). While an experiment holds a seat, nothing else
+            # dispatches, whatever the other lanes' caps say.
+            out["reason"] = "experiment-in-flight"; return out
+        lane = brief_lane(cand)
+        if used.get(lane, 0) >= caps.get(lane, 0):
+            if lane not in full:
+                full.append(lane)
+            out["passed_over"].append({"source_ref": cand.source_ref, "lane": lane})
+            continue
+        if lane == "experiment" and (slots or any(used.values())):
+            # an experiment swaps a seat: it never overlaps any drain-owned work on any lane
+            out["reason"] = "experiment-waits-for-empty-lanes"; return out
+        out["brief"], out["lane"] = cand, lane
+        return out
+    out["reason"] = f"lane-full:{','.join(full)}" if full else "no-candidates"
+    return out
+
+
+def count_tool_dispatchable(scope: Optional[str], scans: dict[str, Any], used: dict[str, int],
+                            caps: dict[str, int]) -> int:
+    """Tool-lane briefs this tick would dispatch: the ones the priority walk reaches before it
+    stops (experiment in flight, or an experiment brief, which ends the tick either way), capped
+    by the tool lane's free slots. The AM4 switch to tool-pair keys on this, not on every queued
+    tool brief (2026-10-02 12:13: the tick switched for a tool brief it then never reached)."""
+    if scope not in backlog_select.SCOPES or used.get("experiment", 0):
+        return 0
+    room = caps.get("tool", 0) - used.get("tool", 0)
+    if room <= 0:
+        return 0
+    n = 0
+    for b in backlog_select.iter_candidates(scope, scans):
+        lane = brief_lane(b)
+        if lane == "tool":
+            n += 1
+        elif lane == "experiment" and caps.get("experiment", 0) > 0:
+            break
+    return min(n, room)
 
 
 def tick() -> dict[str, Any]:
@@ -687,10 +769,14 @@ def tick() -> dict[str, Any]:
     try:
         queued_scan = backlog_sources.authored_source(backlog_sources.DEFAULT_QUEUED_DIR)
         tool_queued = sum(1 for b in queued_scan.briefs if brief_lane(b) == "tool")
+        arm_state = drain.load_arm_state(arm_path)
+        tool_ready = (count_tool_dispatchable(arm_state.get("scope"), backlog_scans(excl), in_use_by_lane(slots), caps)
+                      if tool_queued and arm_state.get("armed") else 0)
         live = am4_profile()
-        want = am4_profile_wanted(tool_queued, slots, live)
-        report["am4_profile"] = {"live": live, "tool_queued": tool_queued, "switch": None}
-        if want and drain.load_arm_state(arm_path).get("armed"):
+        want = am4_profile_wanted(tool_queued, slots, live, tool_ready)
+        report["am4_profile"] = {"live": live, "tool_queued": tool_queued, "tool_dispatchable": tool_ready,
+                                 "switch": None}
+        if want and arm_state.get("armed"):
             report["am4_profile"]["switch"] = am4_switch(want)
     except Exception as exc:  # noqa: BLE001 -- the profile step never blocks the OMEN lanes
         report["am4_profile"] = {"error": f"{type(exc).__name__}: {exc}"}
@@ -699,32 +785,21 @@ def tick() -> dict[str, Any]:
         if not state.get("armed"):
             report["reason"] = "disarmed"; break
         scope = state.get("scope")
-        scans = {
-            "authored": backlog_sources.authored_source(backlog_sources.DEFAULT_QUEUED_DIR),
-            "refined": backlog_sources.refined_source(backlog_sources.DEFAULT_REFINE_DIR),
-            "candidate": backlog_sources.candidate_source(backlog_sources.DEFAULT_CANDIDATE_WORTH_PATH,
-                                                          backlog_sources.DEFAULT_EXPERIMENT_RESULTS_PATH,
-                                                          exclude_refs=excl),
-        }
-        nxt = backlog_select.select_next(scope, scans) if scope in backlog_select.SCOPES else None
-        if nxt is None:
-            report["reason"] = "no-candidates"; break
-        lane = brief_lane(nxt)
         used = in_use_by_lane(slots)
-        if used.get("experiment", 0):
-            # 2026-09-27 20:56Z: the first live tick dispatched the seat-0 experiment and then a
-            # deepagents brief in the same loop; the swap took the 27B away and the delivery died
-            # ("rendered prompt check failed: 500"). While an experiment holds a seat, nothing else
-            # dispatches, whatever the other lanes' caps say.
-            report["reason"] = "experiment-in-flight"; report["in_use"] = used; break
-        if used.get(lane, 0) >= caps.get(lane, 0):
-            report["reason"] = f"lane-full:{lane}"; report["in_use"] = used; break
-        if lane == "experiment" and (slots or any(used.values())):
-            # an experiment swaps a seat: it never overlaps any drain-owned work on any lane
-            report["reason"] = "experiment-waits-for-empty-lanes"; report["in_use"] = used; break
+        pick = pick_dispatchable(scope, backlog_scans(excl), used, caps, slots)
+        if pick["brief"] is None:
+            report["reason"] = pick["reason"]
+            if pick["reason"] != "no-candidates":
+                report["in_use"] = used
+            break
+        nxt, lane = pick["brief"], pick["lane"]
+        for row in pick["passed_over"]:   # heads whose lane was full: they keep their place
+            if row not in report.setdefault("passed_over", []):
+                report["passed_over"].append(row)
+        # the brief goes to run_tick: its own select_next would put the full-lane head back in front
         result = drain.run_tick(arm_state_path=arm_path, submit_task_fn=submit_task,
                                 task_status_fn=task_status, queue_status_fn=queue_status,
-                                exclude_refs=excl)
+                                exclude_refs=excl, brief=nxt)
         ran_drain += 1
         report["reason"] = result["reason"]
         if not str(result["reason"]).startswith("dispatched:"):

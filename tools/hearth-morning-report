@@ -40,6 +40,24 @@ LANES = {"door": "http://127.0.0.1:8710/healthz", "omen-vllm :18090": "http://12
          "seat1 :18092": "http://127.0.0.1:18092/health", "fx99 :18093": "http://192.168.12.220:18093/health"}
 
 
+
+_READER = None
+
+
+def _reader():
+    """A local-work reader that never owns execution. The gateway's _get_service() builds an
+    ExecutionService whose startup recovery claims every running invocation ("scheduler restarted
+    during invocation") and re-dispatches it in THIS process, which has no model tokens: on
+    2026-10-02 a hand-run report killed the live sizing re-run that way, and the 06:45 timer would
+    do the same to any night job still running. Recovery off + dispatch held = read status only."""
+    global _READER
+    if _READER is None:
+        sys.path.insert(0, str(REPO))
+        from hearth.execution.service import ExecutionService
+        from hearth.localwork.service import LocalWorkService
+        _READER = LocalWorkService(ExecutionService(recover_pending=False, startup_held=True))
+    return _READER
+
 def _health(url: str) -> str:
     try:
         with urllib.request.urlopen(url, timeout=3) as r:
@@ -107,8 +125,7 @@ def build(hours: int) -> str:
         if d.get("status") in {"queued", "running"}:
             try:
                 sys.path.insert(0, str(REPO))
-                from hearth.toolsurface.local_work import _get_service
-                d = _get_service().reconcile(d["work_id"])
+                d = _reader().reconcile(d["work_id"])
             except Exception:  # noqa: BLE001
                 pass
         ts = None
@@ -193,7 +210,8 @@ def build(hours: int) -> str:
         sys.path.insert(0, str(REPO))
         from fleet.presence_linux import report as presence
         p = presence()
-        L.append(f"presence: {'away' if p['away'] else 'present'} ({', '.join(p['present_reasons']) or 'idle %d min' % ((p['idle_ms'] or 0) // 60000)}), mode {p['mode']}\n")
+        gate_off = " — idle/RDP gate off (dev)" if p.get("presence_gate") == "off" else ""
+        L.append(f"presence: {'away' if p['away'] else 'present'} ({', '.join(p['present_reasons']) or 'idle %d min' % ((p['idle_ms'] or 0) // 60000)}), mode {p['mode']}{gate_off}\n")
     except Exception as exc:  # noqa: BLE001
         L.append(f"presence: unreadable ({type(exc).__name__})\n")
     try:  # ADR-0053: which policy the night ran under; dev evidence never counts as prod

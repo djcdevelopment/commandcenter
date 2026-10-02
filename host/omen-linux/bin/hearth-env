@@ -1,0 +1,5 @@
+#!/bin/bash
+# hearth-env: show / set / check the lab environment (dev | prod). Source: commandcenter-linux-flash tools/ops/hearth_env.py (ADR-0053)
+export HEARTH_ROOT="${HEARTH_ROOT:-$HOME/hearth-production}"
+export PYTHONPATH="$HOME/work/commandcenter-linux-flash${PYTHONPATH:+:$PYTHONPATH}"
+exec "$HOME/.venvs/hearth-private/bin/python" "$HOME/work/commandcenter-linux-flash/tools/ops/hearth_env.py" "$@"

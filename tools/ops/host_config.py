@@ -82,6 +82,7 @@ MANIFEST: list[tuple[str, Path]] = [
     ("bin/start-vllm-seat.sh", HOME / "bin" / "start-vllm-seat.sh"),
     ("bin/wait-vllm-seat.sh", HOME / "bin" / "wait-vllm-seat.sh"),
     ("bin/preflight-vllm-seat.sh", HOME / "bin" / "preflight-vllm-seat.sh"),
+    ("bin/hearth-env", HOME / "bin" / "hearth-env"),
     ("bin/generate-api-env.py", HOME / "bin" / "generate-api-env.py"),
     ("bin/mount-windows.sh", HOME / "bin" / "mount-windows.sh"),
     ("bin/mount-omen-c-readonly.sh", HOME / "mount-omen-c-readonly.sh"),
@@ -175,6 +176,14 @@ def check() -> int:
         print("\n".join(extra_live))
     if drifted:
         print("\n".join(drifted))
+
+    # The environment file is rendered (its header carries who/when), so it is checked against its
+    # source's knobs rather than byte-compared (ADR-0053).
+    sys.path.insert(0, str(REPO / "tools" / "ops"))
+    import hearth_env
+    env_rc, env_line = hearth_env.check()
+    print(env_line)
+    errors += env_rc
 
     if errors == 0:
         print(f"OK: {len(pairs)} host config pairs byte-identical; 0 drift, 0 extra.")

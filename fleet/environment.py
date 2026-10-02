@@ -19,7 +19,9 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-ENV_FILE = Path(os.environ.get("HEARTH_ENVIRONMENT_FILE", "~/.config/hearth/environment")).expanduser()
+def env_file() -> Path:
+    """Resolved per call, so a test or a caller can point HEARTH_ENVIRONMENT_FILE elsewhere at any time."""
+    return Path(os.environ.get("HEARTH_ENVIRONMENT_FILE", "~/.config/hearth/environment")).expanduser()
 NAMES = ("dev", "prod")
 HEADER_KEYS = ("HEARTH_ENVIRONMENT", "HEARTH_ENVIRONMENT_SET_BY", "HEARTH_ENVIRONMENT_SET_AT",
                "HEARTH_ENVIRONMENT_REASON", "HEARTH_ENVIRONMENT_UNTIL")
@@ -41,7 +43,7 @@ def parse(text: str) -> dict[str, str]:
 
 def read_environment(path: Path | None = None) -> dict:
     """{"name", "knobs", "header", "expired", "path"}; knobs are empty when it reads as prod by default."""
-    path = Path(path) if path else ENV_FILE
+    path = Path(path) if path else env_file()
     try:
         values = parse(path.read_text())
     except OSError:

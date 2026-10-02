@@ -71,6 +71,12 @@ class StatusHookTests(unittest.TestCase):
 
 
 class PresenceTests(unittest.TestCase):
+    def setUp(self) -> None:
+        # These pin the prod gate; the live environment file may say dev (ADR-0053).
+        patcher = mock.patch.dict("os.environ", {"HEARTH_ENVIRONMENT_FILE": "/nonexistent/environment"})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_unreadable_signals_read_as_present(self) -> None:
         with mock.patch.object(presence, "idle_ms", return_value=None), \
              mock.patch.object(presence, "rdp_sessions", return_value=None), \

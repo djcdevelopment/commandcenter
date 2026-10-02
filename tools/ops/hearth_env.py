@@ -72,7 +72,7 @@ def cmd_set(args) -> int:
             sys.exit(f"--until is not ISO-8601: {args.until}")
     previous = envmod.read_environment()["name"]
     text = render(args.name, args.by, args.reason, args.until)
-    target = envmod.ENV_FILE
+    target = envmod.env_file()
     target.parent.mkdir(parents=True, exist_ok=True)
     tmp = target.with_suffix(".tmp")
     tmp.write_text(text)

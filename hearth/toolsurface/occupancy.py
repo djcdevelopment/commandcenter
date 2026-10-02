@@ -449,7 +449,7 @@ def probe_omen_vllm() -> dict:
         presence = presence_report()
     except Exception as exc:  # noqa: BLE001 -- unreadable presence is "present"
         presence = {"away": False, "present_reasons": ["presence:unreadable:%s" % type(exc).__name__]}
-    detail["presence"] = {k: presence.get(k) for k in ("away", "mode", "idle_ms", "rdp_sessions", "present_reasons")}
+    detail["presence"] = {k: presence.get(k) for k in ("away", "mode", "idle_ms", "rdp_sessions", "present_reasons", "presence_gate")}
     busy = running > 0 or waiting > 0 or active > 0 or not presence.get("away")
     return {"occupancy": "busy" if busy else "available", "detail": detail}
 

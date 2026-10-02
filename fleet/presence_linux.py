@@ -8,6 +8,8 @@ it FAILS CLOSED: any signal it cannot read counts as "present".
 
     away  iff  idle_ms >= PRESENCE_IDLE_MIN minutes      (Mutter IdleMonitor over D-Bus)
           and  no established RDP session on :3389        (ss)
+               -- these two only while PRESENCE_GATE=idle; the environment's PRESENCE_GATE=off
+                  (dev, ADR-0053) skips them
           and  no dispatch hold (HEARTH_DISPATCH_PAUSE_FILE / ~/hearth-production/pause.dispatch)
           and  ai-mode.json says "online"                 (omen-ai-mode)
 
@@ -26,6 +28,11 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+try:
+    from fleet import environment as envmod
+except ImportError:  # run as a plain script from fleet/
+    import environment as envmod
 
 DEFAULT_IDLE_MIN = 20
 HEARTH_ROOT = Path(os.environ.get("HEARTH_ROOT", str(Path.home() / "hearth-production")))
@@ -77,20 +84,24 @@ def ai_mode() -> str | None:
 
 
 def report(idle_min: int | None = None) -> dict:
-    threshold_min = idle_min if idle_min is not None else int(os.environ.get("PRESENCE_IDLE_MIN", DEFAULT_IDLE_MIN))
+    env = envmod.read_environment()
+    gate = envmod.knob("PRESENCE_GATE", "idle", env)
+    threshold_min = idle_min if idle_min is not None else int(envmod.knob("PRESENCE_IDLE_MIN", str(DEFAULT_IDLE_MIN), env))
     idle = idle_ms()
     rdp = rdp_sessions()
     paused = PAUSE_FILE.exists()
     mode = ai_mode()
     reasons = []
-    if idle is None:
-        reasons.append("idle:unreadable")
-    elif idle < threshold_min * 60_000:
-        reasons.append(f"idle:{idle // 60_000}m<{threshold_min}m")
-    if rdp is None:
-        reasons.append("rdp:unreadable")
-    elif rdp > 0:
-        reasons.append(f"rdp:{rdp}")
+    if gate != "off":  # anything but an explicit "off" keeps the prod gate (fail-closed)
+        if idle is None:
+            reasons.append("idle:unreadable")
+        elif idle < threshold_min * 60_000:
+            reasons.append(f"idle:{idle // 60_000}m<{threshold_min}m")
+        if rdp is None:
+            reasons.append("rdp:unreadable")
+        elif rdp > 0:
+            reasons.append(f"rdp:{rdp}")
+    # the dispatch hold and ai-mode apply in every environment
     if paused:
         reasons.append("pause.dispatch")
     if mode != "online":
@@ -107,6 +118,8 @@ def report(idle_min: int | None = None) -> dict:
         "dispatch_paused": paused,
         "ai_mode": mode,
         "present_reasons": reasons,
+        "presence_gate": gate,
+        "environment": envmod.stamp(env),
     }
 
 

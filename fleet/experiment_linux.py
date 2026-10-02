@@ -56,6 +56,15 @@ def utc() -> str:
     return datetime.utcnow().isoformat(timespec="seconds") + "Z"
 
 
+
+def _environment_stamp() -> dict[str, Any]:
+    """ADR-0053: the policy environment this experiment started under."""
+    try:
+        from fleet import environment as envmod
+        return envmod.stamp()
+    except Exception as exc:  # noqa: BLE001 -- a stamp never blocks a run; its absence is recorded
+        return {"name": "unreadable", "error": type(exc).__name__}
+
 class Experiment:
     def __init__(self, spec: dict[str, Any]) -> None:
         self.spec = spec
@@ -68,7 +77,8 @@ class Experiment:
         self.dir.mkdir(parents=True, exist_ok=True)
         self.state_path = self.dir / "state.json"
         self.state: dict[str, Any] = {"schema": "experiment-linux.v1", "id": self.id, "spec": spec,
-                                      "phase": "created", "started": utc(), "outcome": None, "log": []}
+                                      "phase": "created", "started": utc(), "outcome": None, "log": [],
+                                      "environment": _environment_stamp()}
         if self.state_path.exists():
             self.state = json.loads(self.state_path.read_text())
         self.tenancy = None

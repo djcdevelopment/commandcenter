@@ -516,6 +516,15 @@ def _outcome_for(reason: str) -> str:
     return reason
 
 
+def _environment_name() -> str:
+    """ADR-0053: the policy environment this tick ran under (args, not result: result is digest-only)."""
+    try:
+        from fleet import environment as envmod
+        return envmod.read_environment()["name"]
+    except Exception as exc:  # noqa: BLE001 -- a stamp never blocks a tick; its absence is recorded
+        return f"unreadable:{type(exc).__name__}"
+
+
 def _record_tick(reason: str, detail: dict, ledger=None) -> Optional[str]:
     """Append one bankedfire_drain event. Best-effort: a ledger hiccup must
     never crash the scheduled task (same discipline as mechnet_watchdog's
@@ -547,7 +556,7 @@ def _record_tick(reason: str, detail: dict, ledger=None) -> Optional[str]:
         led = ledger or Ledger()
         return led.append(new_event(
             DRAIN_CALLER, "bankedfire_drain.tick",
-            args={"backend": DRAIN_BACKEND, "outcome": outcome},
+            args={"backend": DRAIN_BACKEND, "outcome": outcome, "environment": _environment_name()},
             result={"reason": reason, **detail},
             ok=ok,
             outcome=outcome,

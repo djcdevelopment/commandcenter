@@ -71,7 +71,8 @@ def lane_slots() -> dict[str, int]:
     """Per-lane in-flight caps for unattended dispatch (BANKEDFIRE_SLOTS="fast=3,deep=1,experiment=1").
     Deliberately below backends' parallel_slots: the execution plane admits per provider, but
     a job waiting for a slot spins on a worker, and unattended work must leave room for a human."""
-    raw = os.environ.get("BANKEDFIRE_SLOTS", "fast=3,deep=1,experiment=1,deepagents=1,tool=2")
+    from fleet import environment as envmod  # ADR-0053: process env > environment file > prod default
+    raw = envmod.knob("BANKEDFIRE_SLOTS", "fast=3,deep=1,experiment=1,deepagents=1,tool=2")
     out: dict[str, int] = {}
     for part in raw.split(","):
         if "=" in part:
@@ -759,7 +760,8 @@ def tick() -> dict[str, Any]:
     the in_flight record it leaves in the arm file moves into our per-lane slots file so the
     next run_tick call in the same tick can dispatch again. Every other reason ends the tick."""
     arm_path = drain.default_arm_state_path()
-    report: dict[str, Any] = {"reconciled": reconcile_slots(arm_path), "dispatched": [], "reason": None}
+    report: dict[str, Any] = {"reconciled": reconcile_slots(arm_path), "dispatched": [], "reason": None,
+                              "environment": drain._environment_name()}
     caps = lane_slots()
     slots = load_slots()
     excl = candidate_exclusions()

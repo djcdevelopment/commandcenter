@@ -34,6 +34,8 @@ No hearth.kernel import (this package is dispatch-shaped data, not kernel).
 """
 from __future__ import annotations
 
+import hashlib
+
 import json
 import re
 import sys
@@ -195,7 +197,15 @@ class Brief:
         ``hearth-candidate-...`` vs ``hearth-authored-...`` is readable there
         without joining back to the ledger.
         """
-        return safe_slug(f"{self.source}-{self.slug}", max_len=MAX_PLAN_ID_HINT_CHARS)
+        full = safe_slug(f"{self.source}-{self.slug}", max_len=10_000)
+        if len(full) <= MAX_PLAN_ID_HINT_CHARS:
+            return full
+        # Truncation must not merge two briefs: the drain keys the door's idempotency on this hint,
+        # and on 2026-10-02 two re-runs of one brief (names differing only after char 60) got the
+        # same key, so the door handed back the earlier failed work item. Keep the readable prefix
+        # and end with 8 hex of the full hint, still inside the bound and the safe charset.
+        digest = hashlib.sha256(full.encode("utf-8")).hexdigest()[:8]
+        return safe_slug(full[:MAX_PLAN_ID_HINT_CHARS - 9], max_len=MAX_PLAN_ID_HINT_CHARS - 9) + "-" + digest
 
     def submit_kwargs(self) -> dict:
         """Exactly the keyword surface of ``task_lane.submit_task``.

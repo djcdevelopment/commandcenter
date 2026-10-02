@@ -78,10 +78,19 @@ class Delivery:
                 return 1
         else:
             try:
-                from hearth.execution.coordination import GpuTenancyStore
-                owner = GpuTenancyStore().active_owner(POOL)
+                from hearth.execution.coordination import GpuTenancyStore, default_coordination_path
+                fence_db = default_coordination_path()
+                if not fence_db.is_file():
+                    # GpuTenancyStore would create an empty DB here and report "no owner": a missing
+                    # fence means we are looking in the wrong place, not that the pool is free.
+                    raise FileNotFoundError(f"fence db missing: {fence_db}")
+                owner = GpuTenancyStore(fence_db).active_owner(POOL)
             except Exception as exc:  # noqa: BLE001 -- an unreadable fence is not a reason to spend
-                owner = None; self.save("fence_unreadable", fence_error=f"{type(exc).__name__}: {exc}")
+                # Fail closed: not knowing who owns the pool is not permission to launch on it.
+                self.save("done", outcome="failed", finished=utc(), review_required=True, fence="unreadable",
+                          fence_error=f"{type(exc).__name__}: {exc}")
+                print(json.dumps({"id": self.id, "outcome": "failed", "fence": "unreadable"}), flush=True)
+                return 1
             if owner is not None:
                 self.save("done", outcome="failed", finished=utc(), review_required=True,
                           fence=f"pool owned by {owner.owner} session {owner.session_id}; not launching")

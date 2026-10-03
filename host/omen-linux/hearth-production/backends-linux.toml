@@ -84,6 +84,31 @@ structured_outputs = true   # response_format json_schema, probed 2026-10-02 (do
 [backend.settings.chat_template_kwargs]
 enable_thinking = false
 
+# --- Second dense seat (two-dense window, 2026-10-03) ----------------------------------------------
+# Same Qwen3.8-27B recipe as omen-dense-27b, on seat 1 (card 1) behind HAProxy :18096. Live only under lab
+# configuration `two-dense` (omen-profile two-dense); absent under every other configuration. Pin-only in practice:
+# omen-dense-27b has no occupancy probe, so it always wins the tag walk first. No "vision" tag: seat 1 runs language-model-only.
+[[backend]]
+name = "omen-dense-27b-b"
+endpoint = "http://127.0.0.1:18096"
+api = "openai"
+auth_env = "OMEN_ARC_TOKEN"
+models = ["qwen3.8-27b"]
+tags = ["dense", "quality", "agent"]
+
+[backend.settings]
+node = "omen"
+engine = "vllm"
+context_tokens = 65536
+context_bytes = 229376
+max_tokens = 16384
+timeout_s = 1000
+parallel_slots = 2
+structured_outputs = true
+
+[backend.settings.chat_template_kwargs]
+enable_thinking = false
+
 # --- AM4 profile tool-pair (2026-09-28) --------------------------------------------------------
 # One Qwen3-8B-AWQ seat per card behind the oxen facade, tag `tool-use` for OS-local chores
 # (read / grep / summarize through the DeepAgents runner). Live only while `am4-profile tool-pair`

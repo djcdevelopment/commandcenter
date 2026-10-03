@@ -74,6 +74,8 @@ MANIFEST: list[tuple[str, Path]] = [
      HOME / ".config" / "systemd" / "user" / "omen-vllm@1.service.d" / "stage0-recipe.conf"),
     ("systemd/omen-vllm@1.service.d/stage1-35b-mtp.conf.retired",
      HOME / ".config" / "systemd" / "user" / "omen-vllm@1.service.d" / "stage1-35b-mtp.conf.retired"),
+    ("systemd/omen-vllm@1.service.d/stage9-two-dense.conf.staged",
+     HOME / ".config" / "systemd" / "user" / "omen-vllm@1.service.d" / "stage9-two-dense.conf.staged"),
 
     ("systemd/hearth-production.service.d/linux-routes.conf",
      HOME / ".config" / "systemd" / "user" / "hearth-production.service.d" / "linux-routes.conf"),
@@ -94,9 +96,11 @@ MANIFEST: list[tuple[str, Path]] = [
     ("bin/omen-profile", HOME / "bin" / "omen-profile"),
     ("bin/lab-config", HOME / "bin" / "lab-config"),
     ("profiles/seat0-27b-vision.json", HOME / ".config" / "omen-vllm" / "profiles" / "seat0-27b-vision.json"),
+    ("profiles/two-dense.json", HOME / ".config" / "omen-vllm" / "profiles" / "two-dense.json"),
 
     # config
     ("config/haproxy.cfg", HOME / ".config" / "omen-vllm" / "haproxy.cfg"),
+    ("config/haproxy.cfg.two-dense.staged", HOME / ".config" / "omen-vllm" / "haproxy.cfg.two-dense.staged"),
     ("config/lab-configurations.toml", HOME / ".config" / "omen-vllm" / "lab-configurations.toml"),
 
     # hearth-production

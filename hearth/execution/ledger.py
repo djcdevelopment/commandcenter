@@ -93,8 +93,12 @@ class ExecutionLedger:
         self.events_path.touch(exist_ok=True)
         self._keeper: Optional[sqlite3.Connection] = None
         self._initialize_projection()
-        if self._projection_is_stale():
-            self.rebuild()
+        # Under the append lock: outside it, another process's append in flight (stream
+        # fsynced, projection not yet committed) reads as stale and forces a full rebuild,
+        # which also strands that process's keeper on the unlinked files.
+        with self._lock, self._interprocess_append_lock():
+            if self._projection_is_stale():
+                self.rebuild()
         self._open_keeper()
 
     def _open_keeper(self) -> None:
@@ -123,14 +127,22 @@ class ExecutionLedger:
         with self._connect() as connection:
             # Switching to WAL needs an exclusive lock and does not wait on the busy
             # timeout, so another process's open connection fails it; retry, then raise.
+            # SQLite may also refuse WITHOUT an error (it returns the old mode): the
+            # deadline covers both, so a refusal fails loudly instead of spinning.
             deadline = time.monotonic() + 30
-            while connection.execute("PRAGMA journal_mode").fetchone()[0] != "wal":
+            while True:
                 try:
-                    connection.execute("PRAGMA journal_mode = WAL")
-                except sqlite3.OperationalError:
-                    if time.monotonic() >= deadline:
-                        raise
-                    time.sleep(0.05)
+                    mode = connection.execute("PRAGMA journal_mode = WAL").fetchone()[0]
+                except sqlite3.OperationalError as exc:
+                    mode = f"error: {exc}"
+                if mode == "wal":
+                    break
+                if time.monotonic() >= deadline:
+                    raise ExecutionLedgerError(
+                        f"projection did not switch to WAL within 30s ({mode}): "
+                        f"{self.projection_path}"
+                    )
+                time.sleep(0.05)
             connection.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS events (

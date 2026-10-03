@@ -44,7 +44,10 @@ class AuthorJudgeError(JudgeError):
 
 
 def prompt_for(claim: dict, rubric: str) -> str:
-    return f"{rubric.strip()}\n\n{ANSWER_FORMAT}\n\nCLAIM:\n{claim['claim']}\n\nQUOTE:\n{claim['quote']}\n"
+    """Optional item keys (the ladder's paragraph and substance questions): instruction, claim_label, quote_label."""
+    pre = f"{claim['instruction'].strip()}\n\n" if claim.get("instruction") else ""
+    return (f"{rubric.strip()}\n\n{ANSWER_FORMAT}\n\n{pre}{claim.get('claim_label', 'CLAIM')}:\n{claim['claim']}\n\n"
+            f"{claim.get('quote_label', 'QUOTE')}:\n{claim['quote']}\n")
 
 
 def _parse(text) -> dict:

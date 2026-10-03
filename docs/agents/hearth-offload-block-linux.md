@@ -90,3 +90,5 @@ audit excludes dev. Code defaults are prod; a missing or expired file reads as p
   item exists.
 
 <!-- source: docs/agents/hearth-offload-block-linux.md in commandcenter-linux-flash; ~/.claude/CLAUDE.md is a synced copy — edit the source -->
+<!-- layout: the synced ~/.claude/CLAUDE.md may carry a leading span delimited by the lab-intent:begin and lab-intent:end marker comments, owned by ~/work/lab tools, above this offload block.
+     A sync writes only the offload span (lines above the source comment) and must preserve that leading span. -->

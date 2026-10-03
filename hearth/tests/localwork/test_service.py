@@ -14,6 +14,7 @@ from hearth.execution.artifacts import ArtifactStore
 from hearth.execution.coordination import CapacityLeaseStore
 from hearth.execution.ledger import ExecutionLedger
 from hearth.execution.service import ExecutionService
+from hearth.toolsurface.inference import response_schema_digest
 from hearth.localwork.service import LocalWorkError, LocalWorkService, SERVING_PROFILE_KEYS
 from hearth.toolsurface.backends import load_pool
 
@@ -46,11 +47,20 @@ class LocalWorkServiceTests(unittest.TestCase):
             "content": "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n@@ -1,2 +1,2 @@\n one\n-two\n+three\n",
         })]
 
-        def generate(**_kwargs):
+        self.generate_calls: list[dict] = []
+
+        def generate(**kwargs):
+            self.generate_calls.append(kwargs)
             text = self.outputs.pop(0)
-            return {"ok": True, "text": text, "backend": "omen-arc",
-                    "model": "qwen3-30b-a3b", "routed_by": "pinned:omen-arc",
-                    "tokens_in": 100, "tokens_out": 50, "duration_ms": 5}
+            result = {"ok": True, "text": text, "backend": "omen-arc",
+                      "model": "qwen3-30b-a3b", "routed_by": "pinned:omen-arc",
+                      "tokens_in": 100, "tokens_out": 50, "duration_ms": 5}
+            # what the door's request-body builder stamps when the call carried them (W2)
+            if kwargs.get("response_schema") is not None:
+                result["response_schema_sha256"] = response_schema_digest(kwargs["response_schema"])
+            if kwargs.get("temperature") is not None:
+                result["temperature"] = kwargs["temperature"]
+            return result
 
         state = self.root / "execution"
         self.execution = ExecutionService(
@@ -230,6 +240,66 @@ class LocalWorkServiceTests(unittest.TestCase):
         routes, _route_digest = LocalWorkService._route_profile()
         self.assertEqual(routes["fast"], "am4-dense")
         self.assertEqual(routes["deep"], "omen-arc-27b")
+
+    def delivery_submit(self, **overrides):
+        """A brief.v2 through the door: the model's answer is delivery-output.v1, the door renders the manifest."""
+        brief = json.loads((Path(__file__).resolve().parents[1] / "delivery" / "fixtures" / "a59bad05.brief.json")
+                           .read_text(encoding="utf-8"))
+        self.outputs[:] = [json.dumps({"summary": "The second line.", "sections": [
+            {"heading": "Lines", "paragraphs": [{"text": "The file ends with two.", "quotes": ["two"]}]}]})]
+        return self.submit(artifact_kind="markdown", brief=brief, max_tokens=None, **overrides)
+
+    def test_delivery_manifest_records_observed_route_and_conditions(self) -> None:
+        """Work 2026-10-03 laps 1-4 (work_a59bad05 onward): the manifest names where the answer was produced, what
+        it cost and which schema constrained it, and the conditions it ran under; the door, not the model, says so."""
+        with mock.patch.dict(os.environ, {"HEARTH_LAB_CONFIGURATION": "memsplice"}):
+            manifest = self.delivery_submit(temperature=0.2)
+            final = self.settle(manifest["work_id"])
+        self.assertEqual(final["status"], "awaiting_review", final.get("failure"))
+        route = final["route"]
+        self.assertEqual((route["backend"], route["model"], route["routed_by"]),
+                         ("omen-arc", "qwen3-30b-a3b", "pinned:omen-arc"))
+        self.assertEqual((route["tokens_in"], route["tokens_out"], route["duration_ms"]), (100, 50, 5))
+        schema = self.generate_calls[0]["response_schema"]
+        self.assertEqual(route["response_schema_sha256"], response_schema_digest(schema))
+        self.assertEqual(route["temperature"], 0.2)
+        self.assertEqual(final["conditions"]["lab_configuration"], "memsplice")
+        self.assertEqual(final["conditions"]["lab_configuration_source"], "env")
+        self.assertEqual(final["conditions"]["temperature"], 0.2)
+        self.assertIn(final["conditions"]["environment"], {"dev", "prod"})
+        self.assertEqual(final["delivery_summary"]["deterministic"], "pass")
+
+    def test_delivery_conditions_say_when_no_temperature_was_sent(self) -> None:
+        """conditions.temperature is what the request carried: none sent reads None, never a default."""
+        manifest = self.delivery_submit()
+        final = self.settle(manifest["work_id"])
+        self.assertIsNone(final["conditions"]["temperature"])
+        self.assertNotIn("temperature", final["route"])
+
+    def routes_file(self, *lanes: tuple[str, str]) -> str:
+        path = self.root / "routes.toml"
+        path.write_text("version = \"local-work-routes.v2\"\n" + "".join(
+            f"[lane.{name}]\nbackend = \"{backend}\"\n" for name, backend in lanes), encoding="utf-8")
+        return str(path)
+
+    def test_tool_lane_routes_to_the_profiles_tool_backend(self) -> None:
+        """Delivery lap 4 (perception brief on am4-tool-4070ti): lane=tool is explicit and lands on the backend the
+        route profile names for it."""
+        routes = self.routes_file(("fast", "am4-dense"), ("deep", "omen-arc-27b"), ("tool", "am4-read-4070ti"))
+        with mock.patch.dict(os.environ, {"HEARTH_LOCAL_WORK_ROUTES": routes}):
+            manifest = self.submit(lane="tool")
+            self.settle(manifest["work_id"])
+        self.assertEqual(manifest["route"]["requested_lane"], "tool")
+        self.assertEqual(manifest["route"]["selected_lane"], "tool")
+        self.assertEqual(manifest["route"]["provider"], "am4-read-4070ti")
+        self.assertEqual(self.generate_calls[0]["backend"], "am4-read-4070ti")
+
+    def test_a_lane_the_profile_lacks_is_refused_by_name(self) -> None:
+        routes = self.routes_file(("fast", "am4-dense"), ("deep", "omen-arc-27b"))
+        with mock.patch.dict(os.environ, {"HEARTH_LOCAL_WORK_ROUTES": routes}):
+            with self.assertRaisesRegex(LocalWorkError, "local lane 'tool' is not in this host's route profile"):
+                self.submit(lane="tool")
+        self.assertEqual(self.generate_calls, [])
 
 
 if __name__ == "__main__":

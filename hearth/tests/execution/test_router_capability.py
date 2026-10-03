@@ -115,8 +115,9 @@ class RouterCapabilityTests(unittest.TestCase):
         self.assertEqual(cap["evidence_status"], "useful_supported")
 
     def test_tool_execution_under_dense_tp2_resolves_to_default_and_reports_not_live(self) -> None:
-        """AC 3: With AM4 in dense-tp2, tool_execution resolves per documented default and says tool-use lane is not live."""
-        os.environ["HEARTH_LAB_CONFIGURATION"] = "day"
+        """AC 3: memsplice is the dense-tp2 shape (AM4 runs the 27B, tool seats absent): tool_execution resolves per
+        documented default and says tool-use lane is not live. `day` is no longer this shape (AM4 on tool-pair)."""
+        os.environ["HEARTH_LAB_CONFIGURATION"] = "memsplice"
         svc = get_execution_service()
         plan = svc.plan(
             operation_name="inference.generate",
@@ -129,9 +130,9 @@ class RouterCapabilityTests(unittest.TestCase):
         self.assertEqual(plan.get("lane_status"), "lane_not_live")
         self.assertIn("tool-use lane is not live", plan.get("note", ""))
 
-    def test_tool_execution_under_tool_night_routes_to_tool_seat(self) -> None:
-        """Under tool-night configuration, tool_execution routes to live am4-tool-4070ti seat."""
-        os.environ["HEARTH_LAB_CONFIGURATION"] = "tool-night"
+    def test_tool_execution_under_day_routes_to_tool_seat(self) -> None:
+        """`tool-night` is gone; `day` has AM4 on tool-pair, so tool_execution routes to the live am4-tool-4070ti seat."""
+        os.environ["HEARTH_LAB_CONFIGURATION"] = "day"
         svc = get_execution_service()
         plan = svc.plan(
             operation_name="inference.generate",
@@ -146,13 +147,14 @@ class RouterCapabilityTests(unittest.TestCase):
         self.assertEqual(cap["outcome"], "shape_accepted")
 
     def test_absent_backend_admission_refusal_names_configuration(self) -> None:
-        """Step 4: Admission refuses an absent backend explicitly naming the configuration."""
+        """Step 4: Admission refuses an absent backend explicitly naming the configuration. Under `day` the absent
+        AM4 seat is am4-vllm (the dense-tp2 server); the tool seats are live."""
         os.environ["HEARTH_LAB_CONFIGURATION"] = "day"
         svc = get_execution_service()
         plan = svc.plan(
             operation_name="inference.generate",
             prompt_bytes=1000,
-            backend="am4-tool-4070ti",
+            backend="am4-vllm",
         )
         self.assertFalse(plan["ok"])
         self.assertEqual(plan["routed_by"], "policy_refusal")
@@ -163,10 +165,13 @@ class RouterCapabilityTests(unittest.TestCase):
         os.environ["HEARTH_LAB_CONFIGURATION"] = "day"
         self.assertEqual(get_active_configuration_name(), "day")
         self.assertTrue(is_backend_live("omen-dense-27b"))
-        self.assertTrue(is_backend_absent("am4-tool-4070ti"))
-        status, cfg = get_backend_status("am4-tool-4070ti")
+        self.assertTrue(is_backend_live("am4-tool-4070ti"))
+        self.assertTrue(is_backend_absent("am4-vllm"))
+        status, cfg = get_backend_status("am4-vllm")
         self.assertEqual(status, "absent")
         self.assertEqual(cfg, "day")
+        self.assertTrue(is_backend_absent("am4-tool-4070ti", "memsplice"))
+        self.assertTrue(is_backend_live("am4-vllm", "memsplice"))
 
     def test_capabilities_loader_integrity(self) -> None:
         """Test backend capability loading for all defined backends."""

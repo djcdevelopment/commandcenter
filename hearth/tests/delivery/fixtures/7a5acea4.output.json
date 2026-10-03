@@ -1,0 +1,50 @@
+{
+  "sections": [
+    {
+      "heading": "Configuration Comparison",
+      "paragraphs": [
+        {
+          "quotes": [
+            "configuration.day [section] 9-14",
+            "configuration.tool-night [section] 24-29",
+            "tools/ops/sizing_map.py",
+            "invariants [function] 540-761"
+          ],
+          "text": "This audit compares the backend declarations in the day and tool-night sections of host/lab-configurations.toml against the sizing parameters and invariants defined in tools/ops/sizing_map.py. The configuration file declares the expected serving shape, including which backends are live or absent, while the Python tool provides the derivation rules and checks for those parameters."
+        }
+      ]
+    },
+    {
+      "heading": "Declared Values",
+      "paragraphs": [
+        {
+          "quotes": [
+            "omen-dense-27b = { status = "
+            ,
+            "context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 }",
+            "omen-perception = { status = "
+            ,
+            "parallel_slots = 2 }"
+          ],
+          "text": "In both configuration.day and configuration.tool-night, the backend omen-dense-27b is declared with context_tokens of 65536, parallel_slots of 2, and max_tokens of 16384. The backend omen-perception is also live in both configurations, with parallel_slots set to 2. The tool-night configuration does not specify context_tokens or max_tokens for the perception backend."
+        }
+      ]
+    },
+    {
+      "heading": "State Transitions",
+      "paragraphs": [
+        {
+          "quotes": [
+            "am4-vllm = { status = "
+            ,
+            "am4-tool-4070ti = { status = "
+            ,
+            "am4-tool-5070 = { status = "
+          ],
+          "text": "When the lab transitions from the day configuration to tool-night, the backend am4-vllm changes from live to absent. Conversely, am4-tool-4070ti and am4-tool-5070 transition from absent to live. The other declared backends, including omen-vllm, omen-dense-27b, fx99-vllm, and omen-perception, maintain a live status in both configurations."
+        }
+      ]
+    }
+  ],
+  "summary": "The report compares the day and tool-night lab configurations against the sizing invariants in tools/ops/sizing_map.py. It specifies that omen-dense-27b and omen-perception retain identical declared values across both states, while identifying that the AM4 profile switches from a dense setup to a tool-pair setup, causing am4-vllm to become absent and the two tool-specific AM4 backends to become live."
+}

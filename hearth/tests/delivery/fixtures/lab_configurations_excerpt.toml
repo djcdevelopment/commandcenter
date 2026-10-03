@@ -1,0 +1,45 @@
+# lab-configurations.v1 — named whole-lab serving configurations (ADR-0052, task 8).
+#
+# A lab configuration describes the expected serving shape of the entire lab:
+# which profile OMEN is in, which profile AM4 is in, FX99 state, and which HEARTH
+# backends are expected live or absent, with their sizing parameters.
+contract = "lab-configurations.v1"
+authored = "2026-10-01"
+
+[configuration.day]
+description = "Production day configuration: OMEN dual-lane (27B quality + 30B MoE), AM4 dense-tp2 (27B dense), FX99 utility"
+omen_profile = "two-lane"
+am4_profile = "dense-tp2"
+fx99_state = "live"
+
+[configuration.day.backends]
+omen-vllm = { status = "live", context_tokens = 40960, parallel_slots = 8, max_tokens = 8192 }
+omen-dense-27b = { status = "live", context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 }
+am4-vllm = { status = "live", context_tokens = 16384, parallel_slots = 1, max_tokens = 4096 }
+am4-tool-4070ti = { status = "absent" }
+am4-tool-5070 = { status = "absent" }
+fx99-vllm = { status = "live", context_tokens = 4096, parallel_slots = 1, max_tokens = 1024 }
+omen-perception = { status = "live", parallel_slots = 2 }
+
+[configuration.tool-night]
+description = "Night tool-work configuration: OMEN dual-lane, AM4 tool-pair (dual 8B tool seats), FX99 utility"
+omen_profile = "two-lane"
+am4_profile = "tool-pair"
+fx99_state = "live"
+
+[configuration.tool-night.backends]
+omen-vllm = { status = "live", context_tokens = 40960, parallel_slots = 8, max_tokens = 8192 }
+omen-dense-27b = { status = "live", context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 }
+am4-vllm = { status = "absent" }
+am4-tool-4070ti = { status = "live", context_tokens = 24576, parallel_slots = 3, max_tokens = 4096 }
+am4-tool-5070 = { status = "live", context_tokens = 16384, parallel_slots = 1, max_tokens = 6144 }
+fx99-vllm = { status = "live", context_tokens = 4096, parallel_slots = 1, max_tokens = 1024 }
+omen-perception = { status = "live", parallel_slots = 2 }
+
+[configuration.seat0-qwen3-32b]
+description = "Seat 0 Qwen3-32B experiment, AM4 dense-tp2"
+omen_profile = "seat0-qwen3-32b"
+am4_profile = "dense-tp2"
+fx99_state = "live"
+
+[configuration.seat0-qwen3-32b.backends]

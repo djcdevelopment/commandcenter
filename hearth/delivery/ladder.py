@@ -104,11 +104,21 @@ def _block(label: str, src: str) -> str:
 
 def _paragraph_job(para: str, claims: list, ctx) -> Optional[dict]:
     """One judge job for a paragraph: its text as the claim, the source text of each distinct resolved range as evidence
-    (in quote order), unresolved quotes listed as not found. None when no quote resolved (escalated without a call)."""
+    (in quote order), unresolved candidates explicitly labelled. A candidate never resolves its quote."""
     blocks, seen, missing = [], set(), []
     for c in claims:
         if not _resolved(c):
             missing.append(c["id"].rpartition(".")[2])
+            r = c.get("candidate")
+            if r:
+                key = (r["path"], r["start_line"], r["end_line"])
+                src = ctx["read"](*key)
+                if not src.strip():
+                    raise LadderError(f"{c['id']}: candidate source range is empty")
+                blocks.append(_block(f"UNRESOLVED candidate {r['path']}:{r['start_line']}-{r['end_line']}",
+                                     f"{src}\nAuthor quote: {c['quote']}\n"
+                                     f"Candidate reason: {r['reason']}; this is not a resolved quotation. "
+                                     "Judge whether the paragraph is true of these source lines, not whether the quote matched."))
             continue
         r = c["resolved"]
         key = (r["path"], r["start_line"], r["end_line"])
@@ -210,6 +220,9 @@ def _judge_pass(manifest, output, bdoc, ctx, only: Optional[set]) -> tuple:
         else:
             for c in paras[cid]:  # the verdict is the paragraph's; every resolved quote in it carries it
                 if not _resolved(c):
+                    if c.get("candidate"):
+                        recs[c["id"]].update(candidate_verdict=verdict, candidate_reason=why,
+                                              candidate_p=row["p"])
                     continue
                 r = recs[c["id"]]
                 r.update(verdict=verdict, reason=why + (f" {r['match']}" if r["match"].startswith("fuzzy:") else ""),

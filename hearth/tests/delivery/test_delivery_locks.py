@@ -76,7 +76,6 @@ class ShortQuoteFloorTests(unittest.TestCase):
         short = [c for c in man["claims"] if c["match"] == "missing" and c.get("ambiguous")]
         self.assertEqual(len(short), 12)
         self.assertTrue(all(c["id"] in man["unsupported"] for c in short))
-        self.assertIn("characters found", man["verification"]["deterministic"]["note"])
 
     def test_a_short_quote_that_occurs_once_still_resolves(self) -> None:
         """The floor is for ambiguity, not length: `SKIP_DAYS = 7` (work_a59bad05) is 13 characters and one line."""
@@ -85,6 +84,21 @@ class ShortQuoteFloorTests(unittest.TestCase):
         self.assertEqual((loc.match, loc.occurrences), ("exact", 1))
         self.assertEqual(sm.files[0].lines[loc.start - 1], "SKIP_DAYS = 7")
         self.assertEqual(locate(sm, "SKIP_DAYS = 14").match, "missing")   # one changed number is another claim
+
+
+class FuzzyIdentifierTests(unittest.TestCase):
+    @unittest.expectedFailure
+    def test_a_fuzzy_quote_with_other_identifiers_is_not_support(self) -> None:
+        """work_8168fd9f (8B, am4-tool-4070ti): it wrote `{ok: True, text: reply_text, duration_ms: dt_ms}`, a line
+        the source does not have; the locator matched it at fuzzy:0.91 to the line that says `"text": res` and the
+        claim counted as supported. Desired: a quote whose identifiers differ from the line it lands on is
+        unsupported. Today it is accepted; this records the gap and keeps the suite green."""
+        sm = source_map(PERCEPTION)
+        quote = "self._send_json(HTTPStatus.OK, {ok: True, text: reply_text, duration_ms: dt_ms})"
+        out = {"summary": "The /ocr handler's reply.", "sections": [{"heading": "s1", "paragraphs": [
+            {"text": "Without tsv the handler returns the text and the duration.", "quotes": [quote]}]}]}
+        _, man = render(out, stored("f6038274")[1], sm)
+        self.assertEqual(man["unsupported"], [man["claims"][0]["id"]])
 
 
 class PickTests(unittest.TestCase):

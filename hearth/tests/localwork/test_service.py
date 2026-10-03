@@ -250,9 +250,12 @@ class LocalWorkServiceTests(unittest.TestCase):
         return self.submit(artifact_kind="markdown", brief=brief, max_tokens=None, **overrides)
 
     def test_delivery_manifest_records_observed_route_and_conditions(self) -> None:
-        """Work 2026-10-03 laps 1-4 (work_a59bad05 onward): the manifest names where the answer was produced, what
-        it cost and which schema constrained it, and the conditions it ran under; the door, not the model, says so."""
-        with mock.patch.dict(os.environ, {"HEARTH_LAB_CONFIGURATION": "memsplice"}):
+        """docs/rnd-log.md 2026-10-03T05:20Z, laps 1-4 (work_a59bad05 onward): the manifest's observed route fields
+        (backend, tokens, duration, response_schema_sha256) were all null and `environment` read unknown. The
+        manifest names where the answer was produced, what it cost, which schema constrained it, and the
+        conditions it ran under; the door, not the model, says so."""
+        with mock.patch.dict(os.environ, {"HEARTH_LAB_CONFIGURATION": "memsplice",
+                                          "HEARTH_ENVIRONMENT_FILE": str(self.root / "no-environment")}):
             manifest = self.delivery_submit(temperature=0.2)
             final = self.settle(manifest["work_id"])
         self.assertEqual(final["status"], "awaiting_review", final.get("failure"))
@@ -266,13 +269,17 @@ class LocalWorkServiceTests(unittest.TestCase):
         self.assertEqual(final["conditions"]["lab_configuration"], "memsplice")
         self.assertEqual(final["conditions"]["lab_configuration_source"], "env")
         self.assertEqual(final["conditions"]["temperature"], 0.2)
-        self.assertIn(final["conditions"]["environment"], {"dev", "prod"})
+        self.assertEqual(final["conditions"]["environment"], "prod")   # ADR-0053: a missing file reads as prod
         self.assertEqual(final["delivery_summary"]["deterministic"], "pass")
 
     def test_delivery_conditions_say_when_no_temperature_was_sent(self) -> None:
-        """conditions.temperature is what the request carried: none sent reads None, never a default."""
-        manifest = self.delivery_submit()
-        final = self.settle(manifest["work_id"])
+        """docs/rnd-log.md 2026-10-03T05:50Z: every delivery of laps 1-5 was sent without a temperature and the
+        8B's two runs differed ("temperature on the tool seat" not sampled); the record must say none was sent
+        (None), never a default."""
+        with mock.patch.dict(os.environ, {"HEARTH_LAB_CONFIGURATION": "day",
+                                          "HEARTH_ENVIRONMENT_FILE": str(self.root / "no-environment")}):
+            manifest = self.delivery_submit()
+            final = self.settle(manifest["work_id"])
         self.assertIsNone(final["conditions"]["temperature"])
         self.assertNotIn("temperature", final["route"])
 
@@ -295,6 +302,8 @@ class LocalWorkServiceTests(unittest.TestCase):
         self.assertEqual(self.generate_calls[0]["backend"], "am4-read-4070ti")
 
     def test_a_lane_the_profile_lacks_is_refused_by_name(self) -> None:
+        """Delivery lap 4 (lane=tool is new, flash 8919a22): a host whose route profile has no tool lane refuses it
+        by name before any generate call, instead of falling back to another lane."""
         routes = self.routes_file(("fast", "am4-dense"), ("deep", "omen-arc-27b"))
         with mock.patch.dict(os.environ, {"HEARTH_LOCAL_WORK_ROUTES": routes}):
             with self.assertRaisesRegex(LocalWorkError, "local lane 'tool' is not in this host's route profile"):

@@ -474,8 +474,10 @@ class Am4ProfileFollowsQueueTests(ProfileIsolation, unittest.TestCase):
                                             (queued, ready, slots, live))
 
     def test_reconcile_copies_only_a_known_profile_name(self) -> None:
-        """Integration 2026-10-03: AM4's profile file can read failed:<target>, and None when ssh fails; neither
-        may reach the host file the gateway reads."""
+        """docs/rnd-log.md 2026-10-03T05:50Z: the host file said tool-pair while AM4 served dense-tp2 for 6 minutes,
+        so the tick copies AM4's profile to it. Row 2026-09-28 01:55Z: after a failed switch AM4's file reads
+        failed:<target> (and am4_profile() is None when ssh fails); neither may reach the host file the gateway
+        reads."""
         self.profile_file.write_text("tool-pair\n", encoding="utf-8")
         for live in (None, "failed:dense-tp2", "failed:tool-pair", "garbage", ""):
             with self.subTest(live=live):
@@ -490,7 +492,8 @@ class Am4ProfileFollowsQueueTests(ProfileIsolation, unittest.TestCase):
         self.assertEqual(lane.reconcile_omen_profile("tool-pair"), {"was": None, "now": "tool-pair"})
 
     def test_failed_switch_is_not_copied_to_the_host_file(self) -> None:
-        """am4_switch copies only a successful target to the OMEN-side file; a failed one leaves failed:<target> on AM4."""
+        """docs/rnd-log.md 2026-09-28 01:55Z (a failed switch leaves failed:<target> on AM4): am4_switch copies only
+        a successful target to the OMEN-side file."""
         self.profile_file.write_text("dense-tp2\n", encoding="utf-8")
         ok = mock.Mock(returncode=0, stdout="ok", stderr="")
         bad = mock.Mock(returncode=1, stdout="", stderr="no")

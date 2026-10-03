@@ -2,7 +2,8 @@
 
 Three documents, three owners of truth:
   brief.v2           what to deliver: closed substance statements + a machine-readable form spec.
-  delivery-output.v1 what the MODEL writes: prose plus exact quotes. Never line numbers, counts or citation syntax.
+  delivery-output.v1 what the MODEL writes: prose plus exact quotes by default; opt-in line_reference uses path:N.
+                     Counts and resolved source locations are renderer measurements, never model assertions.
   delivery.v1        what the RENDERER records: quotes resolved to path:start-end, measures, repairs, ladder state.
 
 Validators return a list of error strings (empty = valid), each naming the path of the offending key
@@ -33,6 +34,14 @@ Form rules (index "Decisions taken while building", 2026-10-03):
      can pick exactly one (`sourcemap`, "Line-prefix quotes"); the claim is
      `match: "normalized"` with `truncated: true`, counted as a `truncated_quote` repair (and not as
      `normalized_quote`).
+
+Current opt-in delivery behavior (2026-10-03; usage: docs/delivery.md):
+  `form.quote_mode` defaults to "text"; "line_reference" keeps the output shape but makes each quotes[]
+  entry a strict repository-relative path:N. The renderer echoes that exact pinned source line and preserves
+  quote_reference. Invalid references remain unresolved. Fuzzy/elided text candidates also stay unsupported:
+  candidate locations/source excerpts are review evidence, never resolved locations or substance verdicts.
+  `generation.max_tokens` is an optional output budget; an explicit submit budget takes precedence. Context
+  admission and operation ceilings still apply. Model assessments and deterministic checks do not record verdicts.
 
 Manifest additions (orchestrator decisions A and B, 2026-10-03, additive):
   A. `form_applied: {citations: range|quote|none, words: {min, max, enforce} | null, sections: [...] | null}`

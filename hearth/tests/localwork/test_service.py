@@ -334,10 +334,10 @@ class LocalWorkServiceTests(unittest.TestCase):
         self.assertNotIn("structured_output_repairs", final["route"])
         self.assertEqual(final["attempts"][0]["structured_output_repairs"], ["control_char_in_string"])
         self.assertNotIn("structured_output_repairs", final["attempts"][1])
-        self.assertIn("three", self.generate_calls[-2]["prompt"].split("OBJECTIONS:", 1)[1])
+        self.assertIn("three", self.generate_calls[-1]["prompt"].split("OBJECTIONS:", 1)[1])
         self.assertEqual(final["revision"]["coverage"]["state"], "pass")
-        self.assertEqual(self.generate_calls[-1]["temperature"], 0)
-        self.assertEqual(len(self.generate_calls), 3)
+        self.assertEqual(final["revision"]["coverage"]["method"], "identical_prose")
+        self.assertEqual(len(self.generate_calls), 2)
 
     def coverage_pool(self):
         config = Path(__file__).resolve().parents[2] / "etc" / "backends.toml"
@@ -426,8 +426,24 @@ parallel_slots = 2
                          ("two", "a.py:2", 2))
 
 
-if __name__ == "__main__":
-    unittest.main()
+    def test_rewritten_prose_still_requires_separate_coverage(self):
+        brief = {"schema": "brief.v2", "substance": [{"id": "s1", "statement": "Describe the file."}]}
+        first = {"summary": "It ends with two.", "sections": [{"heading": "Lines", "paragraphs": [
+            {"text": "The file ends with two.", "quotes": ["three"]}]}]}
+        revised = json.loads(json.dumps(first))
+        revised["sections"][0]["paragraphs"][0].update(text="The file ends with two. It starts with one.", quotes=["two"])
+        coverage = self.coverage_answer(first)
+        self.outputs[:] = [json.dumps(first), json.dumps(revised),
+                           (json.dumps(coverage), {"backend": "omen-dense-27b", "model": "test-27b"})]
+        with mock.patch.dict(os.environ, {"HEARTH_BACKENDS": self.coverage_pool()}):
+            final = self.settle(self.submit(artifact_kind="markdown", brief=brief, revise=True)["work_id"])
+        self.assertEqual(final["revision"]["kept"], "revised", final)
+        self.assertEqual(final["revision"]["coverage"]["state"], "pass")
+        self.assertEqual(len(self.generate_calls), 3)
+        from hearth.delivery.revision import same_prose
+        changed_heading = json.loads(json.dumps(first))
+        changed_heading["sections"][0]["heading"] = "Different function"
+        self.assertFalse(same_prose(first, changed_heading))
 
 
 class DeepLaneFamilyTests(unittest.TestCase):
@@ -457,3 +473,7 @@ class DeepLaneFamilyTests(unittest.TestCase):
         del rows["summary"]
         with self.assertRaisesRegex(ValueError, "omitted"):
             revision.assess(json.dumps({"coverage": rows, "criteria_preserved": True}), original, original, None)
+
+
+if __name__ == "__main__":
+    unittest.main()

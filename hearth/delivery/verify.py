@@ -166,26 +166,38 @@ def _quote_numbers(text: str) -> set:
 
 
 _WORDS = "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty".split()
-# A count, a short plural noun phrase, then ':' / 'namely' / 'which are' and a list to the end of the sentence.
-_TOTAL_RE = re.compile(rf"\b(\d{{1,2}}|{'|'.join(_WORDS)})\s+(?:[\w/-]+\s+){{0,3}}[\w/-]+s\b(?:\s*\([^()]*\))?(?:\s*:|,?\s+namely\b:?|,?\s+which are\b:?)\s+([^\n;:]+)", re.I)
-_SENT_END = re.compile(r"\.(?=\s+[A-Z]|\s*$)")
-
-
-_COUNT2_RE = re.compile(rf"\b(\d{{1,2}}|{'|'.join(_WORDS)})\s+(?:[\w/-]+\s+){{0,3}}([\w-]+s)\.(?=\s)", re.I)
-_SPLIT_SENT = re.compile(r"(?<=\.)\s+(?=[A-Z])")
+_CNT = rf"\d{{1,2}}|{'|'.join(_WORDS)}"
+# A count (not the tail of 3.8, 4,096 or am4-2), then up to three modifier words that are not a count, a preposition
+# or a word ending in s (so "two hosts run these models:" and "six seats in two hosts:" do not bind the first count to
+# the list), a plural noun, then ':' / 'namely' / 'which are' and a list to the end of the sentence. One sentence only:
+# a cross-sentence form ("six endpoints. The GET endpoints a, b ... The POST endpoints c, d ...") was tried and
+# dropped, since a correct report may enumerate only some of the items or name one in two sentences.
+_TOTAL_RE = re.compile(rf"(?<![\w.,-])({_CNT})\s+(?:(?!(?:{_CNT}|of|in|on|at|for|from|with|across|per|between|over)\b)[\w/-]*[\w/-](?<!s)\s+){{0,3}}"
+                       rf"([\w/-]+s)\b(?:\s*\([^()]*\))?(?:\s*:|,?\s+namely\b:?|,?\s+which are\b:?)\s+([^\n;:]+)", re.I)
+_SENT_END = re.compile(r"[.!?](?=\s|$)")
+# Not a total of the list: approximate or partial counts ("at least two", "the first two", "one of", "the other two").
+_QUALIFIER = frozenset("of least most to than over under about around nearly almost approximately roughly some first last "
+                       "next top other remaining another every per".split())
+_UNIT_NOUNS = frozenset("tokens bytes seconds secs minutes hours days weeks ms words characters chars lines times percent "
+                        "requests slots".split())
+# An item that is a group, a qualifier or a relative clause, not one listed thing ("two on omen", "the omen pair",
+# "read-only, which never writes, and ...").
+_ITEM_SKIP = re.compile(rf"^(?:{_CNT}|which|who|whose|where|when|that|including|such|plus|then|e\.g|i\.e|each|both|all)\b"
+                        r"|\b(?:pairs?|trios?|both|each|per)\b", re.I)
+_QUOTES = {"`": "`", '"': '"', "“": "”"}
 
 
 def _split_items(lst: str) -> list:
-    """Top-level comma split (not inside () [] backticks or quotes)."""
+    """Top-level comma split (not inside () [] {} backticks or quotes)."""
     out, cur, depth, q = [], "", 0, None
     for ch in lst:
         if q:
             q = None if ch == q else q
-        elif ch in "`\"":
-            q = ch
-        elif ch in "([":
+        elif ch in _QUOTES:
+            q = _QUOTES[ch]
+        elif ch in "([{":
             depth += 1
-        elif ch in ")]":
+        elif ch in ")]}":
             depth = max(0, depth - 1)
         elif ch == "," and not depth:
             out.append(cur)
@@ -196,41 +208,30 @@ def _split_items(lst: str) -> list:
 
 
 def _totals(text: str) -> list:
-    """(stated, listed, sentence) where a count governs a colon-introduced full list that has another length."""
+    """(stated, listed, sentence) where a count governs a colon-introduced full list that has another length.
+    A false alarm sends a correct answer into a revision it did not need, so anything ambiguous is skipped: lists of
+    fewer than three items or without a final ', and' / ', or', items that hold 'and'/'or', a number or a group word,
+    qualified counts, unit nouns (``10 minutes: ...``)."""
     t, fs = html.unescape(text).replace("**", ""), []
     for m in _TOTAL_RE.finditer(t):
-        lst = _SENT_END.split(m.group(2), 1)[0].strip().rstrip(".")
+        before = {w.lower() for w in re.findall(r"\w+", t[max(0, m.start() - 40):m.start()])[-2:]}  # "five of the six"
+        if before & _QUALIFIER or m.group(2).lower() in _UNIT_NOUNS:
+            continue
+        lst = _SENT_END.split(m.group(3), 1)[0].strip()
         if lst.count("`") % 2 or lst.count('"') % 2:
             continue
         items = [x.strip() for x in _split_items(lst)]
-        if len(items) > 1:
-            if len(items) < 3 or not re.match(r"(?:and|or)\s+\S", items[-1], re.I):
-                continue
-            items[-1] = re.sub(r"^(?:and|or)\s+", "", items[-1], flags=re.I)
-            if any(re.search(r"\s(?:and|or)\s", re.sub(r"\([^)]*\)|`[^`]*`", "", x)) for x in items):
-                continue
-        else:
-            items = [x.strip() for x in re.split(r"\s+(?:and|or)\s+", re.sub(r"\([^)]*\)|`[^`]*`", lambda g: g.group(0).replace(" ", "\0"), lst))]
-            if len(items) != 2:
-                continue
-            items = [x.replace("\0", " ") for x in items]
-        if any(not x or len(x.split()) > 8 for x in items):
+        if len(items) < 3 or not re.match(r"(?:and|or)\s+\S", items[-1], re.I):
+            continue
+        items[-1] = re.sub(r"^(?:and|or)\s+", "", items[-1], flags=re.I)
+        if any(re.search(r"\s(?:and|or)\s", re.sub(r"\([^)]*\)|`[^`]*`", "", x)) for x in items):
+            continue
+        if any(not x or len(x.split()) > 8 or _ITEM_SKIP.search(re.sub(r"\([^)]*\)|`[^`]*`", "", x)) for x in items):
             continue
         stated = int(m.group(1)) if m.group(1).isdigit() else _WORDS.index(m.group(1).lower()) + 1
         if stated != len(items):
             start = t.rfind(". ", 0, m.start()) + 2 if ". " in t[:m.start()] else 0
-            fs.append((stated, len(items), t[start:m.start(2) + len(lst)].strip()))
-    for m in _COUNT2_RE.finditer(t):  # "six endpoints. The GET endpoints /a, /b, and /c ... The POST endpoints /d, /e, and /f ..."
-        rest, lists = _SPLIT_SENT.split(t[m.end():].strip()), []
-        for sent in rest:
-            g = re.match(rf"The (?:[\w-]+ ){{0,2}}{m.group(2)} ((?:[/\w.-]+, )+)(?:and|or) ([/\w.-]+)", sent)
-            if not g:
-                break
-            lists.append(g.group(1).count(",") + 1)
-        if len(lists) >= 2:
-            stated = int(m.group(1)) if m.group(1).isdigit() else _WORDS.index(m.group(1).lower()) + 1
-            if stated != sum(lists):
-                fs.append((stated, sum(lists), t[max(t.rfind(". ", 0, m.start()) + 2, 0) if ". " in t[:m.start()] else 0:m.end()].strip() + " " + " ".join(rest[:len(lists)])))
+            fs.append((stated, len(items), t[start:m.start(3) + len(lst)].strip()))
     return fs
 
 

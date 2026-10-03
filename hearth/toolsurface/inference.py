@@ -556,6 +556,16 @@ def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[
                     json.loads(text)
                 except ValueError as exc:
                     problem = str(exc)
+                    # A raw newline/tab inside a string is the one form miss repaired
+                    # here: strict=False must parse it, and the repair is marked.
+                    try:
+                        repaired = json.loads(text, strict=False)
+                    except ValueError:
+                        pass
+                    else:
+                        out["text"] = json.dumps(repaired, ensure_ascii=False)
+                        out["structured_output_repairs"] = ["control_char_in_string"]
+                        problem = None
             if problem is not None:
                 out["ok"] = False
                 out["error_code"] = STRUCTURED_OUTPUT_INVALID_CODE

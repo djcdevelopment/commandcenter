@@ -434,8 +434,15 @@ def _post(url: str, payload: dict, timeout_s: int,
         return None, f"non-JSON response: {exc}"
 
 
+def _sent_temperature(result: dict, temperature: Optional[float]) -> dict:
+    """Stamp the temperature this request body carried; only a body builder may claim one was sent."""
+    if temperature is not None:
+        result["temperature"] = temperature
+    return result
+
+
 def _generate_ollama(target: _Target, prompt: str, model: str, system: Optional[str],
-                     max_tokens: int, timeout_s: int) -> dict:
+                     max_tokens: int, timeout_s: int, temperature: Optional[float] = None) -> dict:
     payload: dict = {
         "model": model,
         "prompt": prompt,
@@ -444,15 +451,18 @@ def _generate_ollama(target: _Target, prompt: str, model: str, system: Optional[
     }
     if system:
         payload["system"] = system
+    if temperature is not None:
+        payload["options"]["temperature"] = temperature
 
     started = time.monotonic()
     body, error = _post(f"{target.endpoint}/api/generate", payload, timeout_s)
     if error is not None:
-        return {"ok": False, "error": error, "endpoint": target.endpoint, "model": model}
+        return _sent_temperature({"ok": False, "error": error, "endpoint": target.endpoint, "model": model},
+                                 temperature)
     wall_ms = round((time.monotonic() - started) * 1000)
 
     total_ns = body.get("total_duration")
-    return {
+    return _sent_temperature({
         "ok": True,
         "text": body.get("response", ""),
         "model": body.get("model", model),
@@ -460,7 +470,7 @@ def _generate_ollama(target: _Target, prompt: str, model: str, system: Optional[
         "tokens_in": body.get("prompt_eval_count"),
         "tokens_out": body.get("eval_count"),
         "duration_ms": round(total_ns / 1e6) if total_ns else wall_ms,
-    }
+    }, temperature)
 
 
 def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[str],
@@ -504,7 +514,8 @@ def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[
     started = time.monotonic()
     body, error = _post(f"{target.endpoint}/v1/chat/completions", payload, timeout_s, headers)
     if error is not None:
-        return {"ok": False, "error": error, "endpoint": target.endpoint, "model": model}
+        return _sent_temperature({"ok": False, "error": error, "endpoint": target.endpoint, "model": model},
+                                 temperature)
     wall_ms = round((time.monotonic() - started) * 1000)
 
     choices = body.get("choices") or [{}]
@@ -520,6 +531,7 @@ def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[
         "tokens_out": usage.get("completion_tokens"),
         "duration_ms": wall_ms,
     }
+    _sent_temperature(out, temperature)
     if response_schema is not None:
         # Proof on the wire, not in the request: the engine's own finish_reason and
         # reasoning-token count ride the result. A schema answer the engine cut off
@@ -553,7 +565,7 @@ def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[
 
 
 def _generate_gemini(target: _Target, prompt: str, model: str, system: Optional[str],
-                     max_tokens: int, timeout_s: int) -> dict:
+                     max_tokens: int, timeout_s: int, temperature: Optional[float] = None) -> dict:
     if target.auth_error:
         return {"ok": False, "error": target.auth_error,
                 "endpoint": target.endpoint, "model": model}
@@ -582,6 +594,8 @@ def _generate_gemini(target: _Target, prompt: str, model: str, system: Optional[
     }
     if system:
         payload["systemInstruction"] = {"parts": [{"text": system}]}
+    if temperature is not None:
+        payload["generationConfig"]["temperature"] = temperature
     headers = {"Authorization": f"Bearer {target.auth_token}"}
     url = (
         f"{target.endpoint}/v1/projects/{urllib.parse.quote(project, safe='')}"
@@ -592,14 +606,15 @@ def _generate_gemini(target: _Target, prompt: str, model: str, system: Optional[
     started = time.monotonic()
     body, error = _post(url, payload, timeout_s, headers)
     if error is not None:
-        return {"ok": False, "error": error, "endpoint": target.endpoint, "model": model}
+        return _sent_temperature({"ok": False, "error": error, "endpoint": target.endpoint, "model": model},
+                                 temperature)
     wall_ms = round((time.monotonic() - started) * 1000)
 
     candidates = body.get("candidates") or []
     parts = (((candidates[0] if candidates else {}).get("content") or {}).get("parts") or [])
     text = "".join(part.get("text", "") for part in parts if isinstance(part, dict))
     usage = body.get("usageMetadata") or {}
-    return {
+    return _sent_temperature({
         "ok": True,
         "text": text,
         "model": model,
@@ -607,7 +622,7 @@ def _generate_gemini(target: _Target, prompt: str, model: str, system: Optional[
         "tokens_in": usage.get("promptTokenCount"),
         "tokens_out": usage.get("candidatesTokenCount"),
         "duration_ms": wall_ms,
-    }
+    }, temperature)
 
 
 def local_generate(prompt: str, model: str | None = None,
@@ -849,8 +864,8 @@ def local_generate(prompt: str, model: str | None = None,
         if response_schema is not None:
             return _structured_outputs_refusal(t, m, schema_digest)
         if t.api == "gemini":
-            return _generate_gemini(t, prompt, m, system, mt, ts)
-        return _generate_ollama(t, prompt, m, system, mt, ts)
+            return _generate_gemini(t, prompt, m, system, mt, ts, temperature=temperature)
+        return _generate_ollama(t, prompt, m, system, mt, ts, temperature=temperature)
 
     call_tags = ["cloud-overflow"] if quality == "good" else None
 

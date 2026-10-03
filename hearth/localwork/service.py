@@ -69,6 +69,13 @@ def _digest(value: bytes | str) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def _observe_temperature(manifest: dict[str, Any], observed: Mapping[str, Any]) -> None:
+    """conditions.temperature is what the request body carried (stamped by the body builder), not what was
+    asked for; null means none was sent and the server default applied."""
+    if isinstance(manifest.get("conditions"), dict):
+        manifest["conditions"]["temperature"] = observed.get("temperature")
+
+
 def _git(repo: Path, *args: str, input_text: str | None = None) -> str:
     completed = subprocess.run(
         ["git", "-C", str(repo), *args], input=input_text, text=True,
@@ -635,6 +642,7 @@ class LocalWorkService:
         manifest["route"].update({key: observed.get(key) for key in
                                   ("backend", "model", "routed_by", "tokens_in", "tokens_out", "duration_ms",
                                    "response_schema_sha256", "temperature") if observed.get(key) is not None})
+        _observe_temperature(manifest, observed)
         manifest["artifact"] = {key: metadata[key] for key in ("artifact_id", "sha256", "size", "media_type")}
         manifest["status"] = "awaiting_review"
         self._event(manifest, "attempt.recorded", {"job_id": job["job_id"], "ok": True})
@@ -700,6 +708,7 @@ class LocalWorkService:
                                                   ("backend", "model", "routed_by", "tokens_in", "tokens_out", "duration_ms",
                                                    "temperature")
                                                   if observed.get(key) is not None})
+                        _observe_temperature(manifest, observed)
                         manifest["artifact"] = {key: metadata[key] for key in
                                                 ("artifact_id", "sha256", "size", "media_type")}
                         manifest["status"] = "awaiting_review"

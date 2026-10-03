@@ -1029,8 +1029,6 @@ class ExecutionService:
                 if arguments.get(optional) is not None:
                     call_arguments[optional] = arguments[optional]
             result = self._generate_call(**call_arguments)
-            if arguments.get("temperature") is not None and isinstance(result, dict):
-                result.setdefault("temperature", arguments["temperature"])
             if self._is_cancelled(job_id):
                 self._append(
                     "invocation.cancelled",
@@ -1288,6 +1286,7 @@ class ExecutionService:
             # task_family gets a byte-identical result.
             "task_family",
             "family_recommendation",
+            "temperature",  # present only when the request body carried one
         ):
             if key in observed:
                 result[key] = observed[key]

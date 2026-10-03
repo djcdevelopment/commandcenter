@@ -217,6 +217,6 @@ reason = "Short text-only summaries and rewrites that need no tool calls and fit
 [family.claim_verification]
 model_id = "qwen3.8-27b"
 tags = ["quality"]
-evidence = "delivery-plan 9-verify-ladder.md: closed-rubric judging with evidence is a System One job; the calibration of the local judge (task 8, judge_local) sets the accept/reject thresholds. No measured accuracy for this family yet."
-receipt = "/home/derek/work/delivery-plan/9-verify-ladder.md"
+evidence = "delivery-plan calibration/local-reliability.md (2026-10-03, 97 labelled claim/quote pairs written by the 27B): the 30B-A3B as judge scored 0.81 supported-vs-not, observed supported rate 0.85 at p >= 0.8, 1 of 11 overclaims recognised; at the ladder defaults (accept >= 0.8, reject <= 0.3) it accepts 47 (6 labelled not supported) and rejects 41 (8 labelled supported). The 27B as judge on this rubric is unmeasured."
+receipt = "/home/derek/work/delivery-plan/calibration/local-reliability.md"
 reason = "A judge must not share a backend with the arm it scores; the quality tag resolves to the dense lane, so when the author ran there the caller pins a different backend explicitly."

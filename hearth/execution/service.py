@@ -8,6 +8,7 @@ as artifacts, and projects only concise lifecycle data back to callers.
 from __future__ import annotations
 
 import copy
+import json
 import os
 import threading
 import time
@@ -24,7 +25,7 @@ from .ids import new_invocation_id, new_job_id, new_request_id
 from .ledger import ExecutionLedger, ExecutionLedgerError
 from .model import FINAL_JOB_STATUSES, new_execution_event
 from .operations import ExecutionPolicy, Operation, OperationConfigError, OperationRegistry
-from .operations import load_operations
+from .operations import DELIBERATE, load_operations
 from .pause import dispatch_paused
 
 GenerateCallable = Callable[..., dict[str, Any]]
@@ -191,6 +192,22 @@ class ExecutionService:
             for state in states:
                 if state.get("operation") in skipped_operations:
                     # Keep legacy work visible and queued; do not replay or erase it.
+                    continue
+                if state.get("operation") == DELIBERATE:
+                    # A thinking turn costs up to an hour of a seat and is never replayed, whatever
+                    # the unit's skip list says: close it as failed, with the reason on the record.
+                    for invocation in state["invocations"]:
+                        if invocation["status"] == "running":
+                            self._append(
+                                "invocation.failed", state,
+                                invocation_id=invocation["invocation_id"],
+                                reason="scheduler restarted during a deliberate turn",
+                            )
+                    self._append(
+                        "job.failed", state,
+                        reason="inference.deliberate is never replayed after a gateway restart",
+                    )
+                    recovered += 1
                     continue
                 if (state.get("source") or {}).get("adapter") == "bf6-hatchet":
                     # BF6WorkflowGateway owns Hatchet dispatch. A queued state
@@ -359,6 +376,8 @@ class ExecutionService:
                 raise ExecutionServiceError(str(exc)) from exc
         if operation.handler != "llm_chat":
             raise ExecutionServiceError(f"unsupported operation handler: {operation.handler}")
+        if operation.name == DELIBERATE:
+            return self._validate_deliberate(operation, normalized)
         allowed = {
             "prompt",
             "model",
@@ -409,6 +428,65 @@ class ExecutionService:
             or not all(isinstance(item, str) and item for item in files)
         ):
             raise ExecutionServiceError("files must be a list of non-empty path strings")
+        return normalized, encoded
+
+    @staticmethod
+    def _messages_bytes(messages: list[dict[str, Any]]) -> int:
+        return sum(len(item["content"].encode("utf-8")) for item in messages)
+
+    def _validate_deliberate(
+        self, operation: Operation, normalized: dict[str, Any]
+    ) -> tuple[dict[str, Any], bytes]:
+        allowed = {"messages", "backend", "thinking", "temperature", "seed", "top_p",
+                   "response_schema", "model", "task_id"}
+        unknown = set(normalized) - allowed
+        if unknown:
+            raise ExecutionServiceError(
+                f"unknown {operation.name} arguments: {', '.join(sorted(unknown))}"
+            )
+        messages = normalized.get("messages")
+        if not isinstance(messages, list) or not messages or not all(
+            isinstance(item, dict) and set(item) == {"role", "content"}
+            and item["role"] in ("system", "user", "assistant")
+            and isinstance(item["content"], str)
+            for item in messages
+        ):
+            raise ExecutionServiceError(
+                "messages must be a non-empty list of {role: system|user|assistant, content: str}"
+            )
+        if not any(item["content"].strip() for item in messages):
+            raise ExecutionServiceError("messages must carry some content")
+        backend = normalized.get("backend")
+        if not isinstance(backend, str) or not backend.strip():
+            raise ExecutionServiceError("backend is required and must be a non-empty string")
+        provider = load_pool().by_name(backend)
+        if provider is None or not provider.settings.get("deliberate_max_tokens"):
+            raise ExecutionServiceError(
+                f"backend {backend!r} does not declare deliberate_max_tokens; {operation.name} refuses it"
+            )
+        if not isinstance(normalized.get("thinking"), bool):
+            raise ExecutionServiceError("thinking is required and must be a boolean")
+        for key in ("model", "task_id"):
+            value = normalized.get(key)
+            if value is not None and (not isinstance(value, str) or not value.strip()):
+                raise ExecutionServiceError(f"{key} must be a non-empty string")
+        schema = normalized.get("response_schema")
+        if "response_schema" in normalized and (not isinstance(schema, dict) or not schema):
+            raise ExecutionServiceError("response_schema must be a non-empty JSON Schema object")
+        for key, high in (("temperature", 2), ("top_p", 1)):
+            value = normalized.get(key)
+            if key in normalized and (
+                    isinstance(value, bool) or not isinstance(value, (int, float))
+                    or not 0 <= value <= high):
+                raise ExecutionServiceError(f"{key} must be a number in [0, {high}]")
+        seed = normalized.get("seed")
+        if "seed" in normalized and (isinstance(seed, bool) or not isinstance(seed, int)):
+            raise ExecutionServiceError("seed must be an integer")
+        encoded = json.dumps(messages, ensure_ascii=False).encode("utf-8")
+        if len(encoded) > operation.max_prompt_bytes:
+            raise ExecutionServiceError(
+                f"messages are {len(encoded)} bytes; limit is {operation.max_prompt_bytes}"
+            )
         return normalized, encoded
 
     def _family_route(
@@ -601,6 +679,9 @@ class ExecutionService:
         source_value = self._validate_source(source)
         operation = self.operations.get(operation_name)
         arguments_value, prompt_bytes = self._validate_arguments(operation, arguments)
+        deliberate = operation.name == DELIBERATE
+        # Admission counts the message contents, not their JSON envelope.
+        admit_bytes = self._messages_bytes(arguments_value["messages"]) if deliberate else len(prompt_bytes)
         # A render job has no model, no backend and no prompt to pack. It also
         # must not consume a shared pool worker -- see the dispatch branch below.
         is_render = operation.handler == "media_render"
@@ -634,6 +715,15 @@ class ExecutionService:
                     f"limit is {operation.max_prompt_bytes}"
                 )
         policy_value = self.operations.policy_for(operation, policy)
+        if deliberate:
+            if policy_value.max_tokens is None:
+                raise ExecutionServiceError(f"{operation.name} requires policy.max_tokens")
+            cap = int(load_pool().by_name(arguments_value["backend"]).settings["deliberate_max_tokens"])
+            if policy_value.max_tokens > cap:
+                raise ExecutionServiceError(
+                    f"max_tokens {policy_value.max_tokens} exceeds {arguments_value['backend']} "
+                    f"deliberate_max_tokens {cap}"
+                )
         backend = None if is_delegated else arguments_value.get("backend")
         endpoint = None if is_delegated else arguments_value.get("endpoint")
         pool = None if is_delegated else load_pool()
@@ -653,14 +743,14 @@ class ExecutionService:
             # onto a rung that cannot hold the payload) is refused here, before a
             # Job exists. Capacity for a render is a calibrated B70 lane, not a
             # model provider, so delegated handlers skip the whole path.
-            route = self._family_route(operation, arguments_value, len(prompt_bytes))
+            route = self._family_route(operation, arguments_value, admit_bytes)
             if route.recommendation and route.recommendation.get("refused"):
                 refusal = route.recommendation.get("refusal") or "missing capability"
                 raise ExecutionServiceError(f"policy_refusal: {refusal}")
             self._select_for_route(
                 pool,
                 route,
-                len(prompt_bytes),
+                admit_bytes,
                 max_tokens=policy_value.max_tokens,
             )
 
@@ -693,7 +783,7 @@ class ExecutionService:
                 "arguments": {
                     key: value
                     for key, value in arguments_value.items()
-                    if key not in {"prompt", "packed_files", "_spec"}
+                    if key not in {"prompt", "packed_files", "_spec", "messages"}
                 },
                 "packed_files": arguments_value.get("packed_files", []),
                 "input_artifact": input_artifact,
@@ -920,13 +1010,17 @@ class ExecutionService:
         prompt_metadata = desired["input_artifact"]
         prompt = self.artifacts.read(prompt_metadata).decode("utf-8")
         policy = ExecutionPolicy(**desired["policy"])
-        payload_bytes = len(prompt.encode("utf-8"))
+        deliberate = operation.name == DELIBERATE
+        messages = json.loads(prompt) if deliberate else None
+        payload_bytes = self._messages_bytes(messages) if deliberate else len(prompt.encode("utf-8"))
         started_waiting = time.monotonic()
         deadline = started_waiting + policy.deadline_s
         invocation_id = new_invocation_id()
         provider: Optional[Backend] = None
         lease_id: Optional[str] = None
         route = FamilyRoute(None, None, None, None, None)
+        call_started: Optional[float] = None
+        model: Optional[str] = None
 
         try:
             # The sizer reads the instruction, so the stored prompt rides along
@@ -1018,6 +1112,8 @@ class ExecutionService:
                 "max_tokens": policy.max_tokens,
                 "timeout_s": max(1, int(deadline - time.monotonic())),
             }
+            if deliberate:
+                call_arguments.update(prompt="", messages=messages, stream=True)
             # task_family reaches the provider as evidence, not as a second
             # route: THIS service already consulted the family above and pinned
             # the rung it chose (backend=provider.name), which the primitive
@@ -1025,9 +1121,11 @@ class ExecutionService:
             # stamp on the provider's own result and on the observation record,
             # rather than silently dropping the reason the rung was picked.
             for optional in ("system", "task", "files", "quality", "task_family", "image_path",
-                             "response_schema", "temperature"):
+                             "response_schema", "temperature") + (
+                                 ("thinking", "seed", "top_p", "task_id") if deliberate else ()):
                 if arguments.get(optional) is not None:
                     call_arguments[optional] = arguments[optional]
+            call_started = time.monotonic()
             result = self._generate_call(**call_arguments)
             if self._is_cancelled(job_id):
                 self._append(
@@ -1038,13 +1136,19 @@ class ExecutionService:
                 )
                 self._append("job.cancelled", state, reason="cancelled during execution")
                 return
+            observed = self._result_observed(
+                result, routed_by=family_routed_by, deliberate=deliberate,
+                requested=policy.max_tokens)
+            deliberate_artifacts = (
+                self._record_deliberate_artifacts(state, invocation_id, job_id, result)
+                if deliberate else {})
             if result.get("ok") is not True:
                 reason = str(result.get("error") or "provider returned an unsuccessful result")
                 self._append(
                     "invocation.failed",
                     state,
                     invocation_id=invocation_id,
-                    observed=self._result_observed(result, routed_by=family_routed_by),
+                    observed=observed,
                     reason=reason,
                 )
                 self._append("job.failed", state, reason=reason)
@@ -1056,12 +1160,12 @@ class ExecutionService:
                     "invocation.failed",
                     state,
                     invocation_id=invocation_id,
-                    observed=self._result_observed(result, routed_by=family_routed_by),
+                    observed=observed,
                     reason=reason,
                 )
                 self._append("job.failed", state, reason=reason)
                 return
-            output_artifact = self.artifacts.put(
+            output_artifact = deliberate_artifacts.get("output") or self.artifacts.put(
                 text,
                 media_type=operation.artifact_media_type,
                 filename=f"{job_id}-result.md",
@@ -1070,14 +1174,15 @@ class ExecutionService:
                 "invocation.succeeded",
                 state,
                 invocation_id=invocation_id,
-                observed=self._result_observed(result, routed_by=family_routed_by),
+                observed=observed,
             )
-            self._append(
-                "artifact.recorded",
-                state,
-                invocation_id=invocation_id,
-                artifacts=[{**output_artifact, "role": "result"}],
-            )
+            if not deliberate:   # a deliberate turn recorded its output artifact (role "output") already
+                self._append(
+                    "artifact.recorded",
+                    state,
+                    invocation_id=invocation_id,
+                    artifacts=[{**output_artifact, "role": "result"}],
+                )
             summary = " ".join(text.split())[:280]
             self._append(
                 "job.succeeded",
@@ -1095,10 +1200,19 @@ class ExecutionService:
                     item["invocation_id"] == invocation_id
                     for item in latest["invocations"]
                 ):
+                    raised = (
+                        self._result_observed(
+                            {"backend": provider.name if provider else None, "model": model, "error_code": "worker_exception",
+                             "thinking": arguments.get("thinking"),
+                             "duration_ms": round((time.monotonic() - call_started) * 1000)
+                             if call_started is not None else None},
+                            deliberate=True, requested=policy.max_tokens)
+                        if deliberate else None)
                     self._append(
                         "invocation.failed",
                         state,
                         invocation_id=invocation_id,
+                        observed=raised,
                         reason=reason,
                     )
                 self._append("job.failed", state, reason=reason)
@@ -1106,9 +1220,35 @@ class ExecutionService:
             if lease_id is not None:
                 self.leases.release(lease_id)
 
+    def _record_deliberate_artifacts(
+        self, state: Mapping[str, Any], invocation_id: str, job_id: str, result: Mapping[str, Any]
+    ) -> dict[str, dict[str, Any]]:
+        """Store what a deliberate turn produced, whether or not it succeeded: the exact wire request,
+        the visible output (possibly empty) and the reasoning. Only a run that reached the seat has them."""
+        wire = result.get("wire_request")
+        if wire is None and result.get("ok") is not True and not result.get("text") and not result.get("reasoning"):
+            return {}
+        stored = {
+            "wire_request": self.artifacts.put(
+                json.dumps(wire, ensure_ascii=False, indent=1, sort_keys=True),
+                media_type="application/json; charset=utf-8", filename=f"{job_id}-wire-request.json"),
+            "output": self.artifacts.put(
+                result.get("text") or "", media_type="text/plain; charset=utf-8",
+                filename=f"{job_id}-output.txt"),
+            "reasoning": self.artifacts.put(
+                result.get("reasoning") or "", media_type="text/plain; charset=utf-8",
+                filename=f"{job_id}-reasoning.txt"),
+        }
+        self._append(
+            "artifact.recorded", state, invocation_id=invocation_id,
+            artifacts=[{**meta, "role": role} for role, meta in stored.items()],
+        )
+        return stored
+
     @staticmethod
     def _result_observed(
-        result: Mapping[str, Any], *, routed_by: Optional[str] = None
+        result: Mapping[str, Any], *, routed_by: Optional[str] = None,
+        deliberate: bool = False, requested: Optional[int] = None,
     ) -> dict[str, Any]:
         # P8: `occupancy` was dropped at the execution-ledger cutover (the kernel
         # row kept it; the invocation record did not) and `rung_state` /
@@ -1137,9 +1277,20 @@ class ExecutionService:
             "image_input",
             "temperature",
         }
+        if deliberate:
+            allowed |= {"finish_reason", "thinking", "tokens_reasoning", "first_reasoning_ms",
+                        "first_content_ms", "stream_chunks", "error_code"}
         observed = {
             key: copy.deepcopy(value) for key, value in result.items() if key in allowed
         }
+        if deliberate:
+            # Every observed key is present, null when the seat or the stream did not supply it.
+            for key in ("finish_reason", "thinking", "tokens_in", "tokens_out", "tokens_reasoning",
+                        "first_reasoning_ms", "first_content_ms", "stream_chunks", "duration_ms",
+                        "backend", "model", "error_code"):
+                observed.setdefault(key, None)
+            observed["max_tokens_requested"] = requested
+            observed["max_tokens_applied"] = result.get("max_tokens", requested)
         if routed_by is not None:
             observed["routed_by"] = routed_by
         return observed
@@ -1288,6 +1439,9 @@ class ExecutionService:
             "task_family",
             "family_recommendation",
             "temperature",  # present only when the request body carried one
+            "finish_reason", "thinking", "tokens_reasoning", "max_tokens_requested",
+            "max_tokens_applied", "first_reasoning_ms", "first_content_ms", "stream_chunks",
+            "error_code",  # deliberate operation only (the keys are absent from other invocations)
         ):
             if key in observed:
                 result[key] = observed[key]

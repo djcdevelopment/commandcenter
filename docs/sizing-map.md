@@ -288,9 +288,9 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| parallel_slots clamp | `1..128` | `repo/hearth/execution/service.py:881` | lease limit | per-rung concurrency |  |
-| provider HTTP timeout | `max(1, deadline - now)` | `repo/hearth/execution/service.py:1008` | _run_job | the '1199' | queue wait counts against the deadline |
-| workers / max_pending | `16 / 256` | `repo/hearth/execution/service.py:132` | executor | concurrent jobs / queue depth |  |
+| parallel_slots clamp | `1..128` | `repo/hearth/execution/service.py:982` | lease limit | per-rung concurrency |  |
+| provider HTTP timeout | `max(1, deadline - now)` | `repo/hearth/execution/service.py:1113` | _run_job | the '1199' | queue wait counts against the deadline |
+| workers / max_pending | `16 / 256` | `repo/hearth/execution/service.py:133` | executor | concurrent jobs / queue depth |  |
 
 ### experiment
 
@@ -344,6 +344,10 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 ### operation
 
 | setting | value | source | consumer | what it bounds | note |
+| inference.deliberate deadline_ceiling_s | `3600` | `repo/hearth/etc/operations.toml:27` | execution policy_for | largest deadline; also the default when none is given |  |
+| inference.deliberate max_prompt_bytes | `1048576` | `repo/hearth/etc/operations.toml:27` | execution policy_for | largest prompt |  |
+| inference.deliberate max_tokens_ceiling | `24576` | `repo/hearth/etc/operations.toml:27` | execution policy_for | largest output budget a job may ask for |  |
+| inference.deliberate streamed | `True` | `repo/hearth/etc/operations.toml:27` | execution policy_for | submit/watch only; the router's idle timers do not bound its deadline |  |
 |---|---|---|---|---|---|
 | inference.generate deadline_ceiling_s | `2400` | `repo/hearth/etc/operations.toml:19` | execution policy_for | largest deadline; also the default when none is given |  |
 | inference.generate max_prompt_bytes | `1048576` | `repo/hearth/etc/operations.toml:19` | execution policy_for | largest prompt |  |
@@ -351,9 +355,9 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | llm.chat deadline_ceiling_s | `2400` | `repo/hearth/etc/operations.toml:10` | execution policy_for | largest deadline; also the default when none is given |  |
 | llm.chat max_prompt_bytes | `65536` | `repo/hearth/etc/operations.toml:10` | execution policy_for | largest prompt |  |
 | llm.chat max_tokens_ceiling | `16384` | `repo/hearth/etc/operations.toml:10` | execution policy_for | largest output budget a job may ask for |  |
-| work.produce deadline_ceiling_s | `2400` | `repo/hearth/etc/operations.toml:27` | execution policy_for | largest deadline; also the default when none is given |  |
-| work.produce max_prompt_bytes | `1048576` | `repo/hearth/etc/operations.toml:27` | execution policy_for | largest prompt |  |
-| work.produce max_tokens_ceiling | `16384` | `repo/hearth/etc/operations.toml:27` | execution policy_for | largest output budget a job may ask for |  |
+| work.produce deadline_ceiling_s | `2400` | `repo/hearth/etc/operations.toml:39` | execution policy_for | largest deadline; also the default when none is given |  |
+| work.produce max_prompt_bytes | `1048576` | `repo/hearth/etc/operations.toml:39` | execution policy_for | largest prompt |  |
+| work.produce max_tokens_ceiling | `16384` | `repo/hearth/etc/operations.toml:39` | execution policy_for | largest output budget a job may ask for |  |
 
 ### report
 
@@ -378,16 +382,17 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 ### rung
 
 | setting | value | source | consumer | what it bounds | note |
+| omen-dense-27b deliberate_max_tokens | `24576` | `~/hearth-production/backends-linux.toml:80` | backends pool | largest output a streamed inference.deliberate turn may ask for on this rung |  |
 |---|---|---|---|---|---|
 | am4-tool-4070ti context_bytes | `86016` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
 | am4-tool-4070ti context_tokens | `24576` | `~/hearth-production/backends-linux.toml:17` | backends pool | input + output tokens the seat holds |  |
-| am4-tool-4070ti endpoint | `http://10.44.0.2:8090` | `~/hearth-production/backends-linux.toml:94` | door | which router port |  |
+| am4-tool-4070ti endpoint | `http://10.44.0.2:8090` | `~/hearth-production/backends-linux.toml:96` | door | which router port |  |
 | am4-tool-4070ti max_tokens | `4096` | `~/hearth-production/backends-linux.toml:19` | backends pool | default output budget = the reserve local-work subtracts |  |
 | am4-tool-4070ti parallel_slots | `3` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |
 | am4-tool-4070ti timeout_s | `600` | `~/hearth-production/backends-linux.toml:20` | backends pool | HTTP timeout when the caller sets none (execution path always overrides) |  |
 | am4-tool-5070 context_bytes | `57344` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
 | am4-tool-5070 context_tokens | `16384` | `~/hearth-production/backends-linux.toml:17` | backends pool | input + output tokens the seat holds |  |
-| am4-tool-5070 endpoint | `http://10.44.0.2:8090` | `~/hearth-production/backends-linux.toml:114` | door | which router port |  |
+| am4-tool-5070 endpoint | `http://10.44.0.2:8090` | `~/hearth-production/backends-linux.toml:117` | door | which router port |  |
 | am4-tool-5070 max_tokens | `6144` | `~/hearth-production/backends-linux.toml:19` | backends pool | default output budget = the reserve local-work subtracts |  |
 | am4-tool-5070 parallel_slots | `1` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |
 | am4-tool-5070 timeout_s | `600` | `~/hearth-production/backends-linux.toml:20` | backends pool | HTTP timeout when the caller sets none (execution path always overrides) |  |
@@ -397,7 +402,7 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | am4-vllm max_tokens | `4096` | `~/hearth-production/backends-linux.toml:19` | backends pool | default output budget = the reserve local-work subtracts |  |
 | am4-vllm parallel_slots | `1` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |
 | am4-vllm timeout_s | `1000` | `~/hearth-production/backends-linux.toml:20` | backends pool | HTTP timeout when the caller sets none (execution path always overrides) |  |
-| backends-linux.toml KV-pool comment | `76706` | `~/hearth-production/backends-linux.toml:75` | operator | documentation of the dense seat's KV pool | compared against the live kv_cache_size_tokens under --live |
+| backends-linux.toml KV-pool comment | `76706` | `~/hearth-production/backends-linux.toml:76` | operator | documentation of the dense seat's KV pool | compared against the live kv_cache_size_tokens under --live |
 | default rung | `omen-vllm` | `~/hearth-production/backends-linux.toml:3` | local_generate | where untagged calls land |  |
 | fx99-vllm context_bytes | `14336` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
 | fx99-vllm context_tokens | `4096` | `~/hearth-production/backends-linux.toml:17` | backends pool | input + output tokens the seat holds |  |
@@ -407,13 +412,13 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | fx99-vllm timeout_s | `300` | `~/hearth-production/backends-linux.toml:20` | backends pool | HTTP timeout when the caller sets none (execution path always overrides) |  |
 | omen-dense-27b context_bytes | `229376` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
 | omen-dense-27b context_tokens | `65536` | `~/hearth-production/backends-linux.toml:17` | backends pool | input + output tokens the seat holds |  |
-| omen-dense-27b endpoint | `http://127.0.0.1:18095` | `~/hearth-production/backends-linux.toml:65` | door | which router port |  |
+| omen-dense-27b endpoint | `http://127.0.0.1:18095` | `~/hearth-production/backends-linux.toml:66` | door | which router port |  |
 | omen-dense-27b max_tokens | `16384` | `~/hearth-production/backends-linux.toml:19` | backends pool | default output budget = the reserve local-work subtracts |  |
 | omen-dense-27b parallel_slots | `2` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |
 | omen-dense-27b timeout_s | `1000` | `~/hearth-production/backends-linux.toml:20` | backends pool | HTTP timeout when the caller sets none (execution path always overrides) |  |
-| omen-perception endpoint | `http://127.0.0.1:18099` | `~/hearth-production/backends-linux.toml:137` | door | which router port |  |
-| omen-perception images_per_second | `4.15` | `~/hearth-production/backends-linux.toml:146` | backends pool | measured perception throughput on CPU |  |
-| omen-perception max_image_bytes | `10485760` | `~/hearth-production/backends-linux.toml:147` | backends pool | largest image payload accepted |  |
+| omen-perception endpoint | `http://127.0.0.1:18099` | `~/hearth-production/backends-linux.toml:141` | door | which router port |  |
+| omen-perception images_per_second | `4.15` | `~/hearth-production/backends-linux.toml:150` | backends pool | measured perception throughput on CPU |  |
+| omen-perception max_image_bytes | `10485760` | `~/hearth-production/backends-linux.toml:151` | backends pool | largest image payload accepted |  |
 | omen-perception parallel_slots | `2` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |
 | omen-perception timeout_s | `60` | `~/hearth-production/backends-linux.toml:20` | backends pool | HTTP timeout when the caller sets none (execution path always overrides) |  |
 | omen-vllm context_bytes | `143360` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |

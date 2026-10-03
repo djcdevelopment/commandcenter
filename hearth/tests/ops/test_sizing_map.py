@@ -187,3 +187,17 @@ class LabConfigurationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DeliberateOperationTests(unittest.TestCase):
+    def test_deliberate_ceiling_reads_the_deliberate_declaration(self) -> None:
+        rows = [R("operation", "inference.deliberate max_tokens_ceiling", 24576), R("rung", "omen-dense-27b max_tokens", 16384)]
+        self.assertIn("operation-ceiling-within-the-largest-rung-reserve", rules(rows))
+        rows.append(R("rung", "omen-dense-27b deliberate_max_tokens", 24576))
+        self.assertNotIn("operation-ceiling-within-the-largest-rung-reserve", rules(rows))
+
+    def test_every_operation_deadline_meets_the_timeouts_unless_streamed(self) -> None:
+        rows = [R("operation", "inference.deliberate deadline_ceiling_s", 3600), R("router", "haproxy timeout server", 2400)]
+        self.assertIn("client-timeouts-cover-the-deadline", rules(rows))
+        rows.append(R("operation", "inference.deliberate streamed", True))
+        self.assertNotIn("client-timeouts-cover-the-deadline", rules(rows))

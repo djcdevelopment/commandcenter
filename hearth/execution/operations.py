@@ -13,6 +13,9 @@ class OperationConfigError(ValueError):
     pass
 
 
+# The admitted thinking path: one streamed conversation turn, thinking on or off, recorded whole.
+DELIBERATE = "inference.deliberate"
+
 DEFAULT_OPERATIONS_PATH = Path(__file__).resolve().parents[1] / "etc" / "operations.toml"
 
 

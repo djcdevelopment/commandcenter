@@ -24,6 +24,18 @@ max_tokens_ceiling = 16384
 deadline_ceiling_s = 2400
 artifact_media_type = "text/plain; charset=utf-8"
 
+[operation."inference.deliberate"]
+description = "One streamed conversation turn on a deliberation-capable seat, thinking on or off; output, reasoning and the wire request are stored."
+# Submit/watch only (never one blocking call). Streamed: the router's 2,400 s timers are idle timers, so the
+# 3,600 s deadline is not bounded by them. max_tokens is required and also capped by the backend's
+# deliberate_max_tokens. Never replayed by recovery (service.recover_pending).
+handler = "llm_chat"
+max_prompt_bytes = 1048576
+max_tokens_ceiling = 24576
+deadline_ceiling_s = 3600
+artifact_media_type = "text/plain; charset=utf-8"
+streamed = true
+
 [operation."work.produce"]
 description = "Produce a review-only local-work candidate from a pinned repository source pack."
 # 16384 tokens at the measured 10.4 tok/s on the dense lane is ~1,575 s of decode plus prefill;

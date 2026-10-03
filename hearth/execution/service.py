@@ -372,6 +372,7 @@ class ExecutionService:
             "task_id",  # C-06: ledger attribution only; steers nothing
             "image_path",
             "response_schema",
+            "temperature",
         }
         unknown = set(normalized) - allowed
         if unknown:
@@ -394,6 +395,11 @@ class ExecutionService:
         schema = normalized.get("response_schema")
         if "response_schema" in normalized and (not isinstance(schema, dict) or not schema):
             raise ExecutionServiceError("response_schema must be a non-empty JSON Schema object")
+        temperature = normalized.get("temperature")
+        if "temperature" in normalized and (
+                isinstance(temperature, bool) or not isinstance(temperature, (int, float))
+                or not 0 <= temperature <= 2):
+            raise ExecutionServiceError("temperature must be a number in [0, 2]")
         files = normalized.get("files")
         image_path = normalized.get("image_path")
         if image_path is not None and (not isinstance(image_path, str) or not image_path.strip()):
@@ -751,6 +757,7 @@ class ExecutionService:
         policy: Optional[dict[str, Any]] = None,
         task_family: Optional[str] = None,
         response_schema: Optional[dict[str, Any]] = None,
+        temperature: Optional[float] = None,
     ) -> dict[str, Any]:
         """Resolve policy and provider without storing content or dispatching work.
 
@@ -851,6 +858,10 @@ class ExecutionService:
             "capability": capability_slice,
             "dispatch": False,
         }
+        if temperature is not None:
+            if isinstance(temperature, bool) or not isinstance(temperature, (int, float)) or not 0 <= temperature <= 2:
+                raise ExecutionServiceError("temperature must be a number in [0, 2]")
+            res["temperature"] = temperature
         if response_schema is not None:
             if not isinstance(response_schema, dict) or not response_schema:
                 raise ExecutionServiceError("response_schema must be a non-empty JSON Schema object")
@@ -1014,7 +1025,7 @@ class ExecutionService:
             # stamp on the provider's own result and on the observation record,
             # rather than silently dropping the reason the rung was picked.
             for optional in ("system", "task", "files", "quality", "task_family", "image_path",
-                             "response_schema"):
+                             "response_schema", "temperature"):
                 if arguments.get(optional) is not None:
                     call_arguments[optional] = arguments[optional]
             result = self._generate_call(**call_arguments)
@@ -1123,6 +1134,7 @@ class ExecutionService:
             "sizer",   # ADR-0050: present only on a sized call
             "response_schema_sha256",
             "image_input",
+            "temperature",
         }
         observed = {
             key: copy.deepcopy(value) for key, value in result.items() if key in allowed
@@ -1274,6 +1286,7 @@ class ExecutionService:
             # task_family gets a byte-identical result.
             "task_family",
             "family_recommendation",
+            "temperature",  # present only when the request body carried one
         ):
             if key in observed:
                 result[key] = observed[key]

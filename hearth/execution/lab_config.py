@@ -51,16 +51,16 @@ def load_lab_configurations() -> dict[str, Any]:
         return {}
 
 
-def get_active_configuration_name() -> str:
-    """Return the currently active lab configuration name."""
+def active_configuration() -> tuple[str, str]:
+    """Return (name, source); source is env | file | profiles | default."""
     env = os.environ.get("HEARTH_LAB_CONFIGURATION")
     if env:
-        return env
+        return env, "env"
     if ACTIVE_CONFIG_PATH.is_file():
         try:
             val = ACTIVE_CONFIG_PATH.read_text(encoding="utf-8").strip()
             if val:
-                return val
+                return val, "file"
         except OSError:
             pass
 
@@ -85,8 +85,13 @@ def get_active_configuration_name() -> str:
     configs = load_lab_configurations()
     for name, spec in configs.items():
         if spec.get("omen_profile") == omen_profile and spec.get("am4_profile") == am4_profile:
-            return name
-    return "day"
+            return name, "profiles"
+    return "day", "default"
+
+
+def get_active_configuration_name() -> str:
+    """Return the currently active lab configuration name."""
+    return active_configuration()[0]
 
 
 def get_backend_status(backend_name: str, config_name: Optional[str] = None) -> tuple[str, str]:

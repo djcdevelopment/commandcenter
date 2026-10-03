@@ -22,7 +22,9 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping, Optional
 
 from hearth.delivery import contract, render as delivery_render, sourcemap
+from fleet import environment
 from hearth.execution import ExecutionService
+from hearth.execution.lab_config import active_configuration
 from hearth.operator import canonical, envelope, history, paths
 from hearth.toolsurface.backends import Backend, load_pool
 
@@ -65,6 +67,13 @@ class LocalWorkError(RuntimeError):
 def _digest(value: bytes | str) -> str:
     data = value.encode("utf-8") if isinstance(value, str) else value
     return hashlib.sha256(data).hexdigest()
+
+
+def _observe_temperature(manifest: dict[str, Any], observed: Mapping[str, Any]) -> None:
+    """conditions.temperature is what the request body carried (stamped by the body builder), not what was
+    asked for; null means none was sent and the server default applied."""
+    if isinstance(manifest.get("conditions"), dict):
+        manifest["conditions"]["temperature"] = observed.get("temperature")
 
 
 def _git(repo: Path, *args: str, input_text: str | None = None) -> str:
@@ -278,11 +287,15 @@ class LocalWorkService:
                target_path: str | None, lane: str, task_family: str | None,
                deadline_s: int, max_tokens: int | None, receipt_id: str | None,
                idempotency_key: str | None, caller_id: str,
-               brief: Mapping[str, Any] | None = None) -> dict[str, Any]:
+               brief: Mapping[str, Any] | None = None,
+               temperature: float | None = None) -> dict[str, Any]:
         if artifact_kind not in KINDS:
             raise LocalWorkError(f"artifact_kind must be one of {sorted(KINDS)}")
         if brief is not None and artifact_kind != "markdown":
             raise LocalWorkError("brief (delivery) requires artifact_kind markdown")
+        if temperature is not None and (isinstance(temperature, bool) or not isinstance(temperature, (int, float))
+                                        or not 0 <= temperature <= 2):
+            raise LocalWorkError("temperature must be a number in [0, 2]")
         if not acceptance_criteria or not all(isinstance(x, str) and x.strip() for x in acceptance_criteria):
             raise LocalWorkError("acceptance_criteria must contain non-empty strings")
         if not files:
@@ -353,6 +366,7 @@ class LocalWorkService:
              "mutation_level": "none", "risk_level": "medium"},
             {"deadline_s": deadline_s, "max_attempts": 2, "max_context_tokens": context_tokens, "budget": None},
             submitted_by=caller_id, submission_source="mcp")
+        lab_name, lab_source = active_configuration()
         manifest: dict[str, Any] = {
             "schema": MANIFEST_SCHEMA, "work_id": work_id, "envelope_id": env["envelope_id"],
             "status": "queued", "repo": str(repo_path), "base_commit": base,
@@ -368,6 +382,9 @@ class LocalWorkService:
                       "serving_profile": serving_profile,
                       "serving_profile_sha256": serving_profile_sha256},
             "artifact_kind": artifact_kind, "target_path": target, "declared_paths": declared,
+            "conditions": {"environment": environment.stamp()["name"],
+                           "lab_configuration": lab_name, "lab_configuration_source": lab_source,
+                           "temperature": temperature},
             "criteria": acceptance_criteria, "attempts": [], "artifact": None,
             "receipt_id": receipt_id, "verdict": None,
             "caller": {"submitted_by": caller_id, "validated_by": None},
@@ -383,6 +400,7 @@ class LocalWorkService:
                 operation_name="work.produce",
                 arguments={"prompt": prompt, "backend": backend_name, "model": model,
                            "task_family": task_family,
+                           **({"temperature": temperature} if temperature is not None else {}),
                            **({"response_schema": contract.output_json_schema()} if delivery else {})},
                 principal={"type": "hearth_caller", "id": caller_id, "authenticated": True},
                 source={"transport": "mcp", "adapter": caller_id},
@@ -553,7 +571,9 @@ class LocalWorkService:
         state = self.execution.submit(
             operation_name="work.produce",
             arguments={"prompt": repair, "backend": manifest["route"]["provider"],
-                       "model": manifest["route"]["model"]},
+                       "model": manifest["route"]["model"],
+                       **({"temperature": manifest["conditions"]["temperature"]}
+                          if (manifest.get("conditions") or {}).get("temperature") is not None else {})},
             principal=job["principal"], source=job["source"],
             policy=job["desired"]["policy"],
             idempotency_key=f"{work_id}:structural-repair")
@@ -586,9 +606,10 @@ class LocalWorkService:
             contract.check_output(output)
         except contract.ContractError as exc:
             return self._fail(manifest, f"invalid_delivery_output: {exc}")
-        observed = (job.get("invocations") or [{}])[-1].get("observed") or {}
+        observed = (job.get("invocations") or [{}])[-1]
         route = manifest["route"]
-        meta = {"model": observed.get("model") or route["model"], "backend": observed.get("backend") or route["provider"],
+        meta = {"environment": (manifest.get("conditions") or {}).get("environment"),
+                "model": observed.get("model") or route["model"], "backend": observed.get("backend") or route["provider"],
                 "configuration": {"model": observed.get("model") or route["model"], "seat": route["provider"],
                                   "context_tokens": manifest["prompt"]["context_tokens"],
                                   "profile": route["serving_profile_sha256"][:12]},
@@ -620,7 +641,8 @@ class LocalWorkService:
             "deviations": delivery["deviations"], "deterministic": delivery["verification"]["deterministic"]["state"]}
         manifest["route"].update({key: observed.get(key) for key in
                                   ("backend", "model", "routed_by", "tokens_in", "tokens_out", "duration_ms",
-                                   "response_schema_sha256") if observed.get(key) is not None})
+                                   "response_schema_sha256", "temperature") if observed.get(key) is not None})
+        _observe_temperature(manifest, observed)
         manifest["artifact"] = {key: metadata[key] for key in ("artifact_id", "sha256", "size", "media_type")}
         manifest["status"] = "awaiting_review"
         self._event(manifest, "attempt.recorded", {"job_id": job["job_id"], "ok": True})
@@ -681,10 +703,12 @@ class LocalWorkService:
                                         "reason_sha256": _digest(str(exc))})
                             self._event(manifest, "outcome.final", {"status": "failed"})
                     else:
-                        observed = (job.get("invocations") or [{}])[-1].get("observed") or {}
+                        observed = (job.get("invocations") or [{}])[-1]
                         manifest["route"].update({key: observed.get(key) for key in
-                                                  ("backend", "model", "routed_by", "tokens_in", "tokens_out", "duration_ms")
+                                                  ("backend", "model", "routed_by", "tokens_in", "tokens_out", "duration_ms",
+                                                   "temperature")
                                                   if observed.get(key) is not None})
+                        _observe_temperature(manifest, observed)
                         manifest["artifact"] = {key: metadata[key] for key in
                                                 ("artifact_id", "sha256", "size", "media_type")}
                         manifest["status"] = "awaiting_review"

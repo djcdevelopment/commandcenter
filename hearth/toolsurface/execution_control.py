@@ -84,6 +84,7 @@ def plan_execution(
     policy: dict[str, Any] | None = None,
     task_family: str | None = None,
     response_schema: dict[str, Any] | None = None,
+    temperature: float | None = None,
 ) -> dict[str, Any]:
     """Resolve Operation, Provider, and policy without content or dispatch.
 
@@ -106,6 +107,7 @@ def plan_execution(
         policy=policy,
         task_family=task_family,
         response_schema=response_schema,
+        temperature=temperature,
     )
 
 

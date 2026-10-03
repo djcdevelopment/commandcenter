@@ -1,0 +1,4 @@
+# qwen38 lever pilot: native XPU Flash Attention together with MTP k=2: staged, swapped in only by fleet/experiment_linux.py.
+[Service]
+Environment=OMEN_ATTN_BACKEND=FLASH_ATTN
+Environment=OMEN_MTP_K=2

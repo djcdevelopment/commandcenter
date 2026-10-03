@@ -23,7 +23,7 @@ An exact reference to a closing brace, unrelated function, or “Exposes:” hea
 
 ## Revision adoption
 
-A revised answer is mechanically eligible only when unsupported quotes strictly decrease and no new rung-0 failure kind or finding appears. A separate non-author 27B coverage assessment must then account for the original summary and claims, with evidence for retained/corrected claims or an explicit withdrawal reason. Both answers and the assessment remain recorded. Missing, invalid, refused or incomplete coverage keeps the original with a named reason; no weaker judge silently replaces the 27B.
+A revised answer is mechanically eligible only when unsupported quotes strictly decrease and no new rung-0 failure kind or finding appears. An exact comparison proves quote-only repairs preserve summary, headings, paragraph text and order. Rewritten prose requires a separate non-author 27B coverage assessment to account for the original summary and claims, with evidence for retained/corrected claims or an explicit withdrawal reason. Both answers and the assessment remain recorded. Missing, invalid, refused or incomplete coverage keeps the original with a named reason; no weaker judge silently replaces the 27B.
 
 The coverage assessment guards revision adoption, not final acceptance. A retained answer still requires a frontier or human substance verdict under the applicable environment policy. Local assessments, deterministic checks and recorded verdicts are distinct evidence.
 

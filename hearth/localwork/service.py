@@ -924,10 +924,20 @@ class LocalWorkService:
                           f"{after['unsupported']}, rung 0 failures {before['rung0_failures']} -> "
                           f"{after['rung0_failures']}", after)
         try:
-            self._dispatch_coverage(manifest, job, output, after, reason)
+            original = self._revision_output(manifest, "original")
+            if output != self._revision_output(manifest, "revised"):
+                raise LocalWorkError("revised output differs from saved revision")
+            if not revision_coverage.same_prose(original, output):
+                return self._dispatch_coverage(manifest, job, output, after, reason)
         except Exception as exc:
             manifest["revision"]["coverage"] = {"state": "unverified", "reason": f"{type(exc).__name__}: {exc}"}
-            self._keep_original(manifest, f"revision coverage not dispatched: {type(exc).__name__}: {exc}", after)
+            return self._keep_original(manifest, f"revision coverage not dispatched: {type(exc).__name__}: {exc}", after)
+        manifest["revision"].update(after=after, kept="revised", reason=reason + "; prose and headings unchanged",
+            coverage={"state": "pass", "method": "identical_prose", "criteria_preserved": True,
+                      "blocks": len(revision_coverage.prose(original)),
+                      "reason": "Summary, headings, paragraph text and order are identical; only quotes changed."})
+        self._adopt_delivery(manifest, job, metadata, raw, rendered)
+        self._finish_delivery(manifest, str(job["job_id"]))
 
     def _reconcile_delivery(self, manifest: dict[str, Any], job: Mapping[str, Any],
                             metadata: Mapping[str, Any], raw: bytes) -> None:

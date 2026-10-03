@@ -18,6 +18,15 @@ def prose(output):
         for j, p in enumerate(s["paragraphs"])}}
 
 
+def same_prose(original, revised):
+    """A quote-only repair cannot delete claims when all prose and its heading context are identical."""
+    def text_tree(output):
+        return {"summary": output["summary"], "sections": [
+            {"heading": sec["heading"], "paragraphs": [p["text"] for p in sec["paragraphs"]]}
+            for sec in output["sections"]]}
+    return text_tree(original) == text_tree(revised)
+
+
 def schema(original):
     row = {"type": "object", "additionalProperties": False,
            "required": ["status", "p", "revised_evidence", "source_quotes", "reason"],

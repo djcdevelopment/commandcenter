@@ -74,8 +74,8 @@ def _git_reader(repo: str, bdoc: Optional[Mapping[str, Any]]) -> Callable[[str, 
             r = subprocess.run(["git", "-C", repo, "show", f"{commits[path]}:{path}"], capture_output=True)
             if r.returncode:
                 raise LadderError(f"git show {commits[path]}:{path} failed: {r.stderr.decode(errors='replace').strip()}")
-            cache[path] = r.stdout.decode("utf-8", errors="replace").splitlines()
-        return "\n".join(cache[path][start - 1:end])
+            cache[path] = r.stdout.decode("utf-8", errors="replace").splitlines(keepends=True)
+        return "".join(cache[path][start - 1:end])
     return read
 
 

@@ -45,13 +45,17 @@ def submit_local_work(intent: str, acceptance_criteria: list[str], repo: str,
                       max_tokens: int | None = None, receipt_id: str | None = None,
                       idempotency_key: str | None = None,
                       brief: dict[str, Any] | None = None,
-                      temperature: float | None = None) -> dict[str, Any]:
+                      temperature: float | None = None,
+                      revise: bool = False) -> dict[str, Any]:
     """Submit bounded repository work to a strictly local lane for later review.
 
     ``brief`` (a brief.v2 object, artifact_kind markdown only) makes this a delivery: the model answers a
     delivery-output.v1 schema, the door renders it and stores the delivery.v1 manifest beside the candidate.
     ``temperature`` (number in [0, 2], default None = server default) is sent to the seat and recorded in
-    ``conditions.temperature`` and ``route.temperature``."""
+    ``conditions.temperature`` and ``route.temperature``.
+    ``revise`` (delivery only) allows one bounded objection round: if the first answer has unsupported quotes or a
+    failing rung 0, the door sends the model its answer and the objections once and keeps the revision only when it
+    has fewer unsupported quotes (``revision`` in the manifest says which was kept and why)."""
     identity = _identity()
     return _get_service().submit(
         intent=intent, acceptance_criteria=acceptance_criteria, repo=repo,
@@ -59,7 +63,7 @@ def submit_local_work(intent: str, acceptance_criteria: list[str], repo: str,
         target_path=target_path, lane=lane, task_family=task_family,
         deadline_s=deadline_s, max_tokens=max_tokens, receipt_id=receipt_id,
         idempotency_key=idempotency_key, caller_id=identity.caller_id, brief=brief,
-        temperature=temperature)
+        temperature=temperature, revise=revise)
 
 
 def watch_local_work(work_id: str, after_sequence: int = 0,

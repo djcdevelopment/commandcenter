@@ -24,7 +24,9 @@ Form rules (index "Decisions taken while building", 2026-10-03):
   5. `sources[]` is authoritative for the renderer and `locate`; the prose header's repo/commit/file lines
      stay for the drain (task 4 generates sources[] from the header at submit time).
   6. A quote found more than once is rendered at one hit with `ambiguous: N` (N >= 2) on the claim and
-     counts as an `ambiguous_quote` repair; a quote under 24 chars never matches fuzzily (sourcemap).
+     counts as an `ambiguous_quote` repair; an unresolved tie keeps the first hit. A quote under 24 chars
+     (normalized) never matches fuzzily and, found more than once, is `match: "missing"` with `ambiguous: N`,
+     counted as a `short_ambiguous_quote` repair (one word is no evidence of one place); found once, it resolves.
 
 Manifest additions (orchestrator decisions A and B, 2026-10-03, additive):
   A. `form_applied: {citations: range|quote|none, words: {min, max, enforce} | null, sections: [...] | null}`
@@ -55,7 +57,8 @@ AIDS = frozenset({"source_map", "quote_renderer", "constrained_output", "sidecar
 MATCHES = ("exact", "normalized", "missing")  # plus "fuzzy:<score>", score 0..1 with two decimals
 # Repair counts the contract knows and cross-checks against claims; the renderer (task 3) may add other
 # snake_case keys (heading_added, trailing_prose_removed, citation_syntax_stripped, ...).
-REPAIR_KEYS = ("normalized_quote", "fuzzy_quote", "ambiguous_quote")
+REPAIR_KEYS = ("normalized_quote", "fuzzy_quote", "ambiguous_quote", "short_ambiguous_quote")
+SHORT_QUOTE_CHARS = 24  # same floor as sourcemap.SHORT_QUOTE_CHARS (normalized length)
 VERIFY_RUNGS = ("deterministic", "judge", "reviewer", "human")
 VERIFY_STATES = ("pass", "fail", "unverified", "not_run")  # unrun = not_run, judge unavailable = unverified; never pass
 DEVIATION_KINDS = ("words", "sections", "other")
@@ -349,7 +352,7 @@ def validate_manifest(doc: Any) -> list:
         errs += [f"manifest.aids_used[{i}]: unknown aid {a!r}" for i, a in enumerate(aids) if a not in AIDS]
 
     ids: list = []
-    tally = {"normalized_quote": 0, "fuzzy_quote": 0, "ambiguous_quote": 0}
+    tally = {k: 0 for k in REPAIR_KEYS}
     missing_ids: set = set()
     exempt_ids: set = set()  # decision A: quoteless paragraphs under citations "none"
     claims = doc["claims"]
@@ -397,8 +400,15 @@ def validate_manifest(doc: Any) -> list:
             a = c["ambiguous"]
             if not (_is_int(a) and a >= 2):
                 errs.append(f"{w}.ambiguous: int >= 2 (occurrences) required, got {a!r}")
+            elif m == "missing":
+                if isinstance(c["quote"], str) and len(" ".join(c["quote"].split())) < SHORT_QUOTE_CHARS:
+                    tally["short_ambiguous_quote"] += 1
+                else:
+                    errs.append(f"{w}.ambiguous: a missing quote is ambiguous only when under {SHORT_QUOTE_CHARS} characters")
             elif m not in ("exact", "normalized"):
-                errs.append(f"{w}.ambiguous: only exact or normalized matches can be ambiguous, match is {m}")
+                errs.append(f"{w}.ambiguous: only exact, normalized or short missing quotes can be ambiguous, match is {m}")
+            elif len(" ".join(c["quote"].split())) < SHORT_QUOTE_CHARS:
+                errs.append(f"{w}.ambiguous: a quote under {SHORT_QUOTE_CHARS} characters found more than once must be missing")
             else:
                 tally["ambiguous_quote"] += 1
 
@@ -571,7 +581,10 @@ def selfcheck(out=None) -> None:
         ("manifest missing with a range", validate_manifest,
          mutated(manifest, lambda d: d["claims"][0].__setitem__("match", "missing"))),
         ("manifest ambiguous on missing", validate_manifest,
-         mutated(manifest, lambda d: d["claims"][-1].__setitem__("ambiguous", 2))),
+         mutated(manifest, lambda d: (d["claims"][-1].__setitem__("ambiguous", 2),
+                                      d["claims"][-1].__setitem__("quote", "x" * 30)))),
+        ("manifest short ambiguous quote resolved", validate_manifest,
+         mutated(manifest, lambda d: d["claims"][3].update(quote="ab", ambiguous=2))),
         ("manifest repair count disagrees", validate_manifest,
          mutated(manifest, lambda d: d["repairs"].__setitem__("normalized_quote", 0))),
         ("manifest judge is the arm", validate_manifest,

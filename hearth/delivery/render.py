@@ -117,17 +117,18 @@ def _claim_row(cid: str, text: str, quote: str, loc) -> dict:
            "resolved": None if loc.match == "missing" else
            {"path": loc.path, "start_line": loc.start, "end_line": loc.end},
            "match": loc.match}
-    if loc.match in ("exact", "normalized") and loc.occurrences > 1:
+    if loc.occurrences > 1:  # exact/normalized hits, or the hits of a short quote that resolved to missing
         row["ambiguous"] = loc.occurrences
     return row
 
 
 def _tally(claims: list) -> dict:
-    rep = {"normalized_quote": 0, "fuzzy_quote": 0, "ambiguous_quote": 0}
+    rep = {"normalized_quote": 0, "fuzzy_quote": 0, "ambiguous_quote": 0, "short_ambiguous_quote": 0}
     for c in claims:
         rep["normalized_quote"] += c["match"] == "normalized"
         rep["fuzzy_quote"] += c["match"].startswith("fuzzy:")
-        rep["ambiguous_quote"] += "ambiguous" in c
+        rep["ambiguous_quote"] += "ambiguous" in c and c["match"] != "missing"
+        rep["short_ambiguous_quote"] += "ambiguous" in c and c["match"] == "missing"
     return rep
 
 
@@ -172,7 +173,12 @@ def _finish(man: dict, sm: SourceMap, claims: list, extra_repairs: dict, finding
     man["verification"]["deterministic"] = det
 
 
-def _quote_lines(quote: str, cite: str) -> list:
+def _quote_lines(quote: str, cite: str, sm: Optional[SourceMap] = None, row: Optional[dict] = None) -> list:
+    """Resolved quote: the source text of the range (never the model's quote characters); missing: the model's text."""
+    res = row["resolved"] if row else None
+    fm = sm.get(res["path"]) if (sm and res) else None
+    if fm is not None:
+        quote = "\n".join(fm.lines[res["start_line"] - 1:res["end_line"]])
     lines = [ln.rstrip() for ln in quote.strip("\n").split("\n")]
     lines[-1] = f"{lines[-1]} ({cite})"
     return ["> " + ln if ln.strip() else ">" for ln in lines]
@@ -220,7 +226,7 @@ def render_with_findings(output: Mapping[str, Any], brief: Union[bytes, str, Map
             elif style == "quote":
                 md.append(shown)
                 for (r, _), cite in zip(rows, cites):
-                    md += _quote_lines(r["quote"], cite)
+                    md += _quote_lines(r["quote"], cite, sm, r)
             else:
                 md.append(shown)
             md.append("")

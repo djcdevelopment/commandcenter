@@ -26,7 +26,8 @@ Match vocabulary (``Location.match``)
                    quotes (U+201C/U+201D to ``"``, U+2018/U+2019 to ``'``). A repair.
 ``fuzzy:<score>``  best line window scores >= threshold (0..1, two decimals). A repair.
                    An elided quote (``...`` or U+2026) is matched only as elided, see below.
-``missing``        nothing acceptable; ``path == ""``, ``start == end == 0``.
+``missing``        nothing acceptable; ``path == ""``, ``start == end == 0``; ``occurrences`` is N > 1 only
+                   for a short ambiguous quote (below).
 Normalized and fuzzy matches are repairs: the caller (the renderer) counts and records them.
 
 Fuzzy rules (a wrong number is a wrong claim)
@@ -44,6 +45,10 @@ Elided quotes (a quote that is not an exact hit and contains ``...`` or U+2026)
   and only at or above the threshold. A quote whose non-elided text is under
   ``SHORT_QUOTE_CHARS`` must match every segment in full. The number rule applies to the
   window. An elided quote never falls through to line-window fuzzy: no window is ``missing``.
+
+Short ambiguous quotes
+- A quote under ``SHORT_QUOTE_CHARS`` (normalized) that occurs more than once is ``missing`` with
+  ``occurrences = N``: a single word read as ``exact`` support for a claim it cannot show. Once is still a hit.
 
 Ambiguity
 - ``occurrences`` counts every exact (or, failing that, normalized) hit across the map,
@@ -137,6 +142,11 @@ class Location(NamedTuple):
 
 
 _MISSING = Location("", 0, 0, "missing", 0)
+
+
+def _short_ambiguous(n: int) -> Location:
+    """A short quote found more than once is no evidence of any one place: missing, with the hit count."""
+    return Location("", 0, 0, "missing", n)
 
 
 def _git(repo: str, *args: str) -> subprocess.CompletedProcess:
@@ -354,15 +364,23 @@ def _score(window: str, nquote: str) -> float:
 
 
 def _pick(cands: list, hint: Optional[str]):
-    """cands: [(FileMap, start, end)]. Prefer a hit inside the smallest symbol named in the hint."""
+    """cands: [(FileMap, start, end)]. Prefer a hit inside the smallest symbol named in the hint.
+    A symbol is named when any dotted prefix or dotted part of its name is a whole word of the hint
+    (`configuration.day.backends` matches "configuration.day" and "day"). A name that holds every
+    candidate (`configuration`, `backends`) tells nothing and is ignored; a tie keeps the first hit."""
     if len(cands) > 1 and hint:
+        def named(sym):
+            parts = sym["name"].split(".")
+            names = {".".join(parts[:k]) for k in range(1, len(parts) + 1)} | set(parts)
+            return {n for n in names if len(n) > 1 and re.search(r"(?<![\w])" + re.escape(n) + r"(?!\w)", hint)}
+        held = []  # per candidate: [(symbol, matched names)]
+        for fm, s, e in cands:
+            held.append([(sym, named(sym)) for sym in fm.symbols if sym["start"] <= s and e <= sym["end"]])
+        common = set.intersection(*[set().union(*(n for _, n in h)) if h else set() for h in held])
         best = None
-        for i, (fm, s, e) in enumerate(cands):
-            for sym in fm.symbols:
-                if not (sym["start"] <= s and e <= sym["end"]):
-                    continue
-                names = {sym["name"], sym["name"].rsplit(".", 1)[-1]}
-                if any(len(n) > 1 and re.search(r"(?<![\w])" + re.escape(n) + r"(?!\w)", hint) for n in names):
+        for i, h in enumerate(held):
+            for sym, names in h:
+                if names - common:
                     key = (sym["end"] - sym["start"], i)
                     if best is None or key < best:
                         best = key
@@ -388,6 +406,8 @@ def locate(sm: SourceMap, quote: str, threshold: float = FUZZY_THRESHOLD,
         for pos in _find_all(text, q):
             cands.append((fm, _line_of(text, pos), _line_of(text, pos + len(q) - 1)))
     if cands:
+        if len(_norm(q)) < SHORT_QUOTE_CHARS and len(cands) > 1:
+            return _short_ambiguous(len(cands))
         fm, s, e = _pick(cands, hint)
         return Location(fm.path, s, e, "exact", len(cands))
 
@@ -400,6 +420,8 @@ def locate(sm: SourceMap, quote: str, threshold: float = FUZZY_THRESHOLD,
         for pos in _find_all(ntext, nq):
             cands.append((fm, _line_of(text, idx[pos]), _line_of(text, idx[pos + len(nq) - 1])))
     if cands:
+        if len(nq) < SHORT_QUOTE_CHARS and len(cands) > 1:
+            return _short_ambiguous(len(cands))
         fm, s, e = _pick(cands, hint)
         return Location(fm.path, s, e, "normalized", len(cands))
 

@@ -1,6 +1,9 @@
 # 0054 — Delivery is the fifth contract: the door owns one renderer between the model's answer and the verdict; the model writes prose and exact quotes, code writes ranges and counts
 
-**Status:** Proposed (2026-10-03, omen-linux; plan `~/work/delivery-plan/`, task 1). The contract documents exist and
+**Status:** Accepted (2026-10-03, Derek, by approving the continuation plan that stated this decision as his; the
+contract did what it claims on about 170 runs, and substance turned out to be a capability result, not a defect of the
+contract: `docs/rnd-log.md`, `~/work/delivery-plan/evidence/RESULT.md`). Proposed 2026-10-03 (omen-linux; plan
+`~/work/delivery-plan/`, task 1). The contract documents exist and
 self-check (`hearth/delivery/contract.py`, `python -c "from hearth.delivery import contract; contract.selfcheck()"`);
 the source map is task 2, the renderer task 3, door integration task 4, the re-run task 11.
 

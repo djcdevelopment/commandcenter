@@ -70,7 +70,8 @@ def load_matrix(path: Path) -> dict[str, Any]:
 NON_RUNNABLE_TASKS = {"presence_probe"}
 
 # Configurations excluded from automatic night qualification
-EXCLUDED_CONFIGURATIONS = {"day", "seat0-qwen3-32b"}
+# memsplice: the AM4 dense-tp2 research shape; a seat-0 brief written for it would qualify the wrong seat.
+EXCLUDED_CONFIGURATIONS = {"day", "seat0-qwen3-32b", "memsplice"}
 
 
 def find_unrecorded_configurations(matrix_data: dict[str, Any]) -> list[tuple[str, list[str]]]:

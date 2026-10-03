@@ -621,6 +621,14 @@ class LocalWorkService:
             output = json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, ValueError) as exc:
             raise _Refused(f"invalid_output_json: {exc}") from exc
+        dropped = 0  # form repair: constrained decoding lets a quotes tail through as "" or whitespace; counted, never silent
+        if isinstance(output, dict):
+            for section in output.get("sections") if isinstance(output.get("sections"), list) else []:
+                for para in section.get("paragraphs") if isinstance(section, dict) and isinstance(section.get("paragraphs"), list) else []:
+                    if isinstance(para, dict) and isinstance(para.get("quotes"), list):
+                        kept = [q for q in para["quotes"] if not (isinstance(q, str) and not q.strip())]
+                        dropped += len(para["quotes"]) - len(kept)
+                        para["quotes"] = kept
         try:
             contract.check_output(output)
         except contract.ContractError as exc:
@@ -636,6 +644,8 @@ class LocalWorkService:
         try:
             sm = sourcemap.build(manifest["repo"], manifest["base_commit"], list(manifest["declared_paths"]))
             markdown, delivery = delivery_render.render(output, manifest["brief"], sm, meta)
+            if dropped:
+                delivery["repairs"]["empty_quote_dropped"] = dropped
             contract.check_manifest(delivery)
         except (contract.ContractError, sourcemap.SourceMapError) as exc:
             raise _Refused(f"delivery_render_failed: {type(exc).__name__}: {exc}") from exc

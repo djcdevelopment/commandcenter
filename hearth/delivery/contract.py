@@ -74,7 +74,7 @@ STYLES = ("markdown",)
 AIDS = frozenset({"source_map", "quote_renderer", "constrained_output", "sidecar", "judge", "reviewer", "line_reference", "source_excerpt", "source_path_alias"})
 MATCHES = ("exact", "normalized", "missing")  # plus "fuzzy:<score>", score 0..1 with two decimals
 # Repair counts the contract knows and cross-checks against claims; the renderer (task 3) may add other
-# snake_case keys (heading_added, trailing_prose_removed, citation_syntax_stripped, ...).
+# snake_case keys (empty_quote_dropped: the door drops blank quote strings before validation; heading_added, trailing_prose_removed, citation_syntax_stripped, ...).
 REPAIR_KEYS = ("normalized_quote", "fuzzy_quote", "ambiguous_quote", "short_ambiguous_quote", "truncated_quote")
 VERIFY_RUNGS = ("deterministic", "judge", "reviewer", "human")
 VERIFY_STATES = ("pass", "fail", "unverified", "not_run")  # unrun = not_run, judge unavailable = unverified; never pass

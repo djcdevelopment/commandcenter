@@ -1,6 +1,6 @@
 # 0056 — The lab's intent is one authored, reviewed, budgeted file that every agent loads
 
-**Status:** Proposed (2026-10-02, omen-linux; plan `~/work/intent-plan/`, briefs 1–13). It becomes Accepted when brief
+**Status:** Accepted (2026-10-02, omen-linux; plan `~/work/intent-plan/`, briefs 1–14). Derek accepted `intent.yaml` rev 2 with edits (product line, dev-mode dispatch constraint, derived budgets); probe rev 2 (`~/work/lab/probe/records/2026-10-02-rev2.json`): every reachable class met its bar (frontier 8/8, Sonnet 7/8, Codex 8/8, 27B 7/8, FX99 3/3; AM4 4070ti unavailable under lab configuration `day`). Was Proposed when brief
 13's full probe record exists in `~/work/lab/probe/records/` (every class at its bar or recorded `unavailable` with a
 reason) and Derek accepts.
 

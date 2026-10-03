@@ -87,7 +87,7 @@ _ID = re.compile(r"^[A-Za-z0-9_.-]+$")
 _REPAIR_KEY = re.compile(r"^[a-z][a-z0-9_]*$")
 _CCMETA = re.compile(r"<!--\s*CCMETA\s*(\{.*?\})\s*-->", re.DOTALL)
 V1_KEYS = ("builders", "task_class", "est_tokens", "requires", "max_age_s")
-V2_KEYS = ("substance", "form", "sources", "aids")
+V2_KEYS = ("substance", "form", "sources", "aids", "generation")
 
 
 class ContractError(ValueError):
@@ -138,7 +138,13 @@ def validate_brief(doc: Any) -> list:
         return [f"brief.{k}: v2 key needs schema {BRIEF_SCHEMA}" for k in V2_KEYS if k in doc]
     if doc["schema"] != BRIEF_SCHEMA:
         return [f"brief.schema: must be {BRIEF_SCHEMA}, got {doc['schema']!r}"]
-    _exact(doc, {"schema", "substance"}, set(V1_KEYS) | {"form", "sources", "aids"}, "brief", errs)
+    _exact(doc, {"schema", "substance"}, set(V1_KEYS) | {"form", "sources", "aids", "generation"}, "brief", errs)
+    if "generation" in doc:
+        generation = doc["generation"]
+        if _exact(generation, {"max_tokens"}, set(), "brief.generation", errs):
+            budget = generation["max_tokens"]
+            if not (_is_int(budget) and 1 <= budget <= 16384):
+                errs.append("brief.generation.max_tokens: int 1..16384 required")
     subs = doc.get("substance")
     if not isinstance(subs, list) or not subs:
         errs.append("brief.substance: non-empty list required")
@@ -368,7 +374,7 @@ def validate_manifest(doc: Any) -> list:
         claims = []
     for i, c in enumerate(claims):
         w = f"manifest.claims[{i}]"
-        if not _exact(c, {"id", "text", "quote", "resolved", "match"}, {"ambiguous", "truncated"}, w, errs):
+        if not _exact(c, {"id", "text", "quote", "resolved", "match"}, {"ambiguous", "truncated", "candidate"}, w, errs):
             continue
         cid, m, r = c["id"], c["match"], c["resolved"]
         if not (isinstance(cid, str) and _ID.match(cid)):
@@ -404,6 +410,21 @@ def validate_manifest(doc: Any) -> list:
             tally["normalized_quote"] += m == "normalized" and not c.get("truncated")
             tally["truncated_quote"] += bool(c.get("truncated"))
             tally["fuzzy_quote"] += m.startswith("fuzzy:")
+        if "candidate" in c:
+            candidate = c["candidate"]
+            cw = f"{w}.candidate"
+            if m != "missing" or r is not None:
+                errs.append(f"{cw}: only permitted on an unresolved claim")
+            if _exact(candidate, {"path", "start_line", "end_line", "source_text", "match", "reason"}, set(), cw, errs):
+                if not _is_str(candidate["path"]) or not _is_str(candidate["source_text"]):
+                    errs.append(f"{cw}: non-empty path and source_text required")
+                st, en = candidate["start_line"], candidate["end_line"]
+                if not (_is_int(st) and _is_int(en) and 1 <= st <= en):
+                    errs.append(f"{cw}: 1 <= start_line <= end_line required")
+                if not (isinstance(candidate["match"], str) and _FUZZY.fullmatch(candidate["match"])):
+                    errs.append(f"{cw}.match: fuzzy:<0.00..1.00> required")
+                if candidate["reason"] not in ("fuzzy_quote", "elided_quote"):
+                    errs.append(f"{cw}.reason: fuzzy_quote|elided_quote required")
         if "truncated" in c:
             if c["truncated"] is not True or m != "normalized":
                 errs.append(f"{w}.truncated: only true, only on a normalized claim, got {c['truncated']!r} on {m}")

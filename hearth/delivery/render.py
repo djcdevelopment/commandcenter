@@ -119,6 +119,8 @@ def _claim_row(cid: str, text: str, quote: str, loc) -> dict:
            "resolved": None if loc.match == "missing" else
            {"path": loc.path, "start_line": loc.start, "end_line": loc.end},
            "match": loc.match}
+    if loc.candidate is not None:
+        row["candidate"] = dict(loc.candidate)
     if loc.truncated:
         row["truncated"] = True
     if loc.occurrences > 1:  # exact/normalized hits, or the hits of a short quote that resolved to missing
@@ -231,7 +233,9 @@ def render_with_findings(output: Mapping[str, Any], brief: Union[bytes, str, Map
             claims += [r for r, _ in rows]
             unsupported += [r["id"] for r, _ in rows if r["match"] == "missing"]
             cites = [_ref(l) if l.match != "missing" else f"found {l.occurrences} times, too short to place"
-                     if l.occurrences > 1 else "not found in sources" for _, l in rows]
+                     if l.occurrences > 1 else
+                     f"unresolved {l.candidate['reason']}; candidate {l.candidate['path']}:{l.candidate['start_line']}-{l.candidate['end_line']}"
+                     if l.candidate else "not found in sources" for _, l in rows]
             if style == "range":
                 md.append(f"{shown} ({', '.join(dict.fromkeys(cites))})")
             elif style == "quote":

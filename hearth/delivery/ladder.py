@@ -134,7 +134,13 @@ def _paragraph_job(para: str, claims: list, ctx) -> Optional[dict]:
         src = ctx["read"](*key)
         label = f"{r['path']}:{r['start_line']}-{r['end_line']}"
         if not src.strip():
-            raise LadderError(f"{c['id']}: source range {label} is empty")
+            if c.get("quote_reference") and r["start_line"] == r["end_line"]:
+                full = ctx["read"](r["path"], 1, 10 ** 9).splitlines()
+                if not 1 <= r["end_line"] <= len(full) or full[r["start_line"] - 1].strip():
+                    raise LadderError(f"{c['id']}: empty source range {label} is inconsistent with pinned file")
+                src = "Exact whitespace-only source line as JSON: " + json.dumps(full[r["start_line"] - 1])
+            else:
+                raise LadderError(f"{c['id']}: source range {label} is empty")
         if c["match"].startswith("fuzzy:"):
             src = f"{src}\n\n{FUZZY_NOTE.format(m=c['match'])}\n{c['quote']}"
         blocks.append(_block(label, src))

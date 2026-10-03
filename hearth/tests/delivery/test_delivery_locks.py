@@ -382,6 +382,21 @@ class RungZeroArithmeticTests(unittest.TestCase):
         right = verify_legacy(said.replace("51,968", "55,706"))["rung0"]
         self.assertEqual(right["state"], "pass")
 
+    def test_line_reference_blank_source_reaches_judge_without_hiding_it(self):
+        from hearth.delivery.ladder import _paragraph_job, LadderError
+        source = "before\n  \nafter\n"
+        def read(path, start, end):
+            return "\n".join(source.splitlines()[start - 1:end])
+        claim = {"id": "s0.p0.q0", "text": "A blank line separates the text.",
+                 "quote": "  ", "quote_reference": "a.py:2", "match": "exact",
+                 "resolved": {"path": "a.py", "start_line": 2, "end_line": 2}}
+        job = _paragraph_job("s0.p0", [claim], {"read": read})
+        self.assertIn('Exact whitespace-only source line as JSON: "  "', job["quote"])
+        self.assertIn("a.py:2-2", job["quote"])
+        claim["resolved"].update(start_line=20, end_line=20)
+        with self.assertRaisesRegex(LadderError, "inconsistent"):
+            _paragraph_job("s0.p0", [claim], {"read": read})
+
 
 if __name__ == "__main__":
     unittest.main()

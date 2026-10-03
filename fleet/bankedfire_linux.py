@@ -55,6 +55,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from fleet import bankedfire_drain as drain  # noqa: E402
+from hearth.execution.lab_config import AM4_PROFILE_PATH  # noqa: E402
 from hearth.backlog import select as backlog_select  # noqa: E402
 from hearth.backlog import sources as backlog_sources  # noqa: E402
 from hearth.toolsurface import occupancy as occ_mod  # noqa: E402
@@ -303,6 +304,9 @@ def size_tool_seat(intent: str, source: str, max_report_words: Optional[int] = N
     return seat, answer
 
 
+REPORT_DELIVERIES = ("tool", "final", "schema")
+
+
 def deepagents_spec_from_brief(body: str, run_id: str) -> dict[str, Any]:
     fields, intent = parse_local_work_block_lenient(body)
     if not fields.get("source"):
@@ -316,6 +320,11 @@ def deepagents_spec_from_brief(body: str, run_id: str) -> dict[str, Any]:
             "report": str(fields.get("report", "false")).lower() in ("1", "true", "yes"),
             "max_report_words": max_words,
             "work": fields.get("work")}
+    if fields.get("report_delivery"):
+        rd = str(fields["report_delivery"]).strip().lower()
+        if rd not in REPORT_DELIVERIES:
+            raise ValueError(f"deepagents brief report_delivery {rd!r} is not one of {'|'.join(REPORT_DELIVERIES)}")
+        spec["report_delivery"] = rd
     if backend == SIZED_TOOL_BACKEND:
         seat, answer = size_tool_seat(intent, fields["source"], max_words)
         spec["backend"] = seat
@@ -668,9 +677,33 @@ def am4_switch(target: str) -> dict[str, Any]:
     try:
         out = subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=6", AM4_SSH, f"~/bin/am4-profile {target}"],
                              capture_output=True, text=True, timeout=AM4_PROFILE_WAIT_S + 30)
-        return {"target": target, "rc": out.returncode, "tail": (out.stdout + out.stderr)[-300:]}
+        res = {"target": target, "rc": out.returncode, "tail": (out.stdout + out.stderr)[-300:]}
+        if out.returncode == 0:
+            res["omen_file"] = write_omen_profile(target)
+        return res
     except (OSError, subprocess.TimeoutExpired) as exc:
         return {"target": target, "rc": None, "error": f"{type(exc).__name__}: {exc}"}
+
+
+KNOWN_AM4_PROFILES = ("tool-pair", "dense-tp2")
+
+
+def write_omen_profile(target: str, path: Optional[Path] = None) -> dict[str, Any]:
+    """Make the OMEN-side profile file say ``target``; returns {was, now}."""
+    path = path or AM4_PROFILE_PATH
+    was = path.read_text(encoding="utf-8").strip() if path.is_file() else None
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(target + "\n", encoding="utf-8")
+    return {"was": was, "now": target}
+
+
+def reconcile_omen_profile(live: Optional[str], path: Optional[Path] = None) -> Optional[dict[str, Any]]:
+    """When AM4 serves a known profile and the OMEN-side file disagrees, rewrite the file."""
+    path = path or AM4_PROFILE_PATH
+    if live not in KNOWN_AM4_PROFILES:
+        return None
+    was = path.read_text(encoding="utf-8").strip() if path.is_file() else None
+    return write_omen_profile(live, path) if was != live else None
 
 
 def am4_profile_wanted(tool_queued: int, slots: list[dict[str, Any]], live: Optional[str],
@@ -778,6 +811,9 @@ def tick() -> dict[str, Any]:
         want = am4_profile_wanted(tool_queued, slots, live, tool_ready)
         report["am4_profile"] = {"live": live, "tool_queued": tool_queued, "tool_dispatchable": tool_ready,
                                  "switch": None}
+        fixed = reconcile_omen_profile(live)
+        if fixed:
+            report["am4_profile"]["omen_file"] = fixed
         if want and arm_state.get("armed"):
             report["am4_profile"]["switch"] = am4_switch(want)
     except Exception as exc:  # noqa: BLE001 -- the profile step never blocks the OMEN lanes

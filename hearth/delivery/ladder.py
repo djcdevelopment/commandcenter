@@ -38,7 +38,9 @@ SUBSTANCE_PREFIX = "substance:"
 NO_READER = "no source reader (pass repo= or source_text=): a claim is never judged on the model's own quote"
 FUZZY_NOTE = ("[The author quoted the lines above as follows; the quote matched them only approximately ({m}). "
               "Judge the claim on the source lines above, not on this quote.]")
-WHOLE_SOURCE_TOKENS, CHARS_PER_TOKEN = 6000, 3.5
+# 14,000: the backoff brief's one source (fleet/bankedfire_linux.py, ~11,800 estimated) is judged whole; the largest
+# substance prompt it makes is ~47,300 characters, inside the 30B judge's 40,960-token window with the rubric and report.
+WHOLE_SOURCE_TOKENS, CHARS_PER_TOKEN = 14000, 3.5
 PARAGRAPH_ASK = ("For this item, read the guide above with CLAIM = the whole paragraph below and QUOTE = the EVIDENCE below. "
                  "The EVIDENCE is the source text at every line range the paragraph cites, each labelled path:start-end. "
                  "Question: is every statement in the paragraph true of, and shown by, this EVIDENCE taken together? "
@@ -128,7 +130,7 @@ def _paragraph_job(para: str, claims: list, ctx) -> Optional[dict]:
 
 
 def _substance_evidence(manifest, bdoc, ctx) -> tuple:
-    """-> (source text, scope phrase, mode). The whole declared sources when they total under ~6,000 tokens, else the
+    """-> (source text, scope phrase, mode). The whole declared sources when they total under ~14,000 tokens, else the
     source text of every cited range."""
     whole = {}
     for s_ in bdoc.get("sources", []):
@@ -399,6 +401,11 @@ def triage_summary(result: Mapping[str, Any]) -> str:
              f" | substance {met} of {len(crit)} met" + ("" if crit else " (not judged)") +
              (" (on cited ranges only)" if any(str(r.get("evidence", "")).startswith("cited") for r in crit) else "") +
              f" | rung 0 {r0['state']} ({len(fails)} fail findings)")
+    door = result.get("door_revision")
+    if door:  # the door's objection round (submit_local_work revise=True) ran before this ladder saw the answer
+        b, a = door.get("before") or {}, door.get("after") or {}
+        L.append(f"Door revision: kept {door.get('kept')} ({door.get('reason')}); {door.get('objections')} objection(s); "
+                 f"unsupported {b.get('unsupported')} -> {a.get('unsupported')}")
     for v in ("rejected", "escalated"):
         g = _groups(result["claims"], v)
         if g:
@@ -458,6 +465,8 @@ def main(argv=None) -> int:
     manifest, output, work = (json.loads((d / n).read_text()) for n in
                               ("delivery.json", "delivery-output.json", "work-manifest.json"))
     res = asyncio.run(_door_ladder(manifest, work["brief"], output, a.judge_backend, a.repo or work["repo"], a.task_id))
+    if work.get("revision"):  # delivery.json is the kept answer; say which and why
+        res["door_revision"] = {k: v for k, v in work["revision"].items() if k != "files"}
     if a.json:
         Path(a.json).write_text(json.dumps(res, indent=1, default=str))
     print(triage_summary(res))

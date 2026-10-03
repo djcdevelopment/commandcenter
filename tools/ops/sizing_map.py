@@ -467,7 +467,7 @@ def _detect_omen_profile() -> str:
 
 
 def collect_configurations(live: bool) -> list[Row]:
-    """ADR-0052: whole-lab serving configurations (day, tool-night, experiments)."""
+    """ADR-0052: whole-lab serving configurations (day, memsplice, experiments)."""
     rows: list[Row] = []
     cfg_path = Path(os.environ.get("HEARTH_LAB_CONFIGURATIONS", str(REPO / "host" / "lab-configurations.toml")))
     if not cfg_path.is_file():

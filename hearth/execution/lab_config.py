@@ -73,7 +73,7 @@ def get_active_configuration_name() -> str:
         except OSError:
             pass
 
-    am4_profile = "dense-tp2"
+    am4_profile = "tool-pair"   # AM4's resting shape: the CUDA cards serve tool calls and rapid calls
     if AM4_PROFILE_PATH.is_file():
         try:
             t = AM4_PROFILE_PATH.read_text(encoding="utf-8").strip()

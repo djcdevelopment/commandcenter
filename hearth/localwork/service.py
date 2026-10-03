@@ -22,6 +22,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping, Optional
 
 from hearth.delivery import contract, render as delivery_render, sourcemap
+from hearth.delivery.verify import verify as verify_delivery
 from fleet import environment
 from hearth.execution import ExecutionService
 from hearth.execution.lab_config import active_configuration
@@ -62,6 +63,10 @@ TokenCounter = Callable[[Backend, str, str], int]
 
 class LocalWorkError(RuntimeError):
     pass
+
+
+class _Refused(Exception):
+    """A delivery answer that cannot be rendered; the message is its named reason."""
 
 
 def _digest(value: bytes | str) -> str:
@@ -219,6 +224,11 @@ class LocalWorkService:
         return text, _digest(text)
 
     @staticmethod
+    def _template_file(name: str) -> tuple[str, str]:
+        text = (Path(__file__).resolve().parents[1] / "prompts" / name).read_text(encoding="utf-8")
+        return text, _digest(text)
+
+    @staticmethod
     def _delivery_prompt(template: str, intent: str, brief: Mapping[str, Any], packet: str) -> str:
         form = contract.form_defaults(brief)
         words = form.get("words")
@@ -288,11 +298,13 @@ class LocalWorkService:
                deadline_s: int, max_tokens: int | None, receipt_id: str | None,
                idempotency_key: str | None, caller_id: str,
                brief: Mapping[str, Any] | None = None,
-               temperature: float | None = None) -> dict[str, Any]:
+               temperature: float | None = None, revise: bool = False) -> dict[str, Any]:
         if artifact_kind not in KINDS:
             raise LocalWorkError(f"artifact_kind must be one of {sorted(KINDS)}")
         if brief is not None and artifact_kind != "markdown":
             raise LocalWorkError("brief (delivery) requires artifact_kind markdown")
+        if revise and brief is None:
+            raise LocalWorkError("revise requires a brief (delivery)")
         if temperature is not None and (isinstance(temperature, bool) or not isinstance(temperature, (int, float))
                                         or not 0 <= temperature <= 2):
             raise LocalWorkError("temperature must be a number in [0, 2]")
@@ -392,6 +404,8 @@ class LocalWorkService:
         if delivery:
             manifest["delivery"] = True
             manifest["brief"] = brief
+            if revise:
+                manifest["revise"] = True
             manifest["brief_sha256"] = _digest(json.dumps(brief, sort_keys=True, separators=(",", ":")))
         with self._lock:
             self._write(manifest)
@@ -594,18 +608,16 @@ class LocalWorkService:
         self._event(manifest, "verification.recorded", {"passed": False, "reason_sha256": _digest(reason)})
         self._event(manifest, "outcome.final", {"status": "failed", "reason": reason[:200]})
 
-    def _reconcile_delivery(self, manifest: dict[str, Any], job: Mapping[str, Any],
-                            metadata: Mapping[str, Any], raw: bytes) -> None:
-        """A delivery job's result is a delivery-output.v1 document. Every failure is named and final:
-        no structural repair prompt, no second lane."""
+    def _render_answer(self, manifest: Mapping[str, Any], job: Mapping[str, Any], raw: bytes) -> tuple:
+        """-> (output, markdown, delivery manifest); a failure raises _Refused with its named reason."""
         try:
             output = json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, ValueError) as exc:
-            return self._fail(manifest, f"invalid_output_json: {exc}")
+            raise _Refused(f"invalid_output_json: {exc}") from exc
         try:
             contract.check_output(output)
         except contract.ContractError as exc:
-            return self._fail(manifest, f"invalid_delivery_output: {exc}")
+            raise _Refused(f"invalid_delivery_output: {exc}") from exc
         observed = (job.get("invocations") or [{}])[-1]
         route = manifest["route"]
         meta = {"environment": (manifest.get("conditions") or {}).get("environment"),
@@ -619,17 +631,31 @@ class LocalWorkService:
             markdown, delivery = delivery_render.render(output, manifest["brief"], sm, meta)
             contract.check_manifest(delivery)
         except (contract.ContractError, sourcemap.SourceMapError) as exc:
-            return self._fail(manifest, f"delivery_render_failed: {type(exc).__name__}: {exc}")
-        run_dir = self._run_dir(str(manifest["work_id"]))
+            raise _Refused(f"delivery_render_failed: {type(exc).__name__}: {exc}") from exc
+        return output, markdown, delivery
+
+    def _write_delivery_files(self, work_id: str, raw: bytes, delivery: Mapping[str, Any],
+                              markdown: str | None, tag: str = "") -> dict[str, Any]:
+        """tag '' writes the kept files; '.r0' / '.r1' the original / revised answer and manifest (no markdown)."""
+        run_dir = self._run_dir(work_id)
         run_dir.mkdir(parents=True, exist_ok=True)
-        files = {"output": ("delivery-output.json", raw, "application/json"),
-                 "manifest": ("delivery.json",
-                              (json.dumps(delivery, indent=2, sort_keys=True) + "\n").encode("utf-8"), "application/json"),
-                 "candidate": ("candidate.md", markdown.encode("utf-8"), "text/markdown; charset=utf-8")}
+        files = {"output": (f"delivery-output{tag}.json", raw, "application/json"),
+                 "manifest": (f"delivery{tag}.json",
+                              (json.dumps(delivery, indent=2, sort_keys=True) + "\n").encode("utf-8"), "application/json")}
+        if markdown is not None:
+            files["candidate"] = ("candidate.md", markdown.encode("utf-8"), "text/markdown; charset=utf-8")
         refs: dict[str, Any] = {}
         for key, (name, data, media_type) in files.items():
             (run_dir / name).write_bytes(data)
             refs[key] = {"file": name, "sha256": _digest(data), "size": len(data), "media_type": media_type}
+        return refs
+
+    def _adopt_delivery(self, manifest: dict[str, Any], job: Mapping[str, Any], metadata: Mapping[str, Any],
+                        raw: bytes, rendered: tuple) -> None:
+        """Make this answer the kept one: files, summary, observed route, artifact. Status is set by _finish_delivery."""
+        _, markdown, delivery = rendered
+        observed = (job.get("invocations") or [{}])[-1]
+        refs = self._write_delivery_files(str(manifest["work_id"]), raw, delivery, markdown)
         by_match: dict[str, int] = {}
         for claim in delivery["claims"]:
             by_match[claim["match"]] = by_match.get(claim["match"], 0) + 1
@@ -641,17 +667,185 @@ class LocalWorkService:
             "deviations": delivery["deviations"], "deterministic": delivery["verification"]["deterministic"]["state"]}
         manifest["route"].update({key: observed.get(key) for key in
                                   ("backend", "model", "routed_by", "tokens_in", "tokens_out", "duration_ms",
-                                   "response_schema_sha256", "temperature") if observed.get(key) is not None})
+                                   "response_schema_sha256", "temperature", "structured_output_repairs")
+                                  if observed.get(key) is not None})
         _observe_temperature(manifest, observed)
         manifest["artifact"] = {key: metadata[key] for key in ("artifact_id", "sha256", "size", "media_type")}
+
+    def _finish_delivery(self, manifest: dict[str, Any], job_id: str) -> None:
         manifest["status"] = "awaiting_review"
-        self._event(manifest, "attempt.recorded", {"job_id": job["job_id"], "ok": True})
-        self._event(manifest, "artifact.produced", {"artifact_id": metadata["artifact_id"],
+        refs = manifest["delivery_artifacts"]
+        self._event(manifest, "attempt.recorded", {"job_id": job_id, "ok": True})
+        self._event(manifest, "artifact.produced", {"artifact_id": manifest["artifact"]["artifact_id"],
                     "sha256": refs["candidate"]["sha256"], "size": refs["candidate"]["size"],
                     "delivery": manifest["delivery_summary"]})
         self._event(manifest, "verification.recorded", {"passed": True,
                     "checks": ["delivery_output_schema", "delivery_render", "delivery_manifest"],
                     "deterministic": manifest["delivery_summary"]["deterministic"]})
+
+    @staticmethod
+    def _where(cid: str, output: Mapping[str, Any], quote: bool = True) -> str:
+        """A claim id (s<i>.p<j>.q<k>, summary, words) in words the author can find in its own answer."""
+        m = re.fullmatch(r"s(\d+)\.p(\d+)\.q(\d+)", cid)
+        if not m:
+            return {"summary": "The summary", "words": "The whole report"}.get(cid, cid)
+        i, j, k = (int(x) for x in m.groups())
+        heading = output["sections"][i]["heading"] if i < len(output["sections"]) else "?"
+        return f"Section {i + 1} ({json.dumps(heading)}), paragraph {j + 1}" + (f", quote {k + 1}" if quote else "")
+
+    @staticmethod
+    def _rung0_failures(manifest: Mapping[str, Any], output: Mapping[str, Any],
+                        delivery: Mapping[str, Any]) -> list:
+        """Failing rung 0 findings other than an unresolved quote (those are counted as unsupported)."""
+        return [f for f in verify_delivery(delivery, manifest["brief"], output)["rung0"]["findings"]
+                if f["severity"] == "fail" and f["kind"] != "quote_unresolved"]
+
+    def _objections(self, output: Mapping[str, Any], delivery: Mapping[str, Any], failures: list) -> list:
+        """What the door can say, mechanically, is wrong with a rendered answer: each unsupported quote with the
+        reason the renderer recorded for it, then each other failing rung 0 finding."""
+        claims = {c["id"]: c for c in delivery["claims"]}
+        found: list[str] = []
+        for cid in delivery["unsupported"]:
+            c = claims.get(cid) or {}
+            quote = c.get("quote") or ""
+            if not quote:
+                found.append(f"{self._where(cid, output)}: the paragraph has no quote, so nothing supports it.")
+                continue
+            why = (f"this short quote appears {c['ambiguous']} times in the source files, so it cannot be placed"
+                   if c.get("ambiguous") else "this text was not found in the source files")
+            found.append(f"{self._where(cid, output)}: {json.dumps(quote[:300])}: {why}.")
+        found += [f"{self._where(f['claim_id'], output, quote=False)}: {f['kind'].replace('_', ' ')}: {f['detail']}."
+                  for f in failures]
+        return found
+
+    def _dispatch_revision(self, manifest: dict[str, Any], job: Mapping[str, Any], raw: bytes,
+                           objections: list) -> None:
+        """One bounded objection round: the original prompt, the first answer, the objections; same backend,
+        schema, temperature and token budget (all read back from the first job). Never more than one: the
+        idempotency key is per work item, so a reconcile that repeats this after a crash gets the same job."""
+        work_id = str(manifest["work_id"])
+        original = self.execution.artifacts.read(job["desired"]["input_artifact"]).decode("utf-8")
+        template, _ = self._template_file("local_work_delivery_revise_v1.txt")
+        prompt = (original + "\n\nYOUR FIRST ANSWER:\n" + raw.decode("utf-8", errors="replace")
+                  + "\n\nOBJECTIONS:\n" + "\n".join(f"- {x}" for x in objections) + "\n\n" + template)
+        arguments = dict(job["desired"]["arguments"])
+        provider = load_pool().by_name(str(arguments["backend"]))
+        if provider is None:
+            raise LocalWorkError("revision route provider disappeared")
+        tokens = self.token_counter(provider, str(arguments["model"]), prompt)
+        reserve, context = int(manifest["prompt"]["output_reserve_tokens"]), int(manifest["prompt"]["context_tokens"])
+        manifest["revision"]["prompt"] = {"digest": _digest(prompt), "input_tokens": tokens}
+        if tokens + reserve > context:
+            raise LocalWorkError(f"revision does not fit exact context: {tokens} input + {reserve} output > {context}")
+        state = self.execution.submit(
+            operation_name="work.produce", arguments={"prompt": prompt, **arguments},
+            principal=job["principal"], source=job["source"], policy=job["desired"]["policy"],
+            idempotency_key=f"{work_id}:revision")
+        manifest["revision"]["reason"] = "revision dispatched"
+        manifest["job_id"], manifest["request_id"] = state["job_id"], state["request_id"]
+        manifest["status"] = "queued"
+        manifest["attempts"].append({"number": 2, "job_id": state["job_id"], "request_id": state["request_id"],
+                                     "repair": False, "revision": True})
+        self._event(manifest, "step.dispatched", {"job_id": state["job_id"], "attempt": 2, "revision": True,
+                    "objections": len(objections)})
+        self._spawn_auto_reconcile(work_id, state["job_id"])
+
+    @staticmethod
+    def _revision_pending(manifest: Mapping[str, Any]) -> bool:
+        revision = manifest.get("revision")
+        return bool(revision) and revision.get("kept") is None
+
+    @staticmethod
+    def _measure(delivery: Mapping[str, Any], failures: list) -> dict[str, Any]:
+        return {"unsupported": len(delivery["unsupported"]),
+                "deterministic": delivery["verification"]["deterministic"]["state"],
+                "rung0_failures": sorted({f["kind"] for f in failures})}
+
+    def _keep_original(self, manifest: dict[str, Any], reason: str, after: dict[str, Any] | None = None) -> None:
+        manifest["revision"].update(kept="original", reason=reason, after=after)
+        if len(manifest["attempts"]) > 1:
+            self._event(manifest, "attempt.recorded", {"job_id": manifest["attempts"][1]["job_id"], "ok": False,
+                        "revision": True, "reason_sha256": _digest(reason)})
+        self._finish_delivery(manifest, str(manifest["attempts"][0]["job_id"]))
+
+    @staticmethod
+    def _better(before: Mapping[str, Any], after: Mapping[str, Any]) -> str | None:
+        """-> the reason the revised answer is kept, or None. Fewer unsupported quotes wins; ties keep the original,
+        unless the first answer failed rung 0 for another reason that the revision no longer fails for."""
+        if after["unsupported"] < before["unsupported"]:
+            return f"unsupported quotes {before['unsupported']} -> {after['unsupported']}"
+        fixed = before["rung0_failures"] and not set(before["rung0_failures"]) & set(after["rung0_failures"])
+        if after["unsupported"] <= before["unsupported"] and fixed:
+            return (f"rung 0 no longer fails for {', '.join(before['rung0_failures'])}; "
+                    f"unsupported quotes {before['unsupported']} -> {after['unsupported']}")
+        return None
+
+    def _reconcile_revision(self, manifest: dict[str, Any], job: Mapping[str, Any]) -> None:
+        """The second answer: kept only when it validates and is better (_better); otherwise the original stands
+        and the reason is recorded. Nothing here fails the work item: the first answer was already rendered."""
+        work_id = str(manifest["work_id"])
+        try:
+            metadata, raw = self._result(job)
+        except LocalWorkError as exc:
+            return self._keep_original(manifest, f"revised answer unreadable: {exc}")
+        try:
+            rendered = self._render_answer(manifest, job, raw)
+        except _Refused as exc:
+            (self._run_dir(work_id) / "delivery-output.r1.json").write_bytes(raw)
+            manifest["revision"]["files"]["revised"] = {"output": {
+                "file": "delivery-output.r1.json", "sha256": _digest(raw), "size": len(raw),
+                "media_type": "application/json"}}
+            return self._keep_original(manifest, f"revised answer refused: {exc}")
+        output, _, delivery = rendered
+        manifest["revision"]["files"]["revised"] = self._write_delivery_files(work_id, raw, delivery, None, ".r1")
+        try:
+            after = self._measure(delivery, self._rung0_failures(manifest, output, delivery))
+        except Exception as exc:
+            return self._keep_original(manifest, f"revised answer not checked: {type(exc).__name__}: {exc}")
+        before = manifest["revision"]["before"]
+        reason = self._better(before, after)
+        if reason is None:
+            return self._keep_original(
+                manifest, f"revised answer is not better: unsupported quotes {before['unsupported']} -> "
+                          f"{after['unsupported']}, rung 0 failures {before['rung0_failures']} -> "
+                          f"{after['rung0_failures']}", after)
+        self._adopt_delivery(manifest, job, metadata, raw, rendered)
+        manifest["revision"].update(kept="revised", after=after, reason=reason)
+        self._finish_delivery(manifest, str(job["job_id"]))
+
+    def _reconcile_delivery(self, manifest: dict[str, Any], job: Mapping[str, Any],
+                            metadata: Mapping[str, Any], raw: bytes) -> None:
+        """A delivery job's result is a delivery-output.v1 document. Every failure is named and final:
+        no structural repair prompt, no second lane. With `revise` set, one objection round may follow a
+        first answer that rendered (see _dispatch_revision); a failed first answer never gets one."""
+        try:
+            rendered = self._render_answer(manifest, job, raw)
+        except _Refused as exc:
+            return self._fail(manifest, str(exc))
+        self._adopt_delivery(manifest, job, metadata, raw, rendered)
+        if manifest.get("revise") and not manifest.get("revision"):
+            output, _, delivery = rendered
+            try:
+                failures = self._rung0_failures(manifest, output, delivery)
+                objections = self._objections(output, delivery, failures)
+            except Exception as exc:
+                manifest["revision"] = {"round": 1, "objections": 0, "before": None, "after": None, "kept": None,
+                                        "reason": "", "files": {}}
+                return self._keep_original(manifest, f"revision not dispatched: objections not computed: "
+                                                     f"{type(exc).__name__}: {exc}")
+            if objections:
+                manifest["revision"] = {
+                    "round": 1, "objections": len(objections), "before": self._measure(delivery, failures),
+                    "after": None, "kept": None, "reason": "",
+                    "files": {"original": self._write_delivery_files(str(manifest["work_id"]), raw, delivery,
+                                                                     None, ".r0")}}
+                try:
+                    return self._dispatch_revision(manifest, job, raw, objections)
+                except Exception as exc:
+                    # A revision is optional: whatever stops it (context, tokenizer, a paused or full execution
+                    # queue) leaves the rendered first answer standing, with the reason named.
+                    return self._keep_original(manifest, f"revision not dispatched: {type(exc).__name__}: {exc}")
+        self._finish_delivery(manifest, str(job["job_id"]))
 
     def reconcile(self, work_id: str) -> dict[str, Any]:
         with self._lock:
@@ -669,11 +863,17 @@ class LocalWorkService:
                 self._write(manifest)
                 return manifest
             job = self.execution.get_job(str(manifest["job_id"]))
-            if job is None:
+            if job is None and self._revision_pending(manifest):
+                self._keep_original(manifest, f"revision job missing: {manifest['job_id']}")
+            elif job is None:
                 manifest["status"] = "failed"
                 manifest["failure"] = "execution job missing"
             elif job["status"] in {"accepted", "queued", "dispatched", "running"}:
                 manifest["status"] = "running" if job["status"] in {"dispatched", "running"} else "queued"
+            elif job["status"] != "succeeded" and self._revision_pending(manifest):
+                self._keep_original(manifest, f"revision job {job['status']}: {job.get('reason') or 'no reason given'}")
+            elif self._revision_pending(manifest):
+                self._reconcile_revision(manifest, job)
             elif job["status"] != "succeeded":
                 manifest["status"] = "failed"
                 manifest["failure"] = job.get("reason") or f"execution ended {job['status']}"
@@ -706,7 +906,7 @@ class LocalWorkService:
                         observed = (job.get("invocations") or [{}])[-1]
                         manifest["route"].update({key: observed.get(key) for key in
                                                   ("backend", "model", "routed_by", "tokens_in", "tokens_out", "duration_ms",
-                                                   "temperature")
+                                                   "temperature", "structured_output_repairs")
                                                   if observed.get(key) is not None})
                         _observe_temperature(manifest, observed)
                         manifest["artifact"] = {key: metadata[key] for key in
@@ -765,9 +965,22 @@ class LocalWorkService:
                 texts[key] = data.decode("utf-8")
             files = {key: {**ref, "path": str(run_dir / ref["file"])}
                      for key, ref in manifest["delivery_artifacts"].items()}
+            delivery = {"manifest": json.loads(texts["manifest"]), "files": files,
+                        "summary": manifest["delivery_summary"]}
+            revision = manifest.get("revision")
+            if revision:
+                # The kept answer is above; this names both versions on disk (the other one included).
+                versions = {}
+                for role, refs in (revision.get("files") or {}).items():
+                    for key, ref in refs.items():
+                        if _digest((run_dir / ref["file"]).read_bytes()) != ref["sha256"]:
+                            raise LocalWorkError(f"revision {role} {key} digest no longer matches manifest")
+                    versions[role] = {key: {**ref, "path": str(run_dir / ref["file"])} for key, ref in refs.items()}
+                other = {"original": "revised", "revised": "original"}.get(revision.get("kept"))
+                delivery["revision"] = {**{k: v for k, v in revision.items() if k != "files"}, "versions": versions,
+                                        "other": other if other in versions else None}
             return {"work_id": work_id, "artifact": files["candidate"], "candidate": texts["candidate"],
-                    "delivery": {"manifest": json.loads(texts["manifest"]), "files": files,
-                                 "summary": manifest["delivery_summary"]}}
+                    "delivery": delivery}
         metadata, raw = self.execution.read_artifact(manifest["artifact"]["artifact_id"])
         if metadata["sha256"] != manifest["artifact"]["sha256"]:
             raise LocalWorkError("candidate artifact digest no longer matches manifest")

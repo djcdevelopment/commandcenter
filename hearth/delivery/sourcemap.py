@@ -297,6 +297,7 @@ def render_for_model(sm: SourceMap, numbered: bool = True, symbols: bool = True)
 # Typographic quotes a model substitutes for ASCII ones; folded on both sides, so a source
 # that really contains them still matches. One char to one char: offsets stay aligned.
 _QUOTE_FOLD = str.maketrans({"\u201c": '"', "\u201d": '"', "\u2018": "'", "\u2019": "'"})
+_QUOTE_DROP = str.maketrans("", "", "\"'")
 _ELLIPSIS = re.compile(r"\.\.\.|\u2026")
 
 
@@ -401,6 +402,20 @@ def locate(sm: SourceMap, quote: str, threshold: float = FUZZY_THRESHOLD,
     if cands:
         fm, s, e = _pick(cands, hint)
         return Location(fm.path, s, e, "normalized", len(cands))
+
+    # Neither model writes a literal double quote inside a JSON string: the 8B swaps it for ' or drops
+    # it (2026-10-03, work_d8f8c68f: 11 of 18 quotes). Compare with quote characters removed on both sides.
+    sq = nq.translate(_QUOTE_DROP)
+    if len(sq) >= SHORT_QUOTE_CHARS:
+        for fm, text in texts:
+            ntext, idx = _norm_with_map(text)
+            keep = [i for i, c in enumerate(ntext) if c not in "\"'"]
+            stext = "".join(ntext[i] for i in keep)
+            for pos in _find_all(stext, sq):
+                cands.append((fm, _line_of(text, idx[keep[pos]]), _line_of(text, idx[keep[pos + len(sq) - 1]])))
+        if cands:
+            fm, s, e = _pick(cands, hint)
+            return Location(fm.path, s, e, "normalized", len(cands))
 
     if _ELLIPSIS.search(q):
         return _locate_elided(texts, q, threshold)

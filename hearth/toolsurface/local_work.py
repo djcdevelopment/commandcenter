@@ -55,7 +55,8 @@ def submit_local_work(intent: str, acceptance_criteria: list[str], repo: str,
     ``conditions.temperature`` and ``route.temperature``.
     ``revise`` (delivery only) allows one bounded objection round: if the first answer has unsupported quotes or a
     failing rung 0, the door sends the model its answer and the objections once and keeps the revision only when it
-    has fewer unsupported quotes (``revision`` in the manifest says which was kept and why)."""
+    has fewer unsupported quotes, or no more of them and no longer fails rung 0 for the first answer's other reason
+    (``revision`` in the manifest says which was kept and why; both versions stay on disk)."""
     identity = _identity()
     return _get_service().submit(
         intent=intent, acceptance_criteria=acceptance_criteria, repo=repo,

@@ -1,5 +1,6 @@
-REVISION (one round only). Your first answer is shown above, followed by objections found by checking it against the source files. Return the complete corrected delivery-output.v1 object (same shape as before: `summary` and `sections`, no markdown fence, no extra field), not a patch and not a list of changes.
+REVISION (one round only). Above are the request, your first answer, and the objections found by checking that answer against the source files. Return the complete corrected delivery-output.v1 object in the same shape as before (`summary` and `sections`, each paragraph `{text, quotes}`, no markdown fence, no extra field): the whole report, not a patch and not a list of changes.
 
-- Fix every objection. Replace an unsupported quote with one whole source line copied exactly from the SOURCE FILES above (same spelling, spacing and punctuation, no line-number prefix), or rewrite the paragraph so it no longer makes the claim.
-- A quote must be a whole line, never part of a line, never several lines joined, never a single word.
-- Keep everything that was not objected to, and keep every SUBSTANCE statement covered. Stay within the word limit.
+- Answer every objection. For a quote objection, find the source line that supports the paragraph's claim and copy that whole line exactly as written; the quote rules of the request still apply.
+- If no line in the SOURCE FILES supports a claim, remove that claim and say so in the summary: name what the sources do not show. Never drop a claim, a paragraph or a SUBSTANCE statement without saying so.
+- For an arithmetic objection, recompute and correct the numbers. For a length objection, bring the report within the limit under FORM.
+- Keep everything that was not objected to.

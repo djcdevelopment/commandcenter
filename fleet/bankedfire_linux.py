@@ -324,6 +324,8 @@ def deepagents_spec_from_brief(body: str, run_id: str) -> dict[str, Any]:
         rd = str(fields["report_delivery"]).strip().lower()
         if rd not in REPORT_DELIVERIES:
             raise ValueError(f"deepagents brief report_delivery {rd!r} is not one of {'|'.join(REPORT_DELIVERIES)}")
+        if not spec["report"]:   # the launcher passes --report-delivery only with --report; refuse, never drop it
+            raise ValueError("deepagents brief report_delivery requires report: true")
         spec["report_delivery"] = rd
     if backend == SIZED_TOOL_BACKEND:
         seat, answer = size_tool_seat(intent, fields["source"], max_words)

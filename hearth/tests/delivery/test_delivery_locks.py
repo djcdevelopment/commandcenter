@@ -312,6 +312,64 @@ class DoorValidatesRendererTests(unittest.TestCase):
                 self.assertTrue(md.strip())
 
 
+class LineReferenceTests(unittest.TestCase):
+    def setup_case(self):
+        sm = SourceMap("fixture", "a" * 40, [file_map("src/x.py", b"same = 1\nsame = 1\n    " + b"x" * 500 + b"  \n\n")])
+        brief = {"schema": "brief.v2", "substance": [{"id": "s1", "statement": "Describe the source."}],
+                 "sources": [{"path": "src/x.py", "commit": "a" * 7}],
+                 "form": {"quote_mode": "line_reference", "citations": "range"}}
+        output = {"summary": "Source.", "sections": [{"heading": "Source", "paragraphs": [
+            {"text": "The source repeats a line.", "quotes": ["src/x.py:2", "src/x.py:3", "src/x.py:4"]}]}]}
+        return sm, brief, output
+
+    def test_echo_uses_addressed_pinned_line_even_when_repeated_long_or_blank(self):
+        sm, brief, output = self.setup_case()
+        md, man = render(output, brief, sm)
+        self.assertEqual([c["quote"] for c in man["claims"]], sm.files[0].lines[1:])
+        self.assertEqual([c["resolved"]["start_line"] for c in man["claims"]], [2, 3, 4])
+        self.assertEqual([c["quote_reference"] for c in man["claims"]], output["sections"][0]["paragraphs"][0]["quotes"])
+        self.assertEqual(man["unsupported"], [])
+        self.assertIn("line_reference", man["aids_used"])
+        self.assertIn("> " + sm.files[0].lines[2] + " (src/x.py:3-3)", md)
+        contract.check_manifest(man)
+        self.assertEqual(contract.check_manifest_against_output(man, output), [])
+        bad = copy.deepcopy(man)
+        bad["claims"][0]["resolved"]["start_line"] = 1
+        self.assertTrue(contract.validate_manifest(bad))
+
+    def test_invalid_and_undeclared_references_never_search_or_fall_back(self):
+        sm, brief, output = self.setup_case()
+        for ref in ("src/x.py:0", "src/x.py:5", "src/x.py:2-3", "src/x.py:02", "src/x.py:+2",
+                    "../src/x.py:2", "/src/x.py:2", "other.py:2", "same = 1", "src/x.py:2 "):
+            with self.subTest(reference=ref):
+                output["sections"][0]["paragraphs"][0]["quotes"] = [ref]
+                _, man = render(output, brief, sm)
+                self.assertEqual((man["claims"][0]["match"], man["claims"][0]["resolved"]), ("missing", None))
+                self.assertNotIn("candidate", man["claims"][0])
+                self.assertEqual(man["unsupported"], ["s0.p0.q0"])
+                contract.check_manifest(man)
+        output["sections"][0]["paragraphs"][0]["quotes"] = ["src/x.py:2"]
+        for sources in ([{"path": "other.py", "commit": "a" * 7}], [{"path": "src/x.py", "commit": "b" * 7}]):
+            brief["sources"] = sources
+            _, man = render(output, brief, sm)
+            self.assertEqual(man["unsupported"], ["s0.p0.q0"])
+
+    def test_text_default_and_explicit_text_have_identical_report_and_claims(self):
+        out, raw = stored("d8f8c68f")
+        brief = json.loads(raw)
+        first_md, first = render(out, brief, source_map(PERCEPTION))
+        brief.setdefault("form", {})["quote_mode"] = "text"
+        second_md, second = render(out, brief, source_map(PERCEPTION))
+        self.assertEqual(first_md, second_md)
+        first.pop("brief_sha256"); second.pop("brief_sha256")
+        self.assertEqual(first, second)
+        brief["form"]["quote_mode"] = "unknown"
+        self.assertTrue(contract.validate_brief(brief))
+        brief["form"]["quote_mode"] = "line_reference"
+        brief.pop("sources")
+        self.assertTrue(contract.validate_brief(brief))
+
+
 class RungZeroArithmeticTests(unittest.TestCase):
     def test_the_sizing_slip_is_reported_with_the_recomputed_figure(self) -> None:
         """Sizing brief (delivery task 11): 2 x (0.30 x 65,536 + 0.5 x 16,384) was written as 51,968; it is 55,706."""

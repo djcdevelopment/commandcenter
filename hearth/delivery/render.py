@@ -47,7 +47,7 @@ import textwrap
 from typing import Any, Mapping, Optional, Union
 
 from . import contract
-from .sourcemap import Location, SourceMap, locate
+from .sourcemap import Location, SourceMap, locate, locate_line_reference
 
 __all__ = ["render", "render_with_findings", "render_legacy"]
 
@@ -188,10 +188,11 @@ def _quote_lines(quote: str, cite: str, sm: Optional[SourceMap] = None, row: Opt
     res = row["resolved"] if row else None
     fm = sm.get(res["path"]) if (sm and res) else None
     if fm is not None:
-        quote = textwrap.dedent("\n".join(fm.lines[res["start_line"] - 1:res["end_line"]]))
+        source = "\n".join(fm.lines[res["start_line"] - 1:res["end_line"]])
+        quote = source if row and "quote_reference" in row else textwrap.dedent(source)
     else:
         quote = html.unescape(quote)
-    lines = [ln.rstrip() for ln in quote.strip("\n").split("\n")]
+    lines = quote.split("\n") if row and "quote_reference" in row else [ln.rstrip() for ln in quote.strip("\n").split("\n")]
     lines[-1] = f"{lines[-1]} ({cite})"
     return ["> " + ln if ln.strip() else ">" for ln in lines]
 
@@ -203,9 +204,16 @@ def render_with_findings(output: Mapping[str, Any], brief: Union[bytes, str, Map
     contract.check_output(output)
     raw, bdoc = _brief_bytes(brief)
     contract.check_brief(bdoc)
-    style = contract.form_defaults(bdoc)["citations"]
+    form = contract.form_defaults(bdoc)
+    style, line_reference = form["citations"], form["quote_mode"] == "line_reference"
     man = _manifest_base(raw, meta)
     man["form_applied"] = _form_applied(bdoc, style)
+    if line_reference:
+        man["form_applied"]["quote_mode"] = "line_reference"
+        if "line_reference" not in man["aids_used"]:
+            man["aids_used"].append("line_reference")
+        allowed = {s["path"] for s in bdoc["sources"] if sm.commit.startswith(s["commit"])}
+        reference_map = SourceMap(sm.repo, sm.commit, [f for f in sm.files if f.path in allowed])
 
     md = [output["summary"].strip(), ""]
     claims: list = []
@@ -228,17 +236,21 @@ def render_with_findings(output: Mapping[str, Any], brief: Union[bytes, str, Map
                 continue
             rows = []
             for k, q in enumerate(para["quotes"]):
-                loc = locate(sm, q, hint=text)
-                rows.append((_claim_row(f"s{i}.p{j}.q{k}", text, q, loc), loc))
+                loc = locate_line_reference(reference_map, q) if line_reference else locate(sm, q, hint=text)
+                echoed = sm.get(loc.path).lines[loc.start - 1] if line_reference and loc.match != "missing" else q
+                row = _claim_row(f"s{i}.p{j}.q{k}", text, echoed, loc)
+                if line_reference:
+                    row["quote_reference"] = q
+                rows.append((row, loc))
             claims += [r for r, _ in rows]
             unsupported += [r["id"] for r, _ in rows if r["match"] == "missing"]
             cites = [_ref(l) if l.match != "missing" else f"found {l.occurrences} times, too short to place"
                      if l.occurrences > 1 else
                      f"unresolved {l.candidate['reason']}; candidate {l.candidate['path']}:{l.candidate['start_line']}-{l.candidate['end_line']}"
                      if l.candidate else "not found in sources" for _, l in rows]
-            if style == "range":
+            if style == "range" and not line_reference:
                 md.append(f"{shown} ({', '.join(dict.fromkeys(cites))})")
-            elif style == "quote":
+            elif style == "quote" or line_reference:
                 md.append(shown)
                 seen = set()
                 for (r, _), cite in zip(rows, cites):

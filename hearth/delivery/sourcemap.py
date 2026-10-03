@@ -499,6 +499,21 @@ def _prefix_line(texts: list, q: str, chars: int, hint: Optional[str], hits: lis
     return Location(fm.path, line, line, "normalized", 1, True)
 
 
+def locate_line_reference(sm: SourceMap, reference: str) -> Location:
+    """Resolve an exact path:N within this pinned map; never repair or search a bad reference."""
+    parsed = re.fullmatch(r"([^:\s]+):([1-9][0-9]*)", reference)
+    if not parsed:
+        return _MISSING
+    path, number = parsed.groups()
+    if path.startswith("/") or any(part in ("", ".", "..") for part in path.split("/")):
+        return _MISSING
+    fm = sm.get(path)
+    line = int(number)
+    if fm is None or not 1 <= line <= len(fm.lines):
+        return _MISSING
+    return Location(path, line, line, "exact", 1)
+
+
 def locate(sm: SourceMap, quote: str, threshold: float = FUZZY_THRESHOLD,
            hint: Optional[str] = None) -> Location:
     """Resolve a quote to a Location(path, start, end, match, occurrences).

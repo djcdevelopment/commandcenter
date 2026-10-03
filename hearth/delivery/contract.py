@@ -59,9 +59,10 @@ OUTPUT_SCHEMA = "delivery-output.v1"
 MANIFEST_SCHEMA = "delivery.v1"
 
 ENFORCE = ("measure", "fail")          # measure (default) records deviation; fail only where the destination enforces
+QUOTE_MODES = ("text", "line_reference")
 CITATIONS = ("range", "quote", "none")  # see module docstring, rule 3
 STYLES = ("markdown",)
-AIDS = frozenset({"source_map", "quote_renderer", "constrained_output", "sidecar", "judge", "reviewer"})
+AIDS = frozenset({"source_map", "quote_renderer", "constrained_output", "sidecar", "judge", "reviewer", "line_reference"})
 MATCHES = ("exact", "normalized", "missing")  # plus "fuzzy:<score>", score 0..1 with two decimals
 # Repair counts the contract knows and cross-checks against claims; the renderer (task 3) may add other
 # snake_case keys (heading_added, trailing_prose_removed, citation_syntax_stripped, ...).
@@ -191,12 +192,14 @@ def validate_brief(doc: Any) -> list:
                     errs.append(f"brief.aids[{i}]: duplicate {a!r}")
     if isinstance(form, dict) and form.get("citations") in ("quote", "range") and not doc.get("sources"):
         errs.append(f"brief.form.citations: {form['citations']!r} needs brief.sources[] to resolve against")
+    if isinstance(form, dict) and form.get("quote_mode") == "line_reference" and not doc.get("sources"):
+        errs.append("brief.form.quote_mode: line_reference needs brief.sources[]")
     return errs
 
 
 def _validate_form(form: Any) -> list:
     errs: list = []
-    if not _exact(form, set(), {"words", "citations", "sections", "style"}, "brief.form", errs):
+    if not _exact(form, set(), {"words", "citations", "sections", "style", "quote_mode"}, "brief.form", errs):
         return errs
     if "words" in form:
         w = form["words"]
@@ -210,6 +213,8 @@ def _validate_form(form: Any) -> list:
                 errs.append(f"brief.form.words: min {lo} exceeds max {hi}")
             if "enforce" in w and w["enforce"] not in ENFORCE:
                 errs.append(f"brief.form.words.enforce: one of {ENFORCE}, got {w['enforce']!r}")
+    if "quote_mode" in form and form["quote_mode"] not in QUOTE_MODES:
+        errs.append(f"brief.form.quote_mode: one of {QUOTE_MODES}, got {form['quote_mode']!r}")
     if "citations" in form and form["citations"] not in CITATIONS:
         errs.append(f"brief.form.citations: one of {CITATIONS}, got {form['citations']!r}")
     if "sections" in form:
@@ -229,13 +234,14 @@ def _validate_form(form: Any) -> list:
 
 def form_defaults(brief: Mapping[str, Any]) -> dict:
     """Effective form spec of a VALIDATED brief: words.min=0, words.enforce=measure, citations=quote,
-    sections=[] (advisory, rule 2), style=markdown. `words` stays absent when the brief sets no limit."""
+    sections=[] (advisory, rule 2), style=markdown, quote_mode=text. `words` stays absent when the brief sets no limit."""
     f = dict(brief.get("form") or {})
     if "words" in f:
         f["words"] = {"min": 0, "enforce": "measure", **f["words"]}
     f.setdefault("citations", "quote")
     f.setdefault("sections", [])
     f.setdefault("style", "markdown")
+    f.setdefault("quote_mode", "text")
     return f
 
 
@@ -258,7 +264,7 @@ def _bounded_list(v: Any, lo: int, hi: int, where: str, errs: list) -> bool:
 
 def validate_output(doc: Any) -> list:
     """What the model writes: {summary, sections: [{heading, paragraphs: [{text, quotes: [str]}]}]}.
-    Prose and exact quotes only: no line numbers, no counts, no citation syntax (closed objects). Citation
+    Prose and quote strings: exact text by default, path:N references when the brief opts in. Citation
     syntax leaking into `text` is a renderer repair (task 3), not a shape error here."""
     errs: list = []
     if not _exact(doc, {"summary", "sections"}, set(), "output", errs):
@@ -324,7 +330,9 @@ def validate_manifest(doc: Any) -> list:
         return errs
     fa = doc["form_applied"]
     cites = None
-    if _exact(fa, {"citations", "words", "sections"}, set(), "manifest.form_applied", errs):
+    if _exact(fa, {"citations", "words", "sections"}, {"quote_mode"}, "manifest.form_applied", errs):
+        if fa.get("quote_mode", "text") not in QUOTE_MODES:
+            errs.append("manifest.form_applied.quote_mode: text|line_reference required")
         cites = fa["citations"]
         if cites not in CITATIONS:
             errs.append(f"manifest.form_applied.citations: one of {CITATIONS}, got {cites!r}")
@@ -374,7 +382,7 @@ def validate_manifest(doc: Any) -> list:
         claims = []
     for i, c in enumerate(claims):
         w = f"manifest.claims[{i}]"
-        if not _exact(c, {"id", "text", "quote", "resolved", "match"}, {"ambiguous", "truncated", "candidate"}, w, errs):
+        if not _exact(c, {"id", "text", "quote", "resolved", "match"}, {"ambiguous", "truncated", "candidate", "quote_reference"}, w, errs):
             continue
         cid, m, r = c["id"], c["match"], c["resolved"]
         if not (isinstance(cid, str) and _ID.match(cid)):
@@ -397,7 +405,7 @@ def validate_manifest(doc: Any) -> list:
             if r is not None:
                 errs.append(f"{w}.resolved: must be null when match is missing")
         else:
-            if c["quote"] == "":
+            if c["quote"] == "" and "quote_reference" not in c:
                 errs.append(f"{w}.match: an empty quote can only be missing")
             if r is None:
                 errs.append(f"{w}.resolved: required when match is {m}")
@@ -410,6 +418,21 @@ def validate_manifest(doc: Any) -> list:
             tally["normalized_quote"] += m == "normalized" and not c.get("truncated")
             tally["truncated_quote"] += bool(c.get("truncated"))
             tally["fuzzy_quote"] += m.startswith("fuzzy:")
+        if "quote_reference" in c:
+            reference = c["quote_reference"]
+            _bounded_str(reference, MAX_QUOTE_CHARS, f"{w}.quote_reference", errs)
+            if not isinstance(fa, dict) or fa.get("quote_mode") != "line_reference":
+                errs.append(f"{w}.quote_reference: requires line_reference mode")
+            if not isinstance(aids, list) or "line_reference" not in aids:
+                errs.append(f"{w}.quote_reference: line_reference aid required")
+            if m != "missing":
+                parsed = re.fullmatch(r"([^:\s]+):([1-9][0-9]*)", reference) if isinstance(reference, str) else None
+                if m != "exact" or not parsed or not isinstance(r, dict) or (
+                        r.get("path"), r.get("start_line"), r.get("end_line")) != (
+                        parsed.group(1), int(parsed.group(2)), int(parsed.group(2))):
+                    errs.append(f"{w}.quote_reference: exact single-line resolution must match reference")
+        elif isinstance(fa, dict) and fa.get("quote_mode") == "line_reference" and c["quote"]:
+            errs.append(f"{w}.quote_reference: required for line-reference quote")
         if "candidate" in c:
             candidate = c["candidate"]
             cw = f"{w}.candidate"
@@ -519,7 +542,7 @@ def check_manifest_against_output(manifest: Mapping[str, Any], output: Mapping[s
     quote '' (rule 4); measures.words == count_words (rule 1); measures.sections == headings in order (rule 2)."""
     errs: list = []
     want = [(p["text"], q) for s in output["sections"] for p in s["paragraphs"] for q in (p["quotes"] or [""])]
-    got = [(c["text"], c["quote"]) for c in manifest["claims"]]
+    got = [(c["text"], c.get("quote_reference", c["quote"])) for c in manifest["claims"]]
     if got != want:
         for i, (g, x) in enumerate(zip(got, want)):
             if g != x:

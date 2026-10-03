@@ -79,13 +79,19 @@ def _git_reader(repo: str, bdoc: Optional[Mapping[str, Any]]) -> Callable[[str, 
     return read
 
 
-def _deliverable_text(output: Mapping[str, Any]) -> str:
+def _deliverable_text(output: Mapping[str, Any], manifest: Optional[Mapping[str, Any]] = None) -> str:
     parts = [output["summary"]]
-    for sec in output["sections"]:
+    for i, sec in enumerate(output["sections"]):
         parts.append(f"## {sec['heading']}")
-        for para in sec["paragraphs"]:
+        for j, para in enumerate(sec["paragraphs"]):
             parts.append(para["text"])
-            parts += [f"> {q}" for q in para["quotes"]]
+            if manifest and (manifest.get("form_applied") or {}).get("quote_mode") == "line_reference":
+                for c in manifest["claims"]:
+                    if c["id"].startswith(f"s{i}.p{j}.q"):
+                        parts.append(f"> {c['quote']} ({c.get('quote_reference', '')})" if _resolved(c)
+                                     else f"[unresolved reference {c.get('quote_reference', c['quote'])}]")
+            else:
+                parts += [f"> {q}" for q in para["quotes"]]
     return "\n\n".join(parts)
 
 
@@ -195,7 +201,7 @@ def _judge_pass(manifest, output, bdoc, ctx, only: Optional[set]) -> tuple:
                 jobs.append(job)
         if bdoc and bdoc.get("substance"):
             src, scope, mode = _substance_evidence(manifest, bdoc, ctx)
-            body = _deliverable_text(output)
+            body = _deliverable_text(output, manifest)
             for s in bdoc["substance"]:
                 jobs.append({"claim_id": SUBSTANCE_PREFIX + s["id"], "claim": f"Requirement: {s['statement']}",
                              "quote": f"REPORT:\n{body}\n\nSOURCE:\n{src}", "quote_label": "EVIDENCE",

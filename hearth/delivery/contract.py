@@ -25,6 +25,15 @@ Form rules (index "Decisions taken while building", 2026-10-03):
      stay for the drain (task 4 generates sources[] from the header at submit time).
   6. A quote found more than once is rendered at one hit with `ambiguous: N` (N >= 2) on the claim and
      counts as an `ambiguous_quote` repair; a quote under 24 chars never matches fuzzily (sourcemap).
+
+Manifest additions (orchestrator decisions A and B, 2026-10-03, additive):
+  A. `form_applied: {citations: range|quote|none, words: {min, max, enforce} | null, sections: [...] | null}`
+     is the form the renderer actually applied (the brief's form after defaults; null = the brief set none).
+     A missing claim must be in `unsupported`, with one exemption: a quoteless paragraph (quote "") when
+     `form_applied.citations == "none"`. A non-empty quote that did not resolve is always unsupported.
+  B. `deviations: [{kind: words|sections|other, expected, observed, note?}]` (may be empty): every measured
+     departure from form.words / form.sections. `verification.deterministic.note` stays free text. A `words`
+     deviation under `form_applied.words.enforce == "fail"` forbids `deterministic: pass`.
 """
 from __future__ import annotations
 
@@ -49,6 +58,7 @@ MATCHES = ("exact", "normalized", "missing")  # plus "fuzzy:<score>", score 0..1
 REPAIR_KEYS = ("normalized_quote", "fuzzy_quote", "ambiguous_quote")
 VERIFY_RUNGS = ("deterministic", "judge", "reviewer", "human")
 VERIFY_STATES = ("pass", "fail", "unverified", "not_run")  # unrun = not_run, judge unavailable = unverified; never pass
+DEVIATION_KINDS = ("words", "sections", "other")
 
 # delivery-output.v1 size bounds: shared by validate_output and output_json_schema so a runaway model
 # cannot emit unbounded arrays or strings under constrained decoding.
@@ -293,9 +303,36 @@ def default_verification() -> dict:
 def validate_manifest(doc: Any) -> list:
     errs: list = []
     req = {"schema", "brief_sha256", "model", "backend", "configuration", "environment", "aids_used",
-           "claims", "measures", "repairs", "unsupported", "verification"}
+           "claims", "measures", "repairs", "unsupported", "verification", "form_applied", "deviations"}
     if not _exact(doc, req, set(), "manifest", errs):
         return errs
+    fa = doc["form_applied"]
+    cites = None
+    if _exact(fa, {"citations", "words", "sections"}, set(), "manifest.form_applied", errs):
+        cites = fa["citations"]
+        if cites not in CITATIONS:
+            errs.append(f"manifest.form_applied.citations: one of {CITATIONS}, got {cites!r}")
+        w = fa["words"]
+        if w is not None and _exact(w, {"min", "max", "enforce"}, set(), "manifest.form_applied.words", errs):
+            if not (_is_int(w["min"]) and _is_int(w["max"]) and 0 <= w["min"] <= w["max"]):
+                errs.append(f"manifest.form_applied.words: ints 0 <= min <= max required, got {w['min']!r}..{w['max']!r}")
+            if w["enforce"] not in ENFORCE:
+                errs.append(f"manifest.form_applied.words.enforce: one of {ENFORCE}, got {w['enforce']!r}")
+        sec = fa["sections"]
+        if sec is not None and not (isinstance(sec, list) and all(_is_str(x) for x in sec)):
+            errs.append("manifest.form_applied.sections: null or a list of headings required")
+    devs = doc["deviations"]
+    if not isinstance(devs, list):
+        errs.append("manifest.deviations: list required (empty when nothing deviated)")
+        devs = []
+    for i, d in enumerate(devs):
+        w = f"manifest.deviations[{i}]"
+        if not _exact(d, {"kind", "expected", "observed"}, {"note"}, w, errs):
+            continue
+        if d["kind"] not in DEVIATION_KINDS:
+            errs.append(f"{w}.kind: one of {DEVIATION_KINDS}, got {d['kind']!r}")
+        if "note" in d and not _is_str(d["note"]):
+            errs.append(f"{w}.note: non-empty text required when present")
     if doc["schema"] != MANIFEST_SCHEMA:
         errs.append(f"manifest.schema: must be {MANIFEST_SCHEMA}, got {doc['schema']!r}")
     if not (isinstance(doc["brief_sha256"], str) and _SHA.match(doc["brief_sha256"])):
@@ -314,6 +351,7 @@ def validate_manifest(doc: Any) -> list:
     ids: list = []
     tally = {"normalized_quote": 0, "fuzzy_quote": 0, "ambiguous_quote": 0}
     missing_ids: set = set()
+    exempt_ids: set = set()  # decision A: quoteless paragraphs under citations "none"
     claims = doc["claims"]
     if not isinstance(claims, list):
         errs.append("manifest.claims: list required")
@@ -336,7 +374,10 @@ def validate_manifest(doc: Any) -> list:
             errs.append(f"{w}.match: exact|normalized|fuzzy:<0.00..1.00>|missing, got {m!r}")
             continue
         if m == "missing":
-            missing_ids.add(cid)
+            if cites == "none" and c["quote"] == "":
+                exempt_ids.add(cid)
+            else:
+                missing_ids.add(cid)
             if r is not None:
                 errs.append(f"{w}.resolved: must be null when match is missing")
         else:
@@ -412,6 +453,10 @@ def validate_manifest(doc: Any) -> list:
         det = ver.get("deterministic")
         if isinstance(det, dict) and det.get("state") == "pass" and uns:
             errs.append(f"manifest.verification.deterministic.state: pass with unsupported claims {uns}")
+        fw = fa.get("words") if isinstance(fa, dict) else None
+        if (isinstance(det, dict) and det.get("state") == "pass" and isinstance(fw, dict)
+                and fw.get("enforce") == "fail" and any(isinstance(d, dict) and d.get("kind") == "words" for d in devs)):
+            errs.append("manifest.verification.deterministic.state: pass with a words deviation under enforce fail")
     return errs
 
 
@@ -501,7 +546,8 @@ def selfcheck(out=None) -> None:
     _raise(check_manifest_against_brief(manifest, brief_bytes), "manifest vs brief")
     _raise(check_manifest_against_output(manifest, output), "manifest vs output")
     say(f"ok  example.delivery.v1.json: {len(manifest['claims'])} claims, repairs={manifest['repairs']}, "
-        f"unsupported={manifest['unsupported']}; brief sha256 and output words/sections/claims agree")
+        f"unsupported={manifest['unsupported']}, form_applied.citations={manifest['form_applied']['citations']}, "
+        f"deviations={len(manifest['deviations'])}; brief sha256 and output words/sections/claims agree")
 
     sch = output_json_schema()
     for path, node in _schema_walk(sch):
@@ -533,6 +579,20 @@ def selfcheck(out=None) -> None:
         ("manifest deterministic pass with unsupported", validate_manifest,
          mutated(manifest, lambda d: d["verification"]["deterministic"].__setitem__("state", "pass"))),
         ("manifest missing key", validate_manifest, mutated(manifest, lambda d: d.pop("verification"))),
+        ("manifest without form_applied", validate_manifest, mutated(manifest, lambda d: d.pop("form_applied"))),
+        ("manifest bad deviation kind", validate_manifest,
+         mutated(manifest, lambda d: d["deviations"].append({"kind": "tone", "expected": 1, "observed": 2}))),
+        ("manifest missing quote hidden under citations none", validate_manifest,
+         mutated(manifest, lambda d: (d["form_applied"].__setitem__("citations", "none"), d.__setitem__("unsupported", []),
+                                      d["verification"].__setitem__("deterministic", {"state": "pass"})))),
+        ("manifest quoteless paragraph hidden under citations quote", validate_manifest,
+         mutated(manifest, lambda d: (d["claims"][-1].__setitem__("quote", ""), d.__setitem__("unsupported", []),
+                                      d["verification"].__setitem__("deterministic", {"state": "pass"})))),
+        ("manifest pass with words deviation under enforce fail", validate_manifest,
+         mutated(manifest, lambda d: (d["form_applied"]["words"].__setitem__("enforce", "fail"),
+                                      d["deviations"].append({"kind": "words", "expected": {"min": 80, "max": 320}, "observed": 400}),
+                                      d["claims"].pop(), d.__setitem__("unsupported", []),
+                                      d["verification"].__setitem__("deterministic", {"state": "pass"})))),
         ("brief bad enforce", validate_brief, mutated(brief, lambda d: d["form"]["words"].__setitem__("enforce", "sometimes"))),
         ("brief bad citations", validate_brief, mutated(brief, lambda d: d["form"].__setitem__("citations", "lines"))),
         ("brief v2 key without schema", validate_brief, {"builders": ["x"], "substance": []}),
@@ -544,7 +604,11 @@ def selfcheck(out=None) -> None:
           "word-count mismatch accepted")
     _must(validate_brief({"builders": ["x"]}) == [], "v1 front block must stay valid")
     _must(default_verification() == {r: {"state": "not_run"} for r in VERIFY_RUNGS}, "default ladder")
-    say(f"ok  {len(controls) + 2} negative controls rejected; v1 block valid; default ladder all not_run")
+    exempt = mutated(manifest, lambda d: (d["form_applied"].__setitem__("citations", "none"), d["claims"][-1].__setitem__("quote", ""),
+                                          d.__setitem__("unsupported", []), d["verification"].__setitem__("deterministic", {"state": "pass"})))
+    _must(validate_manifest(exempt) == [], f"quoteless paragraph under citations none must be exempt: {validate_manifest(exempt)}")
+    say(f"ok  {len(controls) + 2} negative controls rejected; quoteless paragraph exempt only under citations none; "
+        "v1 block valid; default ladder all not_run")
 
     rt = _load("backoff.brief.v2.json")
     check_brief(rt)

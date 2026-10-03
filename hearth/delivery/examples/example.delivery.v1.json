@@ -23,6 +23,8 @@
   "measures": {"words": 87, "sections": ["Storage", "Backoff"]},
   "repairs": {"normalized_quote": 1, "ambiguous_quote": 1},
   "unsupported": ["s1.p2.q0"],
+  "form_applied": {"citations": "quote", "words": {"min": 80, "max": 320, "enforce": "measure"}, "sections": ["Storage", "Backoff"]},
+  "deviations": [],
   "verification": {
     "deterministic": {"state": "fail", "note": "s1.p2.q0: quote not found in fleet/bankedfire_linux.py@de666ef"},
     "judge": {"state": "not_run"},

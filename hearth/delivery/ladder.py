@@ -5,8 +5,9 @@ triage_summary(result) -> one screen of plain text (what the verdict tool's call
 Runner: python -m hearth.delivery.ladder --work-dir runs/operator/work_<id> --judge-backend omen-vllm --task-id ID
 
 Rungs, named as ``contract.VERIFY_RUNGS`` names them: ``deterministic`` (verify.verify; a failure is reported, never a
-stop), ``judge`` (judge_local on every resolved claim against the SOURCE text of its resolved range, plus one question
-per ``brief.substance``), ``reviewer`` (one author revision pass on the escalated and rejected claims; only when
+stop), ``judge`` (judge_local once per paragraph, against the SOURCE text of every resolved range it cites, plus one
+question per ``brief.substance`` against the report and the source; ``pass`` only when every paragraph and criterion is
+accepted), ``reviewer`` (one author revision pass on the escalated and rejected claims; only when
 ``revise`` and ``rerender`` are given). Each rung records {name, state, latency_ms, calls, tokens, reason}; state is
 pass | fail | unavailable | not_run, and ``unavailable`` always carries the reason (a rung that raises is unavailable,
 the ladder continues). Claim verdicts: accepted (judged supported, p >= accept, no overclaim) | rejected (p <= reject)
@@ -37,6 +38,23 @@ SUBSTANCE_PREFIX = "substance:"
 NO_READER = "no source reader (pass repo= or source_text=): a claim is never judged on the model's own quote"
 FUZZY_NOTE = ("[The author quoted the lines above as follows; the quote matched them only approximately ({m}). "
               "Judge the claim on the source lines above, not on this quote.]")
+WHOLE_SOURCE_TOKENS, CHARS_PER_TOKEN = 6000, 3.5
+PARAGRAPH_ASK = ("For this item, read the guide above with CLAIM = the whole paragraph below and QUOTE = the EVIDENCE below. "
+                 "The EVIDENCE is the source text at every line range the paragraph cites, each labelled path:start-end. "
+                 "Question: is every statement in the paragraph true of, and shown by, this EVIDENCE taken together? "
+                 "Different statements may be shown by different ranges. A statement that no evidence line shows is not "
+                 "supported, however plausible. A quote marked \"not found in the source\" is not evidence.")
+SUBSTANCE_ASK = ("For this item, read the guide above with CLAIM = the requirement below and QUOTE = the EVIDENCE below: the "
+                 "REPORT, then the SOURCE it describes ({scope}). Question: does the REPORT meet the requirement with "
+                 "statements that are true of the SOURCE and complete against it? Check the report against the source, "
+                 "never against itself. Not supported: an item the requirement asks for that is in the source and missing "
+                 "from the report (\"every endpoint\" means every endpoint in the source); a statement the "
+                 "source contradicts; a detail given to the wrong item (one endpoint given another endpoint's parameters "
+                 "is an error).{cited}")
+SOURCE_ALL = "the whole of every declared source"
+SOURCE_CITED = "only the line ranges the report cites; the rest of the source is not shown"
+CITED_LIMIT = (" You see only the cited ranges: judge completeness on what they show, and do not assume what unseen lines "
+               "contain.")
 
 
 class LadderError(Exception):
@@ -74,10 +92,65 @@ def _resolved(c: Mapping[str, Any]) -> bool:
     return c["match"] != "missing" and bool(r) and bool(r.get("path"))
 
 
+def _paragraph_of(claim_id: str) -> str:
+    return claim_id.rpartition(".")[0]
+
+
+def _block(label: str, src: str) -> str:
+    return f"[{label}]\n{src}"
+
+
+def _paragraph_job(para: str, claims: list, ctx) -> Optional[dict]:
+    """One judge job for a paragraph: its text as the claim, the source text of each distinct resolved range as evidence
+    (in quote order), unresolved quotes listed as not found. None when no quote resolved (escalated without a call)."""
+    blocks, seen, missing = [], set(), []
+    for c in claims:
+        if not _resolved(c):
+            missing.append(c["id"].rpartition(".")[2])
+            continue
+        r = c["resolved"]
+        key = (r["path"], r["start_line"], r["end_line"])
+        if key in seen:
+            continue
+        seen.add(key)
+        src = ctx["read"](*key)
+        label = f"{r['path']}:{r['start_line']}-{r['end_line']}"
+        if not src.strip():
+            raise LadderError(f"{c['id']}: source range {label} is empty")
+        if c["match"].startswith("fuzzy:"):
+            src = f"{src}\n\n{FUZZY_NOTE.format(m=c['match'])}\n{c['quote']}"
+        blocks.append(_block(label, src))
+    if not blocks:
+        return None
+    blocks += [f"[quote {q}: not found in the source]" for q in missing]
+    return {"claim_id": para, "claim": claims[0]["text"], "quote": "\n\n".join(blocks), "instruction": PARAGRAPH_ASK,
+            "quote_label": "EVIDENCE"}
+
+
+def _substance_evidence(manifest, bdoc, ctx) -> tuple:
+    """-> (source text, scope phrase, mode). The whole declared sources when they total under ~6,000 tokens, else the
+    source text of every cited range."""
+    whole = {}
+    for s_ in bdoc.get("sources", []):
+        text = ctx["read"](s_["path"], 1, 10 ** 9)
+        if not text.strip():
+            raise LadderError(f"declared source {s_['path']} is empty")
+        whole[s_["path"]] = text
+    est = sum(len(t) for t in whole.values()) / CHARS_PER_TOKEN
+    if whole and est < WHOLE_SOURCE_TOKENS:
+        return "\n\n".join(_block(f"{p}", t) for p, t in whole.items()), SOURCE_ALL, f"whole sources (~{est:.0f} tokens)"
+    ranges = sorted({(c["resolved"]["path"], c["resolved"]["start_line"], c["resolved"]["end_line"])
+                     for c in manifest["claims"] if _resolved(c)})
+    if not ranges:
+        raise LadderError("no declared source and no resolved quote: nothing to judge the criteria against")
+    text = "\n\n".join(_block(f"{p}:{a}-{b}", ctx["read"](p, a, b)) for p, a, b in ranges)
+    return text, SOURCE_CITED, f"cited ranges only (~{est:.0f} tokens of declared sources over {WHOLE_SOURCE_TOKENS})"
+
+
 def _classify(row: dict, accept: float, reject: float) -> tuple:
     """-> (verdict, reason) from a judge row."""
     if row.get("failure"):
-        return "escalated", f"judge_failure:{row['failure']}"
+        return "escalated", f"judge_failure:{row['failure']} ({_clip(str(row.get('failure_detail')), 90)})"
     p, oc = row["p"], (f" overclaim={row['overclaim']}" if row["overclaim"] else "")
     if row["consistent"] is False:
         return "escalated", f"p={p:.2f}{oc} inconsistent (supported with overclaim)"
@@ -92,31 +165,30 @@ def _judge_pass(manifest, output, bdoc, ctx, only: Optional[set]) -> tuple:
     """-> (claim records, criterion records, rung). Every claim in scope gets a record; a judge that cannot run makes
     the rung unavailable and leaves resolved claims escalated as not judged."""
     t0 = time.monotonic()
-    recs, jobs = {}, []
+    recs, jobs, paras, mode = {}, [], {}, None
     for c in manifest["claims"]:
         if only is not None and c["id"] not in only:
             continue
-        rec = {"claim_id": c["id"], "text": c["text"], "match": c["match"], "p": None}
+        rec = {"claim_id": c["id"], "paragraph": _paragraph_of(c["id"]), "text": c["text"], "match": c["match"], "p": None}
         recs[c["id"]] = {**rec, "verdict": "escalated",
                          "reason": "not judged" if _resolved(c) else "quote_unresolved"}
+        paras.setdefault(rec["paragraph"], []).append(c)
     crit = []
     try:
         if ctx["read"] is None:
             raise LadderError(NO_READER)
-        for c in manifest["claims"]:
-            if c["id"] in recs and _resolved(c):
-                r = c["resolved"]
-                src = ctx["read"](r["path"], r["start_line"], r["end_line"])
-                if not src.strip():
-                    raise LadderError(f"{c['id']}: source range {r['path']}:{r['start_line']}-{r['end_line']} is empty")
-                if c["match"].startswith("fuzzy:"):
-                    src = f"{src}\n\n{FUZZY_NOTE.format(m=c['match'])}\n{c['quote']}"
-                jobs.append({"claim_id": c["id"], "claim": c["text"], "quote": src})
-        if bdoc:
+        for para, cs in paras.items():
+            job = _paragraph_job(para, cs, ctx)
+            if job:
+                jobs.append(job)
+        if bdoc and bdoc.get("substance"):
+            src, scope, mode = _substance_evidence(manifest, bdoc, ctx)
             body = _deliverable_text(output)
-            for s in bdoc.get("substance", []):
-                jobs.append({"claim_id": SUBSTANCE_PREFIX + s["id"], "quote": body,
-                             "claim": f"The deliverable establishes this statement: {s['statement']}"})
+            for s in bdoc["substance"]:
+                jobs.append({"claim_id": SUBSTANCE_PREFIX + s["id"], "claim": f"Requirement: {s['statement']}",
+                             "quote": f"REPORT:\n{body}\n\nSOURCE:\n{src}", "quote_label": "EVIDENCE",
+                             "instruction": SUBSTANCE_ASK.format(scope=scope,
+                                                                 cited=CITED_LIMIT if scope == SOURCE_CITED else "")})
         rows = judge_local.judge_local(jobs, ctx["rubric"], ctx["judge"], ctx["author"], ctx["generate"],
                                        task_id=ctx["task_id"]) if jobs else []
     except judge_local.AuthorJudgeError:
@@ -131,19 +203,41 @@ def _judge_pass(manifest, output, bdoc, ctx, only: Optional[set]) -> tuple:
         cid = row["claim_id"]
         if cid.startswith(SUBSTANCE_PREFIX):
             st = next(s["statement"] for s in bdoc["substance"] if SUBSTANCE_PREFIX + s["id"] == cid)
-            crit.append({"claim_id": cid, "text": st, "verdict": verdict, "reason": why, "p": row["p"]})
+            crit.append({"claim_id": cid, "text": st, "verdict": verdict, "reason": why, "p": row["p"],
+                         "evidence": mode})
         else:
-            recs[cid].update(verdict=verdict, reason=why + (f" {recs[cid]['match']}" if
-                             recs[cid]["match"].startswith("fuzzy:") else ""), p=row["p"])
+            for c in paras[cid]:  # the verdict is the paragraph's; every resolved quote in it carries it
+                if not _resolved(c):
+                    continue
+                r = recs[c["id"]]
+                r.update(verdict=verdict, reason=why + (f" {r['match']}" if r["match"].startswith("fuzzy:") else ""),
+                         p=row["p"])
     calls, toks = len(rows), sum((r.get("tokens_in") or 0) + (r.get("tokens_out") or 0) for r in rows)
     failed = [r for r in rows if r.get("failure")]
     if rows and len(failed) == len(rows):
         return recs, crit, _rung("judge", "unavailable", t0, calls, toks,
                                  f"every judge call failed: {sorted({r['failure'] for r in failed})}")
-    judged = [r for r in list(recs.values()) + crit if r["p"] is not None or r["reason"].startswith("judge_failure")]
-    note = f"{len(failed)} of {len(rows)} calls failed (escalated)" if failed else None
-    return recs, crit, _rung("judge", "fail" if any(r["verdict"] != "accepted" for r in judged) else "pass", t0,
-                             calls, toks, note)
+    pv = _paragraph_verdicts(recs.values())
+    pc = {v: sum(x == v for x in pv.values()) for v in ("accepted", "escalated", "rejected")}
+    cc = {v: sum(r["verdict"] == v for r in crit) for v in ("accepted", "escalated", "rejected")}
+    note = "; ".join(x for x in (
+        f"paragraphs {len(pv)}: {pc['accepted']} accepted, {pc['escalated']} escalated, {pc['rejected']} rejected",
+        f"criteria {len(crit)}: {cc['accepted']} accepted, {cc['escalated']} escalated, {cc['rejected']} rejected"
+        if crit else None,
+        f"{len(failed)} of {len(rows)} calls failed (escalated)" if failed else None,
+        f"{sum(not r['claim_id'].startswith(SUBSTANCE_PREFIX) for r in rows)} paragraph call(s)",
+        f"substance judged on {mode}" if mode else None) if x)
+    # pass only when every paragraph in scope and every criterion was accepted; an escalation is not a pass
+    ok = all(v == "accepted" for v in pv.values()) and all(r["verdict"] == "accepted" for r in crit)
+    return recs, crit, _rung("judge", "pass" if ok else "fail", t0, calls, toks, note)
+
+
+def _paragraph_verdicts(records) -> dict:
+    """paragraph id -> its verdict: as open as its worst quote (rejected > escalated > accepted)."""
+    rank, pv = ("accepted", "escalated", "rejected"), {}
+    for r in records:
+        pv[r["paragraph"]] = max(pv.get(r["paragraph"], "accepted"), r["verdict"], key=rank.index)
+    return pv
 
 
 def _rung0(manifest, brief, output) -> tuple:
@@ -165,7 +259,7 @@ def _rung(name, state, t0, calls=0, tokens=0, reason=None) -> dict:
 
 
 def _objections(records: list) -> list:
-    out = []
+    out, seen = [], set()
     for r in records:
         if r["verdict"] == "accepted":
             continue
@@ -174,8 +268,11 @@ def _objections(records: list) -> list:
             hint = "Add a paragraph, with an exact quote, that establishes this statement."
         elif r["reason"] == "quote_unresolved":
             hint = "Replace the quote with an exact, longer quote copied from the sources."
-        else:
-            hint = "Narrow the claim to what its quote shows, or change the quote to one that supports it."
+        else:  # judged as a paragraph: one objection for the paragraph, not one per quote
+            if r["paragraph"] in seen:
+                continue
+            seen.add(cid := r["paragraph"])
+            hint = "Narrow the paragraph to what its quotes show, or change the quotes to ones that support it."
         out.append({"claim_id": cid, "objection": f"{r['verdict']}: {r['reason']} ({r['text'][:160]})", "fix_hint": hint})
     return out
 
@@ -231,7 +328,9 @@ def run_ladder(manifest: Mapping[str, Any], brief: Any, output: Mapping[str, Any
                                    f"{errs[0]}); original kept"))
             else:
                 old = {c["id"]: (c["text"], c["quote"]) for c in manifest["claims"]}
-                changed = {c["id"] for c in new_manifest["claims"] if old.get(c["id"]) != (c["text"], c["quote"])}
+                diff = {c["id"] for c in new_manifest["claims"] if old.get(c["id"]) != (c["text"], c["quote"])}
+                dparas = {_paragraph_of(i) for i in diff}  # the judge reads whole paragraphs
+                changed = {c["id"] for c in new_manifest["claims"] if _paragraph_of(c["id"]) in dparas}
                 n0, _ = _rung0(new_manifest, brief, new_output)
                 nrecs, ncrit, nj = _judge_pass(new_manifest, new_output, bdoc, ctx, changed)
                 revision.update(changed=sorted(changed), rung0=n0, judge=nj)
@@ -250,6 +349,8 @@ def run_ladder(manifest: Mapping[str, Any], brief: Any, output: Mapping[str, Any
 
     claims = list(recs.values())
     counts = {v: sum(r["verdict"] == v for r in claims) for v in ("accepted", "escalated", "rejected")}
+    pv = _paragraph_verdicts(claims)
+    pcounts = {v: sum(x == v for x in pv.values()) for v in ("accepted", "escalated", "rejected")}
     ver = {"human": {"state": "not_run"}}
     for r in rungs:
         st = {"unavailable": "unverified"}.get(r["state"], r["state"])
@@ -260,7 +361,7 @@ def run_ladder(manifest: Mapping[str, Any], brief: Any, output: Mapping[str, Any
             ver[r["name"]]["note"] = r["reason"]
     ver["deterministic"]["state"] = {"unavailable": "unverified"}.get(rung0["state"], rung0["state"])
     return {"rungs": rungs, "rung0": rung0, "claims": claims, "criteria": crit, "counts": counts,
-            "repairs": dict(manifest.get("repairs") or {}), "revised": bool(revision and revision["replaced"]),
+            "paragraph_counts": pcounts, "repairs": dict(manifest.get("repairs") or {}), "revised": bool(revision and revision["replaced"]),
             "verification": ver, "judge_backend": judge_backend, "author_backend": author_backend,
             "thresholds": {"accept": accept, "reject": reject}, "original": original, "revision": revision}
 
@@ -291,9 +392,12 @@ def triage_summary(result: Mapping[str, Any]) -> str:
     c, crit, r0 = result["counts"], result["criteria"], result["rung0"]
     fails = [f for f in r0["findings"] if f["severity"] == "fail"]
     met = sum(r["verdict"] == "accepted" for r in crit)
-    L.append(f"Claims {len(result['claims'])}: {c['rejected']} rejected, {c['escalated']} escalated, {c['accepted']} "
-             f"accepted" + (" (after one revision round)" if result["revised"] else "") +
+    pc = result["paragraph_counts"]
+    L.append(f"Paragraphs {sum(pc.values())} ({len(result['claims'])} quotes): {pc['rejected']} rejected, "
+             f"{pc['escalated']} escalated, {pc['accepted']} accepted" +
+             (" (after one revision round)" if result["revised"] else "") +
              f" | substance {met} of {len(crit)} met" + ("" if crit else " (not judged)") +
+             (" (on cited ranges only)" if any(str(r.get("evidence", "")).startswith("cited") for r in crit) else "") +
              f" | rung 0 {r0['state']} ({len(fails)} fail findings)")
     for v in ("rejected", "escalated"):
         g = _groups(result["claims"], v)
@@ -316,7 +420,7 @@ def triage_summary(result: Mapping[str, Any]) -> str:
                  f"{len(rev.get('changed', []))} changed claim(s); {len(rev['objections'])} objection(s) sent")
     acc = [r for r in result["claims"] if r["verdict"] == "accepted"]
     if acc:
-        L.append("Accepted: " + _clip(", ".join(r["claim_id"] for r in acc), 200))
+        L.append("Accepted quotes: " + _clip(", ".join(r["claim_id"] for r in acc), 200))
         fz = [r["claim_id"] for r in acc if r["match"].startswith("fuzzy:")]
         if fz:
             L.append("  of which fuzzy-matched (judged on the source lines): " + ", ".join(fz))

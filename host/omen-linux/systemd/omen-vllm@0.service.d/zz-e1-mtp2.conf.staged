@@ -1,0 +1,3 @@
+# qwen38 lever pilot E1 (MTP depth): staged, swapped in only by fleet/experiment_linux.py. Named zz- so it sorts after stage2-27b-mtp.conf, which sets OMEN_MTP_K=1.
+[Service]
+Environment=OMEN_MTP_K=2

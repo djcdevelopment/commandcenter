@@ -1,0 +1,3 @@
+# qwen38 lever pilot E3 (native XPU Flash Attention): staged, swapped in only by fleet/experiment_linux.py. Unqualified on this model shape.
+[Service]
+Environment=OMEN_ATTN_BACKEND=FLASH_ATTN

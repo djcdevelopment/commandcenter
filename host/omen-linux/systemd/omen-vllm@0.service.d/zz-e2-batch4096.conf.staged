@@ -1,0 +1,3 @@
+# qwen38 lever pilot E2 (prefill batch budget): staged, swapped in only by fleet/experiment_linux.py. Named zz- so it sorts after stage2b-batched.conf (8192).
+[Service]
+Environment=OMEN_MAX_BATCHED_TOKENS=4096

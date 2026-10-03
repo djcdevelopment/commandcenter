@@ -1,0 +1,4 @@
+# qwen38 lever pilot E4 (native CPU KV offload, 8 GiB): staged, swapped in only by fleet/experiment_linux.py. Unqualified on GDN+MTP.
+[Service]
+Environment=OMEN_KV_OFFLOAD_GIB=8
+Environment=OMEN_KV_OFFLOAD_BACKEND=native

@@ -1,0 +1,10 @@
+[Unit]
+Description=Bring AM4 up on the tool-pair profile (lab configuration day)
+After=default.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/bin/am4-profile tool-pair
+
+[Install]
+WantedBy=default.target

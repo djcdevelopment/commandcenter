@@ -91,15 +91,28 @@ class ExecutionLedger:
         self._ip_depth = 0          # re-entrancy for the cross-process append lock
         self.root.mkdir(parents=True, exist_ok=True)
         self.events_path.touch(exist_ok=True)
+        self._keeper: Optional[sqlite3.Connection] = None
         self._initialize_projection()
         if self._projection_is_stale():
             self.rebuild()
+        self._open_keeper()
+
+    def _open_keeper(self) -> None:
+        # The projection is a derived index: events.ndjson is fsynced per append and
+        # _projection_is_stale() rebuilds after a lost commit. So it runs WAL with
+        # synchronous=NORMAL (no fsync per commit; consistent after power loss). This idle
+        # connection keeps the WAL open: SQLite checkpoints, with fsyncs, whenever the LAST
+        # connection closes, and every other connection here is per-operation. Measured
+        # 2026-10-03 on ext4: ~57 fsyncs per door local_generate, 5.5 calls/s at 16-wide.
+        self._keeper = sqlite3.connect(str(self.projection_path), check_same_thread=False)
+        self._keeper.execute("PRAGMA journal_mode").fetchone()  # opening is lazy; read once
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
         connection = sqlite3.connect(str(self.projection_path), timeout=30)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON")
+        connection.execute("PRAGMA synchronous = NORMAL")
         try:
             with connection:
                 yield connection
@@ -108,6 +121,16 @@ class ExecutionLedger:
 
     def _initialize_projection(self) -> None:
         with self._connect() as connection:
+            # Switching to WAL needs an exclusive lock and does not wait on the busy
+            # timeout, so another process's open connection fails it; retry, then raise.
+            deadline = time.monotonic() + 30
+            while connection.execute("PRAGMA journal_mode").fetchone()[0] != "wal":
+                try:
+                    connection.execute("PRAGMA journal_mode = WAL")
+                except sqlite3.OperationalError:
+                    if time.monotonic() >= deadline:
+                        raise
+                    time.sleep(0.05)
             connection.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS events (
@@ -471,6 +494,15 @@ class ExecutionLedger:
                     ),
                 )
 
+    def _drop_projection(self) -> None:
+        # A WAL left beside a re-created database would be replayed into it: remove
+        # the sidecars with the file, and close the keeper first so nothing holds them.
+        if self._keeper is not None:
+            self._keeper.close()
+            self._keeper = None
+        for suffix in ("", "-wal", "-shm"):
+            Path(f"{self.projection_path}{suffix}").unlink(missing_ok=True)
+
     def rebuild(self) -> int:
         """Discard all projections and replay the canonical event stream.
 
@@ -480,8 +512,8 @@ class ExecutionLedger:
         collide on `UNIQUE constraint failed: events.sequence`.
         """
         with self._lock, self._interprocess_append_lock():
-            if self.projection_path.exists():
-                self.projection_path.unlink()
+            reopen = self._keeper is not None
+            self._drop_projection()
             self._initialize_projection()
             count = 0
             offset = 0
@@ -509,10 +541,12 @@ class ExecutionLedger:
                         count += 1
                         offset += length
             except Exception:
-                if self.projection_path.exists():
-                    self.projection_path.unlink()
+                self._drop_projection()
                 self._initialize_projection()
                 raise
+            finally:
+                if reopen:
+                    self._open_keeper()
             return count
 
     def get_job(self, job_id: str) -> Optional[dict[str, Any]]:

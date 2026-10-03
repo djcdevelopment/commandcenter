@@ -119,7 +119,8 @@ class Delivery:
             if self.spec.get("report_delivery"):
                 argv += ["--report-delivery", str(self.spec["report_delivery"])]
             for key, flag in (("quote_mode", "--quote-mode"), ("brief", "--brief"),
-                              ("max_output_tokens", "--max-output-tokens")):
+                              ("max_output_tokens", "--max-output-tokens"),
+                              ("schema_source_ranges", "--schema-source-ranges")):
                 if self.spec.get(key) is not None:
                     argv += [flag, str(self.spec[key])]
         work = self.spec.get("work")

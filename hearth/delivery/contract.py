@@ -62,7 +62,7 @@ ENFORCE = ("measure", "fail")          # measure (default) records deviation; fa
 QUOTE_MODES = ("text", "line_reference")
 CITATIONS = ("range", "quote", "none")  # see module docstring, rule 3
 STYLES = ("markdown",)
-AIDS = frozenset({"source_map", "quote_renderer", "constrained_output", "sidecar", "judge", "reviewer", "line_reference"})
+AIDS = frozenset({"source_map", "quote_renderer", "constrained_output", "sidecar", "judge", "reviewer", "line_reference", "source_excerpt", "source_path_alias"})
 MATCHES = ("exact", "normalized", "missing")  # plus "fuzzy:<score>", score 0..1 with two decimals
 # Repair counts the contract knows and cross-checks against claims; the renderer (task 3) may add other
 # snake_case keys (heading_added, trailing_prose_removed, citation_syntax_stripped, ...).

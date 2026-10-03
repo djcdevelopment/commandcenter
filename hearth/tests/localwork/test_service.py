@@ -441,3 +441,19 @@ class DeepLaneFamilyTests(unittest.TestCase):
         self.assertEqual(LocalWorkService._lane("auto", 500, "drafting"), "fast")
         self.assertEqual(LocalWorkService._lane("auto", 9000, "drafting"), "deep")
         self.assertEqual(LocalWorkService._lane("fast", 500, "code_fix"), "fast")   # an explicit lane still wins
+
+    def test_revision_coverage_keyed_schema_cannot_omit_summary(self):
+        from hearth.delivery import revision, sourcemap
+        original = {"summary": "Source has one constant.", "sections": [
+            {"heading": "Details", "paragraphs": [{"text": "The constant is present.", "quotes": []}]}]}
+        sch = revision.schema(original)["properties"]["coverage"]
+        self.assertEqual(sch["type"], "object")
+        self.assertEqual(set(sch["required"]), {"summary", "s0.p0"})
+        rows = {cid: {"status": "retained", "p": 1, "revised_evidence": txt,
+                      "source_quotes": [], "reason": "Identical assertion."}
+                for cid, txt in revision.prose(original).items()}
+        good = json.dumps({"coverage": rows, "criteria_preserved": True})
+        self.assertEqual(revision.assess(good, original, original, None)["state"], "pass")
+        del rows["summary"]
+        with self.assertRaisesRegex(ValueError, "omitted"):
+            revision.assess(json.dumps({"coverage": rows, "criteria_preserved": True}), original, original, None)

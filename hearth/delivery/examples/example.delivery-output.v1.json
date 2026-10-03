@@ -3,7 +3,8 @@
   "sections": [
     {"heading": "Storage", "paragraphs": [
       {"text": "add_skip appends a row with source, reason and an expiry, then writes the whole file through a temporary file and replaces the original.",
-       "quotes": ["tmp = p.with_suffix(\".tmp\"); tmp.write_text(", "tmp.write_text(json.dumps({\"schema\": \"bankedfire-linux-skips.v1\", \"skips\": rows}, indent=2)); os.replace(tmp, p)"]},
+       "quotes": ["tmp = p.with_suffix(\".tmp\"); tmp.write_text(", "tmp.write_text(json.dumps({\"schema\": \"bankedfire-linux-skips.v1\", \"skips\": rows}, indent=2)); os.replace(tmp, p)",
+                  "tmp = p.with_suffix("]},
       {"text": "Each row records the reason, cut to 200 characters, and the time the skip was added.",
        "quotes": ["\"reason\": reason[:200], \"at\": now.isoformat(timespec=\"seconds\") + \"Z\","]}
     ]},
@@ -11,7 +12,7 @@
       {"text": "A skip lasts seven days unless the caller passes another value.",
        "quotes": ["SKIP_DAYS = 7"]},
       {"text": "candidate_exclusions keeps only rows whose expiry is later than the current time.",
-       "quotes": ["str(r.get(\"until\", \"\")) > stamp", "def candidate_exclusions("]},
+       "quotes": ["str(r.get(\"until\", \"\")) > stamp"]},
       {"text": "Skips are also pruned when the process restarts.",
        "quotes": ["prune_skips_on_start()"]}
     ]}

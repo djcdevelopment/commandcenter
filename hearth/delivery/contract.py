@@ -28,8 +28,9 @@ Form rules (index "Decisions taken while building", 2026-10-03):
      (`sourcemap.quote_chars`) never matches line-window fuzzy and, found more than once, is
      `match: "missing"` with `ambiguous: N`, counted as a `short_ambiguous_quote` repair (one word is no
      evidence of one place); found once, it resolves.
-  7. A quote of at least 12 characters that is only the beginning of one source line (the 27B stops a TOML quote at
-     its first double quote) resolves to that whole line when the locator can pick exactly one; the claim is
+  7. A quote of at least 12 characters that is only the beginning of one source line and stops where a string literal
+     of it begins (the 27B stops a TOML quote at its first double quote) resolves to that whole line when the locator
+     can pick exactly one (`sourcemap`, "Line-prefix quotes"); the claim is
      `match: "normalized"` with `truncated: true`, counted as a `truncated_quote` repair (and not as
      `normalized_quote`).
 
@@ -587,6 +588,7 @@ def selfcheck(out=None) -> None:
     # negative controls: the validators must actually reject
     def mutated(doc, fn):
         d = json.loads(json.dumps(doc)); fn(d); return d
+    claim = lambda d, cid: next(c for c in d["claims"] if c["id"] == cid)  # noqa: E731
     controls = [
         ("output line-number field", validate_output,
          mutated(output, lambda d: d["sections"][0]["paragraphs"][0].__setitem__("start_line", 3))),
@@ -598,15 +600,19 @@ def selfcheck(out=None) -> None:
          mutated(manifest, lambda d: (d["claims"][-1].__setitem__("ambiguous", 2),
                                       d["claims"][-1].__setitem__("quote", "x" * 30)))),
         ("manifest short ambiguous quote resolved", validate_manifest,
-         mutated(manifest, lambda d: d["claims"][3].update(quote="ab", ambiguous=2))),
+         mutated(manifest, lambda d: claim(d, "s1.p0.q0").update(quote="ab", ambiguous=2))),
         ("manifest repair count disagrees", validate_manifest,
          mutated(manifest, lambda d: d["repairs"].__setitem__("normalized_quote", 0))),
         ("manifest truncated on an exact claim", validate_manifest,
-         mutated(manifest, lambda d: d["claims"][3].__setitem__("truncated", True))),
+         mutated(manifest, lambda d: claim(d, "s0.p0.q0").__setitem__("truncated", True))),
         ("manifest truncated claim counted as normalized", validate_manifest,
          mutated(manifest, lambda d: d["repairs"].__setitem__("normalized_quote", 2))),
+        ("manifest truncated false", validate_manifest,
+         mutated(manifest, lambda d: claim(d, "s0.p0.q2").__setitem__("truncated", False))),
         ("manifest truncated quote under 12 characters", validate_manifest,
-         mutated(manifest, lambda d: d["claims"][5].update(quote="def cand"))),
+         mutated(manifest, lambda d: claim(d, "s0.p0.q2").update(quote="tmp = p.wit"))),
+        ("manifest truncated and ambiguous", validate_manifest,
+         mutated(manifest, lambda d: claim(d, "s0.p0.q2").__setitem__("ambiguous", 2))),
         ("manifest judge is the arm", validate_manifest,
          mutated(manifest, lambda d: d["verification"].__setitem__("judge", {"state": "pass", "by": d["backend"]}))),
         ("manifest deterministic pass with unsupported", validate_manifest,

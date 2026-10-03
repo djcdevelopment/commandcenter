@@ -115,6 +115,8 @@ class Delivery:
             argv.append("--report")
             if self.spec.get("max_report_words"):
                 argv += ["--max-report-words", str(int(self.spec["max_report_words"]))]
+            if self.spec.get("report_delivery"):
+                argv += ["--report-delivery", str(self.spec["report_delivery"])]
         work = self.spec.get("work")
         if work and shutil.which("ct"):
             argv = ["ct", "receipt", "--work", str(work), "--"] + argv

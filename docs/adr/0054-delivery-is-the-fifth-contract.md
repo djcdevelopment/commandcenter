@@ -45,8 +45,11 @@ prose ("strictly under 320 words. Cite actual line numbers"), so models were gra
    (5) `sources[]` is authoritative for the renderer and `locate`; the prose header's `repo:`/`commit:`/file lines stay for
    the drain, and task 4 generates `sources[]` from the header so the two cannot drift.
    (6) A quote found more than once is rendered at one hit (the claim's symbol, else the first) with `ambiguous: N` on the
-   claim and counts as an `ambiguous_quote` repair; a quote under 24 characters never matches fuzzily and, found more than once,
-   is `missing` with `ambiguous: N`, counted as a `short_ambiguous_quote` repair (found once, it resolves).
+   claim and counts as an `ambiguous_quote` repair; a quote under 24 characters (whitespace collapsed, HTML entities decoded)
+   never matches line-window fuzzy and, found more than once by any pass, is `missing` with `ambiguous: N`, counted as a
+   `short_ambiguous_quote` repair (found once, it resolves). The claim's symbol is one named in the paragraph by a dotted
+   prefix or part (`configuration.day`, `day`); the name naming the fewest hits wins (one every hit shares
+   counts for nothing), then the smallest symbol; a tie keeps the first hit.
 8. **Every run leaves a capability record** (substance verdict, repairs, aids used, configuration, environment): the
    per-configuration record the router is meant to read.
 

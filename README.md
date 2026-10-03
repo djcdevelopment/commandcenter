@@ -1,5 +1,7 @@
 # commandcenter — the Local Compute Operator control plane
 
+Lab purpose (canonical): ~/work/lab/LAB-INTENT.md
+
 **Read [`START-HERE.md`](START-HERE.md) first.** It is the entry contract: the
 eight entry steps, the exact commands, how identity works, the status
 vocabulary, and what to do before changing anything. This page exists for agents

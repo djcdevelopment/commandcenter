@@ -2,6 +2,8 @@
 
 > Start here: `START-HERE.md` — the Local Compute Operator control plane (entry contract, D-103).
 
+> On omen-linux: the Linux block (`~/.claude/CLAUDE.md`) governs; there is no cloud rung; `gcp-gemini` below is Windows-era. Lab intent: `/home/derek/work/lab/LAB-INTENT.md`.
+
 <!-- hearth-offload:begin -->
 ## Local-first offload (HEARTH)
 

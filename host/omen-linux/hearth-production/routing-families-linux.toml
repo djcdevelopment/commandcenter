@@ -209,3 +209,14 @@ tags = ["utility"]
 evidence = "research/limits-found.md §1.5: FX99 7B cannot produce reliable JSON tool calls and is restricted to pure text processing; fleet inventory keeps it as the utility lane (:18093, 4,096 ctx)"
 receipt = "/home/derek/research/limits-found.md"
 reason = "Short text-only summaries and rewrites that need no tool calls and fit 4K go to the idle 8 GB card, keeping the B70s free."
+
+# claim_verification (delivery-plan 9, hearth/delivery/ladder.py): rung 1 of the verification ladder judges each
+# claim against its quote on a non-author seat. The tag is `quality`; the door cannot know who wrote the deliverable,
+# so the CALLER excludes the author's backend: run_ladder passes author_backend and judge_local refuses a judge that
+# equals it (held-out panel rule, contract.validate_manifest).
+[family.claim_verification]
+model_id = "qwen3.8-27b"
+tags = ["quality"]
+evidence = "delivery-plan 9-verify-ladder.md: closed-rubric judging with evidence is a System One job; the calibration of the local judge (task 8, judge_local) sets the accept/reject thresholds. No measured accuracy for this family yet."
+receipt = "/home/derek/work/delivery-plan/9-verify-ladder.md"
+reason = "A judge must not share a backend with the arm it scores; the quality tag resolves to the dense lane, so when the author ran there the caller pins a different backend explicitly."

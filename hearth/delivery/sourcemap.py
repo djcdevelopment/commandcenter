@@ -22,8 +22,10 @@ Public API
 Match vocabulary (``Location.match``)
 -------------------------------------
 ``exact``          the quote is a substring of the file text (CRLF folded to LF). Not a repair.
-``normalized``     equal after collapsing whitespace runs to one space. A repair.
+``normalized``     equal after collapsing whitespace runs to one space and folding typographic
+                   quotes (U+201C/U+201D to ``"``, U+2018/U+2019 to ``'``). A repair.
 ``fuzzy:<score>``  best line window scores >= threshold (0..1, two decimals). A repair.
+                   An elided quote (``...`` or U+2026) is matched only as elided, see below.
 ``missing``        nothing acceptable; ``path == ""``, ``start == end == 0``.
 Normalized and fuzzy matches are repairs: the caller (the renderer) counts and records them.
 
@@ -32,6 +34,16 @@ Fuzzy rules (a wrong number is a wrong claim)
   or normalized only; no fuzzy. ``SKIP_DAYS = 14`` against ``SKIP_DAYS = 7`` is ``missing``.
 - At any length, if the numbers in the quote are not all present in the best window, the
   result is ``missing`` (the best window is not re-chosen to find one that has the number).
+
+Elided quotes (a quote that is not an exact hit and contains ``...`` or U+2026)
+- Split at each ellipsis into segments (normalized as above; empty segments dropped). The
+  first segment matches by its longest leading part, middle segments in full and in order,
+  the last by its longest trailing part, all as one window inside the smallest symbol that
+  holds the first hit (no symbol: up to the next symbol's start). Score = matched characters
+  over the non-elided characters; reported ``fuzzy:<score>`` (never ``exact``, even at 1.00)
+  and only at or above the threshold. A quote whose non-elided text is under
+  ``SHORT_QUOTE_CHARS`` must match every segment in full. The number rule applies to the
+  window. An elided quote never falls through to line-window fuzzy: no window is ``missing``.
 
 Ambiguity
 - ``occurrences`` counts every exact (or, failing that, normalized) hit across the map,
@@ -278,10 +290,17 @@ def render_for_model(sm: SourceMap, numbered: bool = True) -> str:
     return out
 
 
+# Typographic quotes a model substitutes for ASCII ones; folded on both sides, so a source
+# that really contains them still matches. One char to one char: offsets stay aligned.
+_QUOTE_FOLD = str.maketrans({"\u201c": '"', "\u201d": '"', "\u2018": "'", "\u2019": "'"})
+_ELLIPSIS = re.compile(r"\.\.\.|\u2026")
+
+
 def _norm_with_map(text: str):
-    """Collapse whitespace runs to one space and strip; map each normalized char to its source offset."""
+    """Collapse whitespace runs to one space, fold typographic quotes, and strip; map each
+    normalized char to its source offset."""
     chars, idx, prev_space = [], [], True
-    for i, c in enumerate(text):
+    for i, c in enumerate(text.translate(_QUOTE_FOLD)):
         if c.isspace():
             if not prev_space:
                 chars.append(" "); idx.append(i)
@@ -376,6 +395,8 @@ def locate(sm: SourceMap, quote: str, threshold: float = FUZZY_THRESHOLD,
         fm, s, e = _pick(cands, hint)
         return Location(fm.path, s, e, "normalized", len(cands))
 
+    if _ELLIPSIS.search(q):
+        return _locate_elided(texts, q, threshold)
     if len(nq) < SHORT_QUOTE_CHARS:
         return _MISSING  # short quotes: one changed character is a different claim
     n = max(1, len(q.split("\n")))
@@ -394,6 +415,100 @@ def locate(sm: SourceMap, quote: str, threshold: float = FUZZY_THRESHOLD,
     if best[1] is not None and best[0] >= threshold and _numbers_ok(nq, best[4]):
         return Location(best[1], best[2], best[3], f"fuzzy:{best[0]:.2f}", 1)
     return _MISSING
+
+
+def _symbol_bound(fm: FileMap, line: int) -> int:
+    """Last line of the smallest symbol holding ``line``; outside every symbol, the line
+    before the next symbol starts (or the end of the file)."""
+    inside = [sym for sym in fm.symbols if sym["start"] <= line <= sym["end"]]
+    if inside:
+        return min(inside, key=lambda sym: sym["end"] - sym["start"])["end"]
+    later = [sym["start"] for sym in fm.symbols if sym["start"] > line]
+    return (min(later) - 1) if later else len(fm.lines)
+
+
+def _locate_elided(texts: list, q: str, threshold: float) -> Location:
+    """Match a quote with an ellipsis as one window; see the module docstring."""
+    raw = _ELLIPSIS.split(q)
+    segs = [_norm(part) for part in raw]
+    segs = [seg for seg in segs if seg]
+    if not segs:
+        return _MISSING
+    total = sum(len(seg) for seg in segs)
+    full_only = total < SHORT_QUOTE_CHARS
+    # Which end of a lone segment is anchored: text before a trailing ellipsis keeps its
+    # start; text after a leading ellipsis keeps its end.
+    lone_tail = len(segs) == 1 and not _norm(raw[0])
+    best = None   # (score, -order, path, start, end)
+    order = 0
+    for fm, text in texts:
+        ntext, idx = _norm_with_map(text)
+        if not ntext:
+            continue
+
+        def first_at(needle: str, lo: int, hi_line: int):
+            pos = ntext.find(needle, lo)
+            if pos < 0 or _line_of(text, idx[pos + len(needle) - 1]) > hi_line:
+                return None
+            return pos
+
+        head = segs[0]
+        if lone_tail:
+            # One segment after a leading ellipsis: its longest trailing part, anywhere.
+            k = len(head)
+            while k > 0 and ntext.find(head[-k:]) < 0:
+                k -= 1
+            if k == 0 or (full_only and k < len(head)):
+                continue
+            for pos in _find_all(ntext, head[-k:]):
+                end = pos + k
+                window = ntext[pos:end]
+                score = k / total
+                if score >= threshold and _numbers_ok(" ".join(segs), window):
+                    cand = (score, -order, fm.path, _line_of(text, idx[pos]), _line_of(text, idx[end - 1]))
+                    order += 1
+                    if best is None or cand[:2] > best[:2]:
+                        best = cand
+            continue
+        k0 = len(head)
+        while k0 > 0 and ntext.find(head[:k0]) < 0:
+            k0 -= 1
+        if k0 == 0 or (full_only and k0 < len(head)):
+            continue
+        for pos0 in _find_all(ntext, head[:k0]):
+            first_line = _line_of(text, idx[pos0])
+            bound = _symbol_bound(fm, first_line)
+            cursor, matched, ok = pos0 + k0, k0, True
+            for mid in segs[1:-1]:
+                at = first_at(mid, cursor, bound)
+                if at is None:
+                    ok = False
+                    break
+                cursor, matched = at + len(mid), matched + len(mid)
+            if not ok:
+                continue
+            if len(segs) > 1:
+                tail = segs[-1]
+                k, at = len(tail), None
+                while k > 0:
+                    at = first_at(tail[-k:], cursor, bound)
+                    if at is not None:
+                        break
+                    k -= 1
+                if at is None or (full_only and k < len(tail)):
+                    continue
+                cursor, matched = at + k, matched + k
+            window = ntext[pos0:cursor]
+            score = matched / total
+            if score < threshold or not _numbers_ok(" ".join(segs), window):
+                continue
+            cand = (score, -order, fm.path, first_line, _line_of(text, idx[cursor - 1]))
+            order += 1
+            if best is None or cand[:2] > best[:2]:
+                best = cand
+    if best is None:
+        return _MISSING
+    return Location(best[2], best[3], best[4], f"fuzzy:{best[0]:.2f}", 1)
 
 
 def main(argv=None) -> int:

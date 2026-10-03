@@ -321,6 +321,38 @@ def _resolve_target(endpoint: str, task: Optional[str], backend: Optional[str],
 # dict, lifted into the ledger event, popped before the caller sees it.
 LEDGER_TASK_ID_KEY = "_ledger_task_id"
 
+# Task 4a: constrained output. A caller may hand the door a JSON Schema; it is sent as
+# response_format=json_schema (strict) and only to a backend that declares
+# `structured_outputs = true` in [backend.settings] -- a declared, probed capability
+# (docs/structured-outputs.md), never an assumption. Anything else is refused by name.
+STRUCTURED_OUTPUTS_ERROR = "StructuredOutputsUnsupported"
+STRUCTURED_OUTPUTS_CODE = "structured_outputs_unsupported"
+STRUCTURED_OUTPUT_TRUNCATED_CODE = "structured_output_truncated"
+STRUCTURED_OUTPUT_INVALID_CODE = "structured_output_invalid"
+
+
+def response_schema_digest(schema: dict) -> str:
+    """sha256 of the canonical JSON of a response schema (sorted keys, no whitespace).
+    The same digest is on the ledger row, in plan output and in docs/structured-outputs.md."""
+    canonical = json.dumps(schema, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _schema_name(schema: dict) -> str:
+    title = schema.get("title") if isinstance(schema, dict) else None
+    name = re.sub(r"[^A-Za-z0-9_-]", "_", title)[:64] if isinstance(title, str) and title else ""
+    return name or "response"
+
+
+def _structured_outputs_refusal(target: "_Target", model: str, schema_digest: str) -> dict:
+    where = target.backend or target.endpoint
+    return {"ok": False, "error_code": STRUCTURED_OUTPUTS_CODE,
+            "error": f"{STRUCTURED_OUTPUTS_ERROR}: backend {where} does not declare "
+                     f"structured_outputs = true in [backend.settings]; response_schema was "
+                     f"not sent and nothing was generated",
+            "endpoint": target.endpoint, "model": model,
+            "response_schema_sha256": schema_digest}
+
 # Deliberately narrow: a task_id is an identifier, and it is written verbatim
 # into a ledger field that projections group by and that reaches a private
 # document as a row KEY. No whitespace, no separators, no control characters,
@@ -425,7 +457,8 @@ def _generate_ollama(target: _Target, prompt: str, model: str, system: Optional[
 
 def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[str],
                      max_tokens: int, timeout_s: int,
-                     image_url: Optional[str] = None) -> dict:
+                     image_url: Optional[str] = None,
+                     response_schema: Optional[dict] = None) -> dict:
     if target.auth_env and not target.auth_token:
         # error_code is load-bearing: A2 escalation must NOT climb on this. A missing
         # token is a fault in THIS shell's environment, not a statement about the
@@ -450,6 +483,11 @@ def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[
     chat_template_kwargs = target.settings.get("chat_template_kwargs")
     if isinstance(chat_template_kwargs, dict) and chat_template_kwargs:
         payload["chat_template_kwargs"] = chat_template_kwargs
+    if response_schema is not None:
+        payload["response_format"] = {
+            "type": "json_schema",
+            "json_schema": {"name": _schema_name(response_schema),
+                            "schema": response_schema, "strict": True}}
     headers = {"Authorization": f"Bearer {target.auth_token}"} if target.auth_token else {}
 
     started = time.monotonic()
@@ -461,7 +499,8 @@ def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[
     choices = body.get("choices") or [{}]
     text = (choices[0].get("message") or {}).get("content", "")
     usage = body.get("usage") or {}
-    return {
+    finish_reason = choices[0].get("finish_reason")
+    out = {
         "ok": True,
         "text": text,
         "model": body.get("model", model),
@@ -470,6 +509,36 @@ def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[
         "tokens_out": usage.get("completion_tokens"),
         "duration_ms": wall_ms,
     }
+    if response_schema is not None:
+        # Proof on the wire, not in the request: the engine's own finish_reason and
+        # reasoning-token count ride the result. A schema answer the engine cut off
+        # (finish_reason != stop) is truncated JSON; it is never reported as success.
+        out["finish_reason"] = finish_reason
+        out["tokens_reasoning"] = (usage.get("completion_tokens_details") or {}).get("reasoning_tokens")
+        if finish_reason != "stop":
+            hint = "raise max_tokens" if finish_reason == "length" else "the engine did not finish"
+            out["ok"] = False
+            out["error_code"] = STRUCTURED_OUTPUT_TRUNCATED_CODE
+            out["error"] = (f"{STRUCTURED_OUTPUT_TRUNCATED_CODE}: engine finish_reason="
+                            f"{finish_reason!r} after {usage.get('completion_tokens')} tokens; "
+                            f"the JSON is incomplete ({hint})")
+        else:
+            # A server that dropped response_format would answer prose with
+            # finish_reason=stop; parse once so that is never a quiet success.
+            problem = None
+            if not isinstance(text, str):
+                problem = f"message content is {type(text).__name__}"
+            else:
+                try:
+                    json.loads(text)
+                except ValueError as exc:
+                    problem = str(exc)
+            if problem is not None:
+                out["ok"] = False
+                out["error_code"] = STRUCTURED_OUTPUT_INVALID_CODE
+                out["error"] = (f"{STRUCTURED_OUTPUT_INVALID_CODE}: finish_reason='stop' but the "
+                                f"content is not JSON ({problem}); the schema was not applied")
+    return out
 
 
 def _generate_gemini(target: _Target, prompt: str, model: str, system: Optional[str],
@@ -538,7 +607,8 @@ def local_generate(prompt: str, model: str | None = None,
                    quality: str | None = None,
                    task_family: str | None = None,
                    task_id: str | None = None,
-                   image_path: str | None = None) -> dict:
+                   image_path: str | None = None,
+                   response_schema: dict | None = None) -> dict:
     """Generate text from a configured inference backend.
 
     Routing (Banked Fire): pass ``task`` (e.g. "research") to prefer a tagged
@@ -595,6 +665,17 @@ def local_generate(prompt: str, model: str | None = None,
     -- 1-128 characters of ``[A-Za-z0-9._:-]`` -- and never reaches a model. The
     MCP ``_meta`` channel remains the authoritative one: when a caller supplies a
     ``_meta.task_id``, that wins and this argument is ignored for the ledger row.
+
+    Constrained output (task 4a): ``response_schema`` is a JSON Schema dict; the
+    answer is then generated under it (``response_format=json_schema``, strict).
+    Only a backend declaring ``structured_outputs = true`` takes it; any other is
+    refused with ``error_code`` ``structured_outputs_unsupported`` (error text
+    ``StructuredOutputsUnsupported: ...``), never silently sent without the
+    schema, and never escalated. The result carries ``response_schema_sha256``,
+    and on the wire ``finish_reason`` and ``tokens_reasoning``; a non-``stop``
+    finish is ``ok: false`` (``structured_output_truncated``), and a ``stop``
+    whose content does not parse as JSON is ``ok: false``
+    (``structured_output_invalid``: the server did not apply the schema).
     """
     if not isinstance(prompt, str) or not prompt.strip():
         raise ValueError("prompt must be a non-empty string")
@@ -611,6 +692,14 @@ def local_generate(prompt: str, model: str | None = None,
         raise ValueError("task_family must be a non-empty string")
     if image_path is not None and (not isinstance(image_path, str) or not image_path.strip()):
         raise ValueError("image_path must be a non-empty path")
+    schema_digest = None
+    if response_schema is not None:
+        if not isinstance(response_schema, dict) or not response_schema:
+            raise ValueError("response_schema must be a non-empty JSON Schema object")
+        try:
+            schema_digest = response_schema_digest(response_schema)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"response_schema must be JSON-serializable: {exc}") from exc
     # Rejected here, before packing, routing or any dispatch: a malformed
     # identifier must not be discovered after tokens have been spent.
     _validate_task_id(task_id)
@@ -625,6 +714,9 @@ def local_generate(prompt: str, model: str | None = None,
         """
         if task_id is not None and isinstance(result, dict):
             result[LEDGER_TASK_ID_KEY] = task_id
+        if schema_digest is not None and isinstance(result, dict):
+            # Every exit, refusals included: the digest says which contract was asked for.
+            result.setdefault("response_schema_sha256", schema_digest)
         return result
 
     if quality == "best":
@@ -737,7 +829,12 @@ def local_generate(prompt: str, model: str | None = None,
 
     def _execute(t: _Target, m: str, mt: int, ts: int) -> dict:
         if t.api == "openai":
-            return _generate_openai(t, prompt, m, system, mt, ts, image_url=image_data_url)
+            if response_schema is not None and t.settings.get("structured_outputs") is not True:
+                return _structured_outputs_refusal(t, m, schema_digest)
+            return _generate_openai(t, prompt, m, system, mt, ts, image_url=image_data_url,
+                                    response_schema=response_schema)
+        if response_schema is not None:
+            return _structured_outputs_refusal(t, m, schema_digest)
         if t.api == "gemini":
             return _generate_gemini(t, prompt, m, system, mt, ts)
         return _generate_ollama(t, prompt, m, system, mt, ts)
@@ -866,6 +963,8 @@ def local_generate(prompt: str, model: str | None = None,
     if image_evidence is not None:
         result["image_input"] = image_evidence
 
+    if schema_digest is not None:
+        result["response_schema_sha256"] = schema_digest
     result["backend"] = target.backend
     result["routed_by"] = _label(target.routed_by)
     result["occupancy"] = target.occupancy
@@ -899,7 +998,8 @@ def local_generate(prompt: str, model: str | None = None,
     # metered/trial credit to hide a broken environment. Fail loudly on the named rung
     # instead (measured: an unauthenticated shell silently produced
     # routed_by "escalation:omen-arc->gcp-gemini").
-    _no_climb = image_path is not None or result.get("error_code") == "auth_not_configured"
+    _no_climb = (image_path is not None or response_schema is not None
+                 or result.get("error_code") == "auth_not_configured")
     if result.get("ok") is False and not target.routed_by.startswith("pinned") and not _no_climb:
         exclude_set = {target.backend} if target.backend else set()
         try:
@@ -916,6 +1016,8 @@ def local_generate(prompt: str, model: str | None = None,
                 first_name = target.backend or "default"
                 second_name = second_target.backend or "default"
                 second_result["backend"] = second_target.backend
+                if schema_digest is not None:
+                    second_result["response_schema_sha256"] = schema_digest
                 # The escalation label replaces the inner reason (historical
                 # shape, quality prefix included); a family route keeps ITS
                 # prefix so the ledger still says which family sent the call.
@@ -989,6 +1091,7 @@ def _execution_local_generate(
     task_family: str | None = None,
     task_id: str | None = None,
     image_path: str | None = None,
+    response_schema: dict | None = None,
 ) -> dict:
     """Compatibility projection of local_generate over the Execution Ledger.
 
@@ -1040,6 +1143,7 @@ def _execution_local_generate(
         ("task_family", task_family),
         ("task_id", task_id),
         ("image_path", image_path),
+        ("response_schema", response_schema),
     ):
         if value is not None:
             arguments[key] = value

@@ -678,3 +678,106 @@ class RungTimeoutBudgetTests(TestCase):
             f"at the measured {self.MOE_DECODE_TOK_S} tok/s, but only allows {timeout_s}s. "
             "Raise timeout_s, lower max_tokens, or re-measure the decode rate.",
         )
+
+
+class _FakeStream:
+    """Server-sent events as urlopen yields them: an iterable of byte lines."""
+
+    def __init__(self, events: list, done: bool = True) -> None:
+        self._lines = [f"data: {json.dumps(e)}\n".encode() for e in events]
+        if done:
+            self._lines.append(b"data: [DONE]\n")
+
+    def __iter__(self):
+        return iter(self._lines)
+
+    def __enter__(self) -> "_FakeStream":
+        return self
+
+    def __exit__(self, *args: object) -> bool:
+        return False
+
+
+def _delta(**delta) -> dict:
+    return {"model": "m", "choices": [{"delta": delta, "finish_reason": None}]}
+
+
+_FINISH = {"model": "m", "choices": [{"delta": {}, "finish_reason": "stop"}]}
+_USAGE = {"model": "m", "choices": [],
+          "usage": {"prompt_tokens": 9, "completion_tokens": 30,
+                    "completion_tokens_details": {"reasoning_tokens": 21}}}
+
+
+class DeliberationParameterTests(TestCase):
+    """messages / thinking / seed / top_p / stream and the added result keys."""
+
+    def _call(self, reply, **kwargs):
+        with patch.dict(os.environ, {"AM4_OXEN_TOKEN": "sk-oxen"}):
+            with patch("urllib.request.urlopen", return_value=reply) as mocked:
+                result = local_generate("", backend="am4-oxen", **kwargs)
+        return result, json.loads(mocked.call_args[0][0].data.decode("utf-8"))
+
+    def test_messages_thinking_seed_top_p_reach_the_wire_and_result(self) -> None:
+        msgs = [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "yo"},
+                {"role": "user", "content": "again"}]
+        reply = {**OPENAI_REPLY, "choices": [{"message": {"content": "a", "reasoning": "because"},
+                                              "finish_reason": "stop"}],
+                 "usage": {"prompt_tokens": 5, "completion_tokens": 7,
+                           "completion_tokens_details": {"reasoning_tokens": 4}}}
+        result, body = self._call(_FakeResponse(reply), messages=msgs, thinking=True, seed=7, top_p=0.9)
+        self.assertEqual(body["messages"], msgs)
+        self.assertEqual((body["seed"], body["top_p"]), (7, 0.9))
+        self.assertIs(body["chat_template_kwargs"]["enable_thinking"], True)
+        self.assertEqual(result["wire_request"], body)
+        self.assertEqual((result["thinking"], result["reasoning"], result["tokens_reasoning"],
+                          result["finish_reason"], result["ok"]), (True, "because", 4, "stop", True))
+
+    def test_plain_call_keeps_payload_and_gains_observed_keys(self) -> None:
+        with patch.dict(os.environ, {"AM4_OXEN_TOKEN": "sk-oxen"}):
+            with patch("urllib.request.urlopen", return_value=_FakeResponse(OPENAI_REPLY)) as mocked:
+                result = local_generate("q", backend="am4-oxen")
+        body = json.loads(mocked.call_args[0][0].data.decode("utf-8"))
+        self.assertNotIn("seed", body)
+        self.assertIs(body["stream"], False)
+        self.assertEqual((result["reasoning"], result["tokens_reasoning"], result["finish_reason"],
+                          result["wire_request"]), ("", None, None, body))
+
+    def test_messages_refuse_system_and_bad_roles(self) -> None:
+        with self.assertRaises(ValueError):
+            local_generate("", messages=[{"role": "user", "content": "x"}], system="s")
+        with self.assertRaises(ValueError):
+            local_generate("", messages=[{"role": "tool", "content": "x"}])
+        with self.assertRaises(ValueError):
+            local_generate("", messages=[])
+
+    def test_stream_reads_reasoning_then_content_and_usage(self) -> None:
+        events = [_delta(reasoning="think "), _delta(reasoning="hard"), _delta(content="42"),
+                  _FINISH, _USAGE]
+        result, body = self._call(_FakeStream(events), messages=[{"role": "user", "content": "q"}],
+                                  thinking=True, stream=True)
+        self.assertEqual((body["stream"], body["stream_options"]), (True, {"include_usage": True}))
+        self.assertEqual((result["ok"], result["text"], result["reasoning"]), (True, "42", "think hard"))
+        self.assertEqual((result["tokens_in"], result["tokens_out"], result["tokens_reasoning"],
+                          result["finish_reason"], result["stream_chunks"]), (9, 30, 21, "stop", 5))
+        self.assertLessEqual(result["first_reasoning_ms"], result["first_content_ms"])
+
+    def test_stream_without_final_chunk_is_interrupted_with_partials(self) -> None:
+        result, _ = self._call(_FakeStream([_delta(reasoning="half")], done=False),
+                               messages=[{"role": "user", "content": "q"}], stream=True)
+        self.assertEqual((result["ok"], result["error_code"], result["reasoning"]),
+                         (False, "stream_interrupted", "half"))
+
+    def test_stream_deadline_is_checked_per_chunk(self) -> None:
+        events = [_delta(reasoning="a"), _delta(reasoning="b"), _FINISH, _USAGE]
+        clock = iter([0, 0, 5, 5, 5, 5, 5, 5, 5, 5])
+        with patch("hearth.toolsurface.inference.time.monotonic", side_effect=lambda: next(clock, 5)):
+            result, _ = self._call(_FakeStream(events), messages=[{"role": "user", "content": "q"}],
+                                   stream=True, timeout_s=3)
+        self.assertEqual((result["ok"], result["error_code"]), (False, "stream_deadline_exceeded"))
+
+    def test_length_finish_is_output_truncated_on_new_path(self) -> None:
+        cut = {"model": "m", "choices": [{"delta": {}, "finish_reason": "length"}]}
+        result, _ = self._call(_FakeStream([_delta(content="par"), cut, _USAGE]),
+                               messages=[{"role": "user", "content": "q"}], stream=True)
+        self.assertEqual((result["ok"], result["error_code"], result["text"]),
+                         (False, "output_truncated", "par"))

@@ -77,6 +77,7 @@ engine = "vllm"
 context_tokens = 65536
 context_bytes = 229376
 max_tokens = 16384   # the output reserve; == work.produce ceiling (sizing-map 2026-09-27)
+deliberate_max_tokens = 24576   # inference.deliberate only: a streamed thinking turn may ask up to this (65,536 window)
 timeout_s = 1000
 parallel_slots = 2       # KV pool 99,048 tokens holds ~1.5 full requests; 2 x (19.5K in + 16K out) = 71K fits, 3 preempted (9.3 s wait 2026-09-27)
 structured_outputs = true   # response_format json_schema, probed 2026-10-02 (docs/structured-outputs.md)

@@ -995,3 +995,121 @@ class DoorLaneFamilyRoutingTest(_ServiceFixture):
         self.assertEqual("pinned:test-provider", result["routed_by"])
         self.assertNotIn("task_family", result)
         self.assertNotIn("family_recommendation", result)
+
+
+class DeliberateOperationTest(_ServiceFixture):
+    """inference.deliberate: validated, admitted against the backend's declaration, recorded on every outcome."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.backends_path.write_text(_BACKENDS + """
+[[backend]]
+name = "deep"
+endpoint = "http://127.0.0.1:9997"
+api = "openai"
+models = ["deep-model"]
+[backend.settings]
+parallel_slots = 1
+context_tokens = 8192
+context_bytes = 32768
+deliberate_max_tokens = 4096
+""", encoding="utf-8")
+        self.args = {"messages": [{"role": "user", "content": "think"}], "backend": "deep", "thinking": True}
+        self.policy = {"max_tokens": 4096, "deadline_s": 60}
+
+    def run_turn(self, result, *, arguments=None, policy=None):
+        def generate(**kwargs):
+            self.kwargs = kwargs
+            if isinstance(result, Exception):
+                raise result
+            return result
+        service = self.service(generate)
+        job = service.submit(operation_name="inference.deliberate", arguments=arguments or self.args,
+                             principal=self.principal, source=self.source, policy=policy or self.policy)
+        return service, self.wait_final(service, job["job_id"])
+
+    def test_success_failure_and_exception_record_observed_fields_and_artifacts(self) -> None:
+        base = {"backend": "deep", "model": "deep-model", "thinking": True, "tokens_in": 5, "tokens_out": 9,
+                "tokens_reasoning": 7, "max_tokens": 4096, "first_reasoning_ms": 10, "first_content_ms": 20,
+                "stream_chunks": 4, "duration_ms": 30, "wire_request": {"stream": True}, "reasoning": "hm"}
+        service, ok = self.run_turn({**base, "ok": True, "text": "42", "finish_reason": "stop"})
+        self.assertEqual("succeeded", ok["status"])
+        self.assertTrue(self.kwargs["stream"] and self.kwargs["thinking"] is True and self.kwargs["prompt"] == "")
+        observed = ok["invocations"][0]
+        self.assertEqual(("stop", 7, 4096, 4096), (observed["finish_reason"], observed["tokens_reasoning"],
+                                                   observed["max_tokens_requested"], observed["max_tokens_applied"]))
+        roles = {a["role"]: a["artifact_id"] for a in ok["artifacts"]}
+        self.assertEqual(b"hm", service.read_artifact(roles["reasoning"])[1])
+        self.assertEqual(b"42", service.read_artifact(roles["output"])[1])
+        self.assertIn(b'"stream"', service.read_artifact(roles["wire_request"])[1])
+        service, cut = self.run_turn({**base, "ok": False, "text": "par", "finish_reason": "length",
+                                      "error_code": "output_truncated", "error": "cut"})
+        self.assertEqual("failed", cut["status"])
+        self.assertEqual("output_truncated", cut["invocations"][0]["error_code"])
+        roles = {a["role"]: a["artifact_id"] for a in cut["artifacts"]}
+        self.assertEqual(b"par", service.read_artifact(roles["output"])[1])
+        service, boom = self.run_turn(RuntimeError("seat gone"))
+        self.assertEqual("failed", boom["status"])
+        self.assertEqual(("worker_exception", True, 4096), (boom["invocations"][0]["error_code"],
+                         boom["invocations"][0]["thinking"], boom["invocations"][0]["max_tokens_requested"]))
+
+    def test_admission_refusals(self) -> None:
+        service = self.service(lambda **_k: {"ok": True, "text": "x"})
+        def refused(arguments, policy=None):
+            with self.assertRaises(ExecutionServiceError):
+                service.submit(operation_name="inference.deliberate", arguments=arguments,
+                               principal=self.principal, source=self.source, policy=policy or self.policy)
+        refused({**self.args, "backend": "test-provider"})                  # no deliberate_max_tokens
+        refused({**self.args, "prompt": "x"})                                # unknown argument
+        refused({k: v for k, v in self.args.items() if k != "thinking"})     # thinking required
+        refused(self.args, {"deadline_s": 60})                               # max_tokens required
+        refused(self.args, {"max_tokens": 5000, "deadline_s": 60})           # over the backend's declaration
+        refused({**self.args, "messages": [{"role": "user", "content": "x" * 17000}]})  # 4250 + 4096 > 8192
+        refused({**self.args, "top_p": 0})                                   # local_generate takes (0, 1]
+
+    def test_reasoning_only_answer_fails_and_a_cancelled_turn_keeps_its_record(self) -> None:
+        base = {"ok": True, "backend": "deep", "model": "deep-model", "wire_request": {"stream": True},
+                "reasoning": "long thought", "finish_reason": "stop"}
+        service, empty = self.run_turn({**base, "text": ""})
+        self.assertEqual(("failed", "no_visible_output"), (empty["status"], empty["invocations"][0]["error_code"]))
+        roles = {a["role"]: a["artifact_id"] for a in empty["artifacts"]}
+        self.assertEqual(b"long thought", service.read_artifact(roles["reasoning"])[1])
+        started, release = threading.Event(), threading.Event()
+        def generate(**_kwargs):
+            started.set()
+            release.wait(3)
+            return {**base, "text": "late"}
+        service = self.service(generate)
+        job = service.submit(operation_name="inference.deliberate", arguments=self.args,
+                             principal=self.principal, source=self.source, policy=self.policy)
+        self.assertTrue(started.wait(3))
+        self.assertEqual("cancellation_requested", service.cancel(job["job_id"])["status"])
+        release.set()
+        cancelled = self.wait_final(service, job["job_id"])
+        self.assertEqual(("cancelled", "stop"), (cancelled["status"], cancelled["invocations"][0]["finish_reason"]))
+        roles = {a["role"]: a["artifact_id"] for a in cancelled["artifacts"]}
+        self.assertEqual(b"long thought", service.read_artifact(roles["reasoning"])[1])
+
+    def test_recovery_fails_a_running_turn_instead_of_replaying_it(self) -> None:
+        service = self.service(lambda **_k: {"ok": True, "text": "unused"})
+        service.close()
+        self.services.remove(service)
+        request_id, job_id, invocation_id = new_request_id(), new_job_id(), new_invocation_id()
+        prompt = ArtifactStore(self.root / "artifacts").put('[{"role": "user", "content": "x"}]')
+        ledger = ExecutionLedger(self.root / "ledger")
+        for event in (
+            new_execution_event("request.accepted", request_id=request_id, job_id=job_id,
+                                operation="inference.deliberate",
+                                desired={"operation": "inference.deliberate", "arguments": self.args and {"backend": "deep", "thinking": True},
+                                         "input_artifact": prompt, "policy": self.policy, "idempotency_key": None}),
+            new_execution_event("job.dispatched", request_id=request_id, job_id=job_id),
+            new_execution_event("invocation.started", request_id=request_id, job_id=job_id, invocation_id=invocation_id),
+            new_execution_event("job.running", request_id=request_id, job_id=job_id),
+        ):
+            ledger.append(event)
+        calls = []
+        recovered = self.service(lambda **kwargs: calls.append(kwargs) or {"ok": True, "text": "again"})
+        state = recovered.get_job(job_id)
+        self.assertEqual("failed", state["status"])
+        self.assertEqual("failed", state["invocations"][0]["status"])
+        self.assertEqual([], calls)

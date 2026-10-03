@@ -196,7 +196,7 @@ def collect_backends() -> list[Row]:
         s = b.get("settings", {})
         name = b["name"]
         for k, bounds in (("context_tokens", "input + output tokens the seat holds"), ("context_bytes", "payload bytes admitted by the door (3.5 B/token, no output reserve)"),
-                          ("max_tokens", "default output budget = the reserve local-work subtracts"), ("timeout_s", "HTTP timeout when the caller sets none (execution path always overrides)"),
+                          ("max_tokens", "default output budget = the reserve local-work subtracts"), ("deliberate_max_tokens", "largest output a streamed inference.deliberate turn may ask for on this rung"), ("timeout_s", "HTTP timeout when the caller sets none (execution path always overrides)"),
                           ("parallel_slots", "HEARTH lease slots on this rung"),
                           ("images_per_second", "measured perception throughput on CPU"),
                           ("max_image_bytes", "largest image payload accepted")):
@@ -238,8 +238,10 @@ def collect_operations() -> list[Row]:
     doc = _toml(path)
     rows = []
     for op, spec in doc.get("operation", {}).items():
-        if op not in ("llm.chat", "inference.generate", "work.produce"):
+        if op not in ("llm.chat", "inference.generate", "inference.deliberate", "work.produce"):
             continue
+        if spec.get("streamed"):
+            rows.append(row("operation", f"{op} streamed", True, _line_of(path, rf'\[operation\."{re.escape(op)}"\]'), "execution policy_for", "submit/watch only; the router's idle timers do not bound its deadline"))
         for k, bounds in (("max_tokens_ceiling", "largest output budget a job may ask for"), ("deadline_ceiling_s", "largest deadline; also the default when none is given"), ("max_prompt_bytes", "largest prompt")):
             rows.append(row("operation", f"{op} {k}", spec.get(k), _line_of(path, rf'\[operation\."{re.escape(op)}"\]'), "execution policy_for", bounds))
     return rows
@@ -571,9 +573,11 @@ def invariants(rows: list[Row]) -> list[dict]:
         if r["layer"] == "operation" and r["setting"].endswith(" max_tokens_ceiling"):
             ceil[r["setting"].split(" ")[0]] = _num(r["value"])
     max_reserve = max((_num(s.get("max_tokens"), 0) for s in rungs.values()), default=0)
+    max_deliberate = max((_num(s.get("deliberate_max_tokens"), 0) for s in rungs.values()), default=0)
     for op, c in ceil.items():
-        if c and max_reserve and c > max_reserve:
-            fail("operation-ceiling-within-the-largest-rung-reserve", f"{op} max_tokens_ceiling {c:g} > largest rung max_tokens {max_reserve:g}", "a rung's max_tokens is what its seat is declared to serve as output; an operation that allows more admits a request no seat can complete (a 32,768 output on the 40,960 seat leaves 8K for input)")
+        reserve = max_deliberate if op == "inference.deliberate" else max_reserve
+        if c and c > reserve and (reserve or op == "inference.deliberate"):
+            fail("operation-ceiling-within-the-largest-rung-reserve", f"{op} max_tokens_ceiling {c:g} > largest rung {'deliberate_max_tokens' if op == 'inference.deliberate' else 'max_tokens'} {reserve:g}", "a rung's max_tokens is what its seat is declared to serve as output; an operation that allows more admits a request no seat can complete (a 32,768 output on the 40,960 seat leaves 8K for input)")
     wp = ceil.get("work.produce")
     dense = rungs.get("omen-dense-27b", {})
     if wp and dense.get("max_tokens") is not None and _num(dense["max_tokens"]) > wp:
@@ -590,10 +594,16 @@ def invariants(rows: list[Row]) -> list[dict]:
     sub_dl = _num(_val(rows, "submit_local_work deadline_s default"))
     if sub_dl and dl and sub_dl < dl:
         pass  # a lower default than the ceiling is allowed; recorded in the table
-    for who, key, scale in (("haproxy timeout server", "haproxy timeout server", 1), ("codex mcp tool_timeout_sec", "codex mcp tool_timeout_sec", 1), ("claude code hearth timeout (ms)", "claude code hearth timeout (ms)", 1000)):
-        v = _num(_val(rows, key))
-        if v is not None and dl and v / scale < dl:
-            fail("client-timeouts-cover-the-deadline", f"{who} {v:g}{'ms' if scale == 1000 else 's'} < deadline_ceiling_s {dl:g}", "a door call that outlives its client timeout is reported as a client error, not a result")
+    # Every operation's deadline, not only work.produce's. A streamed operation is submit/watch and its router
+    # timers are idle timers (each chunk resets them), so it is bounded by none of these client timeouts.
+    for op in sorted(r["setting"].rsplit(" ", 1)[0] for r in rows if r["layer"] == "operation" and r["setting"].endswith(" deadline_ceiling_s")):
+        op_dl = _num(_val(rows, f"{op} deadline_ceiling_s"))
+        if _val(rows, f"{op} streamed") or not op_dl:
+            continue
+        for who, key, scale in (("haproxy timeout server", "haproxy timeout server", 1), ("codex mcp tool_timeout_sec", "codex mcp tool_timeout_sec", 1), ("claude code hearth timeout (ms)", "claude code hearth timeout (ms)", 1000)):
+            v = _num(_val(rows, key))
+            if v is not None and v / scale < op_dl:
+                fail("client-timeouts-cover-the-deadline", f"{op}: {who} {v:g}{'ms' if scale == 1000 else 's'} < deadline_ceiling_s {op_dl:g}", "a door call that outlives its client timeout is reported as a client error, not a result")
     if str(_val(rows, "gateway tool dispatch", "")).startswith("on the event loop"):
         fail("door-serves-calls-concurrently", "hearth-production.service runs the gateway without --threaded-tools", "2026-09-28 00:54Z: eight parallel local_generate pins to the 8-slot MoE lane completed 5 s apart; the seat never saw more than one request")
     if _val(rows, "haproxy timeout queue") is None:

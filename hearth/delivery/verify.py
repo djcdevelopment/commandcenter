@@ -213,7 +213,11 @@ def verify(manifest: Mapping[str, Any], brief: Any, output: Mapping[str, Any]) -
     fs += _para_findings("summary", output["summary"], None)
     for i, sec in enumerate(output["sections"]):
         for j, para in enumerate(sec["paragraphs"]):
-            fs += _para_findings(f"s{i}.p{j}.q0", para["text"], "\n".join(para["quotes"]))
+            quotes = para["quotes"]
+            if (manifest.get("form_applied") or {}).get("quote_mode") == "line_reference":
+                quotes = [c["quote"] for cid, c in claims.items()
+                          if cid.startswith(f"s{i}.p{j}.q") and c.get("resolved")]
+            fs += _para_findings(f"s{i}.p{j}.q0", para["text"], "\n".join(quotes))
     return _result(fs)
 
 

@@ -1,0 +1,8 @@
+Write a source-grounded prose report as one JSON object with `summary` and `sections`. Each section has `heading` and `paragraphs`; each paragraph has `text` and `quotes`. No extra fields or Markdown fences.
+
+- Cover every SUBSTANCE requirement. State only what the source shows; do not claim tests ran.
+- The SOURCE FILES contain numbered lines. In each `quotes` entry, cite exactly one source line as `path:N`, using the repository-relative path printed above that source and its actual line number. For example: `perception/service.py:83`.
+- Do not copy source text into `quotes`, invent a line number, cite a range, use `/input/` aliases, or add punctuation around a reference. Use multiple entries for multiple supporting lines.
+- Every factual assertion in a paragraph needs supporting lines. A correct line number is useful only if its source text supports that assertion. The renderer will echo the cited line verbatim into the report.
+- Write plain prose in summary/text. Put references only in `quotes`; do not report word counts.
+- Follow FORM for length and headings. The report is review-only.

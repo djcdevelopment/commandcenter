@@ -409,6 +409,22 @@ parallel_slots = 2
             self.assertEqual(final["prompt"]["output_reserve_tokens"], expected)
             self.assertEqual(self.generate_calls[-1]["max_tokens"], expected)
 
+    def test_line_reference_prompt_and_report_use_pinned_source(self):
+        brief = {"schema": "brief.v2", "substance": [{"id": "s1", "statement": "Describe the last line."}],
+                 "form": {"quote_mode": "line_reference", "citations": "quote"}}
+        self.outputs[:] = [json.dumps({"summary": "The last line.", "sections": [{"heading": "Lines",
+            "paragraphs": [{"text": "The file ends with two.", "quotes": ["a.py:2"]}]}]})]
+        final = self.settle(self.submit(artifact_kind="markdown", brief=brief, max_tokens=None)["work_id"])
+        self.assertEqual(final["status"], "awaiting_review", final)
+        prompt = self.generate_calls[-1]["prompt"]
+        self.assertIn("numbered; cite repository-relative path:N", prompt)
+        self.assertNotIn("Do not write line numbers", prompt)
+        art = self.service.artifact(final["work_id"])
+        self.assertIn("> two", art["candidate"])
+        claim = art["delivery"]["manifest"]["claims"][0]
+        self.assertEqual((claim["quote"], claim["quote_reference"], claim["resolved"]["start_line"]),
+                         ("two", "a.py:2", 2))
+
 
 if __name__ == "__main__":
     unittest.main()

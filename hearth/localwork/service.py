@@ -214,11 +214,12 @@ class LocalWorkService:
         return profile, _digest(encoded)
 
     @staticmethod
-    def _template(kind: str, delivery: bool = False) -> tuple[str, str]:
+    def _template(kind: str, delivery: bool = False, quote_mode: str = "text") -> tuple[str, str]:
         mapping = {"unified_diff": "local_work_patch_v1.txt", "whole_file": "local_work_whole_file_v1.txt",
                    "json": "local_work_json_v1.txt", "markdown": "local_work_markdown_v1.txt"}
         if delivery:
-            mapping["markdown"] = "local_work_delivery_v1.txt"
+            mapping["markdown"] = ("local_work_delivery_lines_v1.txt" if quote_mode == "line_reference"
+                                   else "local_work_delivery_v1.txt")
         target = Path(__file__).resolve().parents[1] / "prompts" / mapping[kind]
         text = target.read_text(encoding="utf-8")
         return text, _digest(text)
@@ -237,9 +238,11 @@ class LocalWorkService:
         if form["sections"]:
             limits.append("Use these section headings, in this order: " + "; ".join(form["sections"]) + ".")
         substance = "\n".join(f"- {row['id']}: {row['statement']}" for row in brief["substance"])
+        source_label = ("numbered; cite repository-relative path:N" if form["quote_mode"] == "line_reference"
+                        else "plain text; copy quotes from the CODE blocks")
         return (f"{template}\n\nREQUEST\nINTENT: {intent}\n\nSUBSTANCE (the report must show each):\n{substance}"
                 f"\n\nFORM:\n" + ("\n".join(f"- {x}" for x in limits) or "- No length limit.")
-                + f"\n\nSOURCE FILES (plain text; copy quotes from the CODE blocks):\n{packet}")
+                + f"\n\nSOURCE FILES ({source_label}):\n{packet}")
 
     @staticmethod
     def _delivery_max_tokens(brief: Mapping[str, Any]) -> int:
@@ -327,12 +330,14 @@ class LocalWorkService:
             try:
                 contract.check_brief(brief)
                 packet = sourcemap.render_for_model(sourcemap.build(str(repo_path), base, declared),
-                                                    numbered=False, symbols=False)
+                                                    numbered=contract.form_defaults(brief)["quote_mode"] == "line_reference",
+                                                    symbols=False)
             except (contract.ContractError, sourcemap.SourceMapError) as exc:
                 raise LocalWorkError(f"delivery brief refused: {exc}") from exc
             if max_tokens is None:
                 max_tokens = self._delivery_max_tokens(brief)
-        template, template_hash = self._template(artifact_kind, delivery)
+        template, template_hash = self._template(artifact_kind, delivery, contract.form_defaults(brief)["quote_mode"]
+                                                 if delivery else "text")
         # The depth floor is token-based, not a byte heuristic.  For auto we
         # ask the currently declared fast server to count the evidence alone;
         # the selected server then counts the complete templated request below.
@@ -740,7 +745,9 @@ class LocalWorkService:
         idempotency key is per work item, so a reconcile that repeats this after a crash gets the same job."""
         work_id = str(manifest["work_id"])
         original = self.execution.artifacts.read(job["desired"]["input_artifact"]).decode("utf-8")
-        template, _ = self._template_file("local_work_delivery_revise_v1.txt")
+        lines = contract.form_defaults(manifest["brief"])["quote_mode"] == "line_reference"
+        template, _ = self._template_file("local_work_delivery_lines_revise_v1.txt" if lines
+                                          else "local_work_delivery_revise_v1.txt")
         prompt = (original + "\n\nYOUR FIRST ANSWER:\n" + raw.decode("utf-8", errors="replace")
                   + "\n\nOBJECTIONS:\n" + "\n".join(f"- {x}" for x in objections) + "\n\n" + template)
         arguments = dict(job["desired"]["arguments"])

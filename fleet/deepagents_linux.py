@@ -8,7 +8,8 @@ Wraps what already exists and adds nothing to it:
 Spec (written by fleet.bankedfire_linux from a `task_class: deepagents` brief):
   {"id", "source": <one file the agent may read/edit>, "task": <prose>,
    "backend": omen|am4|omen-dense|am4-tool-4070ti|am4-tool-5070,
-   "report": bool, "max_report_words": int|null, "work": <ct work id>|null}
+   "report": bool, "max_report_words": int|null, "report_delivery": tool|final|schema (optional),
+   "work": <ct work id>|null}
 
 Outcome: "succeeded" when the runner exits 0 AND result.json says accepted_shape (the candidate
 still carries review_required=true — a human or frontier caller reviews it; unattended DeepAgents
@@ -115,6 +116,8 @@ class Delivery:
             argv.append("--report")
             if self.spec.get("max_report_words"):
                 argv += ["--max-report-words", str(int(self.spec["max_report_words"]))]
+            if self.spec.get("report_delivery"):
+                argv += ["--report-delivery", str(self.spec["report_delivery"])]
         work = self.spec.get("work")
         if work and shutil.which("ct"):
             argv = ["ct", "receipt", "--work", str(work), "--"] + argv

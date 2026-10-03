@@ -28,7 +28,9 @@ The Linux port of deepagents-poc/poc/experiment_window.py's ceremony, for vLLM s
 Persist-first: state.json under $HEARTH_ROOT/var/experiments/linux/<id>/ is rewritten at every
 phase, so a crash leaves a readable phase and a held fence, never a silently swapped seat.
 A failed restore keeps the tenancy (fail closed) and exits 2: the pool stays fenced until a
-human looks. Stdlib only; runs detached under a transient systemd unit started by the drain.
+human looks. SIGTERM/^C before restore takes the restore path (the campaign's process group gets
+SIGTERM first); restore itself ignores both. An id whose state.json exists is refused (use a new id).
+Stdlib only; runs detached under a transient systemd unit started by the drain.
 
     python -m fleet.experiment_linux run --spec <spec.json>
     python -m fleet.experiment_linux status --id <id>
@@ -42,6 +44,7 @@ import shlex
 import shutil
 import hashlib
 import re
+import signal
 import subprocess
 import sys
 import threading
@@ -57,6 +60,9 @@ if str(_REPO_ROOT) not in sys.path:
 
 HEARTH_ROOT = Path(os.environ.get("HEARTH_ROOT", str(Path.home() / "hearth-production")))
 EXP_ROOT = HEARTH_ROOT / "var" / "experiments" / "linux"
+# the door's fence and lease store (hearth-production.service sets the same path); hearth.execution.coordination
+# would otherwise default to <this checkout>/hearth/var/execution, a file the door never reads
+COORD_DB = Path(os.environ.get("HEARTH_COORDINATION_DB", str(HEARTH_ROOT / "var" / "execution" / "coordination.sqlite")))
 UNIT_DIR = Path.home() / ".config" / "systemd" / "user"
 WAIT_SCRIPT = Path.home() / "bin" / "wait-vllm-seat.sh"
 POOL = "omen-b70-pool"
@@ -71,6 +77,7 @@ MODEL_SMALL_FILES = ("config.json", "generation_config.json", "tokenizer*", "cha
                      "special_tokens_map.json", "added_tokens.json", "preprocessor_config.json", "*.index.json")
 TENANCY_TTL_S = 600
 TENANCY_RENEW_S = 60
+CAMPAIGN_KILL_GRACE_S = 30
 
 
 def utc() -> str:
@@ -99,6 +106,7 @@ class Experiment:
         self.dir = EXP_ROOT / self.id
         self.dir.mkdir(parents=True, exist_ok=True)
         self.state_path = self.dir / "state.json"
+        self.reused = self.state_path.exists()   # run() refuses: an old state would steer restore
         self.state: dict[str, Any] = {"schema": "experiment-linux.v1", "id": self.id, "spec": spec,
                                       "phase": "created", "started": utc(), "outcome": None, "log": [],
                                       "environment": _environment_stamp()}
@@ -176,9 +184,15 @@ class Experiment:
         return {"model_dir": model_dir, "hashes": {str(p): self._sha(p) for p in dict.fromkeys(paths)},
                 "weights": {p.name: p.stat().st_size for p in sorted(md.glob("*.safetensors"))}}
 
+    def main_proc(self) -> tuple[str, list[str]]:
+        pid = subprocess.run(["systemctl", "--user", "show", self.unit, "-p", "MainPID", "--value"],
+                             capture_output=True, text=True, check=True).stdout.strip()
+        return pid, Path(f"/proc/{pid}/cmdline").read_text().split("\0")[:-1]
+
     def snapshot(self) -> dict[str, Any]:
         model_dir = self.unit_env().get("OMEN_MODEL", DEFAULT_MODEL)
-        return {"dropins": self.active_dropins(), "served": self.served_models(),
+        pid, cmd = self.main_proc()
+        return {"dropins": self.active_dropins(), "served": self.served_models(), "main_pid": pid, "running_argv": cmd,
                 "active": subprocess.run(["systemctl", "--user", "is-active", self.unit],
                                          capture_output=True, text=True).stdout.strip(),
                 **self.stack_hashes(model_dir)}
@@ -195,10 +209,8 @@ class Experiment:
         return [m.group(1)] + out.stdout.splitlines()
 
     def check_running_args(self, argv: list[str]) -> None:
-        pid = subprocess.run(["systemctl", "--user", "show", self.unit, "-p", "MainPID", "--value"],
-                             capture_output=True, text=True, check=True).stdout.strip()
-        cmd = Path(f"/proc/{pid}/cmdline").read_text().split("\0")[:-1]
-        if "serve" not in cmd or cmd[cmd.index("serve"):] != argv[1:]:
+        pid, cmd = self.main_proc()
+        if "serve" not in cmd or cmd[cmd.index("serve") - 1:] != argv:
             raise RuntimeError(f"running process (pid {pid}) does not carry the effective argv")
         self.log("running process matches effective argv", pid=pid)
 
@@ -231,18 +243,22 @@ class Experiment:
             raise RuntimeError(f"seat {self.seat} /metrics lacks {sorted(set(want.values()) - set(found))}")
         return found
 
+    def refuse_busy(self) -> dict[str, float]:
+        c = self.seat_counters()
+        if c["running"] or c["waiting"]:
+            raise RuntimeError(f"seat {self.seat} is busy: running {c['running']:g} waiting {c['waiting']:g}")
+        return c
+
     def preflight(self) -> None:
         if self.dropin:
             if (self.service_d / self.dropin).exists():
                 raise RuntimeError(f"resident file {self.service_d / self.dropin} already exists; refusing to overwrite it")
             if not (self.service_d / (self.dropin + ".staged")).exists():
                 raise RuntimeError(f"no staged drop-in {self.service_d / (self.dropin + '.staged')}")
-        c = self.seat_counters()
-        if c["running"] or c["waiting"]:
-            raise RuntimeError(f"seat {self.seat} is busy: running {c['running']:g} waiting {c['waiting']:g}")
+        c = self.refuse_busy()
         from hearth.execution.coordination import CapacityLeaseStore
         backend = str(self.spec.get("backend") or SEAT_BACKEND[self.seat])
-        n = CapacityLeaseStore().active_count(f"provider:{backend}")
+        n = CapacityLeaseStore(COORD_DB).active_count(f"provider:{backend}")
         if n:
             raise RuntimeError(f"{n} active door lease(s) on provider:{backend}; refusing")
         self.log("preflight clear", backend=backend, counters=c)
@@ -258,7 +274,7 @@ class Experiment:
     # --- phases ------------------------------------------------------------------------
     def acquire(self) -> None:
         from hearth.execution.coordination import GpuTenancyStore
-        store = GpuTenancyStore()
+        store = GpuTenancyStore(COORD_DB)
         owner = store.active_owner(POOL)
         if owner is not None:
             raise RuntimeError(f"pool owned by {owner.owner} session {owner.session_id}; refusing")
@@ -284,15 +300,19 @@ class Experiment:
         target = self.service_d / self.dropin
         if not staged.exists():
             raise RuntimeError(f"no staged drop-in {staged}")
+        if target.exists():
+            raise RuntimeError(f"resident file {target} appeared after preflight; refusing to overwrite it")
+        self.save("swapping", applied_dropin=str(target))   # persisted first: restore removes only what we applied
         shutil.copy2(staged, target)
-        self.save("swapped", applied_dropin=str(target))
+        self.save("swapped")
         self.log("drop-in applied", dropin=self.dropin)
         subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
         argv = self.record_argv(running_must_match=False)   # a mismatch stops here, before any restart
+        self.refuse_busy()   # omen-dense-27b is not behind the pool fence: a request since preflight is not ours to kill
         self.save("restarting", seat_restarted=True)
         self.restart_and_wait()
         self.check_running_args(argv)
-        self.save(stack_swapped=self.stack_hashes(argv[1]))
+        self.save(stack_swapped=self.stack_hashes(argv[2]))
         served = self.served_models()
         expect = self.spec.get("expect_model")
         if expect and expect not in served:
@@ -313,13 +333,14 @@ class Experiment:
 
     def _renew_loop(self, stop: threading.Event, box: dict[str, int]) -> None:
         from hearth.execution.coordination import GpuTenancyStore
-        store, t = GpuTenancyStore(), self.state["tenancy"]
+        store, t = GpuTenancyStore(COORD_DB), self.state["tenancy"]
         while True:
-            if store.renew(resource=POOL, session_id=t["session_id"], epoch=int(t["epoch"]),
-                           ttl_seconds=TENANCY_TTL_S, owner="experiment"):
-                box["renewed"] += 1
-            else:
-                box["failed"] += 1
+            try:
+                ok = store.renew(resource=POOL, session_id=t["session_id"], epoch=int(t["epoch"]),
+                                 ttl_seconds=TENANCY_TTL_S, owner="experiment")
+            except Exception as exc:  # noqa: BLE001 -- counted as a failed renewal (outcome void), not dropped
+                ok, box["error"] = False, f"{type(exc).__name__}: {exc}"
+            box["renewed" if ok else "failed"] += 1
             if stop.wait(TENANCY_RENEW_S):
                 return
 
@@ -332,6 +353,20 @@ class Experiment:
                 except (ValueError, KeyError, TypeError):
                     continue
         return None
+
+    def stop_group(self, proc: subprocess.Popen) -> None:
+        """SIGTERM the campaign's process group (the driver cancels its executions), SIGKILL after a grace."""
+        for sig, grace in ((signal.SIGTERM, CAMPAIGN_KILL_GRACE_S), (signal.SIGKILL, 10)):
+            try:
+                os.killpg(proc.pid, sig)
+            except ProcessLookupError:   # the whole group has already exited
+                break
+            try:
+                proc.wait(timeout=grace)
+                break
+            except subprocess.TimeoutExpired:
+                continue
+        self.log("campaign process group stopped", rc=proc.returncode)
 
     def campaign(self) -> None:
         cmd = self.spec["campaign"]
@@ -352,11 +387,17 @@ class Experiment:
         timed_out, rc = False, None
         try:
             with out_path.open("ab") as out:
+                # own process group: a timeout or our own SIGTERM reaches the driver under `ct receipt` too
+                proc = subprocess.Popen(argv, stdout=out, stderr=subprocess.STDOUT, cwd=str(Path.home()),
+                                        start_new_session=True)
                 try:
-                    rc = subprocess.run(argv, stdout=out, stderr=subprocess.STDOUT, timeout=budget,
-                                        cwd=str(Path.home()), check=False).returncode
+                    rc = proc.wait(timeout=budget)
                 except subprocess.TimeoutExpired:
                     timed_out = True
+                    self.stop_group(proc)
+                except BaseException:
+                    self.stop_group(proc)
+                    raise
         finally:
             stop.set(); renewer.join(10)
         if timed_out:
@@ -372,7 +413,8 @@ class Experiment:
         foreign = None if calls is None else int(after["success"] - before["success"]) - calls
         self.save("campaign_done", campaign_rc=rc, campaign_timed_out=timed_out, campaign_finished=utc(),
                   counters_after=after, calls_reported=calls, foreign_requests=foreign,
-                  tenancy_renewals=box["renewed"], tenancy_renew_failures=box["failed"])
+                  tenancy_renewals=box["renewed"], tenancy_renew_failures=box["failed"],
+                  tenancy_renew_error=box.get("error"))
         self.log("campaign done", rc=rc, calls=calls, foreign_requests=foreign, renewals=box["renewed"])
         if calls is None:
             self.log("campaign reported no calls line; foreign requests cannot be attributed")
@@ -380,7 +422,7 @@ class Experiment:
     def restore(self) -> None:
         if self.dropin:
             target = self.service_d / self.dropin
-            if target.exists():
+            if self.state.get("applied_dropin") and target.exists():
                 target.unlink()
             self.save("restoring", applied_dropin=None)
             self.log("drop-in removed")
@@ -392,6 +434,11 @@ class Experiment:
         dropins = self.active_dropins()
         if served != res.get("served") or dropins != res.get("dropins"):
             raise RuntimeError(f"restore mismatch: served {served} vs {res.get('served')}; dropins {dropins} vs {res.get('dropins')}")
+        pid, cmd = self.main_proc()
+        if cmd != res["running_argv"]:
+            raise RuntimeError(f"restore mismatch: running process (pid {pid}) argv differs from the snapshot's")
+        if not self.state.get("seat_restarted") and pid != res["main_pid"]:
+            self.save(seat_restarted_externally=pid)   # not restarted by us: the seat was not ours alone
         now = self.stack_hashes(res["model_dir"])
         if now["hashes"] != res["hashes"] or now["weights"] != res["weights"]:
             bad = sorted(k for k in set(now["hashes"]) | set(res["hashes"]) if now["hashes"].get(k) != res["hashes"].get(k))
@@ -402,25 +449,36 @@ class Experiment:
     def release(self) -> None:
         from hearth.execution.coordination import GpuTenancyStore
         t = self.state.get("tenancy") or {}
-        GpuTenancyStore().release(resource=POOL, session_id=t["session_id"], epoch=int(t["epoch"]),
-                                  owner="experiment", restoration_verified=True,
-                                  reason=f"experiment {self.id} restored and verified")
+        if not GpuTenancyStore(COORD_DB).release(resource=POOL, session_id=t["session_id"], epoch=int(t["epoch"]),
+                                                 owner="experiment", restoration_verified=True,
+                                                 reason=f"experiment {self.id} restored and verified"):
+            raise RuntimeError(f"release matched no fence row (session {t['session_id']} epoch {t['epoch']}): fence lost or stolen")
         self.save("released")
         self.log("tenancy released")
 
     # --- the run -----------------------------------------------------------------------
     def run(self) -> int:
+        if self.reused:
+            print(f"[experiment {self.id}] refusing: {self.state_path} exists (phase {self.state.get('phase')}); use a new id",
+                  flush=True)
+            return 1
+
+        def interrupted(signum: int, _frame: Any) -> None:
+            raise KeyboardInterrupt(f"signal {signum}")
+        signal.signal(signal.SIGTERM, interrupted)   # SIGTERM/^C before restore -> the restore path below
         outcome = "failed"
         try:
             self.preflight()
             self.acquire()
+            self.preflight()   # again under the fence: a lease or request that slipped in before acquire
             self.take_snapshot()
             self.swap()
             self.campaign()
             outcome = "succeeded" if self.state.get("campaign_rc") == 0 else "failed"
-            if self.state.get("foreign_requests") or self.state.get("tenancy_renew_failures"):
-                outcome = "void"   # the seat saw requests the campaign did not make, or the fence lapsed
-        except Exception as exc:  # noqa: BLE001 -- everything below still restores
+            if (self.state.get("foreign_requests") or self.state.get("calls_reported") is None
+                    or self.state.get("tenancy_renew_failures")):
+                outcome = "void"   # the seat saw requests the campaign did not make (or cannot tell), or the fence lapsed
+        except (Exception, KeyboardInterrupt) as exc:  # noqa: BLE001 -- everything below still restores
             self.log("phase failed", error=f"{type(exc).__name__}: {exc}")
             outcome = "failed"
             if self.state.get("phase") in ("created", "acquired") or not self.state.get("resident"):
@@ -432,7 +490,8 @@ class Experiment:
                         self.log("release failed", error=str(rexc))
                 self.save("done", outcome=outcome)
                 return 1
-        # restore always runs once a swap was attempted
+        # restore always runs once a swap was attempted; it is not interruptible (a half restore is worse)
+        signal.signal(signal.SIGTERM, signal.SIG_IGN); signal.signal(signal.SIGINT, signal.SIG_IGN)
         try:
             for attempt in (1, 2):
                 try:
@@ -448,6 +507,8 @@ class Experiment:
             self.log("release failed", error=f"{type(exc).__name__}: {exc}")
             self.save("done", outcome="restore_failed")
             return 2
+        if self.state.get("seat_restarted_externally"):
+            outcome = "void"
         self.save("done", outcome=outcome, finished=utc())
         self.log("done", outcome=outcome)
         return 0 if outcome == "succeeded" else 1

@@ -28,6 +28,7 @@ import copy
 import base64
 import hashlib
 import json
+import itertools
 import os
 import re
 import shutil
@@ -434,6 +435,86 @@ def _post(url: str, payload: dict, timeout_s: int,
         return None, f"non-JSON response: {exc}"
 
 
+def _post_stream(url: str, payload: dict, timeout_s: int,
+                 headers: Optional[dict] = None) -> dict:
+    """POST a streaming chat request and read the server-sent events.
+
+    Returns the observed fields (text, reasoning, finish_reason, usage, model, first_*_ms, chunks)
+    plus ``error``/``error_code`` when the stream did not complete. The wall clock is checked at
+    every chunk (a socket timeout never fires on a stream that keeps sending), and the socket's
+    read timeout is the time left, so a silent stall ends at the deadline too. Leaving the
+    ``with`` block closes the connection, which makes the server abort the generation.
+    """
+    request = urllib.request.Request(
+        url, data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json", **(headers or {})}, method="POST")
+    started = time.monotonic()
+    got = {"text": "", "reasoning": "", "finish_reason": None, "usage": {}, "model": None,
+           "first_reasoning_ms": None, "first_content_ms": None, "chunks": 0}
+    text: list[str] = []
+    reasoning: list[str] = []
+    done = False
+    err: Optional[tuple[str, str]] = None
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_s) as response:
+            sock = getattr(getattr(getattr(response, "fp", None), "raw", None), "_sock", None)
+            event: list[str] = []
+            for raw_line in itertools.chain(response, [b""]):
+                left = timeout_s - (time.monotonic() - started)
+                if left <= 0:
+                    err = ("stream_deadline_exceeded", f"wall clock passed timeout_s={timeout_s}")
+                    break
+                if sock is not None:
+                    sock.settimeout(left)
+                line = raw_line.decode("utf-8", errors="replace").rstrip("\r\n")
+                if line.startswith("data:"):
+                    event.append(line[5:].lstrip(" "))   # SSE: an event's data lines join with "\n"
+                    continue
+                if line or not event:
+                    continue   # a comment (": keep-alive"), another field, or a blank line between events
+                data, event = "\n".join(event).strip(), []
+                if data == "[DONE]":
+                    done = True
+                    break
+                if not data:
+                    continue
+                chunk = json.loads(data)
+                if not isinstance(chunk, dict) or "error" in chunk or chunk.get("object") == "error":
+                    err = ("stream_interrupted", f"server sent an error event: {data[:500]}")
+                    break
+                got["chunks"] += 1
+                got["model"] = chunk.get("model") or got["model"]
+                got["usage"] = chunk.get("usage") or got["usage"]
+                for choice in chunk.get("choices") or []:
+                    delta = choice.get("delta") or {}
+                    now_ms = round((time.monotonic() - started) * 1000)
+                    piece = delta.get("reasoning") or delta.get("reasoning_content")
+                    if isinstance(piece, str) and piece:
+                        if got["first_reasoning_ms"] is None:
+                            got["first_reasoning_ms"] = now_ms
+                        reasoning.append(piece)
+                    piece = delta.get("content")
+                    if isinstance(piece, str) and piece:
+                        if got["first_content_ms"] is None:
+                            got["first_content_ms"] = now_ms
+                        text.append(piece)
+                    got["finish_reason"] = choice.get("finish_reason") or got["finish_reason"]
+    except (urllib.error.URLError, TimeoutError, ConnectionError, OSError, json.JSONDecodeError) as exc:
+        late = isinstance(exc, TimeoutError) or time.monotonic() - started >= timeout_s
+        err = ("stream_deadline_exceeded" if late else "stream_interrupted",
+               f"{type(exc).__name__}: {exc}")
+        if got["chunks"] == 0 and not late and not isinstance(exc, json.JSONDecodeError):
+            err = ("", f"{type(exc).__name__}: {exc}")
+    got["text"], got["reasoning"] = "".join(text), "".join(reasoning)
+    got["duration_ms"] = round((time.monotonic() - started) * 1000)
+    if err is None and not (got["finish_reason"] and (done or got["usage"])):
+        err = ("stream_interrupted", "stream ended without a final chunk "
+               f"(finish_reason={got['finish_reason']!r}, usage={'yes' if got['usage'] else 'no'})")
+    if err is not None:
+        got["error_code"], got["error"] = err
+    return got
+
+
 def _sent_temperature(result: dict, temperature: Optional[float]) -> dict:
     """Stamp the temperature this request body carried; only a body builder may claim one was sent."""
     if temperature is not None:
@@ -477,7 +558,10 @@ def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[
                      max_tokens: int, timeout_s: int,
                      image_url: Optional[str] = None,
                      response_schema: Optional[dict] = None,
-                     temperature: Optional[float] = None) -> dict:
+                     temperature: Optional[float] = None,
+                     messages: Optional[list] = None, thinking: Optional[bool] = None,
+                     seed: Optional[int] = None, top_p: Optional[float] = None,
+                     stream: bool = False) -> dict:
     if target.auth_env and not target.auth_token:
         # error_code is load-bearing: A2 escalation must NOT climb on this. A missing
         # token is a fault in THIS shell's environment, not a statement about the
@@ -491,18 +575,30 @@ def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[
                          f"(in-process callers: run under hearth/etc/with-gateway-env.cmd)",
                 "endpoint": target.endpoint, "model": model}
 
-    messages = []
-    if system:
-        messages.append({"role": "system", "content": system})
-    content = ([{"type": "image_url", "image_url": {"url": image_url}},
-                {"type": "text", "text": prompt}] if image_url else prompt)
-    messages.append({"role": "user", "content": content})
+    new_path = messages is not None or thinking is not None or stream
+    if messages is None:
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        content = ([{"type": "image_url", "image_url": {"url": image_url}},
+                    {"type": "text", "text": prompt}] if image_url else prompt)
+        messages.append({"role": "user", "content": content})
     payload = {"model": model, "messages": messages,
                "max_tokens": max_tokens, "stream": False}
+    if stream:
+        payload["stream"] = True
+        payload["stream_options"] = {"include_usage": True}
     if temperature is not None:
         payload["temperature"] = temperature
+    if seed is not None:
+        payload["seed"] = seed
+    if top_p is not None:
+        payload["top_p"] = top_p
     chat_template_kwargs = target.settings.get("chat_template_kwargs")
-    if isinstance(chat_template_kwargs, dict) and chat_template_kwargs:
+    chat_template_kwargs = dict(chat_template_kwargs) if isinstance(chat_template_kwargs, dict) else {}
+    if thinking is not None:
+        chat_template_kwargs["enable_thinking"] = thinking
+    if chat_template_kwargs:
         payload["chat_template_kwargs"] = chat_template_kwargs
     if response_schema is not None:
         payload["response_format"] = {
@@ -510,18 +606,47 @@ def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[
             "json_schema": {"name": _schema_name(response_schema),
                             "schema": response_schema, "strict": True}}
     headers = {"Authorization": f"Bearer {target.auth_token}"} if target.auth_token else {}
+    sent_thinking = chat_template_kwargs.get("enable_thinking")
+    observed = {"wire_request": payload, "thinking": sent_thinking, "reasoning": "",
+                "finish_reason": None, "tokens_reasoning": None,
+                "first_reasoning_ms": None, "first_content_ms": None, "stream_chunks": None}
 
     started = time.monotonic()
+    if stream:
+        got = _post_stream(f"{target.endpoint}/v1/chat/completions", payload, timeout_s, headers)
+        usage = got["usage"]
+        observed.update({
+            "reasoning": got["reasoning"], "finish_reason": got["finish_reason"],
+            "tokens_reasoning": (usage.get("completion_tokens_details") or {}).get("reasoning_tokens"),
+            "first_reasoning_ms": got["first_reasoning_ms"], "first_content_ms": got["first_content_ms"],
+            "stream_chunks": got["chunks"]})
+        if got.get("error_code") == "":
+            return _sent_temperature({"ok": False, "error": got["error"], "endpoint": target.endpoint,
+                                      "model": model, **observed}, temperature)
+        out = {"ok": True, "text": got["text"], "model": got["model"] or model,
+               "endpoint": target.endpoint, "tokens_in": usage.get("prompt_tokens"),
+               "tokens_out": usage.get("completion_tokens"), "duration_ms": got["duration_ms"],
+               **observed}
+        _sent_temperature(out, temperature)
+        if "error_code" in got:
+            out.update(ok=False, error_code=got["error_code"], error=f"{got['error_code']}: {got['error']}")
+            return out
+        text, finish_reason = got["text"], got["finish_reason"]
+        return _finish_openai(out, text, finish_reason, usage, response_schema, new_path)
     body, error = _post(f"{target.endpoint}/v1/chat/completions", payload, timeout_s, headers)
     if error is not None:
-        return _sent_temperature({"ok": False, "error": error, "endpoint": target.endpoint, "model": model},
-                                 temperature)
+        return _sent_temperature({"ok": False, "error": error, "endpoint": target.endpoint, "model": model,
+                                  **observed}, temperature)
     wall_ms = round((time.monotonic() - started) * 1000)
 
     choices = body.get("choices") or [{}]
-    text = (choices[0].get("message") or {}).get("content", "")
+    message = choices[0].get("message") or {}
+    text = message.get("content", "")
     usage = body.get("usage") or {}
     finish_reason = choices[0].get("finish_reason")
+    observed.update({"reasoning": message.get("reasoning") or message.get("reasoning_content") or "",
+                     "finish_reason": finish_reason,
+                     "tokens_reasoning": (usage.get("completion_tokens_details") or {}).get("reasoning_tokens")})
     out = {
         "ok": True,
         "text": text,
@@ -530,18 +655,24 @@ def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[
         "tokens_in": usage.get("prompt_tokens"),
         "tokens_out": usage.get("completion_tokens"),
         "duration_ms": wall_ms,
+        **observed,
     }
     _sent_temperature(out, temperature)
+    return _finish_openai(out, text, finish_reason, usage, response_schema, new_path)
+
+
+def _finish_openai(out: dict, text, finish_reason, usage: dict, response_schema: Optional[dict],
+                   new_path: bool) -> dict:
+    """Truncation and structured-output checks shared by the plain and the streamed read."""
     if response_schema is not None:
         # Proof on the wire, not in the request: the engine's own finish_reason and
         # reasoning-token count ride the result. A schema answer the engine cut off
         # (finish_reason != stop) is truncated JSON; it is never reported as success.
-        out["finish_reason"] = finish_reason
-        out["tokens_reasoning"] = (usage.get("completion_tokens_details") or {}).get("reasoning_tokens")
         if finish_reason != "stop":
             hint = "raise max_tokens" if finish_reason == "length" else "the engine did not finish"
             out["ok"] = False
-            out["error_code"] = STRUCTURED_OUTPUT_TRUNCATED_CODE
+            out["error_code"] = ("output_truncated" if new_path and finish_reason == "length"
+                                 else STRUCTURED_OUTPUT_TRUNCATED_CODE)
             out["error"] = (f"{STRUCTURED_OUTPUT_TRUNCATED_CODE}: engine finish_reason="
                             f"{finish_reason!r} after {usage.get('completion_tokens')} tokens; "
                             f"the JSON is incomplete ({hint})")
@@ -571,6 +702,11 @@ def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[
                 out["error_code"] = STRUCTURED_OUTPUT_INVALID_CODE
                 out["error"] = (f"{STRUCTURED_OUTPUT_INVALID_CODE}: finish_reason='stop' but the "
                                 f"content is not JSON ({problem}); the schema was not applied")
+    elif new_path and finish_reason == "length":
+        out["ok"] = False
+        out["error_code"] = "output_truncated"
+        out["error"] = (f"output_truncated: engine finish_reason='length' after "
+                        f"{usage.get('completion_tokens')} tokens (raise max_tokens)")
     return out
 
 
@@ -645,7 +781,11 @@ def local_generate(prompt: str, model: str | None = None,
                    task_id: str | None = None,
                    image_path: str | None = None,
                    response_schema: dict | None = None,
-                   temperature: float | None = None) -> dict:
+                   temperature: float | None = None,
+                   messages: list[dict] | None = None,
+                   thinking: bool | None = None,
+                   seed: int | None = None, top_p: float | None = None,
+                   stream: bool = False) -> dict:
     """Generate text from a configured inference backend.
 
     Routing (Banked Fire): pass ``task`` (e.g. "research") to prefer a tagged
@@ -713,9 +853,39 @@ def local_generate(prompt: str, model: str | None = None,
     finish is ``ok: false`` (``structured_output_truncated``), and a ``stop``
     whose content does not parse as JSON is ``ok: false``
     (``structured_output_invalid``: the server did not apply the schema).
+
+    Deliberation (ADR-0059): ``messages`` sends a conversation verbatim (``prompt`` may
+    be ``""``; ``system``, ``files`` and ``image_path`` must be absent); ``thinking``
+    overrides ``enable_thinking`` over the backend's ``chat_template_kwargs``; ``seed``
+    and ``top_p`` are forwarded; ``stream=True`` reads server-sent events, recording
+    ``reasoning`` and ``first_reasoning_ms``/``first_content_ms``/``stream_chunks``.
+    Used with any of these, ``finish_reason == "length"`` is ``output_truncated``, a
+    stream past ``timeout_s`` is ``stream_deadline_exceeded`` and a stream that ends
+    without a final chunk is ``stream_interrupted``; each keeps the partial text and
+    reasoning. Every result carries ``finish_reason``, ``thinking``, ``reasoning``,
+    ``tokens_reasoning`` and ``wire_request`` (openai-api backends only).
     """
-    if not isinstance(prompt, str) or not prompt.strip():
+    if messages is not None:
+        if (not isinstance(messages, list) or not messages
+                or not all(isinstance(m, dict) and m.get("role") in ("system", "user", "assistant")
+                           and isinstance(m.get("content"), str) for m in messages)):
+            raise ValueError("messages must be a non-empty list of {role: system|user|assistant, content: str}")
+        if not isinstance(prompt, str) or prompt.strip():
+            raise ValueError("prompt must be \"\" when messages is given (the conversation is the input)")
+        if system is not None or files or image_path is not None:
+            raise ValueError("messages cannot be combined with system, files or image_path")
+    elif not isinstance(prompt, str) or not prompt.strip():
         raise ValueError("prompt must be a non-empty string")
+    if thinking is not None and not isinstance(thinking, bool):
+        raise ValueError("thinking must be a bool")
+    if seed is not None and (not isinstance(seed, int) or isinstance(seed, bool)):
+        raise ValueError("seed must be an integer")
+    if top_p is not None and (isinstance(top_p, bool) or not isinstance(top_p, (int, float))
+                              or not 0 < top_p <= 1):
+        raise ValueError("top_p must be a number in (0, 1]")
+    if not isinstance(stream, bool):
+        raise ValueError("stream must be a bool")
+    new_path = messages is not None or thinking is not None or stream
     if model is not None and (not isinstance(model, str) or not model.strip()):
         raise ValueError("model must be a non-empty string")
     if max_tokens is not None and (not isinstance(max_tokens, int) or max_tokens <= 0):
@@ -782,7 +952,7 @@ def local_generate(prompt: str, model: str | None = None,
 
     files_packed_list = None
     files_bytes = 0
-    user_prompt = prompt   # the caller's instruction, before packing (the sizer reads this)
+    user_prompt = "\n".join(m["content"] for m in messages) if messages is not None else prompt   # the caller's instruction, before packing (the sizer reads this)
     if files is not None:
         if not isinstance(files, list) or not all(isinstance(f, str) and f for f in files):
             raise ValueError("files must be a list of non-empty path strings")
@@ -793,7 +963,8 @@ def local_generate(prompt: str, model: str | None = None,
 
     # A1: the payload size the router decides with — computed AFTER packing, so
     # a files= call is judged by what actually ships, not the bare prompt.
-    payload_bytes = len(prompt.encode("utf-8"))
+    payload_bytes = (sum(len(m["content"].encode("utf-8")) for m in messages)
+                     if messages is not None else len(prompt.encode("utf-8")))
 
     # ADR-0050: the request sizer. Consulted only when HEARTH_SIZER is on (off ->
     # None, and every line below is byte-identical to the unsized door). It may
@@ -866,11 +1037,17 @@ def local_generate(prompt: str, model: str | None = None,
         return rm, rmt, rts
 
     def _execute(t: _Target, m: str, mt: int, ts: int) -> dict:
+        if t.api != "openai" and (new_path or seed is not None or top_p is not None):
+            return {"ok": False, "error_code": "unsupported_parameters",
+                    "error": f"messages/thinking/seed/top_p/stream need an openai-api backend, not {t.api!r}",
+                    "endpoint": t.endpoint, "model": m}
         if t.api == "openai":
             if response_schema is not None and t.settings.get("structured_outputs") is not True:
                 return _structured_outputs_refusal(t, m, schema_digest)
             return _generate_openai(t, prompt, m, system, mt, ts, image_url=image_data_url,
-                                    response_schema=response_schema, temperature=temperature)
+                                    response_schema=response_schema, temperature=temperature,
+                                    messages=messages, thinking=thinking, seed=seed, top_p=top_p,
+                                    stream=stream)
         if response_schema is not None:
             return _structured_outputs_refusal(t, m, schema_digest)
         if t.api == "gemini":
@@ -1036,7 +1213,7 @@ def local_generate(prompt: str, model: str | None = None,
     # metered/trial credit to hide a broken environment. Fail loudly on the named rung
     # instead (measured: an unauthenticated shell silently produced
     # routed_by "escalation:omen-arc->gcp-gemini").
-    _no_climb = (image_path is not None or response_schema is not None
+    _no_climb = (image_path is not None or response_schema is not None or new_path
                  or result.get("error_code") == "auth_not_configured")
     if result.get("ok") is False and not target.routed_by.startswith("pinned") and not _no_climb:
         exclude_set = {target.backend} if target.backend else set()

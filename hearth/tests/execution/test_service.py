@@ -1074,19 +1074,21 @@ deliberate_max_tokens = 4096
         self.assertEqual(("failed", "no_visible_output"), (empty["status"], empty["invocations"][0]["error_code"]))
         roles = {a["role"]: a["artifact_id"] for a in empty["artifacts"]}
         self.assertEqual(b"long thought", service.read_artifact(roles["reasoning"])[1])
-        started, release = threading.Event(), threading.Event()
-        def generate(**_kwargs):
+        started = threading.Event()
+        def generate(**kwargs):
             started.set()
-            release.wait(3)
-            return {**base, "text": "late"}
+            deadline = time.monotonic() + 3
+            while not kwargs["should_stop"]() and time.monotonic() < deadline:   # the stream polls the cancel
+                time.sleep(0.01)
+            return {**base, "ok": False, "text": "par", "finish_reason": None, "error_code": "stream_cancelled"}
         service = self.service(generate)
         job = service.submit(operation_name="inference.deliberate", arguments=self.args,
                              principal=self.principal, source=self.source, policy=self.policy)
         self.assertTrue(started.wait(3))
         self.assertEqual("cancellation_requested", service.cancel(job["job_id"])["status"])
-        release.set()
         cancelled = self.wait_final(service, job["job_id"])
-        self.assertEqual(("cancelled", "stop"), (cancelled["status"], cancelled["invocations"][0]["finish_reason"]))
+        self.assertEqual(("cancelled", "stream_cancelled"),
+                         (cancelled["status"], cancelled["invocations"][0]["error_code"]))
         roles = {a["role"]: a["artifact_id"] for a in cancelled["artifacts"]}
         self.assertEqual(b"long thought", service.read_artifact(roles["reasoning"])[1])
 

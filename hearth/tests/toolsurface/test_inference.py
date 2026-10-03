@@ -2,15 +2,18 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import subprocess
 import tempfile
+import threading
+import time
 import urllib.error
 from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
 
 from hearth.toolsurface.backends import load_pool
-from hearth.toolsurface.inference import DEFAULT_TIMEOUT_S, local_generate
+from hearth.toolsurface.inference import DEFAULT_TIMEOUT_S, _post_stream, local_generate
 
 # P1 test intent predates occupancy (P2): every pre-existing test in this file
 # exercises routing, not occupancy, so force "available" everywhere here to keep
@@ -802,3 +805,42 @@ class DeliberationParameterTests(TestCase):
     def test_messages_refuse_a_prompt_beside_them(self) -> None:
         with self.assertRaises(ValueError):
             local_generate("dropped?", messages=[{"role": "user", "content": "x"}])
+
+    def test_should_stop_cancels_per_chunk_and_on_a_quiet_stream(self) -> None:
+        asked = []
+        result, _ = self._call(_FakeStream([_delta(reasoning="a"), _delta(reasoning="b"), _FINISH, _USAGE]),
+                               messages=[{"role": "user", "content": "q"}], stream=True,
+                               should_stop=lambda: asked.append(1) or len(asked) > 2)
+        self.assertEqual((result["ok"], result["error_code"], result["reasoning"]), (False, "stream_cancelled", "a"))
+        # A real socket that sends two reasoning chunks, then goes quiet until the client closes it.
+        server = socket.socket()
+        server.bind(("127.0.0.1", 0))
+        server.listen(1)
+        seen = {}
+
+        def serve() -> None:
+            conn, _ = server.accept()
+            buf = b""
+            while b"\r\n\r\n" not in buf:
+                buf += conn.recv(65536)
+            conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nTransfer-Encoding: chunked\r\n\r\n")
+            for piece in ("r0 ", "r1"):
+                event = f"data: {json.dumps(_delta(reasoning=piece))}\n\n".encode()
+                conn.sendall(f"{len(event):x}\r\n".encode() + event + b"\r\n")
+            conn.settimeout(20)
+            while conn.recv(65536):   # the request body may still be unread; then wait for the client's close
+                pass
+            seen["eof"] = True
+            conn.close()
+
+        thread = threading.Thread(target=serve, daemon=True)
+        thread.start()
+        stop_at = time.monotonic() + 1.0
+        started = time.monotonic()
+        got = _post_stream(f"http://127.0.0.1:{server.getsockname()[1]}/v1/chat/completions", {}, 60,
+                           should_stop=lambda: time.monotonic() >= stop_at)
+        thread.join(5)
+        server.close()
+        self.assertLess(time.monotonic() - started, 3)
+        self.assertEqual((got["error_code"], got["reasoning"], got["chunks"]), ("stream_cancelled", "r0 r1", 2))
+        self.assertIs(seen.get("eof"), True)

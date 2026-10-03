@@ -464,7 +464,7 @@ class ExecutionService:
         provider = load_pool().by_name(backend)
         if provider is None or not provider.settings.get("deliberate_max_tokens"):
             raise ExecutionServiceError(
-                f"backend {backend!r} does not declare deliberate_max_tokens; {operation.name} refuses it"
+                f"policy_refusal: backend {backend!r} does not declare deliberate_max_tokens; {operation.name} refuses it"
             )
         if not isinstance(normalized.get("thinking"), bool):
             raise ExecutionServiceError("thinking is required and must be a boolean")
@@ -725,7 +725,7 @@ class ExecutionService:
             cap = int(load_pool().by_name(arguments_value["backend"]).settings["deliberate_max_tokens"])
             if policy_value.max_tokens > cap:
                 raise ExecutionServiceError(
-                    f"max_tokens {policy_value.max_tokens} exceeds {arguments_value['backend']} "
+                    f"policy_refusal: max_tokens {policy_value.max_tokens} exceeds {arguments_value['backend']} "
                     f"deliberate_max_tokens {cap}"
                 )
         backend = None if is_delegated else arguments_value.get("backend")
@@ -1117,7 +1117,9 @@ class ExecutionService:
                 "timeout_s": max(1, int(deadline - time.monotonic())),
             }
             if deliberate:
-                call_arguments.update(prompt="", messages=messages, stream=True)
+                # A cancel closes the stream, so the seat stops generating and the lease is released.
+                call_arguments.update(prompt="", messages=messages, stream=True,
+                                      should_stop=lambda: self._is_cancelled(job_id))
             # task_family reaches the provider as evidence, not as a second
             # route: THIS service already consulted the family above and pinned
             # the rung it chose (backend=provider.name), which the primitive

@@ -27,12 +27,15 @@ from __future__ import annotations
 import copy
 import base64
 import hashlib
+import http.client
 import json
 import itertools
 import os
 import re
 import shutil
+import socket
 import subprocess
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -436,7 +439,8 @@ def _post(url: str, payload: dict, timeout_s: int,
 
 
 def _post_stream(url: str, payload: dict, timeout_s: int,
-                 headers: Optional[dict] = None) -> dict:
+                 headers: Optional[dict] = None,
+                 should_stop: Optional[Callable[[], bool]] = None) -> dict:
     """POST a streaming chat request and read the server-sent events.
 
     Returns the observed fields (text, reasoning, finish_reason, usage, model, first_*_ms, chunks)
@@ -444,6 +448,8 @@ def _post_stream(url: str, payload: dict, timeout_s: int,
     every chunk (a socket timeout never fires on a stream that keeps sending), and the socket's
     read timeout is the time left, so a silent stall ends at the deadline too. Leaving the
     ``with`` block closes the connection, which makes the server abort the generation.
+    ``should_stop`` is checked at every chunk too, and polled every 0.5 s by a watcher that shuts
+    the socket down, so a quiet stream (a long prefill) also ends as ``stream_cancelled``.
     """
     request = urllib.request.Request(
         url, data=json.dumps(payload).encode("utf-8"),
@@ -455,11 +461,29 @@ def _post_stream(url: str, payload: dict, timeout_s: int,
     reasoning: list[str] = []
     done = False
     err: Optional[tuple[str, str]] = None
+    stopped, finished = threading.Event(), threading.Event()
+
+    def _watch(sock) -> None:
+        while not finished.wait(0.5):
+            if should_stop():
+                stopped.set()
+                try:
+                    sock.shutdown(socket.SHUT_RDWR)   # wakes a read blocked on a quiet stream
+                except OSError:
+                    pass   # already closed: the reader is leaving anyway
+                return
+
     try:
         with urllib.request.urlopen(request, timeout=timeout_s) as response:
             sock = getattr(getattr(getattr(response, "fp", None), "raw", None), "_sock", None)
+            if should_stop is not None and sock is not None:
+                threading.Thread(target=_watch, args=(sock,), daemon=True,
+                                 name="hearth-stream-stop").start()
             event: list[str] = []
             for raw_line in itertools.chain(response, [b""]):
+                if stopped.is_set() or (should_stop is not None and should_stop()):
+                    stopped.set()
+                    break
                 left = timeout_s - (time.monotonic() - started)
                 if left <= 0:
                     err = ("stream_deadline_exceeded", f"wall clock passed timeout_s={timeout_s}")
@@ -499,12 +523,18 @@ def _post_stream(url: str, payload: dict, timeout_s: int,
                             got["first_content_ms"] = now_ms
                         text.append(piece)
                     got["finish_reason"] = choice.get("finish_reason") or got["finish_reason"]
-    except (urllib.error.URLError, TimeoutError, ConnectionError, OSError, json.JSONDecodeError) as exc:
+    except (urllib.error.URLError, TimeoutError, ConnectionError, OSError, json.JSONDecodeError,
+            http.client.HTTPException) as exc:
         late = isinstance(exc, TimeoutError) or time.monotonic() - started >= timeout_s
         err = ("stream_deadline_exceeded" if late else "stream_interrupted",
                f"{type(exc).__name__}: {exc}")
-        if got["chunks"] == 0 and not late and not isinstance(exc, json.JSONDecodeError):
+        if (got["chunks"] == 0 and not late and not stopped.is_set()
+                and not isinstance(exc, (json.JSONDecodeError, http.client.HTTPException))):
             err = ("", f"{type(exc).__name__}: {exc}")
+    finally:
+        finished.set()
+    if stopped.is_set() and not done:
+        err =("stream_cancelled", f"cancelled by the caller after {got['chunks']} chunks; connection closed")
     got["text"], got["reasoning"] = "".join(text), "".join(reasoning)
     got["duration_ms"] = round((time.monotonic() - started) * 1000)
     if err is None and not (got["finish_reason"] and (done or got["usage"])):
@@ -561,7 +591,8 @@ def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[
                      temperature: Optional[float] = None,
                      messages: Optional[list] = None, thinking: Optional[bool] = None,
                      seed: Optional[int] = None, top_p: Optional[float] = None,
-                     stream: bool = False) -> dict:
+                     stream: bool = False,
+                     should_stop: Optional[Callable[[], bool]] = None) -> dict:
     if target.auth_env and not target.auth_token:
         # error_code is load-bearing: A2 escalation must NOT climb on this. A missing
         # token is a fault in THIS shell's environment, not a statement about the
@@ -613,7 +644,8 @@ def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[
 
     started = time.monotonic()
     if stream:
-        got = _post_stream(f"{target.endpoint}/v1/chat/completions", payload, timeout_s, headers)
+        got = _post_stream(f"{target.endpoint}/v1/chat/completions", payload, timeout_s, headers,
+                           should_stop=should_stop)
         usage = got["usage"]
         observed.update({
             "reasoning": got["reasoning"], "finish_reason": got["finish_reason"],
@@ -785,7 +817,8 @@ def local_generate(prompt: str, model: str | None = None,
                    messages: list[dict] | None = None,
                    thinking: bool | None = None,
                    seed: int | None = None, top_p: float | None = None,
-                   stream: bool = False) -> dict:
+                   stream: bool = False,
+                   should_stop: Callable[[], bool] | None = None) -> dict:
     """Generate text from a configured inference backend.
 
     Routing (Banked Fire): pass ``task`` (e.g. "research") to prefer a tagged
@@ -862,7 +895,8 @@ def local_generate(prompt: str, model: str | None = None,
     Used with any of these, ``finish_reason == "length"`` is ``output_truncated``, a
     stream past ``timeout_s`` is ``stream_deadline_exceeded`` and a stream that ends
     without a final chunk is ``stream_interrupted``; each keeps the partial text and
-    reasoning. Every result carries ``finish_reason``, ``thinking``, ``reasoning``,
+    reasoning. ``should_stop`` (streamed only) ends the stream as ``stream_cancelled``, the
+    connection closed so the seat stops generating. Every result carries ``finish_reason``, ``thinking``, ``reasoning``,
     ``tokens_reasoning`` and ``wire_request`` (openai-api backends only).
     """
     if messages is not None:
@@ -885,6 +919,8 @@ def local_generate(prompt: str, model: str | None = None,
         raise ValueError("top_p must be a number in (0, 1]")
     if not isinstance(stream, bool):
         raise ValueError("stream must be a bool")
+    if should_stop is not None and (not stream or not callable(should_stop)):
+        raise ValueError("should_stop must be a callable and needs stream=True")
     new_path = messages is not None or thinking is not None or stream
     if model is not None and (not isinstance(model, str) or not model.strip()):
         raise ValueError("model must be a non-empty string")
@@ -1047,7 +1083,7 @@ def local_generate(prompt: str, model: str | None = None,
             return _generate_openai(t, prompt, m, system, mt, ts, image_url=image_data_url,
                                     response_schema=response_schema, temperature=temperature,
                                     messages=messages, thinking=thinking, seed=seed, top_p=top_p,
-                                    stream=stream)
+                                    stream=stream, should_stop=should_stop)
         if response_schema is not None:
             return _structured_outputs_refusal(t, m, schema_digest)
         if t.api == "gemini":

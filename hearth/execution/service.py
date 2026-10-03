@@ -1133,6 +1133,7 @@ class ExecutionService:
             "timeout_s",
             "sizer",   # ADR-0050: present only on a sized call
             "response_schema_sha256",
+            "structured_output_repairs",
             "image_input",
             "temperature",
         }

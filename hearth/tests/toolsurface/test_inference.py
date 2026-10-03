@@ -684,9 +684,10 @@ class _FakeStream:
     """Server-sent events as urlopen yields them: an iterable of byte lines."""
 
     def __init__(self, events: list, done: bool = True) -> None:
-        self._lines = [f"data: {json.dumps(e)}\n".encode() for e in events]
+        self._lines = [line for e in events
+                       for line in (e if isinstance(e, list) else [f"data: {json.dumps(e)}\n".encode(), b"\n"])]
         if done:
-            self._lines.append(b"data: [DONE]\n")
+            self._lines += [b"data: [DONE]\n", b"\n"]
 
     def __iter__(self):
         return iter(self._lines)
@@ -741,6 +742,8 @@ class DeliberationParameterTests(TestCase):
         self.assertIs(body["stream"], False)
         self.assertEqual((result["reasoning"], result["tokens_reasoning"], result["finish_reason"],
                           result["wire_request"]), ("", None, None, body))
+        self.assertEqual((result["first_reasoning_ms"], result["first_content_ms"], result["stream_chunks"]),
+                         (None, None, None))
 
     def test_messages_refuse_system_and_bad_roles(self) -> None:
         with self.assertRaises(ValueError):
@@ -781,3 +784,21 @@ class DeliberationParameterTests(TestCase):
                                messages=[{"role": "user", "content": "q"}], stream=True)
         self.assertEqual((result["ok"], result["error_code"], result["text"]),
                          (False, "output_truncated", "par"))
+
+    def test_stream_sse_multiline_data_comments_and_error_event(self) -> None:
+        split = [b": keep-alive\n", b"\n", b'data: {"model": "m", "choices": [{"delta":\n',
+                 b'data: {"reasoning": "r"}, "finish_reason": null}]}\n', b"\n"]
+        result, _ = self._call(_FakeStream([split, _delta(content="ok"), _FINISH, _USAGE]),
+                               messages=[{"role": "user", "content": "q"}], stream=True)
+        self.assertEqual((result["ok"], result["reasoning"], result["text"], result["stream_chunks"]),
+                         (True, "r", "ok", 4))
+        error = [b'data: {"error": {"message": "boom"}}\n', b"\n"]
+        result, _ = self._call(_FakeStream([_delta(reasoning="half"), error]),
+                               messages=[{"role": "user", "content": "q"}], stream=True)
+        self.assertEqual((result["ok"], result["error_code"], result["reasoning"]),
+                         (False, "stream_interrupted", "half"))
+        self.assertIn("boom", result["error"])
+
+    def test_messages_refuse_a_prompt_beside_them(self) -> None:
+        with self.assertRaises(ValueError):
+            local_generate("dropped?", messages=[{"role": "user", "content": "x"}])

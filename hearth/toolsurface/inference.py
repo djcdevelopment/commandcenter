@@ -28,6 +28,7 @@ import copy
 import base64
 import hashlib
 import json
+import itertools
 import os
 import re
 import shutil
@@ -440,7 +441,9 @@ def _post_stream(url: str, payload: dict, timeout_s: int,
 
     Returns the observed fields (text, reasoning, finish_reason, usage, model, first_*_ms, chunks)
     plus ``error``/``error_code`` when the stream did not complete. The wall clock is checked at
-    every chunk: a socket timeout never fires on a stream that keeps sending.
+    every chunk (a socket timeout never fires on a stream that keeps sending), and the socket's
+    read timeout is the time left, so a silent stall ends at the deadline too. Leaving the
+    ``with`` block closes the connection, which makes the server abort the generation.
     """
     request = urllib.request.Request(
         url, data=json.dumps(payload).encode("utf-8"),
@@ -454,20 +457,31 @@ def _post_stream(url: str, payload: dict, timeout_s: int,
     err: Optional[tuple[str, str]] = None
     try:
         with urllib.request.urlopen(request, timeout=timeout_s) as response:
-            for raw_line in response:
-                if time.monotonic() - started > timeout_s:
+            sock = getattr(getattr(getattr(response, "fp", None), "raw", None), "_sock", None)
+            event: list[str] = []
+            for raw_line in itertools.chain(response, [b""]):
+                left = timeout_s - (time.monotonic() - started)
+                if left <= 0:
                     err = ("stream_deadline_exceeded", f"wall clock passed timeout_s={timeout_s}")
                     break
-                line = raw_line.decode("utf-8", errors="replace").strip()
-                if not line.startswith("data:"):
+                if sock is not None:
+                    sock.settimeout(left)
+                line = raw_line.decode("utf-8", errors="replace").rstrip("\r\n")
+                if line.startswith("data:"):
+                    event.append(line[5:].lstrip(" "))   # SSE: an event's data lines join with "\n"
                     continue
-                data = line[5:].strip()
+                if line or not event:
+                    continue   # a comment (": keep-alive"), another field, or a blank line between events
+                data, event = "\n".join(event).strip(), []
                 if data == "[DONE]":
                     done = True
                     break
                 if not data:
                     continue
                 chunk = json.loads(data)
+                if not isinstance(chunk, dict) or "error" in chunk or chunk.get("object") == "error":
+                    err = ("stream_interrupted", f"server sent an error event: {data[:500]}")
+                    break
                 got["chunks"] += 1
                 got["model"] = chunk.get("model") or got["model"]
                 got["usage"] = chunk.get("usage") or got["usage"]
@@ -486,7 +500,7 @@ def _post_stream(url: str, payload: dict, timeout_s: int,
                         text.append(piece)
                     got["finish_reason"] = choice.get("finish_reason") or got["finish_reason"]
     except (urllib.error.URLError, TimeoutError, ConnectionError, OSError, json.JSONDecodeError) as exc:
-        late = time.monotonic() - started > timeout_s
+        late = isinstance(exc, TimeoutError) or time.monotonic() - started >= timeout_s
         err = ("stream_deadline_exceeded" if late else "stream_interrupted",
                f"{type(exc).__name__}: {exc}")
         if got["chunks"] == 0 and not late and not isinstance(exc, json.JSONDecodeError):
@@ -594,7 +608,8 @@ def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[
     headers = {"Authorization": f"Bearer {target.auth_token}"} if target.auth_token else {}
     sent_thinking = chat_template_kwargs.get("enable_thinking")
     observed = {"wire_request": payload, "thinking": sent_thinking, "reasoning": "",
-                "finish_reason": None, "tokens_reasoning": None}
+                "finish_reason": None, "tokens_reasoning": None,
+                "first_reasoning_ms": None, "first_content_ms": None, "stream_chunks": None}
 
     started = time.monotonic()
     if stream:
@@ -855,8 +870,8 @@ def local_generate(prompt: str, model: str | None = None,
                 or not all(isinstance(m, dict) and m.get("role") in ("system", "user", "assistant")
                            and isinstance(m.get("content"), str) for m in messages)):
             raise ValueError("messages must be a non-empty list of {role: system|user|assistant, content: str}")
-        if not isinstance(prompt, str):
-            raise ValueError("prompt must be a string")
+        if not isinstance(prompt, str) or prompt.strip():
+            raise ValueError("prompt must be \"\" when messages is given (the conversation is the input)")
         if system is not None or files or image_path is not None:
             raise ValueError("messages cannot be combined with system, files or image_path")
     elif not isinstance(prompt, str) or not prompt.strip():

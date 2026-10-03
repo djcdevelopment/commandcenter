@@ -32,7 +32,7 @@ TEMPLATE_VERSION = "local-work-prompts.v1"
 ROUTE_PROFILE_VERSION = "local-work-routes.v2"
 DELIVERY_TOKEN_CEILING = 16384
 KINDS = frozenset({"markdown", "json", "whole_file", "unified_diff"})
-LANES = frozenset({"auto", "fast", "deep"})
+LANES = frozenset({"auto", "fast", "deep", "tool"})   # tool: explicit only, when the route profile names it
 FINAL = frozenset({"accepted", "rejected", "superseded", "failed"})
 VISION_FAMILIES = frozenset({"vision", "document_ocr", "image_analysis"})
 # This is deliberately narrower than Backend.settings.  A manifest needs enough
@@ -175,8 +175,8 @@ class LocalWorkService:
         document = tomllib.loads(raw.decode("utf-8"))
         lanes = document.get("lane") or {}
         resolved = {name: str(value["backend"]) for name, value in lanes.items()}
-        if set(resolved) != {"fast", "deep"}:
-            raise LocalWorkError("local-work route profile requires exactly fast and deep lanes")
+        if not {"fast", "deep"} <= set(resolved) <= {"fast", "deep", "tool"}:
+            raise LocalWorkError("local-work route profile requires fast and deep lanes (tool is optional)")
         return resolved, _digest(raw)
 
     @staticmethod
@@ -299,7 +299,8 @@ class LocalWorkService:
             brief = {**brief, "sources": [{"path": name, "commit": base} for name in declared]}
             try:
                 contract.check_brief(brief)
-                packet = sourcemap.render_for_model(sourcemap.build(str(repo_path), base, declared), numbered=False)
+                packet = sourcemap.render_for_model(sourcemap.build(str(repo_path), base, declared),
+                                                    numbered=False, symbols=False)
             except (contract.ContractError, sourcemap.SourceMapError) as exc:
                 raise LocalWorkError(f"delivery brief refused: {exc}") from exc
             if max_tokens is None:
@@ -315,6 +316,8 @@ class LocalWorkService:
         evidence_tokens = self.token_counter(
             fast_provider, fast_provider.models[0], source_pack) if lane == "auto" else 0
         selected_lane = self._lane(lane, evidence_tokens, task_family)
+        if selected_lane not in routes:
+            raise LocalWorkError(f"local lane {selected_lane!r} is not in this host's route profile")
         backend_name = routes[selected_lane]
         provider = load_pool().by_name(backend_name)
         if provider is None or provider.retired:

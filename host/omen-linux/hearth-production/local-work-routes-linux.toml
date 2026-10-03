@@ -9,3 +9,7 @@ backend = "omen-vllm"
 
 [lane.deep]
 backend = "omen-dense-27b"
+
+# tool: Qwen3-8B-AWQ on AM4's RTX 4070 Ti (24,576 ctx); explicit lane only, live under AM4 tool-pair
+[lane.tool]
+backend = "am4-tool-4070ti"

@@ -271,14 +271,17 @@ def symbol_index(fm: FileMap) -> list:
     return out
 
 
-def render_for_model(sm: SourceMap, numbered: bool = True) -> str:
-    """Deterministic text: no timestamps or run-dependent values, so prefixes cache byte-for-byte."""
+def render_for_model(sm: SourceMap, numbered: bool = True, symbols: bool = True) -> str:
+    """Deterministic text: no timestamps or run-dependent values, so prefixes cache byte-for-byte.
+    symbols=False drops the index: a model asked for exact quotes copies index rows as if they were
+    source (2026-10-03, work_7a5acea4: 3 of 11 quotes)."""
     parts = []
     for fm in sm.files:
         note = f", {'; '.join(fm.notes)}" if fm.notes else ""
         parts.append(f"=== FILE {fm.path} (sha256 {fm.sha256[:12]}, {len(fm.lines)} lines{note}) ===")
-        parts.append("SYMBOLS (name [kind] line-range):")
-        parts.extend("  " + s for s in symbol_index(fm))
+        if symbols:
+            parts.append("SYMBOLS (name [kind] line-range):")
+            parts.extend("  " + s for s in symbol_index(fm))
         parts.append("CODE:")
         width = max(3, len(str(len(fm.lines))))
         for i, line in enumerate(fm.lines, 1):

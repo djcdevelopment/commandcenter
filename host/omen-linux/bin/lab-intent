@@ -1,0 +1,3 @@
+#!/bin/bash
+# lab-intent: load | render | check for ~/work/lab/intent.yaml. Source: ~/work/lab/tools/lab-intent.sh (byte copy at ~/bin/lab-intent)
+exec "$HOME/.venvs/hearth-private/bin/python" "$HOME/work/lab/tools/intent.py" "$@"

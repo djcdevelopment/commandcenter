@@ -83,6 +83,7 @@ MANIFEST: list[tuple[str, Path]] = [
     ("bin/wait-vllm-seat.sh", HOME / "bin" / "wait-vllm-seat.sh"),
     ("bin/preflight-vllm-seat.sh", HOME / "bin" / "preflight-vllm-seat.sh"),
     ("bin/hearth-env", HOME / "bin" / "hearth-env"),
+    ("bin/lab-intent", HOME / "bin" / "lab-intent"),
     ("bin/generate-api-env.py", HOME / "bin" / "generate-api-env.py"),
     ("bin/mount-windows.sh", HOME / "bin" / "mount-windows.sh"),
     ("bin/mount-omen-c-readonly.sh", HOME / "mount-omen-c-readonly.sh"),

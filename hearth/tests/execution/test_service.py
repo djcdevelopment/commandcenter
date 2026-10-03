@@ -1065,6 +1065,30 @@ deliberate_max_tokens = 4096
         refused(self.args, {"deadline_s": 60})                               # max_tokens required
         refused(self.args, {"max_tokens": 5000, "deadline_s": 60})           # over the backend's declaration
         refused({**self.args, "messages": [{"role": "user", "content": "x" * 17000}]})  # 4250 + 4096 > 8192
+        refused({**self.args, "top_p": 0})                                   # local_generate takes (0, 1]
+
+    def test_reasoning_only_answer_fails_and_a_cancelled_turn_keeps_its_record(self) -> None:
+        base = {"ok": True, "backend": "deep", "model": "deep-model", "wire_request": {"stream": True},
+                "reasoning": "long thought", "finish_reason": "stop"}
+        service, empty = self.run_turn({**base, "text": ""})
+        self.assertEqual(("failed", "no_visible_output"), (empty["status"], empty["invocations"][0]["error_code"]))
+        roles = {a["role"]: a["artifact_id"] for a in empty["artifacts"]}
+        self.assertEqual(b"long thought", service.read_artifact(roles["reasoning"])[1])
+        started, release = threading.Event(), threading.Event()
+        def generate(**_kwargs):
+            started.set()
+            release.wait(3)
+            return {**base, "text": "late"}
+        service = self.service(generate)
+        job = service.submit(operation_name="inference.deliberate", arguments=self.args,
+                             principal=self.principal, source=self.source, policy=self.policy)
+        self.assertTrue(started.wait(3))
+        self.assertEqual("cancellation_requested", service.cancel(job["job_id"])["status"])
+        release.set()
+        cancelled = self.wait_final(service, job["job_id"])
+        self.assertEqual(("cancelled", "stop"), (cancelled["status"], cancelled["invocations"][0]["finish_reason"]))
+        roles = {a["role"]: a["artifact_id"] for a in cancelled["artifacts"]}
+        self.assertEqual(b"long thought", service.read_artifact(roles["reasoning"])[1])
 
     def test_recovery_fails_a_running_turn_instead_of_replaying_it(self) -> None:
         service = self.service(lambda **_k: {"ok": True, "text": "unused"})

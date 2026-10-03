@@ -194,8 +194,9 @@ class ExecutionService:
                     # Keep legacy work visible and queued; do not replay or erase it.
                     continue
                 if state.get("operation") == DELIBERATE:
-                    # A thinking turn costs up to an hour of a seat and is never replayed, whatever
-                    # the unit's skip list says: close it as failed, with the reason on the record.
+                    # A thinking turn costs up to an hour of a seat and is never replayed: close it
+                    # (failed, or cancelled if the caller asked), with the reason on the record.
+                    # Runs only at service start, before this process has dispatched anything.
                     for invocation in state["invocations"]:
                         if invocation["status"] == "running":
                             self._append(
@@ -204,7 +205,8 @@ class ExecutionService:
                                 reason="scheduler restarted during a deliberate turn",
                             )
                     self._append(
-                        "job.failed", state,
+                        "job.cancelled" if state["status"] == "cancellation_requested" else "job.failed",
+                        state,
                         reason="inference.deliberate is never replayed after a gateway restart",
                     )
                     recovered += 1
@@ -473,12 +475,14 @@ class ExecutionService:
         schema = normalized.get("response_schema")
         if "response_schema" in normalized and (not isinstance(schema, dict) or not schema):
             raise ExecutionServiceError("response_schema must be a non-empty JSON Schema object")
-        for key, high in (("temperature", 2), ("top_p", 1)):
+        # The ranges local_generate enforces at dispatch: temperature [0, 2], top_p (0, 1].
+        for key, low_open, high in (("temperature", False, 2), ("top_p", True, 1)):
             value = normalized.get(key)
             if key in normalized and (
                     isinstance(value, bool) or not isinstance(value, (int, float))
-                    or not 0 <= value <= high):
-                raise ExecutionServiceError(f"{key} must be a number in [0, {high}]")
+                    or not 0 <= value <= high or (low_open and value == 0)):
+                raise ExecutionServiceError(
+                    f"{key} must be a number in {'(0' if low_open else '[0'}, {high}]")
         seed = normalized.get("seed")
         if "seed" in normalized and (isinstance(seed, bool) or not isinstance(seed, int)):
             raise ExecutionServiceError("seed must be an integer")
@@ -1127,21 +1131,23 @@ class ExecutionService:
                     call_arguments[optional] = arguments[optional]
             call_started = time.monotonic()
             result = self._generate_call(**call_arguments)
+            observed = self._result_observed(
+                result, routed_by=family_routed_by, deliberate=deliberate,
+                requested=policy.max_tokens)
+            # Before the cancellation check: a cancelled turn still spent the seat, so its record is kept.
+            deliberate_artifacts = (
+                self._record_deliberate_artifacts(state, invocation_id, job_id, result)
+                if deliberate else {})
             if self._is_cancelled(job_id):
                 self._append(
                     "invocation.cancelled",
                     state,
                     invocation_id=invocation_id,
+                    observed=observed if deliberate else None,
                     reason="result discarded after cancellation",
                 )
                 self._append("job.cancelled", state, reason="cancelled during execution")
                 return
-            observed = self._result_observed(
-                result, routed_by=family_routed_by, deliberate=deliberate,
-                requested=policy.max_tokens)
-            deliberate_artifacts = (
-                self._record_deliberate_artifacts(state, invocation_id, job_id, result)
-                if deliberate else {})
             if result.get("ok") is not True:
                 reason = str(result.get("error") or "provider returned an unsuccessful result")
                 self._append(
@@ -1160,7 +1166,7 @@ class ExecutionService:
                     "invocation.failed",
                     state,
                     invocation_id=invocation_id,
-                    observed=observed,
+                    observed={**observed, "error_code": "no_visible_output"} if deliberate else observed,
                     reason=reason,
                 )
                 self._append("job.failed", state, reason=reason)

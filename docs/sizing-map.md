@@ -344,11 +344,11 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 ### operation
 
 | setting | value | source | consumer | what it bounds | note |
+|---|---|---|---|---|---|
 | inference.deliberate deadline_ceiling_s | `3600` | `repo/hearth/etc/operations.toml:27` | execution policy_for | largest deadline; also the default when none is given |  |
 | inference.deliberate max_prompt_bytes | `1048576` | `repo/hearth/etc/operations.toml:27` | execution policy_for | largest prompt |  |
 | inference.deliberate max_tokens_ceiling | `24576` | `repo/hearth/etc/operations.toml:27` | execution policy_for | largest output budget a job may ask for |  |
 | inference.deliberate streamed | `True` | `repo/hearth/etc/operations.toml:27` | execution policy_for | submit/watch only; the router's idle timers do not bound its deadline |  |
-|---|---|---|---|---|---|
 | inference.generate deadline_ceiling_s | `2400` | `repo/hearth/etc/operations.toml:19` | execution policy_for | largest deadline; also the default when none is given |  |
 | inference.generate max_prompt_bytes | `1048576` | `repo/hearth/etc/operations.toml:19` | execution policy_for | largest prompt |  |
 | inference.generate max_tokens_ceiling | `16384` | `repo/hearth/etc/operations.toml:19` | execution policy_for | largest output budget a job may ask for |  |
@@ -382,7 +382,6 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 ### rung
 
 | setting | value | source | consumer | what it bounds | note |
-| omen-dense-27b deliberate_max_tokens | `24576` | `~/hearth-production/backends-linux.toml:80` | backends pool | largest output a streamed inference.deliberate turn may ask for on this rung |  |
 |---|---|---|---|---|---|
 | am4-tool-4070ti context_bytes | `86016` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
 | am4-tool-4070ti context_tokens | `24576` | `~/hearth-production/backends-linux.toml:17` | backends pool | input + output tokens the seat holds |  |
@@ -412,6 +411,7 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | fx99-vllm timeout_s | `300` | `~/hearth-production/backends-linux.toml:20` | backends pool | HTTP timeout when the caller sets none (execution path always overrides) |  |
 | omen-dense-27b context_bytes | `229376` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
 | omen-dense-27b context_tokens | `65536` | `~/hearth-production/backends-linux.toml:17` | backends pool | input + output tokens the seat holds |  |
+| omen-dense-27b deliberate_max_tokens | `24576` | `~/hearth-production/backends-linux.toml:80` | backends pool | largest output a streamed inference.deliberate turn may ask for on this rung |  |
 | omen-dense-27b endpoint | `http://127.0.0.1:18095` | `~/hearth-production/backends-linux.toml:66` | door | which router port |  |
 | omen-dense-27b max_tokens | `16384` | `~/hearth-production/backends-linux.toml:19` | backends pool | default output budget = the reserve local-work subtracts |  |
 | omen-dense-27b parallel_slots | `2` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |

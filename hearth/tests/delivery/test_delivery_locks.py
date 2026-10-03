@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import copy
 import html
+import io
 import json
 import unittest
 from pathlib import Path
@@ -87,18 +88,114 @@ class ShortQuoteFloorTests(unittest.TestCase):
 
 
 class FuzzyIdentifierTests(unittest.TestCase):
-    @unittest.expectedFailure
+    QUOTE = "self._send_json(HTTPStatus.OK, {ok: True, text: reply_text, duration_ms: dt_ms})"
+
     def test_a_fuzzy_quote_with_other_identifiers_is_not_support(self) -> None:
         """work_8168fd9f (8B, am4-tool-4070ti): it wrote `{ok: True, text: reply_text, duration_ms: dt_ms}`, a line
         the source does not have; the locator matched it at fuzzy:0.91 to the line that says `"text": res` and the
-        claim counted as supported. Desired: a quote whose identifiers differ from the line it lands on is
-        unsupported. Today it is accepted; this records the gap and keeps the suite green."""
+        claim counted as supported. A quote whose identifiers differ from the line it lands on is unsupported."""
         sm = source_map(PERCEPTION)
-        quote = "self._send_json(HTTPStatus.OK, {ok: True, text: reply_text, duration_ms: dt_ms})"
-        out = {"summary": "The /ocr handler's reply.", "sections": [{"heading": "s1", "paragraphs": [
-            {"text": "Without tsv the handler returns the text and the duration.", "quotes": [quote]}]}]}
+        self.assertEqual(locate(sm, self.QUOTE).match, "missing")
+        # an identifier added, none swapped: the swapped-word rule passes it, the identifier rule does not
+        self.assertEqual(locate(sm, "self._send_json(HTTPStatus.OK, {ok: True, text: res, duration_ms: dt_ms, model_id: mid})").match,
+                         "missing")
+        out ={"summary": "The /ocr handler's reply.", "sections": [{"heading": "s1", "paragraphs": [
+            {"text": "Without tsv the handler returns the text and the duration.", "quotes": [self.QUOTE]}]}]}
         _, man = render(out, stored("f6038274")[1], sm)
         self.assertEqual(man["unsupported"], [man["claims"][0]["id"]])
+
+    def test_a_fuzzy_quote_whose_identifiers_are_all_in_the_line_still_resolves(self) -> None:
+        """The guard is for invented names: the same line with a dropped word and every identifier kept is fuzzy."""
+        sm = source_map(PERCEPTION)
+        line = next(l for l in sm.files[0].lines if '"text": res' in l)
+        loc = locate(sm, line.strip().replace(", ", ",  ", 1).replace("self._send_json", "self._send_jsn", 1))
+        self.assertEqual(loc.match, "missing")                                   # a changed identifier: refused
+        loc = locate(sm, line.strip().replace("HTTPStatus.OK, ", "", 1))
+        self.assertTrue(loc.match.startswith("fuzzy:") or loc.match == "normalized", loc)
+        self.assertEqual(sm.files[0].lines[loc.start - 1], line)
+
+    def test_a_swapped_plain_word_is_refused_and_the_stored_faithful_fuzzy_quotes_still_resolve(self) -> None:
+        """Review of W13: `res` is a plain word, so the identifier shape misses `result` for `res`; a swapped word
+        (one the line lacks, in place of one the quote lacks) is refused. The faithful fuzzy quotes of the stored
+        8B answers (work_d8f8c68f, work_8168fd9f: `Exposes:` joined to a docstring line, `true` for `True`, ' for ")
+        still resolve to their lines."""
+        sm = source_map(PERCEPTION)
+        self.assertEqual(locate(sm, "self._send_json(HTTPStatus.OK, {ok: true, text: result, duration_ms: dt_ms})").match,
+                         "missing")
+        for quote, want in (("self._send_json(HTTPStatus.OK, {ok: true, text: res, duration_ms: dt_ms})", '"text": res'),
+                            ("Exposes: - GET  /v1/models -> list of available models", "/v1/models"),
+                            ("psm = body.get('psm', 6)", 'body.get("psm", 6)')):
+            with self.subTest(quote=quote):
+                loc = locate(sm, quote)
+                self.assertTrue(loc.match.startswith("fuzzy:"), loc)
+                self.assertIn(want, sm.files[0].lines[loc.start - 1])
+
+
+class TruncatedQuoteTests(unittest.TestCase):
+    SQ = "am4-vllm = { status = "
+
+    def test_a_quote_cut_at_the_first_double_quote_resolves_to_the_line_in_the_named_block(self) -> None:
+        """Wave 2 sizing runs (27B): it stops a TOML quote at the first double quote, `omen-dense-27b = { status = `;
+        short and repeated in every block, 22 of them were rejected though the paragraph names the block. (`am4-vllm = { status = `
+        is 22 characters, under the floor; the 27-character omen-dense-27b form is already exact and picked by the hint.)"""
+        sm = source_map(LABCFG)
+        lines = sm.files[0].lines
+        self.assertEqual(locate(sm, self.SQ).match, "missing")                    # no hint: no single block
+        self.assertEqual(locate(sm, self.SQ, hint="The backends are listed.").match, "missing")
+        night = locate(sm, self.SQ, hint="Under configuration.tool-night the 27B stays live.")
+        day = locate(sm, self.SQ, hint="In configuration.day the 27B is declared live.")
+        self.assertEqual((night.match, night.truncated, night.occurrences), ("normalized", True, 1))
+        self.assertEqual((night.start, night.end, day.start, day.end), (33, 33, 18, 18))
+        self.assertTrue(lines[night.start - 1].startswith(self.SQ))
+        # a quote that begins no line is not a prefix quote: the short floor still applies
+        self.assertEqual(locate(sm, "{ status = ", hint="configuration.day").match, "missing")
+
+    def test_a_prefix_quote_is_counted_as_its_own_repair_and_validates(self) -> None:
+        sm = source_map(LABCFG)
+        out = {"summary": "The 27B seat in two configurations.", "sections": [{"heading": "Seats", "paragraphs": [
+            {"text": "In configuration.day the AM4 27B is declared live.", "quotes": [self.SQ]},
+            {"text": "In configuration.tool-night AM4 is declared absent, and the tool seat live.", "quotes": [self.SQ, "am4-tool-4070ti = { status = "]}]}]}
+        md, man = render(out, stored("f6038274")[1], sm)
+        self.assertEqual(man["repairs"], {"truncated_quote": 2, "ambiguous_quote": 1})
+        self.assertEqual([c["resolved"]["start_line"] for c in man["claims"]], [18, 33, 34])
+        self.assertEqual([c.get("truncated") for c in man["claims"]], [True, True, None])   # the 4070ti line is exact, in two blocks
+        self.assertEqual(man["unsupported"], [])
+        self.assertIn('> am4-vllm = { status = "live", context_tokens = 16384', md)   # the source line is printed
+        contract.check_manifest(man)
+        bad = copy.deepcopy(man)
+        bad["repairs"] = {"normalized_quote": 2, "ambiguous_quote": 1}
+        self.assertTrue(contract.validate_manifest(bad))
+        contract.selfcheck(out=io.StringIO())   # the example's truncated claim is real (de666ef:437) and its controls reject
+
+    def test_a_code_prefix_that_does_not_stop_at_a_string_is_not_evidence(self) -> None:
+        """Review of W13: the observation is a cut at the first double quote. In code many lines begin alike, so a
+        12-character beginning that stops anywhere else (`except (OSError,` in load_skips) proves nothing."""
+        sm = source_map(SKIPS)
+        for quote, hint in (("except (OSError,", "load_skips returns no rows when the file is unreadable."),
+                            ("now = now or", "candidate_exclusions stamps the current time.")):
+            with self.subTest(quote=quote):
+                self.assertEqual(locate(sm, quote, hint=hint).match, "missing")
+
+    SRC = (b'def save_slots(p):\n    p = slots_path(); tmp = p.with_suffix(".tmp")\n\n\n'
+           b'def add_skip(p):\n    rows = []\n    rows.append(1)\n    tmp = p.with_suffix(".tmp"); tmp.write_text(rows)\n\n\n'
+           b'def keep(p):\n    tmp = p.with_suffix(".keep")\n\n\n'
+           b'def rotate(p):\n    tmp = p.with_suffix(".old")\n    tmp = p.with_suffix(".new")\n\n\n'
+           b'def both(p):\n    q = p; tmp = p.with_suffix(".a")\n    tmp = p.with_suffix(".b")\n')
+
+    def test_a_prefix_quote_needs_one_line_and_no_other_hit_in_the_one_block_the_paragraph_names(self) -> None:
+        """Review of W13 (shape of fleet/bankedfire_linux.py@de666ef, where `tmp = p.with_suffix(` begins line 437 in
+        add_skip and sits mid-line at 99): the paragraph's block picks the line; a second line beginning alike, a
+        mid-line hit in the block, or two named blocks (of any size) leave it missing."""
+        sm = SourceMap("fixture", "0" * 40, [file_map("fleet/x.py", self.SRC)])
+        q = "tmp = p.with_suffix("
+        hit = locate(sm, q, hint="add_skip writes the rows through a temporary file.")
+        self.assertEqual((hit.match, hit.truncated, hit.start), ("normalized", True, 8))
+        for hint in (None, "Each function writes a temporary file.",                      # no block named
+                     "rotate keeps the old file and the new one.",                         # two lines begin alike
+                     "both writes two temporary files.",                                   # a mid-line hit in the block
+                     "keep and add_skip each write a temporary file."):                    # two blocks, sizes 2 and 4
+            with self.subTest(hint=hint):
+                self.assertEqual(locate(sm, q, hint=hint).match, "missing")
 
 
 class PickTests(unittest.TestCase):

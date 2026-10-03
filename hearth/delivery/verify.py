@@ -190,7 +190,9 @@ def verify(manifest: Mapping[str, Any], brief: Any, output: Mapping[str, Any]) -
     claims = {c["id"]: c for c in manifest["claims"]}
     for cid in manifest.get("unsupported", []):
         c = claims.get(cid)
-        why = "paragraph has no quote" if c is not None and not c["quote"] else "quote not located in the sources"
+        why = ("paragraph has no quote" if c is not None and not c["quote"] else
+               f"quote under {contract.SHORT_QUOTE_CHARS} characters found {c['ambiguous']} times, too short to place"
+               if c is not None and c.get("ambiguous") else "quote not located in the sources")
         fs.append({"kind": "quote_unresolved", "claim_id": cid, "severity": "fail", "detail": why})
     for cid, c in claims.items():
         if c["match"] == "missing" and cid not in manifest.get("unsupported", []) and c["quote"]:

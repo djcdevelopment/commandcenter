@@ -17,10 +17,15 @@ review costs; handle trivial work directly. Batch related small items into one c
   The only local model that completed the fix task with receipts (continuity output/07). Pin it
   with `backend="omen-dense-27b"` for code candidates, careful review, or long inputs; it is
   slower per token, so do not send it grunt work.
-  At the door it runs with thinking off and one call per request (`enable_thinking = false` on every backend). Its
-  design regime is multi-step work with thinking on in a long window (Derek 2026-10-03; ADR-0059, proposed; driver
-  `~/work/delivery-plan/evidence/multistep/`): a result from one call is a result for that regime, not its ceiling.
-  One stated value per item (a default, a setting, a state) belongs on the lighter seats (ADR-0058, proposed).
+  `local_generate` and local-work run it with thinking off, one call per request (`enable_thinking = false` on every
+  backend). Its design regime is multi-step work with thinking on in a long window (Derek 2026-10-03; ADR-0059,
+  proposed). For a thinking turn use operation `inference.deliberate` through `submit_execution` / `watch_execution`
+  (live 2026-10-03): `messages`, `backend="omen-dense-27b"`, `thinking=true`, policy `max_tokens` up to 24,576 and
+  `deadline_s` up to 3,600; streamed; output, reasoning and the exact wire request come back as artifacts. Give a
+  thinking turn room: 1,500 tokens cut a retrieval answer off, 8,000 produced no answer to a report brief; use 4,000
+  for a lookup and 24,000 for a report. Two-turn driver: `~/work/lab-rnd/research/thinking_workload.py`. A result from
+  one thinking-off call is a result for that regime, not its ceiling. One stated value per item (a default, a
+  setting, a state) belongs on the lighter seats (ADR-0058, proposed).
 - `am4-vllm` (tags `dense, reasoning`): AM4 27B over the direct cable, 16,384 ctx, 1 slot. Live only under
   the `memsplice` lab configuration, for MemSplice research; the default `day` has AM4 on `tool-pair`.
   Depth specialist for needle retrieval; never route it through the tailnet.

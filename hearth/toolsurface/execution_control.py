@@ -83,6 +83,7 @@ def plan_execution(
     prompt_bytes: int = 0,
     policy: dict[str, Any] | None = None,
     task_family: str | None = None,
+    response_schema: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Resolve Operation, Provider, and policy without content or dispatch.
 
@@ -104,6 +105,7 @@ def plan_execution(
         prompt_bytes=prompt_bytes,
         policy=policy,
         task_family=task_family,
+        response_schema=response_schema,
     )
 
 

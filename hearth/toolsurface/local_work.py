@@ -43,15 +43,19 @@ def submit_local_work(intent: str, acceptance_criteria: list[str], repo: str,
                       target_path: str | None = None, lane: str = "auto",
                       task_family: str | None = None, deadline_s: int = 1800,
                       max_tokens: int | None = None, receipt_id: str | None = None,
-                      idempotency_key: str | None = None) -> dict[str, Any]:
-    """Submit bounded repository work to a strictly local lane for later review."""
+                      idempotency_key: str | None = None,
+                      brief: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Submit bounded repository work to a strictly local lane for later review.
+
+    ``brief`` (a brief.v2 object, artifact_kind markdown only) makes this a delivery: the model answers a
+    delivery-output.v1 schema, the door renders it and stores the delivery.v1 manifest beside the candidate."""
     identity = _identity()
     return _get_service().submit(
         intent=intent, acceptance_criteria=acceptance_criteria, repo=repo,
         base_commit=base_commit, files=files, artifact_kind=artifact_kind,
         target_path=target_path, lane=lane, task_family=task_family,
         deadline_s=deadline_s, max_tokens=max_tokens, receipt_id=receipt_id,
-        idempotency_key=idempotency_key, caller_id=identity.caller_id)
+        idempotency_key=idempotency_key, caller_id=identity.caller_id, brief=brief)
 
 
 def watch_local_work(work_id: str, after_sequence: int = 0,
@@ -74,7 +78,8 @@ def get_local_work(work_id: str) -> dict[str, Any]:
 
 
 def get_local_work_artifact(work_id: str) -> dict[str, Any]:
-    """Verify and return the immutable review candidate."""
+    """Verify and return the immutable review candidate. A delivery returns the rendered markdown as
+    ``candidate`` plus ``delivery`` (the delivery.v1 manifest, raw output and file refs, and tallies)."""
     service, _, _ = _owned(work_id)
     return service.artifact(work_id)
 

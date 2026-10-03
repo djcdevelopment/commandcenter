@@ -21,6 +21,7 @@ import uuid
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping, Optional
 
+from hearth.delivery import contract, render as delivery_render, sourcemap
 from hearth.execution import ExecutionService
 from hearth.operator import canonical, envelope, history, paths
 from hearth.toolsurface.backends import Backend, load_pool
@@ -29,6 +30,7 @@ CANDIDATE_SCHEMA = "local-work-candidate.v1"
 MANIFEST_SCHEMA = "local-work-manifest.v1"
 TEMPLATE_VERSION = "local-work-prompts.v1"
 ROUTE_PROFILE_VERSION = "local-work-routes.v2"
+DELIVERY_TOKEN_CEILING = 16384
 KINDS = frozenset({"markdown", "json", "whole_file", "unified_diff"})
 LANES = frozenset({"auto", "fast", "deep"})
 FINAL = frozenset({"accepted", "rejected", "superseded", "failed"})
@@ -198,12 +200,35 @@ class LocalWorkService:
         return profile, _digest(encoded)
 
     @staticmethod
-    def _template(kind: str) -> tuple[str, str]:
+    def _template(kind: str, delivery: bool = False) -> tuple[str, str]:
         mapping = {"unified_diff": "local_work_patch_v1.txt", "whole_file": "local_work_whole_file_v1.txt",
                    "json": "local_work_json_v1.txt", "markdown": "local_work_markdown_v1.txt"}
+        if delivery:
+            mapping["markdown"] = "local_work_delivery_v1.txt"
         target = Path(__file__).resolve().parents[1] / "prompts" / mapping[kind]
         text = target.read_text(encoding="utf-8")
         return text, _digest(text)
+
+    @staticmethod
+    def _delivery_prompt(template: str, intent: str, brief: Mapping[str, Any], packet: str) -> str:
+        form = contract.form_defaults(brief)
+        words = form.get("words")
+        limits = [f"Write at most {words['max']} words in total (summary and paragraph text)."
+                  + (f" Write at least {words['min']}." if words["min"] else "")] if words else []
+        if form["sections"]:
+            limits.append("Use these section headings, in this order: " + "; ".join(form["sections"]) + ".")
+        substance = "\n".join(f"- {row['id']}: {row['statement']}" for row in brief["substance"])
+        return (f"{template}\n\nREQUEST\nINTENT: {intent}\n\nSUBSTANCE (the report must show each):\n{substance}"
+                f"\n\nFORM:\n" + ("\n".join(f"- {x}" for x in limits) or "- No length limit.")
+                + f"\n\nSOURCE FILES (plain text; copy quotes from the CODE blocks):\n{packet}")
+
+    @staticmethod
+    def _delivery_max_tokens(brief: Mapping[str, Any]) -> int:
+        """1.75 tokens per word of the cap, plus 1,536 for quotes and JSON overhead; 8,192 with no cap;
+        floor 2,048; never above the work.produce ceiling (the context check below still applies)."""
+        words = contract.form_defaults(brief).get("words")
+        want = int(1.75 * words["max"]) + 1536 if words else 8192
+        return min(max(want, 2048), DELIVERY_TOKEN_CEILING)
 
     @staticmethod
     def _server_token_count(provider: Backend, model: str, prompt: str) -> int:
@@ -252,9 +277,12 @@ class LocalWorkService:
                base_commit: str, files: list[str], artifact_kind: str,
                target_path: str | None, lane: str, task_family: str | None,
                deadline_s: int, max_tokens: int | None, receipt_id: str | None,
-               idempotency_key: str | None, caller_id: str) -> dict[str, Any]:
+               idempotency_key: str | None, caller_id: str,
+               brief: Mapping[str, Any] | None = None) -> dict[str, Any]:
         if artifact_kind not in KINDS:
             raise LocalWorkError(f"artifact_kind must be one of {sorted(KINDS)}")
+        if brief is not None and artifact_kind != "markdown":
+            raise LocalWorkError("brief (delivery) requires artifact_kind markdown")
         if not acceptance_criteria or not all(isinstance(x, str) and x.strip() for x in acceptance_criteria):
             raise LocalWorkError("acceptance_criteria must contain non-empty strings")
         if not files:
@@ -266,7 +294,17 @@ class LocalWorkService:
         declared = [_safe_relative(item) for item in files]
         target = _safe_relative(target_path) if target_path else None
         source_pack, source_meta = self._source_pack(repo_path, base, declared)
-        template, template_hash = self._template(artifact_kind)
+        delivery = brief is not None
+        if delivery:
+            brief = {**brief, "sources": [{"path": name, "commit": base} for name in declared]}
+            try:
+                contract.check_brief(brief)
+                packet = sourcemap.render_for_model(sourcemap.build(str(repo_path), base, declared), numbered=False)
+            except (contract.ContractError, sourcemap.SourceMapError) as exc:
+                raise LocalWorkError(f"delivery brief refused: {exc}") from exc
+            if max_tokens is None:
+                max_tokens = self._delivery_max_tokens(brief)
+        template, template_hash = self._template(artifact_kind, delivery)
         # The depth floor is token-based, not a byte heuristic.  For auto we
         # ask the currently declared fast server to count the evidence alone;
         # the selected server then counts the complete templated request below.
@@ -286,7 +324,8 @@ class LocalWorkService:
                        "artifact_kind": artifact_kind, "target_path": target,
                        "declared_paths": declared, "source_files": source_meta,
                        "source_pack": source_pack}
-        prompt = template + "\n\nREQUEST\n" + json.dumps(request_doc, sort_keys=True)
+        prompt = (self._delivery_prompt(template, intent, brief, packet) if delivery
+                  else template + "\n\nREQUEST\n" + json.dumps(request_doc, sort_keys=True))
         input_tokens = self.token_counter(provider, model, prompt)
         output_reserve = max_tokens or int(provider.settings.get("max_tokens") or 4096)
         context_tokens = int(provider.settings.get("context_tokens") or
@@ -330,13 +369,18 @@ class LocalWorkService:
             "receipt_id": receipt_id, "verdict": None,
             "caller": {"submitted_by": caller_id, "validated_by": None},
         }
+        if delivery:
+            manifest["delivery"] = True
+            manifest["brief"] = brief
+            manifest["brief_sha256"] = _digest(json.dumps(brief, sort_keys=True, separators=(",", ":")))
         with self._lock:
             self._write(manifest)
             envelope.store_envelope(env, work_id, raw_prompt=prompt)
             state = self.execution.submit(
                 operation_name="work.produce",
                 arguments={"prompt": prompt, "backend": backend_name, "model": model,
-                           "task_family": task_family},
+                           "task_family": task_family,
+                           **({"response_schema": contract.output_json_schema()} if delivery else {})},
                 principal={"type": "hearth_caller", "id": caller_id, "authenticated": True},
                 source={"transport": "mcp", "adapter": caller_id},
                 policy={"max_tokens": output_reserve, "deadline_s": deadline_s},
@@ -521,6 +565,69 @@ class LocalWorkService:
                     "structural_repair": True})
         self._spawn_auto_reconcile(work_id, state["job_id"])
 
+    def _fail(self, manifest: dict[str, Any], reason: str) -> None:
+        manifest["status"] = "failed"
+        manifest["failure"] = reason
+        self._event(manifest, "verification.recorded", {"passed": False, "reason_sha256": _digest(reason)})
+        self._event(manifest, "outcome.final", {"status": "failed", "reason": reason[:200]})
+
+    def _reconcile_delivery(self, manifest: dict[str, Any], job: Mapping[str, Any],
+                            metadata: Mapping[str, Any], raw: bytes) -> None:
+        """A delivery job's result is a delivery-output.v1 document. Every failure is named and final:
+        no structural repair prompt, no second lane."""
+        try:
+            output = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError) as exc:
+            return self._fail(manifest, f"invalid_output_json: {exc}")
+        try:
+            contract.check_output(output)
+        except contract.ContractError as exc:
+            return self._fail(manifest, f"invalid_delivery_output: {exc}")
+        observed = (job.get("invocations") or [{}])[-1].get("observed") or {}
+        route = manifest["route"]
+        meta = {"model": observed.get("model") or route["model"], "backend": observed.get("backend") or route["provider"],
+                "configuration": {"model": observed.get("model") or route["model"], "seat": route["provider"],
+                                  "context_tokens": manifest["prompt"]["context_tokens"],
+                                  "profile": route["serving_profile_sha256"][:12]},
+                "aids_used": ["constrained_output"]}
+        try:
+            sm = sourcemap.build(manifest["repo"], manifest["base_commit"], list(manifest["declared_paths"]))
+            markdown, delivery = delivery_render.render(output, manifest["brief"], sm, meta)
+            contract.check_manifest(delivery)
+        except (contract.ContractError, sourcemap.SourceMapError) as exc:
+            return self._fail(manifest, f"delivery_render_failed: {type(exc).__name__}: {exc}")
+        run_dir = self._run_dir(str(manifest["work_id"]))
+        run_dir.mkdir(parents=True, exist_ok=True)
+        files = {"output": ("delivery-output.json", raw, "application/json"),
+                 "manifest": ("delivery.json",
+                              (json.dumps(delivery, indent=2, sort_keys=True) + "\n").encode("utf-8"), "application/json"),
+                 "candidate": ("candidate.md", markdown.encode("utf-8"), "text/markdown; charset=utf-8")}
+        refs: dict[str, Any] = {}
+        for key, (name, data, media_type) in files.items():
+            (run_dir / name).write_bytes(data)
+            refs[key] = {"file": name, "sha256": _digest(data), "size": len(data), "media_type": media_type}
+        by_match: dict[str, int] = {}
+        for claim in delivery["claims"]:
+            by_match[claim["match"]] = by_match.get(claim["match"], 0) + 1
+        manifest["delivery_artifacts"] = refs
+        manifest["delivery_summary"] = {
+            "claims": len(delivery["claims"]), "by_match": by_match,
+            "missing": by_match.get("missing", 0), "unsupported": len(delivery["unsupported"]),
+            "words": delivery["measures"]["words"], "repairs": delivery["repairs"],
+            "deviations": delivery["deviations"], "deterministic": delivery["verification"]["deterministic"]["state"]}
+        manifest["route"].update({key: observed.get(key) for key in
+                                  ("backend", "model", "routed_by", "tokens_in", "tokens_out", "duration_ms",
+                                   "response_schema_sha256") if observed.get(key) is not None})
+        manifest["artifact"] = {key: metadata[key] for key in ("artifact_id", "sha256", "size", "media_type")}
+        manifest["status"] = "awaiting_review"
+        self._event(manifest, "attempt.recorded", {"job_id": job["job_id"], "ok": True})
+        self._event(manifest, "artifact.produced", {"artifact_id": metadata["artifact_id"],
+                    "sha256": refs["candidate"]["sha256"], "size": refs["candidate"]["size"],
+                    "delivery": manifest["delivery_summary"]})
+        self._event(manifest, "verification.recorded", {"passed": True,
+                    "checks": ["delivery_output_schema", "delivery_render", "delivery_manifest"],
+                    "deterministic": manifest["delivery_summary"]["deterministic"]})
+
     def reconcile(self, work_id: str) -> dict[str, Any]:
         with self._lock:
             manifest = self._read(work_id)
@@ -550,6 +657,10 @@ class LocalWorkService:
                 self._event(manifest, "outcome.final", {"status": "failed"})
             else:
                 metadata, raw = self._result(job)
+                if manifest.get("delivery"):
+                    self._reconcile_delivery(manifest, job, metadata, raw)
+                    self._write(manifest)
+                    return manifest
                 try:
                     candidate = self._parse_candidate(raw, str(manifest["artifact_kind"]))
                 except LocalWorkError as exc:
@@ -617,6 +728,19 @@ class LocalWorkService:
         manifest = self.reconcile(work_id)
         if manifest["status"] not in {"awaiting_review", "accepted", "rejected", "superseded"}:
             raise LocalWorkError("candidate is not available for review")
+        if manifest.get("delivery"):
+            run_dir = self._run_dir(work_id)
+            texts = {}
+            for key, ref in manifest["delivery_artifacts"].items():
+                data = (run_dir / ref["file"]).read_bytes()
+                if _digest(data) != ref["sha256"]:
+                    raise LocalWorkError(f"delivery {key} artifact digest no longer matches manifest")
+                texts[key] = data.decode("utf-8")
+            files = {key: {**ref, "path": str(run_dir / ref["file"])}
+                     for key, ref in manifest["delivery_artifacts"].items()}
+            return {"work_id": work_id, "artifact": files["candidate"], "candidate": texts["candidate"],
+                    "delivery": {"manifest": json.loads(texts["manifest"]), "files": files,
+                                 "summary": manifest["delivery_summary"]}}
         metadata, raw = self.execution.read_artifact(manifest["artifact"]["artifact_id"])
         if metadata["sha256"] != manifest["artifact"]["sha256"]:
             raise LocalWorkError("candidate artifact digest no longer matches manifest")

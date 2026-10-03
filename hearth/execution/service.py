@@ -371,6 +371,7 @@ class ExecutionService:
             "task_family",
             "task_id",  # C-06: ledger attribution only; steers nothing
             "image_path",
+            "response_schema",
         }
         unknown = set(normalized) - allowed
         if unknown:
@@ -390,6 +391,9 @@ class ExecutionService:
             value = normalized.get(key)
             if value is not None and (not isinstance(value, str) or not value.strip()):
                 raise ExecutionServiceError(f"{key} must be a non-empty string")
+        schema = normalized.get("response_schema")
+        if "response_schema" in normalized and (not isinstance(schema, dict) or not schema):
+            raise ExecutionServiceError("response_schema must be a non-empty JSON Schema object")
         files = normalized.get("files")
         image_path = normalized.get("image_path")
         if image_path is not None and (not isinstance(image_path, str) or not image_path.strip()):
@@ -746,6 +750,7 @@ class ExecutionService:
         prompt_bytes: int = 0,
         policy: Optional[dict[str, Any]] = None,
         task_family: Optional[str] = None,
+        response_schema: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
         """Resolve policy and provider without storing content or dispatching work.
 
@@ -846,6 +851,12 @@ class ExecutionService:
             "capability": capability_slice,
             "dispatch": False,
         }
+        if response_schema is not None:
+            if not isinstance(response_schema, dict) or not response_schema:
+                raise ExecutionServiceError("response_schema must be a non-empty JSON Schema object")
+            from hearth.toolsurface.inference import response_schema_digest
+            res["response_schema_sha256"] = response_schema_digest(response_schema)
+            res["structured_outputs"] = provider.settings.get("structured_outputs") is True
         if occupancy.get("lane_not_live"):
             res["lane_status"] = "lane_not_live"
             res["note"] = occupancy.get("lane_reason", "lane is not live under active configuration")
@@ -1002,7 +1013,8 @@ class ExecutionService:
             # correctly reads as a caller pin. Forwarding it anyway keeps the
             # stamp on the provider's own result and on the observation record,
             # rather than silently dropping the reason the rung was picked.
-            for optional in ("system", "task", "files", "quality", "task_family", "image_path"):
+            for optional in ("system", "task", "files", "quality", "task_family", "image_path",
+                             "response_schema"):
                 if arguments.get(optional) is not None:
                     call_arguments[optional] = arguments[optional]
             result = self._generate_call(**call_arguments)
@@ -1109,6 +1121,7 @@ class ExecutionService:
             "max_tokens",
             "timeout_s",
             "sizer",   # ADR-0050: present only on a sized call
+            "response_schema_sha256",
             "image_input",
         }
         observed = {

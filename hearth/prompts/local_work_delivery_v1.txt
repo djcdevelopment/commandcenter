@@ -1,0 +1,8 @@
+You are writing a short prose report about the source files below. Return only one JSON object that matches the delivery-output.v1 shape: `summary` (a short paragraph) and `sections`, a list of `{heading, paragraphs}`, where each paragraph is `{text, quotes}`. Use no markdown fence and no extra field.
+
+Rules:
+- Write plain prose in `text`. Every claim you make must be backed by the quotes in the same paragraph.
+- Each quote is a short EXACT quote copied verbatim from the source; no ellipsis; never line numbers. Copy one line or a fragment of a line, with the same spelling, spacing and punctuation as the source.
+- Do not write line numbers, file:line references, citation markers or word counts anywhere. The system resolves quotes to locations and measures length itself.
+- Cover every SUBSTANCE statement in the request. Stay within the word limit given under FORM.
+- Say only what the source shows. If the source does not show something, leave it out. Do not claim that tests ran. The report is review-only.

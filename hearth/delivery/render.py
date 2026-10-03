@@ -119,15 +119,18 @@ def _claim_row(cid: str, text: str, quote: str, loc) -> dict:
            "resolved": None if loc.match == "missing" else
            {"path": loc.path, "start_line": loc.start, "end_line": loc.end},
            "match": loc.match}
+    if loc.truncated:
+        row["truncated"] = True
     if loc.occurrences > 1:  # exact/normalized hits, or the hits of a short quote that resolved to missing
         row["ambiguous"] = loc.occurrences
     return row
 
 
 def _tally(claims: list) -> dict:
-    rep = {"normalized_quote": 0, "fuzzy_quote": 0, "ambiguous_quote": 0, "short_ambiguous_quote": 0}
+    rep = {"normalized_quote": 0, "fuzzy_quote": 0, "ambiguous_quote": 0, "short_ambiguous_quote": 0, "truncated_quote": 0}
     for c in claims:
-        rep["normalized_quote"] += c["match"] == "normalized"
+        rep["normalized_quote"] += c["match"] == "normalized" and not c.get("truncated")
+        rep["truncated_quote"] += bool(c.get("truncated"))
         rep["fuzzy_quote"] += c["match"].startswith("fuzzy:")
         rep["ambiguous_quote"] += "ambiguous" in c and c["match"] != "missing"
         rep["short_ambiguous_quote"] += "ambiguous" in c and c["match"] == "missing"

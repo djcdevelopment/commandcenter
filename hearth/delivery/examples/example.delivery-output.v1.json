@@ -11,7 +11,7 @@
       {"text": "A skip lasts seven days unless the caller passes another value.",
        "quotes": ["SKIP_DAYS = 7"]},
       {"text": "candidate_exclusions keeps only rows whose expiry is later than the current time.",
-       "quotes": ["str(r.get(\"until\", \"\")) > stamp"]},
+       "quotes": ["str(r.get(\"until\", \"\")) > stamp", "def candidate_exclusions("]},
       {"text": "Skips are also pruned when the process restarts.",
        "quotes": ["prune_skips_on_start()"]}
     ]}

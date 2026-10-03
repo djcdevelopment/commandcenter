@@ -28,6 +28,10 @@ Form rules (index "Decisions taken while building", 2026-10-03):
      (`sourcemap.quote_chars`) never matches line-window fuzzy and, found more than once, is
      `match: "missing"` with `ambiguous: N`, counted as a `short_ambiguous_quote` repair (one word is no
      evidence of one place); found once, it resolves.
+  7. A quote of at least 12 characters that is only the beginning of one source line (the 27B stops a TOML quote at
+     its first double quote) resolves to that whole line when the locator can pick exactly one; the claim is
+     `match: "normalized"` with `truncated: true`, counted as a `truncated_quote` repair (and not as
+     `normalized_quote`).
 
 Manifest additions (orchestrator decisions A and B, 2026-10-03, additive):
   A. `form_applied: {citations: range|quote|none, words: {min, max, enforce} | null, sections: [...] | null}`
@@ -47,7 +51,7 @@ import sys
 from pathlib import Path
 from typing import Any, Mapping, Optional, Union
 
-from .sourcemap import SHORT_QUOTE_CHARS, quote_chars  # the locator's floor and its measure, one definition
+from .sourcemap import SHORT_QUOTE_CHARS, TRUNCATED_QUOTE_CHARS, quote_chars  # the locator's floor and its measure, one definition
 
 BRIEF_SCHEMA = "brief.v2"
 OUTPUT_SCHEMA = "delivery-output.v1"
@@ -60,7 +64,7 @@ AIDS = frozenset({"source_map", "quote_renderer", "constrained_output", "sidecar
 MATCHES = ("exact", "normalized", "missing")  # plus "fuzzy:<score>", score 0..1 with two decimals
 # Repair counts the contract knows and cross-checks against claims; the renderer (task 3) may add other
 # snake_case keys (heading_added, trailing_prose_removed, citation_syntax_stripped, ...).
-REPAIR_KEYS = ("normalized_quote", "fuzzy_quote", "ambiguous_quote", "short_ambiguous_quote")
+REPAIR_KEYS = ("normalized_quote", "fuzzy_quote", "ambiguous_quote", "short_ambiguous_quote", "truncated_quote")
 VERIFY_RUNGS = ("deterministic", "judge", "reviewer", "human")
 VERIFY_STATES = ("pass", "fail", "unverified", "not_run")  # unrun = not_run, judge unavailable = unverified; never pass
 DEVIATION_KINDS = ("words", "sections", "other")
@@ -363,7 +367,7 @@ def validate_manifest(doc: Any) -> list:
         claims = []
     for i, c in enumerate(claims):
         w = f"manifest.claims[{i}]"
-        if not _exact(c, {"id", "text", "quote", "resolved", "match"}, {"ambiguous"}, w, errs):
+        if not _exact(c, {"id", "text", "quote", "resolved", "match"}, {"ambiguous", "truncated"}, w, errs):
             continue
         cid, m, r = c["id"], c["match"], c["resolved"]
         if not (isinstance(cid, str) and _ID.match(cid)):
@@ -396,8 +400,16 @@ def validate_manifest(doc: Any) -> list:
                 st, en = r["start_line"], r["end_line"]
                 if not (_is_int(st) and _is_int(en) and 1 <= st <= en):
                     errs.append(f"{w}.resolved: 1 <= start_line <= end_line required, got {st!r}-{en!r}")
-            tally["normalized_quote"] += m == "normalized"
+            tally["normalized_quote"] += m == "normalized" and not c.get("truncated")
+            tally["truncated_quote"] += bool(c.get("truncated"))
             tally["fuzzy_quote"] += m.startswith("fuzzy:")
+        if "truncated" in c:
+            if c["truncated"] is not True or m != "normalized":
+                errs.append(f"{w}.truncated: only true, only on a normalized claim, got {c['truncated']!r} on {m}")
+            elif quote_chars(c["quote"]) < TRUNCATED_QUOTE_CHARS:
+                errs.append(f"{w}.truncated: a line-prefix quote has at least {TRUNCATED_QUOTE_CHARS} characters")
+            elif "ambiguous" in c:
+                errs.append(f"{w}.truncated: a line-prefix claim resolves to one line and is not ambiguous")
         if "ambiguous" in c:
             a = c["ambiguous"]
             if not (_is_int(a) and a >= 2):
@@ -589,6 +601,12 @@ def selfcheck(out=None) -> None:
          mutated(manifest, lambda d: d["claims"][3].update(quote="ab", ambiguous=2))),
         ("manifest repair count disagrees", validate_manifest,
          mutated(manifest, lambda d: d["repairs"].__setitem__("normalized_quote", 0))),
+        ("manifest truncated on an exact claim", validate_manifest,
+         mutated(manifest, lambda d: d["claims"][3].__setitem__("truncated", True))),
+        ("manifest truncated claim counted as normalized", validate_manifest,
+         mutated(manifest, lambda d: d["repairs"].__setitem__("normalized_quote", 2))),
+        ("manifest truncated quote under 12 characters", validate_manifest,
+         mutated(manifest, lambda d: d["claims"][5].update(quote="def cand"))),
         ("manifest judge is the arm", validate_manifest,
          mutated(manifest, lambda d: d["verification"].__setitem__("judge", {"state": "pass", "by": d["backend"]}))),
         ("manifest deterministic pass with unsupported", validate_manifest,

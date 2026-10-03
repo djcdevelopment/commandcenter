@@ -35,6 +35,16 @@ Fuzzy rules (a wrong number is a wrong claim)
   or normalized only; no fuzzy. ``SKIP_DAYS = 14`` against ``SKIP_DAYS = 7`` is ``missing``.
 - At any length, if the numbers in the quote are not all present in the best window, the
   result is ``missing`` (the best window is not re-chosen to find one that has the number).
+- Likewise if an identifier of the quote (3+ letters, digits or underscores with an underscore, a digit or an
+  inner capital: `reply_text`, `HTTPStatus`, `utf8`; plain words are English) is not a whole token of the best
+  window: ``reply_text`` against a line that says ``res``.
+
+Line-prefix quotes (``truncated_quote`` repair)
+- A quote of at least ``TRUNCATED_QUOTE_CHARS`` (12) that no pass resolved, or that the short floor refused
+  as ambiguous, and that is the beginning of a source line (indentation ignored) resolves to that whole
+  line when exactly one line in all sources begins so, or exactly one inside the symbol the hint selects
+  (the ``_pick`` rule; no selecting symbol: still ``missing``). Match ``normalized`` with
+  ``Location.truncated = True``; ``occurrences`` is 1.
 
 Elided quotes (a quote that is not an exact hit and contains ``...`` or U+2026)
 - Split at each ellipsis into segments (normalized as above; empty segments dropped). The
@@ -81,6 +91,7 @@ except Exception:  # pragma: no cover
 
 FUZZY_THRESHOLD = 0.85
 SHORT_QUOTE_CHARS = 24
+TRUNCATED_QUOTE_CHARS = 12  # a quote this long that starts one source line may stand for the whole line
 # Mirrors hearth/toolsurface/inference.py FILES_PER_FILE_CAP / FILES_TOTAL_CAP (not imported: stdlib only).
 FILE_CAP_BYTES = 256 * 1024
 PACKET_CAP_BYTES = 1024 * 1024
@@ -128,6 +139,7 @@ class Location(NamedTuple):
     end: int
     match: str          # exact | normalized | fuzzy:<score> | missing
     occurrences: int    # exact/normalized hits across the map; fuzzy 1; missing 0
+    truncated: bool = False  # normalized: the quote is the beginning of the cited line (a repair of its own)
 
     def as_range(self) -> tuple:
         return (self.path, self.start, self.end, self.match)
@@ -357,6 +369,24 @@ def _numbers_ok(nquote: str, window: str) -> bool:
     return not (Counter(_NUM.findall(nquote)) - Counter(_NUM.findall(window)))
 
 
+_IDENT = re.compile(r"[A-Za-z0-9_]*[A-Za-z_][A-Za-z0-9_]*")
+_INNER_CAP = re.compile(r"(?<=[A-Za-z0-9])[A-Z]")
+
+
+def _is_identifier(t: str) -> bool:
+    """Identifier-shaped: has an underscore, a digit or a capital after the first character. A plain word
+    (`text`, `Exposes`) is English until shown otherwise: a fuzzy quote may still change a plain word and
+    the score prices it."""
+    return len(t) >= 3 and (any(c in t for c in "_0123456789") or bool(_INNER_CAP.search(t)))
+
+
+def _identifiers_ok(nquote: str, window: str) -> bool:
+    """Every identifier of the quote must be a whole token of the matched window: `reply_text` is not `res`
+    (2026-10-03, work_8168fd9f, fuzzy:0.91 to the line that says `"text": res`)."""
+    have = set(_IDENT.findall(window))
+    return all(t in have for t in set(_IDENT.findall(nquote)) if _is_identifier(t))
+
+
 def _score(window: str, nquote: str) -> float:
     if _rf_fuzz is not None:
         return _rf_fuzz.partial_ratio(nquote, window) / 100.0
@@ -370,13 +400,15 @@ def _score(window: str, nquote: str) -> float:
     return 2.0 * matched / (len(nquote) + span)
 
 
-def _pick(cands: list, hint: Optional[str]):
-    """cands: [(FileMap, start, end)]. Prefer a hit inside a symbol named in the hint.
+def _pick_best(cands: list, hint: Optional[str]):
+    """(index, symbol, tied) of the candidate the hint selects, or None when no named symbol selects one;
+    tied: another symbol of the same rank (rarest name, size) holds a candidate, so the first hit won by order only.
+    cands: [(FileMap, start, end)]. Prefer a hit inside a symbol named in the hint.
     A symbol is named when any dotted prefix or dotted part of its name is a whole word of the hint
     (`configuration.day.backends` matches "configuration.day" and "day"). A name is worth less the more
     candidates it names: one that names every candidate (`configuration`) tells nothing and is ignored, even
     when another candidate sits outside every symbol. Rank: rarest name, then smallest symbol, then the
-    first hit; no named symbol keeps the first hit."""
+    first hit."""
     if len(cands) > 1 and hint:
         def named(sym):
             parts = sym["name"].split(".")
@@ -386,17 +418,53 @@ def _pick(cands: list, hint: Optional[str]):
         for fm, s, e in cands:
             held.append([(sym, named(sym)) for sym in fm.symbols if sym["start"] <= s and e <= sym["end"]])
         seen = Counter(n for h in held for n in set().union(*(ns for _, ns in h)))  # candidates per name
-        best = None
+        best, ranks = None, []
         for i, h in enumerate(held):
             for sym, names in h:
                 rare = min((seen[n] for n in names), default=len(cands))
                 if rare < len(cands):
-                    key = (rare, sym["end"] - sym["start"], i)
-                    if best is None or key < best:
+                    key = (rare, sym["end"] - sym["start"], i, sym)
+                    ranks.append(key)
+                    if best is None or key[:3] < best[:3]:
                         best = key
         if best is not None:
-            return cands[best[2]]
-    return cands[0]
+            tied = any(k[:2] == best[:2] and k[2] != best[2] and k[3] is not best[3] for k in ranks)
+            return best[2], best[3], tied
+    return None
+
+
+def _pick(cands: list, hint: Optional[str]):
+    """The hit the hint selects (see _pick_best); no named symbol keeps the first hit."""
+    best = _pick_best(cands, hint)
+    return cands[best[0]] if best else cands[0]
+
+
+def _prefix_line(texts: list, q: str, hint: Optional[str], hits: Optional[list] = None) -> Optional[Location]:
+    """A quote of >= TRUNCATED_QUOTE_CHARS that begins a source line (indentation ignored) resolves to that whole
+    line when it is the only place the quote can mean: no other hit of the quote (``hits``: the exact/normalized
+    cands the short floor refused) lies elsewhere, or none elsewhere inside the symbol the hint selects over those
+    hits. The 27B stops a quote at the first double quote of a TOML line (2026-10-03 sizing runs:
+    `am4-vllm = { status = `, 22 rejections)."""
+    nq = _norm(html.unescape(q))
+    if len(nq) < TRUNCATED_QUOTE_CHARS or "\n" in nq:
+        return None
+    pc = [(fm, i, i) for fm, _ in texts for i, line in enumerate(fm.lines, 1) if _norm(line).startswith(nq)]
+    if not pc:
+        return None
+    universe = hits or pc
+    scope = lambda c: True  # noqa: E731
+    if len(universe) > 1:
+        best = _pick_best(universe, hint)
+        if best is not None:
+            if best[2]:  # the paragraph names several blocks alike: no one line is the one it means
+                return None
+            fm0, sym = universe[best[0]][0], best[1]
+            scope = lambda c: c[0] is fm0 and sym["start"] <= c[1] and c[2] <= sym["end"]  # noqa: E731
+    inside = [c for c in pc if scope(c)]
+    if len(inside) != 1 or any(h[1:] != (inside[0][1],) * 2 for h in (hits or []) if scope(h)):
+        return None
+    fm, line, _ = inside[0]
+    return Location(fm.path, line, line, "normalized", 1, True)
 
 
 def locate(sm: SourceMap, quote: str, threshold: float = FUZZY_THRESHOLD,
@@ -418,7 +486,7 @@ def locate(sm: SourceMap, quote: str, threshold: float = FUZZY_THRESHOLD,
     short = quote_chars(q) < SHORT_QUOTE_CHARS
     if cands:
         if short and len(cands) > 1:
-            return _short_ambiguous(len(cands))
+            return _prefix_line(texts, q, hint, cands) or _short_ambiguous(len(cands))
         fm, s, e = _pick(cands, hint)
         return Location(fm.path, s, e, "exact", len(cands))
 
@@ -432,7 +500,7 @@ def locate(sm: SourceMap, quote: str, threshold: float = FUZZY_THRESHOLD,
             cands.append((fm, _line_of(text, idx[pos]), _line_of(text, idx[pos + len(nq) - 1])))
     if cands:
         if short and len(cands) > 1:
-            return _short_ambiguous(len(cands))
+            return _prefix_line(texts, q, hint, cands) or _short_ambiguous(len(cands))
         fm, s, e = _pick(cands, hint)
         return Location(fm.path, s, e, "normalized", len(cands))
 
@@ -450,6 +518,9 @@ def locate(sm: SourceMap, quote: str, threshold: float = FUZZY_THRESHOLD,
             fm, s, e = _pick(cands, hint)
             return Location(fm.path, s, e, "normalized", len(cands))
 
+    prefix = _prefix_line(texts, q, hint)
+    if prefix:
+        return prefix
     if _ELLIPSIS.search(q):
         return _locate_elided(texts, q, threshold)
     if len(nq) < SHORT_QUOTE_CHARS:
@@ -467,7 +538,7 @@ def locate(sm: SourceMap, quote: str, threshold: float = FUZZY_THRESHOLD,
                 sc = _score(window, nq)
                 if sc > best[0]:
                     best = (sc, fm.path, s + 1, min(total, s + size), window)
-    if best[1] is not None and best[0] >= threshold and _numbers_ok(nq, best[4]):
+    if best[1] is not None and best[0] >= threshold and _numbers_ok(nq, best[4]) and _identifiers_ok(nq, best[4]):
         return Location(best[1], best[2], best[3], f"fuzzy:{best[0]:.2f}", 1)
     return _MISSING
 

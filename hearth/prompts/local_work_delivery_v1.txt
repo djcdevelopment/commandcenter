@@ -2,7 +2,9 @@ You are writing a short prose report about the source files below. Return only o
 
 Rules:
 - Write plain prose in `text`. Every claim you make must be backed by the quotes in the same paragraph.
-- Each quote is a short EXACT quote copied verbatim from the source; no ellipsis; never line numbers. Copy one line or a fragment of a line, with the same spelling, spacing and punctuation as the source.
+- Quotes come only from the SOURCE FILES block, never from the INTENT, SUBSTANCE or FORM text.
+- Each quote is one whole source line, copied exactly: same spelling, spacing and punctuation, without the line-number prefix. Never join lines, never shorten a line (no ellipsis) or rewrite it (keep `True` as `True`, keep a dict as written), never quote a single word.
+- Write a double quote as the character itself, escaped for JSON as \"; never write &quot; and never swap it for a single quote.
 - Do not write line numbers, file:line references, citation markers or word counts anywhere. The system resolves quotes to locations and measures length itself.
 - Cover every SUBSTANCE statement in the request. Stay within the word limit given under FORM.
 - Say only what the source shows. If the source does not show something, leave it out. Do not claim that tests ran. The report is review-only.

@@ -40,8 +40,10 @@ still counted). No timestamps: markdown and manifest are a pure function of (out
 from __future__ import annotations
 
 import hashlib
+import html
 import json
 import re
+import textwrap
 from typing import Any, Mapping, Optional, Union
 
 from . import contract
@@ -117,17 +119,18 @@ def _claim_row(cid: str, text: str, quote: str, loc) -> dict:
            "resolved": None if loc.match == "missing" else
            {"path": loc.path, "start_line": loc.start, "end_line": loc.end},
            "match": loc.match}
-    if loc.match in ("exact", "normalized") and loc.occurrences > 1:
+    if loc.occurrences > 1:  # exact/normalized hits, or the hits of a short quote that resolved to missing
         row["ambiguous"] = loc.occurrences
     return row
 
 
 def _tally(claims: list) -> dict:
-    rep = {"normalized_quote": 0, "fuzzy_quote": 0, "ambiguous_quote": 0}
+    rep = {"normalized_quote": 0, "fuzzy_quote": 0, "ambiguous_quote": 0, "short_ambiguous_quote": 0}
     for c in claims:
         rep["normalized_quote"] += c["match"] == "normalized"
         rep["fuzzy_quote"] += c["match"].startswith("fuzzy:")
-        rep["ambiguous_quote"] += "ambiguous" in c
+        rep["ambiguous_quote"] += "ambiguous" in c and c["match"] != "missing"
+        rep["short_ambiguous_quote"] += "ambiguous" in c and c["match"] == "missing"
     return rep
 
 
@@ -162,6 +165,8 @@ def _finish(man: dict, sm: SourceMap, claims: list, extra_repairs: dict, finding
     enforce_fail = bool(fw) and fw["enforce"] == "fail" and any(d["kind"] == "words" for d in man["deviations"])
     by_id = {c["id"]: c for c in claims}
     notes = [f"{u}: " + (empty_quote_note if not by_id[u]["quote"] else
+                         f"quote under {contract.SHORT_QUOTE_CHARS} characters found {by_id[u]['ambiguous']} times"
+                         if "ambiguous" in by_id[u] else
                          f"quote not found in {_sources_label(sm)}") for u in unsupported]
     notes += [f"{d['kind']} deviation: expected {d['expected']}, observed {d['observed']} ({d['note']})"
               for d in man["deviations"]]
@@ -172,7 +177,15 @@ def _finish(man: dict, sm: SourceMap, claims: list, extra_repairs: dict, finding
     man["verification"]["deterministic"] = det
 
 
-def _quote_lines(quote: str, cite: str) -> list:
+def _quote_lines(quote: str, cite: str, sm: Optional[SourceMap] = None, row: Optional[dict] = None) -> list:
+    """Resolved quote: the source text of the range, dedented (never the model's quote characters); missing: the
+    model's text with HTML entities decoded."""
+    res = row["resolved"] if row else None
+    fm = sm.get(res["path"]) if (sm and res) else None
+    if fm is not None:
+        quote = textwrap.dedent("\n".join(fm.lines[res["start_line"] - 1:res["end_line"]]))
+    else:
+        quote = html.unescape(quote)
     lines = [ln.rstrip() for ln in quote.strip("\n").split("\n")]
     lines[-1] = f"{lines[-1]} ({cite})"
     return ["> " + ln if ln.strip() else ">" for ln in lines]
@@ -214,13 +227,18 @@ def render_with_findings(output: Mapping[str, Any], brief: Union[bytes, str, Map
                 rows.append((_claim_row(f"s{i}.p{j}.q{k}", text, q, loc), loc))
             claims += [r for r, _ in rows]
             unsupported += [r["id"] for r, _ in rows if r["match"] == "missing"]
-            cites = [_ref(l) if l.match != "missing" else "not found in sources" for _, l in rows]
+            cites = [_ref(l) if l.match != "missing" else f"found {l.occurrences} times, too short to place"
+                     if l.occurrences > 1 else "not found in sources" for _, l in rows]
             if style == "range":
                 md.append(f"{shown} ({', '.join(dict.fromkeys(cites))})")
             elif style == "quote":
                 md.append(shown)
+                seen = set()
                 for (r, _), cite in zip(rows, cites):
-                    md += _quote_lines(r["quote"], cite)
+                    key = json.dumps(r["resolved"], sort_keys=True) if r["resolved"] else None
+                    if key is None or key not in seen:  # two quotes on one range print it once
+                        md += _quote_lines(r["quote"], cite, sm, r)
+                    seen.add(key)
             else:
                 md.append(shown)
             md.append("")
@@ -303,6 +321,8 @@ def render_legacy(candidate: Mapping[str, Any], sm: SourceMap, brief: Union[byte
                     hi -= 1
                 quote = "\n".join(fm.lines[lo - 1:hi])
                 loc = locate(sm, quote)
+                if loc.match == "missing" and loc.occurrences > 1:  # short repeated line: the range names the place
+                    loc = Location(path, lo, hi, "exact", 1)
                 if loc.match != "missing" and (loc.path, loc.start, loc.end) != (path, lo, hi):
                     relocated += 1
         if repair:

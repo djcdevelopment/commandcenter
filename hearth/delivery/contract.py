@@ -24,7 +24,10 @@ Form rules (index "Decisions taken while building", 2026-10-03):
   5. `sources[]` is authoritative for the renderer and `locate`; the prose header's repo/commit/file lines
      stay for the drain (task 4 generates sources[] from the header at submit time).
   6. A quote found more than once is rendered at one hit with `ambiguous: N` (N >= 2) on the claim and
-     counts as an `ambiguous_quote` repair; a quote under 24 chars never matches fuzzily (sourcemap).
+     counts as an `ambiguous_quote` repair; an unresolved tie keeps the first hit. A quote under 24 chars
+     (`sourcemap.quote_chars`) never matches line-window fuzzy and, found more than once, is
+     `match: "missing"` with `ambiguous: N`, counted as a `short_ambiguous_quote` repair (one word is no
+     evidence of one place); found once, it resolves.
 
 Manifest additions (orchestrator decisions A and B, 2026-10-03, additive):
   A. `form_applied: {citations: range|quote|none, words: {min, max, enforce} | null, sections: [...] | null}`
@@ -44,6 +47,8 @@ import sys
 from pathlib import Path
 from typing import Any, Mapping, Optional, Union
 
+from .sourcemap import SHORT_QUOTE_CHARS, quote_chars  # the locator's floor and its measure, one definition
+
 BRIEF_SCHEMA = "brief.v2"
 OUTPUT_SCHEMA = "delivery-output.v1"
 MANIFEST_SCHEMA = "delivery.v1"
@@ -55,7 +60,7 @@ AIDS = frozenset({"source_map", "quote_renderer", "constrained_output", "sidecar
 MATCHES = ("exact", "normalized", "missing")  # plus "fuzzy:<score>", score 0..1 with two decimals
 # Repair counts the contract knows and cross-checks against claims; the renderer (task 3) may add other
 # snake_case keys (heading_added, trailing_prose_removed, citation_syntax_stripped, ...).
-REPAIR_KEYS = ("normalized_quote", "fuzzy_quote", "ambiguous_quote")
+REPAIR_KEYS = ("normalized_quote", "fuzzy_quote", "ambiguous_quote", "short_ambiguous_quote")
 VERIFY_RUNGS = ("deterministic", "judge", "reviewer", "human")
 VERIFY_STATES = ("pass", "fail", "unverified", "not_run")  # unrun = not_run, judge unavailable = unverified; never pass
 DEVIATION_KINDS = ("words", "sections", "other")
@@ -349,7 +354,7 @@ def validate_manifest(doc: Any) -> list:
         errs += [f"manifest.aids_used[{i}]: unknown aid {a!r}" for i, a in enumerate(aids) if a not in AIDS]
 
     ids: list = []
-    tally = {"normalized_quote": 0, "fuzzy_quote": 0, "ambiguous_quote": 0}
+    tally = {k: 0 for k in REPAIR_KEYS}
     missing_ids: set = set()
     exempt_ids: set = set()  # decision A: quoteless paragraphs under citations "none"
     claims = doc["claims"]
@@ -397,8 +402,15 @@ def validate_manifest(doc: Any) -> list:
             a = c["ambiguous"]
             if not (_is_int(a) and a >= 2):
                 errs.append(f"{w}.ambiguous: int >= 2 (occurrences) required, got {a!r}")
+            elif m == "missing":
+                if isinstance(c["quote"], str) and quote_chars(c["quote"]) < SHORT_QUOTE_CHARS:
+                    tally["short_ambiguous_quote"] += 1
+                else:
+                    errs.append(f"{w}.ambiguous: a missing quote is ambiguous only when under {SHORT_QUOTE_CHARS} characters")
             elif m not in ("exact", "normalized"):
-                errs.append(f"{w}.ambiguous: only exact or normalized matches can be ambiguous, match is {m}")
+                errs.append(f"{w}.ambiguous: only exact, normalized or short missing quotes can be ambiguous, match is {m}")
+            elif quote_chars(c["quote"]) < SHORT_QUOTE_CHARS:
+                errs.append(f"{w}.ambiguous: a quote under {SHORT_QUOTE_CHARS} characters found more than once must be missing")
             else:
                 tally["ambiguous_quote"] += 1
 
@@ -571,7 +583,10 @@ def selfcheck(out=None) -> None:
         ("manifest missing with a range", validate_manifest,
          mutated(manifest, lambda d: d["claims"][0].__setitem__("match", "missing"))),
         ("manifest ambiguous on missing", validate_manifest,
-         mutated(manifest, lambda d: d["claims"][-1].__setitem__("ambiguous", 2))),
+         mutated(manifest, lambda d: (d["claims"][-1].__setitem__("ambiguous", 2),
+                                      d["claims"][-1].__setitem__("quote", "x" * 30)))),
+        ("manifest short ambiguous quote resolved", validate_manifest,
+         mutated(manifest, lambda d: d["claims"][3].update(quote="ab", ambiguous=2))),
         ("manifest repair count disagrees", validate_manifest,
          mutated(manifest, lambda d: d["repairs"].__setitem__("normalized_quote", 0))),
         ("manifest judge is the arm", validate_manifest,
@@ -607,7 +622,13 @@ def selfcheck(out=None) -> None:
     exempt = mutated(manifest, lambda d: (d["form_applied"].__setitem__("citations", "none"), d["claims"][-1].__setitem__("quote", ""),
                                           d.__setitem__("unsupported", []), d["verification"].__setitem__("deterministic", {"state": "pass"})))
     _must(validate_manifest(exempt) == [], f"quoteless paragraph under citations none must be exempt: {validate_manifest(exempt)}")
-    say(f"ok  {len(controls) + 2} negative controls rejected; quoteless paragraph exempt only under citations none; "
+    # rule 6: a short quote found N times is missing + ambiguous, counted; measured after entity decoding
+    # (&quot;live&quot;, ... is 33 characters as written, 23 decoded: the 27B's spelling)
+    for q in ("prune_skips_on_start()", "&quot;live&quot;, context_tokens"):
+        short = mutated(manifest, lambda d: (d["claims"][-1].update(quote=q, ambiguous=3),
+                                             d["repairs"].__setitem__("short_ambiguous_quote", 1)))
+        _must(validate_manifest(short) == [], f"short ambiguous missing quote {q!r} must validate: {validate_manifest(short)}")
+    say(f"ok  {len(controls) + 2} negative controls rejected; quoteless paragraph exempt only under citations none; short ambiguous missing valid; "
         "v1 block valid; default ladder all not_run")
 
     rt = _load("backoff.brief.v2.json")

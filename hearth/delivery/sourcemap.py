@@ -26,7 +26,8 @@ Match vocabulary (``Location.match``)
                    quotes (U+201C/U+201D to ``"``, U+2018/U+2019 to ``'``). A repair.
 ``fuzzy:<score>``  best line window scores >= threshold (0..1, two decimals). A repair.
                    An elided quote (``...`` or U+2026) is matched only as elided, see below.
-``missing``        nothing acceptable; ``path == ""``, ``start == end == 0``.
+``missing``        nothing acceptable; ``path == ""``, ``start == end == 0``; ``occurrences`` is N > 1 only
+                   for a short ambiguous quote (below).
 Normalized and fuzzy matches are repairs: the caller (the renderer) counts and records them.
 
 Fuzzy rules (a wrong number is a wrong claim)
@@ -45,12 +46,18 @@ Elided quotes (a quote that is not an exact hit and contains ``...`` or U+2026)
   ``SHORT_QUOTE_CHARS`` must match every segment in full. The number rule applies to the
   window. An elided quote never falls through to line-window fuzzy: no window is ``missing``.
 
+Short ambiguous quotes
+- A quote with ``quote_chars(q) < SHORT_QUOTE_CHARS`` (whitespace collapsed, HTML entities decoded)
+  that occurs more than once, by any pass (an elided one: more than one full window), is ``missing``
+  with ``occurrences = N``: a single word read as ``exact`` support for a claim it cannot show. Once is
+  still a hit. The contract checks claims with the same ``quote_chars``.
+
 Ambiguity
 - ``occurrences`` counts every exact (or, failing that, normalized) hit across the map,
-  overlapping hits included. ``fuzzy`` reports 1, ``missing`` 0.
-- With ``occurrences > 1`` and ``hint`` (the claim text around the quote), the hit inside
-  the smallest symbol whose name (or last dotted part) appears in the hint wins; otherwise
-  the first hit in map order. The renderer should flag ``occurrences > 1`` either way.
+  overlapping hits included. ``fuzzy`` reports 1, ``missing`` 0 (N for a short ambiguous quote).
+- With ``occurrences > 1`` and ``hint`` (the claim text around the quote), see ``_pick``: the hit
+  inside the smallest symbol named in the hint wins; otherwise the first hit in map order. The
+  renderer flags ``occurrences > 1`` either way.
 
     python -m hearth.delivery.sourcemap <repo> <commit> <path>
 """
@@ -137,6 +144,11 @@ class Location(NamedTuple):
 
 
 _MISSING = Location("", 0, 0, "missing", 0)
+
+
+def _short_ambiguous(n: int) -> Location:
+    """A short quote found more than once is no evidence of any one place: missing, with the hit count."""
+    return Location("", 0, 0, "missing", n)
 
 
 def _git(repo: str, *args: str) -> subprocess.CompletedProcess:
@@ -321,6 +333,11 @@ def _norm(s: str) -> str:
     return _norm_with_map(s)[0]
 
 
+def quote_chars(quote: str) -> int:
+    """Length the SHORT_QUOTE_CHARS floor applies to (locate and contract.validate_manifest share it)."""
+    return len(_norm(html.unescape(quote)))
+
+
 def _line_of(text: str, offset: int) -> int:
     return text.count("\n", 0, offset) + 1
 
@@ -354,20 +371,31 @@ def _score(window: str, nquote: str) -> float:
 
 
 def _pick(cands: list, hint: Optional[str]):
-    """cands: [(FileMap, start, end)]. Prefer a hit inside the smallest symbol named in the hint."""
+    """cands: [(FileMap, start, end)]. Prefer a hit inside a symbol named in the hint.
+    A symbol is named when any dotted prefix or dotted part of its name is a whole word of the hint
+    (`configuration.day.backends` matches "configuration.day" and "day"). A name is worth less the more
+    candidates it names: one that names every candidate (`configuration`) tells nothing and is ignored, even
+    when another candidate sits outside every symbol. Rank: rarest name, then smallest symbol, then the
+    first hit; no named symbol keeps the first hit."""
     if len(cands) > 1 and hint:
+        def named(sym):
+            parts = sym["name"].split(".")
+            names = {".".join(parts[:k]) for k in range(1, len(parts) + 1)} | set(parts)
+            return {n for n in names if len(n) > 1 and re.search(r"(?<![\w])" + re.escape(n) + r"(?!\w)", hint)}
+        held = []  # per candidate: [(symbol, matched names)]
+        for fm, s, e in cands:
+            held.append([(sym, named(sym)) for sym in fm.symbols if sym["start"] <= s and e <= sym["end"]])
+        seen = Counter(n for h in held for n in set().union(*(ns for _, ns in h)))  # candidates per name
         best = None
-        for i, (fm, s, e) in enumerate(cands):
-            for sym in fm.symbols:
-                if not (sym["start"] <= s and e <= sym["end"]):
-                    continue
-                names = {sym["name"], sym["name"].rsplit(".", 1)[-1]}
-                if any(len(n) > 1 and re.search(r"(?<![\w])" + re.escape(n) + r"(?!\w)", hint) for n in names):
-                    key = (sym["end"] - sym["start"], i)
+        for i, h in enumerate(held):
+            for sym, names in h:
+                rare = min((seen[n] for n in names), default=len(cands))
+                if rare < len(cands):
+                    key = (rare, sym["end"] - sym["start"], i)
                     if best is None or key < best:
                         best = key
         if best is not None:
-            return cands[best[1]]
+            return cands[best[2]]
     return cands[0]
 
 
@@ -387,7 +415,10 @@ def locate(sm: SourceMap, quote: str, threshold: float = FUZZY_THRESHOLD,
     for fm, text in texts:
         for pos in _find_all(text, q):
             cands.append((fm, _line_of(text, pos), _line_of(text, pos + len(q) - 1)))
+    short = quote_chars(q) < SHORT_QUOTE_CHARS
     if cands:
+        if short and len(cands) > 1:
+            return _short_ambiguous(len(cands))
         fm, s, e = _pick(cands, hint)
         return Location(fm.path, s, e, "exact", len(cands))
 
@@ -400,6 +431,8 @@ def locate(sm: SourceMap, quote: str, threshold: float = FUZZY_THRESHOLD,
         for pos in _find_all(ntext, nq):
             cands.append((fm, _line_of(text, idx[pos]), _line_of(text, idx[pos + len(nq) - 1])))
     if cands:
+        if short and len(cands) > 1:
+            return _short_ambiguous(len(cands))
         fm, s, e = _pick(cands, hint)
         return Location(fm.path, s, e, "normalized", len(cands))
 
@@ -530,6 +563,8 @@ def _locate_elided(texts: list, q: str, threshold: float) -> Location:
                 best = cand
     if best is None:
         return _MISSING
+    if order > 1 and quote_chars(q) < SHORT_QUOTE_CHARS:  # every window is a full match here (full_only)
+        return _short_ambiguous(order)
     return Location(best[2], best[3], best[4], f"fuzzy:{best[0]:.2f}", 1)
 
 

@@ -23,8 +23,10 @@ review costs; handle trivial work directly. Batch related small items into one c
 - `fx99-vllm` (tag `utility`): Qwen2.5-Coder-7B on FX99, 4,096 ctx. Text-only summaries; it cannot
   produce reliable tool calls.
 - `am4-tool-4070ti` / `am4-tool-5070` (tag `tool-use`): Qwen3-8B-AWQ, one seat per AM4 card, 24,576 /
-  16,384 ctx, the Ti admitting 4 concurrent requests (3 HEARTH leases), the 5070 2, live by default (configuration `day`, AM4 on `tool-pair`; check `ssh 10.44.0.2 ~/bin/am4-profile
-  status`). `submit_local_work` takes `lane="tool"` (`am4-tool-4070ti`) and a `brief` for deliveries. Small OS-local chores on one file (read, grep, summarize with citations) go here through
+  16,384 ctx, the Ti admitting 4 concurrent requests (3 HEARTH leases), the 5070 2, live by default
+  (configuration `day`, AM4 on `tool-pair`; check `ssh 10.44.0.2 ~/bin/am4-profile status`).
+  `submit_local_work` takes `lane="tool"` (`am4-tool-4070ti`) and a `brief` for deliveries. Small
+  OS-local chores on one file (read, grep, summarize with citations) go here through
   `task_family="tool_execution"` or a `deepagents` brief with `backend: am4-tool-4070ti`: 6/6 chores at a
   10 s median where the 27B took 172 s. When the profile is not live the tag resolves to the door default.
 - There is no cloud rung in this pool. A refused local lane is terminal; never substitute cloud.

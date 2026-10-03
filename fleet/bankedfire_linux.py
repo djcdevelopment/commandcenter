@@ -677,12 +677,15 @@ def am4_switch(target: str) -> dict[str, Any]:
     try:
         out = subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=6", AM4_SSH, f"~/bin/am4-profile {target}"],
                              capture_output=True, text=True, timeout=AM4_PROFILE_WAIT_S + 30)
-        res = {"target": target, "rc": out.returncode, "tail": (out.stdout + out.stderr)[-300:]}
-        if out.returncode == 0:
-            res["omen_file"] = write_omen_profile(target)
-        return res
     except (OSError, subprocess.TimeoutExpired) as exc:
         return {"target": target, "rc": None, "error": f"{type(exc).__name__}: {exc}"}
+    res = {"target": target, "rc": out.returncode, "tail": (out.stdout + out.stderr)[-300:]}
+    if out.returncode == 0:   # a failed switch leaves failed:<target> on AM4; only a success is copied to OMEN
+        try:
+            res["omen_file"] = write_omen_profile(target)
+        except (OSError, ValueError) as exc:
+            res["omen_file"] = {"error": f"{type(exc).__name__}: {exc}"}
+    return res
 
 
 KNOWN_AM4_PROFILES = ("tool-pair", "dense-tp2")
@@ -693,7 +696,8 @@ def write_omen_profile(target: str, path: Optional[Path] = None) -> dict[str, An
     path = path or AM4_PROFILE_PATH
     was = path.read_text(encoding="utf-8").strip() if path.is_file() else None
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(target + "\n", encoding="utf-8")
+    tmp = path.with_suffix(".tmp"); tmp.write_text(target + "\n", encoding="utf-8")
+    os.replace(tmp, path)   # the door reads this file on every route; never let it see it half-written
     return {"was": was, "now": target}
 
 
@@ -811,7 +815,10 @@ def tick() -> dict[str, Any]:
         want = am4_profile_wanted(tool_queued, slots, live, tool_ready)
         report["am4_profile"] = {"live": live, "tool_queued": tool_queued, "tool_dispatchable": tool_ready,
                                  "switch": None}
-        fixed = reconcile_omen_profile(live)
+        try:   # a write failure here is reported and must not cost this tick its switch
+            fixed = reconcile_omen_profile(live)
+        except (OSError, ValueError) as exc:   # ValueError: an undecodable file
+            fixed = {"error": f"{type(exc).__name__}: {exc}"}
         if fixed:
             report["am4_profile"]["omen_file"] = fixed
         if want and arm_state.get("armed"):

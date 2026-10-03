@@ -103,7 +103,7 @@ The stored answer is the model's raw one, not the repaired one (row 104). So a r
 
 ### (e) The task text is capped at 4,000 characters
 
-Recorded in the rnd-log row for 13:05 to 13:35Z (and `work_160d61d3`): "the door caps the task text at 4,000 characters (D-115)". The cap limits what a caller can hand to the author as an aid in the intent. In that lap the sizing brief's rule rows could not be handed over for that reason. A fact sheet, the code-written lead sentence and the quote rule all share the same text. The cap was taken from the rnd-log; this document's author did not locate it in the door code.
+The frozen envelope keeps a user-visible intent capped at 4,000 characters (D-115, `hearth/operator/envelope.py`); `submit_local_work` refuses a longer one ("intent is 8171 characters; D-115 caps the frozen envelope's user-visible intent at 4000"). The cap limits what a caller can hand to the author as an aid in the intent. In that lap the sizing brief's rule rows could not be handed over for that reason. A fact sheet, the code-written lead sentence and the quote rule all share the same text.
 
 ### (f) The execution projection and the door's per-call latency
 

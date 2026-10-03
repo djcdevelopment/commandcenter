@@ -23,7 +23,7 @@ First multi-step measurement (`run_multistep.py`: turns notes, verify, draft, cr
 | perception (2 sources) | 27B | notes | 6,455 | 8,000 | length | 27,496 | 0 | 983.7 |
 | sizing | 27B | notes | 24,482 | 8,000 | length | 27,111 | 0 | 978.6 |
 
-On both briefs the 27B spent the whole 8,000 tokens thinking and wrote no answer; the run stopped there (one line in each log). The memory note adds that inside that thinking it had already worked out a point no one-shot run reached: the sizing checks read rung rows from `backends-linux.toml`, not the configurations file. By division the logs give 8,000 tokens in 983.7 s, 8.1 tokens a second; the memory note says about 11 tokens a second per slot; the two were not reconciled.
+On both briefs the 27B spent the whole 8,000 tokens thinking and wrote no answer; the run stopped there (one line in each log). The memory note adds that inside that thinking it had already worked out a point no one-shot run reached: the sizing checks read rung rows from `backends-linux.toml`, not the configurations file. The two figures in the sources measure different things: 8,000 tokens in 983.7 s is 8.1 tokens a second for the whole turn, prefill included; the seat's own counter (`vllm:generation_tokens_total`, sampled over 30 s while both conversations were decoding) gave 22.5 tokens a second across the two slots, about 11 per slot.
 
 The 30B (`omen-vllm`, 40,960 window), same driver and briefs, all five turns:
 
@@ -32,7 +32,7 @@ The 30B (`omen-vllm`, 40,960 window), same driver and briefs, all five turns:
 | perception | 12.2 s | 12.7 s | 10.8 s | 10.8 s | 13.1 s |
 | sizing | 34.4 s | 25.8 s | 16.8 s | 35.0 s | 69.9 s, finish_reason length at 4,096 tokens |
 
-On perception the final answer was produced, and the harness then failed on its own check: the manifest was rejected because the aids `multistep:notes+verify+draft+critique` and `thinking` are not known to the contract. What the 30B got wrong in these runs is not recorded in the memory note or the logs; the run directories hold its turns, which this record did not read.
+On perception the final answer was produced, and the harness then failed on its own check: the manifest was rejected because the aids `multistep:notes+verify+draft+critique` and `thinking` are not known to the contract. Rendered afterwards with `render_final.py`, the 30B's perception report opens "The perception/service.py file exposes five HTTP endpoints" and names five paths; the source serves eight paths, and 19 of its 47 quotes do not resolve. Its sizing answer was cut off at the token limit, so there is no report. Neither was graded by a frontier reader.
 
 Not in this record: a longer multi-step run, one thinking turn of up to 24,000 tokens per brief (`run_multistep.py` step `work`; logs `perception.omen-dense.work24k.log` and `sizing.omen-dense.work24k.log`), was in progress when this was written. Both log files were empty at that time. Its result is not here.
 
@@ -44,7 +44,7 @@ Not in this record: a longer multi-step run, one thinking turn of up to 24,000 t
 
 ## Open questions (listed, not answered)
 
-- The 128K window. The sizing map (`docs/sizing-map.md`, line 84) states: "seat 0: window 65,536 · KV 76–99K tok" and lines 15 to 16 that seat 0 came up with 99,048 KV tokens and, on the same drop-ins, 76,706 after the next restart. The memory note: a 128K window does not fit one B70 as configured. The sizing map names the seat `:18091`; this record did not check that it is the seat behind `omen-dense-27b`.
+- The 128K window. The sizing map (`docs/sizing-map.md`, line 84) states: "seat 0: window 65,536 · KV 76–99K tok" and lines 15 to 16 that seat 0 came up with 99,048 KV tokens and, on the same drop-ins, 76,706 after the next restart. The memory note: a 128K window does not fit one B70 as configured. Seat 0 on `:18091` is the seat behind `omen-dense-27b` (`~/bin/omen-profile status`: "seat 0 (port 18091, omen-vllm@0.service active -> omen-dense-27b:18095)").
 - Prefill time on the B70s with a long context, and MemSplice (prefill on the AM4 CUDA cards, splice the KV to the Arc cards, per the memory note). Prefill time was not measured in these runs.
 - A second 27B seat. Branch `wp/two-dense` stages an OMEN profile with the 27B on both B70s (commit `2eea959`, runbook `docs/runbooks/two-dense-window.md` in that branch); it is staged, not applied (rows 106, 110). A switch needs the router restarted and takes the 30B lane away for the window. The door's coverage check for a 27B author would still pick `am4-vllm` (row 110).
 - What the turn budget and window should be for a thinking turn; the in-progress 24,000-token run is meant to inform this and has no result yet.

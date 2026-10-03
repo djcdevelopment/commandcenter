@@ -32,7 +32,7 @@ What must exist at the door for item runs to leave capability records (from the 
 
 - An item operation: a list of items with their lines, a batch size, typed fields per item kind, a reader seat, the agreement rule and the 27B gate, assembly by code. Row 96: itemized caller-side runs are not records until the path is a door operation.
 - A way to name the fact sheet in the manifest. It rides in the task text, so `aids_used` does not name it (rows 94, 107; rnd-log 13:05 row).
-- Room for aids in the request. The door caps the task text at 4,000 characters (rnd-log, D-115); the sizing rule rows could not be handed over for that reason.
+- Room for aids in the request. The door caps the task text at 4,000 characters (D-115, `hearth/operator/envelope.py`: an intent of 8,171 characters was refused); the sizing rule rows could not be handed over for that reason.
 - Seats that can take the calls. FX99 refuses schema calls (`fx99-vllm` does not declare `structured_outputs`, row 87), and whole files do not fit the 5070's 16K (door refusal on a 57,344-byte budget, `RESULT.md`).
 - Door capacity: at the time of the item runs the door's per-call cost capped small calls; see ADR-0057.
 

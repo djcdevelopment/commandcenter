@@ -651,9 +651,10 @@ def reconcile_slots(arm_path: Path) -> list[dict[str, Any]]:
 # --- AM4 profile follows the queue (T4, 2026-09-28) --------------------------------------------
 # The tool-pair seats exist only while AM4 serves that profile, and the dense 27B only while it
 # serves the other one. The tick switches AM4 to tool-pair when tool-lane briefs are queued and
-# nothing else drain-owned is in flight on AM4, and back to dense-tp2 once the tool queue and the
-# tool slots are empty. Both switches go through am4-profile over the direct cable and are recorded
-# in the tick report; a failed switch leaves the profile file saying failed:<target>.
+# nothing else drain-owned is in flight on AM4; it never switches back (tool-pair is the resting
+# profile; dense-tp2 is the MemSplice research shape, entered by hand). The switch goes through
+# am4-profile over the direct cable and is recorded in the tick report; a failed switch leaves the
+# profile file saying failed:<target>.
 AM4_SSH = "10.44.0.2"
 AM4_PROFILE_WAIT_S = 240
 
@@ -678,14 +679,13 @@ def am4_profile_wanted(tool_queued: int, slots: list[dict[str, Any]], live: Opti
 
     ``tool_dispatchable`` (tool briefs this tick's walk would actually dispatch, see
     count_tool_dispatchable) gates the switch TO tool-pair; None means "every queued one".
-    The switch BACK still keys on ``tool_queued``: a tool brief that is waiting this tick
-    (an experiment ahead of it, say) must not bounce the profile to dense-tp2 and back."""
+    There is no switch back: tool-pair is AM4's resting profile (lab configuration ``day``,
+    2026-10-03). The tick used to return it to dense-tp2 once the tool queue emptied, which pulled
+    the tool seats out from under a caller 9 minutes after they came up (2026-10-03T05:32Z)."""
     tool_in_flight = any(r.get("lane") == "tool" for r in slots)
     ready = tool_queued if tool_dispatchable is None else tool_dispatchable
     if ready and live == "dense-tp2" and not tool_in_flight:
         return "tool-pair"
-    if not tool_queued and not tool_in_flight and live == "tool-pair":
-        return "dense-tp2"
     return None
 
 

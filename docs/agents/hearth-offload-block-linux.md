@@ -45,6 +45,7 @@ review costs; handle trivial work directly. Batch related small items into one c
   under `~/work` reach other repositories. Never include tokens, keys, or credential-file contents.
 - The offloaded model cannot run tools or see the conversation. Supply a standalone brief with the
   task, constraints, output format, and acceptance criteria.
+- Lab intent: substantive briefs to deep seats pass `files=["/home/derek/work/lab/LAB-INTENT.md"]`; seats at or under 16K context get `/home/derek/work/lab/LAB-INTENT.capsule.txt` inline; `submit_local_work` intent and build-request titles start with `[goal:G-...]`; `ct work open` takes `--goal`.
 
 **Bounded code work → `local-work` (skill `/local-work`, ADR-0048):**
 

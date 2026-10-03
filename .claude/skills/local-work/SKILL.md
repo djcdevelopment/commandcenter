@@ -12,6 +12,9 @@ HEARTH.
 1. Pin the repository commit and name only the files the model needs. State
    concrete acceptance criteria. For substantial work, create or reuse a build
    receipt and pass its ID.
+   The first line of `intent` is `[goal:G-...] ` followed by the capsule's objective line
+   (`/home/derek/work/lab/LAB-INTENT.capsule.txt`). Open the ct work item with `--goal G-...`.
+   The capsule travels inline because local-work freezes one repository's paths.
 2. Call `submit_local_work`. Prefer `lane="auto"`; use an explicit lane only
    when the caller has a reason. A refused local lane is terminal: never replace
    it with cloud inference.

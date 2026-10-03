@@ -185,6 +185,11 @@ session resolved (with a link to where it was decided). This is the single place
 Derek looks when batching decisions in a downtime window. Bounded: touch only
 lines this session created or resolved — no register-wide rewrites.
 
+### 2f. Lab intent
+Did this session change the focus, an outcome's status, or contradict a constraint? Edit `intent.yaml`
+(`/home/derek/work/lab/intent.yaml`: bump `revision`, add a `revisions[]` row) or bump `last_reviewed`; run
+`lab-intent check`; if the revision bumped, run or schedule the probe.
+
 ## Phase 3 — Ledger & report (HEARTH)
 
 - `mcp__hearth__record_event` a compact observation (the retro is itself a

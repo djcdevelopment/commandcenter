@@ -5,7 +5,7 @@
 
 Finding: ``{kind, claim_id, detail, severity}``; the rung fails on any ``fail``. Kinds: ``quote_unresolved`` (fail, read
 from the manifest, never re-located), ``form_limit`` (fail, words under enforce fail), ``arithmetic_mismatch`` (fail),
-``number_not_in_quote`` (warn), ``number_check_skipped`` (info, legacy without source text).
+``stated_total`` (fail), ``number_not_in_quote`` (warn), ``number_check_skipped`` (info, legacy without source text).
 Arithmetic: every ``a = b`` of an ``=`` chain in prose where a side carries an operator (``+ - − × x * / · ÷``,
 parentheses, thousands separators, one unit word such as ``tokens``), recomputed by an evaluator that accepts number
 literals and + - * / only. False mismatches fail the rung, so anything ambiguous is skipped: ranges and dates (``9-21``),
@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import ast
 import html
+import json
 import operator
 import re
 from typing import Any, Mapping, Optional
@@ -164,9 +165,81 @@ def _quote_numbers(text: str) -> set:
     return have | {float(x) for x in re.findall(r"\d+", t)}
 
 
+_WORDS = "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty".split()
+# A count, a short plural noun phrase, then ':' / 'namely' / 'which are' and a list to the end of the sentence.
+_TOTAL_RE = re.compile(rf"\b(\d{{1,2}}|{'|'.join(_WORDS)})\s+(?:[\w/-]+\s+){{0,3}}[\w/-]+s\b(?:\s*\([^()]*\))?(?:\s*:|,?\s+namely\b:?|,?\s+which are\b:?)\s+([^\n;:]+)", re.I)
+_SENT_END = re.compile(r"\.(?=\s+[A-Z]|\s*$)")
+
+
+_COUNT2_RE = re.compile(rf"\b(\d{{1,2}}|{'|'.join(_WORDS)})\s+(?:[\w/-]+\s+){{0,3}}([\w-]+s)\.(?=\s)", re.I)
+_SPLIT_SENT = re.compile(r"(?<=\.)\s+(?=[A-Z])")
+
+
+def _split_items(lst: str) -> list:
+    """Top-level comma split (not inside () [] backticks or quotes)."""
+    out, cur, depth, q = [], "", 0, None
+    for ch in lst:
+        if q:
+            q = None if ch == q else q
+        elif ch in "`\"":
+            q = ch
+        elif ch in "([":
+            depth += 1
+        elif ch in ")]":
+            depth = max(0, depth - 1)
+        elif ch == "," and not depth:
+            out.append(cur)
+            cur = ""
+            continue
+        cur += ch
+    return out + [cur]
+
+
+def _totals(text: str) -> list:
+    """(stated, listed, sentence) where a count governs a colon-introduced full list that has another length."""
+    t, fs = html.unescape(text).replace("**", ""), []
+    for m in _TOTAL_RE.finditer(t):
+        lst = _SENT_END.split(m.group(2), 1)[0].strip().rstrip(".")
+        if lst.count("`") % 2 or lst.count('"') % 2:
+            continue
+        items = [x.strip() for x in _split_items(lst)]
+        if len(items) > 1:
+            if len(items) < 3 or not re.match(r"(?:and|or)\s+\S", items[-1], re.I):
+                continue
+            items[-1] = re.sub(r"^(?:and|or)\s+", "", items[-1], flags=re.I)
+            if any(re.search(r"\s(?:and|or)\s", re.sub(r"\([^)]*\)|`[^`]*`", "", x)) for x in items):
+                continue
+        else:
+            items = [x.strip() for x in re.split(r"\s+(?:and|or)\s+", re.sub(r"\([^)]*\)|`[^`]*`", lambda g: g.group(0).replace(" ", "\0"), lst))]
+            if len(items) != 2:
+                continue
+            items = [x.replace("\0", " ") for x in items]
+        if any(not x or len(x.split()) > 8 for x in items):
+            continue
+        stated = int(m.group(1)) if m.group(1).isdigit() else _WORDS.index(m.group(1).lower()) + 1
+        if stated != len(items):
+            start = t.rfind(". ", 0, m.start()) + 2 if ". " in t[:m.start()] else 0
+            fs.append((stated, len(items), t[start:m.start(2) + len(lst)].strip()))
+    for m in _COUNT2_RE.finditer(t):  # "six endpoints. The GET endpoints /a, /b, and /c ... The POST endpoints /d, /e, and /f ..."
+        rest, lists = _SPLIT_SENT.split(t[m.end():].strip()), []
+        for sent in rest:
+            g = re.match(rf"The (?:[\w-]+ ){{0,2}}{m.group(2)} ((?:[/\w.-]+, )+)(?:and|or) ([/\w.-]+)", sent)
+            if not g:
+                break
+            lists.append(g.group(1).count(",") + 1)
+        if len(lists) >= 2:
+            stated = int(m.group(1)) if m.group(1).isdigit() else _WORDS.index(m.group(1).lower()) + 1
+            if stated != sum(lists):
+                fs.append((stated, sum(lists), t[max(t.rfind(". ", 0, m.start()) + 2, 0) if ". " in t[:m.start()] else 0:m.end()].strip() + " " + " ".join(rest[:len(lists)])))
+    return fs
+
+
 def _para_findings(cid: str, text: str, evidence: Optional[str]) -> list:
     fs = [{"kind": "arithmetic_mismatch", "claim_id": cid, "severity": "fail",
            "detail": f"{expr} = {stated} stated; recomputed {_fmt(val, dec)}{'%' if stated.endswith('%') else ''}"} for expr, stated, val, dec in _arithmetic(text)]
+    fs += [{"kind": "stated_total", "claim_id": cid, "severity": "fail",
+            "detail": f"the sentence {json.dumps(sent)} says {n} but lists {k}; count the listed items and state the number that matches, or do not state a total"}
+           for n, k, sent in _totals(text)]
     if evidence is not None:
         have = _quote_numbers(evidence)
         seen = set()

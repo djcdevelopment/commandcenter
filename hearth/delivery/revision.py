@@ -18,6 +18,10 @@ def prose(output):
         for j, p in enumerate(s["paragraphs"])}}
 
 
+def same_headings(original, revised):
+    return [s["heading"] for s in original["sections"]] == [s["heading"] for s in revised["sections"]]
+
+
 def same_prose(original, revised):
     """A quote-only repair cannot delete claims when all prose and its heading context are identical."""
     def text_tree(output):
@@ -69,6 +73,8 @@ def prompt(original, revised, brief, source):
 
 def assess(raw, original, revised, sm):
     """Strictly validate judge rows and their evidence; never repair or infer omitted rows."""
+    if not same_headings(original, revised):
+        raise ValueError("revision changed section headings; heading claims are not covered by the prose audit")
     doc = json.loads(raw)
     if not isinstance(doc, dict) or set(doc) != {"coverage", "criteria_preserved"}:
         raise ValueError("coverage judgment has invalid keys")

@@ -927,6 +927,8 @@ class LocalWorkService:
             original = self._revision_output(manifest, "original")
             if output != self._revision_output(manifest, "revised"):
                 raise LocalWorkError("revised output differs from saved revision")
+            if not revision_coverage.same_headings(original, output):
+                raise LocalWorkError("revision changed section headings; original retained to preserve heading claims")
             if not revision_coverage.same_prose(original, output):
                 return self._dispatch_coverage(manifest, job, output, after, reason)
         except Exception as exc:

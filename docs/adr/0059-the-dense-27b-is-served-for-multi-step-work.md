@@ -1,6 +1,6 @@
 # 0059 — The dense 27B is served for multi-step work: thinking on, several turns in one long context; small-grain work goes to the lighter seats
 
-**Status:** Proposed (2026-10-03, omen-linux). This one records Derek's direction; the measurement behind it is a first sample, and a longer run was in progress when this was written (see Context).
+**Status:** Proposed (2026-10-03, omen-linux). This one records Derek's direction; the measurements behind it are one sample per brief (see Context). Item 2 of the decision is being built under dev as the operation `inference.deliberate` (plan approved by Derek 2026-10-03; brief `~/work/delivery-plan/laps/16-thinking-path.md`); acceptance of this record stays Derek's.
 
 **Companion to:** ADR-0039 (depth specialists earn pin-only rungs), ADR-0054 (delivery), ADR-0058 (work is routed by grain), `am4-role-intent` (MemSplice). Evidence: `~/work/delivery-plan/evidence/multistep/`.
 
@@ -34,7 +34,14 @@ The 30B (`omen-vllm`, 40,960 window), same driver and briefs, all five turns:
 
 On perception the final answer was produced, and the harness then failed on its own check: the manifest was rejected because the aids `multistep:notes+verify+draft+critique` and `thinking` are not known to the contract. Rendered afterwards with `render_final.py`, the 30B's perception report opens "The perception/service.py file exposes five HTTP endpoints" and names five paths; the source serves eight paths, and 19 of its 47 quotes do not resolve. Its sizing answer was cut off at the token limit, so there is no report. Neither was graded by a frontier reader.
 
-Not in this record: a longer multi-step run, one thinking turn of up to 24,000 tokens per brief (`run_multistep.py` step `work`; logs `perception.omen-dense.work24k.log` and `sizing.omen-dense.work24k.log`), was in progress when this was written. Both log files were empty at that time. Its result is not here.
+Added 2026-10-03 15:45Z, the longer run (`work24k`: one thinking turn of up to 24,000 tokens per brief, then a thinking-off delivery turn; `run_multistep.py` step `work`; result `~/work/delivery-plan/evidence/multistep/RESULT.md`, grades `GRADE-perception-work24k.md` and `GRADE-sizing-work24k.md`, one Opus grader each):
+
+| brief | working turn | delivery turn | grade |
+|---|---|---|---|
+| perception | 14,384 tokens, 1,374 s | 493 s | accept with gaps: all three criteria met, no false statement; 53 of 56 quotes resolve |
+| sizing | 16,005 tokens, 1,557 s | 392 s | accept with gaps: values and transitions met, comparison partly; 16 of 21 quotes resolve |
+
+No fact sheet, no code-written sentence and no report rules were supplied; the driver's working instruction does say to trace any comparison through the code and to note what the code does not do. The sizing working draft made the comparison no one-call report made ("the active-configuration invariants use only status strings from the TOML, not its declared sizing values"); the delivery turn, which runs with thinking off, dropped it and restated the criterion. One sample per brief at temperature 0.6, two conversations sharing the card, the seat called directly outside the door's ledger: workload evidence, not a controlled timing baseline (`~/work/lab-rnd/research/evidence/qwen38-levers-20261003/RESULT.md` says the same and prepares that baseline as packet E0).
 
 ## Decision (proposed)
 

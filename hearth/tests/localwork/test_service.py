@@ -322,16 +322,92 @@ class LocalWorkServiceTests(unittest.TestCase):
             {"heading": "Lines", "paragraphs": [{"text": "The file ends with two.", "quotes": ["three"]}]}]})
         second = json.dumps({"summary": "The second line.", "sections": [
             {"heading": "Lines", "paragraphs": [{"text": "The file ends with two.", "quotes": ["two"]}]}]})
-        self.outputs[:] = [(first, {"structured_output_repairs": ["control_char_in_string"]}), second]
-        manifest = self.submit(artifact_kind="markdown", brief=brief, max_tokens=None, revise=True,
-                               idempotency_key="revise-repairs")
-        final = self.settle(manifest["work_id"])
+        coverage = self.coverage_answer(json.loads(first))
+        self.outputs[:] = [(first, {"structured_output_repairs": ["control_char_in_string"]}), second,
+                           (json.dumps(coverage), {"backend": "omen-dense-27b", "model": "test-27b"})]
+        with mock.patch.dict(os.environ, {"HEARTH_BACKENDS": self.coverage_pool()}):
+            manifest = self.submit(artifact_kind="markdown", brief=brief, max_tokens=None, revise=True,
+                                   idempotency_key="revise-repairs")
+            final = self.settle(manifest["work_id"])
         self.assertEqual(final["status"], "awaiting_review", final.get("failure"))
         self.assertEqual(final["revision"]["kept"], "revised", final["revision"])
         self.assertNotIn("structured_output_repairs", final["route"])
         self.assertEqual(final["attempts"][0]["structured_output_repairs"], ["control_char_in_string"])
         self.assertNotIn("structured_output_repairs", final["attempts"][1])
-        self.assertIn("three", self.generate_calls[-1]["prompt"].split("OBJECTIONS:", 1)[1])
+        self.assertIn("three", self.generate_calls[-2]["prompt"].split("OBJECTIONS:", 1)[1])
+        self.assertEqual(final["revision"]["coverage"]["state"], "pass")
+        self.assertEqual(self.generate_calls[-1]["temperature"], 0)
+        self.assertEqual(len(self.generate_calls), 3)
+
+    def coverage_pool(self):
+        config = Path(__file__).resolve().parents[2] / "etc" / "backends.toml"
+        target = self.root / "coverage-backends.toml"
+        target.write_text(config.read_text() + '''
+[[backend]]
+name = "omen-dense-27b"
+api = "openai"
+endpoint = "http://127.0.0.1:1"
+models = ["test-27b"]
+[backend.settings]
+context_tokens = 65536
+context_bytes = 229376
+max_tokens = 8192
+parallel_slots = 2
+''')
+        return str(target)
+
+    @staticmethod
+    def coverage_answer(output):
+        from hearth.delivery.revision import prose
+        return {"criteria_preserved": True, "coverage": [
+            {"claim_id": cid, "status": "retained", "p": 1,
+             "revised_evidence": text, "source_quotes": [], "reason": "Every assertion is retained."}
+            for cid, text in prose(output).items()]}
+
+    def test_coverage_omission_or_wrong_backend_keeps_original(self):
+        brief = {"schema": "brief.v2", "substance": [{"id": "s1", "statement": "Describe the file."}]}
+        first = {"summary": "It ends with two.", "sections": [{"heading": "Lines", "paragraphs": [
+            {"text": "The first line is one and the last is two.", "quotes": ["three"]}]}]}
+        revised = {"summary": "It ends with two.", "sections": [{"heading": "Lines", "paragraphs": [
+            {"text": "The last line is two.", "quotes": ["two"]}]}]}
+        for variant in ("dropped", "omitted", "wrong_backend", "low_confidence"):
+            with self.subTest(variant=variant):
+                coverage = self.coverage_answer(first)
+                coverage["coverage"][1].update(status="missing", revised_evidence="The last line is two.",
+                                               reason="The correct first-line fact was silently deleted.")
+                if variant == "omitted":
+                    coverage["coverage"].pop()
+                if variant == "low_confidence":
+                    coverage["coverage"][1].update(status="retained", p=.5)
+                backend = "omen-vllm" if variant == "wrong_backend" else "omen-dense-27b"
+                self.outputs[:] = [json.dumps(first), json.dumps(revised),
+                                   (json.dumps(coverage), {"backend": backend, "model": "test-27b"})]
+                with mock.patch.dict(os.environ, {"HEARTH_BACKENDS": self.coverage_pool()}):
+                    manifest = self.submit(artifact_kind="markdown", brief=brief, max_tokens=None, revise=True)
+                    final = self.settle(manifest["work_id"])
+                self.assertEqual(final["status"], "awaiting_review", final)
+                self.assertEqual(final["revision"]["kept"], "original", final["revision"])
+                self.assertNotEqual(final["revision"]["coverage"]["state"], "pass")
+
+    def test_revision_rejects_new_failure_even_when_kind_already_existed(self):
+        before = {"unsupported": 2, "rung0_failures": ["arithmetic_mismatch"], "rung0_findings": ["old"]}
+        after = {"unsupported": 1, "rung0_failures": ["arithmetic_mismatch"], "rung0_findings": ["new"]}
+        self.assertIsNone(self.service._better(before, after))
+        after["rung0_findings"] = []
+        self.assertIsNotNone(self.service._better(before, after))
+        after["unsupported"] = 2
+        self.assertIsNone(self.service._better(before, after))
+
+    def test_delivery_budget_from_brief_and_explicit_override(self):
+        brief = {"schema": "brief.v2", "substance": [{"id": "s1", "statement": "Describe the file."}],
+                 "generation": {"max_tokens": 6000}}
+        answer = {"summary": "The file.", "sections": []}
+        for explicit, expected in ((None, 6000), (4096, 4096)):
+            self.outputs[:] = [json.dumps(answer)]
+            final = self.settle(self.submit(artifact_kind="markdown", brief=brief,
+                                           max_tokens=explicit)["work_id"])
+            self.assertEqual(final["prompt"]["output_reserve_tokens"], expected)
+            self.assertEqual(self.generate_calls[-1]["max_tokens"], expected)
 
 
 if __name__ == "__main__":

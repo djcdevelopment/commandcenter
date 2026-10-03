@@ -21,7 +21,7 @@ import uuid
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping, Optional
 
-from hearth.delivery import contract, render as delivery_render, sourcemap
+from hearth.delivery import contract, render as delivery_render, revision as revision_coverage, sourcemap
 from hearth.delivery.verify import verify as verify_delivery
 from fleet import environment
 from hearth.execution import ExecutionService
@@ -245,6 +245,8 @@ class LocalWorkService:
     def _delivery_max_tokens(brief: Mapping[str, Any]) -> int:
         """1.75 tokens per word of the cap, plus 1,536 for quotes and JSON overhead; 8,192 with no cap;
         floor 2,048; never above the work.produce ceiling (the context check below still applies)."""
+        if brief.get("generation", {}).get("max_tokens") is not None:
+            return brief["generation"]["max_tokens"]
         words = contract.form_defaults(brief).get("words")
         want = int(1.75 * words["max"]) + 1536 if words else 8192
         return min(max(want, 2048), DELIVERY_TOKEN_CEILING)
@@ -772,9 +774,13 @@ class LocalWorkService:
     def _measure(delivery: Mapping[str, Any], failures: list) -> dict[str, Any]:
         return {"unsupported": len(delivery["unsupported"]),
                 "deterministic": delivery["verification"]["deterministic"]["state"],
-                "rung0_failures": sorted({f["kind"] for f in failures})}
+                "rung0_failures": sorted({f["kind"] for f in failures}),
+                "rung0_findings": sorted(json.dumps(f, sort_keys=True) for f in failures)}
 
     def _keep_original(self, manifest: dict[str, Any], reason: str, after: dict[str, Any] | None = None) -> None:
+        coverage = manifest["revision"].get("coverage")
+        if coverage and coverage.get("state") == "pending":
+            coverage.update(state="unverified", reason=reason)
         manifest["revision"].update(kept="original", reason=reason, after=after)
         if len(manifest["attempts"]) > 1:
             self._event(manifest, "attempt.recorded", {"job_id": manifest["attempts"][1]["job_id"], "ok": False,
@@ -783,15 +789,102 @@ class LocalWorkService:
 
     @staticmethod
     def _better(before: Mapping[str, Any], after: Mapping[str, Any]) -> str | None:
-        """-> the reason the revised answer is kept, or None. Fewer unsupported quotes wins; ties keep the original,
-        unless the first answer failed rung 0 for another reason that the revision no longer fails for."""
+        """Mechanical eligibility only. Coverage must also pass before the revised answer is kept."""
+        if set(after["rung0_failures"]) - set(before["rung0_failures"]):
+            return None
+        if set(after.get("rung0_findings", [])) - set(before.get("rung0_findings", [])):
+            return None
         if after["unsupported"] < before["unsupported"]:
             return f"unsupported quotes {before['unsupported']} -> {after['unsupported']}"
-        fixed = before["rung0_failures"] and not set(before["rung0_failures"]) & set(after["rung0_failures"])
-        if after["unsupported"] <= before["unsupported"] and fixed:
-            return (f"rung 0 no longer fails for {', '.join(before['rung0_failures'])}; "
-                    f"unsupported quotes {before['unsupported']} -> {after['unsupported']}")
         return None
+
+    def _dispatch_coverage(self, manifest: dict[str, Any], job: Mapping[str, Any], output: dict,
+                           after: dict, reason: str) -> None:
+        """Separate execution job: never hold the reconciliation lock while a judge runs."""
+        rev, work_id = manifest["revision"], str(manifest["work_id"])
+        original = self._revision_output(manifest, "original")
+        if output != self._revision_output(manifest, "revised"):
+            raise LocalWorkError("revised output differs from saved revision")
+        author = str(manifest["route"]["provider"])
+        backend = "am4-vllm" if author == "omen-dense-27b" else "omen-dense-27b"
+        provider = load_pool().by_name(backend)
+        if provider is None or provider.retired or not provider.models:
+            raise LocalWorkError(f"coverage judge unavailable: {backend}")
+        sm = sourcemap.build(manifest["repo"], manifest["base_commit"], list(manifest["declared_paths"]))
+        prompt = revision_coverage.prompt(original, output, manifest["brief"],
+                                          sourcemap.render_for_model(sm, numbered=True, symbols=False))
+        tokens = self.token_counter(provider, provider.models[0], prompt)
+        reserve = min(8192, max(2048, 256 * len(revision_coverage.prose(original))))
+        context = int(provider.settings.get("context_tokens") or 0)
+        if not context or tokens + reserve > context:
+            raise LocalWorkError(f"coverage judge context refusal: {tokens} input + {reserve} output > {context}")
+        state = self.execution.submit(
+            operation_name="inference.generate",
+            arguments={"prompt": prompt, "backend": backend, "model": provider.models[0],
+                       "temperature": 0.0, "response_schema": revision_coverage.schema(original)},
+            principal=job["principal"], source=job["source"],
+            policy={"max_tokens": reserve, "deadline_s": 600},
+            idempotency_key=f"{work_id}:revision-coverage")
+        recorded = self.execution.get_job(state["job_id"])
+        args = (recorded or {}).get("desired", {}).get("arguments", {})
+        actual_prompt = self.execution.artifacts.read(recorded["desired"]["input_artifact"]) if recorded else b""
+        if (_digest(actual_prompt) != _digest(prompt) or args.get("backend") != backend
+                or args.get("model") != provider.models[0]
+                or args.get("response_schema") != revision_coverage.schema(original)
+                or args.get("temperature") != 0):
+            raise LocalWorkError("coverage idempotency collision: recorded request differs")
+        rev.update(after=after, reason=reason)
+        rev["coverage"] = {"state": "pending", "backend": backend, "model": provider.models[0], "author_backend": author,
+                           "job_id": state["job_id"], "author_job_id": job["job_id"],
+                           "prompt_sha256": _digest(prompt), "input_tokens": tokens,
+                           "output_reserve_tokens": reserve}
+        manifest.update(job_id=state["job_id"], request_id=state["request_id"], status="queued")
+        self._event(manifest, "step.dispatched", {"job_id": state["job_id"], "revision_coverage": True,
+                    "provider": backend})
+        self._spawn_auto_reconcile(work_id, state["job_id"])
+
+    def _revision_output(self, manifest: Mapping[str, Any], version: str) -> dict:
+        ref = manifest["revision"]["files"][version]["output"]
+        raw = (self._run_dir(str(manifest["work_id"])) / ref["file"]).read_bytes()
+        if _digest(raw) != ref["sha256"]:
+            raise LocalWorkError(f"{version} revision output digest mismatch")
+        return json.loads(raw)
+
+    def _reconcile_coverage(self, manifest: dict[str, Any], job: Mapping[str, Any]) -> None:
+        rev, work_id = manifest["revision"], str(manifest["work_id"])
+        coverage, run_dir = rev["coverage"], self._run_dir(work_id)
+        try:
+            _, raw = self._result(job)
+            filename = "revision-coverage.json"
+            (run_dir / filename).write_bytes(raw)
+            coverage["artifact"] = {"file": filename, "sha256": _digest(raw), "size": len(raw)}
+            observed = (job.get("invocations") or [{}])[-1]
+            coverage["observed"] = {k: observed.get(k) for k in
+                                    ("backend", "model", "temperature", "tokens_in", "tokens_out", "duration_ms")}
+            if observed.get("backend") != coverage["backend"] or observed.get("model") != coverage["model"]:
+                raise LocalWorkError("coverage judge ran on a different backend or model")
+            original = self._revision_output(manifest, "original")
+            revised = self._revision_output(manifest, "revised")
+            sm = sourcemap.build(manifest["repo"], manifest["base_commit"], list(manifest["declared_paths"]))
+            assessment = revision_coverage.assess(raw, original, revised, sm)
+            coverage.update(assessment)
+            if assessment["state"] != "pass":
+                return self._keep_original(manifest, "revision coverage failed: " + "; ".join(assessment["reasons"]),
+                                           rev["after"])
+            author_job = self.execution.get_job(coverage["author_job_id"])
+            if author_job is None:
+                raise LocalWorkError("revised author job missing after coverage judgment")
+            metadata, answer = self._result(author_job)
+            if _digest(answer) != rev["files"]["revised"]["output"]["sha256"]:
+                raise LocalWorkError("revised answer changed during coverage judgment")
+            rendered = self._render_answer(manifest, author_job, answer)
+        except Exception as exc:
+            coverage.update(state="unverified", reason=f"{type(exc).__name__}: {exc}")
+            return self._keep_original(manifest, f"revision coverage unavailable: {type(exc).__name__}: {exc}",
+                                       rev.get("after"))
+        self._adopt_delivery(manifest, author_job, metadata, answer, rendered)
+        rev.update(kept="revised", reason=rev["reason"] + "; non-author 27B coverage passed")
+        self._finish_delivery(manifest, str(author_job["job_id"]))
 
     def _reconcile_revision(self, manifest: dict[str, Any], job: Mapping[str, Any]) -> None:
         """The second answer: kept only when it validates and is better (_better); otherwise the original stands
@@ -823,9 +916,11 @@ class LocalWorkService:
                 manifest, f"revised answer is not better: unsupported quotes {before['unsupported']} -> "
                           f"{after['unsupported']}, rung 0 failures {before['rung0_failures']} -> "
                           f"{after['rung0_failures']}", after)
-        self._adopt_delivery(manifest, job, metadata, raw, rendered)
-        manifest["revision"].update(kept="revised", after=after, reason=reason)
-        self._finish_delivery(manifest, str(job["job_id"]))
+        try:
+            self._dispatch_coverage(manifest, job, output, after, reason)
+        except Exception as exc:
+            manifest["revision"]["coverage"] = {"state": "unverified", "reason": f"{type(exc).__name__}: {exc}"}
+            self._keep_original(manifest, f"revision coverage not dispatched: {type(exc).__name__}: {exc}", after)
 
     def _reconcile_delivery(self, manifest: dict[str, Any], job: Mapping[str, Any],
                             metadata: Mapping[str, Any], raw: bytes) -> None:
@@ -887,6 +982,8 @@ class LocalWorkService:
                 manifest["status"] = "running" if job["status"] in {"dispatched", "running"} else "queued"
             elif job["status"] != "succeeded" and self._revision_pending(manifest):
                 self._keep_original(manifest, f"revision job {job['status']}: {job.get('reason') or 'no reason given'}")
+            elif self._revision_pending(manifest) and (manifest["revision"].get("coverage") or {}).get("state") == "pending":
+                self._reconcile_coverage(manifest, job)
             elif self._revision_pending(manifest):
                 self._reconcile_revision(manifest, job)
             elif job["status"] != "succeeded":

@@ -15,20 +15,22 @@ Public API
     Deterministic, byte-identical across runs (no timestamps, no run-dependent values) so
     the 27B's prefix cache can reuse it. Raises ``PacketTooLarge`` past 1 MiB rendered.
 ``locate(sm, quote, threshold=FUZZY_THRESHOLD, hint=None) -> Location``
-    ``Location`` is a NamedTuple ``(path, start, end, match, occurrences)``. Unpack all
-    five, or use ``loc.as_range()`` for the old 4-tuple ``(path, start, end, match)``.
+    ``Location`` carries ``path, start, end, match, occurrences, truncated, candidate``.
+    Use named fields or ``loc.as_range()`` for ``(path, start, end, match)``.
     ``loc.ref`` is ``"path:start-end"`` (``"path:N"`` for one line; ``""`` when missing).
 
-Match vocabulary (``Location.match``)
+Match vocabulary (including historical manifests and candidate matches)
 -------------------------------------
 ``exact``          the quote is a substring of the file text (CRLF folded to LF). Not a repair.
 ``normalized``     equal after collapsing whitespace runs to one space and folding typographic
                    quotes (U+201C/U+201D to ``"``, U+2018/U+2019 to ``'``). A repair.
-``fuzzy:<score>``  best line window scores >= threshold (0..1, two decimals). A repair.
-                   An elided quote (``...`` or U+2026) is matched only as elided, see below.
-``missing``        nothing acceptable; ``path == ""``, ``start == end == 0``; ``occurrences`` is N > 1 only
+``fuzzy:<score>``  candidate similarity (0..1, two decimals), not a resolved match.
+                   An elided quote (``...`` or U+2026) is searched only as elided, see below.
+``missing``        no exact/normalized evidence; optional candidate stores an unresolved suggestion.
+                   ``path == ""``, ``start == end == 0``; ``occurrences`` is N > 1 only
                    for a short ambiguous quote (below).
-Normalized and fuzzy matches are repairs: the caller (the renderer) counts and records them.
+Normalized matches are repairs. Fuzzy/elided suggestions now return missing with candidate metadata;
+their source range is never resolved evidence, regardless of score.
 
 Fuzzy rules (a wrong number is a wrong claim)
 - Quotes shorter than ``SHORT_QUOTE_CHARS`` (24, after whitespace normalization) get exact
@@ -57,7 +59,7 @@ Elided quotes (a quote that is not an exact hit and contains ``...`` or U+2026)
   first segment matches by its longest leading part, middle segments in full and in order,
   the last by its longest trailing part, all as one window inside the smallest symbol that
   holds the first hit (no symbol: up to the next symbol's start). Score = matched characters
-  over the non-elided characters; reported ``fuzzy:<score>`` (never ``exact``, even at 1.00)
+  over the non-elided characters; retained as candidate ``fuzzy:<score>`` (claim remains ``missing``, even at 1.00)
   and only at or above the threshold. A quote whose non-elided text is under
   ``SHORT_QUOTE_CHARS`` must match every segment in full. The number rule applies to the
   window. An elided quote never falls through to line-window fuzzy: no window is ``missing``.
@@ -147,6 +149,8 @@ class Location(NamedTuple):
     occurrences: int    # exact/normalized hits across the map; fuzzy 1; missing 0
     truncated: bool = False  # normalized: the quote is the beginning of the cited line (a repair of its own)
 
+    candidate: Optional[dict] = None  # unresolved suggestion; never a resolved range
+
     def as_range(self) -> tuple:
         return (self.path, self.start, self.end, self.match)
 
@@ -162,6 +166,16 @@ class Location(NamedTuple):
 
 
 _MISSING = Location("", 0, 0, "missing", 0)
+
+
+def _candidate(sm: SourceMap, loc: Location, reason: str) -> Location:
+    if loc.match == "missing":
+        return loc
+    fm = sm.get(loc.path)
+    return Location("", 0, 0, "missing", 0, candidate={
+        "path": loc.path, "start_line": loc.start, "end_line": loc.end,
+        "source_text": "\n".join(fm.lines[loc.start - 1:loc.end]),
+        "match": loc.match, "reason": reason})
 
 
 def _short_ambiguous(n: int) -> Location:
@@ -489,8 +503,8 @@ def locate(sm: SourceMap, quote: str, threshold: float = FUZZY_THRESHOLD,
            hint: Optional[str] = None) -> Location:
     """Resolve a quote to a Location(path, start, end, match, occurrences).
 
-    match is exact | normalized | fuzzy:<score> | missing; normalized and fuzzy are repairs
-    the caller counts. See the module docstring for the short-quote, number and hint rules.
+    match is exact | normalized | missing; fuzzy/elided matches are unresolved
+    candidates, retained for a judge. Normalized matches are counted repairs. See the module docstring for the short-quote, number and hint rules.
     """
     q = quote.replace("\r\n", "\n").strip("\n")
     if not q.strip():
@@ -538,7 +552,7 @@ def locate(sm: SourceMap, quote: str, threshold: float = FUZZY_THRESHOLD,
             return Location(fm.path, s, e, "normalized", len(cands))
 
     if _ELLIPSIS.search(q):
-        return _locate_elided(texts, q, threshold)
+        return _candidate(sm, _locate_elided(texts, q, threshold), "elided_quote")
     if len(nq) < SHORT_QUOTE_CHARS:
         return _MISSING  # short quotes: one changed character is a different claim
     n = max(1, len(q.split("\n")))
@@ -556,7 +570,7 @@ def locate(sm: SourceMap, quote: str, threshold: float = FUZZY_THRESHOLD,
                     best = (sc, fm.path, s + 1, min(total, s + size), window)
     if best[1] is not None and best[0] >= threshold and _numbers_ok(nq, best[4]) and _identifiers_ok(nq, best[4]) \
             and _words_ok(nq, best[4]):
-        return Location(best[1], best[2], best[3], f"fuzzy:{best[0]:.2f}", 1)
+        return _candidate(sm, Location(best[1], best[2], best[3], f"fuzzy:{best[0]:.2f}", 1), "fuzzy_quote")
     return _MISSING
 
 

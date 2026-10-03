@@ -44,11 +44,12 @@ class LocatorQuoteCharacterTests(unittest.TestCase):
                 loc = locate(sm, quote)
                 self.assertEqual((loc.path, loc.match), ("fleet/bankedfire_linux.py", "normalized"))
                 self.assertIn(html.unescape(quote), sm.files[0].lines[loc.start - 1])
-        # the same stored answer, whole: three of its quotes were entity-written and none is missing
+        # Three quotes were entity-written; its separate fuzzy quote remains unresolved.
         out, brief = stored("a59bad05")
         _, man = render(out, brief, sm)
         self.assertEqual(man["repairs"]["normalized_quote"], 3)
-        self.assertEqual(man["unsupported"], [])
+        self.assertEqual(man["unsupported"], ["s0.p0.q0"])
+        self.assertEqual(man["claims"][0]["candidate"]["reason"], "fuzzy_quote")
 
     def test_swapped_or_dropped_double_quotes_resolve_as_normalized(self) -> None:
         """work_d8f8c68f (8B): it swaps the double quotes for ' or drops them (11 of 18 quotes were repaired)."""
@@ -104,21 +105,21 @@ class FuzzyIdentifierTests(unittest.TestCase):
         _, man = render(out, stored("f6038274")[1], sm)
         self.assertEqual(man["unsupported"], [man["claims"][0]["id"]])
 
-    def test_a_fuzzy_quote_whose_identifiers_are_all_in_the_line_still_resolves(self) -> None:
-        """The guard is for invented names: the same line with a dropped word and every identifier kept is fuzzy."""
+    def test_a_fuzzy_quote_whose_identifiers_are_all_in_the_line_is_only_a_candidate(self) -> None:
+        """Even a plausible fuzzy location is a candidate for the judge, never resolved evidence."""
         sm = source_map(PERCEPTION)
         line = next(l for l in sm.files[0].lines if '"text": res' in l)
         loc = locate(sm, line.strip().replace(", ", ",  ", 1).replace("self._send_json", "self._send_jsn", 1))
         self.assertEqual(loc.match, "missing")                                   # a changed identifier: refused
         loc = locate(sm, line.strip().replace("HTTPStatus.OK, ", "", 1))
-        self.assertTrue(loc.match.startswith("fuzzy:") or loc.match == "normalized", loc)
-        self.assertEqual(sm.files[0].lines[loc.start - 1], line)
+        self.assertEqual((loc.match, loc.path), ("missing", ""))
+        self.assertIn(line, loc.candidate["source_text"])
 
-    def test_a_swapped_plain_word_is_refused_and_the_stored_faithful_fuzzy_quotes_still_resolve(self) -> None:
+    def test_a_swapped_plain_word_is_refused_and_fuzzy_quotes_keep_candidate_lines(self) -> None:
         """Review of W13: `res` is a plain word, so the identifier shape misses `result` for `res`; a swapped word
         (one the line lacks, in place of one the quote lacks) is refused. The faithful fuzzy quotes of the stored
         8B answers (work_d8f8c68f, work_8168fd9f: `Exposes:` joined to a docstring line, `true` for `True`, ' for ")
-        still resolve to their lines."""
+        retain candidate source lines without counting as resolved."""
         sm = source_map(PERCEPTION)
         self.assertEqual(locate(sm, "self._send_json(HTTPStatus.OK, {ok: true, text: result, duration_ms: dt_ms})").match,
                          "missing")
@@ -127,8 +128,43 @@ class FuzzyIdentifierTests(unittest.TestCase):
                             ("psm = body.get('psm', 6)", 'body.get("psm", 6)')):
             with self.subTest(quote=quote):
                 loc = locate(sm, quote)
-                self.assertTrue(loc.match.startswith("fuzzy:"), loc)
-                self.assertIn(want, sm.files[0].lines[loc.start - 1])
+                self.assertEqual((loc.match, loc.path), ("missing", ""))
+                self.assertIn(want, loc.candidate["source_text"])
+                self.assertEqual(loc.candidate["reason"], "fuzzy_quote")
+
+
+class UnresolvedCandidateTests(unittest.TestCase):
+    def test_elided_perfect_score_is_unresolved_but_literal_ellipsis_is_exact(self) -> None:
+        sm = SourceMap("fixture", "0" * 40, [file_map("x.py", b'def write():\n    payload = {"answer": 42}\n    return payload\n# literal ... present\n')])
+        loc = locate(sm, 'payload = { ... }')
+        self.assertEqual((loc.match, loc.path, loc.start), ("missing", "", 0))
+        self.assertEqual(loc.candidate["match"], "fuzzy:1.00")
+        self.assertEqual(loc.candidate["reason"], "elided_quote")
+        self.assertIn('"answer": 42', loc.candidate["source_text"])
+        self.assertEqual(locate(sm, "literal ... present").match, "exact")
+        output = {"summary": "Payload.", "sections": [{"heading": "Payload", "paragraphs": [
+            {"text": "The writer creates a payload.", "quotes": ['payload = { ... }']}]}]}
+        md, man = render(output, stored("a59bad05")[1], sm)
+        self.assertIsNone(man["claims"][0]["resolved"])
+        self.assertEqual(man["unsupported"], ["s0.p0.q0"])
+        self.assertEqual(man["verification"]["deterministic"]["state"], "fail")
+        self.assertIn("unresolved elided_quote", md)
+        contract.check_manifest(man)
+        for change in ({"match": "exact"}, {"resolved": {"path": "x.py", "start_line": 2, "end_line": 2}}):
+            bad = copy.deepcopy(man)
+            bad["claims"][0].update(change)
+            self.assertTrue(contract.validate_manifest(bad))
+
+    def test_generation_budget_is_optional_bounded_and_not_boolean(self) -> None:
+        brief = json.loads(stored("a59bad05")[1])
+        self.assertEqual(contract.validate_brief(brief), [])
+        for budget in (1, 6000, 16384):
+            brief["generation"] = {"max_tokens": budget}
+            self.assertEqual(contract.validate_brief(brief), [])
+        for generation in ({"max_tokens": 0}, {"max_tokens": 16385}, {"max_tokens": True},
+                           {"max_tokens": "6000"}, {}, {"max_tokens": 6000, "other": 1}):
+            brief["generation"] = generation
+            self.assertTrue(contract.validate_brief(brief))
 
 
 class TruncatedQuoteTests(unittest.TestCase):
@@ -244,7 +280,7 @@ class DoctoredQuoteTests(unittest.TestCase):
         sm = source_map(SKIPS)
         out, brief = stored("a59bad05")
         _, clean = render(out, brief, sm)
-        self.assertEqual((clean["unsupported"], clean["verification"]["deterministic"]["state"]), ([], "pass"))
+        self.assertEqual(clean["unsupported"], ["s0.p0.q0"])  # stored fuzzy quote is already unresolved
         for old, new in (("SKIP_DAYS = 7", "SKIP_DAYS = 14"),
                          ('indent=2)); os.replace', 'indent=4)); os.replace')):
             with self.subTest(change=new):
@@ -255,8 +291,8 @@ class DoctoredQuoteTests(unittest.TestCase):
                     for p in sec["paragraphs"]:
                         p["quotes"] = [q.replace(old, new) for q in p["quotes"]]
                 _, man = render(doctored, brief, sm)
-                self.assertEqual(len(man["unsupported"]), 1)
-                bad = next(c for c in man["claims"] if c["id"] == man["unsupported"][0])
+                self.assertEqual(len(man["unsupported"]), len(clean["unsupported"]) + 1)
+                bad = next(c for c in man["claims"] if new in c["quote"])
                 self.assertEqual((bad["match"], bad["resolved"]), ("missing", None))
                 self.assertIn(new, bad["quote"])
                 self.assertEqual(man["verification"]["deterministic"]["state"], "fail")

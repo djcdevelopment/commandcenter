@@ -1,0 +1,32 @@
+{
+  "schema": "delivery.v1",
+  "brief_sha256": "11c64c7da3e046af4b1170d5b6a0cf400a1632f9075b1a60c3792de7555bcefb",
+  "model": "Qwen3.8-27B",
+  "backend": "omen-dense-27b",
+  "configuration": {"model": "Qwen3.8-27B", "seat": "omen-dense-27b", "context_tokens": 65536, "profile": "local-work-routes.v2"},
+  "environment": "dev",
+  "aids_used": ["source_map", "quote_renderer", "constrained_output"],
+  "claims": [
+    {"id": "s0.p0.q0", "text": "add_skip appends a row with source, reason and an expiry, then writes the whole file through a temporary file and replaces the original.",
+     "quote": "tmp = p.with_suffix(\".tmp\"); tmp.write_text(", "resolved": {"path": "fleet/bankedfire_linux.py", "start_line": 437, "end_line": 437}, "match": "exact"},
+    {"id": "s0.p0.q1", "text": "add_skip appends a row with source, reason and an expiry, then writes the whole file through a temporary file and replaces the original.",
+     "quote": "os.replace(tmp, p)", "resolved": {"path": "fleet/bankedfire_linux.py", "start_line": 437, "end_line": 437}, "match": "exact", "ambiguous": 2},
+    {"id": "s0.p1.q0", "text": "Each row records the reason, cut to 200 characters, and the time the skip was added.",
+     "quote": "\"reason\": reason[:200], \"at\": now.isoformat(timespec=\"seconds\") + \"Z\",", "resolved": {"path": "fleet/bankedfire_linux.py", "start_line": 433, "end_line": 434}, "match": "normalized"},
+    {"id": "s1.p0.q0", "text": "A skip lasts seven days unless the caller passes another value.",
+     "quote": "SKIP_DAYS = 7", "resolved": {"path": "fleet/bankedfire_linux.py", "start_line": 348, "end_line": 348}, "match": "exact"},
+    {"id": "s1.p1.q0", "text": "candidate_exclusions keeps only rows whose expiry is later than the current time.",
+     "quote": "str(r.get(\"until\", \"\")) > stamp", "resolved": {"path": "fleet/bankedfire_linux.py", "start_line": 445, "end_line": 445}, "match": "exact"},
+    {"id": "s1.p2.q0", "text": "Skips are also pruned when the process restarts.",
+     "quote": "prune_skips_on_start()", "resolved": null, "match": "missing"}
+  ],
+  "measures": {"words": 87, "sections": ["Storage", "Backoff"]},
+  "repairs": {"normalized_quote": 1, "ambiguous_quote": 1},
+  "unsupported": ["s1.p2.q0"],
+  "verification": {
+    "deterministic": {"state": "fail", "note": "s1.p2.q0: quote not found in fleet/bankedfire_linux.py@de666ef"},
+    "judge": {"state": "not_run"},
+    "reviewer": {"state": "not_run"},
+    "human": {"state": "not_run"}
+  }
+}

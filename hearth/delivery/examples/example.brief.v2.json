@@ -1,0 +1,16 @@
+{
+  "schema": "brief.v2",
+  "task_class": "local-work",
+  "substance": [
+    {"id": "s1", "statement": "The report names the function that persists skips and the file it writes."},
+    {"id": "s2", "statement": "The report states the default backoff in days."}
+  ],
+  "form": {
+    "words": {"min": 80, "max": 320, "enforce": "measure"},
+    "citations": "quote",
+    "sections": ["Storage", "Backoff"],
+    "style": "markdown"
+  },
+  "sources": [{"path": "fleet/bankedfire_linux.py", "commit": "de666ef75ce79733bffb34c5e146c9b8ddd42f30"}],
+  "aids": ["source_map", "quote_renderer"]
+}

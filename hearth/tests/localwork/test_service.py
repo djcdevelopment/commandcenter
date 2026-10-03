@@ -51,10 +51,12 @@ class LocalWorkServiceTests(unittest.TestCase):
 
         def generate(**kwargs):
             self.generate_calls.append(kwargs)
-            text = self.outputs.pop(0)
+            text, extra = self.outputs.pop(0), {}
+            if isinstance(text, tuple):  # (answer, extra result keys the door would add)
+                text, extra = text
             result = {"ok": True, "text": text, "backend": "omen-arc",
                       "model": "qwen3-30b-a3b", "routed_by": "pinned:omen-arc",
-                      "tokens_in": 100, "tokens_out": 50, "duration_ms": 5}
+                      "tokens_in": 100, "tokens_out": 50, "duration_ms": 5, **extra}
             # what the door's request-body builder stamps when the call carried them (W2)
             if kwargs.get("response_schema") is not None:
                 result["response_schema_sha256"] = response_schema_digest(kwargs["response_schema"])
@@ -309,6 +311,27 @@ class LocalWorkServiceTests(unittest.TestCase):
             with self.assertRaisesRegex(LocalWorkError, "local lane 'tool' is not in this host's route profile"):
                 self.submit(lane="tool")
         self.assertEqual(self.generate_calls, [])
+
+    def test_a_kept_revision_does_not_inherit_the_first_answers_repairs(self) -> None:
+        """W4 integration (wp/w14 x wp/w15): the route describes the kept answer. A first answer the door repaired
+        (control_char_in_string) and a kept revision that needed no repair: the route carries none, and each
+        attempt says what its own answer needed."""
+        brief = json.loads((Path(__file__).resolve().parents[1] / "delivery" / "fixtures" / "a59bad05.brief.json")
+                           .read_text(encoding="utf-8"))
+        first = json.dumps({"summary": "The second line.", "sections": [
+            {"heading": "Lines", "paragraphs": [{"text": "The file ends with two.", "quotes": ["three"]}]}]})
+        second = json.dumps({"summary": "The second line.", "sections": [
+            {"heading": "Lines", "paragraphs": [{"text": "The file ends with two.", "quotes": ["two"]}]}]})
+        self.outputs[:] = [(first, {"structured_output_repairs": ["control_char_in_string"]}), second]
+        manifest = self.submit(artifact_kind="markdown", brief=brief, max_tokens=None, revise=True,
+                               idempotency_key="revise-repairs")
+        final = self.settle(manifest["work_id"])
+        self.assertEqual(final["status"], "awaiting_review", final.get("failure"))
+        self.assertEqual(final["revision"]["kept"], "revised", final["revision"])
+        self.assertNotIn("structured_output_repairs", final["route"])
+        self.assertEqual(final["attempts"][0]["structured_output_repairs"], ["control_char_in_string"])
+        self.assertNotIn("structured_output_repairs", final["attempts"][1])
+        self.assertIn("three", self.generate_calls[-1]["prompt"].split("OBJECTIONS:", 1)[1])
 
 
 if __name__ == "__main__":

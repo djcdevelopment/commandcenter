@@ -665,12 +665,25 @@ class LocalWorkService:
             "missing": by_match.get("missing", 0), "unsupported": len(delivery["unsupported"]),
             "words": delivery["measures"]["words"], "repairs": delivery["repairs"],
             "deviations": delivery["deviations"], "deterministic": delivery["verification"]["deterministic"]["state"]}
+        # The route describes the kept answer: a repair the first answer needed must not survive a kept revision
+        # that needed none (each attempt keeps its own, _note_attempt).
+        manifest["route"].pop("structured_output_repairs", None)
         manifest["route"].update({key: observed.get(key) for key in
                                   ("backend", "model", "routed_by", "tokens_in", "tokens_out", "duration_ms",
                                    "response_schema_sha256", "temperature", "structured_output_repairs")
                                   if observed.get(key) is not None})
         _observe_temperature(manifest, observed)
         manifest["artifact"] = {key: metadata[key] for key in ("artifact_id", "sha256", "size", "media_type")}
+
+    @staticmethod
+    def _note_attempt(manifest: dict[str, Any], job: Mapping[str, Any]) -> None:
+        """Record on the attempt what the door repaired in that job's answer (W15), whichever answer is kept."""
+        repairs = ((job.get("invocations") or [{}])[-1]).get("structured_output_repairs")
+        if not repairs:
+            return
+        for attempt in manifest.get("attempts") or []:
+            if attempt.get("job_id") == job.get("job_id"):
+                attempt["structured_output_repairs"] = list(repairs)
 
     def _finish_delivery(self, manifest: dict[str, Any], job_id: str) -> None:
         manifest["status"] = "awaiting_review"
@@ -784,6 +797,7 @@ class LocalWorkService:
         """The second answer: kept only when it validates and is better (_better); otherwise the original stands
         and the reason is recorded. Nothing here fails the work item: the first answer was already rendered."""
         work_id = str(manifest["work_id"])
+        self._note_attempt(manifest, job)
         try:
             metadata, raw = self._result(job)
         except LocalWorkError as exc:
@@ -818,6 +832,7 @@ class LocalWorkService:
         """A delivery job's result is a delivery-output.v1 document. Every failure is named and final:
         no structural repair prompt, no second lane. With `revise` set, one objection round may follow a
         first answer that rendered (see _dispatch_revision); a failed first answer never gets one."""
+        self._note_attempt(manifest, job)
         try:
             rendered = self._render_answer(manifest, job, raw)
         except _Refused as exc:

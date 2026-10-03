@@ -1,0 +1,47 @@
+{
+ "aids": [
+  "source_map",
+  "quote_renderer",
+  "constrained_output"
+ ],
+ "builders": [
+  "omen-local-work"
+ ],
+ "est_tokens": 5000,
+ "form": {
+  "citations": "quote",
+  "sections": [],
+  "style": "markdown",
+  "words": {
+   "enforce": "measure",
+   "max": 320,
+   "min": 0
+  }
+ },
+ "max_age_s": 172800,
+ "requires": [
+  "candidate"
+ ],
+ "schema": "brief.v2",
+ "sources": [
+  {
+   "commit": "de666ef75ce79733bffb34c5e146c9b8ddd42f30",
+   "path": "fleet/bankedfire_linux.py"
+  }
+ ],
+ "substance": [
+  {
+   "id": "s1-records-skips",
+   "statement": "The report explains how fleet/bankedfire_linux.py records failed candidate dispatches into bankedfire_linux_skips.json."
+  },
+  {
+   "id": "s2-skip-days",
+   "statement": "The report states the default backoff duration in days (SKIP_DAYS) and how unexpired skips are filtered."
+  },
+  {
+   "id": "s3-atomic-write",
+   "statement": "The report details how atomic replacement is used when persisting skips."
+  }
+ ],
+ "task_class": "local-work"
+}

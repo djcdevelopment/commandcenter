@@ -1,0 +1,52 @@
+{
+  "sections": [
+    {
+      "heading": "s1-endpoints",
+      "paragraphs": [
+        {
+          "quotes": [
+            "Exposes: - GET /health or /healthz -> 200 OK {status: ok, ...}",
+            "Exposes: - POST /ocr -> {ok: true, text: ..., tokens: [...]}",
+            "Exposes: - POST /score -> {ok: true, aesthetic: ..., clip: ...}",
+            "Exposes: - POST /v1/chat/completions -> OpenAI-compatible response for HEARTH task_family=document_ocr",
+            "Exposes: - GET /v1/models -> list of available models"
+          ],
+          "text": "The perception/service.py file serves the following HTTP endpoints: GET /health or /healthz, POST /ocr, POST /score, POST /v1/chat/completions, and GET /v1/models. Each endpoint is associated with a specific HTTP method."
+        }
+      ]
+    },
+    {
+      "heading": "s2-parameters",
+      "paragraphs": [
+        {
+          "quotes": [
+            "image", "region", "psm", "language", "upscale", "tsv",
+            "image", "prompt"
+          ],
+          "text": "The /ocr endpoint accepts parameters such as 'image', 'region', 'psm', 'language', 'upscale', and 'tsv', with 'psm' defaulting to 6 and 'tsv' defaulting to False. The /score endpoint accepts 'image' and 'prompt', with 'return_embedding' defaulting to False."
+        },
+        {
+          "quotes": [
+            "model", "image", "prompt", "return_embedding"
+          ],
+          "text": "The /v1/chat/completions endpoint accepts parameters like 'model', 'image', 'prompt', and 'return_embedding', with 'model' defaulting to 'tesseract-ocr' and 'return_embedding' defaulting to False."
+        }
+      ]
+    },
+    {
+      "heading": "s3-responses",
+      "paragraphs": [
+        {
+          "quotes": [
+            "{status: ok, backend: omen-perception, engine: cpu, threads: 8, tesseract: tesseract_version(), images_per_second: 4.15}",
+            "{ok: true, text: ..., tokens: [...], duration_ms: ...}",
+            "{ok: true, aesthetic: ..., clip: ...}",
+            "{id: chatcmpl-perc-..., object: chat.completion, created: ..., model: ..., choices: [...], usage: {prompt_tokens: ..., completion_tokens: ..., total_tokens: ...}, duration_ms: ...}"
+          ],
+          "text": "The /health endpoint returns a JSON object with status, backend, engine, threads, tesseract version, and images per second. The /ocr endpoint returns a JSON object with 'ok', 'text', 'tokens', and 'duration_ms'. The /score endpoint returns a JSON object with 'ok', 'aesthetic', and 'clip'. The /v1/chat/completions endpoint returns a JSON object with 'id', 'object', 'created', 'model', 'choices', 'usage', and 'duration_ms'."
+        }
+      ]
+    }
+  ],
+  "summary": "The perception/service.py file defines HTTP endpoints for CPU OCR and image scoring. It includes GET /health, POST /ocr, POST /score, POST /v1/chat/completions, and GET /v1/models. Each endpoint has specific parameters with default values and returns structured JSON responses."
+}

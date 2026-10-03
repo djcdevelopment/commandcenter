@@ -1,0 +1,35 @@
+{
+  "sections": [
+    {
+      "heading": "Recording and Filtering Skips",
+      "paragraphs": [
+        {
+          "quotes": [
+            "when a candidate that cannot be dispatched must not be re-picked every 30 minutes",
+            "add_skip(str(detail[&quot;source_ref&quot;]), f&quot;dispatch-failed: {detail.get(&apos;submit_error&apos;)}&quot;)"
+          ],
+          "text": "When a candidate dispatch fails, the system records the failure to prevent immediate re-selection. The logic captures the source reference and error details to add a skip entry."
+        },
+        {
+          "quotes": [
+            "SKIP_DAYS = 7",
+            "str(r.get(&quot;until&quot;, &quot;&quot;)) &gt; stamp"
+          ],
+          "text": "The default backoff duration is seven days. The system filters unexpired skips by comparing the stored expiration timestamp against the current time."
+        }
+      ]
+    },
+    {
+      "heading": "Persisting the Skip File",
+      "paragraphs": [
+        {
+          "quotes": [
+            "tmp = p.with_suffix(&quot;.tmp&quot;); tmp.write_text(json.dumps({&quot;schema&quot;: &quot;bankedfire-linux-skips.v1&quot;, &quot;skips&quot;: rows}, indent=2)); os.replace(tmp, p)"
+          ],
+          "text": "Persistence is performed atomically by writing the data to a temporary file first and then replacing the original file to ensure data integrity."
+        }
+      ]
+    }
+  ],
+  "summary": "fleet/bankedfire_linux.py manages failed candidate dispatches by recording skips in bankedfire_linux_skips.json with a default seven-day backoff. The file is updated atomically to ensure consistent state during persistent operations."
+}

@@ -1,0 +1,47 @@
+{
+ "aids": [
+  "source_map",
+  "quote_renderer",
+  "constrained_output"
+ ],
+ "builders": [
+  "omen-local-work"
+ ],
+ "est_tokens": 3000,
+ "form": {
+  "citations": "quote",
+  "sections": [],
+  "style": "markdown",
+  "words": {
+   "enforce": "measure",
+   "max": 400,
+   "min": 0
+  }
+ },
+ "max_age_s": 172800,
+ "requires": [
+  "candidate"
+ ],
+ "schema": "brief.v2",
+ "sources": [
+  {
+   "commit": "de666ef75ce79733bffb34c5e146c9b8ddd42f30",
+   "path": "perception/service.py"
+  }
+ ],
+ "substance": [
+  {
+   "id": "s1-endpoints",
+   "statement": "The report lists every HTTP endpoint served by perception/service.py with its HTTP method and path, and no endpoint that is not in the code."
+  },
+  {
+   "id": "s2-parameters",
+   "statement": "For each endpoint the report states the request parameters and the default value of every optional one (such as thread limits and PSM)."
+  },
+  {
+   "id": "s3-responses",
+   "statement": "For each endpoint the report states the response fields."
+  }
+ ],
+ "task_class": "local-work"
+}

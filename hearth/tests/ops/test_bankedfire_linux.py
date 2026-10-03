@@ -8,12 +8,34 @@ Each test names the observation that earned it:
   * presence fails closed: any unreadable signal reads as "present";
   * the omen-vllm probe reads "unknown" (= busy) when a seat's metrics are unreadable.
 """
+import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from fleet import bankedfire_linux as lane
 from fleet import presence_linux as presence
 from hearth.toolsurface import occupancy as occ
+
+_REAL_AM4_SWITCH = lane.am4_switch   # the mixin replaces lane.am4_switch with a mock
+
+
+class ProfileIsolation:
+    """Integration 2026-10-03: tick() and am4_switch() write the host file ~/.config/omen-vllm/am4-profile (which the
+    live gateway reads on every route) and am4_profile() reads AM4 over ssh. A test that reaches either gets a temp
+    file and a stub: the profile reads None (unreadable: nothing to reconcile, nothing wanted) and a switch is a mock."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.profile_file = Path(tmp.name) / "am4-profile"
+        for patcher in (mock.patch.object(lane, "AM4_PROFILE_PATH", self.profile_file),
+                        mock.patch.object(lane, "am4_profile", return_value=None),
+                        mock.patch.object(lane, "am4_switch", return_value={"target": None, "rc": None})):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
 
 BRIEF = """repo: /tmp/repo
 commit: 0123456789abcdef0123456789abcdef01234567
@@ -203,7 +225,7 @@ class DeepAgentsLaneTests(unittest.TestCase):
             self.assertEqual(lane.lane_slots().get("deepagents"), 1)
 
 
-class ExperimentExclusivityTests(unittest.TestCase):
+class ExperimentExclusivityTests(ProfileIsolation, unittest.TestCase):
     """2026-09-27 20:56Z, first live tick: the experiment brief and a deepagents brief were
     dispatched in one loop; the seat swap removed the 27B mid-delivery. Once an experiment is
     dispatched the tick ends, and while its slot is held nothing else dispatches."""
@@ -298,7 +320,7 @@ class ProofingBriefTests(unittest.TestCase):
         self.assertEqual(lane.brief_lane(b), "deep")
 
 
-class SkipsTests(unittest.TestCase):
+class SkipsTests(ProfileIsolation, unittest.TestCase):
     """A candidate whose dispatch failed must not be re-picked every 30 minutes; a priced id that no
     longer exists in the derived list is stale and excluded without a file row."""
 
@@ -401,16 +423,17 @@ class ToolLaneTests(unittest.TestCase):
         self.assertEqual(lane.brief_lane(mk("source: /x.py\n---\ngo")), "deepagents")
 
 
-class Am4ProfileFollowsQueueTests(unittest.TestCase):
+class Am4ProfileFollowsQueueTests(ProfileIsolation, unittest.TestCase):
     """T4 (2026-09-28): the tool-pair seats exist only under that AM4 profile, so the tick switches
-    AM4 to tool-pair when tool-lane briefs are queued and nothing else is in flight on AM4, and back
-    to dense-tp2 when the tool queue and tool slots are empty."""
+    AM4 to tool-pair when tool-lane briefs are queued and nothing else is in flight on AM4. 2026-10-03T05:32Z: it
+    used to switch back to dense-tp2 when the queue emptied and pulled the tool seats out from under a caller;
+    tool-pair is the resting profile and the tick never returns it."""
 
     def test_wanted_profile(self) -> None:
         self.assertEqual(lane.am4_profile_wanted(2, [], "dense-tp2"), "tool-pair")
         self.assertIsNone(lane.am4_profile_wanted(2, [], "tool-pair"))
         self.assertIsNone(lane.am4_profile_wanted(2, [{"lane": "tool"}], "dense-tp2"))   # never mid-run
-        self.assertEqual(lane.am4_profile_wanted(0, [], "tool-pair"), "dense-tp2")
+        self.assertIsNone(lane.am4_profile_wanted(0, [], "tool-pair"))   # no switch back to dense-tp2
         self.assertIsNone(lane.am4_profile_wanted(0, [{"lane": "tool"}], "tool-pair"))
         self.assertIsNone(lane.am4_profile_wanted(0, [], "dense-tp2"))
         self.assertIsNone(lane.am4_profile_wanted(2, [], None))   # unreadable profile: do nothing
@@ -440,3 +463,44 @@ class Am4ProfileFollowsQueueTests(unittest.TestCase):
         switch.assert_called_once_with("tool-pair")
         self.assertEqual(report["am4_profile"]["tool_queued"], 1)
         self.assertEqual(report["am4_profile"]["switch"]["target"], "tool-pair")
+
+    def test_wanted_profile_is_never_dense_tp2(self) -> None:
+        """2026-10-03T05:32Z: the tick pulled the tool seats away by switching AM4 to dense-tp2."""
+        for queued in (0, 1, 5):
+            for ready in (None, 0, 3):
+                for slots in ([], [{"lane": "tool"}], [{"lane": "deep"}]):
+                    for live in ("tool-pair", "dense-tp2", None, "failed:tool-pair"):
+                        self.assertNotEqual(lane.am4_profile_wanted(queued, slots, live, ready), "dense-tp2",
+                                            (queued, ready, slots, live))
+
+    def test_reconcile_copies_only_a_known_profile_name(self) -> None:
+        """docs/rnd-log.md 2026-10-03T05:50Z: the host file said tool-pair while AM4 served dense-tp2 for 6 minutes,
+        so the tick copies AM4's profile to it. Row 2026-09-28 01:55Z: after a failed switch AM4's file reads
+        failed:<target> (and am4_profile() is None when ssh fails); neither may reach the host file the gateway
+        reads."""
+        self.profile_file.write_text("tool-pair\n", encoding="utf-8")
+        for live in (None, "failed:dense-tp2", "failed:tool-pair", "garbage", ""):
+            with self.subTest(live=live):
+                self.assertIsNone(lane.reconcile_omen_profile(live))
+                self.assertEqual(self.profile_file.read_text(encoding="utf-8"), "tool-pair\n")
+        self.assertIsNone(lane.reconcile_omen_profile("tool-pair"))   # agrees: no rewrite
+        self.assertEqual(lane.reconcile_omen_profile("dense-tp2"), {"was": "tool-pair", "now": "dense-tp2"})
+        self.assertEqual(self.profile_file.read_text(encoding="utf-8"), "dense-tp2\n")
+        self.profile_file.unlink()   # absent file: a known name is written, an unknown one still is not
+        self.assertIsNone(lane.reconcile_omen_profile("failed:tool-pair"))
+        self.assertFalse(self.profile_file.exists())
+        self.assertEqual(lane.reconcile_omen_profile("tool-pair"), {"was": None, "now": "tool-pair"})
+
+    def test_failed_switch_is_not_copied_to_the_host_file(self) -> None:
+        """docs/rnd-log.md 2026-09-28 01:55Z (a failed switch leaves failed:<target> on AM4): am4_switch copies only
+        a successful target to the OMEN-side file."""
+        self.profile_file.write_text("dense-tp2\n", encoding="utf-8")
+        ok = mock.Mock(returncode=0, stdout="ok", stderr="")
+        bad = mock.Mock(returncode=1, stdout="", stderr="no")
+        real_switch = _REAL_AM4_SWITCH
+        with mock.patch.object(lane.subprocess, "run", return_value=bad):
+            self.assertNotIn("omen_file", real_switch("tool-pair"))
+        self.assertEqual(self.profile_file.read_text(encoding="utf-8"), "dense-tp2\n")
+        with mock.patch.object(lane.subprocess, "run", return_value=ok):
+            self.assertEqual(real_switch("tool-pair")["omen_file"], {"was": "dense-tp2", "now": "tool-pair"})
+        self.assertEqual(self.profile_file.read_text(encoding="utf-8"), "tool-pair\n")

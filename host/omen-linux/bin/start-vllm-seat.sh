@@ -71,9 +71,23 @@ if [[ -n ${OMEN_REASONING_PARSER:-} ]]; then
   extra+=(--reasoning-parser "$OMEN_REASONING_PARSER")
 fi
 
+# Lever experiments (qwen38-levers E3-E6). Unset = no flag, so the default argv is unchanged.
+if [[ -n ${OMEN_KV_OFFLOAD_GIB:-} ]]; then
+  extra+=(--kv-offloading-size "$OMEN_KV_OFFLOAD_GIB")   # GiB of host buffer; offloading is active only when this is set
+fi
+if [[ -n ${OMEN_KV_OFFLOAD_BACKEND:-} ]]; then
+  extra+=(--kv-offloading-backend "$OMEN_KV_OFFLOAD_BACKEND")   # native | lmcache
+fi
+if [[ -n ${OMEN_SSM_CACHE_DTYPE:-} ]]; then
+  extra+=(--mamba-ssm-cache-dtype "$OMEN_SSM_CACHE_DTYPE")   # auto | float32 | float16 | bfloat16
+fi
+if [[ -n ${OMEN_KV_CACHE_DTYPE:-} ]]; then
+  extra+=(--kv-cache-dtype "$OMEN_KV_CACHE_DTYPE")   # auto | float16 | bfloat16 | fp8 | fp8_e4m3 | fp8_e5m2 | ...
+fi
+
 if [[ ${OMEN_DRY:-0} == 1 ]]; then   # preflight: print the exact argv, one per line, and exit
   printf '%s\n' serve "$model" --host 127.0.0.1 --port "$port" --served-model-name "$served_name" \
-    --dtype float16 --quantization "${OMEN_QUANTIZATION:-gptq}" --attention-backend TRITON_ATTN \
+    --dtype float16 --quantization "${OMEN_QUANTIZATION:-gptq}" --attention-backend "${OMEN_ATTN_BACKEND:-TRITON_ATTN}" \
     --max-model-len "${OMEN_MAX_MODEL_LEN:-16384}" --max-num-seqs "${OMEN_MAX_NUM_SEQS:-16}" \
     --gpu-memory-utilization "${OMEN_GPU_MEM_UTIL:-0.82}" "${extra[@]}"
   exit 0
@@ -81,7 +95,7 @@ fi
 exec "$vllm" serve "$model" \
   --host 127.0.0.1 --port "$port" \
   --served-model-name "$served_name" \
-  --dtype float16 --quantization "${OMEN_QUANTIZATION:-gptq}" --attention-backend TRITON_ATTN \
+  --dtype float16 --quantization "${OMEN_QUANTIZATION:-gptq}" --attention-backend "${OMEN_ATTN_BACKEND:-TRITON_ATTN}" \
   --max-model-len "${OMEN_MAX_MODEL_LEN:-16384}" --max-num-seqs "${OMEN_MAX_NUM_SEQS:-16}" \
   --gpu-memory-utilization "${OMEN_GPU_MEM_UTIL:-0.82}" \
   "${extra[@]}"

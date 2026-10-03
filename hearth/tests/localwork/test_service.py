@@ -396,7 +396,9 @@ parallel_slots = 2
         after["rung0_findings"] = []
         self.assertIsNotNone(self.service._better(before, after))
         after["unsupported"] = 2
-        self.assertIsNone(self.service._better(before, after))
+        self.assertIn("rung 0 findings", self.service._better(before, after))  # equal quotes, fewer findings: adopt
+        after["rung0_findings"] = ["old"]
+        self.assertIsNone(self.service._better(before, after))  # equal quotes, equal findings: refuse
 
     def test_delivery_budget_from_brief_and_explicit_override(self):
         brief = {"schema": "brief.v2", "substance": [{"id": "s1", "statement": "Describe the file."}],

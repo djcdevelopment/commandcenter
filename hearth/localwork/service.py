@@ -803,6 +803,10 @@ class LocalWorkService:
             return None
         if after["unsupported"] < before["unsupported"]:
             return f"unsupported quotes {before['unsupported']} -> {after['unsupported']}"
+        if after["unsupported"] == before["unsupported"] and \
+                len(set(after.get("rung0_findings", []))) < len(set(before.get("rung0_findings", []))):
+            return (f"unsupported quotes equal ({after['unsupported']}) and rung 0 findings "
+                    f"{len(set(before.get('rung0_findings', [])))} -> {len(set(after.get('rung0_findings', [])))}")
         return None
 
     def _dispatch_coverage(self, manifest: dict[str, Any], job: Mapping[str, Any], output: dict,

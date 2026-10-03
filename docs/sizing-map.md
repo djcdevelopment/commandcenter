@@ -188,7 +188,7 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
 | claude code hearth timeout (ms) | `2600000` | `~/.claude.json mcpServers.hearth.timeout` | Claude Code | longest door call |  |
-| codex mcp tool_timeout_sec | `2600` | `~/.codex/config.toml:20` | Codex | longest door call |  |
+| codex mcp tool_timeout_sec | `2600` | `~/.codex/config.toml:23` | Codex | longest door call |  |
 
 ### configuration
 
@@ -258,52 +258,53 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| RUN_TIMEOUT_S (wrapper) | `2100` | `repo/fleet/deepagents_linux.py:39` | Delivery.run | outer subprocess timeout |  |
+| RUN_TIMEOUT_S (wrapper) | `2100` | `repo/fleet/deepagents_linux.py:40` | Delivery.run | outer subprocess timeout |  |
 
 ### door
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| family depth estimate | `payload_bytes // 4` | `repo/hearth/toolsurface/inference.py:816` | families.recommend | prompt_tokens for depth rules |  |
-| files= per-file / total cap (bytes) | `256 * 1024 / 1024 * 1024` | `repo/hearth/toolsurface/inference.py:64` | _pack_files | packed file bytes | unreachable on Linux: every rung's context_bytes is smaller |
+| family depth estimate | `payload_bytes // 4` | `repo/hearth/toolsurface/inference.py:1061` | families.recommend | prompt_tokens for depth rules |  |
+| files= per-file / total cap (bytes) | `256 * 1024 / 1024 * 1024` | `repo/hearth/toolsurface/inference.py:68` | _pack_files | packed file bytes | unreachable on Linux: every rung's context_bytes is smaller |
 | gateway tool dispatch | `threaded (asyncio.to_thread per call)` | `~/.config/systemd/user/hearth-production.service` | FastMCP | how many door calls run at once | measured 2026-09-28: 8 parallel 5 s calls took 45 s serialized, 12 s threaded |
-| local_generate DEFAULT_TIMEOUT_S | `1000` | `repo/hearth/toolsurface/inference.py:59` | local_generate | HTTP timeout when neither caller nor rung says | never used on the execution path: it passes deadline - now |
-| local_generate default max_tokens (no rung value) | `1024` | `repo/hearth/toolsurface/inference.py:802` | local_generate | output when neither caller nor rung says |  |
+| local_generate DEFAULT_TIMEOUT_S | `1000` | `repo/hearth/toolsurface/inference.py:63` | local_generate | HTTP timeout when neither caller nor rung says | never used on the execution path: it passes deadline - now |
+| local_generate default max_tokens (no rung value) | `1024` | `repo/hearth/toolsurface/inference.py:1047` | local_generate | output when neither caller nor rung says |  |
 | payload admission rule (pin and tag route) | `payload_bytes <= context_bytes AND payload_bytes // 4 + max_tokens <= context_tokens` | `repo/hearth/toolsurface/backends.py:320` | select_backend | admission | reserve = caller max_tokens else the rung's |
 
 ### drain
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| BANKEDFIRE_SLOTS default | `fast=3,deep=1,experiment=1,deepagents=1,tool=2` | `repo/fleet/bankedfire_linux.py:71` | bankedfire_linux.tick | unattended in-flight work per lane | env now: (unset) |
+| BANKEDFIRE_SLOTS default | `fast=3,deep=1,experiment=1,deepagents=1,tool=2` | `repo/fleet/bankedfire_linux.py:72` | bankedfire_linux.tick | unattended in-flight work per lane | env now: (unset) |
 | PRESENCE idle minutes | `20` | `repo/fleet/presence_linux.py:37` | presence.report | away threshold | env now: (unset) |
-| brief deadline_s default | `2400` | `repo/fleet/bankedfire_linux.py:222` | submit_args_from_brief | local-work job deadline |  |
-| door MCP client timeout (s) | `300` | `repo/fleet/bankedfire_linux.py:140` | call_tool | submit / status calls |  |
-| proofing max_tokens / deadline_s | `6144 / 2400` | `repo/fleet/bankedfire_linux.py:403` | proofing_args_from_brief | proposal output / deadline |  |
-| skip backoff (days) | `7` | `repo/fleet/bankedfire_linux.py:349` | candidate_exclusions | failed candidate retry |  |
-| systemd-run launch timeout (s) | `30` | `repo/fleet/bankedfire_linux.py:274` | experiment / deepagents launch | — |  |
+| brief deadline_s default | `2400` | `repo/fleet/bankedfire_linux.py:223` | submit_args_from_brief | local-work job deadline |  |
+| door MCP client timeout (s) | `300` | `repo/fleet/bankedfire_linux.py:141` | call_tool | submit / status calls |  |
+| proofing max_tokens / deadline_s | `6144 / 2400` | `repo/fleet/bankedfire_linux.py:414` | proofing_args_from_brief | proposal output / deadline |  |
+| skip backoff (days) | `7` | `repo/fleet/bankedfire_linux.py:360` | candidate_exclusions | failed candidate retry |  |
+| systemd-run launch timeout (s) | `30` | `repo/fleet/bankedfire_linux.py:275` | experiment / deepagents launch | — |  |
 | tick interval | `30min` | `~/.config/systemd/user/bankedfire-drain.timer` | systemd | how often the night loop looks |  |
 
 ### execution
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| parallel_slots clamp | `1..128` | `repo/hearth/execution/service.py:982` | lease limit | per-rung concurrency |  |
-| provider HTTP timeout | `max(1, deadline - now)` | `repo/hearth/execution/service.py:1113` | _run_job | the '1199' | queue wait counts against the deadline |
+| parallel_slots clamp | `1..128` | `repo/hearth/execution/service.py:986` | lease limit | per-rung concurrency |  |
+| provider HTTP timeout | `max(1, deadline - now)` | `repo/hearth/execution/service.py:1117` | _run_job | the '1199' | queue wait counts against the deadline |
 | workers / max_pending | `16 / 256` | `repo/hearth/execution/service.py:133` | executor | concurrent jobs / queue depth |  |
 
 ### experiment
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| RESTORE_MARGIN_MIN / DEFAULT_MAX_MINUTES / DEFAULT_RESTORE_BY | `20 / 240 / 06:30` | `repo/fleet/experiment_linux.py:50` | Experiment.campaign_budget_s | campaign wall clock |  |
-| seat wait (s) | `900` | `repo/fleet/experiment_linux.py:143` | restart_and_wait | seat restart |  |
+| RESTORE_MARGIN_MIN / DEFAULT_MAX_MINUTES / DEFAULT_RESTORE_BY | `20 / 240 / 06:30` | `repo/fleet/experiment_linux.py:69` | Experiment.campaign_budget_s | campaign wall clock |  |
+| seat wait (s) | `900` | `repo/fleet/experiment_linux.py:269` | restart_and_wait | seat restart |  |
 
 ### family
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
 | family chart_diagram | `qwen3.8-27b; tags ['vision']` | `~/hearth-production/routing-families-linux.toml:149` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
+| family claim_verification | `qwen3.8-27b; tags ['quality']` | `~/hearth-production/routing-families-linux.toml:217` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family classification | `qwen3-30b-a3b; >= 8192 prompt tokens -> qwen3.8-27b` | `~/hearth-production/routing-families-linux.toml:83` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family code_fix | `qwen3.8-27b; tags ['agent']` | `~/hearth-production/routing-families-linux.toml:183` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family code_review | `qwen3.8-27b; tags ['quality']` | `~/hearth-production/routing-families-linux.toml:190` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
@@ -324,22 +325,23 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| auto lane floor (evidence tokens -> deep) | `8192` | `repo/hearth/localwork/service.py:163` | _lane | fast vs deep | quote_retrieval floor 4096; evidence = source pack only, counted with the fast lane's tokenizer |
-| exact context check | `input_tokens + output_reserve <= context_tokens` | `repo/hearth/localwork/service.py:333` | submit | refuses at submit |  |
+| auto lane floor (evidence tokens -> deep) | `8192` | `repo/hearth/localwork/service.py:177` | _lane | fast vs deep | quote_retrieval floor 4096; evidence = source pack only, counted with the fast lane's tokenizer |
+| exact context check | `input_tokens + output_reserve <= context_tokens` | `repo/hearth/localwork/service.py:368` | submit | refuses at submit |  |
 | lane deep | `omen-dense-27b` | `~/hearth-production/local-work-routes-linux.toml:10` | submit_local_work | which rung a lane is |  |
 | lane fast | `omen-vllm` | `~/hearth-production/local-work-routes-linux.toml:7` | submit_local_work | which rung a lane is |  |
-| output_reserve fallback | `4096` | `repo/hearth/localwork/service.py:330` | submit | reserve when the rung declares none |  |
+| lane tool | `am4-tool-4070ti` | `~/hearth-production/local-work-routes-linux.toml:14` | submit_local_work | which rung a lane is |  |
+| output_reserve fallback | `4096` | `repo/hearth/localwork/service.py:365` | submit | reserve when the rung declares none |  |
 | submit_local_work deadline_s default | `1800` | `repo/hearth/toolsurface/local_work.py:44` | MCP tool | job deadline when the caller sets none |  |
-| tokenizer / git / apply timeouts (s) | `30 / 120 / 120` | `repo/hearth/localwork/service.py:73` | submit, validation | submit latency; candidate validation |  |
+| tokenizer / git / apply timeouts (s) | `30 / 120 / 120` | `repo/hearth/localwork/service.py:87` | submit, validation | submit latency; candidate validation |  |
 
 ### measured
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| omen-dense-27b decode tok/s median | `18.7` | `~/hearth-production/var/execution/events.ndjson` | deadline derivation | output / duration (prefill included, so a floor) |  |
-| omen-dense-27b duration_ms p90 / max | `88953 / 544899` | `~/hearth-production/var/execution/events.ndjson` | — | how close jobs come to the deadline |  |
-| omen-dense-27b invocations (n) | `62` | `~/hearth-production/var/execution/events.ndjson` | sizing rules | sample |  |
-| omen-dense-27b tokens_out p90 / max | `902 / 5690` | `~/hearth-production/var/execution/events.ndjson` | — | how close outputs come to the cap |  |
+| omen-dense-27b decode tok/s median | `29.5` | `~/hearth-production/var/execution/events.ndjson` | deadline derivation | output / duration (prefill included, so a floor) |  |
+| omen-dense-27b duration_ms p90 / max | `7874 / 1107603` | `~/hearth-production/var/execution/events.ndjson` | — | how close jobs come to the deadline |  |
+| omen-dense-27b invocations (n) | `3947` | `~/hearth-production/var/execution/events.ndjson` | sizing rules | sample |  |
+| omen-dense-27b tokens_out p90 / max | `115 / 5690` | `~/hearth-production/var/execution/events.ndjson` | — | how close outputs come to the cap |  |
 
 ### operation
 
@@ -432,19 +434,19 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| ROUTES.am4-tool-4070ti.context | `24576` | `~/work/deepagents-linux/run_linux_delivery.py:61` | AccountedTransport context check, summarization trigger | prompt + output + 32 <= context |  |
-| ROUTES.am4-tool-5070.context | `16384` | `~/work/deepagents-linux/run_linux_delivery.py:64` | AccountedTransport context check, summarization trigger | prompt + output + 32 <= context |  |
-| ROUTES.am4.context | `16384` | `~/work/deepagents-linux/run_linux_delivery.py:53` | AccountedTransport context check, summarization trigger | prompt + output + 32 <= context |  |
-| ROUTES.omen-dense.context | `65536` | `~/work/deepagents-linux/run_linux_delivery.py:56` | AccountedTransport context check, summarization trigger | prompt + output + 32 <= context |  |
-| ROUTES.omen.context | `40960` | `~/work/deepagents-linux/run_linux_delivery.py:50` | AccountedTransport context check, summarization trigger | prompt + output + 32 <= context |  |
-| RequestBudget deadline (s) | `1800` | `~/work/deepagents-linux/run_linux_delivery.py:22` | AccountedTransport | run wall clock |  |
+| ROUTES.am4-tool-4070ti.context | `24576` | `~/work/deepagents-linux/run_linux_delivery.py:64` | AccountedTransport context check, summarization trigger | prompt + output + 32 <= context |  |
+| ROUTES.am4-tool-5070.context | `16384` | `~/work/deepagents-linux/run_linux_delivery.py:67` | AccountedTransport context check, summarization trigger | prompt + output + 32 <= context |  |
+| ROUTES.am4.context | `16384` | `~/work/deepagents-linux/run_linux_delivery.py:56` | AccountedTransport context check, summarization trigger | prompt + output + 32 <= context |  |
+| ROUTES.omen-dense.context | `65536` | `~/work/deepagents-linux/run_linux_delivery.py:59` | AccountedTransport context check, summarization trigger | prompt + output + 32 <= context |  |
+| ROUTES.omen.context | `40960` | `~/work/deepagents-linux/run_linux_delivery.py:53` | AccountedTransport context check, summarization trigger | prompt + output + 32 <= context |  |
+| RequestBudget deadline (s) | `1800` | `~/work/deepagents-linux/run_linux_delivery.py:25` | AccountedTransport | run wall clock |  |
 | RequestBudget default limit | `32` | `~/work/deepagents-linux/poc/accounted_transport.py:79` | any caller that omits limit | attempts |  |
-| RequestBudget limit (attempts) | `max(24, min(64, 24 + source_lines // 25))` | `~/work/deepagents-linux/run_linux_delivery.py:210` | AccountedTransport.dispatch | physical inference calls per run | scaled by source lines since 2026-09-28 |
+| RequestBudget limit (attempts) | `max(24, min(64, 24 + source_lines // 25))` | `~/work/deepagents-linux/run_linux_delivery.py:453` | AccountedTransport.dispatch | physical inference calls per run | scaled by source lines since 2026-09-28 |
 | default --backend | `omen-dense` | `~/work/deepagents-linux/run_linux_delivery.py` | CLI | route when the wrapper passes none |  |
-| httpx / PinnedChat timeout (s) | `900` | `~/work/deepagents-linux/run_linux_delivery.py:269` | per request | — |  |
-| output_limit report / code | `6144 / 4096` | `~/work/deepagents-linux/run_linux_delivery.py:204` | PinnedChat max_tokens | output tokens per model call |  |
-| recursion_limit | `96` | `~/work/deepagents-linux/run_linux_delivery.py:23` | LangGraph invoke | graph supersteps (~2 per model turn) |  |
-| tool_token_limit_before_evict | `8192` | `~/work/deepagents-linux/run_linux_delivery.py:211` | EvictingFilesystem | tool result size before it is moved to /large_tool_results (4 chars/token) | = max(2048, context // 8) on the dense route |
+| httpx / PinnedChat timeout (s) | `900` | `~/work/deepagents-linux/run_linux_delivery.py:549` | per request | — |  |
+| output_limit report / code | `6144 / 4096` | `~/work/deepagents-linux/run_linux_delivery.py:438` | PinnedChat max_tokens | output tokens per model call |  |
+| recursion_limit | `96` | `~/work/deepagents-linux/run_linux_delivery.py:26` | LangGraph invoke | graph supersteps (~2 per model turn) |  |
+| tool_token_limit_before_evict | `8192` | `~/work/deepagents-linux/run_linux_delivery.py:454` | EvictingFilesystem | tool result size before it is moved to /large_tool_results (4 chars/token) | = max(2048, context // 8) on the dense route |
 | transport output guard | `reads max_completion_tokens\|max_tokens\|n_predict\|stream; requires 0 < output <= OUTPUT_GUARD_MAX=16384` | `~/work/deepagents-linux/poc/accounted_transport.py:133` | handle_request | output cap per call |  |
 
 ### scheduler
@@ -468,9 +470,9 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | omen-vllm@1 max_model_len | `40960` | `~/.config/systemd/user/omen-vllm@1.service.d/{max-model-len.conf,max-num-seqs.conf,stage0-recipe.conf}` | vLLM | input + output tokens per request |  |
 | omen-vllm@1 max_num_seqs | `8` | `~/.config/systemd/user/omen-vllm@1.service.d/{max-model-len.conf,max-num-seqs.conf,stage0-recipe.conf}` | vLLM scheduler | concurrent sequences admitted |  |
 | omen-vllm@1 served model | — | `~/.config/systemd/user/omen-vllm@1.service.d/{max-model-len.conf,max-num-seqs.conf,stage0-recipe.conf}` | HAProxy :18092 | which checkpoint answers |  |
-| script default OMEN_GPU_MEM_UTIL | `0.82` | `~/bin/start-vllm-seat.sh:78` | vLLM (any seat without a drop-in) | context / sequences / VRAM fraction | applies when no drop-in sets it |
-| script default OMEN_MAX_MODEL_LEN | `16384` | `~/bin/start-vllm-seat.sh:77` | vLLM (any seat without a drop-in) | context / sequences / VRAM fraction | applies when no drop-in sets it |
-| script default OMEN_MAX_NUM_SEQS | `16` | `~/bin/start-vllm-seat.sh:77` | vLLM (any seat without a drop-in) | context / sequences / VRAM fraction | applies when no drop-in sets it |
+| script default OMEN_GPU_MEM_UTIL | `0.82` | `~/bin/start-vllm-seat.sh:92` | vLLM (any seat without a drop-in) | context / sequences / VRAM fraction | applies when no drop-in sets it |
+| script default OMEN_MAX_MODEL_LEN | `16384` | `~/bin/start-vllm-seat.sh:91` | vLLM (any seat without a drop-in) | context / sequences / VRAM fraction | applies when no drop-in sets it |
+| script default OMEN_MAX_NUM_SEQS | `16` | `~/bin/start-vllm-seat.sh:91` | vLLM (any seat without a drop-in) | context / sequences / VRAM fraction | applies when no drop-in sets it |
 | wait-vllm-seat default max (s) | `900` | `~/bin/wait-vllm-seat.sh:9` | operator, experiment lane | seat startup wait |  |
 
 ### seat-live

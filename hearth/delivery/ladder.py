@@ -28,7 +28,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional
 
-from . import contract, judge_local, verify
+from . import contract, judge_local, sourcemap, verify
 from .render import _brief_bytes
 
 __all__ = ["run_ladder", "triage_summary", "LadderError"]
@@ -74,7 +74,9 @@ def _git_reader(repo: str, bdoc: Optional[Mapping[str, Any]]) -> Callable[[str, 
             r = subprocess.run(["git", "-C", repo, "show", f"{commits[path]}:{path}"], capture_output=True)
             if r.returncode:
                 raise LadderError(f"git show {commits[path]}:{path} failed: {r.stderr.decode(errors='replace').strip()}")
-            cache[path] = r.stdout.decode("utf-8", errors="replace").splitlines(keepends=True)
+            # LF alone defines a source line, as in sourcemap; preserve every terminator.
+            chunks = r.stdout.decode("utf-8", errors="replace").split("\n")
+            cache[path] = [line + "\n" for line in chunks[:-1]] + ([chunks[-1]] if chunks[-1] else [])
         return "".join(cache[path][start - 1:end])
     return read
 
@@ -135,7 +137,7 @@ def _paragraph_job(para: str, claims: list, ctx) -> Optional[dict]:
         label = f"{r['path']}:{r['start_line']}-{r['end_line']}"
         if not src.strip():
             if c.get("quote_reference") and r["start_line"] == r["end_line"]:
-                full = ctx["read"](r["path"], 1, 10 ** 9).splitlines()
+                full = sourcemap._split_lines(ctx["read"](r["path"], 1, 10 ** 9))
                 if not 1 <= r["end_line"] <= len(full) or full[r["start_line"] - 1].strip():
                     raise LadderError(f"{c['id']}: empty source range {label} is inconsistent with pinned file")
                 src = "Exact whitespace-only source line as JSON: " + json.dumps(full[r["start_line"] - 1])

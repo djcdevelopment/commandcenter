@@ -446,6 +446,23 @@ parallel_slots = 2
         self.assertFalse(same_prose(first, changed_heading))
 
 
+    def test_heading_claim_change_keeps_original_without_judge(self):
+        brief = {"schema": "brief.v2", "substance": [{"id": "s1", "statement": "Describe the file."}]}
+        first = {"summary": "The file ends with two.", "sections": [{"heading": "The last line is two", "paragraphs": [
+            {"text": "The file ends with two.", "quotes": ["three"]}]}]}
+        revised = json.loads(json.dumps(first))
+        revised["sections"][0]["heading"] = "The last line is one"
+        revised["sections"][0]["paragraphs"][0]["quotes"] = ["two"]
+        self.outputs[:] = [json.dumps(first), json.dumps(revised)]
+        final = self.settle(self.submit(artifact_kind="markdown", brief=brief, revise=True)["work_id"])
+        self.assertEqual(final["revision"]["kept"], "original")
+        self.assertIn("heading", final["revision"]["reason"])
+        self.assertEqual(len(self.generate_calls), 2)
+        from hearth.delivery import revision
+        with self.assertRaisesRegex(ValueError, "headings"):
+            revision.assess(json.dumps(self.coverage_answer(first)), first, revised, None)
+
+
 class DeepLaneFamilyTests(unittest.TestCase):
     """2026-09-27 (docs/sizing-map.md): the drain's default brief is code_fix on lane auto, so
     small code work went to the fast MoE lane although the family's own evidence pins the 27B."""

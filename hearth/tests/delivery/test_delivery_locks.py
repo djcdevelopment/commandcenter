@@ -382,6 +382,18 @@ class RungZeroArithmeticTests(unittest.TestCase):
         right = verify_legacy(said.replace("51,968", "55,706"))["rung0"]
         self.assertEqual(right["state"], "pass")
 
+    def test_ladder_reader_uses_source_map_line_numbers_and_preserves_bytes(self):
+        from unittest import mock
+        from hearth.delivery.ladder import _git_reader, _paragraph_job
+        source = "a\fb\nc\n\n"
+        with mock.patch("hearth.delivery.ladder.subprocess.run", return_value=mock.Mock(returncode=0, stdout=source.encode())):
+            read = _git_reader("unused", {"sources": [{"path": "a.py", "commit": "0" * 40}]})
+            self.assertEqual(read("a.py", 1, 100), source)
+            self.assertEqual(read("a.py", 2, 2), "c\n")
+            claim = {"id": "s0.p0.q0", "text": "Blank follows c.", "quote": "", "quote_reference": "a.py:3",
+                     "match": "exact", "resolved": {"path": "a.py", "start_line": 3, "end_line": 3}}
+            self.assertIn('Exact whitespace-only source line as JSON: ""', _paragraph_job("s0.p0", [claim], {"read": read})["quote"])
+
     def test_line_reference_blank_source_reaches_judge_without_hiding_it(self):
         from hearth.delivery.ladder import _paragraph_job, LadderError
         source = "before\n  \nafter\n"

@@ -59,6 +59,7 @@ from __future__ import annotations
 import ast
 import difflib
 import hashlib
+import html
 import re
 import subprocess
 import sys
@@ -386,6 +387,9 @@ def locate(sm: SourceMap, quote: str, threshold: float = FUZZY_THRESHOLD,
         fm, s, e = _pick(cands, hint)
         return Location(fm.path, s, e, "exact", len(cands))
 
+    # Under a JSON schema the 27B writes &quot; &gt; &apos; for the characters themselves (2026-10-03,
+    # work_a59bad05: 3 of 5 quotes). Unescaping is a normalization, counted like the quote fold.
+    q = html.unescape(q)
     nq = _norm(q)
     for fm, text in texts:
         ntext, idx = _norm_with_map(text)

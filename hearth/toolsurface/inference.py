@@ -331,6 +331,14 @@ STRUCTURED_OUTPUT_TRUNCATED_CODE = "structured_output_truncated"
 STRUCTURED_OUTPUT_INVALID_CODE = "structured_output_invalid"
 
 
+def _validate_temperature(temperature):
+    if temperature is None:
+        return None
+    if isinstance(temperature, bool) or not isinstance(temperature, (int, float)) or not 0 <= temperature <= 2:
+        raise ValueError("temperature must be a number in [0, 2]")
+    return float(temperature)
+
+
 def response_schema_digest(schema: dict) -> str:
     """sha256 of the canonical JSON of a response schema (sorted keys, no whitespace).
     The same digest is on the ledger row, in plan output and in docs/structured-outputs.md."""
@@ -458,7 +466,8 @@ def _generate_ollama(target: _Target, prompt: str, model: str, system: Optional[
 def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[str],
                      max_tokens: int, timeout_s: int,
                      image_url: Optional[str] = None,
-                     response_schema: Optional[dict] = None) -> dict:
+                     response_schema: Optional[dict] = None,
+                     temperature: Optional[float] = None) -> dict:
     if target.auth_env and not target.auth_token:
         # error_code is load-bearing: A2 escalation must NOT climb on this. A missing
         # token is a fault in THIS shell's environment, not a statement about the
@@ -480,6 +489,8 @@ def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[
     messages.append({"role": "user", "content": content})
     payload = {"model": model, "messages": messages,
                "max_tokens": max_tokens, "stream": False}
+    if temperature is not None:
+        payload["temperature"] = temperature
     chat_template_kwargs = target.settings.get("chat_template_kwargs")
     if isinstance(chat_template_kwargs, dict) and chat_template_kwargs:
         payload["chat_template_kwargs"] = chat_template_kwargs
@@ -608,7 +619,8 @@ def local_generate(prompt: str, model: str | None = None,
                    task_family: str | None = None,
                    task_id: str | None = None,
                    image_path: str | None = None,
-                   response_schema: dict | None = None) -> dict:
+                   response_schema: dict | None = None,
+                   temperature: float | None = None) -> dict:
     """Generate text from a configured inference backend.
 
     Routing (Banked Fire): pass ``task`` (e.g. "research") to prefer a tagged
@@ -683,6 +695,7 @@ def local_generate(prompt: str, model: str | None = None,
         raise ValueError("model must be a non-empty string")
     if max_tokens is not None and (not isinstance(max_tokens, int) or max_tokens <= 0):
         raise ValueError("max_tokens must be a positive integer")
+    temperature = _validate_temperature(temperature)
     if timeout_s is not None and timeout_s <= 0:
         raise ValueError("timeout_s must be positive")
     if quality is not None and quality not in ("fast", "good", "best"):
@@ -832,7 +845,7 @@ def local_generate(prompt: str, model: str | None = None,
             if response_schema is not None and t.settings.get("structured_outputs") is not True:
                 return _structured_outputs_refusal(t, m, schema_digest)
             return _generate_openai(t, prompt, m, system, mt, ts, image_url=image_data_url,
-                                    response_schema=response_schema)
+                                    response_schema=response_schema, temperature=temperature)
         if response_schema is not None:
             return _structured_outputs_refusal(t, m, schema_digest)
         if t.api == "gemini":
@@ -1092,6 +1105,7 @@ def _execution_local_generate(
     task_id: str | None = None,
     image_path: str | None = None,
     response_schema: dict | None = None,
+    temperature: float | None = None,
 ) -> dict:
     """Compatibility projection of local_generate over the Execution Ledger.
 
@@ -1144,6 +1158,7 @@ def _execution_local_generate(
         ("task_id", task_id),
         ("image_path", image_path),
         ("response_schema", response_schema),
+        ("temperature", temperature),
     ):
         if value is not None:
             arguments[key] = value

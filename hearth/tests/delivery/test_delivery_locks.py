@@ -467,6 +467,18 @@ class CarryTests(unittest.TestCase):
         self.assertEqual([(b["kind"], b["text"][:12]) for b in blocks],
                          [("heading", "Notes"), ("text", "```\n# not a "), ("text", "1. Run it"), ("text", "---"), ("text", "No other end")])
 
+    def test_report_part_carries_the_last_report_heading_on(self):
+        blocks = carry.split_draft("# Verified notes\n\nA (12, 14).\n\n## Report:\n\nOne.\n\nTwo.\n")
+        carried, notes, found = carry.report_part(blocks)
+        self.assertEqual(([b["id"] for b in carried], [b["id"] for b in notes], found), ([3, 4, 5], [1, 2], True))
+        self.assertEqual(carry.format_notes(notes), "# Verified notes\n\nA (12, 14).\n")
+        out, rep = carry.assemble(carried, {}, notes_blocks=len(notes))
+        self.assertEqual((rep["repairs"]["notes_blocks_not_carried"], "report_heading_missing" in rep["repairs"]), (2, False))
+        carried, notes, found = carry.report_part(carry.split_draft("Head\n\nOne.\n"))
+        self.assertEqual((len(carried), notes, found), (2, [], False))
+        self.assertEqual(carry.assemble(carried, {}, report_found=found)[1]["repairs"]["report_heading_missing"], 1)
+        self.assertEqual(carry.report_part(carry.split_draft("# Report\n\nOne.\n"))[1:], ([], True))
+
     def test_assemble_caps_quotes_and_attach_answer_must_cover_every_block(self):
         blocks = carry.split_draft("Head\n\nA paragraph.\n\nAnother one.\n")
         out, rep = carry.assemble(blocks, {2: [f"q{i}" for i in range(11)], 3: []})

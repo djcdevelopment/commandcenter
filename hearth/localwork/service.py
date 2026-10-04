@@ -39,6 +39,8 @@ CARRY_WORK_TOKENS = 24576   # the procedure's thinking turn: inference.deliberat
 # The system line of the accepted working drafts (delivery-plan/evidence/multistep/run_multistep.py SYSTEM), unchanged.
 CARRY_SYSTEM = ("You are auditing source files in order to write a short report. You work in steps inside this one "
                 "conversation: you keep working notes, check them, and only then write. Say only what the source shows.")
+CARRY_NOTES_HEADING = ("WORKING NOTES (written by the draft's author; they name source lines and can guide you to the "
+                       "right lines; never copy a quote from them):")
 IN_FLIGHT = frozenset({"accepted", "queued", "dispatched", "running"})
 KINDS = frozenset({"markdown", "json", "whole_file", "unified_diff"})
 LANES = frozenset({"auto", "fast", "deep", "tool"})   # tool: explicit only, when the route profile names it
@@ -1086,6 +1088,11 @@ class LocalWorkService:
             raise LocalWorkError("carry draft digest no longer matches manifest")
         return data.decode("utf-8")
 
+    def _carry_parts(self, draft: str) -> tuple:
+        """(blocks, carried, notes, found): only the report part is carried; the notes stay a work artifact."""
+        blocks = carry.split_draft(draft)
+        return (blocks, *carry.report_part(blocks))
+
     @staticmethod
     def _carry_units(batches: list, batch: int, part: str) -> list:
         unit = batches[batch - 1]
@@ -1094,7 +1101,8 @@ class LocalWorkService:
 
     def _carry_dispatch_attach(self, manifest: dict[str, Any], job: Mapping[str, Any], batch: int, part: str) -> None:
         carry_state, work_id = manifest["carry"], str(manifest["work_id"])
-        batches = carry.batches(carry.split_draft(self._carry_draft(manifest)))
+        _, carried, notes, _ = self._carry_parts(self._carry_draft(manifest))
+        batches = carry.batches(carried)
         unit = self._carry_units(batches, batch, part)
         first = self.execution.get_job(carry_state["jobs"][0]["job_id"])
         user = json.loads(self.execution.artifacts.read(first["desired"]["input_artifact"]))[1]["content"]
@@ -1102,7 +1110,13 @@ class LocalWorkService:
         if not user.endswith("\n\n" + instruction):
             raise LocalWorkError("carry work prompt no longer ends with its instruction")
         task = user[:-len("\n\n" + instruction)]
-        content = task + "\n" + self._template_file("local_work_delivery_attach_v1.txt")[0] + carry.format_blocks(unit)
+        attach = self._template_file("local_work_delivery_attach_v1.txt")[0]
+        head, mark, _ = attach.rpartition("BLOCKS TO CHECK:")
+        if not mark:
+            raise LocalWorkError("carry attach prompt no longer ends with BLOCKS TO CHECK:")
+        if notes:
+            head += CARRY_NOTES_HEADING + "\n" + carry.format_notes(notes) + "\n"
+        content = task + "\n" + head + mark + "\n" + carry.format_blocks(unit)
         messages = [{"role": "system", "content": CARRY_SYSTEM}, {"role": "user", "content": content}]
         max_tokens = min(3000, 400 * len(unit) + 200)
         context = int(manifest["prompt"]["context_tokens"])
@@ -1117,7 +1131,7 @@ class LocalWorkService:
         """The unit after the one that just succeeded: the second half, the next batch, or render."""
         carry_state = manifest["carry"]
         batch, part = carry_state["batch"], carry_state.get("part", "")
-        batches = carry.batches(carry.split_draft(self._carry_draft(manifest)))
+        batches = carry.batches(self._carry_parts(self._carry_draft(manifest))[1])
         while True:
             batch, part = (batch, "b") if part == "a" else (batch + 1, "")
             if batch > len(batches):
@@ -1166,15 +1180,15 @@ class LocalWorkService:
             carry_state["work"] = {k: observed.get(k) for k in ("finish_reason", "tokens_in", "tokens_out", "tokens_reasoning",
                                                                 "duration_ms", "backend", "model", "temperature")}
             try:
-                blocks = carry.split_draft(draft.decode("utf-8"))
-                carry.assemble(blocks, {})   # what render would refuse (sections, empty blocks) fails now, before any attach
-                carry_state["batches"] = len(carry.batches(blocks))
+                _, carried, notes, found = self._carry_parts(draft.decode("utf-8"))
+                carry.assemble(carried, {}, notes_blocks=len(notes), report_found=found)   # what render would refuse fails now, before any attach
+                carry_state["batches"] = len(carry.batches(carried))
             except (carry.CarryError, UnicodeDecodeError) as exc:
                 return self._carry_fail(manifest, job, f"the working draft cannot be carried: {exc}")
             if not carry_state["batches"]:
                 return self._carry_fail(manifest, job, "the working draft has no text blocks")
             return self._carry_dispatch_attach(manifest, job, 1, "")
-        batches = carry.batches(carry.split_draft(self._carry_draft(manifest)))
+        batches = carry.batches(self._carry_parts(self._carry_draft(manifest))[1])
         unit = self._carry_units(batches, carry_state["batch"], carry_state.get("part", ""))
         answer = self.execution.read_artifact(str(artifacts["output"]))[1].decode("utf-8", errors="replace")
         try:
@@ -1191,8 +1205,9 @@ class LocalWorkService:
         carry_state, work_id = manifest["carry"], str(manifest["work_id"])
         work_job = self.execution.get_job(carry_state["jobs"][0]["job_id"])
         try:
-            blocks = carry.split_draft(self._carry_draft(manifest))
-            output, report = carry.assemble(blocks, {int(k): v for k, v in carry_state["quotes"].items()})
+            _, carried, notes, found = self._carry_parts(self._carry_draft(manifest))
+            output, report = carry.assemble(carried, {int(k): v for k, v in carry_state["quotes"].items()},
+                                            notes_blocks=len(notes), report_found=found)
             raw = (json.dumps(output, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
             parse_repairs: dict[str, int] = {}
             for counts in carry_state.get("repairs_by_job", {}).values():

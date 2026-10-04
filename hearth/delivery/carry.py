@@ -230,6 +230,24 @@ def strip_line_references(text: str) -> tuple:
 
 
 # ------------------------------------------------------------------ attach
+def report_part(blocks: list) -> tuple:
+    """(carried, notes, found): the report starts at the LAST heading whose text is "report" or begins or ends with it;
+    that heading and everything after it is carried, everything before it is notes. No such heading: all carried."""
+    at = None
+    for i, b in enumerate(blocks):
+        if b["kind"] == "heading":
+            t = b["text"].lower().strip(" #*_:-\t")
+            if t.startswith("report") or t.endswith("report"):
+                at = i
+    if not at:
+        return list(blocks), [], at is not None
+    return blocks[at:], blocks[:at], True
+
+
+def format_notes(notes: list) -> str:
+    return "".join(b["raw"] for b in notes).strip() + "\n"
+
+
 def batches(blocks: list, size: int = 6) -> list:
     todo = [b for b in blocks if b["kind"] == "text"]
     return [todo[i:i + size] for i in range(0, len(todo), size)]
@@ -279,8 +297,10 @@ def parse_attach(answer: str, ids: list) -> tuple:
 
 
 # ------------------------------------------------------------------ assemble
-def assemble(blocks: list, quotes: dict, *, statements: Optional[int] = None) -> tuple:
-    """`statements` is accepted for the service's call shape and unused: the summary states no count of statements."""
+def assemble(blocks: list, quotes: dict, *, statements: Optional[int] = None, notes_blocks: int = 0,
+             report_found: bool = True) -> tuple:
+    """`statements` is accepted for the service's call shape and unused: the summary states no count of statements.
+    `notes_blocks` (blocks before the report heading, not carried) and `report_found` only add repair counts."""
     sections, refs = [], []
     stripped = beyond = with_quotes = total = paras = 0
     heading, dropped = None, []
@@ -326,6 +346,10 @@ def assemble(blocks: list, quotes: dict, *, statements: Optional[int] = None) ->
               "repairs": {"line_reference_stripped": stripped, "quotes_beyond_cap_dropped": beyond,
                           "blocks_empty_after_stripping_dropped": len(dropped), "headings_without_paragraphs_dropped": len(empty)},
               "line_references": refs, "paragraph_ids": pid}
+    if notes_blocks:
+        report["repairs"]["notes_blocks_not_carried"] = notes_blocks
+    if not report_found:
+        report["repairs"]["report_heading_missing"] = 1
     if empty:
         report["headings_without_paragraphs_dropped"] = [s["heading"] for s in empty]
     if dropped:

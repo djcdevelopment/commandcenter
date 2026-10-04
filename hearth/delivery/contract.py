@@ -342,11 +342,11 @@ def default_verification() -> dict:
 def _validate_manifest_items(it: Any) -> list:
     errs: list = []
     w = "manifest.items"
-    if not _exact(it, {"kind", *ITEM_COUNTS, "readers"}, {"judge_failures"}, w, errs):
+    if not _exact(it, {"kind", *ITEM_COUNTS, "readers"}, {"judge_failures", "judged_by_mark"}, w, errs):
         return errs
     if it["kind"] not in ITEM_KINDS:
         errs.append(f"{w}.kind: one of {ITEM_KINDS}, got {it['kind']!r}")
-    bad = [k for k in (*ITEM_COUNTS, "judge_failures") if k in it and not (_is_int(it[k]) and it[k] >= 0)]
+    bad = [k for k in (*ITEM_COUNTS, "judge_failures", "judged_by_mark") if k in it and not (_is_int(it[k]) and it[k] >= 0)]
     errs += [f"{w}.{k}: int >= 0 required" for k in bad]
     if not bad and it["agreed"] + it["settled"] + it["unverified"] != it["items"]:
         errs.append(f"{w}: agreed {it['agreed']} + settled {it['settled']} + unverified {it['unverified']} != items {it['items']}")

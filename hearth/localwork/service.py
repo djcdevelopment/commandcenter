@@ -1591,7 +1591,7 @@ class LocalWorkService:
                     return self._items_fail(manifest, f"reader {state['readers'][r]['backend']} failed {len(failed)} of "
                                                       f"{len(listed)} calls: {failed[0]}")
             state["settle"] = [x["id"] for x in listed
-                               if items.needs_judge(kind, [got[x["id"]][0]["answer"], got[x["id"]][1]["answer"]])]
+                               if items.needs_judge(kind, [got[x["id"]][0]["answer"], got[x["id"]][1]["answer"]], x)]
             state["stage"] = "settle" if state["settle"] else "render"
         else:
             failed = [got[i][2]["error"] for i in state["settle"] if got[i][2]["answer"] is None]
@@ -1610,14 +1610,15 @@ class LocalWorkService:
             g = got[x["id"]]
             readings = [g[0]["answer"], g[1]["answer"]]
             judged = g.get(2, {}).get("answer")
-            rows.append({**items.settle(kind, readings, judged), "readings": readings, "judgment": judged})
+            rows.append({**items.settle(kind, readings, judged, x), "readings": readings, "judgment": judged})
             log.append({"id": x["id"], "name": x["name"], "state": rows[-1]["state"], "by": rows[-1]["by"],
                         "readings": [{"reader": k, "role": names[k][0], "backend": names[k][1]["backend"], "job_id": e["job_id"],
                                       **({"error": e["error"]} if e["answer"] is None
                                          else {"answer": e["answer"]})} for k, e in sorted(g.items())]})
         output, report = items.assemble(kind, listed, rows, [r for _, r in names])
         calls = [sum(g[k]["calls"] for g in got.values() if k in g) for k in range(3)]
-        meta = {**{k: report[k] for k in ("kind", "items", "agreed", "settled", "unverified", "reader_failures", "files")},
+        meta = {**{k: report[k] for k in ("kind", "items", "agreed", "settled", "unverified", "reader_failures", "files",
+                                          "judged_by_mark")},
                 "judge_failures": sum(1 for g in got.values() if 2 in g and g[2]["answer"] is None),
                 "readers": [{**names[k][1], "role": names[k][0], "calls": calls[k]} for k in range(3)]}
         answer = (json.dumps(output, indent=2, ensure_ascii=False) + "\n").encode("utf-8")

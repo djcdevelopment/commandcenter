@@ -15,13 +15,13 @@ class ProcedureTableError(ValueError):
 
 
 def load(path: str | os.PathLike | None) -> tuple[dict | None, str | None]:
-    if not path or not os.path.isfile(path):
+    if not path or not os.path.exists(path):
         return None, None
-    data = open(path, "rb").read()
     try:
+        data = open(path, "rb").read()
         table = json.loads(data)
-    except ValueError as exc:
-        raise ProcedureTableError(f"procedure table {path} is not JSON: {exc}") from exc
+    except (OSError, ValueError) as exc:
+        raise ProcedureTableError(f"procedure table {path} is not readable JSON: {exc}") from exc
     rule = table.get("rule") if isinstance(table, dict) else None
     if (not isinstance(table, dict) or table.get("schema") != SCHEMA or not isinstance(table.get("backends"), dict)
             or not isinstance(rule, dict) or isinstance(rule.get("min_accepted_briefs"), bool)
@@ -58,6 +58,8 @@ def choose(table: dict | None, backend: str, task_family: str | None) -> tuple[s
     entry = table["backends"].get(backend)
     if entry is None:
         return "one_call", {"level": "none", "rule": rule, "counts": {}}
+    if not isinstance(entry, dict) or not isinstance(entry.get("families") or {}, dict):
+        raise ProcedureTableError(f"procedure table {backend} must be an object with an object of families")
     minimum = rule["min_accepted_briefs"]
     levels = []
     if task_family is not None and task_family in (entry.get("families") or {}):

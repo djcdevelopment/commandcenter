@@ -351,6 +351,14 @@ class LocalWorkService:
         target = _safe_relative(target_path) if target_path else None
         source_pack, source_meta = self._source_pack(repo_path, base, declared)
         delivery = brief is not None
+        if delivery:   # brief refusals come before any seat is asked to count tokens
+            brief = {**brief, "sources": [{"path": name, "commit": base} for name in declared]}
+            try:
+                contract.check_brief(brief)
+                source_map = sourcemap.build(str(repo_path), base, declared)
+            except (contract.ContractError, sourcemap.SourceMapError) as exc:
+                raise LocalWorkError(f"delivery brief refused: {exc}") from exc
+            quote_mode = contract.form_defaults(brief)["quote_mode"]
         # The depth floor is token-based, not a byte heuristic.  For auto we
         # ask the currently declared fast server to count the evidence alone;
         # the selected server then counts the complete templated request below.
@@ -376,12 +384,6 @@ class LocalWorkService:
         deliberate = int(provider.settings.get("deliberate_max_tokens") or 0)
         carried, pinned, choice, fallback, packet = False, False, None, None, None
         if delivery:
-            brief = {**brief, "sources": [{"path": name, "commit": base} for name in declared]}
-            try:
-                contract.check_brief(brief)
-            except contract.ContractError as exc:
-                raise LocalWorkError(f"delivery brief refused: {exc}") from exc
-            quote_mode = contract.form_defaults(brief)["quote_mode"]
             if procedure:
                 carried, pinned, choice = procedure == "carry", True, {"by": "caller", "level": "pin"}
             elif existing is not None:
@@ -391,8 +393,11 @@ class LocalWorkService:
             elif max_tokens is not None or revise:
                 choice = {"by": "caller", "level": "caller_argument", "argument": "max_tokens" if max_tokens is not None else "revise"}
             else:
-                table, table_sha = procedures.load(os.environ.get("HEARTH_DELIVERY_PROCEDURES"))
-                picked, basis = procedures.choose(table, backend_name, task_family)
+                try:
+                    table, table_sha = procedures.load(os.environ.get("HEARTH_DELIVERY_PROCEDURES"))
+                    picked, basis = procedures.choose(table, backend_name, task_family)
+                except procedures.ProcedureTableError as exc:
+                    raise LocalWorkError(f"delivery procedure table refused: {exc}") from exc
                 carried, choice = picked == "carry", {"by": "door", **basis, "table_sha256": table_sha}
             if carried:
                 if quote_mode != "text":
@@ -423,8 +428,8 @@ class LocalWorkService:
             work_template = None
             if delivery:
                 try:
-                    packet = sourcemap.render_for_model(sourcemap.build(str(repo_path), base, declared),
-                                                        numbered=carried or quote_mode == "line_reference", symbols=False)
+                    packet = sourcemap.render_for_model(source_map, numbered=carried or quote_mode == "line_reference",
+                                                        symbols=False)
                 except sourcemap.SourceMapError as exc:
                     raise LocalWorkError(f"delivery brief refused: {exc}") from exc
                 max_tokens = explicit_max if explicit_max is not None else (

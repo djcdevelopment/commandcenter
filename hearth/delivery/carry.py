@@ -183,6 +183,47 @@ def _paren_is_reference(body: str, text: str, at: int) -> bool:
     return not (n <= 9 and all(re.search(rf"\(\s*{k}\s*\)", text) for k in range(1, max(n, 2) + 1)))   # "a (1) ... b (2)"
 
 
+_INT_GROUP = re.compile(r"\d+(?:\s*[-\u2013]\s*\d+)?(?:\s*[,;]\s*\d+(?:\s*[-\u2013]\s*\d+)?)*")
+_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_.]*")
+_COMMON = frozenset("""about above after again also always another because been before being below between both bytes cannot could count
+default does doing done each either else every first from gets give given goes have here into just keeps know last like line lines list
+made make many more most much must never next none only onto other over same says should since some still such take takes than that
+their them then there these they this those through under until upon used uses using value values very want were what when where which
+while whose will with within without would your appends append reads read writes write names name file files code text size sizes
+number numbers set sets sees shows show holds hold sets state lets let each""".split())
+
+
+def _identifiers(sentence: str) -> set:
+    """Backticked tokens, and words of four characters or more that are not common English words (case kept)."""
+    names = {t.strip("`").rstrip(".") for t in re.findall(r"`([^`\n]+)`", sentence)}
+    for w in _NAME.findall(re.sub(r"`[^`\n]*`", " ", sentence)):
+        w = w.rstrip(".")
+        if len(w) >= 4 and w.lower() not in _COMMON:
+            names.add(w)
+    return {n for n in names if n}
+
+
+def _sentence_around(text: str, a: int, b: int) -> str:
+    lo = max([0, *(m.end() for m in re.finditer(r"[.!?](?=\s)|\n", text[:a]))])
+    m = re.search(r"[.!?](?=\s|$)|\n", text[b:])
+    return text[lo:a] + " " + text[b:b + m.start() if m else len(text)]
+
+
+def _is_source_line_reference(body: str, text: str, a: int, b: int, sources: dict) -> bool:
+    """An all-integer group is a line reference when each integer N has a declared file whose line N-1, N or N+1 holds an
+    identifier of the same sentence; one integer without that keeps the group ("context_tokens (65536)")."""
+    if not _INT_GROUP.fullmatch(body.strip()):
+        return False
+    names = _identifiers(_sentence_around(text, a, b))
+    if not names:
+        return False
+    pats = [re.compile(rf"(?<![A-Za-z0-9_]){re.escape(n)}(?![A-Za-z0-9_])") for n in names]
+    for n in map(int, re.findall(r"\d+", body)):
+        if not any(1 <= n <= len(lines) and any(p.search(l) for l in lines[max(0, n - 2):n + 1] for p in pats) for lines in sources.values()):
+            return False
+    return True
+
+
 def _join(left: str, right: str) -> str:
     """Close the gap a removal left; only the seam is touched (no doubled space, no orphan punctuation)."""
     lt, rt = left.rstrip(), right.lstrip()
@@ -197,7 +238,9 @@ def _join(left: str, right: str) -> str:
     return lt + ("\n" + gap.rsplit("\n", 1)[1] if "\n" in gap else " " if gap else "") + rt   # a line break in a table stays
 
 
-def strip_line_references(text: str) -> tuple:
+def strip_line_references(text: str, sources: Optional[dict] = None) -> tuple:
+    """`sources` (declared path -> its lines at the pinned commit) adds one form: a parenthesised group of integers that
+    names a line holding an identifier of its own sentence ("collect_backends (192)")."""
     spans = [m.span() for m in _PROTECT.finditer(text)]
     cuts: list = []                                           # (start, end, reference as written)
 
@@ -206,6 +249,8 @@ def strip_line_references(text: str) -> tuple:
             cuts.append((a, b, ref))
     for m in _PAREN.finditer(text):
         if _paren_is_reference(m.group(1), text, m.start()):
+            cut(m.start(), m.end(), m.group(1).strip())
+        elif sources and _is_source_line_reference(m.group(1), text, m.start(), m.end(), sources):
             cut(m.start(), m.end(), m.group(1).strip())
     for m in [_START_INLINE.match(text)] + list(_INLINE.finditer(text)):
         if m:
@@ -357,15 +402,16 @@ def parse_attach(answer: str, ids: list) -> tuple:
 
 
 # ------------------------------------------------------------------ assemble
-def assemble(blocks: list, quotes: dict, *, statements: Optional[int] = None, notes_blocks: int = 0) -> tuple:
+def assemble(blocks: list, quotes: dict, *, statements: Optional[int] = None, notes_blocks: int = 0,
+             sources: Optional[dict] = None) -> tuple:
     """`statements` is accepted for the service's call shape and unused: the summary states no count of statements.
-    `notes_blocks` (blocks before the report heading, not carried) only adds a repair count."""
+    `notes_blocks` (blocks before the report heading, not carried) only adds a repair count. `sources`: see strip_line_references."""
     sections, refs, known = [], [], set()
     stripped = beyond = with_quotes = total = paras = by_sentence = 0
     heading, dropped = None, []
     for b in blocks:
         if b["kind"] == "heading":
-            text, removed = strip_line_references(b["text"])
+            text, removed = strip_line_references(b["text"], sources)
             stripped += len(removed)
             refs += [{"block": b["id"], "reference": r} for r in removed]
             if text.strip(" #*_:-"):
@@ -393,7 +439,7 @@ def assemble(blocks: list, quotes: dict, *, statements: Optional[int] = None, no
         split = not own and len(merged) > MAX_QUOTES and len(groups) > 1 and len(sections[-1]["paragraphs"]) + len(groups) <= MAX_PARAGRAPHS
         for g in (groups if split else [[b]]):
             key = g[0]["id"]
-            text, removed = strip_line_references("".join(u["raw"] for u in g).strip() if split else b["text"])
+            text, removed = strip_line_references("".join(u["raw"] for u in g).strip() if split else b["text"], sources)
             stripped += len(removed)
             refs += [{"block": b["id"], "reference": r, **({"unit": key} if split else {})} for r in removed]
             if not re.sub(r"^(?:[-*+]|\d+[.)])(?=\s|$)|[\W_]", "", text):   # nothing left but a list mark or punctuation

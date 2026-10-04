@@ -55,6 +55,11 @@ What fails loudly: a thinking turn that is cut off or fails fails the work and k
 
 Blank quotes: the renderer owns the repair. `render` and `verify` drop a quote that is `""` or whitespace from a copy of the answer before validation and count it once as `empty_quote_dropped`; the stored `delivery-output.json` is the model's raw answer, so re-rendering or verifying it gives the same counts, and the ladder reads answers the same way.
 
+A line number the model writes into its report is removed by code and counted (`line_reference_stripped`). Besides the
+written forms (`L141`, `lines 12-14`, `(198-202)`), a bare number in parentheses right after a code name, such as
+`collect_backends (192)`, is removed when the number is 10 or more, the name looks like code, a declared file has that
+name on the line or the one beside it, and no line holding the name also holds the number (then it may be the value).
+
 ## The items procedure
 
 For work whose answer is one stated value per item (ADR-0058). A brief declares `"items": {"kind": "env_reads"}` and
@@ -72,8 +77,15 @@ For work whose answer is one stated value per item (ADR-0058). A brief declares 
    lines and both readings and states the default itself. The row is settled when the judge's own default equals one of
    the readings. A judge call that fails or gives no parsable answer leaves the row unverified; more than half failing
    fails the work.
-4. **Render**: code writes one paragraph per item with one quote `path:line` of the read, the summary and every count.
-   A row no two sources agree on is delivered as `NOT VERIFIED` with the readings shown, never as a value.
+4. **Render**: code writes one paragraph per item with one quote `path:line` (the line of the read itself), the summary
+   and every count. A verified row states the variable, its place and its default, nothing else: the readers' one-line
+   "what it controls" sentence passes no gate, so it stays in `items-readings.json` and is not delivered. A name that is
+   not a string constant is shown as a computed name. A row no two sources agree on is delivered as `NOT VERIFIED` with
+   the readings shown, never as a value. The summary says which reads the enumerator cannot see (a helper function,
+   `setdefault`, `pop`, a membership test).
+
+Where a read has no second argument and sits in an `or` chain, the enumerator marks it and both prompts carry a note
+saying the value used when the variable is unset is what follows the `or`: code points, the model reads.
 
 The delivery manifest carries `procedure: "items"` and an `items` object (`items`, `agreed`, `settled`, `unverified`,
 `reader_failures`, `judge_failures`, `files`, and `readers` with each seat's role and call count); the work keeps
@@ -83,7 +95,8 @@ and the counts.
 Measured on 189 reads with a truth from the syntax tree (2026-10-04, `lab-rnd research/evidence/seat0-short-calls-20261004/RESULT.md`):
 the 30B alone is right on 94.7%; rows the 30B and the 8B agree on are right 97.4% of the time; on the rows they dispute
 the thinking judge's default was right in 49 of 49 answers, where a third plain reading got 1 of 46 wrong and a
-thinking-off judge 5 of 50. Rows both readers agree on wrongly (about 2%) are seen by no settler.
+thinking-off judge 5 of 50. Rows both readers agree on wrongly are seen by no settler: in the first live run
+(`work_4b0569a8`, rejected) that was 7 of 89 verified rows, five of them `or` reads both readers gave as "none".
 
 Limits: a restart of the gateway fails the judge calls in flight (a thinking call is never replayed); a paused dispatch or
 a full execution queue fails the work at its next refill; the `lane` argument is ignored (recorded as requested).

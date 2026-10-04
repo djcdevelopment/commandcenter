@@ -38,6 +38,9 @@ TEMPLATE_VERSION = "local-work-prompts.v1"
 ROUTE_PROFILE_VERSION = "local-work-routes.v2"
 DELIVERY_TOKEN_CEILING = 16384
 CARRY_WORK_TOKENS = 24576   # the procedure's thinking turn: inference.deliberate's ceiling, not work.produce's
+CARRY_CHECK_TOKENS = 24576   # the check turn's ceiling; its budget is what the window leaves, and under the floor the work fails
+CARRY_CHECK_FLOOR = 12000
+CARRY_CHECK_ROOM = 8000      # the submit-time estimate of what the check turn adds to the work prompt (draft and check prompt)
 # The system line of the accepted working drafts (delivery-plan/evidence/multistep/run_multistep.py SYSTEM), unchanged.
 CARRY_SYSTEM = ("You are auditing source files in order to write a short report. You work in steps inside this one "
                 "conversation: you keep working notes, check them, and only then write. Say only what the source shows.")
@@ -535,7 +538,8 @@ class LocalWorkService:
             manifest["route"]["procedure"] = "items" if items_run else "carry" if carried else "one_call"
             manifest["route"]["procedure_choice"] = {**choice, **({"fallback": fallback} if fallback else {})}
         if carried:
-            manifest["carry"] = {"stage": "work", "batch": 0, "batches": 0, "retried": [], "jobs": [], "quotes": {}}
+            manifest["carry"] = {"stage": "work", "batch": 0, "batches": 0, "retried": [], "jobs": [], "quotes": {},
+                                 "check": self._carry_check_plan(prompt, context_tokens)}
         if items_run:
             manifest["items"] = {"kind": brief["items"]["kind"], "stage": "read", "count": len(item_list),
                                  "readers": [{k: r[k] for k in ("backend", "model")} for r in roster[:2]],
@@ -811,7 +815,8 @@ class LocalWorkService:
         self._event(manifest, "outcome.final", {"status": "failed", "reason": reason[:200]})
 
     def _render_answer(self, manifest: Mapping[str, Any], job: Mapping[str, Any], raw: bytes,
-                       carried: Mapping[str, int] | None = None, items_meta: Mapping[str, Any] | None = None) -> tuple:
+                       carried: Mapping[str, int] | None = None, items_meta: Mapping[str, Any] | None = None,
+                       self_check: bool = False) -> tuple:
         """-> (output, markdown, delivery manifest); a failure raises _Refused with its named reason.
         `carried` (the carry procedure's repair counts) marks the answer as assembled from a carried draft."""
         try:
@@ -830,7 +835,8 @@ class LocalWorkService:
                                   "context_tokens": manifest["prompt"]["context_tokens"],
                                   "profile": route["serving_profile_sha256"][:12]},
                 "aids_used": ITEMS_AIDS + (["thinking"] if items_meta["readers"][-1]["calls"] else []) if items_meta is not None
-                else ["thinking", "carried_draft"] if carried is not None else ["constrained_output"]}
+                else ["thinking", "carried_draft"] + (["self_check"] if self_check else []) if carried is not None
+                else ["constrained_output"]}
         try:
             sm = sourcemap.build(manifest["repo"], manifest["base_commit"], list(manifest["declared_paths"]))
             markdown, delivery = delivery_render.render(output, manifest["brief"], sm, meta)
@@ -1179,13 +1185,30 @@ class LocalWorkService:
                     refs={"receipt_id": manifest["receipt_id"]} if manifest.get("receipt_id") else {})
         return state
 
+    @staticmethod
+    def _carry_check_plan(prompt: str, context_tokens: int) -> dict[str, Any]:
+        """HEARTH_CARRY_CHECK (on by default, off) read at submit; a prompt too large for a checked run is skipped, with the reason."""
+        knob = os.environ.get("HEARTH_CARRY_CHECK", "on").strip().lower() or "on"
+        if knob not in ("on", "off"):
+            raise LocalWorkError(f"HEARTH_CARRY_CHECK must be 'on' or 'off', got {knob!r}")
+        if knob == "off":
+            return {"state": "off"}
+        used = len((CARRY_SYSTEM + prompt.split("\n", 1)[1]).encode("utf-8")) // 4
+        plan = {"state": "on", "prompt_sha256": _digest(LocalWorkService._template_file("local_work_delivery_check_v1.txt")[0])}
+        if used + CARRY_CHECK_ROOM + CARRY_CHECK_TOKENS > context_tokens:
+            plan.update(state="skipped", reason=f"work prompt {used} (bytes // 4) + {CARRY_CHECK_ROOM} + {CARRY_CHECK_TOKENS} "
+                                                f"> window {context_tokens}: the work runs unchecked")
+        return plan
+
     def _carry_fail(self, manifest: dict[str, Any], job: Mapping[str, Any] | None, reason: str) -> None:
         """Any failed stage fails the work, names the stage, and keeps what exists; nothing falls back or renders."""
         carry_state, run_dir = manifest["carry"], self._run_dir(str(manifest["work_id"]))
         carry_state["failure"] = {"stage": carry_state["stage"], "batch": carry_state["batch"],
                                   "part": carry_state.get("part", ""), "reason": reason}
-        if job is not None and carry_state["stage"] == "work":   # a cut or failed thinking turn still has its record
-            for role, name in (("output", "carry-draft.partial.md"), ("reasoning", "carry-reasoning.txt")):
+        if job is not None and carry_state["stage"] in ("work", "check"):   # a cut or failed thinking turn still has its record
+            names = (("output", "carry-draft.partial.md"), ("reasoning", "carry-reasoning.txt")) if carry_state["stage"] == "work" \
+                else (("output", "carry-check.partial.md"), ("reasoning", "carry-check-reasoning.txt"))
+            for role, name in names:
                 ref = next((a["artifact_id"] for a in job.get("artifacts", []) if a.get("role") == role), None)
                 if ref:
                     data = self.execution.read_artifact(str(ref))[1]
@@ -1195,8 +1218,10 @@ class LocalWorkService:
                    + (f" batch {carry_state['batch']}{carry_state.get('part', '')}" if carry_state["batch"] else "")
                    + f": {reason}")
 
-    def _carry_draft(self, manifest: Mapping[str, Any]) -> str:
-        ref = manifest["carry"]["draft"]
+    def _carry_draft(self, manifest: Mapping[str, Any], raw: bool = False) -> str:
+        """The text attach and render follow: the checked draft when the check stage made one, else the work turn's answer
+        (`raw`: always the work turn's answer)."""
+        ref = manifest["carry"]["draft"] if raw or "checked" not in manifest["carry"] else manifest["carry"]["checked"]
         data = (self._run_dir(str(manifest["work_id"])) / ref["file"]).read_bytes()
         if _digest(data) != ref["sha256"]:
             raise LocalWorkError("carry draft digest no longer matches manifest")
@@ -1240,6 +1265,61 @@ class LocalWorkService:
         self._carry_submit(manifest, f"carry-attach-{batch}{part}", "attach", batch, part, messages, False, 0, max_tokens,
                            int(first["desired"]["policy"]["deadline_s"]), job["principal"], job["source"])
         self._spawn_auto_reconcile(work_id, manifest["job_id"])
+
+    def _carry_dispatch_check(self, manifest: dict[str, Any], job: Mapping[str, Any]) -> None:
+        """Stage `check`: the work turn's conversation continues. The draft goes back as the assistant's answer and the check
+        prompt asks the model to compare each statement of its report with the code. Rebuilt byte for byte on a repeated call."""
+        carry_state, work_id = manifest["carry"], str(manifest["work_id"])
+        first = self.execution.get_job(carry_state["jobs"][0]["job_id"])
+        user = json.loads(self.execution.artifacts.read(first["desired"]["input_artifact"]))[1]["content"]
+        messages = [{"role": "system", "content": CARRY_SYSTEM}, {"role": "user", "content": user},
+                    {"role": "assistant", "content": self._carry_draft(manifest, raw=True)},
+                    {"role": "user", "content": self._template_file("local_work_delivery_check_v1.txt")[0]}]
+        used = len(json.dumps(messages).encode("utf-8")) // 4
+        budget = min(CARRY_CHECK_TOKENS, int(int(manifest["prompt"]["context_tokens"]) - used * 1.1 - 256))
+        carry_state.update(stage="check", batch=0, part="")
+        if budget < CARRY_CHECK_FLOOR:
+            return self._carry_fail(manifest, None, f"the check turn does not fit: {used} input (bytes // 4) leaves {budget} "
+                                                    f"output tokens in a window of {manifest['prompt']['context_tokens']}, under {CARRY_CHECK_FLOOR}")
+        carry_state["check"]["budget"] = budget
+        self._carry_submit(manifest, "carry-check", "check", 0, "", messages, True,
+                           first["desired"]["arguments"]["temperature"], budget,
+                           int(first["desired"]["policy"]["deadline_s"]), job["principal"], job["source"])
+        self._spawn_auto_reconcile(work_id, manifest["job_id"])
+
+    def _carry_checked(self, manifest: dict[str, Any], job: Mapping[str, Any], artifacts: Mapping[str, str],
+                       observed: Mapping[str, Any]) -> None:
+        """Stage `check` done: keep the answer, build the checked draft, count what changed, then attach batch 1."""
+        carry_state, run_dir = manifest["carry"], self._run_dir(str(manifest["work_id"]))
+        data = self.execution.read_artifact(str(artifacts["output"]))[1]
+        (run_dir / "carry-check.md").write_bytes(data)
+        try:
+            _, report_text = carry.split_check(data.decode("utf-8"))
+            draft = self._carry_draft(manifest, raw=True)
+            checked = carry.checked_draft(draft, report_text)
+            old = carry.units(self._carry_parts(draft)[1])
+            _, carried, _, found = self._carry_parts(checked)
+            if not found:
+                raise carry.CarryError("the checked draft has no report heading")
+            new = carry.units(carried)
+            kept, was = sum(len(u["text"]) for u in new), sum(len(u["text"]) for u in old)
+            if kept * 3 < was:   # a check that lost most of the report is not a correction of it
+                raise carry.CarryError(f"the checked report holds {kept} characters of text, under a third of the draft report's {was}")
+            carry.assemble(carried, {}, notes_blocks=len(self._carry_parts(checked)[2]), sources=self._carry_sources(manifest))
+            batches = len(carry.batches(carried))
+        except (carry.CarryError, UnicodeDecodeError) as exc:
+            return self._carry_fail(manifest, job, f"the check answer cannot be used: {exc}")
+        if not batches:
+            return self._carry_fail(manifest, job, "the checked report has no text blocks")
+        raw = checked.encode("utf-8")
+        (run_dir / "carry-checked.md").write_bytes(raw)
+        carry_state["checked"] = {"file": "carry-checked.md", "sha256": _digest(raw), "size": len(raw)}
+        carry_state["check"].update({k: observed.get(k) for k in ("finish_reason", "tokens_in", "tokens_out", "tokens_reasoning", "duration_ms")},
+                                    seconds=round((observed.get("duration_ms") or 0) / 1000, 1),
+                                    answer={"file": "carry-check.md", "sha256": _digest(data), "size": len(data)},
+                                    **carry.report_diff(old, new))
+        carry_state["batches"] = batches
+        return self._carry_dispatch_attach(manifest, job, 1, "")
 
     def _carry_next(self, manifest: dict[str, Any], job: Mapping[str, Any]) -> None:
         """The unit after the one that just succeeded: the second half, the next batch, or render."""
@@ -1311,7 +1391,11 @@ class LocalWorkService:
             if not carry_state["batches"]:
                 return self._carry_fail(manifest, job, "the working draft has no text blocks")
             carry_state["units"] = "sentence"
+            if carry_state.get("check", {}).get("state") == "on":
+                return self._carry_dispatch_check(manifest, job)
             return self._carry_dispatch_attach(manifest, job, 1, "")
+        if carry_state["stage"] == "check":
+            return self._carry_checked(manifest, job, artifacts, observed)
         batches = carry.batches(self._carry_parts(self._carry_draft(manifest))[1])
         unit = self._carry_units(batches, carry_state["batch"], carry_state.get("part", ""))
         answer = self.execution.read_artifact(str(artifacts["output"]))[1].decode("utf-8", errors="replace")
@@ -1343,7 +1427,11 @@ class LocalWorkService:
             for counts in carry_state.get("repairs_by_job", {}).values():
                 for key, value in counts.items():
                     parse_repairs[key] = parse_repairs.get(key, 0) + value
-            rendered = self._render_answer(manifest, work_job, raw, {**report["repairs"], **parse_repairs})
+            check = carry_state.get("check") or {}
+            checked = "checked" in carry_state
+            rendered = self._render_answer(manifest, work_job, raw, {**report["repairs"], **parse_repairs,
+                                           **({"check_statements_changed": check.get("changed_or_removed", 0)} if checked else {})},
+                                           self_check=checked)
         except (carry.CarryError, _Refused) as exc:
             return self._carry_fail(manifest, job, f"render: {exc}")
         metadata = self.execution.read_artifact(str(next(
@@ -1355,7 +1443,10 @@ class LocalWorkService:
         (run_dir / "line-references.json").write_text(agreement, encoding="utf-8", newline="")
         for key, name, media in (("carry_draft", "carry-draft.md", "text/markdown; charset=utf-8"),
                                  ("carry_reasoning", "carry-reasoning.txt", "text/plain; charset=utf-8"),
-                                 ("line_references", "line-references.json", "application/json")):
+                                 ("line_references", "line-references.json", "application/json"),
+                                 *((("carry_check", "carry-check.md", "text/markdown; charset=utf-8"),
+                                    ("carry_checked", "carry-checked.md", "text/markdown; charset=utf-8"))
+                                   if "checked" in carry_state else ())):
             data = (run_dir / name).read_bytes()
             manifest["delivery_artifacts"][key] = {"file": name, "sha256": _digest(data), "size": len(data), "media_type": media}
         carry_state["report"] = {k: report[k] for k in ("blocks", "paragraphs", "paragraphs_with_quotes", "quotes",

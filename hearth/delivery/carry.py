@@ -475,3 +475,46 @@ def line_reference_agreement(report: dict, manifest: dict) -> list:
         out.append({"block": r["block"], **({"unit": r["unit"]} if "unit" in r else {}), "reference": r["reference"], "agrees": None if not (named and spans) else
                     all(any(a <= hi and lo <= b for a, b in spans) for lo, hi in named)})
     return out
+
+
+# ------------------------------------------------------------------ check (the second thinking turn)
+def _is_part_line(line: str, word: str) -> bool:
+    s = line.strip()
+    if word == "report":
+        return bool(_REPORT_LINE.fullmatch(s) or (s.startswith("#") and _REPORT_LINE.fullmatch(s.lstrip("#").strip())))
+    return re.fullmatch(r"(?:#+\s*)?(?:\*\*|__)?\s*changes\s*:?\s*(?:\*\*|__)?:?", s, re.I) is not None
+
+
+def split_check(answer: str) -> tuple:
+    """(changes_text, report_text): the report starts after the LAST line that says only `Report` (the heading forms
+    `report_part` accepts); the `Changes` part is what lies under the last `Changes` line before it, or, written after
+    the report, under the first `Changes` line after it (the report ends there: a Changes part is never delivered).
+    CarryError when there is no report line or the report is empty."""
+    lines = answer.splitlines(keepends=True)
+    at = next((i for i in range(len(lines) - 1, -1, -1) if _is_part_line(lines[i], "report")), None)
+    if at is None:
+        raise CarryError("split_check: the answer has no line that says only `Report`")
+    end = next((i for i in range(at + 1, len(lines)) if _is_part_line(lines[i], "changes")), None)
+    report = "".join(lines[at + 1:end]).strip()
+    if not report:
+        raise CarryError("split_check: the Report part is empty")
+    ch = next((i for i in range(at - 1, -1, -1) if _is_part_line(lines[i], "changes")), None)
+    return ("".join(lines[ch + 1:at]) if ch is not None else "".join(lines[end + 1:]) if end is not None else "").strip(), report
+
+
+def checked_draft(draft: str, report_text: str) -> str:
+    """The draft's notes unchanged, a line `Report`, then the corrected report: `split_draft` and `report_part` read it as a draft."""
+    _, notes, found = report_part(split_draft(draft))
+    if not found:
+        raise CarryError("checked_draft: the draft has no report heading")
+    return "".join(b["raw"] for b in notes) + f"{LEAD_HEADING}\n\n{report_text.strip()}\n"   # notes end at a line start
+
+
+def report_diff(old_units: list, new_units: list) -> dict:
+    """Units of the report before and after the check, compared by exact text (multiset): how many stayed, how many of the
+    old ones were changed or removed, how many new ones appear."""
+    from collections import Counter
+    old = Counter(u["text"] if isinstance(u, dict) else u for u in old_units)
+    new = Counter(u["text"] if isinstance(u, dict) else u for u in new_units)
+    kept = sum((old & new).values())
+    return {"kept": kept, "changed_or_removed": sum(old.values()) - kept, "added": sum(new.values()) - kept}

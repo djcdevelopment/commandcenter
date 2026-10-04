@@ -12,7 +12,7 @@ import json
 import unittest
 from pathlib import Path
 
-from hearth.delivery import contract, sourcemap
+from hearth.delivery import carry, contract, sourcemap
 from hearth.delivery.render import render
 from hearth.delivery.sourcemap import SourceMap, file_map, locate, render_for_model
 from hearth.delivery.verify import verify_legacy
@@ -415,3 +415,54 @@ class RungZeroArithmeticTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CarryTests(unittest.TestCase):
+    """Lap 17 B1: the carried-draft helpers, on made-up drafts and the proven reference forms."""
+
+    def test_strip_removes_references_and_keeps_every_other_number(self):
+        for before, after, refs in (
+                ("x (17), y", "x, y", ["17"]),
+                ("See lines 663-683 for it. Then at line 17 it ends.", "for it. Then it ends.", ["lines 663-683", "line 17"]),
+                ("reads the file (160, 174-180) and L17 again", "reads the file and again", ["160, 174-180", "L17"]),
+                ("see service.py:78 and host/x.toml:12-14", "see service.py and host/x.toml", ["78", "12-14"]),
+                ("ctx 65536, 2 slots, k=1, v2.3 (65536) on 127.0.0.1:8710", "ctx 65536, 2 slots, k=1, v2.3 (65536) on 127.0.0.1:8710", []),
+                ("`line 17` and \"lines 3-4\" stay", "`line 17` and \"lines 3-4\" stay", []),
+                ("(1) first, (2) second", "(1) first, (2) second", []),
+                ("flip (18\u219233) done", "flip done", ["18\u219233"])):
+            self.assertEqual(carry.strip_line_references(before), (after, refs), before)
+
+    def test_split_joins_and_handles_edges(self):
+        draft = "\nintro text.\n\nNotes\n" + "".join(f"- item {i} (L{i})\n" for i in range(30)) + "\nLong\n\n" + ("Sentence about it. " * 160)
+        blocks = carry.split_draft(draft)
+        self.assertEqual("".join(b["raw"] for b in blocks), draft)
+        self.assertEqual([b["id"] for b in blocks], list(range(1, len(blocks) + 1)))
+        self.assertEqual(blocks[0]["kind"], "text")                       # text before any heading
+        self.assertEqual(sum(b["kind"] == "text" and b["text"].startswith("- item") for b in blocks), 30)
+        self.assertTrue(all(len(b["text"]) <= 2400 for b in blocks))
+        self.assertGreater(len([b for b in blocks if b["text"].startswith("Sentence")]), 1)
+        out, rep = carry.assemble(blocks, {})
+        self.assertEqual(contract.validate_output(out), [])
+        self.assertEqual([s["heading"] for s in out["sections"]], ["Report", "Notes", "Notes (continued)", "Long"])
+        self.assertEqual(rep["repairs"]["line_reference_stripped"], 30)
+        self.assertNotIn("N:", out["summary"])
+
+    def test_assemble_caps_quotes_and_attach_answer_must_cover_every_block(self):
+        blocks = carry.split_draft("Head\n\nA paragraph.\n\nAnother one.\n")
+        out, rep = carry.assemble(blocks, {2: [f"q{i}" for i in range(11)], 3: []})
+        self.assertEqual((len(out["sections"][0]["paragraphs"][0]["quotes"]), rep["repairs"]["quotes_beyond_cap_dropped"], rep["quotes"]), (8, 3, 8))
+        self.assertEqual(carry.parse_attach("[block 2]\n> a = 1\n> say \"b\"\n[block 3]\n(none)\n", [2, 3]),
+                         ({2: ["a = 1", 'say "b"'], 3: []}, {"json_unescaped_quote": 0}))
+        self.assertEqual(carry.parse_attach('[block 2]\n> "a \\"x\\""\n', [2])[1], {"json_unescaped_quote": 1})
+        for bad, ids in (("[block 2]\n> a\n", [2, 3]), ("[block 2]\n(none)\n[block 9]\n(none)\n", [2]), ("[block 2]\nsome prose\n", [2])):
+            with self.assertRaises(carry.CarryError):
+                carry.parse_attach(bad, ids)
+
+    def test_manifest_accepts_procedure_aids_and_carry_repair_keys(self):
+        out, raw = stored("d8f8c68f")
+        _, man = render(out, json.loads(raw), source_map(PERCEPTION))
+        man.update(procedure="carry", aids_used=man["aids_used"] + ["thinking", "carried_draft"])
+        man["repairs"].update(line_reference_stripped=4, quotes_beyond_cap_dropped=1, json_unescaped_quote=0)
+        contract.check_manifest(man)
+        man["procedure"] = "other"
+        self.assertTrue(contract.validate_manifest(man))

@@ -738,7 +738,7 @@ class LocalWorkService:
     @staticmethod
     def _whole_file_changes(repo: Path, base: str, target: str, content: str) -> dict[str, Any]:
         def lines(text: str) -> list[str]:
-            text = text.replace("\r\n", "\n")
+            text = text.replace("\r\n", "\n").replace("\r", "\n")   # as _git's text mode reads the base
             return text[:-1].split("\n") if text.endswith("\n") else text.split("\n")
         new = lines(content)
         if not _git(repo, "ls-tree", base, "--", target).strip():   # a new file: one hunk over all of it

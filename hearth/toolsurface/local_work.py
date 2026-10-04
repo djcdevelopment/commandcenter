@@ -58,10 +58,13 @@ def submit_local_work(intent: str, acceptance_criteria: list[str], repo: str,
     failing rung 0, the door sends the model its answer and the objections once and keeps the revision only when it
     has fewer unsupported quotes, or no more of them and no longer fails rung 0 for the first answer's other reason
     (``revision`` in the manifest says which was kept and why; both versions stay on disk).
-    ``procedure`` ("carry", delivery only, deep lane on a backend that declares ``deliberate_max_tokens``; no ``revise``,
+    ``procedure`` (delivery only): absent, the door chooses carry or one_call from the procedure table
+    (``HEARTH_DELIVERY_PROCEDURES``) and records why in ``route.procedure_choice`` (``max_tokens`` or ``revise`` mean one_call;
+    a chosen carry that cannot run falls back to one_call with the reason recorded); "one_call" pins the single-call path;
+    "carry" pins the carried procedure and refuses what it cannot run (deep lane on a backend that declares ``deliberate_max_tokens``; no ``revise``,
     no ``max_tokens``) runs the carried-draft procedure: one thinking turn writes a draft, thinking-off calls attach
     exact quotes batch by batch, code assembles and renders it. The work stays queued/running through the stages
-    (``carry`` in the manifest names the stage) and stops at awaiting_review. Absent, the one-call path is unchanged."""
+    (``carry`` in the manifest names the stage) and stops at awaiting_review."""
     identity = _identity()
     return _get_service().submit(
         intent=intent, acceptance_criteria=acceptance_criteria, repo=repo,

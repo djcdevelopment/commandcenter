@@ -116,10 +116,15 @@ def _delivery_row(d: dict, m: Path) -> str:
     if d.get("status") in {"queued", "running"} and carry:
         stage = f"in flight: stage {carry.get('stage')}" + (f" batch {carry.get('batch')} of {carry.get('batches')}" if carry.get("batch") else "")
         return f"{proc}, {stage}"
+    items = d.get("items") or {}
+    if d.get("status") in {"queued", "running"} and items:
+        return f"{proc}, in flight: stage {items.get('stage')}, {len(items.get('jobs') or [])} jobs for {items.get('count')} items"
     if not summ:
         return f"{proc}, no delivery summary" + (f": {(d.get('failure') or '')[:80]}" if d.get("failure") else "")
     claims = summ.get("claims") or 0
-    return f"{proc}, deterministic {summ.get('deterministic')}, quotes {claims - (summ.get('missing') or 0)}/{claims} resolved, report `{m.parent / 'candidate.md'}`"
+    rep = items.get("report") or {}
+    rows = (f", {rep.get('agreed')} agreed, {rep.get('settled')} settled, {rep.get('unverified')} NOT VERIFIED" if rep else "")
+    return f"{proc}{rows}, deterministic {summ.get('deterministic')}, quotes {claims - (summ.get('missing') or 0)}/{claims} resolved, report `{m.parent / 'candidate.md'}`"
 
 
 def build(hours: int) -> str:

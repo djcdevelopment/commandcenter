@@ -29,7 +29,7 @@ The coverage assessment guards revision adoption, not final acceptance. A retain
 
 ## How the door chooses the procedure
 
-A delivery runs one of two procedures: `one_call` (one constrained call writes the whole answer) or `carry` (below). A caller that passes a brief and no `procedure` lets the door choose; `procedure="one_call"` or `procedure="carry"` pins one, and a pinned submit is exactly what that procedure was before the door could choose (same prompt, budgets and refusals).
+A delivery runs one of three procedures: `one_call` (one constrained call writes the whole answer), `carry` or `items` (both below). A brief that declares `items` takes the items procedure; for any other brief the choice is between the first two. A caller that passes a brief and no `procedure` lets the door choose; `procedure="one_call"` or `procedure="carry"` pins one, and a pinned submit is exactly what that procedure was before the door could choose (same prompt, budgets and refusals).
 
 The door reads a table, `delivery-procedures.v1`, from the file named by `HEARTH_DELIVERY_PROCEDURES`, at every submit (a new table needs no restart). The table counts accepted and rejected verdicts from the lab-rnd registry per backend, per task family and over all families. The rule: a procedure qualifies at a level when it has at least `rule.min_accepted_briefs` distinct accepted briefs (2 today). The door looks first at the task family on the selected backend, then at the backend's `all`; among qualifying procedures it takes the higher accepted share, then more accepted verdicts, then `one_call`. No table, no entry for the backend, or nothing qualifying gives `one_call`, level `none`. A table file that exists but is not a valid table refuses the submit.
 
@@ -54,6 +54,39 @@ The work stays `queued` or `running` until `render` ends at `awaiting_review`. T
 What fails loudly: a thinking turn that is cut off or fails fails the work and keeps the partial draft and reasoning; an attach answer that is cut off or that names the wrong units is retried once as two half batches (8 units become 4 and 4), a one-unit batch is not retried, and a second failure fails the work; a work found in stage `attach` without `carry.units` (dispatched by block before a restart) fails by name; a gateway restart during any stage closes the job (`recover_pending` never replays a deliberate turn) and the work fails at the next reconcile. The failure names the stage and batch in `failure` and in `carry.failure`, the draft stays on disk, and nothing falls back to the one-call path or renders a partial report.
 
 Blank quotes: the renderer owns the repair. `render` and `verify` drop a quote that is `""` or whitespace from a copy of the answer before validation and count it once as `empty_quote_dropped`; the stored `delivery-output.json` is the model's raw answer, so re-rendering or verifying it gives the same counts, and the ladder reads answers the same way.
+
+## The items procedure
+
+For work whose answer is one stated value per item (ADR-0058). A brief declares `"items": {"kind": "env_reads"}` and
+`form.quote_mode` `line_reference`; with no procedure named the door takes `items` (`procedure_choice.level`
+`brief_items`), and `procedure="items"` pins it. `max_tokens` and `revise` are refused with it.
+
+1. **Code lists the items** (`hearth/delivery/items.py`): for `env_reads`, every `os.environ.get`, `os.environ[...]` read and
+   `os.getenv` in the declared Python files at the pinned commit. A write (`os.environ[X] = ...`) is not an item. At most
+   384 items (one delivered paragraph each); the declared files must fit the delivery source cap (1,048,576 bytes).
+2. **Stage `read`**: the route profile's `fast` and `tool` seats each answer every item, one item a call, schema-constrained,
+   thinking off, from that item's lines only. Twelve jobs are in flight at a time. A reader that fails more than 10% of
+   its items fails the work, named.
+3. **Stage `settle`**: where the two readings differ (a string prefix and doubled backslashes are spelling, not a
+   difference), the `deep` seat judges with thinking on (`inference.deliberate`, 8,000 tokens): it is shown the item's
+   lines and both readings and states the default itself. The row is settled when the judge's own default equals one of
+   the readings. A judge call that fails or gives no parsable answer leaves the row unverified; more than half failing
+   fails the work.
+4. **Render**: code writes one paragraph per item with one quote `path:line` of the read, the summary and every count.
+   A row no two sources agree on is delivered as `NOT VERIFIED` with the readings shown, never as a value.
+
+The delivery manifest carries `procedure: "items"` and an `items` object (`items`, `agreed`, `settled`, `unverified`,
+`reader_failures`, `judge_failures`, `files`, and `readers` with each seat's role and call count); the work keeps
+`items.json` and `items-readings.json` (every reading and judgment per item). The capability record carries the readers
+and the counts.
+
+Measured on 189 reads with a truth from the syntax tree (2026-10-04, `lab-rnd research/evidence/seat0-short-calls-20261004/RESULT.md`):
+the 30B alone is right on 94.7%; rows the 30B and the 8B agree on are right 97.4% of the time; on the rows they dispute
+the thinking judge's default was right in 49 of 49 answers, where a third plain reading got 1 of 46 wrong and a
+thinking-off judge 5 of 50. Rows both readers agree on wrongly (about 2%) are seen by no settler.
+
+Limits: a restart of the gateway fails the judge calls in flight (a thinking call is never replayed); a paused dispatch or
+a full execution queue fails the work at its next refill; the `lane` argument is ignored (recorded as requested).
 
 ## Night briefs that deliver
 
@@ -157,7 +190,7 @@ Commits `47fce27` and `356007c`; decision record `docs/adr/0057-the-execution-pr
 
 `enable_thinking = false` is set on every backend in `backends-linux.toml`, and the door's operations are single calls; the docstring of `~/work/delivery-plan/evidence/multistep/run_multistep.py` states "the door sets enable_thinking = false on every backend and has no multi-turn operation (2026-10-03)". The DeepAgents runner also forces thinking off (Derek's memory note, `feedback-test-a-model-in-its-own-regime.md`). So, per the memory note, nothing in the lab's delivery path through the door had run a model with thinking on or with more than one call per answer (plus at most one revision). That is a property of the configuration measured, not of the models; see `docs/adr/0059-the-dense-27b-is-served-for-multi-step-work.md`.
 
-## Item-grain work and fact sheets (caller-side, not yet a door operation)
+## Item-grain work and fact sheets (the caller-side measurements of 2026-10-03; the door procedure is "The items procedure" above)
 
 Between 10:42Z and 13:35Z on 2026-10-03 the lab tested splitting a task into items: code (or a planner model) lists the items, a seat answers one item from that item's source lines, code assembles the answers and counts them, and a judge gates them. All of it ran from scripts under `~/work/delivery-plan/evidence/itemized/` that call the door per item; none of it is a door operation, and the item runs are not capability records (row 96: "itemized caller-side runs are not records until the path is a door operation"). Decision proposal: `docs/adr/0058-work-is-routed-by-grain.md`.
 

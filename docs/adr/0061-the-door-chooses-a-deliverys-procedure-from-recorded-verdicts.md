@@ -62,10 +62,7 @@ procedure (`work_a745c074`); the door chose `carry` from that table.
 - **Repeat runs count as records.** Twelve counted records are byte-identical repeats in five groups; they move the
   rate, not the brief counts the rule qualifies on.
 - **Three verdicts can be three samples of one brief**; that is why the rule counts briefs.
-- **The lane is not chosen from records.** `lane="auto"` still picks fast or deep by task family and evidence size, and
-  the table is consulted for the backend that lane gives. A report brief whose family is not `code_fix` or `code_review`
-  and whose sources are under 8,192 tokens goes to the fast seat, where nothing has qualified. Choosing the lane from
-  the same table is the next step and is not built.
+- **The lane was not chosen from records** when this was written; see the addition of 2026-10-04 below.
 - **Each acceptance rests on one grader and the orchestrator's read.**
 
 ## Rollback
@@ -77,3 +74,15 @@ deployed) and restart the gateway at zero leases: with no table every unpinned d
 
 A second backend with carried records; the rule on a family with a real contest between procedures; a table that
 changes between a submit and its retry beyond the recorded-procedure rule; the drain under prod.
+
+## Added 2026-10-04: the lane follows the same table
+
+For a delivery with `lane="auto"`, no pin, no `items`, no caller `max_tokens` and no `revise`: after the lane is picked
+by task family and source size, the door asks the table about that lane's backend. When nothing qualifies there and the
+deep lane's backend has a qualifying procedure, the delivery takes the deep lane. `route.lane_choice` records from, to,
+the level, the counts and the table's hash; a retry keeps its stored lane. When the deep seat is missing or retired the
+picked lane keeps the work and `lane_choice.declined` says why. On the day's table every small report brief of a family
+other than the two code families moves to the deep seat (carry at backend level: 17 accepted, 10 rejected over 17
+briefs); the fast seat and the tool seats have no accepted delivery of any procedure.
+
+Limit: the move does not ask how busy the deep seat is. Capacity is the lease's business; a moved work waits its turn.

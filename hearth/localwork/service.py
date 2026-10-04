@@ -335,7 +335,7 @@ class LocalWorkService:
             raise LocalWorkError("revise requires a brief (delivery)")
         if procedure is not None:
             if procedure not in ("carry", "one_call", "items"):
-                raise LocalWorkError("procedure must be 'one_call', 'carry' or 'items' or absent")
+                raise LocalWorkError("procedure must be 'one_call', 'items' or 'carry' or absent")
             if brief is None:
                 raise LocalWorkError(f"procedure {procedure!r} requires a brief (delivery)")
             if procedure == "items" and "items" not in brief:

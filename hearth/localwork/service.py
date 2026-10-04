@@ -21,7 +21,7 @@ import uuid
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping, Optional
 
-from hearth.delivery import carry, contract, render as delivery_render, revision as revision_coverage, sourcemap
+from hearth.delivery import carry, contract, procedures, render as delivery_render, revision as revision_coverage, sourcemap
 from hearth.delivery.verify import verify as verify_delivery
 from fleet import environment
 from hearth.execution import ExecutionService
@@ -326,10 +326,11 @@ class LocalWorkService:
         if revise and brief is None:
             raise LocalWorkError("revise requires a brief (delivery)")
         if procedure is not None:
-            if procedure != "carry":
-                raise LocalWorkError("procedure must be 'carry' or absent")
+            if procedure not in ("carry", "one_call"):
+                raise LocalWorkError("procedure must be 'one_call' or 'carry' or absent")
             if brief is None:
-                raise LocalWorkError("procedure 'carry' requires a brief (delivery)")
+                raise LocalWorkError(f"procedure {procedure!r} requires a brief (delivery)")
+        if procedure == "carry":
             if revise:
                 raise LocalWorkError("procedure 'carry' has no revision round: revise is refused")
             if max_tokens is not None:
@@ -350,21 +351,14 @@ class LocalWorkService:
         target = _safe_relative(target_path) if target_path else None
         source_pack, source_meta = self._source_pack(repo_path, base, declared)
         delivery = brief is not None
-        if delivery:
+        if delivery:   # brief refusals come before any seat is asked to count tokens
             brief = {**brief, "sources": [{"path": name, "commit": base} for name in declared]}
             try:
                 contract.check_brief(brief)
-                if procedure and contract.form_defaults(brief)["quote_mode"] != "text":
-                    raise LocalWorkError("procedure 'carry' attaches text quotes: form.quote_mode must be text")
-                packet = sourcemap.render_for_model(sourcemap.build(str(repo_path), base, declared),
-                                                    numbered=bool(procedure) or contract.form_defaults(brief)["quote_mode"] == "line_reference",
-                                                    symbols=False)
+                source_map = sourcemap.build(str(repo_path), base, declared)
             except (contract.ContractError, sourcemap.SourceMapError) as exc:
                 raise LocalWorkError(f"delivery brief refused: {exc}") from exc
-            if max_tokens is None:
-                max_tokens = CARRY_WORK_TOKENS if procedure else self._delivery_max_tokens(brief)
-        template, template_hash = self._template(artifact_kind, delivery, contract.form_defaults(brief)["quote_mode"]
-                                                 if delivery else "text")
+            quote_mode = contract.form_defaults(brief)["quote_mode"]
         # The depth floor is token-based, not a byte heuristic.  For auto we
         # ask the currently declared fast server to count the evidence alone;
         # the selected server then counts the complete templated request below.
@@ -382,31 +376,83 @@ class LocalWorkService:
         if provider is None or provider.retired:
             raise LocalWorkError(f"local lane {selected_lane!r} is unavailable: {backend_name}")
         model = provider.models[0] if provider.models else ""
-        if procedure:
-            if selected_lane != "deep" or not provider.settings.get("deliberate_max_tokens"):
-                raise LocalWorkError(f"procedure 'carry' needs the deep lane on a backend that declares "
-                                     f"deliberate_max_tokens: lane {selected_lane!r} -> {backend_name!r}")
-            if int(provider.settings["deliberate_max_tokens"]) < CARRY_WORK_TOKENS:
-                raise LocalWorkError(f"procedure 'carry' needs deliberate_max_tokens >= {CARRY_WORK_TOKENS}: "
-                                     f"{backend_name!r} declares {provider.settings['deliberate_max_tokens']}")
+        work_id = (f"work_{_digest(caller_id + ':' + idempotency_key)[:32]}"
+                   if idempotency_key else f"work_{uuid.uuid4().hex}")
+        existing = self._read(work_id) if idempotency_key and self._manifest_path(work_id).is_file() else None
+        context_tokens = int(provider.settings.get("context_tokens") or
+                             (int(provider.settings.get("context_bytes") or 0) // 4))
+        deliberate = int(provider.settings.get("deliberate_max_tokens") or 0)
+        carried, pinned, choice, fallback, packet = False, False, None, None, None
+        if delivery:
+            if procedure:
+                carried, pinned, choice = procedure == "carry", True, {"by": "caller", "level": "pin"}
+            elif existing is not None:
+                recorded = (existing.get("route") or {}).get("procedure") or ("carry" if "carry" in existing else "one_call")
+                carried = recorded == "carry"
+                pinned, choice = carried, {"by": "retry", "level": "recorded"}
+            elif max_tokens is not None or revise:
+                choice = {"by": "caller", "level": "caller_argument", "argument": "max_tokens" if max_tokens is not None else "revise"}
+            else:
+                try:
+                    table, table_sha = procedures.load(os.environ.get("HEARTH_DELIVERY_PROCEDURES"))
+                    picked, basis = procedures.choose(table, backend_name, task_family)
+                except procedures.ProcedureTableError as exc:
+                    raise LocalWorkError(f"delivery procedure table refused: {exc}") from exc
+                carried, choice = picked == "carry", {"by": "door", **basis, "table_sha256": table_sha}
+            if carried:
+                if quote_mode != "text":
+                    reason = "form.quote_mode must be text"
+                    if pinned:
+                        raise LocalWorkError(f"procedure 'carry' attaches text quotes: {reason}")
+                    carried, fallback = False, reason
+                elif selected_lane != "deep" or not deliberate:
+                    reason = f"lane {selected_lane!r} -> {backend_name!r}: the deep lane on a backend that declares deliberate_max_tokens is needed"
+                    if pinned:
+                        raise LocalWorkError(f"procedure 'carry' needs the deep lane on a backend that declares "
+                                             f"deliberate_max_tokens: lane {selected_lane!r} -> {backend_name!r}")
+                    carried, fallback = False, reason
+                elif deliberate < CARRY_WORK_TOKENS:
+                    reason = f"{backend_name!r} declares deliberate_max_tokens {deliberate} < {CARRY_WORK_TOKENS}"
+                    if pinned:
+                        raise LocalWorkError(f"procedure 'carry' needs deliberate_max_tokens >= {CARRY_WORK_TOKENS}: "
+                                             f"{backend_name!r} declares {provider.settings['deliberate_max_tokens']}")
+                    carried, fallback = False, reason
+        template, template_hash = self._template(artifact_kind, delivery, contract.form_defaults(brief)["quote_mode"]
+                                                 if delivery else "text")
         request_doc = {"intent": intent, "acceptance_criteria": acceptance_criteria,
                        "artifact_kind": artifact_kind, "target_path": target,
                        "declared_paths": declared, "source_files": source_meta,
                        "source_pack": source_pack}
-        work_template = None
-        if procedure:
-            # The procedure is part of the prompt (and so of the digest the duplicate check compares).
-            work_template, template_hash = self._template_file("local_work_delivery_work_v1.txt")
-            task = self._delivery_task(intent, brief, packet, carried=True)
-            prompt = f"PROCEDURE: carry\n{task}\n\n{work_template.strip()}"
-        else:
-            prompt = (self._delivery_prompt(template, intent, brief, packet) if delivery
-                      else template + "\n\nREQUEST\n" + json.dumps(request_doc, sort_keys=True))
+        explicit_max = max_tokens
+        for _attempt in (0, 1):
+            work_template = None
+            if delivery:
+                try:
+                    packet = sourcemap.render_for_model(source_map, numbered=carried or quote_mode == "line_reference",
+                                                        symbols=False)
+                except sourcemap.SourceMapError as exc:
+                    raise LocalWorkError(f"delivery brief refused: {exc}") from exc
+                max_tokens = explicit_max if explicit_max is not None else (
+                    CARRY_WORK_TOKENS if carried else self._delivery_max_tokens(brief))
+            if carried:
+                # The procedure is part of the prompt (and so of the digest the duplicate check compares).
+                work_template, used_hash = self._template_file("local_work_delivery_work_v1.txt")
+                task = self._delivery_task(intent, brief, packet, carried=True)
+                prompt = f"PROCEDURE: carry\n{task}\n\n{work_template.strip()}"
+            else:
+                used_hash = template_hash
+                prompt = (self._delivery_prompt(template, intent, brief, packet) if delivery
+                          else template + "\n\nREQUEST\n" + json.dumps(request_doc, sort_keys=True))
+            if not carried or pinned:
+                break
+            carried_bytes = len((CARRY_SYSTEM + prompt.split("\n", 1)[1]).encode("utf-8"))
+            if context_tokens > 0 and carried_bytes // 4 + CARRY_WORK_TOKENS <= context_tokens:
+                break
+            carried, fallback = False, (f"carry work refusal: {carried_bytes // 4} input (bytes // 4) + "
+                                        f"{CARRY_WORK_TOKENS} output > {context_tokens}")
         input_tokens = self.token_counter(provider, model, prompt)
         output_reserve = max_tokens or int(provider.settings.get("max_tokens") or 4096)
-        context_tokens = int(provider.settings.get("context_tokens") or
-                             (int(provider.settings.get("context_bytes") or 0) // 4))
-        if procedure:
+        if carried:
             carried_bytes = len((CARRY_SYSTEM + prompt.split("\n", 1)[1]).encode("utf-8"))
             if context_tokens <= 0 or carried_bytes // 4 + CARRY_WORK_TOKENS > context_tokens:
                 raise LocalWorkError(f"carry work refusal: {carried_bytes // 4} input (bytes // 4) + "
@@ -416,10 +462,7 @@ class LocalWorkService:
                 f"exact context refusal: {input_tokens} input + {output_reserve} output > {context_tokens}")
         serving_profile, serving_profile_sha256 = self._serving_profile(provider.settings)
 
-        work_id = (f"work_{_digest(caller_id + ':' + idempotency_key)[:32]}"
-                   if idempotency_key else f"work_{uuid.uuid4().hex}")
-        if idempotency_key and self._manifest_path(work_id).is_file():
-            existing = self._read(work_id)
+        if existing is not None:
             if existing["prompt"]["digest"] != _digest(prompt):
                 raise LocalWorkError("idempotency_key was already used for different local work")
             return self.reconcile(work_id)
@@ -437,7 +480,7 @@ class LocalWorkService:
             "status": "queued", "repo": str(repo_path), "base_commit": base,
             "source": {"digest": _digest(source_pack), "files": source_meta},
             "prompt": {"digest": _digest(prompt), "template_version": TEMPLATE_VERSION,
-                       "template_sha256": template_hash, "input_tokens": input_tokens,
+                       "template_sha256": used_hash, "input_tokens": input_tokens,
                        "output_reserve_tokens": output_reserve,
                        "context_tokens": context_tokens},
             "route": {"profile_version": ROUTE_PROFILE_VERSION,
@@ -460,12 +503,14 @@ class LocalWorkService:
             if revise:
                 manifest["revise"] = True
             manifest["brief_sha256"] = _digest(json.dumps(brief, sort_keys=True, separators=(",", ":")))
-        if procedure:
+            manifest["route"]["procedure"] = "carry" if carried else "one_call"
+            manifest["route"]["procedure_choice"] = {**choice, **({"fallback": fallback} if fallback else {})}
+        if carried:
             manifest["carry"] = {"stage": "work", "batch": 0, "batches": 0, "retried": [], "jobs": [], "quotes": {}}
         with self._lock:
             self._write(manifest)
             envelope.store_envelope(env, work_id, raw_prompt=prompt)
-            if procedure:
+            if carried:
                 try:
                     state = self._carry_submit(
                         manifest, "carry-work", "work", 0, "",

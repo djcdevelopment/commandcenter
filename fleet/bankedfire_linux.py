@@ -200,6 +200,10 @@ def parse_local_work_block(body: str) -> tuple[dict[str, Any], str]:
             raise ValueError("local-work brief names delivery_brief and criteria: the criteria are the brief's substance statements")
         if not fields.get("task_family"):
             raise ValueError("local-work brief with delivery_brief lacks 'task_family'")
+        if not fields.get("delivery_brief_sha256"):   # the approved .md pins the JSON's bytes
+            raise ValueError("local-work brief with delivery_brief lacks 'delivery_brief_sha256' (sha256 of the brief file's bytes)")
+        if not re.fullmatch(r"[0-9a-f]{64}", str(fields["delivery_brief_sha256"])):
+            raise ValueError(f"delivery_brief_sha256 {fields['delivery_brief_sha256']!r} is not 64 lowercase hex characters")
     elif not fields["criteria"]:
         raise ValueError("local-work brief lacks acceptance criteria")
     return fields, intent
@@ -247,6 +251,9 @@ def delivery_args_from_brief(fields: dict[str, Any], intent: str, idempotency_ke
     if not path.is_file():
         raise ValueError(f"delivery_brief {str(path)!r} is not a file")
     raw = path.read_bytes()
+    pinned, actual = str(fields["delivery_brief_sha256"]), hashlib.sha256(raw).hexdigest()
+    if actual != pinned:
+        raise ValueError(f"delivery_brief changed since the brief was written: expected {pinned[:12]}…, file is {actual[:12]}…")
     try:
         brief = json.loads(raw)
     except ValueError as exc:
@@ -271,7 +278,7 @@ def delivery_args_from_brief(fields: dict[str, Any], intent: str, idempotency_ke
     if fields.get("max_tokens"):
         args["max_tokens"] = int(fields["max_tokens"])
     if idempotency_key:
-        args["idempotency_key"] = f"{idempotency_key}:{hashlib.sha256(raw).hexdigest()[:12]}"
+        args["idempotency_key"] = f"{idempotency_key}:{pinned[:12]}"
     return args
 
 

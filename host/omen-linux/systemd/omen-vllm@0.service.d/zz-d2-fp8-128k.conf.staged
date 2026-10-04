@@ -1,0 +1,4 @@
+# Capacity lap D2 (fp8 attention KV and a 131,072 window): swapped in only by fleet/experiment_linux.py. Unqualified on this model.
+[Service]
+Environment=OMEN_KV_CACHE_DTYPE=fp8_e4m3
+Environment=OMEN_MAX_MODEL_LEN=131072

@@ -1,0 +1,3 @@
+# Capacity lap D2 (fp8 attention KV at the resident window): swapped in only by fleet/experiment_linux.py. Unqualified on this model.
+[Service]
+Environment=OMEN_KV_CACHE_DTYPE=fp8_e4m3

@@ -6,8 +6,10 @@ the model wrote reaches the output: `strip_line_references` removes them and lis
 """
 from __future__ import annotations
 
+import io
 import json
 import re
+import tokenize
 from typing import Optional
 
 from .contract import MAX_HEADING_CHARS, MAX_PARAGRAPHS, MAX_QUOTE_CHARS, MAX_QUOTES, MAX_SECTIONS, MAX_TEXT_CHARS
@@ -205,18 +207,51 @@ def _is_source_line_reference(body: str, text: str, at: int, sources: dict) -> b
     return True
 
 
+_TOML_COMMENT = re.compile(r"""^((?:[^#"']|"[^"\n]*"|'[^'\n]*')*)#.*$""")
+
+
+def _code_lines(path: str, lines: list) -> list:
+    """The lines with comments and docstrings blanked: a value is read from code only. A .py file that does not tokenize
+    gives no code lines (its values are not read; the number is then judged as without this rule)."""
+    if not path.endswith(".py"):
+        return [_TOML_COMMENT.sub(r"\1", l) for l in lines]
+    out = [list(l) for l in lines]
+
+    def blank(start: tuple, end: tuple) -> None:
+        for r in range(start[0], min(end[0], len(out)) + 1):
+            a = start[1] if r == start[0] else 0
+            b = end[1] if r == end[0] else len(out[r - 1])
+            out[r - 1][a:b] = " " * (b - a)
+    try:
+        toks = list(tokenize.generate_tokens(io.StringIO("\n".join(lines) + "\n").readline))
+    except (tokenize.TokenError, SyntaxError):
+        return []
+    logical: list = []
+    for t in toks:
+        if t.type == tokenize.COMMENT:
+            blank(t.start, t.end)
+        elif t.type in (tokenize.NEWLINE, tokenize.ENDMARKER):
+            if logical and all(x.type == tokenize.STRING for x in logical):
+                blank(logical[0].start, logical[-1].end)                # a docstring or a bare string statement
+            logical = []
+        elif t.type not in (tokenize.NL, tokenize.INDENT, tokenize.DEDENT):
+            logical.append(t)
+    return ["".join(l) for l in out]
+
+
 def _is_source_value(body: str, text: str, at: int, sources: dict) -> bool:
-    """A single plain integer right after a code name ("psm (6)", "status (200)", "upscale (1)") is a value, not a line
-    number, when a declared line holds that name and that integer as standalone tokens (`psm=6`, `"psm", 6`, `psm: int = 6`).
-    This is checked first and decides: a line holding both name and number is the newest rule's own sign of a value
-    (_is_source_line_reference refuses it for the same test), so for a number of 10 or more the two rules cannot disagree
-    in the keep direction; where no declared line holds both, the older rule and then the newest rule decide as before."""
+    """A single plain integer right after a name ("psm (6)", "upscale (1)") is a value, not a line number, when a declared
+    line, outside comments and docstrings, holds that name with that integer in a value position: right after `=`, `==`
+    or `:` (`psm=6`, `psm: int = 6`, `"psm": 6`, `psm = 6` in TOML), after the quoted name and a comma (`.get("psm", 6)`),
+    or as the first argument of a call `name(6)`. Checked first; when it says no, the older rule and then the newest rule
+    decide as before (a prose word or a name written beside a number elsewhere on its line is not a value)."""
     m = _CODE_NAME.search(text[:at].rstrip())
-    if not m or not re.fullmatch(r"\d+", body.strip()):
+    if not m or m.group(2) or not re.fullmatch(r"0|[1-9]\d*", body.strip()):
         return False
-    name = re.compile(rf"(?<!\w){re.escape(m.group(1).rstrip('.'))}(?!\w)")
-    value = re.compile(rf"(?<![\w.]){int(body)}(?!\w|\.\d)")
-    return any(name.search(l) and value.search(l) for lines in sources.values() for l in lines)
+    name, n = re.escape(m.group(1).rstrip(".")), body.strip()
+    value = re.compile(rf"(?<!\w){name}(?:\s*(?::\s*[\w.\[\], |]+?\s*)?==?|[\"']?\s*:|[\"']\s*,|\()\s*{n}(?!\w|\.\d)")
+    return any(value.search(l) for p, lines in sources.items() if any(value.search(l) for l in lines)
+               for l in _code_lines(p, lines))
 
 
 def _join(left: str, right: str) -> str:
@@ -236,7 +271,7 @@ def _join(left: str, right: str) -> str:
 def strip_line_references(text: str, sources: Optional[dict] = None) -> tuple:
     """`sources` (declared path -> its lines at the pinned commit) adds one form: a parenthesised group of integers that
     names a line holding an identifier of its own sentence ("collect_backends (192)"); it also keeps a value: "psm (6)" when a
-    declared line holds `psm` and 6 (_is_source_value)."""
+    declared code line gives `psm` the value 6 (`psm=6`, `.get("psm", 6)`; _is_source_value)."""
     spans = [m.span() for m in _PROTECT.finditer(text)]
     cuts: list = []                                           # (start, end, reference as written)
 

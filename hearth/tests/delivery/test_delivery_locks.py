@@ -435,6 +435,9 @@ class CarryTests(unittest.TestCase):
                 ("omen-dense-27b: 017/032 live; am4-vllm (018 -> 033).", "omen-dense-27b: live; am4-vllm.", ["017/032", "018 -> 033"]),
                 ("collect_backends 191-210 reads it, defined at 469-510.", "collect_backends reads it, defined.", ["191-210", "469-510"]),
                 ("lines 485 and 487 hold a (663\u2013761) b at S680-683 here", "hold a b here", ["lines 485 and 487", "663\u2013761", "S680-683"]),
+                # slash-joined alternatives (the perception delivery of 2026-10-04 kept "/251", "/143" and "/206")
+                ("default 8 L232-234/251. Success L141/143: ok", "default 8. Success: ok", ["L232-234/251", "L141/143"]),
+                ("model=\"tesseract-ocr\" L186/206; ratio 3/4, 8/251 and an L2/3 cache stay", "model=\"tesseract-ocr\"; ratio 3/4, 8/251 and an L2/3 cache stay", ["L186/206"]),
                 # values, enumerators, years, units and code stay
                 ("slots (2), threads (8), the limit (8), in (2026), (live in both)", "slots (2), threads (8), the limit (8), in (2026), (live in both)", []),
                 ("it does (1) read and (2) write; takes 2-3 days and 4-8 GB; L2 cache, an L4 GPU", "it does (1) read and (2) write; takes 2-3 days and 4-8 GB; L2 cache, an L4 GPU", []),

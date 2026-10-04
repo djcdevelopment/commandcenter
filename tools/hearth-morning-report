@@ -75,7 +75,17 @@ def _iso(s: str | None) -> datetime | None:
         return None
 
 
+def _changes_cell(kind: str, ch: dict) -> str:
+    hunks = ch.get("hunks") or []
+    spans = [str(h["old"][0]) if h["old"][1] <= h["old"][0] else f"{h['old'][0]}-{h['old'][1]}" for h in hunks[:8]]
+    if len(hunks) > 8:
+        spans.append("...")
+    return f"{kind}, {len(hunks)} hunk{'s' if len(hunks) != 1 else ''}: {', '.join(spans)} (+{ch.get('added', 0)}/-{ch.get('removed', 0)})"
+
+
 def _apply_check(manifest: dict) -> str:
+    if manifest.get("artifact_kind") == "whole_file" and isinstance(manifest.get("changes"), dict):
+        return _changes_cell("whole_file", manifest["changes"])
     if manifest.get("artifact_kind") != "unified_diff":
         return "n/a (%s)" % manifest.get("artifact_kind")
     art = manifest.get("artifact") or {}

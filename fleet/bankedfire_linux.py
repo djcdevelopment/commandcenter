@@ -209,6 +209,9 @@ def parse_local_work_block(body: str) -> tuple[dict[str, Any], str]:
     return fields, intent
 
 
+WHOLE_FILE_MAX_BYTES = 24000   # code_fix on one file under this size defaults to whole_file
+
+
 def resolve_commit(repo: str, commit: Optional[str]) -> str:
     ref = (commit or "HEAD").strip()
     if re.fullmatch(r"[0-9a-f]{40}", ref):
@@ -234,6 +237,16 @@ def submit_args_from_brief(body: str, *, idempotency_key: Optional[str] = None) 
         "task_family": fields.get("task_family", "code_fix"),
         "deadline_s": int(fields.get("deadline_s", 2400)),   # follows the work.produce ceiling (sizing-map)
     }
+    if not fields.get("artifact_kind") and args["task_family"] == "code_fix" and len(args["files"]) == 1:
+        size = subprocess.run(["git", "-C", fields["repo"], "cat-file", "-s", f"{args['base_commit']}:{args['files'][0]}"],
+                              capture_output=True, text=True, timeout=20)
+        if size.returncode:
+            raise ValueError(f"cannot size {args['files'][0]!r} at {args['base_commit'][:12]} in {fields['repo']}: {size.stderr.strip()}")
+        if int(size.stdout) < WHOLE_FILE_MAX_BYTES:
+            args["artifact_kind"] = "whole_file"
+            args["target_path"] = args["files"][0]
+            if not fields.get("max_tokens"):
+                args["max_tokens"] = 12000
     if fields.get("target_path"):
         args["target_path"] = fields["target_path"]
     if fields.get("max_tokens"):

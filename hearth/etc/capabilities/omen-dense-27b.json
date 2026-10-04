@@ -5,12 +5,12 @@
   "context_tokens": 65536,
   "parallel_slots": 2,
   "max_tokens": 16384,
-  "decode_tok_per_s": 10.4,
-  "prefill_tok_per_s": 240.0,
+  "decode_tok_per_s": 55.0,
+  "prefill_tok_per_s": 1500.0,
   "cold_load_s": 31.0,
   "citations": {
-    "decode_tok_per_s": "docs/sizing-map.md:325 (events.ndjson median 10.4 tok/s)",
-    "prefill_tok_per_s": "continuity/output/07-serving-recipe.md:212,267 (243 tok/s cold int4 GEMM rate; ~90 tok/s partial re-prefill)",
+    "decode_tok_per_s": "docs/adr/0060 and lab-rnd research/evidence/qwen38-thinking-pilot-20261003/RESULT.md (Flash Attention, MTP k=2: 55 to 58 tok/s at 15K to 39K tokens of depth, about 60 on short prompts; 10.4 before 2026-10-04 on Triton, k=1)",
+    "prefill_tok_per_s": "the same result file (1,500 to 1,700 tok/s at 15K to 39K tokens on Flash Attention; 59 to 154 tok/s before 2026-10-04 on Triton)",
     "cold_load_s": "continuity/output/07-serving-recipe.md:285 (swaps 31-36 s; healthy in 31 s)"
   },
   "task_families": {

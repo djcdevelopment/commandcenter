@@ -97,6 +97,13 @@ default deadline is 1,800 s, the router covers 2,400 s and queues overflow (`max
 `payload // 4 + max_tokens ≤ context_tokens`, and the refusal classes are `policy_refusal` and
 `tokenizer_unavailable`.
 
+Since 2026-10-04 (ADR-0060) the dense seat runs native XPU Flash Attention with MTP k=2: it reads a prompt at
+about 1,500 tok/s and decodes at about 55 tok/s at 15K to 39K tokens of depth (it was 59 to 154 tok/s and 9 to 16
+tok/s on the Triton backend; the 10.4 above is that older recipe, prefill included). A full 16,384-token output now
+takes about 5 minutes, so the 2,400 s ceiling and the 1,800 s default are bounds with a wide margin, not estimates.
+The seat's attention backend and draft depth are rows in the generated block and are checked against what the rung
+declares (`declared-recipe-is-the-seat`).
+
 ## Runner budgets (DeepAgents) after the lap
 
 `~/work/deepagents-linux/run_linux_delivery.py` now scales with the route and the source: attempts

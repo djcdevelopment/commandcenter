@@ -74,8 +74,9 @@ Artifact kinds, measured 2026-09-27: prefer `whole_file` (with `target_path`) fo
 ~6K output tokens; the 27B writes correct edits but unreliable `unified_diff` hunks (wrong counts are
 repaired by the door's `git apply --recount` step and noted in the manifest as `mechanical.git_apply`;
 hallucinated hunk context is not repairable). `max_tokens` is capped at 16,384 per candidate
-(`work.produce` ceiling; the dense rung's reserve is 16,384, measured ~10.4 tok/s, so the default
-`deadline_s` is 1,800 and the ceiling 2,400). Every size on this host is mapped and checked in
+(`work.produce` ceiling; the dense rung's reserve is 16,384; the default `deadline_s` 1,800 and the ceiling 2,400
+were set when that seat decoded at ~10 tok/s and are bounds now: since ADR-0060 it decodes at ~55 tok/s at depth
+and reads a prompt at ~1,500 tok/s). Every size on this host is mapped and checked in
 `docs/sizing-map.md` (`python tools/ops/sizing_map.py --check`).
 
 **Codex:** `codex exec --approve-for-me ... < /dev/null` is required for unattended HEARTH tool calls;

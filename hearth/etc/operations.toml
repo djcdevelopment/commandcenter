@@ -40,6 +40,8 @@ streamed = true
 description = "Produce a review-only local-work candidate from a pinned repository source pack."
 # 16384 tokens at the measured 10.4 tok/s on the dense lane is ~1,575 s of decode plus prefill;
 # the deadline ceiling follows (was 8192 / 1200; a 16,384 request was refused 2026-09-27 18:23Z).
+# Since 2026-10-04 (ADR-0060: Flash Attention, MTP k=2) that lane decodes at about 55 tok/s at depth, so 16,384
+# tokens take about 5 minutes; the ceilings stay as bounds.
 handler = "llm_chat"
 max_prompt_bytes = 1048576
 max_tokens_ceiling = 16384

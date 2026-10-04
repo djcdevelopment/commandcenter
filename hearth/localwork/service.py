@@ -393,7 +393,8 @@ class LocalWorkService:
         evidence_tokens = self.token_counter(
             fast_provider, fast_provider.models[0], source_pack) if (
                 lane == "auto" and not items_run and stored_lane is None) else 0
-        selected_lane = stored_lane or self._lane(lane, evidence_tokens, task_family)
+        selected_lane = self._lane(lane, evidence_tokens, task_family)   # its refusals hold for a retry too
+        selected_lane = stored_lane or selected_lane
         if items_run:   # the first reader's seat; the pack is never counted or sent
             selected_lane = "fast"
         table, table_sha, table_error, lane_choice = None, None, None, None
@@ -405,15 +406,20 @@ class LocalWorkService:
             table_read = True
             try:
                 table, table_sha = procedures.load(os.environ.get("HEARTH_DELIVERY_PROCEDURES"))
+                if selected_lane != "deep" and selected_lane in routes and "deep" in routes:
+                    _, here = procedures.choose(table, routes[selected_lane], task_family)
+                    _, there = procedures.choose(table, routes["deep"], task_family)
+                    if here["level"] == "none" and there["level"] != "none":
+                        # deep must be able to take it; otherwise the picked lane runs it and the record says why
+                        deep = load_pool().by_name(routes["deep"])
+                        down = (f"local lane 'deep' is unavailable: {routes['deep']}"
+                                if deep is None or deep.retired else None)
+                        lane_choice = {"by": "door", "from": selected_lane, "to": selected_lane if down else "deep",
+                                       "level": there["level"], "counts": there["counts"], "table_sha256": table_sha,
+                                       **({"declined": down} if down else {})}
+                        selected_lane = lane_choice["to"]
             except procedures.ProcedureTableError as exc:
                 table_error = exc
-            if table_error is None and selected_lane != "deep" and selected_lane in routes and "deep" in routes:
-                _, here = procedures.choose(table, routes[selected_lane], task_family)
-                there_name, there = procedures.choose(table, routes["deep"], task_family)
-                if here["level"] == "none" and there["level"] != "none":
-                    lane_choice = {"by": "door", "from": selected_lane, "to": "deep", "level": there["level"],
-                                   "counts": there["counts"], "table_sha256": table_sha}
-                    selected_lane = "deep"
         if selected_lane not in routes:
             raise LocalWorkError(f"local lane {selected_lane!r} is not in this host's route profile")
         backend_name = routes[selected_lane]

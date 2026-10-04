@@ -78,6 +78,26 @@ def _brief_bytes(brief: Union[bytes, str, Mapping[str, Any], None]) -> tuple:
     return json.dumps(brief, sort_keys=True, separators=(",", ":")).encode("utf-8"), dict(brief)
 
 
+def drop_blank_quotes(output: Any) -> tuple:
+    """-> (copy of output without blank quote strings, count dropped). Constrained decoding lets a quotes tail through
+    as "" or whitespace; the caller's output is never mutated and a malformed shape passes through for check_output."""
+    if not isinstance(output, dict) or not isinstance(output.get("sections"), list):
+        return output, 0
+    dropped, secs = 0, []
+    for sec in output["sections"]:
+        if isinstance(sec, dict) and isinstance(sec.get("paragraphs"), list):
+            paras = []
+            for para in sec["paragraphs"]:
+                if isinstance(para, dict) and isinstance(para.get("quotes"), list):
+                    kept = [q for q in para["quotes"] if not (isinstance(q, str) and not q.strip())]
+                    dropped += len(para["quotes"]) - len(kept)
+                    para = {**para, "quotes": kept}
+                paras.append(para)
+            sec = {**sec, "paragraphs": paras}
+        secs.append(sec)
+    return {**output, "sections": secs}, dropped
+
+
 def _ref(loc) -> str:
     return f"{loc.path}:{loc.start}-{loc.end}"
 
@@ -201,6 +221,7 @@ def render_with_findings(output: Mapping[str, Any], brief: Union[bytes, str, Map
                          meta: Optional[Mapping[str, Any]] = None) -> tuple:
     if brief is None:
         raise contract.ContractError("render: the brief is required (brief_sha256 and form come from it)")
+    output, blank = drop_blank_quotes(output)
     contract.check_output(output)
     raw, bdoc = _brief_bytes(brief)
     contract.check_brief(bdoc)
@@ -269,7 +290,7 @@ def render_with_findings(output: Mapping[str, Any], brief: Union[bytes, str, Map
     findings: list = []
     if stripped:
         findings.append(f"{stripped} citation(s) written by the model removed from the prose")
-    _finish(man, sm, claims, {"citation_syntax_stripped": stripped}, findings, unsupported)
+    _finish(man, sm, claims, {"citation_syntax_stripped": stripped, "empty_quote_dropped": blank}, findings, unsupported)
     return "\n".join(md).rstrip() + "\n", man, findings
 
 

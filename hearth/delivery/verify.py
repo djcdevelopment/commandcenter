@@ -23,7 +23,7 @@ import re
 from typing import Any, Mapping, Optional
 
 from . import contract
-from .render import _brief_bytes
+from .render import _brief_bytes, drop_blank_quotes
 
 __all__ = ["verify", "verify_legacy"]
 
@@ -259,6 +259,7 @@ def _result(findings: list) -> dict:
 
 
 def verify(manifest: Mapping[str, Any], brief: Any, output: Mapping[str, Any]) -> dict:
+    output, _ = drop_blank_quotes(output)
     contract.check_output(output)
     fs: list = []
     claims = {c["id"]: c for c in manifest["claims"]}

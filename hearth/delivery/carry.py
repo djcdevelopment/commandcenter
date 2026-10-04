@@ -256,25 +256,74 @@ def format_notes(notes: list) -> str:
     return "".join(b["raw"] for b in notes).strip() + "\n"
 
 
-def batches(blocks: list, size: int = 6) -> list:
-    todo = [b for b in blocks if b["kind"] == "text"]
+_ABBREV = re.compile(r"(?:^|[\s(\"'`])(?:e\.g|i\.e|etc|vs|cf|approx|fig|no|dr|mr|mrs|ms|st|inc|ca|resp|incl|al|[A-Za-z])\.$", re.I)
+_LISTISH = re.compile(r"(?:[-*+]|\d+[.)])\s|\||```|~~~")
+_END = re.compile(r"[.!?]\s+(?=[A-Z])")
+
+
+def _inside(text: str) -> list:
+    """Per character: inside backticks, parentheses or double quotes (an unclosed one blocks the rest)."""
+    mask, depth, tick, dq, cq = [], 0, False, False, False
+    for ch in text:
+        if ch == "`":
+            tick = not tick
+        elif not tick:
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth = max(0, depth - 1)
+            elif ch == '"':
+                dq = not dq
+            elif ch == "\u201c":
+                cq = True
+            elif ch == "\u201d":
+                cq = False
+        mask.append(tick or depth > 0 or dq or cq)
+    return mask
+
+
+def _sentences(raw: str) -> list:
+    """raw cut after a . ! ? that is followed by space and a capital; not after an abbreviation or single letter, not inside
+    backticks, parentheses or quotation marks; a list item, table, code fence or one-line sentence stays whole. Parts join to raw."""
+    if _LISTISH.match(raw.lstrip()):
+        return [raw]
+    mask, cuts = _inside(raw), []
+    for m in _END.finditer(raw):
+        if not mask[m.start()] and not _ABBREV.search(raw[:m.start() + 1]) and not (m.start() and mask[m.start() - 1]):
+            cuts.append(m.end())
+    return [raw[a:b] for a, b in zip([0] + cuts, cuts + [len(raw)])]
+
+
+def units(blocks: list) -> list:
+    """The attach units of the text blocks, in order: {id "<block id>.<n>", block, kind "text", raw, text}."""
+    out = []
+    for b in blocks:
+        if b["kind"] == "text":
+            out += [{"id": f"{b['id']}.{n}", "block": b["id"], "kind": "text", "raw": r, "text": r.strip()}
+                    for n, r in enumerate(_sentences(b["raw"]), 1)]
+    return out
+
+
+def batches(blocks: list, size: int = 8) -> list:
+    todo = units(blocks)
     return [todo[i:i + size] for i in range(0, len(todo), size)]
 
 
 def format_blocks(batch: list) -> str:
-    """The attacher sees each block with the model's line references (attach rule 3: they guide it to the source line);
+    """The attacher sees each unit with the model's line references (attach rule 3: they guide it to the source line);
     only `assemble` strips them from the delivered text."""
     return "\n".join(f"[block {b['id']}]\n{b['text']}\n" for b in batch)
 
 
 def parse_attach(answer: str, ids: list) -> tuple:
-    """Also counted: `quote_over_limit_dropped` (a quote over MAX_QUOTE_CHARS is dropped, not fatal: the answer is whole). A
-    block with neither a quote nor "(none)" is a cut-off answer and raises."""
+    """`ids` are unit ids ("3.2"; a block id is read as its string). Also counted: `quote_over_limit_dropped` (a quote over
+    MAX_QUOTE_CHARS is dropped, not fatal: the answer is whole). A unit with neither a quote nor "(none)" is a cut-off answer."""
+    ids = [str(i) for i in ids]
     got, cur, repairs, done = {}, None, {"json_unescaped_quote": 0, "quote_over_limit_dropped": 0}, set()
     for ln in answer.splitlines():
-        m = re.match(r"^\[block (\d+)\]\s*$", ln.strip())
+        m = re.match(r"^\[block (\d+(?:\.\d+)?)\]\s*$", ln.strip())
         if m:
-            cur = int(m.group(1))
+            cur = m.group(1)
             if cur in got:
                 raise CarryError(f"parse_attach: block {cur} answered twice")
             got[cur] = []
@@ -298,7 +347,7 @@ def parse_attach(answer: str, ids: list) -> tuple:
         elif ln.strip():
             raise CarryError(f"parse_attach: unparsed line {ln[:60]!r}")
     if set(got) != set(ids):
-        raise CarryError(f"parse_attach: asked for blocks {sorted(ids)}, answer holds {sorted(got)}")
+        raise CarryError(f"parse_attach: asked for blocks {ids}, answer holds {list(got)}")
     if set(got) - done:
         raise CarryError(f"parse_attach: blocks {sorted(set(got) - done)} have neither a quote nor (none): a cut-off answer")
     return got, repairs
@@ -309,7 +358,7 @@ def assemble(blocks: list, quotes: dict, *, statements: Optional[int] = None, no
     """`statements` is accepted for the service's call shape and unused: the summary states no count of statements.
     `notes_blocks` (blocks before the report heading, not carried) only adds a repair count."""
     sections, refs = [], []
-    stripped = beyond = with_quotes = total = paras = 0
+    stripped = beyond = with_quotes = total = paras = by_sentence = 0
     heading, dropped = None, []
     for b in blocks:
         if b["kind"] == "heading":
@@ -326,17 +375,24 @@ def assemble(blocks: list, quotes: dict, *, statements: Optional[int] = None, no
         if len(sections[-1]["paragraphs"]) >= MAX_PARAGRAPHS:
             k = sum(1 for s in sections if s.get("_base") == heading) + 1
             sections.append({"heading": f"{heading} (continued)" if k == 1 else f"{heading} (continued {k})", "paragraphs": [], "_base": heading})
-        text, removed = strip_line_references(b["text"])
-        stripped += len(removed)
-        refs += [{"block": b["id"], "reference": r} for r in removed]
-        if not re.sub(r"^(?:[-*+]|\d+[.)])(?=\s|$)|[\W_]", "", text):   # nothing left but a list mark or punctuation
-            dropped.append(b["id"])
-            continue
-        q = list(quotes.get(b["id"]) or [])
-        beyond += max(0, len(q) - MAX_QUOTES)
-        q = q[:MAX_QUOTES]
-        with_quotes += bool(q); total += len(q); paras += 1
-        sections[-1]["paragraphs"].append({"text": text, "quotes": q}); sections[-1].setdefault("_ids", []).append(b["id"])
+        parts = units([b])
+        own = [str(x) for x in quotes.get(b["id"]) or quotes.get(str(b["id"])) or []]   # a work stored before sentence units: the whole block
+        merged = list(dict.fromkeys(own + [x for u in parts for x in quotes.get(u["id"]) or []]))
+        split = not own and len(merged) > MAX_QUOTES and len(parts) > 1 and len(sections[-1]["paragraphs"]) + len(parts) <= MAX_PARAGRAPHS
+        for u in (parts if split else [dict(b, id=b["id"])]):
+            key = u["id"]
+            text, removed = strip_line_references(u["text"])
+            stripped += len(removed)
+            refs += [{"block": b["id"], "reference": r, **({"unit": key} if split else {})} for r in removed]
+            if not re.sub(r"^(?:[-*+]|\d+[.)])(?=\s|$)|[\W_]", "", text):   # nothing left but a list mark or punctuation
+                dropped.append(key)
+                continue
+            q = list(dict.fromkeys(quotes.get(key) or [])) if split else merged
+            beyond += max(0, len(q) - MAX_QUOTES)
+            q = q[:MAX_QUOTES]
+            with_quotes += bool(q); total += len(q); paras += 1
+            sections[-1]["paragraphs"].append({"text": text, "quotes": q}); sections[-1].setdefault("_ids", []).append(key)
+        by_sentence += split
     empty = [s for s in sections if not s["paragraphs"]]
     pid, k = {}, 0
     for s_ in sections:
@@ -353,6 +409,8 @@ def assemble(blocks: list, quotes: dict, *, statements: Optional[int] = None, no
               "repairs": {"line_reference_stripped": stripped, "quotes_beyond_cap_dropped": beyond,
                           "blocks_empty_after_stripping_dropped": len(dropped), "headings_without_paragraphs_dropped": len(empty)},
               "line_references": refs, "paragraph_ids": pid}
+    if by_sentence:
+        report["repairs"]["paragraphs_split_by_sentence"] = by_sentence
     if notes_blocks:
         report["repairs"]["notes_blocks_not_carried"] = notes_blocks
     if empty:
@@ -365,13 +423,13 @@ def assemble(blocks: list, quotes: dict, *, statements: Optional[int] = None, no
 # ------------------------------------------------------------------ agreement
 def line_reference_agreement(report: dict, manifest: dict) -> list:
     """Each stripped reference against the ranges that quotes of the same paragraph resolved to. `report["paragraph_ids"]`
-    (an addition to the interface's report: {block id: "s<i>.p<j>"}) names each block's paragraph; claim ids are s<i>.p<j>.q<k>."""
+    (an addition to the interface's report: {block id, or unit id when the block was split: "s<i>.p<j>"}) names each paragraph; claim ids are s<i>.p<j>.q<k>."""
     pid = report["paragraph_ids"]
     out = []
     for r in report["line_references"]:                       # "160, 174-180" names two spans; "18 -> 33" two lines
         named = [(int(a), int(b or a)) for a, b in re.findall(r"(\d+)(?:\s*[-\u2013]\s*[LS]?(\d+))?", r["reference"])]
         spans = [(c["resolved"]["start_line"], c["resolved"]["end_line"]) for c in manifest["claims"]
-                 if r["block"] in pid and c["id"].rsplit(".", 1)[0] == pid[r["block"]] and c.get("resolved")]
-        out.append({"block": r["block"], "reference": r["reference"], "agrees": None if not (named and spans) else
+                 if r.get("unit", r["block"]) in pid and c["id"].rsplit(".", 1)[0] == pid[r.get("unit", r["block"])] and c.get("resolved")]
+        out.append({"block": r["block"], **({"unit": r["unit"]} if "unit" in r else {}), "reference": r["reference"], "agrees": None if not (named and spans) else
                     all(any(a <= hi and lo <= b for a, b in spans) for lo, hi in named)})
     return out

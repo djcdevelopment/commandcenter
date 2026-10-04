@@ -38,6 +38,8 @@ _DESC = {"env_reads": "one environment variable read (os.environ.get, os.environ
 _QUESTION = {"env_reads": "Name the environment variable, its default if any, and in one line what it controls."}
 _NOUN = {"env_reads": "environment-variable reads"}
 _COMPARED = {"env_reads": ("default",)}
+_OR_NOTE = ("Note: this read has no second argument and is directly followed by `or <value>` in the code (an `or` may also come "
+            "before it); the value used when the variable is unset is the <value> after the read, exactly as written.")
 _NONE = {"none", "null", "nodefault", "", "n/a"}
 _FPROMPT = """{question}
 
@@ -59,7 +61,7 @@ Reading B says the default is: {b}
 
 Rules:
 1. Use only the lines shown. The read under study is the one named in the item header, on the item's own lines.
-2. "default" is the default of that read exactly as written in the code (the second argument of os.environ.get or os.getenv), or 'none' if that read has no default.
+2. "default" is {ask}.
 3. "verdict" is "A" if reading A is what the code shows, "B" if reading B is, "neither" if neither is.
 4. "lines" are 1 to 4 line numbers (the numbers before the | sign) that your answer rests on.
 Answer with one JSON object on the last line: {{"default": "...", "verdict": "A" | "B" | "neither", "lines": [n, ...]}}
@@ -107,6 +109,7 @@ def _env_reads(text: str, path: str) -> list:
         if not is_env(n):
             continue
         arg = n.args[0] if isinstance(n, ast.Call) and n.args else (n.slice if isinstance(n, ast.Subscript) else None)
+        computed = False
         if isinstance(arg, ast.Constant):
             nm = arg.value
         elif isinstance(arg, ast.Name) and arg.id in consts:
@@ -114,6 +117,10 @@ def _env_reads(text: str, path: str) -> list:
         else:
             cs = [c.value for c in ast.walk(arg) if isinstance(c, ast.Constant) and isinstance(c.value, str)] if arg is not None else []
             nm = cs[-1] if cs else ast.unparse(arg)
+            computed = not cs
+        p = parents.get(n)
+        has_or = (isinstance(n, ast.Call) and len(n.args) == 1 and not n.keywords and isinstance(p, ast.BoolOp)
+                  and isinstance(p.op, ast.Or) and any(v is n for v in p.values[:-1]))  # any operand but the last
         st = n
         while not isinstance(st, ast.stmt):
             st = parents[st]
@@ -125,7 +132,7 @@ def _env_reads(text: str, path: str) -> list:
             show = [[fn.lineno, fn.end_lineno]]
         else:
             show = [[max(1, n.lineno - 15), min(n_lines, n.lineno + 15)]]
-        reads.append({"name": nm, "path": path, "start": s, "end": e, "show": show, "_l": n.lineno, "_c": n.col_offset})
+        reads.append({"name": nm, "path": path, "start": s, "end": e, "show": show, "line": n.lineno, "computed": computed, "or": has_or, "_l": n.lineno, "_c": n.col_offset})
     reads.sort(key=lambda r: (r["_l"], r["_c"]))
     cnt: dict = {}
     for r in reads:
@@ -154,7 +161,8 @@ def enumerate_items(kind: str, repo: str, commit: str, paths: list) -> list:
         for r in reads:
             var = r["name"].split("@")[0]
             out.append({"id": f"i{len(out) + 1:04d}", "name": f"{var} @ {p}:{r['start']}", "path": p, "start": r["start"],
-                        "end": r["end"], "show": r["show"], "var": var})
+                        "end": r["end"], "show": r["show"], "var": var, "line": r["line"],
+                        **({"computed": True} if r["computed"] else {}), **({"or": True} if r["or"] else {})})
     if not out:
         raise ItemsError(f"no {kind} item in {len(paths)} file(s) at {commit[:12]}")
     if len(out) > MAX_ITEMS:
@@ -171,7 +179,7 @@ def _block(item: dict, repo: str, commit: str) -> str:
         nums = nums[:CAP]
     shown = "\n".join(f"{n}| {lines[n - 1]}" for n in nums)
     head = f"Item under study: {item['name']} ({item['path']}, lines {item['start']}-{item['end']})"
-    return f"{head}\nSource: {item['path']}{cut}\n{shown}\n"
+    return f"{head}\nSource: {item['path']}{cut}\n{shown}\n" + (_OR_NOTE + "\n" if item.get("or") else "")
 
 
 def prompt(kind: str, item: dict, repo: str, commit: str) -> str:
@@ -181,7 +189,8 @@ def prompt(kind: str, item: dict, repo: str, commit: str) -> str:
 
 def judge_prompt(kind: str, item: dict, repo: str, commit: str, readings: list) -> str:
     a, b = ("no answer" if r is None else r["fields"]["default"] for r in readings)
-    return _JPROMPT[_kind(kind)].format(block=_block(item, repo, commit), a=a, b=b)
+    return _JPROMPT[_kind(kind)].format(block=_block(item, repo, commit), a=a, b=b,
+                                                ask=next(f["ask"] for f in _FIELDS[kind] if f["name"] == "default"))
 
 
 def schema(kind: str) -> dict:
@@ -278,27 +287,30 @@ def assemble(kind: str, items: list, rows: list, readers: list) -> tuple:
         raise ItemsError(f"{len(items)} items but {len(rows)} rows")
     if not 0 < len(items) <= MAX_ITEMS:
         raise ItemsError(f"{len(items)} items outside 1..{MAX_ITEMS}")
+    if any("line" not in it for it in items):
+        raise ItemsError("an item has no `line` (listed before items gained it); list the items again in a new work")
     paras, count, failures, jfail = [], {"agreed": 0, "settled": 0, "unverified": 0}, 0, 0
     for it, row in zip(items, rows):
         count[row["state"]] += 1
         readings, judgment = row["readings"], row.get("judgment")
         failures += sum(1 for x in readings if x is None)
         jfail += needs_judge(kind, readings) and judgment is None
-        head = f"`{it['var']}` at {it['path']}:"
+        head = f"`{it['var']}`{' (a name computed at run time)' if it.get('computed') else ''} at {it['path']}:"
         if row["state"] == "unverified":
             seen = " | ".join("no answer" if x is None else _clip(x["fields"]["default"], 200) or "(empty)" for x in readings)
             judge = "no answer" if judgment is None else _clip(judgment["default"], 200) or "(empty)"
             text = f"{head} NOT VERIFIED. Readings of the default: {seen}; judge: {judge}."
         else:
             f = row["fields"]
-            text = f"{head} default {_clip(f['default'], 300) or '(empty)'}." + (f" {_clip(f['controls'], 600)}" if f["controls"].strip() else "")
-        paras.append({"text": text, "quotes": [f"{it['path']}:{it['start']}"]})
+            text = f"{head} default {_clip(f['default'], 300) or '(empty)'}."
+        paras.append({"text": text, "quotes": [f"{it['path']}:{it['line']}"]})
     n = len(items)
     files = len({it["path"] for it in items})
     summary = (f"Delivery of {n} {_NOUN[kind]} in {files} files. {count['agreed']} were agreed by the first two readers, "
                f"{count['settled']} were settled by a judge whose own default matches one reading, and {count['unverified']} are marked "
                f"NOT VERIFIED because no two agree. {failures} reader calls failed and {jfail} judge calls gave no answer. Every row "
-               f"cites the line of its read.")
+               f"cites the line of its read. Reads made through a helper function, os.environ.setdefault, os.environ.pop or a membership "
+               f"test are not listed.")
     secs = [{"heading": f"Items {i + 1} to {min(i + contract.MAX_PARAGRAPHS, n)}", "paragraphs": paras[i:i + contract.MAX_PARAGRAPHS]}
             for i in range(0, n, contract.MAX_PARAGRAPHS)]
     report = {"kind": kind, "items": n, **count, "reader_failures": failures, "judge_failures": jfail, "files": files}

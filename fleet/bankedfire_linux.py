@@ -251,6 +251,8 @@ def delivery_args_from_brief(fields: dict[str, Any], intent: str, idempotency_ke
         brief = json.loads(raw)
     except ValueError as exc:
         raise ValueError(f"delivery_brief {str(path)!r} is not JSON: {exc}") from exc
+    if not isinstance(brief, dict):
+        raise ValueError(f"delivery_brief {str(path)!r} is not a JSON object (a brief.v2)")
     criteria = [str(c["statement"]) for c in brief.get("substance") or [] if isinstance(c, dict) and c.get("statement")]
     if not criteria:
         raise ValueError(f"delivery_brief {str(path)!r} has no substance statements")

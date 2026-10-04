@@ -27,6 +27,20 @@ A revised answer is mechanically eligible only when unsupported quotes strictly 
 
 The coverage assessment guards revision adoption, not final acceptance. A retained answer still requires a frontier or human substance verdict under the applicable environment policy. Local assessments, deterministic checks and recorded verdicts are distinct evidence.
 
+## The carried procedure
+
+`submit_local_work(..., brief=..., procedure="carry")` is opt-in; without `procedure` a delivery is the one-call path, unchanged. It is accepted only for a delivery with `quote_mode` text on the deep lane, on a backend that declares `deliberate_max_tokens` of at least 24,576 (today `omen-dense-27b`); `revise=True` and an explicit `max_tokens` are refused at submit with a named reason. The driver takes it as `run_delivery_brief.py --procedure carry`. Origin and grades: `~/work/delivery-plan/evidence/multistep/RESULT.md`, "Carry the draft".
+
+Three stages, one `inference.deliberate` job at a time, each recorded in the work manifest's `carry` field (`stage`, `batch`, `retried`, `jobs`, `quotes`) before it is dispatched:
+
+1. `work`: one thinking-on turn (24,576 output tokens, the work's deadline) writes verified notes and a report in plain prose from the task text and the numbered source.
+2. `attach`: code splits the draft into blocks (`hearth/delivery/carry.py`; a paragraph over 2,400 characters is split at sentence ends) and sends the text blocks six at a time to a thinking-off call that only attaches exact source quotes. The attacher sees the blocks as written, line references included, as a guide to the source.
+3. `render`: code assembles `delivery-output.v1` from the blocks unchanged except for the model's line references, which are stripped from every paragraph, and the existing renderer resolves the quotes.
+
+The work stays `queued` or `running` until `render` ends at `awaiting_review`. The delivery manifest carries `procedure: "carry"`, `aids_used` ending in `thinking` and `carried_draft`, and the procedure's repairs as counts beside the renderer's: `line_reference_stripped`, `quotes_beyond_cap_dropped` (more than 8 quotes on one paragraph), `quote_over_limit_dropped`, `json_unescaped_quote`, `blocks_empty_after_stripping_dropped`, `headings_without_paragraphs_dropped` (a zero count is omitted). Besides the usual files, `get_local_work_artifact` serves `carry-draft.md` (the visible draft), `carry-reasoning.txt` and `line-references.json` (each stripped reference, and whether a quote of the same paragraph resolved to a range that covers it).
+
+What fails loudly: a thinking turn that is cut off or fails fails the work and keeps the partial draft and reasoning; an attach answer that is cut off or that names the wrong blocks is retried once as two half batches, and a second failure fails the work; a gateway restart during any stage closes the job (`recover_pending` never replays a deliberate turn) and the work fails at the next reconcile. The failure names the stage and batch in `failure` and in `carry.failure`, the draft stays on disk, and nothing falls back to the one-call path or renders a partial report.
+
 ## DeepAgents schema reports
 
 Run from the DeepAgents checkout using its environment and a fresh destination outside immutable historical runs:

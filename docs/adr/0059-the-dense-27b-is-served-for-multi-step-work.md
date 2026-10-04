@@ -53,6 +53,8 @@ No fact sheet, no code-written sentence and no report rules were supplied; the d
 
 Operation `inference.deliberate` has been live at the door since the gateway restart at 16:28:18Z (flash `2efa212`; brief `~/work/delivery-plan/laps/16-thinking-path.md`): a conversation in (`messages`), thinking set per call, up to 24,576 output tokens and 3,600 s, always streamed, only for a backend that declares `deliberate_max_tokens` (today `omen-dense-27b`); admitted, leased and recorded like any other operation; the visible output, the reasoning and the exact wire request are stored as artifacts on success, truncation and cancel; a cancel closes the stream so the seat stops; recovery never replays a turn. `inference.generate`, `work.produce` and the synchronous `local_generate` tool keep their limits and thinking off. What it does not do: several turns under one work item with a verdict (a multi-turn delivery contract), aids as files, a capability record that says "thinking on".
 
+The carried procedure is built on it (`submit_local_work(..., procedure="carry")`: a thinking draft, thinking-off quote attachment, code assembly; staged on `staging/carried-delivery`, brief `~/work/delivery-plan/laps/17-carried-delivery.md`, described in `docs/delivery.md`, "The carried procedure").
+
 First measurements through it (`~/work/lab-rnd/research/evidence/qwen38-thinking-pilot-20261003/RESULT.md`): on the resident recipe the frozen sizing task takes 1,292 s, 43% of it prefill, because the thinking-off second turn re-reads the whole 25,776-token prompt (the stripped reasoning makes it a different sequence, and the prefix cache does not serve it).
 
 ## Open questions (listed, not answered)

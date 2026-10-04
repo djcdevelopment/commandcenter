@@ -8,6 +8,9 @@ Each test names the observation that earned it:
   * presence fails closed: any unreadable signal reads as "present";
   * the omen-vllm probe reads "unknown" (= busy) when a seat's metrics are unreadable.
 """
+import hashlib
+import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -504,3 +507,226 @@ class Am4ProfileFollowsQueueTests(ProfileIsolation, unittest.TestCase):
         with mock.patch.object(lane.subprocess, "run", return_value=ok):
             self.assertEqual(real_switch("tool-pair")["omen_file"], {"was": "dense-tp2", "now": "tool-pair"})
         self.assertEqual(self.profile_file.read_text(encoding="utf-8"), "tool-pair\n")
+
+
+# --- the drain's delivery brief and the whole-file default (T2, lap 21 wave 6) ----------------
+
+DELIVERY_BRIEF = {   # the shape of ~/work/delivery-plan/evidence/briefs/restore.brief.v2.json
+    "schema": "brief.v2", "builders": ["omen-local-work"], "task_class": "local-work", "est_tokens": 5000,
+    "requires": ["candidate"], "max_age_s": 172800,
+    "substance": [
+        {"id": "s1-restore-steps", "statement": "The report states what restore() does and in what order: which drop-in it removes, when it restarts the seat, and each thing it verifies afterwards."},
+        {"id": "s2-signals", "statement": "The report states how SIGTERM or an interrupt received before restore is handled, and that both signals are ignored once restore has begun."},
+        {"id": "s3-restore-failure", "statement": "The report states what happens when restore fails: how many attempts are made, what is kept, the outcome that is recorded and the exit code."},
+    ],
+    "form": {"words": {"min": 0, "max": 400, "enforce": "measure"}, "citations": "quote", "sections": [], "style": "markdown"},
+    "sources": [{"path": "x.py", "commit": "0a8d6e26c710e9d3e0e0286efbd1a224459d165a"}],
+    "aids": ["source_map", "quote_renderer", "constrained_output"],
+}
+
+
+class GitRepoCase(unittest.TestCase):
+    """A temp directory with a temp git repository (small.py 100 bytes, edge.py 23,999, big.py 24,000 bytes) and a
+    brief.v2 file; nothing outside the temp directory is read or written."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = Path(tmp.name)
+        self.repo = self.tmp / "repo"
+        self.repo.mkdir()
+        (self.repo / "small.py").write_text("x = 1\n" * 16, encoding="utf-8")
+        (self.repo / "edge.py").write_text("#" * 23_998 + "\n", encoding="utf-8")
+        (self.repo / "big.py").write_text("#" * 23_999 + "\n", encoding="utf-8")
+        self.git("init", "-q")
+        self.git("add", ".")
+        self.git("-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-q", "-m", "one file set")
+        self.head = self.git("rev-parse", "HEAD")
+        self.brief_file = self.tmp / "report.brief.v2.json"
+        self.brief_file.write_bytes(json.dumps(DELIVERY_BRIEF, indent=1).encode())
+        self.sha = hashlib.sha256(self.brief_file.read_bytes()).hexdigest()
+        envp = mock.patch.dict("os.environ", {"HEARTH_ROOT": str(self.tmp / "hearth-root")})
+        envp.start()
+        self.addCleanup(envp.stop)
+
+    def git(self, *args: str) -> str:
+        return subprocess.run(["git", "-C", str(self.repo), *args], check=True, capture_output=True, text=True).stdout.strip()
+
+    def delivery_body(self, **over: str) -> str:
+        f = {"repo": str(self.repo), "paths": "[small.py, big.py]", "task_family": "code_review",
+             "delivery_brief": str(self.brief_file), "delivery_brief_sha256": self.sha}
+        f.update(over)
+        head = "\n".join(f"{k}: {v}" for k, v in f.items() if v is not None)
+        return head + "\n---\n[goal:G-delivery] Report how restore() works.\n"
+
+    def fix_body(self, **over: str) -> str:
+        f = {"repo": str(self.repo), "commit": self.head, "paths": "[small.py]", "task_family": "code_fix"}
+        f.update(over)
+        return "\n".join(f"{k}: {v}" for k, v in f.items() if v is not None) + "\ncriteria:\n  - utc() still works\n---\nReplace utcnow().\n"
+
+
+class DeliveryBriefTests(GitRepoCase):
+    def test_arguments_come_from_the_brief_file_with_its_statements_as_criteria(self) -> None:
+        """rehearsal/RESULT.md: "The drain built the delivery submit from the front block (delivery_brief,
+        delivery_brief_sha256, task_family, paths), with the brief's substance statements as criteria"; the door, not the
+        drain, chooses the procedure."""
+        args = lane.submit_args_from_brief(self.delivery_body(), idempotency_key="bankedfire:slug")
+        self.assertEqual(args["acceptance_criteria"], [c["statement"] for c in DELIVERY_BRIEF["substance"]])
+        self.assertEqual(args["brief"], DELIVERY_BRIEF)
+        self.assertEqual((args["artifact_kind"], args["task_family"], args["lane"], args["deadline_s"]), ("markdown", "code_review", "auto", 2400))
+        self.assertEqual((args["files"], args["repo"], args["base_commit"]), (["small.py", "big.py"], str(self.repo), self.head))
+        self.assertEqual(args["intent"], "[goal:G-delivery] Report how restore() works.")
+        for absent in ("procedure", "max_tokens", "target_path"):
+            self.assertNotIn(absent, args)
+        self.assertEqual(lane.submit_args_from_brief(self.delivery_body(max_tokens="9000", lane="fast", deadline_s="600"))["max_tokens"], 9000)
+
+    def test_idempotency_key_ends_with_the_first_twelve_hex_of_the_pin(self) -> None:
+        """rehearsal/RESULT.md: "the brief's hash in the idempotency key"; docs/delivery.md "Night briefs that deliver"."""
+        args = lane.submit_args_from_brief(self.delivery_body(), idempotency_key="bankedfire:slug")
+        self.assertEqual(args["idempotency_key"], f"bankedfire:slug:{self.sha[:12]}")
+        self.assertNotIn("idempotency_key", lane.submit_args_from_brief(self.delivery_body()))
+
+    def test_a_changed_brief_file_refuses_the_dispatch(self) -> None:
+        """rehearsal queue files pin the JSON's bytes (delivery_brief_sha256); a file that no longer matches must not be
+        submitted, and the drain's hook must report it without calling the door."""
+        self.brief_file.write_bytes(self.brief_file.read_bytes() + b"\n")
+        with self.assertRaisesRegex(ValueError, "changed since the brief was written"):
+            lane.submit_args_from_brief(self.delivery_body())
+        with mock.patch.object(lane, "call_tool") as door:
+            result = lane.submit_task(prompt=self.delivery_body(), plan_id_hint="slug")
+        self.assertFalse(result["ok"])
+        self.assertIn("changed since", result["error"])
+        door.assert_not_called()
+
+    def test_a_missing_or_malformed_pin_is_refused(self) -> None:
+        """docs/delivery.md: `delivery_brief_sha256` is required; criteria must be absent; task_family is required."""
+        with self.assertRaisesRegex(ValueError, "lacks 'delivery_brief_sha256'"):
+            lane.parse_local_work_block(self.delivery_body(delivery_brief_sha256=None))
+        with self.assertRaisesRegex(ValueError, "64 lowercase hex"):
+            lane.parse_local_work_block(self.delivery_body(delivery_brief_sha256=self.sha[:12]))
+        with self.assertRaisesRegex(ValueError, "lacks 'task_family'"):
+            lane.parse_local_work_block(self.delivery_body(task_family=None))
+        with self.assertRaisesRegex(ValueError, "names delivery_brief and criteria"):
+            lane.parse_local_work_block(self.delivery_body().replace("\n---\n", "\ncriteria:\n  - mine\n---\n"))
+        with self.assertRaisesRegex(ValueError, "is not a file"):
+            lane.submit_args_from_brief(self.delivery_body(delivery_brief=str(self.tmp / "gone.json")))
+
+    def test_a_relative_brief_path_resolves_against_the_repo(self) -> None:
+        """docs/delivery.md: `delivery_brief` is absolute or relative to `repo`."""
+        (self.repo / "b.json").write_bytes(self.brief_file.read_bytes())
+        args = lane.submit_args_from_brief(self.delivery_body(delivery_brief="b.json"))
+        self.assertEqual(args["brief"], DELIVERY_BRIEF)
+
+    def test_a_brief_without_delivery_brief_is_unchanged(self) -> None:
+        """BriefBlockTests / the pre-delivery drain: criteria as written, unified_diff by default for two paths, no brief
+        and no key suffix."""
+        body = self.fix_body(paths="[small.py, big.py]")
+        args = lane.submit_args_from_brief(body, idempotency_key="k")
+        self.assertEqual(args, {
+            "intent": "Replace utcnow().", "acceptance_criteria": ["utc() still works"], "repo": str(self.repo),
+            "base_commit": self.head, "files": ["small.py", "big.py"], "artifact_kind": "unified_diff", "lane": "auto",
+            "task_family": "code_fix", "deadline_s": 2400, "idempotency_key": "k"})
+
+    def test_submit_task_sends_the_delivery_args_to_the_door(self) -> None:
+        """rehearsal/RESULT.md (07:24:44Z tick): the drain's submit hook carried the pinned brief to submit_local_work."""
+        with mock.patch.object(lane, "call_tool", return_value={"work_id": "work_" + "b" * 32, "status": "queued", "route": {}}) as door:
+            result = lane.submit_task(prompt=self.delivery_body(), plan_id_hint="slug")
+        tool, args = door.call_args.args
+        self.assertEqual(tool, "submit_local_work")
+        self.assertEqual((args["brief"], args["idempotency_key"]), (DELIVERY_BRIEF, f"bankedfire:slug:{self.sha[:12]}"))
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["work_id"], "work_" + "b" * 32)
+
+    def test_a_delivery_brief_counts_against_the_deep_lane_unless_it_names_fast(self) -> None:
+        """rehearsal/RESULT.md finding 4: "All four briefs counted against the drain's deep lane" (lane auto = the scarcer
+        lane)."""
+        from hearth.backlog.briefs import Brief
+        mk = lambda body: Brief(slug="s", title="t", body=body, builders=None, task_class="local-work",  # noqa: E731
+                                est_tokens=None, requires=(), max_age_s=None, source="authored", source_ref="s.md")
+        self.assertEqual(lane.brief_lane(mk(self.delivery_body())), "deep")
+        self.assertEqual(lane.brief_lane(mk(self.delivery_body(lane="fast"))), "fast")
+        self.assertEqual(lane.brief_lane(mk("not a brief")), "deep")
+
+    def test_dry_run_previews_the_delivery_args_without_the_intent(self) -> None:
+        """The drain's preview (dry_run) of a queued delivery brief shows the submit args, minus the intent, and touches
+        neither the door nor the host: arm file, queue and slots live in the temp root."""
+        root = self.tmp / "hearth-root"
+        (root / "var").mkdir(parents=True)
+        arm = root / "var" / drain_arm_name()
+        arm.write_text(json.dumps({"contract_version": "bankedfire-drain-arm.v2", "armed": True, "scope": "authored",
+                                   "authored_by": "t", "reason": "t", "updated": None, "in_flight": None}), encoding="utf-8")
+        queued = root / "var" / "backlog" / "queued"
+        queued.mkdir(parents=True)
+        (queued / "rehearsal.md").write_text('<!-- CCMETA\n{"builders": ["omen-local-work"], "task_class": "local-work", '
+                                             '"est_tokens": 5000, "requires": ["candidate"], "max_age_s": 172800}\n-->\n'
+                                             + self.delivery_body(), encoding="utf-8")
+        nothing = self.tmp / "nothing"
+        with mock.patch.object(lane.backlog_sources, "DEFAULT_QUEUED_DIR", queued), \
+             mock.patch.object(lane.backlog_sources, "DEFAULT_REFINE_DIR", nothing), \
+             mock.patch.object(lane.backlog_sources, "DEFAULT_CANDIDATE_WORTH_PATH", nothing / "w.json"), \
+             mock.patch.object(lane.backlog_sources, "DEFAULT_EXPERIMENT_RESULTS_PATH", nothing / "r.json"), \
+             mock.patch.object(lane, "candidate_exclusions", return_value=frozenset()), \
+             mock.patch.object(lane, "queue_status", return_value={"ok": True, "queued": 0, "running": 0, "done": None}), \
+             mock.patch.object(lane.occ_mod, "check_occupancy", return_value={"occupancy": "idle"}), \
+             mock.patch.dict("os.environ", {"BANKEDFIRE_SLOTS": "fast=3,deep=1"}), \
+             mock.patch.object(lane, "call_tool") as door:
+            report = lane.dry_run()
+        door.assert_not_called()
+        self.assertEqual(report["scope"], "authored")
+        self.assertNotIn("brief_error", report["next"])
+        sub = report["next"]["submit_args"]
+        self.assertEqual((sub["brief"], sub["artifact_kind"], sub["task_family"]), (DELIVERY_BRIEF, "markdown", "code_review"))
+        self.assertNotIn("intent", sub)
+        self.assertEqual(report["pick"]["lane"], "deep")
+
+
+def drain_arm_name() -> str:
+    from fleet import bankedfire_drain
+    return bankedfire_drain.ARM_STATE_FILENAME
+
+
+class WholeFileDefaultTests(GitRepoCase):
+    def test_a_small_code_fix_on_one_file_defaults_to_whole_file(self) -> None:
+        """rehearsal/RESULT.md: `work_2e663a07` as unified_diff failed `git apply --check` twice; the same change as
+        whole_file (`work_4f36d04f`) came back in two minutes. M1: one path, no kind named, under 24,000 bytes."""
+        args = lane.submit_args_from_brief(self.fix_body())
+        self.assertEqual((args["artifact_kind"], args["target_path"], args["max_tokens"]), ("whole_file", "small.py", 12000))
+
+    def test_the_size_boundary_is_24000_bytes_at_the_commit(self) -> None:
+        """M1: "under 24,000 bytes": 23,999 is whole_file, 24,000 stays unified_diff with no target_path."""
+        edge = lane.submit_args_from_brief(self.fix_body(paths="[edge.py]"))
+        self.assertEqual((edge["artifact_kind"], edge["target_path"]), ("whole_file", "edge.py"))
+        big = lane.submit_args_from_brief(self.fix_body(paths="[big.py]"))
+        self.assertEqual(big["artifact_kind"], "unified_diff")
+        self.assertNotIn("target_path", big)
+        self.assertNotIn("max_tokens", big)
+
+    def test_the_default_is_sized_at_the_commit_not_the_working_tree(self) -> None:
+        """The brief pins a commit: a file that has since grown past the limit is still sized at the pinned commit."""
+        (self.repo / "small.py").write_text("#" * 30_000, encoding="utf-8")
+        self.assertEqual(lane.submit_args_from_brief(self.fix_body())["artifact_kind"], "whole_file")
+
+    def test_a_named_kind_is_never_overridden(self) -> None:
+        """M1: "a named kind is never overridden": a small code_fix that names unified_diff stays unified_diff, a named
+        max_tokens and target_path win."""
+        args = lane.submit_args_from_brief(self.fix_body(artifact_kind="unified_diff"))
+        self.assertEqual(args["artifact_kind"], "unified_diff")
+        self.assertNotIn("target_path", args)
+        self.assertNotIn("max_tokens", args)
+        named = lane.submit_args_from_brief(self.fix_body(artifact_kind="whole_file", target_path="small.py", max_tokens="5000"))
+        self.assertEqual((named["artifact_kind"], named["target_path"], named["max_tokens"]), ("whole_file", "small.py", 5000))
+        self.assertEqual(lane.submit_args_from_brief(self.fix_body(max_tokens="5000"))["max_tokens"], 5000)
+
+    def test_only_a_one_path_code_fix_gets_the_default(self) -> None:
+        """M1 scope: other families and several paths keep unified_diff."""
+        self.assertEqual(lane.submit_args_from_brief(self.fix_body(task_family="code_review"))["artifact_kind"], "unified_diff")
+        self.assertEqual(lane.submit_args_from_brief(self.fix_body(paths="[small.py, big.py]"))["artifact_kind"], "unified_diff")
+        self.assertEqual(lane.submit_args_from_brief(self.fix_body(task_family=None))["artifact_kind"], "whole_file")   # family defaults to code_fix
+
+    def test_an_unsizable_file_fails_loudly(self) -> None:
+        """No silent fallback (H-2): a path absent at the commit raises, naming the path."""
+        with self.assertRaisesRegex(ValueError, "cannot size 'gone.py'"):
+            lane.submit_args_from_brief(self.fix_body(paths="[gone.py]"))
+        result = lane.submit_task(prompt=self.fix_body(paths="[gone.py]"), plan_id_hint="x")
+        self.assertFalse(result["ok"])

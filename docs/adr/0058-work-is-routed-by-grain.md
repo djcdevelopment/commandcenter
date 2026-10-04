@@ -1,6 +1,6 @@
 # 0058 — Work is routed by grain: one stated value per item goes to the fast seats, code behaviour and gating go to the 27B, code lists the items and writes the counts, and a fact handed to a writer has passed a gate
 
-**Status:** Proposed (2026-10-03, omen-linux; evidence `~/work/delivery-plan/evidence/itemized/`, `docs/rnd-log.md` top four rows). Nothing in this decision is built at the door; the item runs were caller-side scripts.
+**Status:** Accepted 2026-10-04T12:14Z by Claude on Derek's delegation (decision 2 of the approved plan "Deliveries that hold on work the lab has not seen": accepted when an items run on held-out files has no wrong verified row; see the last section). Proposed 2026-10-03 (omen-linux; evidence `~/work/delivery-plan/evidence/itemized/`, `docs/rnd-log.md` top four rows). Nothing in this decision is built at the door; the item runs were caller-side scripts.
 
 **Companion to:** ADR-0048 (candidates stop at `awaiting_review`; verdicts are human or frontier), ADR-0050 (sizing), ADR-0054 (delivery contract), ADR-0059 (the 27B for multi-step work).
 
@@ -73,3 +73,22 @@ What the build measured, and where it departs from the decision above:
 
 Still open from the consequences above: the task-text cap; a behaviour field per item gated by the 27B; item kinds where
 code has no enumerator.
+
+## Added 2026-10-04: accepted on held-out files (lap 21, Wave 5, through the drain, nothing named but the brief)
+
+The condition set in the plan was met by two of the three held-out inventories; the third has one wrong verified row,
+stated here so the acceptance does not hide it.
+
+| Inventory (held out) | Kind | Items | Readers right (30B, 8B) | Judged | Verified right | NOT VERIFIED |
+|---|---|---|---|---|---|---|
+| lab-rnd `daily/`, `research/` (`work_f69049fc`) | env_reads | 16 | 15, 14 | 4 settled, 4 right | 16 of 16 | 0 |
+| deepagents-linux (`work_7718662e`) | env_reads | 9 | 9, 9 | 0 | 9 of 9 | 0 |
+| flash `fleet/` (`work_12d11c2f`) | param_defaults | 121 | 102, 109 | 32 (25 settled, all right) | 118 of 119 | 2 |
+
+Truth: env_reads from the syntax tree (`evidence/itemized/score_items_work.py`); param_defaults from the syntax tree,
+derived apart from the door's enumerator (`evidence/itemized/score_params_work.py`). The wrong row: `stamp(env)` in
+`fleet/environment.py` (`def stamp(env: dict | None = None)`), where both readers answered `dict | None = None`, the
+annotation included, and agreed; the row carried no mark, so no judge saw it. The two NOT VERIFIED rows are the same
+pattern (annotated parameters); the judge's own answer was right on both. Next fix, deterministic: a param_defaults
+answer that does not parse as one Python expression is not an agreement and goes to the judge.
+

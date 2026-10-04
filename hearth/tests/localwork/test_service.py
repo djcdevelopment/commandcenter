@@ -470,7 +470,7 @@ class CarryProcedureTests(unittest.TestCase):
     """procedure="carry" (delivery-plan lap 17, B2): a thinking turn writes the draft, thinking-off calls attach quotes,
     code assembles; the work stays queued/running through the stages and a failed stage fails it loudly."""
 
-    DRAFT = "# Lines\n\nThe file ends with two.\n\nThe file starts with one.\n"
+    DRAFT = "# Report\n\nThe file ends with two.\n\nThe file starts with one.\n"
     ATTACH = "[block 2]\n> two\n[block 3]\n> one\n"
 
     def setUp(self) -> None:
@@ -566,6 +566,26 @@ class CarryProcedureTests(unittest.TestCase):
                         <= set(final["delivery_artifacts"]))
         self.assertEqual((run / "carry-draft.md").read_text(encoding="utf-8"), self.DRAFT)
         self.assertEqual(self.service.artifact(final["work_id"])["delivery"]["files"]["carry_reasoning"]["size"], 7)
+
+    def test_only_the_report_part_is_carried_and_the_notes_guide_the_attacher(self) -> None:
+        self.DRAFT = "# Notes\n\nlines 12, 14 matter.\n\n# Report\n\nThe file ends with two.\n\nThe file starts with one.\n"
+        self.attach = ["[block 4]\n> two\n[block 5]\n> one\n"]
+        final = self.settle(self.submit()["work_id"])
+        self.assertEqual(final["status"], "awaiting_review", final.get("failure"))
+        attach = self.calls[1]["messages"][1]["content"]
+        self.assertIn("never copy a quote from them):\n# Notes\n\nlines 12, 14 matter.\n\nBLOCKS TO CHECK:\n[block 4]", attach)
+        run = self.root / "runs" / "operator" / final["work_id"]
+        delivery = json.loads((run / "delivery.json").read_text(encoding="utf-8"))
+        self.assertEqual(delivery["repairs"]["notes_blocks_not_carried"], 2)
+        self.assertNotIn("lines 12", (run / "candidate.md").read_text(encoding="utf-8"))
+
+    def test_a_draft_without_a_report_heading_fails_at_the_work_stage_and_keeps_the_draft(self) -> None:
+        self.DRAFT = "Verified notes for the report:\n\n- two is the last (line 2).\n\nThe file ends with two.\n"
+        final = self.settle(self.submit()["work_id"])
+        self.assertEqual((final["status"], final["carry"]["failure"]["stage"], len(self.calls)), ("failed", "work", 1))
+        self.assertIn("no report heading", final["failure"])
+        self.assertEqual((self.root / "runs" / "operator" / final["work_id"] / "carry-draft.md").read_text(encoding="utf-8"), self.DRAFT)
+        self.assertNotIn("delivery_artifacts", final)
 
     def test_a_truncated_attach_answer_is_retried_once_as_two_halves(self) -> None:
         self.attach = [{"ok": False, "text": "[block 2]", "finish_reason": "length", "error_code": "output_truncated",

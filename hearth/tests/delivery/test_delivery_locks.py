@@ -467,6 +467,38 @@ class CarryTests(unittest.TestCase):
         self.assertEqual([(b["kind"], b["text"][:12]) for b in blocks],
                          [("heading", "Notes"), ("text", "```\n# not a "), ("text", "1. Run it"), ("text", "---"), ("text", "No other end")])
 
+    def test_report_part_carries_the_last_report_heading_on(self):
+        blocks = carry.split_draft("# Verified notes\n\nA (12, 14).\n\n## Report:\n\nOne.\n\nTwo.\n")
+        carried, notes, found = carry.report_part(blocks)
+        self.assertEqual(([b["id"] for b in carried], [b["id"] for b in notes], found), ([3, 4, 5], [1, 2], True))
+        self.assertEqual(carry.format_notes(notes), "# Verified notes\n\nA (12, 14).\n")
+        out, rep = carry.assemble(carried, {}, notes_blocks=len(notes))
+        self.assertEqual((rep["repairs"]["notes_blocks_not_carried"], "report_heading_missing" in rep["repairs"]), (2, False))
+        carried, notes, found = carry.report_part(carry.split_draft("Head\n\nOne.\n"))
+        self.assertEqual((len(carried), notes, found), (2, [], False))
+        self.assertEqual(carry.report_part(carry.split_draft("# Report\n\nOne.\n"))[1:], ([], True))
+
+    def test_report_part_names_only_a_report_heading_and_finds_a_report_line_inside_a_paragraph(self):
+        notes = "Verified notes:\n\n- the report must show a (12).\n\n"
+        for head in ("Report:", "REPORT", "**Report**", "## Final report", "Report (draft)", "Report: day vs tool-night"):
+            carried, _, found = carry.report_part(carry.split_draft(notes + head + "\n\nThe body.\n"))
+            self.assertEqual((found, carried[0]["id"], carried[-1]["text"]), (True, 3, "The body."), head)
+            self.assertFalse(carry.assemble(carried, {})[0]["sections"][0]["heading"].endswith(":"), head)
+        for draft in ("Report notes\n\n- a (12).\n\nThe body.\n", "Verified notes for the report:\n\n- a (12).\n\nThe body.\n",
+                      "Reporting path\n\n- a (12).\n\nThe body.\n", notes + "The body.\n"):
+            self.assertFalse(carry.report_part(carry.split_draft(draft))[2], draft)
+        carried, notes_, _ = carry.report_part(carry.split_draft(notes + "Report\n\nA (12).\n\nReport\n\nB.\n\n## Limits of this report\n\nC.\n"))
+        self.assertEqual(([b["text"] for b in carried], len(notes_)), (["Report", "B.", "Limits of this report", "C."], 4))
+        for draft in ("Verified notes:\n\nNote one is line 12.\nReport:\nThe body.\n", "Verified notes:\n\n- a (12).\n**Report:**\nThe body.\n"):
+            blocks = carry.split_draft(draft)
+            carried, notes_, found = carry.report_part(blocks)
+            self.assertEqual((found, [b["kind"] for b in carried], carried[-1]["text"], "".join(b["raw"] for b in blocks)),
+                             (True, ["heading", "text"], "The body.", draft))
+        carried, _, found = carry.report_part(carry.split_draft(notes + "Report:\n"))   # a heading with nothing after it
+        self.assertTrue(found)
+        with self.assertRaisesRegex(carry.CarryError, "no paragraph"):
+            carry.assemble(carried, {})
+
     def test_assemble_caps_quotes_and_attach_answer_must_cover_every_block(self):
         blocks = carry.split_draft("Head\n\nA paragraph.\n\nAnother one.\n")
         out, rep = carry.assemble(blocks, {2: [f"q{i}" for i in range(11)], 3: []})

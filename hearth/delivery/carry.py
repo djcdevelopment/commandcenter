@@ -13,6 +13,11 @@ from typing import Optional
 from .contract import MAX_HEADING_CHARS, MAX_PARAGRAPHS, MAX_QUOTE_CHARS, MAX_QUOTES, MAX_SECTIONS, MAX_TEXT_CHARS
 
 LEAD_HEADING = "Report"
+# The heading of the report part of a working draft ("verified notes, then the report"); also a heading when it is a line
+# of its own inside a paragraph block ("...last note.\nReport:\nThe audit...").
+_REPORT = r"(?:(?:final|draft|corrected|revised|written|audit|the)\s+)?report(?:\s*\([^()\n]*\))?"
+_REPORT_HEADING = re.compile(_REPORT + r"\s*(?:[:–—-](?:(?!.*\bnotes?\b)[^\n]*)?)?", re.I)
+_REPORT_LINE = re.compile(r"(?:\*\*|__)?" + _REPORT + r"\s*:?\s*(?:\*\*|__)?:?", re.I)
 
 
 class CarryError(ValueError):
@@ -36,6 +41,8 @@ def _blocks_of(draft: str) -> list:
             while i < n and not lines[i].strip().startswith(fence):
                 i += 1
             i += 1
+        elif _REPORT_LINE.fullmatch(s):
+            starts.append((i, "heading")); i += 1
         elif s.startswith("#") or (prev_blank and len(s) <= 30 and not re.search(r"[.;]$", s) and not item.match(s)
                                    and not s.startswith("|") and not re.fullmatch(r"([-*_])(?:\s*\1){2,}", s)):
             starts.append((i, "heading" if s.startswith("#") else "heading?")); i += 1
@@ -49,7 +56,8 @@ def _blocks_of(draft: str) -> list:
                 i += 1
         else:
             starts.append((i, "paragraph")); i += 1
-            while i < n and lines[i].strip() and not item.match(lines[i].lstrip()) and not lines[i].lstrip().startswith(("#", "|", "```", "~~~")):
+            while (i < n and lines[i].strip() and not item.match(lines[i].lstrip()) and not _REPORT_LINE.fullmatch(lines[i].strip())
+                   and not lines[i].lstrip().startswith(("#", "|", "```", "~~~"))):
                 i += 1
     for k, (li, kind) in enumerate(starts):                   # a short line with no text under it is a sentence, not a heading
         if kind == "heading?":
@@ -230,6 +238,24 @@ def strip_line_references(text: str) -> tuple:
 
 
 # ------------------------------------------------------------------ attach
+def report_part(blocks: list) -> tuple:
+    """(carried, notes, found): the report starts at the LAST heading that names the report ("Report", "Final report",
+    "Report (draft)", "Report: <title>"; not "Report notes", "Notes for the report" or "Limits of this report"); that
+    heading and everything after it is carried, everything before it is notes. No such heading: all blocks, [], False
+    (the caller fails the work: the notes cannot be told from the report)."""
+    at = None
+    for i, b in enumerate(blocks):
+        if b["kind"] == "heading" and _REPORT_HEADING.fullmatch(b["text"].strip(" #*_\t")):
+            at = i
+    if at is None:
+        return list(blocks), [], False
+    return blocks[at:], blocks[:at], True
+
+
+def format_notes(notes: list) -> str:
+    return "".join(b["raw"] for b in notes).strip() + "\n"
+
+
 def batches(blocks: list, size: int = 6) -> list:
     todo = [b for b in blocks if b["kind"] == "text"]
     return [todo[i:i + size] for i in range(0, len(todo), size)]
@@ -279,8 +305,9 @@ def parse_attach(answer: str, ids: list) -> tuple:
 
 
 # ------------------------------------------------------------------ assemble
-def assemble(blocks: list, quotes: dict, *, statements: Optional[int] = None) -> tuple:
-    """`statements` is accepted for the service's call shape and unused: the summary states no count of statements."""
+def assemble(blocks: list, quotes: dict, *, statements: Optional[int] = None, notes_blocks: int = 0) -> tuple:
+    """`statements` is accepted for the service's call shape and unused: the summary states no count of statements.
+    `notes_blocks` (blocks before the report heading, not carried) only adds a repair count."""
     sections, refs = [], []
     stripped = beyond = with_quotes = total = paras = 0
     heading, dropped = None, []
@@ -290,7 +317,7 @@ def assemble(blocks: list, quotes: dict, *, statements: Optional[int] = None) ->
             stripped += len(removed)
             refs += [{"block": b["id"], "reference": r} for r in removed]
             if text.strip(" #*_:-"):
-                heading = text[:MAX_HEADING_CHARS - len(" (continued 99)")]
+                heading = text.rstrip(" :")[:MAX_HEADING_CHARS - len(" (continued 99)")]   # "Report:" is the heading "Report"
                 sections.append({"heading": heading, "paragraphs": []})
             continue
         if not sections:
@@ -326,6 +353,8 @@ def assemble(blocks: list, quotes: dict, *, statements: Optional[int] = None) ->
               "repairs": {"line_reference_stripped": stripped, "quotes_beyond_cap_dropped": beyond,
                           "blocks_empty_after_stripping_dropped": len(dropped), "headings_without_paragraphs_dropped": len(empty)},
               "line_references": refs, "paragraph_ids": pid}
+    if notes_blocks:
+        report["repairs"]["notes_blocks_not_carried"] = notes_blocks
     if empty:
         report["headings_without_paragraphs_dropped"] = [s["heading"] for s in empty]
     if dropped:

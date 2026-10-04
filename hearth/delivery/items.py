@@ -58,10 +58,13 @@ assert tuple(_FIELDS) == contract.ITEM_KINDS, "items.py kinds differ from contra
 
 @lru_cache(maxsize=256)
 def _src(repo: str, commit: str, path: str) -> str:
-    r = subprocess.run(["git", "-C", repo, "show", f"{commit}:{path}"], capture_output=True, text=True)
+    r = subprocess.run(["git", "-C", repo, "show", f"{commit}:{path}"], capture_output=True)
     if r.returncode:
-        raise ItemsError(f"{path}: not readable at {commit[:12]} in {repo}: {r.stderr.strip()[:160]}")
-    return r.stdout
+        raise ItemsError(f"{path}: not readable at {commit[:12]} in {repo}: {r.stderr.decode(errors='replace').strip()[:160]}")
+    try:
+        return r.stdout.decode("utf-8")
+    except UnicodeDecodeError as e:
+        raise ItemsError(f"{path}: not UTF-8 at {commit[:12]}: {e.reason} at byte {e.start}") from None
 
 
 def _env_reads(text: str, path: str) -> list:
@@ -119,9 +122,11 @@ def enumerate_items(kind: str, repo: str, commit: str, paths: list) -> list:
     """Every item of the kind in the files at the commit, ordered by path as given, then line, then column."""
     _kind(kind)
     out: list = []
-    for p in paths:
+    for i, p in enumerate(paths):
         if not isinstance(p, str) or not p.endswith(".py"):
             raise ItemsError(f"{p!r}: not a .py file; the {kind} enumerator reads Python only")
+        if p in paths[:i]:
+            raise ItemsError(f"{p}: declared twice; every item would be read and delivered twice")
         text = _src(repo, commit, p)
         try:
             reads = _env_reads(text, p)
@@ -170,9 +175,12 @@ def parse(kind: str, text: str) -> dict:
     for k in names:
         if not isinstance(d.get(k), str):
             raise ItemsError(f"field {k} missing or not a string")
-    if not isinstance(d.get("lines"), list):
-        raise ItemsError("lines missing or not a list")
-    return {"fields": {k: d[k] for k in names}, "lines": [n for n in d["lines"] if isinstance(n, int) and not isinstance(n, bool)]}
+    if set(d) - {*names, "lines"}:
+        raise ItemsError(f"unexpected field(s) {sorted(set(d) - {*names, 'lines'})}")
+    ls = d.get("lines")
+    if not (isinstance(ls, list) and 1 <= len(ls) <= 6 and all(isinstance(n, int) and not isinstance(n, bool) for n in ls)):
+        raise ItemsError(f"lines must be 1 to 6 integers, got {json.dumps(ls)[:80]}")
+    return {"fields": {k: d[k] for k in names}, "lines": ls}
 
 
 def _norm(s) -> str:

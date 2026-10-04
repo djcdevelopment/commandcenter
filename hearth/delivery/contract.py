@@ -155,7 +155,7 @@ def validate_brief(doc: Any) -> list:
     if "items" in doc:
         if _exact(doc["items"], {"kind"}, set(), "brief.items", errs) and doc["items"]["kind"] not in ITEM_KINDS:
             errs.append(f"brief.items.kind: one of {ITEM_KINDS}, got {doc['items']['kind']!r}")
-        if (doc.get("form") or {}).get("quote_mode") != "line_reference":
+        if not (isinstance(doc.get("form"), dict) and doc["form"].get("quote_mode") == "line_reference"):
             errs.append("brief.items: needs brief.form.quote_mode line_reference")
     if "generation" in doc:
         generation = doc["generation"]
@@ -373,6 +373,8 @@ def validate_manifest(doc: Any) -> list:
         return errs
     if "items" in doc:
         errs += _validate_manifest_items(doc["items"])
+        if doc.get("procedure") != "items":
+            errs.append(f"manifest.items: needs procedure items, got {doc.get('procedure')!r}")
     if "procedure" in doc and doc["procedure"] not in PROCEDURES:
         errs.append(f"manifest.procedure: one of {PROCEDURES} when present, got {doc['procedure']!r}")
     fa = doc["form_applied"]

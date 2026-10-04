@@ -71,8 +71,10 @@ ENFORCE = ("measure", "fail")          # measure (default) records deviation; fa
 QUOTE_MODES = ("text", "line_reference")
 CITATIONS = ("range", "quote", "none")  # see module docstring, rule 3
 STYLES = ("markdown",)
-AIDS = frozenset({"source_map", "quote_renderer", "constrained_output", "sidecar", "judge", "reviewer", "line_reference", "source_excerpt", "source_path_alias", "thinking", "carried_draft"})
-PROCEDURES = ("carry",)  # delivery.v1 optional top-level `procedure`: how the candidate was produced; absent = the one-call path
+AIDS = frozenset({"source_map", "quote_renderer", "constrained_output", "sidecar", "judge", "reviewer", "line_reference", "source_excerpt", "source_path_alias", "thinking", "carried_draft", "item_enumerator", "reader_agreement"})
+PROCEDURES = ("carry", "items")  # delivery.v1 optional top-level `procedure`: how the candidate was produced; absent = the one-call path
+ITEM_KINDS = ("env_reads",)  # brief.v2 optional `items.kind`; hearth/delivery/items.py registers the same tuple
+ITEM_COUNTS = ("items", "agreed", "settled", "unverified", "reader_failures", "files")
 MATCHES = ("exact", "normalized", "missing")  # plus "fuzzy:<score>", score 0..1 with two decimals
 # Repair counts the contract knows and cross-checks against claims; the renderer (task 3) may add other
 # snake_case keys (line_reference_stripped, quotes_beyond_cap_dropped, json_unescaped_quote from the carry procedure: counts of code edits, no claim carries them, so they stay out of this tuple; empty_quote_dropped: the door drops blank quote strings before validation; heading_added, trailing_prose_removed, citation_syntax_stripped, ...).
@@ -98,7 +100,7 @@ _ID = re.compile(r"^[A-Za-z0-9_.-]+$")
 _REPAIR_KEY = re.compile(r"^[a-z][a-z0-9_]*$")
 _CCMETA = re.compile(r"<!--\s*CCMETA\s*(\{.*?\})\s*-->", re.DOTALL)
 V1_KEYS = ("builders", "task_class", "est_tokens", "requires", "max_age_s")
-V2_KEYS = ("substance", "form", "sources", "aids", "generation")
+V2_KEYS = ("substance", "form", "sources", "aids", "generation", "items")
 
 
 class ContractError(ValueError):
@@ -149,7 +151,12 @@ def validate_brief(doc: Any) -> list:
         return [f"brief.{k}: v2 key needs schema {BRIEF_SCHEMA}" for k in V2_KEYS if k in doc]
     if doc["schema"] != BRIEF_SCHEMA:
         return [f"brief.schema: must be {BRIEF_SCHEMA}, got {doc['schema']!r}"]
-    _exact(doc, {"schema", "substance"}, set(V1_KEYS) | {"form", "sources", "aids", "generation"}, "brief", errs)
+    _exact(doc, {"schema", "substance"}, set(V1_KEYS) | {"form", "sources", "aids", "generation", "items"}, "brief", errs)
+    if "items" in doc:
+        if _exact(doc["items"], {"kind"}, set(), "brief.items", errs) and doc["items"]["kind"] not in ITEM_KINDS:
+            errs.append(f"brief.items.kind: one of {ITEM_KINDS}, got {doc['items']['kind']!r}")
+        if not (isinstance(doc.get("form"), dict) and doc["form"].get("quote_mode") == "line_reference"):
+            errs.append("brief.items: needs brief.form.quote_mode line_reference")
     if "generation" in doc:
         generation = doc["generation"]
         if _exact(generation, {"max_tokens"}, set(), "brief.generation", errs):
@@ -332,12 +339,42 @@ def default_verification() -> dict:
     return {rung: {"state": "not_run"} for rung in VERIFY_RUNGS}
 
 
+def _validate_manifest_items(it: Any) -> list:
+    errs: list = []
+    w = "manifest.items"
+    if not _exact(it, {"kind", *ITEM_COUNTS, "readers"}, set(), w, errs):
+        return errs
+    if it["kind"] not in ITEM_KINDS:
+        errs.append(f"{w}.kind: one of {ITEM_KINDS}, got {it['kind']!r}")
+    bad = [k for k in ITEM_COUNTS if not (_is_int(it[k]) and it[k] >= 0)]
+    errs += [f"{w}.{k}: int >= 0 required" for k in bad]
+    if not bad and it["agreed"] + it["settled"] + it["unverified"] != it["items"]:
+        errs.append(f"{w}: agreed {it['agreed']} + settled {it['settled']} + unverified {it['unverified']} != items {it['items']}")
+    if not isinstance(it["readers"], list):
+        errs.append(f"{w}.readers: list required")
+        return errs
+    for i, r in enumerate(it["readers"]):
+        rw = f"{w}.readers[{i}]"
+        if not _exact(r, {"backend", "model", "role", "calls"}, set(), rw, errs):
+            continue
+        errs += [f"{rw}.{k}: non-empty text required" for k in ("backend", "model") if not _is_str(r[k])]
+        if r["role"] not in ("reader", "settler"):
+            errs.append(f"{rw}.role: reader|settler required, got {r['role']!r}")
+        if not (_is_int(r["calls"]) and r["calls"] >= 0):
+            errs.append(f"{rw}.calls: int >= 0 required")
+    return errs
+
+
 def validate_manifest(doc: Any) -> list:
     errs: list = []
     req = {"schema", "brief_sha256", "model", "backend", "configuration", "environment", "aids_used",
            "claims", "measures", "repairs", "unsupported", "verification", "form_applied", "deviations"}
-    if not _exact(doc, req, {"procedure"}, "manifest", errs):
+    if not _exact(doc, req, {"procedure", "items"}, "manifest", errs):
         return errs
+    if "items" in doc:
+        errs += _validate_manifest_items(doc["items"])
+        if doc.get("procedure") != "items":
+            errs.append(f"manifest.items: needs procedure items, got {doc.get('procedure')!r}")
     if "procedure" in doc and doc["procedure"] not in PROCEDURES:
         errs.append(f"manifest.procedure: one of {PROCEDURES} when present, got {doc['procedure']!r}")
     fa = doc["form_applied"]

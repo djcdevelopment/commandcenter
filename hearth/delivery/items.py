@@ -3,6 +3,8 @@ settles the disagreements, code settles each row by agreement and writes the rep
 no service. Source text comes from `git show <commit>:<path>`, never the working tree. One registered kind: env_reads.
 Moved from delivery-plan/evidence/itemized (make_items.env_reads, make_env_corpus naming, run_itemized prompt and schema,
 score_envmap normaliser) with the same behaviour; the prompt's kind label is the kind name (the script printed the task name).
+Changed since (2026-10-04, measured): writes to os.environ are not items; `same` reads r"x", "x" and x as one default; the
+`default` ask names the `or <value>` idiom, so the prompt no longer equals run_itemized's byte for byte.
 """
 from __future__ import annotations
 
@@ -26,7 +28,8 @@ CAP = 300  # shown source lines per item
 
 _FIELDS = {"env_reads": [
     {"name": "variable", "type": "string", "ask": "the environment variable name"},
-    {"name": "default", "type": "string", "ask": "its default exactly as written, or 'none' if this read has no default"},
+    {"name": "default", "type": "string", "ask": "the value used when the variable is unset, exactly as written in the code: the second argument of the get "
+     "or getenv call; if there is none and the call is directly followed by `or <value>`, that value; 'none' if neither"},
     {"name": "controls", "type": "string", "ask": "one line on what it controls"}]}
 _DESC = {"env_reads": "one environment variable read (os.environ.get, os.environ[...] or os.getenv)"}
 _QUESTION = {"env_reads": "Name the environment variable, its default if any, and in one line what it controls."}
@@ -79,7 +82,7 @@ def _env_reads(text: str, path: str) -> list:
                 return True
             if ast.unparse(f) == "os.getenv":
                 return True
-        return isinstance(n, ast.Subscript) and ast.unparse(n.value) == "os.environ"
+        return isinstance(n, ast.Subscript) and isinstance(n.ctx, ast.Load) and ast.unparse(n.value) == "os.environ"  # not a write
 
     consts = {x.targets[0].id: x.value.value for x in tree.body if isinstance(x, ast.Assign) and isinstance(x.targets[0], ast.Name)
               and isinstance(x.value, ast.Constant) and isinstance(x.value.value, str)}
@@ -183,8 +186,11 @@ def parse(kind: str, text: str) -> dict:
     return {"fields": {k: d[k] for k in names}, "lines": ls}
 
 
+_LITERAL = re.compile(r"(?<!\w)(?:[rR][bBfF]?|[bBfF][rR]?|[uU])(?=['\"])")  # string prefix before a quote: r"C:\x" is C:\x
+
+
 def _norm(s) -> str:
-    return re.sub(r"[\s'\"`]+", "", str(s).lower())
+    return re.sub(r"[\s'\"`]+", "", _LITERAL.sub("", str(s)).replace("\\\\", "\\").lower())
 
 
 def same(kind: str, a: dict, b: dict) -> bool:

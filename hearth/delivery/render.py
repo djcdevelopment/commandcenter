@@ -18,6 +18,10 @@ Public API
                 values are the loud placeholder "unknown", never a guess.
 ``render_with_findings(...) -> (markdown, manifest, findings)``
     Same, plus the human-readable findings that also go into ``verification.deterministic.note``.
+``drop_blank_quotes(output) -> (copy, count)``
+    The blank quote strings ("" or whitespace) render drops before validation, counted as ``empty_quote_dropped``.
+    Claim ids number the quotes of that copy: a caller that checks the output or indexes its quotes by claim id
+    uses the copy; the raw answer is what is stored and compared (verify drops the same way).
 ``render_legacy(candidate_v1, sm, brief=None, meta=None) -> (markdown, manifest)``
     Compatibility shim for ``local-work-candidate.v1`` (markdown artifacts): bare path, {path, start_line,
     end_line} / {path, start, end} objects and "path:N-M" / "path (lines N-M)" strings. Each citation becomes
@@ -49,7 +53,7 @@ from typing import Any, Mapping, Optional, Union
 from . import contract
 from .sourcemap import Location, SourceMap, locate, locate_line_reference
 
-__all__ = ["render", "render_with_findings", "render_legacy"]
+__all__ = ["render", "render_with_findings", "render_legacy", "drop_blank_quotes"]
 
 _ENV_FALLBACK = "unknown"
 _MISSING = Location("", 0, 0, "missing", 0)  # a paragraph without a quote / an unresolvable legacy citation

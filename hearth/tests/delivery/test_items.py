@@ -111,6 +111,37 @@ class EnvReadEnumeratorTests(unittest.TestCase):
         self.assertIsNone(marks["AM4_TOKEN"])                                # a module constant names a constant, not a computed name
         self.assertTrue(by_var(enumerate_text("env_reads", src))["token_env"]["computed"])
 
+    def test_a_computed_name_is_shown_as_the_expression_not_as_a_string_inside_it(self) -> None:
+        """2026-10-04, lap 21 Wave 5, work_f69049fc row 12: `env_http_headers` delivered as a variable name; the source reads
+        os.environ[h["env_http_headers"]["X-Hearth-Key"]] (research/thinking_workload.py L67 at lab-rnd 6c4f999): the name is
+        looked up in a table at run time, and a string constant inside the expression is a table key, not a variable."""
+        src = ('import os\n'
+               'def key(h):\n'
+               '    return os.environ[h["env_http_headers"]["X-Hearth-Key"]]\n')
+        (item,) = enumerate_text("env_reads", src)
+        subject = items.KINDS["env_reads"].subject(item)
+        self.assertNotEqual(item["var"], "env_http_headers")
+        self.assertEqual(item["var"], "h['env_http_headers']['X-Hearth-Key']")
+        self.assertIn("h['env_http_headers']['X-Hearth-Key']", subject)
+        self.assertIn("(a name computed at run time)", subject)
+        self.assertTrue(item["computed"])
+        self.assertEqual(item["judge"], "computed")
+        self.assertTrue(item["name"].startswith("h['env_http_headers']['X-Hearth-Key'] @ m.py:"))
+
+    def test_a_prefix_plus_a_literal_is_a_computed_name(self) -> None:
+        """Same observation: `os.environ.get(PREFIX + "_KEY")` holds one string constant, but the variable is not `_KEY`."""
+        src = ('import os\n'
+               'PREFIX = os.getcwd()\n'
+               'def a():\n'
+               '    return os.environ.get(PREFIX + "_KEY")\n'
+               'def b(prefix):\n'
+               '    return os.environ.get(prefix + "_KEY")\n')
+        found = enumerate_text("env_reads", src)
+        self.assertEqual([i["var"] for i in found], ["PREFIX + '_KEY'", "prefix + '_KEY'"])
+        for i in found:
+            self.assertIn("(a name computed at run time)", items.KINDS["env_reads"].subject(i))
+            self.assertEqual(i["judge"], "computed")
+
     def test_a_loop_over_a_literal_tuple_is_expanded_into_one_item_per_name(self) -> None:
         """wave9 run 2 (grader): `k` looping over a fixed tuple hid 14 names that are written in the code; the real shape is
         the comprehension at fleet/bankedfire_linux.py:272 at 82d40ac."""

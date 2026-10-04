@@ -9,5 +9,6 @@ Environment=OMEN_REASONING_PARSER=gemma4
 Environment=OMEN_MAX_MODEL_LEN=65536
 Environment=OMEN_LANGUAGE_MODEL_ONLY=1
 Environment=OMEN_MTP_K=
+Environment=OMEN_ATTN_BACKEND=
 Environment=OMEN_KV_CACHE_BYTES=
 Environment=OMEN_GPU_MEM_UTIL=0.90

@@ -69,6 +69,7 @@ record with its status changed and a pointer to the ADR that replaced it.
 | [0057](0057-the-execution-projection-is-a-derived-index.md) | The execution projection is a derived index: it runs in WAL with synchronous NORMAL; the canonical event stream stays fsynced; the staleness check at open runs under the append lock | Implemented under hearth-env dev 2026-10-03 (flash 47fce27, 356007c; approved by claude, CLAUDE-APPROVED row 98); proposed for Derek's acceptance |
 | [0058](0058-work-is-routed-by-grain.md) | Work is routed by grain: one stated value per item goes to the fast seats, code behaviour and gating to the 27B, code lists items and writes counts, a fact handed to a writer has passed a gate | Proposed (2026-10-03) |
 | [0059](0059-the-dense-27b-is-served-for-multi-step-work.md) | The dense 27B is served for multi-step work: thinking on, several turns in one long context; small-grain work goes to the lighter seats (records Derek's direction) | Proposed (2026-10-03) |
+| [0060](0060-the-dense-seat-runs-flash-attention-with-mtp-k2.md) | The dense seat runs native XPU Flash Attention with MTP k=2: 4 to 20 times faster with depth than the Triton backend, same answers; the recipe is declared on the rung and checked against the seat | Accepted (2026-10-04) |
 
 ## Historical note
 The "ADR-0001" referenced in `SESSION-RETRO-2026-06-29.md` (which orchestrator is

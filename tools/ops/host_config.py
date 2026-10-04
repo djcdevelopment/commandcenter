@@ -75,6 +75,8 @@ MANIFEST: list[tuple[str, Path]] = [
      HOME / ".config" / "systemd" / "user" / "omen-vllm@0.service.d" / "zz-e4-cpu8g.conf.staged"),
     ("systemd/omen-vllm@0.service.d/zz-e13-flash-mtp2.conf.staged",
      HOME / ".config" / "systemd" / "user" / "omen-vllm@0.service.d" / "zz-e13-flash-mtp2.conf.staged"),
+    ("systemd/omen-vllm@0.service.d/zz-b0-triton-k1.conf.staged",
+     HOME / ".config" / "systemd" / "user" / "omen-vllm@0.service.d" / "zz-b0-triton-k1.conf.staged"),
 
     ("systemd/omen-vllm@1.service.d/zz-s1-native-flash.conf.staged",
      HOME / ".config" / "systemd" / "user" / "omen-vllm@1.service.d" / "zz-s1-native-flash.conf.staged"),

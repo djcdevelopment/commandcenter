@@ -1,0 +1,4 @@
+# The pre-2026-10-03 recipe (Triton attention, MTP k=1) as an experiment arm, swapped in only by fleet/experiment_linux.py.
+[Service]
+Environment=OMEN_ATTN_BACKEND=TRITON_ATTN
+Environment=OMEN_MTP_K=1

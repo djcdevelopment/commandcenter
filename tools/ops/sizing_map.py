@@ -103,7 +103,7 @@ def collect_seats(live: bool) -> list[Row]:
             env = []
         eff = {}
         for item in env:
-            if item.startswith("OMEN_") and "=" in item and not re.search(r"TOKEN|KEY", item, re.I):
+            if item.startswith("OMEN_") and "=" in item and not re.search(r"(?:TOKEN|KEY|SECRET)$", item.partition("=")[0], re.I):   # credentials end in TOKEN/KEY; OMEN_MAX_BATCHED_TOKENS is a size
                 k, _, v = item.partition("="); eff[k] = v
         dropins = sorted(p.name for p in (HOME / ".config" / "systemd" / "user" / f"{unit}.service.d").glob("*.conf"))
         src = f"~/.config/systemd/user/{unit}.service.d/{{{','.join(dropins)}}}"
@@ -117,6 +117,8 @@ def collect_seats(live: bool) -> list[Row]:
         rows.append(row("seat", f"{unit} gpu_memory_utilization", float(eff.get("OMEN_GPU_MEM_UTIL") or defaults["OMEN_GPU_MEM_UTIL"]), src, "vLLM", "VRAM fraction (weights + KV)"))
         if eff.get("OMEN_KV_CACHE_BYTES"):
             rows.append(row("seat", f"{unit} kv_cache_memory_bytes", int(eff["OMEN_KV_CACHE_BYTES"]), src, "vLLM", "fixed KV pool (overrides the utilisation for KV)"))
+        rows.append(row("seat", f"{unit} attention_backend", eff.get("OMEN_ATTN_BACKEND") or "TRITON_ATTN", src if eff.get("OMEN_ATTN_BACKEND") else _line_of(script, "OMEN_ATTN_BACKEND:-"),
+                        "vLLM", "attention kernel (prefill and decode rate at depth)", "" if eff.get("OMEN_ATTN_BACKEND") else "script default; no drop-in sets it"))
         for k, label in (("OMEN_MAX_BATCHED_TOKENS", "max_num_batched_tokens"), ("OMEN_PREFIX_MATCH_UNIT", "prefix_match_unit"), ("OMEN_MTP_K", "mtp_k")):
             if eff.get(k):
                 rows.append(row("seat", f"{unit} {label}", int(eff[k]), src, "vLLM", {"max_num_batched_tokens": "prefill chunk", "prefix_match_unit": "prefix-hit granularity", "mtp_k": "speculative tokens"}[label]))
@@ -198,6 +200,8 @@ def collect_backends() -> list[Row]:
         for k, bounds in (("context_tokens", "input + output tokens the seat holds"), ("context_bytes", "payload bytes admitted by the door (3.5 B/token, no output reserve)"),
                           ("max_tokens", "default output budget = the reserve local-work subtracts"), ("deliberate_max_tokens", "largest output a streamed inference.deliberate turn may ask for on this rung"), ("timeout_s", "HTTP timeout when the caller sets none (execution path always overrides)"),
                           ("parallel_slots", "HEARTH lease slots on this rung"),
+                          ("flash_attention", "declared attention backend of the seat (true = FLASH_ATTN)"),
+                          ("speculative", "declared MTP draft depth of the seat (mtp-k<N>)"),
                           ("images_per_second", "measured perception throughput on CPU"),
                           ("max_image_bytes", "largest image payload accepted")):
             if k in s:
@@ -567,6 +571,13 @@ def invariants(rows: list[Row]) -> list[dict]:
             typical = 0.30 * float(s["context_tokens"]) + 0.5 * float(s["max_tokens"])
             if slots * typical > kv:
                 fail("slots-fit-the-kv-pool", f"{rung}: {slots:g} slots x typical {typical:.0f} tokens = {slots * typical:.0f} > {seat} KV pool {kv:.0f}", "a work.produce waited 9.3 s for a slot on 2026-09-27 at 3 slots; preemption follows oversubscription")
+    # 2b. a rung's declared recipe is the seat's (the serving profile in a capability record is the declaration)
+    for rung, seat in seat_for.items():
+        s = rungs.get(rung, {}); attn = _val(rows, f"{seat} attention_backend"); k = _val(rows, f"{seat} mtp_k")
+        if attn is not None and bool(s.get("flash_attention")) != (attn == "FLASH_ATTN"):
+            fail("declared-recipe-is-the-seat", f"{rung} flash_attention {s.get('flash_attention')} but {seat} attention_backend {attn}", "the 27B ran 4 to 20 times faster on Flash (2026-10-03); a record that hides the backend mixes two configurations")
+        if s.get("speculative") is not None and str(s["speculative"]) != f"mtp-k{k}":
+            fail("declared-recipe-is-the-seat", f"{rung} speculative {s['speculative']} but {seat} mtp_k {k}", "the declared draft depth must be the seat's")
     # 3. operation ceilings vs rungs
     ceil = {}
     for r in rows:

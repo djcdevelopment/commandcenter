@@ -73,7 +73,7 @@ tags = ["dense", "quality", "agent", "vision"]   # vision family requires seat0-
 [backend.settings]
 node = "omen"
 engine = "vllm"
-# Qwen3.8-27B GPTQ-Int4 + MTP k=1 on one B70; 65,536 configured (KV pool 76,706-99,048 tokens depending on the start (vLLM profiles free memory) -> ~1.2-1.5 full-length requests, so slots stay small).
+# Qwen3.8-27B GPTQ-Int4 + MTP k=2, native XPU Flash Attention (ADR-0060, 2026-10-03) on one B70; 65,536 configured (KV pool 76,706-99,048 tokens depending on the start (vLLM profiles free memory) -> ~1.2-1.5 full-length requests, so slots stay small).
 context_tokens = 65536
 context_bytes = 229376
 max_tokens = 16384   # the output reserve; == work.produce ceiling (sizing-map 2026-09-27)
@@ -81,6 +81,8 @@ deliberate_max_tokens = 24576   # inference.deliberate only: a streamed thinking
 timeout_s = 1000
 parallel_slots = 2       # KV pool 99,048 tokens holds ~1.5 full requests; 2 x (19.5K in + 16K out) = 71K fits, 3 preempted (9.3 s wait 2026-09-27)
 structured_outputs = true   # response_format json_schema, probed 2026-10-02 (docs/structured-outputs.md)
+flash_attention = true   # the seat's --attention-backend FLASH_ATTN; part of the serving profile a capability record carries
+speculative = "mtp-k2"    # the seat's MTP draft depth; sizing_map checks both against the seat's drop-ins
 
 [backend.settings.chat_template_kwargs]
 enable_thinking = false

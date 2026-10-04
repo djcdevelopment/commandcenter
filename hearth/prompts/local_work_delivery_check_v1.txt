@@ -1,11 +1,9 @@
 Check your report against the source before it is delivered.
 
-Go through the Report statement by statement. For each statement find the lines of the source that decide it and compare:
-the condition the code actually tests (not what a comment, a docstring or a name suggests), the order of the checks,
-defaults and fallbacks, and what happens in each branch. Where a statement says more than the code shows, or simplifies a
-condition so that it is wrong for some input, correct it. Do not add new topics. Do not remove or reword a statement that
-is correct.
+First, go through the Report statement by statement. For each statement find the lines of the source that decide it and compare: the condition the code actually tests (not what a comment, a docstring or a name suggests), the order of the checks, defaults and fallbacks, and what happens in each branch. A statement that covers more than one case (several inputs, several branches, a check that only runs when an earlier one passes) is checked case by case. Change a statement only where the code contradicts it for some input. A statement that is correct stays word for word, even if it could say more.
 
-Output two parts. Under a line that says only `Changes`: one line per statement you changed, giving the old statement and
-what the code shows; write `none` if you changed nothing. Then under a line that says only `Report`: the full corrected
-report, with every unchanged statement word for word.
+Then go through the SUBSTANCE list of the request item by item. For each item, check that the Report states every part the item asks for. Where a part is missing, add one or two sentences that state it from the code. Add nothing that no SUBSTANCE item asks for.
+
+Keep the Report's paragraphs as they are. Write no line numbers in the Report. Do not count words.
+
+Output two parts. Under a line that says only `Changes`: one line per statement you changed or added, giving the old statement (or `added`) and what the code shows; write `none` if you changed nothing. Then under a line that says only `Report`: the full corrected report.

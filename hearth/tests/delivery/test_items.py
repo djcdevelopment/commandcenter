@@ -202,6 +202,42 @@ class ParamDefaultComparisonTests(unittest.TestCase):
         self.assertFalse(items.same("env_reads", w("none"), w("0")))
 
 
+class ParamDefaultAnswerParseTests(unittest.TestCase):
+    @staticmethod
+    def r(default: str) -> dict:
+        return {"fields": {"parameter": "env", "default": default}, "lines": [1]}
+
+    def test_an_answer_that_is_not_one_expression_goes_to_the_judge(self) -> None:
+        """2026-10-04T12:12Z, lap 21 Wave 5, work_12d11c2f: stamp(env) delivered verified as `dict | None = None`; both readers
+        included the annotation, `same` called that agreement and the row carried no judge mark."""
+        wrong = [self.r("dict | None = None"), self.r("dict | None = None")]
+        self.assertTrue(items.same("param_defaults", *wrong))  # the comparison alone cannot see it
+        self.assertTrue(items.needs_judge("param_defaults", wrong))
+        self.assertTrue(items.needs_judge("param_defaults", wrong, {"name": "n"}))
+        self.assertTrue(items.needs_judge("param_defaults", [self.r("`int | None = None`"), self.r("`int | None = None`")]))
+        row = items.settle("param_defaults", wrong, {"default": "None", "verdict": "neither", "lines": [1]})
+        self.assertEqual(row, {"state": "unverified", "fields": None, "by": []})
+        self.assertEqual(items.settle("param_defaults", wrong)["state"], "unverified")
+
+    def test_one_reader_with_the_equals_sign_needs_the_judge_and_plain_agreement_does_not(self) -> None:
+        """Same observation: the two NOT VERIFIED rows had `= None` and `Callable[[str], dict] = _run_command` shapes."""
+        self.assertTrue(items.needs_judge("param_defaults", [self.r("= None"), self.r("None")]))
+        self.assertTrue(items.needs_judge("param_defaults", [self.r("None"), self.r("= None")]))
+        self.assertFalse(items.needs_judge("param_defaults", [self.r("None"), self.r("None")]))
+        self.assertFalse(items.needs_judge("param_defaults", [self.r("`'x'`"), self.r('"x"')]))
+        self.assertTrue(items.needs_judge("param_defaults", [self.r("None"), None]))  # a missing answer: as before
+        self.assertEqual(items.settle("param_defaults", [self.r("None"), self.r("None")])["by"], [0, 1])
+        row = items.settle("param_defaults", [self.r("None"), self.r("None")], {"default": "None", "verdict": "A", "lines": [1]})
+        self.assertEqual(row["by"], [0, 1])
+
+    def test_env_reads_answers_that_are_not_python_are_unaffected(self) -> None:
+        """Same observation: the check is param_defaults only; env_reads defaults are prose or `none` and agree as before."""
+        for v in ("none", "the value of HOME", "= 3"):
+            with self.subTest(v=v):
+                self.assertFalse(items.needs_judge("env_reads", [reading(v), reading(v)]))
+                self.assertEqual(items.settle("env_reads", [reading(v), reading(v)])["by"], [0, 1])
+
+
 class SettleTests(unittest.TestCase):
     MARKED = {"judge": "computed"}
 

@@ -8,6 +8,7 @@ It intentionally has no apply, commit, merge, or push method.
 
 from __future__ import annotations
 
+import difflib
 import hashlib
 import json
 import os
@@ -598,17 +599,15 @@ class LocalWorkService:
             manifest = self._read(work_id)
             if "items" in manifest:
                 self._items_wait(work_id)
-            elif "carry" in manifest:
-                # A carried work advances stage by stage with nobody polling: wait for this stage's job to end,
-                # then reconcile, which dispatches the next stage and spawns the next waiter. No wall-clock cap: a job
-                # can outlive any fixed wait (deadline up to 3,600 s from its start, plus time queued for a worker).
+            else:
+                # A work advances with nobody polling: wait for this job to end, then reconcile, which stores the
+                # outcome (or dispatches the next stage or the repair attempt and spawns its waiter). No wall-clock
+                # cap: a job can outlive any fixed wait (deadline up to 3,600 s from its start, plus time queued).
                 while True:
                     job = self.execution.get_job(job_id)
                     if job is None or job["status"] in FINAL_JOB_STATUSES:
                         break
                     self.execution.watch(job_id=job_id, after_sequence=int(job.get("last_sequence", 0)), wait_seconds=30)
-            else:
-                self.execution.watch(job_id=job_id, wait_seconds=3600)
         except Exception:
             pass
         try:
@@ -706,6 +705,8 @@ class LocalWorkService:
         candidate["citations"] = normalized_citations
         if manifest["artifact_kind"] == "whole_file" and candidate["target_path"] != manifest["target_path"]:
             raise LocalWorkError("whole-file target_path mismatch")
+        if manifest["artifact_kind"] == "whole_file":
+            notes["changes"] = self._whole_file_changes(repo, base, str(manifest["target_path"]), str(candidate["content"]))
         if manifest["artifact_kind"] == "unified_diff":
             content = str(candidate["content"])
             if "GIT binary patch" in content or "Binary files " in content:
@@ -733,6 +734,32 @@ class LocalWorkService:
                     notes["git_apply"] = "recount"
                     notes["git_apply_strict_error"] = completed.stderr.strip()[:300]
         return notes
+
+    @staticmethod
+    def _whole_file_changes(repo: Path, base: str, target: str, content: str) -> dict[str, Any]:
+        def lines(text: str) -> list[str]:
+            text = text.replace("\r\n", "\n").replace("\r", "\n")   # as _git's text mode reads the base
+            return text[:-1].split("\n") if text.endswith("\n") else text.split("\n")
+        new = lines(content)
+        if not _git(repo, "ls-tree", base, "--", target).strip():   # a new file: one hunk over all of it
+            return {"hunks": [{"old": [0, 0], "old_empty": True, "new": [1, max(1, len(new))]}],
+                    "added": len(new), "removed": 0}
+        old = lines(_git(repo, "show", f"{base}:{target}"))
+        if old == new:
+            raise LocalWorkError("whole_file candidate is identical to the base file")
+        hunks, added, removed = [], 0, 0
+        for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, old, new, autojunk=False).get_opcodes():
+            if tag == "equal":
+                continue
+            hunk: dict[str, Any] = {"old": [i1 + 1, i2] if i2 > i1 else [i1, i1], "new": [j1 + 1, j2] if j2 > j1 else [j1, j1]}
+            if i2 == i1:
+                hunk["old_empty"] = True
+            if j2 == j1:
+                hunk["new_empty"] = True
+            hunks.append(hunk)
+            removed += i2 - i1
+            added += j2 - j1
+        return {"hunks": hunks, "added": added, "removed": removed}
 
     def _dispatch_repair(self, manifest: dict[str, Any], job: Mapping[str, Any], raw: bytes, exc: Exception) -> None:
         work_id = str(manifest["work_id"])
@@ -1649,6 +1676,9 @@ class LocalWorkService:
                         manifest["artifact"] = {key: metadata[key] for key in
                                                 ("artifact_id", "sha256", "size", "media_type")}
                         manifest["status"] = "awaiting_review"
+                        changes = mechanical.pop("changes", None)
+                        if changes is not None:
+                            manifest["changes"] = changes
                         if mechanical:
                             manifest["mechanical"] = mechanical
                         self._event(manifest, "attempt.recorded", {"job_id": job["job_id"], "ok": True})

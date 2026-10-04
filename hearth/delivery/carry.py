@@ -184,42 +184,23 @@ def _paren_is_reference(body: str, text: str, at: int) -> bool:
 
 
 _INT_GROUP = re.compile(r"\d+(?:\s*[-\u2013]\s*\d+)?(?:\s*[,;]\s*\d+(?:\s*[-\u2013]\s*\d+)?)*")
-_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_.]*")
-_COMMON = frozenset("""about above after again also always another because been before being below between both bytes cannot could count
-default does doing done each either else every first from gets give given goes have here into just keeps know last like line lines list
-made make many more most much must never next none only onto other over same says should since some still such take takes than that
-their them then there these they this those through under until upon used uses using value values very want were what when where which
-while whose will with within without would your appends append reads read writes write names name file files code text size sizes
-number numbers set sets sees shows show holds hold sets state lets let each""".split())
+_CODE_NAME = re.compile(r"`?([A-Za-z_][\w.]*?)(\(\))?`?$")   # the name written right before the group: "max_tokens", "`f()`"
 
 
-def _identifiers(sentence: str) -> set:
-    """Backticked tokens, and words of four characters or more that are not common English words (case kept)."""
-    names = {t.strip("`").rstrip(".") for t in re.findall(r"`([^`\n]+)`", sentence)}
-    for w in _NAME.findall(re.sub(r"`[^`\n]*`", " ", sentence)):
-        w = w.rstrip(".")
-        if len(w) >= 4 and w.lower() not in _COMMON:
-            names.add(w)
-    return {n for n in names if n}
-
-
-def _sentence_around(text: str, a: int, b: int) -> str:
-    lo = max([0, *(m.end() for m in re.finditer(r"[.!?](?=\s)|\n", text[:a]))])
-    m = re.search(r"[.!?](?=\s|$)|\n", text[b:])
-    return text[lo:a] + " " + text[b:b + m.start() if m else len(text)]
-
-
-def _is_source_line_reference(body: str, text: str, a: int, b: int, sources: dict) -> bool:
-    """An all-integer group is a line reference when each integer N has a declared file whose line N-1, N or N+1 holds an
-    identifier of the same sentence; one integer without that keeps the group ("context_tokens (65536)")."""
-    if not _INT_GROUP.fullmatch(body.strip()):
+def _is_source_line_reference(body: str, text: str, at: int, sources: dict) -> bool:
+    """An all-integer group right after a code name ("collect_backends (192)", "max_tokens (487)": an underscore, a dot or
+    an inner capital, or a call "f()") is a line reference when every integer N is 10 or more, a declared file has the
+    name on line N-1, N or N+1, and no declared line holding the name also holds N (then N may be its value). A prose
+    word next to the group never qualifies ("retries (3)", "the drain (7)"), nor a value under 10 ("parallel_slots (2)")."""
+    m = _CODE_NAME.search(text[:at].rstrip())
+    if not _INT_GROUP.fullmatch(body.strip()) or not m or not (m.group(2) or re.search(r"[A-Za-z0-9]_[A-Za-z0-9]|\w\.\w|[a-z][A-Z]", m.group(1))):
         return False
-    names = _identifiers(_sentence_around(text, a, b))
-    if not names:
-        return False
-    pats = [re.compile(rf"(?<![A-Za-z0-9_]){re.escape(n)}(?![A-Za-z0-9_])") for n in names]
+    name = re.compile(rf"(?<!\w){re.escape(m.group(1).rstrip('.'))}(?!\w)")
     for n in map(int, re.findall(r"\d+", body)):
-        if not any(1 <= n <= len(lines) and any(p.search(l) for l in lines[max(0, n - 2):n + 1] for p in pats) for lines in sources.values()):
+        value = re.compile(rf"(?<![\w.]){n}(?![\w.])")
+        if n < 10 or any(name.search(l) and value.search(l) for lines in sources.values() for l in lines):
+            return False
+        if not any(n <= len(lines) and any(name.search(l) for l in lines[n - 2:n + 1]) for lines in sources.values()):
             return False
     return True
 
@@ -250,7 +231,7 @@ def strip_line_references(text: str, sources: Optional[dict] = None) -> tuple:
     for m in _PAREN.finditer(text):
         if _paren_is_reference(m.group(1), text, m.start()):
             cut(m.start(), m.end(), m.group(1).strip())
-        elif sources and _is_source_line_reference(m.group(1), text, m.start(), m.end(), sources):
+        elif sources and _is_source_line_reference(m.group(1), text, m.start(), sources):
             cut(m.start(), m.end(), m.group(1).strip())
     for m in [_START_INLINE.match(text)] + list(_INLINE.finditer(text)):
         if m:

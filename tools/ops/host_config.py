@@ -82,6 +82,8 @@ MANIFEST: list[tuple[str, Path]] = [
     ("systemd/omen-vllm@0.service.d/zz-d2-fp8-128k.conf.staged",
      HOME / ".config" / "systemd" / "user" / "omen-vllm@0.service.d" / "zz-d2-fp8-128k.conf.staged"),
 
+    ("systemd/omen-vllm@1.service.d/attn-backend.conf",
+     HOME / ".config" / "systemd" / "user" / "omen-vllm@1.service.d" / "attn-backend.conf"),
     ("systemd/omen-vllm@1.service.d/zz-s1-native-flash.conf.staged",
      HOME / ".config" / "systemd" / "user" / "omen-vllm@1.service.d" / "zz-s1-native-flash.conf.staged"),
     ("systemd/omen-vllm@1.service.d/max-model-len.conf",

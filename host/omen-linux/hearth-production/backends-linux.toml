@@ -20,6 +20,7 @@ max_tokens = 8192
 timeout_s = 1000
 parallel_slots = 8
 structured_outputs = true   # response_format json_schema, probed 2026-10-02 (docs/structured-outputs.md)
+flash_attention = true   # the seat's --attention-backend FLASH_ATTN (ADR-0060, seat 1, 2026-10-04); sizing_map checks it against the seat
 
 [backend.settings.chat_template_kwargs]
 enable_thinking = false

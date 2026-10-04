@@ -332,22 +332,22 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| auto lane floor (evidence tokens -> deep) | `8192` | `repo/hearth/localwork/service.py:183` | _lane | fast vs deep | quote_retrieval floor 4096; evidence = source pack only, counted with the fast lane's tokenizer |
-| exact context check | `input_tokens + output_reserve <= context_tokens` | `repo/hearth/localwork/service.py:412` | submit | refuses at submit |  |
+| auto lane floor (evidence tokens -> deep) | `8192` | `repo/hearth/localwork/service.py:185` | _lane | fast vs deep | quote_retrieval floor 4096; evidence = source pack only, counted with the fast lane's tokenizer |
+| exact context check | `input_tokens + output_reserve <= context_tokens` | `repo/hearth/localwork/service.py:414` | submit | refuses at submit |  |
 | lane deep | `omen-dense-27b` | `~/hearth-production/local-work-routes-linux.toml:10` | submit_local_work | which rung a lane is |  |
 | lane fast | `omen-vllm` | `~/hearth-production/local-work-routes-linux.toml:7` | submit_local_work | which rung a lane is |  |
 | lane tool | `am4-tool-4070ti` | `~/hearth-production/local-work-routes-linux.toml:14` | submit_local_work | which rung a lane is |  |
-| output_reserve fallback | `4096` | `repo/hearth/localwork/service.py:404` | submit | reserve when the rung declares none |  |
+| output_reserve fallback | `4096` | `repo/hearth/localwork/service.py:406` | submit | reserve when the rung declares none |  |
 | submit_local_work deadline_s default | `1800` | `repo/hearth/toolsurface/local_work.py:44` | MCP tool | job deadline when the caller sets none |  |
-| tokenizer / git / apply timeouts (s) | `30 / 120 / 120` | `repo/hearth/localwork/service.py:93` | submit, validation | submit latency; candidate validation |  |
+| tokenizer / git / apply timeouts (s) | `30 / 120 / 120` | `repo/hearth/localwork/service.py:95` | submit, validation | submit latency; candidate validation |  |
 
 ### measured
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| omen-dense-27b decode tok/s median | `32.2` | `~/hearth-production/var/execution/events.ndjson` | deadline derivation | output / duration (prefill included, so a floor) |  |
-| omen-dense-27b duration_ms p90 / max | `5162 / 1253405` | `~/hearth-production/var/execution/events.ndjson` | — | how close jobs come to the deadline |  |
-| omen-dense-27b invocations (n) | `6235` | `~/hearth-production/var/execution/events.ndjson` | sizing rules | sample |  |
+| omen-dense-27b decode tok/s median | `32.1` | `~/hearth-production/var/execution/events.ndjson` | deadline derivation | output / duration (prefill included, so a floor) |  |
+| omen-dense-27b duration_ms p90 / max | `5117 / 1253405` | `~/hearth-production/var/execution/events.ndjson` | — | how close jobs come to the deadline |  |
+| omen-dense-27b invocations (n) | `6647` | `~/hearth-production/var/execution/events.ndjson` | sizing rules | sample |  |
 | omen-dense-27b tokens_out p90 / max | `114 / 14401` | `~/hearth-production/var/execution/events.ndjson` | — | how close outputs come to the cap |  |
 
 ### operation
@@ -394,47 +394,48 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 |---|---|---|---|---|---|
 | am4-tool-4070ti context_bytes | `86016` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
 | am4-tool-4070ti context_tokens | `24576` | `~/hearth-production/backends-linux.toml:17` | backends pool | input + output tokens the seat holds |  |
-| am4-tool-4070ti endpoint | `http://10.44.0.2:8090` | `~/hearth-production/backends-linux.toml:98` | door | which router port |  |
+| am4-tool-4070ti endpoint | `http://10.44.0.2:8090` | `~/hearth-production/backends-linux.toml:99` | door | which router port |  |
 | am4-tool-4070ti max_tokens | `4096` | `~/hearth-production/backends-linux.toml:19` | backends pool | default output budget = the reserve local-work subtracts |  |
 | am4-tool-4070ti parallel_slots | `3` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |
 | am4-tool-4070ti timeout_s | `600` | `~/hearth-production/backends-linux.toml:20` | backends pool | HTTP timeout when the caller sets none (execution path always overrides) |  |
 | am4-tool-5070 context_bytes | `57344` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
 | am4-tool-5070 context_tokens | `16384` | `~/hearth-production/backends-linux.toml:17` | backends pool | input + output tokens the seat holds |  |
-| am4-tool-5070 endpoint | `http://10.44.0.2:8090` | `~/hearth-production/backends-linux.toml:119` | door | which router port |  |
+| am4-tool-5070 endpoint | `http://10.44.0.2:8090` | `~/hearth-production/backends-linux.toml:120` | door | which router port |  |
 | am4-tool-5070 max_tokens | `6144` | `~/hearth-production/backends-linux.toml:19` | backends pool | default output budget = the reserve local-work subtracts |  |
 | am4-tool-5070 parallel_slots | `1` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |
 | am4-tool-5070 timeout_s | `600` | `~/hearth-production/backends-linux.toml:20` | backends pool | HTTP timeout when the caller sets none (execution path always overrides) |  |
 | am4-vllm context_bytes | `57344` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
 | am4-vllm context_tokens | `16384` | `~/hearth-production/backends-linux.toml:17` | backends pool | input + output tokens the seat holds |  |
-| am4-vllm endpoint | `http://10.44.0.2:8090` | `~/hearth-production/backends-linux.toml:45` | door | which router port |  |
+| am4-vllm endpoint | `http://10.44.0.2:8090` | `~/hearth-production/backends-linux.toml:46` | door | which router port |  |
 | am4-vllm max_tokens | `4096` | `~/hearth-production/backends-linux.toml:19` | backends pool | default output budget = the reserve local-work subtracts |  |
 | am4-vllm parallel_slots | `1` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |
 | am4-vllm timeout_s | `1000` | `~/hearth-production/backends-linux.toml:20` | backends pool | HTTP timeout when the caller sets none (execution path always overrides) |  |
-| backends-linux.toml KV-pool comment | `76706` | `~/hearth-production/backends-linux.toml:76` | operator | documentation of the dense seat's KV pool | compared against the live kv_cache_size_tokens under --live |
+| backends-linux.toml KV-pool comment | `76706` | `~/hearth-production/backends-linux.toml:77` | operator | documentation of the dense seat's KV pool | compared against the live kv_cache_size_tokens under --live |
 | default rung | `omen-vllm` | `~/hearth-production/backends-linux.toml:3` | local_generate | where untagged calls land |  |
 | fx99-vllm context_bytes | `14336` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
 | fx99-vllm context_tokens | `4096` | `~/hearth-production/backends-linux.toml:17` | backends pool | input + output tokens the seat holds |  |
-| fx99-vllm endpoint | `http://192.168.12.220:18093` | `~/hearth-production/backends-linux.toml:28` | door | which router port |  |
+| fx99-vllm endpoint | `http://192.168.12.220:18093` | `~/hearth-production/backends-linux.toml:29` | door | which router port |  |
 | fx99-vllm max_tokens | `1024` | `~/hearth-production/backends-linux.toml:19` | backends pool | default output budget = the reserve local-work subtracts |  |
 | fx99-vllm parallel_slots | `1` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |
 | fx99-vllm timeout_s | `300` | `~/hearth-production/backends-linux.toml:20` | backends pool | HTTP timeout when the caller sets none (execution path always overrides) |  |
 | omen-dense-27b context_bytes | `229376` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
 | omen-dense-27b context_tokens | `65536` | `~/hearth-production/backends-linux.toml:17` | backends pool | input + output tokens the seat holds |  |
-| omen-dense-27b deliberate_max_tokens | `24576` | `~/hearth-production/backends-linux.toml:80` | backends pool | largest output a streamed inference.deliberate turn may ask for on this rung |  |
-| omen-dense-27b endpoint | `http://127.0.0.1:18095` | `~/hearth-production/backends-linux.toml:66` | door | which router port |  |
-| omen-dense-27b flash_attention | `True` | `~/hearth-production/backends-linux.toml:84` | backends pool | declared attention backend of the seat (true = FLASH_ATTN) |  |
+| omen-dense-27b deliberate_max_tokens | `24576` | `~/hearth-production/backends-linux.toml:81` | backends pool | largest output a streamed inference.deliberate turn may ask for on this rung |  |
+| omen-dense-27b endpoint | `http://127.0.0.1:18095` | `~/hearth-production/backends-linux.toml:67` | door | which router port |  |
+| omen-dense-27b flash_attention | `True` | `~/hearth-production/backends-linux.toml:23` | backends pool | declared attention backend of the seat (true = FLASH_ATTN) |  |
 | omen-dense-27b max_tokens | `16384` | `~/hearth-production/backends-linux.toml:19` | backends pool | default output budget = the reserve local-work subtracts |  |
 | omen-dense-27b parallel_slots | `2` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |
-| omen-dense-27b speculative | `mtp-k2` | `~/hearth-production/backends-linux.toml:85` | backends pool | declared MTP draft depth of the seat (mtp-k<N>) |  |
+| omen-dense-27b speculative | `mtp-k2` | `~/hearth-production/backends-linux.toml:86` | backends pool | declared MTP draft depth of the seat (mtp-k<N>) |  |
 | omen-dense-27b timeout_s | `1000` | `~/hearth-production/backends-linux.toml:20` | backends pool | HTTP timeout when the caller sets none (execution path always overrides) |  |
-| omen-perception endpoint | `http://127.0.0.1:18099` | `~/hearth-production/backends-linux.toml:143` | door | which router port |  |
-| omen-perception images_per_second | `4.15` | `~/hearth-production/backends-linux.toml:152` | backends pool | measured perception throughput on CPU |  |
-| omen-perception max_image_bytes | `10485760` | `~/hearth-production/backends-linux.toml:153` | backends pool | largest image payload accepted |  |
+| omen-perception endpoint | `http://127.0.0.1:18099` | `~/hearth-production/backends-linux.toml:144` | door | which router port |  |
+| omen-perception images_per_second | `4.15` | `~/hearth-production/backends-linux.toml:153` | backends pool | measured perception throughput on CPU |  |
+| omen-perception max_image_bytes | `10485760` | `~/hearth-production/backends-linux.toml:154` | backends pool | largest image payload accepted |  |
 | omen-perception parallel_slots | `2` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |
 | omen-perception timeout_s | `60` | `~/hearth-production/backends-linux.toml:20` | backends pool | HTTP timeout when the caller sets none (execution path always overrides) |  |
 | omen-vllm context_bytes | `143360` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
 | omen-vllm context_tokens | `40960` | `~/hearth-production/backends-linux.toml:17` | backends pool | input + output tokens the seat holds |  |
 | omen-vllm endpoint | `http://127.0.0.1:18090` | `~/hearth-production/backends-linux.toml:6` | door | which router port |  |
+| omen-vllm flash_attention | `True` | `~/hearth-production/backends-linux.toml:23` | backends pool | declared attention backend of the seat (true = FLASH_ATTN) |  |
 | omen-vllm max_tokens | `8192` | `~/hearth-production/backends-linux.toml:19` | backends pool | default output budget = the reserve local-work subtracts |  |
 | omen-vllm parallel_slots | `8` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |
 | omen-vllm timeout_s | `1000` | `~/hearth-production/backends-linux.toml:20` | backends pool | HTTP timeout when the caller sets none (execution path always overrides) |  |
@@ -476,12 +477,12 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | omen-vllm@0 mtp_k | `2` | `~/.config/systemd/user/omen-vllm@0.service.d/{max-num-seqs.conf,stage0-recipe.conf,stage2-27b-mtp.conf,stage2b-batched.conf,stage2d-prefix-unit.conf}` | vLLM | speculative tokens |  |
 | omen-vllm@0 prefix_match_unit | `64` | `~/.config/systemd/user/omen-vllm@0.service.d/{max-num-seqs.conf,stage0-recipe.conf,stage2-27b-mtp.conf,stage2b-batched.conf,stage2d-prefix-unit.conf}` | vLLM | prefix-hit granularity |  |
 | omen-vllm@0 served model | `qwen3.8-27b` | `~/.config/systemd/user/omen-vllm@0.service.d/{max-num-seqs.conf,stage0-recipe.conf,stage2-27b-mtp.conf,stage2b-batched.conf,stage2d-prefix-unit.conf}` | HAProxy :18091 | which checkpoint answers |  |
-| omen-vllm@1 attention_backend | `TRITON_ATTN` | `~/bin/start-vllm-seat.sh:90` | vLLM | attention kernel (prefill and decode rate at depth) | script default; no drop-in sets it |
-| omen-vllm@1 gpu_memory_utilization | `0.82` | `~/.config/systemd/user/omen-vllm@1.service.d/{max-model-len.conf,max-num-seqs.conf,stage0-recipe.conf}` | vLLM | VRAM fraction (weights + KV) |  |
-| omen-vllm@1 kv_cache_memory_bytes | `13142665216` | `~/.config/systemd/user/omen-vllm@1.service.d/{max-model-len.conf,max-num-seqs.conf,stage0-recipe.conf}` | vLLM | fixed KV pool (overrides the utilisation for KV) |  |
-| omen-vllm@1 max_model_len | `40960` | `~/.config/systemd/user/omen-vllm@1.service.d/{max-model-len.conf,max-num-seqs.conf,stage0-recipe.conf}` | vLLM | input + output tokens per request |  |
-| omen-vllm@1 max_num_seqs | `8` | `~/.config/systemd/user/omen-vllm@1.service.d/{max-model-len.conf,max-num-seqs.conf,stage0-recipe.conf}` | vLLM scheduler | concurrent sequences admitted |  |
-| omen-vllm@1 served model | — | `~/.config/systemd/user/omen-vllm@1.service.d/{max-model-len.conf,max-num-seqs.conf,stage0-recipe.conf}` | HAProxy :18092 | which checkpoint answers |  |
+| omen-vllm@1 attention_backend | `FLASH_ATTN` | `~/.config/systemd/user/omen-vllm@1.service.d/{attn-backend.conf,max-model-len.conf,max-num-seqs.conf,stage0-recipe.conf}` | vLLM | attention kernel (prefill and decode rate at depth) |  |
+| omen-vllm@1 gpu_memory_utilization | `0.82` | `~/.config/systemd/user/omen-vllm@1.service.d/{attn-backend.conf,max-model-len.conf,max-num-seqs.conf,stage0-recipe.conf}` | vLLM | VRAM fraction (weights + KV) |  |
+| omen-vllm@1 kv_cache_memory_bytes | `13142665216` | `~/.config/systemd/user/omen-vllm@1.service.d/{attn-backend.conf,max-model-len.conf,max-num-seqs.conf,stage0-recipe.conf}` | vLLM | fixed KV pool (overrides the utilisation for KV) |  |
+| omen-vllm@1 max_model_len | `40960` | `~/.config/systemd/user/omen-vllm@1.service.d/{attn-backend.conf,max-model-len.conf,max-num-seqs.conf,stage0-recipe.conf}` | vLLM | input + output tokens per request |  |
+| omen-vllm@1 max_num_seqs | `8` | `~/.config/systemd/user/omen-vllm@1.service.d/{attn-backend.conf,max-model-len.conf,max-num-seqs.conf,stage0-recipe.conf}` | vLLM scheduler | concurrent sequences admitted |  |
+| omen-vllm@1 served model | — | `~/.config/systemd/user/omen-vllm@1.service.d/{attn-backend.conf,max-model-len.conf,max-num-seqs.conf,stage0-recipe.conf}` | HAProxy :18092 | which checkpoint answers |  |
 | script default OMEN_GPU_MEM_UTIL | `0.82` | `~/bin/start-vllm-seat.sh:92` | vLLM (any seat without a drop-in) | context / sequences / VRAM fraction | applies when no drop-in sets it |
 | script default OMEN_MAX_MODEL_LEN | `16384` | `~/bin/start-vllm-seat.sh:91` | vLLM (any seat without a drop-in) | context / sequences / VRAM fraction | applies when no drop-in sets it |
 | script default OMEN_MAX_NUM_SEQS | `16` | `~/bin/start-vllm-seat.sh:91` | vLLM (any seat without a drop-in) | context / sequences / VRAM fraction | applies when no drop-in sets it |
@@ -498,10 +499,10 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | omen-vllm@0 kv_cache_max_concurrency | `1.46` | `http://127.0.0.1:18091/metrics cache_config_info` | vLLM | KV pool |  |
 | omen-vllm@0 kv_cache_size_tokens | `95783` | `http://127.0.0.1:18091/metrics cache_config_info` | vLLM | KV pool |  |
 | omen-vllm@1 /v1/models | `qwen3-30b-a3b max_model_len=40960` | `http://127.0.0.1:18092/v1/models` | clients | live window |  |
-| omen-vllm@1 block_size | `16` | `http://127.0.0.1:18092/metrics cache_config_info` | vLLM | block / dtype |  |
+| omen-vllm@1 block_size | `64` | `http://127.0.0.1:18092/metrics cache_config_info` | vLLM | block / dtype |  |
 | omen-vllm@1 cache_dtype | `auto` | `http://127.0.0.1:18092/metrics cache_config_info` | vLLM | block / dtype |  |
 | omen-vllm@1 kv_cache_max_concurrency | `3.26` | `http://127.0.0.1:18092/metrics cache_config_info` | vLLM | KV pool |  |
-| omen-vllm@1 kv_cache_size_tokens | `133680` | `http://127.0.0.1:18092/metrics cache_config_info` | vLLM | KV pool |  |
+| omen-vllm@1 kv_cache_size_tokens | `133632` | `http://127.0.0.1:18092/metrics cache_config_info` | vLLM | KV pool |  |
 
 ### sizer
 

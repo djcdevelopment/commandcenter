@@ -44,6 +44,23 @@ Flash run. The KV pool is the same size on both (95,783 to 99,793 tokens across 
 5. Deadlines and ceilings (`work.produce` 16,384 tokens and 2,400 s; local-work default 1,800 s) are not changed: they
    are bounds, and are now generous.
 
+## Added 2026-10-04: the soak, and seat 1
+
+**The soak passed** (`~/work/lab-rnd/research/evidence/seat0-flash-adoption-20261004/RESULT.md`): 53 minutes of continuous
+27B work through the door with every other seat busy; no restart, error or abort; 2,217 of 2,219 comparable judge verdicts
+agree with the old recipe's; both accepted deliveries re-submitted came back byte for byte; needles exact at 54K tokens.
+Short judge calls gain little (about 2,900 items an hour against roughly 1,250 to 2,400): the gain is in long contexts.
+The card's VRAM sensor reads about 99 °C under sustained load on either recipe (critical 105 °C), at its 230 W cap; it
+touched 104 °C with three and four conversations at once.
+
+**Seat 1 (the 30B) runs Flash Attention too**, since the seat restart at 2026-10-04T04:07Z. The approved plan made this
+conditional on a second paired probe showing identical answers and no slower burst; it showed a 26K-token prompt read in
+5.8 s against 16.8 s, decode 81 against 65 tok/s at that depth, an eight-call burst the prefix cache could not serve in
+17.5 s against 37.6 s, and byte-identical needle and copy answers on both pairs
+(`~/work/lab-rnd/research/evidence/seat1-flash-pilot-20261003/RESULT.md`). It is set in its own drop-in
+`omen-vllm@1.service.d/attn-backend.conf` and declared on the rung (`flash_attention = true` on `omen-vllm`). Roll back:
+remove that file and the rung line (tracked and deployed), `daemon-reload`, restart `omen-vllm@1` at zero leases.
+
 ## Rollback
 
 In `stage2-27b-mtp.conf` (tracked and deployed): `OMEN_MTP_K=1`, remove the `OMEN_ATTN_BACKEND` line; in

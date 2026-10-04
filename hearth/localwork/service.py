@@ -1181,10 +1181,13 @@ class LocalWorkService:
                                                                 "duration_ms", "backend", "model", "temperature")}
             try:
                 _, carried, notes, found = self._carry_parts(draft.decode("utf-8"))
-                carry.assemble(carried, {}, notes_blocks=len(notes), report_found=found)   # what render would refuse fails now, before any attach
+                carry.assemble(carried, {}, notes_blocks=len(notes))   # what render would refuse fails now, before any attach
                 carry_state["batches"] = len(carry.batches(carried))
             except (carry.CarryError, UnicodeDecodeError) as exc:
                 return self._carry_fail(manifest, job, f"the working draft cannot be carried: {exc}")
+            if not found:   # the notes cannot be told from the report, and the notes hold line numbers: nothing is delivered
+                return self._carry_fail(manifest, job, "the working draft has no report heading (notes, then a heading "
+                                                       "\"Report\"): its notes cannot be separated from its report")
             if not carry_state["batches"]:
                 return self._carry_fail(manifest, job, "the working draft has no text blocks")
             return self._carry_dispatch_attach(manifest, job, 1, "")
@@ -1206,8 +1209,10 @@ class LocalWorkService:
         work_job = self.execution.get_job(carry_state["jobs"][0]["job_id"])
         try:
             _, carried, notes, found = self._carry_parts(self._carry_draft(manifest))
+            if not found:
+                raise carry.CarryError("the working draft has no report heading")
             output, report = carry.assemble(carried, {int(k): v for k, v in carry_state["quotes"].items()},
-                                            notes_blocks=len(notes), report_found=found)
+                                            notes_blocks=len(notes))
             raw = (json.dumps(output, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
             parse_repairs: dict[str, int] = {}
             for counts in carry_state.get("repairs_by_job", {}).values():

@@ -470,7 +470,7 @@ class CarryProcedureTests(unittest.TestCase):
     """procedure="carry" (delivery-plan lap 17, B2): a thinking turn writes the draft, thinking-off calls attach quotes,
     code assembles; the work stays queued/running through the stages and a failed stage fails it loudly."""
 
-    DRAFT = "# Lines\n\nThe file ends with two.\n\nThe file starts with one.\n"
+    DRAFT = "# Report\n\nThe file ends with two.\n\nThe file starts with one.\n"
     ATTACH = "[block 2]\n> two\n[block 3]\n> one\n"
 
     def setUp(self) -> None:
@@ -578,6 +578,14 @@ class CarryProcedureTests(unittest.TestCase):
         delivery = json.loads((run / "delivery.json").read_text(encoding="utf-8"))
         self.assertEqual(delivery["repairs"]["notes_blocks_not_carried"], 2)
         self.assertNotIn("lines 12", (run / "candidate.md").read_text(encoding="utf-8"))
+
+    def test_a_draft_without_a_report_heading_fails_at_the_work_stage_and_keeps_the_draft(self) -> None:
+        self.DRAFT = "Verified notes for the report:\n\n- two is the last (line 2).\n\nThe file ends with two.\n"
+        final = self.settle(self.submit()["work_id"])
+        self.assertEqual((final["status"], final["carry"]["failure"]["stage"], len(self.calls)), ("failed", "work", 1))
+        self.assertIn("no report heading", final["failure"])
+        self.assertEqual((self.root / "runs" / "operator" / final["work_id"] / "carry-draft.md").read_text(encoding="utf-8"), self.DRAFT)
+        self.assertNotIn("delivery_artifacts", final)
 
     def test_a_truncated_attach_answer_is_retried_once_as_two_halves(self) -> None:
         self.attach = [{"ok": False, "text": "[block 2]", "finish_reason": "length", "error_code": "output_truncated",

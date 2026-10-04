@@ -77,7 +77,8 @@ def _iso(s: str | None) -> datetime | None:
 
 def _changes_cell(kind: str, ch: dict) -> str:
     hunks = ch.get("hunks") or []
-    spans = [str(h["old"][0]) if h["old"][1] <= h["old"][0] else f"{h['old'][0]}-{h['old'][1]}" for h in hunks[:8]]
+    spans = [f"after {h['old'][0]}" if h.get("old_empty")   # a pure insertion removes no line: name where it lands
+             else str(h["old"][0]) if h["old"][1] <= h["old"][0] else f"{h['old'][0]}-{h['old'][1]}" for h in hunks[:8]]
     if len(hunks) > 8:
         spans.append("...")
     return f"{kind}, {len(hunks)} hunk{'s' if len(hunks) != 1 else ''}: {', '.join(spans)} (+{ch.get('added', 0)}/-{ch.get('removed', 0)})"

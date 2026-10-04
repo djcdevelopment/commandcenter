@@ -139,27 +139,39 @@
   "omen-dense-27b": {
    "all": {
     "carry": {
-     "accepted": 9,
-     "accepted_briefs": 3,
-     "briefs": 5,
+     "accepted": 17,
+     "accepted_briefs": 11,
+     "briefs": 17,
      "record_ids": [
+      "DEL-04ba16564d4045d5a3ef63111eb582d2",
       "DEL-07a48e2fbf644b2d89a669fdc0bd8477",
+      "DEL-07b139683f8b4f01afa128cf3e327280",
       "DEL-2b3f2a82b31d4e789066c98dc3eb83e6",
+      "DEL-352eef712dcc432f8393b253b736106b",
       "DEL-4ab2b53de63a4829b9cd1612af8ce4b8",
+      "DEL-50d956a445834e36a8d54e2cd780d513",
       "DEL-5fbe0e45ea314a82beac577ed1c5cd13",
       "DEL-70cda00a1b4b408d8229e09c8c38ff02",
+      "DEL-7633d484baad45e09d1c5d7109065bad",
+      "DEL-79b8411aeacc49f797fc76b4e4d0c73b",
       "DEL-7a9873626f954997be6cec2ff546c3d4",
       "DEL-898339e1df624548b5215e9b04ac4870",
+      "DEL-8dd24a3f8a0942e4a14a0806813c54cd",
+      "DEL-9386ae6d7b0c4b57b7d207113d962659",
       "DEL-a745c074458edc29adfa5b3945f07549",
       "DEL-aa6b13cd9cc749c0800024b44836f909",
+      "DEL-b12b246597ab4429b7a629abf08c7420",
       "DEL-b60a3df3a1b34e5eb5a51b5ee948fc5b",
       "DEL-b770b3cf29f94d0fb024bc31eff9ba3d",
       "DEL-c075d0547ca24c0d8ceaa6f402e86308",
       "DEL-db9514bcbafc4bbbbb8039c257a98fd0",
+      "DEL-e3bc32f9f4de487894a77a5ae07708be",
       "DEL-e5caacb342614b739e76e0f7f68a1203",
+      "DEL-f39c9974a21e4dc398dc60b8d856c0ed",
+      "DEL-fd7ea60c065c445886b0317ed2efbabf",
       "DEL-fe93aef1ea7f415bb5bf5641506d742b"
      ],
-     "rejected": 6
+     "rejected": 10
     },
     "one_call": {
      "accepted": 11,
@@ -216,23 +228,35 @@
    "families": {
     "code_review": {
      "carry": {
-      "accepted": 7,
-      "accepted_briefs": 2,
-      "briefs": 4,
+      "accepted": 15,
+      "accepted_briefs": 10,
+      "briefs": 16,
       "record_ids": [
+       "DEL-04ba16564d4045d5a3ef63111eb582d2",
+       "DEL-07b139683f8b4f01afa128cf3e327280",
        "DEL-2b3f2a82b31d4e789066c98dc3eb83e6",
+       "DEL-352eef712dcc432f8393b253b736106b",
        "DEL-4ab2b53de63a4829b9cd1612af8ce4b8",
+       "DEL-50d956a445834e36a8d54e2cd780d513",
        "DEL-5fbe0e45ea314a82beac577ed1c5cd13",
        "DEL-70cda00a1b4b408d8229e09c8c38ff02",
+       "DEL-7633d484baad45e09d1c5d7109065bad",
+       "DEL-79b8411aeacc49f797fc76b4e4d0c73b",
        "DEL-7a9873626f954997be6cec2ff546c3d4",
        "DEL-898339e1df624548b5215e9b04ac4870",
+       "DEL-8dd24a3f8a0942e4a14a0806813c54cd",
+       "DEL-9386ae6d7b0c4b57b7d207113d962659",
        "DEL-a745c074458edc29adfa5b3945f07549",
+       "DEL-b12b246597ab4429b7a629abf08c7420",
        "DEL-b60a3df3a1b34e5eb5a51b5ee948fc5b",
        "DEL-db9514bcbafc4bbbbb8039c257a98fd0",
+       "DEL-e3bc32f9f4de487894a77a5ae07708be",
        "DEL-e5caacb342614b739e76e0f7f68a1203",
+       "DEL-f39c9974a21e4dc398dc60b8d856c0ed",
+       "DEL-fd7ea60c065c445886b0317ed2efbabf",
        "DEL-fe93aef1ea7f415bb5bf5641506d742b"
       ],
-      "rejected": 4
+      "rejected": 8
      },
      "one_call": {
       "accepted": 8,
@@ -479,7 +503,7 @@
    }
   }
  },
- "records": 167,
+ "records": 179,
  "rule": {
   "min_accepted_briefs": 2
  },

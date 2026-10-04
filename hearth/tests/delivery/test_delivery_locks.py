@@ -534,5 +534,175 @@ class CarryTests(unittest.TestCase):
         self.assertEqual(carry.line_reference_agreement(rep, man)[1]["agrees"], False)   # "20-22" has no quote
 
 
+class SentenceUnitTests(unittest.TestCase):
+    """Wave 8 (delivery-plan evidence/wave8/RESULT.md): sentence units in the attach pass lifted sizing from 9 quotes to 45."""
+
+    DRAFT = ("Report\n\nFirst sentence here. Second one uses e.g. an abbreviation and (a note. Inside parens) too. "
+             "Third has `a.b. C` code. Fourth says \"Quote. Next\" fine. It's done. Last one.\n")
+
+    def test_sentence_units_rejoin_to_their_block_and_do_not_cut_inside_quotes_parentheses_or_abbreviations(self) -> None:
+        """wave8: backoff 8 quotes -> 24 and perception 69 with units; a unit cut inside `a.b. C` or a quotation would carry
+        half a claim. The block's raw text is the units' raw texts joined, and unit ids are '<block>.<n>'."""
+        blocks = carry.split_draft(self.DRAFT)
+        us = carry.units(blocks)
+        self.assertEqual("".join(u["raw"] for u in us), blocks[1]["raw"])
+        self.assertEqual([u["id"] for u in us], [f"2.{n}" for n in range(1, 7)])
+        self.assertEqual([u["text"] for u in us][1:5], [
+            "Second one uses e.g. an abbreviation and (a note. Inside parens) too.", "Third has `a.b. C` code.",
+            'Fourth says "Quote. Next" fine.', "It's done."])
+        self.assertTrue(all(u["block"] == 2 for u in us))
+        self.assertEqual([len(b) for b in carry.batches(carry.split_draft("Report\n\n" + "Sentence here. " * 20 + "\n"))], [8, 8, 4])
+
+    def test_a_dense_paragraph_splits_by_sentence_instead_of_dropping_quotes_past_the_cap(self) -> None:
+        """wave8: sizing had 45 quotes against 9 (cap 8 per paragraph in wave 7). A block of 12 sentences with a quote each
+        becomes 12 paragraphs, none dropped; the same quotes given to the block as a whole (a work stored before units) are
+        cut at MAX_QUOTES and the drop is counted."""
+        blocks = carry.split_draft("Report\n\n" + " ".join(f"Sentence number {n} states a fact." for n in range(12)) + "\n")
+        out, rep = carry.assemble(blocks, {f"2.{n}": [f"q{n}"] for n in range(1, 13)})
+        self.assertEqual(contract.validate_output(out), [])
+        paras = out["sections"][0]["paragraphs"]
+        self.assertEqual((len(paras), rep["quotes"], rep["repairs"]["quotes_beyond_cap_dropped"], rep["repairs"]["paragraphs_split_by_sentence"]), (12, 12, 0, 1))
+        self.assertEqual([p["quotes"] for p in paras[:2]], [["q1"], ["q2"]])
+        out, rep = carry.assemble(blocks, {2: [f"q{n}" for n in range(1, 13)]})
+        self.assertEqual((len(out["sections"][0]["paragraphs"]), rep["quotes"], rep["repairs"]["quotes_beyond_cap_dropped"]), (1, 8, 4))
+        self.assertNotIn("paragraphs_split_by_sentence", rep["repairs"])
+
+    def test_a_sentence_without_a_quote_joins_the_one_before_it(self) -> None:
+        """wave8: the attacher answers (none) for connective sentences; they stay in the paragraph of the claim they follow
+        and a leading quote-less sentence joins the next."""
+        blocks = carry.split_draft("Report\n\nLead in. Claim one holds. Then it is explained. Claim two holds. " + "Filler sentence. " * 9 + "\n")
+        out, rep = carry.assemble(blocks, {"2.2": [f"a{n}" for n in range(5)], "2.4": [f"b{n}" for n in range(5)]})
+        paras = out["sections"][0]["paragraphs"]
+        self.assertEqual([p["text"][:12] for p in paras], ["Lead in. Cla", "Claim two ho"])
+        self.assertEqual((rep["quotes"], rep["repairs"]["paragraphs_split_by_sentence"]), (10, 1))
+        self.assertTrue(paras[0]["text"].endswith("Then it is explained."))
+
+
+class StripWithSourcesTests(unittest.TestCase):
+    """The line-reference rules that read the declared sources: wave 8 (sizing leaked "max_tokens (487)" and
+    "collect_backends (192)") and the R5 and R6 reviews (a value in parentheses stays)."""
+
+    @staticmethod
+    def sizing_lines() -> dict:
+        lines = ["x = 1"] * 500
+        lines[191] = "def collect_backends(cfg):"
+        lines[486] = "    cap = min(max_tokens, CAP)"
+        return {"tools/ops/sizing_map.py": lines}
+
+    def test_both_wave8_leaks_are_stripped_when_a_declared_line_holds_the_name(self) -> None:
+        """wave8: `work_70cda00a` carried "max_tokens (487)" and "collect_backends (192)"; the model wrote 21 references and 19
+        were stripped. Without sources the same text keeps them (a count noun before the number)."""
+        text = "The cap comes from max_tokens (487) and the scan from collect_backends (192) as written."
+        self.assertEqual(carry.strip_line_references(text, self.sizing_lines()),
+                         ("The cap comes from max_tokens and the scan from collect_backends as written.", ["487", "192"]))
+        self.assertEqual(carry.strip_line_references(text), (text, []))
+
+    def test_a_number_with_no_source_evidence_is_left_as_written(self) -> None:
+        """R5 review: a number that no declared line backs is a value until shown otherwise: another name on line 487, a
+        value under 10, a prose word before the group, or the number sitting on a line with the name all leave it alone."""
+        lines = self.sizing_lines()
+        for text in ("It reads max_tokens (487) once.",):
+            self.assertEqual(carry.strip_line_references(text, {"other.py": ["x = 1"] * 500}), (text, []))
+        lines["tools/ops/sizing_map.py"][486] = "    max_tokens = 487"                # the number is the name's value
+        self.assertEqual(carry.strip_line_references("It reads max_tokens (487) once.", lines), ("It reads max_tokens (487) once.", []))
+        for text in ("It retries (3) times; parallel_slots (2) here.",):
+            self.assertEqual(carry.strip_line_references(text, self.sizing_lines()), (text, []))
+
+    def test_a_value_after_its_name_is_kept_and_the_same_number_after_a_prose_word_is_stripped(self) -> None:
+        """R6 review: "psm (6)" kept against `.get("psm", 6)` (also `upscale (1)` against `upscale=1`); "status (200)" stripped
+        when 200 stands only in a docstring or a comment, kept when the code gives `status` that value. Without sources the
+        older rule removes the lone number, so it is the declared source that keeps the value."""
+        code = {"perception/service.py": ['    psm = int(body.get("psm", 6))', "    upscale=1,", "    return status"]}
+        text = "OCR runs with psm (6) and upscale (1) by default."
+        self.assertEqual(carry.strip_line_references(text, code), (text, []))
+        self.assertEqual(carry.strip_line_references(text), ("OCR runs with psm and upscale by default.", ["6", "1"]))
+        doc = {"perception/service.py": ['def health():', '    """GET /health -> status: 200 OK."""', "    # status = 200", "    return {}"]}
+        self.assertEqual(carry.strip_line_references("The endpoint answers with status (200) when well.", doc),
+                         ("The endpoint answers with status when well.", ["200"]))
+        live = {"perception/service.py": ["    status = 200"]}
+        self.assertEqual(carry.strip_line_references("The endpoint answers with status (200) when well.", live),
+                         ("The endpoint answers with status (200) when well.", []))
+
+
+class NearAnchorTests(unittest.TestCase):
+    """`work_aa6b13cd` (perception, wave 8): an ambiguous quote resolved to line 117, the /score branch's, where the paragraph
+    spoke of /ocr (line 150). The nearest hit to the paragraph's uniquely placed quotes wins when no symbol is named."""
+
+    SRC = ("def score(body):\n"
+           "    if not body:\n"
+           "        return {\"ok\": False, \"error\": \"bad image\"}\n"       # line 3: the first hit
+           "    return {\"aesthetic\": 1}\n"
+           "\n"
+           "def ocr(body):\n"
+           "    text = run_tesseract(body)\n"                                     # line 7: unique, the anchor
+           "    if not body:\n"
+           "        return {\"ok\": False, \"error\": \"bad image\"}\n"       # line 9: the one the paragraph means
+           "    return {\"text\": text}\n")
+    QUOTE = 'return {"ok": False, "error": "bad image"}'
+
+    def sm(self) -> SourceMap:
+        return SourceMap("fixture", "0" * 40, [file_map("perception/service.py", self.SRC.encode())])
+
+    def test_locate_takes_the_hit_nearest_the_anchors_and_the_first_hit_without_them(self) -> None:
+        sm = self.sm()
+        hint = "An empty upload is refused with a bad-image error."
+        plain = locate(sm, self.QUOTE, hint=hint)
+        near = locate(sm, self.QUOTE, hint=hint, near=[("perception/service.py", 7)])
+        self.assertEqual((plain.occurrences, plain.start, near.start), (2, 3, 9))
+        self.assertEqual(locate(sm, self.QUOTE, hint=hint, near=[("other.py", 7)]).start, 3)       # no anchor in the hit's file
+        named = locate(sm, self.QUOTE, hint="In score an empty upload is refused.", near=[("perception/service.py", 7)])
+        self.assertEqual(named.start, 3)                                                           # a named symbol outranks the anchors
+
+    def test_the_renderers_second_pass_places_the_ambiguous_quote_by_its_paragraphs_unique_quotes(self) -> None:
+        out, raw = stored("d8f8c68f")
+        brief = json.loads(raw)
+        text = "The OCR route runs the engine and an empty upload is refused with a bad-image error."
+        doc = {"summary": "s", "sections": [{"heading": "h", "paragraphs": [{"text": text, "quotes": ["text = run_tesseract(body)", self.QUOTE]}]}]}
+        _, man = render(doc, brief, self.sm())
+        lines = [(c["resolved"]["start_line"], c["match"]) for c in man["claims"]]
+        self.assertEqual(lines, [(7, "exact"), (9, "exact")])
+        alone = {"summary": "s", "sections": [{"heading": "h", "paragraphs": [{"text": text, "quotes": [self.QUOTE]}]}]}
+        _, man = render(alone, brief, self.sm())
+        self.assertEqual(man["claims"][0]["resolved"]["start_line"], 3)                             # no anchor: today's first hit
+
+
+class SplitCheckTests(unittest.TestCase):
+    """The check stage (check-probe/RESULT.md): the review turn answers with a `Changes` part and a `Report` part, 8 of 8 in the
+    asked order; the report ends at a following `Changes` line and an answer with no report is refused (K1 review)."""
+
+    def test_the_report_follows_the_last_report_line_and_the_changes_part_precedes_it(self) -> None:
+        for head in ("Report", "## Report", "**Report**", "Report:", "Final report"):
+            with self.subTest(head=head):
+                self.assertEqual(carry.split_check(f"\nChanges\n- fixed s2\n- reworded s4\n\n{head}\n\nBody one.\n\nBody two.\n"),
+                                 ("- fixed s2\n- reworded s4", "Body one.\n\nBody two."))
+        self.assertEqual(carry.split_check("Report\n\nold\n\nReport\n\nnew\n")[1], "new")
+
+    def test_the_report_ends_at_a_following_changes_line_and_that_part_is_never_the_report(self) -> None:
+        """check-probe: a Changes part written after the report must not be delivered as report text."""
+        self.assertEqual(carry.split_check("Report\n\nBody.\n\nChanges\n- x\n- y\n"), ("- x\n- y", "Body."))
+        self.assertEqual(carry.split_check("Changes\n- first\nReport\n\nBody.\n\n**Changes**\n- later\n"), ("- first", "Body."))
+
+    def test_an_answer_with_no_report_or_an_empty_one_is_refused(self) -> None:
+        for answer in ("Changes\n- x\n\nThe corrected text without a heading.\n", "Report notes\n\nBody.\n", "Reporting path\nBody.\n",
+                       "Report: day vs night\n\nBody.\n", ""):
+            with self.subTest(answer=answer), self.assertRaisesRegex(carry.CarryError, "no line that says only `Report`"):
+                carry.split_check(answer)
+        for answer in ("Changes\n- x\nReport\n\n", "Report\n\nChanges\n- x\n"):
+            with self.subTest(answer=answer), self.assertRaisesRegex(carry.CarryError, "Report part is empty"):
+                carry.split_check(answer)
+
+    def test_checked_draft_keeps_the_notes_and_reads_back_as_a_draft_and_report_diff_counts_by_exact_unit(self) -> None:
+        """check-probe: the corrected report replaces the report part and the notes stay untouched; 58 sentences kept, 37
+        changed, 1 added across the eight works (units compared by exact text)."""
+        draft = "Notes\n\n- a (12).\n\nReport\n\nOld one.\n"
+        checked = carry.checked_draft(draft, "New one.\nMore.\n")
+        self.assertEqual(checked, "Notes\n\n- a (12).\n\nReport\n\nNew one.\nMore.\n")
+        carried, notes, found = carry.report_part(carry.split_draft(checked))
+        self.assertEqual((found, carry.format_notes(notes), carried[-1]["text"]), (True, "Notes\n\n- a (12).\n", "New one.\nMore."))
+        with self.assertRaisesRegex(carry.CarryError, "no report heading"):
+            carry.checked_draft("Just text.\n", "x")
+        self.assertEqual(carry.report_diff(["A.", "B.", "B."], [{"text": "A."}, "C."]), {"kept": 1, "changed_or_removed": 2, "added": 1})
+
+
 if __name__ == "__main__":
     unittest.main()

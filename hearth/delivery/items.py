@@ -67,22 +67,22 @@ Rules:
 Answer with one JSON object on the last line: {{"default": "...", "verdict": "A" | "B" | "neither", "lines": [n, ...]}}
 """}
 
-_JPROMPT_AGREED = {"env_reads": """Two readers were asked for the default of one environment-variable read in source code. They agree, and code marks this read as one where two readers may agree wrongly. Decide from the code.
+_JPROMPT_AGREED = {"env_reads": """Two readers were asked for the default of one environment-variable read in source code. Code marks this read as unusual. Work out the default from the code yourself first; then compare it with the readers' answer, given after the rules.
 
 {block}{note}
-Both readers say the default is: {a}. Check it against the code.
-
 Rules:
 1. Use only the lines shown. The read under study is the one named in the item header, on the item's own lines.
-2. "default" is {ask}.
-3. "verdict" is "A" if the readers are right, "neither" if they are not.
+2. Find "default" in the code yourself: it is {ask}.
+3. "verdict" is "A" if the readers' answer is what the code shows, "neither" if it is not.
 4. "lines" are 1 to 4 line numbers (the numbers before the | sign) that your answer rests on.
+
+Both readers say the default is: {a}. Check it against the code.
 Answer with one JSON object on the last line: {{"default": "...", "verdict": "A" | "neither", "lines": [n, ...]}}
 """}
 _JUDGE_NOTE = {
     "computed": "Note: the name of the variable read here is not a string constant. A default written on the parameter or variable that holds the name is not the default of the variable read.",
-    "conditional_default": "Note: the second argument of this read is a conditional expression; the value used when the variable is unset depends on the condition, and the answer states the whole expression.",
-    "later_fallback": "Note: the result of this read is assigned to a name that the next statements test and may reassign; the default of the read itself is its second argument, or none if it has none."}
+    "conditional_default": "Note: the value used when this variable is unset is an expression that holds a condition (if/else, and/or) or another environment read; the answer states that whole expression as written, not one branch of it.",
+    "later_fallback": "Note: the result of this read is assigned to a name that the next statements test and may reassign; a value assigned there is not the default of this read, which is what the read itself gives (its second argument, or the value directly after `or`), or none."}
 
 
 def _kind(kind: str) -> str:
@@ -119,18 +119,21 @@ def _env_reads(text: str, path: str) -> list:
                 return True
         return isinstance(n, ast.Subscript) and isinstance(n.ctx, ast.Load) and ast.unparse(n.value) == "os.environ"  # not a write
 
-    consts = {x.targets[0].id: x.value.value for x in tree.body if isinstance(x, ast.Assign) and isinstance(x.targets[0], ast.Name)
+    consts = {(x.targets[0] if isinstance(x, ast.Assign) else x.target).id: x.value.value for x in tree.body
+              if (isinstance(x, ast.Assign) and isinstance(x.targets[0], ast.Name) or isinstance(x, ast.AnnAssign) and isinstance(x.target, ast.Name))
               and isinstance(x.value, ast.Constant) and isinstance(x.value.value, str)}
     def loop_names(n, var):
-        """The string constants a loop variable ranges over, when its `for` or comprehension iterates a literal tuple or list."""
+        """The string constants a loop variable ranges over, when its `for` body or comprehension iterates a literal tuple or list
+        and nothing else there rebinds it; a function or class boundary ends the search."""
         prev, cur = n, parents.get(n)
-        while cur is not None:
-            gens = [(cur.target, cur.iter)] if isinstance(cur, ast.For) and prev in cur.body + cur.orelse else \
+        while cur is not None and not isinstance(cur, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)):
+            gens = [(cur.target, cur.iter)] if isinstance(cur, ast.For) and prev in cur.body else \
                    [(g.target, g.iter) for g in cur.generators] if isinstance(cur, (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)) else \
                    [(cur.target, cur.iter)] if isinstance(cur, ast.comprehension) and prev is not cur.iter else []
             for tg, it in gens:
                 if isinstance(tg, ast.Name) and tg.id == var:
-                    if isinstance(it, (ast.Tuple, ast.List)) and it.elts and all(isinstance(e, ast.Constant) and isinstance(e.value, str) for e in it.elts):
+                    if (isinstance(it, (ast.Tuple, ast.List)) and it.elts and all(isinstance(e, ast.Constant) and isinstance(e.value, str) for e in it.elts)
+                            and not any(isinstance(x, ast.Name) and x.id == var and isinstance(x.ctx, ast.Store) and x is not tg for x in ast.walk(cur))):
                         return [e.value for e in it.elts]
                     return None
             prev, cur = cur, parents.get(cur)
@@ -185,8 +188,10 @@ def _env_reads(text: str, path: str) -> list:
         else:
             show = [[max(1, n.lineno - 15), min(n_lines, n.lineno + 15)]]
         dflt = n.args[1] if isinstance(n, ast.Call) and len(n.args) > 1 else next((k.value for k in n.keywords if k.arg == "default"), None) if isinstance(n, ast.Call) else None
+        dflt = next(p.values[i + 1] for i, v in enumerate(p.values) if v is n) if has_or else dflt  # the `or` value is the default
+        cond = dflt is not None and any(isinstance(x, (ast.IfExp, ast.BoolOp)) or is_env(x) for x in ast.walk(dflt))  # a condition or a read with its own default
         judge = ("computed" if arg is not None and not names and not isinstance(arg, ast.Constant) and not (isinstance(arg, ast.Name) and arg.id in consts)
-                 else "conditional_default" if isinstance(dflt, ast.IfExp) else "later_fallback" if later_fallback(st) else None)
+                 else "conditional_default" if cond else "later_fallback" if later_fallback(st) else None)
         for nm in names or [nm]:
             reads.append({"name": nm, "path": path, "start": s, "end": e, "show": show, "line": n.lineno, "computed": computed, "or": has_or,
                           "judge": judge, "_l": n.lineno, "_c": n.col_offset})
@@ -360,8 +365,9 @@ def assemble(kind: str, items: list, rows: list, readers: list) -> tuple:
         count[row["state"]] += 1
         readings, judgment = row["readings"], row.get("judgment")
         failures += sum(1 for x in readings if x is None)
-        jfail += needs_judge(kind, readings, it) and judgment is None
-        marked += bool(it.get("judge")) and not needs_judge(kind, readings)
+        by_mark = bool(it.get("judge")) and not needs_judge(kind, readings) and row["by"] != [0, 1]  # a row settled without the item was not judged
+        jfail += (needs_judge(kind, readings) or by_mark) and judgment is None
+        marked += by_mark
         head = f"`{it['var']}`{' (a name computed at run time)' if it.get('computed') else ''} at {it['path']}:"
         if row["state"] == "unverified":
             seen = " | ".join("no answer" if x is None else _clip(x["fields"]["default"], 200) or "(empty)" for x in readings)
@@ -375,7 +381,7 @@ def assemble(kind: str, items: list, rows: list, readers: list) -> tuple:
     files = len({it["path"] for it in items})
     summary = (f"Delivery of {n} {_NOUN[kind]} in {files} files. {count['agreed']} were agreed by the first two readers, "
                f"{count['settled']} were settled by a judge whose own default matches one reading, and {count['unverified']} are marked "
-               f"NOT VERIFIED because no two agree or, for a marked read, the judge's default differs from the readers'. "
+               f"NOT VERIFIED because no two agree or, for a marked read, the judge's default differs from the readers' or the judge gave none. "
                f"{marked} rows were sent to the judge because of a mark on the read, although the readers agreed. {failures} reader calls failed and {jfail} judge calls gave no answer. Every row "
                f"cites the line of its read. Reads made through a helper function, os.environ.setdefault, os.environ.pop, a membership "
                f"test or a copy of the whole environment (`dict(os.environ)`, `os.environ.copy()`) are not listed.")

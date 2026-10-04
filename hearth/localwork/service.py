@@ -15,7 +15,6 @@ import re
 import subprocess
 import tempfile
 import threading
-import time
 import tomllib
 import urllib.request
 import uuid
@@ -465,13 +464,18 @@ class LocalWorkService:
             self._write(manifest)
             envelope.store_envelope(env, work_id, raw_prompt=prompt)
             if procedure:
-                state = self._carry_submit(
-                    manifest, "carry-work", "work", 0, "",
-                    [{"role": "system", "content": CARRY_SYSTEM},
-                     {"role": "user", "content": prompt.split("\n", 1)[1]}],
-                    True, 0 if temperature is None else temperature, CARRY_WORK_TOKENS, deadline_s,
-                    {"type": "hearth_caller", "id": caller_id, "authenticated": True},
-                    {"transport": "mcp", "adapter": caller_id})
+                try:
+                    state = self._carry_submit(
+                        manifest, "carry-work", "work", 0, "",
+                        [{"role": "system", "content": CARRY_SYSTEM},
+                         {"role": "user", "content": prompt.split("\n", 1)[1]}],
+                        True, 0 if temperature is None else temperature, CARRY_WORK_TOKENS, deadline_s,
+                        {"type": "hearth_caller", "id": caller_id, "authenticated": True},
+                        {"transport": "mcp", "adapter": caller_id})
+                except Exception as exc:   # never leave a queued manifest nobody comes back to (the drain counts it busy)
+                    self._carry_fail(manifest, None, f"dispatch refused: {type(exc).__name__}: {exc}")
+                    self._write(manifest)
+                    raise
                 self._write(manifest)
                 self._spawn_auto_reconcile(work_id, state["job_id"])
                 return self.reconcile(work_id)
@@ -500,9 +504,9 @@ class LocalWorkService:
         try:
             if "carry" in self._read(work_id):
                 # A carried work advances stage by stage with nobody polling: wait for this stage's job to end,
-                # then reconcile, which dispatches the next stage and spawns the next waiter.
-                limit = time.monotonic() + 3600
-                while time.monotonic() < limit:
+                # then reconcile, which dispatches the next stage and spawns the next waiter. No wall-clock cap: a job
+                # can outlive any fixed wait (deadline up to 3,600 s from its start, plus time queued for a worker).
+                while True:
                     job = self.execution.get_job(job_id)
                     if job is None or job["status"] in FINAL_JOB_STATUSES:
                         break
@@ -1162,9 +1166,11 @@ class LocalWorkService:
             carry_state["work"] = {k: observed.get(k) for k in ("finish_reason", "tokens_in", "tokens_out", "tokens_reasoning",
                                                                 "duration_ms", "backend", "model", "temperature")}
             try:
-                carry_state["batches"] = len(carry.batches(carry.split_draft(draft.decode("utf-8"))))
+                blocks = carry.split_draft(draft.decode("utf-8"))
+                carry.assemble(blocks, {})   # what render would refuse (sections, empty blocks) fails now, before any attach
+                carry_state["batches"] = len(carry.batches(blocks))
             except (carry.CarryError, UnicodeDecodeError) as exc:
-                return self._carry_fail(manifest, job, f"the working draft cannot be split: {exc}")
+                return self._carry_fail(manifest, job, f"the working draft cannot be carried: {exc}")
             if not carry_state["batches"]:
                 return self._carry_fail(manifest, job, "the working draft has no text blocks")
             return self._carry_dispatch_attach(manifest, job, 1, "")
@@ -1207,7 +1213,8 @@ class LocalWorkService:
                                  ("line_references", "line-references.json", "application/json")):
             data = (run_dir / name).read_bytes()
             manifest["delivery_artifacts"][key] = {"file": name, "sha256": _digest(data), "size": len(data), "media_type": media}
-        carry_state["report"] = {k: report[k] for k in ("blocks", "paragraphs", "paragraphs_with_quotes", "quotes")}
+        carry_state["report"] = {k: report[k] for k in ("blocks", "paragraphs", "paragraphs_with_quotes", "quotes",
+                                                        "headings_without_paragraphs_dropped") if k in report}
         self._finish_delivery(manifest, str(job["job_id"]))
 
     def _reconcile_delivery(self, manifest: dict[str, Any], job: Mapping[str, Any],
@@ -1262,7 +1269,12 @@ class LocalWorkService:
                 return manifest
             job = self.execution.get_job(str(manifest["job_id"]))
             if manifest.get("carry"):
-                self._reconcile_carry(manifest, job)
+                try:
+                    self._reconcile_carry(manifest, job)
+                except Exception as exc:
+                    # A refused next-stage dispatch or a render step that raised is a failed stage, named; raising
+                    # here instead would leave the work queued with no waiter and break reconcile_all at mount.
+                    self._carry_fail(manifest, None, f"{type(exc).__name__}: {exc}")
             elif job is None and self._revision_pending(manifest):
                 self._keep_original(manifest, f"revision job missing: {manifest['job_id']}")
             elif job is None:

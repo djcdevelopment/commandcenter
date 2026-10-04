@@ -14,7 +14,7 @@ from unittest import mock
 from hearth.execution.artifacts import ArtifactStore
 from hearth.execution.coordination import CapacityLeaseStore
 from hearth.execution.ledger import ExecutionLedger
-from hearth.execution.service import ExecutionService
+from hearth.execution.service import ExecutionService, ExecutionServiceError
 from hearth.toolsurface.inference import response_schema_digest
 from hearth.localwork.service import LocalWorkError, LocalWorkService, SERVING_PROFILE_KEYS
 from hearth.toolsurface.backends import load_pool
@@ -604,18 +604,24 @@ class CarryProcedureTests(unittest.TestCase):
         self.assertEqual(self.calls, [])
 
     def test_a_restart_between_stages_resumes_and_a_restart_during_a_job_fails_the_work(self) -> None:
-        real, blocked, self.hold = self.execution.submit, {"on": True}, threading.Event()
-        def submit(**kwargs):
-            if blocked["on"] and kwargs["operation_name"] == "inference.deliberate" and kwargs["arguments"]["thinking"] is False:
-                raise RuntimeError("gateway died before the attach dispatch")
-            return real(**kwargs)
-        with mock.patch.object(self.execution, "submit", side_effect=submit):
+        self.hold = threading.Event()
+        with mock.patch.object(self.service, "_spawn_auto_reconcile"):   # the process dies before its waiter reconciles
             work_id = self.submit()["work_id"]
-            self.hold.set()      # the work job succeeds; the attach dispatch dies in the waiter thread
-            time.sleep(.5)
-            self.assertEqual(self.service._read(work_id)["carry"]["stage"], "work")
-            blocked["on"] = False
-            final = self.settle(work_id)            # the next reconcile re-reads the stage and dispatches the attach
+            self.hold.set()
+            for _ in range(100):
+                if self.execution.get_job(self.service._read(work_id)["job_id"])["status"] == "succeeded":
+                    break
+                time.sleep(.02)
+        self.assertEqual(self.service._read(work_id)["carry"]["stage"], "work")
+        restarted = LocalWorkService(self.execution_service(self.execution._generate, recover=True), root=self.root,
+                                     token_counter=lambda _p, _m, _q: 100)
+        self.assertEqual(restarted.reconcile_all(), 1)   # the mount-time reconcile dispatches the attach stage
+        for _ in range(300):
+            final = restarted._read(work_id)
+            if final["status"] not in {"queued", "running"}:
+                break
+            time.sleep(.02)
+        restarted.execution.close()
         self.assertEqual(final["status"], "awaiting_review", final.get("failure"))
         gate = self.hold = threading.Event()     # the second work's thinking turn hangs in the seat
         def hanging(**kwargs):
@@ -634,6 +640,35 @@ class CarryProcedureTests(unittest.TestCase):
             recovered.close()
         self.assertEqual((failed["status"], failed["carry"]["failure"]["stage"]), ("failed", "work"))
         self.assertIn("never replayed", failed["failure"])
+
+    def test_a_refused_dispatch_or_a_raising_render_fails_the_work_instead_of_leaving_it_queued(self) -> None:
+        """Review of 2d50438: an exception out of a stage left the manifest queued with no waiter (the drain counts it
+        busy for ever) and made reconcile_all raise at mount. Each is a failed stage now, named, the draft kept."""
+        real = self.execution.submit
+        def refusing(**kwargs):
+            if kwargs["arguments"]["thinking"] is False:
+                raise ExecutionServiceError("HEARTH dispatch is paused; restart the gateway after resume")
+            return real(**kwargs)
+        with mock.patch.object(self.execution, "submit", side_effect=refusing):
+            final = self.settle(self.submit()["work_id"])
+            self.assertEqual(self.service.reconcile_all(), 0)
+        self.assertEqual((final["status"], final["carry"]["failure"]["stage"]), ("failed", "attach"))
+        self.assertIn("carry attach batch 1: ExecutionServiceError: HEARTH dispatch is paused", final["failure"])
+        self.assertTrue((self.root / "runs" / "operator" / final["work_id"] / "carry-draft.md").is_file())
+        with mock.patch("hearth.delivery.carry.line_reference_agreement", side_effect=KeyError(7)):
+            final = self.settle(self.submit()["work_id"])
+        self.assertEqual((final["status"], final["carry"]["failure"]["stage"]), ("failed", "render"))
+        with mock.patch.object(self.execution, "submit", side_effect=ExecutionServiceError("global execution queue is full")):
+            with self.assertRaisesRegex(ExecutionServiceError, "queue is full"):
+                self.submit(idempotency_key="refused-at-submit")
+        on_disk = [json.loads(p.read_text(encoding="utf-8")) for p in (self.root / "runs" / "operator").glob("*/work-manifest.json")]
+        self.assertEqual(sorted(m["status"] for m in on_disk), ["failed"] * 3)
+
+    def test_a_draft_render_would_refuse_fails_at_the_work_stage_before_any_attach(self) -> None:
+        self.DRAFT = "".join(f"# H{i}\n\nText {i}.\n\n" for i in range(17))   # 17 sections: assemble refuses
+        final = self.settle(self.submit()["work_id"])
+        self.assertEqual((final["status"], final["carry"]["failure"]["stage"], len(self.calls)), ("failed", "work", 1))
+        self.assertIn("sections", final["failure"])
 
 
 class DeepLaneFamilyTests(unittest.TestCase):

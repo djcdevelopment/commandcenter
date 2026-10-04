@@ -38,8 +38,8 @@ _DESC = {"env_reads": "one environment variable read (os.environ.get, os.environ
 _QUESTION = {"env_reads": "Name the environment variable, its default if any, and in one line what it controls."}
 _NOUN = {"env_reads": "environment-variable reads"}
 _COMPARED = {"env_reads": ("default",)}
-_OR_NOTE = ("Note: this read has no second argument and is directly followed by `or <value>` in the code; the value used when the "
-            "variable is unset is that value, exactly as written.")
+_OR_NOTE = ("Note: this read has no second argument and is directly followed by `or <value>` in the code (an `or` may also come "
+            "before it); the value used when the variable is unset is the <value> after the read, exactly as written.")
 _NONE = {"none", "null", "nodefault", "", "n/a"}
 _FPROMPT = """{question}
 
@@ -120,7 +120,7 @@ def _env_reads(text: str, path: str) -> list:
             computed = not cs
         p = parents.get(n)
         has_or = (isinstance(n, ast.Call) and len(n.args) == 1 and not n.keywords and isinstance(p, ast.BoolOp)
-                  and isinstance(p.op, ast.Or) and p.values[0] is n)
+                  and isinstance(p.op, ast.Or) and any(v is n for v in p.values[:-1]))  # any operand but the last
         st = n
         while not isinstance(st, ast.stmt):
             st = parents[st]
@@ -287,6 +287,8 @@ def assemble(kind: str, items: list, rows: list, readers: list) -> tuple:
         raise ItemsError(f"{len(items)} items but {len(rows)} rows")
     if not 0 < len(items) <= MAX_ITEMS:
         raise ItemsError(f"{len(items)} items outside 1..{MAX_ITEMS}")
+    if any("line" not in it for it in items):
+        raise ItemsError("an item has no `line` (listed before items gained it); list the items again in a new work")
     paras, count, failures, jfail = [], {"agreed": 0, "settled": 0, "unverified": 0}, 0, 0
     for it, row in zip(items, rows):
         count[row["state"]] += 1

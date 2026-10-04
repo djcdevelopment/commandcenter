@@ -1214,7 +1214,8 @@ class LocalWorkService:
             data = (run_dir / name).read_bytes()
             manifest["delivery_artifacts"][key] = {"file": name, "sha256": _digest(data), "size": len(data), "media_type": media}
         carry_state["report"] = {k: report[k] for k in ("blocks", "paragraphs", "paragraphs_with_quotes", "quotes",
-                                                        "headings_without_paragraphs_dropped") if k in report}
+                                                        "headings_without_paragraphs_dropped",
+                                                        "blocks_empty_after_stripping_dropped") if k in report}
         self._finish_delivery(manifest, str(job["job_id"]))
 
     def _reconcile_delivery(self, manifest: dict[str, Any], job: Mapping[str, Any],

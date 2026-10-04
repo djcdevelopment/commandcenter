@@ -235,7 +235,9 @@ def batches(blocks: list, size: int = 6) -> list:
 
 
 def format_blocks(batch: list) -> str:
-    return "\n".join(f"[block {b['id']}]\n{strip_line_references(b['text'])[0]}\n" for b in batch)
+    """The attacher sees each block with the model's line references (attach rule 3: they guide it to the source line);
+    only `assemble` strips them from the delivered text."""
+    return "\n".join(f"[block {b['id']}]\n{b['text']}\n" for b in batch)
 
 
 def parse_attach(answer: str, ids: list) -> tuple:
@@ -320,7 +322,8 @@ def assemble(blocks: list, quotes: dict, *, statements: Optional[int] = None) ->
     summary = (f"Carried from the model's working draft: {paras} paragraphs in {len(sections)} sections; "
                f"{total} source quotes attached by a second pass.")
     report = {"blocks": len(blocks), "paragraphs": paras, "paragraphs_with_quotes": with_quotes, "quotes": total,
-              "repairs": {"line_reference_stripped": stripped, "quotes_beyond_cap_dropped": beyond},
+              "repairs": {"line_reference_stripped": stripped, "quotes_beyond_cap_dropped": beyond,
+                          "blocks_empty_after_stripping_dropped": len(dropped), "headings_without_paragraphs_dropped": len(empty)},
               "line_references": refs, "paragraph_ids": pid}
     if empty:
         report["headings_without_paragraphs_dropped"] = [s["heading"] for s in empty]

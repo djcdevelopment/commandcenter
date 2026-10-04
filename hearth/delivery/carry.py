@@ -205,6 +205,20 @@ def _is_source_line_reference(body: str, text: str, at: int, sources: dict) -> b
     return True
 
 
+def _is_source_value(body: str, text: str, at: int, sources: dict) -> bool:
+    """A single plain integer right after a code name ("psm (6)", "status (200)", "upscale (1)") is a value, not a line
+    number, when a declared line holds that name and that integer as standalone tokens (`psm=6`, `"psm", 6`, `psm: int = 6`).
+    This is checked first and decides: a line holding both name and number is the newest rule's own sign of a value
+    (_is_source_line_reference refuses it for the same test), so for a number of 10 or more the two rules cannot disagree
+    in the keep direction; where no declared line holds both, the older rule and then the newest rule decide as before."""
+    m = _CODE_NAME.search(text[:at].rstrip())
+    if not m or not re.fullmatch(r"\d+", body.strip()):
+        return False
+    name = re.compile(rf"(?<!\w){re.escape(m.group(1).rstrip('.'))}(?!\w)")
+    value = re.compile(rf"(?<![\w.]){int(body)}(?!\w|\.\d)")
+    return any(name.search(l) and value.search(l) for lines in sources.values() for l in lines)
+
+
 def _join(left: str, right: str) -> str:
     """Close the gap a removal left; only the seam is touched (no doubled space, no orphan punctuation)."""
     lt, rt = left.rstrip(), right.lstrip()
@@ -221,7 +235,8 @@ def _join(left: str, right: str) -> str:
 
 def strip_line_references(text: str, sources: Optional[dict] = None) -> tuple:
     """`sources` (declared path -> its lines at the pinned commit) adds one form: a parenthesised group of integers that
-    names a line holding an identifier of its own sentence ("collect_backends (192)")."""
+    names a line holding an identifier of its own sentence ("collect_backends (192)"); it also keeps a value: "psm (6)" when a
+    declared line holds `psm` and 6 (_is_source_value)."""
     spans = [m.span() for m in _PROTECT.finditer(text)]
     cuts: list = []                                           # (start, end, reference as written)
 
@@ -229,6 +244,8 @@ def strip_line_references(text: str, sources: Optional[dict] = None) -> tuple:
         if not _blocked(spans, a, b) and not any(x < b and a < y for x, y, _ in cuts):
             cuts.append((a, b, ref))
     for m in _PAREN.finditer(text):
+        if sources and _is_source_value(m.group(1), text, m.start(), sources):
+            continue
         if _paren_is_reference(m.group(1), text, m.start()):
             cut(m.start(), m.end(), m.group(1).strip())
         elif sources and _is_source_line_reference(m.group(1), text, m.start(), sources):

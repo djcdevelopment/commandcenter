@@ -1,0 +1,11 @@
+Check your report against the source before it is delivered.
+
+Go through the Report statement by statement. For each statement find the lines of the source that decide it and compare:
+the condition the code actually tests (not what a comment, a docstring or a name suggests), the order of the checks,
+defaults and fallbacks, and what happens in each branch. Where a statement says more than the code shows, or simplifies a
+condition so that it is wrong for some input, correct it. Do not add new topics. Do not remove or reword a statement that
+is correct.
+
+Output two parts. Under a line that says only `Changes`: one line per statement you changed, giving the old statement and
+what the code shows; write `none` if you changed nothing. Then under a line that says only `Report`: the full corrected
+report, with every unchanged statement word for word.

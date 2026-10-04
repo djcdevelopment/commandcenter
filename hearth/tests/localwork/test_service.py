@@ -11,6 +11,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from hearth.delivery import carry
 from hearth.execution.artifacts import ArtifactStore
 from hearth.execution.coordination import CapacityLeaseStore
 from hearth.execution.ledger import ExecutionLedger
@@ -501,6 +502,7 @@ class CarryProcedureTests(unittest.TestCase):
         self.calls: list[dict] = []
         self.attach: list = []      # one entry per attach call: the answer text, or an Exception-free dict result
         self.work: dict = {}
+        self.check: str | None = None    # the check turn's answer; default: no change, the draft's own report
         self.hold: threading.Event | None = None    # holds the thinking turn until set
 
         def generate(**kwargs):
@@ -510,6 +512,10 @@ class CarryProcedureTests(unittest.TestCase):
             if kwargs["thinking"]:
                 if self.hold is not None:
                     self.hold.wait(5)
+                if len(kwargs["messages"]) == 4:   # stage check: the work turn's conversation continues
+                    carried = carry.report_part(carry.split_draft(self.DRAFT))[0]
+                    answer = self.check if self.check is not None else "Changes\nnone\n\nReport\n\n" + "".join(b["raw"] for b in carried[1:])
+                    return {**common, "ok": True, "text": answer, "finish_reason": "stop"}
                 return {**common, "ok": True, "text": self.DRAFT, "finish_reason": "stop", **self.work}
             answer = self.attach.pop(0) if self.attach else self.ATTACH
             if isinstance(answer, dict):
@@ -551,18 +557,24 @@ class CarryProcedureTests(unittest.TestCase):
     def test_full_run_stops_at_awaiting_review_with_the_carry_record(self) -> None:
         final = self.settle(self.submit()["work_id"])
         self.assertEqual(final["status"], "awaiting_review", final.get("failure"))
-        work, attach = self.calls
+        work, check, attach = self.calls
+        self.assertEqual((check["thinking"], check["temperature"], [m["role"] for m in check["messages"]]),
+                         (True, 0, ["system", "user", "assistant", "user"]))
+        self.assertEqual((check["messages"][1], check["messages"][2]["content"]), (work["messages"][1], self.DRAFT))
+        self.assertTrue(check["messages"][3]["content"].startswith("Check your report against the source"))
         self.assertEqual((work["thinking"], work["max_tokens"], work["temperature"]), (True, 24576, 0))
         self.assertEqual((attach["thinking"], attach["max_tokens"], attach["temperature"]), (False, 2048, 0))
         self.assertEqual([m["role"] for m in work["messages"]], ["system", "user"])
         self.assertIn("STEP: work.", work["messages"][1]["content"])
         self.assertIn("=== CARRIED DRAFT ===", attach["messages"][1]["content"])
-        self.assertEqual([(j["stage"], j["batch"]) for j in final["carry"]["jobs"]], [("work", 0), ("attach", 1)])
+        self.assertEqual([(j["stage"], j["batch"]) for j in final["carry"]["jobs"]], [("work", 0), ("check", 0), ("attach", 1)])
         self.assertEqual(final["carry"]["stage"], "render")
+        self.assertEqual((final["carry"]["check"]["state"], final["carry"]["check"]["kept"], final["carry"]["check"]["changed_or_removed"]),
+                         ("on", 2, 0))
         run = self.root / "runs" / "operator" / final["work_id"]
         delivery = json.loads((run / "delivery.json").read_text(encoding="utf-8"))
-        self.assertEqual((delivery["procedure"], delivery["aids_used"][-2:]), ("carry", ["thinking", "carried_draft"]))
-        self.assertTrue({"candidate", "manifest", "output", "carry_draft", "carry_reasoning", "line_references"}
+        self.assertEqual((delivery["procedure"], delivery["aids_used"][-3:]), ("carry", ["thinking", "carried_draft", "self_check"]))
+        self.assertTrue({"candidate", "manifest", "output", "carry_draft", "carry_reasoning", "line_references", "carry_check", "carry_checked"}
                         <= set(final["delivery_artifacts"]))
         self.assertEqual((run / "carry-draft.md").read_text(encoding="utf-8"), self.DRAFT)
         self.assertEqual(self.service.artifact(final["work_id"])["delivery"]["files"]["carry_reasoning"]["size"], 7)
@@ -572,7 +584,7 @@ class CarryProcedureTests(unittest.TestCase):
         self.attach = ["[block 4.1]\n> two\n[block 5.1]\n> one\n"]
         final = self.settle(self.submit()["work_id"])
         self.assertEqual(final["status"], "awaiting_review", final.get("failure"))
-        attach = self.calls[1]["messages"][1]["content"]
+        attach = self.calls[2]["messages"][1]["content"]
         self.assertIn("never copy a quote from them):\n# Notes\n\nlines 12, 14 matter.\n\nBLOCKS TO CHECK:\n[block 4.1]", attach)
         run = self.root / "runs" / "operator" / final["work_id"]
         delivery = json.loads((run / "delivery.json").read_text(encoding="utf-8"))
@@ -593,7 +605,7 @@ class CarryProcedureTests(unittest.TestCase):
         final = self.settle(self.submit()["work_id"])
         self.assertEqual(final["status"], "awaiting_review", final.get("failure"))
         self.assertEqual(final["carry"]["retried"], [1])
-        self.assertEqual([(j["batch"], j["part"]) for j in final["carry"]["jobs"][1:]], [(1, ""), (1, "a"), (1, "b")])
+        self.assertEqual([(j["batch"], j["part"]) for j in final["carry"]["jobs"][2:]], [(1, ""), (1, "a"), (1, "b")])
 
     def test_a_rejected_answer_then_a_second_failure_fails_the_work_and_keeps_the_draft(self) -> None:
         self.attach = ["[block 2]\n> two\n", {"ok": False, "text": "", "finish_reason": "length",

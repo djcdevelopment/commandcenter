@@ -385,11 +385,35 @@ class LocalWorkService:
         if fast_provider is None or not fast_provider.models:
             raise LocalWorkError("local fast lane is unavailable")
         roster = self._items_roster(routes) if items_run else None
+        work_id = (f"work_{_digest(caller_id + ':' + idempotency_key)[:32]}"
+                   if idempotency_key else f"work_{uuid.uuid4().hex}")
+        door_lane = delivery and lane == "auto" and procedure is None and not items_run
+        prior = self._read(work_id) if door_lane and idempotency_key and self._manifest_path(work_id).is_file() else None
+        stored_lane = (prior.get("route") or {}).get("selected_lane") if prior is not None else None
         evidence_tokens = self.token_counter(
-            fast_provider, fast_provider.models[0], source_pack) if lane == "auto" and not items_run else 0
-        selected_lane = self._lane(lane, evidence_tokens, task_family)
+            fast_provider, fast_provider.models[0], source_pack) if (
+                lane == "auto" and not items_run and stored_lane is None) else 0
+        selected_lane = stored_lane or self._lane(lane, evidence_tokens, task_family)
         if items_run:   # the first reader's seat; the pack is never counted or sent
             selected_lane = "fast"
+        table, table_sha, table_error, lane_choice = None, None, None, None
+        table_read = False
+        if door_lane and prior is None and max_tokens is None and not revise:
+            # The lane the family and size rule picked gets the table's word too: a lane whose backend has no
+            # qualifying procedure moves to deep when deep's backend has one. An unreadable table is raised
+            # where the procedure is chosen, after the lane refusals, as before.
+            table_read = True
+            try:
+                table, table_sha = procedures.load(os.environ.get("HEARTH_DELIVERY_PROCEDURES"))
+            except procedures.ProcedureTableError as exc:
+                table_error = exc
+            if table_error is None and selected_lane != "deep" and selected_lane in routes and "deep" in routes:
+                _, here = procedures.choose(table, routes[selected_lane], task_family)
+                there_name, there = procedures.choose(table, routes["deep"], task_family)
+                if here["level"] == "none" and there["level"] != "none":
+                    lane_choice = {"by": "door", "from": selected_lane, "to": "deep", "level": there["level"],
+                                   "counts": there["counts"], "table_sha256": table_sha}
+                    selected_lane = "deep"
         if selected_lane not in routes:
             raise LocalWorkError(f"local lane {selected_lane!r} is not in this host's route profile")
         backend_name = routes[selected_lane]
@@ -397,8 +421,6 @@ class LocalWorkService:
         if provider is None or provider.retired:
             raise LocalWorkError(f"local lane {selected_lane!r} is unavailable: {backend_name}")
         model = provider.models[0] if provider.models else ""
-        work_id = (f"work_{_digest(caller_id + ':' + idempotency_key)[:32]}"
-                   if idempotency_key else f"work_{uuid.uuid4().hex}")
         existing = self._read(work_id) if idempotency_key and self._manifest_path(work_id).is_file() else None
         context_tokens = int(provider.settings.get("context_tokens") or
                              (int(provider.settings.get("context_bytes") or 0) // 4))
@@ -417,7 +439,10 @@ class LocalWorkService:
                 choice = {"by": "caller", "level": "caller_argument", "argument": "max_tokens" if max_tokens is not None else "revise"}
             else:
                 try:
-                    table, table_sha = procedures.load(os.environ.get("HEARTH_DELIVERY_PROCEDURES"))
+                    if table_error is not None:
+                        raise table_error
+                    if not table_read:
+                        table, table_sha = procedures.load(os.environ.get("HEARTH_DELIVERY_PROCEDURES"))
                     picked, basis = procedures.choose(table, backend_name, task_family)
                 except procedures.ProcedureTableError as exc:
                     raise LocalWorkError(f"delivery procedure table refused: {exc}") from exc
@@ -537,6 +562,8 @@ class LocalWorkService:
             manifest["brief_sha256"] = _digest(json.dumps(brief, sort_keys=True, separators=(",", ":")))
             manifest["route"]["procedure"] = "items" if items_run else "carry" if carried else "one_call"
             manifest["route"]["procedure_choice"] = {**choice, **({"fallback": fallback} if fallback else {})}
+            if lane_choice:
+                manifest["route"]["lane_choice"] = lane_choice
         if carried:
             manifest["carry"] = {"stage": "work", "batch": 0, "batches": 0, "retried": [], "jobs": [], "quotes": {},
                                  "check": self._carry_check_plan(prompt, context_tokens)}

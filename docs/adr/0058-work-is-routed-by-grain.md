@@ -44,3 +44,32 @@ Open risks named in the sources:
 - The 30B cannot be kept busy with items: they drain it in minutes (rnd-log 12:51 row), so the card idles.
 - Rule-grain truth is the Opus grader's reading, not a file (row 102).
 - Not sampled (rnd-log 10:42 row): the 27B at more than one item a call; `summarize-tick` and `backoff` as items (no enumerator). The 30B's symbol index is ungraded by a frontier reader.
+
+## Added 2026-10-04: the item operation is built under dev (acceptance of this record stays Derek's)
+
+`procedure="items"` at the door (`docs/delivery.md`, "The items procedure"; lap `~/work/delivery-plan/laps/20-items-at-the-door.md`): code
+lists the items, the `fast` and `tool` lanes' seats read each one, the `deep` seat judges the disputed ones, code writes
+the report and the counts, the work stops at `awaiting_review` and leaves a capability record with its readers. First
+kind: environment reads.
+
+What the build measured, and where it departs from the decision above:
+
+- **One item a call**, not four: on 189 reads with a truth from the syntax tree the 30B is right on 94.7% at one a call
+  and 87.8% at four, and four is not faster (`lab-rnd research/evidence/seat0-short-calls-20261004/RESULT.md`).
+- **The settler judges with thinking on.** Decision 2 says the gate goes to the 27B; measured on the 50 rows the two
+  readers dispute, a third plain reading got 45 of 46 right, a thinking-off judge 45 of 50 (it never said "neither"),
+  and the thinking judge's own stated default was right in 49 of 49 answers (ADR-0059's regime).
+- **The first scorer understated every reader** (it compared string spellings, took the first call in a statement as
+  the truth, and counted 16 assignments as reads): the 30B is at 94.7%, not 89%.
+- **The first live run was rejected** (`work_4b0569a8`, 91 reads in 24 files, 181 s; `~/work/delivery-plan/evidence/wave9/`).
+  The 16 judge-settled rows and the 2 NOT VERIFIED rows were right. But 7 of 89 verified defaults were wrong by the
+  brief's definition (five `get(X) or <value>` reads where both fast readers answered "none"), and the one-line
+  "what it controls" sentence, which no gate reads, was false in 3 rows and vague in 22. That is decisions 2 and 5 of
+  this record seen from the other side: a fast seat's sentence about code behaviour reached a deliverable ungated.
+  Two fast seats agreeing is a gate for a stated value and for nothing else.
+- Changed after that run: the enumerator marks the `or` shape and the prompt says where to look; a row cites the read's
+  own line; the ungated sentence is no longer delivered; the summary says what the enumerator cannot see (reads through
+  a helper function).
+
+Still open from the consequences above: the task-text cap; a behaviour field per item gated by the 27B; item kinds where
+code has no enumerator.

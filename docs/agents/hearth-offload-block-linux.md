@@ -26,10 +26,15 @@ review costs; handle trivial work directly. Batch related small items into one c
   for a lookup and 24,000 for a report. Two-turn driver: `~/work/lab-rnd/research/thinking_workload.py`. A result from
   one thinking-off call is a result for that regime, not its ceiling. One stated value per item (a default, a
   setting, a state) belongs on the lighter seats (ADR-0058, proposed).
-  For a report with quotes use the carried delivery: `submit_local_work(..., brief=<brief.v2>, lane="deep",
-  procedure="carry")` (live 2026-10-04; `docs/delivery.md`): one thinking turn writes notes and a report, code
-  carries the report's text, a second pass attaches exact quotes, and the work stops at `awaiting_review`. All three
-  2026-10-02 night briefs were accepted this way; the one-call delivery lost the sizing report every time.
+  For a report with quotes submit a delivery brief and name no procedure: `submit_local_work(..., brief=<brief.v2>)`.
+  The door chooses from the registry's verdicts and records why in `route.procedure_choice` (ADR-0061, live
+  2026-10-04; `docs/delivery.md`). On this seat that is the carried procedure: one thinking turn writes notes and a
+  report, code carries the report's text, a second pass attaches exact quotes sentence by sentence, and the work stops
+  at `awaiting_review`. `procedure="one_call" | "carry" | "items"` pins one (a comparison arm). Carried deliveries stand
+  at 9 of 12 accepted on the three 2026-10-02 night briefs and 0 of 3 on briefs written since: read every one before
+  relying on it. A brief that declares `"items": {"kind": "env_reads"}` takes the items procedure (code lists the
+  items, the 30B and an AM4 8B read each, the 27B judges disputes with thinking on; two runs, both rejected, the second
+  on 1 wrong row of 91).
 - `am4-vllm` (tags `dense, reasoning`): AM4 27B over the direct cable, 16,384 ctx, 1 slot. Live only under
   the `memsplice` lab configuration, for MemSplice research; the default `day` has AM4 on `tool-pair`.
   Depth specialist for needle retrieval; never route it through the tailnet.

@@ -125,6 +125,15 @@ def brief_lane(brief) -> str:
     except ValueError:
         return "deep"
     lane = str(fields.get("lane", "auto"))
+    if lane == "auto" and fields.get("delivery_brief"):
+        # The door seats an items run on fast (hearth/localwork/service.py: items_run -> selected_lane = "fast").
+        # The drain has no procedure line, so "items" in the brief.v2 is enough. An unreadable or unpinned file
+        # stays deep: the submit path refuses it loudly.
+        try:
+            if "items" in load_delivery_brief(fields):
+                return "fast"
+        except (ValueError, OSError, KeyError):
+            pass
     return lane if lane in ("fast", "deep") else "deep"   # auto counts against the scarcer lane
 FINAL = {"failed", "rejected", "accepted", "superseded"}
 DONE = FINAL | {"awaiting_review"}
@@ -256,8 +265,8 @@ def submit_args_from_brief(body: str, *, idempotency_key: Optional[str] = None) 
     return args
 
 
-def delivery_args_from_brief(fields: dict[str, Any], intent: str, idempotency_key: Optional[str]) -> dict[str, Any]:
-    """submit_local_work arguments for a delivery: the brief.v2 JSON named by delivery_brief; the door chooses the procedure."""
+def load_delivery_brief(fields: dict[str, Any]) -> dict[str, Any]:
+    """The brief.v2 JSON named by delivery_brief, sha-checked against delivery_brief_sha256; ValueError if unusable."""
     path = Path(str(fields["delivery_brief"]))
     if not path.is_absolute():
         path = Path(fields["repo"]) / path
@@ -273,6 +282,13 @@ def delivery_args_from_brief(fields: dict[str, Any], intent: str, idempotency_ke
         raise ValueError(f"delivery_brief {str(path)!r} is not JSON: {exc}") from exc
     if not isinstance(brief, dict):
         raise ValueError(f"delivery_brief {str(path)!r} is not a JSON object (a brief.v2)")
+    return brief
+
+
+def delivery_args_from_brief(fields: dict[str, Any], intent: str, idempotency_key: Optional[str]) -> dict[str, Any]:
+    """submit_local_work arguments for a delivery: the brief.v2 JSON named by delivery_brief; the door chooses the procedure."""
+    brief = load_delivery_brief(fields)
+    path, pinned = fields["delivery_brief"], str(fields["delivery_brief_sha256"])
     criteria = [str(c["statement"]) for c in brief.get("substance") or [] if isinstance(c, dict) and c.get("statement")]
     if not criteria:
         raise ValueError(f"delivery_brief {str(path)!r} has no substance statements")

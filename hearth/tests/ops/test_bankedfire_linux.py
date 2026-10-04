@@ -648,6 +648,21 @@ class DeliveryBriefTests(GitRepoCase):
         self.assertEqual(lane.brief_lane(mk(self.delivery_body(lane="fast"))), "fast")
         self.assertEqual(lane.brief_lane(mk("not a brief")), "deep")
 
+    def test_an_items_delivery_brief_counts_against_the_fast_lane(self) -> None:
+        """2026-10-04T11:58Z, Wave 5 of lap 21: three inventory briefs counted against deep=1 while the door seated them
+        on fast (hearth/localwork/service.py: an items run takes the fast lane)."""
+        from hearth.backlog.briefs import Brief
+        mk = lambda body: Brief(slug="s", title="t", body=body, builders=None, task_class="local-work",  # noqa: E731
+                                est_tokens=None, requires=(), max_age_s=None, source="authored", source_ref="s.md")
+        items = self.tmp / "items.brief.v2.json"
+        items.write_bytes(json.dumps({**DELIVERY_BRIEF, "items": {"kind": "env_reads"}}).encode())
+        sha = hashlib.sha256(items.read_bytes()).hexdigest()
+        body = lambda **o: self.delivery_body(**{"delivery_brief": str(items), "delivery_brief_sha256": sha, **o})  # noqa: E731
+        self.assertEqual(lane.brief_lane(mk(body())), "fast")
+        self.assertEqual(lane.brief_lane(mk(body(lane="deep"))), "deep")
+        self.assertEqual(lane.brief_lane(mk(self.delivery_body())), "deep")   # no items key
+        self.assertEqual(lane.brief_lane(mk(body(delivery_brief_sha256="0" * 64))), "deep")   # pin mismatch: submit refuses
+
     def test_dry_run_previews_the_delivery_args_without_the_intent(self) -> None:
         """The drain's preview (dry_run) of a queued delivery brief shows the submit args, minus the intent, and touches
         neither the door nor the host: arm file, queue and slots live in the temp root."""

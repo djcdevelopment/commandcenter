@@ -18,6 +18,10 @@ Public API
                 values are the loud placeholder "unknown", never a guess.
 ``render_with_findings(...) -> (markdown, manifest, findings)``
     Same, plus the human-readable findings that also go into ``verification.deterministic.note``.
+``drop_blank_quotes(output) -> (copy, count)``
+    The blank quote strings ("" or whitespace) render drops before validation, counted as ``empty_quote_dropped``.
+    Claim ids number the quotes of that copy: a caller that checks the output or indexes its quotes by claim id
+    uses the copy; the raw answer is what is stored and compared (verify drops the same way).
 ``render_legacy(candidate_v1, sm, brief=None, meta=None) -> (markdown, manifest)``
     Compatibility shim for ``local-work-candidate.v1`` (markdown artifacts): bare path, {path, start_line,
     end_line} / {path, start, end} objects and "path:N-M" / "path (lines N-M)" strings. Each citation becomes
@@ -49,7 +53,7 @@ from typing import Any, Mapping, Optional, Union
 from . import contract
 from .sourcemap import Location, SourceMap, locate, locate_line_reference
 
-__all__ = ["render", "render_with_findings", "render_legacy"]
+__all__ = ["render", "render_with_findings", "render_legacy", "drop_blank_quotes"]
 
 _ENV_FALLBACK = "unknown"
 _MISSING = Location("", 0, 0, "missing", 0)  # a paragraph without a quote / an unresolvable legacy citation
@@ -76,6 +80,26 @@ def _brief_bytes(brief: Union[bytes, str, Mapping[str, Any], None]) -> tuple:
                 raise contract.ContractError("brief: neither JSON nor markdown with a CCMETA block")
         return raw, doc
     return json.dumps(brief, sort_keys=True, separators=(",", ":")).encode("utf-8"), dict(brief)
+
+
+def drop_blank_quotes(output: Any) -> tuple:
+    """-> (copy of output without blank quote strings, count dropped). Constrained decoding lets a quotes tail through
+    as "" or whitespace; the caller's output is never mutated and a malformed shape passes through for check_output."""
+    if not isinstance(output, dict) or not isinstance(output.get("sections"), list):
+        return output, 0
+    dropped, secs = 0, []
+    for sec in output["sections"]:
+        if isinstance(sec, dict) and isinstance(sec.get("paragraphs"), list):
+            paras = []
+            for para in sec["paragraphs"]:
+                if isinstance(para, dict) and isinstance(para.get("quotes"), list):
+                    kept = [q for q in para["quotes"] if not (isinstance(q, str) and not q.strip())]
+                    dropped += len(para["quotes"]) - len(kept)
+                    para = {**para, "quotes": kept}
+                paras.append(para)
+            sec = {**sec, "paragraphs": paras}
+        secs.append(sec)
+    return {**output, "sections": secs}, dropped
 
 
 def _ref(loc) -> str:
@@ -201,6 +225,7 @@ def render_with_findings(output: Mapping[str, Any], brief: Union[bytes, str, Map
                          meta: Optional[Mapping[str, Any]] = None) -> tuple:
     if brief is None:
         raise contract.ContractError("render: the brief is required (brief_sha256 and form come from it)")
+    output, blank = drop_blank_quotes(output)
     contract.check_output(output)
     raw, bdoc = _brief_bytes(brief)
     contract.check_brief(bdoc)
@@ -269,7 +294,7 @@ def render_with_findings(output: Mapping[str, Any], brief: Union[bytes, str, Map
     findings: list = []
     if stripped:
         findings.append(f"{stripped} citation(s) written by the model removed from the prose")
-    _finish(man, sm, claims, {"citation_syntax_stripped": stripped}, findings, unsupported)
+    _finish(man, sm, claims, {"citation_syntax_stripped": stripped, "empty_quote_dropped": blank}, findings, unsupported)
     return "\n".join(md).rstrip() + "\n", man, findings
 
 

@@ -183,6 +183,28 @@ def _paren_is_reference(body: str, text: str, at: int) -> bool:
     return not (n <= 9 and all(re.search(rf"\(\s*{k}\s*\)", text) for k in range(1, max(n, 2) + 1)))   # "a (1) ... b (2)"
 
 
+_INT_GROUP = re.compile(r"\d+(?:\s*[-\u2013]\s*\d+)?(?:\s*[,;]\s*\d+(?:\s*[-\u2013]\s*\d+)?)*")
+_CODE_NAME = re.compile(r"`?([A-Za-z_][\w.]*?)(\(\))?`?$")   # the name written right before the group: "max_tokens", "`f()`"
+
+
+def _is_source_line_reference(body: str, text: str, at: int, sources: dict) -> bool:
+    """An all-integer group right after a code name ("collect_backends (192)", "max_tokens (487)": an underscore, a dot or
+    an inner capital, or a call "f()") is a line reference when every integer N is 10 or more, a declared file has the
+    name on line N-1, N or N+1, and no declared line holding the name also holds N (then N may be its value). A prose
+    word next to the group never qualifies ("retries (3)", "the drain (7)"), nor a value under 10 ("parallel_slots (2)")."""
+    m = _CODE_NAME.search(text[:at].rstrip())
+    if not _INT_GROUP.fullmatch(body.strip()) or not m or not (m.group(2) or re.search(r"[A-Za-z0-9]_[A-Za-z0-9]|\w\.\w|[a-z][A-Z]", m.group(1))):
+        return False
+    name = re.compile(rf"(?<!\w){re.escape(m.group(1).rstrip('.'))}(?!\w)")
+    for n in map(int, re.findall(r"\d+", body)):
+        value = re.compile(rf"(?<![\w.]){n}(?![\w.])")
+        if n < 10 or any(name.search(l) and value.search(l) for lines in sources.values() for l in lines):
+            return False
+        if not any(n <= len(lines) and any(name.search(l) for l in lines[n - 2:n + 1]) for lines in sources.values()):
+            return False
+    return True
+
+
 def _join(left: str, right: str) -> str:
     """Close the gap a removal left; only the seam is touched (no doubled space, no orphan punctuation)."""
     lt, rt = left.rstrip(), right.lstrip()
@@ -197,7 +219,9 @@ def _join(left: str, right: str) -> str:
     return lt + ("\n" + gap.rsplit("\n", 1)[1] if "\n" in gap else " " if gap else "") + rt   # a line break in a table stays
 
 
-def strip_line_references(text: str) -> tuple:
+def strip_line_references(text: str, sources: Optional[dict] = None) -> tuple:
+    """`sources` (declared path -> its lines at the pinned commit) adds one form: a parenthesised group of integers that
+    names a line holding an identifier of its own sentence ("collect_backends (192)")."""
     spans = [m.span() for m in _PROTECT.finditer(text)]
     cuts: list = []                                           # (start, end, reference as written)
 
@@ -206,6 +230,8 @@ def strip_line_references(text: str) -> tuple:
             cuts.append((a, b, ref))
     for m in _PAREN.finditer(text):
         if _paren_is_reference(m.group(1), text, m.start()):
+            cut(m.start(), m.end(), m.group(1).strip())
+        elif sources and _is_source_line_reference(m.group(1), text, m.start(), sources):
             cut(m.start(), m.end(), m.group(1).strip())
     for m in [_START_INLINE.match(text)] + list(_INLINE.finditer(text)):
         if m:
@@ -357,15 +383,16 @@ def parse_attach(answer: str, ids: list) -> tuple:
 
 
 # ------------------------------------------------------------------ assemble
-def assemble(blocks: list, quotes: dict, *, statements: Optional[int] = None, notes_blocks: int = 0) -> tuple:
+def assemble(blocks: list, quotes: dict, *, statements: Optional[int] = None, notes_blocks: int = 0,
+             sources: Optional[dict] = None) -> tuple:
     """`statements` is accepted for the service's call shape and unused: the summary states no count of statements.
-    `notes_blocks` (blocks before the report heading, not carried) only adds a repair count."""
+    `notes_blocks` (blocks before the report heading, not carried) only adds a repair count. `sources`: see strip_line_references."""
     sections, refs, known = [], [], set()
     stripped = beyond = with_quotes = total = paras = by_sentence = 0
     heading, dropped = None, []
     for b in blocks:
         if b["kind"] == "heading":
-            text, removed = strip_line_references(b["text"])
+            text, removed = strip_line_references(b["text"], sources)
             stripped += len(removed)
             refs += [{"block": b["id"], "reference": r} for r in removed]
             if text.strip(" #*_:-"):
@@ -393,7 +420,7 @@ def assemble(blocks: list, quotes: dict, *, statements: Optional[int] = None, no
         split = not own and len(merged) > MAX_QUOTES and len(groups) > 1 and len(sections[-1]["paragraphs"]) + len(groups) <= MAX_PARAGRAPHS
         for g in (groups if split else [[b]]):
             key = g[0]["id"]
-            text, removed = strip_line_references("".join(u["raw"] for u in g).strip() if split else b["text"])
+            text, removed = strip_line_references("".join(u["raw"] for u in g).strip() if split else b["text"], sources)
             stripped += len(removed)
             refs += [{"block": b["id"], "reference": r, **({"unit": key} if split else {})} for r in removed]
             if not re.sub(r"^(?:[-*+]|\d+[.)])(?=\s|$)|[\W_]", "", text):   # nothing left but a list mark or punctuation

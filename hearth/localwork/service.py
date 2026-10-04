@@ -1274,7 +1274,7 @@ class LocalWorkService:
                                                                 "duration_ms", "backend", "model", "temperature")}
             try:
                 _, carried, notes, found = self._carry_parts(draft.decode("utf-8"))
-                carry.assemble(carried, {}, notes_blocks=len(notes))   # what render would refuse fails now, before any attach
+                carry.assemble(carried, {}, notes_blocks=len(notes), sources=self._carry_sources(manifest))   # what render would refuse fails now, before any attach
                 carry_state["batches"] = len(carry.batches(carried))
             except (carry.CarryError, UnicodeDecodeError) as exc:
                 return self._carry_fail(manifest, job, f"the working draft cannot be carried: {exc}")
@@ -1298,6 +1298,11 @@ class LocalWorkService:
         done[job["job_id"]] = repairs   # per job, so a repeated reconcile never counts a repair twice
         self._carry_next(manifest, job)
 
+    @staticmethod
+    def _carry_sources(manifest: Mapping[str, Any]) -> dict:
+        sm = sourcemap.build(manifest["repo"], manifest["base_commit"], list(manifest["declared_paths"]))
+        return {f.path: f.lines for f in sm.files}
+
     def _carry_render(self, manifest: dict[str, Any], job: Mapping[str, Any]) -> None:
         carry_state, work_id = manifest["carry"], str(manifest["work_id"])
         work_job = self.execution.get_job(carry_state["jobs"][0]["job_id"])
@@ -1305,7 +1310,7 @@ class LocalWorkService:
             _, carried, notes, found = self._carry_parts(self._carry_draft(manifest))
             if not found:
                 raise carry.CarryError("the working draft has no report heading")
-            output, report = carry.assemble(carried, carry_state["quotes"], notes_blocks=len(notes))   # keys as stored
+            output, report = carry.assemble(carried, carry_state["quotes"], notes_blocks=len(notes), sources=self._carry_sources(manifest))   # keys as stored
             raw = (json.dumps(output, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
             parse_repairs: dict[str, int] = {}
             for counts in carry_state.get("repairs_by_job", {}).values():

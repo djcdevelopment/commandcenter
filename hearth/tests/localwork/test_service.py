@@ -471,7 +471,7 @@ class CarryProcedureTests(unittest.TestCase):
     code assembles; the work stays queued/running through the stages and a failed stage fails it loudly."""
 
     DRAFT = "# Report\n\nThe file ends with two.\n\nThe file starts with one.\n"
-    ATTACH = "[block 2]\n> two\n[block 3]\n> one\n"
+    ATTACH = "[block 2.1]\n> two\n[block 3.1]\n> one\n"
 
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
@@ -553,7 +553,7 @@ class CarryProcedureTests(unittest.TestCase):
         self.assertEqual(final["status"], "awaiting_review", final.get("failure"))
         work, attach = self.calls
         self.assertEqual((work["thinking"], work["max_tokens"], work["temperature"]), (True, 24576, 0))
-        self.assertEqual((attach["thinking"], attach["max_tokens"], attach["temperature"]), (False, 1000, 0))
+        self.assertEqual((attach["thinking"], attach["max_tokens"], attach["temperature"]), (False, 2048, 0))
         self.assertEqual([m["role"] for m in work["messages"]], ["system", "user"])
         self.assertIn("STEP: work.", work["messages"][1]["content"])
         self.assertIn("=== CARRIED DRAFT ===", attach["messages"][1]["content"])
@@ -569,11 +569,11 @@ class CarryProcedureTests(unittest.TestCase):
 
     def test_only_the_report_part_is_carried_and_the_notes_guide_the_attacher(self) -> None:
         self.DRAFT = "# Notes\n\nlines 12, 14 matter.\n\n# Report\n\nThe file ends with two.\n\nThe file starts with one.\n"
-        self.attach = ["[block 4]\n> two\n[block 5]\n> one\n"]
+        self.attach = ["[block 4.1]\n> two\n[block 5.1]\n> one\n"]
         final = self.settle(self.submit()["work_id"])
         self.assertEqual(final["status"], "awaiting_review", final.get("failure"))
         attach = self.calls[1]["messages"][1]["content"]
-        self.assertIn("never copy a quote from them):\n# Notes\n\nlines 12, 14 matter.\n\nBLOCKS TO CHECK:\n[block 4]", attach)
+        self.assertIn("never copy a quote from them):\n# Notes\n\nlines 12, 14 matter.\n\nBLOCKS TO CHECK:\n[block 4.1]", attach)
         run = self.root / "runs" / "operator" / final["work_id"]
         delivery = json.loads((run / "delivery.json").read_text(encoding="utf-8"))
         self.assertEqual(delivery["repairs"]["notes_blocks_not_carried"], 2)
@@ -589,7 +589,7 @@ class CarryProcedureTests(unittest.TestCase):
 
     def test_a_truncated_attach_answer_is_retried_once_as_two_halves(self) -> None:
         self.attach = [{"ok": False, "text": "[block 2]", "finish_reason": "length", "error_code": "output_truncated",
-                        "error": "output_truncated: cut"}, "[block 2]\n> two\n", "[block 3]\n> one\n"]
+                        "error": "output_truncated: cut"}, "[block 2.1]\n> two\n", "[block 3.1]\n> one\n"]
         final = self.settle(self.submit()["work_id"])
         self.assertEqual(final["status"], "awaiting_review", final.get("failure"))
         self.assertEqual(final["carry"]["retried"], [1])

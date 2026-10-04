@@ -1153,7 +1153,7 @@ class LocalWorkService:
             head += CARRY_NOTES_HEADING + "\n" + carry.format_notes(notes) + "\n"
         content = task + "\n" + head + mark + "\n" + carry.format_blocks(unit)
         messages = [{"role": "system", "content": CARRY_SYSTEM}, {"role": "user", "content": content}]
-        max_tokens = min(3000, 400 * len(unit) + 200)
+        max_tokens = min(4096, 512 * len(unit) + 1024)   # a one-unit batch of a long sentence got 600 and was cut
         context = int(manifest["prompt"]["context_tokens"])
         needed = len((CARRY_SYSTEM + content).encode("utf-8")) // 4 + max_tokens
         if needed > context:
@@ -1181,6 +1181,9 @@ class LocalWorkService:
         batch, part = carry_state["batch"], carry_state.get("part", "")
         if part or batch in carry_state["retried"]:
             return self._carry_fail(manifest, job, f"{reason} (second failure of batch {batch})")
+        batches = carry.batches(self._carry_parts(self._carry_draft(manifest))[1])
+        if len(self._carry_units(batches, batch, "")) < 2:   # its "half" would be the same request again
+            return self._carry_fail(manifest, job, f"{reason} (a one-unit batch cannot be halved)")
         carry_state["retried"].append(batch)
         self._event(manifest, "attempt.recorded", {"job_id": job["job_id"], "ok": False, "carry_stage": "attach",
                     "carry_batch": batch, "retried_as_halves": True, "reason_sha256": _digest(reason)})
@@ -1192,6 +1195,9 @@ class LocalWorkService:
             return self._carry_fail(manifest, None, "execution job missing")
         if carry_state["stage"] == "render":   # crashed after the stage was written: every quote is already stored
             return self._carry_render(manifest, job)
+        if carry_state["stage"] == "attach" and carry_state.get("units") != "sentence":
+            return self._carry_fail(manifest, job, "attach was dispatched by blocks before a restart; this door attaches "
+                                                   "by sentence units and does not re-batch it")
         if job["status"] in IN_FLIGHT:
             manifest["status"] = "running" if job["status"] in {"dispatched", "running"} else "queued"
             return
@@ -1225,6 +1231,7 @@ class LocalWorkService:
                                                        "\"Report\"): its notes cannot be separated from its report")
             if not carry_state["batches"]:
                 return self._carry_fail(manifest, job, "the working draft has no text blocks")
+            carry_state["units"] = "sentence"
             return self._carry_dispatch_attach(manifest, job, 1, "")
         batches = carry.batches(self._carry_parts(self._carry_draft(manifest))[1])
         unit = self._carry_units(batches, carry_state["batch"], carry_state.get("part", ""))
@@ -1246,8 +1253,7 @@ class LocalWorkService:
             _, carried, notes, found = self._carry_parts(self._carry_draft(manifest))
             if not found:
                 raise carry.CarryError("the working draft has no report heading")
-            output, report = carry.assemble(carried, {int(k): v for k, v in carry_state["quotes"].items()},
-                                            notes_blocks=len(notes))
+            output, report = carry.assemble(carried, carry_state["quotes"], notes_blocks=len(notes))   # keys as stored
             raw = (json.dumps(output, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
             parse_repairs: dict[str, int] = {}
             for counts in carry_state.get("repairs_by_job", {}).values():

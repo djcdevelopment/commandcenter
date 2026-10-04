@@ -246,6 +246,7 @@ def render_with_findings(output: Mapping[str, Any], brief: Union[bytes, str, Map
     stripped = 0
     for i, sec in enumerate(output["sections"]):
         md += [f"## {sec['heading'].strip()}", ""]
+        carried: dict = {}  # path -> anchors of the latest paragraph of this section with a unique quote in it
         for j, para in enumerate(sec["paragraphs"]):
             text = para["text"]
             shown, n = _LEAKED_CITE.subn("", text)
@@ -259,9 +260,19 @@ def render_with_findings(output: Mapping[str, Any], brief: Union[bytes, str, Map
                     shown += " (no supporting quote)"
                 md += [shown, ""]
                 continue
+            locs = [None if line_reference else locate(sm, q, hint=text) for q in para["quotes"]]
+            if not line_reference and any(l.occurrences > 1 for l in locs):
+                uniq = lambda ls: [(l.path, l.start) for l in ls if l.occurrences == 1 and l.match != "missing"]  # noqa: E731
+                anchors = uniq(locs) or [a for v in carried.values() for a in v]
+                if anchors:
+                    locs = [locate(sm, q, hint=text, near=anchors) if l.occurrences > 1 else l
+                            for q, l in zip(para["quotes"], locs)]
+            if not line_reference:
+                own = [(l.path, l.start) for l in locs if l.occurrences == 1 and l.match != "missing"]
+                carried.update({p: [a for a in own if a[0] == p] for p in {a[0] for a in own}})
             rows = []
             for k, q in enumerate(para["quotes"]):
-                loc = locate_line_reference(reference_map, q) if line_reference else locate(sm, q, hint=text)
+                loc = locate_line_reference(reference_map, q) if line_reference else locs[k]
                 echoed = sm.get(loc.path).lines[loc.start - 1] if line_reference and loc.match != "missing" else q
                 row = _claim_row(f"s{i}.p{j}.q{k}", text, echoed, loc)
                 if line_reference:

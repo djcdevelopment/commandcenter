@@ -466,13 +466,39 @@ def _pick_best(cands: list, hint: Optional[str]):
     return None
 
 
-def _pick(cands: list, hint: Optional[str]):
-    """The hit the hint selects (see _pick_best); no named symbol keeps the first hit."""
+def _nearest(cands: list, near: Optional[list]) -> int:
+    """Index of the hit nearest the anchors, or 0 (the first hit) with no anchors or no hit in an anchor's file.
+    Rank: inside the smallest symbol that holds an anchor (the symbol itself, not its name: a property's getter and
+    setter share one), then the deepest block shared with an anchor (the least indentation of a non-blank line from
+    the hit to the anchor: in one do_POST the /ocr branch's 400 is not the /score branch's, though the /ocr answer
+    lines sit nearer the /score 400; 2026-10-04, work_aa6b13cd), then the smallest line distance to any anchor, then
+    the earlier hit. near: [(path, line)]."""
+    def smallest(fm, line):
+        inside = [y for y in fm.symbols if y["start"] <= line <= y["end"]]
+        return min(inside, key=lambda y: y["end"] - y["start"]) if inside else None
+
+    def shared(fm, a, b):
+        return min((len(t) - len(t.lstrip()) for t in fm.lines[min(a, b) - 1:max(a, b)] if t.strip()), default=0)
+    best, at = None, 0
+    for i, (fm, s, e) in enumerate(cands):
+        here = smallest(fm, s)
+        for path, line in near or ():
+            if path == fm.path:
+                key = (here is None or here is not smallest(fm, line), -shared(fm, s, line),
+                       0 if s <= line <= e else min(abs(s - line), abs(e - line)))
+                if best is None or key < best:
+                    best, at = key, i
+    return at
+
+
+def _pick(cands: list, hint: Optional[str], near: Optional[list] = None):
+    """The hit the hint selects (see _pick_best); no named symbol: the hit nearest the anchors (``near``), else the first."""
     best = _pick_best(cands, hint)
-    return cands[best[0]] if best else cands[0]
+    return cands[best[0]] if best else cands[_nearest(cands, near)]
 
 
-def _prefix_line(texts: list, q: str, chars: int, hint: Optional[str], hits: list) -> Optional[Location]:
+def _prefix_line(texts: list, q: str, chars: int, hint: Optional[str], hits: list,
+                 near: Optional[list] = None) -> Optional[Location]:
     """A quote of >= TRUNCATED_QUOTE_CHARS that begins a source line (indentation ignored) and stops where a string
     literal of it begins resolves to that whole line when it is the only place the quote can mean: no other hit of
     the quote (``hits``: the exact/normalized cands the short floor refused) lies elsewhere, or none elsewhere
@@ -492,6 +518,12 @@ def _prefix_line(texts: list, q: str, chars: int, hint: Optional[str], hits: lis
             return None
         fm0, sym = hits[best[0]][0], best[1]
         scope = lambda c: c[0] is fm0 and sym["start"] <= c[1] and c[2] <= sym["end"]  # noqa: E731
+    elif near and len(hits) > 1:  # no symbol named: the hit nearest the anchors, and the smallest symbol holding it
+        fm0, h0s, h0e = hits[_nearest(hits, near)]
+        inside = [y for y in fm0.symbols if y["start"] <= h0s and h0e <= y["end"]]
+        if inside and any(p == fm0.path for p, _ in near):
+            sym = min(inside, key=lambda y: y["end"] - y["start"])
+            scope = lambda c: c[0] is fm0 and sym["start"] <= c[1] and c[2] <= sym["end"]  # noqa: E731
     inside = [c for c in pc if scope(c)]
     if len(inside) != 1 or any(h[1:] != (inside[0][1],) * 2 for h in hits if scope(h)):
         return None
@@ -515,8 +547,9 @@ def locate_line_reference(sm: SourceMap, reference: str) -> Location:
 
 
 def locate(sm: SourceMap, quote: str, threshold: float = FUZZY_THRESHOLD,
-           hint: Optional[str] = None) -> Location:
-    """Resolve a quote to a Location(path, start, end, match, occurrences).
+           hint: Optional[str] = None, near: Optional[list] = None) -> Location:
+    """Resolve a quote to a Location(path, start, end, match, occurrences). near: [(path, line)] anchors; where no
+    symbol named in the hint decides between several hits, the hit nearest an anchor in the same file wins.
 
     match is exact | normalized | missing; fuzzy/elided matches are unresolved
     candidates, retained for a judge. Normalized matches are counted repairs. See the module docstring for the short-quote, number and hint rules.
@@ -534,8 +567,8 @@ def locate(sm: SourceMap, quote: str, threshold: float = FUZZY_THRESHOLD,
     short = chars < SHORT_QUOTE_CHARS
     if cands:
         if short and len(cands) > 1:
-            return _prefix_line(texts, q, chars, hint, cands) or _short_ambiguous(len(cands))
-        fm, s, e = _pick(cands, hint)
+            return _prefix_line(texts, q, chars, hint, cands, near) or _short_ambiguous(len(cands))
+        fm, s, e = _pick(cands, hint, near)
         return Location(fm.path, s, e, "exact", len(cands))
 
     # Under a JSON schema the 27B writes &quot; &gt; &apos; for the characters themselves (2026-10-03,
@@ -548,8 +581,8 @@ def locate(sm: SourceMap, quote: str, threshold: float = FUZZY_THRESHOLD,
             cands.append((fm, _line_of(text, idx[pos]), _line_of(text, idx[pos + len(nq) - 1])))
     if cands:
         if short and len(cands) > 1:
-            return _prefix_line(texts, q, chars, hint, cands) or _short_ambiguous(len(cands))
-        fm, s, e = _pick(cands, hint)
+            return _prefix_line(texts, q, chars, hint, cands, near) or _short_ambiguous(len(cands))
+        fm, s, e = _pick(cands, hint, near)
         return Location(fm.path, s, e, "normalized", len(cands))
 
     # Neither model writes a literal double quote inside a JSON string: the 8B swaps it for ' or drops
@@ -563,7 +596,7 @@ def locate(sm: SourceMap, quote: str, threshold: float = FUZZY_THRESHOLD,
             for pos in _find_all(stext, sq):
                 cands.append((fm, _line_of(text, idx[keep[pos]]), _line_of(text, idx[keep[pos + len(sq) - 1]])))
         if cands:
-            fm, s, e = _pick(cands, hint)
+            fm, s, e = _pick(cands, hint, near)
             return Location(fm.path, s, e, "normalized", len(cands))
 
     if _ELLIPSIS.search(q):

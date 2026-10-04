@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -13,7 +14,7 @@ from unittest import mock
 from hearth.execution.artifacts import ArtifactStore
 from hearth.execution.coordination import CapacityLeaseStore
 from hearth.execution.ledger import ExecutionLedger
-from hearth.execution.service import ExecutionService
+from hearth.execution.service import ExecutionService, ExecutionServiceError
 from hearth.toolsurface.inference import response_schema_digest
 from hearth.localwork.service import LocalWorkError, LocalWorkService, SERVING_PROFILE_KEYS
 from hearth.toolsurface.backends import load_pool
@@ -463,6 +464,211 @@ parallel_slots = 2
         from hearth.delivery import revision
         with self.assertRaisesRegex(ValueError, "headings"):
             revision.assess(json.dumps(self.coverage_answer(first)), first, revised, None)
+
+
+class CarryProcedureTests(unittest.TestCase):
+    """procedure="carry" (delivery-plan lap 17, B2): a thinking turn writes the draft, thinking-off calls attach quotes,
+    code assembles; the work stays queued/running through the stages and a failed stage fails it loudly."""
+
+    DRAFT = "# Lines\n\nThe file ends with two.\n\nThe file starts with one.\n"
+    ATTACH = "[block 2]\n> two\n[block 3]\n> one\n"
+
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        self.repo = self.root / "repo"
+        self.repo.mkdir()
+        git(self.repo, "init", "-q")
+        git(self.repo, "config", "user.name", "Test")
+        git(self.repo, "config", "user.email", "test@example.invalid")
+        (self.repo / "a.py").write_text("one\ntwo\n", encoding="utf-8")
+        git(self.repo, "add", "a.py")
+        git(self.repo, "commit", "-qm", "base")
+        self.base = git(self.repo, "rev-parse", "HEAD")
+        (self.root / "backends.toml").write_text(
+            'default = "fast-b"\n' + "".join(
+                f'[[backend]]\nname = "{n}"\nendpoint = "http://127.0.0.1:{9000 + i}"\napi = "openai"\nmodels = ["m-{n}"]\n'
+                f'[backend.settings]\nparallel_slots = 1\ncontext_tokens = 65536\ncontext_bytes = 229376\nmax_tokens = 16384\n'
+                + ("deliberate_max_tokens = 24576\n" if n == "deep-b" else "")
+                for i, n in enumerate(("fast-b", "deep-b"))), encoding="utf-8")
+        (self.root / "routes.toml").write_text(
+            'version = "local-work-routes.v2"\n[lane.fast]\nbackend = "fast-b"\n[lane.deep]\nbackend = "deep-b"\n', encoding="utf-8")
+        self.env = mock.patch.dict(os.environ, {
+            "HEARTH_OPERATOR_HOME": str(self.root), "HEARTH_BACKENDS": str(self.root / "backends.toml"),
+            "HEARTH_LOCAL_WORK_ROUTES": str(self.root / "routes.toml"),
+            "HEARTH_ENVIRONMENT_FILE": str(self.root / "no-environment")})
+        self.env.start()
+        self.calls: list[dict] = []
+        self.attach: list = []      # one entry per attach call: the answer text, or an Exception-free dict result
+        self.work: dict = {}
+        self.hold: threading.Event | None = None    # holds the thinking turn until set
+
+        def generate(**kwargs):
+            self.calls.append(kwargs)
+            common = {"backend": kwargs["backend"], "model": kwargs["model"], "wire_request": {}, "reasoning": "thought",
+                      "tokens_in": 10, "tokens_out": 5, "duration_ms": 1, "thinking": kwargs["thinking"]}
+            if kwargs["thinking"]:
+                if self.hold is not None:
+                    self.hold.wait(5)
+                return {**common, "ok": True, "text": self.DRAFT, "finish_reason": "stop", **self.work}
+            answer = self.attach.pop(0) if self.attach else self.ATTACH
+            if isinstance(answer, dict):
+                return {**common, **answer}
+            return {**common, "ok": True, "text": answer, "finish_reason": "stop"}
+
+        self.state = self.root / "execution"
+        self.execution = self.execution_service(generate, recover=False)
+        self.service = LocalWorkService(self.execution, root=self.root, token_counter=lambda _p, _m, _q: 100)
+
+    def execution_service(self, generate, recover):
+        return ExecutionService(
+            ledger=ExecutionLedger(self.state), artifacts=ArtifactStore(self.state / "artifacts"),
+            leases=CapacityLeaseStore(self.state / "leases.sqlite"), generate=generate, workers=2, recover_pending=recover)
+
+    def tearDown(self) -> None:
+        self.execution.close()
+        self.env.stop()
+        self.temp.cleanup()
+
+    def submit(self, **overrides):
+        brief = json.loads((Path(__file__).resolve().parents[1] / "delivery" / "fixtures" / "a59bad05.brief.json")
+                           .read_text(encoding="utf-8"))
+        args = dict(intent="Report on a.py", acceptance_criteria=["renders"], repo=str(self.repo), base_commit=self.base,
+                    files=["a.py"], artifact_kind="markdown", target_path=None, lane="deep", task_family=None,
+                    deadline_s=30, max_tokens=None, receipt_id="br-carry", idempotency_key=None, caller_id="caller-a",
+                    brief=brief, procedure="carry")
+        args.update(overrides)
+        return self.service.submit(**args)
+
+    def settle(self, work_id: str) -> dict:
+        for _ in range(300):
+            current = self.service.get(work_id)
+            if current["status"] not in {"queued", "running"}:
+                return current
+            time.sleep(.02)
+        self.fail("carried work did not settle")
+
+    def test_full_run_stops_at_awaiting_review_with_the_carry_record(self) -> None:
+        final = self.settle(self.submit()["work_id"])
+        self.assertEqual(final["status"], "awaiting_review", final.get("failure"))
+        work, attach = self.calls
+        self.assertEqual((work["thinking"], work["max_tokens"], work["temperature"]), (True, 24576, 0))
+        self.assertEqual((attach["thinking"], attach["max_tokens"], attach["temperature"]), (False, 1000, 0))
+        self.assertEqual([m["role"] for m in work["messages"]], ["system", "user"])
+        self.assertIn("STEP: work.", work["messages"][1]["content"])
+        self.assertIn("=== CARRIED DRAFT ===", attach["messages"][1]["content"])
+        self.assertEqual([(j["stage"], j["batch"]) for j in final["carry"]["jobs"]], [("work", 0), ("attach", 1)])
+        self.assertEqual(final["carry"]["stage"], "render")
+        run = self.root / "runs" / "operator" / final["work_id"]
+        delivery = json.loads((run / "delivery.json").read_text(encoding="utf-8"))
+        self.assertEqual((delivery["procedure"], delivery["aids_used"][-2:]), ("carry", ["thinking", "carried_draft"]))
+        self.assertTrue({"candidate", "manifest", "output", "carry_draft", "carry_reasoning", "line_references"}
+                        <= set(final["delivery_artifacts"]))
+        self.assertEqual((run / "carry-draft.md").read_text(encoding="utf-8"), self.DRAFT)
+        self.assertEqual(self.service.artifact(final["work_id"])["delivery"]["files"]["carry_reasoning"]["size"], 7)
+
+    def test_a_truncated_attach_answer_is_retried_once_as_two_halves(self) -> None:
+        self.attach = [{"ok": False, "text": "[block 2]", "finish_reason": "length", "error_code": "output_truncated",
+                        "error": "output_truncated: cut"}, "[block 2]\n> two\n", "[block 3]\n> one\n"]
+        final = self.settle(self.submit()["work_id"])
+        self.assertEqual(final["status"], "awaiting_review", final.get("failure"))
+        self.assertEqual(final["carry"]["retried"], [1])
+        self.assertEqual([(j["batch"], j["part"]) for j in final["carry"]["jobs"][1:]], [(1, ""), (1, "a"), (1, "b")])
+
+    def test_a_rejected_answer_then_a_second_failure_fails_the_work_and_keeps_the_draft(self) -> None:
+        self.attach = ["[block 2]\n> two\n", {"ok": False, "text": "", "finish_reason": "length",
+                                              "error_code": "output_truncated", "error": "output_truncated: cut"}]
+        final = self.settle(self.submit()["work_id"])
+        self.assertEqual(final["status"], "failed")
+        self.assertIn("carry attach batch 1a", final["failure"])
+        self.assertEqual(final["carry"]["failure"]["stage"], "attach")
+        self.assertEqual((self.root / "runs" / "operator" / final["work_id"] / "carry-draft.md").read_text(encoding="utf-8"), self.DRAFT)
+        self.assertNotIn("delivery_artifacts", final)
+
+    def test_a_failed_work_stage_fails_the_work_and_keeps_the_cut_draft(self) -> None:
+        self.work = {"ok": False, "text": "# Lines\n\ncut", "finish_reason": "length", "error_code": "output_truncated",
+                     "error": "output_truncated: cut"}
+        final = self.settle(self.submit()["work_id"])
+        self.assertEqual((final["status"], len(self.calls)), ("failed", 1))
+        self.assertIn("carry work", final["failure"])
+        self.assertEqual(final["carry"]["kept"]["output"]["file"], "carry-draft.partial.md")
+
+    def test_submits_the_procedure_cannot_serve_are_refused_by_name(self) -> None:
+        for label, overrides, reason in (("fast lane", {"lane": "fast"}, "deep lane on a backend that declares deliberate_max_tokens"),
+                                         ("revise", {"revise": True}, "no revision round"),
+                                         ("no brief", {"brief": None}, "requires a brief"),
+                                         ("max_tokens", {"max_tokens": 4096}, "max_tokens is refused"),
+                                         ("unknown", {"procedure": "other"}, "'carry' or absent")):
+            with self.subTest(label), self.assertRaisesRegex(LocalWorkError, reason):
+                self.submit(**overrides)
+        self.assertEqual(self.calls, [])
+
+    def test_a_restart_between_stages_resumes_and_a_restart_during_a_job_fails_the_work(self) -> None:
+        self.hold = threading.Event()
+        with mock.patch.object(self.service, "_spawn_auto_reconcile"):   # the process dies before its waiter reconciles
+            work_id = self.submit()["work_id"]
+            self.hold.set()
+            for _ in range(100):
+                if self.execution.get_job(self.service._read(work_id)["job_id"])["status"] == "succeeded":
+                    break
+                time.sleep(.02)
+        self.assertEqual(self.service._read(work_id)["carry"]["stage"], "work")
+        restarted = LocalWorkService(self.execution_service(self.execution._generate, recover=True), root=self.root,
+                                     token_counter=lambda _p, _m, _q: 100)
+        self.assertEqual(restarted.reconcile_all(), 1)   # the mount-time reconcile dispatches the attach stage
+        for _ in range(300):
+            final = restarted._read(work_id)
+            if final["status"] not in {"queued", "running"}:
+                break
+            time.sleep(.02)
+        restarted.execution.close()
+        self.assertEqual(final["status"], "awaiting_review", final.get("failure"))
+        gate = self.hold = threading.Event()     # the second work's thinking turn hangs in the seat
+        def hanging(**kwargs):
+            gate.wait(5)
+            return {"ok": True, "text": "late", "finish_reason": "stop", "backend": kwargs["backend"], "model": kwargs["model"]}
+        second = self.submit(idempotency_key="restart-2")
+        for _ in range(100):
+            if self.execution.get_job(self.service._read(second["work_id"])["job_id"])["status"] == "running":
+                break
+            time.sleep(.02)
+        recovered = self.execution_service(hanging, recover=True)   # a gateway start: the running turn is closed, not replayed
+        try:
+            failed = LocalWorkService(recovered, root=self.root, token_counter=lambda _p, _m, _q: 100).reconcile(second["work_id"])
+        finally:
+            gate.set()
+            recovered.close()
+        self.assertEqual((failed["status"], failed["carry"]["failure"]["stage"]), ("failed", "work"))
+        self.assertIn("never replayed", failed["failure"])
+
+    def test_a_refused_dispatch_or_a_raising_render_fails_the_work_instead_of_leaving_it_queued(self) -> None:
+        """Review of 2d50438: an exception out of a stage left the manifest queued with no waiter (the drain counts it
+        busy for ever) and made reconcile_all raise at mount. Each is a failed stage now, named, the draft kept."""
+        real = self.execution.submit
+        def refusing(**kwargs):
+            if kwargs["arguments"]["thinking"] is False:
+                raise ExecutionServiceError("HEARTH dispatch is paused; restart the gateway after resume")
+            return real(**kwargs)
+        with mock.patch.object(self.execution, "submit", side_effect=refusing):
+            final = self.settle(self.submit()["work_id"])
+            self.assertEqual(self.service.reconcile_all(), 0)
+        self.assertEqual((final["status"], final["carry"]["failure"]["stage"]), ("failed", "attach"))
+        self.assertIn("carry attach batch 1: ExecutionServiceError: HEARTH dispatch is paused", final["failure"])
+        self.assertTrue((self.root / "runs" / "operator" / final["work_id"] / "carry-draft.md").is_file())
+        with mock.patch("hearth.delivery.carry.line_reference_agreement", side_effect=KeyError(7)):
+            final = self.settle(self.submit()["work_id"])
+        self.assertEqual((final["status"], final["carry"]["failure"]["stage"]), ("failed", "render"))
+        with mock.patch.object(self.execution, "submit", side_effect=ExecutionServiceError("global execution queue is full")):
+            with self.assertRaisesRegex(ExecutionServiceError, "queue is full"):
+                self.submit(idempotency_key="refused-at-submit")
+        on_disk = [json.loads(p.read_text(encoding="utf-8")) for p in (self.root / "runs" / "operator").glob("*/work-manifest.json")]
+        self.assertEqual(sorted(m["status"] for m in on_disk), ["failed"] * 3)
+
+    def test_a_draft_render_would_refuse_fails_at_the_work_stage_before_any_attach(self) -> None:
+        self.DRAFT = "".join(f"# H{i}\n\nText {i}.\n\n" for i in range(17))   # 17 sections: assemble refuses
+        final = self.settle(self.submit()["work_id"])
+        self.assertEqual((final["status"], final["carry"]["failure"]["stage"], len(self.calls)), ("failed", "work", 1))
+        self.assertIn("sections", final["failure"])
 
 
 class DeepLaneFamilyTests(unittest.TestCase):

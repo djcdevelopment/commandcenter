@@ -1,0 +1,17 @@
+=== CARRIED DRAFT ===
+Another worker wrote a draft report about the SOURCE FILES above. The draft is split into numbered blocks. You do not write, shorten or change any text. Your only job is to attach evidence: for each block listed below, copy from the SOURCE FILES the lines that show what the block states.
+
+Rules:
+1. For each block return up to 3 quotes. A quote is one whole source line, or one contiguous part of one line, copied character for character: same spelling, spacing and punctuation. Write double quotes inside a quote exactly as in the source; they need no escaping here. Do not copy the "NNN| " line-number prefix.
+2. Never join lines, never use an ellipsis, never reword, never quote a single word. Quote only text that is in the SOURCE FILES, never text from the blocks.
+3. Choose the lines that show the facts the block states. Numbers in parentheses inside a block are line numbers in the source and can guide you, but a quote must be source text, not the number.
+4. If a block states nothing checkable from the source (a transition, or a statement that something is absent), return an empty list for it.
+5. Answer in exactly this plain-text form, for every block id listed, in order, with nothing else (no JSON, no commentary):
+[block 3]
+> first quote, written on one line, e.g. name = { status = "live" }
+> second quote
+[block 4]
+(none)
+Each quote is one line starting with "> "; put no extra quotation marks around it and add no backslashes. Write (none) for a block with no quote.
+
+BLOCKS TO CHECK:

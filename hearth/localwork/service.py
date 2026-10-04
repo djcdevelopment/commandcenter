@@ -21,10 +21,11 @@ import uuid
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping, Optional
 
-from hearth.delivery import contract, render as delivery_render, revision as revision_coverage, sourcemap
+from hearth.delivery import carry, contract, render as delivery_render, revision as revision_coverage, sourcemap
 from hearth.delivery.verify import verify as verify_delivery
 from fleet import environment
 from hearth.execution import ExecutionService
+from hearth.execution.model import FINAL_JOB_STATUSES
 from hearth.execution.lab_config import active_configuration
 from hearth.operator import canonical, envelope, history, paths
 from hearth.toolsurface.backends import Backend, load_pool
@@ -34,6 +35,11 @@ MANIFEST_SCHEMA = "local-work-manifest.v1"
 TEMPLATE_VERSION = "local-work-prompts.v1"
 ROUTE_PROFILE_VERSION = "local-work-routes.v2"
 DELIVERY_TOKEN_CEILING = 16384
+CARRY_WORK_TOKENS = 24576   # the procedure's thinking turn: inference.deliberate's ceiling, not work.produce's
+# The system line of the accepted working drafts (delivery-plan/evidence/multistep/run_multistep.py SYSTEM), unchanged.
+CARRY_SYSTEM = ("You are auditing source files in order to write a short report. You work in steps inside this one "
+                "conversation: you keep working notes, check them, and only then write. Say only what the source shows.")
+IN_FLIGHT = frozenset({"accepted", "queued", "dispatched", "running"})
 KINDS = frozenset({"markdown", "json", "whole_file", "unified_diff"})
 LANES = frozenset({"auto", "fast", "deep", "tool"})   # tool: explicit only, when the route profile names it
 FINAL = frozenset({"accepted", "rejected", "superseded", "failed"})
@@ -230,7 +236,8 @@ class LocalWorkService:
         return text, _digest(text)
 
     @staticmethod
-    def _delivery_prompt(template: str, intent: str, brief: Mapping[str, Any], packet: str) -> str:
+    def _delivery_task(intent: str, brief: Mapping[str, Any], packet: str, carried: bool = False) -> str:
+        """REQUEST ... SOURCE FILES: the task text every delivery prompt carries after its instruction."""
         form = contract.form_defaults(brief)
         words = form.get("words")
         limits = [f"Write at most {words['max']} words in total (summary and paragraph text)."
@@ -239,10 +246,15 @@ class LocalWorkService:
             limits.append("Use these section headings, in this order: " + "; ".join(form["sections"]) + ".")
         substance = "\n".join(f"- {row['id']}: {row['statement']}" for row in brief["substance"])
         source_label = ("numbered; cite repository-relative path:N" if form["quote_mode"] == "line_reference"
+                        else "numbered lines; quote the text without the line-number prefix" if carried
                         else "plain text; copy quotes from the CODE blocks")
-        return (f"{template}\n\nREQUEST\nINTENT: {intent}\n\nSUBSTANCE (the report must show each):\n{substance}"
+        return (f"REQUEST\nINTENT: {intent}\n\nSUBSTANCE (the report must show each):\n{substance}"
                 f"\n\nFORM:\n" + ("\n".join(f"- {x}" for x in limits) or "- No length limit.")
                 + f"\n\nSOURCE FILES ({source_label}):\n{packet}")
+
+    @staticmethod
+    def _delivery_prompt(template: str, intent: str, brief: Mapping[str, Any], packet: str) -> str:
+        return f"{template}\n\n" + LocalWorkService._delivery_task(intent, brief, packet)
 
     @staticmethod
     def _delivery_max_tokens(brief: Mapping[str, Any]) -> int:
@@ -303,13 +315,24 @@ class LocalWorkService:
                deadline_s: int, max_tokens: int | None, receipt_id: str | None,
                idempotency_key: str | None, caller_id: str,
                brief: Mapping[str, Any] | None = None,
-               temperature: float | None = None, revise: bool = False) -> dict[str, Any]:
+               temperature: float | None = None, revise: bool = False,
+               procedure: str | None = None) -> dict[str, Any]:
         if artifact_kind not in KINDS:
             raise LocalWorkError(f"artifact_kind must be one of {sorted(KINDS)}")
         if brief is not None and artifact_kind != "markdown":
             raise LocalWorkError("brief (delivery) requires artifact_kind markdown")
         if revise and brief is None:
             raise LocalWorkError("revise requires a brief (delivery)")
+        if procedure is not None:
+            if procedure != "carry":
+                raise LocalWorkError("procedure must be 'carry' or absent")
+            if brief is None:
+                raise LocalWorkError("procedure 'carry' requires a brief (delivery)")
+            if revise:
+                raise LocalWorkError("procedure 'carry' has no revision round: revise is refused")
+            if max_tokens is not None:
+                raise LocalWorkError(f"procedure 'carry' fixes its own budgets ({CARRY_WORK_TOKENS} for the work turn): "
+                                     "max_tokens is refused")
         if temperature is not None and (isinstance(temperature, bool) or not isinstance(temperature, (int, float))
                                         or not 0 <= temperature <= 2):
             raise LocalWorkError("temperature must be a number in [0, 2]")
@@ -329,13 +352,15 @@ class LocalWorkService:
             brief = {**brief, "sources": [{"path": name, "commit": base} for name in declared]}
             try:
                 contract.check_brief(brief)
+                if procedure and contract.form_defaults(brief)["quote_mode"] != "text":
+                    raise LocalWorkError("procedure 'carry' attaches text quotes: form.quote_mode must be text")
                 packet = sourcemap.render_for_model(sourcemap.build(str(repo_path), base, declared),
-                                                    numbered=contract.form_defaults(brief)["quote_mode"] == "line_reference",
+                                                    numbered=bool(procedure) or contract.form_defaults(brief)["quote_mode"] == "line_reference",
                                                     symbols=False)
             except (contract.ContractError, sourcemap.SourceMapError) as exc:
                 raise LocalWorkError(f"delivery brief refused: {exc}") from exc
             if max_tokens is None:
-                max_tokens = self._delivery_max_tokens(brief)
+                max_tokens = CARRY_WORK_TOKENS if procedure else self._delivery_max_tokens(brief)
         template, template_hash = self._template(artifact_kind, delivery, contract.form_defaults(brief)["quote_mode"]
                                                  if delivery else "text")
         # The depth floor is token-based, not a byte heuristic.  For auto we
@@ -355,16 +380,35 @@ class LocalWorkService:
         if provider is None or provider.retired:
             raise LocalWorkError(f"local lane {selected_lane!r} is unavailable: {backend_name}")
         model = provider.models[0] if provider.models else ""
+        if procedure:
+            if selected_lane != "deep" or not provider.settings.get("deliberate_max_tokens"):
+                raise LocalWorkError(f"procedure 'carry' needs the deep lane on a backend that declares "
+                                     f"deliberate_max_tokens: lane {selected_lane!r} -> {backend_name!r}")
+            if int(provider.settings["deliberate_max_tokens"]) < CARRY_WORK_TOKENS:
+                raise LocalWorkError(f"procedure 'carry' needs deliberate_max_tokens >= {CARRY_WORK_TOKENS}: "
+                                     f"{backend_name!r} declares {provider.settings['deliberate_max_tokens']}")
         request_doc = {"intent": intent, "acceptance_criteria": acceptance_criteria,
                        "artifact_kind": artifact_kind, "target_path": target,
                        "declared_paths": declared, "source_files": source_meta,
                        "source_pack": source_pack}
-        prompt = (self._delivery_prompt(template, intent, brief, packet) if delivery
-                  else template + "\n\nREQUEST\n" + json.dumps(request_doc, sort_keys=True))
+        work_template = None
+        if procedure:
+            # The procedure is part of the prompt (and so of the digest the duplicate check compares).
+            work_template, template_hash = self._template_file("local_work_delivery_work_v1.txt")
+            task = self._delivery_task(intent, brief, packet, carried=True)
+            prompt = f"PROCEDURE: carry\n{task}\n\n{work_template.strip()}"
+        else:
+            prompt = (self._delivery_prompt(template, intent, brief, packet) if delivery
+                      else template + "\n\nREQUEST\n" + json.dumps(request_doc, sort_keys=True))
         input_tokens = self.token_counter(provider, model, prompt)
         output_reserve = max_tokens or int(provider.settings.get("max_tokens") or 4096)
         context_tokens = int(provider.settings.get("context_tokens") or
                              (int(provider.settings.get("context_bytes") or 0) // 4))
+        if procedure:
+            carried_bytes = len((CARRY_SYSTEM + prompt.split("\n", 1)[1]).encode("utf-8"))
+            if context_tokens <= 0 or carried_bytes // 4 + CARRY_WORK_TOKENS > context_tokens:
+                raise LocalWorkError(f"carry work refusal: {carried_bytes // 4} input (bytes // 4) + "
+                                     f"{CARRY_WORK_TOKENS} output > {context_tokens}")
         if context_tokens <= 0 or input_tokens + output_reserve > context_tokens:
             raise LocalWorkError(
                 f"exact context refusal: {input_tokens} input + {output_reserve} output > {context_tokens}")
@@ -414,9 +458,27 @@ class LocalWorkService:
             if revise:
                 manifest["revise"] = True
             manifest["brief_sha256"] = _digest(json.dumps(brief, sort_keys=True, separators=(",", ":")))
+        if procedure:
+            manifest["carry"] = {"stage": "work", "batch": 0, "batches": 0, "retried": [], "jobs": [], "quotes": {}}
         with self._lock:
             self._write(manifest)
             envelope.store_envelope(env, work_id, raw_prompt=prompt)
+            if procedure:
+                try:
+                    state = self._carry_submit(
+                        manifest, "carry-work", "work", 0, "",
+                        [{"role": "system", "content": CARRY_SYSTEM},
+                         {"role": "user", "content": prompt.split("\n", 1)[1]}],
+                        True, 0 if temperature is None else temperature, CARRY_WORK_TOKENS, deadline_s,
+                        {"type": "hearth_caller", "id": caller_id, "authenticated": True},
+                        {"transport": "mcp", "adapter": caller_id})
+                except Exception as exc:   # never leave a queued manifest nobody comes back to (the drain counts it busy)
+                    self._carry_fail(manifest, None, f"dispatch refused: {type(exc).__name__}: {exc}")
+                    self._write(manifest)
+                    raise
+                self._write(manifest)
+                self._spawn_auto_reconcile(work_id, state["job_id"])
+                return self.reconcile(work_id)
             state = self.execution.submit(
                 operation_name="work.produce",
                 arguments={"prompt": prompt, "backend": backend_name, "model": model,
@@ -440,7 +502,17 @@ class LocalWorkService:
 
     def _auto_reconcile(self, work_id: str, job_id: str) -> None:
         try:
-            self.execution.watch(job_id=job_id, wait_seconds=3600)
+            if "carry" in self._read(work_id):
+                # A carried work advances stage by stage with nobody polling: wait for this stage's job to end,
+                # then reconcile, which dispatches the next stage and spawns the next waiter. No wall-clock cap: a job
+                # can outlive any fixed wait (deadline up to 3,600 s from its start, plus time queued for a worker).
+                while True:
+                    job = self.execution.get_job(job_id)
+                    if job is None or job["status"] in FINAL_JOB_STATUSES:
+                        break
+                    self.execution.watch(job_id=job_id, after_sequence=int(job.get("last_sequence", 0)), wait_seconds=30)
+            else:
+                self.execution.watch(job_id=job_id, wait_seconds=3600)
         except Exception:
             pass
         try:
@@ -615,8 +687,10 @@ class LocalWorkService:
         self._event(manifest, "verification.recorded", {"passed": False, "reason_sha256": _digest(reason)})
         self._event(manifest, "outcome.final", {"status": "failed", "reason": reason[:200]})
 
-    def _render_answer(self, manifest: Mapping[str, Any], job: Mapping[str, Any], raw: bytes) -> tuple:
-        """-> (output, markdown, delivery manifest); a failure raises _Refused with its named reason."""
+    def _render_answer(self, manifest: Mapping[str, Any], job: Mapping[str, Any], raw: bytes,
+                       carried: Mapping[str, int] | None = None) -> tuple:
+        """-> (output, markdown, delivery manifest); a failure raises _Refused with its named reason.
+        `carried` (the carry procedure's repair counts) marks the answer as assembled from a carried draft."""
         try:
             output = json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, ValueError) as exc:
@@ -640,12 +714,15 @@ class LocalWorkService:
                 "configuration": {"model": observed.get("model") or route["model"], "seat": route["provider"],
                                   "context_tokens": manifest["prompt"]["context_tokens"],
                                   "profile": route["serving_profile_sha256"][:12]},
-                "aids_used": ["constrained_output"]}
+                "aids_used": ["thinking", "carried_draft"] if carried is not None else ["constrained_output"]}
         try:
             sm = sourcemap.build(manifest["repo"], manifest["base_commit"], list(manifest["declared_paths"]))
             markdown, delivery = delivery_render.render(output, manifest["brief"], sm, meta)
             if dropped:
                 delivery["repairs"]["empty_quote_dropped"] = dropped
+            if carried is not None:
+                delivery["procedure"] = "carry"
+                delivery["repairs"].update({k: v for k, v in carried.items() if v})
             contract.check_manifest(delivery)
         except (contract.ContractError, sourcemap.SourceMapError) as exc:
             raise _Refused(f"delivery_render_failed: {type(exc).__name__}: {exc}") from exc
@@ -955,6 +1032,191 @@ class LocalWorkService:
         self._adopt_delivery(manifest, job, metadata, raw, rendered)
         self._finish_delivery(manifest, str(job["job_id"]))
 
+    # ---- the carry procedure: work (one thinking turn) -> attach (quotes, batch by batch) -> render ----
+    def _carry_submit(self, manifest: dict[str, Any], key: str, stage: str, batch: int, part: str,
+                      messages: list, thinking: bool, temperature: float, max_tokens: int, deadline_s: int,
+                      principal: Mapping[str, Any], source: Mapping[str, Any]) -> dict[str, Any]:
+        """One inference.deliberate job for a stage; the stage is written to the manifest before the dispatch is
+        recorded. A repeated call (a reconcile after a crash) gets the same job, and the recorded request is
+        compared with this one, as the coverage job does."""
+        work_id, carry_state = str(manifest["work_id"]), manifest["carry"]
+        arguments = {"messages": messages, "backend": manifest["route"]["provider"], "model": manifest["route"]["model"],
+                     "thinking": thinking, "temperature": temperature}
+        carry_state.update(stage=stage, batch=batch, part=part)
+        state = self.execution.submit(operation_name="inference.deliberate", arguments=arguments, principal=principal,
+                                      source=source, policy={"max_tokens": max_tokens, "deadline_s": deadline_s},
+                                      idempotency_key=f"{work_id}:{key}")
+        recorded = self.execution.get_job(state["job_id"])
+        args = (recorded or {}).get("desired", {}).get("arguments", {})
+        wire = json.loads(self.execution.artifacts.read(recorded["desired"]["input_artifact"])) if recorded else None
+        if (wire != messages or any(args.get(k) != v for k, v in arguments.items() if k != "messages")
+                or recorded["desired"]["policy"].get("max_tokens") != max_tokens):
+            raise LocalWorkError(f"carry idempotency collision: recorded {key} request differs")
+        manifest.update(job_id=state["job_id"], request_id=state["request_id"], status="queued")
+        if state["job_id"] not in [j["job_id"] for j in carry_state["jobs"]]:
+            carry_state["jobs"].append({"stage": stage, "batch": batch, "part": part, "job_id": state["job_id"]})
+            manifest["attempts"].append({"number": len(manifest["attempts"]) + 1, "request_id": state["request_id"],
+                                         "job_id": state["job_id"], "repair": False, "carry_stage": stage})
+        self._event(manifest, "step.dispatched", {"job_id": state["job_id"], "attempt": len(manifest["attempts"]),
+                    "provider": manifest["route"]["provider"], "model": manifest["route"]["model"],
+                    "carry_stage": stage, "carry_batch": batch, "carry_part": part},
+                    refs={"receipt_id": manifest["receipt_id"]} if manifest.get("receipt_id") else {})
+        return state
+
+    def _carry_fail(self, manifest: dict[str, Any], job: Mapping[str, Any] | None, reason: str) -> None:
+        """Any failed stage fails the work, names the stage, and keeps what exists; nothing falls back or renders."""
+        carry_state, run_dir = manifest["carry"], self._run_dir(str(manifest["work_id"]))
+        carry_state["failure"] = {"stage": carry_state["stage"], "batch": carry_state["batch"],
+                                  "part": carry_state.get("part", ""), "reason": reason}
+        if job is not None and carry_state["stage"] == "work":   # a cut or failed thinking turn still has its record
+            for role, name in (("output", "carry-draft.partial.md"), ("reasoning", "carry-reasoning.txt")):
+                ref = next((a["artifact_id"] for a in job.get("artifacts", []) if a.get("role") == role), None)
+                if ref:
+                    data = self.execution.read_artifact(str(ref))[1]
+                    (run_dir / name).write_bytes(data)
+                    carry_state.setdefault("kept", {})[role] = {"file": name, "sha256": _digest(data), "size": len(data)}
+        self._fail(manifest, f"carry {carry_state['stage']}"
+                   + (f" batch {carry_state['batch']}{carry_state.get('part', '')}" if carry_state["batch"] else "")
+                   + f": {reason}")
+
+    def _carry_draft(self, manifest: Mapping[str, Any]) -> str:
+        ref = manifest["carry"]["draft"]
+        data = (self._run_dir(str(manifest["work_id"])) / ref["file"]).read_bytes()
+        if _digest(data) != ref["sha256"]:
+            raise LocalWorkError("carry draft digest no longer matches manifest")
+        return data.decode("utf-8")
+
+    @staticmethod
+    def _carry_units(batches: list, batch: int, part: str) -> list:
+        unit = batches[batch - 1]
+        half = (len(unit) + 1) // 2
+        return {"": unit, "a": unit[:half], "b": unit[half:]}[part]
+
+    def _carry_dispatch_attach(self, manifest: dict[str, Any], job: Mapping[str, Any], batch: int, part: str) -> None:
+        carry_state, work_id = manifest["carry"], str(manifest["work_id"])
+        batches = carry.batches(carry.split_draft(self._carry_draft(manifest)))
+        unit = self._carry_units(batches, batch, part)
+        first = self.execution.get_job(carry_state["jobs"][0]["job_id"])
+        user = json.loads(self.execution.artifacts.read(first["desired"]["input_artifact"]))[1]["content"]
+        instruction = self._template_file("local_work_delivery_work_v1.txt")[0].strip()
+        if not user.endswith("\n\n" + instruction):
+            raise LocalWorkError("carry work prompt no longer ends with its instruction")
+        task = user[:-len("\n\n" + instruction)]
+        content = task + "\n" + self._template_file("local_work_delivery_attach_v1.txt")[0] + carry.format_blocks(unit)
+        messages = [{"role": "system", "content": CARRY_SYSTEM}, {"role": "user", "content": content}]
+        max_tokens = min(3000, 400 * len(unit) + 200)
+        context = int(manifest["prompt"]["context_tokens"])
+        needed = len((CARRY_SYSTEM + content).encode("utf-8")) // 4 + max_tokens
+        if needed > context:
+            return self._carry_fail(manifest, None, f"attach does not fit: {needed} (bytes // 4 + output) > {context}")
+        self._carry_submit(manifest, f"carry-attach-{batch}{part}", "attach", batch, part, messages, False, 0, max_tokens,
+                           int(first["desired"]["policy"]["deadline_s"]), job["principal"], job["source"])
+        self._spawn_auto_reconcile(work_id, manifest["job_id"])
+
+    def _carry_next(self, manifest: dict[str, Any], job: Mapping[str, Any]) -> None:
+        """The unit after the one that just succeeded: the second half, the next batch, or render."""
+        carry_state = manifest["carry"]
+        batch, part = carry_state["batch"], carry_state.get("part", "")
+        batches = carry.batches(carry.split_draft(self._carry_draft(manifest)))
+        while True:
+            batch, part = (batch, "b") if part == "a" else (batch + 1, "")
+            if batch > len(batches):
+                carry_state.update(stage="render", batch=len(batches), part="")
+                self._write(manifest)
+                return self._carry_render(manifest, job)
+            if self._carry_units(batches, batch, part):
+                return self._carry_dispatch_attach(manifest, job, batch, part)
+
+    def _carry_retry(self, manifest: dict[str, Any], job: Mapping[str, Any], reason: str) -> None:
+        carry_state = manifest["carry"]
+        batch, part = carry_state["batch"], carry_state.get("part", "")
+        if part or batch in carry_state["retried"]:
+            return self._carry_fail(manifest, job, f"{reason} (second failure of batch {batch})")
+        carry_state["retried"].append(batch)
+        self._event(manifest, "attempt.recorded", {"job_id": job["job_id"], "ok": False, "carry_stage": "attach",
+                    "carry_batch": batch, "retried_as_halves": True, "reason_sha256": _digest(reason)})
+        self._carry_dispatch_attach(manifest, job, batch, "a")
+
+    def _reconcile_carry(self, manifest: dict[str, Any], job: Mapping[str, Any] | None) -> None:
+        carry_state, work_id = manifest["carry"], str(manifest["work_id"])
+        if job is None:
+            return self._carry_fail(manifest, None, "execution job missing")
+        if carry_state["stage"] == "render":   # crashed after the stage was written: every quote is already stored
+            return self._carry_render(manifest, job)
+        if job["status"] in IN_FLIGHT:
+            manifest["status"] = "running" if job["status"] in {"dispatched", "running"} else "queued"
+            return
+        observed = (job.get("invocations") or [{}])[-1]
+        if job["status"] != "succeeded":
+            reason = job.get("reason") or f"execution ended {job['status']}"
+            if carry_state["stage"] == "attach" and observed.get("error_code") == "output_truncated":
+                return self._carry_retry(manifest, job, reason)
+            return self._carry_fail(manifest, job, reason)
+        self._event(manifest, "attempt.recorded", {"job_id": job["job_id"], "ok": True, "carry_stage": carry_state["stage"],
+                    "carry_batch": carry_state["batch"], "carry_part": carry_state.get("part", "")})
+        artifacts = {a["role"]: a["artifact_id"] for a in job.get("artifacts", []) if a.get("role")}
+        if carry_state["stage"] == "work":
+            draft = self.execution.read_artifact(str(artifacts["output"]))[1]
+            run_dir = self._run_dir(work_id)
+            reasoning = self.execution.read_artifact(str(artifacts["reasoning"]))[1] if "reasoning" in artifacts else b""
+            (run_dir / "carry-draft.md").write_bytes(draft)
+            (run_dir / "carry-reasoning.txt").write_bytes(reasoning)
+            carry_state["draft"] = {"file": "carry-draft.md", "sha256": _digest(draft), "size": len(draft)}
+            carry_state["reasoning"] = {"file": "carry-reasoning.txt", "sha256": _digest(reasoning), "size": len(reasoning)}
+            carry_state["work"] = {k: observed.get(k) for k in ("finish_reason", "tokens_in", "tokens_out", "tokens_reasoning",
+                                                                "duration_ms", "backend", "model", "temperature")}
+            try:
+                blocks = carry.split_draft(draft.decode("utf-8"))
+                carry.assemble(blocks, {})   # what render would refuse (sections, empty blocks) fails now, before any attach
+                carry_state["batches"] = len(carry.batches(blocks))
+            except (carry.CarryError, UnicodeDecodeError) as exc:
+                return self._carry_fail(manifest, job, f"the working draft cannot be carried: {exc}")
+            if not carry_state["batches"]:
+                return self._carry_fail(manifest, job, "the working draft has no text blocks")
+            return self._carry_dispatch_attach(manifest, job, 1, "")
+        batches = carry.batches(carry.split_draft(self._carry_draft(manifest)))
+        unit = self._carry_units(batches, carry_state["batch"], carry_state.get("part", ""))
+        answer = self.execution.read_artifact(str(artifacts["output"]))[1].decode("utf-8", errors="replace")
+        try:
+            quotes, repairs = carry.parse_attach(answer, [b["id"] for b in unit])
+        except carry.CarryError as exc:
+            return self._carry_retry(manifest, job, f"attach answer rejected: {exc}")
+        for block_id, found in quotes.items():
+            carry_state["quotes"][str(block_id)] = found
+        done = carry_state.setdefault("repairs_by_job", {})
+        done[job["job_id"]] = repairs   # per job, so a repeated reconcile never counts a repair twice
+        self._carry_next(manifest, job)
+
+    def _carry_render(self, manifest: dict[str, Any], job: Mapping[str, Any]) -> None:
+        carry_state, work_id = manifest["carry"], str(manifest["work_id"])
+        work_job = self.execution.get_job(carry_state["jobs"][0]["job_id"])
+        try:
+            blocks = carry.split_draft(self._carry_draft(manifest))
+            output, report = carry.assemble(blocks, {int(k): v for k, v in carry_state["quotes"].items()})
+            raw = (json.dumps(output, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+            parse_repairs: dict[str, int] = {}
+            for counts in carry_state.get("repairs_by_job", {}).values():
+                for key, value in counts.items():
+                    parse_repairs[key] = parse_repairs.get(key, 0) + value
+            rendered = self._render_answer(manifest, work_job, raw, {**report["repairs"], **parse_repairs})
+        except (carry.CarryError, _Refused) as exc:
+            return self._carry_fail(manifest, job, f"render: {exc}")
+        metadata = self.execution.read_artifact(str(next(
+            a["artifact_id"] for a in work_job["artifacts"] if a.get("role") == "output")))[0]
+        self._note_attempt(manifest, work_job)
+        self._adopt_delivery(manifest, work_job, metadata, raw, rendered)
+        run_dir = self._run_dir(work_id)
+        agreement = json.dumps(carry.line_reference_agreement(report, rendered[2]), indent=2) + "\n"
+        (run_dir / "line-references.json").write_text(agreement, encoding="utf-8", newline="")
+        for key, name, media in (("carry_draft", "carry-draft.md", "text/markdown; charset=utf-8"),
+                                 ("carry_reasoning", "carry-reasoning.txt", "text/plain; charset=utf-8"),
+                                 ("line_references", "line-references.json", "application/json")):
+            data = (run_dir / name).read_bytes()
+            manifest["delivery_artifacts"][key] = {"file": name, "sha256": _digest(data), "size": len(data), "media_type": media}
+        carry_state["report"] = {k: report[k] for k in ("blocks", "paragraphs", "paragraphs_with_quotes", "quotes",
+                                                        "headings_without_paragraphs_dropped") if k in report}
+        self._finish_delivery(manifest, str(job["job_id"]))
+
     def _reconcile_delivery(self, manifest: dict[str, Any], job: Mapping[str, Any],
                             metadata: Mapping[str, Any], raw: bytes) -> None:
         """A delivery job's result is a delivery-output.v1 document. Every failure is named and final:
@@ -1006,7 +1268,14 @@ class LocalWorkService:
                 self._write(manifest)
                 return manifest
             job = self.execution.get_job(str(manifest["job_id"]))
-            if job is None and self._revision_pending(manifest):
+            if manifest.get("carry"):
+                try:
+                    self._reconcile_carry(manifest, job)
+                except Exception as exc:
+                    # A refused next-stage dispatch or a render step that raised is a failed stage, named; raising
+                    # here instead would leave the work queued with no waiter and break reconcile_all at mount.
+                    self._carry_fail(manifest, None, f"{type(exc).__name__}: {exc}")
+            elif job is None and self._revision_pending(manifest):
                 self._keep_original(manifest, f"revision job missing: {manifest['job_id']}")
             elif job is None:
                 manifest["status"] = "failed"

@@ -468,17 +468,24 @@ def _pick_best(cands: list, hint: Optional[str]):
 
 def _nearest(cands: list, near: Optional[list]) -> int:
     """Index of the hit nearest the anchors, or 0 (the first hit) with no anchors or no hit in an anchor's file.
-    Rank: inside the smallest symbol that holds an anchor, then the smallest line distance to any anchor, then the
-    earlier hit. near: [(path, line)]."""
+    Rank: inside the smallest symbol that holds an anchor (the symbol itself, not its name: a property's getter and
+    setter share one), then the deepest block shared with an anchor (the least indentation of a non-blank line from
+    the hit to the anchor: in one do_POST the /ocr branch's 400 is not the /score branch's, though the /ocr answer
+    lines sit nearer the /score 400; 2026-10-04, work_aa6b13cd), then the smallest line distance to any anchor, then
+    the earlier hit. near: [(path, line)]."""
     def smallest(fm, line):
         inside = [y for y in fm.symbols if y["start"] <= line <= y["end"]]
-        return min(inside, key=lambda y: y["end"] - y["start"])["name"] if inside else None
+        return min(inside, key=lambda y: y["end"] - y["start"]) if inside else None
+
+    def shared(fm, a, b):
+        return min((len(t) - len(t.lstrip()) for t in fm.lines[min(a, b) - 1:max(a, b)] if t.strip()), default=0)
     best, at = None, 0
     for i, (fm, s, e) in enumerate(cands):
         here = smallest(fm, s)
         for path, line in near or ():
             if path == fm.path:
-                key = (here is None or here != smallest(fm, line), 0 if s <= line <= e else min(abs(s - line), abs(e - line)))
+                key = (here is None or here is not smallest(fm, line), -shared(fm, s, line),
+                       0 if s <= line <= e else min(abs(s - line), abs(e - line)))
                 if best is None or key < best:
                     best, at = key, i
     return at

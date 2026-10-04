@@ -4,7 +4,8 @@ no service. Source text comes from `git show <commit>:<path>`, never the working
 Moved from delivery-plan/evidence/itemized (make_items.env_reads, make_env_corpus naming, run_itemized prompt and schema,
 score_envmap normaliser) with the same behaviour; the prompt's kind label is the kind name (the script printed the task name).
 Changed since (2026-10-04, measured): writes to os.environ are not items; `same` reads r"x", "x" and x as one default; the
-`default` ask names the `or <value>` idiom, so the prompt no longer equals run_itemized's byte for byte.
+`default` ask names the `or <value>` idiom, so the prompt no longer equals run_itemized's byte for byte. A dispute is settled by
+the 27B as judge with thinking on (lab-rnd research/settle_probe.py PROMPT + TAIL_ON); its own default decides, not its verdict.
 """
 from __future__ import annotations
 
@@ -16,7 +17,8 @@ from functools import lru_cache
 
 from . import contract
 
-__all__ = ["ItemsError", "MAX_ITEMS", "enumerate_items", "prompt", "schema", "parse", "same", "settle", "needs_third", "assemble"]
+__all__ = ["ItemsError", "MAX_ITEMS", "JUDGE_TOKENS", "enumerate_items", "prompt", "schema", "parse", "same", "needs_judge",
+           "judge_prompt", "parse_judgment", "settle", "assemble"]
 
 
 class ItemsError(ValueError):
@@ -25,6 +27,7 @@ class ItemsError(ValueError):
 
 MAX_ITEMS = contract.MAX_SECTIONS * contract.MAX_PARAGRAPHS  # one delivered paragraph per item
 CAP = 300  # shown source lines per item
+JUDGE_TOKENS = 8000  # one of 57 measured thinking calls ran out at 4,000; the median answer used 511
 
 _FIELDS = {"env_reads": [
     {"name": "variable", "type": "string", "ask": "the environment variable name"},
@@ -48,6 +51,19 @@ Rules:
 3. Where the lines show none, write 'none' (or an empty list).
 4. "lines" are 1 to 6 line numbers (the numbers before the | sign) that your answer rests on.
 """
+_JPROMPT = {"env_reads": """Two readers were asked for the default of one environment-variable read in source code. They disagree. Decide from the code.
+
+{block}
+Reading A says the default is: {a}
+Reading B says the default is: {b}
+
+Rules:
+1. Use only the lines shown. The read under study is the one named in the item header, on the item's own lines.
+2. "default" is the default of that read exactly as written in the code (the second argument of os.environ.get or os.getenv), or 'none' if that read has no default.
+3. "verdict" is "A" if reading A is what the code shows, "B" if reading B is, "neither" if neither is.
+4. "lines" are 1 to 4 line numbers (the numbers before the | sign) that your answer rests on.
+Answer with one JSON object on the last line: {{"default": "...", "verdict": "A" | "B" | "neither", "lines": [n, ...]}}
+"""}
 
 
 def _kind(kind: str) -> str:
@@ -146,8 +162,7 @@ def enumerate_items(kind: str, repo: str, commit: str, paths: list) -> list:
     return out
 
 
-def prompt(kind: str, item: dict, repo: str, commit: str) -> str:
-    _kind(kind)
+def _block(item: dict, repo: str, commit: str) -> str:
     lines = _src(repo, commit, item["path"]).splitlines()
     nums = [n for s, e in (item.get("show") or [[item["start"], item["end"]]]) for n in range(max(s, 1), min(e, len(lines)) + 1)]
     cut = ""
@@ -156,9 +171,17 @@ def prompt(kind: str, item: dict, repo: str, commit: str) -> str:
         nums = nums[:CAP]
     shown = "\n".join(f"{n}| {lines[n - 1]}" for n in nums)
     head = f"Item under study: {item['name']} ({item['path']}, lines {item['start']}-{item['end']})"
-    fields = "\n".join(f'   - {f["name"]} (string): {f["ask"]}' for f in _FIELDS[kind])
-    return _FPROMPT.format(question=_QUESTION[kind], kind=kind, desc=_DESC[kind], fields=fields,
-                           items=f"{head}\nSource: {item['path']}{cut}\n{shown}\n")
+    return f"{head}\nSource: {item['path']}{cut}\n{shown}\n"
+
+
+def prompt(kind: str, item: dict, repo: str, commit: str) -> str:
+    fields = "\n".join(f'   - {f["name"]} (string): {f["ask"]}' for f in _FIELDS[_kind(kind)])
+    return _FPROMPT.format(question=_QUESTION[kind], kind=kind, desc=_DESC[kind], fields=fields, items=_block(item, repo, commit))
+
+
+def judge_prompt(kind: str, item: dict, repo: str, commit: str, readings: list) -> str:
+    a, b = ("no answer" if r is None else r["fields"]["default"] for r in readings)
+    return _JPROMPT[_kind(kind)].format(block=_block(item, repo, commit), a=a, b=b)
 
 
 def schema(kind: str) -> dict:
@@ -201,18 +224,45 @@ def same(kind: str, a: dict, b: dict) -> bool:
     return True
 
 
-def needs_third(kind: str, readings: list) -> bool:
+def needs_judge(kind: str, readings: list) -> bool:
     return not (readings[0] is not None and readings[1] is not None and same(kind, readings[0], readings[1]))
 
 
-def settle(kind: str, readings: list) -> dict:
-    r = list(readings) + [None] * (3 - len(readings))
+def parse_judgment(kind: str, text: str) -> dict:
+    """The last JSON object in the text (a thinking answer may carry prose before it); keys beyond the three are ignored."""
+    _kind(kind)
+    if not isinstance(text, str):
+        raise ItemsError(f"judgment is {type(text).__name__}, not text")
+    dec, d = json.JSONDecoder(), None
+    for m in reversed([m.start() for m in re.finditer(r"\{", text)]):
+        try:
+            d = dec.raw_decode(text, m)[0]
+        except ValueError:
+            continue
+        if isinstance(d, dict):
+            break
+        d = None
+    if d is None:
+        raise ItemsError("judgment: no JSON object in the answer")
+    if d.get("verdict") not in ("A", "B", "neither"):
+        raise ItemsError(f"judgment: verdict must be A, B or neither, got {json.dumps(d.get('verdict'))[:40]}")
+    if not isinstance(d.get("default"), str):
+        raise ItemsError("judgment: default missing or not a string")
+    ls = d.get("lines")
+    if not (isinstance(ls, list) and 1 <= len(ls) <= 4 and all(isinstance(n, int) and not isinstance(n, bool) for n in ls)):
+        raise ItemsError(f"judgment: lines must be 1 to 4 integers, got {json.dumps(ls)[:80]}")
+    return {"verdict": d["verdict"], "default": d["default"], "lines": ls}
+
+
+def settle(kind: str, readings: list, judgment: dict | None = None) -> dict:
+    r = readings
     if r[0] is not None and r[1] is not None and same(kind, r[0], r[1]):
         return {"state": "agreed", "fields": r[0]["fields"], "by": [0, 1]}
-    if r[2] is not None:
+    if judgment is not None:
+        own = {"fields": {k: judgment[k] for k in _COMPARED[kind]}}
         for i in (0, 1):
-            if r[i] is not None and same(kind, r[i], r[2]):
-                return {"state": "settled", "fields": r[i]["fields"], "by": [i, 2]}
+            if r[i] is not None and same(kind, r[i], own):
+                return {"state": "settled", "fields": r[i]["fields"], "by": [i, "judge"]}
     return {"state": "unverified", "fields": None, "by": []}
 
 
@@ -228,15 +278,17 @@ def assemble(kind: str, items: list, rows: list, readers: list) -> tuple:
         raise ItemsError(f"{len(items)} items but {len(rows)} rows")
     if not 0 < len(items) <= MAX_ITEMS:
         raise ItemsError(f"{len(items)} items outside 1..{MAX_ITEMS}")
-    paras, count, failures = [], {"agreed": 0, "settled": 0, "unverified": 0}, 0
+    paras, count, failures, jfail = [], {"agreed": 0, "settled": 0, "unverified": 0}, 0, 0
     for it, row in zip(items, rows):
         count[row["state"]] += 1
-        readings = row.get("readings") or []
+        readings, judgment = row["readings"], row.get("judgment")
         failures += sum(1 for x in readings if x is None)
+        jfail += needs_judge(kind, readings) and judgment is None
         head = f"`{it['var']}` at {it['path']}:"
         if row["state"] == "unverified":
             seen = " | ".join("no answer" if x is None else _clip(x["fields"]["default"], 200) or "(empty)" for x in readings)
-            text = f"{head} NOT VERIFIED. Readings of the default: {seen}."
+            judge = "no answer" if judgment is None else _clip(judgment["default"], 200) or "(empty)"
+            text = f"{head} NOT VERIFIED. Readings of the default: {seen}; judge: {judge}."
         else:
             f = row["fields"]
             text = f"{head} default {_clip(f['default'], 300) or '(empty)'}." + (f" {_clip(f['controls'], 600)}" if f["controls"].strip() else "")
@@ -244,9 +296,10 @@ def assemble(kind: str, items: list, rows: list, readers: list) -> tuple:
     n = len(items)
     files = len({it["path"] for it in items})
     summary = (f"Delivery of {n} {_NOUN[kind]} in {files} files. {count['agreed']} were agreed by the first two readers, "
-               f"{count['settled']} were settled by a third reading, and {count['unverified']} are marked NOT VERIFIED because no two "
-               f"readings agree. {failures} reader calls failed. Every row cites the line of its read.")
+               f"{count['settled']} were settled by a judge whose own default matches one reading, and {count['unverified']} are marked "
+               f"NOT VERIFIED because no two agree. {failures} reader calls failed and {jfail} judge calls gave no answer. Every row "
+               f"cites the line of its read.")
     secs = [{"heading": f"Items {i + 1} to {min(i + contract.MAX_PARAGRAPHS, n)}", "paragraphs": paras[i:i + contract.MAX_PARAGRAPHS]}
             for i in range(0, n, contract.MAX_PARAGRAPHS)]
-    report = {"kind": kind, "items": n, **count, "reader_failures": failures, "files": files}
+    report = {"kind": kind, "items": n, **count, "reader_failures": failures, "judge_failures": jfail, "files": files}
     return {"summary": summary, "sections": secs}, report

@@ -110,6 +110,18 @@ def _apply_check(manifest: dict) -> str:
         return "does not apply: " + (r.stderr.strip().splitlines() or ["?"])[0][:100]
 
 
+def _delivery_row(d: dict, m: Path) -> str:
+    carry, summ = d.get("carry") or {}, d.get("delivery_summary") or {}
+    proc = (d.get("route") or {}).get("procedure") or ("carry" if carry else "one_call")
+    if d.get("status") in {"queued", "running"} and carry:
+        stage = f"in flight: stage {carry.get('stage')}" + (f" batch {carry.get('batch')} of {carry.get('batches')}" if carry.get("batch") else "")
+        return f"{proc}, {stage}"
+    if not summ:
+        return f"{proc}, no delivery summary" + (f": {(d.get('failure') or '')[:80]}" if d.get("failure") else "")
+    claims = summ.get("claims") or 0
+    return f"{proc}, deterministic {summ.get('deterministic')}, quotes {claims - (summ.get('missing') or 0)}/{claims} resolved, report `{m.parent / 'candidate.md'}`"
+
+
 def build(hours: int) -> str:
     now = datetime.now(timezone.utc)
     since = now - timedelta(hours=hours)
@@ -122,7 +134,7 @@ def build(hours: int) -> str:
             d = json.loads(m.read_text())
         except Exception:  # noqa: BLE001
             continue
-        if d.get("status") in {"queued", "running"}:
+        if d.get("status") in {"queued", "running"} and not (d.get("carry") or d.get("items")):   # a staged work is shown as stored: the reader holds dispatch
             try:
                 sys.path.insert(0, str(REPO))
                 d = _reader().reconcile(d["work_id"])
@@ -144,6 +156,8 @@ def build(hours: int) -> str:
             route = d.get("route") or {}
             st = d.get("status")
             check = _apply_check(d) if st == "awaiting_review" else (d.get("failure") or "")[:80]
+            if d.get("delivery"):
+                check = _delivery_row(d, m)
             L.append(f"| **{st}** | `{d.get('work_id')}` | {route.get('selected_lane')} / {route.get('model')} | `{d.get('repo')}` | {d.get('artifact_kind')} | {check} | `{m}` |")
         L.append("")
         awaiting = [r for r in rows if r[0].get("status") == "awaiting_review"]

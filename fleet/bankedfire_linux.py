@@ -42,6 +42,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timedelta
 import asyncio
+import hashlib
 import json
 import os
 import re
@@ -194,7 +195,16 @@ def parse_local_work_block(body: str) -> tuple[dict[str, Any], str]:
     for required in ("repo", "paths"):
         if not fields.get(required):
             raise ValueError(f"local-work brief lacks {required!r}")
-    if not fields["criteria"]:
+    if fields.get("delivery_brief"):   # a brief.v2 file carries the criteria (its substance statements)
+        if fields["criteria"]:
+            raise ValueError("local-work brief names delivery_brief and criteria: the criteria are the brief's substance statements")
+        if not fields.get("task_family"):
+            raise ValueError("local-work brief with delivery_brief lacks 'task_family'")
+        if not fields.get("delivery_brief_sha256"):   # the approved .md pins the JSON's bytes
+            raise ValueError("local-work brief with delivery_brief lacks 'delivery_brief_sha256' (sha256 of the brief file's bytes)")
+        if not re.fullmatch(r"[0-9a-f]{64}", str(fields["delivery_brief_sha256"])):
+            raise ValueError(f"delivery_brief_sha256 {fields['delivery_brief_sha256']!r} is not 64 lowercase hex characters")
+    elif not fields["criteria"]:
         raise ValueError("local-work brief lacks acceptance criteria")
     return fields, intent
 
@@ -211,6 +221,8 @@ def resolve_commit(repo: str, commit: Optional[str]) -> str:
 
 def submit_args_from_brief(body: str, *, idempotency_key: Optional[str] = None) -> dict[str, Any]:
     fields, intent = parse_local_work_block(body)
+    if fields.get("delivery_brief"):
+        return delivery_args_from_brief(fields, intent, idempotency_key)
     args: dict[str, Any] = {
         "intent": intent,
         "acceptance_criteria": list(fields["criteria"]),
@@ -228,6 +240,45 @@ def submit_args_from_brief(body: str, *, idempotency_key: Optional[str] = None) 
         args["max_tokens"] = int(fields["max_tokens"])
     if idempotency_key:
         args["idempotency_key"] = idempotency_key
+    return args
+
+
+def delivery_args_from_brief(fields: dict[str, Any], intent: str, idempotency_key: Optional[str]) -> dict[str, Any]:
+    """submit_local_work arguments for a delivery: the brief.v2 JSON named by delivery_brief; the door chooses the procedure."""
+    path = Path(str(fields["delivery_brief"]))
+    if not path.is_absolute():
+        path = Path(fields["repo"]) / path
+    if not path.is_file():
+        raise ValueError(f"delivery_brief {str(path)!r} is not a file")
+    raw = path.read_bytes()
+    pinned, actual = str(fields["delivery_brief_sha256"]), hashlib.sha256(raw).hexdigest()
+    if actual != pinned:
+        raise ValueError(f"delivery_brief changed since the brief was written: expected {pinned[:12]}…, file is {actual[:12]}…")
+    try:
+        brief = json.loads(raw)
+    except ValueError as exc:
+        raise ValueError(f"delivery_brief {str(path)!r} is not JSON: {exc}") from exc
+    if not isinstance(brief, dict):
+        raise ValueError(f"delivery_brief {str(path)!r} is not a JSON object (a brief.v2)")
+    criteria = [str(c["statement"]) for c in brief.get("substance") or [] if isinstance(c, dict) and c.get("statement")]
+    if not criteria:
+        raise ValueError(f"delivery_brief {str(path)!r} has no substance statements")
+    args: dict[str, Any] = {
+        "intent": intent,
+        "acceptance_criteria": criteria,
+        "repo": fields["repo"],
+        "base_commit": resolve_commit(fields["repo"], fields.get("commit")),
+        "files": list(fields["paths"]) if isinstance(fields["paths"], list) else [fields["paths"]],
+        "artifact_kind": "markdown",
+        "brief": brief,
+        "lane": fields.get("lane", "auto"),
+        "task_family": fields["task_family"],
+        "deadline_s": int(fields.get("deadline_s", 2400)),
+    }
+    if fields.get("max_tokens"):
+        args["max_tokens"] = int(fields["max_tokens"])
+    if idempotency_key:
+        args["idempotency_key"] = f"{idempotency_key}:{pinned[:12]}"
     return args
 
 

@@ -1,6 +1,6 @@
 # 0058 — Work is routed by grain: one stated value per item goes to the fast seats, code behaviour and gating go to the 27B, code lists the items and writes the counts, and a fact handed to a writer has passed a gate
 
-**Status:** Accepted 2026-10-04T12:14Z by Claude on Derek's delegation (decision 2 of the approved plan "Deliveries that hold on work the lab has not seen": accepted when an items run on held-out files has no wrong verified row; see the last section). Proposed 2026-10-03 (omen-linux; evidence `~/work/delivery-plan/evidence/itemized/`, `docs/rnd-log.md` top four rows). Nothing in this decision is built at the door; the item runs were caller-side scripts.
+**Status:** Accepted 2026-10-04T12:14Z by Claude on Derek's delegation (decision 2 of the approved plan "Deliveries that hold on work the lab has not seen": accepted when an items run on held-out files has no wrong verified row: one of three met it; see the last section). Proposed 2026-10-03 (omen-linux; evidence `~/work/delivery-plan/evidence/itemized/`, `docs/rnd-log.md` top four rows). Nothing in this decision is built at the door; the item runs were caller-side scripts.
 
 **Companion to:** ADR-0048 (candidates stop at `awaiting_review`; verdicts are human or frontier), ADR-0050 (sizing), ADR-0054 (delivery contract), ADR-0059 (the 27B for multi-step work).
 
@@ -76,8 +76,10 @@ code has no enumerator.
 
 ## Added 2026-10-04: accepted on held-out files (lap 21, Wave 5, through the drain, nothing named but the brief)
 
-The condition set in the plan was met by two of the three held-out inventories; the third has one wrong verified row,
-stated here so the acceptance does not hide it.
+The condition set in the plan (an items run on held-out files with no wrong verified row) was met by one of the three
+held-out inventories, the smallest; the other two each have one wrong row, stated here so the acceptance does not hide
+them. An Opus grader read the three delivered reports (`~/work/delivery-plan/heldout/grades/wave5/GRADE-inventories.md`):
+deepagents, accept; lab-rnd, reject (row 12, below); fleet, reject (`stamp(env)`, below).
 
 | Inventory (held out) | Kind | Items | Readers right (30B, 8B) | Judged | Verified right | NOT VERIFIED |
 |---|---|---|---|---|---|---|
@@ -89,6 +91,13 @@ Truth: env_reads from the syntax tree (`evidence/itemized/score_items_work.py`);
 derived apart from the door's enumerator (`evidence/itemized/score_params_work.py`). The wrong row: `stamp(env)` in
 `fleet/environment.py` (`def stamp(env: dict | None = None)`), where both readers answered `dict | None = None`, the
 annotation included, and agreed; the row carried no mark, so no judge saw it. The two NOT VERIFIED rows are the same
-pattern (annotated parameters); the judge's own answer was right on both. Next fix, deterministic: a param_defaults
+pattern (annotated parameters); the judge's own answer was right on both. Fix built (`wp/i8-param-parse`, `febfdae`): a param_defaults
 answer that does not parse as one Python expression is not an agreement and goes to the judge.
+
+The lab-rnd inventory's values are all right (16 of 16), but its row 12 names `env_http_headers` as an environment
+variable. The source reads `os.environ[h["env_http_headers"]["X-Hearth-Key"]]` (`research/thinking_workload.py` L67): the
+name is computed at run time, and `env_http_headers` is a table key. Code wrote that label, not a reader: the enumerator
+took a string from inside the expression and did not set the label's "computed" note although it set the judge mark.
+Being fixed on `wp/i9-computed-label`. The decision stands on the deepagents run and on 25 of 25 values right across the
+two env_reads runs; the two wrong rows are one code defect and one reader pattern, each with a deterministic fix.
 

@@ -405,7 +405,7 @@ class LocalWorkService:
                 carried, pinned, choice = procedure == "carry", True, {"by": "caller", "level": "pin"}
             elif existing is not None:
                 recorded = (existing.get("route") or {}).get("procedure") or ("carry" if "carry" in existing else "one_call")
-                carried, items_run = recorded == "carry", recorded == "items"
+                carried, items_run = recorded == "carry", recorded == "items" and items_run   # a brief without items: refused below
                 pinned, choice = carried, {"by": "retry", "level": "recorded"}
             elif items_run:
                 choice = {"by": "door", "level": "brief_items"}
@@ -446,7 +446,7 @@ class LocalWorkService:
         if items_run:
             item_list = self._items_enumerate(brief, repo_path, base, declared)
             used_hash = _digest(Path(items.__file__).read_bytes())
-            prompt = json.dumps({"procedure": "items", "kind": brief["items"]["kind"], "brief": brief,
+            prompt = json.dumps({"procedure": "items", "kind": brief["items"]["kind"], "brief": brief, "intent": intent,
                                  "items": [x["name"] for x in item_list], "readers": roster[:2], "settler": roster[2]},
                                 sort_keys=True, separators=(",", ":"))
             max_tokens = ITEMS_MAX_TOKENS
@@ -1407,14 +1407,16 @@ class LocalWorkService:
         manifest.update(job_id=job["job_id"], request_id=job["request_id"], status="queued")
 
     def _items_gather(self, manifest: Mapping[str, Any]) -> dict[str, dict[int, dict[str, Any]]]:
-        """item id -> reader index (2 is the settler's judgment) -> {job_id, answer, error} for every recorded job."""
+        """item id -> reader index (2 is the settler's judgment) -> {job_id, answer, error, calls} for every recorded job;
+        calls are the job's invocations (a job requeued by a gateway restart called its seat twice, one expired in queue never)."""
         state, got = manifest["items"], {}
         for row in state["jobs"]:
             job = self.execution.get_job(row["job_id"])
             if job is None:
                 raise LocalWorkError(f"execution job missing: {row['job_id']}")
             answer, error = self._items_answer(state["kind"], job, row["stage"])
-            got.setdefault(row["item"], {})[row["reader"]] = {"job_id": row["job_id"], "answer": answer, "error": error}
+            got.setdefault(row["item"], {})[row["reader"]] = {"job_id": row["job_id"], "answer": answer, "error": error,
+                                                              "calls": len(job.get("invocations") or [])}
         return got
 
     def _reconcile_items(self, manifest: dict[str, Any]) -> None:
@@ -1432,11 +1434,16 @@ class LocalWorkService:
         plan = ([(("read", r, x["id"])) for x in listed for r in (0, 1)] if stage == "read"
                 else [("settle", 2, i) for i in state["settle"]])
         recorded = {(j["stage"], j["reader"], j["item"]): j["job_id"] for j in state["jobs"]}
-        jobs = [self.execution.get_job(recorded[k]) for k in plan if k in recorded]
-        if any(j is None for j in jobs):
+        jobs = {k: self.execution.get_job(recorded[k]) for k in plan if k in recorded}
+        if any(j is None for j in jobs.values()):
             raise LocalWorkError("execution job missing for a recorded items job")
-        live = [j for j in jobs if j["status"] not in FINAL_JOB_STATUSES]
+        live = [j for j in jobs.values() if j["status"] not in FINAL_JOB_STATUSES]
         todo = [k for k in plan if k not in recorded]
+        for r in ((0, 1) if stage == "read" and (todo or live) else ()):   # past the 10% rule already: fail now, not after every call
+            ended = [j for k, j in jobs.items() if k[1] == r and j["status"] in FINAL_JOB_STATUSES and j["status"] != "succeeded"]
+            if len(ended) * 10 > len(listed):
+                return self._items_fail(manifest, f"reader {state['readers'][r]['backend']} failed {len(ended)} of {len(listed)} calls: "
+                                                  f"{ended[0].get('reason') or 'execution ended ' + ended[0]['status']}")
         if todo or live:
             slots = int(load_pool().by_name(state["settler"]["backend"]).settings.get("parallel_slots") or 1)
             room = (slots if stage == "settle" else ITEMS_WINDOW) - len(live)
@@ -1486,7 +1493,7 @@ class LocalWorkService:
                                       **({"error": e["error"]} if e["answer"] is None
                                          else {"answer": e["answer"]})} for k, e in sorted(g.items())]})
         output, report = items.assemble(kind, listed, rows, [r for _, r in names])
-        calls = [sum(1 for j in state["jobs"] if j["reader"] == k) for k in range(3)]
+        calls = [sum(g[k]["calls"] for g in got.values() if k in g) for k in range(3)]
         meta = {**{k: report[k] for k in ("kind", "items", "agreed", "settled", "unverified", "reader_failures", "files")},
                 "judge_failures": sum(1 for g in got.values() if 2 in g and g[2]["answer"] is None),
                 "readers": [{**names[k][1], "role": names[k][0], "calls": calls[k]} for k in range(3)]}

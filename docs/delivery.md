@@ -71,7 +71,12 @@ which is what the attach pass and the renderer use. The manifest's `carry.check`
 and its repairs `check_statements_changed`. A check that is cut, fails, returns no report or returns one under a third
 of the draft's length fails the work at `check`, named, with the partial answer kept. `HEARTH_CARRY_CHECK=off` (read at
 submit) runs the procedure without the turn; a work whose prompt is too large for a second turn runs unchecked and its
-manifest says `skipped` and why. The turn adds about five to eight minutes to a report.
+manifest says `skipped` and why. Measured through the drain on 17 reports (lap 21 Wave 5, `~/work/delivery-plan/evidence/wave5/RESULT.md`): the
+turn takes a median 3.9 minutes (the work turn 3.5); on the twelve held-out briefs the carried rate went from 8 to 9 of
+12 and false statements from 1 to 0; it fixed four decisive statements in three open drafts, damaged none a grader
+found, and recovered no omission. The instruction is the fourth of four probed (`evidence/check-probe/`): it changes a
+statement only where the code contradicts it for some input and does not count words (a word-limit line sent one turn
+into counting until its budget ran out).
 
 A line number the model writes into its report is removed by code and counted (`line_reference_stripped`). Besides the
 written forms (`L141`, `lines 12-14`, `(198-202)`), a bare number in parentheses right after a code name, such as
@@ -101,7 +106,8 @@ For work whose answer is one stated value per item (ADR-0058). A brief declares 
 4. **Render**: code writes one paragraph per item with one quote `path:line` (the line of the read itself), the summary
    and every count. A verified row states the variable, its place and its default, nothing else: the readers' one-line
    "what it controls" sentence passes no gate, so it stays in `items-readings.json` and is not delivered. A name that is
-   not a string constant is shown as a computed name. A row no two sources agree on is delivered as `NOT VERIFIED` with
+   not a string constant is shown as its expression as written with "(a name computed at run time)", never as a string
+   taken from inside it. A row no two sources agree on is delivered as `NOT VERIFIED` with
    the readings shown, never as a value. The summary says which reads the enumerator cannot see (a helper function,
    `setdefault`, `pop`, a membership test).
 
@@ -133,7 +139,10 @@ a full execution queue fails the work at its next refill; the `lane` argument is
 `async def` of the declared files (lambdas excluded); the row states the default exactly as written in the signature and
 cites its line. Defaults are compared as Python tokens, so `'x'` and `"x"` are one default and `None`, `0`, `False`,
 `()`, `x` and `'x'` are all different. A default that is an expression, or a number written in a form a reader might
-rewrite (`0o644`, `200_000`), carries a `judge` mark. Each kind is one entry in the registry in
+rewrite (`0o644`, `200_000`), carries a `judge` mark. An answer that does not parse as one Python expression (a reader
+that copied the annotation, `dict | None = None`) is never an agreement: the row goes to the judge, and is verified only
+when the judge's own default equals the readers'. Held out (lap 21): 118 of 119 verified rows right before that rule,
+118 of 118 after it. Each kind is one entry in the registry in
 `hearth/delivery/items.py` (enumerator, fields, compared field, prompts' wording, row text, what it cannot see).
 
 ## Code candidates: what changed, and a validator
@@ -146,7 +155,13 @@ follows its job to the end (it used to return at once, leaving the manifest `que
 
 `tools/local-work-validate WORK_ID --test "<command>"` fetches the candidate through the door, applies it in a shared
 clone at the base commit (never a live checkout), runs the command on the base and on the candidate with every
-`HEARTH_*` variable removed, and writes the JSON evidence a verdict needs: the diff stat, the hunks, both exit codes.
+`HEARTH_*` variable removed, and writes the JSON evidence a verdict needs: the diff stat, the hunks, both exit codes. `--candidate-file` validates content taken
+from elsewhere (a failed work's result artifact).
+
+Held out (lap 21 Wave 5, four fixes through the drain): two accepted, each a two- or three-line change; two missed by a
+change nobody asked for (a function rewritten, 52 lines for one field; an unrelated line broken in a whole-file rewrite).
+A citation whose path is not declared fails the work without a repair attempt (only a citation's shape is repaired);
+one fix failed that way when the model cited the intent's `[goal:...]` tag.
 
 ## Night briefs that deliver
 
@@ -160,7 +175,8 @@ delivery_brief: /home/derek/work/delivery-plan/evidence/briefs/sizing.brief.v2.j
 delivery_brief_sha256: 8dee295d932b7df0839f3f7f40b6521b5844f8871671883ff0850e9f5cca418a
 ```
 
-`delivery_brief` is absolute or relative to `repo`; `delivery_brief_sha256` is the sha256 of the file's bytes, and a file that no longer matches refuses the dispatch. `task_family` is required and `criteria` must be absent (the criteria are the brief's `substance` statements); `paths` are the sources. The drain submits `artifact_kind` markdown with the brief, `lane` (default `auto`), `task_family`, `deadline_s` and `max_tokens` only when the block gives it; it never names a procedure, so the door chooses. The idempotency key ends with the first 12 hex digits of the brief's sha256.
+`delivery_brief` is absolute or relative to `repo`; `delivery_brief_sha256` is the sha256 of the file's bytes, and a file that no longer matches refuses the dispatch. `task_family` is required and `criteria` must be absent (the criteria are the brief's `substance` statements); `paths` are the sources. The drain submits `artifact_kind` markdown with the brief, `lane` (default `auto`), `task_family`, `deadline_s` and `max_tokens` only when the block gives it; it never names a procedure, so the door chooses. A brief with no `lane:` line counts against the deep cap, except one
+whose brief.v2 declares `items`: the door seats every items run on the fast lane, so the drain counts it there. The idempotency key ends with the first 12 hex digits of the brief's sha256.
 
 The morning report shows a delivery's procedure, deterministic state, quotes resolved and the path of its `candidate.md`. It never reconciles a staged work (a manifest with a `carry` or `items` block): it shows the stored file, with the stage and batch of one in flight, because reconciling there could dispatch the next stage from the wrong process.
 

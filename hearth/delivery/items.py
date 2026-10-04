@@ -172,7 +172,9 @@ def _env_reads(text: str, path: str) -> list:
             names = loop_names(n, arg.id) if isinstance(arg, ast.Name) else None
             cs = [c.value for c in ast.walk(arg) if isinstance(c, ast.Constant) and isinstance(c.value, str)] if arg is not None else []
             nm = names[0] if names else cs[-1] if cs else ast.unparse(arg)
-            computed = not cs and not names
+            computed = arg is not None and not names  # the judge's "computed" condition: a string inside the expression is not the name
+            if computed:
+                nm = ast.unparse(arg)  # the expression as written, never a made-up variable
         p = parents.get(n)
         has_or = (isinstance(n, ast.Call) and len(n.args) == 1 and not n.keywords and isinstance(p, ast.BoolOp)
                   and isinstance(p.op, ast.Or) and any(v is n for v in p.values[:-1]))  # any operand but the last
@@ -190,25 +192,20 @@ def _env_reads(text: str, path: str) -> list:
         dflt = n.args[1] if isinstance(n, ast.Call) and len(n.args) > 1 else next((k.value for k in n.keywords if k.arg == "default"), None) if isinstance(n, ast.Call) else None
         dflt = next(p.values[i + 1] for i, v in enumerate(p.values) if v is n) if has_or else dflt  # the `or` value is the default
         cond = dflt is not None and any(isinstance(x, (ast.IfExp, ast.BoolOp)) or is_env(x) for x in ast.walk(dflt))  # a condition or a read with its own default
-        judge = ("computed" if arg is not None and not names and not isinstance(arg, ast.Constant) and not (isinstance(arg, ast.Name) and arg.id in consts)
+        judge = ("computed" if computed
                  else "conditional_default" if cond else "later_fallback" if later_fallback(st) else None)
         for nm in names or [nm]:
             reads.append({"name": nm, "path": path, "start": s, "end": e, "show": show, "line": n.lineno, "computed": computed, "or": has_or,
                           "judge": judge, "_l": n.lineno, "_c": n.col_offset})
     reads.sort(key=lambda r: (r["_l"], r["_c"]))
-    cnt: dict = {}
     for r in reads:
-        cnt[r["name"]] = cnt.get(r["name"], 0) + 1
-    for r in reads:
-        if cnt[r["name"]] > 1:
-            r["name"] = f'{r["name"]}@{r["_l"]}'
         del r["_l"], r["_c"]
     return reads
 
 
 def _env_items(text: str, path: str) -> list:
-    return [{"name": f"{r['name'].split('@')[0]} @ {path}:{r['start']}", "path": path, "start": r["start"], "end": r["end"], "show": r["show"],
-             "var": r["name"].split("@")[0], "line": r["line"], **({"computed": True} if r["computed"] else {}),
+    return [{"name": f"{r['name']} @ {path}:{r['start']}", "path": path, "start": r["start"], "end": r["end"], "show": r["show"],
+             "var": r["name"], "line": r["line"], **({"computed": True} if r["computed"] else {}),
              **({"or": True} if r["or"] else {}), **({"judge": r["judge"]} if r["judge"] else {})} for r in _env_reads(text, path)]
 
 

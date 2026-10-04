@@ -35,6 +35,12 @@ The door reads a table, `delivery-procedures.v1`, from the file named by `HEARTH
 
 What the door does not leave to the table: a submit with `max_tokens` or `revise=True` is `one_call` (level `caller_argument`); an idempotent retry reuses the procedure recorded for that work. A chosen `carry` that cannot run here falls back to `one_call` and records why: the lane is not `deep`, the backend declares no `deliberate_max_tokens` of at least 24,576, `form.quote_mode` is not `text`, or the carried prompt does not fit the context. A fallback is not an error.
 
+The lane follows the same table. For a delivery with `lane="auto"` and nothing pinned (no procedure, no `items`, no
+`max_tokens`, no `revise`), the lane is first picked by task family and source size as for any work; when that lane's
+backend has no qualifying procedure and the deep lane's backend has one, the delivery takes the deep lane and
+`route.lane_choice` records from, to, the level, the counts and the table's hash. A retry keeps its stored lane. When
+the deep seat is missing or retired the picked lane keeps the work and `lane_choice.declined` says why.
+
 Every delivery's work manifest records `route.procedure` (`carry` or `one_call`) and `route.procedure_choice`: `by` (`door`, `caller` or `retry`), `level` (`family`, `backend`, `none`, `caller_argument`, `pin` or `recorded`), the `rule` and the `counts` of the level used, `table_sha256`, and `fallback` when there was one.
 
 The table is generated, never edited by hand: in lab-rnd, `python3 research/cli.py export-procedures --out <file>` (byte-identical for the same registry). The tracked copy is `host/omen-linux/hearth-production/delivery-procedures-linux.json`, deployed to `~/hearth-production/` as a `tools/ops/host_config.py` pair; the drop-in `hearth-production.service.d/delivery-procedures.conf` sets the variable.
@@ -54,6 +60,18 @@ The work stays `queued` or `running` until `render` ends at `awaiting_review`. T
 What fails loudly: a thinking turn that is cut off or fails fails the work and keeps the partial draft and reasoning; an attach answer that is cut off or that names the wrong units is retried once as two half batches (8 units become 4 and 4), a one-unit batch is not retried, and a second failure fails the work; a work found in stage `attach` without `carry.units` (dispatched by block before a restart) fails by name; a gateway restart during any stage closes the job (`recover_pending` never replays a deliberate turn) and the work fails at the next reconcile. The failure names the stage and batch in `failure` and in `carry.failure`, the draft stays on disk, and nothing falls back to the one-call path or renders a partial report.
 
 Blank quotes: the renderer owns the repair. `render` and `verify` drop a quote that is `""` or whitespace from a copy of the answer before validation and count it once as `empty_quote_dropped`; the stored `delivery-output.json` is the model's raw answer, so re-rendering or verifying it gives the same counts, and the ladder reads answers the same way.
+
+**The check turn.** Between the work turn and the attach pass the door continues the same conversation: the draft goes
+back as the model's own answer and an instruction (`hearth/prompts/local_work_delivery_check_v1.txt`) asks it to check
+its report against the code and write the corrected report. The turn thinks with a budget computed from what is left
+of the window (at most 24,576 tokens; under 12,000 the work fails at `check`). `carry-draft.md` stays the work turn's
+answer; `carry-check.md` is the check turn's answer and `carry-checked.md` the draft's notes with the corrected report,
+which is what the attach pass and the renderer use. The manifest's `carry.check` records the state (`on`, `off`,
+`skipped`), the turn's tokens and how many statements changed; the delivery manifest's `aids_used` gains `self_check`
+and its repairs `check_statements_changed`. A check that is cut, fails, returns no report or returns one under a third
+of the draft's length fails the work at `check`, named, with the partial answer kept. `HEARTH_CARRY_CHECK=off` (read at
+submit) runs the procedure without the turn; a work whose prompt is too large for a second turn runs unchecked and its
+manifest says `skipped` and why. The turn adds about five to eight minutes to a report.
 
 A line number the model writes into its report is removed by code and counted (`line_reference_stripped`). Besides the
 written forms (`L141`, `lines 12-14`, `(198-202)`), a bare number in parentheses right after a code name, such as
@@ -87,6 +105,13 @@ For work whose answer is one stated value per item (ADR-0058). A brief declares 
 Where a read has no second argument and sits in an `or` chain, the enumerator marks it and both prompts carry a note
 saying the value used when the variable is unset is what follows the `or`: code points, the model reads.
 
+A read that code can see is unusual carries a `judge` mark and goes to the thinking judge whatever the two readers say:
+a name that cannot be resolved to a string constant (`computed`), a default that is a conditional or boolean expression
+(`conditional_default`), a value reassigned on the following lines when unset (`later_fallback`). For such a row the
+judge is asked for the default first and shown the readers' answer after; the row is verified only when the judge's
+own default equals theirs, and otherwise is delivered NOT VERIFIED with the readings and the judge's value shown. A
+loop over a literal tuple of names is listed as one item per name. `judged_by_mark` in the manifest counts these rows.
+
 The delivery manifest carries `procedure: "items"` and an `items` object (`items`, `agreed`, `settled`, `unverified`,
 `reader_failures`, `judge_failures`, `files`, and `readers` with each seat's role and call count); the work keeps
 `items.json` and `items-readings.json` (every reading and judgment per item). The capability record carries the readers
@@ -100,6 +125,18 @@ thinking-off judge 5 of 50. Rows both readers agree on wrongly are seen by no se
 
 Limits: a restart of the gateway fails the judge calls in flight (a thinking call is never replayed); a paused dispatch or
 a full execution queue fails the work at its next refill; the `lane` argument is ignored (recorded as requested).
+
+## Code candidates: what changed, and a validator
+
+A `whole_file` candidate is compared with its base file when it is validated (line endings and the final newline
+normalised) and the work manifest records `changes`: the hunks' line ranges on both sides and the lines added and
+removed. A candidate identical to its base fails the work. The morning report prints the hunks (`whole_file, 3 hunks:
+53, 84-85, 326 (+3/-4)`), so an unrequested change is visible before anything is opened. An ordinary work's waiter now
+follows its job to the end (it used to return at once, leaving the manifest `queued` until someone asked).
+
+`tools/local-work-validate WORK_ID --test "<command>"` fetches the candidate through the door, applies it in a shared
+clone at the base commit (never a live checkout), runs the command on the base and on the candidate with every
+`HEARTH_*` variable removed, and writes the JSON evidence a verdict needs: the diff stat, the hunks, both exit codes.
 
 ## Night briefs that deliver
 
@@ -116,6 +153,9 @@ delivery_brief_sha256: 8dee295d932b7df0839f3f7f40b6521b5844f8871671883ff0850e9f5
 `delivery_brief` is absolute or relative to `repo`; `delivery_brief_sha256` is the sha256 of the file's bytes, and a file that no longer matches refuses the dispatch. `task_family` is required and `criteria` must be absent (the criteria are the brief's `substance` statements); `paths` are the sources. The drain submits `artifact_kind` markdown with the brief, `lane` (default `auto`), `task_family`, `deadline_s` and `max_tokens` only when the block gives it; it never names a procedure, so the door chooses. The idempotency key ends with the first 12 hex digits of the brief's sha256.
 
 The morning report shows a delivery's procedure, deterministic state, quotes resolved and the path of its `candidate.md`. It never reconciles a staged work (a manifest with a `carry` or `items` block): it shows the stored file, with the stage and batch of one in flight, because reconciling there could dispatch the next stage from the wrong process.
+
+A night brief for a code fix that names one path and no `artifact_kind` asks for the whole file when the file is under
+24,000 bytes at the commit (`max_tokens` 12,000), and for a diff otherwise; a named kind is never overridden.
 
 ## DeepAgents schema reports
 

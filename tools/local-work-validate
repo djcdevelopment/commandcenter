@@ -1,0 +1,228 @@
+#!/usr/bin/env python3
+"""local-work-validate — apply a local-work candidate in a throwaway clone and write the evidence a verdict needs.
+
+    local-work-validate WORK_ID [--test "<command>"] [--out FILE] [--candidate-file PATH] [--caller claude|codex]
+
+Reads <flash>/runs/operator/<WORK_ID>/work-manifest.json (repo, base_commit, artifact_kind, target_path, status), fetches
+the candidate through the door's get_local_work_artifact (local-work-candidate.v1; `content` is the file or the diff) or
+reads the content from --candidate-file, then `git clone --shared --no-checkout` the repo into a temp dir, checks out the
+base commit detached and applies the candidate (whole_file: write target_path inside the clone, line endings and the final
+newline set to the base file's; unified_diff: git apply, then --recount). Reports the diff stat and hunks against base;
+--test runs the command (bash -c, not a login shell; cwd and PYTHONPATH the clone; --timeout s, default 600, the whole
+process group killed on timeout) on the untouched base in a second clone and on the candidate, with every HEARTH_* variable
+of the caller removed and HEARTH_ROOT / HEARTH_OPERATOR_HOME set inside the temp dir (the JSON's test.env says so). The
+caller key is read as run_delivery_brief.py reads it and is never printed. Never touches a live checkout; writes only the
+temp dir (removed on every exit, Ctrl-C included) and --out.
+
+Environment: LOCAL_WORK_RUNS_ROOT overrides the runs/operator directory (default the live flash checkout's, read only;
+for offline proofs). The door client is imported from the flash checkout.
+Exit: 0 applied (whatever the test said), 3 did not apply, 2 usage or fetch error.
+"""
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import os
+import re
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+FLASH = Path("/home/derek/work/commandcenter-linux-flash")
+RUNS = Path(os.environ.get("LOCAL_WORK_RUNS_ROOT", str(FLASH / "runs" / "operator")))
+HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
+
+
+class Usage(Exception):
+    pass
+
+
+def git(*args, cwd=None, check=True):
+    r = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
+    if check and r.returncode:
+        raise Usage(f"git {' '.join(args[:3])} failed: {(r.stderr or r.stdout).strip().splitlines()[:1]}")
+    return r
+
+
+def _key(caller: str) -> str:
+    if caller == "claude":
+        return json.loads(Path.home().joinpath(".claude.json").read_text())["mcpServers"]["hearth"]["headers"]["X-Hearth-Key"]
+    import tomllib
+    h = tomllib.loads(Path.home().joinpath(".codex/config.toml").read_text())["mcp_servers"]["hearth"]
+    if "X-Hearth-Key" in h.get("http_headers", {}):
+        return h["http_headers"]["X-Hearth-Key"]
+    return os.environ[h["env_http_headers"]["X-Hearth-Key"]]
+
+
+def _body(res: dict):
+    if res.get("structured") is not None:
+        s = res["structured"]
+        return s.get("result", s) if isinstance(s, dict) else s
+    try:
+        return json.loads(res.get("text") or "null")
+    except ValueError:
+        return res.get("text")
+
+
+def fetch_candidate(work_id: str, caller: str) -> dict:
+    if str(FLASH) not in sys.path:
+        sys.path.append(str(FLASH))
+    from hearth.callers.client import HearthClient
+
+    async def go():
+        async with HearthClient(key=_key(caller)) as c:
+            res = await c.call("get_local_work_artifact", work_id=work_id)
+            return res, _body(res)
+    res, art = asyncio.run(go())
+    if not res.get("ok") or not isinstance(art, dict) or not art.get("candidate"):
+        raise Usage(f"door refused or returned no candidate for {work_id}: {str(art)[:300]}")
+    cand = json.loads(art["candidate"]) if isinstance(art["candidate"], str) else art["candidate"]
+    if not isinstance(cand, dict) or "content" not in cand:
+        raise Usage("candidate has no `content`")
+    return cand
+
+
+def apply(clone: Path, kind: str, target: str | None, content: str) -> tuple[bool, str, str | None]:
+    if kind == "whole_file":
+        if not target:
+            return False, "whole_file without target_path", None
+        p = (clone / target).resolve()
+        if not p.is_relative_to(clone.resolve()):
+            return False, "whole_file target_path leaves the clone", target
+        old = p.read_bytes().decode() if p.exists() else ""
+        text = content.replace("\r\n", "\n")
+        if old and old.endswith("\n") != text.endswith("\n"):
+            text = text + "\n" if old.endswith("\n") else text[:-1]
+        if "\r\n" in old:
+            text = text.replace("\n", "\r\n")
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(text.encode())
+        return True, "whole_file write" + ("" if text == content else " (line endings / final newline set to the base file's)"), None
+    if kind == "unified_diff":
+        patch = clone.parent / "candidate.patch"
+        patch.write_text(content if content.endswith("\n") else content + "\n")
+        first = None
+        for how, flags in (("git apply", []), ("git apply --recount", ["--recount"])):
+            r = git("apply", *flags, str(patch), cwd=clone, check=False)
+            if r.returncode == 0:
+                return True, how, None
+            first = first or ((r.stderr or r.stdout).strip().splitlines() or ["git apply failed"])[0]
+        return False, "git apply and --recount failed", first
+    return False, f"unsupported artifact_kind {kind!r}", None
+
+
+def hunks(clone: Path, paths: list[str]) -> dict:
+    # pathspec: the clone's checkout shows line-ending noise on files the candidate never touched
+    git("add", "-N", "--", *paths, cwd=clone, check=False)
+    out = git("diff", "-U0", "--no-color", "HEAD", "--", *paths, cwd=clone).stdout
+    hs, added, removed, path = [], 0, 0, None
+    for line in out.splitlines():
+        if line.startswith("+++ "):
+            path = line[6:] if line.startswith("+++ b/") else line[4:]
+        m = HUNK.match(line)
+        if m:
+            os_, ol, ns, nl = int(m[1]), int(m[2] if m[2] is not None else 1), int(m[3]), int(m[4] if m[4] is not None else 1)
+            old = [os_, os_ + ol - 1] if ol else [os_, os_ - 1]  # ol=0: pure insertion after line os_
+            hs.append({"path": path, "old": old, "new": [ns, ns + nl - 1] if nl else [ns, ns - 1]})
+        elif line.startswith("+") and not line.startswith("+++"):
+            added += 1
+        elif line.startswith("-") and not line.startswith("---"):
+            removed += 1
+    stat = git("diff", "--stat", "--no-color", "HEAD", "--", *paths, cwd=clone).stdout.strip()
+    return {"diff_stat": stat, "hunks": hs, "added": added, "removed": removed}
+
+
+def test_env(clone: Path) -> tuple[dict, dict]:
+    """The caller's environment without HEARTH_* (live roots, the codex key); HEARTH_ROOT / HEARTH_OPERATOR_HOME in tmp."""
+    home = clone.parent
+    env = {k: v for k, v in os.environ.items() if not k.startswith("HEARTH_")}
+    env.update(PYTHONPATH=str(clone), HEARTH_ROOT=str(home / "hearth-root"), HEARTH_OPERATOR_HOME=str(home / "operator"))
+    return env, {"unset": sorted(k for k in os.environ if k.startswith("HEARTH_")), "PYTHONPATH": env["PYTHONPATH"],
+                 "HEARTH_ROOT": env["HEARTH_ROOT"], "HEARTH_OPERATOR_HOME": env["HEARTH_OPERATOR_HOME"]}
+
+
+def run_test(cmd: str, clone: Path, timeout: int) -> dict:
+    env, shown = test_env(clone)
+    p = subprocess.Popen(["bash", "-c", cmd], cwd=clone, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                         text=True, start_new_session=True)
+    try:
+        out, _ = p.communicate(timeout=timeout)
+        code = p.returncode
+    except subprocess.TimeoutExpired:
+        os.killpg(p.pid, signal.SIGKILL)
+        out, code = (p.communicate()[0] or "") + f"\n[timeout after {timeout} s; process group killed]", 124
+    except BaseException:
+        os.killpg(p.pid, signal.SIGKILL)
+        p.wait()
+        raise
+    return {"exit": code, "tail": out.splitlines()[-40:], "env": shown}
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="validate a local-work candidate in an isolated clone")
+    ap.add_argument("work_id")
+    ap.add_argument("--test")
+    ap.add_argument("--out")
+    ap.add_argument("--timeout", type=int, default=600)
+    ap.add_argument("--candidate-file")
+    ap.add_argument("--caller", choices=["claude", "codex"], default=os.environ.get("HEARTH_CALLER", "claude"))
+    a = ap.parse_args()
+    tmp = Path(tempfile.mkdtemp(prefix="lwv-"))
+    rc, doc = 2, None
+    try:
+        mf = RUNS / a.work_id / "work-manifest.json"
+        if not mf.exists():
+            raise Usage(f"no manifest at {mf}")
+        m = json.loads(mf.read_text())
+        repo, base, kind, target = m["repo"], m["base_commit"], m["artifact_kind"], m.get("target_path")
+        if not target and m.get("declared_paths") and len(m["declared_paths"]) == 1:
+            target = m["declared_paths"][0]
+        if a.candidate_file:
+            content = Path(a.candidate_file).read_bytes().decode()
+        else:
+            cand = fetch_candidate(a.work_id, a.caller)
+            if kind == "whole_file" and cand.get("target_path") != target:
+                raise Usage(f"candidate target_path {cand.get('target_path')!r} differs from the manifest's {target!r}")
+            content = cand["content"]
+        clones = {}
+        for name in ("candidate", "base"):
+            d = tmp / name
+            d.mkdir()
+            git("clone", "-q", "--shared", "--no-checkout", repo, str(d / "repo"))
+            git("-C", str(d / "repo"), "checkout", "-q", "--detach", base)
+            clones[name] = d / "repo"
+        ok, how, err = apply(clones["candidate"], kind, target, content)
+        doc = {"work_id": a.work_id, "status": m.get("status"), "repo": repo, "base_commit": base, "kind": kind, "target": target,
+               "candidate_source": a.candidate_file or "door", "applied": ok, "applied_how": how}
+        if err:
+            doc["apply_error"] = err
+        if ok:
+            flags = ["--recount"] if how == "git apply --recount" else []
+            paths = [target] if kind == "whole_file" else [l.split("\t")[2] for l in git("apply", "--numstat", *flags, str(tmp / "candidate" / "candidate.patch"), cwd=clones["candidate"]).stdout.splitlines()]
+            doc.update(hunks(clones["candidate"], paths))
+        if a.test:
+            doc["test"] = {"command": a.test, "base": run_test(a.test, clones["base"], a.timeout),
+                           "candidate": run_test(a.test, clones["candidate"], a.timeout) if ok else None}
+        rc = 0 if ok else 3
+    except (Usage, KeyError, ValueError, OSError) as e:
+        print(f"local-work-validate: {type(e).__name__}: {e}", file=sys.stderr)
+        doc = None
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    if doc is None:
+        return 2
+    doc["temp_dir"], doc["temp_removed"] = str(tmp), not tmp.exists()
+    text = json.dumps(doc, indent=1)
+    if a.out:
+        Path(a.out).write_text(text + "\n")
+    else:
+        print(text)
+    return rc
+
+
+if __name__ == "__main__":
+    sys.exit(main())

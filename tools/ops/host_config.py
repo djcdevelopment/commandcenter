@@ -97,6 +97,8 @@ MANIFEST: list[tuple[str, Path]] = [
 
     ("systemd/hearth-production.service.d/linux-routes.conf",
      HOME / ".config" / "systemd" / "user" / "hearth-production.service.d" / "linux-routes.conf"),
+    ("systemd/hearth-production.service.d/delivery-procedures.conf",
+     HOME / ".config" / "systemd" / "user" / "hearth-production.service.d" / "delivery-procedures.conf"),
 
     # bin
     ("bin/start-vllm-seat.sh", HOME / "bin" / "start-vllm-seat.sh"),
@@ -123,6 +125,7 @@ MANIFEST: list[tuple[str, Path]] = [
     ("hearth-production/backends-linux.toml", HOME / "hearth-production" / "backends-linux.toml"),
     ("hearth-production/routing-families-linux.toml", HOME / "hearth-production" / "routing-families-linux.toml"),
     ("hearth-production/local-work-routes-linux.toml", HOME / "hearth-production" / "local-work-routes-linux.toml"),
+    ("hearth-production/delivery-procedures-linux.json", HOME / "hearth-production" / "delivery-procedures-linux.json"),
 ]
 
 

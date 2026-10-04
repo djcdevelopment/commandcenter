@@ -15,13 +15,14 @@ import re
 import subprocess
 import tempfile
 import threading
+import time
 import tomllib
 import urllib.request
 import uuid
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping, Optional
 
-from hearth.delivery import carry, contract, procedures, render as delivery_render, revision as revision_coverage, sourcemap
+from hearth.delivery import carry, contract, items, procedures, render as delivery_render, revision as revision_coverage, sourcemap
 from hearth.delivery.verify import verify as verify_delivery
 from fleet import environment
 from hearth.execution import ExecutionService
@@ -41,6 +42,13 @@ CARRY_SYSTEM = ("You are auditing source files in order to write a short report.
                 "conversation: you keep working notes, check them, and only then write. Say only what the source shows.")
 CARRY_NOTES_HEADING = ("WORKING NOTES (written by the draft's author; they name source lines and can guide you to the "
                        "right lines; never copy a quote from them):")
+# The items procedure (ADR-0058): execution admits 256 pending jobs in all (submit raises "global execution queue is full" past
+# that, and the count is shared with every other caller) and runs 16 workers, each of which polls for a backend lease while
+# its job waits, with the job's deadline running from the moment a worker takes it. So 2 x N jobs are never submitted at once:
+# a stage keeps ITEMS_WINDOW in flight (the settle stage, as many as the settler has slots) and refills at every reconcile.
+ITEMS_WINDOW = 12
+ITEMS_MAX_TOKENS = 400
+ITEMS_AIDS = ["item_enumerator", "reader_agreement", "line_reference", "constrained_output"]
 IN_FLIGHT = frozenset({"accepted", "queued", "dispatched", "running"})
 KINDS = frozenset({"markdown", "json", "whole_file", "unified_diff"})
 LANES = frozenset({"auto", "fast", "deep", "tool"})   # tool: explicit only, when the route profile names it
@@ -326,10 +334,16 @@ class LocalWorkService:
         if revise and brief is None:
             raise LocalWorkError("revise requires a brief (delivery)")
         if procedure is not None:
-            if procedure not in ("carry", "one_call"):
-                raise LocalWorkError("procedure must be 'one_call' or 'carry' or absent")
+            if procedure not in ("carry", "one_call", "items"):
+                raise LocalWorkError("procedure must be 'one_call', 'carry' or 'items' or absent")
             if brief is None:
                 raise LocalWorkError(f"procedure {procedure!r} requires a brief (delivery)")
+            if procedure == "items" and "items" not in brief:
+                raise LocalWorkError("procedure 'items' requires a brief with items (brief.items.kind)")
+        items_run = brief is not None and "items" in brief and procedure in (None, "items")
+        if items_run and (revise or max_tokens is not None):
+            raise LocalWorkError(f"procedure 'items' fixes its own budgets ({ITEMS_MAX_TOKENS} per call): "
+                                 f"{'revise' if revise else 'max_tokens'} is refused")
         if procedure == "carry":
             if revise:
                 raise LocalWorkError("procedure 'carry' has no revision round: revise is refused")
@@ -366,9 +380,12 @@ class LocalWorkService:
         fast_provider = load_pool().by_name(routes["fast"])
         if fast_provider is None or not fast_provider.models:
             raise LocalWorkError("local fast lane is unavailable")
+        roster = self._items_roster(routes) if items_run else None
         evidence_tokens = self.token_counter(
-            fast_provider, fast_provider.models[0], source_pack) if lane == "auto" else 0
+            fast_provider, fast_provider.models[0], source_pack) if lane == "auto" and not items_run else 0
         selected_lane = self._lane(lane, evidence_tokens, task_family)
+        if items_run:   # the first reader's seat; the pack is never counted or sent
+            selected_lane = "fast"
         if selected_lane not in routes:
             raise LocalWorkError(f"local lane {selected_lane!r} is not in this host's route profile")
         backend_name = routes[selected_lane]
@@ -388,8 +405,10 @@ class LocalWorkService:
                 carried, pinned, choice = procedure == "carry", True, {"by": "caller", "level": "pin"}
             elif existing is not None:
                 recorded = (existing.get("route") or {}).get("procedure") or ("carry" if "carry" in existing else "one_call")
-                carried = recorded == "carry"
+                carried, items_run = recorded == "carry", recorded == "items"
                 pinned, choice = carried, {"by": "retry", "level": "recorded"}
+            elif items_run:
+                choice = {"by": "door", "level": "brief_items"}
             elif max_tokens is not None or revise:
                 choice = {"by": "caller", "level": "caller_argument", "argument": "max_tokens" if max_tokens is not None else "revise"}
             else:
@@ -424,7 +443,16 @@ class LocalWorkService:
                        "declared_paths": declared, "source_files": source_meta,
                        "source_pack": source_pack}
         explicit_max = max_tokens
+        if items_run:
+            item_list = self._items_enumerate(brief, repo_path, base, declared)
+            used_hash = _digest(Path(items.__file__).read_bytes())
+            prompt = json.dumps({"procedure": "items", "kind": brief["items"]["kind"], "brief": brief,
+                                 "items": [x["name"] for x in item_list], "readers": roster[:2], "settler": roster[2]},
+                                sort_keys=True, separators=(",", ":"))
+            max_tokens = ITEMS_MAX_TOKENS
         for _attempt in (0, 1):
+            if items_run:
+                break
             work_template = None
             if delivery:
                 try:
@@ -450,7 +478,7 @@ class LocalWorkService:
                 break
             carried, fallback = False, (f"carry work refusal: {carried_bytes // 4} input (bytes // 4) + "
                                         f"{CARRY_WORK_TOKENS} output > {context_tokens}")
-        input_tokens = self.token_counter(provider, model, prompt)
+        input_tokens = 0 if items_run else self.token_counter(provider, model, prompt)
         output_reserve = max_tokens or int(provider.settings.get("max_tokens") or 4096)
         if carried:
             carried_bytes = len((CARRY_SYSTEM + prompt.split("\n", 1)[1]).encode("utf-8"))
@@ -503,13 +531,31 @@ class LocalWorkService:
             if revise:
                 manifest["revise"] = True
             manifest["brief_sha256"] = _digest(json.dumps(brief, sort_keys=True, separators=(",", ":")))
-            manifest["route"]["procedure"] = "carry" if carried else "one_call"
+            manifest["route"]["procedure"] = "items" if items_run else "carry" if carried else "one_call"
             manifest["route"]["procedure_choice"] = {**choice, **({"fallback": fallback} if fallback else {})}
         if carried:
             manifest["carry"] = {"stage": "work", "batch": 0, "batches": 0, "retried": [], "jobs": [], "quotes": {}}
+        if items_run:
+            manifest["items"] = {"kind": brief["items"]["kind"], "stage": "read", "count": len(item_list),
+                                 "readers": [{k: r[k] for k in ("backend", "model")} for r in roster[:2]],
+                                 "settler": {k: roster[2][k] for k in ("backend", "model")}, "deadline_s": deadline_s,
+                                 "jobs": [], "failure": None}
         with self._lock:
             self._write(manifest)
             envelope.store_envelope(env, work_id, raw_prompt=prompt)
+            if items_run:
+                try:
+                    raw = (json.dumps(item_list, indent=2) + "\n").encode("utf-8")
+                    (self._run_dir(work_id) / "items.json").write_bytes(raw)
+                    manifest["items"]["items_sha256"] = _digest(raw)
+                    self._reconcile_items(manifest)
+                except Exception as exc:   # never leave a queued manifest nobody comes back to
+                    self._items_fail(manifest, f"dispatch refused: {type(exc).__name__}: {exc}")
+                    self._write(manifest)
+                    raise
+                self._write(manifest)
+                self._spawn_auto_reconcile(work_id, manifest["job_id"])
+                return self.reconcile(work_id)
             if carried:
                 try:
                     state = self._carry_submit(
@@ -549,7 +595,10 @@ class LocalWorkService:
 
     def _auto_reconcile(self, work_id: str, job_id: str) -> None:
         try:
-            if "carry" in self._read(work_id):
+            manifest = self._read(work_id)
+            if "items" in manifest:
+                self._items_wait(work_id)
+            elif "carry" in manifest:
                 # A carried work advances stage by stage with nobody polling: wait for this stage's job to end,
                 # then reconcile, which dispatches the next stage and spawns the next waiter. No wall-clock cap: a job
                 # can outlive any fixed wait (deadline up to 3,600 s from its start, plus time queued for a worker).
@@ -735,7 +784,7 @@ class LocalWorkService:
         self._event(manifest, "outcome.final", {"status": "failed", "reason": reason[:200]})
 
     def _render_answer(self, manifest: Mapping[str, Any], job: Mapping[str, Any], raw: bytes,
-                       carried: Mapping[str, int] | None = None) -> tuple:
+                       carried: Mapping[str, int] | None = None, items_meta: Mapping[str, Any] | None = None) -> tuple:
         """-> (output, markdown, delivery manifest); a failure raises _Refused with its named reason.
         `carried` (the carry procedure's repair counts) marks the answer as assembled from a carried draft."""
         try:
@@ -753,13 +802,16 @@ class LocalWorkService:
                 "configuration": {"model": observed.get("model") or route["model"], "seat": route["provider"],
                                   "context_tokens": manifest["prompt"]["context_tokens"],
                                   "profile": route["serving_profile_sha256"][:12]},
-                "aids_used": ["thinking", "carried_draft"] if carried is not None else ["constrained_output"]}
+                "aids_used": ITEMS_AIDS + (["thinking"] if items_meta["readers"][-1]["calls"] else []) if items_meta is not None
+                else ["thinking", "carried_draft"] if carried is not None else ["constrained_output"]}
         try:
             sm = sourcemap.build(manifest["repo"], manifest["base_commit"], list(manifest["declared_paths"]))
             markdown, delivery = delivery_render.render(output, manifest["brief"], sm, meta)
             if carried is not None:
                 delivery["procedure"] = "carry"
                 delivery["repairs"].update({k: v for k, v in carried.items() if v})
+            if items_meta is not None:
+                delivery["procedure"], delivery["items"] = "items", dict(items_meta)
             contract.check_manifest(delivery)
         except (contract.ContractError, sourcemap.SourceMapError) as exc:
             raise _Refused(f"delivery_render_failed: {type(exc).__name__}: {exc}") from exc
@@ -1279,6 +1331,196 @@ class LocalWorkService:
                                                         "blocks_empty_after_stripping_dropped") if k in report}
         self._finish_delivery(manifest, str(job["job_id"]))
 
+    @staticmethod
+    def _items_roster(routes: Mapping[str, str]) -> list[dict[str, str]]:
+        """Readers: the fast then the tool lane's backends; settler: the deep lane's. No substitutes: two readings by one
+        model are not two readings."""
+        pool, roster = load_pool(), []
+        for lane, role in (("fast", "reader"), ("tool", "reader"), ("deep", "settler")):
+            name = routes.get(lane)
+            if not name:
+                raise LocalWorkError(f"procedure 'items' needs a {lane!r} lane in the route profile (the {role}): none is named")
+            provider = pool.by_name(name)
+            if provider is None or provider.retired or not provider.models:
+                raise LocalWorkError(f"procedure 'items' {role} lane {lane!r} is unavailable: {name}")
+            if role == "settler" and int(provider.settings.get("deliberate_max_tokens") or 0) < items.JUDGE_TOKENS:
+                raise LocalWorkError(f"procedure 'items' needs a settler that declares deliberate_max_tokens >= {items.JUDGE_TOKENS}: "
+                                     f"{name} declares {provider.settings.get('deliberate_max_tokens') or 0}")
+            roster.append({"backend": name, "model": provider.models[0], "role": role})
+        if len({r["backend"] for r in roster}) < 3:
+            raise LocalWorkError("procedure 'items' needs three different backends (fast, tool and deep lanes): "
+                                 + ", ".join(r["backend"] for r in roster))
+        return roster
+
+    @staticmethod
+    def _items_enumerate(brief: Mapping[str, Any], repo_path: Path, base: str, declared: list[str]) -> list[dict]:
+        try:
+            return items.enumerate_items(brief["items"]["kind"], str(repo_path), base, declared)
+        except items.ItemsError as exc:
+            raise LocalWorkError(f"items refused: {exc}") from exc
+
+    def _items_fail(self, manifest: dict[str, Any], reason: str) -> None:
+        """Any failed stage fails the work and names the stage; the stage's unfinished jobs are cancelled."""
+        state = manifest["items"]
+        state["failure"] = {"stage": state["stage"], "reason": reason}
+        for row in state["jobs"]:
+            job = self.execution.get_job(row["job_id"])
+            if job is not None and job["status"] not in FINAL_JOB_STATUSES:
+                self.execution.cancel(row["job_id"], reason="items work failed")
+        self._fail(manifest, f"items {state['stage']}: {reason}")
+
+    def _items_answer(self, kind: str, job: Mapping[str, Any], stage: str) -> tuple:
+        """-> (parse() / parse_judgment() result | None, error | None) for one finished job."""
+        if job["status"] != "succeeded":
+            return None, job.get("reason") or f"execution ended {job['status']}"
+        try:
+            if stage == "settle":   # a thinking answer: its output artifact, not the reasoning
+                ref = next((a["artifact_id"] for a in job.get("artifacts", []) if a.get("role") == "output"), None)
+                if ref is None:
+                    raise LocalWorkError("completed job has no output artifact")
+                return items.parse_judgment(kind, self.execution.read_artifact(str(ref))[1].decode("utf-8")), None
+            return items.parse(kind, self._result(job)[1].decode("utf-8")), None
+        except (LocalWorkError, items.ItemsError, UnicodeDecodeError) as exc:
+            return None, str(exc)
+
+    def _items_submit(self, manifest: dict[str, Any], stage: str, reader: int, item: Mapping[str, Any],
+                      readings: list | None = None) -> None:
+        state, work_id, caller = manifest["items"], str(manifest["work_id"]), manifest["caller"]["submitted_by"]
+        kind, repo, base = state["kind"], manifest["repo"], manifest["base_commit"]
+        who = state["settler"] if stage == "settle" else state["readers"][reader]
+        if stage == "settle":
+            operation, key = "inference.deliberate", f"{work_id}:items-settle-{item['id']}"
+            arguments = {"messages": [{"role": "user", "content": items.judge_prompt(kind, item, repo, base, readings)}],
+                         "backend": who["backend"], "model": who["model"], "thinking": True, "temperature": 0.0}
+            max_tokens = items.JUDGE_TOKENS
+        else:
+            operation, key = "inference.generate", f"{work_id}:items-read-{reader}-{item['id']}"
+            arguments = {"prompt": items.prompt(kind, item, repo, base), "backend": who["backend"], "model": who["model"],
+                         "temperature": 0.0, "response_schema": items.schema(kind)}
+            max_tokens = ITEMS_MAX_TOKENS
+        job = self.execution.submit(
+            operation_name=operation, arguments=arguments,
+            principal={"type": "hearth_caller", "id": caller, "authenticated": True},
+            source={"transport": "mcp", "adapter": caller},
+            policy={"max_tokens": max_tokens, "deadline_s": state["deadline_s"]}, idempotency_key=key)
+        state["jobs"].append({"stage": stage, "reader": reader, "item": item["id"], "job_id": job["job_id"]})
+        manifest.update(job_id=job["job_id"], request_id=job["request_id"], status="queued")
+
+    def _items_gather(self, manifest: Mapping[str, Any]) -> dict[str, dict[int, dict[str, Any]]]:
+        """item id -> reader index (2 is the settler's judgment) -> {job_id, answer, error} for every recorded job."""
+        state, got = manifest["items"], {}
+        for row in state["jobs"]:
+            job = self.execution.get_job(row["job_id"])
+            if job is None:
+                raise LocalWorkError(f"execution job missing: {row['job_id']}")
+            answer, error = self._items_answer(state["kind"], job, row["stage"])
+            got.setdefault(row["item"], {})[row["reader"]] = {"job_id": row["job_id"], "answer": answer, "error": error}
+        return got
+
+    def _reconcile_items(self, manifest: dict[str, Any]) -> None:
+        """One pass of the items procedure: submit what the stage still lacks (a window at a time), and when every job of the
+        stage is final, move to the next stage. Idempotent: the job keys are fixed, so a repeat after a crash gets the same jobs."""
+        state, work_id = manifest["items"], str(manifest["work_id"])
+        raw = (self._run_dir(work_id) / "items.json").read_bytes()
+        if _digest(raw) != state["items_sha256"]:
+            raise LocalWorkError("items.json digest no longer matches the manifest")
+        listed, kind = json.loads(raw), state["kind"]
+        if state["stage"] == "render":
+            return self._items_render(manifest, listed)
+        stage = state["stage"]
+        by_id = {x["id"]: x for x in listed}
+        plan = ([(("read", r, x["id"])) for x in listed for r in (0, 1)] if stage == "read"
+                else [("settle", 2, i) for i in state["settle"]])
+        recorded = {(j["stage"], j["reader"], j["item"]): j["job_id"] for j in state["jobs"]}
+        jobs = [self.execution.get_job(recorded[k]) for k in plan if k in recorded]
+        if any(j is None for j in jobs):
+            raise LocalWorkError("execution job missing for a recorded items job")
+        live = [j for j in jobs if j["status"] not in FINAL_JOB_STATUSES]
+        todo = [k for k in plan if k not in recorded]
+        if todo or live:
+            slots = int(load_pool().by_name(state["settler"]["backend"]).settings.get("parallel_slots") or 1)
+            room = (slots if stage == "settle" else ITEMS_WINDOW) - len(live)
+            if todo and not state["jobs"]:
+                self._event(manifest, "step.dispatched", {"items_stage": "read", "jobs": len(plan),
+                            "provider": manifest["route"]["provider"], "model": manifest["route"]["model"]})
+            sent = todo[:max(room, 0)]
+            if stage == "settle" and sent and not any(j["stage"] == "settle" for j in state["jobs"]):
+                self._event(manifest, "step.dispatched", {"items_stage": "settle", "jobs": len(plan),
+                            "provider": state["settler"]["backend"], "model": state["settler"]["model"]})
+            got = self._items_gather(manifest) if stage == "settle" and sent else {}
+            for _, reader, item_id in sent:
+                self._items_submit(manifest, stage, reader, by_id[item_id], (
+                    [got[item_id][0]["answer"], got[item_id][1]["answer"]] if stage == "settle" else None))
+            manifest["status"] = "running" if any(j["status"] in {"dispatched", "running"} for j in live) else "queued"
+            return
+        got = self._items_gather(manifest)
+        if stage == "read":
+            for r in (0, 1):
+                failed = [got[x["id"]][r]["error"] for x in listed if got[x["id"]][r]["answer"] is None]
+                if len(failed) * 10 > len(listed):
+                    return self._items_fail(manifest, f"reader {state['readers'][r]['backend']} failed {len(failed)} of "
+                                                      f"{len(listed)} calls: {failed[0]}")
+            state["settle"] = [x["id"] for x in listed
+                               if items.needs_judge(kind, [got[x["id"]][0]["answer"], got[x["id"]][1]["answer"]])]
+            state["stage"] = "settle" if state["settle"] else "render"
+        else:
+            failed = [got[i][2]["error"] for i in state["settle"] if got[i][2]["answer"] is None]
+            if len(failed) * 2 > len(state["settle"]):
+                return self._items_fail(manifest, f"settler {state['settler']['backend']} failed {len(failed)} of "
+                                                  f"{len(state['settle'])} calls: {failed[0]}")
+            state["stage"] = "render"
+        self._write(manifest)
+        return self._reconcile_items(manifest)
+
+    def _items_render(self, manifest: dict[str, Any], listed: list) -> None:
+        state, work_id, kind = manifest["items"], str(manifest["work_id"]), manifest["items"]["kind"]
+        got, rows, log = self._items_gather(manifest), [], []
+        names = [("reader", state["readers"][0]), ("reader", state["readers"][1]), ("settler", state["settler"])]
+        for x in listed:
+            g = got[x["id"]]
+            readings = [g[0]["answer"], g[1]["answer"]]
+            judged = g.get(2, {}).get("answer")
+            rows.append({**items.settle(kind, readings, judged), "readings": readings, "judgment": judged})
+            log.append({"id": x["id"], "name": x["name"], "state": rows[-1]["state"], "by": rows[-1]["by"],
+                        "readings": [{"reader": k, "role": names[k][0], "backend": names[k][1]["backend"], "job_id": e["job_id"],
+                                      **({"error": e["error"]} if e["answer"] is None
+                                         else {"answer": e["answer"]})} for k, e in sorted(g.items())]})
+        output, report = items.assemble(kind, listed, rows, [r for _, r in names])
+        calls = [sum(1 for j in state["jobs"] if j["reader"] == k) for k in range(3)]
+        meta = {**{k: report[k] for k in ("kind", "items", "agreed", "settled", "unverified", "reader_failures", "files")},
+                "judge_failures": sum(1 for g in got.values() if 2 in g and g[2]["answer"] is None),
+                "readers": [{**names[k][1], "role": names[k][0], "calls": calls[k]} for k in range(3)]}
+        answer = (json.dumps(output, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+        job = {"job_id": manifest["job_id"], "invocations": [{}]}
+        try:
+            rendered = self._render_answer(manifest, job, answer, items_meta=meta)
+        except _Refused as exc:
+            return self._items_fail(manifest, str(exc))
+        stored = self.execution.artifacts.put(answer, media_type="application/json", filename=f"{work_id}-items-output.json")
+        self._adopt_delivery(manifest, job, stored, answer, rendered)
+        run_dir = self._run_dir(work_id)
+        (run_dir / "items-readings.json").write_text(json.dumps(log, indent=2) + "\n", encoding="utf-8", newline="")
+        for key, name in (("items", "items.json"), ("items_readings", "items-readings.json")):
+            data = (run_dir / name).read_bytes()
+            manifest["delivery_artifacts"][key] = {"file": name, "sha256": _digest(data), "size": len(data),
+                                                   "media_type": "application/json"}
+        state["stage"], state["report"] = "done", {k: v for k, v in meta.items() if k != "readers"}
+        self._finish_delivery(manifest, str(manifest["job_id"]))
+
+    def _items_wait(self, work_id: str) -> None:
+        """The waiter: reconcile, then wait on a job still in flight (or poll briefly), until the work leaves queued/running."""
+        while True:
+            manifest = self.reconcile(work_id)
+            if manifest["status"] not in {"queued", "running"}:
+                return
+            for row in reversed(manifest["items"]["jobs"]):
+                job = self.execution.get_job(row["job_id"])
+                if job is not None and job["status"] not in FINAL_JOB_STATUSES:
+                    self.execution.watch(job_id=job["job_id"], after_sequence=int(job.get("last_sequence", 0)), wait_seconds=2)
+                    break
+            else:
+                time.sleep(0.05)
+
     def _reconcile_delivery(self, manifest: dict[str, Any], job: Mapping[str, Any],
                             metadata: Mapping[str, Any], raw: bytes) -> None:
         """A delivery job's result is a delivery-output.v1 document. Every failure is named and final:
@@ -1327,6 +1569,13 @@ class LocalWorkService:
                 manifest["failure"] = "no execution job was recorded for this submission"
                 self._event(manifest, "outcome.final", {"status": "failed",
                             "reason_sha256": _digest(manifest["failure"])})
+                self._write(manifest)
+                return manifest
+            if manifest.get("items"):
+                try:
+                    self._reconcile_items(manifest)
+                except Exception as exc:   # a failed stage, named; raising would leave the work queued with no waiter
+                    self._items_fail(manifest, f"{type(exc).__name__}: {exc}")
                 self._write(manifest)
                 return manifest
             job = self.execution.get_job(str(manifest["job_id"]))

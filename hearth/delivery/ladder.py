@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Optional
 
 from . import contract, judge_local, sourcemap, verify
-from .render import _brief_bytes
+from .render import _brief_bytes, drop_blank_quotes
 
 __all__ = ["run_ladder", "triage_summary", "LadderError"]
 
@@ -82,6 +82,7 @@ def _git_reader(repo: str, bdoc: Optional[Mapping[str, Any]]) -> Callable[[str, 
 
 
 def _deliverable_text(output: Mapping[str, Any], manifest: Optional[Mapping[str, Any]] = None) -> str:
+    output = drop_blank_quotes(output)[0]   # what the renderer delivers: no blank quote lines
     parts = [output["summary"]]
     for i, sec in enumerate(output["sections"]):
         parts.append(f"## {sec['heading']}")
@@ -343,7 +344,7 @@ def run_ladder(manifest: Mapping[str, Any], brief: Any, output: Mapping[str, Any
         revision = {"objections": _objections(open_), "replaced": False}
         try:  # one pass, one round, never looped
             new_output = revision["output"] = revise(revision["objections"])
-            errs = contract.validate_output(new_output)
+            errs = contract.validate_output(drop_blank_quotes(new_output)[0])   # rerender drops and counts them
             new_manifest = rerender(new_output) if not errs else None
             errs = errs or contract.validate_manifest(new_manifest)
         except Exception as exc:  # noqa: BLE001

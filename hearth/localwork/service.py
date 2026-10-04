@@ -742,16 +742,8 @@ class LocalWorkService:
             output = json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, ValueError) as exc:
             raise _Refused(f"invalid_output_json: {exc}") from exc
-        dropped = 0  # form repair: constrained decoding lets a quotes tail through as "" or whitespace; counted, never silent
-        if isinstance(output, dict):
-            for section in output.get("sections") if isinstance(output.get("sections"), list) else []:
-                for para in section.get("paragraphs") if isinstance(section, dict) and isinstance(section.get("paragraphs"), list) else []:
-                    if isinstance(para, dict) and isinstance(para.get("quotes"), list):
-                        kept = [q for q in para["quotes"] if not (isinstance(q, str) and not q.strip())]
-                        dropped += len(para["quotes"]) - len(kept)
-                        para["quotes"] = kept
-        try:
-            contract.check_output(output)
+        try:   # the renderer drops blank quotes and counts empty_quote_dropped; the raw answer is kept everywhere
+            contract.check_output(delivery_render.drop_blank_quotes(output)[0])
         except contract.ContractError as exc:
             raise _Refused(f"invalid_delivery_output: {exc}") from exc
         observed = (job.get("invocations") or [{}])[-1]
@@ -765,8 +757,6 @@ class LocalWorkService:
         try:
             sm = sourcemap.build(manifest["repo"], manifest["base_commit"], list(manifest["declared_paths"]))
             markdown, delivery = delivery_render.render(output, manifest["brief"], sm, meta)
-            if dropped:
-                delivery["repairs"]["empty_quote_dropped"] = dropped
             if carried is not None:
                 delivery["procedure"] = "carry"
                 delivery["repairs"].update({k: v for k, v in carried.items() if v})

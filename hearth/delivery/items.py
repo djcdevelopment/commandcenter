@@ -52,6 +52,7 @@ class Kind:
     or_note: str = ""  # appended to an item's block when item["or"]
     judge_notes: dict = field(default_factory=dict)  # item["judge"] mark -> note in the agreed-row judge prompt
     norm: Callable | None = None  # answer -> comparison key; None: _norm (env_reads)
+    answer_ok: Callable | None = None  # answer -> False when it cannot be the default; such an answer is never an agreement
 
 
 _FPROMPT = """{question}
@@ -296,6 +297,18 @@ def _expr_key(s) -> tuple:
             key.append(x.string)
     return tuple(key)
 
+def _parses_as_expr(s) -> bool:
+    """param_defaults: the answer is exactly one Python expression (enclosing backticks and whitespace stripped, as _expr_key does).
+    `dict | None = None` is an annotation and a default, not an expression."""
+    t = str(s).strip()
+    t = t[1:-1].strip() if len(t) > 1 and t[0] == t[-1] == "`" else t
+    try:
+        ast.parse(t, mode="eval")
+    except (SyntaxError, ValueError):
+        return False
+    return True
+
+
 KINDS = {k.name: k for k in (
     Kind("env_reads", _env_items, _ENV_FIELDS, ("default",),
          "one environment variable read (os.environ.get, os.environ[...] or os.getenv)",
@@ -321,7 +334,7 @@ KINDS = {k.name: k for k in (
          {"expression_default": "Note: the default of this parameter is an expression (a call, an attribute, a condition, a collection or an operation), not a constant or a name; the answer states the whole expression as written, across its lines, not its value and not one part of it.",
           "multiline": "Note: the default of this parameter runs over more than one line; the answer states all of it as written.",
           "literal_form": "Note: the default of this parameter is a number written in another form than its plain decimal value (an octal, hex or binary literal, an exponent or underscores); the answer states it as written, not its value."},
-         _expr_key),
+         _expr_key, _parses_as_expr),
 )}
 assert tuple(KINDS) == contract.ITEM_KINDS, "items.py kinds differ from contract.ITEM_KINDS"
 
@@ -424,8 +437,15 @@ def same(kind: str, a: dict, b: dict) -> bool:
     return True
 
 
+def _unparsed(kind: str, readings: list) -> bool:
+    """A reader's default answer that the kind says cannot be a default: the two do not agree, whatever `same` says."""
+    ok = _kind(kind).answer_ok
+    return bool(ok) and any(r is not None and not ok(r["fields"]["default"]) for r in readings)
+
+
 def needs_judge(kind: str, readings: list, item: dict | None = None) -> bool:
-    return bool(item and item.get("judge")) or not (readings[0] is not None and readings[1] is not None and same(kind, readings[0], readings[1]))
+    return (bool(item and item.get("judge")) or _unparsed(kind, readings)
+            or not (readings[0] is not None and readings[1] is not None and same(kind, readings[0], readings[1])))
 
 
 def parse_judgment(kind: str, text: str) -> dict:
@@ -457,7 +477,7 @@ def parse_judgment(kind: str, text: str) -> dict:
 def settle(kind: str, readings: list, judgment: dict | None = None, item: dict | None = None) -> dict:
     r, compared = readings, _kind(kind).compared
     if r[0] is not None and r[1] is not None and same(kind, r[0], r[1]):
-        if item and item.get("judge"):
+        if (item and item.get("judge")) or _unparsed(kind, r):  # an answer that is not a default is judged like a marked row
             if judgment is not None and same(kind, r[0], {"fields": {k: judgment[k] for k in compared}}):
                 return {"state": "agreed", "fields": r[0]["fields"], "by": [0, 1, "judge"]}
             return {"state": "unverified", "fields": None, "by": []}

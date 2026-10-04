@@ -73,7 +73,7 @@ CITATIONS = ("range", "quote", "none")  # see module docstring, rule 3
 STYLES = ("markdown",)
 AIDS = frozenset({"source_map", "quote_renderer", "constrained_output", "sidecar", "judge", "reviewer", "line_reference", "source_excerpt", "source_path_alias", "thinking", "carried_draft", "self_check", "item_enumerator", "reader_agreement"})
 PROCEDURES = ("carry", "items")  # delivery.v1 optional top-level `procedure`: how the candidate was produced; absent = the one-call path
-ITEM_KINDS = ("env_reads",)  # brief.v2 optional `items.kind`; hearth/delivery/items.py registers the same tuple
+ITEM_KINDS = ("env_reads", "param_defaults")  # brief.v2 optional `items.kind`; hearth/delivery/items.py registers the same tuple
 ITEM_COUNTS = ("items", "agreed", "settled", "unverified", "reader_failures", "files")
 MATCHES = ("exact", "normalized", "missing")  # plus "fuzzy:<score>", score 0..1 with two decimals
 # Repair counts the contract knows and cross-checks against claims; the renderer (task 3) may add other

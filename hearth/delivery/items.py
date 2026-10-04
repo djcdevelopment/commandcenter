@@ -1,6 +1,6 @@
 """Itemized delivery (ADR-0058, lap 20): code lists the items of a kind, two readers answer one item a call, a third
 settles the disagreements, code settles each row by agreement and writes the report and every count. Pure: no model call,
-no service. Source text comes from `git show <commit>:<path>`, never the working tree. One registered kind: env_reads.
+no service. Source text comes from `git show <commit>:<path>`, never the working tree. Kinds are entries of KINDS: env_reads, param_defaults.
 Moved from delivery-plan/evidence/itemized (make_items.env_reads, make_env_corpus naming, run_itemized prompt and schema,
 score_envmap normaliser) with the same behaviour; the prompt's kind label is the kind name (the script printed the task name).
 Changed since (2026-10-04, measured): writes to os.environ are not items; `same` reads r"x", "x" and x as one default; the
@@ -13,7 +13,10 @@ import ast
 import json
 import re
 import subprocess
+import tokenize
+from dataclasses import dataclass, field
 from functools import lru_cache
+from typing import Callable
 
 from . import contract
 
@@ -29,18 +32,26 @@ MAX_ITEMS = contract.MAX_SECTIONS * contract.MAX_PARAGRAPHS  # one delivered par
 CAP = 300  # shown source lines per item
 JUDGE_TOKENS = 8000  # one of 57 measured thinking calls ran out at 4,000; the median answer used 511
 
-_FIELDS = {"env_reads": [
-    {"name": "variable", "type": "string", "ask": "the environment variable name"},
-    {"name": "default", "type": "string", "ask": "the value used when the variable is unset, exactly as written in the code: the second argument of the get "
-     "or getenv call; if there is none and the call is directly followed by `or <value>`, that value; 'none' if neither"},
-    {"name": "controls", "type": "string", "ask": "one line on what it controls"}]}
-_DESC = {"env_reads": "one environment variable read (os.environ.get, os.environ[...] or os.getenv)"}
-_QUESTION = {"env_reads": "Name the environment variable, its default if any, and in one line what it controls."}
-_NOUN = {"env_reads": "environment-variable reads"}
-_COMPARED = {"env_reads": ("default",)}
-_OR_NOTE = ("Note: this read has no second argument and is directly followed by `or <value>` in the code (an `or` may also come "
-            "before it); the value used when the variable is unset is the <value> after the read, exactly as written.")
-_NONE = {"none", "null", "nodefault", "", "n/a"}
+@dataclass(frozen=True)
+class Kind:
+    """One item kind: what code lists, what a reader is asked, what is compared, and the words of every prompt and row."""
+    name: str
+    enumerate: Callable  # (text, path) -> [item dict without `id`]
+    fields: tuple  # the fields asked of a reader: {"name", "type", "ask"}
+    compared: tuple  # the fields two readings must agree on
+    desc: str
+    question: str
+    noun: str  # the summary's count sentence: "Delivery of n <noun> in k files."
+    unit: str  # one item, as the summary and judge prompts call it
+    what: str  # a judge prompt: "the default of <what> in source code"
+    judge_ask: str  # a judge prompt rule 2: `"default" is <judge_ask>`
+    subject: Callable  # item -> how a row names it
+    cannot_see: str
+    none: frozenset = frozenset()  # answers that mean "no value" and are one value
+    or_note: str = ""  # appended to an item's block when item["or"]
+    judge_notes: dict = field(default_factory=dict)  # item["judge"] mark -> note in the agreed-row judge prompt
+
+
 _FPROMPT = """{question}
 
 Kind of item: {kind} ({desc}).
@@ -53,45 +64,31 @@ Rules:
 3. Where the lines show none, write 'none' (or an empty list).
 4. "lines" are 1 to 6 line numbers (the numbers before the | sign) that your answer rests on.
 """
-_JPROMPT = {"env_reads": """Two readers were asked for the default of one environment-variable read in source code. They disagree. Decide from the code.
+_JPROMPT = """Two readers were asked for the default of {what} in source code. They disagree. Decide from the code.
 
 {block}
 Reading A says the default is: {a}
 Reading B says the default is: {b}
 
 Rules:
-1. Use only the lines shown. The read under study is the one named in the item header, on the item's own lines.
+1. Use only the lines shown. The {under} under study is the one named in the item header, on the item's own lines.
 2. "default" is {ask}.
 3. "verdict" is "A" if reading A is what the code shows, "B" if reading B is, "neither" if neither is.
 4. "lines" are 1 to 4 line numbers (the numbers before the | sign) that your answer rests on.
 Answer with one JSON object on the last line: {{"default": "...", "verdict": "A" | "B" | "neither", "lines": [n, ...]}}
-"""}
-
-_JPROMPT_AGREED = {"env_reads": """Two readers were asked for the default of one environment-variable read in source code. Code marks this read as unusual. Work out the default from the code yourself first; then compare it with the readers' answer, given after the rules.
+"""
+_JPROMPT_AGREED = """Two readers were asked for the default of {what} in source code. Code marks this {under} as unusual. Work out the default from the code yourself first; then compare it with the readers' answer, given after the rules.
 
 {block}{note}
 Rules:
-1. Use only the lines shown. The read under study is the one named in the item header, on the item's own lines.
+1. Use only the lines shown. The {under} under study is the one named in the item header, on the item's own lines.
 2. Find "default" in the code yourself: it is {ask}.
 3. "verdict" is "A" if the readers' answer is what the code shows, "neither" if it is not.
 4. "lines" are 1 to 4 line numbers (the numbers before the | sign) that your answer rests on.
 
 Both readers say the default is: {a}. Check it against the code.
 Answer with one JSON object on the last line: {{"default": "...", "verdict": "A" | "neither", "lines": [n, ...]}}
-"""}
-_JUDGE_NOTE = {
-    "computed": "Note: the name of the variable read here is not a string constant. A default written on the parameter or variable that holds the name is not the default of the variable read.",
-    "conditional_default": "Note: the value used when this variable is unset is an expression that holds a condition (if/else, and/or) or another environment read; the answer states that whole expression as written, not one branch of it.",
-    "later_fallback": "Note: the result of this read is assigned to a name that the next statements test and may reassign; a value assigned there is not the default of this read, which is what the read itself gives (its second argument, or the value directly after `or`), or none."}
-
-
-def _kind(kind: str) -> str:
-    if kind not in _FIELDS:
-        raise ItemsError(f"unknown item kind {kind!r}; one of {tuple(_FIELDS)}")
-    return kind
-
-
-assert tuple(_FIELDS) == contract.ITEM_KINDS, "items.py kinds differ from contract.ITEM_KINDS"
+"""
 
 
 @lru_cache(maxsize=256)
@@ -206,9 +203,106 @@ def _env_reads(text: str, path: str) -> list:
     return reads
 
 
+def _env_items(text: str, path: str) -> list:
+    return [{"name": f"{r['name'].split('@')[0]} @ {path}:{r['start']}", "path": path, "start": r["start"], "end": r["end"], "show": r["show"],
+             "var": r["name"].split("@")[0], "line": r["line"], **({"computed": True} if r["computed"] else {}),
+             **({"or": True} if r["or"] else {}), **({"judge": r["judge"]} if r["judge"] else {})} for r in _env_reads(text, path)]
+
+
+def _signature_end(lines: list, fn) -> int:
+    """The line of the colon that closes the signature of `fn` (the first `:` outside brackets after its `def`)."""
+    depth = 0
+    for t in tokenize.generate_tokens(_line_feed(lines, fn.lineno - 1)):
+        if t.type == tokenize.OP:
+            if t.string in "([{":
+                depth += 1
+            elif t.string in ")]}":
+                depth -= 1
+            elif t.string == ":" and depth == 0:
+                return fn.lineno + t.start[0] - 1
+    raise ItemsError(f"line {fn.lineno}: the signature of {fn.name} has no closing colon")
+
+
+def _line_feed(lines: list, start: int):
+    it = iter(lines[start:])
+    return lambda: next(it, "")
+
+
+def _param_defaults(text: str, path: str) -> list:
+    tree = ast.parse(text)
+    lines = text.splitlines(keepends=True)
+    out: list = []
+
+    def visit(node, scope):
+        for c in ast.iter_child_nodes(node):
+            if isinstance(c, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                qual = ".".join([*scope, c.name])
+                a = c.args
+                pos = [*a.posonlyargs, *a.args]
+                pairs = [*zip(pos[len(pos) - len(a.defaults):], a.defaults), *((p, d) for p, d in zip(a.kwonlyargs, a.kw_defaults) if d is not None)]
+                if pairs:
+                    s, e = c.lineno, _signature_end(lines, c)
+                    show = [[s, min(e + 3, c.end_lineno)]]
+                    for p, d in pairs:
+                        simple = isinstance(d, (ast.Constant, ast.Name)) or (isinstance(d, ast.UnaryOp) and isinstance(d.op, ast.USub)
+                                                                          and isinstance(d.operand, ast.Constant) and isinstance(d.operand.value, (int, float, complex)))
+                        judge = "expression_default" if not simple else "multiline" if d.end_lineno > d.lineno else None
+                        out.append(((p.lineno, p.col_offset), {"name": f"{qual}({p.arg}) @ {path}:{p.lineno}", "path": path, "start": s, "end": e,
+                                    "show": show, "line": d.lineno, "func": qual, "param": p.arg, **({"judge": judge} if judge else {})}))
+                visit(c, [*scope, c.name])
+            elif isinstance(c, ast.ClassDef):
+                visit(c, [*scope, c.name])
+            else:
+                visit(c, scope)
+    visit(tree, [])
+    return [d for _, d in sorted(out, key=lambda x: x[0])]
+
+
+_ENV_FIELDS = (
+    {"name": "variable", "type": "string", "ask": "the environment variable name"},
+    {"name": "default", "type": "string", "ask": "the value used when the variable is unset, exactly as written in the code: the second argument of the get "
+     "or getenv call; if there is none and the call is directly followed by `or <value>`, that value; 'none' if neither"},
+    {"name": "controls", "type": "string", "ask": "one line on what it controls"})
+_PARAM_FIELDS = (
+    {"name": "parameter", "type": "string", "ask": "the parameter's name"},
+    {"name": "default", "type": "string", "ask": "its default exactly as written in the signature"})
+
+KINDS = {k.name: k for k in (
+    Kind("env_reads", _env_items, _ENV_FIELDS, ("default",),
+         "one environment variable read (os.environ.get, os.environ[...] or os.getenv)",
+         "Name the environment variable, its default if any, and in one line what it controls.",
+         "environment-variable reads", "read", "one environment-variable read", _ENV_FIELDS[1]["ask"],
+         lambda it: f"`{it['var']}`{' (a name computed at run time)' if it.get('computed') else ''}",
+         "Reads made through a helper function, os.environ.setdefault, os.environ.pop, a membership test or a copy of the whole "
+         "environment (`dict(os.environ)`, `os.environ.copy()`) are not listed.",
+         frozenset({"none", "null", "nodefault", "", "n/a"}),
+         "Note: this read has no second argument and is directly followed by `or <value>` in the code (an `or` may also come "
+         "before it); the value used when the variable is unset is the <value> after the read, exactly as written.",
+         {"computed": "Note: the name of the variable read here is not a string constant. A default written on the parameter or variable that holds the name is not the default of the variable read.",
+          "conditional_default": "Note: the value used when this variable is unset is an expression that holds a condition (if/else, and/or) or another environment read; the answer states that whole expression as written, not one branch of it.",
+          "later_fallback": "Note: the result of this read is assigned to a name that the next statements test and may reassign; a value assigned there is not the default of this read, which is what the read itself gives (its second argument, or the value directly after `or`), or none."}),
+    Kind("param_defaults", _param_defaults, _PARAM_FIELDS, ("default",),
+         "one parameter with a default in a function signature",
+         "Name the parameter and give its default exactly as written.",
+         "parameter defaults", "parameter", "one parameter of a function signature", "the default exactly as written in the signature",
+         lambda it: f"`{it['func']}({it['param']})`",
+         "Parameters without a default, lambda parameters, and defaults assigned inside a function body are not listed.",
+         frozenset(), "",
+         {"expression_default": "Note: the default of this parameter is an expression (a call, an attribute, a condition, a collection or an operation), not a constant or a name; the answer states the whole expression as written, across its lines, not its value and not one part of it.",
+          "multiline": "Note: the default of this parameter runs over more than one line; the answer states all of it as written."}),
+)}
+assert tuple(KINDS) == contract.ITEM_KINDS, "items.py kinds differ from contract.ITEM_KINDS"
+
+
+def _kind(kind: str) -> Kind:
+    if kind not in KINDS:
+        raise ItemsError(f"unknown item kind {kind!r}; one of {tuple(KINDS)}")
+    return KINDS[kind]
+
+
 def enumerate_items(kind: str, repo: str, commit: str, paths: list) -> list:
     """Every item of the kind in the files at the commit, ordered by path as given, then line, then column."""
-    _kind(kind)
+    k = _kind(kind)
     out: list = []
     for i, p in enumerate(paths):
         if not isinstance(p, str) or not p.endswith(".py"):
@@ -217,15 +311,11 @@ def enumerate_items(kind: str, repo: str, commit: str, paths: list) -> list:
             raise ItemsError(f"{p}: declared twice; every item would be read and delivered twice")
         text = _src(repo, commit, p)
         try:
-            reads = _env_reads(text, p)
+            found = k.enumerate(text, p)
         except SyntaxError as e:
             raise ItemsError(f"{p}: does not parse at {commit[:12]}: {e.msg} (line {e.lineno})") from None
-        for r in reads:
-            var = r["name"].split("@")[0]
-            out.append({"id": f"i{len(out) + 1:04d}", "name": f"{var} @ {p}:{r['start']}", "path": p, "start": r["start"],
-                        "end": r["end"], "show": r["show"], "var": var, "line": r["line"],
-                        **({"computed": True} if r["computed"] else {}), **({"or": True} if r["or"] else {}),
-                        **({"judge": r["judge"]} if r["judge"] else {})})
+        for it in found:
+            out.append({"id": f"i{len(out) + 1:04d}", **it})
     if not out:
         raise ItemsError(f"no {kind} item in {len(paths)} file(s) at {commit[:12]}")
     if len(out) > MAX_ITEMS:
@@ -233,7 +323,7 @@ def enumerate_items(kind: str, repo: str, commit: str, paths: list) -> list:
     return out
 
 
-def _block(item: dict, repo: str, commit: str) -> str:
+def _block(k: Kind, item: dict, repo: str, commit: str) -> str:
     lines = _src(repo, commit, item["path"]).splitlines()
     nums = [n for s, e in (item.get("show") or [[item["start"], item["end"]]]) for n in range(max(s, 1), min(e, len(lines)) + 1)]
     cut = ""
@@ -242,32 +332,32 @@ def _block(item: dict, repo: str, commit: str) -> str:
         nums = nums[:CAP]
     shown = "\n".join(f"{n}| {lines[n - 1]}" for n in nums)
     head = f"Item under study: {item['name']} ({item['path']}, lines {item['start']}-{item['end']})"
-    return f"{head}\nSource: {item['path']}{cut}\n{shown}\n" + (_OR_NOTE + "\n" if item.get("or") else "")
+    return f"{head}\nSource: {item['path']}{cut}\n{shown}\n" + (k.or_note + "\n" if item.get("or") and k.or_note else "")
 
 
 def prompt(kind: str, item: dict, repo: str, commit: str) -> str:
-    fields = "\n".join(f'   - {f["name"]} (string): {f["ask"]}' for f in _FIELDS[_kind(kind)])
-    return _FPROMPT.format(question=_QUESTION[kind], kind=kind, desc=_DESC[kind], fields=fields, items=_block(item, repo, commit))
+    k = _kind(kind)
+    fields = "\n".join(f'   - {f["name"]} (string): {f["ask"]}' for f in k.fields)
+    return _FPROMPT.format(question=k.question, kind=kind, desc=k.desc, fields=fields, items=_block(k, item, repo, commit))
 
 
 def judge_prompt(kind: str, item: dict, repo: str, commit: str, readings: list) -> str:
+    k = _kind(kind)
     a, b = ("no answer" if r is None else r["fields"]["default"] for r in readings)
     if readings[0] is not None and readings[1] is not None and same(kind, readings[0], readings[1]):
-        note = _JUDGE_NOTE.get(item.get("judge"), "")
-        return _JPROMPT_AGREED[_kind(kind)].format(block=_block(item, repo, commit), note=f"{note}\n" if note else "", a=a,
-                                                   ask=next(f["ask"] for f in _FIELDS[kind] if f["name"] == "default"))
-    return _JPROMPT[_kind(kind)].format(block=_block(item, repo, commit), a=a, b=b,
-                                                ask=next(f["ask"] for f in _FIELDS[kind] if f["name"] == "default"))
+        note = k.judge_notes.get(item.get("judge"), "")
+        return _JPROMPT_AGREED.format(block=_block(k, item, repo, commit), note=f"{note}\n" if note else "", a=a, ask=k.judge_ask, what=k.what, under=k.unit)
+    return _JPROMPT.format(block=_block(k, item, repo, commit), a=a, b=b, ask=k.judge_ask, what=k.what, under=k.unit)
 
 
 def schema(kind: str) -> dict:
-    props = {f["name"]: {"type": "string"} for f in _FIELDS[_kind(kind)]}
+    props = {f["name"]: {"type": "string"} for f in _kind(kind).fields}
     props["lines"] = {"type": "array", "items": {"type": "integer"}, "minItems": 1, "maxItems": 6}
     return {"type": "object", "additionalProperties": False, "required": list(props), "properties": props}
 
 
 def parse(kind: str, text: str) -> dict:
-    names = [f["name"] for f in _FIELDS[_kind(kind)]]
+    names = [f["name"] for f in _kind(kind).fields]
     try:
         d = json.loads(text)
     except (TypeError, ValueError) as e:
@@ -293,9 +383,10 @@ def _norm(s) -> str:
 
 
 def same(kind: str, a: dict, b: dict) -> bool:
-    for k in _COMPARED[_kind(kind)]:
+    kd = _kind(kind)
+    for k in kd.compared:
         x, y = _norm(a["fields"][k]), _norm(b["fields"][k])
-        if not (x == y or (x in _NONE and y in _NONE)):
+        if not (x == y or (x in kd.none and y in kd.none)):
             return False
     return True
 
@@ -331,15 +422,15 @@ def parse_judgment(kind: str, text: str) -> dict:
 
 
 def settle(kind: str, readings: list, judgment: dict | None = None, item: dict | None = None) -> dict:
-    r = readings
+    r, compared = readings, _kind(kind).compared
     if r[0] is not None and r[1] is not None and same(kind, r[0], r[1]):
         if item and item.get("judge"):
-            if judgment is not None and same(kind, r[0], {"fields": {k: judgment[k] for k in _COMPARED[kind]}}):
+            if judgment is not None and same(kind, r[0], {"fields": {k: judgment[k] for k in compared}}):
                 return {"state": "agreed", "fields": r[0]["fields"], "by": [0, 1, "judge"]}
             return {"state": "unverified", "fields": None, "by": []}
         return {"state": "agreed", "fields": r[0]["fields"], "by": [0, 1]}
     if judgment is not None:
-        own = {"fields": {k: judgment[k] for k in _COMPARED[kind]}}
+        own = {"fields": {k: judgment[k] for k in compared}}
         for i in (0, 1):
             if r[i] is not None and same(kind, r[i], own):
                 return {"state": "settled", "fields": r[i]["fields"], "by": [i, "judge"]}
@@ -353,7 +444,7 @@ def _clip(v, n: int) -> str:
 
 def assemble(kind: str, items: list, rows: list, readers: list) -> tuple:
     """-> (delivery-output.v1 document for quote_mode line_reference, report)."""
-    _kind(kind)
+    k = _kind(kind)
     if len(items) != len(rows):
         raise ItemsError(f"{len(items)} items but {len(rows)} rows")
     if not 0 < len(items) <= MAX_ITEMS:
@@ -368,7 +459,7 @@ def assemble(kind: str, items: list, rows: list, readers: list) -> tuple:
         by_mark = bool(it.get("judge")) and not needs_judge(kind, readings) and row["by"] != [0, 1]  # a row settled without the item was not judged
         jfail += (needs_judge(kind, readings) or by_mark) and judgment is None
         marked += by_mark
-        head = f"`{it['var']}`{' (a name computed at run time)' if it.get('computed') else ''} at {it['path']}:"
+        head = f"{k.subject(it)} at {it['path']}:"
         if row["state"] == "unverified":
             seen = " | ".join("no answer" if x is None else _clip(x["fields"]["default"], 200) or "(empty)" for x in readings)
             judge = "no answer" if judgment is None else _clip(judgment["default"], 200) or "(empty)"
@@ -379,12 +470,11 @@ def assemble(kind: str, items: list, rows: list, readers: list) -> tuple:
         paras.append({"text": text, "quotes": [f"{it['path']}:{it['line']}"]})
     n = len(items)
     files = len({it["path"] for it in items})
-    summary = (f"Delivery of {n} {_NOUN[kind]} in {files} files. {count['agreed']} were agreed by the first two readers, "
+    summary = (f"Delivery of {n} {k.noun} in {files} files. {count['agreed']} were agreed by the first two readers, "
                f"{count['settled']} were settled by a judge whose own default matches one reading, and {count['unverified']} are marked "
-               f"NOT VERIFIED because no two agree or, for a marked read, the judge's default differs from the readers' or the judge gave none. "
-               f"{marked} rows were sent to the judge because of a mark on the read, although the readers agreed. {failures} reader calls failed and {jfail} judge calls gave no answer. Every row "
-               f"cites the line of its read. Reads made through a helper function, os.environ.setdefault, os.environ.pop, a membership "
-               f"test or a copy of the whole environment (`dict(os.environ)`, `os.environ.copy()`) are not listed.")
+               f"NOT VERIFIED because no two agree or, for a marked {k.unit}, the judge's default differs from the readers' or the judge gave none. "
+               f"{marked} rows were sent to the judge because of a mark on the {k.unit}, although the readers agreed. {failures} reader calls failed and {jfail} judge calls gave no answer. Every row "
+               f"cites the line of its {k.unit}. {k.cannot_see}")
     secs = [{"heading": f"Items {i + 1} to {min(i + contract.MAX_PARAGRAPHS, n)}", "paragraphs": paras[i:i + contract.MAX_PARAGRAPHS]}
             for i in range(0, n, contract.MAX_PARAGRAPHS)]
     report = {"kind": kind, "items": n, **count, "reader_failures": failures, "judge_failures": jfail, "judged_by_mark": marked, "files": files}

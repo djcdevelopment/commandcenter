@@ -1302,6 +1302,9 @@ class LocalWorkService:
             if not found:
                 raise carry.CarryError("the checked draft has no report heading")
             new = carry.units(carried)
+            kept, was = sum(len(u["text"]) for u in new), sum(len(u["text"]) for u in old)
+            if kept * 3 < was:   # a check that lost most of the report is not a correction of it
+                raise carry.CarryError(f"the checked report holds {kept} characters of text, under a third of the draft report's {was}")
             carry.assemble(carried, {}, notes_blocks=len(self._carry_parts(checked)[2]), sources=self._carry_sources(manifest))
             batches = len(carry.batches(carried))
         except (carry.CarryError, UnicodeDecodeError) as exc:

@@ -502,7 +502,7 @@ class CarryProcedureTests(unittest.TestCase):
         self.calls: list[dict] = []
         self.attach: list = []      # one entry per attach call: the answer text, or an Exception-free dict result
         self.work: dict = {}
-        self.check: str | None = None    # the check turn's answer; default: no change, the draft's own report
+        self.check: str | dict | None = None    # the check turn's answer (a dict: the whole result); default: the draft's own report
         self.hold: threading.Event | None = None    # holds the thinking turn until set
 
         def generate(**kwargs):
@@ -513,6 +513,8 @@ class CarryProcedureTests(unittest.TestCase):
                 if self.hold is not None:
                     self.hold.wait(5)
                 if len(kwargs["messages"]) == 4:   # stage check: the work turn's conversation continues
+                    if isinstance(self.check, dict):
+                        return {**common, **self.check}
                     carried = carry.report_part(carry.split_draft(self.DRAFT))[0]
                     answer = self.check if self.check is not None else "Changes\nnone\n\nReport\n\n" + "".join(b["raw"] for b in carried[1:])
                     return {**common, "ok": True, "text": answer, "finish_reason": "stop"}
@@ -624,6 +626,28 @@ class CarryProcedureTests(unittest.TestCase):
         self.assertEqual((final["status"], len(self.calls)), ("failed", 1))
         self.assertIn("carry work", final["failure"])
         self.assertEqual(final["carry"]["kept"]["output"]["file"], "carry-draft.partial.md")
+
+    def test_the_check_stage_fails_by_name_and_off_runs_the_procedure_as_before(self) -> None:
+        with mock.patch.dict(os.environ, {"HEARTH_CARRY_CHECK": "off"}):
+            final = self.settle(self.submit()["work_id"])
+        delivery = json.loads((self.root / "runs" / "operator" / final["work_id"] / "delivery.json").read_text(encoding="utf-8"))
+        self.assertEqual((final["status"], final["carry"]["check"], [j["stage"] for j in final["carry"]["jobs"]], delivery["aids_used"][-2:]),
+                         ("awaiting_review", {"state": "off"}, ["work", "attach"], ["thinking", "carried_draft"]))
+        self.assertNotIn("carry_check", final["delivery_artifacts"])
+        self.check = "Report\n\nThe file ends with two.\n\nThe file starts with one.\n\nChanges\nnone\n"   # parts in the other order
+        final = self.settle(self.submit()["work_id"])
+        out = (self.root / "runs" / "operator" / final["work_id"] / "delivery-output.json").read_text(encoding="utf-8")
+        self.assertEqual((final["status"], "Changes" in out, "none" in out), ("awaiting_review", False, False))
+        for check, reason in (({"ok": False, "text": "Changes\nnone\n\nReport\n\nThe", "finish_reason": "length", "error_code": "output_truncated",
+                                "error": "output_truncated: cut"}, "carry check: output_truncated"),
+                              ("Changes\nnone\n\nThe file ends with two.\n", "no line that says only `Report`"),
+                              ("Changes\n- most of it\n\nReport\n\nTwo.\n", "under a third")):
+            self.check = check
+            final = self.settle(self.submit()["work_id"])
+            self.assertEqual((final["status"], final["carry"]["failure"]["stage"], [j["stage"] for j in final["carry"]["jobs"]]),
+                             ("failed", "check", ["work", "check"]))
+            self.assertIn(reason, final["failure"])
+            self.assertTrue((self.root / "runs" / "operator" / final["work_id"] / "carry-check.partial.md").is_file())
 
     def test_submits_the_procedure_cannot_serve_are_refused_by_name(self) -> None:
         for label, overrides, reason in (("fast lane", {"lane": "fast"}, "deep lane on a backend that declares deliberate_max_tokens"),

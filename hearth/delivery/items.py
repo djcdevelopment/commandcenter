@@ -10,6 +10,7 @@ the 27B as judge with thinking on (lab-rnd research/settle_probe.py PROMPT + TAI
 from __future__ import annotations
 
 import ast
+import io
 import json
 import re
 import subprocess
@@ -50,6 +51,7 @@ class Kind:
     none: frozenset = frozenset()  # answers that mean "no value" and are one value
     or_note: str = ""  # appended to an item's block when item["or"]
     judge_notes: dict = field(default_factory=dict)  # item["judge"] mark -> note in the agreed-row judge prompt
+    norm: Callable | None = None  # answer -> comparison key; None: _norm (env_reads)
 
 
 _FPROMPT = """{question}
@@ -246,7 +248,11 @@ def _param_defaults(text: str, path: str) -> list:
                     for p, d in pairs:
                         simple = isinstance(d, (ast.Constant, ast.Name)) or (isinstance(d, ast.UnaryOp) and isinstance(d.op, ast.USub)
                                                                           and isinstance(d.operand, ast.Constant) and isinstance(d.operand.value, (int, float, complex)))
-                        judge = "expression_default" if not simple else "multiline" if d.end_lineno > d.lineno else None
+                        num = d.operand if isinstance(d, ast.UnaryOp) else d
+                        literal = (isinstance(num, ast.Constant) and type(num.value) in (int, float, complex)
+                                   and _expr_key(ast.get_source_segment(text, num)) != _expr_key(repr(num.value)))  # 0o644, 1e-3, 200_000
+                        judge = ("expression_default" if not simple else "multiline" if d.end_lineno > d.lineno
+                                 else "literal_form" if literal else None)
                         out.append(((p.lineno, p.col_offset), {"name": f"{qual}({p.arg}) @ {path}:{p.lineno}", "path": path, "start": s, "end": e,
                                     "show": show, "line": d.lineno, "func": qual, "param": p.arg, **({"judge": judge} if judge else {})}))
                 visit(c, [*scope, c.name])
@@ -263,9 +269,32 @@ _ENV_FIELDS = (
     {"name": "default", "type": "string", "ask": "the value used when the variable is unset, exactly as written in the code: the second argument of the get "
      "or getenv call; if there is none and the call is directly followed by `or <value>`, that value; 'none' if neither"},
     {"name": "controls", "type": "string", "ask": "one line on what it controls"})
+_PARAM_AS_WRITTEN = ("the text after the parameter's `=` in the signature, character for character as written: quotes, prefixes, "
+                     "names and calls as they stand, not its value; a default over several lines in full")
 _PARAM_FIELDS = (
     {"name": "parameter", "type": "string", "ask": "the parameter's name"},
-    {"name": "default", "type": "string", "ask": "its default exactly as written in the signature"})
+    {"name": "default", "type": "string", "ask": _PARAM_AS_WRITTEN})
+
+_LAYOUT = (tokenize.NL, tokenize.NEWLINE, tokenize.COMMENT, tokenize.INDENT, tokenize.DEDENT, tokenize.ENDMARKER)
+
+
+def _expr_key(s) -> tuple:
+    """param_defaults: a default compared as Python tokens. Layout, comments, enclosing backticks and a string's quote style or
+    prefix do not count (r"x", 'x' and "x" are one default); all else does: case, the name x and the string 'x', '' and None,
+    0 and False, () and [], 0o644 and 420. An answer that does not tokenize is compared as its stripped text."""
+    t = str(s).strip()
+    t = t[1:-1].strip() if len(t) > 1 and t[0] == t[-1] == "`" else t
+    try:
+        toks = [x for x in tokenize.generate_tokens(io.StringIO(t).readline) if x.type not in _LAYOUT]
+    except tokenize.TokenError:
+        return ("text", t)
+    key = []
+    for x in toks:
+        try:
+            key.append(repr(ast.literal_eval(x.string)) if x.type == tokenize.STRING else x.string)
+        except (ValueError, SyntaxError):
+            key.append(x.string)
+    return tuple(key)
 
 KINDS = {k.name: k for k in (
     Kind("env_reads", _env_items, _ENV_FIELDS, ("default",),
@@ -283,13 +312,16 @@ KINDS = {k.name: k for k in (
           "later_fallback": "Note: the result of this read is assigned to a name that the next statements test and may reassign; a value assigned there is not the default of this read, which is what the read itself gives (its second argument, or the value directly after `or`), or none."}),
     Kind("param_defaults", _param_defaults, _PARAM_FIELDS, ("default",),
          "one parameter with a default in a function signature",
-         "Name the parameter and give its default exactly as written.",
-         "parameter defaults", "parameter", "one parameter of a function signature", "the default exactly as written in the signature",
+         "The item is the parameter `{param}` of the function `{func}`, whose signature starts on line {start}. Name that "
+         "parameter and give its default exactly as written.",
+         "parameter defaults", "parameter", "the parameter `{param}` of the function `{func}`", _PARAM_AS_WRITTEN,
          lambda it: f"`{it['func']}({it['param']})`",
          "Parameters without a default, lambda parameters, and defaults assigned inside a function body are not listed.",
          frozenset(), "",
          {"expression_default": "Note: the default of this parameter is an expression (a call, an attribute, a condition, a collection or an operation), not a constant or a name; the answer states the whole expression as written, across its lines, not its value and not one part of it.",
-          "multiline": "Note: the default of this parameter runs over more than one line; the answer states all of it as written."}),
+          "multiline": "Note: the default of this parameter runs over more than one line; the answer states all of it as written.",
+          "literal_form": "Note: the default of this parameter is a number written in another form than its plain decimal value (an octal, hex or binary literal, an exponent or underscores); the answer states it as written, not its value."},
+         _expr_key),
 )}
 assert tuple(KINDS) == contract.ITEM_KINDS, "items.py kinds differ from contract.ITEM_KINDS"
 
@@ -338,7 +370,7 @@ def _block(k: Kind, item: dict, repo: str, commit: str) -> str:
 def prompt(kind: str, item: dict, repo: str, commit: str) -> str:
     k = _kind(kind)
     fields = "\n".join(f'   - {f["name"]} (string): {f["ask"]}' for f in k.fields)
-    return _FPROMPT.format(question=k.question, kind=kind, desc=k.desc, fields=fields, items=_block(k, item, repo, commit))
+    return _FPROMPT.format(question=k.question.format(**item), kind=kind, desc=k.desc, fields=fields, items=_block(k, item, repo, commit))
 
 
 def judge_prompt(kind: str, item: dict, repo: str, commit: str, readings: list) -> str:
@@ -346,8 +378,8 @@ def judge_prompt(kind: str, item: dict, repo: str, commit: str, readings: list) 
     a, b = ("no answer" if r is None else r["fields"]["default"] for r in readings)
     if readings[0] is not None and readings[1] is not None and same(kind, readings[0], readings[1]):
         note = k.judge_notes.get(item.get("judge"), "")
-        return _JPROMPT_AGREED.format(block=_block(k, item, repo, commit), note=f"{note}\n" if note else "", a=a, ask=k.judge_ask, what=k.what, under=k.unit)
-    return _JPROMPT.format(block=_block(k, item, repo, commit), a=a, b=b, ask=k.judge_ask, what=k.what, under=k.unit)
+        return _JPROMPT_AGREED.format(block=_block(k, item, repo, commit), note=f"{note}\n" if note else "", a=a, ask=k.judge_ask, what=k.what.format(**item), under=k.unit)
+    return _JPROMPT.format(block=_block(k, item, repo, commit), a=a, b=b, ask=k.judge_ask, what=k.what.format(**item), under=k.unit)
 
 
 def schema(kind: str) -> dict:
@@ -384,8 +416,9 @@ def _norm(s) -> str:
 
 def same(kind: str, a: dict, b: dict) -> bool:
     kd = _kind(kind)
+    norm = kd.norm or _norm
     for k in kd.compared:
-        x, y = _norm(a["fields"][k]), _norm(b["fields"][k])
+        x, y = norm(a["fields"][k]), norm(b["fields"][k])
         if not (x == y or (x in kd.none and y in kd.none)):
             return False
     return True

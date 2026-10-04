@@ -46,7 +46,8 @@ def submit_local_work(intent: str, acceptance_criteria: list[str], repo: str,
                       idempotency_key: str | None = None,
                       brief: dict[str, Any] | None = None,
                       temperature: float | None = None,
-                      revise: bool = False) -> dict[str, Any]:
+                      revise: bool = False,
+                      procedure: str | None = None) -> dict[str, Any]:
     """Submit bounded repository work to a strictly local lane for later review.
 
     ``brief`` (a brief.v2 object, artifact_kind markdown only) makes this a delivery: the model answers a
@@ -56,7 +57,11 @@ def submit_local_work(intent: str, acceptance_criteria: list[str], repo: str,
     ``revise`` (delivery only) allows one bounded objection round: if the first answer has unsupported quotes or a
     failing rung 0, the door sends the model its answer and the objections once and keeps the revision only when it
     has fewer unsupported quotes, or no more of them and no longer fails rung 0 for the first answer's other reason
-    (``revision`` in the manifest says which was kept and why; both versions stay on disk)."""
+    (``revision`` in the manifest says which was kept and why; both versions stay on disk).
+    ``procedure`` ("carry", delivery only, deep lane on a backend that declares ``deliberate_max_tokens``; no ``revise``,
+    no ``max_tokens``) runs the carried-draft procedure: one thinking turn writes a draft, thinking-off calls attach
+    exact quotes batch by batch, code assembles and renders it. The work stays queued/running through the stages
+    (``carry`` in the manifest names the stage) and stops at awaiting_review. Absent, the one-call path is unchanged."""
     identity = _identity()
     return _get_service().submit(
         intent=intent, acceptance_criteria=acceptance_criteria, repo=repo,
@@ -64,7 +69,7 @@ def submit_local_work(intent: str, acceptance_criteria: list[str], repo: str,
         target_path=target_path, lane=lane, task_family=task_family,
         deadline_s=deadline_s, max_tokens=max_tokens, receipt_id=receipt_id,
         idempotency_key=idempotency_key, caller_id=identity.caller_id, brief=brief,
-        temperature=temperature, revise=revise)
+        temperature=temperature, revise=revise, procedure=procedure)
 
 
 def watch_local_work(work_id: str, after_sequence: int = 0,

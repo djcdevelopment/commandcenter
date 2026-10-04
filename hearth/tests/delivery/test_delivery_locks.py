@@ -413,10 +413,6 @@ class RungZeroArithmeticTests(unittest.TestCase):
             _paragraph_job("s0.p0", [claim], {"read": read})
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class CarryTests(unittest.TestCase):
     """Lap 17 B1: the carried-draft helpers, on made-up drafts and the proven reference forms."""
 
@@ -429,7 +425,21 @@ class CarryTests(unittest.TestCase):
                 ("ctx 65536, 2 slots, k=1, v2.3 (65536) on 127.0.0.1:8710", "ctx 65536, 2 slots, k=1, v2.3 (65536) on 127.0.0.1:8710", []),
                 ("`line 17` and \"lines 3-4\" stay", "`line 17` and \"lines 3-4\" stay", []),
                 ("(1) first, (2) second", "(1) first, (2) second", []),
-                ("flip (18\u219233) done", "flip done", ["18\u219233"])):
+                ("flip (18\u219233) done", "flip done", ["18\u219233"]),
+                # forms the 27B wrote in eight real drafts (2026-10-03); the seam closes without orphan marks
+                ("ctx 65536 (day line 17; tool-night line 32).", "ctx 65536.", ["day line 17; tool-night line 32"]),
+                ("max 16384 (TOML 17, 32); x (day 22; tool-night 37).", "max 16384; x.", ["TOML 17, 32", "day 22; tool-night 37"]),
+                ("- L348: SKIP_DAYS=7.", "- SKIP_DAYS=7.", ["L348"]),
+                ("- item (17)\n  continued (lines 3-4) here", "- item\n  continued here", ["17", "lines 3-4"]),
+                ("writes .tmp then os.replace (429-437).", "writes .tmp then os.replace.", ["429-437"]),
+                ("omen-dense-27b: 017/032 live; am4-vllm (018 -> 033).", "omen-dense-27b: live; am4-vllm.", ["017/032", "018 -> 033"]),
+                ("collect_backends 191-210 reads it, defined at 469-510.", "collect_backends reads it, defined.", ["191-210", "469-510"]),
+                ("lines 485 and 487 hold a (663\u2013761) b at S680-683 here", "hold a b here", ["lines 485 and 487", "663\u2013761", "S680-683"]),
+                # values, enumerators, years, units and code stay
+                ("slots (2), threads (8), the limit (8), in (2026), (live in both)", "slots (2), threads (8), the limit (8), in (2026), (live in both)", []),
+                ("it does (1) read and (2) write; takes 2-3 days and 4-8 GB; L2 cache, an L4 GPU", "it does (1) read and (2) write; takes 2-3 days and 4-8 GB; L2 cache, an L4 GPU", []),
+                ("dated 2026-10-03, qwen3.8-27b, x (default 6), y (day 17)", "dated 2026-10-03, qwen3.8-27b, x (default 6), y (day 17)", []),
+                ("```\nx = f(17)  # line 3\n```", "```\nx = f(17)  # line 3\n```", [])):
             self.assertEqual(carry.strip_line_references(before), (after, refs), before)
 
     def test_split_joins_and_handles_edges(self):
@@ -447,14 +457,23 @@ class CarryTests(unittest.TestCase):
         self.assertEqual(rep["repairs"]["line_reference_stripped"], 30)
         self.assertNotIn("N:", out["summary"])
 
+    def test_split_keeps_fences_items_and_rules_and_a_short_last_line(self):
+        draft = "Notes\n\n```\n# not a heading\n- not an item\n\nx = 1\n```\n\n1. Run it\n\n---\n\nNo other endpoints\n"
+        blocks = carry.split_draft(draft)
+        self.assertEqual("".join(b["raw"] for b in blocks), draft)
+        self.assertEqual([(b["kind"], b["text"][:12]) for b in blocks],
+                         [("heading", "Notes"), ("text", "```\n# not a "), ("text", "1. Run it"), ("text", "---"), ("text", "No other end")])
+
     def test_assemble_caps_quotes_and_attach_answer_must_cover_every_block(self):
         blocks = carry.split_draft("Head\n\nA paragraph.\n\nAnother one.\n")
         out, rep = carry.assemble(blocks, {2: [f"q{i}" for i in range(11)], 3: []})
         self.assertEqual((len(out["sections"][0]["paragraphs"][0]["quotes"]), rep["repairs"]["quotes_beyond_cap_dropped"], rep["quotes"]), (8, 3, 8))
         self.assertEqual(carry.parse_attach("[block 2]\n> a = 1\n> say \"b\"\n[block 3]\n(none)\n", [2, 3]),
-                         ({2: ["a = 1", 'say "b"'], 3: []}, {"json_unescaped_quote": 0}))
-        self.assertEqual(carry.parse_attach('[block 2]\n> "a \\"x\\""\n', [2])[1], {"json_unescaped_quote": 1})
-        for bad, ids in (("[block 2]\n> a\n", [2, 3]), ("[block 2]\n(none)\n[block 9]\n(none)\n", [2]), ("[block 2]\nsome prose\n", [2])):
+                         ({2: ["a = 1", 'say "b"'], 3: []}, {"json_unescaped_quote": 0, "quote_over_limit_dropped": 0}))
+        self.assertEqual(carry.parse_attach('[block 2]\n> "a \\"x\\""\n', [2])[1], {"json_unescaped_quote": 1, "quote_over_limit_dropped": 0})
+        self.assertEqual(carry.parse_attach(f"[block 2]\n> {'x' * 401}\n> ok\n", [2]), ({2: ["ok"]}, {"json_unescaped_quote": 0, "quote_over_limit_dropped": 1}))
+        for bad, ids in (("[block 2]\n> a\n", [2, 3]), ("[block 2]\n(none)\n[block 9]\n(none)\n", [2]), ("[block 2]\nsome prose\n", [2]),
+                         ("[block 2]\n(none)\n[block 3]\n", [2, 3])):           # the last: cut off after a block line
             with self.assertRaises(carry.CarryError):
                 carry.parse_attach(bad, ids)
 
@@ -466,3 +485,19 @@ class CarryTests(unittest.TestCase):
         contract.check_manifest(man)
         man["procedure"] = "other"
         self.assertTrue(contract.validate_manifest(man))
+
+    def test_assemble_strips_headings_drops_reference_only_blocks_and_agreement_reads_every_span(self):
+        blocks = carry.split_draft("# " + "H" * 130 + " (lines 3-4)\n\nA statement (10, 20-22).\n\n(lines 7-8)\n")
+        out, rep = carry.assemble(blocks, {2: ["q"]})
+        self.assertEqual(contract.validate_output(out), [])
+        self.assertLessEqual(len(out["sections"][0]["heading"]), 120)
+        self.assertEqual(([p["text"] for p in out["sections"][0]["paragraphs"]], rep["blocks_empty_after_stripping_dropped"]), (["A statement."], [3]))
+        man = {"claims": [{"id": "s0.p0.q0", "resolved": {"start_line": 10, "end_line": 10}},
+                          {"id": "s0.p0.q1", "resolved": {"start_line": 21, "end_line": 25}}]}
+        self.assertEqual([r["agrees"] for r in carry.line_reference_agreement(rep, man)], [None, True, None])
+        man["claims"].pop()
+        self.assertEqual(carry.line_reference_agreement(rep, man)[1]["agrees"], False)   # "20-22" has no quote
+
+
+if __name__ == "__main__":
+    unittest.main()

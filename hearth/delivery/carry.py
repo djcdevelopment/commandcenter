@@ -21,18 +21,25 @@ class CarryError(ValueError):
 
 # ------------------------------------------------------------------ split
 def _blocks_of(draft: str) -> list:
-    """(kind, raw) in order, kinds heading | item | paragraph | table; raws join to the draft."""
+    """(kind, raw) in order, kinds heading | item | paragraph | table | code; raws join to the draft."""
     lines = draft.splitlines(keepends=True)
     starts, i, n = [], 0, len(lines)
+    item = re.compile(r"(?:[-*+]|\d+[.)])\s")
     while i < n:
         s = lines[i].strip()
         if not s:
             i += 1
             continue
         prev_blank = i == 0 or not lines[i - 1].strip()
-        if s.startswith("#") or (prev_blank and len(s) <= 30 and not re.search(r"[.;]$", s) and not s.startswith(("- ", "* ", "|"))):
-            starts.append((i, "heading")); i += 1
-        elif s.startswith(("- ", "* ")) or re.match(r"\d+[.)]\s", s):
+        if s.startswith(("```", "~~~")):                      # a fenced block is one block, fences included
+            starts.append((i, "code")); fence = s[:3]; i += 1
+            while i < n and not lines[i].strip().startswith(fence):
+                i += 1
+            i += 1
+        elif s.startswith("#") or (prev_blank and len(s) <= 30 and not re.search(r"[.;]$", s) and not item.match(s)
+                                   and not s.startswith("|") and not re.fullmatch(r"([-*_])(?:\s*\1){2,}", s)):
+            starts.append((i, "heading" if s.startswith("#") else "heading?")); i += 1
+        elif item.match(s):
             starts.append((i, "item")); i += 1
             while i < n and lines[i].strip() and lines[i][:1].isspace():
                 i += 1                                        # indented continuation
@@ -42,8 +49,12 @@ def _blocks_of(draft: str) -> list:
                 i += 1
         else:
             starts.append((i, "paragraph")); i += 1
-            while i < n and lines[i].strip() and not lines[i].lstrip().startswith(("- ", "* ", "#")):
+            while i < n and lines[i].strip() and not item.match(lines[i].lstrip()) and not lines[i].lstrip().startswith(("#", "|", "```", "~~~")):
                 i += 1
+    for k, (li, kind) in enumerate(starts):                   # a short line with no text under it is a sentence, not a heading
+        if kind == "heading?":
+            nxt = starts[k + 1][1] if k + 1 < len(starts) else None
+            starts[k] = (li, "paragraph" if nxt in (None, "heading", "heading?") else "heading")
     pos = [0]
     for ln in lines:
         pos.append(pos[-1] + len(ln))
@@ -60,7 +71,7 @@ def _pieces(raw: str, kind: str, limit: int) -> list:
     a table), then a space for a sentence that is still too long."""
     if len(raw.strip()) <= limit:
         return [raw]
-    bound = r"(?<=[.!?])\s+|\n+" if kind == "table" else r"(?<=[.!?])\s+"
+    bound = r"(?<=[.!?])\s+|\n+" if kind in ("table", "code") else r"(?<=[.!?])\s+"
     segs, last = [], 0
     for m in re.finditer(bound, raw):
         segs.append(raw[last:m.end()]); last = m.end()
@@ -104,61 +115,117 @@ def split_draft(draft: str) -> list:
 
 
 # ------------------------------------------------------------------ line references
-_NUM = r"\d+(?:\s*[-\u2013\u2192]\s*L?\d+)?"
-_REF = rf"(?:(?:lines?|L)\s*)?{_NUM}"
+# A number is removed only when its form says it is a line reference. A value the model states ("slots (2)", "default (8)",
+# "(16384)", a year, "(1) ... (2)" enumerators, "2-3 days") stays: a false removal changes what the report says.
+_NUM = r"\d+(?:\s*(?:->|[-–→])\s*L?\d+)?"
 _SEP = r"\s*(?:,|;|\band\b|\bvs\.?|\bto\b|&)\s*"
-_PAREN = re.compile(rf"\s*\(\s*{_REF}(?:{_SEP}{_REF})*\s*\)", re.I)
-_INLINE = re.compile(rf"(?:\s+(?:see|at|in|on|from|per|around|near))?\s+\b(?:[Ll]ines?\s+{_NUM}(?:{_SEP}{_NUM})*|L{_NUM})(?![\w-])")
-_START_INLINE = re.compile(rf"^(?:(?:see|at|in|on|from|per)\s+)?(?:[Ll]ines?\s+{_NUM}(?:{_SEP}{_NUM})*|L{_NUM})(?![\w-])\s*", re.I)
-_PATH = re.compile(r"(?<![\w/.-])((?:[\w.-]+/)*[A-Za-z_][\w.-]*\.(?:py|md|toml|json|yaml|yml|txt|sh|cfg|ini|js|ts|rs|go|c|h|cpp|service|conf|cmd)):(\d+(?:-\d+)?)(?![\w:])")
-_PROTECT = re.compile(r"`[^`\n]*`|\"[^\"\n]*\"|“[^”\n]*”")
+_EXT = r"(?:py|md|toml|json|yaml|yml|txt|sh|cfg|ini|js|ts|rs|go|c|h|cpp|service|conf|cmd)"
+_FILEW = rf"(?:TOML|toml|source|src|[\w./-]+\.{_EXT})"
+_ITEM = re.compile(rf"(?:(?P<label>(?!(?:lines?|L)\b)[A-Za-z][\w./-]*)\s+)?(?P<line>(?:lines?|L)\s*)?{_NUM}(?:\s*,\s*{_NUM})*", re.I)
+_PAREN = re.compile(r"\s*\(([^()\n]*\d[^()\n]*)\)")
+_LREF = r"(?:[Ll]ines?\s+" + _NUM + r"(?:" + _SEP + _NUM + r")*|L\d{2,}(?:\s*[-–]\s*L?\d+)?|[LS]\d+\s*[-–]\s*\d+)(?![\w-])"
+_INLINE = re.compile(r"(?:\s+(?:see|at|in|on|from|per|around|near))?\s+\b" + _LREF)
+_START_INLINE = re.compile(r"^(?:(?:[Ss]ee|[Aa]t|[Ii]n|[Oo]n|[Ff]rom|[Pp]er)\s+)?" + _LREF)
+_FILE_NUMS = re.compile(rf"\b{_FILEW}\s+(\d+(?:\s*[-–]\s*\d+)?(?:\s*,\s*\d+(?:\s*[-–]\s*\d+)?)*)(?![\w.-])")   # "TOML 17, 32"
+_ZERO = re.compile(r"(?<![\w.:/-])0\d\d(?:\s*(?:->|[-–→/])\s*0\d\d)?(?!\w|\.\d|-\d)")   # "017/032", "009-022": zero-padded
+_RANGE = re.compile(r"(?<![\w.:/=-])(\d+)\s*[-–]\s*(\d+)(?!\w|\.\d|[%-])")
+_PATH = re.compile(rf"(?<![\w/.-])((?:[\w.-]+/)*[A-Za-z_][\w.-]*\.{_EXT}):(\d+(?:-\d+)?)(?![\w:])")
+_PROTECT = re.compile(r"```[\s\S]*?```|`[^`\n]*`|\"[^\"\n]*\"|“[^”\n]*”")
 _NO_REF_BEFORE = re.compile(r"(?:^|[:;,(]|\b(?:and|or|then|but))\s*$")   # "(1) first, (2) second": an enumerator, not a reference
+_COUNT_NOUN = re.compile(r"(?:^|[_-])(?:slots?|seats?|lanes?|threads?|workers?|seqs|sequences|replicas|gpus|cards|days|hours|minutes|"
+                         r"seconds|items|batch(?:es)?|quotes|paragraphs|sections|words|calls|retries|attempts|steps|rounds|requests|"
+                         r"leases|blocks|briefs|runs|claims|backends|files|tokens|bytes|default|limit|port|count|total|size|len|ctx|"
+                         r"k|n|t|temperature|GB|MB|KB|GiB|MiB|ms|s|%)$", re.I)
+_PARAM = re.compile(r"(?:^|_)(?:tokens|slots|seqs|len|size|bytes|limit|days|ctx|port|count|seconds|threads|workers)$", re.I)
+_PREP = re.compile(r"\b(?:at|in|see|per|from|on)\s+$")
 
 
 def _blocked(spans: list, a: int, b: int) -> bool:
     return any(a < e and s < b for s, e in spans)
 
 
+def _word_before(text: str, at: int) -> str:
+    m = re.search(r"(\S+)\s*$", text[:at])
+    return m.group(1).rstrip(",;:") if m else ""
+
+
+def _paren_is_reference(body: str, text: str, at: int) -> bool:
+    """Only line references inside: "(17)", "(663-683)", "(160, 174-180)", "(lines 16-22)", "(TOML 17, 32)", "(18 -> 33)",
+    "(day line 17; tool-night line 32)", "(day 17; tool-night 32)". Not "(2)" after a count noun ("slots (2)"), an
+    enumerator, a year, a number of five digits or more, or a label that is not a file ("(default 6)", "(day 17)")."""
+    items = [_ITEM.fullmatch(p) for p in re.split(r"\s*(?:;|\bvs\.?|\band\b|\bto\b|&)\s*", body.strip()) if p]
+    if not items or not all(items):
+        return False
+    labels = [m.group("label") for m in items]
+    listed = len(items) > 1 and ";" in body and all(labels)
+    for m, lab in zip(items, labels):
+        if lab and not m.group("line") and (_COUNT_NOUN.search(lab) or not (re.fullmatch(_FILEW, lab) or listed)):
+            return False
+    if any(m.group("line") for m in items) or any(labels):
+        return True
+    nums = [int(x) for x in re.findall(r"\d+", body)]
+    if max(nums) >= 10000:
+        return False                                          # a sizing value: "(65536)"
+    if len(nums) > 1:
+        return True                                           # a list or range, even after a parameter name ("max_tokens (486-488)")
+    n = nums[0]
+    if 1900 <= n <= 2099 or _NO_REF_BEFORE.search(text[:at]) or _COUNT_NOUN.search(_word_before(text, at)):
+        return False                                          # a year; "(1) first, (2) second"; "slots (2)", "default (8)"
+    return not (n <= 9 and all(re.search(rf"\(\s*{k}\s*\)", text) for k in range(1, max(n, 2) + 1)))   # "a (1) ... b (2)"
+
+
+def _join(left: str, right: str) -> str:
+    """Close the gap a removal left; only the seam is touched (no doubled space, no orphan punctuation)."""
+    lt, rt = left.rstrip(), right.lstrip()
+    if not lt.strip() or re.fullmatch(r"\s*(?:[-*+]|\d+[.)])", lt):   # the start of the text or of a list item
+        rt = re.sub(r"^[,;:.]+\s*", "", rt)
+        return lt + (" " if lt.strip() and rt else "") + rt
+    if not rt or rt[0] in ",;:.!?)]":
+        return (lt[:-1] if lt[-1] in ",;:" and rt else lt) + rt
+    if lt[-1] in "([":
+        return lt + rt
+    gap = left[len(lt):] + right[:len(right) - len(rt)]
+    return lt + ("\n" + gap.rsplit("\n", 1)[1] if "\n" in gap else " " if gap else "") + rt   # a line break in a table stays
+
+
 def strip_line_references(text: str) -> tuple:
     spans = [m.span() for m in _PROTECT.finditer(text)]
-    cuts = []                                                 # (start, end, reference as written, replacement)
+    cuts: list = []                                           # (start, end, reference as written)
+
+    def cut(a: int, b: int, ref: str) -> None:
+        if not _blocked(spans, a, b) and not any(x < b and a < y for x, y, _ in cuts):
+            cuts.append((a, b, ref))
     for m in _PAREN.finditer(text):
-        body = m.group(0).strip()[1:-1].strip()
-        nums = [int(x) for x in re.findall(r"\d+", body)]
-        bare = not re.search(r"[A-Za-z]", body)
-        before = text[:m.start()]
-        if _blocked(spans, *m.span()):
-            continue
-        if bare and (max(nums) >= 10000 or _NO_REF_BEFORE.search(before)):
-            continue                                          # a sizing value or an enumerator, not a line reference
-        cuts.append((m.start(), m.end(), body, ""))
-    m = _START_INLINE.match(text)
-    if m and not _blocked(spans, *m.span()) and not any(a < m.end() for a, _, _, _ in cuts):
-        cuts.append((0, m.end(), re.search(r"(?:[Ll]ines?\s+|L)\d.*$", m.group(0).strip()).group(0), ""))
-    for m in _INLINE.finditer(text):
-        ref = re.search(r"(?:[Ll]ines?\s+|L)\d.*$", m.group(0).strip()).group(0)
-        if not _blocked(spans, *m.span()) and not any(a < m.end() and m.start() < b for a, b, _, _ in cuts):
-            cuts.append((m.start(), m.end(), ref, ""))
+        if _paren_is_reference(m.group(1), text, m.start()):
+            cut(m.start(), m.end(), m.group(1).strip())
+    for m in [_START_INLINE.match(text)] + list(_INLINE.finditer(text)):
+        if m:
+            cut(m.start(), m.end(), re.search(r"(?:[Ll]ines?\s+|[LS])\d.*$", m.group(0).strip()).group(0))
     for m in _PATH.finditer(text):
-        if not _blocked(spans, *m.span()) and not any(a < m.end() and m.start() < b for a, b, _, _ in cuts):
-            cuts.append((m.start(2) - 1, m.end(2), m.group(2), ""))
-    cuts.sort()
-    out, last, removed = [], 0, []
-    for a, b, ref, _ in cuts:
-        if a < last:
+        cut(m.start(2) - 1, m.end(2), m.group(2))
+    for m in _FILE_NUMS.finditer(text):
+        cut(m.start(1), m.end(1), m.group(1))
+    for m in _ZERO.finditer(text):
+        cut(m.start(), m.end(), m.group(0))
+    for m in _RANGE.finditer(text):                           # "at 469-510", "collect_backends 191-210"; not "2-3 days"
+        lo, hi = int(m.group(1)), int(m.group(2))
+        after = re.match(r"\s*([A-Za-z%]+)", text[m.end():])
+        if hi <= lo or hi >= 10000 or lo >= 1900 or (after and _COUNT_NOUN.search(after.group(1))):
             continue
-        out.append(text[last:a]); last = b; removed.append(ref)
-    out.append(text[last:])
-    s = "".join(out)
-    if removed:
-        s = re.sub(r"[ \t]{2,}", " ", s)
-        s = re.sub(r"\s+([,;:.!?)\]])", r"\1", s)
-        s = re.sub(r"([(\[])\s+", r"\1", s)
-        s = re.sub(r"^[\s,;:]+", "", s)
-        s = re.sub(r"([,;])\s*([.!?])", r"\2", s)
-        s = re.sub(r",\s*,", ",", s)
-        s = s.strip()
-    return s, removed
+        before, p = _word_before(text, m.start()), _PREP.search(text[:m.start()])
+        if p:
+            cut(p.start(), m.end(), m.group(0))
+        elif re.search(r"[A-Za-z]_[A-Za-z]|\(\)$", before) and not _PARAM.search(before):
+            cut(m.start(), m.end(), m.group(0))
+    cuts.sort()
+    pieces, last = [], 0
+    for a, b, _ in cuts:
+        pieces.append(text[last:a]); last = b
+    pieces.append(text[last:])
+    s = pieces[0]
+    for p in pieces[1:]:
+        s = _join(s, p)
+    return (s.strip() if cuts else s), [r for _, _, r in cuts]
 
 
 # ------------------------------------------------------------------ attach
@@ -172,7 +239,9 @@ def format_blocks(batch: list) -> str:
 
 
 def parse_attach(answer: str, ids: list) -> tuple:
-    got, cur, repairs = {}, None, {"json_unescaped_quote": 0}
+    """Also counted: `quote_over_limit_dropped` (a quote over MAX_QUOTE_CHARS is dropped, not fatal: the answer is whole). A
+    block with neither a quote nor "(none)" is a cut-off answer and raises."""
+    got, cur, repairs, done = {}, None, {"json_unescaped_quote": 0, "quote_over_limit_dropped": 0}, set()
     for ln in answer.splitlines():
         m = re.match(r"^\[block (\d+)\]\s*$", ln.strip())
         if m:
@@ -190,13 +259,19 @@ def parse_attach(answer: str, ids: list) -> tuple:
                     repairs["json_unescaped_quote"] += 1
                 except ValueError:
                     pass
+            done.add(cur)
             if len(q) > MAX_QUOTE_CHARS:
-                raise CarryError(f"parse_attach: a quote of {len(q)} characters in block {cur} (limit {MAX_QUOTE_CHARS})")
+                repairs["quote_over_limit_dropped"] += 1
+                continue
             got[cur].append(q)
-        elif ln.strip() and ln.strip() != "(none)":
+        elif ln.strip() == "(none)" and cur is not None:
+            done.add(cur)
+        elif ln.strip():
             raise CarryError(f"parse_attach: unparsed line {ln[:60]!r}")
     if set(got) != set(ids):
         raise CarryError(f"parse_attach: asked for blocks {sorted(ids)}, answer holds {sorted(got)}")
+    if set(got) - done:
+        raise CarryError(f"parse_attach: blocks {sorted(set(got) - done)} have neither a quote nor (none): a cut-off answer")
     return got, repairs
 
 
@@ -205,11 +280,15 @@ def assemble(blocks: list, quotes: dict, *, statements: Optional[int] = None) ->
     """`statements` is accepted for the service's call shape and unused: the summary states no count of statements."""
     sections, refs = [], []
     stripped = beyond = with_quotes = total = paras = 0
-    heading = None
+    heading, dropped = None, []
     for b in blocks:
         if b["kind"] == "heading":
-            heading = b["text"][:MAX_HEADING_CHARS]
-            sections.append({"heading": heading, "paragraphs": []})
+            text, removed = strip_line_references(b["text"])
+            stripped += len(removed)
+            refs += [{"block": b["id"], "reference": r} for r in removed]
+            if text.strip(" #*_:-"):
+                heading = text[:MAX_HEADING_CHARS - len(" (continued 99)")]
+                sections.append({"heading": heading, "paragraphs": []})
             continue
         if not sections:
             heading = LEAD_HEADING
@@ -218,10 +297,11 @@ def assemble(blocks: list, quotes: dict, *, statements: Optional[int] = None) ->
             k = sum(1 for s in sections if s.get("_base") == heading) + 1
             sections.append({"heading": f"{heading} (continued)" if k == 1 else f"{heading} (continued {k})", "paragraphs": [], "_base": heading})
         text, removed = strip_line_references(b["text"])
-        if not text:
-            raise CarryError(f"assemble: block {b['id']} is empty once its line references are removed")
         stripped += len(removed)
         refs += [{"block": b["id"], "reference": r} for r in removed]
+        if not re.sub(r"^(?:[-*+]|\d+[.)])(?=\s|$)|[\W_]", "", text):   # nothing left but a list mark or punctuation
+            dropped.append(b["id"])
+            continue
         q = list(quotes.get(b["id"]) or [])
         beyond += max(0, len(q) - MAX_QUOTES)
         q = q[:MAX_QUOTES]
@@ -244,6 +324,8 @@ def assemble(blocks: list, quotes: dict, *, statements: Optional[int] = None) ->
               "line_references": refs, "paragraph_ids": pid}
     if empty:
         report["headings_without_paragraphs_dropped"] = [s["heading"] for s in empty]
+    if dropped:
+        report["blocks_empty_after_stripping_dropped"] = dropped
     return {"summary": summary, "sections": sections}, report
 
 
@@ -253,13 +335,10 @@ def line_reference_agreement(report: dict, manifest: dict) -> list:
     (an addition to the interface's report: {block id: "s<i>.p<j>"}) names each block's paragraph; claim ids are s<i>.p<j>.q<k>."""
     pid = report["paragraph_ids"]
     out = []
-    for r in report["line_references"]:
-        nums = [int(x) for x in re.findall(r"\d+", r["reference"])]
-        if not nums:
-            out.append({"block": r["block"], "reference": r["reference"], "agrees": None}); continue
-        lo, hi = nums[0], (nums[1] if len(nums) > 1 else nums[0])
+    for r in report["line_references"]:                       # "160, 174-180" names two spans; "18 -> 33" two lines
+        named = [(int(a), int(b or a)) for a, b in re.findall(r"(\d+)(?:\s*[-\u2013]\s*[LS]?(\d+))?", r["reference"])]
         spans = [(c["resolved"]["start_line"], c["resolved"]["end_line"]) for c in manifest["claims"]
-                 if c["id"].rsplit(".", 1)[0] == pid[r["block"]] and c.get("resolved")]
-        out.append({"block": r["block"], "reference": r["reference"],
-                    "agrees": None if not spans else any(a <= hi and lo <= b for a, b in spans)})
+                 if r["block"] in pid and c["id"].rsplit(".", 1)[0] == pid[r["block"]] and c.get("resolved")]
+        out.append({"block": r["block"], "reference": r["reference"], "agrees": None if not (named and spans) else
+                    all(any(a <= hi and lo <= b for a, b in spans) for lo, hi in named)})
     return out

@@ -256,29 +256,32 @@ def format_notes(notes: list) -> str:
     return "".join(b["raw"] for b in notes).strip() + "\n"
 
 
-_ABBREV = re.compile(r"(?:^|[\s(\"'`])(?:e\.g|i\.e|etc|vs|cf|approx|fig|no|dr|mr|mrs|ms|st|inc|ca|resp|incl|al|[A-Za-z])\.$", re.I)
+_ABBREV = re.compile(r"(?:^|[\s(\"'`.])(?:e\.g|i\.e|etc|vs|cf|approx|fig|no|dr|mr|mrs|ms|st|inc|ca|resp|incl|al|[A-Za-z])\.$", re.I)
 _LISTISH = re.compile(r"(?:[-*+]|\d+[.)])\s|\||```|~~~")
 _END = re.compile(r"[.!?]\s+(?=[A-Z])")
 
 
 def _inside(text: str) -> list:
-    """Per character: inside backticks, parentheses or double quotes (an unclosed one blocks the rest)."""
-    mask, depth, tick, dq, cq = [], 0, False, False, False
-    for ch in text:
+    """Per character: inside backticks, parentheses, brackets, double or curly quotes, or 'single quotes' (opened after a
+    non-word character, closed before one: an apostrophe inside a word is no quote). An unclosed one blocks the rest."""
+    mask, depth, tick, dq, cq, cs, sq = [], 0, False, False, False, False, False
+    for i, ch in enumerate(text):
         if ch == "`":
             tick = not tick
         elif not tick:
-            if ch == "(":
+            if ch in "([":
                 depth += 1
-            elif ch == ")":
+            elif ch in ")]":
                 depth = max(0, depth - 1)
             elif ch == '"':
                 dq = not dq
-            elif ch == "\u201c":
-                cq = True
-            elif ch == "\u201d":
-                cq = False
-        mask.append(tick or depth > 0 or dq or cq)
+            elif ch in "\u201c\u201d":
+                cq = ch == "\u201c"
+            elif ch == "\u2018" or (ch == "\u2019" and cs):
+                cs = ch == "\u2018"
+            elif ch == "'" and (not text[i + 1:i + 2].isalnum() if sq else not text[i - 1:i].isalnum()):
+                sq = not sq
+        mask.append(tick or depth > 0 or dq or cq or cs or sq)
     return mask
 
 
@@ -316,9 +319,9 @@ def format_blocks(batch: list) -> str:
 
 
 def parse_attach(answer: str, ids: list) -> tuple:
-    """`ids` are unit ids ("3.2"; a block id is read as its string). Also counted: `quote_over_limit_dropped` (a quote over
+    """`ids` are unit ids ("3.2"; a block id is matched as its string and returned as given). Also counted: `quote_over_limit_dropped` (a quote over
     MAX_QUOTE_CHARS is dropped, not fatal: the answer is whole). A unit with neither a quote nor "(none)" is a cut-off answer."""
-    ids = [str(i) for i in ids]
+    want = {str(i): i for i in ids}
     got, cur, repairs, done = {}, None, {"json_unescaped_quote": 0, "quote_over_limit_dropped": 0}, set()
     for ln in answer.splitlines():
         m = re.match(r"^\[block (\d+(?:\.\d+)?)\]\s*$", ln.strip())
@@ -346,18 +349,18 @@ def parse_attach(answer: str, ids: list) -> tuple:
             done.add(cur)
         elif ln.strip():
             raise CarryError(f"parse_attach: unparsed line {ln[:60]!r}")
-    if set(got) != set(ids):
-        raise CarryError(f"parse_attach: asked for blocks {ids}, answer holds {list(got)}")
+    if set(got) != set(want):
+        raise CarryError(f"parse_attach: asked for blocks {list(want)}, answer holds {list(got)}")
     if set(got) - done:
         raise CarryError(f"parse_attach: blocks {sorted(set(got) - done)} have neither a quote nor (none): a cut-off answer")
-    return got, repairs
+    return {want[k]: v for k, v in got.items()}, repairs
 
 
 # ------------------------------------------------------------------ assemble
 def assemble(blocks: list, quotes: dict, *, statements: Optional[int] = None, notes_blocks: int = 0) -> tuple:
     """`statements` is accepted for the service's call shape and unused: the summary states no count of statements.
     `notes_blocks` (blocks before the report heading, not carried) only adds a repair count."""
-    sections, refs = [], []
+    sections, refs, known = [], [], set()
     stripped = beyond = with_quotes = total = paras = by_sentence = 0
     heading, dropped = None, []
     for b in blocks:
@@ -376,23 +379,35 @@ def assemble(blocks: list, quotes: dict, *, statements: Optional[int] = None, no
             k = sum(1 for s in sections if s.get("_base") == heading) + 1
             sections.append({"heading": f"{heading} (continued)" if k == 1 else f"{heading} (continued {k})", "paragraphs": [], "_base": heading})
         parts = units([b])
+        known |= {u["id"] for u in parts}
         own = [str(x) for x in quotes.get(b["id"]) or quotes.get(str(b["id"])) or []]   # a work stored before sentence units: the whole block
         merged = list(dict.fromkeys(own + [x for u in parts for x in quotes.get(u["id"]) or []]))
-        split = not own and len(merged) > MAX_QUOTES and len(parts) > 1 and len(sections[-1]["paragraphs"]) + len(parts) <= MAX_PARAGRAPHS
-        for u in (parts if split else [dict(b, id=b["id"])]):
-            key = u["id"]
-            text, removed = strip_line_references(u["text"])
+        groups = []                                           # a sentence with no quote of its own joins the one before it
+        for u in parts:
+            if quotes.get(u["id"]) or not groups:
+                groups.append([u])
+            else:
+                groups[-1].append(u)
+        if len(groups) > 1 and not quotes.get(groups[0][0]["id"]):   # leading quote-less sentences join the next
+            groups[:2] = [groups[0] + groups[1]]
+        split = not own and len(merged) > MAX_QUOTES and len(groups) > 1 and len(sections[-1]["paragraphs"]) + len(groups) <= MAX_PARAGRAPHS
+        for g in (groups if split else [[b]]):
+            key = g[0]["id"]
+            text, removed = strip_line_references("".join(u["raw"] for u in g).strip() if split else b["text"])
             stripped += len(removed)
             refs += [{"block": b["id"], "reference": r, **({"unit": key} if split else {})} for r in removed]
             if not re.sub(r"^(?:[-*+]|\d+[.)])(?=\s|$)|[\W_]", "", text):   # nothing left but a list mark or punctuation
                 dropped.append(key)
                 continue
-            q = list(dict.fromkeys(quotes.get(key) or [])) if split else merged
+            q = list(dict.fromkeys(x for u in g for x in quotes.get(u["id"]) or [])) if split else merged
             beyond += max(0, len(q) - MAX_QUOTES)
             q = q[:MAX_QUOTES]
             with_quotes += bool(q); total += len(q); paras += 1
             sections[-1]["paragraphs"].append({"text": text, "quotes": q}); sections[-1].setdefault("_ids", []).append(key)
         by_sentence += split
+    lost = sorted(k for k in map(str, quotes) if "." in k and k not in known)   # a block key outside the report: notes, as before
+    if lost:
+        raise CarryError(f"assemble: quotes for sentence units the draft does not hold: {lost}")
     empty = [s for s in sections if not s["paragraphs"]]
     pid, k = {}, 0
     for s_ in sections:

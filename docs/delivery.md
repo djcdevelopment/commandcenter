@@ -77,6 +77,9 @@ A line number the model writes into its report is removed by code and counted (`
 written forms (`L141`, `lines 12-14`, `(198-202)`), a bare number in parentheses right after a code name, such as
 `collect_backends (192)`, is removed when the number is 10 or more, the name looks like code, a declared file has that
 name on the line or the one beside it, and no line holding the name also holds the number (then it may be the value).
+A value stays: a single number in parentheses after a code name is kept when a declared code line (comments and docstrings
+excluded) holds that name with that number in a value position (`psm=6`, `.get("psm", 6)`, `range(2)`). What no rule can
+tell apart: a name whose value also equals a line it appears on.
 
 ## The items procedure
 
@@ -125,6 +128,13 @@ thinking-off judge 5 of 50. Rows both readers agree on wrongly are seen by no se
 
 Limits: a restart of the gateway fails the judge calls in flight (a thinking call is never replayed); a paused dispatch or
 a full execution queue fails the work at its next refill; the `lane` argument is ignored (recorded as requested).
+
+**Kinds.** `env_reads` (above) and `param_defaults`: every function parameter that has a default, in every `def` and
+`async def` of the declared files (lambdas excluded); the row states the default exactly as written in the signature and
+cites its line. Defaults are compared as Python tokens, so `'x'` and `"x"` are one default and `None`, `0`, `False`,
+`()`, `x` and `'x'` are all different. A default that is an expression, or a number written in a form a reader might
+rewrite (`0o644`, `200_000`), carries a `judge` mark. Each kind is one entry in the registry in
+`hearth/delivery/items.py` (enumerator, fields, compared field, prompts' wording, row text, what it cannot see).
 
 ## Code candidates: what changed, and a validator
 

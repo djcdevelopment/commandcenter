@@ -27,6 +27,19 @@ def git(repo: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
+def join_waiters(timeout: float = 10.0) -> None:
+    """The door spawns a daemon waiter per job (`auto-reconcile-<work>`); it writes history events to the operator home
+    when its job ends. A waiter that outlives tearDown writes after the environment patch is gone, into the checkout's
+    runs/operator (observed: stray work_* directories after every run of this file). Wait for them, loudly."""
+    deadline = time.monotonic() + timeout
+    for thread in threading.enumerate():
+        if thread.name.startswith("auto-reconcile-"):
+            thread.join(max(0.0, deadline - time.monotonic()))
+    alive = [t.name for t in threading.enumerate() if t.name.startswith("auto-reconcile-")]
+    if alive:
+        raise AssertionError(f"waiters outlived tearDown: {alive}")
+
+
 class LocalWorkServiceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
@@ -77,7 +90,10 @@ class LocalWorkServiceTests(unittest.TestCase):
                                         token_counter=lambda _p, _m, _q: 100)
 
     def tearDown(self) -> None:
+        if getattr(self, "hold", None) is not None:
+            self.hold.set()
         self.execution.close()
+        join_waiters()
         self.env.stop()
         self.temp.cleanup()
 
@@ -244,6 +260,85 @@ class LocalWorkServiceTests(unittest.TestCase):
         routes, _route_digest = LocalWorkService._route_profile()
         self.assertEqual(routes["fast"], "am4-dense")
         self.assertEqual(routes["deep"], "omen-arc-27b")
+
+    def stored(self, work_id: str) -> dict:
+        """The manifest as the door left it on disk: no reconcile, so nothing here advances the work."""
+        return json.loads((self.root / "runs" / "operator" / work_id / "work-manifest.json").read_text(encoding="utf-8"))
+
+    def wait_stored(self, work_id: str, timeout: float = 10.0) -> dict:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            manifest = self.stored(work_id)
+            if manifest["status"] not in {"queued", "running"}:
+                return manifest
+            time.sleep(.01)
+        self.fail(f"nobody asked for {work_id} and its stored manifest stayed {self.stored(work_id)['status']!r}")
+
+    def test_an_ordinary_work_reaches_awaiting_review_with_nobody_asking(self) -> None:
+        """evidence/rehearsal/RESULT.md, finding 1: work_2e663a07 stayed `queued` until the drain's next tick asked for
+        it. The waiter spawned at submit follows the job to its end and stores the outcome; this test reads the file
+        and never calls get/reconcile (settle() does, which hides the waiter)."""
+        manifest = self.submit()
+        final = self.wait_stored(manifest["work_id"])
+        self.assertEqual(final["status"], "awaiting_review", final.get("failure"))
+        self.assertEqual(len(final["attempts"]), 1)
+
+    def test_the_repair_attempt_of_an_ordinary_work_has_its_own_waiter(self) -> None:
+        """evidence/rehearsal/RESULT.md, finding 1 ("a repair attempt on an ordinary candidate has no waiter of its
+        own"): a first answer that is not JSON is repaired once, and the stored manifest still reaches the end
+        with nobody asking after the first attempt."""
+        good = self.outputs[0]
+        self.outputs[:] = ["not json", good]
+        manifest = self.submit()
+        final = self.wait_stored(manifest["work_id"])
+        self.assertEqual(final["status"], "awaiting_review", final.get("failure"))
+        self.assertEqual([a["repair"] for a in final["attempts"]], [False, True])
+
+    def whole_file_work(self, new_text: str, name: str = "b.py", old_lines: int = 400) -> dict:
+        (self.repo / name).write_text("".join(f"line {n}\n" for n in range(1, old_lines + 1)), encoding="utf-8")
+        git(self.repo, "add", name)
+        git(self.repo, "commit", "-qm", name)
+        self.outputs[:] = [json.dumps({
+            "schema": "local-work-candidate.v1", "artifact_kind": "whole_file", "summary": "Edit b.py.",
+            "target_path": name, "citations": [{"path": name, "start_line": 1, "end_line": old_lines}],
+            "content": new_text})]
+        manifest = self.submit(base_commit=git(self.repo, "rev-parse", "HEAD"), files=[name],
+                               artifact_kind="whole_file", target_path=name)
+        return self.settle(manifest["work_id"])
+
+    def test_a_whole_file_candidate_records_the_lines_it_changed(self) -> None:
+        """evidence/rehearsal/RESULT.md, work_4f36d04f: the asked change was right and one more unrelated line (326)
+        was changed too; a reviewer could only see it in a diff. The manifest names the hunks, as base and new line
+        ranges, and the counts."""
+        text = "".join(f"line {n}\n" if n != 326 else "line 326 in UTC\n" for n in range(1, 401))
+        final = self.whole_file_work(text)
+        self.assertEqual(final["status"], "awaiting_review", final.get("failure"))
+        self.assertEqual(final["changes"], {"hunks": [{"old": [326, 326], "new": [326, 326]}], "added": 1, "removed": 1})
+        self.assertEqual(final["changes"], self.stored(final["work_id"])["changes"])
+
+    def test_a_whole_file_candidate_names_insertions_and_deletions_apart(self) -> None:
+        """evidence/rehearsal/RESULT.md, work_4f36d04f, and laps/21-deliveries-that-hold.md package M1: the morning report
+        reads `3 hunks: 53, 84-85, 326 (+3/-4)` from this record, so it needs old/new ranges, an empty side flagged
+        (an empty side is [n, n], the position after line n), and counts that add up across hunks."""
+        lines = [f"line {n}\n" for n in range(1, 401)]
+        new = lines[:9] + ["inserted\n"] + lines[9:49] + lines[51:]   # insert after line 9; delete lines 50-51
+        final = self.whole_file_work("".join(new))
+        self.assertEqual(final["status"], "awaiting_review", final.get("failure"))
+        self.assertEqual(final["changes"], {
+            "hunks": [{"old": [9, 9], "new": [10, 10], "old_empty": True},
+                      {"old": [50, 51], "new": [50, 50], "new_empty": True}],
+            "added": 1, "removed": 2})
+
+    def test_a_whole_file_candidate_identical_to_its_base_fails_named(self) -> None:
+        """evidence/rehearsal/RESULT.md: a whole-file answer is judged by what it changed; one that changes nothing is
+        no candidate. Line endings and the final newline do not count as a change."""
+        same = "".join(f"line {n}\n" for n in range(1, 401))
+        for n, text in enumerate((same, same.replace("\n", "\r\n"), same[:-1])):
+            self.outputs[:] = []
+            final = self.whole_file_work(text, name=f"same{n}.py")
+            self.assertEqual(final["status"], "failed", n)
+            self.assertIn("whole_file candidate is identical to the base file", final["failure"])
+            self.assertNotIn("changes", final)
 
     def delivery_submit(self, **overrides):
         """A brief.v2 through the door: the model's answer is delivery-output.v1, the door renders the manifest."""
@@ -534,7 +629,10 @@ class CarryProcedureTests(unittest.TestCase):
             leases=CapacityLeaseStore(self.state / "leases.sqlite"), generate=generate, workers=2, recover_pending=recover)
 
     def tearDown(self) -> None:
+        if getattr(self, "hold", None) is not None:
+            self.hold.set()
         self.execution.close()
+        join_waiters()
         self.env.stop()
         self.temp.cleanup()
 
@@ -754,6 +852,166 @@ class DeepLaneFamilyTests(unittest.TestCase):
         del rows["summary"]
         with self.assertRaisesRegex(ValueError, "omitted"):
             revision.assess(json.dumps({"coverage": rows, "criteria_preserved": True}), original, original, None)
+
+
+class DoorChoiceTests(unittest.TestCase):
+    """The door chooses a delivery's procedure and lane from delivery-procedures.v1 (ADR-0061, docs/delivery.md "How the
+    door chooses the procedure"). Same stubbed execution as CarryProcedureTests; backends `fast-b` and `deep-b`, the
+    deep one declaring deliberate_max_tokens. Each test writes its own table and points HEARTH_DELIVERY_PROCEDURES at it."""
+
+    setUp = CarryProcedureTests.setUp
+    execution_service = CarryProcedureTests.execution_service
+    tearDown = CarryProcedureTests.tearDown
+    settle = CarryProcedureTests.settle
+    DRAFT, ATTACH = CarryProcedureTests.DRAFT, CarryProcedureTests.ATTACH
+    CARRY = {"accepted": 6, "rejected": 1, "briefs": 2, "accepted_briefs": 2}
+
+    def table(self, backends: dict, name: str = "table.json") -> str:
+        path = self.root / name
+        path.write_text(json.dumps({"schema": "delivery-procedures.v1", "rule": {"min_accepted_briefs": 2}, "records": 1,
+                                    "backends": backends}), encoding="utf-8")
+        os.environ["HEARTH_DELIVERY_PROCEDURES"] = str(path)
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
+    def pool(self, deep: str = "ok") -> None:
+        """Rewrite the backends file: deep 'ok', 'retired' or 'missing'."""
+        text = (self.root / "backends.toml").read_text(encoding="utf-8")
+        if deep == "retired":
+            text = text.replace('[[backend]]\nname = "deep-b"\n', '[[backend]]\nname = "deep-b"\nretired = true\n')
+        elif deep == "missing":
+            text = text[:text.index('[[backend]]\nname = "deep-b"')]
+        (self.root / "backends.toml").write_text(text, encoding="utf-8")
+
+    def submit(self, **overrides):
+        args = dict(procedure=None, lane="auto", task_family="tool_execution")
+        args.update(overrides)
+        return CarryProcedureTests.submit(self, **args)
+
+    def run_and_read(self, **overrides) -> dict:
+        return self.settle(self.submit(**overrides)["work_id"])
+
+    def test_the_choice_is_recorded_in_route_procedure_choice(self) -> None:
+        """evidence/wave8/RESULT.md: four briefs named no procedure; the door chose carry from the registry's verdicts "and
+        wrote down why" (`*.door-t0.json`, each run's route.procedure_choice). Here carry qualifies at the family level
+        and the work runs the carried stages to review; the record holds who, the level, the rule, the counts and the
+        table's hash."""
+        sha = self.table({"deep-b": {"families": {"code_review": {"carry": self.CARRY}}, "all": {}}})
+        final = self.run_and_read(lane="deep", task_family="code_review")
+        self.assertEqual(final["status"], "awaiting_review", final.get("failure"))
+        route = final["route"]
+        self.assertEqual(route["procedure"], "carry")
+        self.assertEqual(route["procedure_choice"], {
+            "by": "door", "level": "family", "rule": {"min_accepted_briefs": 2}, "counts": {"carry": self.CARRY},
+            "table_sha256": sha})
+        self.assertEqual([j["stage"] for j in final["carry"]["jobs"]], ["work", "check", "attach"])
+        self.assertNotIn("lane_choice", route)
+
+    def test_no_table_is_one_call_at_level_none_and_says_so(self) -> None:
+        """docs/delivery.md: no table gives `one_call`, level `none`; the record names the choice as the door's even then
+        (rehearsal: every drain-submitted work's route.procedure_choice holds who chose, the level, the table's hash)."""
+        os.environ.pop("HEARTH_DELIVERY_PROCEDURES", None)
+        manifest = self.submit(lane="deep")
+        self.assertEqual(manifest["route"]["procedure"], "one_call")
+        self.assertEqual(manifest["route"]["procedure_choice"],
+                         {"by": "door", "level": "none", "rule": None, "counts": {}, "table_sha256": None})
+        self.assertNotIn("carry", manifest)
+        self.settle(manifest["work_id"])
+
+    def test_a_chosen_carry_on_a_fast_lane_falls_back_to_one_call_and_records_why(self) -> None:
+        """ADR-0061 consequence 4 and docs/delivery.md: "A chosen `carry` that cannot run here falls back to `one_call` and
+        records why ... A fallback is not an error." The table qualifies carry for the fast seat, which has no
+        thinking turn; a pinned carry on the same lane is refused instead."""
+        self.table({"fast-b": {"families": {}, "all": {"carry": self.CARRY}}})
+        manifest = self.submit(lane="fast")
+        route = manifest["route"]
+        self.assertEqual(route["procedure"], "one_call")
+        self.assertEqual((route["procedure_choice"]["by"], route["procedure_choice"]["level"]), ("door", "backend"))
+        self.assertIn("the deep lane on a backend that declares deliberate_max_tokens", route["procedure_choice"]["fallback"])
+        self.assertIn("'fast'", route["procedure_choice"]["fallback"])
+        self.assertNotIn("carry", manifest)
+        self.settle(manifest["work_id"])
+        with self.assertRaisesRegex(LocalWorkError, "procedure 'carry' needs the deep lane"):
+            self.submit(lane="fast", procedure="carry")
+
+    def test_a_retry_keeps_its_procedure_after_the_table_changes(self) -> None:
+        """docs/delivery.md: "an idempotent retry reuses the procedure recorded for that work"; ADR-0061 names "a table
+        that changes between a submit and its retry" as the case the recorded-procedure rule covers. The table flips
+        from carry to one call between the two submits: same work, no refusal, no second job, still carried."""
+        self.table({"deep-b": {"families": {}, "all": {"carry": self.CARRY}}})
+        first = self.submit(lane="deep", idempotency_key="k1")
+        self.assertEqual(first["route"]["procedure"], "carry")
+        one_call = {"one_call": {"accepted": 9, "rejected": 0, "briefs": 3, "accepted_briefs": 3}}
+        self.table({"deep-b": {"families": {}, "all": one_call}})
+        again = self.submit(lane="deep", idempotency_key="k1")
+        self.assertEqual(again["work_id"], first["work_id"])
+        final = self.settle(first["work_id"])
+        self.assertEqual((final["route"]["procedure"], final["status"]), ("carry", "awaiting_review"))
+        self.assertEqual(final["route"]["procedure_choice"]["level"], "backend")
+        self.assertEqual([j["stage"] for j in final["carry"]["jobs"]], ["work", "check", "attach"])
+
+    def test_the_lane_moves_to_deep_when_only_deep_has_a_qualifying_procedure(self) -> None:
+        """evidence/rehearsal/RESULT.md, work_a745c074: `lane auto` went to deep and chose carry, table hash recorded;
+        ADR-0061 (added 2026-10-04): when nothing qualifies on the picked lane's backend and the deep backend has a
+        procedure, the delivery takes deep and `route.lane_choice` records from, to, level, counts and hash. The
+        evidence here is under the size floor, so by size alone the lane is fast."""
+        sha = self.table({"deep-b": {"families": {}, "all": {"carry": self.CARRY}}})
+        manifest = self.submit()
+        route = manifest["route"]
+        self.assertEqual((route["requested_lane"], route["selected_lane"], route["provider"]), ("auto", "deep", "deep-b"))
+        self.assertEqual(route["lane_choice"], {"by": "door", "from": "fast", "to": "deep", "level": "backend",
+                                                "counts": {"carry": self.CARRY}, "table_sha256": sha})
+        self.assertEqual((route["procedure"], route["procedure_choice"]["level"]), ("carry", "backend"))
+        self.assertEqual(self.settle(manifest["work_id"])["status"], "awaiting_review")
+
+    def test_the_lane_is_left_alone_when_the_picked_lane_qualifies_or_was_named_or_is_a_code_family(self) -> None:
+        """ADR-0061 (added 2026-10-04): the move is for `lane="auto"` only, and only where the picked lane's backend has
+        nothing qualifying. Named lanes stay (docs: explicit lanes never substitute another provider); a code family is
+        already deep by family and records no `lane_choice`."""
+        self.table({"deep-b": {"families": {}, "all": {"carry": self.CARRY}},
+                    "fast-b": {"families": {}, "all": {"one_call": {"accepted": 3, "rejected": 0, "briefs": 2, "accepted_briefs": 2}}}})
+        qualifying_fast = self.submit()
+        self.assertEqual((qualifying_fast["route"]["selected_lane"], qualifying_fast["route"]["procedure"]), ("fast", "one_call"))
+        self.assertNotIn("lane_choice", qualifying_fast["route"])
+        self.table({"deep-b": {"families": {}, "all": {"carry": self.CARRY}}}, name="deep-only.json")
+        named = self.submit(lane="fast")
+        self.assertEqual(named["route"]["selected_lane"], "fast")
+        self.assertNotIn("lane_choice", named["route"])
+        code = self.submit(task_family="code_review")
+        self.assertEqual(code["route"]["selected_lane"], "deep")
+        self.assertNotIn("lane_choice", code["route"])
+        for manifest in (qualifying_fast, named, code):
+            self.settle(manifest["work_id"])
+
+    def test_a_retry_keeps_the_deep_lane_after_the_table_is_gone(self) -> None:
+        """ADR-0061 (added 2026-10-04): "a retry keeps its stored lane", so a changed table cannot move a work. The
+        control: a fresh submit with no table lands on the fast lane."""
+        self.table({"deep-b": {"families": {}, "all": {"carry": self.CARRY}}})
+        first = self.submit(idempotency_key="k-lane")
+        self.assertEqual(first["route"]["selected_lane"], "deep")
+        os.environ.pop("HEARTH_DELIVERY_PROCEDURES")
+        again = self.submit(idempotency_key="k-lane")
+        self.assertEqual(again["work_id"], first["work_id"])
+        stored = self.settle(first["work_id"])
+        self.assertEqual((stored["route"]["selected_lane"], stored["route"]["procedure"]), ("deep", "carry"))
+        self.assertEqual(stored["route"]["lane_choice"]["to"], "deep")
+        fresh = self.submit()
+        self.assertEqual((fresh["route"]["selected_lane"], fresh["route"]["procedure"]), ("fast", "one_call"))
+        self.settle(fresh["work_id"])
+
+    def test_a_missing_or_retired_deep_seat_keeps_the_work_on_the_picked_lane_and_says_why(self) -> None:
+        """ADR-0061 (added 2026-10-04): "When the deep seat is missing or retired the picked lane keeps the work and
+        `lane_choice.declined` says why"; no substitute lane, no refusal."""
+        for state in ("retired", "missing"):
+            with self.subTest(state):
+                self.pool(state)
+                sha = self.table({"deep-b": {"families": {}, "all": {"carry": self.CARRY}}}, name=f"{state}.json")
+                manifest = self.submit()
+                route = manifest["route"]
+                self.assertEqual((route["selected_lane"], route["provider"], route["procedure"]), ("fast", "fast-b", "one_call"))
+                self.assertEqual(route["lane_choice"], {
+                    "by": "door", "from": "fast", "to": "fast", "level": "backend", "counts": {"carry": self.CARRY},
+                    "table_sha256": sha, "declined": "local lane 'deep' is unavailable: deep-b"})
+                self.settle(manifest["work_id"])
 
 
 if __name__ == "__main__":

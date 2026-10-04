@@ -325,23 +325,23 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| auto lane floor (evidence tokens -> deep) | `8192` | `repo/hearth/localwork/service.py:177` | _lane | fast vs deep | quote_retrieval floor 4096; evidence = source pack only, counted with the fast lane's tokenizer |
-| exact context check | `input_tokens + output_reserve <= context_tokens` | `repo/hearth/localwork/service.py:368` | submit | refuses at submit |  |
+| auto lane floor (evidence tokens -> deep) | `8192` | `repo/hearth/localwork/service.py:183` | _lane | fast vs deep | quote_retrieval floor 4096; evidence = source pack only, counted with the fast lane's tokenizer |
+| exact context check | `input_tokens + output_reserve <= context_tokens` | `repo/hearth/localwork/service.py:412` | submit | refuses at submit |  |
 | lane deep | `omen-dense-27b` | `~/hearth-production/local-work-routes-linux.toml:10` | submit_local_work | which rung a lane is |  |
 | lane fast | `omen-vllm` | `~/hearth-production/local-work-routes-linux.toml:7` | submit_local_work | which rung a lane is |  |
 | lane tool | `am4-tool-4070ti` | `~/hearth-production/local-work-routes-linux.toml:14` | submit_local_work | which rung a lane is |  |
-| output_reserve fallback | `4096` | `repo/hearth/localwork/service.py:365` | submit | reserve when the rung declares none |  |
+| output_reserve fallback | `4096` | `repo/hearth/localwork/service.py:404` | submit | reserve when the rung declares none |  |
 | submit_local_work deadline_s default | `1800` | `repo/hearth/toolsurface/local_work.py:44` | MCP tool | job deadline when the caller sets none |  |
-| tokenizer / git / apply timeouts (s) | `30 / 120 / 120` | `repo/hearth/localwork/service.py:87` | submit, validation | submit latency; candidate validation |  |
+| tokenizer / git / apply timeouts (s) | `30 / 120 / 120` | `repo/hearth/localwork/service.py:93` | submit, validation | submit latency; candidate validation |  |
 
 ### measured
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| omen-dense-27b decode tok/s median | `29.5` | `~/hearth-production/var/execution/events.ndjson` | deadline derivation | output / duration (prefill included, so a floor) |  |
-| omen-dense-27b duration_ms p90 / max | `9273 / 1253405` | `~/hearth-production/var/execution/events.ndjson` | — | how close jobs come to the deadline |  |
-| omen-dense-27b invocations (n) | `4007` | `~/hearth-production/var/execution/events.ndjson` | sizing rules | sample |  |
-| omen-dense-27b tokens_out p90 / max | `120 / 14401` | `~/hearth-production/var/execution/events.ndjson` | — | how close outputs come to the cap |  |
+| omen-dense-27b decode tok/s median | `32.2` | `~/hearth-production/var/execution/events.ndjson` | deadline derivation | output / duration (prefill included, so a floor) |  |
+| omen-dense-27b duration_ms p90 / max | `5162 / 1253405` | `~/hearth-production/var/execution/events.ndjson` | — | how close jobs come to the deadline |  |
+| omen-dense-27b invocations (n) | `6235` | `~/hearth-production/var/execution/events.ndjson` | sizing rules | sample |  |
+| omen-dense-27b tokens_out p90 / max | `114 / 14401` | `~/hearth-production/var/execution/events.ndjson` | — | how close outputs come to the cap |  |
 
 ### operation
 

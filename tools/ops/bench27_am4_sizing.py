@@ -99,6 +99,40 @@ def client_class(helper):
     return Client
 
 
+def recipe_manifest(path, expected_sha):
+    raw = path.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != expected_sha:
+        raise RuntimeError('recipe manifest hash mismatch')
+    manifest = json.loads(raw)
+    argv = manifest['argv']
+    def option(flag):
+        if argv.count(flag) != 1 or argv.index(flag) + 1 >= len(argv):
+            raise RuntimeError('missing or repeated recipe option: ' + flag)
+        return argv[argv.index(flag) + 1]
+    if manifest.get('backend') != 'am4-vllm' or not manifest.get('arm'):
+        raise RuntimeError('unnamed or wrong recipe backend')
+    window = manifest['recipe']['window']
+    if type(window) is not int or window < 49152 or option('--max-model-len') != str(window):
+        raise RuntimeError('recipe window invalid or inconsistent')
+    if option('serve') != '/home/derek/models/qwen3-27b-gptq-int4' or option('--reasoning-parser') != 'qwen3':
+        raise RuntimeError('recipe model path or reasoning parser mismatch')
+    return manifest, raw
+
+
+def validate_turn(record, budget, work=False):
+    errors = []
+    usage = record.get('usage') or {}
+    prompt, completion = usage.get('prompt_tokens'), usage.get('completion_tokens')
+    if type(prompt) is not int or prompt != record.get('prompt_tokens_exact'):
+        errors.append('usage prompt differs from exact admitted prompt')
+    if type(completion) is not int or not 0 <= completion <= budget:
+        errors.append('missing or excessive completion usage')
+    if work and (not record.get('reasoning', '').strip() or any(t in record.get('content', '') for t in ('<think>', '</think>'))):
+        errors.append('recipe mismatch: reasoning not separated from visible content')
+    record['comparison_errors'] = errors
+    return not errors
+
+
 def run(args):
     if hashlib.sha256(args.helper.read_bytes()).hexdigest() != HELPER_SHA:
         raise RuntimeError('reviewed helper hash mismatch')
@@ -107,6 +141,7 @@ def run(args):
         raise RuntimeError('frozen workload hash mismatch')
     if args.trip != Path(str(args.guard_log) + '.tripped'):
         raise RuntimeError('trip path mismatch')
+    manifest, recipe_raw = recipe_manifest(args.recipe_manifest, args.recipe_sha256)
     workload = json.loads(raw)
     if workload['work_request']['max_tokens'] != 24000 or workload['final_request_template']['max_tokens'] != 4096:
         raise RuntimeError('output budgets changed')
@@ -114,10 +149,12 @@ def run(args):
     helper = importlib.util.module_from_spec(spec); spec.loader.exec_module(helper)
     args.out.mkdir(parents=True, exist_ok=False)
     (args.out / 'workload.json').write_bytes(raw)
+    (args.out / 'recipe-manifest.json').write_bytes(recipe_raw)
     summary = {'caller': 'codex', 'status': 'infrastructure_failure', 'calls': 0,
                'workload_sha256': WORKLOAD_SHA, 'helper_sha256': HELPER_SHA,
                'driver_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-               'substance_verdict': 'awaiting_frontier_review', 'measurements': {}}
+               'substance_verdict': 'awaiting_frontier_review', 'measurements': {}, 'transport_ok': False,
+               'recipe_arm': manifest['arm'], 'recipe_manifest_sha256': args.recipe_sha256}
     client = None; handlers = {}; rc = 3
     try:
         no_leases(args.coordination_db)
@@ -129,6 +166,8 @@ def run(args):
         if len(actual) != 1 or type(actual[0].get('max_model_len')) is not int:
             raise helper.InfraError('missing observed AM4 model/window')
         window = actual[0]['max_model_len']; summary['observed_window'] = window
+        if window != manifest['recipe']['window']:
+            raise helper.InfraError('observed window differs from pinned recipe')
         def idle_snapshot(name):
             no_leases(args.coordination_db)
             raw = client.fetch('/metrics'); (args.out / (name + '.metrics.txt')).write_bytes(raw)
@@ -140,19 +179,24 @@ def run(args):
         client.expected_prompt = 24521
         work = client.stream(copy.deepcopy(workload['work_request']), args.out / 'work', window)
         summary['measurements']['work'] = work
+        work_valid = validate_turn(work, 24000, work=True)
+        write(args.out / 'work/result.json', work)
         client.expected_prompt = None
-        if not work.get('error') and work['done'] and work['finish_reason'] == 'stop' and work['content']:
+        if work_valid and not work.get('error') and work['done'] and work['finish_reason'] == 'stop' and work['content']:
             idle_snapshot('between')
             final = copy.deepcopy(workload['final_request_template'])
             final['messages'] = copy.deepcopy(workload['work_request']['messages']) + [
                 {'role': 'assistant', 'content': work['content']}, copy.deepcopy(workload['final_user_message'])]
-            summary['measurements']['final'] = client.stream(final, args.out / 'final', window)
+            rec = client.stream(final, args.out / 'final', window)
+            validate_turn(rec, 4096)
+            write(args.out / 'final/result.json', rec)
+            summary['measurements']['final'] = rec
         after = idle_snapshot('after')
         summary['foreign_requests'] = after['success'] - before['success'] - client.calls
         if summary['foreign_requests'] != 0:
             raise helper.InfraError('engine counter delta does not match owned sends')
         stages = summary['measurements']
-        summary['transport_ok'] = len(stages) == 2 and all(r['done'] and r['finish_reason'] == 'stop' and not r.get('error') for r in stages.values())
+        summary['transport_ok'] = len(stages) == 2 and all(r['done'] and r['finish_reason'] == 'stop' and not r.get('error') and not r.get('comparison_errors') for r in stages.values())
         summary['status'] = 'awaiting_review' if summary['transport_ok'] else 'inference_failure'
         rc = 0 if summary['transport_ok'] else 4
     except Exception as exc:
@@ -170,8 +214,9 @@ def run(args):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    for flag in ('helper', 'workload', 'out', 'guard-log', 'trip', 'coordination-db'):
+    for flag in ('helper', 'workload', 'out', 'guard-log', 'trip', 'coordination-db', 'recipe-manifest'):
         p.add_argument('--' + flag, type=Path, required=True)
+    p.add_argument('--recipe-sha256', required=True)
     p.add_argument('--port', type=int, required=True, help='Existing localhost tunnel to AM4 engine')
     p.add_argument('--timeout', type=int, default=1800)
     args = p.parse_args()

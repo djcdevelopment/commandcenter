@@ -280,7 +280,7 @@ class Experiment:
         if owner is not None:
             raise RuntimeError(f"pool owned by {owner.owner} session {owner.session_id}; refusing")
         snap = store.acquire(resource=POOL, session_id=self.id, ttl_seconds=TENANCY_TTL_S,
-                             state="draining_llm", reason=f"experiment {self.id}: {self.dropin or 'baseline'} on seat {self.seat}",
+                             state="draining_llm", reason=f"experiment {self.id}: " + ("paired seats 0 and 1" if "seats" in self.spec else f"{self.dropin or 'baseline'} on seat {self.seat}"),
                              owner="experiment")
         self.tenancy = {"epoch": snap.epoch, "session_id": snap.session_id}
         self.save("acquired", tenancy=self.tenancy)
@@ -356,7 +356,7 @@ class Experiment:
         return None
 
     def foreign_requests(self, before, after, calls):
-        return None if calls is None else int(after["success"] - before["success"]) - calls
+        return None if calls is None or after is None else int(after["success"] - before["success"]) - calls
 
     def stop_group(self, proc: subprocess.Popen) -> None:
         """SIGTERM the campaign's process group (the driver cancels its executions), SIGKILL after a grace."""
@@ -413,7 +413,7 @@ class Experiment:
                 p = subprocess.run(oargv, capture_output=True, text=True, timeout=120, cwd=str(Path.home()), check=False)
                 self.log("on_timeout ran", rc=p.returncode, tail=(p.stdout + p.stderr)[-300:])
                 self.save(on_timeout_rc=p.returncode)
-        after = self.seat_counters()
+        after = self.sample_counters()
         calls = self._calls_reported(offset)
         foreign = self.foreign_requests(before, after, calls)
         self.save("campaign_done", campaign_rc=rc, campaign_timed_out=timed_out, campaign_finished=utc(),
@@ -431,21 +431,26 @@ class Experiment:
             self.save(counters_sample_error=type(exc).__name__)
             return None
 
-    def wait_drained(self, timeout_s: float = 120) -> dict[str, float]:
+    def wait_drained(self, timeout_s: float = 3600) -> dict[str, float]:
         deadline = time.monotonic() + timeout_s
         while True:
             try:
                 counters = self.seat_counters()
             except Exception:
-                active = subprocess.run(["systemctl", "--user", "show", self.unit, "-p", "ActiveState", "--value"],
-                                        check=True, capture_output=True, text=True).stdout.strip()
+                result = subprocess.run(["systemctl", "--user", "show", self.unit, "-p", "ActiveState", "-p", "SubState", "-p", "MainPID"],
+                                        check=True, capture_output=True, text=True).stdout
+                unit = dict(line.split("=", 1) for line in result.splitlines() if "=" in line)
                 from hearth.execution.coordination import CapacityLeaseStore
                 backend = str(self.spec.get("backend") or SEAT_BACKEND[self.seat])
                 leases = CapacityLeaseStore(COORD_DB).active_count(f"provider:{backend}")
-                if active not in ("inactive", "failed") or leases:
-                    raise RuntimeError(f"unreachable seat {self.seat} is not proven stopped and unleased: {active}, leases={leases}")
-                self.save(counters_unavailable=True, stopped_state_before_restore=active)
-                return {"running": 0, "waiting": 0, "success": None}
+                stopped = unit.get("SubState") in ("auto-restart", "auto-restart-queued", "dead", "failed") and unit.get("MainPID") == "0"
+                if stopped and not leases:
+                    self.save(counters_unavailable=True, stopped_state_before_restore=unit)
+                    return {"running": 0, "waiting": 0, "success": None}
+                if time.monotonic() >= deadline:
+                    raise RuntimeError(f"seat {self.seat} did not become safely restartable: {unit}, leases={leases}")
+                time.sleep(1)
+                continue
             if not counters["running"] and not counters["waiting"]:
                 return counters
             if time.monotonic() >= deadline:
@@ -508,6 +513,8 @@ class Experiment:
             return 1
 
         def interrupted(signum: int, _frame: Any) -> None:
+            signal.signal(signal.SIGTERM, signal.SIG_IGN)
+            signal.signal(signal.SIGINT, signal.SIG_IGN)
             raise KeyboardInterrupt(f"signal {signum}")
         signal.signal(signal.SIGTERM, interrupted)   # SIGTERM/^C before restore -> the restore path below
         outcome = "failed"
@@ -518,7 +525,7 @@ class Experiment:
             self.take_snapshot()
             self.swap()
             self.campaign()
-            outcome = "succeeded" if self.state.get("campaign_rc") == 0 else "failed"
+            outcome = "succeeded" if self.state.get("campaign_rc") == 0 else ("model_failed" if self.state.get("campaign_rc") == 4 else "failed")
             if (self.state.get("foreign_requests") or self.state.get("calls_reported") is None
                     or self.state.get("tenancy_renew_failures")):
                 outcome = "void"   # the seat saw requests the campaign did not make (or cannot tell), or the fence lapsed
@@ -643,13 +650,13 @@ class PairedExperiment(Experiment):
         return None
 
     def foreign_requests(self, before, after, calls):
-        per_seat = {k: None if calls is None or after.get(k) is None else int(after[k]["success"] - before[k]["success"]) - calls[k]
+        per_seat = {k: None if calls is None or after is None or after.get(k) is None else int(after[k]["success"] - before[k]["success"]) - calls[k]
                     for k in self.members}
         self.save(foreign_requests_by_seat=per_seat)
         # Absolute values prevent opposite differences on the cards cancelling.
         return None if any(v is None for v in per_seat.values()) else sum(abs(v) for v in per_seat.values())
 
-    def wait_drained(self, timeout_s: float = 120) -> dict:
+    def wait_drained(self, timeout_s: float = 3600) -> dict:
         return {k: m.wait_drained(timeout_s) for k, m in self.members.items()}
 
     def restore(self) -> None:

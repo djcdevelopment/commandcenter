@@ -151,9 +151,6 @@ class PairedTests(unittest.TestCase):
             exp.PairedExperiment({**self.spec, 'backend': {'0': 'same', '1': 'same'}})
 
 
-if __name__ == '__main__':
-    unittest.main()
-
 class FailedEngineRestoreTests(unittest.TestCase):
     def test_down_treatment_and_failed_cold_control_restore(self):
         from urllib.error import URLError
@@ -171,7 +168,7 @@ class FailedEngineRestoreTests(unittest.TestCase):
                 member.main_proc = Mock(return_value=('2', ['vllm', 'serve']))
                 member.stack_hashes = Mock(return_value={'hashes': {}, 'weights': {}})
                 member.restart_and_wait = Mock()
-                with patch.object(exp.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, stdout='failed')), patch('hearth.execution.coordination.CapacityLeaseStore') as store:
+                with patch.object(exp.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, stdout='ActiveState=activating\nSubState=auto-restart\nMainPID=0\n')), patch('hearth.execution.coordination.CapacityLeaseStore') as store:
                     store.return_value.active_count.return_value = 0
                     member.restore()
                 member.restart_and_wait.assert_called_once()
@@ -183,10 +180,10 @@ class FailedEngineRestoreTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root, patch.object(exp, 'EXP_ROOT', Path(root)):
             member = exp.Experiment({'id': 'active', 'seat': 0, 'dropin': None})
             member.seat_counters = Mock(side_effect=URLError('network failure'))
-            with patch.object(exp.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, stdout='active')), patch('hearth.execution.coordination.CapacityLeaseStore') as store:
+            with patch.object(exp.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, stdout='ActiveState=active\nSubState=running\nMainPID=42\n')), patch('hearth.execution.coordination.CapacityLeaseStore') as store:
                 store.return_value.active_count.return_value = 0
                 with self.assertRaises(RuntimeError):
-                    member.wait_drained()
+                    member.wait_drained(0)
 
     def test_busy_noop_restore_does_not_drain_or_restart(self):
         with tempfile.TemporaryDirectory() as root, patch.object(exp, 'EXP_ROOT', Path(root)):
@@ -199,3 +196,38 @@ class FailedEngineRestoreTests(unittest.TestCase):
             member.wait_drained = Mock(side_effect=AssertionError('must not drain no-op'))
             member.restore()
             self.assertEqual(member.state['phase'], 'restored')
+
+class RestartPolicyTests(unittest.TestCase):
+    def test_active_crash_settles_to_auto_restart(self):
+        from urllib.error import URLError
+        with tempfile.TemporaryDirectory() as root, patch.object(exp, 'EXP_ROOT', Path(root)):
+            member = exp.Experiment({'id': 'settle', 'seat': 0, 'dropin': None})
+            member.seat_counters = Mock(side_effect=URLError('down'))
+            states = ['ActiveState=active\nSubState=running\nMainPID=42\n', 'ActiveState=activating\nSubState=auto-restart\nMainPID=0\n']
+            with patch.object(exp.subprocess, 'run', side_effect=[subprocess.CompletedProcess([], 0, stdout=s) for s in states]), patch.object(exp.time, 'sleep'), patch('hearth.execution.coordination.CapacityLeaseStore') as store:
+                store.return_value.active_count.return_value = 0
+                self.assertIsNone(member.wait_drained()['success'])
+
+    def test_reloading_seat_returns_to_normal_metrics(self):
+        from urllib.error import URLError
+        with tempfile.TemporaryDirectory() as root, patch.object(exp, 'EXP_ROOT', Path(root)):
+            member = exp.Experiment({'id': 'reload', 'seat': 0, 'dropin': None})
+            member.seat_counters = Mock(side_effect=[URLError('loading'), {'running': 0, 'waiting': 0, 'success': 0}])
+            with patch.object(exp.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, stdout='ActiveState=active\nSubState=running\nMainPID=42\n')), patch.object(exp.time, 'sleep'), patch('hearth.execution.coordination.CapacityLeaseStore') as store:
+                store.return_value.active_count.return_value = 0
+                self.assertEqual(member.wait_drained()['success'], 0)
+
+    def test_campaign_end_metrics_failure_preserves_result(self):
+        with tempfile.TemporaryDirectory() as root, patch.object(exp, 'EXP_ROOT', Path(root)):
+            member = exp.Experiment({'id': 'counterfailure', 'seat': 0, 'dropin': None,
+                                     'campaign': [sys.executable, '-c', 'print(\'{"calls":1}\')']})
+            member._renew_loop = Mock()
+            member.seat_counters = Mock(side_effect=[{'running': 0, 'waiting': 0, 'success': 0}, OSError('engine crashed')])
+            member.campaign()
+            self.assertEqual(member.state['phase'], 'campaign_done')
+            self.assertEqual(member.state['campaign_rc'], 0)
+            self.assertEqual(member.state['calls_reported'], 1)
+            self.assertIsNone(member.state['foreign_requests'])
+
+if __name__ == '__main__':
+    unittest.main()

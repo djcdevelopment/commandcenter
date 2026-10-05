@@ -1,4 +1,5 @@
 import importlib.util
+from contextlib import closing
 import json
 import hashlib
 from pathlib import Path
@@ -7,6 +8,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from concurrent.futures import ThreadPoolExecutor
@@ -25,11 +27,12 @@ class Tests(unittest.TestCase):
         self.log.write_text(json.dumps({'utc':datetime.now(timezone.utc).isoformat(), 'gpus':[
             {'pci':'0000:09:00.0','gpu_core_c':70}, {'pci':'0000:0a:00.0','gpu_core_c':70}]})+'\n')
         self.db = self.root/'coord.sqlite'
-        with sqlite3.connect(self.db) as c:
+        with closing(sqlite3.connect(self.db)) as c, c:
             c.execute('CREATE TABLE capacity_leases(scope TEXT,expires_at REAL)')
         self.posts=[];self.count=5000;self.block=False;self.started=threading.Event();self.unblock=threading.Event()
         self.reasoning='private reasoning'; self.visible='draft'; self.usage_prompt=None; self.usage_completion=5; self.foreign=0; self.window=32768
         self.model_root='/home/derek/models/qwen3-27b-gptq-int4'
+        self.final_reasoning=''; self.finish='stop'
         outer=self
         class Handler(BaseHTTPRequestHandler):
             def log_message(self,*_): pass
@@ -46,7 +49,7 @@ class Tests(unittest.TestCase):
                 outer.posts.append(body);self.wfile.flush();outer.started.set()
                 if outer.block: outer.unblock.wait(4)
                 try:
-                    event={'choices':[{'delta':{'content':outer.visible,'reasoning':outer.reasoning},'finish_reason':'stop'}],
+                    event={'choices':[{'delta':{'content':outer.visible,'reasoning':outer.reasoning if body['chat_template_kwargs']['enable_thinking'] else outer.final_reasoning},'finish_reason':outer.finish}],
                            'usage':{'prompt_tokens':outer.count if outer.usage_prompt is None else outer.usage_prompt,'completion_tokens':outer.usage_completion}}
                     self.wfile.write(('data: '+json.dumps(event)+'\n\ndata: [DONE]\n\n').encode())
                 except OSError: pass
@@ -74,7 +77,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(r['done']);self.assertEqual(self.posts[0]['messages'],self.body['messages'])
         self.assertEqual(self.posts[0]['max_tokens'],24000);self.assertEqual(self.client.calls,1)
     def test_active_lease_blocks_completion(self):
-        with sqlite3.connect(self.db) as c:c.execute('INSERT INTO capacity_leases VALUES (?,?)',('provider:am4-vllm',time.time()+60))
+        with closing(sqlite3.connect(self.db)) as c, c:c.execute('INSERT INTO capacity_leases VALUES (?,?)',('provider:am4-vllm',time.time()+60))
         with self.assertRaises(RuntimeError):self.client.stream(self.body,self.root/'work',65536)
         self.assertEqual(self.posts,[])
     def test_missing_guard_cancels_owned_stream(self):
@@ -85,9 +88,7 @@ class Tests(unittest.TestCase):
             with self.assertRaises(Exception):f.result(timeout=3)
         self.assertEqual(self.client.calls,1)
     def run_args(self):
-        manifest={'arm':'fake-reviewed-32k', 'backend':'am4-vllm','recipe':{'window':32768},
-                  'argv':['vllm','serve','/home/derek/models/qwen3-27b-gptq-int4','--max-model-len','32768','--reasoning-parser','qwen3']}
-        path=self.root/'recipe.json';path.write_text(json.dumps(manifest))
+        path=Path('/home/derek/work/lab-rnd/research/evidence/bench27-am4-recipe-20261005/Nauto90-prepared/manifest.json')
         return SimpleNamespace(helper=Path(str(Path(__file__).with_name('bench27_am4_probe.py'))),
             workload=Path('/home/derek/work/worktrees/bench27-routing/docs/bench27-fp8-open-prepared/admission.workload.json'),
             workload_sha256=report.WORKLOAD_SHA,
@@ -131,6 +132,7 @@ class Tests(unittest.TestCase):
         args=self.run_args();self.window=49152
         self.assertEqual(report.run(args),3);self.assertEqual(self.posts,[])
         original=json.loads(args.recipe_manifest.read_text())
+        args.recipe_manifest=self.root/'mutated-recipe.json'
         for field,value in [('backend','wrong'),('argv',['vllm','serve','wrong']),('argv',original['argv'][:-2]),('recipe',{'window':16384})]:
             d={**original,field:value}
             args.recipe_manifest.write_text(json.dumps(d));args.recipe_sha256=hashlib.sha256(args.recipe_manifest.read_bytes()).hexdigest()
@@ -161,6 +163,63 @@ class Tests(unittest.TestCase):
         self.assertEqual(rec['prompt_tokens_exact'],30000)
         self.assertEqual(len(self.posts),1)
         self.assertEqual(json.loads((self.root/'final/request.json').read_text())['max_tokens'],4096)
+    def test_exact_allowlist_and_49k_or_085_reject_before_post(self):
+        base=Path('/home/derek/work/lab-rnd/research/evidence/bench27-am4-recipe-20261005')
+        for name in ['Nauto90','Nfp8-32']:
+            p=base/(name+'-prepared')/'manifest.json'
+            manifest,_=report.recipe_manifest(p,hashlib.sha256(p.read_bytes()).hexdigest())
+            self.assertEqual(manifest['recipe']['window'],32768)
+        args=self.run_args()
+        args.recipe_manifest=base/'Nfp8-49-prepared/manifest.json'
+        args.recipe_sha256=hashlib.sha256(args.recipe_manifest.read_bytes()).hexdigest()
+        with self.assertRaises(RuntimeError):report.run(args)
+        args=self.run_args();d=json.loads(args.recipe_manifest.read_text())
+        d['recipe']['utilization']=0.85
+        d['argv'][d['argv'].index('--gpu-memory-utilization')+1]='0.85'
+        args.recipe_manifest=self.root/'085.json';args.recipe_manifest.write_text(json.dumps(d))
+        args.recipe_sha256=hashlib.sha256(args.recipe_manifest.read_bytes()).hexdigest()
+        with self.assertRaises(RuntimeError):report.run(args)
+        self.assertEqual(self.posts,[])
+        # Exercise recipe-field validation independently of the production hash allowlist.
+        with patch.dict(report.RECIPE_ALLOWLIST,{args.recipe_sha256:('Nauto90-flashinfer-native','auto')}):
+            with self.assertRaisesRegex(RuntimeError,'reviewed native'):report.run(args)
+
+    def test_recipe_argv_checks_even_with_test_only_allowlist_entry(self):
+        args=self.run_args();original=json.loads(args.recipe_manifest.read_text())
+        cases=[('--tensor-parallel-size','1'),('--max-num-seqs','1'),
+               ('--attention-backend','FLASH_ATTN'),('--gpu-memory-utilization','0.85')]
+        for flag,value in cases:
+            d=json.loads(json.dumps(original));d['argv'][d['argv'].index(flag)+1]=value
+            path=self.root/'changed.json';path.write_text(json.dumps(d));digest=hashlib.sha256(path.read_bytes()).hexdigest()
+            with patch.dict(report.RECIPE_ALLOWLIST,{digest:(d['arm'],'auto')}):
+                with self.assertRaisesRegex(RuntimeError,'argv mismatch'):report.recipe_manifest(path,digest)
+        d=json.loads(json.dumps(original));d['recipe']['window']=49152
+        d['argv'][d['argv'].index('--max-model-len')+1]='49152'
+        path.write_text(json.dumps(d));digest=hashlib.sha256(path.read_bytes()).hexdigest()
+        with patch.dict(report.RECIPE_ALLOWLIST,{digest:(d['arm'],'auto')}):
+            with self.assertRaisesRegex(RuntimeError,'window invalid'):report.recipe_manifest(path,digest)
+        d=json.loads(json.dumps(original));d['argv'] += ['--kv-cache-dtype','auto']
+        path.write_text(json.dumps(d));digest=hashlib.sha256(path.read_bytes()).hexdigest()
+        with patch.dict(report.RECIPE_ALLOWLIST,{digest:(d['arm'],'auto')}):
+            with self.assertRaisesRegex(RuntimeError,'KV dtype'):report.recipe_manifest(path,digest)
+
+    def test_final_reasoning_or_tags_fail(self):
+        rec={'prompt_tokens_exact':5000,'usage':{'prompt_tokens':5000,'completion_tokens':3},
+             'content':'draft','reasoning':'unexpected'}
+        self.assertFalse(report.validate_turn(rec,4096));self.assertEqual(rec['reasoning_chars'],10)
+        rec.update(content='<think>hidden</think>draft',reasoning='')
+        self.assertFalse(report.validate_turn(rec,4096))
+        args=self.run_args();self.final_reasoning='unexpected'
+        self.assertEqual(report.run(args),4)
+        self.assertEqual(len(self.posts),2)
+
+    def test_failed_owned_send_is_not_mislabeled_foreign(self):
+        args=self.run_args();self.finish='length';self.foreign=-1
+        self.assertEqual(report.run(args),4);self.assertEqual(len(self.posts),1)
+        summary=json.loads((args.out/'summary.json').read_text())
+        self.assertEqual(summary['foreign_requests'],0)
+        self.assertEqual(summary['owned_sends_not_counted_successful'],1)
+
     def test_metrics_missing_rejected(self):
         with self.assertRaises(RuntimeError):report.counters(b'vllm:num_requests_running 0\n')
 

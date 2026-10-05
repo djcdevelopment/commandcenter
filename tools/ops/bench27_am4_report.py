@@ -16,6 +16,10 @@ import time
 
 WORKLOAD_SHA = '09e34b4315a076c1ffedd0384d9aea29114071787343a9af0cd30d68cd4ee38e'
 SOURCE_COMMIT = '85cf67dafcd433de143c8a65e5576bb13189fd3e'
+RECIPE_ALLOWLIST = {
+    'f6264339b38900e1e5e813b4bf6dc2b1d4250ba7c598873478feaf11214c964f': ('Nauto90-flashinfer-native', 'auto'),
+    '0af355f9a76fbaab19bcc673e76fc1d614d7d99e85a5ced9d512d01dce6b4da3': ('Nfp8-32-native', 'fp8_e4m3'),
+}
 HELPER_SHA = 'd0823b9ca7ec81a9491686c7cd68fe0410d15dbf0bad13cd39b55eb25e4c6b2e'
 
 
@@ -96,7 +100,7 @@ def client_class(helper):
 
 def recipe_manifest(path, expected_sha):
     raw = path.read_bytes()
-    if hashlib.sha256(raw).hexdigest() != expected_sha:
+    if expected_sha not in RECIPE_ALLOWLIST or hashlib.sha256(raw).hexdigest() != expected_sha:
         raise RuntimeError('recipe manifest hash mismatch')
     manifest = json.loads(raw)
     argv = manifest['argv']
@@ -104,13 +108,30 @@ def recipe_manifest(path, expected_sha):
         if argv.count(flag) != 1 or argv.index(flag) + 1 >= len(argv):
             raise RuntimeError('missing or repeated recipe option: ' + flag)
         return argv[argv.index(flag) + 1]
-    if manifest.get('backend') != 'am4-vllm' or not manifest.get('arm'):
+    arm, kv_dtype = RECIPE_ALLOWLIST[expected_sha]
+    if manifest.get('backend') != 'am4-vllm' or manifest.get('arm') != arm:
         raise RuntimeError('unnamed or wrong recipe backend')
     window = manifest['recipe']['window']
-    if type(window) is not int or window < 32768 or option('--max-model-len') != str(window):
+    if type(window) is not int or window != 32768 or option('--max-model-len') != str(window):
         raise RuntimeError('recipe window invalid or inconsistent')
     if option('serve') != '/home/derek/models/qwen3-27b-gptq-int4' or option('--reasoning-parser') != 'qwen3':
         raise RuntimeError('recipe model path or reasoning parser mismatch')
+    recipe = manifest['recipe']
+    required = {'utilization': 0.9, 'sequences': 2, 'attention_backend': 'FLASHINFER',
+                'use_trtllm_attention': False, 'kv_dtype': kv_dtype, 'graphs': True,
+                'mtp': 0, 'reasoning_parser': 'qwen3', 'tool_parser': 'qwen3_xml'}
+    if any(recipe.get(k) != v for k, v in required.items()):
+        raise RuntimeError('recipe differs from reviewed native 32K comparison')
+    for flag, value in {'--gpu-memory-utilization': '0.9', '--max-num-seqs': '2',
+                        '--tensor-parallel-size': '2', '--attention-backend': 'FLASHINFER',
+                        '--tool-call-parser': 'qwen3_xml'}.items():
+        if option(flag) != value:
+            raise RuntimeError('recipe argv mismatch: ' + flag)
+    if json.loads(option('--attention-config')) != {'use_trtllm_attention': False}:
+        raise RuntimeError('native attention configuration mismatch')
+    if (kv_dtype == 'auto' and '--kv-cache-dtype' in argv) or (
+            kv_dtype != 'auto' and option('--kv-cache-dtype') != kv_dtype):
+        raise RuntimeError('KV dtype argv mismatch')
     return manifest, raw
 
 
@@ -124,8 +145,14 @@ def validate_turn(record, budget, work=False):
         errors.append('missing or excessive completion usage')
     if not isinstance(record.get('content'), str) or not record['content'].strip():
         errors.append('empty or whitespace-only visible output')
-    if work and (not record.get('reasoning', '').strip() or any(t in (record.get('content') or '') for t in ('<think>', '</think>'))):
-        errors.append('recipe mismatch: reasoning not separated from visible content')
+    reasoning = record.get('reasoning', '')
+    record['reasoning_chars'] = len(reasoning)
+    if any(t in (record.get('content') or '') for t in ('<think>', '</think>')):
+        errors.append('recipe mismatch: reasoning tags in visible content')
+    if work and not reasoning.strip():
+        errors.append('recipe mismatch: work reasoning not separated')
+    if not work and reasoning.strip():
+        errors.append('recipe mismatch: final reasoning present with thinking disabled')
     record['comparison_errors'] = errors
     return not errors
 
@@ -190,11 +217,17 @@ def run(args):
             write(args.out / 'final/result.json', rec)
             summary['measurements']['final'] = rec
         after = idle_snapshot('after')
-        summary['foreign_requests'] = after['success'] - before['success'] - client.calls
-        if summary['foreign_requests'] != 0:
+        delta = after['success'] - before['success'] - client.calls
+        summary['success_counter_delta'] = after['success'] - before['success']
+        summary['foreign_requests'] = max(0, delta)
+        summary['owned_sends_not_counted_successful'] = max(0, -delta)
+        if delta > 0:
             raise helper.InfraError('engine counter delta does not match owned sends')
         stages = summary['measurements']
         summary['transport_ok'] = len(stages) == 2 and all(r['done'] and r['finish_reason'] == 'stop' and not r.get('error') and not r.get('comparison_errors') for r in stages.values())
+        if delta < 0 and summary['transport_ok']:
+            summary['transport_ok'] = False
+            raise helper.InfraError('owned sends missing from success counter despite complete responses')
         summary['status'] = 'awaiting_review' if summary['transport_ok'] else 'inference_failure'
         rc = 0 if summary['transport_ok'] else 4
     except Exception as exc:

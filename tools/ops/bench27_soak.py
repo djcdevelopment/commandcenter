@@ -79,6 +79,29 @@ def coverage(pairs):
             'interpretation':'Run wall intervals include prefill, generation and client overhead, not proof of continuous GPU utilization. Counter/thermal records and gaps require review; no report acceptance inferred.'}
 
 
+# Harness escalates after 30 s; this owned child is in its own session, so
+# escalation MUST finish sooner even when the harness initiated the stop.
+CANCEL_GRACE_SECONDS = 25
+
+
+def signal_group(child, sig):
+    try:
+        os.killpg(child.pid, sig)
+    except ProcessLookupError:
+        pass  # Child/group exited between poll and signal.
+
+
+def stop_child(child):
+    if child is None or child.poll() is not None:
+        return
+    signal_group(child, signal.SIGTERM)
+    try:
+        child.wait(timeout=CANCEL_GRACE_SECONDS)
+    except subprocess.TimeoutExpired:
+        signal_group(child, signal.SIGKILL)
+        child.wait()
+
+
 def run(args):
     if not 7200 <= args.minimum_seconds < args.maximum_seconds <= 8400:
         raise ValueError('minimum >=7200, maximum <=8400, with positive grace required')
@@ -91,9 +114,9 @@ def run(args):
         nonlocal stop
         stop=True
         if child is not None and child.poll() is None:
-            os.killpg(child.pid,signal.SIGTERM)
+            signal_group(child,signal.SIGTERM)
     for sig in (signal.SIGINT,signal.SIGTERM):signal.signal(sig,interrupt)
-    start=time.monotonic();pairs=[];totals={'0':0,'1':0};status='incomplete';error=None
+    start=time.monotonic();pairs=[];totals={'0':0,'1':0};known_totals={'0':0,'1':0};unknown_pairs=[];status='incomplete';error=None
     try:
         while not stop and time.monotonic()-start < args.maximum_seconds:
             verify(unit)
@@ -106,35 +129,30 @@ def run(args):
                     time.sleep(.1)
                 timed_out=child.poll() is None
                 if timed_out:
-                    os.killpg(child.pid,signal.SIGTERM)
-                    try:child.wait(timeout=40)
-                    except subprocess.TimeoutExpired:
-                        os.killpg(child.pid,signal.SIGKILL);child.wait()
+                    stop_child(child)
                 row={'directory':str(directory),'returncode':child.returncode,'interrupted_or_timeout':timed_out or stop}
             try:
                 calls,intervals=report_pair(directory,arm);row.update(calls=calls,intervals=intervals)
-                totals={s:totals[s]+calls[s] for s in totals}
+                known_totals={s:known_totals[s]+calls[s] for s in known_totals}
+                totals=dict(known_totals)
             except (OSError,ValueError,KeyError,TypeError) as exc:
                 row.update(calls=None,error=str(exc));totals={'0':None,'1':None}
+                unknown_pairs.append(str(directory))
             pairs.append(row)
             measured=coverage(pairs)
-            write(out/'progress.json',{'pairs':pairs,'calls':totals,'coverage':measured})
+            write(out/'progress.json',{'pairs':pairs,'calls':totals,'known_calls':known_totals,'unknown_pairs':unknown_pairs,'coverage':measured})
             if stop or timed_out or child.returncode != 0 or row.get('calls') != {'0':2,'1':2} or not row.get('intervals'):
-                status='failed';break
-            if measured['measured_campaign_span_seconds'] >= args.minimum_seconds:
+                status='model_failed' if child.returncode == 4 and not stop and not timed_out else 'failed';break
+            if measured['measured_campaign_span_seconds'] >= args.minimum_seconds + 1:
                 status='duration_met_pending_stability_review';break
     except Exception as exc:
         status='failed';error=type(exc).__name__+': '+str(exc)
     finally:
-        if child is not None and child.poll() is None:
-            os.killpg(child.pid,signal.SIGTERM)
-            try:child.wait(timeout=40)
-            except subprocess.TimeoutExpired:
-                os.killpg(child.pid,signal.SIGKILL);child.wait()
-        summary={'schema':'bench27-soak.v1','status':status,'error':error,'calls':totals,'pairs':pairs,'coverage':coverage(pairs),'minimum_seconds':args.minimum_seconds,'maximum_seconds':args.maximum_seconds,'qualification':'None; duration/stability observations only'}
+        stop_child(child)
+        summary={'schema':'bench27-soak.v1','status':status,'error':error,'calls':totals,'known_calls':known_totals,'unknown_pairs':unknown_pairs,'pairs':pairs,'coverage':coverage(pairs),'timestamp_resolution_seconds':1,'required_recorded_span_seconds':args.minimum_seconds+1,'minimum_seconds':args.minimum_seconds,'maximum_seconds':args.maximum_seconds,'qualification':'None; duration/stability observations only'}
         write(out/'summary.json',summary)
         print(json.dumps(summary,allow_nan=False))
-    return 0 if status=='duration_met_pending_stability_review' else 3
+    return 0 if status=='duration_met_pending_stability_review' else 4 if status=='model_failed' else 3
 
 
 def main():

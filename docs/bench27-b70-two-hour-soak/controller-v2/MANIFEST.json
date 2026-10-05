@@ -1,0 +1,143 @@
+{
+  "schema": "bench27-soak-controller-prepared.v1",
+  "status": "prepared_pending_independent_review_not_launched",
+  "controller": {
+    "path": "/home/derek/work/worktrees/bench27-routing/tools/ops/bench27_soak.py",
+    "sha256": "651a01e0493418571ef8881c1d84a6b08401e812079f56a938ca00695d109a68"
+  },
+  "spec": {
+    "path": "/home/derek/work/worktrees/bench27-routing/docs/bench27-b70-two-hour-soak/controller-v2/soak.spec.json",
+    "sha256": "003e87ab52b29df3d0692d3f4495d54df573d4c3036d867c3b791efbbc9c2aa9"
+  },
+  "unit": {
+    "path": "/home/derek/work/worktrees/bench27-routing/docs/bench27-b70-two-hour-soak/one-pair.sequence.json",
+    "sha256": "a248972d3f0ab82913e0349d3cdc4db4fb85ec8d9185d9208bd80ab934e96118"
+  },
+  "frozen_inputs": {
+    "schema": "bench27-soak-preparation.v1",
+    "status": "blocked_not_runnable_duration_controller_missing",
+    "regime": "Both B70s baseline65K auto(fp16)KV MTPk2; noFP8adoption inference",
+    "source_commit": "de666ef75ce79733bffb34c5e146c9b8ddd42f30",
+    "workload_path": "/home/derek/work/lab-rnd/research/evidence/qwen38-levers-20261003/sizing-workload.json",
+    "workload_sha256": "0f65fd1977ded2217bd1f35fd918447c1c983b93f2e82c9b3f9aabbce2fb750d",
+    "controls": {
+      "work": {
+        "model": "qwen3.8-27b",
+        "max_tokens": 24000,
+        "temperature": 0.0,
+        "stream": false,
+        "chat_template_kwargs": {
+          "enable_thinking": true
+        },
+        "top_p": 0.95,
+        "seed": 42
+      },
+      "final": {
+        "model": "qwen3.8-27b",
+        "max_tokens": 4096,
+        "temperature": 0.0,
+        "stream": false,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        },
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "delivery_output_v1",
+            "schema": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "summary",
+                "sections"
+              ],
+              "properties": {
+                "summary": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1200
+                },
+                "sections": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 16,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "heading",
+                      "paragraphs"
+                    ],
+                    "properties": {
+                      "heading": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "paragraphs": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 24,
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "text",
+                            "quotes"
+                          ],
+                          "properties": {
+                            "text": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 2400
+                            },
+                            "quotes": {
+                              "type": "array",
+                              "maxItems": 8,
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 400
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "strict": true
+          }
+        },
+        "seed": 42
+      }
+    },
+    "source_hashes": {
+      "/home/derek/work/worktrees/bench27-drivers/research/thinking_workload.py": "19b487e17a5dc847392078fc932f95df79cb0cfcf3a38c006bd439745604d388",
+      "/home/derek/work/worktrees/bench27-drivers/research/paired_thinking_workload.py": "bd707bf7309e1d159bfe138e8746272c802c141f0368a5f98896b90768bce56e",
+      "/home/derek/work/worktrees/bench27-drivers/research/bench27_campaign.py": "ffc086b46d41147dba5388f01e9aefce2a70d1ee1a1e9f4870856d07f28bd36b",
+      "/home/derek/work/commandcenter-linux-flash/fleet/experiment_linux.py": "99784aa4aa8d6241b57355838b279ab59e5c50d097456db048d015591108cbe6"
+    },
+    "input_spec_hashes": {
+      "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/prepared/bench27-more-mtp-off-pass-a.spec.json": "cbc15130d3950be6cadb0f9962c1f46526f97691645027e8281225180c47d8fb",
+      "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/prepared/bench27-more-mtp-off-pass-b-retry1.spec.json": "5cfbe250866241a2d059455be247b6cde2f923eeacee1ea26fb545457cccbfa7"
+    },
+    "files": {
+      "/home/derek/work/worktrees/bench27-routing/docs/bench27-b70-two-hour-soak/one-pair.sequence.json": "a248972d3f0ab82913e0349d3cdc4db4fb85ec8d9185d9208bd80ab934e96118",
+      "/home/derek/work/worktrees/bench27-routing/docs/bench27-b70-two-hour-soak/soak.spec.proposal.json": "bbe21d1208fcd8fe5304598f7e749fe37140976995daaff0cbec3cd3e244f42c"
+    },
+    "no_launch": true
+  },
+  "time_limits": {
+    "minimum_measured_span_s": 7200,
+    "controller_wall_max_s": 8400,
+    "cancel_grace_s": 25,
+    "harness_max_s": 9000,
+    "headroom_note": "Harness campaign budget starts after cold-restart setup and is shortened by restore_by. Require an actual campaign budget >=8425s plus restoration headroom; do not rely on restore_by rollover.",
+    "required_recorded_span_s": 7201,
+    "timestamp_resolution_s": 1
+  },
+  "tests": "14 offline unittest cases passed"
+}

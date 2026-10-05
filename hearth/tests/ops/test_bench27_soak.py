@@ -67,4 +67,70 @@ class SoakTests(unittest.TestCase):
         with TemporaryDirectory() as d:
             p=Path(d);(p/'paired.json').write_text(json.dumps({'calls':{'0':1,'1':0}}))
             self.assertEqual(soak.report_pair(p,'arm'),({'0':1,'1':0},None))
+
+    def test_force_kill_precedes_harness_30_second_grace(self):
+        waits=[];signals=[]
+        class Child:
+            pid=123
+            def poll(self):return None
+            def wait(self,timeout=None):
+                waits.append(timeout)
+                if timeout is not None:
+                    raise soak.subprocess.TimeoutExpired('child',timeout)
+                return -9
+        with patch.object(soak.os,'killpg',side_effect=lambda pid,sig:signals.append(sig)):
+            soak.stop_child(Child())
+        self.assertEqual(waits,[25,None])
+        self.assertLess(waits[0],30)
+        self.assertEqual(signals,[soak.signal.SIGTERM,soak.signal.SIGKILL])
+    def test_exited_group_race_is_harmless(self):
+        with patch.object(soak.os,'killpg',side_effect=ProcessLookupError):
+            soak.signal_group(SimpleNamespace(pid=123),soak.signal.SIGTERM)
+    def test_real_run_keys_and_whole_second_times(self):
+        with TemporaryDirectory() as d:
+            p=Path(d);(p/'paired.json').write_text(json.dumps({'calls':{'0':2,'1':2},'ok':True}))
+            for seat in ['0','1']:
+                directory=p/f'seat-{seat}';directory.mkdir()
+                (directory/'run.json').write_text(json.dumps({'schema':'thinking-run.v1','arm':'soak','concurrency':1,'started_utc':'2026-10-05T00:00:00Z','finished_utc':'2026-10-05T02:00:00Z','ok':True}))
+            calls,intervals=soak.report_pair(p,'soak')
+            self.assertEqual(calls,{'0':2,'1':2})
+            self.assertEqual(intervals['0'][1]-intervals['0'][0],7200)
+    def test_unknown_after_known_preserves_known_sum_and_7200_is_not_enough(self):
+        with TemporaryDirectory() as d:
+            unit=Path(d)/'unit.json';unit.write_text(json.dumps({'commands':[['python','paired_thinking_workload.py','--arm','soak','--out','x']]}))
+            args=SimpleNamespace(unit=unit,unit_sha256=hashlib.sha256(unit.read_bytes()).hexdigest(),out=Path(d)/'out',minimum_seconds=7200,maximum_seconds=8400)
+            child=SimpleNamespace(returncode=0,poll=lambda:0)
+            with patch.object(soak,'verify'),patch.object(soak.signal,'signal'),patch.object(soak.subprocess,'Popen',return_value=child),patch.object(soak,'report_pair',side_effect=[({'0':2,'1':2},{'0':[0,7200],'1':[0,7200]}),ValueError('unknown calls')]),patch('builtins.print'):
+                self.assertEqual(soak.run(args),3)
+            result=soak.read(args.out/'summary.json')
+            self.assertEqual(result['known_calls'],{'0':2,'1':2})
+            self.assertEqual(result['calls'],{'0':None,'1':None})
+            self.assertEqual(len(result['unknown_pairs']),1)
+            self.assertEqual(result['required_recorded_span_seconds'],7201)
+    def test_model_failure_exit_four_preserved(self):
+        with TemporaryDirectory() as d:
+            unit=Path(d)/'unit.json';unit.write_text(json.dumps({'commands':[['python','paired_thinking_workload.py','--arm','soak','--out','x']]}))
+            args=SimpleNamespace(unit=unit,unit_sha256=hashlib.sha256(unit.read_bytes()).hexdigest(),out=Path(d)/'out',minimum_seconds=7200,maximum_seconds=8400)
+            child=SimpleNamespace(returncode=4,poll=lambda:4)
+            with patch.object(soak,'verify'),patch.object(soak.signal,'signal'),patch.object(soak.subprocess,'Popen',return_value=child),patch.object(soak,'report_pair',return_value=({'0':2,'1':2},{'0':[0,100],'1':[0,100]})),patch('builtins.print'):
+                self.assertEqual(soak.run(args),4)
+            self.assertEqual(soak.read(args.out/'summary.json')['status'],'model_failed')
+    def test_sigterm_handler_forwards_to_child_and_cleanup_escalates(self):
+        with TemporaryDirectory() as d:
+            unit=Path(d)/'unit.json';unit.write_text(json.dumps({'commands':[['python','paired_thinking_workload.py','--arm','soak','--out','x']]}))
+            args=SimpleNamespace(unit=unit,unit_sha256=hashlib.sha256(unit.read_bytes()).hexdigest(),out=Path(d)/'out',minimum_seconds=7200,maximum_seconds=8400)
+            handlers={}
+            class Child:
+                pid=321;returncode=None;fired=False;in_handler=False
+                def poll(self):
+                    if not self.fired:
+                        self.fired=True
+                        handlers[soak.signal.SIGTERM](soak.signal.SIGTERM,None)
+                    return self.returncode
+                def wait(self,timeout=None):
+                    if timeout is not None:raise soak.subprocess.TimeoutExpired('child',timeout)
+                    self.returncode=-9;return -9
+            with patch.object(soak,'verify'),patch.object(soak.signal,'signal',side_effect=lambda sig,fn:handlers.update({sig:fn})),patch.object(soak.subprocess,'Popen',return_value=Child()),patch.object(soak.os,'killpg') as kill,patch.object(soak,'report_pair',return_value=({'0':1,'1':1},None)),patch('builtins.print'):
+                self.assertEqual(soak.run(args),3)
+            self.assertIn(soak.signal.SIGKILL,[call.args[1] for call in kill.call_args_list])
 if __name__=='__main__':unittest.main()

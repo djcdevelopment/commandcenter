@@ -180,7 +180,7 @@ def main():
     ap.add_argument('--caller', choices=('codex', 'claude'), default='codex')
     ap.add_argument('--principal', help='optional assertion; must match authenticated caller mapping')
     ap.add_argument('--projection', type=Path, default=Path.home() / 'hearth-production/var/execution/projection.sqlite')
-    ap.add_argument('--on-trip', help='Campaign stop command, invoked once per new trip')
+    ap.add_argument('--on-trip', help='Idempotent campaign stop command, invoked every interval while a card is tripped')
     ap.add_argument('--lock', type=Path, default=Path.home() / '.cache/bench27-card-guard.lock')
     a = ap.parse_args()
     if not math.isfinite(a.interval) or not 0 < a.interval <= 20 or not math.isfinite(a.limit) or not 0 < a.limit <= 104:
@@ -210,6 +210,11 @@ def main():
             started = time.monotonic()
             row = {'utc': utc(), 'pid': os.getpid(), **{card: sample_card(card) for card in mappings}}
             row['new_trips'] = trips.observe(row)
+            global_marker = Path(str(a.out) + '.tripped')
+            for card in mappings:
+                marker = Path(f'{a.out}.{card}.tripped')
+                if marker.exists() and not global_marker.exists():
+                    durable(global_marker, json.loads(marker.read_text()))
             # Persist heartbeat and trips BEFORE any command or network I/O.
             durable(a.out, row, append=True)
             actions = {'utc': utc(), 'kind': 'actions'}

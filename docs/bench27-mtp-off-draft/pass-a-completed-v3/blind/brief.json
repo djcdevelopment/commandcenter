@@ -1,0 +1,51 @@
+{
+  "schema": "brief.v2",
+  "builders": [
+    "omen-local-work"
+  ],
+  "task_class": "local-work",
+  "est_tokens": 5000,
+  "requires": [
+    "candidate"
+  ],
+  "max_age_s": 172800,
+  "substance": [
+    {
+      "id": "s1-compare",
+      "statement": "The report compares the backends declared under configuration.day and configuration.tool-night in host/lab-configurations.toml against the sizing parameters and invariants in tools/ops/sizing_map.py."
+    },
+    {
+      "id": "s2-values",
+      "statement": "The report states context_tokens, parallel_slots and max_tokens for omen-dense-27b and omen-perception in both configurations."
+    },
+    {
+      "id": "s3-transitions",
+      "statement": "The report identifies which backends change between live and absent when the lab moves from day to tool-night."
+    }
+  ],
+  "form": {
+    "words": {
+      "min": 0,
+      "max": 500,
+      "enforce": "measure"
+    },
+    "citations": "quote",
+    "sections": [],
+    "style": "markdown"
+  },
+  "sources": [
+    {
+      "path": "host/lab-configurations.toml",
+      "commit": "de666ef75ce79733bffb34c5e146c9b8ddd42f30"
+    },
+    {
+      "path": "tools/ops/sizing_map.py",
+      "commit": "de666ef75ce79733bffb34c5e146c9b8ddd42f30"
+    }
+  ],
+  "aids": [
+    "source_map",
+    "quote_renderer",
+    "constrained_output"
+  ]
+}

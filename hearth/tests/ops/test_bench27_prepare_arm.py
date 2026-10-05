@@ -27,7 +27,7 @@ class ArmPreparationTests(unittest.TestCase):
 
 class BindingComparisonTests(unittest.TestCase):
     def rows(self):
-        return [{'seat':seat,'workload':{'sha256':'hash'},'timing_exclusions':[],
+        return [{'seat':seat,'arm':'pass-a','workload':{'sha256':'hash'},'timing_exclusions':[],
                  'conversations':[{'work':{'controls':{'temperature':0,'seed':42,'top_p':.95,'max_tokens':24000,'chat_template_kwargs':{'enable_thinking':True}}},'final':{'controls':{'max_tokens':4096,'chat_template_kwargs':{'enable_thinking':False}}}}],
                  **{k:value for k in ('seconds_total','work_seconds','final_seconds','decode_tokens_per_s')}}
                 for seat,value in [('seat-0',10),('seat-1',20)] for _ in range(3)]
@@ -43,8 +43,11 @@ class BindingComparisonTests(unittest.TestCase):
         self.assertFalse(validate_binding(rows,'seat-0','seat-1','hash')['verified'])
     def test_harness_and_workload_binding(self):
         from tools.ops.bench27_prepare_arm import validate_binding
-        rows=self.rows();state={'spec':{'dropin':{'0':None,'1':'treatment.conf'}}}
+        rows=self.rows();state={'spec':{'id':'pass-a','dropin':{'0':None,'1':'treatment.conf'}}}
         self.assertTrue(validate_binding(rows,'seat-0','seat-1','hash',state)['verified'])
+        self.assertEqual(validate_binding(rows,'seat-0','seat-1','hash',state)['experiment_id'],'pass-a')
+        wrong={'spec':{'id':'pass-b','dropin':state['spec']['dropin']}}
+        with self.assertRaisesRegex(ValueError,'spec.id'):validate_binding(rows,'seat-0','seat-1','hash',wrong)
         with self.assertRaisesRegex(ValueError,'dropin'):validate_binding(rows,'seat-1','seat-0','hash',state)
         with self.assertRaisesRegex(ValueError,'workload hash'):validate_binding(rows,'seat-0','seat-1','wrong',state)
     def test_null_threshold_and_nonfinite_metric(self):
@@ -77,5 +80,34 @@ class BindingComparisonTests(unittest.TestCase):
             result=speculative_intervals(path)['seats']['0']
             self.assertEqual(len(result['segments']),2)
             self.assertEqual([list(s['deltas'].values()) for s in result['segments']],[[0.0],[0.0]])
+
+    def test_prepare_writes_bound_package_end_to_end(self):
+        from unittest.mock import patch
+        from tools.ops.bench27_prepare_arm import prepare
+        from tools.ops.bench27_summarize import digest
+        with TemporaryDirectory() as directory:
+            base=Path(directory);root=base/'input';root.mkdir();out=base/'output'
+            workload=base/'workload.json';pin='a'*40
+            workload.write_text(json.dumps({'source_commit':pin,'brief':{'sources':[{'path':'source.py','commit':pin}]}}))
+            rows=self.rows()
+            for i,row in enumerate(rows):
+                row['path']=f'rep-{i}/'+row['seat']+'/run.json'
+                row['workload']['sha256']=digest(workload.read_bytes())
+            parity=self.parity();parity.update(schema='bench27-summary.v1',runs=rows)
+            paritypath=base/'parity.json';paritypath.write_text(json.dumps(parity))
+            harness=base/'harness.json';harness.write_text(json.dumps({'spec':{'id':'pass-a','dropin':{'0':None,'1':'t.conf'}}}))
+            args=SimpleNamespace(root=root,out=out,control='seat-0',treatment='seat-1',workload=workload,
+                parity=paritypath,harness=harness,cards=[],exclude_repeat=[],card_map=[],raw_metrics=None,
+                needle_grades=None,source_repo=base)
+            collected={'runs':rows,'calibration':{},'reference_run':rows[0]['path'],'card_map':{'seat-0':'card2','seat-1':'card3'}}
+            with patch('tools.ops.bench27_prepare_arm.summary.summarize',return_value=collected), patch('tools.ops.bench27_prepare_arm.sourcemap.build',return_value=SimpleNamespace(commit=pin,files=[])), patch('tools.ops.bench27_prepare_arm.sourcemap.render_for_model',return_value='pinned sources'):
+                result=prepare(args)
+            self.assertEqual(result['assignment']['experiment_id'],'pass-a')
+            self.assertTrue(result['assignment']['verified'])
+            self.assertTrue(result['comparison']['seconds_total']['exceeds_frozen_spread'])
+            marker=json.loads((out/'COMPLETE.json').read_text())
+            self.assertEqual(marker['metrics_sha256'],digest((out/'metrics.json').read_bytes()))
+            self.assertFalse((out/'blind'/'blind-map.json').exists())
+            self.assertEqual(len(json.loads((out/'blind-map.json').read_text())),6)
 
 if __name__=='__main__': unittest.main()

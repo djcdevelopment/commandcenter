@@ -73,6 +73,10 @@ def validate_binding(rows, control, treatment, workload_hash, state=None):
         raise ValueError('workload hash does not match every run')
     assignment = {'control': control, 'treatment': treatment, 'verified': False, 'basis': 'caller-asserted'}
     if state is not None:
+        identity = state.get('spec', {}).get('id')
+        if not isinstance(identity, str) or not identity or {r.get('arm') for r in rows} != {identity}:
+            raise ValueError('harness spec.id does not match every run arm')
+        assignment['experiment_id'] = identity
         dropins = state.get('spec', {}).get('dropin', {})
         treatments = ['seat-'+str(k) for k,v in dropins.items() if v is not None]
         controls = ['seat-'+str(k) for k,v in dropins.items() if v is None]
@@ -89,7 +93,7 @@ def regime(row):
         for stage in ('work', 'final'):
             controls = conversation[stage]['controls']
             item[stage] = {k: controls.get(k) for k in ('temperature','seed','top_p','max_tokens')}
-            item[stage]['enable_thinking'] = controls.get('chat_template_kwargs', {}).get('enable_thinking')
+            item[stage]['enable_thinking'] = (controls.get('chat_template_kwargs') or {}).get('enable_thinking')
         stages.append(item)
     return {'workload': (row.get('workload') or {}).get('sha256'), 'stages': stages}
 
@@ -139,6 +143,8 @@ def prepare(args) -> dict:
     result['assignment'] = validate_binding(result['runs'], args.control, args.treatment, workload_hash, state)
     result['workload_binding'] = {'path': str(args.workload.resolve()), 'sha256': workload_hash}
     parity = summary.read_json(args.parity)
+    if parity.get('schema') != summary.SCHEMA:
+        raise ValueError('unsupported frozen parity schema')
     result['frozen_parity'] = {'path': str(args.parity.resolve()), 'sha256': summary.digest(args.parity.read_bytes()),
                              'reasons': parity['calibration'].get('reasons', [])}
     result['comparison'] = compare(result['runs'], parity, args.control, args.treatment)
@@ -190,7 +196,7 @@ def prepare(args) -> dict:
     for metric, v in result['comparison'].items():
         c,t=[v['seats'][seat] for seat in (args.control,args.treatment)]
         lines.append(f"| {metric} | {c['median']} | {t['median']} | {c['n']} / {t['n']} | {v['treatment_over_control_minus_one']} | {v['frozen_threshold']} | {v['ready_n3_each']} |")
-    lines += ['', f"Assignment verified: {result['assignment']['verified']} ({result['assignment']['basis']}). Divergence reference: {result['reference_run']}.",
+    lines += ['', f"Assignment verified: {result['assignment']['verified']} ({result['assignment']['basis']}). Card map: {result['card_map']}. Divergence reference: {result['reference_run']} (may be the treatment seat in a swapped pass).",
         'Card and treatment are confounded within one pass; an arm verdict needs both swapped passes. Lower seconds is better; higher decode tokens/s is better. Null spread comparisons remain unavailable; see per-metric reasons in metrics.json.', '', 'All rates above are fractions. Exact source fields, run hashes, thermal windows, first-token/prefill metadata, counters and exclusions are in metrics.json. Decode uses generation_tokens_total/decode_seconds_sum; durations use run.seconds_total and conversation work/final.seconds. Output length may differ. No A/B-derived recalibration.', '', 'Only blind/ goes to the grader. Raw copies, deterministic renderer repair manifests and mapping remain outside it. Needles are unmeasured unless a grade file was explicitly supplied. Re-run into a new output directory after remaining work completes; preserve this snapshot.']
     (out/'SUMMARY.md').write_text('\n'.join(lines)+'\n')
     (out/'COMPLETE.json').write_text(json.dumps({'schema': 'bench27-package-complete.v1', 'meaning': 'Offline package construction complete, not experiment success', 'metrics_sha256': summary.digest((out/'metrics.json').read_bytes())}, allow_nan=False)+'\n')

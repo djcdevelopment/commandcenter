@@ -182,3 +182,11 @@ def test_active_disconnect_cancels_upstream_and_releases_slot(server):
     assert lock.acquire(timeout=2)
     lock.release()
     assert call(server,body=prompt())[0] == 200
+
+
+def test_invalid_output_configuration_refuses_before_engine_call(server, monkeypatch):
+    monkeypatch.setenv('AM4_ALIAS_BACKENDS', json.dumps({'am4-dense-27b': {
+        'host':'127.0.0.1','port':1,'model_id':'qwen3-27b','api':'vllm','output_ceiling':32768}}))
+    status, data = call(server, body=prompt(max_tokens=24576))
+    assert status == 503 and b'invalid alias backend configuration' in data
+    assert not server[1].calls

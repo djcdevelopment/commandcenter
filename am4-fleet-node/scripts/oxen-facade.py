@@ -68,8 +68,8 @@ def admission(backend: dict) -> threading.BoundedSemaphore:
 def alias_status(alias: str) -> dict:
     if alias not in configured_aliases():
         return {"alias": alias, "ready": False, "reason": "unknown alias"}
-    b = backend_for(alias)
     try:
+        b = backend_for(alias)
         status, _, health = backend_request("GET", "/health", host=b["host"], port=b["port"], timeout=2)
         if b.get("api") == "vllm":
             models_status, _, raw = backend_request(
@@ -99,9 +99,15 @@ def alias_status(alias: str) -> dict:
 
 def guard_context(payload: dict, b: dict, state: dict) -> dict:
     """Count the engine-rendered template including tools; fail closed if unsupported."""
+    ceiling = output_ceiling(b)
+    if ceiling > 8192:
+        if (state.get("ready") is not True or state.get("alias") != "am4-dense-27b"
+                or state.get("model") != "qwen3-27b"
+                or type(state.get("context_length")) is not int or state["context_length"] < 49152):
+            raise ValueError("dense 24576 output capability requires live qwen3-27b context >=49152")
     budget = payload.get("max_completion_tokens", payload.get("max_tokens", 2048))
-    if type(budget) is not int or not 1 <= budget <= 8192:
-        raise ValueError("output budget must be an integer in 1..8192")
+    if type(budget) is not int or not 1 <= budget <= ceiling:
+        raise ValueError(f"output budget must be an integer in 1..{ceiling}")
     if not isinstance(payload.get("messages"), list) or not payload["messages"]:
         raise ValueError("messages must be a nonempty list")
     if any(k in payload for k in ("prompt", "n_predict", "cache_prompt", "id_slot")):
@@ -254,8 +260,22 @@ def alias_backends() -> dict:
     return {a: dict(g) for a in configured_aliases()}
 
 
+def output_ceiling(backend: dict) -> int:
+    """Bounded declaration, never a caller override or evidence of qualification."""
+    ceiling = backend.get("output_ceiling", 8192)
+    if type(ceiling) is not int or ceiling not in (8192, 24576):
+        raise ValueError("output_ceiling must be 8192 or scoped dense 24576")
+    if ceiling == 24576 and (backend.get("_alias") != "am4-dense-27b"
+            or backend.get("api") != "vllm" or backend.get("model_id") != "qwen3-27b"):
+        raise ValueError("24576 output ceiling is restricted to am4-dense-27b/qwen3-27b/vllm")
+    return ceiling
+
+
 def backend_for(alias: str) -> dict:
-    return alias_backends().get(alias, _global_backend())
+    # Set identity after merging config; a map entry cannot impersonate another alias.
+    backend = {**alias_backends().get(alias, _global_backend()), "_alias": alias}
+    output_ceiling(backend)
+    return backend
 
 
 def adapt_payload_for_backend(payload: dict, backend: dict) -> None:
@@ -483,7 +503,11 @@ class Handler(BaseHTTPRequestHandler):
             self.write_json(404, {"error": f"unknown model alias '{alias}'", "known": configured_aliases()})
             return
 
-        b = backend_for(alias)
+        try:
+            b = backend_for(alias)
+        except (ValueError, TypeError, AttributeError):
+            self.write_json(503, {"error": "invalid alias backend configuration"})
+            return
         payload["model"] = b["model_id"]
         if self.hermes_caller:
             payload.setdefault("reasoning_effort", "none")

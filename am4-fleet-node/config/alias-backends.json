@@ -34,6 +34,7 @@
     "port": 18094,
     "model_id": "qwen3-27b",
     "api": "vllm",
+    "output_ceiling": 24576,
     "parallel_slots": 1
   },
   "am4-read-4070ti": {

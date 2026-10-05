@@ -512,7 +512,7 @@ class LocalWorkService:
                 deliberate = int(provider.settings.get("deliberate_max_tokens") or 0)
                 carried, pinned, choice, fallback, packet = False, False, None, None, None
                 profile, profile_sha = self._serving_profile(provider.settings)
-                if existing is not None and (existing["route"].get("model") != model or
+                if existing is not None and (existing["route"].get("selected_model", existing["route"].get("model")) != model or
                         existing["route"].get("serving_profile_sha256") != profile_sha):
                     raise LocalWorkError("recorded backend model or serving profile changed; retry refused")
                 if pooled and existing is None:
@@ -660,7 +660,7 @@ class LocalWorkService:
             "route": {"profile_version": ROUTE_PROFILE_VERSION,
                       "profile_sha256": route_hash,
                       "requested_lane": lane, "selected_lane": selected_lane,
-                      "provider": backend_name, "model": model, "task_family": task_family,
+                      "provider": backend_name, "model": model, "selected_model": model, "task_family": task_family,
                       "backend_choice": {"by": "recorded" if existing else "least_outstanding_then_leases",
                                          "loads": loads, "excluded": excluded},
                       "serving_profile": serving_profile,

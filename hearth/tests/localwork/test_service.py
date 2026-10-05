@@ -198,6 +198,7 @@ class LocalWorkServiceTests(unittest.TestCase):
 
     def test_idempotency_returns_same_work_and_rejects_reuse(self) -> None:
         first = self.submit(idempotency_key="same")
+        self.settle(first["work_id"])  # reconciliation may stamp a server-reported model alias
         second = self.submit(idempotency_key="same")
         self.assertEqual(first["work_id"], second["work_id"])
         with self.assertRaisesRegex(LocalWorkError, "different local work"):

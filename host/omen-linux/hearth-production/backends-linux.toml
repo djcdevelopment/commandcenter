@@ -53,6 +53,7 @@ tags = ["dense", "reasoning"]
 [backend.settings]
 structured_outputs = true   # response_format json_schema, probed on the wire 2026-10-03 under dense-tp2: valid, finish stop, 3.1 s
 node = "am4"
+metrics_url = "ssh+http://10.44.0.2:18094/metrics"
 engine = "vllm"
 context_tokens = 16384
 context_bytes = 57344

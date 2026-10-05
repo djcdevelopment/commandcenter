@@ -201,6 +201,9 @@ def main():
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
         raise SystemExit('a bench27 guard already owns the lock')
+    def stop_signal(signum, frame):
+        raise SystemExit(128 + signum)
+    signal.signal(signal.SIGTERM, stop_signal)
     trips = Trips(a.out, mappings, a.limit)
     try:
         door_action('readiness', a.caller)
@@ -235,7 +238,18 @@ def main():
                 durable(Path(str(a.out) + '.actions.jsonl'), actions, append=True)
             time.sleep(max(0, a.interval - (time.monotonic() - started)))
     except BaseException as exc:
-        guard_failure(a.out, exc)
+        try:
+            guard_failure(a.out, exc)
+        finally:
+            for card, backend in mappings.items():
+                if a.on_trip:
+                    stop_campaign(a.on_trip, {'card': card, 'backend': backend})
+                try:
+                    jobs = pending_jobs(a.projection, backend, a.principal)
+                    if jobs:
+                        door_action('cancel', a.caller, jobs, 'guard shutdown; telemetry unavailable')
+                except Exception:
+                    pass  # The durable trip and unit binding remain fail-closed.
         raise
 
 

@@ -2,7 +2,7 @@
   "schema": "bench27-door-slots3-prepared.v1",
   "status": "offline prepared; parent review/deployment/preflight required",
   "configuration": "three-dense",
-  "unit": "bench27-door-slots3",
+  "unit": "bench27-b70-lap.service",
   "fence": false,
   "runtime_max_s": 1800,
   "stop_grace_s": 30,
@@ -56,5 +56,15 @@
     "--out",
     "/home/derek/work/lab-rnd/research/evidence/bench27-slots3-20261005/paired-c3/sequence"
   ],
-  "restore": "Parent drains owned jobs and verifies zero affected leases/running/waiting, then reverses only treatment slots3->2 in both tracked/deployed registry and three-dense record; never replace a whole stale registry snapshot."
+  "restore": "Parent drains owned jobs and verifies zero affected leases/running/waiting, then reverses only treatment slots3->2 in both tracked/deployed registry and three-dense record; never replace a whole stale registry snapshot.",
+  "guard_unit": "bench27-card-guard.service",
+  "unit_dependencies": {
+    "BindsTo": [
+      "bench27-card-guard.service"
+    ],
+    "After": [
+      "bench27-card-guard.service"
+    ]
+  },
+  "guard_binding": "Existing guard callback already stops bench27-b70-lap.service; reuse only after prior lap fully inactive and guard active/fresh preflight. No guard restart or callback mutation."
 }

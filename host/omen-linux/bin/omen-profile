@@ -14,13 +14,13 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import tempfile
 import json
 import os
 import shutil
 import sqlite3
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.request
 from datetime import datetime, timezone
@@ -44,6 +44,8 @@ PROFILE_DIRS = [
 ]
 UNIT_DIR = HOME / ".config" / "systemd" / "user"
 SNAPSHOT_DIR = HOME / ".config" / "omen-vllm" / "snapshots"
+ROUTER_CONFIG = HOME / ".config" / "omen-vllm" / "haproxy.cfg"
+HAPROXY = HOME / "opt" / "haproxy" / "usr" / "sbin" / "haproxy"
 START_SCRIPT = HOME / "bin" / "start-vllm-seat.sh"
 WAIT_SCRIPT = HOME / "bin" / "wait-vllm-seat.sh"
 POOL_RESOURCE = "omen-b70-pool"
@@ -290,19 +292,23 @@ def restore_replacement(seat: int) -> bool:
 
 def apply_replacement(seat: int, sdata: dict[str, Any]) -> bool:
     """Restore any previous displacement, then journal originals before removing them."""
-    changed = restore_replacement(seat)
     names = sdata.get("replace_dropins", [])
     if not names:
-        return changed
+        return restore_replacement(seat)
     service_d = UNIT_DIR / f"omen-vllm@{seat}.service.d"
     staged = service_d / sdata["staged_dropin"]
     active = sdata["active_dropin"]
     if any(Path(n).name != n or not n.endswith(".conf") for n in [active, *names]) or active in names:
         raise RuntimeError("invalid replace_dropins declaration")
-    if (service_d / active).exists():
+    previous = replacement_state(seat)
+    if (service_d / active).exists() and (previous is None or previous["active"] != active):
         raise RuntimeError(f"unmanaged active replacement exists: {active}")
     payload = staged.read_bytes()
-    originals = {name: (service_d / name).read_bytes() for name in names}
+    # Read every source before restoration or displacement; invalid target profiles do not mutate.
+    sources = {name: Path(previous["originals"][name]["path"]) if previous and name in previous["originals"]
+               else service_d / name for name in names}
+    originals = {name: source.read_bytes() for name, source in sources.items()}
+    restore_replacement(seat)
     backup = Path(tempfile.mkdtemp(prefix=f"displaced-seat-{seat}-", dir=SNAPSHOT_DIR))
     state = {"active": active, "active_sha256": hashlib.sha256(payload).hexdigest(), "originals": {}}
     for name, content in originals.items():
@@ -315,12 +321,64 @@ def apply_replacement(seat: int, sdata: dict[str, Any]) -> bool:
     return True
 
 
+def router_journal() -> Path:
+    return SNAPSHOT_DIR / "router-replacement.json"
+
+
+def router_target(profile: dict) -> Path | None:
+    original = None
+    if router_journal().exists():
+        state = json.loads(router_journal().read_text())
+        original = Path(state["original"])
+        if not original.resolve().is_relative_to(SNAPSHOT_DIR.resolve()) or hashlib.sha256(original.read_bytes()).hexdigest() != state["original_sha256"]:
+            raise RuntimeError("router snapshot integrity failed")
+    staged_name = profile.get("router_config")
+    if staged_name:
+        if Path(staged_name).name != staged_name:
+            raise ValueError("router_config must be a filename")
+        return ROUTER_CONFIG.parent / staged_name
+    return original
+
+
+def validate_router(profile: dict) -> None:
+    target = router_target(profile)
+    if target is not None:
+        subprocess.run([str(HAPROXY), "-c", "-f", str(target)], check=True, capture_output=True, text=True)
+
+
+def apply_router(profile: dict) -> bool:
+    target = router_target(profile)
+    if target is None:
+        return False
+    validate_router(profile)
+    current = ROUTER_CONFIG.read_bytes()
+    payload = target.read_bytes()
+    journal = router_journal()
+    if journal.exists():
+        state = json.loads(journal.read_text())
+        if hashlib.sha256(current).hexdigest() != state["active_sha256"]:
+            raise RuntimeError("router changed outside profile switch")
+    else:
+        backup = Path(tempfile.mkdtemp(prefix="displaced-router-", dir=SNAPSHOT_DIR)) / "haproxy.cfg"
+        atomic_bytes(backup, current)
+        state = {"original": str(backup), "original_sha256": hashlib.sha256(current).hexdigest()}
+    state["active_sha256"] = hashlib.sha256(payload).hexdigest()
+    atomic_bytes(journal, (json.dumps(state, indent=2) + "\n").encode())
+    atomic_bytes(ROUTER_CONFIG, payload)
+    subprocess.run([str(HAPROXY), "-c", "-f", str(ROUTER_CONFIG)], check=True, capture_output=True, text=True)
+    subprocess.run(["systemctl", "--user", "restart", "omen-vllm-router.service"], check=True)
+    if not profile.get("router_config"):
+        journal.unlink()
+    return True
+
+
 def build_seat_dry_env(seat: int, sdata: dict[str, Any]) -> dict[str, str]:
     env = dict(os.environ)
     env["OMEN_DRY"] = "1"
     service_d = UNIT_DIR / f"omen-vllm@{seat}.service.d"
     # Simulate restoration and displacement without changing files or reading credentials.
-    contents = {p.name: p.read_text() for p in service_d.glob("*.conf")}
+    contents = {p.name: p.read_text() for p in (UNIT_DIR / "omen-vllm@.service.d").glob("*.conf")}
+    contents.update({p.name: p.read_text() for p in service_d.glob("*.conf")})
     state = replacement_state(seat)
     if state:
         contents.pop(state["active"], None)
@@ -329,18 +387,13 @@ def build_seat_dry_env(seat: int, sdata: dict[str, Any]) -> dict[str, str]:
         if name not in contents:
             raise RuntimeError(f"missing drop-in to displace: {name}")
         del contents[name]
-    for name in sorted(contents):
-        for line in contents[name].splitlines():
-            if line.startswith("Environment="):
-                k, v = line[len("Environment="):].split("=", 1)
-                env[k.strip()] = v.strip()
-
-    # Load active dropin or staged dropin if specified in profile
     if "staged_dropin" in sdata:
         staged = service_d / sdata["staged_dropin"]
-        if not staged.is_file():
-            raise FileNotFoundError(f"staged drop-in {staged} does not exist")
-        for line in staged.read_text().splitlines():
+        active = sdata.get("active_dropin", sdata["staged_dropin"].removesuffix(".staged"))
+        contents[active] = staged.read_text()  # fail loudly if missing
+    # Match systemd's lexical ordering, including any later unmanaged override.
+    for name in sorted(contents):
+        for line in contents[name].splitlines():
             if line.startswith("Environment="):
                 k, v = line[len("Environment="):].split("=", 1)
                 env[k.strip()] = v.strip()
@@ -352,7 +405,14 @@ def cmd_switch(name: str, dry_run: bool = False) -> int:
     try:
         profile = load_profile(name)
         check_context_limits(profile)
-    except (ValueError, FileNotFoundError) as exc:
+        validate_router(profile)
+        if profile.get("require_recipe_parity"):
+            environments = [build_seat_dry_env(seat, profile["seats"][str(seat)]) for seat in (0, 1)]
+            recipes = [{k: v for k, v in env.items() if k.startswith("OMEN_") and k != "OMEN_PORT"}
+                       for env in environments]
+            if recipes[0] != recipes[1]:
+                raise ValueError("target profile requires identical seat recipes; dry environments differ")
+    except (ValueError, OSError, RuntimeError, subprocess.CalledProcessError) as exc:
         print(f"Refusing switch: {exc}", file=sys.stderr)
         return 1
 
@@ -411,6 +471,15 @@ def cmd_switch(name: str, dry_run: bool = False) -> int:
     snap_dir = SNAPSHOT_DIR / ts_str
     snap_dir.mkdir(parents=True, exist_ok=True)
     print(f"Saving drop-in snapshot to {snap_dir}...")
+    router_before = ROUTER_CONFIG.read_bytes() if ROUTER_CONFIG.exists() else None
+    router_journal_before = router_journal().read_bytes() if router_journal().exists() else None
+    profile_before = PROFILE_STATE_FILE.read_bytes() if PROFILE_STATE_FILE.exists() else None
+    if router_before is not None:
+        atomic_bytes(snap_dir / "haproxy.cfg", router_before)
+    if router_journal_before is not None:
+        atomic_bytes(snap_dir / "router-replacement.json", router_journal_before)
+    restarted_seats: set[int] = set()
+    router_attempted = False
     for seat in (0, 1):
         s_dir = UNIT_DIR / f"omen-vllm@{seat}.service.d"
         seat_snap_dir = snap_dir / f"seat_{seat}"
@@ -428,6 +497,14 @@ def cmd_switch(name: str, dry_run: bool = False) -> int:
         for seat in (0, 1):
             s_dir = UNIT_DIR / f"omen-vllm@{seat}.service.d"
             seat_snap_dir = snap_dir / f"seat_{seat}"
+            current = {p.name: p.read_bytes() for p in s_dir.glob("*.conf")}
+            saved = {p.name: p.read_bytes() for p in seat_snap_dir.glob("*.conf")}
+            current_journal = replacement_journal(seat)
+            saved_journal = seat_snap_dir / "replacement.json"
+            journal_changed = ((current_journal.read_bytes() if current_journal.exists() else None) !=
+                               (saved_journal.read_bytes() if saved_journal.exists() else None))
+            if current == saved and not journal_changed and seat not in restarted_seats:
+                continue
             if s_dir.is_dir():
                 for c in list(s_dir.glob("*.conf")):
                     c.unlink()
@@ -443,6 +520,18 @@ def cmd_switch(name: str, dry_run: bool = False) -> int:
             subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
             subprocess.run(["systemctl", "--user", "restart", f"omen-vllm@{seat}.service"], check=True)
             subprocess.run([str(WAIT_SCRIPT), str(seat), "900"], check=True)
+        if router_attempted and router_before is not None:
+            atomic_bytes(ROUTER_CONFIG, router_before)
+            if router_journal_before is None:
+                router_journal().unlink(missing_ok=True)
+            else:
+                atomic_bytes(router_journal(), router_journal_before)
+            subprocess.run([str(HAPROXY), "-c", "-f", str(ROUTER_CONFIG)], check=True, capture_output=True, text=True)
+            subprocess.run(["systemctl", "--user", "restart", "omen-vllm-router.service"], check=True)
+        if profile_before is None:
+            PROFILE_STATE_FILE.unlink(missing_ok=True)
+        else:
+            atomic_bytes(PROFILE_STATE_FILE, profile_before)
 
     # Apply profile seat by seat
     key = get_vllm_key()
@@ -491,6 +580,7 @@ def cmd_switch(name: str, dry_run: bool = False) -> int:
                 continue
 
             print(f"Applying profile changes to seat {seat}...")
+            restarted_seats.add(seat)
             subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
             subprocess.run(["systemctl", "--user", "restart", f"omen-vllm@{seat}.service"], check=True)
             
@@ -503,6 +593,10 @@ def cmd_switch(name: str, dry_run: bool = False) -> int:
             live_models = query_live_models(18091 + seat, key)
             if expected_model and expected_model not in live_models:
                 raise RuntimeError(f"seat {seat} serves {live_models}, expected {expected_model}")
+
+        # Publish routing only after both target seats have verified healthy.
+        router_attempted = router_target(profile) is not None
+        apply_router(profile)
 
         # Update profile state file
         PROFILE_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)

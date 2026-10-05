@@ -144,6 +144,23 @@ def active_manifest() -> list[tuple[str, Path]]:
                 else "stage8-27b-vision.conf")
     pairs = [(rel, live) for rel, live in MANIFEST if not rel.endswith("/" + inactive)]
     snapshots = HOME / ".config" / "omen-vllm" / "snapshots"
+    profile_source = HOME / ".config" / "omen-vllm" / "profiles" / f"{profile}.json"
+    if not profile_source.exists():
+        profile_source = HOST_DIR / "profiles" / f"{profile}.json"
+    router_name = json.loads(profile_source.read_text()).get("router_config") if profile_source.exists() else None
+    router_journal = snapshots / "router-replacement.json"
+    if router_name or router_journal.exists():
+        if not router_name or Path(router_name).name != router_name:
+            raise ValueError("router replacement disagrees with active profile")
+        state = json.loads(router_journal.read_text())
+        backup = Path(state["original"])
+        if not backup.resolve().is_relative_to(snapshots.resolve()) or hashlib.sha256(backup.read_bytes()).hexdigest() != state["original_sha256"]:
+            raise ValueError("router snapshot integrity failed")
+        live_router = HOME / ".config" / "omen-vllm" / "haproxy.cfg"
+        if hashlib.sha256(live_router.read_bytes()).hexdigest() != state["active_sha256"]:
+            raise ValueError("active router changed outside profile switch")
+        pairs = [(rel, backup if rel == "config/haproxy.cfg" else live) for rel, live in pairs]
+        pairs.append((f"config/{router_name}", live_router))
     for seat in (0, 1):
         journal = snapshots / f"replacement-seat-{seat}.json"
         if not journal.exists():

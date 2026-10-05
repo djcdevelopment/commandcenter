@@ -27,6 +27,11 @@ class ReplacementTests(unittest.TestCase):
         self.snap.mkdir(parents=True)
         self.state = self.home / '.config/omen-vllm/profile'
         self.state.write_text('two-lane')
+        self.router = self.state.parent / 'haproxy.cfg'
+        self.router.write_bytes((ROOT / 'host/omen-linux/config/haproxy.cfg').read_bytes())
+        self.router_original = self.router.read_bytes()
+        shutil.copy2(ROOT / 'host/omen-linux/config/haproxy.cfg.two-dense.staged', self.router.parent)
+
         self.profiles = ROOT / 'host/omen-linux/profiles'
         self.dense = json.loads((self.profiles / 'two-dense.json').read_text())
         self.normal = json.loads((self.profiles / 'two-lane.json').read_text())
@@ -42,7 +47,7 @@ class ReplacementTests(unittest.TestCase):
         self.seat = self.unit / 'omen-vllm@1.service.d'
         self.originals = self.active_files()
         for name, value in [('HOME', self.home), ('UNIT_DIR', self.unit), ('SNAPSHOT_DIR', self.snap),
-                            ('PROFILE_STATE_FILE', self.state), ('PROFILE_DIRS', [self.profiles])]:
+                            ('PROFILE_STATE_FILE', self.state), ('PROFILE_DIRS', [self.profiles]), ('ROUTER_CONFIG', self.router)]:
             p = patch.object(op, name, value); p.start(); self.addCleanup(p.stop)
 
     def active_files(self):
@@ -77,15 +82,22 @@ class ReplacementTests(unittest.TestCase):
         op.restore_replacement(1)
         self.assertEqual(self.active_files(), self.originals)
 
-    def run_switch(self, target, fail_wait=False):
+    def run_switch(self, target, fail_wait=False, fail_router=False):
         store = Mock()
         store.active_owner.return_value = None
         store.acquire.return_value = types.SimpleNamespace(epoch=1)
         coordination = types.ModuleType('hearth.execution.coordination')
         coordination.GpuTenancyStore = lambda: store
         failed = False
+        calls = []
+        seat_zero = self.unit / 'omen-vllm@0.service.d'
+        zero_before = {p.name: p.read_bytes() for p in seat_zero.glob('*.conf')}
         def run(argv, **kwargs):
             nonlocal failed
+            calls.append(argv)
+            if fail_router and argv == ['systemctl', '--user', 'restart', 'omen-vllm-router.service'] and not failed:
+                failed = True
+                raise subprocess.CalledProcessError(1, argv)
             if fail_wait and str(argv[0]) == str(op.WAIT_SCRIPT) and kwargs.get('capture_output') and not failed:
                 failed = True
                 return subprocess.CompletedProcess(argv, 1, 'load failed', '')
@@ -102,12 +114,17 @@ class ReplacementTests(unittest.TestCase):
              patch.object(op.subprocess, 'run', side_effect=run):
             rc = op.cmd_switch(target)
         self.assertEqual(store.release.call_count, 1)
+        self.assertNotIn(['systemctl', '--user', 'restart', 'omen-vllm@0.service'], calls)
+        self.assertEqual(zero_before, {p.name: p.read_bytes() for p in seat_zero.glob('*.conf')})
         return rc
 
     def test_switch_enter_and_exit_restore(self):
         self.assertEqual(self.run_switch('two-dense'), 0)
         self.assertTrue(op.replacement_journal(1).exists())
+        self.assertEqual(self.router.read_bytes(), (self.router.parent / 'haproxy.cfg.two-dense.staged').read_bytes())
         self.assertEqual(self.run_switch('two-lane'), 0)
+        self.assertEqual(self.router.read_bytes(), self.router_original)
+        self.assertFalse(op.router_journal().exists())
         self.assertEqual(self.active_files(), self.originals)
         self.assertFalse(op.replacement_journal(1).exists())
 
@@ -145,3 +162,63 @@ class ReplacementTests(unittest.TestCase):
             (self.seat / 'max-num-seqs.conf').write_text('unexpected active override')
             with self.assertRaisesRegex(ValueError, 'still active'):
                 hc.active_manifest()
+
+    def test_full_recipe_environment_matches_seat_zero(self):
+        left = op.build_seat_dry_env(0, self.dense['seats']['0'])
+        right = op.build_seat_dry_env(1, self.dense['seats']['1'])
+        self.assertEqual(left, right)
+
+    def test_failed_router_reload_restores_router_seat_and_journals(self):
+        self.assertEqual(self.run_switch('two-dense', fail_router=True), 1)
+        self.assertEqual(self.router.read_bytes(), self.router_original)
+        self.assertFalse(op.router_journal().exists())
+        self.assertFalse(op.replacement_journal(1).exists())
+        self.assertEqual(self.active_files(), self.originals)
+        self.assertEqual(self.state.read_text(), 'two-lane')
+
+    def test_invalid_target_does_not_restore_existing_displacement(self):
+        op.apply_replacement(1, self.dense['seats']['1'])
+        before = self.active_files()
+        journal = op.replacement_journal(1).read_bytes()
+        invalid = dict(self.dense['seats']['1'], staged_dropin='missing.staged')
+        with self.assertRaises(FileNotFoundError):
+            op.apply_replacement(1, invalid)
+        self.assertEqual(before, self.active_files())
+        self.assertEqual(journal, op.replacement_journal(1).read_bytes())
+
+    def test_router_manifest_compares_active_and_original(self):
+        self.assertEqual(self.run_switch('two-dense'), 0)
+        host_spec = importlib.util.spec_from_file_location('router_host_config', ROOT / 'tools/ops/host_config.py')
+        hc = importlib.util.module_from_spec(host_spec)
+        host_spec.loader.exec_module(hc)
+        with patch.object(hc, 'HOME', self.home):
+            pairs = hc.active_manifest()
+            self.assertIn(('config/haproxy.cfg.two-dense.staged', self.router), pairs)
+            original = next(live for rel, live in pairs if rel == 'config/haproxy.cfg')
+            self.assertEqual(original.read_bytes(), self.router_original)
+
+    def test_later_unmanaged_override_is_visible_in_dry_environment(self):
+        (self.seat / 'zz-leftover.conf').write_text('[Service]\nEnvironment=OMEN_MTP_K=1\n')
+        dry = op.build_seat_dry_env(1, self.dense['seats']['1'])
+        self.assertEqual(dry['OMEN_MTP_K'], '1')
+        with patch.object(op.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0)):
+            self.assertEqual(op.cmd_switch('two-dense'), 1)
+        self.assertFalse(op.replacement_journal(1).exists())
+
+    def test_invalid_router_is_rejected_before_any_mutation(self):
+        with patch.object(op.subprocess, 'run', side_effect=subprocess.CalledProcessError(1, ['haproxy', '-c'])):
+            self.assertEqual(op.cmd_switch('two-dense'), 1)
+        self.assertEqual(self.active_files(), self.originals)
+        self.assertEqual(self.router.read_bytes(), self.router_original)
+        self.assertFalse(op.replacement_journal(1).exists())
+
+    def test_partial_displacement_failure_is_rolled_back_without_seat_zero_restart(self):
+        original_write = op.atomic_bytes
+        def write(path, content):
+            if path == self.seat / 'stage9-two-dense.conf':
+                raise OSError('injected active-recipe write failure')
+            return original_write(path, content)
+        with patch.object(op, 'atomic_bytes', side_effect=write):
+            self.assertEqual(self.run_switch('two-dense'), 1)
+        self.assertEqual(self.active_files(), self.originals)
+        self.assertFalse(op.replacement_journal(1).exists())

@@ -472,6 +472,12 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
                 f"(have: {', '.join(declared) or 'none'})"
             )
         for candidate in candidates:
+            try:
+                from hearth.execution.lab_config import get_backend_status
+                if get_backend_status(candidate.name)[0] == "absent":
+                    continue
+            except ImportError:
+                pass
             if exclude and candidate.name in exclude:
                 continue
             if payload_bytes is not None:

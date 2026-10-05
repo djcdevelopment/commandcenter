@@ -39,5 +39,7 @@
         "stage0-recipe.conf"
       ]
     }
-  }
+  },
+  "router_config": "haproxy.cfg.two-dense.staged",
+  "require_recipe_parity": true
 }

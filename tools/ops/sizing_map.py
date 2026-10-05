@@ -718,6 +718,8 @@ def invariants(rows: list[Row]) -> list[dict]:
 
             # Expected live backends must be serving
             for b in sorted(expected_live):
+                if b not in rungs:
+                    fail("expected-live-backend-declared", f"{b} expected live under {active_cfg} but absent from backend declarations", "an active backend must have an explicit serving declaration")
                 if b == "omen-vllm":
                     s1_live = _val(rows, "omen-vllm@1 live read")
                     s1_models = _val(rows, "omen-vllm@1 /v1/models")
@@ -732,7 +734,7 @@ def invariants(rows: list[Row]) -> list[dict]:
                     if live_read and "unavailable" in str(live_read):
                         fail("expected-live-backends-serving", f"{b} expected live under {active_cfg} but seat {seat} is unavailable: {live_read}", "live backends must be UP and responding to /v1/models")
                     elif (models is not None and "qwen3.8-27b" not in str(models)) or (models is None and live_read is not None):
-                        fail("expected-live-backends-serving", f"{b} expected live under {active_cfg} but seat {seat} is serving {models}", "live backends must serve their declared model")
+                        fail("expected-live-backends-serving", f"{b} expected live under {active_cfg} but seat {seat} " + (f"is serving {models}" if models is not None else "is not serving"), "live backends must serve their declared model")
                 elif b in ("am4-vllm", "am4-tool-4070ti", "am4-tool-5070"):
                     alias = "am4-dense-27b" if b == "am4-vllm" else b
                     rdy = _val(rows, f"facade alias {alias} ready")

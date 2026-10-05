@@ -243,3 +243,12 @@ class SecondDenseSeatTests(unittest.TestCase):
         rows[2]["value"] = "ok"
         rows.pop()
         self.assertIn("expected-live-backends-serving", rules(rows))
+
+
+class MissingActiveBackendTests(unittest.TestCase):
+    def test_active_backend_requires_pool_declaration(self):
+        rows = [R("configuration", "active configuration", "three-dense"),
+                R("configuration", "config three-dense backend omen-dense-27b-b", "status=live")]
+        self.assertIn("expected-live-backend-declared", rules(rows))
+        rows.append(R("rung", "omen-dense-27b-b context_tokens", 65536))
+        self.assertNotIn("expected-live-backend-declared", rules(rows))

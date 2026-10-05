@@ -1,0 +1,9 @@
+{
+  "status": "blocked_do_not_apply",
+  "reason": "CUDA13.0 CRT rsqrt noexcept conflict with glibc2.43",
+  "control_script_sha256": "4b2e241d13614c9ae0069dfc47aef4ca73d608ddeb91bafd49d7f5d3543be6a4",
+  "candidate_script_sha256": "bafd42bdc587ffdf3bb04b33016c68df4263efb83f65eb04c64826139dc499c5",
+  "changed": "CUDA_HOME only; no inference flags changed; no execution",
+  "host_gcc": "15.2.0",
+  "host_glibc": "2.43"
+}

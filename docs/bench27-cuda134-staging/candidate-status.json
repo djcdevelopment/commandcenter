@@ -1,0 +1,13 @@
+{
+  "status": "awaiting_review_not_loaded",
+  "control_script_sha256": "4b2e241d13614c9ae0069dfc47aef4ca73d608ddeb91bafd49d7f5d3543be6a4",
+  "candidate_script_sha256": "1343633c1109f2abb32398c577f356ad6a5b72b775989aa4ec8520b5485b6316",
+  "changed": [
+    "CUDA_HOME to isolated13.4 toolkit",
+    "FLASHINFER_WORKSPACE_BASE to isolated cache"
+  ],
+  "inference_argv": "unchanged from observed control",
+  "risk": "Torch built CUDA13.0; JIT compiled13.4. No existing runtime library changes or LD_LIBRARY_PATH overrides. ABI/runtime compatibility remains unmeasured.",
+  "host_gcc": "15.2.0",
+  "host_glibc": "2.43"
+}

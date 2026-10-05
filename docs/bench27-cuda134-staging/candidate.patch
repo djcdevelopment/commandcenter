@@ -1,0 +1,12 @@
+--- observed-control-script.sh
++++ candidate-script.sh
+@@ -7,7 +7,8 @@
+ export CUDA_DEVICE_ORDER=PCI_BUS_ID
+ export NCCL_P2P_DISABLE=1
+ export VLLM_USE_FLASHINFER_SAMPLER=0
+-export CUDA_HOME=/home/derek/.venvs/vllm-cuda-030/lib/python3.12/site-packages/nvidia/cu13
++export CUDA_HOME=/home/derek/bench27-cuda134/toolkit/nvidia/cu13
++export FLASHINFER_WORKSPACE_BASE=/home/derek/bench27-cuda134/jit-workspace
+ export CUDA_PATH="$CUDA_HOME"
+ export PATH="$CUDA_HOME/bin:/home/derek/.venvs/vllm-cuda-030/bin:$PATH"
+ exec /home/derek/.venvs/vllm-cuda-030/bin/vllm \

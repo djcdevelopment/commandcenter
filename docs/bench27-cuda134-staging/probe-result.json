@@ -1,0 +1,19 @@
+{
+  "argv": [
+    "/home/derek/bench27-cuda134/toolkit/nvidia/cu13/bin/nvcc",
+    "-c",
+    "/home/derek/bench27-cuda134/probe.cu",
+    "-o",
+    "/home/derek/bench27-cuda134/probe.o",
+    "-std=c++17",
+    "-I/home/derek/.venvs/vllm-cuda-030/lib/python3.12/site-packages/flashinfer/data/cccl/libcudacxx/include",
+    "-I/home/derek/.venvs/vllm-cuda-030/lib/python3.12/site-packages/flashinfer/data/cccl/cub",
+    "-I/home/derek/.venvs/vllm-cuda-030/lib/python3.12/site-packages/flashinfer/data/cccl/thrust",
+    "-gencode=arch=compute_89,code=sm_89",
+    "-gencode=arch=compute_120f,code=sm_120f"
+  ],
+  "returncode": 0,
+  "stdout": "",
+  "stderr": "",
+  "source_sha256": "6a00ea2b7774ba663e9618fb0a0c12521dee967f747ad56b792a93b336e752fe"
+}

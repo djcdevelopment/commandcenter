@@ -1,0 +1,19 @@
+{
+  "argv": [
+    "/home/derek/bench27-cuda130/toolkit/nvidia/cu13/bin/nvcc",
+    "-c",
+    "/home/derek/bench27-cuda130/probe.cu",
+    "-o",
+    "/home/derek/bench27-cuda130/probe.o",
+    "-std=c++17",
+    "-I/home/derek/.venvs/vllm-cuda-030/lib/python3.12/site-packages/flashinfer/data/cccl/libcudacxx/include",
+    "-I/home/derek/.venvs/vllm-cuda-030/lib/python3.12/site-packages/flashinfer/data/cccl/cub",
+    "-I/home/derek/.venvs/vllm-cuda-030/lib/python3.12/site-packages/flashinfer/data/cccl/thrust",
+    "-gencode=arch=compute_89,code=sm_89",
+    "-gencode=arch=compute_120f,code=sm_120f"
+  ],
+  "returncode": 2,
+  "stdout": "",
+  "stderr": "/usr/include/x86_64-linux-gnu/bits/mathcalls.h(206): error: exception specification is incompatible with that of previous function \"rsqrt\" (declared at line 629 of /home/derek/bench27-cuda130/toolkit/nvidia/cu13/bin/..//include/crt/math_functions.h)\n   extern double rsqrt (double __x) noexcept (true); extern double __rsqrt (double __x) noexcept (true);\n                                    ^\n\n/usr/include/x86_64-linux-gnu/bits/mathcalls.h(206): error: exception specification is incompatible with that of previous function \"rsqrtf\" (declared at line 653 of /home/derek/bench27-cuda130/toolkit/nvidia/cu13/bin/..//include/crt/math_functions.h)\n   extern float rsqrtf (float __x) noexcept (true); extern float __rsqrtf (float __x) noexcept (true);\n                                   ^\n\n2 errors detected in the compilation of \"/home/derek/bench27-cuda130/probe.cu\".\n",
+  "source_sha256": "6a00ea2b7774ba663e9618fb0a0c12521dee967f747ad56b792a93b336e752fe"
+}

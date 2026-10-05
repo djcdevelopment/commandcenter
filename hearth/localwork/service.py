@@ -38,6 +38,7 @@ CANDIDATE_SCHEMA = "local-work-candidate.v1"
 MANIFEST_SCHEMA = "local-work-manifest.v1"
 TEMPLATE_VERSION = "local-work-prompts.v1"
 ROUTE_PROFILE_VERSION = "local-work-routes.v2"
+SERVING_PROFILE_SCHEMA = "serving-profile.v2"
 DELIVERY_TOKEN_CEILING = 16384
 CARRY_WORK_TOKENS = 24576   # the procedure's thinking turn: inference.deliberate's ceiling, not work.produce's
 CARRY_CHECK_TOKENS = 24576   # the check turn's ceiling; its budget is what the window leaves, and under the floor the work fails
@@ -64,7 +65,7 @@ VISION_FAMILIES = frozenset({"vision", "document_ocr", "image_analysis"})
 # declared serving facts to distinguish a qualified run from a later shape, but
 # it must never become a dump of endpoint, credential, or operator settings.
 SERVING_PROFILE_KEYS = frozenset({
-    "serving_profile_version", "hardware_profile_id",
+    "serving_profile_schema", "serving_profile_version", "hardware_profile_id",
     "engine", "engine_build", "model_weight", "model_weight_sha256", "quantization",
     "device_backend", "devices", "split_mode", "tensor_split",
     "context_tokens", "max_tokens", "parallel_slots",
@@ -131,10 +132,13 @@ def _serialized_submission(method):
     @functools.wraps(method)
     def locked(self, *args, **kwargs):
         self.root.mkdir(parents=True, exist_ok=True)
-        with self._lock:
-            connection = sqlite3.connect(str(self.root / "local-work-admission.sqlite"), timeout=120)
+        with self._admission_lock:
+            connection = sqlite3.connect(str(self.root / "local-work-admission.sqlite"), timeout=30)
             try:
-                connection.execute("BEGIN IMMEDIATE")
+                try:
+                    connection.execute("BEGIN IMMEDIATE")
+                except sqlite3.OperationalError as exc:
+                    raise LocalWorkError(f"local-work admission lock unavailable: {exc}") from exc
                 return method(self, *args, **kwargs)
             finally:
                 connection.rollback()
@@ -149,6 +153,7 @@ class LocalWorkService:
         self.root = Path(root).resolve() if root else paths.operator_home()
         self.token_counter = token_counter or self._server_token_count
         self._lock = threading.RLock()
+        self._admission_lock = threading.Lock()
 
     def _run_dir(self, work_id: str) -> Path:
         if not re.fullmatch(r"work_[a-f0-9]{32}", work_id):
@@ -264,6 +269,7 @@ class LocalWorkService:
             if not isinstance(value, (str, int, float, bool)) and value is not None:
                 raise LocalWorkError(f"serving profile setting {key!r} must be scalar")
             profile[key] = value
+        profile["serving_profile_schema"] = SERVING_PROFILE_SCHEMA
         encoded = json.dumps(profile, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
         return profile, _digest(encoded)
 
@@ -413,16 +419,30 @@ class LocalWorkService:
             except (contract.ContractError, sourcemap.SourceMapError) as exc:
                 raise LocalWorkError(f"delivery brief refused: {exc}") from exc
             quote_mode = contract.form_defaults(brief)["quote_mode"]
+        work_id = (f"work_{_digest(caller_id + ':' + idempotency_key)[:32]}"
+                   if idempotency_key else f"work_{uuid.uuid4().hex}")
+        prior = self._read(work_id) if idempotency_key and self._manifest_path(work_id).is_file() else None
+        if prior is not None and prior["status"] in FINAL | {"awaiting_review"}:
+            # Finished retries read their records without consulting a current route or live seat.
+            saved = json.loads((self._run_dir(work_id) / "refs" / "envelope.json").read_text(encoding="utf-8"))
+            route = prior["route"]
+            if (saved["intent"] != intent or prior["criteria"] != acceptance_criteria or
+                    prior["repo"] != str(repo_path) or prior["base_commit"] != base or
+                    prior["declared_paths"] != declared or prior["artifact_kind"] != artifact_kind or
+                    prior.get("target_path") != target or prior.get("brief") != brief or
+                    route.get("task_family") != task_family or bool(prior.get("revise")) != revise or
+                    (lane != "auto" and lane != route["selected_lane"]) or
+                    (procedure is not None and procedure != route.get("procedure", "one_call")) or
+                    (max_tokens is not None and max_tokens != prior["prompt"]["output_reserve_tokens"])):
+                raise LocalWorkError("idempotency_key was already used for different local work")
+            return prior
         route_sets, route_hash = self._route_profile()
         routes = {name: value[0] if isinstance(value, list) else value for name, value in route_sets.items()}
         pool = load_pool()
         if items_run and isinstance(route_sets.get("deep"), list) and len(route_sets["deep"]) > 1:
             raise LocalWorkError("procedure 'items' requires a singleton deep route; pooled settler admission is unsupported")
         roster = self._items_roster(routes) if items_run else None
-        work_id = (f"work_{_digest(caller_id + ':' + idempotency_key)[:32]}"
-                   if idempotency_key else f"work_{uuid.uuid4().hex}")
         door_lane = delivery and lane == "auto" and procedure is None and not items_run
-        prior = self._read(work_id) if idempotency_key and self._manifest_path(work_id).is_file() else None
         stored_lane = (prior.get("route") or {}).get("selected_lane") if prior is not None else None
         if stored_lane is not None and lane != "auto" and lane != stored_lane:
             raise LocalWorkError("idempotency retry cannot change the recorded lane")
@@ -483,6 +503,8 @@ class LocalWorkService:
         configured = route_sets[selected_lane]
         names = configured if isinstance(configured, list) else [configured]
         pooled = len(names) > 1
+        if pooled and not delivery:
+            raise LocalWorkError("pooled code work is unsupported: no code-qualification source; a delivery brief is required")
         if existing is not None:
             names = [existing["route"]["provider"]]
         outstanding = {name: 0 for name in names}
@@ -516,6 +538,11 @@ class LocalWorkService:
                         existing["route"].get("serving_profile_sha256") != profile_sha):
                     raise LocalWorkError("recorded backend model or serving profile changed; retry refused")
                 if pooled and existing is None:
+                    if (not isinstance(profile.get("engine"), str) or not profile["engine"].strip() or
+                            any(not isinstance(profile.get(k), int) or isinstance(profile[k], bool) or profile[k] <= 0
+                                for k in ("context_tokens", "parallel_slots", "max_tokens"))):
+                        raise LocalWorkError(f"backend {backend_name!r} lacks a minimum declared serving profile "
+                                             "(engine, context_tokens, parallel_slots, max_tokens)")
                     table, table_sha = procedures.load(os.environ.get("HEARTH_DELIVERY_PROCEDURES"))
                     table_read = True
                     _, qualification = procedures.choose(table, backend_name, task_family,
@@ -619,13 +646,12 @@ class LocalWorkService:
                 if context_tokens <= 0 or input_tokens + output_reserve > context_tokens:
                     raise LocalWorkError(
                         f"exact context refusal: {input_tokens} input + {output_reserve} output > {context_tokens}")
-                if pooled and delivery and fallback:
-                    raise LocalWorkError(f"qualified procedure is inadmissible: {fallback}")
                 if pooled and delivery and existing is None:
                     actual = "carry" if carried else "one_call"
                     count = qualification["counts"].get(actual, {}).get("accepted_briefs", 0)
                     if count < qualification["rule"]["min_accepted_briefs"]:
-                        raise LocalWorkError(f"procedure {actual!r} is not qualified for {backend_name!r} at this profile")
+                        raise LocalWorkError(f"procedure {actual!r} is not qualified for {backend_name!r} at this profile"
+                                             + (f"; qualified procedure is inadmissible: {fallback}" if fallback else ""))
                 serving_profile, serving_profile_sha256 = profile, profile_sha
 
                 break
@@ -663,6 +689,7 @@ class LocalWorkService:
                       "provider": backend_name, "model": model, "selected_model": model, "task_family": task_family,
                       "backend_choice": {"by": "recorded" if existing else "least_outstanding_then_leases",
                                          "loads": loads, "excluded": excluded},
+                      "serving_profile_schema": SERVING_PROFILE_SCHEMA,
                       "serving_profile": serving_profile,
                       "serving_profile_sha256": serving_profile_sha256},
             "artifact_kind": artifact_kind, "target_path": target, "declared_paths": declared,

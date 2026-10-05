@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 import threading
+import sqlite3
+from unittest import mock
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -28,6 +30,8 @@ class PoolRoutingTests(unittest.TestCase):
         text = path.read_text()
         deep = text[text.index('[[backend]]\nname = "deep-b"'):]
         # Independent recipes; no evidence can move across their names or hashes.
+        text = text.replace("[backend.settings]", '[backend.settings]\nengine = "vllm"')
+        deep = deep.replace("[backend.settings]", '[backend.settings]\nengine = "vllm"')
         path.write_text(text + deep.replace('deep-b', 'deep-c').replace('65536', '49152').replace('9001', '9002'))
         (self.root / "routes.toml").write_text('[lane.deep]\nbackends = ["deep-b", "deep-c"]\n')
         self.qualify()
@@ -138,6 +142,79 @@ class PoolRoutingTests(unittest.TestCase):
         (self.root / "routes.toml").write_text('[lane.deep]\nbackend = "deep-c"\n')
         self.table({})
         self.assertEqual(self.submit()["route"]["provider"], "deep-c")
+
+    def test_non_delivery_code_is_not_qualified_by_report_verdicts(self):
+        with self.assertRaisesRegex(LocalWorkError, "no code-qualification source"):
+            self.submit(brief=None, procedure=None, artifact_kind="unified_diff", task_family="code_fix")
+
+    def test_pool_requires_minimum_declared_serving_facts(self):
+        path = self.root / "backends.toml"
+        path.write_text(path.read_text().replace('engine = "vllm"\n', ''))
+        self.qualify()
+        with self.assertRaisesRegex(LocalWorkError, "minimum declared serving profile"):
+            self.submit()
+
+    def test_qualified_one_call_fallback_is_recorded(self):
+        path = self.root / "backends.toml"
+        path.write_text(path.read_text().replace('deliberate_max_tokens = 24576', 'deliberate_max_tokens = 4096'))
+        backends = {}
+        for name in ("deep-b", "deep-c"):
+            profile, sha = LocalWorkService._serving_profile(load_pool().by_name(name).settings)
+            self.assertEqual(profile["serving_profile_schema"], "serving-profile.v2")
+            backends[name] = {"profiles": {sha: {"all": {"carry": self.CARRY,
+                "one_call": {"accepted": 2, "rejected": 2, "briefs": 2, "accepted_briefs": 2}}}}}
+        self.table(backends)
+        manifest = self.submit(procedure=None)
+        self.assertEqual(manifest["route"]["procedure"], "one_call")
+        self.assertIn("deliberate_max_tokens", manifest["route"]["procedure_choice"]["fallback"])
+
+    def test_tokenizer_wait_does_not_hold_reconciliation_lock(self):
+        first = self.submit()
+        entered, release = threading.Event(), threading.Event()
+        def count(*_):
+            entered.set()
+            if not release.wait(2):
+                raise AssertionError("test admission was not released")
+            return 100
+        self.service.token_counter = count
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            pending = executor.submit(self.submit)
+            try:
+                self.assertTrue(entered.wait(1))
+                self.assertTrue(self.service._lock.acquire(timeout=.2), "admission blocked reconciliation")
+                try:
+                    self.assertEqual(self.service.get(first["work_id"])["work_id"], first["work_id"])
+                finally:
+                    self.service._lock.release()
+            finally:
+                release.set()
+            pending.result()
+
+    def test_sqlite_lock_timeout_is_a_local_work_refusal(self):
+        connection = mock.Mock()
+        connection.execute.side_effect = sqlite3.OperationalError("database is locked")
+        with mock.patch("hearth.localwork.service.sqlite3.connect", return_value=connection):
+            with self.assertRaisesRegex(LocalWorkError, "admission lock unavailable"):
+                self.submit()
+        connection.close.assert_called_once()
+
+    def test_finished_legacy_retry_needs_no_current_route_or_tokenizer(self):
+        first = self.submit(idempotency_key="finished")
+        self.hold.set()
+        completed = self.settle(first["work_id"])
+        self.assertEqual(completed["status"], "awaiting_review")
+        # Simulate a historical, unversioned manifest with a server-reported model alias.
+        completed["route"].pop("selected_model")
+        completed["route"].pop("serving_profile_schema")
+        completed["route"]["model"] = "historical-server-alias"
+        completed["route"]["serving_profile_sha256"] = "old-unversioned-hash"
+        self.service._write(completed)
+        (self.root / "backends.toml").unlink()
+        (self.root / "routes.toml").unlink()
+        self.service.token_counter = mock.Mock(side_effect=AssertionError("terminal retry tokenized"))
+        self.assertEqual(self.submit(idempotency_key="finished"), completed)
+        with self.assertRaisesRegex(LocalWorkError, "different local work"):
+            self.submit(idempotency_key="finished", intent="changed intent")
 
     def test_ambiguous_empty_duplicate_and_wrong_type_routes_refuse(self):
         bad = ('backend="deep-b"\nbackends=["deep-c"]', 'backends=[]',

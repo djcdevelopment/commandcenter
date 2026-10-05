@@ -37,6 +37,13 @@ class ChooseTests(unittest.TestCase):
         self.assertEqual(procedures.choose(legacy, "b", None, serving_profile_sha256="current",
                                           require_profile=True)[1]["level"], "none")
 
+    def test_legacy_export_does_not_change_singleton_procedure_but_cannot_qualify_pool(self):
+        t = table({"b": {"all": {"carry": counts(8, 0, 3)}, "profiles": {},
+                         "legacy_profiles": {"old": {"all": {"carry": counts(8, 0, 3)}}}}})
+        self.assertEqual(procedures.choose(t, "b", None, serving_profile_sha256="v2")[0], "carry")
+        self.assertEqual(procedures.choose(t, "b", None, serving_profile_sha256="v2",
+                                          require_profile=True)[1]["level"], "none")
+
     def test_family_level_decides_before_the_backend_level(self) -> None:
         """evidence/wave8/RESULT.md: backoff on omen-dense-27b, `code_review`: carry (6 accepted, 1 rejected, 2 briefs with
         an acceptance) against one call (8, 22, 1 brief): the door chose carry at the family level. Here the backend

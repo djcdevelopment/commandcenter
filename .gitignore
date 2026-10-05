@@ -33,3 +33,6 @@ docs/diagrams/*.visual-check.*
 
 # operator control plane: the current-snapshot pointer is runtime state (hearth/var/operator holds the snapshots)
 CURRENT.json
+
+# Mutable local-work admission coordination, outside immutable run records
+/local-work-admission.sqlite*

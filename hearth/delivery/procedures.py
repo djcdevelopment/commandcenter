@@ -62,7 +62,9 @@ def choose(table: dict | None, backend: str, task_family: str | None, *,
         return "one_call", {"level": "none", "rule": rule, "counts": {}}
     if not isinstance(entry, dict) or not isinstance(entry.get("families") or {}, dict):
         raise ProcedureTableError(f"procedure table {backend} must be an object with an object of families")
-    if require_profile or (serving_profile_sha256 is not None and "profiles" in entry):
+    if "profiles" in entry and not isinstance(entry["profiles"], dict):
+        raise ProcedureTableError(f"procedure table {backend}.profiles must be an object")
+    if require_profile or (serving_profile_sha256 is not None and entry.get("profiles")):
         profiles = entry.get("profiles", {})
         if not isinstance(profiles, dict):
             raise ProcedureTableError(f"procedure table {backend}.profiles must be an object")

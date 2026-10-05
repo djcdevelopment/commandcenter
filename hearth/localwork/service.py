@@ -9,6 +9,8 @@ It intentionally has no apply, commit, merge, or push method.
 from __future__ import annotations
 
 import difflib
+import functools
+import sqlite3
 import hashlib
 import json
 import os
@@ -68,6 +70,7 @@ SERVING_PROFILE_KEYS = frozenset({
     "context_tokens", "max_tokens", "parallel_slots",
     "kv_cache_key_type", "kv_cache_value_type", "batch_tokens", "ubatch_tokens",
     "flash_attention", "speculative", "reasoning_budget_tokens", "reasoning_effort",
+    "deliberate_max_tokens",
 })
 # Families whose routing evidence pins the quality lane regardless of evidence size.
 DEEP_LANE_FAMILIES = frozenset({"code_fix", "code_review"})
@@ -78,7 +81,7 @@ _DIFF_PATH = re.compile(r"^(?:---|\+\+\+)\s+(?:a/|b/)?([^\t\r\n]+)", re.MULTILIN
 # path is still checked against declared_paths and the range against the pinned commit.
 _STRING_CITATION = re.compile(
     r"^(?P<path>[^:()\s]+)(?::(?P<a>\d+)(?:-(?P<b>\d+))?|\s*\(lines?\s*(?P<c>\d+)(?:\s*-\s*(?P<d>\d+))?\))?$")
-TokenCounter = Callable[[Backend, str, str], int]
+TokenCounter = Callable[[Backend, str, str | list[dict[str, str]]], int]
 
 
 class LocalWorkError(RuntimeError):
@@ -117,6 +120,26 @@ def _safe_relative(value: str) -> str:
     if not text or path.is_absolute() or ".." in path.parts or text.startswith("./"):
         raise LocalWorkError(f"repository path must be normalized and relative: {value!r}")
     return path.as_posix()
+
+
+def _serialized_submission(method):
+    """Serialize route choice and persistence across threads and gateway processes.
+
+    Coordination state lives outside immutable run directories. Reconciliation
+    does not take this lock, so execution can finish while admission waits.
+    """
+    @functools.wraps(method)
+    def locked(self, *args, **kwargs):
+        self.root.mkdir(parents=True, exist_ok=True)
+        with self._lock:
+            connection = sqlite3.connect(str(self.root / "local-work-admission.sqlite"), timeout=120)
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+                return method(self, *args, **kwargs)
+            finally:
+                connection.rollback()
+                connection.close()
+    return locked
 
 
 class LocalWorkService:
@@ -198,7 +221,7 @@ class LocalWorkService:
         return "deep" if evidence_tokens >= floor else "fast"
 
     @staticmethod
-    def _route_profile() -> tuple[dict[str, str], str]:
+    def _route_profile() -> tuple[dict[str, str | list[str]], str]:
         # HEARTH_LOCAL_WORK_ROUTES names a per-host route profile (the Linux production
         # host routes fast/deep to backends that exist in HEARTH_BACKENDS); unset, the
         # packaged profile applies, so the checked-in tests keep their meaning.
@@ -208,9 +231,20 @@ class LocalWorkService:
         raw = target.read_bytes()
         document = tomllib.loads(raw.decode("utf-8"))
         lanes = document.get("lane") or {}
-        resolved = {name: str(value["backend"]) for name, value in lanes.items()}
-        if not {"fast", "deep"} <= set(resolved) <= {"fast", "deep", "tool"}:
-            raise LocalWorkError("local-work route profile requires fast and deep lanes (tool is optional)")
+        resolved = {}
+        for name, value in lanes.items():
+            if not isinstance(value, dict) or ("backend" in value) == ("backends" in value):
+                raise LocalWorkError(f"lane {name!r} must declare exactly one of backend or backends")
+            names = value.get("backends") if "backends" in value else [value["backend"]]
+            if (not isinstance(names, list) or not names or
+                    not all(isinstance(n, str) and n.strip() == n and n for n in names) or
+                    len(set(names)) != len(names)):
+                raise LocalWorkError(f"lane {name!r} backends must be a nonempty list of distinct names")
+            if name != "deep" and len(names) != 1:
+                raise LocalWorkError("only the deep lane supports multiple backends")
+            resolved[name] = names if "backends" in value else names[0]
+        if "deep" not in resolved or not set(resolved) <= {"fast", "deep", "tool"}:
+            raise LocalWorkError("local-work route profile requires deep; fast and tool are optional")
         return resolved, _digest(raw)
 
     @staticmethod
@@ -281,7 +315,8 @@ class LocalWorkService:
         return min(max(want, 2048), DELIVERY_TOKEN_CEILING)
 
     @staticmethod
-    def _server_token_count(provider: Backend, model: str, prompt: str) -> int:
+    def _server_token_count(provider: Backend, model: str, prompt: str | list[dict[str, str]]) -> int:
+        messages = prompt if isinstance(prompt, list) else [{"role": "user", "content": prompt}]
         headers = {"Content-Type": "application/json"}
         if provider.auth_env:
             token = os.environ.get(provider.auth_env)
@@ -303,7 +338,7 @@ class LocalWorkService:
             # vLLM's OpenAI server has no /apply-template; its POST /tokenize renders the
             # chat template itself when given messages and returns {"count", "tokens"}.
             counted = post("/tokenize", {"model": model,
-                                         "messages": [{"role": "user", "content": prompt}],
+                                         "messages": messages,
                                          "add_generation_prompt": True,
                                          "add_special_tokens": False})
             tokens = counted.get("tokens")
@@ -312,7 +347,7 @@ class LocalWorkService:
                 raise LocalWorkError("exact tokenizer endpoint returned no token count")
             return count
 
-        rendered = post("/apply-template", {"model": model, "messages": [{"role": "user", "content": prompt}]})
+        rendered = post("/apply-template", {"model": model, "messages": messages})
         text = rendered.get("prompt") or rendered.get("content")
         if not isinstance(text, str):
             raise LocalWorkError("exact tokenizer endpoint returned no rendered prompt")
@@ -323,6 +358,7 @@ class LocalWorkService:
             raise LocalWorkError("exact tokenizer endpoint returned no token count")
         return count
 
+    @_serialized_submission
     def submit(self, *, intent: str, acceptance_criteria: list[str], repo: str,
                base_commit: str, files: list[str], artifact_kind: str,
                target_path: str | None, lane: str, task_family: str | None,
@@ -377,25 +413,34 @@ class LocalWorkService:
             except (contract.ContractError, sourcemap.SourceMapError) as exc:
                 raise LocalWorkError(f"delivery brief refused: {exc}") from exc
             quote_mode = contract.form_defaults(brief)["quote_mode"]
-        # The depth floor is token-based, not a byte heuristic.  For auto we
-        # ask the currently declared fast server to count the evidence alone;
-        # the selected server then counts the complete templated request below.
-        routes, route_hash = self._route_profile()
-        fast_provider = load_pool().by_name(routes["fast"])
-        if fast_provider is None or not fast_provider.models:
-            raise LocalWorkError("local fast lane is unavailable")
+        route_sets, route_hash = self._route_profile()
+        routes = {name: value[0] if isinstance(value, list) else value for name, value in route_sets.items()}
+        pool = load_pool()
+        if items_run and isinstance(route_sets.get("deep"), list) and len(route_sets["deep"]) > 1:
+            raise LocalWorkError("procedure 'items' requires a singleton deep route; pooled settler admission is unsupported")
         roster = self._items_roster(routes) if items_run else None
         work_id = (f"work_{_digest(caller_id + ':' + idempotency_key)[:32]}"
                    if idempotency_key else f"work_{uuid.uuid4().hex}")
         door_lane = delivery and lane == "auto" and procedure is None and not items_run
-        prior = self._read(work_id) if door_lane and idempotency_key and self._manifest_path(work_id).is_file() else None
+        prior = self._read(work_id) if idempotency_key and self._manifest_path(work_id).is_file() else None
         stored_lane = (prior.get("route") or {}).get("selected_lane") if prior is not None else None
-        evidence_tokens = self.token_counter(
-            fast_provider, fast_provider.models[0], source_pack) if (
-                lane == "auto" and not items_run and stored_lane is None) else 0
-        selected_lane = self._lane(lane, evidence_tokens, task_family)   # its refusals hold for a retry too
+        if stored_lane is not None and lane != "auto" and lane != stored_lane:
+            raise LocalWorkError("idempotency retry cannot change the recorded lane")
+        # Explicit lanes and code-family auto routes never need the fast tokenizer.
+        evidence_tokens = 0
+        if (lane == "auto" and "fast" in routes and not items_run and stored_lane is None
+                and task_family not in DEEP_LANE_FAMILIES):
+            counter_names = [routes["fast"]]
+            counter = next((pool.by_name(n) for n in counter_names if pool.by_name(n) is not None
+                            and not pool.by_name(n).retired and pool.by_name(n).models), None)
+            if counter is None:
+                raise LocalWorkError("local evidence tokenizer is unavailable")
+            evidence_tokens = self.token_counter(counter, counter.models[0], source_pack)
+        selected_lane = self._lane(lane, evidence_tokens, task_family)
         selected_lane = stored_lane or selected_lane
-        if items_run:   # the first reader's seat; the pack is never counted or sent
+        if lane == "auto" and stored_lane is None and "fast" not in routes and not items_run:
+            selected_lane = "deep"
+        if items_run:
             selected_lane = "fast"
         table, table_sha, table_error, lane_choice = None, None, None, None
         table_read = False
@@ -407,123 +452,189 @@ class LocalWorkService:
             try:
                 table, table_sha = procedures.load(os.environ.get("HEARTH_DELIVERY_PROCEDURES"))
                 if selected_lane != "deep" and selected_lane in routes and "deep" in routes:
-                    _, here = procedures.choose(table, routes[selected_lane], task_family)
-                    _, there = procedures.choose(table, routes["deep"], task_family)
-                    if here["level"] == "none" and there["level"] != "none":
-                        # deep must be able to take it; otherwise the picked lane runs it and the record says why
-                        deep = load_pool().by_name(routes["deep"])
-                        down = (f"local lane 'deep' is unavailable: {routes['deep']}"
-                                if deep is None or deep.retired else None)
-                        lane_choice = {"by": "door", "from": selected_lane, "to": selected_lane if down else "deep",
-                                       "level": there["level"], "counts": there["counts"], "table_sha256": table_sha,
-                                       **({"declined": down} if down else {})}
-                        selected_lane = lane_choice["to"]
+                    current = pool.by_name(routes[selected_lane])
+                    current_sha = self._serving_profile(current.settings)[1] if current else None
+                    _, here = procedures.choose(table, routes[selected_lane], task_family,
+                                                serving_profile_sha256=current_sha)
+                    deep_names = route_sets["deep"]
+                    deep_names = deep_names if isinstance(deep_names, list) else [deep_names]
+                    for deep_name in deep_names:
+                        deep = pool.by_name(deep_name)
+                        deep_sha = self._serving_profile(deep.settings)[1] if deep else None
+                        _, there = procedures.choose(table, deep_name, task_family,
+                            serving_profile_sha256=deep_sha, require_profile=len(deep_names) > 1)
+                        if here["level"] == "none" and there["level"] != "none":
+                            down = (f"local lane 'deep' is unavailable: {deep_name}"
+                                    if deep is None or deep.retired else None)
+                            lane_choice = {"by": "door", "from": selected_lane, "to": selected_lane if down else "deep",
+                                           "level": there["level"], "counts": there["counts"], "table_sha256": table_sha,
+                                           **({"declined": down} if down else {})}
+                            if not down:
+                                selected_lane = "deep"
+                                break
+
             except procedures.ProcedureTableError as exc:
                 table_error = exc
         if selected_lane not in routes:
             raise LocalWorkError(f"local lane {selected_lane!r} is not in this host's route profile")
-        backend_name = routes[selected_lane]
-        provider = load_pool().by_name(backend_name)
-        if provider is None or provider.retired:
-            raise LocalWorkError(f"local lane {selected_lane!r} is unavailable: {backend_name}")
-        model = provider.models[0] if provider.models else ""
-        existing = self._read(work_id) if idempotency_key and self._manifest_path(work_id).is_file() else None
-        context_tokens = int(provider.settings.get("context_tokens") or
-                             (int(provider.settings.get("context_bytes") or 0) // 4))
-        deliberate = int(provider.settings.get("deliberate_max_tokens") or 0)
-        carried, pinned, choice, fallback, packet = False, False, None, None, None
-        if delivery:
-            if procedure:
-                carried, pinned, choice = procedure == "carry", True, {"by": "caller", "level": "pin"}
-            elif existing is not None:
-                recorded = (existing.get("route") or {}).get("procedure") or ("carry" if "carry" in existing else "one_call")
-                carried, items_run = recorded == "carry", recorded == "items" and items_run   # a brief without items: refused below
-                pinned, choice = carried, {"by": "retry", "level": "recorded"}
-            elif items_run:
-                choice = {"by": "door", "level": "brief_items"}
-            elif max_tokens is not None or revise:
-                choice = {"by": "caller", "level": "caller_argument", "argument": "max_tokens" if max_tokens is not None else "revise"}
-            else:
-                try:
-                    if table_error is not None:
-                        raise table_error
-                    if not table_read:
-                        table, table_sha = procedures.load(os.environ.get("HEARTH_DELIVERY_PROCEDURES"))
-                    picked, basis = procedures.choose(table, backend_name, task_family)
-                except procedures.ProcedureTableError as exc:
-                    raise LocalWorkError(f"delivery procedure table refused: {exc}") from exc
-                carried, choice = picked == "carry", {"by": "door", **basis, "table_sha256": table_sha}
-            if carried:
-                if quote_mode != "text":
-                    reason = "form.quote_mode must be text"
-                    if pinned:
-                        raise LocalWorkError(f"procedure 'carry' attaches text quotes: {reason}")
-                    carried, fallback = False, reason
-                elif selected_lane != "deep" or not deliberate:
-                    reason = f"lane {selected_lane!r} -> {backend_name!r}: the deep lane on a backend that declares deliberate_max_tokens is needed"
-                    if pinned:
-                        raise LocalWorkError(f"procedure 'carry' needs the deep lane on a backend that declares "
-                                             f"deliberate_max_tokens: lane {selected_lane!r} -> {backend_name!r}")
-                    carried, fallback = False, reason
-                elif deliberate < CARRY_WORK_TOKENS:
-                    reason = f"{backend_name!r} declares deliberate_max_tokens {deliberate} < {CARRY_WORK_TOKENS}"
-                    if pinned:
-                        raise LocalWorkError(f"procedure 'carry' needs deliberate_max_tokens >= {CARRY_WORK_TOKENS}: "
-                                             f"{backend_name!r} declares {provider.settings['deliberate_max_tokens']}")
-                    carried, fallback = False, reason
-        template, template_hash = self._template(artifact_kind, delivery, contract.form_defaults(brief)["quote_mode"]
-                                                 if delivery else "text")
-        request_doc = {"intent": intent, "acceptance_criteria": acceptance_criteria,
-                       "artifact_kind": artifact_kind, "target_path": target,
-                       "declared_paths": declared, "source_files": source_meta,
-                       "source_pack": source_pack}
-        explicit_max = max_tokens
-        if items_run:
-            item_list = self._items_enumerate(brief, repo_path, base, declared)
-            used_hash = _digest(Path(items.__file__).read_bytes())
-            prompt = json.dumps({"procedure": "items", "kind": brief["items"]["kind"], "brief": brief, "intent": intent,
-                                 "items": [x["name"] for x in item_list], "readers": roster[:2], "settler": roster[2]},
-                                sort_keys=True, separators=(",", ":"))
-            max_tokens = ITEMS_MAX_TOKENS
-        for _attempt in (0, 1):
-            if items_run:
+        existing = prior
+        if existing is not None and procedure is not None and procedure != existing["route"].get("procedure", "one_call"):
+            raise LocalWorkError("idempotency retry cannot change the recorded procedure")
+        configured = route_sets[selected_lane]
+        names = configured if isinstance(configured, list) else [configured]
+        pooled = len(names) > 1
+        if existing is not None:
+            names = [existing["route"]["provider"]]
+        outstanding = {name: 0 for name in names}
+        for path in (self.root / "runs" / "operator").glob("work_*/work-manifest.json"):
+            recorded = json.loads(path.read_text(encoding="utf-8"))
+            name = recorded.get("route", {}).get("provider")
+            if name in outstanding and recorded.get("status") not in FINAL | {"awaiting_review"}:
+                outstanding[name] += 1
+        loads = {name: {"outstanding_assignments": outstanding[name],
+                        "active_leases": self.execution.leases.active_count(f"provider:{name}"),
+                        "configured_order": index} for index, name in enumerate(names)}
+        names = sorted(names, key=lambda n: tuple(loads[n].values()))
+        excluded = {}
+        original_max_tokens = max_tokens
+        for backend_name in names:
+            max_tokens = original_max_tokens
+            try:
+                provider = pool.by_name(backend_name)
+                if provider is None or provider.retired or not provider.models:
+                    raise LocalWorkError(f"local lane {selected_lane!r} is unavailable: {backend_name}")
+                if pooled and existing is None and max(loads[backend_name]["outstanding_assignments"],
+                        loads[backend_name]["active_leases"]) >= int(provider.settings.get("parallel_slots") or 1):
+                    raise LocalWorkError(f"backend {backend_name!r} capacity exhausted")
+                model = provider.models[0] if provider.models else ""
+                context_tokens = int(provider.settings.get("context_tokens") or
+                                     (int(provider.settings.get("context_bytes") or 0) // 4))
+                deliberate = int(provider.settings.get("deliberate_max_tokens") or 0)
+                carried, pinned, choice, fallback, packet = False, False, None, None, None
+                profile, profile_sha = self._serving_profile(provider.settings)
+                if existing is not None and (existing["route"].get("model") != model or
+                        existing["route"].get("serving_profile_sha256") != profile_sha):
+                    raise LocalWorkError("recorded backend model or serving profile changed; retry refused")
+                if pooled and existing is None:
+                    table, table_sha = procedures.load(os.environ.get("HEARTH_DELIVERY_PROCEDURES"))
+                    table_read = True
+                    _, qualification = procedures.choose(table, backend_name, task_family,
+                        serving_profile_sha256=profile_sha, require_profile=True)
+                    if qualification["level"] == "none":
+                        raise LocalWorkError(f"backend {backend_name!r} has no qualified delivery procedure for this serving profile")
+                if delivery:
+                    if procedure:
+                        carried, pinned, choice = procedure == "carry", True, {"by": "caller", "level": "pin"}
+                    elif existing is not None:
+                        recorded = (existing.get("route") or {}).get("procedure") or ("carry" if "carry" in existing else "one_call")
+                        carried, items_run = recorded == "carry", recorded == "items" and items_run   # a brief without items: refused below
+                        pinned, choice = carried, {"by": "retry", "level": "recorded"}
+                    elif items_run:
+                        choice = {"by": "door", "level": "brief_items"}
+                    elif max_tokens is not None or revise:
+                        choice = {"by": "caller", "level": "caller_argument", "argument": "max_tokens" if max_tokens is not None else "revise"}
+                    else:
+                        try:
+                            if table_error is not None:
+                                raise table_error
+                            if not table_read:
+                                table, table_sha = procedures.load(os.environ.get("HEARTH_DELIVERY_PROCEDURES"))
+                            picked, basis = procedures.choose(table, backend_name, task_family,
+                                serving_profile_sha256=profile_sha, require_profile=pooled)
+                        except procedures.ProcedureTableError as exc:
+                            raise LocalWorkError(f"delivery procedure table refused: {exc}") from exc
+                        carried, choice = picked == "carry", {"by": "door", **basis, "table_sha256": table_sha}
+                    if carried:
+                        if quote_mode != "text":
+                            reason = "form.quote_mode must be text"
+                            if pinned:
+                                raise LocalWorkError(f"procedure 'carry' attaches text quotes: {reason}")
+                            carried, fallback = False, reason
+                        elif selected_lane != "deep" or not deliberate:
+                            reason = f"lane {selected_lane!r} -> {backend_name!r}: the deep lane on a backend that declares deliberate_max_tokens is needed"
+                            if pinned:
+                                raise LocalWorkError(f"procedure 'carry' needs the deep lane on a backend that declares "
+                                                     f"deliberate_max_tokens: lane {selected_lane!r} -> {backend_name!r}")
+                            carried, fallback = False, reason
+                        elif deliberate < CARRY_WORK_TOKENS:
+                            reason = f"{backend_name!r} declares deliberate_max_tokens {deliberate} < {CARRY_WORK_TOKENS}"
+                            if pinned:
+                                raise LocalWorkError(f"procedure 'carry' needs deliberate_max_tokens >= {CARRY_WORK_TOKENS}: "
+                                                     f"{backend_name!r} declares {provider.settings['deliberate_max_tokens']}")
+                            carried, fallback = False, reason
+                template, template_hash = self._template(artifact_kind, delivery, contract.form_defaults(brief)["quote_mode"]
+                                                         if delivery else "text")
+                request_doc = {"intent": intent, "acceptance_criteria": acceptance_criteria,
+                               "artifact_kind": artifact_kind, "target_path": target,
+                               "declared_paths": declared, "source_files": source_meta,
+                               "source_pack": source_pack}
+                explicit_max = max_tokens
+                if items_run:
+                    item_list = self._items_enumerate(brief, repo_path, base, declared)
+                    used_hash = _digest(Path(items.__file__).read_bytes())
+                    prompt = json.dumps({"procedure": "items", "kind": brief["items"]["kind"], "brief": brief, "intent": intent,
+                                         "items": [x["name"] for x in item_list], "readers": roster[:2], "settler": roster[2]},
+                                        sort_keys=True, separators=(",", ":"))
+                    max_tokens = ITEMS_MAX_TOKENS
+                for _attempt in (0, 1):
+                    if items_run:
+                        break
+                    work_template = None
+                    if delivery:
+                        try:
+                            packet = sourcemap.render_for_model(source_map, numbered=carried or quote_mode == "line_reference",
+                                                                symbols=False)
+                        except sourcemap.SourceMapError as exc:
+                            raise LocalWorkError(f"delivery brief refused: {exc}") from exc
+                        max_tokens = explicit_max if explicit_max is not None else (
+                            CARRY_WORK_TOKENS if carried else self._delivery_max_tokens(brief))
+                    if carried:
+                        # The procedure is part of the prompt (and so of the digest the duplicate check compares).
+                        work_template, used_hash = self._template_file("local_work_delivery_work_v1.txt")
+                        task = self._delivery_task(intent, brief, packet, carried=True)
+                        prompt = f"PROCEDURE: carry\n{task}\n\n{work_template.strip()}"
+                    else:
+                        used_hash = template_hash
+                        prompt = (self._delivery_prompt(template, intent, brief, packet) if delivery
+                                  else template + "\n\nREQUEST\n" + json.dumps(request_doc, sort_keys=True))
+                    if not carried or pinned:
+                        break
+                    carried_bytes = len((CARRY_SYSTEM + prompt.split("\n", 1)[1]).encode("utf-8"))
+                    if context_tokens > 0 and carried_bytes // 4 + CARRY_WORK_TOKENS <= context_tokens:
+                        break
+                    carried, fallback = False, (f"carry work refusal: {carried_bytes // 4} input (bytes // 4) + "
+                                                f"{CARRY_WORK_TOKENS} output > {context_tokens}")
+                admission_prompt = ([{"role": "system", "content": CARRY_SYSTEM},
+                                     {"role": "user", "content": prompt.split("\n", 1)[1]}]
+                                    if carried else prompt)
+                input_tokens = 0 if items_run else self.token_counter(provider, model, admission_prompt)
+                output_reserve = max_tokens or int(provider.settings.get("max_tokens") or 4096)
+                if carried:
+                    carried_bytes = len((CARRY_SYSTEM + prompt.split("\n", 1)[1]).encode("utf-8"))
+                    if context_tokens <= 0 or carried_bytes // 4 + CARRY_WORK_TOKENS > context_tokens:
+                        raise LocalWorkError(f"carry work refusal: {carried_bytes // 4} input (bytes // 4) + "
+                                             f"{CARRY_WORK_TOKENS} output > {context_tokens}")
+                if pooled and not carried and output_reserve > int(provider.settings.get("max_tokens") or 4096):
+                    raise LocalWorkError(f"output reserve {output_reserve} exceeds {backend_name!r} declaration")
+                if context_tokens <= 0 or input_tokens + output_reserve > context_tokens:
+                    raise LocalWorkError(
+                        f"exact context refusal: {input_tokens} input + {output_reserve} output > {context_tokens}")
+                if pooled and delivery and fallback:
+                    raise LocalWorkError(f"qualified procedure is inadmissible: {fallback}")
+                if pooled and delivery and existing is None:
+                    actual = "carry" if carried else "one_call"
+                    count = qualification["counts"].get(actual, {}).get("accepted_briefs", 0)
+                    if count < qualification["rule"]["min_accepted_briefs"]:
+                        raise LocalWorkError(f"procedure {actual!r} is not qualified for {backend_name!r} at this profile")
+                serving_profile, serving_profile_sha256 = profile, profile_sha
+
                 break
-            work_template = None
-            if delivery:
-                try:
-                    packet = sourcemap.render_for_model(source_map, numbered=carried or quote_mode == "line_reference",
-                                                        symbols=False)
-                except sourcemap.SourceMapError as exc:
-                    raise LocalWorkError(f"delivery brief refused: {exc}") from exc
-                max_tokens = explicit_max if explicit_max is not None else (
-                    CARRY_WORK_TOKENS if carried else self._delivery_max_tokens(brief))
-            if carried:
-                # The procedure is part of the prompt (and so of the digest the duplicate check compares).
-                work_template, used_hash = self._template_file("local_work_delivery_work_v1.txt")
-                task = self._delivery_task(intent, brief, packet, carried=True)
-                prompt = f"PROCEDURE: carry\n{task}\n\n{work_template.strip()}"
-            else:
-                used_hash = template_hash
-                prompt = (self._delivery_prompt(template, intent, brief, packet) if delivery
-                          else template + "\n\nREQUEST\n" + json.dumps(request_doc, sort_keys=True))
-            if not carried or pinned:
-                break
-            carried_bytes = len((CARRY_SYSTEM + prompt.split("\n", 1)[1]).encode("utf-8"))
-            if context_tokens > 0 and carried_bytes // 4 + CARRY_WORK_TOKENS <= context_tokens:
-                break
-            carried, fallback = False, (f"carry work refusal: {carried_bytes // 4} input (bytes // 4) + "
-                                        f"{CARRY_WORK_TOKENS} output > {context_tokens}")
-        input_tokens = 0 if items_run else self.token_counter(provider, model, prompt)
-        output_reserve = max_tokens or int(provider.settings.get("max_tokens") or 4096)
-        if carried:
-            carried_bytes = len((CARRY_SYSTEM + prompt.split("\n", 1)[1]).encode("utf-8"))
-            if context_tokens <= 0 or carried_bytes // 4 + CARRY_WORK_TOKENS > context_tokens:
-                raise LocalWorkError(f"carry work refusal: {carried_bytes // 4} input (bytes // 4) + "
-                                     f"{CARRY_WORK_TOKENS} output > {context_tokens}")
-        if context_tokens <= 0 or input_tokens + output_reserve > context_tokens:
-            raise LocalWorkError(
-                f"exact context refusal: {input_tokens} input + {output_reserve} output > {context_tokens}")
-        serving_profile, serving_profile_sha256 = self._serving_profile(provider.settings)
+            except (LocalWorkError, procedures.ProcedureTableError) as exc:
+                if not pooled or existing is not None:
+                    raise LocalWorkError(str(exc)) from exc
+                excluded[backend_name] = str(exc)
+        else:
+            raise LocalWorkError(f"no eligible backend in lane {selected_lane!r}: {excluded}")
 
         if existing is not None:
             if existing["prompt"]["digest"] != _digest(prompt):
@@ -550,6 +661,8 @@ class LocalWorkService:
                       "profile_sha256": route_hash,
                       "requested_lane": lane, "selected_lane": selected_lane,
                       "provider": backend_name, "model": model, "task_family": task_family,
+                      "backend_choice": {"by": "recorded" if existing else "least_outstanding_then_leases",
+                                         "loads": loads, "excluded": excluded},
                       "serving_profile": serving_profile,
                       "serving_profile_sha256": serving_profile_sha256},
             "artifact_kind": artifact_kind, "target_path": target, "declared_paths": declared,
@@ -560,6 +673,8 @@ class LocalWorkService:
             "receipt_id": receipt_id, "verdict": None,
             "caller": {"submitted_by": caller_id, "validated_by": None},
         }
+        if pooled:
+            manifest["route"]["backend_choice"].update(qualification=qualification, table_sha256=table_sha)
         if delivery:
             manifest["delivery"] = True
             manifest["brief"] = brief
@@ -610,17 +725,22 @@ class LocalWorkService:
                 self._write(manifest)
                 self._spawn_auto_reconcile(work_id, state["job_id"])
                 return self.reconcile(work_id)
-            state = self.execution.submit(
-                operation_name="work.produce",
-                arguments={"prompt": prompt, "backend": backend_name, "model": model,
-                           "task_family": task_family,
-                           **({"temperature": temperature} if temperature is not None else {}),
-                           **({"response_schema": contract.output_json_schema()} if delivery else {})},
-                principal={"type": "hearth_caller", "id": caller_id, "authenticated": True},
-                source={"transport": "mcp", "adapter": caller_id},
-                policy={"max_tokens": output_reserve, "deadline_s": deadline_s},
-                idempotency_key=idempotency_key,
-            )
+            try:
+                state = self.execution.submit(
+                    operation_name="work.produce",
+                    arguments={"prompt": prompt, "backend": backend_name, "model": model,
+                               "task_family": task_family,
+                               **({"temperature": temperature} if temperature is not None else {}),
+                               **({"response_schema": contract.output_json_schema()} if delivery else {})},
+                    principal={"type": "hearth_caller", "id": caller_id, "authenticated": True},
+                    source={"transport": "mcp", "adapter": caller_id},
+                    policy={"max_tokens": output_reserve, "deadline_s": deadline_s},
+                    idempotency_key=idempotency_key,
+                )
+            except Exception as exc:
+                self._fail(manifest, f"dispatch refused: {type(exc).__name__}: {exc}")
+                self._write(manifest)
+                raise
             manifest["request_id"] = state["request_id"]
             manifest["job_id"] = state["job_id"]
             manifest["attempts"].append({"number": 1, "request_id": state["request_id"],

@@ -24,6 +24,19 @@ def table(backends: dict, minimum: int = 2) -> dict:
 
 
 class ChooseTests(unittest.TestCase):
+    def test_profile_counts_do_not_borrow_backend_or_another_profile_counts(self) -> None:
+        t = table({"b": {"all": {"carry": counts(20, 0, 10)}, "profiles": {
+            "current": {"all": {"one_call": counts(3, 0, 2)}},
+            "old": {"all": {"carry": counts(10, 0, 5)}}}}})
+        self.assertEqual(procedures.choose(t, "b", None, serving_profile_sha256="current")[0], "one_call")
+        for backend, profile in (("b", "absent"), ("new-backend", "current")):
+            self.assertEqual(procedures.choose(t, backend, None, serving_profile_sha256=profile,
+                                              require_profile=True)[1]["level"], "none")
+        legacy = table({"b": {"all": {"carry": counts(20, 0, 10)}}})
+        self.assertEqual(procedures.choose(legacy, "b", None)[0], "carry")
+        self.assertEqual(procedures.choose(legacy, "b", None, serving_profile_sha256="current",
+                                          require_profile=True)[1]["level"], "none")
+
     def test_family_level_decides_before_the_backend_level(self) -> None:
         """evidence/wave8/RESULT.md: backoff on omen-dense-27b, `code_review`: carry (6 accepted, 1 rejected, 2 briefs with
         an acceptance) against one call (8, 22, 1 brief): the door chose carry at the family level. Here the backend

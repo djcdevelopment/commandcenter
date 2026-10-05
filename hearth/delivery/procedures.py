@@ -18,14 +18,15 @@ def load(path: str | os.PathLike | None) -> tuple[dict | None, str | None]:
     if not path or not os.path.exists(path):
         return None, None
     try:
-        data = open(path, "rb").read()
+        with open(path, "rb") as source:
+            data = source.read()
         table = json.loads(data)
     except (OSError, ValueError) as exc:
         raise ProcedureTableError(f"procedure table {path} is not readable JSON: {exc}") from exc
     rule = table.get("rule") if isinstance(table, dict) else None
     if (not isinstance(table, dict) or table.get("schema") != SCHEMA or not isinstance(table.get("backends"), dict)
             or not isinstance(rule, dict) or isinstance(rule.get("min_accepted_briefs"), bool)
-            or not isinstance(rule.get("min_accepted_briefs"), int)):
+            or not isinstance(rule.get("min_accepted_briefs"), int) or rule["min_accepted_briefs"] < 1):
         raise ProcedureTableError(f"procedure table {path} is not a {SCHEMA} table")
     return table, hashlib.sha256(data).hexdigest()
 
@@ -51,7 +52,8 @@ def _pick(level: dict, minimum: int) -> tuple[str | None, dict]:
     return best, counts
 
 
-def choose(table: dict | None, backend: str, task_family: str | None) -> tuple[str, dict]:
+def choose(table: dict | None, backend: str, task_family: str | None, *,
+           serving_profile_sha256: str | None = None, require_profile: bool = False) -> tuple[str, dict]:
     if table is None:
         return "one_call", {"level": "none", "rule": None, "counts": {}}
     rule = table["rule"]
@@ -60,6 +62,16 @@ def choose(table: dict | None, backend: str, task_family: str | None) -> tuple[s
         return "one_call", {"level": "none", "rule": rule, "counts": {}}
     if not isinstance(entry, dict) or not isinstance(entry.get("families") or {}, dict):
         raise ProcedureTableError(f"procedure table {backend} must be an object with an object of families")
+    if require_profile or (serving_profile_sha256 is not None and "profiles" in entry):
+        profiles = entry.get("profiles", {})
+        if not isinstance(profiles, dict):
+            raise ProcedureTableError(f"procedure table {backend}.profiles must be an object")
+        entry = profiles.get(serving_profile_sha256)
+        if entry is None:
+            return "one_call", {"level": "none", "rule": rule, "counts": {},
+                                "unqualified_profile": serving_profile_sha256}
+        if not isinstance(entry, dict) or not isinstance(entry.get("families") or {}, dict):
+            raise ProcedureTableError(f"procedure table {backend} profile must contain object counts")
     minimum = rule["min_accepted_briefs"]
     levels = []
     if task_family is not None and task_family in (entry.get("families") or {}):

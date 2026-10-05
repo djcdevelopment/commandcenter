@@ -36,6 +36,18 @@ class VllmTokenizerTests(unittest.TestCase):
         self.assertEqual([c[0] for c in calls], ["http://127.0.0.1:1/tokenize"])
         self.assertIn("messages", calls[0][1]); self.assertNotIn("content", calls[0][1])
 
+    def test_carry_admission_tokenizes_actual_system_and_user_messages(self) -> None:
+        messages = [{"role": "system", "content": "audit"}, {"role": "user", "content": "sources"}]
+        for engine in ("vllm", "llama.cpp"):
+            calls = []
+            def fake_urlopen(req, timeout=30):
+                calls.append(json.loads(req.data))
+                body = {"prompt": "rendered"} if req.full_url.endswith("apply-template") else {"tokens": [1, 2]}
+                return _Resp(json.dumps(body).encode())
+            with mock.patch("urllib.request.urlopen", fake_urlopen):
+                self.assertEqual(LocalWorkService._server_token_count(_backend(engine), "m", messages), 2)
+            self.assertEqual(calls[0]["messages"], messages)
+
     def test_llama_engine_keeps_apply_template_then_tokenize(self) -> None:
         calls = []
         def fake_urlopen(req, timeout=30):

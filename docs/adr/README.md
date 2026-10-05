@@ -72,6 +72,8 @@ record with its status changed and a pointer to the ADR that replaced it.
 | [0060](0060-the-dense-seat-runs-flash-attention-with-mtp-k2.md) | The dense seat runs native XPU Flash Attention with MTP k=2: 4 to 20 times faster with depth than the Triton backend, same answers; the recipe is declared on the rung and checked against the seat | Accepted (2026-10-04) |
 | [0061](0061-the-door-chooses-a-deliverys-procedure-from-recorded-verdicts.md) | The door chooses a delivery's procedure from recorded verdicts: a table generated from the registry, a rule that counts briefs with an acceptance, pins for comparison arms, the choice recorded in the work manifest; the drain may submit a delivery | Accepted (2026-10-04) |
 
+| [0062](0062-a-deep-lane-routes-among-qualified-configurations.md) | A deep lane chooses among independently qualified configurations by outstanding assignments, then execution leases; evidence stays backend and recipe specific and retries retain their route | Proposed (2026-10-05); built, pending independent review and deployment |
+
 ## Historical note
 The "ADR-0001" referenced in `SESSION-RETRO-2026-06-29.md` (which orchestrator is
 run-of-record: ember vs Farmer) was a forward-reference from the pre-fleet convergence

@@ -1,0 +1,106 @@
+[
+  {
+    "path": "/home/derek/.venvs/vllm-cuda-030/lib/python3.12/site-packages/vllm/config/attention.py",
+    "sha256": "c41f345b512d9b7df882328257eb3a6381f41088c11ae83b5ecd8a9e8265d1bc",
+    "excerpts": [
+      {
+        "first_line": 69,
+        "text": "    use_trtllm_attention: bool | None = None\n    \"\"\"If set to True/False, use or don't use the TRTLLM attention backend\n    in flashinfer. If None, auto-detect the attention backend in flashinfer.\"\"\"\n\n    disable_flashinfer_q_quantization: bool = False\n    \"\"\"If set, when using fp8 kv, do not quantize Q to fp8.\"\"\""
+      }
+    ]
+  },
+  {
+    "path": "/home/derek/.venvs/vllm-cuda-030/lib/python3.12/site-packages/vllm/utils/flashinfer.py",
+    "sha256": "7144bbb7a905ad3d40994a2d3e69d69144e4e71020e7c92f487dea65b390790d",
+    "excerpts": [
+      {
+        "first_line": 592,
+        "text": "def supports_trtllm_attention(is_prefill: bool = False) -> bool:\n    \"\"\"Return whether TRTLLM attention is available on the current platform\n    for the given attention phase.\n\n    SM90 (Hopper) and SM12x support the XQA decode kernel but not TRTLLM\n    prefill. SM100+ supports TRTLLM for both phases. All others are unsupported.\n    \"\"\"\n    # Batch-invariant mode disables TRTLLM attention\n    if envs.VLLM_BATCH_INVARIANT:\n        return False\n\n    # Requires NVIDIA artifactory to be accessible to download cubins\n    if not has_nvidia_artifactory():\n        return False\n\n    # SM90 and SM12x have XQA decode only.\n    if current_platform.is_device_capability(\n        90\n    ) or current_platform.is_device_capability_family(120):\n        return not is_prefill\n\n    # SM100/SM103 has both prefill and decode TRTLLM kernels.\n    return current_platform.is_device_capability_family(100)\n\n\ndef force_use_trtllm_attention() -> bool | None:\n    \"\"\"\n    This function should only be called during initialization stage when vllm config\n    is set.\n    Return `None` if --attention-config.use_trtllm_attention is not set,\n    return `True` if TRTLLM attention is forced to be used,\n    return `False` if TRTLLM attention is forced to be not used.\n    \"\"\"\n    from vllm.config import get_current_vllm_config\n\n    vllm_config = get_current_vllm_config()\n    return vllm_config.attention_config.use_trtllm_attention\n\n\ndef can_use_trtllm_attention(\n    num_qo_heads: int, num_kv_heads: int, is_prefill: bool = False\n) -> bool:\n    \"\"\"Check if the current configuration supports TRTLLM attention.\"\"\"\n    if force_use_trtllm_attention() is False:\n        return False\n    return supports_trtllm_attention(is_prefill=is_prefill) and (\n        num_qo_heads % num_kv_heads == 0\n    )"
+      }
+    ]
+  },
+  {
+    "path": "/home/derek/.venvs/vllm-cuda-030/lib/python3.12/site-packages/vllm/v1/attention/backends/flashinfer.py",
+    "sha256": "8ee541fde43ed92a417b3f01ea1e6fc64af8ab2eb54cbfc28308a49aaca4ed7f",
+    "excerpts": [
+      {
+        "first_line": 810,
+        "text": "        # Prefer TRTLLM/XQA for decoding whenever supported. The decode kernel\n        # must be selected statically for FULL cudagraph capture.\n        can_use_xqa_or_trtllm_gen_decode = can_use_trtllm_attention(\n            self.num_qo_heads, self.num_kv_heads, is_prefill=False\n        )\n        # Page sizes >= 128 require the trtllm-gen GQA/MQA path (guaranteed by\n        # get_supported_kernel_block_sizes).\n        assert self.page_size <= 64 or (\n            current_platform.is_device_capability_family(100)\n            and can_use_xqa_or_trtllm_gen_decode\n            and self.num_qo_heads // self.num_kv_heads > 1\n        ), f\"Unexpected FlashInfer page size {self.page_size} without trtllm-gen GQA\"\n        self.use_trtllm_decode_attention = can_use_xqa_or_trtllm_gen_decode\n        self.flashinfer_trtllm_api_decode_kernel: FlashInferDecodeKernel | None = (\n            self._get_flashinfer_trtllm_api_decode_kernel()\n            if can_use_xqa_or_trtllm_gen_decode\n            else None\n        )"
+      },
+      {
+        "first_line": 902,
+        "text": "        capability = current_platform.get_device_capability()\n        arch = f\"sm{capability.major}{capability.minor}\" if capability else \"unknown\"\n        decode_backend = (\n            self.flashinfer_trtllm_api_decode_kernel.value\n            if self.flashinfer_trtllm_api_decode_kernel is not None\n            else \"flashinfer-native\"\n        )\n        logger.info_once(\n            \"FlashInfer resolved query dtypes: prefill=%s, decode=%s, \"\n            \"decode_backend=%s, kv_cache_dtype=%s, arch=%s\",\n            self.q_data_type_prefill,\n            self.q_data_type_decode,\n            decode_backend,\n            self.kv_cache_dtype,\n            arch,\n        )"
+      },
+      {
+        "first_line": 934,
+        "text": "    def get_q_data_type(self, is_prefill: bool) -> torch.dtype:\n        # The user sets --attention-config.disable_flashinfer_q_quantization\n        # to 1 explicitly, use model dtype for query.\n        if self.vllm_config.attention_config.disable_flashinfer_q_quantization:\n            return self.model_config.dtype\n\n        # self.cache_dtype is resolved per KV-cache group: it is \"auto\" when\n        # this group is unquantized (e.g. --kv-cache-dtype-skip-layers), even\n        # if cache_config requests a quantized dtype globally.\n        cache_dtype = self.cache_dtype\n\n        # On SM90/SM12x, XQA decode requires BF16/FP16-Q even with FP8 KV cache.\n        # FI native prefill on SM90 still uses FP8-Q in that case; SM12x prefill\n        # is fa2-only and keeps the model dtype (handled below).\n        if (\n            (\n                current_platform.is_device_capability(90)\n                or current_platform.is_device_capability_family(120)\n            )\n            and not is_prefill\n            and force_use_trtllm_attention() is not False\n            and cache_dtype.startswith(\"fp8\")\n        ):\n            return self.model_config.dtype\n\n        # Otherwise, match Q dtype to the KV cache dtype.\n        if cache_dtype.startswith(\"fp8\"):\n            # FP8-Q requires an fp8 tensor-core attention path. SM90 uses\n            # native FA3 for prefill; XQA decode on SM90/SM12x is handled\n            # above with model-dtype Q, while SM100 uses trtllm-gen.\n            # Architectures with only fa2 (e.g. SM89, SM120) cannot\n            # consume FP8 queries, so keep the model dtype for Q there.\n            if current_platform.is_device_capability(\n                90\n            ) or current_platform.is_device_capability_family(100):\n                return FlashInferBackend.get_dtype_for_flashinfer(cache_dtype)\n            return self.model_config.dtype\n        if cache_dtype.startswith(\"nvfp4\"):\n            return FlashInferBackend.get_dtype_for_flashinfer(\"fp8_e4m3\")\n        return self.kv_cache_spec.dtype"
+      },
+      {
+        "first_line": 1205,
+        "text": "        if decode_wrapper is None:\n            if use_cudagraph:\n                paged_kv_indptr = self.paged_kv_indptr.gpu[: batch_size + 1]\n                paged_kv_indices = self.paged_kv_indices\n                paged_kv_last_page_len = self.paged_kv_last_page_len.gpu[:batch_size]\n            else:\n                paged_kv_indptr = None\n                paged_kv_indices = None\n                paged_kv_last_page_len = None\n            # NVFP4 KV cache requires the trtllm-gen backend inside\n            # the wrapper; fa2/fa3 do not support nvfp4.\n            backend = \"trtllm-gen\" if self.is_kvcache_nvfp4 else \"auto\"\n            decode_wrapper = BatchDecodeWithPagedKVCacheWrapper(\n                self._get_workspace_buffer(),\n                get_flashinfer_layout_string(self.kv_cache_layout),\n                use_cuda_graph=use_cudagraph,\n                paged_kv_indptr_buffer=paged_kv_indptr,\n                paged_kv_indices_buffer=paged_kv_indices,\n                paged_kv_last_page_len_buffer=paged_kv_last_page_len,\n                # Tensor cores are enabled by default because the perf would be\n                # at least as good as cuda cores for all attention ops in latest\n                # gpus.\n                use_tensor_cores=True,\n                backend=backend,\n            )"
+      }
+    ]
+  },
+  {
+    "path": "/home/derek/.venvs/vllm-cuda-030/lib/python3.12/site-packages/flashinfer/utils.py",
+    "sha256": "6cb8ebcc25eb65521808bf40a8aaf0c5a868827283955867ae382ad7ec773815",
+    "excerpts": [
+      {
+        "first_line": 587,
+        "text": "    if is_sm90a_supported(device) and is_fa3_backend_supported(\n        pos_encoding_mode,\n        use_fp16_qk_reductions,\n        use_custom_mask,\n        dtype_q,\n        dtype_kv,\n    ):\n        if head_dim_qk is None or head_dim_vo is None:\n            return \"fa3\"\n        if is_fa3_prefill_head_dim_supported(head_dim_qk, head_dim_vo):\n            return \"fa3\"\n    else:\n        return \"fa2\"\n    return \"fa2\""
+      }
+    ]
+  },
+  {
+    "path": "/home/derek/.venvs/vllm-cuda-030/lib/python3.12/site-packages/flashinfer/decode.py",
+    "sha256": "d82d107a644596a9349780b839b34e690c50169ea4cea3d0ee02b78e9dc88c1a",
+    "excerpts": [
+      {
+        "first_line": 1670,
+        "text": "        elif self.use_tensor_cores:\n            self._max_kv_len = max(kv_lens_arr_host).item()\n            if self._jit_module is not None:\n                self._cached_module = self._jit_module\n            else:\n                if self._backend == \"auto\":\n                    if {\n                        torch.float8_e4m3fn,\n                        torch.float8_e5m2,\n                    } & {q_data_type, kv_data_type}:\n                        self._backend = determine_attention_backend(\n                            self.device,\n                            PosEncodingMode[pos_encoding_mode].value,\n                            False,  # use_fp16_qk_reductions\n                            False,  # use_custom_mask\n                            q_data_type,\n                            kv_data_type,\n                            head_dim_qk=head_dim,\n                            head_dim_vo=head_dim,\n                        )\n                    else:\n                        self._backend = \"fa2\"\n                if q_len_per_req > 1 and self._backend == \"fa3\":\n                    raise NotImplementedError(\n                        \"q_len_per_req > 1 is currently only supported on the \"\n                        \"fa2 tensor-core backend.\"\n                    )\n                self._cached_module = get_batch_prefill_module(\n                    self._backend,\n                    q_data_type,\n                    kv_data_type,\n                    o_data_type,\n                    indptr.dtype,\n                    head_dim,  # head_dim_qk\n                    head_dim,  # head_dim_vo"
+      }
+    ]
+  },
+  {
+    "path": "/home/derek/.venvs/vllm-cuda-030/lib/python3.12/site-packages/flashinfer/xqa.py",
+    "sha256": "6a3f7330980b976201cff0fcdf51e2958e454c4c5951ad2b30c1f2aa13722d33",
+    "excerpts": [
+      {
+        "first_line": 399,
+        "text": "        assert k_sf_cache is not None, \"K SF cache is required when NVFP4 KV is used\"\n        assert v_sf_cache is not None, \"V SF cache is required when NVFP4 KV is used\"\n\n    if get_compute_capability(torch.device(device=\"cuda\"))[0] not in [9, 10, 12]:\n        raise RuntimeError(\"XQA is only supported on SM90, SM100, SM120/SM121 GPUs\")\n"
+      }
+    ]
+  },
+  {
+    "path": "/home/derek/.venvs/vllm-cuda-030/lib/python3.12/site-packages/vllm/v1/attention/backends/triton_attn.py",
+    "sha256": "1057663d110e1d5229495a799027b27277c1eca325d5b6780fa2259afbf58a1a",
+    "excerpts": [
+      {
+        "first_line": 289,
+        "text": "    supported_dtypes: ClassVar[list[torch.dtype]] = [\n        torch.float16,\n        torch.bfloat16,\n        torch.float32,\n    ]\n    supported_kv_cache_dtypes: ClassVar[list[CacheDType]] = [\n        \"auto\",\n        \"float16\",\n        \"bfloat16\",\n        \"fp8\",\n        \"fp8_e4m3\",\n        \"fp8_e5m2\",\n        \"int4_per_token_head\",\n        \"int8_per_token_head\",\n        \"fp8_per_token_head\",\n    ]"
+      },
+      {
+        "first_line": 350,
+        "text": "    @classmethod\n    def supports_head_size(cls, head_size: int) -> bool:\n        return head_size >= 32"
+      },
+      {
+        "first_line": 376,
+        "text": "    @classmethod\n    def supports_compute_capability(cls, capability: DeviceCapability) -> bool:\n        return True"
+      }
+    ]
+  },
+  {
+    "path": "/home/derek/.venvs/vllm-cuda-030/lib/python3.12/site-packages/vllm/engine/arg_utils.py",
+    "sha256": "ead004ca266419cd25f54a7aefc0e20e1eb046f363b7f5cc977e14f52ee44bb1",
+    "excerpts": [
+      {
+        "first_line": 1007,
+        "text": "        attention_group.add_argument(\n            \"--attention-backend\", **attention_kwargs[\"backend\"]\n        )"
+      },
+      {
+        "first_line": 1725,
+        "text": "        vllm_group.add_argument(\n            \"--attention-config\", \"-ac\", **vllm_kwargs[\"attention_config\"]\n        )"
+      }
+    ]
+  }
+]

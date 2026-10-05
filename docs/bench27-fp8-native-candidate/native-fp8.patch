@@ -1,0 +1,9 @@
+--- native-auto.sh
++++ native-fp8.sh
+@@ -42,4 +42,5 @@
+   --gpu-memory-utilization \
+   0.93 \
+   --attention-backend FLASHINFER \
+-  --attention-config '{"use_trtllm_attention":false}'
++  --attention-config '{"use_trtllm_attention":false}' \
++  --kv-cache-dtype fp8

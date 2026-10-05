@@ -1,0 +1,10 @@
+--- observed-control.sh
++++ native-auto.sh
+@@ -40,4 +40,6 @@
+   --max-model-len \
+   32768 \
+   --gpu-memory-utilization \
+-  0.93
++  0.93 \
++  --attention-backend FLASHINFER \
++  --attention-config '{"use_trtllm_attention":false}'

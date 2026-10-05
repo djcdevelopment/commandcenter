@@ -1,0 +1,16 @@
+{
+  "status": "draft_awaiting_review_no_execution",
+  "control_sha256": "1343633c1109f2abb32398c577f356ad6a5b72b775989aa4ec8520b5485b6316",
+  "native_auto_sha256": "bfe8b1af2e68f0bfc40b2cd2b6cafa1e253ed66b8b5ebe953816ec949a98f1b5",
+  "native_fp8_sha256": "d0ac2f9bb998ed5ae3750356b34937f462d9700ff247dfcd2931d6b153b1f970",
+  "new_auto_argv": [
+    "--attention-backend",
+    "FLASHINFER",
+    "--attention-config",
+    "{\"use_trtllm_attention\":false}"
+  ],
+  "additional_fp8_argv": [
+    "--kv-cache-dtype",
+    "fp8"
+  ]
+}

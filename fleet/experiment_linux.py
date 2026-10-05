@@ -354,6 +354,9 @@ class Experiment:
                     continue
         return None
 
+    def foreign_requests(self, before, after, calls):
+        return None if calls is None else int(after["success"] - before["success"]) - calls
+
     def stop_group(self, proc: subprocess.Popen) -> None:
         """SIGTERM the campaign's process group (the driver cancels its executions), SIGKILL after a grace."""
         for sig, grace in ((signal.SIGTERM, CAMPAIGN_KILL_GRACE_S), (signal.SIGKILL, 10)):
@@ -410,7 +413,7 @@ class Experiment:
                 self.save(on_timeout_rc=p.returncode)
         after = self.seat_counters()
         calls = self._calls_reported(offset)
-        foreign = None if calls is None else int(after["success"] - before["success"]) - calls
+        foreign = self.foreign_requests(before, after, calls)
         self.save("campaign_done", campaign_rc=rc, campaign_timed_out=timed_out, campaign_finished=utc(),
                   counters_after=after, calls_reported=calls, foreign_requests=foreign,
                   tenancy_renewals=box["renewed"], tenancy_renew_failures=box["failed"],
@@ -420,6 +423,7 @@ class Experiment:
             self.log("campaign reported no calls line; foreign requests cannot be attributed")
 
     def restore(self) -> None:
+        self.refuse_busy()   # cancellation must drain direct requests before restoration/release
         if self.dropin:
             target = self.service_d / self.dropin
             if self.state.get("applied_dropin") and target.exists():
@@ -428,6 +432,7 @@ class Experiment:
             self.log("drop-in removed")
             subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
             if self.state.get("seat_restarted"):
+                self.refuse_busy()   # never kill a surviving direct-seat or foreign request
                 self.restart_and_wait()
         res = self.state.get("resident") or {}
         served = self.served_models()
@@ -514,6 +519,99 @@ class Experiment:
         return 0 if outcome == "succeeded" else 1
 
 
+class PairedExperiment(Experiment):
+    """One fence and campaign, independent persisted seat lifecycles.
+
+    Spec: seats=[0,1], dropin={"0": null, "1": "zz-arm.conf"},
+    backend={"0": "omen-dense-27b", "1": "omen-dense-27b-b"}.
+    expect_argv and expect_model are optional maps keyed by seat as well.
+    The campaign's last JSON report must carry calls={"0": N, "1": N}.
+    """
+    def __init__(self, spec: dict[str, Any]) -> None:
+        if spec.get("seats") != [0, 1] or "seat" in spec:
+            raise ValueError("paired specs require seats=[0,1] and no seat")
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", str(spec["id"])):
+            raise ValueError("paired experiment id must be a simple filename")
+        for key in ("dropin", "backend"):
+            if not isinstance(spec.get(key), dict) or set(spec[key]) != {"0", "1"}:
+                raise ValueError(f"paired {key} requires exactly keys 0 and 1")
+        if any(not isinstance(b, str) or not b for b in spec["backend"].values()):
+            raise ValueError("paired backends must be explicit nonempty names")
+        if len(set(spec["backend"].values())) != 2:
+            raise ValueError("paired backends must be distinct")
+        for key in ("expect_argv", "expect_model"):
+            if key in spec and (not isinstance(spec[key], dict) or set(spec[key]) != {"0", "1"}):
+                raise ValueError(f"paired {key} requires exactly keys 0 and 1")
+        for dropin in spec["dropin"].values():
+            if dropin is not None and (not isinstance(dropin, str) or not dropin or Path(dropin).name != dropin):
+                raise ValueError("dropin must be a filename or null")
+        super().__init__({**spec, "seat": 0, "dropin": None})
+        self.spec = spec
+        self.state["spec"] = spec
+        self.state["schema"] = "experiment-linux.paired.v1"
+        self.members = {}
+        for seat in spec["seats"]:
+            seat_spec = {"id": f"{self.id}/seat-{seat}", "seat": seat}
+            for key in ("dropin", "backend", "expect_argv", "expect_model"):
+                if key in spec:
+                    seat_spec[key] = spec[key][str(seat)]
+            self.members[str(seat)] = Experiment(seat_spec)
+        self.reused = self.reused or any(m.reused for m in self.members.values())
+
+    def preflight(self) -> None:
+        for member in self.members.values():
+            member.preflight()
+
+    def take_snapshot(self) -> None:
+        # All snapshots precede either swap. Partial snapshots never imply a swap.
+        for member in self.members.values():
+            member.take_snapshot()
+        self.save("snapshot", resident={k: m.state["resident"] for k, m in self.members.items()})
+
+    def swap(self) -> None:
+        for member in self.members.values():
+            member.swap()
+        self.save("swapped-verified", effective_argv={k: m.state["effective_argv"] for k, m in self.members.items()},
+                  served_after_swap={k: m.state["served_after_swap"] for k, m in self.members.items()})
+
+    def seat_counters(self) -> dict:
+        return {k: m.seat_counters() for k, m in self.members.items()}
+
+    def _calls_reported(self, offset: int):
+        lines = (self.dir / "campaign.out").read_bytes()[offset:].decode("utf-8", "replace").splitlines()
+        for line in reversed(lines):
+            try:
+                calls = json.loads(line)["calls"]
+            except (ValueError, KeyError, TypeError):
+                continue
+            if (isinstance(calls, dict) and set(calls) == set(self.members)
+                    and all(type(n) is int and n >= 0 for n in calls.values())):
+                return calls
+            return None
+        return None
+
+    def foreign_requests(self, before, after, calls):
+        per_seat = {k: None if calls is None else int(after[k]["success"] - before[k]["success"]) - calls[k]
+                    for k in self.members}
+        self.save(foreign_requests_by_seat=per_seat)
+        # Absolute values prevent opposite differences on the cards cancelling.
+        return None if calls is None else sum(abs(v) for v in per_seat.values())
+
+    def restore(self) -> None:
+        errors = {}
+        for key, member in self.members.items():
+            try:
+                member.restore()
+            except Exception as exc:
+                errors[key] = f"{type(exc).__name__}: {exc}"
+        self.save(restoration_by_seat={k: m.state for k, m in self.members.items()})
+        if errors:
+            raise RuntimeError(f"paired restoration incomplete: {errors}")
+        if any(m.state.get("seat_restarted_externally") for m in self.members.values()):
+            self.save(seat_restarted_externally=True)
+        self.save("restored")
+
+
 def status(exp_id: str) -> dict[str, Any]:
     p = EXP_ROOT / exp_id / "state.json"
     if not p.exists():
@@ -521,7 +619,7 @@ def status(exp_id: str) -> dict[str, Any]:
     d = json.loads(p.read_text())
     return {k: d.get(k) for k in ("id", "phase", "outcome", "started", "updated", "campaign_rc", "resident", "served_after_swap",
                                       "effective_argv", "counters_before", "counters_after", "calls_reported",
-                                      "foreign_requests")}
+                                      "foreign_requests", "foreign_requests_by_seat", "restoration_by_seat")}
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -533,7 +631,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args.cmd == "status":
         print(json.dumps(status(args.id), indent=2, default=str)); return 0
     spec = json.loads(Path(args.spec).read_text())
-    return Experiment(spec).run()
+    return (PairedExperiment(spec) if "seats" in spec else Experiment(spec)).run()
 
 
 if __name__ == "__main__":

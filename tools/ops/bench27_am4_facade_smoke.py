@@ -22,6 +22,7 @@ from tools.ops.bench27_am4_report import counters, no_leases
 HOST, PORT, ALIAS = '10.44.0.2', 8090, 'am4-dense-27b'
 SCRIPT_SHA = 'd6d6887f5fe3c31ba574d6bdfbdc609e6474afbc7d2866c362355d0275c7d54e'
 BUDGET, WINDOW = 24576, 49152
+POOL_PATH = Path('/home/derek/hearth-production/backends-linux.toml')
 AUDIT = """import hashlib,json,pathlib,urllib.request
 h=pathlib.Path.home()
 paths={'facade':h/'am4-fleet-node/scripts/oxen-facade.py','aliases':h/'.config/am4-fleet/alias-backends.json','recipe':h/'run-vllm-canary.sh'}
@@ -37,6 +38,19 @@ class SmokeError(RuntimeError):
     def __init__(self, code):
         self.code=code
         super().__init__(code)
+
+
+def check_leases(path):
+    try: no_leases(path)
+    except Exception: raise SmokeError('door_lease_active_or_check_unavailable') from None
+
+
+def validate_cancel_counters(before,after):
+    delta={k:after[k]-before[k] for k in ['completed','abort','success']}
+    if delta['completed']!=0: raise SmokeError('cancel_completed_counter_changed')
+    if delta['abort'] not in (0,1) or delta['success']!=delta['abort']:
+        raise SmokeError('cancel_unexpected_counter_delta')
+    return delta
 
 
 def make_overflow(count_tokens):
@@ -87,7 +101,19 @@ def validate_audit(record, facade_sha, alias_sha):
     models = [m for m in record['models']['data'] if m['id']=='qwen3-27b']
     if len(models)!=1 or models[0].get('root')!='/home/derek/models/qwen3-27b-gptq-int4' or models[0].get('max_model_len')!=WINDOW:
         raise SmokeError('wrong actual model/root/window')
-    return counters(record['metrics'].encode())
+    try:
+        result=counters(record['metrics'].encode())
+        reasons={}
+        for line in record['metrics'].splitlines():
+            if line.startswith('vllm:request_success_total{'):
+                reason=re.search(r'finished_reason="([^"]+)"',line)
+                if not reason: raise ValueError('missing reason')
+                key=reason.group(1);reasons[key]=reasons.get(key,0)+float(line.rsplit(' ',1)[1])
+        if not {'stop','length','abort'}<=reasons.keys(): raise ValueError('missing labeled counters')
+        result.update(completed=reasons['stop']+reasons['length'],abort=reasons['abort'],reasons=reasons)
+        return result
+    except Exception:
+        raise SmokeError('engine_counters_invalid') from None
 
 
 def request_body(text):
@@ -102,7 +128,7 @@ class Smoke:
         self.args, self.token = args, token
         self.started = time.monotonic()
         self.end = self.started+150
-        self.cleanup_end = self.started+175
+        self.cleanup_end = self.started+170
         self.conn = self.sock = None
         self.failure = None
         self.closed = threading.Event()
@@ -134,7 +160,7 @@ class Smoke:
 
     def request(self, path, body=None):
         self.check()
-        if path=='/v1/chat/completions': no_leases(self.args.coordination_db)
+        if path=='/v1/chat/completions': check_leases(self.args.coordination_db)
         with self.lock:
             self.check()
             conn=http.client.HTTPConnection(HOST,PORT,timeout=5)
@@ -167,7 +193,7 @@ class Smoke:
 
     def snapshot(self, name, idle=True, cleanup=False):
         if not cleanup: self.check()
-        no_leases(self.args.coordination_db)
+        check_leases(self.args.coordination_db)
         remaining=(self.cleanup_end if cleanup else self.end)-time.monotonic()
         if remaining<=0: raise SmokeError('observer_deadline')
         record=audit(timeout=min(8,remaining));write(self.args.out/(name+'.audit.json'),record)
@@ -211,16 +237,17 @@ class Smoke:
             if record['running']==0 and record['waiting']==0:
                 time.sleep(1)
                 confirmed=self.snapshot(prefix+'confirm',cleanup=cleanup)
-                return {'idle_samples':2,'samples':samples+1,'success':confirmed['success']}
+                return {'idle_samples':2,'samples':samples+1,**confirmed}
             time.sleep(1)
-        raise SmokeError('cancelled owned request failed to drain in20s')
+        raise SmokeError('cancelled owned request failed to drain in 20s')
 
 
 def run(args):
     if args.trip!=Path(str(args.guard_log)+'.tripped'):raise SmokeError('trip path mismatch')
     # Existing backend interface: Linux caller unit supplies its existing EnvironmentFile.
     # No credential file read, shell export, token argument, header dump or token logging.
-    backend=load_pool().by_name('am4-vllm')
+    backend=load_pool(POOL_PATH).by_name('am4-vllm')
+    pool_sha=hashlib.sha256(POOL_PATH.read_bytes()).hexdigest()
     if not backend or backend.endpoint.rstrip('/')!=f'http://{HOST}:{PORT}' or backend.auth_env!='AM4_VLLM_TOKEN':
         raise SmokeError('backend_endpoint_or_auth_drift')
     token=backend.token()
@@ -229,6 +256,7 @@ def run(args):
         raise SmokeError('invalid_sha256_argument')
     args.out.mkdir(parents=True,exist_ok=False)
     result={'status':'failed','caller':'codex','endpoint':f'http://{HOST}:{PORT}',
+            'pool_path':str(POOL_PATH),'pool_sha256':pool_sha,
             'reserved_output':BUDGET,'generated_budget_claim':False,'qualification':False,
             'driver_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
             'helper_sha256':{str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in [
@@ -254,10 +282,10 @@ def run(args):
         after_overflow=smoke.snapshot('after-overflow')
         if after_overflow['success']!=after['success']:raise SmokeError('overflow reached inference or foreign success')
         result['stage']='owned-cancel-drain'
-        rec=smoke.stream(request_body('List the integers from1 through100000, one per line. Continue until the list is complete.'),'cancel',True)
+        rec=smoke.stream(request_body('List the integers from 1 through 100000, one per line. Continue until the list is complete.'),'cancel',True)
         if not rec.get('cancelled_while_running'):raise SmokeError('owned cancellation not demonstrated')
         result['drain']=smoke.drain()
-        if result['drain']['success']!=after_overflow['success']: raise SmokeError('cancel_success_counter_changed')
+        result['cancel_counter_delta']=validate_cancel_counters(after_overflow,result['drain'])
         result['status']='smoke_passed_not_qualified'
     except Exception as exc:
         result['error_type']=type(exc).__name__

@@ -15,7 +15,7 @@ class SmokeTests(unittest.TestCase):
     def audit(self):
         return {'sha256':{'facade':'f','aliases':'a','recipe':s.SCRIPT_SHA},
                 'models':{'data':[{'id':'qwen3-27b','root':'/home/derek/models/qwen3-27b-gptq-int4','max_model_len':49152}]},
-                'metrics':'vllm:num_requests_running 0\nvllm:num_requests_waiting 0\nvllm:request_success_total 1\n'}
+                'metrics':'vllm:num_requests_running 0\nvllm:num_requests_waiting 0\nvllm:request_success_total{finished_reason=\"stop\"} 1\nvllm:request_success_total{finished_reason=\"length\"} 0\nvllm:request_success_total{finished_reason=\"abort\"} 0\n'}
 
     def test_hash_root_window_and_counters(self):
         self.assertEqual(s.validate_audit(self.audit(),'f','a')['success'],1)
@@ -149,6 +149,23 @@ class SmokeTests(unittest.TestCase):
              patch.object(s.http.client,'HTTPConnection') as connection:
             with self.assertRaises(s.SmokeError):smoke.request('/v1/chat/completions',{})
             connection.assert_not_called()
+
+    def test_actual_production_backend_declaration_offline(self):
+        backend=s.load_pool(s.POOL_PATH).by_name('am4-vllm')
+        self.assertEqual(backend.endpoint,'http://10.44.0.2:8090')
+        self.assertEqual(backend.auth_env,'AM4_VLLM_TOKEN')
+
+    def test_abort_counter_is_not_a_completed_request(self):
+        before={'completed':2,'abort':0,'success':2}
+        self.assertEqual(s.validate_cancel_counters(before,dict(completed=2,abort=1,success=3))['abort'],1)
+        with self.assertRaises(s.SmokeError):
+            s.validate_cancel_counters(before,dict(completed=3,abort=0,success=3))
+
+    def test_counter_and_lease_errors_have_static_codes(self):
+        record=self.audit();record['metrics']='invalid'
+        with self.assertRaisesRegex(s.SmokeError,'engine_counters_invalid'):s.validate_audit(record,'f','a')
+        with patch.object(s,'no_leases',side_effect=RuntimeError('private exception')):
+            with self.assertRaisesRegex(s.SmokeError,'door_lease_active_or_check_unavailable'):s.check_leases('unused')
 
 
 if __name__=='__main__':unittest.main()

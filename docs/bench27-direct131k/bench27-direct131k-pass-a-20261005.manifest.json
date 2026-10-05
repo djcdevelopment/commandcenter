@@ -1,0 +1,50 @@
+{
+  "schema": "bench27-b70-direct.v1",
+  "status": "prepared_for_review",
+  "experiment_id": "bench27-direct131k-pass-a-20261005",
+  "model": "qwen3.8-27b",
+  "windows": {
+    "0": 65536,
+    "1": 131072
+  },
+  "sources": {
+    "driver": {
+      "path": "/home/derek/work/worktrees/bench27-instruments/tools/ops/bench27_b70_direct.py",
+      "sha256": "084f283b8347ad3568d99b0e7c39334d9fa920f8ea0318e701834602ed47795f"
+    },
+    "am4_helper": {
+      "path": "/home/derek/work/commandcenter-linux-flash/tools/ops/bench27_am4_probe.py",
+      "sha256": "d0823b9ca7ec81a9491686c7cd68fe0410d15dbf0bad13cd39b55eb25e4c6b2e"
+    },
+    "seat_probe": {
+      "path": "/home/derek/work/lab-rnd/research/seat_probe.py",
+      "sha256": "f07fe9754bf351ea98fdf1700180032ab8b0245be7c32cd1993a74c8f9f9a8d0"
+    },
+    "workload_builder": {
+      "path": "/home/derek/work/lab-rnd/research/make_thinking_workload.py",
+      "sha256": "bf56d4714cc2058dc81401944f935ddfda345942615ffd17474c7db89e13474b"
+    }
+  },
+  "flash_source": "/home/derek/work/commandcenter-linux-flash",
+  "source_commit": "de666ef75ce79733bffb34c5e146c9b8ddd42f30",
+  "workload_policy": {
+    "targets_tokens": [
+      38800,
+      90000,
+      120000
+    ],
+    "absolute_tolerance_tokens": 64,
+    "needles": 12,
+    "source_seed": 7,
+    "temperature": 0,
+    "sampling_seed": 42,
+    "thinking": false,
+    "output_allowance": 600,
+    "concurrency": [
+      1,
+      2
+    ],
+    "concurrency2_turns": 2
+  },
+  "comparison": "65K fp8 control versus131K fp8 treatment; long requests refused explicitly on control."
+}

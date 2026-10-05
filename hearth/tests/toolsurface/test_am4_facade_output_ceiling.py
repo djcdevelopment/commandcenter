@@ -39,11 +39,11 @@ def test_scoped_ceiling_and_exact_context_boundary():
 
 @pytest.mark.parametrize('context',[32768,49151,None,True,'65536'])
 def test_undersized_or_invalid_live_context_refuses(context):
-    with pytest.raises(ValueError,match='requires live'):guard(24576,context=context)
+    with pytest.raises(facade.CapabilityUnavailable,match='requires live'):guard(24576,context=context)
 
 
 def test_wrong_live_model_refuses_and_alias_cannot_impersonate():
-    with pytest.raises(ValueError,match='requires live'):guard(24576,model='other')
+    with pytest.raises(facade.CapabilityUnavailable,match='requires live'):guard(24576,model='other')
     with patch.object(facade,'alias_backends',return_value={'other':backend(output_ceiling=24576)}):
         with pytest.raises(ValueError,match='restricted'):facade.backend_for('other')
 
@@ -69,3 +69,16 @@ def test_completion_token_synonym_normalized():
     result,payload,_=guard(1,max_completion_tokens=24576)
     assert result['output_budget']==payload['max_tokens']==24576
     assert 'max_completion_tokens' not in payload
+
+
+def test_scoped_dense_keeps_ordinary_32k_requests():
+    assert guard(8192,context=32768)[0]['output_budget']==8192
+    with pytest.raises(facade.CapabilityUnavailable):guard(8193,context=32768)
+
+
+def test_tracked_alias_map_ceilings():
+    path=Path(__file__).parents[3]/'am4-fleet-node/config/alias-backends.json'
+    aliases=json.loads(path.read_text())
+    with patch.object(facade,'alias_backends',return_value=aliases):
+        for alias in aliases:
+            assert facade.output_ceiling(facade.backend_for(alias))==(24576 if alias=='am4-dense-27b' else 8192)

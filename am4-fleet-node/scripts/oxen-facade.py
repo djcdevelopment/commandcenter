@@ -43,6 +43,14 @@ _ADMISSION_GUARD = threading.Lock()
 MAX_BODY = 4 * 1024 * 1024
 
 
+class AliasConfigurationError(ValueError):
+    pass
+
+
+class CapabilityUnavailable(RuntimeError):
+    pass
+
+
 def admission(backend: dict) -> threading.BoundedSemaphore:
     """One admission gate per physical seat (host, port), sized by the seat's
     declared ``parallel_slots`` (the alias map; 1 when absent). Aliases are
@@ -100,14 +108,14 @@ def alias_status(alias: str) -> dict:
 def guard_context(payload: dict, b: dict, state: dict) -> dict:
     """Count the engine-rendered template including tools; fail closed if unsupported."""
     ceiling = output_ceiling(b)
-    if ceiling > 8192:
-        if (state.get("ready") is not True or state.get("alias") != "am4-dense-27b"
-                or state.get("model") != "qwen3-27b"
-                or type(state.get("context_length")) is not int or state["context_length"] < 49152):
-            raise ValueError("dense 24576 output capability requires live qwen3-27b context >=49152")
     budget = payload.get("max_completion_tokens", payload.get("max_tokens", 2048))
     if type(budget) is not int or not 1 <= budget <= ceiling:
         raise ValueError(f"output budget must be an integer in 1..{ceiling}")
+    if budget > 8192:
+        if (state.get("ready") is not True or state.get("alias") != "am4-dense-27b"
+                or state.get("model") != "qwen3-27b"
+                or type(state.get("context_length")) is not int or state["context_length"] < 49152):
+            raise CapabilityUnavailable("dense output above 8192 requires live qwen3-27b context >=49152")
     if not isinstance(payload.get("messages"), list) or not payload["messages"]:
         raise ValueError("messages must be a nonempty list")
     if any(k in payload for k in ("prompt", "n_predict", "cache_prompt", "id_slot")):
@@ -264,10 +272,10 @@ def output_ceiling(backend: dict) -> int:
     """Bounded declaration, never a caller override or evidence of qualification."""
     ceiling = backend.get("output_ceiling", 8192)
     if type(ceiling) is not int or ceiling not in (8192, 24576):
-        raise ValueError("output_ceiling must be 8192 or scoped dense 24576")
+        raise AliasConfigurationError("output_ceiling must be 8192 or scoped dense 24576")
     if ceiling == 24576 and (backend.get("_alias") != "am4-dense-27b"
             or backend.get("api") != "vllm" or backend.get("model_id") != "qwen3-27b"):
-        raise ValueError("24576 output ceiling is restricted to am4-dense-27b/qwen3-27b/vllm")
+        raise AliasConfigurationError("24576 output ceiling is restricted to am4-dense-27b/qwen3-27b/vllm")
     return ceiling
 
 
@@ -405,23 +413,18 @@ class Handler(BaseHTTPRequestHandler):
         }
 
     def models_payload(self) -> dict[str, Any]:
-        return {
-            "object": "list",
-            "data": [
-                {
-                    "id": alias,
-                    "object": "model",
-                    "created": 0,
-                    "owned_by": "am4",
-                    **alias_status(alias),
-                    "backend": {
-                        "model": backend_for(alias)["model_id"],
-                        "base_url": f'http://{backend_for(alias)["host"]}:{backend_for(alias)["port"]}',
-                    },
-                }
-                for alias in configured_aliases()
-            ],
-        }
+        rows = []
+        for alias in configured_aliases():
+            row = {"id": alias, "object": "model", "created": 0, "owned_by": "am4"}
+            try:
+                backend = backend_for(alias)
+                row.update(alias_status(alias))
+                row["backend"] = {"model": backend["model_id"],
+                                  "base_url": f'http://{backend["host"]}:{backend["port"]}'}
+            except (ValueError, TypeError, AttributeError, KeyError):
+                row.update(alias=alias, ready=False, reason="invalid alias backend configuration")
+            rows.append(row)
+        return {"object": "list", "data": rows}
 
     def probe_alias(self, alias: str) -> dict[str, Any]:
         # Readiness must not generate a token, queue behind a builder, or mutate KV.
@@ -461,6 +464,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
             result = tokenize_alias(payload, restricted_caller=self.hermes_caller)
+        except AliasConfigurationError as exc:
+            self.write_json(503, {"error": str(exc)})
+            return
         except (ValueError, json.JSONDecodeError) as exc:
             self.write_json(400, {"error": str(exc)})
             return
@@ -561,6 +567,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             try:
                 guard_context(payload, b, state)
+            except CapabilityUnavailable as exc:
+                self.write_json(503, {"error": str(exc)})
+                return
             except ValueError as exc:
                 self.write_json(400, {"error": str(exc)})
                 return

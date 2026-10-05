@@ -190,3 +190,32 @@ def test_invalid_output_configuration_refuses_before_engine_call(server, monkeyp
     status, data = call(server, body=prompt(max_tokens=24576))
     assert status == 503 and b'invalid alias backend configuration' in data
     assert not server[1].calls
+
+
+def test_bad_alias_isolated_in_models_and_tokenize(server, monkeypatch):
+    aliases=json.loads(facade.env('AM4_ALIAS_BACKENDS','{}'))
+    aliases['am4-dense-27b']['output_ceiling']=32768
+    monkeypatch.setenv('AM4_ALIAS_BACKENDS',json.dumps(aliases))
+    status,data=call(server,'/v1/models')
+    assert status==200
+    rows={row['id']:row for row in json.loads(data)['data']}
+    assert rows['am4-dense-27b']['ready'] is False
+    assert rows['alias-two']['ready'] is True
+    assert call(server,body=prompt(model='alias-two'))[0]==200
+    assert call(server,'/tokenize',body=prompt())[0]==503
+
+
+def test_http_long_capability_503_and_ordinary_32k_allowed(server, monkeypatch):
+    aliases=json.loads(facade.env('AM4_ALIAS_BACKENDS','{}'))
+    aliases['am4-dense-27b'].update(api='vllm',model_id='qwen3-27b',output_ceiling=24576)
+    monkeypatch.setenv('AM4_ALIAS_BACKENDS',json.dumps(aliases))
+    monkeypatch.setattr(facade,'alias_status',lambda alias:{'alias':alias,'ready':True,'model':'qwen3-27b','context_length':32768})
+    calls=[]
+    def tokenize(*args,**kwargs):
+        calls.append(args)
+        return 200,{},b'{"count":100}'
+    monkeypatch.setattr(facade,'backend_request',tokenize)
+    status,data=call(server,body=prompt(max_tokens=24576))
+    assert status==503 and b'requires live' in data and not calls and not server[1].calls
+    assert call(server,body=prompt(max_tokens=8192))[0]==200
+    assert len(calls)==1 and any(path=='/v1/chat/completions' for path,_ in server[1].calls)

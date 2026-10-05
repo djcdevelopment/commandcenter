@@ -1,0 +1,13 @@
+{
+  "source": "/home/derek/work/lab-rnd/research/evidence/bench27-am4-report-20261005/Nfp8-32/work/response.sse",
+  "sha256": "c6c17e8568c59182cf88e2ca3a51bc7c057fcf52c0b5d8d68d034f231c38a5ec",
+  "scope": "engine SSE usage only; facade passthrough established by source, live smoke still required",
+  "usage": {
+    "prompt_tokens": 3449,
+    "total_tokens": 13460,
+    "completion_tokens": 10011,
+    "completion_tokens_details": {
+      "reasoning_tokens": 8829
+    }
+  }
+}

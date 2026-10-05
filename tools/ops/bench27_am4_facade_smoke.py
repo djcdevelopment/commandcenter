@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import http.client
 import json
+import re
 from pathlib import Path
 import shlex
 import signal
@@ -14,7 +15,7 @@ import threading
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from hearth.toolsurface.backends import Backend
+from hearth.toolsurface.backends import Backend, load_pool
 from tools.ops.bench27_am4_probe import guard_check, event
 from tools.ops.bench27_am4_report import counters, no_leases
 
@@ -32,23 +33,60 @@ print(json.dumps(r))
 """
 
 
+class SmokeError(RuntimeError):
+    def __init__(self, code):
+        self.code=code
+        super().__init__(code)
+
+
+def make_overflow(count_tokens):
+    low,high=1,WINDOW
+    for _ in range(17):
+        n=(low+high)//2
+        body=request_body('x '*n);count=count_tokens(body)
+        if WINDOW-BUDGET+128<=count<=WINDOW-128: return body,count
+        if count<WINDOW-BUDGET+128: low=n+1
+        else: high=n-1
+    raise SmokeError('overflow_prompt_search_failed')
+
+
+def validate_overflow(status,raw,count):
+    if not WINDOW-BUDGET+128<=count<=WINDOW-128:
+        raise SmokeError('overflow_input_not_inside_window')
+    expected={'error':f'rendered prompt {count} + output {BUDGET} exceeds context {WINDOW}'}
+    if status!=400 or json.loads(raw)!=expected:
+        raise SmokeError('not_exact_facade_context_refusal')
+
+
+def validate_short(rec):
+    usage=rec.get('usage') or {}
+    if (not rec['done'] or rec['finish_reason']!='stop' or rec['content'].strip()!='323'
+            or not rec['reasoning'].strip() or any(t in rec['content'] for t in ['<think>','</think>'])
+            or usage.get('prompt_tokens')!=rec['prompt_tokens_exact']
+            or type(usage.get('completion_tokens')) is not int or not 0<usage['completion_tokens']<=BUDGET
+            or type((usage.get('completion_tokens_details') or {}).get('reasoning_tokens')) is not int
+            or not 0<usage['completion_tokens_details']['reasoning_tokens']<=usage['completion_tokens']):
+        raise SmokeError('short reasoning/reservation smoke failed')
+    return usage
+
+
 def write(path, value):
     path.write_text(json.dumps(value, indent=2)+'\n')
 
 
-def audit():
+def audit(timeout=8):
     result = subprocess.run(['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5', HOST,
                              'python3 -c '+shlex.quote(AUDIT)], stdin=subprocess.DEVNULL,
-                            capture_output=True, timeout=8, check=True)
+                            capture_output=True, timeout=timeout, check=True)
     return json.loads(result.stdout)
 
 
 def validate_audit(record, facade_sha, alias_sha):
     if record['sha256'] != {'facade': facade_sha, 'aliases': alias_sha, 'recipe': SCRIPT_SHA}:
-        raise RuntimeError('source/alias/recipe hash mismatch')
+        raise SmokeError('source/alias/recipe hash mismatch')
     models = [m for m in record['models']['data'] if m['id']=='qwen3-27b']
     if len(models)!=1 or models[0].get('root')!='/home/derek/models/qwen3-27b-gptq-int4' or models[0].get('max_model_len')!=WINDOW:
-        raise RuntimeError('wrong actual model/root/window')
+        raise SmokeError('wrong actual model/root/window')
     return counters(record['metrics'].encode())
 
 
@@ -62,7 +100,9 @@ def request_body(text):
 class Smoke:
     def __init__(self, args, token):
         self.args, self.token = args, token
-        self.end = time.monotonic()+150
+        self.started = time.monotonic()
+        self.end = self.started+150
+        self.cleanup_end = self.started+175
         self.conn = self.sock = None
         self.failure = None
         self.closed = threading.Event()
@@ -79,27 +119,39 @@ class Smoke:
             if self.conn: self.conn.close()
 
     def check(self):
-        if self.failure: raise RuntimeError(self.failure)
-        if time.monotonic()>=self.end: raise RuntimeError('150-second smoke deadline')
-        guard_check(self.args.guard_log,self.args.trip)
+        if self.failure: raise SmokeError(self.failure)
+        if time.monotonic()>=self.end:
+            self.cancel('deadline'); raise SmokeError('deadline')
+        try: guard_check(self.args.guard_log,self.args.trip)
+        except Exception:
+            self.cancel('guard'); raise SmokeError('guard')
 
     def watch(self):
         while not self.closed.wait(.25):
             try: self.check()
             except Exception:
-                self.cancel('guard/signal/deadline stopped smoke');return
+                self.cancel(self.failure or 'guard')
 
     def request(self, path, body=None):
         self.check()
         if path=='/v1/chat/completions': no_leases(self.args.coordination_db)
-        self.conn=http.client.HTTPConnection(HOST,PORT,timeout=5)
-        self.conn.connect();self.sock=self.conn.sock
-        self.sock.settimeout(min(60,max(.1,self.end-time.monotonic())))
-        self.conn.request('GET' if body is None else 'POST',path,
-                          body=None if body is None else json.dumps(body),
-                          headers={'Authorization':'Bearer '+self.token,'Content-Type':'application/json'})
-        response=self.conn.getresponse()
-        self.sock=self.conn.sock or getattr(getattr(response.fp,'raw',None),'_sock',None)
+        with self.lock:
+            self.check()
+            conn=http.client.HTTPConnection(HOST,PORT,timeout=5)
+            self.conn=conn
+        conn.connect()
+        with self.lock:
+            self.sock=conn.sock
+            self.check()  # Trips/signals during connect cannot send a request.
+            self.sock.settimeout(min(60,max(.1,self.end-time.monotonic())))
+            self.check()  # Serialize the final gate/send against cancellation.
+            conn.request('GET' if body is None else 'POST',path,
+                         body=None if body is None else json.dumps(body),
+                         headers={'Authorization':'Bearer '+self.token,'Content-Type':'application/json'})
+        response=conn.getresponse()
+        with self.lock:
+            self.sock=conn.sock or getattr(getattr(response.fp,'raw',None),'_sock',None)
+            self.check()
         return response
 
     def count(self, body):
@@ -107,27 +159,31 @@ class Smoke:
         request['add_generation_prompt']=True
         response=self.request('/tokenize',request)
         raw=response.read();response.close();self.cancel()
+        if response.status!=200: raise SmokeError('tokenizer_http_status')
         value=json.loads(raw).get('count')
-        if response.status!=200 or type(value) is not int or value<=0:
-            raise RuntimeError('exact facade tokenizer refused')
+        if type(value) is not int or value<=0:
+            raise SmokeError('exact facade tokenizer refused')
         return value
 
-    def snapshot(self, name, idle=True):
-        self.check();no_leases(self.args.coordination_db)
-        record=audit();write(self.args.out/(name+'.audit.json'),record)
+    def snapshot(self, name, idle=True, cleanup=False):
+        if not cleanup: self.check()
+        no_leases(self.args.coordination_db)
+        remaining=(self.cleanup_end if cleanup else self.end)-time.monotonic()
+        if remaining<=0: raise SmokeError('observer_deadline')
+        record=audit(timeout=min(8,remaining));write(self.args.out/(name+'.audit.json'),record)
         result=validate_audit(record,self.args.facade_sha256,self.args.alias_sha256)
-        if idle and (result['running'] or result['waiting']):raise RuntimeError('engine not idle')
+        if idle and (result['running'] or result['waiting']):raise SmokeError('engine not idle')
         return result
 
     def stream(self, body, name, cancel_owned=False):
         count=self.count(body)
-        if count+BUDGET+32>WINDOW:raise RuntimeError('smoke request would exceed exact headroom')
+        if count+BUDGET+32>WINDOW:raise SmokeError('smoke request would exceed exact headroom')
         write(self.args.out/(name+'.request.json'),body)
         rec={'content':'','reasoning':'','done':False,'finish_reason':None,'prompt_tokens_exact':count,'reserved_output':BUDGET}
         response=self.request('/v1/chat/completions',body)
         started=time.monotonic()
         try:
-            if response.status!=200:raise RuntimeError('facade rejected reserved-output smoke')
+            if response.status!=200:raise SmokeError('facade rejected reserved-output smoke')
             with (self.args.out/(name+'.sse')).open('wb') as wire:
                 while True:
                     self.check();line=response.readline();wire.write(line);wire.flush()
@@ -137,7 +193,7 @@ class Smoke:
                         if cancel_owned and (rec['reasoning'] or rec['content']):
                             running=self.snapshot('cancel-active',idle=False)
                             if running['running']!=1 or running['waiting']!=0:
-                                raise RuntimeError('owned cancellation not demonstrated: no sole running request')
+                                raise SmokeError('owned cancellation not demonstrated: no sole running request')
                             rec['cancelled_while_running']=True
                             self.cancel();break
                         if rec['done']:break
@@ -146,29 +202,38 @@ class Smoke:
             write(self.args.out/(name+'.result.json'),rec)
         return rec
 
-    def drain(self):
-        until=min(self.end,time.monotonic()+20)
+    def drain(self, cleanup=False):
+        until=min(self.cleanup_end if cleanup else self.end,time.monotonic()+20)
+        prefix='cleanup-drain-' if cleanup else 'cancel-drain-'
         samples=0
         while time.monotonic()<until:
-            record=self.snapshot('cancel-drain-'+str(samples),idle=False);samples+=1
+            record=self.snapshot(prefix+str(samples),idle=False,cleanup=cleanup);samples+=1
             if record['running']==0 and record['waiting']==0:
                 time.sleep(1)
-                self.snapshot('cancel-drain-confirm')
-                return {'idle_samples':2,'samples':samples+1}
+                confirmed=self.snapshot(prefix+'confirm',cleanup=cleanup)
+                return {'idle_samples':2,'samples':samples+1,'success':confirmed['success']}
             time.sleep(1)
-        raise RuntimeError('cancelled owned request failed to drain in20s')
+        raise SmokeError('cancelled owned request failed to drain in20s')
 
 
 def run(args):
-    if args.trip!=Path(str(args.guard_log)+'.tripped'):raise RuntimeError('trip path mismatch')
+    if args.trip!=Path(str(args.guard_log)+'.tripped'):raise SmokeError('trip path mismatch')
     # Existing backend interface: Linux caller unit supplies its existing EnvironmentFile.
     # No credential file read, shell export, token argument, header dump or token logging.
-    token=Backend('am4-vllm',f'http://{HOST}:{PORT}','openai',auth_env='AM4_VLLM_TOKEN').token()
-    if not token:raise RuntimeError('AM4_VLLM_TOKEN is absent from the caller environment')
+    backend=load_pool().by_name('am4-vllm')
+    if not backend or backend.endpoint.rstrip('/')!=f'http://{HOST}:{PORT}' or backend.auth_env!='AM4_VLLM_TOKEN':
+        raise SmokeError('backend_endpoint_or_auth_drift')
+    token=backend.token()
+    if not token:raise SmokeError('AM4_VLLM_TOKEN is absent from the caller environment')
+    if any(not re.fullmatch(r'[0-9a-f]{64}',getattr(args,k,'')) for k in ['facade_sha256','alias_sha256']):
+        raise SmokeError('invalid_sha256_argument')
     args.out.mkdir(parents=True,exist_ok=False)
     result={'status':'failed','caller':'codex','endpoint':f'http://{HOST}:{PORT}',
             'reserved_output':BUDGET,'generated_budget_claim':False,'qualification':False,
-            'driver_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+            'driver_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+            'helper_sha256':{str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in [
+                Path(__file__).with_name('bench27_am4_probe.py'), Path(__file__).with_name('bench27_am4_report.py'),
+                Path(__file__).resolve().parents[2]/'hearth/toolsurface/backends.py']}}
     smoke=Smoke(args,token);handlers={s:signal.signal(s,lambda *_:smoke.cancel('operator signal')) for s in [signal.SIGTERM,signal.SIGINT]}
     try:
         result['stage']='preflight'
@@ -176,42 +241,33 @@ def run(args):
         short=request_body('What is 17 times 19? Think briefly, then give only the integer.')
         result['stage']='short-reasoning-reservation'
         rec=smoke.stream(short,'short')
-        usage=rec.get('usage') or {}
-        if (not rec['done'] or rec['finish_reason']!='stop' or rec['content'].strip()!='323'
-                or not rec['reasoning'].strip() or any(t in rec['content'] for t in ['<think>','</think>'])
-                or usage.get('prompt_tokens')!=rec['prompt_tokens_exact']
-                or type(usage.get('completion_tokens')) is not int or not 0<usage['completion_tokens']<=BUDGET
-                or type((usage.get('completion_tokens_details') or {}).get('reasoning_tokens')) is not int
-                or not 0<usage['completion_tokens_details']['reasoning_tokens']<=usage['completion_tokens']):
-            raise RuntimeError('short reasoning/reservation smoke failed')
+        usage=validate_short(rec)
         result['short_usage']=usage
         after=smoke.snapshot('after-short')
-        if after['success']-before['success']!=1:raise RuntimeError('short counter ownership mismatch')
+        if after['success']-before['success']!=1:raise SmokeError('short counter ownership mismatch')
         result['stage']='exact-overflow'
-        overflow=request_body('x '*20000)
-        for _ in range(5):
-            count=smoke.count(overflow)
-            if count+BUDGET+32>WINDOW:break
-            overflow['messages'][0]['content']*=2
-        else:raise RuntimeError('could not construct exact overflow')
+        overflow,count=make_overflow(smoke.count)
         write(args.out/'overflow.request.json',overflow)
         response=smoke.request('/v1/chat/completions',overflow);raw=response.read(100000);response.close();smoke.cancel()
         write(args.out/'overflow.result.json',{'status':response.status,'prompt_tokens_exact':count,'budget':BUDGET,'headroom':32,'body':raw.decode()})
-        if response.status!=400 or b'exceeds context' not in raw:raise RuntimeError('exact overflow not refused for context')
+        validate_overflow(response.status,raw,count)
         after_overflow=smoke.snapshot('after-overflow')
-        if after_overflow['success']!=after['success']:raise RuntimeError('overflow reached inference or foreign success')
+        if after_overflow['success']!=after['success']:raise SmokeError('overflow reached inference or foreign success')
         result['stage']='owned-cancel-drain'
         rec=smoke.stream(request_body('List the integers from1 through100000, one per line. Continue until the list is complete.'),'cancel',True)
-        if not rec.get('cancelled_while_running'):raise RuntimeError('owned cancellation not demonstrated')
+        if not rec.get('cancelled_while_running'):raise SmokeError('owned cancellation not demonstrated')
         result['drain']=smoke.drain()
+        if result['drain']['success']!=after_overflow['success']: raise SmokeError('cancel_success_counter_changed')
         result['status']='smoke_passed_not_qualified'
     except Exception as exc:
-        result['error_type']=type(exc).__name__  # Never serialize exception/header/token text.
+        result['error_type']=type(exc).__name__
+        result['error_code']=exc.code if isinstance(exc,SmokeError) else 'external_'+type(exc).__name__
     finally:
         smoke.cancel()
         if 'drain' not in result:
-            try: result['cleanup_drain']=smoke.drain()
+            try: result['cleanup_drain']=smoke.drain(cleanup=True)
             except Exception: result['cleanup_drain']='unconfirmed; parent must retain hold and inspect engine counters'
+        result['stop_reason']=smoke.failure
         smoke.closed.set();smoke.watcher.join(1)
         for sig,handler in handlers.items():signal.signal(sig,handler)
         write(args.out/'summary.json',result)

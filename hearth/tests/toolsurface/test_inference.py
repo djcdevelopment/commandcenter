@@ -756,6 +756,23 @@ class DeliberationParameterTests(TestCase):
         with self.assertRaises(ValueError):
             local_generate("", messages=[])
 
+    def test_plain_schema_stream_keeps_thinking_off_and_preserves_schema(self) -> None:
+        from hearth.toolsurface.inference import _generate_openai, _Target
+        schema = {"type": "object", "properties": {"answer": {"type": "string"}}, "required": ["answer"]}
+        target = _Target("http://127.0.0.1:1", "openai", None, None, None, "test", "pinned", "available",
+                         {"structured_outputs": True, "chat_template_kwargs": {"enable_thinking": True}})
+        events = [_delta(content='{"answer":"done"}'), _FINISH, _USAGE]
+        with patch("urllib.request.urlopen", return_value=_FakeStream(events)) as send:
+            result = _generate_openai(target, "final report", "model", None, 128, 10,
+                                      response_schema=schema, stream=True, thinking=False, should_stop=lambda: False)
+        body = json.loads(send.call_args[0][0].data)
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(json.loads(result["text"]), {"answer": "done"})
+        self.assertEqual(body["messages"], [{"role": "user", "content": "final report"}])
+        self.assertIs(body["chat_template_kwargs"]["enable_thinking"], False)
+        self.assertTrue(body["stream"])
+        self.assertEqual(body["response_format"]["json_schema"]["schema"], schema)
+
     def test_stream_reads_reasoning_then_content_and_usage(self) -> None:
         events = [_delta(reasoning="think "), _delta(reasoning="hard"), _delta(content="42"),
                   _FINISH, _USAGE]

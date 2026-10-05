@@ -2,6 +2,8 @@
 
 A caller supplies a `brief.v2`; the model returns `summary` and `sections` with paragraph `text` and `quotes`. The renderer stores a `delivery.v1` manifest and a report. Local-work candidates stop at `awaiting_review`. Read the complete report against the pinned source before recording an acceptance or rejection: deterministic success establishes form and reference resolution, not substance.
 
+`work.produce` uses interruptible OpenAI-compatible streaming with thinking disabled, including plain, schema-constrained, repair and revision calls. `cancel_execution` signals the stream to close and releases the execution lease when the call exits; the cancelled result cannot become a candidate. Non-OpenAI work providers refuse instead of using an uncancellable request. A thermal guard must still verify job/lease drain before restoring or restarting a seat.
+
 ## Brief options
 
 This fragment selects numbered-source references and a 6,000-token output budget; retain the complete substance criteria and pinned sources in the surrounding brief:

@@ -997,6 +997,61 @@ class DoorLaneFamilyRoutingTest(_ServiceFixture):
         self.assertNotIn("family_recommendation", result)
 
 
+class WorkProduceCancellationTest(_ServiceFixture):
+    def test_plain_and_schema_work_cancel_during_generation_and_release_capacity(self):
+        for schema in (None, {"type": "object", "properties": {"answer": {"type": "string"}}}):
+            with self.subTest(schema=schema):
+                started, saw_stop = threading.Event(), threading.Event()
+                calls = []
+                def generate(**kwargs):
+                    calls.append(kwargs)
+                    started.set()
+                    deadline = time.monotonic() + 2
+                    while time.monotonic() < deadline:
+                        if kwargs["should_stop"]():
+                            saw_stop.set()
+                            return {"ok": False, "text": "partial", "error_code": "stream_cancelled",
+                                    "error": "cancelled", "backend": kwargs["backend"]}
+                        time.sleep(.01)
+                    return {"ok": False, "error": "test timed out without cancellation"}
+                service = self.service(generate)
+                args = {"prompt": "write the final report", "backend": "test-provider"}
+                if schema is not None:
+                    args["response_schema"] = schema
+                submitted = service.submit(operation_name="work.produce", arguments=args,
+                                           principal=self.principal, source=self.source,
+                                           policy={"max_tokens": 128, "deadline_s": 10})
+                self.assertTrue(started.wait(2))
+                self.assertEqual(service.leases.active_count("provider:test-provider"), 1)
+                service.cancel(submitted["job_id"])
+                self.assertTrue(saw_stop.wait(1), "generation did not observe cancellation")
+                final = self.wait_final(service, submitted["job_id"])
+                self.assertEqual(final["status"], "cancelled")
+                self.assertEqual(final["invocations"][0]["error_code"], "stream_cancelled")
+                deadline = time.monotonic() + 1
+                while service.leases.active_count("provider:test-provider") and time.monotonic() < deadline:
+                    time.sleep(.01)
+                self.assertEqual(service.leases.active_count("provider:test-provider"), 0)
+                self.assertTrue(calls[0]["stream"])
+                self.assertIs(calls[0]["thinking"], False)
+                self.assertEqual(calls[0]["prompt"], args["prompt"])
+                self.assertEqual(calls[0].get("response_schema"), schema)
+                service.close()
+
+    def test_non_streaming_provider_is_refused_without_generating(self):
+        self.backends_path.write_text(_BACKENDS.replace('api = "openai"', 'api = "ollama"'))
+        calls = []
+        service = self.service(lambda **kwargs: calls.append(kwargs))
+        submitted = service.submit(operation_name="work.produce",
+                                   arguments={"prompt": "candidate", "backend": "test-provider"},
+                                   principal=self.principal, source=self.source,
+                                   policy={"max_tokens": 128, "deadline_s": 10})
+        final = self.wait_final(service, submitted["job_id"])
+        self.assertEqual(final["status"], "failed")
+        self.assertEqual(calls, [])
+        self.assertIn("streaming backend for cancellation", final["reason"])
+
+
 class DeliberateOperationTest(_ServiceFixture):
     """inference.deliberate: validated, admitted against the backend's declaration, recorded on every outcome."""
 

@@ -1120,6 +1120,14 @@ class ExecutionService:
                 # A cancel closes the stream, so the seat stops generating and the lease is released.
                 call_arguments.update(prompt="", messages=messages, stream=True,
                                       should_stop=lambda: self._is_cancelled(job_id))
+            elif operation.name == "work.produce":
+                # Final/repair/revision calls must be interruptible too: otherwise a thermal
+                # guard only discards their eventual result while the card keeps generating.
+                # The primitive supports both plain prompts and response_schema on this path.
+                if provider.api != "openai":
+                    raise ExecutionServiceError("work.produce requires an OpenAI-compatible streaming backend for cancellation")
+                call_arguments.update(stream=True, thinking=False,
+                                      should_stop=lambda: self._is_cancelled(job_id))
             # task_family reaches the provider as evidence, not as a second
             # route: THIS service already consulted the family above and pinned
             # the rung it chose (backend=provider.name), which the primitive
@@ -1136,6 +1144,9 @@ class ExecutionService:
             observed = self._result_observed(
                 result, routed_by=family_routed_by, deliberate=deliberate,
                 requested=policy.max_tokens)
+            if operation.name == "work.produce":
+                observed.update({key: result[key] for key in
+                                 ("error_code", "thinking", "finish_reason", "stream_chunks") if key in result})
             # Before the cancellation check: a cancelled turn still spent the seat, so its record is kept.
             deliberate_artifacts = (
                 self._record_deliberate_artifacts(state, invocation_id, job_id, result)
@@ -1145,7 +1156,7 @@ class ExecutionService:
                     "invocation.cancelled",
                     state,
                     invocation_id=invocation_id,
-                    observed=observed if deliberate else None,
+                    observed=observed if deliberate or operation.name == "work.produce" else None,
                     reason="result discarded after cancellation",
                 )
                 self._append("job.cancelled", state, reason="cancelled during execution")

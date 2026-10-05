@@ -139,6 +139,18 @@ class PairedTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             member.wait_drained(0)
 
+    def test_single_unknown_foreign_counter_is_void(self):
+        member = exp.Experiment({'id': 'single-unknown', 'seat': 0, 'dropin': None})
+        member.preflight = Mock()
+        member.acquire = Mock()
+        member.take_snapshot = Mock(side_effect=lambda: member.save(resident={'recorded': True}))
+        member.swap = Mock()
+        member.campaign = Mock(side_effect=lambda: member.save(campaign_rc=0, calls_reported=1, foreign_requests=None))
+        member.restore = Mock()
+        member.release = Mock()
+        self.assertEqual(member.run(), 1)
+        self.assertEqual(member.state['outcome'], 'void')
+
     def test_single_spec_remains_compatible(self):
         single = exp.Experiment({'id': 'single', 'seat': 0, 'dropin': None})
         self.assertEqual(single.foreign_requests({'success': 2}, {'success': 5}, 3), 0)

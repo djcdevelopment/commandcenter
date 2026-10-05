@@ -526,7 +526,7 @@ class Experiment:
             self.swap()
             self.campaign()
             outcome = "succeeded" if self.state.get("campaign_rc") == 0 else ("model_failed" if self.state.get("campaign_rc") == 4 else "failed")
-            if (self.state.get("foreign_requests") or self.state.get("calls_reported") is None
+            if (self.state.get("foreign_requests") is None or self.state.get("foreign_requests") or self.state.get("calls_reported") is None
                     or self.state.get("tenancy_renew_failures")):
                 outcome = "void"   # the seat saw requests the campaign did not make (or cannot tell), or the fence lapsed
         except (Exception, KeyboardInterrupt) as exc:  # noqa: BLE001 -- everything below still restores

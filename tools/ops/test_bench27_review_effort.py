@@ -21,6 +21,8 @@ class ReviewEffortTests(unittest.TestCase):
         self.assertEqual(row['worker_sum_minutes'],11)
         self.assertEqual(row['union_elapsed_minutes'],8)
         self.assertEqual(row['actor_minutes'],{'codex':6,'opus':5})
+        self.assertEqual(row['actor_minutes_per_accepted'],{'codex':6,'opus':5})
+        self.assertIn('heterogeneous',row['worker_sum_basis'])
         self.assertEqual(row['worker_minutes_per_accepted'],11)
         self.assertEqual(row['human_review']['status'],'unknown')
         self.assertEqual(row['manual_baseline']['status'],'unknown')
@@ -29,6 +31,7 @@ class ReviewEffortTests(unittest.TestCase):
     def test_zero_accepted_and_partial(self):
         data=fixture();data['deliveries'][0]['status']='rejected';data['cohorts'][0]['complete']=False
         row=calculate(data)['cohorts'][0]
+        self.assertEqual(row['actor_minutes_per_accepted'],{'codex':None,'opus':None})
         self.assertIsNone(row['worker_minutes_per_accepted']);self.assertEqual(row['coverage'],'partial')
         self.assertEqual(row['rate_status'],'undefined_zero_accepted')
         data['deliveries'][0]['status']='accepted'
@@ -43,6 +46,7 @@ class ReviewEffortTests(unittest.TestCase):
                    lambda d:d['cohorts'][0].pop('complete'),
                    lambda d:d['intervals'].pop(),
                    lambda d:d['cohorts'][0].update(manual_baseline={'minutes':70}),
+                   lambda d:d['cohorts'][0].update(manual_baseline={'minutes':10**1000,'evidence':'x'}),
                    lambda d:d['cohorts'][0].update(human_review={'minutes':float('nan'),'evidence':'x'})]
         for mutation in mutations:
             with self.subTest(mutation=mutation):

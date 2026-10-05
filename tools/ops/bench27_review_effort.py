@@ -42,8 +42,11 @@ def measured(value):
         return {'status': 'unknown', 'minutes': None}
     require(isinstance(value, dict), 'measurement must be an object')
     number = value.get('minutes')
-    require(type(number) in (int, float) and math.isfinite(number) and number >= 0
-            and text(value.get('evidence')), 'measurement needs finite minutes and evidence')
+    try:
+        valid = type(number) in (int, float) and math.isfinite(number) and number >= 0
+    except OverflowError:
+        valid = False
+    require(valid and text(value.get('evidence')), 'measurement needs finite minutes and evidence')
     return {'status': 'evidenced', 'minutes': number, 'evidence': value['evidence']}
 
 
@@ -109,6 +112,9 @@ def calculate(data):
                                 for state in ('accepted', 'rejected', 'failed')},
             'sessions': rows, 'actor_minutes': {actor: sum(row['minutes'] for row in rows if row['actor'] == actor)
                                                for actor in ('codex', 'opus')},
+            'actor_minutes_per_accepted': {actor: sum(row['minutes'] for row in rows if row['actor'] == actor)/accepted
+                                           if accepted else None for actor in ('codex', 'opus')},
+            'worker_sum_basis': 'heterogeneous sum: Codex active agent effort + Opus invocation wall duration',
             'worker_sum_minutes': worker, 'union_elapsed_minutes': elapsed,
             'rate_status': 'undefined_zero_accepted' if not accepted else ('complete' if complete else 'partial_observation'),
             'worker_minutes_per_accepted': worker/accepted if accepted else None,
@@ -125,7 +131,7 @@ def main():
     args = parser.parse_args()
     try:
         output = calculate(json.loads(args.input.read_text()))
-    except (ValueError, TypeError, KeyError, OSError) as exc:
+    except (ValueError, TypeError, KeyError, OSError, OverflowError) as exc:
         parser.exit(2, f'invalid review-effort input: {exc}\n')
     print(json.dumps(output, indent=2, allow_nan=False))
 

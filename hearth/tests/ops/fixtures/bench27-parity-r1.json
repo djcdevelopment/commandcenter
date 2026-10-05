@@ -1,0 +1,576 @@
+{
+  "source": "/home/derek/work/lab-rnd/research/evidence/bench27-parity-20261005/r1",
+  "description": "Read-only projection of real r1 measurements and exact visible output bytes; prompt/source messages omitted. No grades.",
+  "seats": {
+    "seat-0": {
+      "run": {
+        "schema": "thinking-run.v1",
+        "context_tokens": 65536,
+        "registry_sha256": "fcc348a163ca4446f166821feb87f2a7e4e9844c363b60ee34f79f0bbf24d3bb",
+        "backend": "omen-dense-27b",
+        "arm": "parity-r1",
+        "workload": {
+          "path": "/home/derek/work/lab-rnd/research/evidence/qwen38-levers-20261003/sizing-workload.json",
+          "id": "sizing-work24k-t0",
+          "sha256": "0f65fd1977ded2217bd1f35fd918447c1c983b93f2e82c9b3f9aabbce2fb750d"
+        },
+        "declared_models": [
+          "qwen3.8-27b"
+        ],
+        "model_override": null,
+        "dry_run": false,
+        "concurrency": 1,
+        "started_utc": "2026-10-05T07:49:40Z",
+        "finished_utc": "2026-10-05T07:52:54Z",
+        "seconds_total": 194.5,
+        "observed_context_tokens": 65536,
+        "declared_context_tokens": 65536,
+        "context_mismatch": false,
+        "wire_equal_all": true,
+        "ok": true,
+        "foreign_requests_possible": 0,
+        "seat_counters_delta": {
+          "num_preemptions_total": 0.0,
+          "running": 0.0,
+          "waiting": 0.0,
+          "prompt_tokens_total": 50071.0,
+          "generation_tokens_total": 9003.0,
+          "prefill_seconds_sum": 30.381,
+          "decode_seconds_sum": 161.489,
+          "request_success_total": 2.0,
+          "request_success": {
+            "stop": 2.0,
+            "length": 0.0,
+            "abort": 0.0,
+            "error": 0.0,
+            "repetition": 0.0
+          }
+        },
+        "stack": {
+          "packages": [
+            {
+              "Name": "vllm",
+              "Version": "0.30.0+xpu"
+            },
+            {
+              "Name": "vllm-xpu-kernels",
+              "Version": "0.1.14.1"
+            },
+            {
+              "Name": "torch",
+              "Version": "2.13.0+xpu"
+            },
+            {
+              "Name": "triton",
+              "Version": "3.7.2+xpu"
+            },
+            {
+              "Name": "triton-xpu",
+              "Version": "3.7.2"
+            }
+          ],
+          "file_sha256": {
+            "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/platforms/xpu.py": "3736e6cba2a0d78b9bd93f6069f610e2b2725be00f398a6ad5672a9862d66285",
+            "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/engine/arg_utils.py": "ead004ca266419cd25f54a7aefc0e20e1eb046f363b7f5cc977e14f52ee44bb1",
+            "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/config/cache.py": "f1c226ba679c884930dbfcaf41a57248b137a9a20d3ed8e3d3b31752bb484c07",
+            "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/config/vllm.py": "956b812e5a719bcbfa3a3958801361b38b9c928c96b8c073311bbb96376dfb7a",
+            "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/config/scheduler.py": "822179da62be4bca0619c8590082ae09123f5c4415f9cc2037be673748239edb",
+            "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/config/speculative.py": "9c642a87264339c0dbc1d0b57330572149df0f9d5e16c6893b9895e50a619e19",
+            "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/_xpu_ops.py": "4db00df212d772601fe59272cf8d4d0822ec8ef7bad219100c978943a7daf37b",
+            "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/attention/backends/flash_attn.py": "b170a4789e18104c1bee35bea70df51abe6766693d8f4726a59f2e6f5c4282aa",
+            "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/attention/backends/triton_attn.py": "1057663d110e1d5229495a799027b27277c1eca325d5b6780fa2259afbf58a1a",
+            "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/attention/ops/triton_unified_attention.py": "65d0fbcf33d00789df8ca688c0a1c908e710cfaef53471178747ecae11f05829",
+            "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py": "b80f8e6f3fff442fb880aebb3209c52f814f66490009f4ac4003de603576d10a",
+            "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/model_executor/layers/mamba/mamba_utils.py": "ce9845b4a4ef4bc46577a33038ed69d59ceccb52f30e9c5bdaa36e48be3b2ca4",
+            "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/model_executor/models/qwen3_5.py": "3abeac36180df7bd1bd96b1a7c698a8f212d92c063026420cbdd16d1980e90e6",
+            "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/core/kv_cache_manager.py": "58800535eda854580d84e1025bf32fe01b2a43ce0bba501b4f3d125e4f2c8afa",
+            "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/core/kv_cache_coordinator.py": "bf342f79f2bc8d6acb69d3becefb334509e84cae888d42bbd421a8dc8ca9eca3",
+            "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/core/single_type_kv_cache_manager.py": "0233531d85aeced9e57a38c76d83db970519c92902b7e55484390cb2b64985bf",
+            "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/config.py": "aea82e60889e78dcad8564ec8285b65a6a372824a1545a98ea8e78b6f4fd418a",
+            "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/worker.py": "acc2df53262441dfc6421a3af7f0cbd68cbfaedbd42bbc384d8e1da2d965d194",
+            "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/kv_offload/cpu/gpu_worker.py": "c10d4fc17bc46ed0a2f557203f4eb63c0332da0af0c619a2f0b904bae5ea5037",
+            "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/config.json": "580f5caae29242b242d3bcab2ad5b8a942fc0a59df1d228bd2b3233cfc760372",
+            "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/quantize_config.json": "ecbdecd64057569d9ab8e74c68eb329776e682d44746ff7b82bba6fcb0e157db",
+            "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/generation_config.json": "d0d0ed2e37cdfafef4a5067d5ea2407b05f4fb50526e47c008a5b235d50240fb",
+            "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/chat_template.jinja": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041",
+            "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/tokenizer.json": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+            "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/tokenizer_config.json": "c5528e605ca971b6afeb2cb0025fd21244650e6fc7739808c581c6d5cdb70aa3",
+            "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/model.safetensors.index.json": "d511a969b32a16f1890326dadd4d04039779cebce7458b8e5d2ce7f3ce2550ed",
+            "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/README.md": "90e9ebad722c43a7b3c25294f7a4cdcfc54db509e596725e819911c64f428bdf",
+            "/home/derek/.config/systemd/user/omen-vllm@0.service.d/max-num-seqs.conf": "0c4a3714d39356f3588807e5034561b1f8dcbb2025514cd9574459d22171c8db",
+            "/home/derek/.config/systemd/user/omen-vllm@0.service.d/stage0-recipe.conf": "17878149e82b72e1abdc61ec11a038922b6785c283e4314ac0e0223b0adc96c9",
+            "/home/derek/.config/systemd/user/omen-vllm@0.service.d/stage2-27b-mtp.conf": "21378fa906d0a4865d5170a9d0daf78f7550c8450d9520c1cb81f9dae19e8364",
+            "/home/derek/.config/systemd/user/omen-vllm@0.service.d/stage2b-batched.conf": "40d6f82b111e69ea92e544382103610f5fd9bb43d4241f7adc13346af7ce121e",
+            "/home/derek/.config/systemd/user/omen-vllm@0.service.d/stage2d-prefix-unit.conf": "1adaff9717c28314c6f965e62ae5aa6a6cbc90fd42da5c65f3257a077cf6767d",
+            "/home/derek/bin/start-vllm-seat.sh": "0665331738883c8c503a399d07a7a2a0a04538e2c5b06476bf4e204081ffcd7f"
+          }
+        },
+        "conversations": [
+          {
+            "conversation": 1,
+            "ok": true,
+            "failure": null,
+            "seconds_total": 194.4,
+            "final_skipped": null,
+            "work": {
+              "status": "succeeded",
+              "reason": null,
+              "seconds": 170.3,
+              "observed": {
+                "finish_reason": "stop",
+                "thinking": true,
+                "tokens_in": 24521,
+                "tokens_out": 8629,
+                "tokens_reasoning": 7926,
+                "max_tokens_requested": 24000,
+                "max_tokens_applied": 24000,
+                "first_reasoning_ms": 15120,
+                "first_content_ms": 158536,
+                "stream_chunks": 3164,
+                "duration_ms": 170143,
+                "backend": "omen-dense-27b",
+                "model": "qwen3.8-27b",
+                "error_code": null
+              },
+              "wire_equal": true,
+              "wire_mismatch": [],
+              "artifacts": {
+                "output": {
+                  "artifact_id": "art_98e60e586fc8b718cf5912dfa2f66613",
+                  "sha256": "44199fc652d018e1d61bc43408d6ee92ae5673c4821f66356744b8746c3f391e",
+                  "bytes": 2184,
+                  "recorded": "44199fc652d018e1d61bc43408d6ee92ae5673c4821f66356744b8746c3f391e"
+                }
+              }
+            },
+            "final": {
+              "status": "succeeded",
+              "reason": null,
+              "seconds": 23.7,
+              "observed": {
+                "finish_reason": "stop",
+                "thinking": false,
+                "tokens_in": 25550,
+                "tokens_out": 374,
+                "tokens_reasoning": 0,
+                "max_tokens_requested": 4096,
+                "max_tokens_applied": 4096,
+                "first_reasoning_ms": null,
+                "first_content_ms": 17365,
+                "stream_chunks": 132,
+                "duration_ms": 23411,
+                "backend": "omen-dense-27b",
+                "model": "qwen3.8-27b",
+                "error_code": null
+              },
+              "wire_equal": true,
+              "wire_mismatch": [],
+              "artifacts": {
+                "output": {
+                  "artifact_id": "art_8b0b45f7987857d471c4c253505f467f",
+                  "sha256": "c1ee357232e58c519ca349261777d7aa0a671ab881908186cf6429778968093b",
+                  "bytes": 1508,
+                  "recorded": "c1ee357232e58c519ca349261777d7aa0a671ab881908186cf6429778968093b"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "texts": {
+        "work": "\n\nVerified notes:\n- TOML day: omen-dense-27b live ctx 65536 slots 2 max 16384 (17); omen-perception live slots 2, no ctx/max (22). tool-night same (32,37).\n- Day live: omen-vllm, omen-dense-27b, am4-vllm, fx99-vllm, omen-perception (16-22); absent am4-tool-4070ti/5070 (19-20). Tool-night: am4-vllm absent (33); am4-tool-4070ti/5070 live (34-35); others unchanged (31,32,36,37).\n- sizing_map collect_configurations reads host/lab-configurations.toml (472-477); emits status, and for live backends ctx/slots/max_tokens (483-489).\n- Invariants use active configuration only (663-683); without --live it is unprobed and skipped (505-507, 665). They check live serving (685-709), absent not routable (711-726), families not absent (728-760). No direct day-vs-tool-night comparison or lab-config value-to-seat-window check.\n- AM4 profile aliases: dense-tp2 -> am4-dense-27b, tool-pair -> am4-tool-4070ti/5070 (355); invariant checks active profile aliases (615-631).\n- Perception invariant checks backends pool images_per_second/max_image_bytes (645-653), not lab-config parallel_slots.\n\nReport:\nhost/lab-configurations.toml declares day and tool-night. In day, omen-dense-27b is live with context_tokens 65536, parallel_slots 2, max_tokens 16384; omen-perception is live with parallel_slots 2 and no context_tokens or max_tokens. tool-night declares the same values for both.\n\nThe comparison with sizing_map.py shows it records those sizing parameters for live backends, but its configuration invariants do not compare day with tool-night or compare lab-config values to seat windows. They act only on the active configuration; without live probes that configuration is unprobed, so the configuration invariants are skipped. AM4 profile aliases tie dense-tp2 to am4-dense-27b and tool-pair to am4-tool-4070ti/am4-tool-5070. The perception invariant checks the backends pool's images_per_second and max_image_bytes, not the lab config's parallel_slots.\n\nFrom day to tool-night, three backends change status: am4-vllm changes live to absent; am4-tool-4070ti changes absent to live; am4-tool-5070 changes absent to live. omen-vllm, omen-dense-27b, fx99-vllm, and omen-perception remain live.",
+        "final": "{\n  \"sections\": [\n    {\n      \"heading\": \"Configuration comparison\",\n      \"paragraphs\": [\n        {\n          \"quotes\": [\n            \"omen-dense-27b = { status = \"\n          ],\n          \"text\": \"The report compares the backends declared under configuration.day and configuration.tool-night in host/lab-configurations.toml against the sizing parameters and invariants in tools/ops/sizing_map.py.\"\n        }\n      ]\n    },\n    {\n      \"heading\": \"Declared values\",\n      \"paragraphs\": [\n        {\n          \"quotes\": [\n            \"omen-dense-27b = { status = \"\n          ],\n          \"text\": \"The report states context_tokens, parallel_slots and max_tokens for omen-dense-27b and omen-perception in both configurations.\"\n        }\n      ]\n    },\n    {\n      \"heading\": \"Backend changes\",\n      \"paragraphs\": [\n        {\n          \"quotes\": [\n            \"am4-vllm = { status = \"\n          ],\n          \"text\": \"The report identifies which backends change between live and absent when the lab moves from day to tool-night.\"\n        }\n      ]\n    }\n  ],\n  \"summary\": \"The report compares the backends declared under configuration.day and configuration.tool-night in host/lab-configurations.toml against the sizing parameters and invariants in tools/ops/sizing_map.py. The report states context_tokens, parallel_slots and max_tokens for omen-dense-27b and omen-perception in both configurations. The report identifies which backends change between live and absent when the lab moves from day to tool-night.\"\n}"
+      },
+      "wire": {
+        "work": {
+          "model": "qwen3.8-27b",
+          "temperature": 0.0,
+          "seed": 42,
+          "top_p": 0.95,
+          "max_tokens": 24000,
+          "chat_template_kwargs": {
+            "enable_thinking": true
+          }
+        },
+        "final": {
+          "model": "qwen3.8-27b",
+          "temperature": 0.0,
+          "seed": 42,
+          "max_tokens": 4096,
+          "chat_template_kwargs": {
+            "enable_thinking": false
+          }
+        }
+      }
+    },
+    "seat-1": {
+      "run": {
+        "schema": "thinking-run.v1",
+        "context_tokens": 65536,
+        "registry_sha256": "fcc348a163ca4446f166821feb87f2a7e4e9844c363b60ee34f79f0bbf24d3bb",
+        "backend": "omen-dense-27b-b",
+        "arm": "parity-r1",
+        "workload": {
+          "path": "/home/derek/work/lab-rnd/research/evidence/qwen38-levers-20261003/sizing-workload.json",
+          "id": "sizing-work24k-t0",
+          "sha256": "0f65fd1977ded2217bd1f35fd918447c1c983b93f2e82c9b3f9aabbce2fb750d"
+        },
+        "declared_models": [
+          "qwen3.8-27b"
+        ],
+        "model_override": null,
+        "dry_run": false,
+        "concurrency": 1,
+        "started_utc": "2026-10-05T07:49:40Z",
+        "finished_utc": "2026-10-05T07:53:28Z",
+        "seconds_total": 227.9,
+        "observed_context_tokens": 65536,
+        "declared_context_tokens": 65536,
+        "context_mismatch": false,
+        "wire_equal_all": true,
+        "ok": true,
+        "foreign_requests_possible": 0,
+        "seat_counters_delta": {
+          "num_preemptions_total": 0.0,
+          "running": 0.0,
+          "waiting": 0.0,
+          "prompt_tokens_total": 50026.0,
+          "generation_tokens_total": 10472.0,
+          "prefill_seconds_sum": 31.036,
+          "decode_seconds_sum": 194.256,
+          "request_success_total": 2.0,
+          "request_success": {
+            "stop": 2.0,
+            "length": 0.0,
+            "abort": 0.0,
+            "error": 0.0,
+            "repetition": 0.0
+          }
+        },
+        "stack": {
+          "status": "not_collected",
+          "reason": "local inspector covers only default seat"
+        },
+        "conversations": [
+          {
+            "conversation": 1,
+            "ok": true,
+            "failure": null,
+            "seconds_total": 227.7,
+            "final_skipped": null,
+            "work": {
+              "status": "succeeded",
+              "reason": null,
+              "seconds": 193.1,
+              "observed": {
+                "finish_reason": "stop",
+                "thinking": true,
+                "tokens_in": 24521,
+                "tokens_out": 9482,
+                "tokens_reasoning": 8824,
+                "max_tokens_requested": 24000,
+                "max_tokens_applied": 24000,
+                "first_reasoning_ms": 15412,
+                "first_content_ms": 182092,
+                "stream_chunks": 3599,
+                "duration_ms": 192996,
+                "backend": "omen-dense-27b-b",
+                "model": "qwen3.8-27b",
+                "error_code": null
+              },
+              "wire_equal": true,
+              "wire_mismatch": [],
+              "artifacts": {
+                "output": {
+                  "artifact_id": "art_ec13bf955a8e5faa0648af40b8a09ec4",
+                  "sha256": "dcf14882a9ec9ba6544f863fffc5edafd392ed0360e029ab7d88b5c25dc8b95a",
+                  "bytes": 2243,
+                  "recorded": "dcf14882a9ec9ba6544f863fffc5edafd392ed0360e029ab7d88b5c25dc8b95a"
+                }
+              }
+            },
+            "final": {
+              "status": "succeeded",
+              "reason": null,
+              "seconds": 34.3,
+              "observed": {
+                "finish_reason": "stop",
+                "thinking": false,
+                "tokens_in": 25505,
+                "tokens_out": 990,
+                "tokens_reasoning": 0,
+                "max_tokens_requested": 4096,
+                "max_tokens_applied": 4096,
+                "first_reasoning_ms": null,
+                "first_content_ms": 17686,
+                "stream_chunks": 341,
+                "duration_ms": 33938,
+                "backend": "omen-dense-27b-b",
+                "model": "qwen3.8-27b",
+                "error_code": null
+              },
+              "wire_equal": true,
+              "wire_mismatch": [],
+              "artifacts": {
+                "output": {
+                  "artifact_id": "art_573f7c1bfc6f45d2d6fb0004695a8bd1",
+                  "sha256": "e15b69b8955bc4fae9c18a327af86225f0062253ed1a511ede980eb28c27e57a",
+                  "bytes": 3468,
+                  "recorded": "e15b69b8955bc4fae9c18a327af86225f0062253ed1a511ede980eb28c27e57a"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "texts": {
+        "work": "\n\nVerified notes\n\n- TOML: day backends 15\u201322; tool-night 30\u201337. omen-dense-27b: 17, 32; omen-perception: 22, 37. Status changes: am4-vllm 18 live \u2192 33 absent; am4-tool-4070ti 19 absent \u2192 34 live; am4-tool-5070 20 absent \u2192 35 live.\n- sizing_map.py: collect_configurations 469\u2013510 reads all configurations (478\u2013489); live rows add context_tokens/parallel_slots/max_tokens (486\u2013487), absent rows status only (485).\n- Invariants 664\u2013760 use the active configuration only; expected live/absent from configuration rows (673\u2013683); live checks 685\u2013709, absent routability 711\u2013726, families 728\u2013760. Without --live, active configuration is unprobed (506), so active-config checks are skipped (665). AM4 alias mapping 355, 702, 720. No day-vs-tool-night diff; no comparison of configuration TOML numbers to backends-linux.toml.\n\nReport\n\nThis audit compares configuration.day and configuration.tool-night in host/lab-configurations.toml with tools/ops/sizing_map.py. The tool reads the named configurations from the TOML and records the declared sizing parameters: for live backends, status, context_tokens, parallel_slots, and max_tokens; for absent backends, status only. Its whole-lab invariants use only the active configuration to build expected live/absent sets and check live serving, absent routability, and family resolution; for AM4, am4-vllm is mapped to the am4-dense-27b facade alias. It does not directly diff day against tool-night, and it does not compare the TOML\u2019s declared numbers to backends-linux.toml.\n\nDeclared values: omen-dense-27b is live in both configurations with context_tokens 65536, parallel_slots 2, and max_tokens 16384. omen-perception is live in both with parallel_slots 2; context_tokens and max_tokens are not declared in either configuration.\n\nWhen the lab moves from day to tool-night, three backends change status: am4-vllm changes from live to absent, while am4-tool-4070ti and am4-tool-5070 change from absent to live. omen-vllm, omen-dense-27b, fx99-vllm, and omen-perception remain live. Under day, the active-configuration invariants would expect am4-vllm live and the two AM4 tool seats absent; under tool-night, they would expect the two AM4 tool seats live and am4-vllm absent.",
+        "final": "{\n  \"sections\": [\n    {\n      \"heading\": \"Configuration comparison\",\n      \"paragraphs\": [\n        {\n          \"quotes\": [\n            \"omen-dense-27b = { status = 'live', context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 }\",\n            \"omen-perception = { status = 'live', parallel_slots = 2 }\",\n            \"for bname, bspec in sorted(cspec.get('backends', {}).items()):\",\n            \"if st == 'live':\",\n            \"val += f' status={st} ctx={bspec.get('context_tokens')} slots={bspec.get('parallel_slots')} max_tokens={bspec.get('max_tokens')}'\"\n          ],\n          \"text\": \"The audit compares the backends declared under configuration.day and configuration.tool-night in host/lab-configurations.toml against the sizing parameters and invariants in tools/ops/sizing_map.py. The tool reads each named configuration's backends and, for live backends, records status, context_tokens, parallel_slots, and max_tokens; for absent backends it records status only. Its whole-lab invariants use only the active configuration to build expected live and absent sets and check live serving, absent routability, and family resolution; for AM4, am4-vllm is mapped to the am4-dense-27b facade alias. It does not directly diff day against tool-night, and it does not compare the TOML's declared numbers to backends-linux.toml.\"\n        }\n      ]\n    },\n    {\n      \"heading\": \"Declared values\",\n      \"paragraphs\": [\n        {\n          \"quotes\": [\n            \"omen-dense-27b = { status = 'live', context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 }\",\n            \"omen-perception = { status = 'live', parallel_slots = 2 }\"\n          ],\n          \"text\": \"In both configurations, omen-dense-27b is live with context_tokens 65536, parallel_slots 2, and max_tokens 16384. omen-perception is live in both with parallel_slots 2; context_tokens and max_tokens are not declared for it in either configuration.\"\n        }\n      ]\n    },\n    {\n      \"heading\": \"Status changes\",\n      \"paragraphs\": [\n        {\n          \"quotes\": [\n            \"am4-vllm = { status = 'live', context_tokens = 16384, parallel_slots = 1, max_tokens = 4096 }\",\n            \"am4-tool-4070ti = { status = 'absent' }\",\n            \"am4-tool-5070 = { status = 'absent' }\",\n            \"am4-vllm = { status = 'absent' }\",\n            \"am4-tool-4070ti = { status = 'live', context_tokens = 24576, parallel_slots = 3, max_tokens = 4096 }\",\n            \"am4-tool-5070 = { status = 'live', context_tokens = 16384, parallel_slots = 1, max_tokens = 6144 }\"\n          ],\n          \"text\": \"When the lab moves from day to tool-night, three backends change status: am4-vllm changes from live to absent, while am4-tool-4070ti and am4-tool-5070 change from absent to live. omen-vllm, omen-dense-27b, fx99-vllm, and omen-perception remain live. Under day, the active-configuration invariants would expect am4-vllm live and the two AM4 tool seats absent; under tool-night, they would expect the two AM4 tool seats live and am4-vllm absent.\"\n        }\n      ]\n    }\n  ],\n  \"summary\": \"The audit compares the day and tool-night whole-lab configurations in host/lab-configurations.toml with the sizing parameters and invariants in tools/ops/sizing_map.py. It reports the declared context_tokens, parallel_slots, and max_tokens for omen-dense-27b and omen-perception in both configurations, and identifies which backends change between live and absent when the lab moves from day to tool-night.\"\n}"
+      },
+      "wire": {
+        "work": {
+          "model": "qwen3.8-27b",
+          "temperature": 0.0,
+          "seed": 42,
+          "top_p": 0.95,
+          "max_tokens": 24000,
+          "chat_template_kwargs": {
+            "enable_thinking": true
+          }
+        },
+        "final": {
+          "model": "qwen3.8-27b",
+          "temperature": 0.0,
+          "seed": 42,
+          "max_tokens": 4096,
+          "chat_template_kwargs": {
+            "enable_thinking": false
+          }
+        }
+      }
+    }
+  },
+  "thermal": [
+    {
+      "utc": "2026-10-05T07:49:24Z",
+      "pid": 66983,
+      "card2": {
+        "vram_c": 46.0,
+        "pkg_c": 65.0,
+        "fan_rpm": 1368.0,
+        "energy_uj": 206084122253.0
+      },
+      "card3": {
+        "vram_c": 56.0,
+        "pkg_c": 54.0,
+        "fan_rpm": 843.0,
+        "energy_uj": 221425422363.0
+      },
+      "new_trips": []
+    },
+    {
+      "utc": "2026-10-05T07:49:44Z",
+      "pid": 66983,
+      "card2": {
+        "vram_c": 54.0,
+        "pkg_c": 50.0,
+        "fan_rpm": 1323.0,
+        "energy_uj": 207720095764.0
+      },
+      "card3": {
+        "vram_c": 62.0,
+        "pkg_c": 62.0,
+        "fan_rpm": 843.0,
+        "energy_uj": 223126085266.0
+      },
+      "new_trips": []
+    },
+    {
+      "utc": "2026-10-05T07:50:04Z",
+      "pid": 66983,
+      "card2": {
+        "vram_c": 70.0,
+        "pkg_c": 62.0,
+        "fan_rpm": 864.0,
+        "energy_uj": 212193398620.0
+      },
+      "card3": {
+        "vram_c": 74.0,
+        "pkg_c": 70.0,
+        "fan_rpm": 1260.0,
+        "energy_uj": 227703842346.0
+      },
+      "new_trips": []
+    },
+    {
+      "utc": "2026-10-05T07:50:24Z",
+      "pid": 66983,
+      "card2": {
+        "vram_c": 80.0,
+        "pkg_c": 69.0,
+        "fan_rpm": 1176.0,
+        "energy_uj": 216629226623.0
+      },
+      "card3": {
+        "vram_c": 80.0,
+        "pkg_c": 74.0,
+        "fan_rpm": 1626.0,
+        "energy_uj": 232304504577.0
+      },
+      "new_trips": []
+    },
+    {
+      "utc": "2026-10-05T07:50:44Z",
+      "pid": 66983,
+      "card2": {
+        "vram_c": 86.0,
+        "pkg_c": 72.0,
+        "fan_rpm": 1521.0,
+        "energy_uj": 221115664855.0
+      },
+      "card3": {
+        "vram_c": 84.0,
+        "pkg_c": 75.0,
+        "fan_rpm": 1834.0,
+        "energy_uj": 236904077453.0
+      },
+      "new_trips": []
+    },
+    {
+      "utc": "2026-10-05T07:51:04Z",
+      "pid": 66983,
+      "card2": {
+        "vram_c": 92.0,
+        "pkg_c": 74.0,
+        "fan_rpm": 1737.0,
+        "energy_uj": 225634979919.0
+      },
+      "card3": {
+        "vram_c": 88.0,
+        "pkg_c": 76.0,
+        "fan_rpm": 1923.0,
+        "energy_uj": 241504129882.0
+      },
+      "new_trips": []
+    },
+    {
+      "utc": "2026-10-05T07:51:24Z",
+      "pid": 66983,
+      "card2": {
+        "vram_c": 96.0,
+        "pkg_c": 75.0,
+        "fan_rpm": 1828.0,
+        "energy_uj": 230169472900.0
+      },
+      "card3": {
+        "vram_c": 90.0,
+        "pkg_c": 77.0,
+        "fan_rpm": 2005.0,
+        "energy_uj": 246104224853.0
+      },
+      "new_trips": []
+    },
+    {
+      "utc": "2026-10-05T07:51:44Z",
+      "pid": 66983,
+      "card2": {
+        "vram_c": 100.0,
+        "pkg_c": 75.0,
+        "fan_rpm": 1884.0,
+        "energy_uj": 234703161499.0
+      },
+      "card3": {
+        "vram_c": 92.0,
+        "pkg_c": 77.0,
+        "fan_rpm": 2010.0,
+        "energy_uj": 250704008056.0
+      },
+      "new_trips": []
+    },
+    {
+      "utc": "2026-10-05T07:52:04Z",
+      "pid": 66983,
+      "card2": {
+        "vram_c": 100.0,
+        "pkg_c": 75.0,
+        "fan_rpm": 1962.0,
+        "energy_uj": 239247538269.0
+      },
+      "card3": {
+        "vram_c": 92.0,
+        "pkg_c": 77.0,
+        "fan_rpm": 2034.0,
+        "energy_uj": 255303840881.0
+      },
+      "new_trips": []
+    },
+    {
+      "utc": "2026-10-05T07:52:24Z",
+      "pid": 66983,
+      "card2": {
+        "vram_c": 100.0,
+        "pkg_c": 70.0,
+        "fan_rpm": 3186.0,
+        "energy_uj": 243822162719.0
+      },
+      "card3": {
+        "vram_c": 92.0,
+        "pkg_c": 77.0,
+        "fan_rpm": 2082.0,
+        "energy_uj": 259903771789.0
+      },
+      "new_trips": []
+    },
+    {
+      "utc": "2026-10-05T07:52:44Z",
+      "pid": 66983,
+      "card2": {
+        "vram_c": 88.0,
+        "pkg_c": 76.0,
+        "fan_rpm": 1452.0,
+        "energy_uj": 248095466369.0
+      },
+      "card3": {
+        "vram_c": 94.0,
+        "pkg_c": 78.0,
+        "fan_rpm": 2085.0,
+        "energy_uj": 264503001831.0
+      },
+      "new_trips": []
+    },
+    {
+      "utc": "2026-10-05T07:53:04Z",
+      "pid": 66983,
+      "card2": {
+        "vram_c": 88.0,
+        "pkg_c": 74.0,
+        "fan_rpm": 1935.0,
+        "energy_uj": 250749783752.0
+      },
+      "card3": {
+        "vram_c": 84.0,
+        "pkg_c": 77.0,
+        "fan_rpm": 2088.0,
+        "energy_uj": 268816463439.0
+      },
+      "new_trips": []
+    },
+    {
+      "utc": "2026-10-05T07:53:24Z",
+      "pid": 66983,
+      "card2": {
+        "vram_c": 86.0,
+        "pkg_c": 74.0,
+        "fan_rpm": 1890.0,
+        "energy_uj": 251676181030.0
+      },
+      "card3": {
+        "vram_c": 90.0,
+        "pkg_c": 77.0,
+        "fan_rpm": 2070.0,
+        "energy_uj": 273396236328.0
+      },
+      "new_trips": []
+    }
+  ]
+}

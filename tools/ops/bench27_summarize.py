@@ -5,6 +5,8 @@ Example: python tools/ops/bench27_summarize.py --root EVIDENCE --cards cards.jso
 Only a previously nonexistent output directory is accepted. Temperature matching is
 inclusive UTC start/end; missing samples remain unknown. The A/A threshold is an
 exploratory relative spread, not statistical significance or a substance verdict.
+Use --exclude-repeat REPEAT=REASON to separate first-after-restart observations
+from warm calibration. Excluded rows remain visible; cache state is never inferred.
 """
 from __future__ import annotations
 
@@ -20,7 +22,8 @@ from typing import Any
 
 SCHEMA = "bench27-summary.v1"
 METRICS = ("seconds_total", "work_seconds", "final_seconds", "decode_tokens_per_s")
-CONTROLS = ("model", "temperature", "seed", "top_p", "max_tokens", "chat_template_kwargs")
+DIAGNOSTICS = ("prefill_seconds", "work_first_reasoning_ms", "work_first_content_ms",
+               "final_first_reasoning_ms", "final_first_content_ms")
 
 
 class SummaryError(ValueError):
@@ -95,6 +98,8 @@ def read_thermal(paths: list[Path]) -> list[dict]:
 
 
 def thermal_window(rows: list[dict], start: str | None, end: str | None, card: str | None) -> dict:
+    if not rows:
+        return {"state": "unknown", "reason": "no thermal records supplied", "samples": 0}
     if not start or not end or card is None:
         return {"state": "unknown", "reason": "no timestamps or seat-to-card mapping", "samples": 0}
     selected = [r for r in rows if utc(start) <= r["time"] <= utc(end) and isinstance(r["row"].get(card), dict)]
@@ -119,13 +124,13 @@ def stage_summary(directory: Path, stage: str, record: dict | None) -> tuple[dic
     output = directory / "artifacts" / f"{stage}.output.txt"
     wire = directory / "artifacts" / f"{stage}.wire_request.txt"
     raw = output.read_bytes() if output.is_file() else None
-    declared = (record.get("artifacts", {}).get("output") or {}).get("sha256")
+    declared = ((record.get("artifacts") or {}).get("output") or {}).get("sha256")
     controls = read_json(wire) if wire.is_file() else {}
     result = {"job_id": record.get("job_id"), "status": record.get("status"), "reason": record.get("reason"), "seconds": record.get("seconds"),
               "observed": {key: observed.get(key) for key in (
                   "duration_ms", "tokens_in", "tokens_out", "tokens_reasoning", "thinking", "finish_reason",
                   "first_reasoning_ms", "first_content_ms", "max_tokens_requested", "max_tokens_applied", "model", "error_code")},
-              "controls": {key: controls[key] for key in CONTROLS if key in controls}, "wire_recorded": wire.is_file(),
+              "controls": {key: value for key, value in controls.items() if key != "messages" and not key.startswith("stream")}, "wire_recorded": wire.is_file(),
               "wire_equal": record.get("wire_equal"), "wire_mismatch": record.get("wire_mismatch"),
               "output_sha256": digest(raw) if raw is not None else None,
               "output_hash_matches": digest(raw) == declared if raw is not None and declared else None}
@@ -159,6 +164,7 @@ def collect(path: Path, root: Path, thermal: list[dict], cards: dict[str, str]) 
            "ok": run.get("ok"), "dry_run": run.get("dry_run"), "context_mismatch": run.get("context_mismatch"),
            "wire_equal_all": run.get("wire_equal_all"), "foreign_requests_possible": run.get("foreign_requests_possible"),
            "preemptions": delta.get("num_preemptions_total"), "seat_counters_delta": delta,
+           "prefill_seconds": delta.get("prefill_seconds_sum"),
            "seconds_total": run.get("seconds_total"),
            "decode_tokens_per_s": generation / decode if number(generation) and number(decode) and decode > 0 else None,
            "thermal": thermal_window(thermal, run.get("started_utc"), run.get("finished_utc"), cards.get(seat)),
@@ -175,6 +181,8 @@ def collect(path: Path, root: Path, thermal: list[dict], cards: dict[str, str]) 
     for stage in ("work", "final"):
         values = [c[stage].get("seconds") for c in row["conversations"]]
         row[f"{stage}_seconds"] = values[0] if len(values) == 1 and number(values[0]) else None
+        for field in ("first_reasoning_ms", "first_content_ms"):
+            row[f"{stage}_{field}"] = row["conversations"][0][stage].get("observed", {}).get(field) if len(values) == 1 else None
     for key, expected in (("ok", True), ("dry_run", False), ("context_mismatch", False),
                           ("wire_equal_all", True), ("foreign_requests_possible", 0), ("preemptions", 0), ("concurrency", 1)):
         if row[key] != expected or row[key] is None:
@@ -182,8 +190,8 @@ def collect(path: Path, root: Path, thermal: list[dict], cards: dict[str, str]) 
     if not isinstance((row["workload"] or {}).get("sha256"), str):
         row["timing_exclusions"].append("missing workload hash")
     if any(c["ok"] is not True or c[s].get("status") != "succeeded" or c[s].get("wire_equal") is not True
-           or c[s].get("wire_recorded") is not True for c in row["conversations"] for s in ("work", "final")):
-        row["timing_exclusions"].append("incomplete, failed, or wire-mismatched conversation")
+           or c[s].get("wire_recorded") is not True or c[s].get("observed", {}).get("finish_reason") != "stop" for c in row["conversations"] for s in ("work", "final")):
+        row["timing_exclusions"].append("incomplete, failed, truncated, or wire-mismatched conversation")
     if len(row["conversations"]) != 1:
         row["timing_exclusions"].append("A/A calibration requires one conversation per run")
     if any(c[s].get("output_hash_matches") is not True for c in row["conversations"] for s in ("work", "final")):
@@ -218,25 +226,36 @@ def calibrate(rows: list[dict], reference_seat: str, minimum: int) -> dict:
         metrics[metric] = {"seats": by_seat, "between_relative_median_difference": between,
                            "threshold": estimate if complete and not reasons else None,
                            "provisional_estimate": estimate, "ready": complete and not reasons}
-    return {"minimum_repetitions_per_seat": minimum, "reasons": reasons, "metrics": metrics,
+    diagnostics = {key: {seat: spread([r[key] for r in eligible if r["seat"] == seat and number(r.get(key))])
+                         for seat in seats} for key in DIAGNOSTICS}
+    return {"diagnostic_spread": diagnostics, "minimum_repetitions_per_seat": minimum, "reasons": reasons, "metrics": metrics,
             "recipe_comparability": recipe_state,
             "formula": "max((max-min)/abs(median) within each seat, abs(median0-median1)/mean(abs(median0),abs(median1)))",
             "interpretation": "exploratory timing spread only; no statistical significance or semantic grade"}
 
 
 def summarize(root: Path, cards_files: list[Path] | None = None, *, reference_seat: str = "seat-0",
-              card_map: dict[str, str] | None = None, minimum: int = 3, provenance: list[Path] | None = None) -> dict:
+              card_map: dict[str, str] | None = None, minimum: int = 3, provenance: list[Path] | None = None,
+              exclude_repeats: dict[str, str] | None = None) -> dict:
     root = root.resolve()
     paths = sorted(root.rglob("run.json"))
     if not paths:
         raise SummaryError(f"no run.json found under {root}")
     thermal = sorted(read_thermal(cards_files or []), key=lambda r: r["time"])
+    card_map = card_map or {"seat-0": "card2", "seat-1": "card3"}
+    exclude_repeats = exclude_repeats or {}
     pairs = []
     for path in paths:
         try:
-            pairs.append(collect(path, root, thermal, card_map or {"seat-0": "card2", "seat-1": "card3"}))
+            pairs.append(collect(path, root, thermal, card_map))
         except (OSError, ValueError, KeyError, TypeError) as exc:
             raise SummaryError(f"cannot summarize {path}: {exc}") from exc
+    unknown = set(exclude_repeats) - {row["repeat"] for row, _ in pairs}
+    if unknown:
+        raise SummaryError(f"excluded repeats not found: {sorted(unknown)}")
+    for row, _ in pairs:
+        if row["repeat"] in exclude_repeats:
+            row["timing_exclusions"].append(f"caller excluded repeat {row['repeat']}: {exclude_repeats[row['repeat']]}")
     pairs.sort(key=lambda pair: (utc(pair[0]["started_utc"]) if pair[0].get("started_utc") else datetime.min.replace(tzinfo=timezone.utc), pair[0]["path"]))
     baseline = next((pair for pair in pairs if pair[0]["seat"] == reference_seat), None)
     if baseline is None:
@@ -245,10 +264,11 @@ def summarize(root: Path, cards_files: list[Path] | None = None, *, reference_se
         for conversation in row["conversations"]:
             identifier = conversation["conversation"]
             for stage in ("work", "final"):
-                conversation[stage]["divergence"] = divergence(baseline[1].get((identifier, stage)), texts.get((identifier, stage)))
+                conversation[stage]["divergence"] = (divergence(baseline[1].get((identifier, stage)), texts.get((identifier, stage)))
+                    if (identifier, stage) in baseline[1] else {"state": "missing_reference_conversation"})
     rows = [pair[0] for pair in pairs]
     return {"schema": SCHEMA, "root": str(root), "reference_run": baseline[0]["path"], "reference_seat": reference_seat,
-            "runs": rows, "calibration": calibrate(rows, reference_seat, minimum),
+            "card_map": card_map, "excluded_repeats": exclude_repeats, "runs": rows, "calibration": calibrate(rows, reference_seat, minimum),
             "external_provenance": [{"path": str(p.resolve()), "sha256": digest(p.read_bytes())} for p in (provenance or [])],
             "limits": ["No substance or form grades. Visible text comparison is character-exact, not token divergence.",
                        "Stage decode rates are estimates excluding time to first reasoning/content; seat decode is counter-derived.",
@@ -259,12 +279,12 @@ def summarize(root: Path, cards_files: list[Path] | None = None, *, reference_se
 
 def markdown(summary: dict) -> str:
     lines = ["# Bench27 recorded-run summary", "", f"Reference: `{summary['reference_run']}`. No semantic grades.", "",
-             "| Run | Seat | OK | Total s | Work s | Final s | Seat decode tok/s | Preemptions | Foreign | VRAM max C | Timing exclusions |",
-             "|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|"]
+             "| Run | Seat | Concurrency | OK | Total s | Work s | Final s | Seat decode tok/s | Preemptions | Foreign | VRAM max C | Timing exclusions |",
+             "|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---|"]
     def cell(value):
         return "unknown" if value is None else str(round(value, 4) if isinstance(value, float) else value).replace("|", "\\|").replace("\n", " ")
     for r in summary["runs"]:
-        cells = [r["path"], r["seat"], r["ok"], r["seconds_total"], r["work_seconds"], r["final_seconds"],
+        cells = [r["path"], r["seat"], r["concurrency"], r["ok"], r["seconds_total"], r["work_seconds"], r["final_seconds"],
                  r["decode_tokens_per_s"], r["preemptions"], r["foreign_requests_possible"],
                  r["thermal"].get("vram_c", {}).get("max"), "; ".join(r["timing_exclusions"]) or "none"]
         lines.append("| " + " | ".join(map(cell, cells)) + " |")
@@ -273,6 +293,16 @@ def markdown(summary: dict) -> str:
     for key, metric in summary["calibration"]["metrics"].items():
         ranges = "; ".join(f"{seat}: {cell(s['median'])} [{cell(s['min'])}, {cell(s['max'])}], n={s['n']}" for seat, s in metric["seats"].items())
         lines.append("| " + " | ".join(map(cell, [key, metric["ready"], metric["threshold"], metric["provisional_estimate"], ranges])) + " |")
+    lines += ["", "## Prefill and first-token diagnostics", "",
+              "These observed spreads do not assign cache state. Explicit repeat exclusions are recorded above and in JSON.", "",
+              "| Run | Prefill s | Work first reasoning ms | Work first content ms | Final first reasoning ms | Final first content ms |",
+              "|---|---:|---:|---:|---:|---:|"]
+    for row in summary["runs"]:
+        lines.append("| " + " | ".join(map(cell, [row["path"], *[row[key] for key in DIAGNOSTICS]])) + " |")
+    lines += ["", "Eligible per-seat diagnostic spread:", "", "| Metric | Seat | Median | Min | Max | n |", "|---|---|---:|---:|---:|---:|"]
+    for metric, seats in summary["calibration"]["diagnostic_spread"].items():
+        for seat, info in seats.items():
+            lines.append("| " + " | ".join(map(cell, [metric, seat, info["median"], info["min"], info["max"], info["n"]])) + " |")
     lines += ["", *summary["calibration"]["reasons"], "", "## Workload and recorded recipe", "",
               "| Run | Workload | Workload SHA-256 | Context | Recipe snapshot SHA-256 |", "|---|---|---|---:|---|"]
     for row in summary["runs"]:
@@ -288,7 +318,7 @@ def markdown(summary: dict) -> str:
                 info = c[stage]
                 observed, controls = info.get("observed", {}), info.get("controls", {})
                 regime = " / ".join(map(cell, [controls.get("temperature"), controls.get("seed"),
-                                               controls.get("chat_template_kwargs", {}).get("enable_thinking")]))
+                                               (controls.get("chat_template_kwargs") or {}).get("enable_thinking")]))
                 lines.append("| " + " | ".join(map(cell, [f"{row['path']} / {c['conversation']} / {stage}",
                     observed.get("tokens_in"), observed.get("tokens_out"), observed.get("tokens_reasoning"),
                     info.get("decode_tokens_per_s_estimate"), regime, controls.get("max_tokens"), observed.get("finish_reason")])) + " |")
@@ -309,9 +339,12 @@ def markdown(summary: dict) -> str:
 
 def write_summary(summary: dict, output: Path) -> None:
     # No overwrite flag: original runs and previous summaries stay untouched.
+    output = output.resolve()
+    if output.is_relative_to(Path(summary["root"]).resolve()):
+        raise SummaryError("output must be outside the evidence root")
     encoded = json.dumps(summary, indent=2, sort_keys=True, allow_nan=False) + "\n"
     report = markdown(summary)
-    output.mkdir(parents=True, exist_ok=False)
+    output.mkdir(parents=False, exist_ok=False)
     (output / "summary.json").write_text(encoded, encoding="utf-8")
     (output / "SUMMARY.md").write_text(report, encoding="utf-8")
 
@@ -322,6 +355,7 @@ def main() -> int:
     parser.add_argument("--cards", action="append", default=[], type=Path, help="thermal cards.jsonl; repeat for separate logs")
     parser.add_argument("--provenance-record", action="append", default=[], type=Path, help="entry argv/config evidence to link and hash, without asserting per-run binding")
     parser.add_argument("--out", required=True, type=Path, help="new output directory; existing paths refuse")
+    parser.add_argument("--exclude-repeat", action="append", default=[], metavar="REPEAT=REASON", help="explicit timing exclusion; retains the recorded rows")
     parser.add_argument("--reference-seat", default="seat-0")
     parser.add_argument("--card-map", action="append", default=[], metavar="SEAT=CARD", help="override seat/card mapping; defaults seat-0=card2, seat-1=card3")
     parser.add_argument("--min-repeats", type=int, default=3)
@@ -334,8 +368,16 @@ def main() -> int:
             parser.error("--card-map requires SEAT=CARD")
         seat, card = mapping.split("=", 1)
         cards[seat] = card
+    exclusions = {}
+    for value in args.exclude_repeat:
+        if "=" not in value or not all(piece.strip() for piece in value.split("=", 1)):
+            parser.error("--exclude-repeat requires REPEAT=REASON")
+        repeat, reason = value.split("=", 1)
+        if repeat in exclusions:
+            parser.error(f"repeat {repeat!r} excluded more than once")
+        exclusions[repeat] = reason
     try:
-        summary = summarize(args.root, args.cards, reference_seat=args.reference_seat, minimum=args.min_repeats, provenance=args.provenance_record, card_map=cards)
+        summary = summarize(args.root, args.cards, reference_seat=args.reference_seat, minimum=args.min_repeats, provenance=args.provenance_record, card_map=cards, exclude_repeats=exclusions)
         write_summary(summary, args.out)
     except (SummaryError, OSError, ValueError) as exc:
         parser.exit(2, f"refused: {exc}\n")

@@ -3,7 +3,7 @@ from pathlib import Path
 import sqlite3
 import tempfile
 import unittest
-from tools.ops.bench27_guard import Trips, pending_jobs, sample_card
+from tools.ops.bench27_guard import Trips, pending_jobs, sample_card, guard_failure
 
 
 class GuardTests(unittest.TestCase):
@@ -30,9 +30,25 @@ class GuardTests(unittest.TestCase):
                                                    ('other', 'a', 'claude-frontier', 'running'),
                                                    ('other_card', 'b', 'codex-cli', 'running'),
                                                    ('done', 'a', 'codex-cli', 'succeeded')]:
-                    doc = {'job_id': job, 'desired': {'arguments': {'backend': backend}}, 'principal': {'id': owner}}
+                    doc = {'job_id': job, 'desired': {'arguments': {'backend': backend}}, 'principal': {'id': owner, 'type': 'hearth_caller', 'authenticated': True}}
                     conn.execute('INSERT INTO jobs VALUES (?,?)', (json.dumps(doc), status))
             self.assertEqual(pending_jobs(db, 'a', 'codex-cli'), ['standalone', 'delivery'])
+
+    def test_provider_resolution_and_principal_type(self):
+        with tempfile.TemporaryDirectory() as td:
+            db = Path(td) / 'projection.sqlite'
+            with sqlite3.connect(db) as conn:
+                conn.execute('CREATE TABLE jobs (state_json TEXT, status TEXT)')
+                for typ in ('hearth_caller', 'delegated_user'):
+                    d = {'job_id': typ, 'provider': 'a', 'principal': {'id': 'codex-cli', 'type': typ, 'authenticated': True, 'profile': 'unrestricted'}}
+                    conn.execute('INSERT INTO jobs VALUES (?,?)', (json.dumps(d), 'running'))
+            self.assertEqual(pending_jobs(db, 'a', 'codex-cli'), ['hearth_caller'])
+
+    def test_guard_failure_leaves_sticky_marker(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / 'cards.jsonl'
+            guard_failure(out, RuntimeError('not safe'))
+            self.assertEqual(json.loads(Path(str(out)+'.tripped').read_text())['reason'], 'guard failure')
 
     def test_missing_sensor_is_unknown(self):
         with tempfile.TemporaryDirectory() as td:

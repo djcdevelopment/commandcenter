@@ -552,7 +552,20 @@ def invariants(rows: list[Row]) -> list[dict]:
     for r in rows:
         if r["layer"] == "rung" and " " in r["setting"]:
             name, key = r["setting"].split(" ", 1); rungs.setdefault(name, {})[key] = r["value"]
-    seat_for = {"omen-vllm": "omen-vllm@1", "omen-dense-27b": "omen-vllm@0"}
+    seat_for = {"omen-vllm": "omen-vllm@1", "omen-dense-27b": "omen-vllm@0",
+                "omen-dense-27b-b": "omen-vllm@1"}
+    # Declarations for mutually exclusive profiles coexist in the pool. Only compare
+    # a backend with its occupied seat, while keeping absent-route checks below.
+    active_cfg = _val(rows, "active configuration")
+    for rung, seat in list(seat_for.items()):
+        status = str(_val(rows, f"config {active_cfg} backend {rung}", ""))
+        served = str(_val(rows, f"{seat} served model", ""))
+        if "status=absent" in status:
+            del seat_for[rung]
+        elif "status=live" not in status and served:
+            expected = "qwen3-30b-a3b" if rung == "omen-vllm" else "qwen3.8-27b"
+            if expected not in served:
+                del seat_for[rung]
     # 1. rung context == seat window
     for rung, seat in seat_for.items():
         s = rungs.get(rung, {}); mml = _val(rows, f"{seat} max_model_len")
@@ -574,7 +587,7 @@ def invariants(rows: list[Row]) -> list[dict]:
     # 2b. a rung's declared recipe is the seat's (the serving profile in a capability record is the declaration)
     for rung, seat in seat_for.items():
         s = rungs.get(rung, {}); attn = _val(rows, f"{seat} attention_backend"); k = _val(rows, f"{seat} mtp_k")
-        if attn is not None and bool(s.get("flash_attention")) != (attn == "FLASH_ATTN"):
+        if s and attn is not None and bool(s.get("flash_attention")) != (attn == "FLASH_ATTN"):
             fail("declared-recipe-is-the-seat", f"{rung} flash_attention {s.get('flash_attention')} but {seat} attention_backend {attn}", "the 27B ran 4 to 20 times faster on Flash (2026-10-03); a record that hides the backend mixes two configurations")
         if s.get("speculative") is not None and str(s["speculative"]) != f"mtp-k{k}":
             fail("declared-recipe-is-the-seat", f"{rung} speculative {s['speculative']} but {seat} mtp_k {k}", "the declared draft depth must be the seat's")
@@ -712,13 +725,14 @@ def invariants(rows: list[Row]) -> list[dict]:
                         fail("expected-live-backends-serving", f"omen-vllm expected live under {active_cfg} but seat 1 is unavailable: {s1_live}", "live backends must be UP and responding to /v1/models")
                     elif s1_models is None and s1_live is not None:
                         fail("expected-live-backends-serving", f"omen-vllm expected live under {active_cfg} but seat 1 is not serving", "live backends must be UP and responding to /v1/models")
-                elif b == "omen-dense-27b":
-                    s0_live = _val(rows, "omen-vllm@0 live read")
-                    s0_models = _val(rows, "omen-vllm@0 /v1/models")
-                    if s0_live and "unavailable" in str(s0_live):
-                        fail("expected-live-backends-serving", f"omen-dense-27b expected live under {active_cfg} but seat 0 is unavailable: {s0_live}", "live backends must be UP and responding to /v1/models")
-                    elif s0_models is not None and "qwen3.8-27b" not in str(s0_models):
-                        fail("expected-live-backends-serving", f"omen-dense-27b expected live under {active_cfg} but seat 0 is serving {s0_models}", "live backends must serve their declared model")
+                elif b in ("omen-dense-27b", "omen-dense-27b-b"):
+                    seat = 0 if b == "omen-dense-27b" else 1
+                    live_read = _val(rows, f"omen-vllm@{seat} live read")
+                    models = _val(rows, f"omen-vllm@{seat} /v1/models")
+                    if live_read and "unavailable" in str(live_read):
+                        fail("expected-live-backends-serving", f"{b} expected live under {active_cfg} but seat {seat} is unavailable: {live_read}", "live backends must be UP and responding to /v1/models")
+                    elif (models is not None and "qwen3.8-27b" not in str(models)) or (models is None and live_read is not None):
+                        fail("expected-live-backends-serving", f"{b} expected live under {active_cfg} but seat {seat} is serving {models}", "live backends must serve their declared model")
                 elif b in ("am4-vllm", "am4-tool-4070ti", "am4-tool-5070"):
                     alias = "am4-dense-27b" if b == "am4-vllm" else b
                     rdy = _val(rows, f"facade alias {alias} ready")

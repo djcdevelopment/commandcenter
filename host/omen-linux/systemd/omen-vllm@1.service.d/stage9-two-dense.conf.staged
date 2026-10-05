@@ -1,0 +1,20 @@
+# two-dense window: seat 1 serves the same Qwen3.8-27B recipe as seat 0 (stage0-recipe + stage2-27b-mtp + stage2b-batched + stage2d-prefix-unit + max-num-seqs).
+# Apply = `omen-profile switch two-dense` copies this to stage9-two-dense.conf and restarts seat 1; leave = remove stage9-two-dense.conf, then `omen-profile switch two-lane`.
+# Sorts after seat 1's own stage0-recipe/max-model-len/max-num-seqs, so every key below wins (systemd: last assignment wins).
+[Service]
+Environment=OMEN_MODEL=/home/derek/models/qwen3.8-27b-gptq-int4-mtp
+Environment=OMEN_SERVED_NAME=qwen3.8-27b
+Environment=OMEN_TOOL_PARSER=qwen3_xml
+Environment=OMEN_REASONING_PARSER=qwen3
+Environment=OMEN_MAX_MODEL_LEN=65536
+Environment=OMEN_MAX_NUM_SEQS=4
+Environment=OMEN_MAX_BATCHED_TOKENS=8192
+Environment=OMEN_LANGUAGE_MODEL_ONLY=1
+Environment=OMEN_MTP_K=2
+Environment=OMEN_ATTN_BACKEND=FLASH_ATTN
+Environment=OMEN_MTP_NO_BLOCK_DROP=1
+Environment=OMEN_PREFIX_MATCH_UNIT=64
+Environment=OMEN_PREFIX_CACHE=1
+Environment=OMEN_GRAPH_SIZES=[1,2,4,8,16]
+Environment=OMEN_KV_CACHE_BYTES=
+Environment=OMEN_GPU_MEM_UTIL=0.90

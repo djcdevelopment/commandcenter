@@ -121,6 +121,11 @@ MANIFEST: list[tuple[str, Path]] = [
     ("config/haproxy.cfg", HOME / ".config" / "omen-vllm" / "haproxy.cfg"),
     ("config/lab-configurations.toml", HOME / ".config" / "omen-vllm" / "lab-configurations.toml"),
 
+    # G-bench27 staged two-B70 profile
+    ("profiles/two-dense.json", HOME / ".config" / "omen-vllm" / "profiles" / "two-dense.json"),
+    ("config/haproxy.cfg.two-dense.staged", HOME / ".config" / "omen-vllm" / "haproxy.cfg.two-dense.staged"),
+    ("systemd/omen-vllm@1.service.d/stage9-two-dense.conf.staged", HOME / ".config" / "systemd" / "user" / "omen-vllm@1.service.d" / "stage9-two-dense.conf.staged"),
+
     # hearth-production
     ("hearth-production/backends-linux.toml", HOME / "hearth-production" / "backends-linux.toml"),
     ("hearth-production/routing-families-linux.toml", HOME / "hearth-production" / "routing-families-linux.toml"),

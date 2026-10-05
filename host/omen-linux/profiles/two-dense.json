@@ -1,0 +1,40 @@
+{
+  "name": "two-dense",
+  "description": "Two dense B70 seats: Seat 0 and Seat 1 both serve qwen3.8-27b (one checkpoint dir, read-only, shared); the 30B lane is absent. Timed test window only; return with `omen-profile switch two-lane`.",
+  "evidence_status": "prepared for G-bench27; not yet qualified on seat 1; Flash Attention, MTP k=2, 65,536 window",
+  "seats": {
+    "0": {
+      "model_dir": "/home/derek/models/qwen3.8-27b-gptq-int4-mtp",
+      "served_name": "qwen3.8-27b",
+      "context": 65536,
+      "max_num_seqs": 4,
+      "haproxy_backend": "omen-dense-27b",
+      "haproxy_port": 18095,
+      "seat_port": 18091,
+      "dropins": [
+        "stage0-recipe.conf",
+        "stage2-27b-mtp.conf",
+        "stage2b-batched.conf",
+        "stage2d-prefix-unit.conf",
+        "max-num-seqs.conf"
+      ]
+    },
+    "1": {
+      "model_dir": "/home/derek/models/qwen3.8-27b-gptq-int4-mtp",
+      "served_name": "qwen3.8-27b",
+      "context": 65536,
+      "max_num_seqs": 4,
+      "haproxy_backend": "omen-dense-27b-b",
+      "haproxy_port": 18096,
+      "seat_port": 18092,
+      "dropins": [
+        "stage0-recipe.conf",
+        "max-model-len.conf",
+        "max-num-seqs.conf",
+        "stage9-two-dense.conf"
+      ],
+      "staged_dropin": "stage9-two-dense.conf.staged",
+      "active_dropin": "stage9-two-dense.conf"
+    }
+  }
+}

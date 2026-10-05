@@ -201,3 +201,45 @@ class DeliberateOperationTests(unittest.TestCase):
         self.assertIn("client-timeouts-cover-the-deadline", rules(rows))
         rows.append(R("operation", "inference.deliberate streamed", True))
         self.assertNotIn("client-timeouts-cover-the-deadline", rules(rows))
+
+
+class SecondDenseSeatTests(unittest.TestCase):
+    def test_second_dense_recipe_is_checked_against_seat_one(self):
+        rows = [R("rung", "omen-dense-27b-b context_tokens", 65536),
+                R("rung", "omen-dense-27b-b flash_attention", True),
+                R("rung", "omen-dense-27b-b speculative", "mtp-k2"),
+                R("seat", "omen-vllm@1 max_model_len", 40960),
+                R("seat", "omen-vllm@1 attention_backend", "TRITON_ATTN"),
+                R("seat", "omen-vllm@1 mtp_k", 1)]
+        self.assertIn("rung-context-equals-seat-window", rules(rows))
+        self.assertIn("declared-recipe-is-the-seat", rules(rows))
+        rows[3]["value"], rows[4]["value"], rows[5]["value"] = 65536, "FLASH_ATTN", 2
+        self.assertNotIn("rung-context-equals-seat-window", rules(rows))
+        self.assertNotIn("declared-recipe-is-the-seat", rules(rows))
+
+    def test_mutually_exclusive_seat_one_declarations(self):
+        rows = [R("rung", "omen-dense-27b-b context_tokens", 65536),
+                R("rung", "omen-vllm context_tokens", 40960),
+                R("configuration", "active configuration", "three-dense"),
+                R("configuration", "config three-dense backend omen-vllm", "status=absent"),
+                R("configuration", "config three-dense backend omen-dense-27b-b", "status=live"),
+                R("seat", "omen-vllm@1 max_model_len", 65536)]
+        self.assertNotIn("rung-context-equals-seat-window", rules(rows))
+        rows[2]["value"] = "unprobed"
+        rows.append(R("seat", "omen-vllm@1 served model", "qwen3-30b-a3b"))
+        rows[5]["value"] = 40960
+        self.assertNotIn("rung-context-equals-seat-window", rules(rows))
+
+    def test_second_dense_expected_live_checks_model_and_availability(self):
+        rows = [R("configuration", "active configuration", "three-dense"),
+                R("configuration", "config three-dense backend omen-dense-27b-b", "status=live"),
+                R("seat-live", "omen-vllm@1 live read", "ok"),
+                R("seat-live", "omen-vllm@1 /v1/models", "qwen3-30b-a3b")]
+        self.assertIn("expected-live-backends-serving", rules(rows))
+        rows[3]["value"] = "qwen3.8-27b"
+        self.assertNotIn("expected-live-backends-serving", rules(rows))
+        rows[2]["value"] = "unavailable: connection refused"
+        self.assertIn("expected-live-backends-serving", rules(rows))
+        rows[2]["value"] = "ok"
+        rows.pop()
+        self.assertIn("expected-live-backends-serving", rules(rows))

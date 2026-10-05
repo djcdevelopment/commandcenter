@@ -15,6 +15,7 @@ fx99_state = "live"
 [configuration.day.backends]
 omen-vllm = { status = "live", context_tokens = 40960, parallel_slots = 8, max_tokens = 8192 }
 omen-dense-27b = { status = "live", context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 }
+omen-dense-27b-b = { status = "absent" }
 am4-vllm = { status = "absent" }
 am4-tool-4070ti = { status = "live", context_tokens = 24576, parallel_slots = 3, max_tokens = 4096 }
 am4-tool-5070 = { status = "live", context_tokens = 16384, parallel_slots = 1, max_tokens = 6144 }
@@ -30,6 +31,7 @@ fx99_state = "live"
 [configuration.memsplice.backends]
 omen-vllm = { status = "live", context_tokens = 40960, parallel_slots = 8, max_tokens = 8192 }
 omen-dense-27b = { status = "live", context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 }
+omen-dense-27b-b = { status = "absent" }
 am4-vllm = { status = "live", context_tokens = 16384, parallel_slots = 1, max_tokens = 4096 }
 am4-tool-4070ti = { status = "absent" }
 am4-tool-5070 = { status = "absent" }
@@ -45,6 +47,7 @@ fx99_state = "live"
 [configuration.seat0-qwen3-32b.backends]
 omen-vllm = { status = "live", context_tokens = 40960, parallel_slots = 8, max_tokens = 8192 }
 omen-dense-27b = { status = "absent" }
+omen-dense-27b-b = { status = "absent" }
 am4-vllm = { status = "absent" }
 am4-tool-4070ti = { status = "live", context_tokens = 24576, parallel_slots = 3, max_tokens = 4096 }
 am4-tool-5070 = { status = "live", context_tokens = 16384, parallel_slots = 1, max_tokens = 6144 }
@@ -60,6 +63,7 @@ fx99_state = "live"
 [configuration.seat0-devstral2507.backends]
 omen-vllm = { status = "live", context_tokens = 40960, parallel_slots = 8, max_tokens = 8192 }
 omen-dense-27b = { status = "absent" }
+omen-dense-27b-b = { status = "absent" }
 am4-vllm = { status = "absent" }
 am4-tool-4070ti = { status = "live", context_tokens = 24576, parallel_slots = 3, max_tokens = 4096 }
 am4-tool-5070 = { status = "live", context_tokens = 16384, parallel_slots = 1, max_tokens = 6144 }
@@ -75,6 +79,7 @@ fx99_state = "live"
 [configuration.seat0-gemma4.backends]
 omen-vllm = { status = "live", context_tokens = 40960, parallel_slots = 8, max_tokens = 8192 }
 omen-dense-27b = { status = "absent" }
+omen-dense-27b-b = { status = "absent" }
 am4-vllm = { status = "absent" }
 am4-tool-4070ti = { status = "live", context_tokens = 24576, parallel_slots = 3, max_tokens = 4096 }
 am4-tool-5070 = { status = "live", context_tokens = 16384, parallel_slots = 1, max_tokens = 6144 }
@@ -90,6 +95,7 @@ fx99_state = "live"
 [configuration.seat0-devstral-small-2.backends]
 omen-vllm = { status = "live", context_tokens = 40960, parallel_slots = 8, max_tokens = 8192 }
 omen-dense-27b = { status = "absent" }
+omen-dense-27b-b = { status = "absent" }
 am4-vllm = { status = "absent" }
 am4-tool-4070ti = { status = "live", context_tokens = 24576, parallel_slots = 3, max_tokens = 4096 }
 am4-tool-5070 = { status = "live", context_tokens = 16384, parallel_slots = 1, max_tokens = 6144 }
@@ -105,8 +111,41 @@ fx99_state = "live"
 [configuration.seat0-27b-vision.backends]
 omen-vllm = { status = "live", context_tokens = 40960, parallel_slots = 8, max_tokens = 8192 }
 omen-dense-27b = { status = "live", context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 }
+omen-dense-27b-b = { status = "absent" }
 am4-vllm = { status = "absent" }
 am4-tool-4070ti = { status = "live", context_tokens = 24576, parallel_slots = 3, max_tokens = 4096 }
 am4-tool-5070 = { status = "live", context_tokens = 16384, parallel_slots = 1, max_tokens = 6144 }
+fx99-vllm = { status = "live", context_tokens = 4096, parallel_slots = 1, max_tokens = 1024 }
+omen-perception = { status = "live", parallel_slots = 2 }
+
+[configuration.two-dense]
+description = "G-bench27: two OMEN 27B replicas, AM4 tool-pair, FX99 utility; 30B fast lane absent. Restore day after the campaign."
+omen_profile = "two-dense"
+am4_profile = "tool-pair"
+fx99_state = "live"
+
+[configuration.two-dense.backends]
+omen-vllm = { status = "absent" }
+omen-dense-27b = { status = "live", context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 }
+omen-dense-27b-b = { status = "live", context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 }
+am4-vllm = { status = "absent" }
+am4-tool-4070ti = { status = "live", context_tokens = 24576, parallel_slots = 3, max_tokens = 4096 }
+am4-tool-5070 = { status = "live", context_tokens = 16384, parallel_slots = 1, max_tokens = 6144 }
+fx99-vllm = { status = "live", context_tokens = 4096, parallel_slots = 1, max_tokens = 1024 }
+omen-perception = { status = "live", parallel_slots = 2 }
+
+[configuration.three-dense]
+description = "G-bench27: two OMEN 27B replicas, AM4 dense-tp2, FX99 utility; 30B fast lane absent. Restore day after the campaign."
+omen_profile = "two-dense"
+am4_profile = "dense-tp2"
+fx99_state = "live"
+
+[configuration.three-dense.backends]
+omen-vllm = { status = "absent" }
+omen-dense-27b = { status = "live", context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 }
+omen-dense-27b-b = { status = "live", context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 }
+am4-vllm = { status = "live", context_tokens = 16384, parallel_slots = 1, max_tokens = 4096 }
+am4-tool-4070ti = { status = "absent" }
+am4-tool-5070 = { status = "absent" }
 fx99-vllm = { status = "live", context_tokens = 4096, parallel_slots = 1, max_tokens = 1024 }
 omen-perception = { status = "live", parallel_slots = 2 }

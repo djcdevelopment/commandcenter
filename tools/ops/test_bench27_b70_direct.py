@@ -112,6 +112,8 @@ class DirectTests(unittest.TestCase):
                 with self.assertRaises(Exception):
                     future.result(timeout=3)
         self.assertEqual([c.calls for c in clients], [1, 1])
+        self.owner.abort('later failure')
+        self.assertEqual(self.owner.reason, 'operator signal')
 
     def test_guard_freshness_partial_line_and_trip_before_send(self):
         self.heartbeat(tail=b'{"utc":')
@@ -142,6 +144,7 @@ class PhaseTests(unittest.TestCase):
             manifest = {'experiment_id': 'exp', 'model': 'qwen3.8-27b', 'windows': {'0': 65536, '1': 131072}, 'source_commit': 'commit',
                         'sources': {'am4_helper': {'path': 'helper'}, 'seat_probe': {'path': 'probe'}}, 'flash_source': 'flash'}
             path = root / 'manifest.json'; path.write_text(json.dumps(manifest))
+            requests = {}
             class FakeClient:
                 def __init__(self, seat, model, token, owner, timeout):
                     self.seat, self.calls, self.owner = seat, 0, owner
@@ -151,6 +154,7 @@ class PhaseTests(unittest.TestCase):
                     return json.dumps({'data': [{'id': 'qwen3.8-27b', 'max_model_len': manifest['windows'][str(self.seat)]}]}).encode()
                 def stream(self, body, folder, window):
                     folder.mkdir(parents=True)
+                    requests[str(folder.relative_to(root/'out'))] = body
                     admitted = body['target'] + 600 <= window
                     self.calls += int(admitted)
                     return {'done': admitted, 'admission': 'accepted' if admitted else 'refused_context', 'content': '{"needles":{"01":"12345678"}}' if admitted else '', 'finish_reason': 'stop' if admitted else None}
@@ -159,7 +163,7 @@ class PhaseTests(unittest.TestCase):
             fake_probe = SimpleNamespace(mtw=SimpleNamespace(), api_key=lambda: 'test')
             def calibration(*args):
                 target = args[2]
-                return {'target': target, 'messages': []}, {'01': '12345678'}, target
+                return {'target': target, 'messages': [{'role': 'user', 'content': 'source'}]}, {'01': '12345678'}, target
             args = SimpleNamespace(manifest=path, out=root/'out', guard_log=log, trip=Path(str(log)+'.tripped'), max_seconds=30, request_timeout=10)
             with patch.object(direct, 'verified_manifest', return_value=manifest), patch.object(direct, 'require_fence'), \
                     patch.object(direct, 'load_module', side_effect=[helper, fake_probe]), patch.object(direct, 'client_class', return_value=FakeClient), \
@@ -168,6 +172,15 @@ class PhaseTests(unittest.TestCase):
             summary = json.loads((args.out/'summary.json').read_text())
             self.assertEqual(summary['calls'], {'0': 5, '1': 15})
             self.assertEqual(len(summary['measurements']), 6)
+            for target in (38800, 90000, 120000):
+                phase = f'target-{target}-concurrency-2'
+                first = requests[f'{phase}/seat-1/conversation-0/work']
+                second = requests[f'{phase}/seat-1/conversation-1/work']
+                self.assertNotEqual(first['messages'][0]['content'], second['messages'][0]['content'])
+                self.assertTrue(first['messages'][0]['content'].startswith('[probe run='))
+                self.assertEqual(first, requests[f'{phase}/seat-0/conversation-0/work'])
+                self.assertEqual(second, requests[f'{phase}/seat-0/conversation-1/work'])
+                self.assertEqual(first['messages'][0], requests[f'{phase}/seat-1/conversation-0/final']['messages'][0])
             self.assertEqual(summary['measurements']['target-120000-concurrency-2']['conversations']['0:0']['work']['admission'], 'refused_context')
 
     def test_exact_fence_required(self):

@@ -10,7 +10,7 @@
   "sources": {
     "driver": {
       "path": "/home/derek/work/worktrees/bench27-instruments/tools/ops/bench27_b70_direct.py",
-      "sha256": "084f283b8347ad3568d99b0e7c39334d9fa920f8ea0318e701834602ed47795f"
+      "sha256": "bf593e17c2f2a90aadb7909bd8757f34548dba3a4842b30a20e81fb77de531d6"
     },
     "am4_helper": {
       "path": "/home/derek/work/commandcenter-linux-flash/tools/ops/bench27_am4_probe.py",
@@ -44,7 +44,8 @@
       1,
       2
     ],
-    "concurrency2_turns": 2
+    "concurrency2_turns": 2,
+    "conversation_prefix": "Unique run UUID, phase and conversation index at START of first user message; identical across paired seats; retained on second turn."
   },
   "comparison": "65K fp8 control versus131K fp8 treatment; long requests refused explicitly on control."
 }

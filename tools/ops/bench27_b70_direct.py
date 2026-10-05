@@ -21,6 +21,7 @@ import signal
 import sys
 import threading
 import time
+import uuid
 
 
 class Refused(RuntimeError):
@@ -67,14 +68,16 @@ class Ownership:
         self.log, self.trip = log, trip
         self.deadline = time.monotonic() + timeout
         self.stopped = threading.Event()
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.clients = []
         self.reason = None
 
     def abort(self, reason):
-        self.reason = reason
-        self.stopped.set()
         with self.lock:
+            if self.stopped.is_set():
+                return
+            self.reason = reason
+            self.stopped.set()
             for client in self.clients:
                 client.abort(reason)
 
@@ -109,7 +112,8 @@ def client_class(helper):
             while not self.closed.wait(0.25):
                 try:
                     self.check()
-                    if self.deadline and time.monotonic() > self.deadline:
+                    deadline = self.deadline
+                    if deadline and time.monotonic() > deadline:
                         raise Refused('request deadline')
                 except Exception as exc:
                     self.ownership.abort(type(exc).__name__ + ': ' + str(exc))
@@ -195,6 +199,14 @@ def client_class(helper):
     return B70Client
 
 
+def conversation_body(body, run_tag, phase, index):
+    """Diverge before source tokens, while retaining identical paired seat inputs."""
+    tagged = copy.deepcopy(body)
+    user = next(message for message in tagged['messages'] if message['role'] == 'user')
+    user['content'] = f'[probe run={run_tag} phase={phase} conversation={index}]\n' + user['content']
+    return tagged
+
+
 def calibrate(client, probe, target, model, max_tokens, tolerance):
     low, high, best = 1024, target * 8, None
     for _ in range(25):
@@ -246,7 +258,7 @@ def run(args):
     manifest = verified_manifest(args.manifest)
     args.out.mkdir(parents=True, exist_ok=False)
     summary = {'status': 'infrastructure_failure', 'calls': {'0': 0, '1': 0}, 'measurements': {}, 'model': manifest['model'],
-               'windows': manifest['windows'], 'source_commit': manifest['source_commit'], 'manifest_sha256': sha(args.manifest)}
+               'windows': manifest['windows'], 'source_commit': manifest['source_commit'], 'manifest_sha256': sha(args.manifest), 'run_tag': uuid.uuid4().hex}
     owner = Ownership(args.guard_log, args.trip, args.max_seconds)
     database = Path(os.environ.get('HEARTH_COORDINATION_DB', str(Path.home() / 'hearth-production/var/execution/coordination.sqlite')))
     owner.check_fence = lambda: require_fence(manifest['experiment_id'], database)
@@ -271,6 +283,7 @@ def run(args):
         treatment = next(s for s, w in manifest['windows'].items() if w == 131072)
         def perform(seat, index, name, body, truth, two_turns):
             client = clients[seat][index]; folder = args.out / name / f'seat-{seat}' / f'conversation-{index}'
+            body = conversation_body(body, summary['run_tag'], name, index)
             first = client.stream(body, folder / 'work', manifest['windows'][seat])
             first['grade'] = helper.grade(first['content'], truth, first['finish_reason'])
             records = {'work': first, 'final': None}

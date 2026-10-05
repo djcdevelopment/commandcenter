@@ -1,0 +1,10 @@
+{
+  "source_commit": "de666ef75ce79733bffb34c5e146c9b8ddd42f30",
+  "requested_source_bytes": 960000,
+  "built_user_bytes": 960353,
+  "offline_text_tokens": 251829,
+  "truth_count": 12,
+  "tokenizer_path": "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/tokenizer.json",
+  "tokenizer_sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+  "limitation": "Offline source text count verifies corpus headroom only; exact served chat-template counts and admission remain live /tokenize requirements."
+}

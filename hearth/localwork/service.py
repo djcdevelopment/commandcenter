@@ -65,7 +65,7 @@ VISION_FAMILIES = frozenset({"vision", "document_ocr", "image_analysis"})
 # declared serving facts to distinguish a qualified run from a later shape, but
 # it must never become a dump of endpoint, credential, or operator settings.
 SERVING_PROFILE_KEYS = frozenset({
-    "serving_profile_schema", "serving_profile_version", "hardware_profile_id",
+    "serving_profile_schema", "selected_model", "serving_profile_version", "hardware_profile_id",
     "engine", "engine_build", "model_weight", "model_weight_sha256", "quantization",
     "device_backend", "devices", "split_mode", "tensor_split",
     "context_tokens", "max_tokens", "parallel_slots",
@@ -253,12 +253,12 @@ class LocalWorkService:
         return resolved, _digest(raw)
 
     @staticmethod
-    def _serving_profile(settings: Mapping[str, Any]) -> tuple[dict[str, Any], str]:
+    def _serving_profile(settings: Mapping[str, Any], model: str) -> tuple[dict[str, Any], str]:
         """Return an allowlisted, canonically digested serving declaration.
 
         This stamps what the selected provider *declared*, not an assertion that
         a remote server was live or launched with matching flags.  Keeping the
-        projection scalar-only makes the manifest stable and prevents arbitrary
+        projection limited to scalars and scalar lists makes the manifest stable and prevents arbitrary
         nested backend configuration from becoming caller-visible provenance.
         """
         profile: dict[str, Any] = {}
@@ -266,9 +266,16 @@ class LocalWorkService:
             if key not in settings:
                 continue
             value = settings[key]
-            if not isinstance(value, (str, int, float, bool)) and value is not None:
-                raise LocalWorkError(f"serving profile setting {key!r} must be scalar")
+            if isinstance(value, (list, tuple)):
+                if not all(isinstance(item, (str, int, float, bool)) or item is None for item in value):
+                    raise LocalWorkError(f"serving profile setting {key!r} must contain only scalars")
+                value = list(value)
+            elif not isinstance(value, (str, int, float, bool)) and value is not None:
+                raise LocalWorkError(f"serving profile setting {key!r} must be scalar or a scalar list")
             profile[key] = value
+        if not isinstance(model, str) or not model.strip():
+            raise LocalWorkError("serving profile requires a selected model")
+        profile["selected_model"] = model
         profile["serving_profile_schema"] = SERVING_PROFILE_SCHEMA
         encoded = json.dumps(profile, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
         return profile, _digest(encoded)
@@ -473,14 +480,14 @@ class LocalWorkService:
                 table, table_sha = procedures.load(os.environ.get("HEARTH_DELIVERY_PROCEDURES"))
                 if selected_lane != "deep" and selected_lane in routes and "deep" in routes:
                     current = pool.by_name(routes[selected_lane])
-                    current_sha = self._serving_profile(current.settings)[1] if current else None
+                    current_sha = self._serving_profile(current.settings, current.models[0])[1] if current and current.models else None
                     _, here = procedures.choose(table, routes[selected_lane], task_family,
                                                 serving_profile_sha256=current_sha)
                     deep_names = route_sets["deep"]
                     deep_names = deep_names if isinstance(deep_names, list) else [deep_names]
                     for deep_name in deep_names:
                         deep = pool.by_name(deep_name)
-                        deep_sha = self._serving_profile(deep.settings)[1] if deep else None
+                        deep_sha = self._serving_profile(deep.settings, deep.models[0])[1] if deep and deep.models else None
                         _, there = procedures.choose(table, deep_name, task_family,
                             serving_profile_sha256=deep_sha, require_profile=len(deep_names) > 1)
                         if here["level"] == "none" and there["level"] != "none":
@@ -503,13 +510,18 @@ class LocalWorkService:
         configured = route_sets[selected_lane]
         names = configured if isinstance(configured, list) else [configured]
         pooled = len(names) > 1
-        if pooled and not delivery:
+        if pooled and not delivery and existing is None:
             raise LocalWorkError("pooled code work is unsupported: no code-qualification source; a delivery brief is required")
         if existing is not None:
             names = [existing["route"]["provider"]]
         outstanding = {name: 0 for name in names}
         for path in (self.root / "runs" / "operator").glob("work_*/work-manifest.json"):
-            recorded = json.loads(path.read_text(encoding="utf-8"))
+            try:
+                recorded = json.loads(path.read_text(encoding="utf-8"))
+                if not isinstance(recorded, dict) or not isinstance(recorded.get("route", {}), dict):
+                    raise ValueError("manifest and route must be objects")
+            except (OSError, ValueError) as exc:
+                raise LocalWorkError(f"outstanding work manifest unreadable: {path.name} in {path.parent.name}: {exc}") from exc
             name = recorded.get("route", {}).get("provider")
             if name in outstanding and recorded.get("status") not in FINAL | {"awaiting_review"}:
                 outstanding[name] += 1
@@ -533,7 +545,7 @@ class LocalWorkService:
                                      (int(provider.settings.get("context_bytes") or 0) // 4))
                 deliberate = int(provider.settings.get("deliberate_max_tokens") or 0)
                 carried, pinned, choice, fallback, packet = False, False, None, None, None
-                profile, profile_sha = self._serving_profile(provider.settings)
+                profile, profile_sha = self._serving_profile(provider.settings, model)
                 if existing is not None and (existing["route"].get("selected_model", existing["route"].get("model")) != model or
                         existing["route"].get("serving_profile_sha256") != profile_sha):
                     raise LocalWorkError("recorded backend model or serving profile changed; retry refused")

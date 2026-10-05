@@ -40,7 +40,7 @@ class PoolRoutingTests(unittest.TestCase):
     def qualify(self, names=("deep-b", "deep-c")):
         backends = {}
         for name in names:
-            _, sha = LocalWorkService._serving_profile(load_pool().by_name(name).settings)
+            _, sha = LocalWorkService._serving_profile(load_pool().by_name(name).settings, load_pool().by_name(name).models[0])
             backends[name] = {"profiles": {sha: {"all": {"carry": self.CARRY}, "families": {}}}}
         return self.table(backends)
 
@@ -159,7 +159,7 @@ class PoolRoutingTests(unittest.TestCase):
         path.write_text(path.read_text().replace('deliberate_max_tokens = 24576', 'deliberate_max_tokens = 4096'))
         backends = {}
         for name in ("deep-b", "deep-c"):
-            profile, sha = LocalWorkService._serving_profile(load_pool().by_name(name).settings)
+            profile, sha = LocalWorkService._serving_profile(load_pool().by_name(name).settings, load_pool().by_name(name).models[0])
             self.assertEqual(profile["serving_profile_schema"], "serving-profile.v2")
             backends[name] = {"profiles": {sha: {"all": {"carry": self.CARRY,
                 "one_call": {"accepted": 2, "rejected": 2, "briefs": 2, "accepted_briefs": 2}}}}}
@@ -215,6 +215,49 @@ class PoolRoutingTests(unittest.TestCase):
         self.assertEqual(self.submit(idempotency_key="finished"), completed)
         with self.assertRaisesRegex(LocalWorkError, "different local work"):
             self.submit(idempotency_key="finished", intent="changed intent")
+
+    def test_model_only_change_cannot_reuse_qualified_recipe(self):
+        path = self.root / "backends.toml"
+        path.write_text(path.read_text().replace('models = ["m-deep-b"]', 'models = ["different-weights"]'))
+        manifest = self.submit()
+        self.assertEqual(manifest["route"]["provider"], "deep-c")
+        self.assertIn("no qualified delivery procedure", manifest["route"]["backend_choice"]["excluded"]["deep-b"])
+        self.assertEqual(manifest["route"]["serving_profile"]["selected_model"], "m-deep-c")
+
+    def test_scalar_lists_are_canonical_and_nested_settings_refuse(self):
+        left, a = LocalWorkService._serving_profile({"devices": (0, 1), "tensor_split": [0.5, 0.5]}, "m")
+        right, b = LocalWorkService._serving_profile({"devices": [0, 1], "tensor_split": (0.5, 0.5)}, "m")
+        self.assertEqual((left, a), (right, b))
+        self.assertIsInstance(left["devices"], list)
+        self.assertNotEqual(a, LocalWorkService._serving_profile({"devices": [0, 1], "tensor_split": [0.5, 0.5]}, "other")[1])
+        with self.assertRaisesRegex(LocalWorkError, "only scalars"):
+            LocalWorkService._serving_profile({"devices": [{"nested": 1}]}, "m")
+
+    def test_existing_singleton_code_can_retry_after_lane_becomes_pooled(self):
+        (self.root / "routes.toml").write_text('[lane.deep]\nbackend = "deep-b"\n')
+        release, entered = threading.Event(), threading.Event()
+        def generate(**_):
+            entered.set()
+            release.wait(3)
+            return {"ok": False, "error": "test completed"}
+        args = dict(brief=None, procedure=None, artifact_kind="unified_diff", task_family="code_fix", idempotency_key="code")
+        with mock.patch.object(self.execution, "_generate_call", side_effect=generate):
+            first = self.submit(**args)
+            try:
+                self.assertTrue(entered.wait(1))
+                (self.root / "routes.toml").write_text('[lane.deep]\nbackends = ["deep-b", "deep-c"]\n')
+                retry = self.submit(**args)
+                self.assertEqual((retry["work_id"], retry["job_id"]), (first["work_id"], first["job_id"]))
+            finally:
+                release.set()
+            self.settle(first["work_id"])
+
+    def test_corrupt_manifest_names_the_blocked_admission(self):
+        path = self.root / "runs" / "operator" / "work_corrupt" / "work-manifest.json"
+        path.parent.mkdir(parents=True)
+        path.write_text('{broken')
+        with self.assertRaisesRegex(LocalWorkError, "outstanding work manifest unreadable:.*work_corrupt"):
+            self.submit()
 
     def test_ambiguous_empty_duplicate_and_wrong_type_routes_refuse(self):
         bad = ('backend="deep-b"\nbackends=["deep-c"]', 'backends=[]',

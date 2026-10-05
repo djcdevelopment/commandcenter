@@ -229,8 +229,8 @@ class LocalWorkServiceTests(unittest.TestCase):
         polluted = dict(qualified, auth_env="SECRET_ENV", endpoint="http://private.invalid",
                         node="omen", context_bytes=458752, timeout_s=1000,
                         nested={"must": "not leak"})
-        clean_profile, clean_digest = LocalWorkService._serving_profile(qualified)
-        polluted_profile, polluted_digest = LocalWorkService._serving_profile(polluted)
+        clean_profile, clean_digest = LocalWorkService._serving_profile(qualified, "test-model")
+        polluted_profile, polluted_digest = LocalWorkService._serving_profile(polluted, "test-model")
         self.assertEqual(polluted_profile, clean_profile)
         self.assertEqual(polluted_digest, clean_digest)
 
@@ -239,7 +239,7 @@ class LocalWorkServiceTests(unittest.TestCase):
         provider = load_pool(config).by_name("omen-arc-27b")
         self.assertIsNotNone(provider)
         assert provider is not None
-        profile, _digest = LocalWorkService._serving_profile(provider.settings)
+        profile, _digest = LocalWorkService._serving_profile(provider.settings, provider.models[0])
         self.assertEqual(profile["context_tokens"], 131072)
         self.assertEqual(profile["parallel_slots"], 1)
         self.assertEqual(profile["device_backend"], "SYCL")
@@ -251,7 +251,7 @@ class LocalWorkServiceTests(unittest.TestCase):
         provider = load_pool(config).by_name("am4-dense")
         self.assertIsNotNone(provider)
         assert provider is not None
-        profile, _digest = LocalWorkService._serving_profile(provider.settings)
+        profile, _digest = LocalWorkService._serving_profile(provider.settings, provider.models[0])
         self.assertEqual(profile["context_tokens"], 65536)
         self.assertEqual(profile["max_tokens"], 4096)
         self.assertEqual(profile["parallel_slots"], 1)

@@ -86,8 +86,8 @@ def fixed_workload(repo):
         'needles': {'type': 'object', 'additionalProperties': False, 'required': list(values),
                     'properties': {k: {'type': 'string', 'pattern': '^[0-9a-f]{8}$'} for k in values}}}}
     return {'schema': 'thinking-workload.v1', 'id': 'bench27-am4-fixed-small-needle-v1', 'backend': 'am4-vllm',
-            'source_commit': commit, 'origin': path, 'aids': ['numbered fixed needle truth'],
-            'needle_truth': {k: {'value': v} for k, v in values.items()},
+            'source_commit': commit, 'origin': path, 'aids': ['needle count stated'],
+            'needle_truth': {k: {'value': v, 'byte_offset': len(user[:user.index(f"NEEDLE-{k}: {v}")].encode())} for k, v in values.items()},
             'work_request': {'model': 'am4-dense-27b', 'messages': [
                 {'role': 'system', 'content': 'Read the source. Copy every planted needle exactly. Do not invent values.'},
                 {'role': 'user', 'content': user}], 'max_tokens': 8000, 'temperature': 0.0, 'seed': 42,
@@ -116,8 +116,13 @@ def main():
     if digest(raw) != a.original_sha256:
         raise ValueError('original SHA256 mismatch')
     control = dict(BASE)
+    control_record_sha256 = None
+    adopted_candidate_sha256 = None
     if a.control_record:
-        verdict = json.loads(a.control_record.read_text())
+        control_record_bytes = a.control_record.read_bytes()
+        control_record_sha256 = digest(control_record_bytes)
+        verdict = json.loads(control_record_bytes)
+        adopted_candidate_sha256 = verdict.get('candidate_sha256')
         if verdict.get('verdict') != 'accepted' or verdict.get('reviewer_class') not in ('frontier', 'human') or verdict.get('original_sha256') != digest(raw):
             raise ValueError('control must have a frontier/human accepted verdict on this original')
         control = verdict['recipe']
@@ -127,6 +132,9 @@ def main():
             allowed = [BASE[key], *(change[1] for change in ARMS.values() if change and change[0] == key)]
             if value not in allowed:
                 raise ValueError(f'unknown adopted value for {key}')
+    control_sha256 = digest(raw) if control == BASE else digest(candidate(raw, control)[0])
+    if a.control_record and adopted_candidate_sha256 != control_sha256:
+        raise ValueError('adopted candidate SHA256 does not match reconstructed control')
     recipe = dict(control)
     change = ARMS[a.arm]
     if change:
@@ -141,11 +149,13 @@ def main():
     data, argv = candidate(raw, recipe)
     if a.arm == 'A0':
         data = raw  # baseline script is byte-identical, not just argv-equivalent
+        argv = original_parts(raw)[1]
     workload = fixed_workload(a.repo)
     work_bytes = (json.dumps(workload, indent=2) + '\n').encode()
     manifest = {'schema': 'bench27-am4-prepared-arm.v1', 'status': 'prepared_for_review', 'arm': a.arm,
                 'backend': 'am4-vllm', 'caller': 'codex', 'original_sha256': digest(raw),
                 'control_record': str(a.control_record) if a.control_record else None, 'control_recipe': control,
+                'control_sha256': control_sha256, 'control_record_sha256': control_record_sha256,
                 'recipe': recipe, 'changed_levers': [] if change is None else [change[0]],
                 'candidate_sha256': digest(data), 'argv': argv, 'workload_sha256': digest(work_bytes),
                 'metrics_url': 'ssh+http://10.44.0.2:18094/metrics',

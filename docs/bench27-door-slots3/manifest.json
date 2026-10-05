@@ -38,12 +38,47 @@
     {
       "path": "/home/derek/work/commandcenter-linux-flash/host/omen-linux/hearth-production/backends-linux.toml",
       "sha256_at_preparation": "fcc348a163ca4446f166821feb87f2a7e4e9844c363b60ee34f79f0bbf24d3bb",
-      "candidate_sha256": "31cec6a6f9d1623d6455eb531abbd4e316ccbf149af5e8f79858b2f9524487fd"
+      "candidate_sha256": "c15bcb3b6354082608abd29825d750caaf35e22b4a66ab9361078998301c958e",
+      "mutation": "backend[name=omen-dense-27b-b].settings.parallel_slots",
+      "original": 2,
+      "temporary": 3,
+      "tracked": true
+    },
+    {
+      "path": "/home/derek/hearth-production/backends-linux.toml",
+      "sha256_at_preparation": "fcc348a163ca4446f166821feb87f2a7e4e9844c363b60ee34f79f0bbf24d3bb",
+      "candidate_sha256": "c15bcb3b6354082608abd29825d750caaf35e22b4a66ab9361078998301c958e",
+      "mutation": "backend[name=omen-dense-27b-b].settings.parallel_slots",
+      "original": 2,
+      "temporary": 3,
+      "tracked": false
     },
     {
       "path": "/home/derek/work/commandcenter-linux-flash/host/lab-configurations.toml",
       "sha256_at_preparation": "6600df5a6cda7eca30bc5786d7df1e08bb34bf86749279beafa92f2d413066a0",
-      "candidate_sha256": "ad6630740288d730d94537dbed46bc394174046e162e65d7afc546824aa3c9b0"
+      "candidate_sha256": "59d857df3066939c11d84d45e11e36d72473f7a0d0b62a36b09c8f94745aa2fc",
+      "mutation": "configuration.three-dense.backends.omen-dense-27b-b.parallel_slots",
+      "original": 2,
+      "temporary": 3,
+      "tracked": true
+    },
+    {
+      "path": "/home/derek/work/commandcenter-linux-flash/host/omen-linux/config/lab-configurations.toml",
+      "sha256_at_preparation": "6600df5a6cda7eca30bc5786d7df1e08bb34bf86749279beafa92f2d413066a0",
+      "candidate_sha256": "59d857df3066939c11d84d45e11e36d72473f7a0d0b62a36b09c8f94745aa2fc",
+      "mutation": "configuration.three-dense.backends.omen-dense-27b-b.parallel_slots",
+      "original": 2,
+      "temporary": 3,
+      "tracked": true
+    },
+    {
+      "path": "/home/derek/.config/omen-vllm/lab-configurations.toml",
+      "sha256_at_preparation": "6600df5a6cda7eca30bc5786d7df1e08bb34bf86749279beafa92f2d413066a0",
+      "candidate_sha256": "59d857df3066939c11d84d45e11e36d72473f7a0d0b62a36b09c8f94745aa2fc",
+      "mutation": "configuration.three-dense.backends.omen-dense-27b-b.parallel_slots",
+      "original": 2,
+      "temporary": 3,
+      "tracked": false
     }
   ],
   "sequence_sha256": "bae140abdbaa99029399a8023b00eb4a589cfdb82bdff7c605acfd4cc46df96f",
@@ -56,7 +91,7 @@
     "--out",
     "/home/derek/work/lab-rnd/research/evidence/bench27-slots3-20261005/paired-c3/sequence"
   ],
-  "restore": "Parent drains owned jobs and verifies zero affected leases/running/waiting, then reverses only treatment slots3->2 in both tracked/deployed registry and three-dense record; never replace a whole stale registry snapshot.",
+  "restore": "At zero affected owned work/leases/running/waiting, restore original value2 and original temporary-line comment in five named physical files; preserve unrelated changes, verify managed pairs and all three lab config values. No stale wholefile overwrite.",
   "guard_unit": "bench27-card-guard.service",
   "unit_dependencies": {
     "BindsTo": [
@@ -66,5 +101,10 @@
       "bench27-card-guard.service"
     ]
   },
-  "guard_binding": "Existing guard callback already stops bench27-b70-lap.service; reuse only after prior lap fully inactive and guard active/fresh preflight. No guard restart or callback mutation."
+  "guard_binding": "Existing guard callback already stops bench27-b70-lap.service; reuse only after prior lap fully inactive and guard active/fresh preflight. No guard restart or callback mutation.",
+  "deployment_method": "Named TOML stanza edit of the indicated mutation; parse before/after and assert only that value changed. Diffs are review-only; never fuzzy apply.",
+  "expected_calls": {
+    "0": 6,
+    "1": 6
+  }
 }

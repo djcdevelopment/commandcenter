@@ -1,5 +1,5 @@
---- a/host/omen-linux/hearth-production/backends-linux.toml
-+++ b/host/omen-linux/hearth-production/backends-linux.toml
+--- /home/derek/hearth-production/backends-linux.toml
++++ /home/derek/hearth-production/backends-linux.toml
 @@ -86,49 +86,49 @@
  flash_attention = true   # the seat's --attention-backend FLASH_ATTN; part of the serving profile a capability record carries
  speculative = "mtp-k2"    # the seat's MTP draft depth; sizing_map checks both against the seat's drop-ins
@@ -51,42 +51,8 @@
  [backend.settings]
  node = "am4"
  engine = "vllm"
---- a/host/lab-configurations.toml
-+++ b/host/lab-configurations.toml
-@@ -122,30 +122,30 @@
- description = "G-bench27: two OMEN 27B replicas, AM4 tool-pair, FX99 utility; 30B fast lane absent. Restore day after the campaign."
- omen_profile = "two-dense"
- am4_profile = "tool-pair"
- fx99_state = "live"
- 
- [configuration.two-dense.backends]
- omen-vllm = { status = "absent" }
- omen-dense-27b = { status = "live", context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 }
- omen-dense-27b-b = { status = "live", context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 }
- am4-vllm = { status = "absent" }
- am4-tool-4070ti = { status = "live", context_tokens = 24576, parallel_slots = 3, max_tokens = 4096 }
- am4-tool-5070 = { status = "live", context_tokens = 16384, parallel_slots = 1, max_tokens = 6144 }
- fx99-vllm = { status = "live", context_tokens = 4096, parallel_slots = 1, max_tokens = 1024 }
- omen-perception = { status = "live", parallel_slots = 2 }
- 
- [configuration.three-dense]
- description = "G-bench27: two OMEN 27B replicas, AM4 dense-tp2, FX99 utility; 30B fast lane absent. Restore day after the campaign."
- omen_profile = "two-dense"
- am4_profile = "dense-tp2"
- fx99_state = "live"
- 
- [configuration.three-dense.backends]
- omen-vllm = { status = "absent" }
- omen-dense-27b = { status = "live", context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 }
--omen-dense-27b-b = { status = "live", context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 }
-+omen-dense-27b-b = { status = "live", context_tokens = 65536, parallel_slots = 3, max_tokens = 16384 } # Temporary Bench27 door-slots3 arm; restore 2.
- am4-vllm = { status = "live", context_tokens = 16384, parallel_slots = 1, max_tokens = 4096 }
- am4-tool-4070ti = { status = "absent" }
- am4-tool-5070 = { status = "absent" }
- fx99-vllm = { status = "live", context_tokens = 4096, parallel_slots = 1, max_tokens = 1024 }
- omen-perception = { status = "live", parallel_slots = 2 }
---- a/host/omen-linux/config/lab-configurations.toml
-+++ b/host/omen-linux/config/lab-configurations.toml
+--- /home/derek/.config/omen-vllm/lab-configurations.toml
++++ /home/derek/.config/omen-vllm/lab-configurations.toml
 @@ -122,30 +122,30 @@
  description = "G-bench27: two OMEN 27B replicas, AM4 tool-pair, FX99 utility; 30B fast lane absent. Restore day after the campaign."
  omen_profile = "two-dense"

@@ -1,6 +1,6 @@
 # ADR-0062: A deep lane routes among independently qualified configurations
 
-Status: **Proposed** (2026-10-05). Built in an isolated worktree; independent review and acceptance are pending.
+Status: **Accepted** (2026-10-05) by Codex under Derek’s documented dev delegation, after independent Opus routing-v3 PASS. Approval recorded in ~/work/CLAUDE-APPROVED.md. Production pool activation remains gated on final-profile qualification evidence.
 
 ## Context
 

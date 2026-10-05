@@ -1,6 +1,6 @@
 # two-dense window: seat 1 serves the same Qwen3.8-27B recipe as seat 0 (stage0-recipe + stage2-27b-mtp + stage2b-batched + stage2d-prefix-unit + max-num-seqs).
-# Apply = `omen-profile switch two-dense` copies this to stage9-two-dense.conf and restarts seat 1; leave = remove stage9-two-dense.conf, then `omen-profile switch two-lane`.
-# Sorts after seat 1's own stage0-recipe/max-model-len/max-num-seqs, so every key below wins (systemd: last assignment wins).
+# omen-profile journals and displaces the base recipe on entry, then restores it automatically on exit.
+# This is the sole active recipe while the two-dense profile is loaded; originals are hash-verified snapshots.
 [Service]
 Environment=OMEN_MODEL=/home/derek/models/qwen3.8-27b-gptq-int4-mtp
 Environment=OMEN_SERVED_NAME=qwen3.8-27b

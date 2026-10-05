@@ -28,13 +28,16 @@
       "haproxy_port": 18096,
       "seat_port": 18092,
       "dropins": [
-        "stage0-recipe.conf",
-        "max-model-len.conf",
-        "max-num-seqs.conf",
         "stage9-two-dense.conf"
       ],
       "staged_dropin": "stage9-two-dense.conf.staged",
-      "active_dropin": "stage9-two-dense.conf"
+      "active_dropin": "stage9-two-dense.conf",
+      "replace_dropins": [
+        "attn-backend.conf",
+        "max-model-len.conf",
+        "max-num-seqs.conf",
+        "stage0-recipe.conf"
+      ]
     }
   }
 }

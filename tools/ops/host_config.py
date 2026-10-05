@@ -12,6 +12,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import difflib
 from pathlib import Path
 import sys
@@ -140,8 +142,33 @@ def active_manifest() -> list[tuple[str, Path]]:
     profile = profile_path.read_text().strip() if profile_path.is_file() else "two-lane"
     inactive = ("stage2-27b-mtp.conf" if profile == "seat0-27b-vision"
                 else "stage8-27b-vision.conf")
-    return [(rel, live) for rel, live in MANIFEST
-            if not rel.endswith("/" + inactive)]
+    pairs = [(rel, live) for rel, live in MANIFEST if not rel.endswith("/" + inactive)]
+    snapshots = HOME / ".config" / "omen-vllm" / "snapshots"
+    for seat in (0, 1):
+        journal = snapshots / f"replacement-seat-{seat}.json"
+        if not journal.exists():
+            continue
+        state = json.loads(journal.read_text())
+        prefix = f"systemd/omen-vllm@{seat}.service.d/"
+        service_d = HOME / ".config" / "systemd" / "user" / f"omen-vllm@{seat}.service.d"
+        active = state["active"]
+        if Path(active).name != active or not active.endswith(".conf"):
+            raise ValueError("invalid replacement active filename")
+        active_path = service_d / active
+        if hashlib.sha256(active_path.read_bytes()).hexdigest() != state["active_sha256"]:
+            raise ValueError(f"replacement changed: {active_path}")
+        for name, entry in state["originals"].items():
+            if Path(name).name != name or not name.endswith(".conf"):
+                raise ValueError("invalid displaced filename")
+            backup = Path(entry["path"])
+            if (service_d / name).exists():
+                raise ValueError(f"displaced drop-in still active: {name}")
+            if not backup.resolve().is_relative_to(snapshots.resolve()) or hashlib.sha256(backup.read_bytes()).hexdigest() != entry["sha256"]:
+                raise ValueError(f"displaced drop-in snapshot integrity failed: {name}")
+            pairs = [(rel, backup if rel == prefix + name else live) for rel, live in pairs]
+        # Verify both the deployed staged recipe and its active copy against source.
+        pairs.append((prefix + active + ".staged", active_path))
+    return pairs
 
 # Fully captured live directories where extra files (present in live, absent from repo) are checked
 CAPTURED_DIRS: list[tuple[str, Path]] = [
@@ -159,7 +186,12 @@ def check() -> int:
     extra_live: list[str] = []
 
     repo_files = set()
-    pairs = active_manifest()
+    try:
+        pairs = active_manifest()
+    except (OSError, ValueError, KeyError) as exc:
+        print(f"FAILED: profile replacement state: {exc}")
+        return 1
+    known_live = {live for _, live in pairs}
     for rel_path, live_path in pairs:
         repo_path = HOST_DIR / rel_path
         repo_files.add(rel_path)
@@ -193,7 +225,7 @@ def check() -> int:
         for child in live_dir.iterdir():
             if child.is_file():
                 rel_child = f"{rel_dir}/{child.name}"
-                if rel_child not in repo_files:
+                if rel_child not in repo_files and child not in known_live:
                     extra_live.append(f"EXTRA (live directory {live_dir}): {child.name}")
                     errors += 1
 

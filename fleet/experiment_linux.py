@@ -396,6 +396,7 @@ class Experiment:
                                         start_new_session=True)
                 try:
                     rc = proc.wait(timeout=budget)
+                    self.stop_group(proc)  # normal exit must not leave campaign descendants alive
                 except subprocess.TimeoutExpired:
                     timed_out = True
                     self.stop_group(proc)
@@ -423,10 +424,28 @@ class Experiment:
         if calls is None:
             self.log("campaign reported no calls line; foreign requests cannot be attributed")
 
+    def sample_counters(self):
+        try:
+            return self.seat_counters()
+        except Exception as exc:
+            self.save(counters_sample_error=type(exc).__name__)
+            return None
+
     def wait_drained(self, timeout_s: float = 120) -> dict[str, float]:
         deadline = time.monotonic() + timeout_s
         while True:
-            counters = self.seat_counters()
+            try:
+                counters = self.seat_counters()
+            except Exception:
+                active = subprocess.run(["systemctl", "--user", "show", self.unit, "-p", "ActiveState", "--value"],
+                                        check=True, capture_output=True, text=True).stdout.strip()
+                from hearth.execution.coordination import CapacityLeaseStore
+                backend = str(self.spec.get("backend") or SEAT_BACKEND[self.seat])
+                leases = CapacityLeaseStore(COORD_DB).active_count(f"provider:{backend}")
+                if active not in ("inactive", "failed") or leases:
+                    raise RuntimeError(f"unreachable seat {self.seat} is not proven stopped and unleased: {active}, leases={leases}")
+                self.save(counters_unavailable=True, stopped_state_before_restore=active)
+                return {"running": 0, "waiting": 0, "success": None}
             if not counters["running"] and not counters["waiting"]:
                 return counters
             if time.monotonic() >= deadline:
@@ -443,9 +462,10 @@ class Experiment:
             self.save("restoring", applied_dropin=None)
             self.log("drop-in removed")
             subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
-            if self.state.get("seat_restarted"):
-                self.wait_drained()   # allow owned cancellation to settle before restart
-                self.restart_and_wait()
+        if (self.dropin and self.state.get("seat_restarted")) or self.state.get("cold_restart_pending"):
+            self.wait_drained()   # only an actual restart needs a drain
+            self.restart_and_wait()
+            self.save(restoration_restarted=True, cold_restart_pending=False)
         res = self.state.get("resident") or {}
         served = self.served_models()
         dropins = self.active_dropins()
@@ -464,7 +484,13 @@ class Experiment:
         self.log("restore verified", served=served, hashes=len(res["hashes"]))
 
     def release(self) -> None:
-        self.wait_drained()
+        if "seats" not in self.spec and self.state.get("resident"):
+            counters = self.sample_counters()
+            self.save(counters_release=counters)
+            baseline = 0 if self.state.get("restoration_restarted") else (self.state.get("counters_after") or {}).get("success")
+            if (counters is None or counters["running"] or counters["waiting"]
+                    or (baseline is not None and counters["success"] != baseline)):
+                self.save(campaign_contaminated=True)
         from hearth.execution.coordination import GpuTenancyStore
         t = self.state.get("tenancy") or {}
         if not GpuTenancyStore(COORD_DB).release(resource=POOL, session_id=t["session_id"], epoch=int(t["epoch"]),
@@ -592,9 +618,10 @@ class PairedExperiment(Experiment):
             if member.dropin is None:
                 argv = member.record_argv(running_must_match=True)
                 member.refuse_busy()
-                member.save("restarting", seat_restarted=True)
+                member.save("restarting", seat_restarted=True, cold_restart_pending=True)
                 member.restart_and_wait()
                 member.check_running_args(argv)
+                member.save(cold_restart_pending=False)
             member.swap()
         self.save("swapped-verified", effective_argv={k: m.state["effective_argv"] for k, m in self.members.items()},
                   served_after_swap={k: m.state["served_after_swap"] for k, m in self.members.items()})
@@ -616,11 +643,11 @@ class PairedExperiment(Experiment):
         return None
 
     def foreign_requests(self, before, after, calls):
-        per_seat = {k: None if calls is None else int(after[k]["success"] - before[k]["success"]) - calls[k]
+        per_seat = {k: None if calls is None or after.get(k) is None else int(after[k]["success"] - before[k]["success"]) - calls[k]
                     for k in self.members}
         self.save(foreign_requests_by_seat=per_seat)
         # Absolute values prevent opposite differences on the cards cancelling.
-        return None if calls is None else sum(abs(v) for v in per_seat.values())
+        return None if any(v is None for v in per_seat.values()) else sum(abs(v) for v in per_seat.values())
 
     def wait_drained(self, timeout_s: float = 120) -> dict:
         return {k: m.wait_drained(timeout_s) for k, m in self.members.items()}
@@ -631,10 +658,10 @@ class PairedExperiment(Experiment):
             if member.state.get("phase") == "restored":
                 continue
             try:
-                counters = member.wait_drained()
+                counters = member.sample_counters()
                 member.save(counters_restore_entry=counters)
                 member.restore()
-                member.save(counters_restored=member.seat_counters())
+                member.save(counters_restored=member.sample_counters())
             except BaseException as exc:
                 errors[key] = f"{type(exc).__name__}: {exc}"
         self.save(restoration_by_seat={k: m.state for k, m in self.members.items()})
@@ -651,15 +678,20 @@ class PairedExperiment(Experiment):
         self.save("restored")
 
     def release(self) -> None:
-        settled = self.wait_drained()
+        if not self.state.get("resident"):
+            return super().release()
+        settled = {k: m.sample_counters() for k, m in self.members.items()}
         extra = {}
         for key, member in self.members.items():
             entry = member.state.get("counters_restore_entry")
             if entry is None:
-                continue  # preflight failure: no campaign or swap occurred
+                self.save(campaign_contaminated=True)
+                continue
             # A treatment is restarted during restore; all its new requests are foreign.
-            baseline = 0 if member.dropin and member.state.get("seat_restarted") else entry["success"]
-            extra[key] = settled[key]["success"] - baseline
+            baseline = 0 if member.state.get("restoration_restarted") else entry["success"]
+            extra[key] = None if settled[key] is None else settled[key]["success"] - baseline
+            if settled[key] is None or settled[key]["running"] or settled[key]["waiting"]:
+                self.save(campaign_contaminated=True)
         if any(extra.values()):
             self.save(campaign_contaminated=True)
         self.save(requests_during_restore=extra, counters_release=settled)

@@ -153,3 +153,49 @@ class PairedTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class FailedEngineRestoreTests(unittest.TestCase):
+    def test_down_treatment_and_failed_cold_control_restore(self):
+        from urllib.error import URLError
+        for dropin in ('arm.conf', None):
+            with tempfile.TemporaryDirectory() as root, patch.object(exp, 'EXP_ROOT', Path(root) / 'experiments'), patch.object(exp, 'UNIT_DIR', Path(root) / 'units'):
+                member = exp.Experiment({'id': 'failed', 'seat': 0, 'dropin': dropin})
+                member.service_d.mkdir(parents=True)
+                if dropin:
+                    (member.service_d / dropin).write_text('bad recipe')
+                snapshot = {'served': ['model'], 'dropins': [], 'running_argv': ['vllm', 'serve'], 'main_pid': '1',
+                            'model_dir': '/fake', 'hashes': {}, 'weights': {}}
+                member.save(resident=snapshot, seat_restarted=True, applied_dropin=dropin, cold_restart_pending=dropin is None)
+                member.seat_counters = Mock(side_effect=URLError('engine down'))
+                member.served_models = Mock(return_value=['model'])
+                member.main_proc = Mock(return_value=('2', ['vllm', 'serve']))
+                member.stack_hashes = Mock(return_value={'hashes': {}, 'weights': {}})
+                member.restart_and_wait = Mock()
+                with patch.object(exp.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, stdout='failed')), patch('hearth.execution.coordination.CapacityLeaseStore') as store:
+                    store.return_value.active_count.return_value = 0
+                    member.restore()
+                member.restart_and_wait.assert_called_once()
+                self.assertEqual(member.state['phase'], 'restored')
+                self.assertEqual(member.active_dropins(), [])
+
+    def test_unreachable_active_seat_is_never_treated_as_drained(self):
+        from urllib.error import URLError
+        with tempfile.TemporaryDirectory() as root, patch.object(exp, 'EXP_ROOT', Path(root)):
+            member = exp.Experiment({'id': 'active', 'seat': 0, 'dropin': None})
+            member.seat_counters = Mock(side_effect=URLError('network failure'))
+            with patch.object(exp.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, stdout='active')), patch('hearth.execution.coordination.CapacityLeaseStore') as store:
+                store.return_value.active_count.return_value = 0
+                with self.assertRaises(RuntimeError):
+                    member.wait_drained()
+
+    def test_busy_noop_restore_does_not_drain_or_restart(self):
+        with tempfile.TemporaryDirectory() as root, patch.object(exp, 'EXP_ROOT', Path(root)):
+            member = exp.Experiment({'id': 'noop', 'seat': 0, 'dropin': None})
+            member.state['resident'] = {'served': ['m'], 'dropins': [], 'main_pid': '1', 'running_argv': ['v'], 'model_dir': '/f', 'hashes': {}, 'weights': {}}
+            member.served_models = Mock(return_value=['m'])
+            member.active_dropins = Mock(return_value=[])
+            member.main_proc = Mock(return_value=('1', ['v']))
+            member.stack_hashes = Mock(return_value={'hashes': {}, 'weights': {}})
+            member.wait_drained = Mock(side_effect=AssertionError('must not drain no-op'))
+            member.restore()
+            self.assertEqual(member.state['phase'], 'restored')

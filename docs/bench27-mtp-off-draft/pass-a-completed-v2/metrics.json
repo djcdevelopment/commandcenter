@@ -1,0 +1,2825 @@
+{
+  "schema": "bench27-arm-package.v1",
+  "root": "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/bench27-more-mtp-off-pass-a",
+  "reference_run": "rep-1/seat-0/run.json",
+  "reference_seat": "seat-0",
+  "card_map": {
+    "seat-0": "card2",
+    "seat-1": "card3"
+  },
+  "excluded_repeats": {
+    "rep-1": "first after restart; cold prefill"
+  },
+  "runs": [
+    {
+      "path": "rep-1/seat-0/run.json",
+      "run_sha256": "91a9c48ff6ba1f70bf9a6d93c948d3c790a486a309640cb38ef75647fe1ade95",
+      "seat": "seat-0",
+      "repeat": "rep-1",
+      "backend": "omen-dense-27b",
+      "arm": "bench27-more-mtp-off-pass-a",
+      "started_utc": "2026-10-05T09:11:14Z",
+      "finished_utc": "2026-10-05T09:15:32Z",
+      "workload": {
+        "path": "/home/derek/work/lab-rnd/research/evidence/qwen38-levers-20261003/sizing-workload.json",
+        "id": "sizing-work24k-t0",
+        "sha256": "0f65fd1977ded2217bd1f35fd918447c1c983b93f2e82c9b3f9aabbce2fb750d"
+      },
+      "registry_sha256": "fcc348a163ca4446f166821feb87f2a7e4e9844c363b60ee34f79f0bbf24d3bb",
+      "recipe": {
+        "declared_models": [
+          "qwen3.8-27b"
+        ],
+        "model_override": null,
+        "declared_context_tokens": 65536,
+        "observed_context_tokens": 65536,
+        "stack_status": "recorded",
+        "stack_reason": null,
+        "packages": [
+          {
+            "Name": "vllm",
+            "Version": "0.30.0+xpu"
+          },
+          {
+            "Name": "vllm-xpu-kernels",
+            "Version": "0.1.14.1"
+          },
+          {
+            "Name": "torch",
+            "Version": "2.13.0+xpu"
+          },
+          {
+            "Name": "triton",
+            "Version": "3.7.2+xpu"
+          },
+          {
+            "Name": "triton-xpu",
+            "Version": "3.7.2"
+          }
+        ],
+        "file_sha256": {
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/platforms/xpu.py": "3736e6cba2a0d78b9bd93f6069f610e2b2725be00f398a6ad5672a9862d66285",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/engine/arg_utils.py": "ead004ca266419cd25f54a7aefc0e20e1eb046f363b7f5cc977e14f52ee44bb1",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/config/cache.py": "f1c226ba679c884930dbfcaf41a57248b137a9a20d3ed8e3d3b31752bb484c07",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/config/vllm.py": "956b812e5a719bcbfa3a3958801361b38b9c928c96b8c073311bbb96376dfb7a",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/config/scheduler.py": "822179da62be4bca0619c8590082ae09123f5c4415f9cc2037be673748239edb",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/config/speculative.py": "9c642a87264339c0dbc1d0b57330572149df0f9d5e16c6893b9895e50a619e19",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/_xpu_ops.py": "4db00df212d772601fe59272cf8d4d0822ec8ef7bad219100c978943a7daf37b",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/attention/backends/flash_attn.py": "b170a4789e18104c1bee35bea70df51abe6766693d8f4726a59f2e6f5c4282aa",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/attention/backends/triton_attn.py": "1057663d110e1d5229495a799027b27277c1eca325d5b6780fa2259afbf58a1a",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/attention/ops/triton_unified_attention.py": "65d0fbcf33d00789df8ca688c0a1c908e710cfaef53471178747ecae11f05829",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py": "b80f8e6f3fff442fb880aebb3209c52f814f66490009f4ac4003de603576d10a",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/model_executor/layers/mamba/mamba_utils.py": "ce9845b4a4ef4bc46577a33038ed69d59ceccb52f30e9c5bdaa36e48be3b2ca4",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/model_executor/models/qwen3_5.py": "3abeac36180df7bd1bd96b1a7c698a8f212d92c063026420cbdd16d1980e90e6",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/core/kv_cache_manager.py": "58800535eda854580d84e1025bf32fe01b2a43ce0bba501b4f3d125e4f2c8afa",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/core/kv_cache_coordinator.py": "bf342f79f2bc8d6acb69d3becefb334509e84cae888d42bbd421a8dc8ca9eca3",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/core/single_type_kv_cache_manager.py": "0233531d85aeced9e57a38c76d83db970519c92902b7e55484390cb2b64985bf",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/config.py": "aea82e60889e78dcad8564ec8285b65a6a372824a1545a98ea8e78b6f4fd418a",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/worker.py": "acc2df53262441dfc6421a3af7f0cbd68cbfaedbd42bbc384d8e1da2d965d194",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/kv_offload/cpu/gpu_worker.py": "c10d4fc17bc46ed0a2f557203f4eb63c0332da0af0c619a2f0b904bae5ea5037",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/config.json": "580f5caae29242b242d3bcab2ad5b8a942fc0a59df1d228bd2b3233cfc760372",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/quantize_config.json": "ecbdecd64057569d9ab8e74c68eb329776e682d44746ff7b82bba6fcb0e157db",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/generation_config.json": "d0d0ed2e37cdfafef4a5067d5ea2407b05f4fb50526e47c008a5b235d50240fb",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/chat_template.jinja": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/tokenizer.json": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/tokenizer_config.json": "c5528e605ca971b6afeb2cb0025fd21244650e6fc7739808c581c6d5cdb70aa3",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/model.safetensors.index.json": "d511a969b32a16f1890326dadd4d04039779cebce7458b8e5d2ce7f3ce2550ed",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/README.md": "90e9ebad722c43a7b3c25294f7a4cdcfc54db509e596725e819911c64f428bdf",
+          "/home/derek/.config/systemd/user/omen-vllm@0.service.d/max-num-seqs.conf": "0c4a3714d39356f3588807e5034561b1f8dcbb2025514cd9574459d22171c8db",
+          "/home/derek/.config/systemd/user/omen-vllm@0.service.d/stage0-recipe.conf": "17878149e82b72e1abdc61ec11a038922b6785c283e4314ac0e0223b0adc96c9",
+          "/home/derek/.config/systemd/user/omen-vllm@0.service.d/stage2-27b-mtp.conf": "21378fa906d0a4865d5170a9d0daf78f7550c8450d9520c1cb81f9dae19e8364",
+          "/home/derek/.config/systemd/user/omen-vllm@0.service.d/stage2b-batched.conf": "40d6f82b111e69ea92e544382103610f5fd9bb43d4241f7adc13346af7ce121e",
+          "/home/derek/.config/systemd/user/omen-vllm@0.service.d/stage2d-prefix-unit.conf": "1adaff9717c28314c6f965e62ae5aa6a6cbc90fd42da5c65f3257a077cf6767d",
+          "/home/derek/bin/start-vllm-seat.sh": "0665331738883c8c503a399d07a7a2a0a04538e2c5b06476bf4e204081ffcd7f"
+        }
+      },
+      "recipe_sha256": "364d94f1925ac39fd4f443645fdf82376fd4ecd45b403f1d27eed2e1e6f1e9d7",
+      "concurrency": 1,
+      "ok": true,
+      "dry_run": false,
+      "context_mismatch": false,
+      "wire_equal_all": true,
+      "foreign_requests_possible": 0,
+      "preemptions": 0.0,
+      "seat_counters_delta": {
+        "num_preemptions_total": 0.0,
+        "running": 0.0,
+        "waiting": 0.0,
+        "prompt_tokens_total": 50360.0,
+        "generation_tokens_total": 12675.0,
+        "prefill_seconds_sum": 30.462,
+        "decode_seconds_sum": 224.295,
+        "request_success_total": 2.0,
+        "request_success": {
+          "stop": 2.0,
+          "length": 0.0,
+          "abort": 0.0,
+          "error": 0.0,
+          "repetition": 0.0
+        }
+      },
+      "prefill_seconds": 30.462,
+      "seconds_total": 257.4,
+      "decode_tokens_per_s": 56.510399250986424,
+      "thermal": {
+        "state": "observed",
+        "card": "card2",
+        "samples": 13,
+        "first_utc": "2026-10-05T09:11:24Z",
+        "last_utc": "2026-10-05T09:15:24Z",
+        "sources": [
+          "/home/derek/work/lab-rnd/research/evidence/bench27-config-20261005/cards.jsonl"
+        ],
+        "vram_c": {
+          "n": 13,
+          "median": 100.0,
+          "min": 68.0,
+          "max": 102.0,
+          "relative_range": 0.34
+        },
+        "pkg_c": {
+          "n": 13,
+          "median": 73.0,
+          "min": 68.0,
+          "max": 76.0,
+          "relative_range": 0.1095890410958904
+        },
+        "fan_rpm": {
+          "n": 13,
+          "median": 1899.0,
+          "min": 984.0,
+          "max": 3270.0,
+          "relative_range": 1.2037914691943128
+        },
+        "invalid_samples": 0,
+        "new_trips": []
+      },
+      "conversations": [
+        {
+          "conversation": 1,
+          "ok": true,
+          "failure": null,
+          "final_skipped": null,
+          "seconds_total": 257.2,
+          "work": {
+            "job_id": "job_8d464931c5e3dee334e3d2f965ec81f3",
+            "status": "succeeded",
+            "reason": null,
+            "seconds": 218.9,
+            "observed": {
+              "duration_ms": 218736,
+              "tokens_in": 24521,
+              "tokens_out": 11462,
+              "tokens_reasoning": 10470,
+              "thinking": true,
+              "finish_reason": "stop",
+              "first_reasoning_ms": 15114,
+              "first_content_ms": 202226,
+              "max_tokens_requested": 24000,
+              "max_tokens_applied": 24000,
+              "model": "qwen3.8-27b",
+              "error_code": null
+            },
+            "controls": {
+              "chat_template_kwargs": {
+                "enable_thinking": true
+              },
+              "max_tokens": 24000,
+              "model": "qwen3.8-27b",
+              "seed": 42,
+              "temperature": 0.0,
+              "top_p": 0.95
+            },
+            "wire_recorded": true,
+            "wire_equal": true,
+            "wire_mismatch": [],
+            "output_sha256": "6294799a8b4f50d26c29fb11dbcf8e98dd61a162acd49b4edecb11995151a1b2",
+            "output_hash_matches": true,
+            "decode_tokens_per_s_estimate": 56.29057763895846,
+            "output_tokens_per_s": 52.40106795406334,
+            "divergence": {
+              "state": "equal",
+              "first_character": null
+            }
+          },
+          "final": {
+            "job_id": "job_2345165295397065af210e62b28015c8",
+            "status": "succeeded",
+            "reason": null,
+            "seconds": 38.0,
+            "observed": {
+              "duration_ms": 37667,
+              "tokens_in": 25839,
+              "tokens_out": 1213,
+              "tokens_reasoning": 0,
+              "thinking": false,
+              "finish_reason": "stop",
+              "first_reasoning_ms": null,
+              "first_content_ms": 17409,
+              "max_tokens_requested": 4096,
+              "max_tokens_applied": 4096,
+              "model": "qwen3.8-27b",
+              "error_code": null
+            },
+            "controls": {
+              "chat_template_kwargs": {
+                "enable_thinking": false
+              },
+              "max_tokens": 4096,
+              "model": "qwen3.8-27b",
+              "response_format": {
+                "json_schema": {
+                  "name": "response",
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "sections": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "heading": {
+                              "maxLength": 120,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "paragraphs": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "quotes": {
+                                    "items": {
+                                      "maxLength": 400,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "maxItems": 8,
+                                    "type": "array"
+                                  },
+                                  "text": {
+                                    "maxLength": 2400,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "text",
+                                  "quotes"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 24,
+                              "minItems": 1,
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "heading",
+                            "paragraphs"
+                          ],
+                          "type": "object"
+                        },
+                        "maxItems": 16,
+                        "minItems": 1,
+                        "type": "array"
+                      },
+                      "summary": {
+                        "maxLength": 1200,
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "summary",
+                      "sections"
+                    ],
+                    "type": "object"
+                  },
+                  "strict": true
+                },
+                "type": "json_schema"
+              },
+              "seed": 42,
+              "temperature": 0.0
+            },
+            "wire_recorded": true,
+            "wire_equal": true,
+            "wire_mismatch": [],
+            "output_sha256": "152d69ef8b802bc2a0ed35547c5fcb6b5b84344e5684d5871a57e52fc5b2e883",
+            "output_hash_matches": true,
+            "decode_tokens_per_s_estimate": 59.87757922795932,
+            "output_tokens_per_s": 32.20325483845276,
+            "divergence": {
+              "state": "equal",
+              "first_character": null
+            }
+          }
+        }
+      ],
+      "timing_exclusions": [
+        "caller excluded repeat rep-1: first after restart; cold prefill"
+      ],
+      "work_seconds": 218.9,
+      "work_first_reasoning_ms": 15114,
+      "work_first_content_ms": 202226,
+      "final_seconds": 38.0,
+      "final_first_reasoning_ms": null,
+      "final_first_content_ms": 17409
+    },
+    {
+      "path": "rep-1/seat-1/run.json",
+      "run_sha256": "ce1bbed0caf6af6d962ea22b23df9ea3ea56cab97a1c7b4c62d01f9a443ac54e",
+      "seat": "seat-1",
+      "repeat": "rep-1",
+      "backend": "omen-dense-27b-b",
+      "arm": "bench27-more-mtp-off-pass-a",
+      "started_utc": "2026-10-05T09:11:14Z",
+      "finished_utc": "2026-10-05T09:18:10Z",
+      "workload": {
+        "path": "/home/derek/work/lab-rnd/research/evidence/qwen38-levers-20261003/sizing-workload.json",
+        "id": "sizing-work24k-t0",
+        "sha256": "0f65fd1977ded2217bd1f35fd918447c1c983b93f2e82c9b3f9aabbce2fb750d"
+      },
+      "registry_sha256": "fcc348a163ca4446f166821feb87f2a7e4e9844c363b60ee34f79f0bbf24d3bb",
+      "recipe": {
+        "declared_models": [
+          "qwen3.8-27b"
+        ],
+        "model_override": null,
+        "declared_context_tokens": 65536,
+        "observed_context_tokens": 65536,
+        "stack_status": "not_collected",
+        "stack_reason": "local inspector covers only default seat",
+        "packages": null,
+        "file_sha256": null
+      },
+      "recipe_sha256": "f47165e28aa1f2d4014c213f984e0b8c290afc89bc3767bf4c434ccd9dfd4d28",
+      "concurrency": 1,
+      "ok": true,
+      "dry_run": false,
+      "context_mismatch": false,
+      "wire_equal_all": true,
+      "foreign_requests_possible": 0,
+      "preemptions": 0.0,
+      "seat_counters_delta": {
+        "num_preemptions_total": 0.0,
+        "running": 0.0,
+        "waiting": 0.0,
+        "prompt_tokens_total": 50331.0,
+        "generation_tokens_total": 11202.0,
+        "prefill_seconds_sum": 30.339,
+        "decode_seconds_sum": 378.127,
+        "request_success_total": 2.0,
+        "request_success": {
+          "stop": 2.0,
+          "length": 0.0,
+          "abort": 0.0,
+          "error": 0.0,
+          "repetition": 0.0
+        }
+      },
+      "prefill_seconds": 30.339,
+      "seconds_total": 411.2,
+      "decode_tokens_per_s": 29.624967272900374,
+      "thermal": {
+        "state": "observed",
+        "card": "card3",
+        "samples": 21,
+        "first_utc": "2026-10-05T09:11:24Z",
+        "last_utc": "2026-10-05T09:18:04Z",
+        "sources": [
+          "/home/derek/work/lab-rnd/research/evidence/bench27-config-20261005/cards.jsonl"
+        ],
+        "vram_c": {
+          "n": 21,
+          "median": 94.0,
+          "min": 60.0,
+          "max": 96.0,
+          "relative_range": 0.3829787234042553
+        },
+        "pkg_c": {
+          "n": 21,
+          "median": 77.0,
+          "min": 63.0,
+          "max": 78.0,
+          "relative_range": 0.19480519480519481
+        },
+        "fan_rpm": {
+          "n": 21,
+          "median": 2082.0,
+          "min": 837.0,
+          "max": 2133.0,
+          "relative_range": 0.622478386167147
+        },
+        "invalid_samples": 0,
+        "new_trips": []
+      },
+      "conversations": [
+        {
+          "conversation": 1,
+          "ok": true,
+          "failure": null,
+          "final_skipped": null,
+          "seconds_total": 411.0,
+          "work": {
+            "job_id": "job_c5c332f2c3f9b316e793cded7a9ce351",
+            "status": "succeeded",
+            "reason": null,
+            "seconds": 365.3,
+            "observed": {
+              "duration_ms": 364970,
+              "tokens_in": 24521,
+              "tokens_out": 10365,
+              "tokens_reasoning": 9402,
+              "thinking": true,
+              "finish_reason": "stop",
+              "first_reasoning_ms": 14966,
+              "first_content_ms": 332022,
+              "max_tokens_requested": 24000,
+              "max_tokens_applied": 24000,
+              "model": "qwen3.8-27b",
+              "error_code": null
+            },
+            "controls": {
+              "chat_template_kwargs": {
+                "enable_thinking": true
+              },
+              "max_tokens": 24000,
+              "model": "qwen3.8-27b",
+              "seed": 42,
+              "temperature": 0.0,
+              "top_p": 0.95
+            },
+            "wire_recorded": true,
+            "wire_equal": true,
+            "wire_mismatch": [],
+            "output_sha256": "e1a22a70f7b52ed65fa3af44411e34583033d87aecc17ccff79629274d4aed1e",
+            "output_hash_matches": true,
+            "decode_tokens_per_s_estimate": 29.613947269174066,
+            "output_tokens_per_s": 28.399594487218128,
+            "divergence": {
+              "state": "different",
+              "first_character": 23,
+              "line": 4,
+              "column": 7,
+              "reference_excerpt": "\n\nVerified notes\n- TOML day: omen-dense-27b live ctx 65536, slots 2, ma",
+              "current_excerpt": "\n\nVerified notes\n- TOML: day omen-dense-27b live ctx 65536 slots 2 max "
+            }
+          },
+          "final": {
+            "job_id": "job_7e4edebe5e2c24e9eb1e83dfda14ed0e",
+            "status": "succeeded",
+            "reason": null,
+            "seconds": 45.4,
+            "observed": {
+              "duration_ms": 45126,
+              "tokens_in": 25810,
+              "tokens_out": 837,
+              "tokens_reasoning": 0,
+              "thinking": false,
+              "finish_reason": "stop",
+              "first_reasoning_ms": null,
+              "first_content_ms": 17424,
+              "max_tokens_requested": 4096,
+              "max_tokens_applied": 4096,
+              "model": "qwen3.8-27b",
+              "error_code": null
+            },
+            "controls": {
+              "chat_template_kwargs": {
+                "enable_thinking": false
+              },
+              "max_tokens": 4096,
+              "model": "qwen3.8-27b",
+              "response_format": {
+                "json_schema": {
+                  "name": "response",
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "sections": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "heading": {
+                              "maxLength": 120,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "paragraphs": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "quotes": {
+                                    "items": {
+                                      "maxLength": 400,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "maxItems": 8,
+                                    "type": "array"
+                                  },
+                                  "text": {
+                                    "maxLength": 2400,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "text",
+                                  "quotes"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 24,
+                              "minItems": 1,
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "heading",
+                            "paragraphs"
+                          ],
+                          "type": "object"
+                        },
+                        "maxItems": 16,
+                        "minItems": 1,
+                        "type": "array"
+                      },
+                      "summary": {
+                        "maxLength": 1200,
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "summary",
+                      "sections"
+                    ],
+                    "type": "object"
+                  },
+                  "strict": true
+                },
+                "type": "json_schema"
+              },
+              "seed": 42,
+              "temperature": 0.0
+            },
+            "wire_recorded": true,
+            "wire_equal": true,
+            "wire_mismatch": [],
+            "output_sha256": "3c8cfaba2977c48353fb3539bd7b5925f62b564ba0d11a4b5f71199894edf5ce",
+            "output_hash_matches": true,
+            "decode_tokens_per_s_estimate": 30.214424951267056,
+            "output_tokens_per_s": 18.548065416832866,
+            "divergence": {
+              "state": "different",
+              "first_character": 136,
+              "line": 8,
+              "column": 14,
+              "reference_excerpt": "quotes\": [\n            \"omen-dense-27b = { status = 'live', context_toke",
+              "current_excerpt": "quotes\": [\n            \"contract = \"\n          ],\n          \"text\": \"The"
+            }
+          }
+        }
+      ],
+      "timing_exclusions": [
+        "caller excluded repeat rep-1: first after restart; cold prefill"
+      ],
+      "work_seconds": 365.3,
+      "work_first_reasoning_ms": 14966,
+      "work_first_content_ms": 332022,
+      "final_seconds": 45.4,
+      "final_first_reasoning_ms": null,
+      "final_first_content_ms": 17424
+    },
+    {
+      "path": "rep-2/seat-0/run.json",
+      "run_sha256": "a586762134324b58dccdbdc1f8e4f44e998a067a88a1214ea58b63d5962aa6f2",
+      "seat": "seat-0",
+      "repeat": "rep-2",
+      "backend": "omen-dense-27b",
+      "arm": "bench27-more-mtp-off-pass-a",
+      "started_utc": "2026-10-05T09:18:10Z",
+      "finished_utc": "2026-10-05T09:21:55Z",
+      "workload": {
+        "path": "/home/derek/work/lab-rnd/research/evidence/qwen38-levers-20261003/sizing-workload.json",
+        "id": "sizing-work24k-t0",
+        "sha256": "0f65fd1977ded2217bd1f35fd918447c1c983b93f2e82c9b3f9aabbce2fb750d"
+      },
+      "registry_sha256": "fcc348a163ca4446f166821feb87f2a7e4e9844c363b60ee34f79f0bbf24d3bb",
+      "recipe": {
+        "declared_models": [
+          "qwen3.8-27b"
+        ],
+        "model_override": null,
+        "declared_context_tokens": 65536,
+        "observed_context_tokens": 65536,
+        "stack_status": "recorded",
+        "stack_reason": null,
+        "packages": [
+          {
+            "Name": "vllm",
+            "Version": "0.30.0+xpu"
+          },
+          {
+            "Name": "vllm-xpu-kernels",
+            "Version": "0.1.14.1"
+          },
+          {
+            "Name": "torch",
+            "Version": "2.13.0+xpu"
+          },
+          {
+            "Name": "triton",
+            "Version": "3.7.2+xpu"
+          },
+          {
+            "Name": "triton-xpu",
+            "Version": "3.7.2"
+          }
+        ],
+        "file_sha256": {
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/platforms/xpu.py": "3736e6cba2a0d78b9bd93f6069f610e2b2725be00f398a6ad5672a9862d66285",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/engine/arg_utils.py": "ead004ca266419cd25f54a7aefc0e20e1eb046f363b7f5cc977e14f52ee44bb1",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/config/cache.py": "f1c226ba679c884930dbfcaf41a57248b137a9a20d3ed8e3d3b31752bb484c07",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/config/vllm.py": "956b812e5a719bcbfa3a3958801361b38b9c928c96b8c073311bbb96376dfb7a",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/config/scheduler.py": "822179da62be4bca0619c8590082ae09123f5c4415f9cc2037be673748239edb",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/config/speculative.py": "9c642a87264339c0dbc1d0b57330572149df0f9d5e16c6893b9895e50a619e19",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/_xpu_ops.py": "4db00df212d772601fe59272cf8d4d0822ec8ef7bad219100c978943a7daf37b",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/attention/backends/flash_attn.py": "b170a4789e18104c1bee35bea70df51abe6766693d8f4726a59f2e6f5c4282aa",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/attention/backends/triton_attn.py": "1057663d110e1d5229495a799027b27277c1eca325d5b6780fa2259afbf58a1a",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/attention/ops/triton_unified_attention.py": "65d0fbcf33d00789df8ca688c0a1c908e710cfaef53471178747ecae11f05829",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py": "b80f8e6f3fff442fb880aebb3209c52f814f66490009f4ac4003de603576d10a",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/model_executor/layers/mamba/mamba_utils.py": "ce9845b4a4ef4bc46577a33038ed69d59ceccb52f30e9c5bdaa36e48be3b2ca4",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/model_executor/models/qwen3_5.py": "3abeac36180df7bd1bd96b1a7c698a8f212d92c063026420cbdd16d1980e90e6",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/core/kv_cache_manager.py": "58800535eda854580d84e1025bf32fe01b2a43ce0bba501b4f3d125e4f2c8afa",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/core/kv_cache_coordinator.py": "bf342f79f2bc8d6acb69d3becefb334509e84cae888d42bbd421a8dc8ca9eca3",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/core/single_type_kv_cache_manager.py": "0233531d85aeced9e57a38c76d83db970519c92902b7e55484390cb2b64985bf",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/config.py": "aea82e60889e78dcad8564ec8285b65a6a372824a1545a98ea8e78b6f4fd418a",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/worker.py": "acc2df53262441dfc6421a3af7f0cbd68cbfaedbd42bbc384d8e1da2d965d194",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/kv_offload/cpu/gpu_worker.py": "c10d4fc17bc46ed0a2f557203f4eb63c0332da0af0c619a2f0b904bae5ea5037",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/config.json": "580f5caae29242b242d3bcab2ad5b8a942fc0a59df1d228bd2b3233cfc760372",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/quantize_config.json": "ecbdecd64057569d9ab8e74c68eb329776e682d44746ff7b82bba6fcb0e157db",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/generation_config.json": "d0d0ed2e37cdfafef4a5067d5ea2407b05f4fb50526e47c008a5b235d50240fb",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/chat_template.jinja": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/tokenizer.json": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/tokenizer_config.json": "c5528e605ca971b6afeb2cb0025fd21244650e6fc7739808c581c6d5cdb70aa3",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/model.safetensors.index.json": "d511a969b32a16f1890326dadd4d04039779cebce7458b8e5d2ce7f3ce2550ed",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/README.md": "90e9ebad722c43a7b3c25294f7a4cdcfc54db509e596725e819911c64f428bdf",
+          "/home/derek/.config/systemd/user/omen-vllm@0.service.d/max-num-seqs.conf": "0c4a3714d39356f3588807e5034561b1f8dcbb2025514cd9574459d22171c8db",
+          "/home/derek/.config/systemd/user/omen-vllm@0.service.d/stage0-recipe.conf": "17878149e82b72e1abdc61ec11a038922b6785c283e4314ac0e0223b0adc96c9",
+          "/home/derek/.config/systemd/user/omen-vllm@0.service.d/stage2-27b-mtp.conf": "21378fa906d0a4865d5170a9d0daf78f7550c8450d9520c1cb81f9dae19e8364",
+          "/home/derek/.config/systemd/user/omen-vllm@0.service.d/stage2b-batched.conf": "40d6f82b111e69ea92e544382103610f5fd9bb43d4241f7adc13346af7ce121e",
+          "/home/derek/.config/systemd/user/omen-vllm@0.service.d/stage2d-prefix-unit.conf": "1adaff9717c28314c6f965e62ae5aa6a6cbc90fd42da5c65f3257a077cf6767d",
+          "/home/derek/bin/start-vllm-seat.sh": "0665331738883c8c503a399d07a7a2a0a04538e2c5b06476bf4e204081ffcd7f"
+        }
+      },
+      "recipe_sha256": "364d94f1925ac39fd4f443645fdf82376fd4ecd45b403f1d27eed2e1e6f1e9d7",
+      "concurrency": 1,
+      "ok": true,
+      "dry_run": false,
+      "context_mismatch": false,
+      "wire_equal_all": true,
+      "foreign_requests_possible": 0,
+      "preemptions": 0.0,
+      "seat_counters_delta": {
+        "num_preemptions_total": 0.0,
+        "running": 0.0,
+        "waiting": 0.0,
+        "prompt_tokens_total": 50360.0,
+        "generation_tokens_total": 12675.0,
+        "prefill_seconds_sum": 0.284,
+        "decode_seconds_sum": 224.22,
+        "request_success_total": 2.0,
+        "request_success": {
+          "stop": 2.0,
+          "length": 0.0,
+          "abort": 0.0,
+          "error": 0.0,
+          "repetition": 0.0
+        }
+      },
+      "prefill_seconds": 0.284,
+      "seconds_total": 225.1,
+      "decode_tokens_per_s": 56.52930157880653,
+      "thermal": {
+        "state": "observed",
+        "card": "card2",
+        "samples": 11,
+        "first_utc": "2026-10-05T09:18:24Z",
+        "last_utc": "2026-10-05T09:21:44Z",
+        "sources": [
+          "/home/derek/work/lab-rnd/research/evidence/bench27-config-20261005/cards.jsonl"
+        ],
+        "vram_c": {
+          "n": 11,
+          "median": 100.0,
+          "min": 72.0,
+          "max": 102.0,
+          "relative_range": 0.3
+        },
+        "pkg_c": {
+          "n": 11,
+          "median": 72.0,
+          "min": 58.0,
+          "max": 75.0,
+          "relative_range": 0.2361111111111111
+        },
+        "fan_rpm": {
+          "n": 11,
+          "median": 1831.0,
+          "min": 1023.0,
+          "max": 3147.0,
+          "relative_range": 1.1600218459858
+        },
+        "invalid_samples": 0,
+        "new_trips": []
+      },
+      "conversations": [
+        {
+          "conversation": 1,
+          "ok": true,
+          "failure": null,
+          "final_skipped": null,
+          "seconds_total": 224.9,
+          "work": {
+            "job_id": "job_4026679e2dfdc8766078e3196db93239",
+            "status": "succeeded",
+            "reason": null,
+            "seconds": 204.0,
+            "observed": {
+              "duration_ms": 203898,
+              "tokens_in": 24521,
+              "tokens_out": 11462,
+              "tokens_reasoning": 10470,
+              "thinking": true,
+              "finish_reason": "stop",
+              "first_reasoning_ms": 233,
+              "first_content_ms": 187297,
+              "max_tokens_requested": 24000,
+              "max_tokens_applied": 24000,
+              "model": "qwen3.8-27b",
+              "error_code": null
+            },
+            "controls": {
+              "chat_template_kwargs": {
+                "enable_thinking": true
+              },
+              "max_tokens": 24000,
+              "model": "qwen3.8-27b",
+              "seed": 42,
+              "temperature": 0.0,
+              "top_p": 0.95
+            },
+            "wire_recorded": true,
+            "wire_equal": true,
+            "wire_mismatch": [],
+            "output_sha256": "6294799a8b4f50d26c29fb11dbcf8e98dd61a162acd49b4edecb11995151a1b2",
+            "output_hash_matches": true,
+            "decode_tokens_per_s_estimate": 56.278692951660815,
+            "output_tokens_per_s": 56.21438170065425,
+            "divergence": {
+              "state": "equal",
+              "first_character": null
+            }
+          },
+          "final": {
+            "job_id": "job_12ce03730f23f7185ddcb7210f4c83d6",
+            "status": "succeeded",
+            "reason": null,
+            "seconds": 20.8,
+            "observed": {
+              "duration_ms": 20678,
+              "tokens_in": 25839,
+              "tokens_out": 1213,
+              "tokens_reasoning": 0,
+              "thinking": false,
+              "finish_reason": "stop",
+              "first_reasoning_ms": null,
+              "first_content_ms": 237,
+              "max_tokens_requested": 4096,
+              "max_tokens_applied": 4096,
+              "model": "qwen3.8-27b",
+              "error_code": null
+            },
+            "controls": {
+              "chat_template_kwargs": {
+                "enable_thinking": false
+              },
+              "max_tokens": 4096,
+              "model": "qwen3.8-27b",
+              "response_format": {
+                "json_schema": {
+                  "name": "response",
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "sections": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "heading": {
+                              "maxLength": 120,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "paragraphs": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "quotes": {
+                                    "items": {
+                                      "maxLength": 400,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "maxItems": 8,
+                                    "type": "array"
+                                  },
+                                  "text": {
+                                    "maxLength": 2400,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "text",
+                                  "quotes"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 24,
+                              "minItems": 1,
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "heading",
+                            "paragraphs"
+                          ],
+                          "type": "object"
+                        },
+                        "maxItems": 16,
+                        "minItems": 1,
+                        "type": "array"
+                      },
+                      "summary": {
+                        "maxLength": 1200,
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "summary",
+                      "sections"
+                    ],
+                    "type": "object"
+                  },
+                  "strict": true
+                },
+                "type": "json_schema"
+              },
+              "seed": 42,
+              "temperature": 0.0
+            },
+            "wire_recorded": true,
+            "wire_equal": true,
+            "wire_mismatch": [],
+            "output_sha256": "152d69ef8b802bc2a0ed35547c5fcb6b5b84344e5684d5871a57e52fc5b2e883",
+            "output_hash_matches": true,
+            "decode_tokens_per_s_estimate": 59.34151949513233,
+            "output_tokens_per_s": 58.66137924364058,
+            "divergence": {
+              "state": "equal",
+              "first_character": null
+            }
+          }
+        }
+      ],
+      "timing_exclusions": [],
+      "work_seconds": 204.0,
+      "work_first_reasoning_ms": 233,
+      "work_first_content_ms": 187297,
+      "final_seconds": 20.8,
+      "final_first_reasoning_ms": null,
+      "final_first_content_ms": 237
+    },
+    {
+      "path": "rep-2/seat-1/run.json",
+      "run_sha256": "f003b0d44813b4b6e472ffd03308b6070847ac75d704a926c1f7d962091a74e2",
+      "seat": "seat-1",
+      "repeat": "rep-2",
+      "backend": "omen-dense-27b-b",
+      "arm": "bench27-more-mtp-off-pass-a",
+      "started_utc": "2026-10-05T09:18:10Z",
+      "finished_utc": "2026-10-05T09:24:29Z",
+      "workload": {
+        "path": "/home/derek/work/lab-rnd/research/evidence/qwen38-levers-20261003/sizing-workload.json",
+        "id": "sizing-work24k-t0",
+        "sha256": "0f65fd1977ded2217bd1f35fd918447c1c983b93f2e82c9b3f9aabbce2fb750d"
+      },
+      "registry_sha256": "fcc348a163ca4446f166821feb87f2a7e4e9844c363b60ee34f79f0bbf24d3bb",
+      "recipe": {
+        "declared_models": [
+          "qwen3.8-27b"
+        ],
+        "model_override": null,
+        "declared_context_tokens": 65536,
+        "observed_context_tokens": 65536,
+        "stack_status": "not_collected",
+        "stack_reason": "local inspector covers only default seat",
+        "packages": null,
+        "file_sha256": null
+      },
+      "recipe_sha256": "f47165e28aa1f2d4014c213f984e0b8c290afc89bc3767bf4c434ccd9dfd4d28",
+      "concurrency": 1,
+      "ok": true,
+      "dry_run": false,
+      "context_mismatch": false,
+      "wire_equal_all": true,
+      "foreign_requests_possible": 0,
+      "preemptions": 0.0,
+      "seat_counters_delta": {
+        "num_preemptions_total": 0.0,
+        "running": 0.0,
+        "waiting": 0.0,
+        "prompt_tokens_total": 50331.0,
+        "generation_tokens_total": 11202.0,
+        "prefill_seconds_sum": 0.216,
+        "decode_seconds_sum": 378.356,
+        "request_success_total": 2.0,
+        "request_success": {
+          "stop": 2.0,
+          "length": 0.0,
+          "abort": 0.0,
+          "error": 0.0,
+          "repetition": 0.0
+        }
+      },
+      "prefill_seconds": 0.216,
+      "seconds_total": 379.2,
+      "decode_tokens_per_s": 29.60703675903118,
+      "thermal": {
+        "state": "observed",
+        "card": "card3",
+        "samples": 19,
+        "first_utc": "2026-10-05T09:18:24Z",
+        "last_utc": "2026-10-05T09:24:24Z",
+        "sources": [
+          "/home/derek/work/lab-rnd/research/evidence/bench27-config-20261005/cards.jsonl"
+        ],
+        "vram_c": {
+          "n": 19,
+          "median": 96.0,
+          "min": 94.0,
+          "max": 96.0,
+          "relative_range": 0.020833333333333332
+        },
+        "pkg_c": {
+          "n": 19,
+          "median": 78.0,
+          "min": 77.0,
+          "max": 78.0,
+          "relative_range": 0.01282051282051282
+        },
+        "fan_rpm": {
+          "n": 19,
+          "median": 2106.0,
+          "min": 2079.0,
+          "max": 2130.0,
+          "relative_range": 0.024216524216524215
+        },
+        "invalid_samples": 0,
+        "new_trips": []
+      },
+      "conversations": [
+        {
+          "conversation": 1,
+          "ok": true,
+          "failure": null,
+          "final_skipped": null,
+          "seconds_total": 379.0,
+          "work": {
+            "job_id": "job_856320110dd5fb32e59fa6794419878b",
+            "status": "succeeded",
+            "reason": null,
+            "seconds": 350.7,
+            "observed": {
+              "duration_ms": 350568,
+              "tokens_in": 24521,
+              "tokens_out": 10365,
+              "tokens_reasoning": 9402,
+              "thinking": true,
+              "finish_reason": "stop",
+              "first_reasoning_ms": 232,
+              "first_content_ms": 317655,
+              "max_tokens_requested": 24000,
+              "max_tokens_applied": 24000,
+              "model": "qwen3.8-27b",
+              "error_code": null
+            },
+            "controls": {
+              "chat_template_kwargs": {
+                "enable_thinking": true
+              },
+              "max_tokens": 24000,
+              "model": "qwen3.8-27b",
+              "seed": 42,
+              "temperature": 0.0,
+              "top_p": 0.95
+            },
+            "wire_recorded": true,
+            "wire_equal": true,
+            "wire_mismatch": [],
+            "output_sha256": "e1a22a70f7b52ed65fa3af44411e34583033d87aecc17ccff79629274d4aed1e",
+            "output_hash_matches": true,
+            "decode_tokens_per_s_estimate": 29.585883266350017,
+            "output_tokens_per_s": 29.56630382693229,
+            "divergence": {
+              "state": "different",
+              "first_character": 23,
+              "line": 4,
+              "column": 7,
+              "reference_excerpt": "\n\nVerified notes\n- TOML day: omen-dense-27b live ctx 65536, slots 2, ma",
+              "current_excerpt": "\n\nVerified notes\n- TOML: day omen-dense-27b live ctx 65536 slots 2 max "
+            }
+          },
+          "final": {
+            "job_id": "job_1fca4f41d225b4c8d32d350ba2a2961e",
+            "status": "succeeded",
+            "reason": null,
+            "seconds": 28.2,
+            "observed": {
+              "duration_ms": 28076,
+              "tokens_in": 25810,
+              "tokens_out": 837,
+              "tokens_reasoning": 0,
+              "thinking": false,
+              "finish_reason": "stop",
+              "first_reasoning_ms": null,
+              "first_content_ms": 238,
+              "max_tokens_requested": 4096,
+              "max_tokens_applied": 4096,
+              "model": "qwen3.8-27b",
+              "error_code": null
+            },
+            "controls": {
+              "chat_template_kwargs": {
+                "enable_thinking": false
+              },
+              "max_tokens": 4096,
+              "model": "qwen3.8-27b",
+              "response_format": {
+                "json_schema": {
+                  "name": "response",
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "sections": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "heading": {
+                              "maxLength": 120,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "paragraphs": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "quotes": {
+                                    "items": {
+                                      "maxLength": 400,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "maxItems": 8,
+                                    "type": "array"
+                                  },
+                                  "text": {
+                                    "maxLength": 2400,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "text",
+                                  "quotes"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 24,
+                              "minItems": 1,
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "heading",
+                            "paragraphs"
+                          ],
+                          "type": "object"
+                        },
+                        "maxItems": 16,
+                        "minItems": 1,
+                        "type": "array"
+                      },
+                      "summary": {
+                        "maxLength": 1200,
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "summary",
+                      "sections"
+                    ],
+                    "type": "object"
+                  },
+                  "strict": true
+                },
+                "type": "json_schema"
+              },
+              "seed": 42,
+              "temperature": 0.0
+            },
+            "wire_recorded": true,
+            "wire_equal": true,
+            "wire_mismatch": [],
+            "output_sha256": "3c8cfaba2977c48353fb3539bd7b5925f62b564ba0d11a4b5f71199894edf5ce",
+            "output_hash_matches": true,
+            "decode_tokens_per_s_estimate": 30.066815144766146,
+            "output_tokens_per_s": 29.8119390226528,
+            "divergence": {
+              "state": "different",
+              "first_character": 136,
+              "line": 8,
+              "column": 14,
+              "reference_excerpt": "quotes\": [\n            \"omen-dense-27b = { status = 'live', context_toke",
+              "current_excerpt": "quotes\": [\n            \"contract = \"\n          ],\n          \"text\": \"The"
+            }
+          }
+        }
+      ],
+      "timing_exclusions": [],
+      "work_seconds": 350.7,
+      "work_first_reasoning_ms": 232,
+      "work_first_content_ms": 317655,
+      "final_seconds": 28.2,
+      "final_first_reasoning_ms": null,
+      "final_first_content_ms": 238
+    },
+    {
+      "path": "rep-3/seat-0/run.json",
+      "run_sha256": "ed2bccd4d922194ba6470c9fb4c8f7860181268d08d64939626113fcecbdf03a",
+      "seat": "seat-0",
+      "repeat": "rep-3",
+      "backend": "omen-dense-27b",
+      "arm": "bench27-more-mtp-off-pass-a",
+      "started_utc": "2026-10-05T09:24:29Z",
+      "finished_utc": "2026-10-05T09:28:15Z",
+      "workload": {
+        "path": "/home/derek/work/lab-rnd/research/evidence/qwen38-levers-20261003/sizing-workload.json",
+        "id": "sizing-work24k-t0",
+        "sha256": "0f65fd1977ded2217bd1f35fd918447c1c983b93f2e82c9b3f9aabbce2fb750d"
+      },
+      "registry_sha256": "fcc348a163ca4446f166821feb87f2a7e4e9844c363b60ee34f79f0bbf24d3bb",
+      "recipe": {
+        "declared_models": [
+          "qwen3.8-27b"
+        ],
+        "model_override": null,
+        "declared_context_tokens": 65536,
+        "observed_context_tokens": 65536,
+        "stack_status": "recorded",
+        "stack_reason": null,
+        "packages": [
+          {
+            "Name": "vllm",
+            "Version": "0.30.0+xpu"
+          },
+          {
+            "Name": "vllm-xpu-kernels",
+            "Version": "0.1.14.1"
+          },
+          {
+            "Name": "torch",
+            "Version": "2.13.0+xpu"
+          },
+          {
+            "Name": "triton",
+            "Version": "3.7.2+xpu"
+          },
+          {
+            "Name": "triton-xpu",
+            "Version": "3.7.2"
+          }
+        ],
+        "file_sha256": {
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/platforms/xpu.py": "3736e6cba2a0d78b9bd93f6069f610e2b2725be00f398a6ad5672a9862d66285",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/engine/arg_utils.py": "ead004ca266419cd25f54a7aefc0e20e1eb046f363b7f5cc977e14f52ee44bb1",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/config/cache.py": "f1c226ba679c884930dbfcaf41a57248b137a9a20d3ed8e3d3b31752bb484c07",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/config/vllm.py": "956b812e5a719bcbfa3a3958801361b38b9c928c96b8c073311bbb96376dfb7a",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/config/scheduler.py": "822179da62be4bca0619c8590082ae09123f5c4415f9cc2037be673748239edb",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/config/speculative.py": "9c642a87264339c0dbc1d0b57330572149df0f9d5e16c6893b9895e50a619e19",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/_xpu_ops.py": "4db00df212d772601fe59272cf8d4d0822ec8ef7bad219100c978943a7daf37b",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/attention/backends/flash_attn.py": "b170a4789e18104c1bee35bea70df51abe6766693d8f4726a59f2e6f5c4282aa",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/attention/backends/triton_attn.py": "1057663d110e1d5229495a799027b27277c1eca325d5b6780fa2259afbf58a1a",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/attention/ops/triton_unified_attention.py": "65d0fbcf33d00789df8ca688c0a1c908e710cfaef53471178747ecae11f05829",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py": "b80f8e6f3fff442fb880aebb3209c52f814f66490009f4ac4003de603576d10a",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/model_executor/layers/mamba/mamba_utils.py": "ce9845b4a4ef4bc46577a33038ed69d59ceccb52f30e9c5bdaa36e48be3b2ca4",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/model_executor/models/qwen3_5.py": "3abeac36180df7bd1bd96b1a7c698a8f212d92c063026420cbdd16d1980e90e6",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/core/kv_cache_manager.py": "58800535eda854580d84e1025bf32fe01b2a43ce0bba501b4f3d125e4f2c8afa",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/core/kv_cache_coordinator.py": "bf342f79f2bc8d6acb69d3becefb334509e84cae888d42bbd421a8dc8ca9eca3",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/core/single_type_kv_cache_manager.py": "0233531d85aeced9e57a38c76d83db970519c92902b7e55484390cb2b64985bf",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/config.py": "aea82e60889e78dcad8564ec8285b65a6a372824a1545a98ea8e78b6f4fd418a",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/worker.py": "acc2df53262441dfc6421a3af7f0cbd68cbfaedbd42bbc384d8e1da2d965d194",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/kv_offload/cpu/gpu_worker.py": "c10d4fc17bc46ed0a2f557203f4eb63c0332da0af0c619a2f0b904bae5ea5037",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/config.json": "580f5caae29242b242d3bcab2ad5b8a942fc0a59df1d228bd2b3233cfc760372",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/quantize_config.json": "ecbdecd64057569d9ab8e74c68eb329776e682d44746ff7b82bba6fcb0e157db",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/generation_config.json": "d0d0ed2e37cdfafef4a5067d5ea2407b05f4fb50526e47c008a5b235d50240fb",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/chat_template.jinja": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/tokenizer.json": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/tokenizer_config.json": "c5528e605ca971b6afeb2cb0025fd21244650e6fc7739808c581c6d5cdb70aa3",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/model.safetensors.index.json": "d511a969b32a16f1890326dadd4d04039779cebce7458b8e5d2ce7f3ce2550ed",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/README.md": "90e9ebad722c43a7b3c25294f7a4cdcfc54db509e596725e819911c64f428bdf",
+          "/home/derek/.config/systemd/user/omen-vllm@0.service.d/max-num-seqs.conf": "0c4a3714d39356f3588807e5034561b1f8dcbb2025514cd9574459d22171c8db",
+          "/home/derek/.config/systemd/user/omen-vllm@0.service.d/stage0-recipe.conf": "17878149e82b72e1abdc61ec11a038922b6785c283e4314ac0e0223b0adc96c9",
+          "/home/derek/.config/systemd/user/omen-vllm@0.service.d/stage2-27b-mtp.conf": "21378fa906d0a4865d5170a9d0daf78f7550c8450d9520c1cb81f9dae19e8364",
+          "/home/derek/.config/systemd/user/omen-vllm@0.service.d/stage2b-batched.conf": "40d6f82b111e69ea92e544382103610f5fd9bb43d4241f7adc13346af7ce121e",
+          "/home/derek/.config/systemd/user/omen-vllm@0.service.d/stage2d-prefix-unit.conf": "1adaff9717c28314c6f965e62ae5aa6a6cbc90fd42da5c65f3257a077cf6767d",
+          "/home/derek/bin/start-vllm-seat.sh": "0665331738883c8c503a399d07a7a2a0a04538e2c5b06476bf4e204081ffcd7f"
+        }
+      },
+      "recipe_sha256": "364d94f1925ac39fd4f443645fdf82376fd4ecd45b403f1d27eed2e1e6f1e9d7",
+      "concurrency": 1,
+      "ok": true,
+      "dry_run": false,
+      "context_mismatch": false,
+      "wire_equal_all": true,
+      "foreign_requests_possible": 0,
+      "preemptions": 0.0,
+      "seat_counters_delta": {
+        "num_preemptions_total": 0.0,
+        "running": 0.0,
+        "waiting": 0.0,
+        "prompt_tokens_total": 50360.0,
+        "generation_tokens_total": 12675.0,
+        "prefill_seconds_sum": 0.29,
+        "decode_seconds_sum": 224.219,
+        "request_success_total": 2.0,
+        "request_success": {
+          "stop": 2.0,
+          "length": 0.0,
+          "abort": 0.0,
+          "error": 0.0,
+          "repetition": 0.0
+        }
+      },
+      "prefill_seconds": 0.29,
+      "seconds_total": 225.7,
+      "decode_tokens_per_s": 56.52955369527114,
+      "thermal": {
+        "state": "observed",
+        "card": "card2",
+        "samples": 11,
+        "first_utc": "2026-10-05T09:24:44Z",
+        "last_utc": "2026-10-05T09:28:04Z",
+        "sources": [
+          "/home/derek/work/lab-rnd/research/evidence/bench27-config-20261005/cards.jsonl"
+        ],
+        "vram_c": {
+          "n": 11,
+          "median": 100.0,
+          "min": 76.0,
+          "max": 100.0,
+          "relative_range": 0.24
+        },
+        "pkg_c": {
+          "n": 11,
+          "median": 73.0,
+          "min": 61.0,
+          "max": 76.0,
+          "relative_range": 0.2054794520547945
+        },
+        "fan_rpm": {
+          "n": 11,
+          "median": 1767.0,
+          "min": 1137.0,
+          "max": 3483.0,
+          "relative_range": 1.3276740237691003
+        },
+        "invalid_samples": 0,
+        "new_trips": []
+      },
+      "conversations": [
+        {
+          "conversation": 1,
+          "ok": true,
+          "failure": null,
+          "final_skipped": null,
+          "seconds_total": 225.5,
+          "work": {
+            "job_id": "job_c392449270f04a93a9b2fa1a5dbfc4c1",
+            "status": "succeeded",
+            "reason": null,
+            "seconds": 204.0,
+            "observed": {
+              "duration_ms": 203922,
+              "tokens_in": 24521,
+              "tokens_out": 11462,
+              "tokens_reasoning": 10470,
+              "thinking": true,
+              "finish_reason": "stop",
+              "first_reasoning_ms": 233,
+              "first_content_ms": 187337,
+              "max_tokens_requested": 24000,
+              "max_tokens_applied": 24000,
+              "model": "qwen3.8-27b",
+              "error_code": null
+            },
+            "controls": {
+              "chat_template_kwargs": {
+                "enable_thinking": true
+              },
+              "max_tokens": 24000,
+              "model": "qwen3.8-27b",
+              "seed": 42,
+              "temperature": 0.0,
+              "top_p": 0.95
+            },
+            "wire_recorded": true,
+            "wire_equal": true,
+            "wire_mismatch": [],
+            "output_sha256": "6294799a8b4f50d26c29fb11dbcf8e98dd61a162acd49b4edecb11995151a1b2",
+            "output_hash_matches": true,
+            "decode_tokens_per_s_estimate": 56.272061819734986,
+            "output_tokens_per_s": 56.20776571434176,
+            "divergence": {
+              "state": "equal",
+              "first_character": null
+            }
+          },
+          "final": {
+            "job_id": "job_768476def2eea5f32ad8bf793e2d4acd",
+            "status": "succeeded",
+            "reason": null,
+            "seconds": 21.0,
+            "observed": {
+              "duration_ms": 20652,
+              "tokens_in": 25839,
+              "tokens_out": 1213,
+              "tokens_reasoning": 0,
+              "thinking": false,
+              "finish_reason": "stop",
+              "first_reasoning_ms": null,
+              "first_content_ms": 233,
+              "max_tokens_requested": 4096,
+              "max_tokens_applied": 4096,
+              "model": "qwen3.8-27b",
+              "error_code": null
+            },
+            "controls": {
+              "chat_template_kwargs": {
+                "enable_thinking": false
+              },
+              "max_tokens": 4096,
+              "model": "qwen3.8-27b",
+              "response_format": {
+                "json_schema": {
+                  "name": "response",
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "sections": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "heading": {
+                              "maxLength": 120,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "paragraphs": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "quotes": {
+                                    "items": {
+                                      "maxLength": 400,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "maxItems": 8,
+                                    "type": "array"
+                                  },
+                                  "text": {
+                                    "maxLength": 2400,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "text",
+                                  "quotes"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 24,
+                              "minItems": 1,
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "heading",
+                            "paragraphs"
+                          ],
+                          "type": "object"
+                        },
+                        "maxItems": 16,
+                        "minItems": 1,
+                        "type": "array"
+                      },
+                      "summary": {
+                        "maxLength": 1200,
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "summary",
+                      "sections"
+                    ],
+                    "type": "object"
+                  },
+                  "strict": true
+                },
+                "type": "json_schema"
+              },
+              "seed": 42,
+              "temperature": 0.0
+            },
+            "wire_recorded": true,
+            "wire_equal": true,
+            "wire_mismatch": [],
+            "output_sha256": "152d69ef8b802bc2a0ed35547c5fcb6b5b84344e5684d5871a57e52fc5b2e883",
+            "output_hash_matches": true,
+            "decode_tokens_per_s_estimate": 59.405455703021694,
+            "output_tokens_per_s": 58.73523145458067,
+            "divergence": {
+              "state": "equal",
+              "first_character": null
+            }
+          }
+        }
+      ],
+      "timing_exclusions": [],
+      "work_seconds": 204.0,
+      "work_first_reasoning_ms": 233,
+      "work_first_content_ms": 187337,
+      "final_seconds": 21.0,
+      "final_first_reasoning_ms": null,
+      "final_first_content_ms": 233
+    },
+    {
+      "path": "rep-3/seat-1/run.json",
+      "run_sha256": "305c5a196acf9781ea97b6e0b26e6a0b90bac1467da6d63468a3237b57d46e35",
+      "seat": "seat-1",
+      "repeat": "rep-3",
+      "backend": "omen-dense-27b-b",
+      "arm": "bench27-more-mtp-off-pass-a",
+      "started_utc": "2026-10-05T09:24:29Z",
+      "finished_utc": "2026-10-05T09:30:48Z",
+      "workload": {
+        "path": "/home/derek/work/lab-rnd/research/evidence/qwen38-levers-20261003/sizing-workload.json",
+        "id": "sizing-work24k-t0",
+        "sha256": "0f65fd1977ded2217bd1f35fd918447c1c983b93f2e82c9b3f9aabbce2fb750d"
+      },
+      "registry_sha256": "fcc348a163ca4446f166821feb87f2a7e4e9844c363b60ee34f79f0bbf24d3bb",
+      "recipe": {
+        "declared_models": [
+          "qwen3.8-27b"
+        ],
+        "model_override": null,
+        "declared_context_tokens": 65536,
+        "observed_context_tokens": 65536,
+        "stack_status": "not_collected",
+        "stack_reason": "local inspector covers only default seat",
+        "packages": null,
+        "file_sha256": null
+      },
+      "recipe_sha256": "f47165e28aa1f2d4014c213f984e0b8c290afc89bc3767bf4c434ccd9dfd4d28",
+      "concurrency": 1,
+      "ok": true,
+      "dry_run": false,
+      "context_mismatch": false,
+      "wire_equal_all": true,
+      "foreign_requests_possible": 0,
+      "preemptions": 0.0,
+      "seat_counters_delta": {
+        "num_preemptions_total": 0.0,
+        "running": 0.0,
+        "waiting": 0.0,
+        "prompt_tokens_total": 50331.0,
+        "generation_tokens_total": 11202.0,
+        "prefill_seconds_sum": 0.218,
+        "decode_seconds_sum": 378.342,
+        "request_success_total": 2.0,
+        "request_success": {
+          "stop": 2.0,
+          "length": 0.0,
+          "abort": 0.0,
+          "error": 0.0,
+          "repetition": 0.0
+        }
+      },
+      "prefill_seconds": 0.218,
+      "seconds_total": 379.2,
+      "decode_tokens_per_s": 29.608132324722078,
+      "thermal": {
+        "state": "observed",
+        "card": "card3",
+        "samples": 19,
+        "first_utc": "2026-10-05T09:24:44Z",
+        "last_utc": "2026-10-05T09:30:44Z",
+        "sources": [
+          "/home/derek/work/lab-rnd/research/evidence/bench27-config-20261005/cards.jsonl"
+        ],
+        "vram_c": {
+          "n": 19,
+          "median": 96.0,
+          "min": 94.0,
+          "max": 96.0,
+          "relative_range": 0.020833333333333332
+        },
+        "pkg_c": {
+          "n": 19,
+          "median": 78.0,
+          "min": 78.0,
+          "max": 78.0,
+          "relative_range": 0.0
+        },
+        "fan_rpm": {
+          "n": 19,
+          "median": 2112.0,
+          "min": 2083.0,
+          "max": 2157.0,
+          "relative_range": 0.035037878787878785
+        },
+        "invalid_samples": 0,
+        "new_trips": []
+      },
+      "conversations": [
+        {
+          "conversation": 1,
+          "ok": true,
+          "failure": null,
+          "final_skipped": null,
+          "seconds_total": 379.0,
+          "work": {
+            "job_id": "job_a38189d6571cbd2478af8b3c48117976",
+            "status": "succeeded",
+            "reason": null,
+            "seconds": 350.7,
+            "observed": {
+              "duration_ms": 350551,
+              "tokens_in": 24521,
+              "tokens_out": 10365,
+              "tokens_reasoning": 9402,
+              "thinking": true,
+              "finish_reason": "stop",
+              "first_reasoning_ms": 234,
+              "first_content_ms": 317770,
+              "max_tokens_requested": 24000,
+              "max_tokens_applied": 24000,
+              "model": "qwen3.8-27b",
+              "error_code": null
+            },
+            "controls": {
+              "chat_template_kwargs": {
+                "enable_thinking": true
+              },
+              "max_tokens": 24000,
+              "model": "qwen3.8-27b",
+              "seed": 42,
+              "temperature": 0.0,
+              "top_p": 0.95
+            },
+            "wire_recorded": true,
+            "wire_equal": true,
+            "wire_mismatch": [],
+            "output_sha256": "e1a22a70f7b52ed65fa3af44411e34583033d87aecc17ccff79629274d4aed1e",
+            "output_hash_matches": true,
+            "decode_tokens_per_s_estimate": 29.587487903812832,
+            "output_tokens_per_s": 29.567737647303815,
+            "divergence": {
+              "state": "different",
+              "first_character": 23,
+              "line": 4,
+              "column": 7,
+              "reference_excerpt": "\n\nVerified notes\n- TOML day: omen-dense-27b live ctx 65536, slots 2, ma",
+              "current_excerpt": "\n\nVerified notes\n- TOML: day omen-dense-27b live ctx 65536 slots 2 max "
+            }
+          },
+          "final": {
+            "job_id": "job_5d7fe9f695fced1854989a6d385b7ae4",
+            "status": "succeeded",
+            "reason": null,
+            "seconds": 28.2,
+            "observed": {
+              "duration_ms": 28077,
+              "tokens_in": 25810,
+              "tokens_out": 837,
+              "tokens_reasoning": 0,
+              "thinking": false,
+              "finish_reason": "stop",
+              "first_reasoning_ms": null,
+              "first_content_ms": 231,
+              "max_tokens_requested": 4096,
+              "max_tokens_applied": 4096,
+              "model": "qwen3.8-27b",
+              "error_code": null
+            },
+            "controls": {
+              "chat_template_kwargs": {
+                "enable_thinking": false
+              },
+              "max_tokens": 4096,
+              "model": "qwen3.8-27b",
+              "response_format": {
+                "json_schema": {
+                  "name": "response",
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "sections": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "heading": {
+                              "maxLength": 120,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "paragraphs": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "quotes": {
+                                    "items": {
+                                      "maxLength": 400,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "maxItems": 8,
+                                    "type": "array"
+                                  },
+                                  "text": {
+                                    "maxLength": 2400,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "text",
+                                  "quotes"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 24,
+                              "minItems": 1,
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "heading",
+                            "paragraphs"
+                          ],
+                          "type": "object"
+                        },
+                        "maxItems": 16,
+                        "minItems": 1,
+                        "type": "array"
+                      },
+                      "summary": {
+                        "maxLength": 1200,
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "summary",
+                      "sections"
+                    ],
+                    "type": "object"
+                  },
+                  "strict": true
+                },
+                "type": "json_schema"
+              },
+              "seed": 42,
+              "temperature": 0.0
+            },
+            "wire_recorded": true,
+            "wire_equal": true,
+            "wire_mismatch": [],
+            "output_sha256": "3c8cfaba2977c48353fb3539bd7b5925f62b564ba0d11a4b5f71199894edf5ce",
+            "output_hash_matches": true,
+            "decode_tokens_per_s_estimate": 30.058177117000646,
+            "output_tokens_per_s": 29.81087723047334,
+            "divergence": {
+              "state": "different",
+              "first_character": 136,
+              "line": 8,
+              "column": 14,
+              "reference_excerpt": "quotes\": [\n            \"omen-dense-27b = { status = 'live', context_toke",
+              "current_excerpt": "quotes\": [\n            \"contract = \"\n          ],\n          \"text\": \"The"
+            }
+          }
+        }
+      ],
+      "timing_exclusions": [],
+      "work_seconds": 350.7,
+      "work_first_reasoning_ms": 234,
+      "work_first_content_ms": 317770,
+      "final_seconds": 28.2,
+      "final_first_reasoning_ms": null,
+      "final_first_content_ms": 231
+    },
+    {
+      "path": "rep-4/seat-0/run.json",
+      "run_sha256": "2826f0259f70f5d063ad2117e8312b67a22a9a016ed6f8a2c3bdc5d15b192d68",
+      "seat": "seat-0",
+      "repeat": "rep-4",
+      "backend": "omen-dense-27b",
+      "arm": "bench27-more-mtp-off-pass-a",
+      "started_utc": "2026-10-05T09:30:49Z",
+      "finished_utc": "2026-10-05T09:34:34Z",
+      "workload": {
+        "path": "/home/derek/work/lab-rnd/research/evidence/qwen38-levers-20261003/sizing-workload.json",
+        "id": "sizing-work24k-t0",
+        "sha256": "0f65fd1977ded2217bd1f35fd918447c1c983b93f2e82c9b3f9aabbce2fb750d"
+      },
+      "registry_sha256": "fcc348a163ca4446f166821feb87f2a7e4e9844c363b60ee34f79f0bbf24d3bb",
+      "recipe": {
+        "declared_models": [
+          "qwen3.8-27b"
+        ],
+        "model_override": null,
+        "declared_context_tokens": 65536,
+        "observed_context_tokens": 65536,
+        "stack_status": "recorded",
+        "stack_reason": null,
+        "packages": [
+          {
+            "Name": "vllm",
+            "Version": "0.30.0+xpu"
+          },
+          {
+            "Name": "vllm-xpu-kernels",
+            "Version": "0.1.14.1"
+          },
+          {
+            "Name": "torch",
+            "Version": "2.13.0+xpu"
+          },
+          {
+            "Name": "triton",
+            "Version": "3.7.2+xpu"
+          },
+          {
+            "Name": "triton-xpu",
+            "Version": "3.7.2"
+          }
+        ],
+        "file_sha256": {
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/platforms/xpu.py": "3736e6cba2a0d78b9bd93f6069f610e2b2725be00f398a6ad5672a9862d66285",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/engine/arg_utils.py": "ead004ca266419cd25f54a7aefc0e20e1eb046f363b7f5cc977e14f52ee44bb1",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/config/cache.py": "f1c226ba679c884930dbfcaf41a57248b137a9a20d3ed8e3d3b31752bb484c07",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/config/vllm.py": "956b812e5a719bcbfa3a3958801361b38b9c928c96b8c073311bbb96376dfb7a",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/config/scheduler.py": "822179da62be4bca0619c8590082ae09123f5c4415f9cc2037be673748239edb",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/config/speculative.py": "9c642a87264339c0dbc1d0b57330572149df0f9d5e16c6893b9895e50a619e19",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/_xpu_ops.py": "4db00df212d772601fe59272cf8d4d0822ec8ef7bad219100c978943a7daf37b",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/attention/backends/flash_attn.py": "b170a4789e18104c1bee35bea70df51abe6766693d8f4726a59f2e6f5c4282aa",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/attention/backends/triton_attn.py": "1057663d110e1d5229495a799027b27277c1eca325d5b6780fa2259afbf58a1a",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/attention/ops/triton_unified_attention.py": "65d0fbcf33d00789df8ca688c0a1c908e710cfaef53471178747ecae11f05829",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py": "b80f8e6f3fff442fb880aebb3209c52f814f66490009f4ac4003de603576d10a",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/model_executor/layers/mamba/mamba_utils.py": "ce9845b4a4ef4bc46577a33038ed69d59ceccb52f30e9c5bdaa36e48be3b2ca4",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/model_executor/models/qwen3_5.py": "3abeac36180df7bd1bd96b1a7c698a8f212d92c063026420cbdd16d1980e90e6",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/core/kv_cache_manager.py": "58800535eda854580d84e1025bf32fe01b2a43ce0bba501b4f3d125e4f2c8afa",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/core/kv_cache_coordinator.py": "bf342f79f2bc8d6acb69d3becefb334509e84cae888d42bbd421a8dc8ca9eca3",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/core/single_type_kv_cache_manager.py": "0233531d85aeced9e57a38c76d83db970519c92902b7e55484390cb2b64985bf",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/config.py": "aea82e60889e78dcad8564ec8285b65a6a372824a1545a98ea8e78b6f4fd418a",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/worker.py": "acc2df53262441dfc6421a3af7f0cbd68cbfaedbd42bbc384d8e1da2d965d194",
+          "/home/derek/.venvs/vllm-xpu-030/lib/python3.12/site-packages/vllm/v1/kv_offload/cpu/gpu_worker.py": "c10d4fc17bc46ed0a2f557203f4eb63c0332da0af0c619a2f0b904bae5ea5037",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/config.json": "580f5caae29242b242d3bcab2ad5b8a942fc0a59df1d228bd2b3233cfc760372",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/quantize_config.json": "ecbdecd64057569d9ab8e74c68eb329776e682d44746ff7b82bba6fcb0e157db",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/generation_config.json": "d0d0ed2e37cdfafef4a5067d5ea2407b05f4fb50526e47c008a5b235d50240fb",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/chat_template.jinja": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/tokenizer.json": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/tokenizer_config.json": "c5528e605ca971b6afeb2cb0025fd21244650e6fc7739808c581c6d5cdb70aa3",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/model.safetensors.index.json": "d511a969b32a16f1890326dadd4d04039779cebce7458b8e5d2ce7f3ce2550ed",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp/README.md": "90e9ebad722c43a7b3c25294f7a4cdcfc54db509e596725e819911c64f428bdf",
+          "/home/derek/.config/systemd/user/omen-vllm@0.service.d/max-num-seqs.conf": "0c4a3714d39356f3588807e5034561b1f8dcbb2025514cd9574459d22171c8db",
+          "/home/derek/.config/systemd/user/omen-vllm@0.service.d/stage0-recipe.conf": "17878149e82b72e1abdc61ec11a038922b6785c283e4314ac0e0223b0adc96c9",
+          "/home/derek/.config/systemd/user/omen-vllm@0.service.d/stage2-27b-mtp.conf": "21378fa906d0a4865d5170a9d0daf78f7550c8450d9520c1cb81f9dae19e8364",
+          "/home/derek/.config/systemd/user/omen-vllm@0.service.d/stage2b-batched.conf": "40d6f82b111e69ea92e544382103610f5fd9bb43d4241f7adc13346af7ce121e",
+          "/home/derek/.config/systemd/user/omen-vllm@0.service.d/stage2d-prefix-unit.conf": "1adaff9717c28314c6f965e62ae5aa6a6cbc90fd42da5c65f3257a077cf6767d",
+          "/home/derek/bin/start-vllm-seat.sh": "0665331738883c8c503a399d07a7a2a0a04538e2c5b06476bf4e204081ffcd7f"
+        }
+      },
+      "recipe_sha256": "364d94f1925ac39fd4f443645fdf82376fd4ecd45b403f1d27eed2e1e6f1e9d7",
+      "concurrency": 1,
+      "ok": true,
+      "dry_run": false,
+      "context_mismatch": false,
+      "wire_equal_all": true,
+      "foreign_requests_possible": 0,
+      "preemptions": 0.0,
+      "seat_counters_delta": {
+        "num_preemptions_total": 0.0,
+        "running": 0.0,
+        "waiting": 0.0,
+        "prompt_tokens_total": 50360.0,
+        "generation_tokens_total": 12675.0,
+        "prefill_seconds_sum": 0.284,
+        "decode_seconds_sum": 224.216,
+        "request_success_total": 2.0,
+        "request_success": {
+          "stop": 2.0,
+          "length": 0.0,
+          "abort": 0.0,
+          "error": 0.0,
+          "repetition": 0.0
+        }
+      },
+      "prefill_seconds": 0.284,
+      "seconds_total": 225.4,
+      "decode_tokens_per_s": 56.5303100581582,
+      "thermal": {
+        "state": "observed",
+        "card": "card2",
+        "samples": 11,
+        "first_utc": "2026-10-05T09:31:04Z",
+        "last_utc": "2026-10-05T09:34:24Z",
+        "sources": [
+          "/home/derek/work/lab-rnd/research/evidence/bench27-config-20261005/cards.jsonl"
+        ],
+        "vram_c": {
+          "n": 11,
+          "median": 100.0,
+          "min": 72.0,
+          "max": 102.0,
+          "relative_range": 0.3
+        },
+        "pkg_c": {
+          "n": 11,
+          "median": 73.0,
+          "min": 58.0,
+          "max": 75.0,
+          "relative_range": 0.2328767123287671
+        },
+        "fan_rpm": {
+          "n": 11,
+          "median": 1891.0,
+          "min": 1020.0,
+          "max": 2676.0,
+          "relative_range": 0.8757271285034374
+        },
+        "invalid_samples": 0,
+        "new_trips": []
+      },
+      "conversations": [
+        {
+          "conversation": 1,
+          "ok": true,
+          "failure": null,
+          "final_skipped": null,
+          "seconds_total": 225.2,
+          "work": {
+            "job_id": "job_dca0b1d4b547ec2d38f1ac30e1bc221c",
+            "status": "succeeded",
+            "reason": null,
+            "seconds": 204.0,
+            "observed": {
+              "duration_ms": 203886,
+              "tokens_in": 24521,
+              "tokens_out": 11462,
+              "tokens_reasoning": 10470,
+              "thinking": true,
+              "finish_reason": "stop",
+              "first_reasoning_ms": 228,
+              "first_content_ms": 187388,
+              "max_tokens_requested": 24000,
+              "max_tokens_applied": 24000,
+              "model": "qwen3.8-27b",
+              "error_code": null
+            },
+            "controls": {
+              "chat_template_kwargs": {
+                "enable_thinking": true
+              },
+              "max_tokens": 24000,
+              "model": "qwen3.8-27b",
+              "seed": 42,
+              "temperature": 0.0,
+              "top_p": 0.95
+            },
+            "wire_recorded": true,
+            "wire_equal": true,
+            "wire_mismatch": [],
+            "output_sha256": "6294799a8b4f50d26c29fb11dbcf8e98dd61a162acd49b4edecb11995151a1b2",
+            "output_hash_matches": true,
+            "decode_tokens_per_s_estimate": 56.280627326203735,
+            "output_tokens_per_s": 56.217690277900395,
+            "divergence": {
+              "state": "equal",
+              "first_character": null
+            }
+          },
+          "final": {
+            "job_id": "job_a6de72b1c990e8131a673d51b24dd29b",
+            "status": "succeeded",
+            "reason": null,
+            "seconds": 21.0,
+            "observed": {
+              "duration_ms": 20683,
+              "tokens_in": 25839,
+              "tokens_out": 1213,
+              "tokens_reasoning": 0,
+              "thinking": false,
+              "finish_reason": "stop",
+              "first_reasoning_ms": null,
+              "first_content_ms": 236,
+              "max_tokens_requested": 4096,
+              "max_tokens_applied": 4096,
+              "model": "qwen3.8-27b",
+              "error_code": null
+            },
+            "controls": {
+              "chat_template_kwargs": {
+                "enable_thinking": false
+              },
+              "max_tokens": 4096,
+              "model": "qwen3.8-27b",
+              "response_format": {
+                "json_schema": {
+                  "name": "response",
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "sections": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "heading": {
+                              "maxLength": 120,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "paragraphs": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "quotes": {
+                                    "items": {
+                                      "maxLength": 400,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "maxItems": 8,
+                                    "type": "array"
+                                  },
+                                  "text": {
+                                    "maxLength": 2400,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "text",
+                                  "quotes"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 24,
+                              "minItems": 1,
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "heading",
+                            "paragraphs"
+                          ],
+                          "type": "object"
+                        },
+                        "maxItems": 16,
+                        "minItems": 1,
+                        "type": "array"
+                      },
+                      "summary": {
+                        "maxLength": 1200,
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "summary",
+                      "sections"
+                    ],
+                    "type": "object"
+                  },
+                  "strict": true
+                },
+                "type": "json_schema"
+              },
+              "seed": 42,
+              "temperature": 0.0
+            },
+            "wire_recorded": true,
+            "wire_equal": true,
+            "wire_mismatch": [],
+            "output_sha256": "152d69ef8b802bc2a0ed35547c5fcb6b5b84344e5684d5871a57e52fc5b2e883",
+            "output_hash_matches": true,
+            "decode_tokens_per_s_estimate": 59.324106225852205,
+            "output_tokens_per_s": 58.6471981820819,
+            "divergence": {
+              "state": "equal",
+              "first_character": null
+            }
+          }
+        }
+      ],
+      "timing_exclusions": [],
+      "work_seconds": 204.0,
+      "work_first_reasoning_ms": 228,
+      "work_first_content_ms": 187388,
+      "final_seconds": 21.0,
+      "final_first_reasoning_ms": null,
+      "final_first_content_ms": 236
+    },
+    {
+      "path": "rep-4/seat-1/run.json",
+      "run_sha256": "2ad1cb914f635b7f42d5607eaecfe0dc1d6fc1b384396cbd0b9dae3252b887d1",
+      "seat": "seat-1",
+      "repeat": "rep-4",
+      "backend": "omen-dense-27b-b",
+      "arm": "bench27-more-mtp-off-pass-a",
+      "started_utc": "2026-10-05T09:30:49Z",
+      "finished_utc": "2026-10-05T09:37:08Z",
+      "workload": {
+        "path": "/home/derek/work/lab-rnd/research/evidence/qwen38-levers-20261003/sizing-workload.json",
+        "id": "sizing-work24k-t0",
+        "sha256": "0f65fd1977ded2217bd1f35fd918447c1c983b93f2e82c9b3f9aabbce2fb750d"
+      },
+      "registry_sha256": "fcc348a163ca4446f166821feb87f2a7e4e9844c363b60ee34f79f0bbf24d3bb",
+      "recipe": {
+        "declared_models": [
+          "qwen3.8-27b"
+        ],
+        "model_override": null,
+        "declared_context_tokens": 65536,
+        "observed_context_tokens": 65536,
+        "stack_status": "not_collected",
+        "stack_reason": "local inspector covers only default seat",
+        "packages": null,
+        "file_sha256": null
+      },
+      "recipe_sha256": "f47165e28aa1f2d4014c213f984e0b8c290afc89bc3767bf4c434ccd9dfd4d28",
+      "concurrency": 1,
+      "ok": true,
+      "dry_run": false,
+      "context_mismatch": false,
+      "wire_equal_all": true,
+      "foreign_requests_possible": 0,
+      "preemptions": 0.0,
+      "seat_counters_delta": {
+        "num_preemptions_total": 0.0,
+        "running": 0.0,
+        "waiting": 0.0,
+        "prompt_tokens_total": 50331.0,
+        "generation_tokens_total": 11202.0,
+        "prefill_seconds_sum": 0.216,
+        "decode_seconds_sum": 378.417,
+        "request_success_total": 2.0,
+        "request_success": {
+          "stop": 2.0,
+          "length": 0.0,
+          "abort": 0.0,
+          "error": 0.0,
+          "repetition": 0.0
+        }
+      },
+      "prefill_seconds": 0.216,
+      "seconds_total": 379.2,
+      "decode_tokens_per_s": 29.602264168893047,
+      "thermal": {
+        "state": "observed",
+        "card": "card3",
+        "samples": 19,
+        "first_utc": "2026-10-05T09:31:04Z",
+        "last_utc": "2026-10-05T09:37:04Z",
+        "sources": [
+          "/home/derek/work/lab-rnd/research/evidence/bench27-config-20261005/cards.jsonl"
+        ],
+        "vram_c": {
+          "n": 19,
+          "median": 96.0,
+          "min": 94.0,
+          "max": 96.0,
+          "relative_range": 0.020833333333333332
+        },
+        "pkg_c": {
+          "n": 19,
+          "median": 78.0,
+          "min": 78.0,
+          "max": 78.0,
+          "relative_range": 0.0
+        },
+        "fan_rpm": {
+          "n": 19,
+          "median": 2109.0,
+          "min": 2082.0,
+          "max": 2154.0,
+          "relative_range": 0.034139402560455195
+        },
+        "invalid_samples": 0,
+        "new_trips": []
+      },
+      "conversations": [
+        {
+          "conversation": 1,
+          "ok": true,
+          "failure": null,
+          "final_skipped": null,
+          "seconds_total": 379.1,
+          "work": {
+            "job_id": "job_f3e285df916496cb57287845c076dabf",
+            "status": "succeeded",
+            "reason": null,
+            "seconds": 350.8,
+            "observed": {
+              "duration_ms": 350624,
+              "tokens_in": 24521,
+              "tokens_out": 10365,
+              "tokens_reasoning": 9402,
+              "thinking": true,
+              "finish_reason": "stop",
+              "first_reasoning_ms": 230,
+              "first_content_ms": 317734,
+              "max_tokens_requested": 24000,
+              "max_tokens_applied": 24000,
+              "model": "qwen3.8-27b",
+              "error_code": null
+            },
+            "controls": {
+              "chat_template_kwargs": {
+                "enable_thinking": true
+              },
+              "max_tokens": 24000,
+              "model": "qwen3.8-27b",
+              "seed": 42,
+              "temperature": 0.0,
+              "top_p": 0.95
+            },
+            "wire_recorded": true,
+            "wire_equal": true,
+            "wire_mismatch": [],
+            "output_sha256": "e1a22a70f7b52ed65fa3af44411e34583033d87aecc17ccff79629274d4aed1e",
+            "output_hash_matches": true,
+            "decode_tokens_per_s_estimate": 29.580985975787257,
+            "output_tokens_per_s": 29.561581637309484,
+            "divergence": {
+              "state": "different",
+              "first_character": 23,
+              "line": 4,
+              "column": 7,
+              "reference_excerpt": "\n\nVerified notes\n- TOML day: omen-dense-27b live ctx 65536, slots 2, ma",
+              "current_excerpt": "\n\nVerified notes\n- TOML: day omen-dense-27b live ctx 65536 slots 2 max "
+            }
+          },
+          "final": {
+            "job_id": "job_f97609d9dc3328238720ee17bc9787da",
+            "status": "succeeded",
+            "reason": null,
+            "seconds": 28.2,
+            "observed": {
+              "duration_ms": 28078,
+              "tokens_in": 25810,
+              "tokens_out": 837,
+              "tokens_reasoning": 0,
+              "thinking": false,
+              "finish_reason": "stop",
+              "first_reasoning_ms": null,
+              "first_content_ms": 235,
+              "max_tokens_requested": 4096,
+              "max_tokens_applied": 4096,
+              "model": "qwen3.8-27b",
+              "error_code": null
+            },
+            "controls": {
+              "chat_template_kwargs": {
+                "enable_thinking": false
+              },
+              "max_tokens": 4096,
+              "model": "qwen3.8-27b",
+              "response_format": {
+                "json_schema": {
+                  "name": "response",
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "sections": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "heading": {
+                              "maxLength": 120,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "paragraphs": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "quotes": {
+                                    "items": {
+                                      "maxLength": 400,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "maxItems": 8,
+                                    "type": "array"
+                                  },
+                                  "text": {
+                                    "maxLength": 2400,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "text",
+                                  "quotes"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 24,
+                              "minItems": 1,
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "heading",
+                            "paragraphs"
+                          ],
+                          "type": "object"
+                        },
+                        "maxItems": 16,
+                        "minItems": 1,
+                        "type": "array"
+                      },
+                      "summary": {
+                        "maxLength": 1200,
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "summary",
+                      "sections"
+                    ],
+                    "type": "object"
+                  },
+                  "strict": true
+                },
+                "type": "json_schema"
+              },
+              "seed": 42,
+              "temperature": 0.0
+            },
+            "wire_recorded": true,
+            "wire_equal": true,
+            "wire_mismatch": [],
+            "output_sha256": "3c8cfaba2977c48353fb3539bd7b5925f62b564ba0d11a4b5f71199894edf5ce",
+            "output_hash_matches": true,
+            "decode_tokens_per_s_estimate": 30.061415795711667,
+            "output_tokens_per_s": 29.809815513925493,
+            "divergence": {
+              "state": "different",
+              "first_character": 136,
+              "line": 8,
+              "column": 14,
+              "reference_excerpt": "quotes\": [\n            \"omen-dense-27b = { status = 'live', context_toke",
+              "current_excerpt": "quotes\": [\n            \"contract = \"\n          ],\n          \"text\": \"The"
+            }
+          }
+        }
+      ],
+      "timing_exclusions": [],
+      "work_seconds": 350.8,
+      "work_first_reasoning_ms": 230,
+      "work_first_content_ms": 317734,
+      "final_seconds": 28.2,
+      "final_first_reasoning_ms": null,
+      "final_first_content_ms": 235
+    }
+  ],
+  "external_provenance": [],
+  "limits": [
+    "No substance or form grades. Visible text comparison is character-exact, not token divergence.",
+    "Stage decode rates are estimates excluding time to first reasoning/content; seat decode is counter-derived.",
+    "Thermal samples are matched only inside each run's timestamps; missing coverage is unknown.",
+    "Recipe hashes describe recorded snapshots, not independently verified effective hardware flags.",
+    "External provenance records are linked and hashed; binding entry configuration to each run requires caller review."
+  ],
+  "assignment": {
+    "control": "seat-0",
+    "treatment": "seat-1",
+    "verified": true,
+    "basis": "harness spec.dropin"
+  },
+  "workload_binding": {
+    "path": "/home/derek/work/lab-rnd/research/evidence/qwen38-levers-20261003/sizing-workload.json",
+    "sha256": "0f65fd1977ded2217bd1f35fd918447c1c983b93f2e82c9b3f9aabbce2fb750d"
+  },
+  "frozen_parity": {
+    "path": "/home/derek/work/lab-rnd/research/evidence/bench27-parity-summary-20261005/summary.json",
+    "sha256": "3971dc3afe26efd40fb6a4dbea78dc5414cf00e483e9bc86a16dcd608bb12d57",
+    "reasons": []
+  },
+  "comparison": {
+    "seconds_total": {
+      "seats": {
+        "seat-0": {
+          "n": 3,
+          "median": 225.4,
+          "min": 225.1,
+          "max": 225.7,
+          "relative_range": 0.0026619343389529472
+        },
+        "seat-1": {
+          "n": 3,
+          "median": 379.2,
+          "min": 379.2,
+          "max": 379.2,
+          "relative_range": 0.0
+        }
+      },
+      "ready_n3_each": true,
+      "comparable": true,
+      "parity_ready": true,
+      "parity_reasons": [],
+      "frozen_threshold": 0.8095529699938764,
+      "unavailable_reasons": [],
+      "treatment_over_control_minus_one": 0.6823425022182785,
+      "symmetric_relative_difference": 0.5087661263645384,
+      "exceeds_frozen_spread": false
+    },
+    "work_seconds": {
+      "seats": {
+        "seat-0": {
+          "n": 3,
+          "median": 204.0,
+          "min": 204.0,
+          "max": 204.0,
+          "relative_range": 0.0
+        },
+        "seat-1": {
+          "n": 3,
+          "median": 350.7,
+          "min": 350.7,
+          "max": 350.8,
+          "relative_range": 0.0002851439977189129
+        }
+      },
+      "ready_n3_each": true,
+      "comparable": true,
+      "parity_ready": true,
+      "parity_reasons": [],
+      "frozen_threshold": 0.7634961439588688,
+      "unavailable_reasons": [],
+      "treatment_over_control_minus_one": 0.7191176470588234,
+      "symmetric_relative_difference": 0.5289345592212006,
+      "exceeds_frozen_spread": false
+    },
+    "final_seconds": {
+      "seats": {
+        "seat-0": {
+          "n": 3,
+          "median": 21.0,
+          "min": 20.8,
+          "max": 21.0,
+          "relative_range": 0.00952380952380949
+        },
+        "seat-1": {
+          "n": 3,
+          "median": 28.2,
+          "min": 28.2,
+          "max": 28.2,
+          "relative_range": 0.0
+        }
+      },
+      "ready_n3_each": true,
+      "comparable": true,
+      "parity_ready": true,
+      "parity_reasons": [],
+      "frozen_threshold": 1.9565217391304346,
+      "unavailable_reasons": [],
+      "treatment_over_control_minus_one": 0.34285714285714275,
+      "symmetric_relative_difference": 0.2926829268292682,
+      "exceeds_frozen_spread": false
+    },
+    "decode_tokens_per_s": {
+      "seats": {
+        "seat-0": {
+          "n": 3,
+          "median": 56.52955369527114,
+          "min": 56.52930157880653,
+          "max": 56.5303100581582,
+          "relative_range": 1.783986049323115e-05
+        },
+        "seat-1": {
+          "n": 3,
+          "median": 29.60703675903118,
+          "min": 29.602264168893047,
+          "max": 29.608132324722078,
+          "relative_range": 0.00019820138964906728
+        }
+      },
+      "ready_n3_each": true,
+      "comparable": true,
+      "parity_ready": true,
+      "parity_reasons": [],
+      "frozen_threshold": 0.03302938974509243,
+      "unavailable_reasons": [],
+      "treatment_over_control_minus_one": -0.47625560748929296,
+      "symmetric_relative_difference": 0.6251122036348316,
+      "exceeds_frozen_spread": true
+    }
+  },
+  "harness": {
+    "path": "/home/derek/hearth-production/var/experiments/linux/bench27-more-mtp-off-pass-a/state.json",
+    "sha256": "62608e420cd89e18b992b6f774c378b345bf3100f8697ea310d5f3334f7bc59e",
+    "phase": "done",
+    "outcome": "succeeded",
+    "started": "2026-10-05T09:09:26Z",
+    "finished": "2026-10-05T09:38:36Z",
+    "calls_reported": {
+      "0": 12,
+      "1": 12
+    },
+    "foreign_requests": 0,
+    "requests_during_restore": {
+      "0": 0.0,
+      "1": 0.0
+    },
+    "declared_recipe": {
+      "dropin": {
+        "0": null,
+        "1": "zz-bench27-mtp-off.conf"
+      },
+      "expect_argv": {
+        "0": [
+          "/home/derek/.venvs/vllm-xpu-030/bin/vllm",
+          "serve",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "18091",
+          "--served-model-name",
+          "qwen3.8-27b",
+          "--dtype",
+          "float16",
+          "--quantization",
+          "gptq",
+          "--attention-backend",
+          "FLASH_ATTN",
+          "--max-model-len",
+          "65536",
+          "--max-num-seqs",
+          "4",
+          "--gpu-memory-utilization",
+          "0.90",
+          "--compilation-config",
+          "{\"cudagraph_mode\":\"FULL_DECODE_ONLY\",\"cudagraph_capture_sizes\":[1,2,4,8,16]}",
+          "--enable-prefix-caching",
+          "--speculative-config",
+          "{\"method\":\"mtp\",\"num_speculative_tokens\":2,\"disable_eagle_block_drop\":true}",
+          "--language-model-only",
+          "--prefix-match-unit",
+          "64",
+          "--max-num-batched-tokens",
+          "8192",
+          "--enable-auto-tool-choice",
+          "--tool-call-parser",
+          "qwen3_xml",
+          "--enable-prompt-tokens-details",
+          "--reasoning-parser",
+          "qwen3"
+        ],
+        "1": [
+          "/home/derek/.venvs/vllm-xpu-030/bin/vllm",
+          "serve",
+          "/home/derek/models/qwen3.8-27b-gptq-int4-mtp",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "18092",
+          "--served-model-name",
+          "qwen3.8-27b",
+          "--dtype",
+          "float16",
+          "--quantization",
+          "gptq",
+          "--attention-backend",
+          "FLASH_ATTN",
+          "--max-model-len",
+          "65536",
+          "--max-num-seqs",
+          "4",
+          "--gpu-memory-utilization",
+          "0.90",
+          "--compilation-config",
+          "{\"cudagraph_mode\":\"FULL_DECODE_ONLY\",\"cudagraph_capture_sizes\":[1,2,4,8,16]}",
+          "--enable-prefix-caching",
+          "--language-model-only",
+          "--prefix-match-unit",
+          "64",
+          "--max-num-batched-tokens",
+          "8192",
+          "--enable-auto-tool-choice",
+          "--tool-call-parser",
+          "qwen3_xml",
+          "--enable-prompt-tokens-details",
+          "--reasoning-parser",
+          "qwen3"
+        ]
+      },
+      "expect_model": {
+        "0": "qwen3.8-27b",
+        "1": "qwen3.8-27b"
+      }
+    },
+    "restoration": {
+      "0": {
+        "phase": "restored",
+        "hashes_verified": 14,
+        "served_after_restore": [
+          "qwen3.8-27b"
+        ],
+        "counters_restored": {
+          "running": 0.0,
+          "waiting": 0.0,
+          "success": 12.0
+        }
+      },
+      "1": {
+        "phase": "restored",
+        "hashes_verified": 10,
+        "served_after_restore": [
+          "qwen3.8-27b"
+        ],
+        "counters_restored": {
+          "running": 0.0,
+          "waiting": 0.0,
+          "success": 0.0
+        }
+      }
+    }
+  },
+  "raw_speculative_intervals": {
+    "path": "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/bench27-more-mtp-off-pass-a/raw-metrics.ndjson",
+    "sha256": "7c0928596c321a13012555116ae7e9ff1a5649bf0a473092c87df8d540f6b36c",
+    "seats": {
+      "0": {
+        "errors_or_missing_samples": 1,
+        "segments": [
+          {
+            "first_utc": "2026-10-05T09:10:02.372254+00:00",
+            "last_utc": "2026-10-05T09:38:32.807144+00:00",
+            "samples": 342,
+            "first_values": {
+              "vllm:spec_decode_num_drafts_total{engine=\"0\",model_name=\"qwen3.8-27b\"}": 0.0,
+              "vllm:spec_decode_num_draft_tokens_total{engine=\"0\",model_name=\"qwen3.8-27b\"}": 0.0,
+              "vllm:spec_decode_num_accepted_tokens_total{engine=\"0\",model_name=\"qwen3.8-27b\"}": 0.0,
+              "vllm:spec_decode_num_accepted_tokens_per_pos_total{engine=\"0\",model_name=\"qwen3.8-27b\",position=\"0\"}": 0.0,
+              "vllm:spec_decode_num_accepted_tokens_per_pos_total{engine=\"0\",model_name=\"qwen3.8-27b\",position=\"1\"}": 0.0
+            },
+            "last_values": {
+              "vllm:spec_decode_num_drafts_total{engine=\"0\",model_name=\"qwen3.8-27b\"}": 18388.0,
+              "vllm:spec_decode_num_draft_tokens_total{engine=\"0\",model_name=\"qwen3.8-27b\"}": 36752.0,
+              "vllm:spec_decode_num_accepted_tokens_total{engine=\"0\",model_name=\"qwen3.8-27b\"}": 32960.0,
+              "vllm:spec_decode_num_accepted_tokens_per_pos_total{engine=\"0\",model_name=\"qwen3.8-27b\",position=\"0\"}": 17204.0,
+              "vllm:spec_decode_num_accepted_tokens_per_pos_total{engine=\"0\",model_name=\"qwen3.8-27b\",position=\"1\"}": 15756.0
+            },
+            "deltas": {
+              "vllm:spec_decode_num_drafts_total{engine=\"0\",model_name=\"qwen3.8-27b\"}": 18388.0,
+              "vllm:spec_decode_num_draft_tokens_total{engine=\"0\",model_name=\"qwen3.8-27b\"}": 36752.0,
+              "vllm:spec_decode_num_accepted_tokens_total{engine=\"0\",model_name=\"qwen3.8-27b\"}": 32960.0,
+              "vllm:spec_decode_num_accepted_tokens_per_pos_total{engine=\"0\",model_name=\"qwen3.8-27b\",position=\"0\"}": 17204.0,
+              "vllm:spec_decode_num_accepted_tokens_per_pos_total{engine=\"0\",model_name=\"qwen3.8-27b\",position=\"1\"}": 15756.0
+            }
+          }
+        ]
+      },
+      "1": {
+        "errors_or_missing_samples": 20,
+        "segments": [
+          {
+            "first_utc": "2026-10-05T09:09:57.355784+00:00",
+            "last_utc": "2026-10-05T09:09:57.355784+00:00",
+            "samples": 1,
+            "first_values": {
+              "vllm:spec_decode_num_drafts_total{engine=\"0\",model_name=\"qwen3.8-27b\"}": 216.0,
+              "vllm:spec_decode_num_draft_tokens_total{engine=\"0\",model_name=\"qwen3.8-27b\"}": 432.0,
+              "vllm:spec_decode_num_accepted_tokens_total{engine=\"0\",model_name=\"qwen3.8-27b\"}": 432.0,
+              "vllm:spec_decode_num_accepted_tokens_per_pos_total{engine=\"0\",model_name=\"qwen3.8-27b\",position=\"0\"}": 216.0,
+              "vllm:spec_decode_num_accepted_tokens_per_pos_total{engine=\"0\",model_name=\"qwen3.8-27b\",position=\"1\"}": 216.0
+            },
+            "last_values": {
+              "vllm:spec_decode_num_drafts_total{engine=\"0\",model_name=\"qwen3.8-27b\"}": 216.0,
+              "vllm:spec_decode_num_draft_tokens_total{engine=\"0\",model_name=\"qwen3.8-27b\"}": 432.0,
+              "vllm:spec_decode_num_accepted_tokens_total{engine=\"0\",model_name=\"qwen3.8-27b\"}": 432.0,
+              "vllm:spec_decode_num_accepted_tokens_per_pos_total{engine=\"0\",model_name=\"qwen3.8-27b\",position=\"0\"}": 216.0,
+              "vllm:spec_decode_num_accepted_tokens_per_pos_total{engine=\"0\",model_name=\"qwen3.8-27b\",position=\"1\"}": 216.0
+            },
+            "deltas": {
+              "vllm:spec_decode_num_drafts_total{engine=\"0\",model_name=\"qwen3.8-27b\"}": 0.0,
+              "vllm:spec_decode_num_draft_tokens_total{engine=\"0\",model_name=\"qwen3.8-27b\"}": 0.0,
+              "vllm:spec_decode_num_accepted_tokens_total{engine=\"0\",model_name=\"qwen3.8-27b\"}": 0.0,
+              "vllm:spec_decode_num_accepted_tokens_per_pos_total{engine=\"0\",model_name=\"qwen3.8-27b\",position=\"0\"}": 0.0,
+              "vllm:spec_decode_num_accepted_tokens_per_pos_total{engine=\"0\",model_name=\"qwen3.8-27b\",position=\"1\"}": 0.0
+            }
+          }
+        ]
+      }
+    },
+    "scope": "Observed endpoints only; verify timestamps bracket intended load. Never assume whole-pass, warm-only, or per-stage coverage. Missing counters are unmeasured, not zero; resets split segments. Positions lack proposal denominators."
+  },
+  "needle_grades": {
+    "path": "/home/derek/work/worktrees/bench27-routing/docs/bench27-mtp-off-draft/pass-a-needle-grades.json",
+    "sha256": "85f4348c533191ec0b50580e281aa416bdbd2ae3e28654306bb03420599b1e87",
+    "records": [
+      {
+        "pass": "a",
+        "seat": 0,
+        "recipe": "k2",
+        "depth": "12k",
+        "stage": "work",
+        "exact": 12,
+        "total": 12,
+        "exact_object": true,
+        "json_parses": true,
+        "finish": "stop",
+        "tokens_in": 12864,
+        "tokens_out": 163,
+        "run_path": "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/bench27-more-mtp-off-pass-a-needle-12k/rep-1/seat-0/run.json",
+        "workload_path": "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/prepared/needle-12k.workload.json",
+        "workload_sha256": "9855ccf35168473325df9029715fcb87a9a3bb3a5a28f98f6cb4e0e32a634340",
+        "artifact_path": "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/bench27-more-mtp-off-pass-a-needle-12k/rep-1/seat-0/conversation-1/artifacts/work.output.txt",
+        "artifact_sha256": "4158c341358c0c7f35fcaeb49416d1df444a54f96ebf953286a4102cec61bad4"
+      },
+      {
+        "pass": "a",
+        "seat": 0,
+        "recipe": "k2",
+        "depth": "12k",
+        "stage": "final",
+        "exact": 12,
+        "total": 12,
+        "exact_object": true,
+        "json_parses": true,
+        "finish": "stop",
+        "tokens_in": 13071,
+        "tokens_out": 163,
+        "run_path": "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/bench27-more-mtp-off-pass-a-needle-12k/rep-1/seat-0/run.json",
+        "workload_path": "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/prepared/needle-12k.workload.json",
+        "workload_sha256": "9855ccf35168473325df9029715fcb87a9a3bb3a5a28f98f6cb4e0e32a634340",
+        "artifact_path": "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/bench27-more-mtp-off-pass-a-needle-12k/rep-1/seat-0/conversation-1/artifacts/final.output.txt",
+        "artifact_sha256": "4158c341358c0c7f35fcaeb49416d1df444a54f96ebf953286a4102cec61bad4"
+      },
+      {
+        "pass": "a",
+        "seat": 1,
+        "recipe": "off",
+        "depth": "12k",
+        "stage": "work",
+        "exact": 12,
+        "total": 12,
+        "exact_object": true,
+        "json_parses": true,
+        "finish": "stop",
+        "tokens_in": 12864,
+        "tokens_out": 163,
+        "run_path": "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/bench27-more-mtp-off-pass-a-needle-12k/rep-1/seat-1/run.json",
+        "workload_path": "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/prepared/needle-12k.workload.json",
+        "workload_sha256": "9855ccf35168473325df9029715fcb87a9a3bb3a5a28f98f6cb4e0e32a634340",
+        "artifact_path": "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/bench27-more-mtp-off-pass-a-needle-12k/rep-1/seat-1/conversation-1/artifacts/work.output.txt",
+        "artifact_sha256": "4158c341358c0c7f35fcaeb49416d1df444a54f96ebf953286a4102cec61bad4"
+      },
+      {
+        "pass": "a",
+        "seat": 1,
+        "recipe": "off",
+        "depth": "12k",
+        "stage": "final",
+        "exact": 12,
+        "total": 12,
+        "exact_object": true,
+        "json_parses": true,
+        "finish": "stop",
+        "tokens_in": 13071,
+        "tokens_out": 163,
+        "run_path": "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/bench27-more-mtp-off-pass-a-needle-12k/rep-1/seat-1/run.json",
+        "workload_path": "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/prepared/needle-12k.workload.json",
+        "workload_sha256": "9855ccf35168473325df9029715fcb87a9a3bb3a5a28f98f6cb4e0e32a634340",
+        "artifact_path": "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/bench27-more-mtp-off-pass-a-needle-12k/rep-1/seat-1/conversation-1/artifacts/final.output.txt",
+        "artifact_sha256": "4158c341358c0c7f35fcaeb49416d1df444a54f96ebf953286a4102cec61bad4"
+      },
+      {
+        "pass": "a",
+        "seat": 0,
+        "recipe": "k2",
+        "depth": "38k",
+        "stage": "work",
+        "exact": 12,
+        "total": 12,
+        "exact_object": true,
+        "json_parses": true,
+        "finish": "stop",
+        "tokens_in": 38881,
+        "tokens_out": 163,
+        "run_path": "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/bench27-more-mtp-off-pass-a-needle-38k/rep-1/seat-0/run.json",
+        "workload_path": "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/prepared/needle-38k.workload.json",
+        "workload_sha256": "d3836350ed7bb6340336228313822ce531cfa03e5a997b97ff23a46589644324",
+        "artifact_path": "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/bench27-more-mtp-off-pass-a-needle-38k/rep-1/seat-0/conversation-1/artifacts/work.output.txt",
+        "artifact_sha256": "4158c341358c0c7f35fcaeb49416d1df444a54f96ebf953286a4102cec61bad4"
+      },
+      {
+        "pass": "a",
+        "seat": 0,
+        "recipe": "k2",
+        "depth": "38k",
+        "stage": "final",
+        "exact": 12,
+        "total": 12,
+        "exact_object": true,
+        "json_parses": true,
+        "finish": "stop",
+        "tokens_in": 39088,
+        "tokens_out": 163,
+        "run_path": "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/bench27-more-mtp-off-pass-a-needle-38k/rep-1/seat-0/run.json",
+        "workload_path": "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/prepared/needle-38k.workload.json",
+        "workload_sha256": "d3836350ed7bb6340336228313822ce531cfa03e5a997b97ff23a46589644324",
+        "artifact_path": "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/bench27-more-mtp-off-pass-a-needle-38k/rep-1/seat-0/conversation-1/artifacts/final.output.txt",
+        "artifact_sha256": "4158c341358c0c7f35fcaeb49416d1df444a54f96ebf953286a4102cec61bad4"
+      },
+      {
+        "pass": "a",
+        "seat": 1,
+        "recipe": "off",
+        "depth": "38k",
+        "stage": "work",
+        "exact": 12,
+        "total": 12,
+        "exact_object": true,
+        "json_parses": true,
+        "finish": "stop",
+        "tokens_in": 38881,
+        "tokens_out": 163,
+        "run_path": "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/bench27-more-mtp-off-pass-a-needle-38k/rep-1/seat-1/run.json",
+        "workload_path": "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/prepared/needle-38k.workload.json",
+        "workload_sha256": "d3836350ed7bb6340336228313822ce531cfa03e5a997b97ff23a46589644324",
+        "artifact_path": "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/bench27-more-mtp-off-pass-a-needle-38k/rep-1/seat-1/conversation-1/artifacts/work.output.txt",
+        "artifact_sha256": "4158c341358c0c7f35fcaeb49416d1df444a54f96ebf953286a4102cec61bad4"
+      },
+      {
+        "pass": "a",
+        "seat": 1,
+        "recipe": "off",
+        "depth": "38k",
+        "stage": "final",
+        "exact": 12,
+        "total": 12,
+        "exact_object": true,
+        "json_parses": true,
+        "finish": "stop",
+        "tokens_in": 39088,
+        "tokens_out": 163,
+        "run_path": "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/bench27-more-mtp-off-pass-a-needle-38k/rep-1/seat-1/run.json",
+        "workload_path": "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/prepared/needle-38k.workload.json",
+        "workload_sha256": "d3836350ed7bb6340336228313822ce531cfa03e5a997b97ff23a46589644324",
+        "artifact_path": "/home/derek/work/lab-rnd/research/evidence/bench27-more-arms-20261005/bench27-more-mtp-off-pass-a-needle-38k/rep-1/seat-1/conversation-1/artifacts/final.output.txt",
+        "artifact_sha256": "4158c341358c0c7f35fcaeb49416d1df444a54f96ebf953286a4102cec61bad4"
+      }
+    ]
+  },
+  "source_binding": {
+    "commit": "de666ef75ce79733bffb34c5e146c9b8ddd42f30",
+    "files": {
+      "host/lab-configurations.toml": "bdede9a79d15f96ab47f33582d54fcc25d51b341e82c4d5454a844a9da72c79b",
+      "tools/ops/sizing_map.py": "aed9347e74bd67c4fc0c857a456a9cfbd41507d328f958e20817bc3398b0c4e8"
+    }
+  }
+}

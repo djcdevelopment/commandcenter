@@ -1,0 +1,264 @@
+{
+  "schema": "delivery.v1",
+  "brief_sha256": "c20700ebc62a619680b9beee8bddf812398a8d53450b43574cb4907163dd62d8",
+  "model": "unknown",
+  "backend": "unknown",
+  "configuration": {
+    "model": "unknown",
+    "seat": "unknown"
+  },
+  "environment": "unknown",
+  "aids_used": [
+    "source_map",
+    "quote_renderer",
+    "constrained_output"
+  ],
+  "claims": [
+    {
+      "id": "s0.p0.q0",
+      "text": "The report compares the backends declared under configuration.day and configuration.tool-night in host/lab-configurations.toml against the sizing parameters and invariants in tools/ops/sizing_map.py. In configuration.day, omen-dense-27b is live with context_tokens 65536, parallel_slots 2, and max_tokens 16384, while omen-perception is live with parallel_slots 2 and no context_tokens or max_tokens. configuration.tool-night repeats those exact values for both backends. The AM4 profile changes from dense-tp2 to tool-pair, so am4-vllm is live in day and absent in tool-night, while am4-tool-4070ti and am4-tool-5070 are absent in day and live in tool-night.",
+      "quote": "omen-dense-27b = { status = 'live', context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 }",
+      "resolved": {
+        "path": "host/lab-configurations.toml",
+        "start_line": 17,
+        "end_line": 17
+      },
+      "match": "normalized",
+      "ambiguous": 3
+    },
+    {
+      "id": "s0.p0.q1",
+      "text": "The report compares the backends declared under configuration.day and configuration.tool-night in host/lab-configurations.toml against the sizing parameters and invariants in tools/ops/sizing_map.py. In configuration.day, omen-dense-27b is live with context_tokens 65536, parallel_slots 2, and max_tokens 16384, while omen-perception is live with parallel_slots 2 and no context_tokens or max_tokens. configuration.tool-night repeats those exact values for both backends. The AM4 profile changes from dense-tp2 to tool-pair, so am4-vllm is live in day and absent in tool-night, while am4-tool-4070ti and am4-tool-5070 are absent in day and live in tool-night.",
+      "quote": "omen-perception = { status = 'live', parallel_slots = 2 }",
+      "resolved": {
+        "path": "host/lab-configurations.toml",
+        "start_line": 22,
+        "end_line": 22
+      },
+      "match": "normalized",
+      "ambiguous": 7
+    },
+    {
+      "id": "s0.p0.q2",
+      "text": "The report compares the backends declared under configuration.day and configuration.tool-night in host/lab-configurations.toml against the sizing parameters and invariants in tools/ops/sizing_map.py. In configuration.day, omen-dense-27b is live with context_tokens 65536, parallel_slots 2, and max_tokens 16384, while omen-perception is live with parallel_slots 2 and no context_tokens or max_tokens. configuration.tool-night repeats those exact values for both backends. The AM4 profile changes from dense-tp2 to tool-pair, so am4-vllm is live in day and absent in tool-night, while am4-tool-4070ti and am4-tool-5070 are absent in day and live in tool-night.",
+      "quote": "am4-vllm = { status = 'live', context_tokens = 16384, parallel_slots = 1, max_tokens = 4096 }",
+      "resolved": {
+        "path": "host/lab-configurations.toml",
+        "start_line": 18,
+        "end_line": 18
+      },
+      "match": "normalized",
+      "ambiguous": 6
+    },
+    {
+      "id": "s0.p0.q3",
+      "text": "The report compares the backends declared under configuration.day and configuration.tool-night in host/lab-configurations.toml against the sizing parameters and invariants in tools/ops/sizing_map.py. In configuration.day, omen-dense-27b is live with context_tokens 65536, parallel_slots 2, and max_tokens 16384, while omen-perception is live with parallel_slots 2 and no context_tokens or max_tokens. configuration.tool-night repeats those exact values for both backends. The AM4 profile changes from dense-tp2 to tool-pair, so am4-vllm is live in day and absent in tool-night, while am4-tool-4070ti and am4-tool-5070 are absent in day and live in tool-night.",
+      "quote": "am4-tool-4070ti = { status = 'absent' }",
+      "resolved": {
+        "path": "host/lab-configurations.toml",
+        "start_line": 19,
+        "end_line": 19
+      },
+      "match": "normalized",
+      "ambiguous": 6
+    },
+    {
+      "id": "s0.p0.q4",
+      "text": "The report compares the backends declared under configuration.day and configuration.tool-night in host/lab-configurations.toml against the sizing parameters and invariants in tools/ops/sizing_map.py. In configuration.day, omen-dense-27b is live with context_tokens 65536, parallel_slots 2, and max_tokens 16384, while omen-perception is live with parallel_slots 2 and no context_tokens or max_tokens. configuration.tool-night repeats those exact values for both backends. The AM4 profile changes from dense-tp2 to tool-pair, so am4-vllm is live in day and absent in tool-night, while am4-tool-4070ti and am4-tool-5070 are absent in day and live in tool-night.",
+      "quote": "am4-tool-5070 = { status = 'absent' }",
+      "resolved": {
+        "path": "host/lab-configurations.toml",
+        "start_line": 20,
+        "end_line": 20
+      },
+      "match": "normalized",
+      "ambiguous": 6
+    },
+    {
+      "id": "s0.p0.q5",
+      "text": "The report compares the backends declared under configuration.day and configuration.tool-night in host/lab-configurations.toml against the sizing parameters and invariants in tools/ops/sizing_map.py. In configuration.day, omen-dense-27b is live with context_tokens 65536, parallel_slots 2, and max_tokens 16384, while omen-perception is live with parallel_slots 2 and no context_tokens or max_tokens. configuration.tool-night repeats those exact values for both backends. The AM4 profile changes from dense-tp2 to tool-pair, so am4-vllm is live in day and absent in tool-night, while am4-tool-4070ti and am4-tool-5070 are absent in day and live in tool-night.",
+      "quote": "am4-vllm = { status = 'absent' }",
+      "resolved": {
+        "path": "host/lab-configurations.toml",
+        "start_line": 33,
+        "end_line": 33
+      },
+      "match": "normalized"
+    },
+    {
+      "id": "s0.p0.q6",
+      "text": "The report compares the backends declared under configuration.day and configuration.tool-night in host/lab-configurations.toml against the sizing parameters and invariants in tools/ops/sizing_map.py. In configuration.day, omen-dense-27b is live with context_tokens 65536, parallel_slots 2, and max_tokens 16384, while omen-perception is live with parallel_slots 2 and no context_tokens or max_tokens. configuration.tool-night repeats those exact values for both backends. The AM4 profile changes from dense-tp2 to tool-pair, so am4-vllm is live in day and absent in tool-night, while am4-tool-4070ti and am4-tool-5070 are absent in day and live in tool-night.",
+      "quote": "am4-tool-4070ti = { status = 'live', context_tokens = 24576, parallel_slots = 3, max_tokens = 4096 }",
+      "resolved": {
+        "path": "host/lab-configurations.toml",
+        "start_line": 34,
+        "end_line": 34
+      },
+      "match": "normalized"
+    },
+    {
+      "id": "s0.p0.q7",
+      "text": "The report compares the backends declared under configuration.day and configuration.tool-night in host/lab-configurations.toml against the sizing parameters and invariants in tools/ops/sizing_map.py. In configuration.day, omen-dense-27b is live with context_tokens 65536, parallel_slots 2, and max_tokens 16384, while omen-perception is live with parallel_slots 2 and no context_tokens or max_tokens. configuration.tool-night repeats those exact values for both backends. The AM4 profile changes from dense-tp2 to tool-pair, so am4-vllm is live in day and absent in tool-night, while am4-tool-4070ti and am4-tool-5070 are absent in day and live in tool-night.",
+      "quote": "am4-tool-5070 = { status = 'live', context_tokens = 16384, parallel_slots = 1, max_tokens = 6144 }",
+      "resolved": {
+        "path": "host/lab-configurations.toml",
+        "start_line": 35,
+        "end_line": 35
+      },
+      "match": "normalized"
+    },
+    {
+      "id": "s1.p0.q0",
+      "text": "For omen-dense-27b, both configurations declare context_tokens 65536, parallel_slots 2, and max_tokens 16384. For omen-perception, both configurations declare parallel_slots 2; the TOML entries for omen-perception do not include context_tokens or max_tokens.",
+      "quote": "omen-dense-27b = { status = 'live', context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 }",
+      "resolved": {
+        "path": "host/lab-configurations.toml",
+        "start_line": 17,
+        "end_line": 17
+      },
+      "match": "normalized",
+      "ambiguous": 3
+    },
+    {
+      "id": "s1.p0.q1",
+      "text": "For omen-dense-27b, both configurations declare context_tokens 65536, parallel_slots 2, and max_tokens 16384. For omen-perception, both configurations declare parallel_slots 2; the TOML entries for omen-perception do not include context_tokens or max_tokens.",
+      "quote": "omen-perception = { status = 'live', parallel_slots = 2 }",
+      "resolved": {
+        "path": "host/lab-configurations.toml",
+        "start_line": 22,
+        "end_line": 22
+      },
+      "match": "normalized",
+      "ambiguous": 7
+    },
+    {
+      "id": "s2.p0.q0",
+      "text": "When the lab moves from day to tool-night, am4-vllm changes from live to absent, and am4-tool-4070ti and am4-tool-5070 change from absent to live; omen-vllm, omen-dense-27b, fx99-vllm, and omen-perception remain live in both. sizing_map.py does not compare day against tool-night: its configuration invariants read the active configuration and check only that expected live backends are serving and expected absent backends are not routable. The omen-dense-27b sizing invariants compare backends-linux.toml values to seat parameters, not the lab-config values, and the omen-perception invariant checks images_per_second and max_image_bytes from backends-linux.toml rather than the lab-config parallel_slots.",
+      "quote": "am4-vllm = { status = 'live', context_tokens = 16384, parallel_slots = 1, max_tokens = 4096 }",
+      "resolved": {
+        "path": "host/lab-configurations.toml",
+        "start_line": 18,
+        "end_line": 18
+      },
+      "match": "normalized",
+      "ambiguous": 6
+    },
+    {
+      "id": "s2.p0.q1",
+      "text": "When the lab moves from day to tool-night, am4-vllm changes from live to absent, and am4-tool-4070ti and am4-tool-5070 change from absent to live; omen-vllm, omen-dense-27b, fx99-vllm, and omen-perception remain live in both. sizing_map.py does not compare day against tool-night: its configuration invariants read the active configuration and check only that expected live backends are serving and expected absent backends are not routable. The omen-dense-27b sizing invariants compare backends-linux.toml values to seat parameters, not the lab-config values, and the omen-perception invariant checks images_per_second and max_image_bytes from backends-linux.toml rather than the lab-config parallel_slots.",
+      "quote": "am4-tool-4070ti = { status = 'absent' }",
+      "resolved": {
+        "path": "host/lab-configurations.toml",
+        "start_line": 19,
+        "end_line": 19
+      },
+      "match": "normalized",
+      "ambiguous": 6
+    },
+    {
+      "id": "s2.p0.q2",
+      "text": "When the lab moves from day to tool-night, am4-vllm changes from live to absent, and am4-tool-4070ti and am4-tool-5070 change from absent to live; omen-vllm, omen-dense-27b, fx99-vllm, and omen-perception remain live in both. sizing_map.py does not compare day against tool-night: its configuration invariants read the active configuration and check only that expected live backends are serving and expected absent backends are not routable. The omen-dense-27b sizing invariants compare backends-linux.toml values to seat parameters, not the lab-config values, and the omen-perception invariant checks images_per_second and max_image_bytes from backends-linux.toml rather than the lab-config parallel_slots.",
+      "quote": "am4-tool-5070 = { status = 'absent' }",
+      "resolved": {
+        "path": "host/lab-configurations.toml",
+        "start_line": 20,
+        "end_line": 20
+      },
+      "match": "normalized",
+      "ambiguous": 6
+    },
+    {
+      "id": "s2.p0.q3",
+      "text": "When the lab moves from day to tool-night, am4-vllm changes from live to absent, and am4-tool-4070ti and am4-tool-5070 change from absent to live; omen-vllm, omen-dense-27b, fx99-vllm, and omen-perception remain live in both. sizing_map.py does not compare day against tool-night: its configuration invariants read the active configuration and check only that expected live backends are serving and expected absent backends are not routable. The omen-dense-27b sizing invariants compare backends-linux.toml values to seat parameters, not the lab-config values, and the omen-perception invariant checks images_per_second and max_image_bytes from backends-linux.toml rather than the lab-config parallel_slots.",
+      "quote": "am4-vllm = { status = 'absent' }",
+      "resolved": {
+        "path": "host/lab-configurations.toml",
+        "start_line": 33,
+        "end_line": 33
+      },
+      "match": "normalized"
+    },
+    {
+      "id": "s2.p0.q4",
+      "text": "When the lab moves from day to tool-night, am4-vllm changes from live to absent, and am4-tool-4070ti and am4-tool-5070 change from absent to live; omen-vllm, omen-dense-27b, fx99-vllm, and omen-perception remain live in both. sizing_map.py does not compare day against tool-night: its configuration invariants read the active configuration and check only that expected live backends are serving and expected absent backends are not routable. The omen-dense-27b sizing invariants compare backends-linux.toml values to seat parameters, not the lab-config values, and the omen-perception invariant checks images_per_second and max_image_bytes from backends-linux.toml rather than the lab-config parallel_slots.",
+      "quote": "am4-tool-4070ti = { status = 'live', context_tokens = 24576, parallel_slots = 3, max_tokens = 4096 }",
+      "resolved": {
+        "path": "host/lab-configurations.toml",
+        "start_line": 34,
+        "end_line": 34
+      },
+      "match": "normalized"
+    },
+    {
+      "id": "s2.p0.q5",
+      "text": "When the lab moves from day to tool-night, am4-vllm changes from live to absent, and am4-tool-4070ti and am4-tool-5070 change from absent to live; omen-vllm, omen-dense-27b, fx99-vllm, and omen-perception remain live in both. sizing_map.py does not compare day against tool-night: its configuration invariants read the active configuration and check only that expected live backends are serving and expected absent backends are not routable. The omen-dense-27b sizing invariants compare backends-linux.toml values to seat parameters, not the lab-config values, and the omen-perception invariant checks images_per_second and max_image_bytes from backends-linux.toml rather than the lab-config parallel_slots.",
+      "quote": "am4-tool-5070 = { status = 'live', context_tokens = 16384, parallel_slots = 1, max_tokens = 6144 }",
+      "resolved": {
+        "path": "host/lab-configurations.toml",
+        "start_line": 35,
+        "end_line": 35
+      },
+      "match": "normalized"
+    },
+    {
+      "id": "s2.p0.q6",
+      "text": "When the lab moves from day to tool-night, am4-vllm changes from live to absent, and am4-tool-4070ti and am4-tool-5070 change from absent to live; omen-vllm, omen-dense-27b, fx99-vllm, and omen-perception remain live in both. sizing_map.py does not compare day against tool-night: its configuration invariants read the active configuration and check only that expected live backends are serving and expected absent backends are not routable. The omen-dense-27b sizing invariants compare backends-linux.toml values to seat parameters, not the lab-config values, and the omen-perception invariant checks images_per_second and max_image_bytes from backends-linux.toml rather than the lab-config parallel_slots.",
+      "quote": "active_cfg = _val(rows, 'active configuration')",
+      "resolved": {
+        "path": "tools/ops/sizing_map.py",
+        "start_line": 664,
+        "end_line": 664
+      },
+      "match": "normalized",
+      "ambiguous": 2
+    },
+    {
+      "id": "s2.p0.q7",
+      "text": "When the lab moves from day to tool-night, am4-vllm changes from live to absent, and am4-tool-4070ti and am4-tool-5070 change from absent to live; omen-vllm, omen-dense-27b, fx99-vllm, and omen-perception remain live in both. sizing_map.py does not compare day against tool-night: its configuration invariants read the active configuration and check only that expected live backends are serving and expected absent backends are not routable. The omen-dense-27b sizing invariants compare backends-linux.toml values to seat parameters, not the lab-config values, and the omen-perception invariant checks images_per_second and max_image_bytes from backends-linux.toml rather than the lab-config parallel_slots.",
+      "quote": "if active_cfg is not None and not str(active_cfg).startswith('unprobed'):",
+      "resolved": {
+        "path": "tools/ops/sizing_map.py",
+        "start_line": 665,
+        "end_line": 665
+      },
+      "match": "normalized"
+    }
+  ],
+  "measures": {
+    "words": 260,
+    "sections": [
+      "Configuration comparison",
+      "Declared values",
+      "Live/absent changes and invariant coverage"
+    ]
+  },
+  "repairs": {
+    "normalized_quote": 18,
+    "ambiguous_quote": 11
+  },
+  "unsupported": [],
+  "verification": {
+    "deterministic": {
+      "state": "pass"
+    },
+    "judge": {
+      "state": "not_run"
+    },
+    "reviewer": {
+      "state": "not_run"
+    },
+    "human": {
+      "state": "not_run"
+    }
+  },
+  "form_applied": {
+    "citations": "quote",
+    "words": {
+      "min": 0,
+      "max": 500,
+      "enforce": "measure"
+    },
+    "sections": []
+  },
+  "deviations": []
+}

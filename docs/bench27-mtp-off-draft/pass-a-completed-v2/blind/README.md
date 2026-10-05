@@ -1,0 +1,1 @@
+Review only this directory. Grade each answer against brief.json and pinned sources.txt. Assess each substance criterion and false claims separately from form. Do not inspect parent files. Duplicated answers are preserved.

@@ -1,0 +1,73 @@
+{
+  "scope": "Exact completed harness timestamps, preserved calculation from previous completed snapshot; report and needle windows included.",
+  "started": "2026-10-05T09:09:26Z",
+  "finished": "2026-10-05T09:38:36Z",
+  "samples": {
+    "card2": {
+      "state": "observed",
+      "card": "card2",
+      "samples": 87,
+      "first_utc": "2026-10-05T09:09:44Z",
+      "last_utc": "2026-10-05T09:38:24Z",
+      "sources": [
+        "/home/derek/work/lab-rnd/research/evidence/bench27-config-20261005/cards.jsonl"
+      ],
+      "vram_c": {
+        "n": 87,
+        "median": 88.0,
+        "min": 56.0,
+        "max": 102.0,
+        "relative_range": 0.5227272727272727
+      },
+      "pkg_c": {
+        "n": 87,
+        "median": 71.0,
+        "min": 55.0,
+        "max": 76.0,
+        "relative_range": 0.29577464788732394
+      },
+      "fan_rpm": {
+        "n": 87,
+        "median": 1722.0,
+        "min": 933.0,
+        "max": 3483.0,
+        "relative_range": 1.480836236933798
+      },
+      "invalid_samples": 0,
+      "new_trips": []
+    },
+    "card3": {
+      "state": "observed",
+      "card": "card3",
+      "samples": 87,
+      "first_utc": "2026-10-05T09:09:44Z",
+      "last_utc": "2026-10-05T09:38:24Z",
+      "sources": [
+        "/home/derek/work/lab-rnd/research/evidence/bench27-config-20261005/cards.jsonl"
+      ],
+      "vram_c": {
+        "n": 87,
+        "median": 96.0,
+        "min": 50.0,
+        "max": 96.0,
+        "relative_range": 0.4791666666666667
+      },
+      "pkg_c": {
+        "n": 87,
+        "median": 78.0,
+        "min": 42.0,
+        "max": 79.0,
+        "relative_range": 0.47435897435897434
+      },
+      "fan_rpm": {
+        "n": 87,
+        "median": 2100.0,
+        "min": 783.0,
+        "max": 2157.0,
+        "relative_range": 0.6542857142857142
+      },
+      "invalid_samples": 0,
+      "new_trips": []
+    }
+  }
+}

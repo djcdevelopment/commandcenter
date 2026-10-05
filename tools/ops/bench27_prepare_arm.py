@@ -26,6 +26,9 @@ def speculative_intervals(path: Path) -> dict:
             raw = record.get('seats', {}).get(seat)
             if not isinstance(raw, str):
                 errors += 1
+                if current:
+                    segments.append(current)
+                    current = []
                 continue
             values = {}
             for line in raw.splitlines():
@@ -52,30 +55,94 @@ def speculative_intervals(path: Path) -> dict:
             'scope': 'Observed endpoints only; verify timestamps bracket intended load. Never assume whole-pass, warm-only, or per-stage coverage. Missing counters are unmeasured, not zero; resets split segments. Positions lack proposal denominators.'}
 
 
+def pairs(values: list[str]) -> dict:
+    result = {}
+    for value in values:
+        key, sep, reason = value.partition('=')
+        if not sep or not key.strip() or not reason.strip() or key in result:
+            raise ValueError('entries require unique KEY=nonempty value')
+        result[key] = reason
+    return result
+
+
+def validate_binding(rows, control, treatment, workload_hash, state=None):
+    observed = {r['seat'] for r in rows}
+    if control == treatment or control not in observed or treatment not in observed:
+        raise ValueError('control/treatment must be distinct observed seats')
+    if any((r.get('workload') or {}).get('sha256') != workload_hash for r in rows):
+        raise ValueError('workload hash does not match every run')
+    assignment = {'control': control, 'treatment': treatment, 'verified': False, 'basis': 'caller-asserted'}
+    if state is not None:
+        dropins = state.get('spec', {}).get('dropin', {})
+        treatments = ['seat-'+str(k) for k,v in dropins.items() if v is not None]
+        controls = ['seat-'+str(k) for k,v in dropins.items() if v is None]
+        if treatments != [treatment] or control not in controls:
+            raise ValueError('harness dropin disagrees with control/treatment assignment')
+        assignment.update(verified=True, basis='harness spec.dropin')
+    return assignment
+
+
+def regime(row):
+    stages = []
+    for conversation in row['conversations']:
+        item = {}
+        for stage in ('work', 'final'):
+            controls = conversation[stage]['controls']
+            item[stage] = {k: controls.get(k) for k in ('temperature','seed','top_p','max_tokens')}
+            item[stage]['enable_thinking'] = controls.get('chat_template_kwargs', {}).get('enable_thinking')
+        stages.append(item)
+    return {'workload': (row.get('workload') or {}).get('sha256'), 'stages': stages}
+
+
+def compare(rows, parity, control, treatment):
+    arm = [r for r in rows if not r['timing_exclusions']]
+    baseline = [r for r in parity['runs'] if not r['timing_exclusions']]
+    reasons = []
+    if not arm or not baseline or len({summary.canonical(regime(r)) for r in arm+baseline}) != 1:
+        reasons.append('arm/parity workload or generation settings differ or lack admissible rows')
+    comparisons = {}
+    for metric in summary.METRICS:
+        seats = {seat: summary.spread([r[metric] for r in arm if r['seat'] == seat and summary.number(r.get(metric))]) for seat in (control,treatment)}
+        c,t = seats[control]['median'], seats[treatment]['median']
+        frozen = parity['calibration']['metrics'][metric]
+        threshold = frozen.get('threshold')
+        unavailable = reasons + list(parity['calibration'].get('reasons', []))
+        ready = all(v['n'] >= 3 for v in seats.values())
+        if not ready:
+            unavailable.append('fewer than three finite admissible observations per seat')
+        if frozen.get('ready') is not True or not summary.number(threshold):
+            unavailable.append('frozen parity metric not ready or threshold unavailable')
+        relative = abs(t-c)/statistics.mean([abs(t),abs(c)]) if c is not None and t is not None and (c or t) else None
+        comparisons[metric] = {'seats': seats, 'ready_n3_each': ready, 'comparable': not reasons,
+            'parity_ready': frozen.get('ready'), 'parity_reasons': parity['calibration'].get('reasons', []),
+            'frozen_threshold': threshold, 'unavailable_reasons': unavailable,
+            'treatment_over_control_minus_one': t/c-1 if c and t is not None else None,
+            'symmetric_relative_difference': relative,
+            'exceeds_frozen_spread': relative > threshold if not unavailable and relative is not None else None}
+    return comparisons
+
+
 def prepare(args) -> dict:
     root, out = args.root.resolve(), args.out.resolve()
     if out.exists() or out == root or root in out.parents:
         raise ValueError('output must be a new directory outside input root')
     if args.control == args.treatment:
         raise ValueError('control and treatment must be different seats')
-    result = summary.summarize(root, args.cards, exclude_repeats=dict(x.split('=', 1) for x in args.exclude_repeat))
-    result.pop('calibration')  # A/B measurements MUST NOT become a new A/A threshold.
+    workload_bytes = args.workload.read_bytes()
+    workload_hash = summary.digest(workload_bytes)
+    workload = json.loads(workload_bytes)
+    state = summary.read_json(args.harness) if args.harness else None
+    result = summary.summarize(root, args.cards, exclude_repeats=pairs(args.exclude_repeat),
+                               card_map=pairs(getattr(args, 'card_map', [])) or None)
+    result.pop('calibration')  # Never recalibrate A/A from treatment measurements.
     result['schema'] = 'bench27-arm-package.v1'
-    result['assignment'] = {'control': args.control, 'treatment': args.treatment}
+    result['assignment'] = validate_binding(result['runs'], args.control, args.treatment, workload_hash, state)
+    result['workload_binding'] = {'path': str(args.workload.resolve()), 'sha256': workload_hash}
     parity = summary.read_json(args.parity)
-    result['frozen_parity'] = {'path': str(args.parity.resolve()), 'sha256': summary.digest(args.parity.read_bytes())}
-    result['comparison'] = {}
-    for metric in summary.METRICS:
-        seats = {seat: summary.spread([r[metric] for r in result['runs'] if r['seat'] == seat and not r['timing_exclusions']]) for seat in (args.control, args.treatment)}
-        c, t = seats[args.control]['median'], seats[args.treatment]['median']
-        threshold = parity['calibration']['metrics'][metric].get('threshold', parity['calibration']['metrics'][metric]['provisional_estimate'])
-        ready = all(x['n'] >= 3 for x in seats.values())
-        relative = abs(t-c)/statistics.mean([abs(t), abs(c)]) if c is not None and t is not None and (c or t) else None
-        result['comparison'][metric] = {'seats': seats, 'ready_n3_each': ready, 'frozen_threshold': threshold,
-            'treatment_over_control_minus_one': t/c-1 if c and t is not None else None,
-            'symmetric_relative_difference': relative, 'exceeds_frozen_spread': relative > threshold if ready and relative is not None else None}
+    result['frozen_parity'] = {'path': str(args.parity.resolve()), 'sha256': summary.digest(args.parity.read_bytes()),
+                             'reasons': parity['calibration'].get('reasons', [])}
+    result['comparison'] = compare(result['runs'], parity, args.control, args.treatment)
     if args.harness:
-        state = summary.read_json(args.harness)
         result['harness'] = {'path': str(args.harness.resolve()), 'sha256': summary.digest(args.harness.read_bytes()),
             **{k: state.get(k) for k in ('phase', 'outcome', 'started', 'finished', 'calls_reported', 'foreign_requests', 'requests_during_restore')},
             'declared_recipe': {k: state.get('spec', {}).get(k) for k in ('dropin', 'expect_argv', 'expect_model')},
@@ -84,12 +151,15 @@ def prepare(args) -> dict:
     result['needle_grades'] = {'state': 'not supplied; report runs do not establish retrieval'}
     if args.needle_grades:
         result['needle_grades'] = {'path': str(args.needle_grades.resolve()), 'sha256': summary.digest(args.needle_grades.read_bytes()), 'records': json.loads(args.needle_grades.read_text())}
-    workload = summary.read_json(args.workload)
+    pin = workload['source_commit']
+    if not re.fullmatch(r'[0-9a-fA-F]{40}', pin) or any(x['commit'] != pin for x in workload['brief']['sources']):
+        raise ValueError('source commit must be a full SHA matching every brief source')
     sm = sourcemap.build(str(args.source_repo.resolve()), workload['source_commit'], [x['path'] for x in workload['brief']['sources']])
+    result['source_binding'] = {'commit': sm.commit, 'files': {f.path: f.sha256 for f in sm.files}}
     out.mkdir(parents=False)
     blind, sidecars = out/'blind', out/'sidecars'
     blind.mkdir(); sidecars.mkdir()
-    (blind/'brief.json').write_text(json.dumps(workload['brief'], indent=2)+'\n')
+    (blind/'brief.json').write_text(json.dumps(workload['brief'], indent=2, allow_nan=False)+'\n')
     (blind/'sources.txt').write_text(sourcemap.render_for_model(sm, numbered=True, symbols=False))
     (blind/'README.md').write_text('Review only this directory. Grade each answer against brief.json and pinned sources.txt. Assess each substance criterion and false claims separately from form. Do not inspect parent files. Duplicated answers are preserved.\n')
     mapping = []
@@ -109,19 +179,21 @@ def prepare(args) -> dict:
             continue
         (blind/f'{ident}.md').write_text(md)
         (sidecars/f'{ident}.raw.json').write_bytes(raw)
-        (sidecars/f'{ident}.manifest.json').write_text(json.dumps(manifest, indent=2)+'\n')
+        (sidecars/f'{ident}.manifest.json').write_text(json.dumps(manifest, indent=2, allow_nan=False)+'\n')
         mapping.append({'answer': ident, 'run': row['path'], 'state': 'rendered', 'raw_sha256': summary.digest(raw), 'rendered_sha256': summary.digest(md.encode()), 'excluded': row['timing_exclusions']})
-    (out/'blind-map.json').write_text(json.dumps(mapping, indent=2)+'\n')
-    (out/'metrics.json').write_text(json.dumps(result, indent=2)+'\n')
+    (out/'blind-map.json').write_text(json.dumps(mapping, indent=2, allow_nan=False)+'\n')
+    (out/'metrics.json').write_text(json.dumps(result, indent=2, allow_nan=False)+'\n')
     lines = ['# Offline arm preliminary package', '', f'Input: `{root}`. Control: {args.control}; treatment: {args.treatment}.', '',
-        f"Observed completed run records: {len(result['runs'])}. Harness phase: {result.get('harness', {}).get('phase', 'unknown')}. No completion or restoration claim is inferred.", '',
+        f"Run records found: {len(result['runs'])}. Harness phase: {result.get('harness', {}).get('phase', 'unknown')}. No completion or restoration claim is inferred.", '',
         'Cold exclusions remain visible. At least three admissible warm rows per seat are required to compare against frozen spread. No substance grades or adoption decision. Raw metrics may cover only part of the workload.', '',
         '| Metric | Control median | Treatment median | n control / treatment | Treatment change | Frozen spread | Ready |', '|---|---:|---:|---:|---:|---:|---|']
     for metric, v in result['comparison'].items():
         c,t=[v['seats'][seat] for seat in (args.control,args.treatment)]
         lines.append(f"| {metric} | {c['median']} | {t['median']} | {c['n']} / {t['n']} | {v['treatment_over_control_minus_one']} | {v['frozen_threshold']} | {v['ready_n3_each']} |")
-    lines += ['', 'All rates above are fractions. Exact source fields, run hashes, thermal windows, first-token/prefill metadata, counters and exclusions are in metrics.json. Decode uses generation_tokens_total/decode_seconds_sum; durations use run.seconds_total and conversation work/final.seconds. Output length may differ. No A/B-derived recalibration.', '', 'Only blind/ goes to the grader. Raw copies, deterministic renderer repair manifests and mapping remain outside it. Needles are unmeasured unless a grade file was explicitly supplied. Re-run into a new output directory after remaining work completes; preserve this snapshot.']
+    lines += ['', f"Assignment verified: {result['assignment']['verified']} ({result['assignment']['basis']}). Divergence reference: {result['reference_run']}.",
+        'Card and treatment are confounded within one pass; an arm verdict needs both swapped passes. Lower seconds is better; higher decode tokens/s is better. Null spread comparisons remain unavailable; see per-metric reasons in metrics.json.', '', 'All rates above are fractions. Exact source fields, run hashes, thermal windows, first-token/prefill metadata, counters and exclusions are in metrics.json. Decode uses generation_tokens_total/decode_seconds_sum; durations use run.seconds_total and conversation work/final.seconds. Output length may differ. No A/B-derived recalibration.', '', 'Only blind/ goes to the grader. Raw copies, deterministic renderer repair manifests and mapping remain outside it. Needles are unmeasured unless a grade file was explicitly supplied. Re-run into a new output directory after remaining work completes; preserve this snapshot.']
     (out/'SUMMARY.md').write_text('\n'.join(lines)+'\n')
+    (out/'COMPLETE.json').write_text(json.dumps({'schema': 'bench27-package-complete.v1', 'meaning': 'Offline package construction complete, not experiment success', 'metrics_sha256': summary.digest((out/'metrics.json').read_bytes())}, allow_nan=False)+'\n')
     return result
 
 
@@ -132,6 +204,7 @@ def main():
     for name in ('harness','raw-metrics','needle-grades'):
         parser.add_argument('--'+name, type=Path)
     parser.add_argument('--cards', type=Path, action='append', default=[])
+    parser.add_argument('--card-map', action='append', default=[])
     parser.add_argument('--exclude-repeat', action='append', default=[])
     parser.add_argument('--control', required=True)
     parser.add_argument('--treatment', required=True)

@@ -1,0 +1,60 @@
+{
+  "schema": "bench27-door-slots3-prepared.v1",
+  "status": "offline prepared; parent review/deployment/preflight required",
+  "configuration": "three-dense",
+  "unit": "bench27-door-slots3",
+  "fence": false,
+  "runtime_max_s": 1800,
+  "stop_grace_s": 30,
+  "guard_trip": "/home/derek/work/lab-rnd/research/evidence/bench27-config-20261005/cards.jsonl.tripped",
+  "expected": {
+    "seat0": {
+      "backend": "omen-dense-27b",
+      "parallel_slots": 2,
+      "endpoint": "http://127.0.0.1:18095"
+    },
+    "seat1": {
+      "backend": "omen-dense-27b-b",
+      "parallel_slots": 3,
+      "endpoint": "http://127.0.0.1:18096"
+    },
+    "both": {
+      "context_tokens": 65536,
+      "models": [
+        "qwen3.8-27b"
+      ],
+      "deliberate_max_tokens": 24576,
+      "work_budget": 24000,
+      "final_budget": 4096,
+      "conversations": 3,
+      "temperature": 0,
+      "seed": 42
+    }
+  },
+  "expected_calls_per_seat": 6,
+  "passes": 1,
+  "retries": 0,
+  "source_files": [
+    {
+      "path": "/home/derek/work/commandcenter-linux-flash/host/omen-linux/hearth-production/backends-linux.toml",
+      "sha256_at_preparation": "fcc348a163ca4446f166821feb87f2a7e4e9844c363b60ee34f79f0bbf24d3bb",
+      "candidate_sha256": "31cec6a6f9d1623d6455eb531abbd4e316ccbf149af5e8f79858b2f9524487fd"
+    },
+    {
+      "path": "/home/derek/work/commandcenter-linux-flash/host/lab-configurations.toml",
+      "sha256_at_preparation": "6600df5a6cda7eca30bc5786d7df1e08bb34bf86749279beafa92f2d413066a0",
+      "candidate_sha256": "ad6630740288d730d94537dbed46bc394174046e162e65d7afc546824aa3c9b0"
+    }
+  ],
+  "sequence_sha256": "bae140abdbaa99029399a8023b00eb4a589cfdb82bdff7c605acfd4cc46df96f",
+  "run_argv": [
+    "/home/derek/.venvs/hearth-private/bin/python",
+    "/home/derek/work/lab-rnd/research/bench27_campaign.py",
+    "run",
+    "--sequence",
+    "/home/derek/work/worktrees/bench27-am4-sizing/docs/bench27-door-slots3/slots3.sequence.json",
+    "--out",
+    "/home/derek/work/lab-rnd/research/evidence/bench27-slots3-20261005/paired-c3/sequence"
+  ],
+  "restore": "Parent drains owned jobs and verifies zero affected leases/running/waiting, then reverses only treatment slots3->2 in both tracked/deployed registry and three-dense record; never replace a whole stale registry snapshot."
+}

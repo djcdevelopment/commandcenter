@@ -1,0 +1,22 @@
+--- a/host/omen-linux/hearth-production/backends-linux.toml
++++ b/host/omen-linux/hearth-production/backends-linux.toml
+@@ -107,7 +107,7 @@
+ max_tokens = 16384   # the output reserve; == work.produce ceiling (sizing-map 2026-09-27)
+ deliberate_max_tokens = 24576   # inference.deliberate only: a streamed thinking turn may ask up to this (65,536 window)
+ timeout_s = 1000
+-parallel_slots = 2       # KV pool 99,048 tokens holds ~1.5 full requests; 2 x (19.5K in + 16K out) = 71K fits, 3 preempted (9.3 s wait 2026-09-27)
++parallel_slots = 3       # KV pool 99,048 tokens holds ~1.5 full requests; 2 x (19.5K in + 16K out) = 71K fits, 3 preempted (9.3 s wait 2026-09-27)
+ structured_outputs = true   # response_format json_schema, probed 2026-10-02 (docs/structured-outputs.md)
+ flash_attention = true   # the seat's --attention-backend FLASH_ATTN; part of the serving profile a capability record carries
+ speculative = "mtp-k2"    # the seat's MTP draft depth; sizing_map checks both against the seat's drop-ins
+--- a/host/lab-configurations.toml
++++ b/host/lab-configurations.toml
+@@ -143,7 +143,7 @@
+ [configuration.three-dense.backends]
+ omen-vllm = { status = "absent" }
+ omen-dense-27b = { status = "live", context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 }
+-omen-dense-27b-b = { status = "live", context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 }
++omen-dense-27b-b = { status = "live", context_tokens = 65536, parallel_slots = 3, max_tokens = 16384 }
+ am4-vllm = { status = "live", context_tokens = 16384, parallel_slots = 1, max_tokens = 4096 }
+ am4-tool-4070ti = { status = "absent" }
+ am4-tool-5070 = { status = "absent" }

@@ -193,16 +193,20 @@ def test_invalid_output_configuration_refuses_before_engine_call(server, monkeyp
 
 
 def test_bad_alias_isolated_in_models_and_tokenize(server, monkeypatch):
+    monkeypatch.setenv('AM4_OXEN_ALIASES','am4-dense-27b,alias-two')
     aliases=json.loads(facade.env('AM4_ALIAS_BACKENDS','{}'))
     aliases['am4-dense-27b']['output_ceiling']=32768
     monkeypatch.setenv('AM4_ALIAS_BACKENDS',json.dumps(aliases))
     status,data=call(server,'/v1/models')
     assert status==200
     rows={row['id']:row for row in json.loads(data)['data']}
+    assert set(rows)=={'am4-dense-27b','alias-two'}
     assert rows['am4-dense-27b']['ready'] is False
     assert rows['alias-two']['ready'] is True
     assert call(server,body=prompt(model='alias-two'))[0]==200
+    before=list(server[1].calls)
     assert call(server,'/tokenize',body=prompt())[0]==503
+    assert server[1].calls==before  # No tokenization or generation on invalid config.
 
 
 def test_http_long_capability_503_and_ordinary_32k_allowed(server, monkeypatch):

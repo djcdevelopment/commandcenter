@@ -1,0 +1,32 @@
+# DRAFT ONLY: parent deploys after reviewed report and long-sizing comparisons.
+# Replace only am4-vllm stanza in host/omen-linux/hearth-production/backends-linux.toml.
+# Profile binds full candidate.sh SHA, including exported toolkit/workspace environment.
+# Candidate: /home/derek/work/lab-rnd/research/evidence/bench27-am4-recipe-20261005/Nfp8-49-prepared/candidate.sh
+# Recipe manifest SHA256: ec93dfe3da1643b13b050d949db1e68986b724a172381e12c16e1ff651a1a9f0
+[[backend]]
+name = "am4-vllm"
+endpoint = "http://10.44.0.2:8090"
+api = "openai"
+auth_env = "AM4_VLLM_TOKEN"
+models = ["am4-dense-27b"]
+tags = ["dense", "reasoning"]
+
+[backend.settings]
+node = "am4"
+metrics_url = "ssh+http://10.44.0.2:18094/metrics"
+engine = "vllm"
+engine_build = "0.30.0"
+hardware_profile_id = "am4-4070ti-5070-2026H2"
+serving_profile_version = "bench27-am4-native-fp8-49k.sha256-d6d6887f5fe3c31ba574d6bdfbdc609e6474afbc7d2866c362355d0275c7d54e"
+model_weight = "qwen3-27b-gptq-int4"
+quantization = "gptq-int4"
+structured_outputs = true
+context_tokens = 49152
+context_bytes = 172032
+max_tokens = 4096
+deliberate_max_tokens = 24576
+timeout_s = 1800
+parallel_slots = 1
+
+[backend.settings.chat_template_kwargs]
+enable_thinking = false

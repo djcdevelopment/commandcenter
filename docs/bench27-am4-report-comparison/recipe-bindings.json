@@ -1,0 +1,71 @@
+{
+  "status": "draft_pending_report_comparison",
+  "profiles": [
+    {
+      "arm": "Nauto90",
+      "manifest": "/home/derek/work/lab-rnd/research/evidence/bench27-am4-recipe-20261005/Nauto90-prepared/manifest.json",
+      "manifest_sha256": "f6264339b38900e1e5e813b4bf6dc2b1d4250ba7c598873478feaf11214c964f",
+      "candidate_sha256": "3308f2e66029e26182926731bdc42ae0a6bbc73950d45231086cf19c335bb510",
+      "recipe": {
+        "graphs": true,
+        "reasoning_parser": "qwen3",
+        "tool_parser": "qwen3_xml",
+        "mtp": 0,
+        "sequences": 2,
+        "window": 32768,
+        "kv_dtype": "auto",
+        "utilization": 0.9,
+        "attention_backend": "FLASHINFER",
+        "use_trtllm_attention": false
+      },
+      "environment": {
+        "CUDA_HOME": "/home/derek/bench27-cuda134/toolkit/nvidia/cu13",
+        "FLASHINFER_WORKSPACE_BASE": "/home/derek/bench27-cuda134/jit-workspace"
+      }
+    },
+    {
+      "arm": "Nfp8-32",
+      "manifest": "/home/derek/work/lab-rnd/research/evidence/bench27-am4-recipe-20261005/Nfp8-32-prepared/manifest.json",
+      "manifest_sha256": "0af355f9a76fbaab19bcc673e76fc1d614d7d99e85a5ced9d512d01dce6b4da3",
+      "candidate_sha256": "d341e22564dcc86472d8483a3998989c834922e4846ca287a6fdfc03f291c72f",
+      "recipe": {
+        "graphs": true,
+        "reasoning_parser": "qwen3",
+        "tool_parser": "qwen3_xml",
+        "mtp": 0,
+        "sequences": 2,
+        "window": 32768,
+        "kv_dtype": "fp8_e4m3",
+        "utilization": 0.9,
+        "attention_backend": "FLASHINFER",
+        "use_trtllm_attention": false
+      },
+      "environment": {
+        "CUDA_HOME": "/home/derek/bench27-cuda134/toolkit/nvidia/cu13",
+        "FLASHINFER_WORKSPACE_BASE": "/home/derek/bench27-cuda134/jit-workspace"
+      }
+    },
+    {
+      "arm": "Nfp8-49",
+      "manifest": "/home/derek/work/lab-rnd/research/evidence/bench27-am4-recipe-20261005/Nfp8-49-prepared/manifest.json",
+      "manifest_sha256": "ec93dfe3da1643b13b050d949db1e68986b724a172381e12c16e1ff651a1a9f0",
+      "candidate_sha256": "d6d6887f5fe3c31ba574d6bdfbdc609e6474afbc7d2866c362355d0275c7d54e",
+      "recipe": {
+        "graphs": true,
+        "reasoning_parser": "qwen3",
+        "tool_parser": "qwen3_xml",
+        "mtp": 0,
+        "sequences": 2,
+        "window": 49152,
+        "kv_dtype": "fp8_e4m3",
+        "utilization": 0.9,
+        "attention_backend": "FLASHINFER",
+        "use_trtllm_attention": false
+      },
+      "environment": {
+        "CUDA_HOME": "/home/derek/bench27-cuda134/toolkit/nvidia/cu13",
+        "FLASHINFER_WORKSPACE_BASE": "/home/derek/bench27-cuda134/jit-workspace"
+      }
+    }
+  ]
+}

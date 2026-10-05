@@ -1,0 +1,70 @@
+[
+  {
+    "answer": "answer-01",
+    "run": "rep-3/seat-1/run.json",
+    "state": "rendered",
+    "raw_sha256": "3c8cfaba2977c48353fb3539bd7b5925f62b564ba0d11a4b5f71199894edf5ce",
+    "rendered_sha256": "8904235be29dc9e74993ac97f003003b79ef18d3290b7f638ad0428a91faa1a5",
+    "excluded": []
+  },
+  {
+    "answer": "answer-02",
+    "run": "rep-2/seat-1/run.json",
+    "state": "rendered",
+    "raw_sha256": "3c8cfaba2977c48353fb3539bd7b5925f62b564ba0d11a4b5f71199894edf5ce",
+    "rendered_sha256": "8904235be29dc9e74993ac97f003003b79ef18d3290b7f638ad0428a91faa1a5",
+    "excluded": []
+  },
+  {
+    "answer": "answer-03",
+    "run": "rep-2/seat-0/run.json",
+    "state": "rendered",
+    "raw_sha256": "152d69ef8b802bc2a0ed35547c5fcb6b5b84344e5684d5871a57e52fc5b2e883",
+    "rendered_sha256": "c10ab569c8c0bf55d4e2566df012121c2590004c44b846c8db8d3fd51138b64c",
+    "excluded": []
+  },
+  {
+    "answer": "answer-04",
+    "run": "rep-1/seat-0/run.json",
+    "state": "rendered",
+    "raw_sha256": "152d69ef8b802bc2a0ed35547c5fcb6b5b84344e5684d5871a57e52fc5b2e883",
+    "rendered_sha256": "c10ab569c8c0bf55d4e2566df012121c2590004c44b846c8db8d3fd51138b64c",
+    "excluded": [
+      "caller excluded repeat rep-1: first after restart; cold prefill"
+    ]
+  },
+  {
+    "answer": "answer-05",
+    "run": "rep-3/seat-0/run.json",
+    "state": "rendered",
+    "raw_sha256": "152d69ef8b802bc2a0ed35547c5fcb6b5b84344e5684d5871a57e52fc5b2e883",
+    "rendered_sha256": "c10ab569c8c0bf55d4e2566df012121c2590004c44b846c8db8d3fd51138b64c",
+    "excluded": []
+  },
+  {
+    "answer": "answer-06",
+    "run": "rep-1/seat-1/run.json",
+    "state": "rendered",
+    "raw_sha256": "3c8cfaba2977c48353fb3539bd7b5925f62b564ba0d11a4b5f71199894edf5ce",
+    "rendered_sha256": "8904235be29dc9e74993ac97f003003b79ef18d3290b7f638ad0428a91faa1a5",
+    "excluded": [
+      "caller excluded repeat rep-1: first after restart; cold prefill"
+    ]
+  },
+  {
+    "answer": "answer-07",
+    "run": "rep-4/seat-1/run.json",
+    "state": "rendered",
+    "raw_sha256": "3c8cfaba2977c48353fb3539bd7b5925f62b564ba0d11a4b5f71199894edf5ce",
+    "rendered_sha256": "8904235be29dc9e74993ac97f003003b79ef18d3290b7f638ad0428a91faa1a5",
+    "excluded": []
+  },
+  {
+    "answer": "answer-08",
+    "run": "rep-4/seat-0/run.json",
+    "state": "rendered",
+    "raw_sha256": "152d69ef8b802bc2a0ed35547c5fcb6b5b84344e5684d5871a57e52fc5b2e883",
+    "rendered_sha256": "c10ab569c8c0bf55d4e2566df012121c2590004c44b846c8db8d3fd51138b64c",
+    "excluded": []
+  }
+]

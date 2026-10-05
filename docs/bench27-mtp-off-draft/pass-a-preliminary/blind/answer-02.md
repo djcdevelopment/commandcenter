@@ -1,0 +1,21 @@
+The audit compares day and tool-night lab configurations in host/lab-configurations.toml with sizing_map.py. omen-dense-27b and omen-perception keep identical declared values in both. The day-to-tool-night switch changes am4-vllm from live to absent and brings am4-tool-4070ti and am4-tool-5070 live. sizing_map.py's invariants use the active configuration to check live serving, routability, and family resolution, but do not directly compare the two configurations or verify the TOML values against backends-linux.toml, which is not in the provided sources.
+
+## Configuration comparison
+
+The audit compares the backends declared under configuration.day and configuration.tool-night in host/lab-configurations.toml against the sizing parameters and invariants in tools/ops/sizing_map.py. The TOML declares day as two-lane/dense-tp2/live and tool-night as two-lane/tool-pair/live. sizing_map.py reads both named configurations and emits each backend's status; for live backends it also emits context_tokens, parallel_slots, and max_tokens. Its invariants do not directly compare day with tool-night or compare those declared values to backends-linux.toml. They use only the active configuration to derive expected live/absent backends and then check live serving, routability, and family resolution.
+> contract = "lab-configurations.v1" (host/lab-configurations.toml:6-6)
+
+## Declared values
+
+omen-dense-27b is live in both configurations with context_tokens 65536, parallel_slots 2, max_tokens 16384. omen-perception is live in both with parallel_slots 2; the TOML declares no context_tokens or max_tokens for it.
+> omen-dense-27b = { status = "live", context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 } (host/lab-configurations.toml:17-17)
+
+## Backend changes
+
+From day to tool-night, am4-vllm changes live to absent. am4-tool-4070ti changes absent to live with context_tokens 24576, parallel_slots 3, max_tokens 4096. am4-tool-5070 changes absent to live with context_tokens 16384, parallel_slots 1, max_tokens 6144. omen-vllm, omen-dense-27b, fx99-vllm, and omen-perception remain live.
+> am4-vllm = { status = (found 7 times, too short to place)
+
+## Invariants
+
+sizing_map.py's AM4 invariant maps dense-tp2 to alias am4-dense-27b and tool-pair to am4-tool-4070ti/am4-tool-5070, so the day/tool-night switch is the profile change that changes those aliases. Its omen-dense-27b invariants compare the backends pool to seat windows, KV pools, ceilings, and runner routes; its omen-perception invariant checks the backends pool's images_per_second and max_image_bytes. The provided sources do not show backends-linux.toml, so those pool values cannot be verified here.
+> AM4_PROFILE_ALIASES = {"dense-tp2": ["am4-dense-27b"], "tool-pair": ["am4-tool-4070ti", "am4-tool-5070"]} (tools/ops/sizing_map.py:355-355)

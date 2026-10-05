@@ -1,0 +1,951 @@
+=== FILE host/lab-configurations.toml (sha256 bdede9a79d15, 112 lines) ===
+CODE:
+001| # lab-configurations.v1 — named whole-lab serving configurations (ADR-0052, task 8).
+002| #
+003| # A lab configuration describes the expected serving shape of the entire lab:
+004| # which profile OMEN is in, which profile AM4 is in, FX99 state, and which HEARTH
+005| # backends are expected live or absent, with their sizing parameters.
+006| contract = "lab-configurations.v1"
+007| authored = "2026-10-01"
+008| 
+009| [configuration.day]
+010| description = "Production day configuration: OMEN dual-lane (27B quality + 30B MoE), AM4 dense-tp2 (27B dense), FX99 utility"
+011| omen_profile = "two-lane"
+012| am4_profile = "dense-tp2"
+013| fx99_state = "live"
+014| 
+015| [configuration.day.backends]
+016| omen-vllm = { status = "live", context_tokens = 40960, parallel_slots = 8, max_tokens = 8192 }
+017| omen-dense-27b = { status = "live", context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 }
+018| am4-vllm = { status = "live", context_tokens = 16384, parallel_slots = 1, max_tokens = 4096 }
+019| am4-tool-4070ti = { status = "absent" }
+020| am4-tool-5070 = { status = "absent" }
+021| fx99-vllm = { status = "live", context_tokens = 4096, parallel_slots = 1, max_tokens = 1024 }
+022| omen-perception = { status = "live", parallel_slots = 2 }
+023| 
+024| [configuration.tool-night]
+025| description = "Night tool-work configuration: OMEN dual-lane, AM4 tool-pair (dual 8B tool seats), FX99 utility"
+026| omen_profile = "two-lane"
+027| am4_profile = "tool-pair"
+028| fx99_state = "live"
+029| 
+030| [configuration.tool-night.backends]
+031| omen-vllm = { status = "live", context_tokens = 40960, parallel_slots = 8, max_tokens = 8192 }
+032| omen-dense-27b = { status = "live", context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 }
+033| am4-vllm = { status = "absent" }
+034| am4-tool-4070ti = { status = "live", context_tokens = 24576, parallel_slots = 3, max_tokens = 4096 }
+035| am4-tool-5070 = { status = "live", context_tokens = 16384, parallel_slots = 1, max_tokens = 6144 }
+036| fx99-vllm = { status = "live", context_tokens = 4096, parallel_slots = 1, max_tokens = 1024 }
+037| omen-perception = { status = "live", parallel_slots = 2 }
+038| 
+039| [configuration.seat0-qwen3-32b]
+040| description = "Seat 0 Qwen3-32B experiment, AM4 dense-tp2"
+041| omen_profile = "seat0-qwen3-32b"
+042| am4_profile = "dense-tp2"
+043| fx99_state = "live"
+044| 
+045| [configuration.seat0-qwen3-32b.backends]
+046| omen-vllm = { status = "live", context_tokens = 40960, parallel_slots = 8, max_tokens = 8192 }
+047| omen-dense-27b = { status = "absent" }
+048| am4-vllm = { status = "live", context_tokens = 16384, parallel_slots = 1, max_tokens = 4096 }
+049| am4-tool-4070ti = { status = "absent" }
+050| am4-tool-5070 = { status = "absent" }
+051| fx99-vllm = { status = "live", context_tokens = 4096, parallel_slots = 1, max_tokens = 1024 }
+052| omen-perception = { status = "live", parallel_slots = 2 }
+053| 
+054| [configuration.seat0-devstral2507]
+055| description = "Seat 0 Devstral 2507 experiment, AM4 dense-tp2"
+056| omen_profile = "seat0-devstral2507"
+057| am4_profile = "dense-tp2"
+058| fx99_state = "live"
+059| 
+060| [configuration.seat0-devstral2507.backends]
+061| omen-vllm = { status = "live", context_tokens = 40960, parallel_slots = 8, max_tokens = 8192 }
+062| omen-dense-27b = { status = "absent" }
+063| am4-vllm = { status = "live", context_tokens = 16384, parallel_slots = 1, max_tokens = 4096 }
+064| am4-tool-4070ti = { status = "absent" }
+065| am4-tool-5070 = { status = "absent" }
+066| fx99-vllm = { status = "live", context_tokens = 4096, parallel_slots = 1, max_tokens = 1024 }
+067| omen-perception = { status = "live", parallel_slots = 2 }
+068| 
+069| [configuration.seat0-gemma4]
+070| description = "Seat 0 Gemma 4 31B experiment, AM4 dense-tp2"
+071| omen_profile = "seat0-gemma4"
+072| am4_profile = "dense-tp2"
+073| fx99_state = "live"
+074| 
+075| [configuration.seat0-gemma4.backends]
+076| omen-vllm = { status = "live", context_tokens = 40960, parallel_slots = 8, max_tokens = 8192 }
+077| omen-dense-27b = { status = "absent" }
+078| am4-vllm = { status = "live", context_tokens = 16384, parallel_slots = 1, max_tokens = 4096 }
+079| am4-tool-4070ti = { status = "absent" }
+080| am4-tool-5070 = { status = "absent" }
+081| fx99-vllm = { status = "live", context_tokens = 4096, parallel_slots = 1, max_tokens = 1024 }
+082| omen-perception = { status = "live", parallel_slots = 2 }
+083| 
+084| [configuration.seat0-devstral-small-2]
+085| description = "Seat 0 Devstral Small 2 24B experiment, AM4 dense-tp2"
+086| omen_profile = "seat0-devstral-small-2"
+087| am4_profile = "dense-tp2"
+088| fx99_state = "live"
+089| 
+090| [configuration.seat0-devstral-small-2.backends]
+091| omen-vllm = { status = "live", context_tokens = 40960, parallel_slots = 8, max_tokens = 8192 }
+092| omen-dense-27b = { status = "absent" }
+093| am4-vllm = { status = "live", context_tokens = 16384, parallel_slots = 1, max_tokens = 4096 }
+094| am4-tool-4070ti = { status = "absent" }
+095| am4-tool-5070 = { status = "absent" }
+096| fx99-vllm = { status = "live", context_tokens = 4096, parallel_slots = 1, max_tokens = 1024 }
+097| omen-perception = { status = "live", parallel_slots = 2 }
+098| 
+099| [configuration.seat0-27b-vision]
+100| description = "Seat 0 Qwen3.8-27B vision lane (LANGUAGE_MODEL_ONLY unset, vision tower active); Seat 1 MoE throughput. No download. Task 12 vision lab configuration."
+101| omen_profile = "seat0-27b-vision"
+102| am4_profile = "dense-tp2"
+103| fx99_state = "live"
+104| 
+105| [configuration.seat0-27b-vision.backends]
+106| omen-vllm = { status = "live", context_tokens = 40960, parallel_slots = 8, max_tokens = 8192 }
+107| omen-dense-27b = { status = "live", context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 }
+108| am4-vllm = { status = "live", context_tokens = 16384, parallel_slots = 1, max_tokens = 4096 }
+109| am4-tool-4070ti = { status = "absent" }
+110| am4-tool-5070 = { status = "absent" }
+111| fx99-vllm = { status = "live", context_tokens = 4096, parallel_slots = 1, max_tokens = 1024 }
+112| omen-perception = { status = "live", parallel_slots = 2 }
+=== END host/lab-configurations.toml ===
+=== FILE tools/ops/sizing_map.py (sha256 aed9347e74bd, 833 lines) ===
+CODE:
+001| #!/usr/bin/env python3
+002| """sizing_map — every context / KV / output / attempt / deadline number on this host, in one table,
+003| with the invariants that tie them together.
+004| 
+005| The seat is the fact (vLLM's max_model_len, KV pool, max_num_seqs). backends-linux.toml declares
+006| what the seat can serve; everything else derives from it. This tool reads all of those places,
+007| prints them as one table, and checks the derivation rules, so docs/sizing-map.md cannot drift
+008| from the files it describes.
+009| 
+010|     python tools/ops/sizing_map.py --check          exit 1 and name every violated invariant
+011|     python tools/ops/sizing_map.py --json           the rows (sizing-map.v1), sorted, no clock
+012|     python tools/ops/sizing_map.py --render         rewrite the generated block in docs/sizing-map.md (reads the live seats)
+013|     python tools/ops/sizing_map.py --live           also read the running seats (/v1/models, /metrics)
+014| 
+015| Byte-stable: no timestamps, sorted rows, live values only when asked. Never prints a secret: the
+016| seat key is read into the process for the two HTTP calls and nothing else.
+017| """
+018| from __future__ import annotations
+019| 
+020| import argparse
+021| import json
+022| import os
+023| import re
+024| import subprocess
+025| import sys
+026| import tomllib
+027| import urllib.request
+028| from pathlib import Path
+029| from typing import Any, Callable, Optional
+030| 
+031| REPO = Path(__file__).resolve().parents[2]
+032| if str(REPO) not in sys.path:
+033|     sys.path.insert(0, str(REPO))
+034| HOME = Path.home()
+035| PROD = Path(os.environ.get("HEARTH_ROOT", str(HOME / "hearth-production")))
+036| DOC = REPO / "docs" / "sizing-map.md"
+037| BEGIN, END = "<!-- sizing-map:begin (generated by tools/ops/sizing_map.py; do not hand-edit) -->", "<!-- sizing-map:end -->"
+038| 
+039| Row = dict[str, Any]
+040| 
+041| 
+042| def row(layer: str, setting: str, value: Any, source: str, consumer: str, bounds: str, note: str = "") -> Row:
+043|     return {"layer": layer, "setting": setting, "value": value, "source": source, "consumer": consumer,
+044|             "bounds": bounds, "note": note}
+045| 
+046| 
+047| def _read(path: Path) -> str:
+048|     try:
+049|         return path.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n")
+050|     except OSError:
+051|         return ""
+052| 
+053| 
+054| def _grep(text: str, pattern: str, group: int = 1, cast: Callable = str, default=None):
+055|     m = re.search(pattern, text, re.MULTILINE)
+056|     if not m:
+057|         return default
+058|     try:
+059|         return cast(m.group(group))
+060|     except (TypeError, ValueError):
+061|         return default
+062| 
+063| 
+064| def _line_of(path: Path, pattern: str) -> str:
+065|     text = _read(path)
+066|     for i, line in enumerate(text.splitlines(), 1):
+067|         if re.search(pattern, line):
+068|             return f"{_rel(path)}:{i}"
+069|     return _rel(path)
+070| 
+071| 
+072| def _rel(path: Path) -> str:
+073|     p = str(path)
+074|     for base, name in ((str(REPO), "repo"), (str(HOME), "~")):
+075|         if p.startswith(base):
+076|             return name + p[len(base):]
+077|     return p
+078| 
+079| 
+080| # --- collectors -------------------------------------------------------------------------------
+081| 
+082| def collect_seats(live: bool) -> list[Row]:
+083|     rows: list[Row] = []
+084|     script = HOME / "bin" / "start-vllm-seat.sh"
+085|     stext = _read(script)
+086|     defaults = {"OMEN_MAX_MODEL_LEN": _grep(stext, r"OMEN_MAX_MODEL_LEN:-(\d+)", cast=int, default=16384),
+087|                 "OMEN_MAX_NUM_SEQS": _grep(stext, r"OMEN_MAX_NUM_SEQS:-(\d+)", cast=int, default=16),
+088|                 "OMEN_GPU_MEM_UTIL": _grep(stext, r"OMEN_GPU_MEM_UTIL:-([0-9.]+)", cast=float, default=0.82)}
+089|     for k, v in defaults.items():
+090|         rows.append(row("seat", f"script default {k}", v, _line_of(script, k + ":-"), "vLLM (any seat without a drop-in)",
+091|                         "context / sequences / VRAM fraction", "applies when no drop-in sets it"))
+092|     key = None
+093|     if live:
+094|         for line in _read(HOME / ".config" / "omen-vllm" / "omen-api.env").splitlines():
+095|             if line.startswith("VLLM_API_KEY="):
+096|                 key = line.split("=", 1)[1].strip().strip('"')
+097|     for seat in (0, 1):
+098|         unit = f"omen-vllm@{seat}"
+099|         try:
+100|             env = subprocess.run(["systemctl", "--user", "show", unit, "-p", "Environment", "--value"],
+101|                                  capture_output=True, text=True, timeout=10).stdout.split()
+102|         except (OSError, subprocess.TimeoutExpired):
+103|             env = []
+104|         eff = {}
+105|         for item in env:
+106|             if item.startswith("OMEN_") and "=" in item and not re.search(r"TOKEN|KEY", item, re.I):
+107|                 k, _, v = item.partition("="); eff[k] = v
+108|         dropins = sorted(p.name for p in (HOME / ".config" / "systemd" / "user" / f"{unit}.service.d").glob("*.conf"))
+109|         src = f"~/.config/systemd/user/{unit}.service.d/{{{','.join(dropins)}}}"
+110|         served = eff.get("OMEN_SERVED_NAME") or (Path(eff["OMEN_MODEL"]).name + " (served name = checkpoint dir)" if eff.get("OMEN_MODEL") else "")
+111|         rows.append(row("seat", f"{unit} served model", served, src, f"HAProxy :{18091 + seat}", "which checkpoint answers"))
+112|         mml = int(eff.get("OMEN_MAX_MODEL_LEN") or defaults["OMEN_MAX_MODEL_LEN"])
+113|         rows.append(row("seat", f"{unit} max_model_len", mml, src, "vLLM", "input + output tokens per request"))
+114|         seqs = int(eff.get("OMEN_MAX_NUM_SEQS") or defaults["OMEN_MAX_NUM_SEQS"])
+115|         rows.append(row("seat", f"{unit} max_num_seqs", seqs, src if eff.get("OMEN_MAX_NUM_SEQS") else _line_of(script, "OMEN_MAX_NUM_SEQS:-"),
+116|                         "vLLM scheduler", "concurrent sequences admitted", "" if eff.get("OMEN_MAX_NUM_SEQS") else "script default; no drop-in sets it"))
+117|         rows.append(row("seat", f"{unit} gpu_memory_utilization", float(eff.get("OMEN_GPU_MEM_UTIL") or defaults["OMEN_GPU_MEM_UTIL"]), src, "vLLM", "VRAM fraction (weights + KV)"))
+118|         if eff.get("OMEN_KV_CACHE_BYTES"):
+119|             rows.append(row("seat", f"{unit} kv_cache_memory_bytes", int(eff["OMEN_KV_CACHE_BYTES"]), src, "vLLM", "fixed KV pool (overrides the utilisation for KV)"))
+120|         for k, label in (("OMEN_MAX_BATCHED_TOKENS", "max_num_batched_tokens"), ("OMEN_PREFIX_MATCH_UNIT", "prefix_match_unit"), ("OMEN_MTP_K", "mtp_k")):
+121|             if eff.get(k):
+122|                 rows.append(row("seat", f"{unit} {label}", int(eff[k]), src, "vLLM", {"max_num_batched_tokens": "prefill chunk", "prefix_match_unit": "prefix-hit granularity", "mtp_k": "speculative tokens"}[label]))
+123|         # stale-comment and duplicate-key detectors on the drop-ins
+124|         setters: dict[str, list[str]] = {}
+125|         for name in dropins:
+126|             text = _read(HOME / ".config" / "systemd" / "user" / f"{unit}.service.d" / name)
+127|             for k in re.findall(r'^Environment="?(OMEN_[A-Z_]+)=', text, re.M):
+128|                 setters.setdefault(k, []).append(name)
+129|             if re.search(r"staged", text, re.I) and name.endswith(".conf"):
+130|                 rows.append(row("seat", f"{unit} {name} says 'staged'", True, f"~/.config/systemd/user/{unit}.service.d/{name}", "operator", "misleading comment on an ACTIVE drop-in"))
+131|         for k, names in sorted(setters.items()):
+132|             if len(names) > 1:
+133|                 rows.append(row("seat", f"{unit} {k} set by {len(names)} drop-ins", " < ".join(names), f"~/.config/systemd/user/{unit}.service.d/", "systemd (last wins, alphabetical)", "the earlier file is dead configuration"))
+134|         if live and key:
+135|             try:
+136|                 req = urllib.request.Request(f"http://127.0.0.1:{18091 + seat}/v1/models", headers={"Authorization": f"Bearer {key}"})
+137|                 with urllib.request.urlopen(req, timeout=5) as r:
+138|                     data = json.load(r)["data"]
+139|                 for m in data:
+140|                     rows.append(row("seat-live", f"{unit} /v1/models", f"{m['id']} max_model_len={m.get('max_model_len')}", f"http://127.0.0.1:{18091 + seat}/v1/models", "clients", "live window"))
+141|                 req = urllib.request.Request(f"http://127.0.0.1:{18091 + seat}/metrics", headers={"Authorization": f"Bearer {key}"})
+142|                 with urllib.request.urlopen(req, timeout=5) as r:
+143|                     metrics = r.read().decode("utf-8", "replace")
+144|                 m = re.search(r'^vllm:cache_config_info\{([^}]*)\}', metrics, re.M)
+145|                 if m:
+146|                     labels = dict(re.findall(r'(\w+)="([^"]*)"', m.group(1)))
+147|                     for k in ("kv_cache_size_tokens", "kv_cache_max_concurrency", "block_size", "cache_dtype"):
+148|                         if k in labels:
+149|                             v = labels[k]
+150|                             v = int(v) if v.isdigit() else (round(float(v), 2) if re.fullmatch(r"[0-9.]+", v) else v)
+151|                             rows.append(row("seat-live", f"{unit} {k}", v, f"http://127.0.0.1:{18091 + seat}/metrics cache_config_info", "vLLM", "KV pool" if "kv" in k else "block / dtype"))
+152|             except Exception as exc:  # noqa: BLE001 -- live is best-effort
+153|                 rows.append(row("seat-live", f"{unit} live read", f"unavailable: {type(exc).__name__}", "", "", ""))
+154|     if live:
+155|         try:
+156|             req = urllib.request.Request("http://127.0.0.1:18099/health")
+157|             with urllib.request.urlopen(req, timeout=5) as r:
+158|                 data = json.load(r)
+159|             rows.append(row("seat-live", "omen-perception health", f"status={data.get('status')} ips={data.get('images_per_second')}", "http://127.0.0.1:18099/health", "door", "CPU perception lane health"))
+160|         except Exception as exc:  # noqa: BLE001
+161|             rows.append(row("seat-live", "omen-perception live read", f"unavailable: {type(exc).__name__}", "", "", ""))
+162|     return rows
+163| 
+164| 
+165| def collect_router() -> list[Row]:
+166|     path = HOME / ".config" / "omen-vllm" / "haproxy.cfg"
+167|     text = _read(path)
+168|     rows = [row("router", "haproxy global maxconn", _grep(text, r"^\s*maxconn\s+(\d+)", cast=int), _line_of(path, r"^\s*maxconn"), "haproxy", "total open connections")]
+169|     for t in ("connect", "client", "server", "queue"):
+170|         v = _grep(text, rf"^\s*timeout {t}\s+(\d+)s", cast=int)
+171|         rows.append(row("router", f"haproxy timeout {t}", v, _line_of(path, rf"timeout {t}") if v is not None else _rel(path), "haproxy",
+172|                         {"connect": "backend connect", "client": "idle per request (client side)", "server": "idle per request (seat side)", "queue": "wait for a free server slot"}[t],
+173|                         "" if v is not None else "not set"))
+174|     for fe, port in re.findall(r"frontend (\w+)\n\s+bind 127\.0\.0\.1:(\d+)", text):
+175|         rows.append(row("router", f"frontend {fe}", int(port), _line_of(path, f"frontend {fe}"), "HEARTH rung endpoint", "which lane a port is"))
+176|     for be, body in re.findall(r"backend (\w+)\n((?:\s+.*\n)+)", text):
+177|         servers = re.findall(r"server (\w+) 127\.0\.0\.1:(\d+)([^\n]*)", body)
+178|         for name, port, rest in servers:
+179|             mc = _grep(rest, r"maxconn (\d+)", cast=int)
+180|             rows.append(row("router", f"backend {be} server {name}", f"127.0.0.1:{port}" + (f" maxconn {mc}" if mc else " (no maxconn)"), _line_of(path, f"server {name}"), "haproxy", "seat behind the lane; per-server maxconn queues overflow at the router", "" if mc else "no per-server maxconn: overflow queues inside vLLM"))
+181|     return rows
+182| 
+183| 
+184| def _toml(path: Path) -> dict:
+185|     try:
+186|         return tomllib.loads(_read(path))
+187|     except (tomllib.TOMLDecodeError, OSError):
+188|         return {}
+189| 
+190| 
+191| def collect_backends() -> list[Row]:
+192|     path = Path(os.environ.get("HEARTH_BACKENDS", str(PROD / "backends-linux.toml")))
+193|     doc = _toml(path)
+194|     rows = [row("rung", "default rung", doc.get("default"), _line_of(path, "^default"), "local_generate", "where untagged calls land")]
+195|     for b in doc.get("backend", []):
+196|         s = b.get("settings", {})
+197|         name = b["name"]
+198|         for k, bounds in (("context_tokens", "input + output tokens the seat holds"), ("context_bytes", "payload bytes admitted by the door (3.5 B/token, no output reserve)"),
+199|                           ("max_tokens", "default output budget = the reserve local-work subtracts"), ("timeout_s", "HTTP timeout when the caller sets none (execution path always overrides)"),
+200|                           ("parallel_slots", "HEARTH lease slots on this rung"),
+201|                           ("images_per_second", "measured perception throughput on CPU"),
+202|                           ("max_image_bytes", "largest image payload accepted")):
+203|             if k in s:
+204|                 rows.append(row("rung", f"{name} {k}", s[k], _line_of(path, rf"^\s*{k}\s*=") , "backends pool", bounds))
+205|         rows.append(row("rung", f"{name} endpoint", b.get("endpoint"), _line_of(path, f'name = "{name}"'), "door", "which router port"))
+206|     text = _read(path)
+207|     m = re.search(r"KV pool[^\n]*?(\d{2},\d{3}|\d{5})[^\n]*tokens", text)
+208|     if m:
+209|         rows.append(row("rung", "backends-linux.toml KV-pool comment", m.group(1).replace(",", ""), _line_of(path, r"KV pool"), "operator", "documentation of the dense seat's KV pool", "compared against the live kv_cache_size_tokens under --live"))
+210|     return rows
+211| 
+212| 
+213| def collect_routes_and_families() -> list[Row]:
+214|     rows: list[Row] = []
+215|     rp = Path(os.environ.get("HEARTH_LOCAL_WORK_ROUTES", str(PROD / "local-work-routes-linux.toml")))
+216|     for lane, spec in _toml(rp).get("lane", {}).items():
+217|         rows.append(row("local-work", f"lane {lane}", spec.get("backend"), _line_of(rp, rf"\[lane\.{lane}\]"), "submit_local_work", "which rung a lane is"))
+218|     fp = Path(os.environ.get("HEARTH_ROUTING_FAMILIES", str(PROD / "routing-families-linux.toml")))
+219|     fam = _toml(fp).get("family", {})
+220|     for name, spec in sorted(fam.items()):
+221|         if spec.get("refusal"):
+222|             rows.append(row("family", f"family {name}", f"refusal: {spec['refusal']}", _line_of(fp, rf"\[family\.{name}\]"), "door refusal", "explicit refusal (missing capability)"))
+223|             continue
+224|         d = spec.get("depth_override") or {}
+225|         val = f"{spec.get('model_id')}"
+226|         if d.get("min_prompt_tokens"):
+227|             val += f"; >= {d['min_prompt_tokens']} prompt tokens -> {d.get('model_id')}"
+228|         if spec.get("min_prompt_tokens"):
+229|             val += f"; >= {spec['min_prompt_tokens']} -> {spec.get('model_id')} else {spec.get('below_threshold_model_id')}"
+230|         if spec.get("tags"):
+231|             val += f"; tags {spec['tags']}"
+232|         rows.append(row("family", f"family {name}", val, _line_of(fp, rf"\[family\.{name}\]"), "families.recommend (advisory) / local_generate tag route", "model + depth threshold (prompt tokens = payload bytes // 4)"))
+233|     return rows
+234| 
+235| 
+236| def collect_operations() -> list[Row]:
+237|     path = Path(os.environ.get("HEARTH_OPERATIONS", str(REPO / "hearth" / "etc" / "operations.toml")))
+238|     doc = _toml(path)
+239|     rows = []
+240|     for op, spec in doc.get("operation", {}).items():
+241|         if op not in ("llm.chat", "inference.generate", "work.produce"):
+242|             continue
+243|         for k, bounds in (("max_tokens_ceiling", "largest output budget a job may ask for"), ("deadline_ceiling_s", "largest deadline; also the default when none is given"), ("max_prompt_bytes", "largest prompt")):
+244|             rows.append(row("operation", f"{op} {k}", spec.get(k), _line_of(path, rf'\[operation\."{re.escape(op)}"\]'), "execution policy_for", bounds))
+245|     return rows
+246| 
+247| 
+248| def collect_door_code() -> list[Row]:
+249|     rows = []
+250|     inf = REPO / "hearth" / "toolsurface" / "inference.py"; t = _read(inf)
+251|     rows.append(row("door", "local_generate default max_tokens (no rung value)", _grep(t, r"rmt = int\(setting\) if setting is not None else (\d+)", cast=int), _line_of(inf, r"else 1024"), "local_generate", "output when neither caller nor rung says"))
+252|     rows.append(row("door", "local_generate DEFAULT_TIMEOUT_S", _grep(t, r"^DEFAULT_TIMEOUT_S = (\d+)", cast=int), _line_of(inf, "^DEFAULT_TIMEOUT_S"), "local_generate", "HTTP timeout when neither caller nor rung says", "never used on the execution path: it passes deadline - now"))
+253|     rows.append(row("door", "files= per-file / total cap (bytes)", f"{_grep(t, r'^FILES_PER_FILE_CAP = (.+)$')} / {_grep(t, r'^FILES_TOTAL_CAP = (.+)$')}", _line_of(inf, "^FILES_PER_FILE_CAP"), "_pack_files", "packed file bytes", "unreachable on Linux: every rung's context_bytes is smaller"))
+254|     rows.append(row("door", "family depth estimate", "payload_bytes // 4", _line_of(inf, r"// 4"), "families.recommend", "prompt_tokens for depth rules"))
+255|     be = REPO / "hearth" / "toolsurface" / "backends.py"
+256|     if "_output_reserve_rejection" in _read(be):
+257|         rows.append(row("door", "payload admission rule (pin and tag route)", "payload_bytes <= context_bytes AND payload_bytes // 4 + max_tokens <= context_tokens", _line_of(be, r"def _output_reserve_rejection"), "select_backend", "admission", "reserve = caller max_tokens else the rung's"))
+258|     else:
+259|         rows.append(row("door", "payload admission rule (pin and tag route)", "payload_bytes <= context_bytes", _line_of(be, r"payload_bytes > pinned_context"), "select_backend", "admission", "reserves no output tokens"))
+260|     lw = REPO / "hearth" / "localwork" / "service.py"; t = _read(lw)
+261|     rows.append(row("local-work", "auto lane floor (evidence tokens -> deep)", _grep(t, r"floor = (\d+) if task_family == \"quote_retrieval\" else (\d+)", group=2, cast=int), _line_of(lw, r"floor = 4096"), "_lane", "fast vs deep", f"quote_retrieval floor {_grep(t, r'floor = (\d+) if', cast=int)}; evidence = source pack only, counted with the fast lane's tokenizer"))
+262|     rows.append(row("local-work", "output_reserve fallback", _grep(t, r'settings.get\("max_tokens"\) or (\d+)', cast=int), _line_of(lw, r"output_reserve ="), "submit", "reserve when the rung declares none"))
+263|     rows.append(row("local-work", "exact context check", "input_tokens + output_reserve <= context_tokens", _line_of(lw, r"input_tokens \+ output_reserve"), "submit", "refuses at submit"))
+264|     rows.append(row("local-work", "tokenizer / git / apply timeouts (s)", f"{_grep(t, r'_server_token_count.*?timeout=(\d+)', cast=int) or 30} / 120 / 120", _line_of(lw, r"timeout=120"), "submit, validation", "submit latency; candidate validation"))
+265|     tl = REPO / "hearth" / "toolsurface" / "local_work.py"; t = _read(tl)
+266|     rows.append(row("local-work", "submit_local_work deadline_s default", _grep(t, r"deadline_s: int = (\d+)", cast=int), _line_of(tl, r"deadline_s: int ="), "MCP tool", "job deadline when the caller sets none"))
+267|     ex = REPO / "hearth" / "execution" / "service.py"; t = _read(ex)
+268|     rows.append(row("execution", "workers / max_pending", f"{_grep(t, r'workers: int = (\d+)', cast=int)} / {_grep(t, r'max_pending: int = (\d+)', cast=int)}", _line_of(ex, r"workers: int ="), "executor", "concurrent jobs / queue depth"))
+269|     rows.append(row("execution", "parallel_slots clamp", "1..128", _line_of(ex, r"min\(value, 128\)"), "lease limit", "per-rung concurrency"))
+270|     rows.append(row("execution", "provider HTTP timeout", "max(1, deadline - now)", _line_of(ex, r"int\(deadline - time.monotonic\(\)\)"), "_run_job", "the '1199'", "queue wait counts against the deadline"))
+271|     on = REPO / "hearth" / "scheduler" / "ontology.py"; t = _read(on)
+272|     rows.append(row("scheduler", "default inference duration (s)", _grep(t, r'"inference": ([0-9.]+)', cast=float), _line_of(on, r'"inference":'), "propose_schedule (advisory)", "job length estimate when capacity.json has no bucket"))
+273|     return rows
+274| 
+275| 
+276| def collect_sizer() -> list[Row]:
+277|     """ADR-0050: the request sizer's declared numbers -- bins, gate, service port and timeout -- and
+278|     which rungs carry the long-output tag it routes to."""
+279|     rows: list[Row] = []
+280|     try:
+281|         from hearth.sizer import BINS, DEFAULT_SIZER_URL, DEFAULT_TIMEOUT_MS
+282|     except Exception as exc:  # noqa: BLE001
+283|         return [row("sizer", "hearth.sizer import", f"error: {type(exc).__name__}", "hearth/sizer", "door, execution service", "the sizer package must import")]
+284|     hp = REPO / "hearth" / "sizer" / "heuristic.py"
+285|     rows.append(row("sizer", "output bins (upper edge, tokens)", " ".join(f"{n}<{e}" for n, e in BINS[:-1]) + f" xl>={BINS[-2][1]}", _line_of(hp, "^BINS"), "size_heuristic -> admission reserve", "expected output tokens = the bin's edge", "ledger 2026-09-23..28: tokens_out p50 77 / p90 279 / p99 604 -> xs/s/m"))
+286|     rows.append(row("sizer", "long bins (tool-long)", "l, xl", _line_of(hp, "^LONG_BINS"), "tool_execution -> tool_long_output refinement", "which bins move to the decode seat"))
+287|     ops_env = HOME / ".config" / "hearth" / "hearth-ops.env"
+288|     gate = _grep(_read(ops_env), r"^HEARTH_SIZER=(\S+)", default="unset (off)")
+289|     rows.append(row("sizer", "HEARTH_SIZER gate (hearth-ops.env)", gate, _rel(ops_env), "size_request", "off | heuristic | npu", "off -> every route byte-identical to the unsized door"))
+290|     cp = REPO / "hearth" / "sizer" / "client.py"
+291|     rows.append(row("sizer", "encoder service url / client timeout (ms)", f"{DEFAULT_SIZER_URL} / {DEFAULT_TIMEOUT_MS}", _line_of(cp, "^DEFAULT_TIMEOUT_MS"), "size_request(mode=npu)", "on timeout the heuristic answers and the ledger says fallback_from"))
+292|     path = Path(os.environ.get("HEARTH_BACKENDS", str(PROD / "backends-linux.toml")))
+293|     long_rungs = [b["name"] for b in _toml(path).get("backend", []) if "tool-long" in (b.get("tags") or [])]
+294|     rows.append(row("sizer", "rungs tagged tool-long", ", ".join(long_rungs) or "none", _rel(path), "family tool_long_output", "the decode seat(s)", "am4-tool-5070 decodes 110 tok/s vs the Ti's 85 (2026-09-28 02:43Z)"))
+295|     return rows
+296| 
+297| 
+298| def collect_lanes() -> list[Row]:
+299|     rows = []
+300|     bf = REPO / "fleet" / "bankedfire_linux.py"; t = _read(bf)
+301|     rows.append(row("drain", "BANKEDFIRE_SLOTS default", _grep(t, r'"BANKEDFIRE_SLOTS", "([^"]+)"'), _line_of(bf, "BANKEDFIRE_SLOTS"), "bankedfire_linux.tick", "unattended in-flight work per lane", f"env now: {os.environ.get('BANKEDFIRE_SLOTS', '(unset)')}"))
+302|     rows.append(row("drain", "brief deadline_s default", _grep(t, r'"deadline_s": int\(fields.get\("deadline_s", (\d+)\)\)', cast=int), _line_of(bf, r'fields.get\("deadline_s"'), "submit_args_from_brief", "local-work job deadline"))
+303|     rows.append(row("drain", "proofing max_tokens / deadline_s", f"{_grep(t, r'\"task_family\": \"drafting\", \"max_tokens\": (\d+)', cast=int)} / {_grep(t, r'\"deadline_s\": (\d+), \"idempotency_key\"', cast=int)}", _line_of(bf, r'"task_family": "drafting"'), "proofing_args_from_brief", "proposal output / deadline"))
+304|     rows.append(row("drain", "door MCP client timeout (s)", _grep(t, r"timeout=(\d+)\) as \(r, w, _\)", cast=int), _line_of(bf, r"streamablehttp_client"), "call_tool", "submit / status calls"))
+305|     rows.append(row("drain", "systemd-run launch timeout (s)", _grep(t, r"subprocess.run\(argv, capture_output=True, text=True, timeout=(\d+)\)", cast=int), _line_of(bf, r"systemd-run"), "experiment / deepagents launch", ""))
+306|     rows.append(row("drain", "skip backoff (days)", _grep(t, r"^SKIP_DAYS = (\d+)", cast=int), _line_of(bf, "^SKIP_DAYS"), "candidate_exclusions", "failed candidate retry"))
+307|     timer = HOME / ".config" / "systemd" / "user" / "bankedfire-drain.timer"
+308|     rows.append(row("drain", "tick interval", _grep(_read(timer), r"OnUnitActiveSec=(\S+)"), _rel(timer), "systemd", "how often the night loop looks"))
+309|     pr = REPO / "fleet" / "presence_linux.py"
+310|     rows.append(row("drain", "PRESENCE idle minutes", _grep(_read(pr), r"^DEFAULT_IDLE_MIN = (\d+)", cast=int), _line_of(pr, "^DEFAULT_IDLE_MIN"), "presence.report", "away threshold", f"env now: {os.environ.get('PRESENCE_IDLE_MIN', '(unset)')}"))
+311|     ex = REPO / "fleet" / "experiment_linux.py"; t = _read(ex)
+312|     rows.append(row("experiment", "RESTORE_MARGIN_MIN / DEFAULT_MAX_MINUTES / DEFAULT_RESTORE_BY", f"{_grep(t, r'^RESTORE_MARGIN_MIN = (\d+)')} / {_grep(t, r'^DEFAULT_MAX_MINUTES = (\d+)')} / {_grep(t, r'^DEFAULT_RESTORE_BY = \"([^\"]+)\"')}", _line_of(ex, "^RESTORE_MARGIN_MIN"), "Experiment.campaign_budget_s", "campaign wall clock"))
+313|     rows.append(row("experiment", "seat wait (s)", _grep(t, r'str\(self.seat\), "(\d+)"', cast=int), _line_of(ex, r"WAIT_SCRIPT\), str\(self.seat\)"), "restart_and_wait", "seat restart"))
+314|     da = REPO / "fleet" / "deepagents_linux.py"
+315|     rows.append(row("deepagents-lane", "RUN_TIMEOUT_S (wrapper)", _grep(_read(da), r"^RUN_TIMEOUT_S = (\d+)", cast=int), _line_of(da, "^RUN_TIMEOUT_S"), "Delivery.run", "outer subprocess timeout"))
+316|     ws = HOME / "bin" / "wait-vllm-seat.sh"
+317|     rows.append(row("seat", "wait-vllm-seat default max (s)", _grep(_read(ws), r"max=\$\{2:-(\d+)\}", cast=int), _line_of(ws, r"max=\$\{2:-"), "operator, experiment lane", "seat startup wait"))
+318|     mr = REPO / "tools" / "hearth-morning-report"
+319|     rows.append(row("report", "morning report git/apply timeouts (s)", sorted({int(x) for x in re.findall(r"timeout=(\d+)\)", _read(mr))}), _line_of(mr, r"timeout=60"), "hearth-morning-report", "apply-check per candidate"))
+320|     return rows
+321| 
+322| 
+323| def collect_runner() -> list[Row]:
+324|     rows = []
+325|     root = Path(os.environ.get("DEEPAGENTS_LINUX", str(HOME / "work" / "deepagents-linux")))
+326|     rl = root / "run_linux_delivery.py"; t = _read(rl)
+327|     for name, ctx in re.findall(r'"(\w[\w-]*)": \{"model": "[^"]+", "endpoint": "[^"]+",\s*"token_env": "\w+", "context": (\d+)', t):
+328|         rows.append(row("runner", f"ROUTES.{name}.context", int(ctx), _line_of(rl, f'"{name}": \\{{"model"'), "AccountedTransport context check, summarization trigger", "prompt + output + 32 <= context"))
+329|     rows.append(row("runner", "output_limit report / code", f"{_grep(t, r'output_limit = (\d+) if args.report else (\d+)', group=1)} / {_grep(t, r'output_limit = (\d+) if args.report else (\d+)', group=2)}", _line_of(rl, r"output_limit = "), "PinnedChat max_tokens", "output tokens per model call"))
+330|     attempts = _grep(t, r"RequestBudget\(deadline=time.time\(\) \+ \d+, limit=(\d+)\)", cast=int) or _grep(t, r"attempt_limit = (max\(.*\))")
+331|     rows.append(row("runner", "RequestBudget limit (attempts)", attempts, _line_of(rl, r"attempt_limit = |RequestBudget\("), "AccountedTransport.dispatch", "physical inference calls per run", "scaled by source lines since 2026-09-28" if isinstance(attempts, str) else ""))
+332|     deadline = _grep(t, r"RequestBudget\(deadline=time.time\(\) \+ (\d+)", cast=int) or _grep(t, r"^DEADLINE_S = (\d+)", cast=int)
+333|     rows.append(row("runner", "RequestBudget deadline (s)", deadline, _line_of(rl, r"^DEADLINE_S = |RequestBudget\("), "AccountedTransport", "run wall clock"))
+334|     evict = _grep(t, r"tool_token_limit_before_evict=(\d+)", cast=int)
+335|     evict_expr = _grep(t, r"evict_tokens = (max\(.*\))")
+336|     dctx = _grep(t, r'"omen-dense": \{"model": "[^"]+", "endpoint": "[^"]+",\s*"token_env": "\w+", "context": (\d+)', cast=int)
+337|     if evict is None and evict_expr and dctx:
+338|         evict = max(2048, dctx // 8)   # the formula evaluated for the dense route
+339|     rows.append(row("runner", "tool_token_limit_before_evict", evict, _line_of(rl, r"evict_tokens = |tool_token_limit_before_evict"), "EvictingFilesystem", "tool result size before it is moved to /large_tool_results (4 chars/token)", f"= {evict_expr} on the dense route" if evict_expr else ""))
+340|     recursion = _grep(t, r'"recursion_limit": (\d+)', cast=int) or _grep(t, r"^RECURSION_LIMIT = (\d+)", cast=int)
+341|     rows.append(row("runner", "recursion_limit", recursion, _line_of(rl, r"^RECURSION_LIMIT = |recursion_limit"), "LangGraph invoke", "graph supersteps (~2 per model turn)"))
+342|     rows.append(row("runner", "httpx / PinnedChat timeout (s)", _grep(t, r"timeout=(\d+), trust_env", cast=int), _line_of(rl, r"httpx.Client"), "per request", ""))
+343|     rows.append(row("runner", "default --backend", _grep(t, r'choices=tuple\(ROUTES\), default="([^"]+)"'), _line_of(rl, r'default="omen"'), "CLI", "route when the wrapper passes none"))
+344|     at = root / "poc" / "accounted_transport.py"; t = _read(at)
+345|     rows.append(row("runner", "RequestBudget default limit", _grep(t, r"def __init__\(self, \*, deadline, limit=(\d+)\)", cast=int), _line_of(at, r"limit=32"), "any caller that omits limit", "attempts"))
+346|     fields = re.findall(r'payload\.get\("(\w+)"', t.split("def handle_request", 1)[1].split("logical_id", 1)[0]) if "def handle_request" in t else []
+347|     bound = _grep(t, r"0 < output <= (\w+)")
+348|     if bound and not bound.isdigit():
+349|         bound = f"{bound}={_grep(t, rf'^{bound} = (\d+)', cast=int)}"
+350|     rows.append(row("runner", "transport output guard", f"reads {'|'.join(fields)}; requires 0 < output <= {bound}", _line_of(at, r"0 < output <="), "handle_request", "output cap per call", "" if "max_completion_tokens" in fields else "langchain sends max_completion_tokens, so the guard sees the default"))
+351|     return rows
+352| 
+353| 
+354| AM4_SSH = "10.44.0.2"
+355| AM4_PROFILE_ALIASES = {"dense-tp2": ["am4-dense-27b"], "tool-pair": ["am4-tool-4070ti", "am4-tool-5070"]}
+356| 
+357| 
+358| def _ssh_am4(cmd: str, timeout: int = 8) -> Optional[str]:
+359|     try:
+360|         out = subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", AM4_SSH, cmd],
+361|                              capture_output=True, text=True, timeout=timeout)
+362|     except (OSError, subprocess.TimeoutExpired):
+363|         return None
+364|     return out.stdout if out.returncode == 0 else None
+365| 
+366| 
+367| def collect_am4(live: bool) -> list[Row]:
+368|     """AM4 serves one PROFILE at a time; the profile file and the per-seat env files are the declared
+369|     facts, the facade's /oxen/ready is the live one. Read over the direct cable (ADR-0014)."""
+370|     rows: list[Row] = []
+371|     cfg = REPO / "am4-fleet-node" / "config"
+372|     for seat in ("4070ti", "5070"):
+373|         env: dict[str, str] = {}
+374|         for line in _read(cfg / f"seat-{seat}.env").splitlines():
+375|             if "=" in line and not line.startswith("#"):
+376|                 k, _, v = line.partition("="); env[k.strip()] = v.strip()
+377|         src = f"repo/am4-fleet-node/config/seat-{seat}.env"
+378|         rows.append(row("am4-seat", f"am4-tool@{seat} served model", env.get("AM4_SERVED_NAME"), src, "facade alias", "which alias answers"))
+379|         rows.append(row("am4-seat", f"am4-tool@{seat} max_model_len", int(env.get("AM4_MAX_MODEL_LEN") or 0) or None, src, "vLLM", "input + output tokens per request"))
+380|         rows.append(row("am4-seat", f"am4-tool@{seat} max_num_seqs", int(env.get("AM4_MAX_NUM_SEQS") or 0) or None, src, "vLLM scheduler", "concurrent sequences"))
+381|         rows.append(row("am4-seat", f"am4-tool@{seat} gpu_memory_utilization", float(env.get("AM4_GPU_MEM_UTIL") or 0) or None, src, "vLLM", "VRAM fraction on one card"))
+382|         rows.append(row("am4-seat", f"am4-tool@{seat} tool / reasoning parser", f"{env.get('AM4_TOOL_PARSER')} / {env.get('AM4_REASONING_PARSER')}", src, "vLLM", "native tool-call parsing"))
+383|         rows.append(row("am4-seat", f"am4-tool@{seat} card", env.get("AM4_GPU_UUID"), src, "CUDA_VISIBLE_DEVICES", "the one card this seat may use (UUID, ADR-0042)"))
+384|     canary = _read(REPO / "am4-fleet-node" / "scripts" / "run-vllm-canary.sh")
+385|     rows.append(row("am4-seat", "am4-vllm (dense-tp2) max_model_len", _grep(canary, r"--max-model-len (\d+)", cast=int), "repo/am4-fleet-node/scripts/run-vllm-canary.sh", "vLLM TP2", "window of the dense profile"))
+386|     rows.append(row("am4-seat", "am4-vllm (dense-tp2) max_num_seqs", _grep(canary, r"--max-num-seqs (\d+)", cast=int), "repo/am4-fleet-node/scripts/run-vllm-canary.sh", "vLLM TP2", "concurrent sequences"))
+387|     if live:
+388|         prof = (_ssh_am4("cat ~/.config/am4-fleet/profile") or "").strip() or "unreadable"
+389|         rows.append(row("am4-live", "am4 profile", prof, "am4:~/.config/am4-fleet/profile", "readiness probe, occupancy probes, DeepAgents wrapper", "which alias set is live"))
+390|         token = None
+391|         for line in _read(HOME / ".config" / "omen-vllm" / "hearth-backends.env").splitlines():
+392|             if line.startswith("AM4_VLLM_TOKEN="):
+393|                 token = line.split("=", 1)[1].strip().strip('"')
+394|         if token:
+395|             for alias in ("am4-dense-27b", "am4-tool-4070ti", "am4-tool-5070"):
+396|                 try:
+397|                     req = urllib.request.Request(f"http://{AM4_SSH}:8090/oxen/ready?alias={alias}", headers={"Authorization": f"Bearer {token}"})
+398|                     with urllib.request.urlopen(req, timeout=5) as r:
+399|                         d = json.load(r)
+400|                     rdy = next((a.get("ready") for a in d.get("aliases", []) if a.get("alias") == alias), None)
+401|                     rows.append(row("am4-live", f"facade alias {alias} ready", rdy, f"http://{AM4_SSH}:8090/oxen/ready?alias={alias}", "HEARTH rung occupancy", "live readiness of the alias"))
+402|                 except Exception as exc:  # noqa: BLE001
+403|                     rows.append(row("am4-live", f"facade alias {alias} ready", f"unavailable: {type(exc).__name__}", "", "", ""))
+404|     return rows
+405| 
+406| 
+407| def collect_gateway() -> list[Row]:
+408|     unit = HOME / ".config" / "systemd" / "user" / "hearth-production.service"
+409|     t = _read(unit); exec_line = next((l for l in t.splitlines() if l.startswith("ExecStart=")), "")
+410|     return [row("door", "gateway tool dispatch", "threaded (asyncio.to_thread per call)" if "--threaded-tools" in exec_line else "on the event loop (one call at a time)",
+411|                 _rel(unit), "FastMCP", "how many door calls run at once",
+412|                 "measured 2026-09-28: 8 parallel 5 s calls took 45 s serialized, 12 s threaded")]
+413| 
+414| 
+415| def collect_clients() -> list[Row]:
+416|     rows = []
+417|     cx = HOME / ".codex" / "config.toml"; t = _read(cx)
+418|     rows.append(row("client", "codex mcp tool_timeout_sec", _grep(t, r"^tool_timeout_sec = (\d+)", cast=int), _line_of(cx, "^tool_timeout_sec"), "Codex", "longest door call"))
+419|     try:
+420|         cj = json.loads(_read(HOME / ".claude.json"))
+421|         rows.append(row("client", "claude code hearth timeout (ms)", cj["mcpServers"]["hearth"].get("timeout"), "~/.claude.json mcpServers.hearth.timeout", "Claude Code", "longest door call"))
+422|     except Exception:  # noqa: BLE001
+423|         pass
+424|     return rows
+425| 
+426| 
+427| def collect_measured() -> list[Row]:
+428|     """p90 of the dense lane's work.produce runs from the execution ledger (aggregates only)."""
+429|     path = PROD / "var" / "execution" / "events.ndjson"
+430|     outs, durs = [], []
+431|     try:
+432|         with path.open("rb") as fh:
+433|             for raw in fh:
+434|                 if b'"invocation.succeeded"' not in raw or b'"work.produce"' not in raw and b'omen-dense-27b' not in raw:
+435|                     continue
+436|                 try:
+437|                     e = json.loads(raw)
+438|                 except ValueError:
+439|                     continue
+440|                 if e.get("event_type") != "invocation.succeeded":
+441|                     continue
+442|                 o = e.get("observed") or {}
+443|                 if o.get("backend") != "omen-dense-27b":
+444|                     continue
+445|                 if o.get("tokens_out") and o.get("duration_ms"):
+446|                     outs.append(int(o["tokens_out"])); durs.append(int(o["duration_ms"]))
+447|     except OSError:
+448|         return []
+449|     if not outs:
+450|         return []
+451|     rate = [1000.0 * o / d for o, d in zip(outs, durs) if d]
+452|     rate.sort(); outs.sort(); durs.sort()
+453|     p90 = lambda xs: xs[min(len(xs) - 1, int(0.9 * (len(xs) - 1)))]  # noqa: E731
+454|     return [row("measured", "omen-dense-27b invocations (n)", len(outs), _rel(path), "sizing rules", "sample"),
+455|             row("measured", "omen-dense-27b tokens_out p90 / max", f"{p90(outs)} / {outs[-1]}", _rel(path), "", "how close outputs come to the cap"),
+456|             row("measured", "omen-dense-27b duration_ms p90 / max", f"{p90(durs)} / {durs[-1]}", _rel(path), "", "how close jobs come to the deadline"),
+457|             row("measured", "omen-dense-27b decode tok/s median", round(rate[len(rate) // 2], 1), _rel(path), "deadline derivation", "output / duration (prefill included, so a floor)")]
+458| 
+459| 
+460| def _detect_omen_profile() -> str:
+461|     pfile = HOME / ".config" / "omen-vllm" / "profile"
+462|     if pfile.is_file():
+463|         text = _read(pfile).strip()
+464|         if text:
+465|             return text
+466|     return "two-lane"
+467| 
+468| 
+469| def collect_configurations(live: bool) -> list[Row]:
+470|     """ADR-0052: whole-lab serving configurations (day, tool-night, experiments)."""
+471|     rows: list[Row] = []
+472|     cfg_path = Path(os.environ.get("HEARTH_LAB_CONFIGURATIONS", str(REPO / "host" / "lab-configurations.toml")))
+473|     if not cfg_path.is_file():
+474|         alt = HOME / ".config" / "omen-vllm" / "lab-configurations.toml"
+475|         if alt.is_file():
+476|             cfg_path = alt
+477|     doc = _toml(cfg_path)
+478|     configs = doc.get("configuration", {})
+479|     for cname, cspec in sorted(configs.items()):
+480|         tuple_val = f"{cspec.get('omen_profile')} / {cspec.get('am4_profile')} / {cspec.get('fx99_state')}"
+481|         rows.append(row("configuration", f"config {cname} omen/am4/fx99", tuple_val,
+482|                         _rel(cfg_path), "lab-config", "declared whole-lab profile tuple", cspec.get("description", "")))
+483|         for bname, bspec in sorted(cspec.get("backends", {}).items()):
+484|             st = bspec.get("status", "unknown")
+485|             val = f"status={st}"
+486|             if st == "live":
+487|                 val += f" ctx={bspec.get('context_tokens')} slots={bspec.get('parallel_slots')} max_tokens={bspec.get('max_tokens')}"
+488|             rows.append(row("configuration", f"config {cname} backend {bname}", val,
+489|                             _rel(cfg_path), "routing invariants", "expected backend status under configuration"))
+490| 
+491|     omen_prof = _detect_omen_profile()
+492|     if live:
+493|         am4_prof = (_ssh_am4("cat ~/.config/am4-fleet/profile") or "").strip() or "unreadable"
+494|         active_name = None
+495|         for cname, cspec in configs.items():
+496|             if cspec.get("omen_profile") == omen_prof and cspec.get("am4_profile") == am4_prof:
+497|                 active_name = cname
+498|                 break
+499|         rows.append(row("configuration", "active configuration", active_name or "unknown",
+500|                         "omen-profile + am4-profile", "sizing_map invariants", f"omen={omen_prof}, am4={am4_prof}"))
+501|         rows.append(row("configuration", "active omen profile", omen_prof,
+502|                         "~/.config/omen-vllm/profile", "lab-config", "active OMEN seat profile"))
+503|         rows.append(row("configuration", "active am4 profile", am4_prof,
+504|                         "am4:~/.config/am4-fleet/profile", "lab-config", "active AM4 seat profile"))
+505|     else:
+506|         rows.append(row("configuration", "active configuration", "unprobed (requires --live)",
+507|                         "", "", "pass --live to detect whole-lab configuration"))
+508|         rows.append(row("configuration", "active omen profile", omen_prof,
+509|                         "~/.config/omen-vllm/profile", "lab-config", "active OMEN seat profile"))
+510|     return rows
+511| 
+512| 
+513| def collect(live: bool, measured: bool) -> list[Row]:
+514|     rows: list[Row] = []
+515|     for fn in (collect_seats, collect_router, collect_backends, collect_routes_and_families, collect_operations,
+516|                collect_door_code, collect_gateway, collect_lanes, collect_runner, collect_clients, collect_am4,
+517|                collect_sizer, collect_configurations):
+518|         rows.extend(fn(live) if fn in (collect_seats, collect_am4, collect_configurations) else fn())
+519|     if measured:
+520|         rows.extend(collect_measured())
+521|     return sorted(rows, key=lambda r: (r["layer"], r["setting"]))
+522| 
+523| 
+524| # --- invariants -------------------------------------------------------------------------------
+525| 
+526| def _val(rows: list[Row], setting: str, default=None):
+527|     for r in rows:
+528|         if r["setting"] == setting:
+529|             return r["value"]
+530|     return default
+531| 
+532| 
+533| def _num(v, default=None):
+534|     try:
+535|         return float(v)
+536|     except (TypeError, ValueError):
+537|         return default
+538| 
+539| 
+540| def invariants(rows: list[Row]) -> list[dict]:
+541|     """Each rule cites the observation that earned it. Returns the violations."""
+542|     out: list[dict] = []
+543|     def fail(rule: str, detail: str, earned_by: str):
+544|         out.append({"rule": rule, "detail": detail, "earned_by": earned_by})
+545|     rungs = {}
+546|     for r in rows:
+547|         if r["layer"] == "rung" and " " in r["setting"]:
+548|             name, key = r["setting"].split(" ", 1); rungs.setdefault(name, {})[key] = r["value"]
+549|     seat_for = {"omen-vllm": "omen-vllm@1", "omen-dense-27b": "omen-vllm@0"}
+550|     # 1. rung context == seat window
+551|     for rung, seat in seat_for.items():
+552|         s = rungs.get(rung, {}); mml = _val(rows, f"{seat} max_model_len")
+553|         if s.get("context_tokens") is not None and mml is not None and int(s["context_tokens"]) != int(mml):
+554|             fail("rung-context-equals-seat-window", f"{rung} context_tokens {s['context_tokens']} != {seat} max_model_len {mml}", "the 30B seat refused 65536 at startup (07-serving-recipe.md); the declaration must be the seat's")
+555|     # 2. max_num_seqs >= parallel_slots and slots x typical <= KV
+556|     for rung, seat in seat_for.items():
+557|         s = rungs.get(rung, {}); seqs = _num(_val(rows, f"{seat} max_num_seqs")); slots = _num(s.get("parallel_slots"))
+558|         if seqs is not None and slots is not None and seqs < slots:
+559|             fail("seat-admits-at-least-the-leases", f"{seat} max_num_seqs {seqs:g} < {rung} parallel_slots {slots:g}", "leases would queue on a seat that cannot admit them")
+560|         kv = _num(_val(rows, f"{seat} kv_cache_size_tokens"))
+561|         if kv is not None and slots is not None and s.get("context_tokens") is not None and s.get("max_tokens") is not None:
+562|             # A realistic concurrent request: measured p90 input on the dense lane was 19.5K of a
+563|             # 65,536 window (0.30) and p90 output 5.7K of a 16,384 reserve; half the reserve is the
+564|             # conservative allowance. vLLM preempts when the pool is exhausted, so the sum must fit.
+565|             typical = 0.30 * float(s["context_tokens"]) + 0.5 * float(s["max_tokens"])
+566|             if slots * typical > kv:
+567|                 fail("slots-fit-the-kv-pool", f"{rung}: {slots:g} slots x typical {typical:.0f} tokens = {slots * typical:.0f} > {seat} KV pool {kv:.0f}", "a work.produce waited 9.3 s for a slot on 2026-09-27 at 3 slots; preemption follows oversubscription")
+568|     # 3. operation ceilings vs rungs
+569|     ceil = {}
+570|     for r in rows:
+571|         if r["layer"] == "operation" and r["setting"].endswith(" max_tokens_ceiling"):
+572|             ceil[r["setting"].split(" ")[0]] = _num(r["value"])
+573|     max_reserve = max((_num(s.get("max_tokens"), 0) for s in rungs.values()), default=0)
+574|     for op, c in ceil.items():
+575|         if c and max_reserve and c > max_reserve:
+576|             fail("operation-ceiling-within-the-largest-rung-reserve", f"{op} max_tokens_ceiling {c:g} > largest rung max_tokens {max_reserve:g}", "a rung's max_tokens is what its seat is declared to serve as output; an operation that allows more admits a request no seat can complete (a 32,768 output on the 40,960 seat leaves 8K for input)")
+577|     wp = ceil.get("work.produce")
+578|     dense = rungs.get("omen-dense-27b", {})
+579|     if wp and dense.get("max_tokens") is not None and _num(dense["max_tokens"]) > wp:
+580|         fail("rung-reserve-within-ceiling", f"omen-dense-27b max_tokens {dense['max_tokens']} > work.produce ceiling {wp:g}", "a submit at the rung's own default would be refused at the ceiling")
+581|     # 4. admission reserves output
+582|     if _val(rows, "payload admission rule (pin and tag route)") == "payload_bytes <= context_bytes":
+583|         fail("door-admission-reserves-output", "local_generate admits payload <= context_bytes and reserves nothing for max_tokens", "the pinned-rung refusal exists to fail at the door, not the server; today a full payload plus the default output overflows omen-vllm (40,960 + 8,192), am4 (16,384 + 8,192) and fx99 (4,096 + 2,048)")
+584|     # 5. deadlines and timeouts chain
+585|     dl = _num(_val(rows, "work.produce deadline_ceiling_s")); rate = _num(_val(rows, "omen-dense-27b decode tok/s median"))
+586|     if dl and wp and rate:
+587|         need = wp / rate + 60
+588|         if need > dl:
+589|             fail("deadline-covers-the-output", f"work.produce ceiling {wp:g} tokens at {rate:g} tok/s needs ~{need:.0f} s > deadline_ceiling_s {dl:g}", "the 5,690-token candidate took 545 s on 2026-09-27; a full 8,192 needs ~790 s + prefill")
+590|     sub_dl = _num(_val(rows, "submit_local_work deadline_s default"))
+591|     if sub_dl and dl and sub_dl < dl:
+592|         pass  # a lower default than the ceiling is allowed; recorded in the table
+593|     for who, key, scale in (("haproxy timeout server", "haproxy timeout server", 1), ("codex mcp tool_timeout_sec", "codex mcp tool_timeout_sec", 1), ("claude code hearth timeout (ms)", "claude code hearth timeout (ms)", 1000)):
+594|         v = _num(_val(rows, key))
+595|         if v is not None and dl and v / scale < dl:
+596|             fail("client-timeouts-cover-the-deadline", f"{who} {v:g}{'ms' if scale == 1000 else 's'} < deadline_ceiling_s {dl:g}", "a door call that outlives its client timeout is reported as a client error, not a result")
+597|     if str(_val(rows, "gateway tool dispatch", "")).startswith("on the event loop"):
+598|         fail("door-serves-calls-concurrently", "hearth-production.service runs the gateway without --threaded-tools", "2026-09-28 00:54Z: eight parallel local_generate pins to the 8-slot MoE lane completed 5 s apart; the seat never saw more than one request")
+599|     if _val(rows, "haproxy timeout queue") is None:
+600|         fail("router-queues-overflow", "haproxy has no per-server maxconn and no timeout queue", "with max_num_seqs 16 on both seats, the 17th request waits inside vLLM with no router-side bound")
+601|     # 6. runner budgets vs route
+602|     for name, rung in (("omen", "omen-vllm"), ("omen-dense", "omen-dense-27b")):
+603|         rc = _num(_val(rows, f"ROUTES.{name}.context")); sc = _num(rungs.get(rung, {}).get("context_tokens"))
+604|         if rc is not None and sc is not None and rc != sc:
+605|             fail("runner-context-equals-seat", f"ROUTES.{name}.context {rc:g} != {rung} context_tokens {sc:g}", "the runner's own context check and summarization trigger use this number")
+606|     rd = _num(_val(rows, "RequestBudget deadline (s)")); wt = _num(_val(rows, "RUN_TIMEOUT_S (wrapper)"))
+607|     if rd and wt and wt < rd + 60:
+608|         fail("wrapper-outlives-the-runner", f"RUN_TIMEOUT_S {wt:g} < runner deadline {rd:g} + 60", "a wrapper that kills first leaves no result.json")
+609|     ev = _num(_val(rows, "tool_token_limit_before_evict")); dctx = _num(_val(rows, "ROUTES.omen-dense.context"))
+610|     if ev is not None and dctx and ev < dctx / 16:
+611|         fail("eviction-scales-with-context", f"tool_token_limit_before_evict {ev:g} < ROUTES.omen-dense.context / 16 ({dctx / 16:.0f})", "2026-09-27 retry: a 1,500-token preview cap on a 65K lane produced 12 read-only calls and 5 evicted files, and the attempt budget ran out")
+612|     guard = str(_val(rows, "transport output guard", ""))
+613|     if "max_completion_tokens" not in guard:
+614|         fail("guard-reads-the-field-langchain-sends", f"transport output guard {guard}", "measured 2026-09-27: every request carried max_completion_tokens=3072 and the guard checked a default 2048")
+615|     # 6b. AM4 profile rungs
+616|     for rung, seat in (("am4-tool-4070ti", "am4-tool@4070ti"), ("am4-tool-5070", "am4-tool@5070")):
+617|         s_ = rungs.get(rung, {}); mml = _val(rows, f"{seat} max_model_len")
+618|         if s_.get("context_tokens") is not None and mml is not None and int(s_["context_tokens"]) != int(mml):
+619|             fail("am4-rung-context-equals-seat-window", f"{rung} context_tokens {s_['context_tokens']} != {seat} max_model_len {mml}", "the AM4 tool seats declare their window in seat-*.env; the rung must repeat it exactly")
+620|         rc = _num(_val(rows, f"ROUTES.{rung}.context")); 
+621|         if rc is not None and mml is not None and rc != float(mml):
+622|             fail("runner-context-equals-seat", f"ROUTES.{rung}.context {rc:g} != {seat} max_model_len {mml}", "the runner's own context check uses this number")
+623|     prof = _val(rows, "am4 profile")
+624|     if prof in ("dense-tp2", "tool-pair"):
+625|         expected = {"dense-tp2": ["am4-dense-27b"], "tool-pair": ["am4-tool-4070ti", "am4-tool-5070"]}[prof]
+626|         for alias in ("am4-dense-27b", "am4-tool-4070ti", "am4-tool-5070"):
+627|             rdy = _val(rows, f"facade alias {alias} ready")
+628|             if rdy is None or isinstance(rdy, str):
+629|                 continue
+630|             if (alias in expected) != bool(rdy):
+631|                 fail("am4-profile-aliases-served", f"profile {prof}: alias {alias} ready={rdy}", "one profile is live at a time; an alias ready outside its profile means the switch left a seat running (or the profile file lies)")
+632|     # 6c. the request sizer (ADR-0050)
+633|     gate = str(_val(rows, "HEARTH_SIZER gate (hearth-ops.env)", "unset (off)"))
+634|     if gate not in ("off", "heuristic", "npu", "unset (off)"):
+635|         fail("sizer-gate-is-a-known-mode", f"HEARTH_SIZER={gate}", "an unknown value reads as off silently; the operator meant something else")
+636|     long_rungs = {x.strip() for x in str(_val(rows, "rungs tagged tool-long", "")).split(",") if x.strip() and x.strip() != "none"}
+637|     if long_rungs and long_rungs != {"am4-tool-5070"}:
+638|         fail("tool-long-only-on-the-decode-seat", f"rungs tagged tool-long: {sorted(long_rungs)}", "the tag exists to put l/xl output on the faster decoder; a second carrier makes the split a coin toss")
+639|     bins = str(_val(rows, "output bins (upper edge, tokens)", ""))
+640|     xl_edge = _num(bins.rsplit(">=", 1)[-1]) if ">=" in bins else None
+641|     for rung in long_rungs:
+642|         mt = _num(rungs.get(rung, {}).get("max_tokens"))
+643|         if xl_edge and mt is not None and mt < xl_edge:
+644|             fail("long-rung-budget-covers-the-xl-bin", f"{rung} max_tokens {mt:g} < xl bin edge {xl_edge:g}", "the sizer sends xl output here; a rung budget below the edge truncates what the sizer promised room for")
+645|     # 6d. perception lane invariants (task 13)
+646|     perc = rungs.get("omen-perception")
+647|     if perc:
+648|         ips = _num(perc.get("images_per_second"))
+649|         mib = _num(perc.get("max_image_bytes"))
+650|         if ips is None or ips <= 0:
+651|             fail("perception-declares-throughput", "omen-perception missing images_per_second or <= 0", "perception lane declares images_per_second instead of context_tokens")
+652|         if mib is None or mib <= 0:
+653|             fail("perception-declares-max-image-bytes", "omen-perception missing max_image_bytes or <= 0", "perception lane declares max_image_bytes instead of context_bytes")
+654|     # 7. stale comments
+655|     for r in rows:
+656|         if r["setting"].endswith("says 'staged'") and r["value"] is True:
+657|             fail("active-drop-in-says-staged", r["source"], "an operator reading the drop-in dir cannot tell what is live")
+658|         if " set by " in r["setting"] and "drop-ins" in r["setting"]:
+659|             fail("one-drop-in-per-key", f"{r['setting']}: {r['value']}", "seat 0's max-model-len.conf (40960) is overridden by stage2-27b-mtp.conf (65536); its comment describes the other checkpoint")
+660|     kv_comment = _num(_val(rows, "backends-linux.toml KV-pool comment")); kv_live = _num(_val(rows, "omen-vllm@0 kv_cache_size_tokens"))
+661|     if kv_comment and kv_live and abs(kv_comment - kv_live) > 0.25 * kv_live:
+662|         fail("kv-comment-matches-live", f"backends-linux.toml says KV pool {kv_comment:.0f}; live seat 0 reports {kv_live:.0f}", "the pool varies per start (76,706 and 99,048 seen on the same config, 2026-09-27); the comment must say so and stay within 25%")
+663|     # 8. Whole-lab configuration invariants (ADR-0052, task 8)
+664|     active_cfg = _val(rows, "active configuration")
+665|     if active_cfg is not None and not str(active_cfg).startswith("unprobed"):
+666|         omen_p = _val(rows, "active omen profile")
+667|         am4_p = _val(rows, "active am4 profile")
+668|         if active_cfg == "unknown" or not active_cfg:
+669|             fail("active-configuration-detected",
+670|                  f"no lab configuration matches active profiles (omen={omen_p}, am4={am4_p})",
+671|                  "every operating state of the lab must be a named configuration in host/lab-configurations.toml (ADR-0052, task 8)")
+672|         else:
+673|             expected_live: set[str] = set()
+674|             expected_absent: set[str] = set()
+675|             cfg_prefix = f"config {active_cfg} backend "
+676|             for r in rows:
+677|                 if r["layer"] == "configuration" and r["setting"].startswith(cfg_prefix):
+678|                     bname = r["setting"][len(cfg_prefix):]
+679|                     val_str = str(r["value"])
+680|                     if "status=live" in val_str:
+681|                         expected_live.add(bname)
+682|                     elif "status=absent" in val_str:
+683|                         expected_absent.add(bname)
+684| 
+685|             # Expected live backends must be serving
+686|             for b in sorted(expected_live):
+687|                 if b == "omen-vllm":
+688|                     s1_live = _val(rows, "omen-vllm@1 live read")
+689|                     s1_models = _val(rows, "omen-vllm@1 /v1/models")
+690|                     if s1_live and "unavailable" in str(s1_live):
+691|                         fail("expected-live-backends-serving", f"omen-vllm expected live under {active_cfg} but seat 1 is unavailable: {s1_live}", "live backends must be UP and responding to /v1/models")
+692|                     elif s1_models is None and s1_live is not None:
+693|                         fail("expected-live-backends-serving", f"omen-vllm expected live under {active_cfg} but seat 1 is not serving", "live backends must be UP and responding to /v1/models")
+694|                 elif b == "omen-dense-27b":
+695|                     s0_live = _val(rows, "omen-vllm@0 live read")
+696|                     s0_models = _val(rows, "omen-vllm@0 /v1/models")
+697|                     if s0_live and "unavailable" in str(s0_live):
+698|                         fail("expected-live-backends-serving", f"omen-dense-27b expected live under {active_cfg} but seat 0 is unavailable: {s0_live}", "live backends must be UP and responding to /v1/models")
+699|                     elif s0_models is not None and "qwen3.8-27b" not in str(s0_models):
+700|                         fail("expected-live-backends-serving", f"omen-dense-27b expected live under {active_cfg} but seat 0 is serving {s0_models}", "live backends must serve their declared model")
+701|                 elif b in ("am4-vllm", "am4-tool-4070ti", "am4-tool-5070"):
+702|                     alias = "am4-dense-27b" if b == "am4-vllm" else b
+703|                     rdy = _val(rows, f"facade alias {alias} ready")
+704|                     if rdy is not None and rdy is not True:
+705|                         fail("expected-live-backends-serving", f"{b} expected live under {active_cfg} but facade alias {alias} ready={rdy}", "live backends must report ready=True on their facade alias")
+706|                 elif b == "omen-perception":
+707|                     p_live = _val(rows, "omen-perception live read")
+708|                     if p_live and "unavailable" in str(p_live):
+709|                         fail("expected-live-backends-serving", f"omen-perception expected live under {active_cfg} but perception service is unavailable: {p_live}", "live backends must be UP and responding to /health")
+710| 
+711|             # Expected absent backends must not be routable
+712|             for b in sorted(expected_absent):
+713|                 if _val(rows, "default rung") == b:
+714|                     fail("expected-absent-backends-not-routable", f"backend {b} expected absent under {active_cfg} but is default rung", "untagged requests fall through to the default rung")
+715|                 for r in rows:
+716|                     if r["layer"] == "local-work" and r["setting"].startswith("lane ") and r["value"] == b:
+717|                         lane_name = r["setting"]
+718|                         fail("expected-absent-backends-not-routable", f"backend {b} expected absent under {active_cfg} but pinned by {lane_name}", "local-work lanes must not pin absent backends")
+719|                 if b in ("am4-vllm", "am4-tool-4070ti", "am4-tool-5070"):
+720|                     alias = "am4-dense-27b" if b == "am4-vllm" else b
+721|                     rdy = _val(rows, f"facade alias {alias} ready")
+722|                     if rdy is True:
+723|                         fail("expected-absent-backends-not-routable", f"backend {b} expected absent under {active_cfg} but facade alias {alias} ready=True", "an absent backend must not be ready in the facade")
+724|                 if b == "omen-dense-27b":
+725|                     if any(r["layer"] == "rung" and r["setting"].startswith("omen-dense-27b ") for r in rows):
+726|                         fail("expected-absent-backends-not-routable", f"backend {b} expected absent under {active_cfg} but declared in backends pool with tags and no occupancy probe", "an absent backend on OMEN without an occupancy probe accepts tag traffic")
+727| 
+728|             # Routing families must not resolve to absent backends
+729|             for r in rows:
+730|                 if r["layer"] != "family":
+731|                     continue
+732|                 fam_name = r["setting"].split("family ", 1)[1]
+733|                 fam_val = str(r["value"])
+734|                 if "refusal:" in fam_val or fam_name in ("document_ocr", "chart_diagram", "screenshot_grounded"):
+735|                     continue
+736| 
+737|                 resolved_backend: Optional[str] = None
+738|                 if fam_name in ("code_fix", "code_review", "long_review", "quote_retrieval"):
+739|                     resolved_backend = "omen-dense-27b"
+740|                 elif fam_name in ("tool_execution",):
+741|                     ti_ready = _val(rows, "facade alias am4-tool-4070ti ready") is True and "am4-tool-4070ti" not in expected_absent
+742|                     s5_ready = _val(rows, "facade alias am4-tool-5070 ready") is True and "am4-tool-5070" not in expected_absent
+743|                     if ti_ready:
+744|                         resolved_backend = "am4-tool-4070ti"
+745|                     elif s5_ready:
+746|                         resolved_backend = "am4-tool-5070"
+747|                     else:
+748|                         resolved_backend = _val(rows, "default rung") or "omen-vllm"
+749|                 elif fam_name in ("tool_long_output",):
+750|                     s5_ready = _val(rows, "facade alias am4-tool-5070 ready") is True and "am4-tool-5070" not in expected_absent
+751|                     resolved_backend = "am4-tool-5070" if s5_ready else (_val(rows, "default rung") or "omen-vllm")
+752|                 elif fam_name in ("utility_text",):
+753|                     resolved_backend = "fx99-vllm"
+754|                 else:
+755|                     resolved_backend = _val(rows, "default rung") or "omen-vllm"
+756| 
+757|                 if resolved_backend in expected_absent:
+758|                     fail("routing-families-resolve-to-live-backends",
+759|                          f"family {fam_name} resolves to absent backend {resolved_backend}",
+760|                          "routing a family to an absent backend produces 500s or hangs (as happened on 2026-09-27)")
+761|     return out
+762| 
+763| 
+764| # --- render -------------------------------------------------------------------------------
+765| 
+766| def render_tables(rows: list[Row]) -> str:
+767|     out = [BEGIN, ""]
+768|     layers = sorted({r["layer"] for r in rows})
+769|     for layer in layers:
+770|         out.append(f"### {layer}\n")
+771|         out.append("| setting | value | source | consumer | what it bounds | note |")
+772|         out.append("|---|---|---|---|---|---|")
+773|         for r in rows:
+774|             if r["layer"] != layer:
+775|                 continue
+776|             cells = [str(r["setting"]), f"`{r['value']}`" if r["value"] not in (None, "") else "—", f"`{r['source']}`" if r["source"] else "—",
+777|                      r["consumer"] or "—", r["bounds"] or "—", r["note"] or ""]
+778|             out.append("| " + " | ".join(c.replace("|", "\\|") for c in cells) + " |")
+779|         out.append("")
+780|     viol = invariants(rows)
+781|     out.append("### invariants\n")
+782|     if viol:
+783|         out.append("| rule | violation | earned by |"); out.append("|---|---|---|")
+784|         for v in viol:
+785|             out.append(f"| `{v['rule']}` | {v['detail'].replace('|', chr(92) + '|')} | {v['earned_by'].replace('|', chr(92) + '|')} |")
+786|     else:
+787|         out.append("All invariants hold.")
+788|     out += ["", END]
+789|     return "\n".join(out)
+790| 
+791| 
+792| def render_into_doc(rows: list[Row]) -> bool:
+793|     text = DOC.read_text(encoding="utf-8") if DOC.exists() else f"# Sizing map\n\n{BEGIN}\n{END}\n"
+794|     if BEGIN not in text or END not in text:
+795|         text = text.rstrip("\n") + f"\n\n{BEGIN}\n{END}\n"
+796|     head, rest = text.split(BEGIN, 1); _, tail = rest.split(END, 1)
+797|     new = head + render_tables(rows) + tail
+798|     changed = new != text
+799|     if changed:
+800|         DOC.write_text(new, encoding="utf-8")
+801|     return changed
+802| 
+803| 
+804| def main(argv: Optional[list[str]] = None) -> int:
+805|     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+806|     ap.add_argument("--check", action="store_true"); ap.add_argument("--json", action="store_true")
+807|     ap.add_argument("--render", action="store_true"); ap.add_argument("--live", action="store_true", help="read the running seats too")
+808|     ap.add_argument("--no-measured", action="store_true", help="skip the execution-ledger aggregates")
+809|     a = ap.parse_args(argv)
+810|     # --render reads the seats too: their window and KV pool are stable across restarts of the same
+811|     # config, and a changed config is exactly when the document should change.
+812|     rows = collect(live=a.live or a.render, measured=not a.no_measured)
+813|     if a.json:
+814|         print(json.dumps({"schema": "sizing-map.v1", "rows": rows, "violations": invariants(rows)}, indent=2, default=str)); return 0
+815|     if a.render:
+816|         changed = render_into_doc(rows)
+817|         print(f"{'rewrote' if changed else 'unchanged'} {DOC.relative_to(REPO)}")
+818|     viol = invariants(rows)
+819|     if a.check or not a.render:
+820|         active_cfg = _val(rows, "active configuration")
+821|         omen_p = _val(rows, "active omen profile")
+822|         am4_p = _val(rows, "active am4 profile")
+823|         if active_cfg and not str(active_cfg).startswith("unprobed"):
+824|             print(f"configuration: {active_cfg} (omen={omen_p}, am4={am4_p})")
+825|         for v in viol:
+826|             print(f"VIOLATION {v['rule']}: {v['detail']}\n    earned by: {v['earned_by']}")
+827|         print(f"{len(rows)} settings, {len(viol)} violation(s)")
+828|         return 1 if viol else 0
+829|     return 0
+830| 
+831| 
+832| if __name__ == "__main__":
+833|     raise SystemExit(main())
+=== END tools/ops/sizing_map.py ===

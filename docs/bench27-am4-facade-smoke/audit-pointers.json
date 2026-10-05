@@ -1,0 +1,30 @@
+{
+  "status": "offline proposal, no smoke run",
+  "audits": [
+    {
+      "path": "/home/derek/work/lab-rnd/research/evidence/bench27-config-20261005/am4-shards.sha256",
+      "sha256": "1fd58ad90bf2d9452bf8581926f60eac129151a80cc4f431242c938e7c4dba24",
+      "scope": "historical, not current deployed-byte verification"
+    },
+    {
+      "path": "/home/derek/work/lab-rnd/research/evidence/bench27-config-20261005/omen-shards.sha256",
+      "sha256": "6feab3336c87dc71ff11ec65b9dea1a56c088c43573aac03755f93e8021a5765",
+      "scope": "historical, not current deployed-byte verification"
+    },
+    {
+      "path": "docs/bench27-cuda134-staging/manifest.json",
+      "sha256": "8c3e6914aa2d13d304e291ef15d3744762c35038d449f226f2717d733cd00165",
+      "scope": "historical, not current deployed-byte verification"
+    },
+    {
+      "path": "docs/bench27-cuda134-staging/probe-result.json",
+      "sha256": "343b7e892f2eab1eadec2459660709cb2db9463eb0c390c7b6eba3591c092dc5",
+      "scope": "historical, not current deployed-byte verification"
+    },
+    {
+      "path": "docs/bench27-cuda134-staging/fp8-compile-result.json",
+      "sha256": "1c7e831cb3c3a46e685eb2247f4ef327452cac099e7eb6fc73bd28978d8b0374",
+      "scope": "historical, not current deployed-byte verification"
+    }
+  ]
+}

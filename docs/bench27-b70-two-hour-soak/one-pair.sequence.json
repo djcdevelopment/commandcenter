@@ -1,0 +1,37 @@
+{
+  "workload": "/home/derek/work/lab-rnd/research/evidence/qwen38-levers-20261003/sizing-workload.json",
+  "workload_sha256": "0f65fd1977ded2217bd1f35fd918447c1c983b93f2e82c9b3f9aabbce2fb750d",
+  "driver_sha256": {
+    "/home/derek/work/worktrees/bench27-drivers/research/thinking_workload.py": "19b487e17a5dc847392078fc932f95df79cb0cfcf3a38c006bd439745604d388",
+    "/home/derek/work/worktrees/bench27-drivers/research/paired_thinking_workload.py": "bd707bf7309e1d159bfe138e8746272c802c141f0368a5f98896b90768bce56e",
+    "/home/derek/work/worktrees/bench27-drivers/research/bench27_campaign.py": "ffc086b46d41147dba5388f01e9aefce2a70d1ee1a1e9f4870856d07f28bd36b"
+  },
+  "commands": [
+    [
+      "/home/derek/.venvs/hearth-private/bin/python",
+      "/home/derek/work/worktrees/bench27-drivers/research/paired_thinking_workload.py",
+      "--workload",
+      "/home/derek/work/lab-rnd/research/evidence/qwen38-levers-20261003/sizing-workload.json",
+      "--arm",
+      "bench27-b70-baseline-soak-20261005",
+      "--out",
+      "/home/derek/work/lab-rnd/research/evidence/bench27-soak-20261005/bench27-b70-baseline-soak-20261005/pair-0001",
+      "--backend-0",
+      "omen-dense-27b",
+      "--backend-1",
+      "omen-dense-27b-b",
+      "--metrics-url-0",
+      "http://127.0.0.1:18095/metrics",
+      "--metrics-url-1",
+      "http://127.0.0.1:18096/metrics",
+      "--caller",
+      "codex",
+      "--trip",
+      "/home/derek/work/lab-rnd/research/evidence/bench27-config-20261005/cards.jsonl.tripped",
+      "--conversations",
+      "1",
+      "--task-id",
+      "br-20261005-065233-53e45847"
+    ]
+  ]
+}

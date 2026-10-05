@@ -1,13 +1,13 @@
 # ADR-0064: A scoped AM4 dense output ceiling
 
-- Status: **Proposed implementation; parent acceptance pending code v2 review. Not deployed.**
+- Status: **Accepted (decided by Codex), D024, after independent Opus v3 PASS and 34 parent-run tests PASS. Remote deployment and qualification pending.**
 - Date: 2026-10-05
 - Goal: G-bench27
 - D021: Prepare the scoped facade output-limit increase for independent review **(decided by Codex)**; not reviewed by Derek. [Running decision list](/home/derek/work/bench27-plan/CODEX-DECISIONS.md), [D021 approval audit](/home/derek/work/CLAUDE-APPROVED.md). Authoritative paths are `/home/derek/work/bench27-plan/CODEX-DECISIONS.md` and `/home/derek/work/CLAUDE-APPROVED.md`.
 
 ## Authority and scope
 
-The latest operator delegation is: “i give permission for you to review and decide on my behalf -- but it must be marked (decided by Codex) and keep a running list of decide items for me to easily review”. D021 records preparation, not acceptance or deployment. Parent acceptance remains pending successful independent code review and an explicit marked decision in the running list.
+The latest operator delegation is: “i give permission for you to review and decide on my behalf -- but it must be marked (decided by Codex) and keep a running list of decide items for me to easily review”. D021 records preparation, not acceptance or deployment. D024 separately accepts this scoped change after independent Opus v3 PASS; no personal review by Derek is claimed.
 
 This **is an H-3 gate change: a scoped output-gate increase**, from 8,192 to 24,576. It is not described as avoiding H-3 or as already personally reviewed by Derek. Within this G-bench27 campaign, the latest user instruction authorizes Codex to review and decide on the operator's behalf and supersedes the earlier Derek-only decision requirement for this decision. The basis is that latest delegation, not ADR-0063's earlier nine-brief grant. Scope ends with the campaign or dev expiry **2026-10-12T07:00Z**; no extension, unrelated delegation, credential publication permission, or non-interactive sudo is inferred. Elevated actions still go to Derek's terminal.
 
@@ -37,7 +37,7 @@ The tracked dense seat has one physical serving slot. A long carry can occupy it
 
 This is a capability declaration, not physical or report qualification. Before the final profile is considered qualified, the parent must:
 
-1. Obtain independent code v2 approval, accept or reject the proposed change explicitly under delegation, and record the decision **(decided by Codex)** in the running list. This draft does not self-accept.
+1. Independent Opus v3 approval and parent acceptance D024 are recorded **(decided by Codex)** in the running list. Review: `/home/derek/work/bench27-plan/review/am4-facade-v3.json`; parent test receipt: `am4-facade-v3-tests.txt` (34 passed).
 2. Own the remote surface and preflight the actual **8090 system-unit facade**, whose pre-change source hash begins `562efcd`, recording full deployed hashes. Do not reroute to a canary. Apply only the reviewed dense-entry map change, not a wholesale shared-map replacement. Initial use of the extended allowance requires the live 49K-or-larger recipe. Any elevated restart goes to Derek's terminal.
 3. Run an authenticated facade smoke through 8090 for the 24,576 allowance, ordinary 32K requests, unavailable-window refusal, exact overflow refusal and cancellation/deadline behavior. Verify nonzero reasoning tokens: fleet credentials default `reasoning_effort` to `none`, which can override thinking settings. The smoke must establish the actual door credential path, not assume it. Verify the engine drains after deadline/cancellation before releasing the seat. Verify `/v1/models` root against the recipe manifest, not only the served name.
 4. Obtain frontier/human accepted verdicts on **two distinct open briefs on the final serving profile**, recording substance, form repairs, aids, actual token counts, finish status, model/recipe hashes and context. No earlier direct 32K/49K probe or different-profile verdict may substitute.
@@ -46,7 +46,7 @@ Until actual success, there is no qualified carry/report capability, long-output
 
 ## Offline validation
 
-Boundary and HTTP tests cover default 8,192; bounded dense 24,576; exact 32-token context margin and overflow; wrong model/alias/API; invalid settings; 32K long-request 503 with no engine call; ordinary 32K request success; isolated invalid alias listing; invalid `/tokenize` configuration response; tracked map validation; caller override ineffectiveness; tools/template forwarding; and completion-budget normalization. Existing authentication, slot, streaming, cancellation and body/context protocol tests remain in the suite. Offline tests do not certify deployment or long-generation success.
+Boundary and HTTP tests cover default 8,192; bounded dense 24,576; exact 32-token context margin and overflow; wrong model/alias/API; invalid settings; 32K long-request 503 with no engine call; ordinary 32K request success; isolated invalid alias listing; invalid `/tokenize` configuration response; tracked map validation; caller override ineffectiveness; tools/template forwarding; and completion-budget normalization. Existing authentication, slot, streaming, cancellation and context/parameter protocol tests remain in the suite. Offline tests do not certify deployment or long-generation success.
 
 ### Exact test evidence for review
 
@@ -56,4 +56,4 @@ The HTTP tests are in the companion file [test_am4_facade_hermes.py](../../heart
 - `test_http_long_capability_503_and_ordinary_32k_allowed`: long request returns HTTP 503 with no tokenizer or completion calls; an ordinary 8,192 request on the same 32K alias succeeds.
 - `test_invalid_output_configuration_refuses_before_engine_call`: bad ceiling chat returns HTTP 503 without engine calls.
 
-[test_am4_facade_output_ceiling.py](../../hearth/tests/toolsurface/test_am4_facade_output_ceiling.py) separately exercises the exact context boundary, scoped/default ceilings, model/API/alias binding and the tracked alias map. The combined two-file suite passes **34 tests** offline. No deployment smoke, deadline drain, or substantive qualification has been performed by this implementation task. R2 decision-list wording and any new acceptance row remain the parent's canonical record responsibility.
+[test_am4_facade_output_ceiling.py](../../hearth/tests/toolsurface/test_am4_facade_output_ceiling.py) separately exercises the exact context boundary, scoped/default ceilings, model/API/alias binding and the tracked alias map. The combined two-file suite passes **34 tests** offline. No deployment smoke, deadline drain, or substantive qualification has been performed by this implementation task. R2 decision-list wording and acceptance D024 are recorded by the parent.

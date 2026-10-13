@@ -1,0 +1,8 @@
+....wrote /tmp/tmpg4vy2v_r/out/cli: {'symbol_scoped_quote': 1} unresolved=0 unsupported 1->0 words 7->7 deterministic fail->pass (semantic review required)
+REFUSED: output already exists: /tmp/tmpg4vy2v_r/out/cli
+.REFUSED: output already exists: /tmp/tmp7c560i5a/out/run
+....................
+----------------------------------------------------------------------
+Ran 25 tests in 0.279s
+
+OK

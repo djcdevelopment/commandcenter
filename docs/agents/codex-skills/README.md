@@ -15,10 +15,15 @@ Edit the file in this directory, run the tests, then re-install — never the re
 | `rung` | `docs/agents/codex-skills/rung/` | `.claude/skills/rung/` |
 | `hearth` | `docs/agents/codex-skills/hearth/` | the canonical block in `AGENTS.md` (Claude reads it there) |
 | `local-work` | `docs/agents/codex-skills/local-work/` | `.claude/skills/local-work/` |
+| `rnd` | `docs/agents/codex-skills/rnd/` | `.claude/skills/rnd/` (adapted) |
 
 `rung` turns "what should run this task, on which rung?" into an evidence-cited
 recommendation and one ready-to-run generate call. It recommends; it never schedules
 (ADR-0008).
+
+`rnd` is a posture-only skill: a single `SKILL.md` with no MCP dependency and no required
+`agents/openai.yaml`. Claude Code's automatic per-prompt R&D hook is not ported; in Codex the
+posture applies when the skill is invoked.
 
 Each mirror is a directory containing `SKILL.md` (frontmatter `name`/`description`,
 then the step list) and `agents/openai.yaml` (the Codex interface block and the MCP

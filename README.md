@@ -63,3 +63,7 @@ See `START-HERE.md` for the full list. In short: one writer per mutable surface,
 your own worktree and branch, never hand-edit a generated file, run the tests
 with `~/.venvs/hearth-private/bin/python`, and cite by exact local
 path.
+
+## Amux local delivery
+
+See [`docs/amux-delivery/README.md`](docs/amux-delivery/README.md). Status (2026-10-13): real AM4 execution via the native Amux worker; offline preparer and citation sidecar committed; the explicit AM4 thinking adapter is built and reviewed but undeployed; the three-backend pool is staged and not activated; capacity is unknown.

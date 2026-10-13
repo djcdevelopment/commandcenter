@@ -1,0 +1,7 @@
+ok  example.brief.v2.json: 2 substance, form={'words': {'min': 80, 'enforce': 'measure', 'max': 320}, 'citations': 'quote', 'sections': ['Storage', 'Backoff'], 'style': 'markdown', 'quote_mode': 'text'}
+ok  example.delivery-output.v1.json: 2 sections, 87 words (rule 1)
+ok  example.delivery.v1.json: 7 claims, repairs={'normalized_quote': 1, 'truncated_quote': 1}, unsupported=['s1.p2.q0'], form_applied.citations=quote, deviations=0; brief sha256 and output words/sections/claims agree
+ok  output_json_schema(): closed objects, no $ref/pattern, every array and string bounded
+ok  24 negative controls rejected; quoteless paragraph exempt only under citations none; short ambiguous missing valid; v1 block valid; default ladder all not_run
+ok  backoff.brief.v2.json round-trips 2026-10-01-audit-bankedfire-backoff.md: v1 keys ['builders', 'est_tokens', 'max_age_s', 'requires', 'task_class'] kept, 3 substance + words<=320 + cites-only-source
+selfcheck passed

@@ -1,0 +1,18 @@
+{
+  "schema": "amux-qualification-review-addendum.v1",
+  "recorded_at": "2026-10-13T19:54:10.895907+00:00",
+  "authorization_source": "Latest user steer relayed by root",
+  "authorization": "Continue enabling local success through thinking laps and deterministic sidecars; baseline failures are not the endpoint.",
+  "supersedes": "Treating the configured initial AM4 retry count as a reason to stop further enabling work.",
+  "preserved": {
+    "review_rows": 8,
+    "review_rows_sha256": "bac2b56e2bb8d08323a3a2f0a25d86dd51a07e04ba165a5ef87d2e9dc2218e44",
+    "original_candidates_and_artifacts": "unchanged",
+    "measured_substance_and_form_misses": "unchanged",
+    "recommended_verdicts": "unchanged; recommendations only",
+    "official_verdicts": "null; none recorded by this reviewer"
+  },
+  "interpretation": "The initial one-retry schedule was exhausted. That historical fact remains recorded, but it is not a stop condition after the latest user authorization. New thinking, budget or sidecar conditions must be separately named and compared; original results are never silently reclassified.",
+  "next_scope": "Native Amux writer builds the offline derivative sidecar; root coordinates thinking laps and independent reviews. Existing runtime, qualification and awaiting_review guards remain intact.",
+  "product_prompt": "/home/derek/work/amux/scratch/am4-delivery-20261013/10-enabling-sidecar.txt"
+}

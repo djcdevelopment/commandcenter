@@ -1,0 +1,60 @@
+{
+  "intent": "[goal:G-bench27] Build a retained source-fact record for a later Amux listener-handoff review. Use only the pinned listener_handoff.rs. In Call facts, cover prepare_exec, adopt and exec_failed: identify their set_cloexec argument, requested flag operation, and handling of the returned boolean. In Helper contract, explain the helper return conditions. A compact record around 200 words should suffice; the renderer measures the 600-word maximum, so do not count or report words yourself. Source map: prepare_exec49-55; exec_failed59-63; adopt65-104; set_cloexec127-140. Support each substantive paragraph with exact source quotations including enough surrounding function context to identify repeated calls. This distinct enabling task produces facts for later review; it does not request the full adoption-guard review, a consequence analysis, a fix, or a test proposal. Report source facts only and make no claim of executed runtime tests.",
+  "acceptance_criteria": [
+    "For prepare_exec, adopt, and exec_failed, record the set_cloexec on argument, the requested FD_CLOEXEC operation, and whether that caller checks or ignores the returned boolean; support the facts with pinned source.",
+    "State exactly what makes set_cloexec return false or true, distinguishing the flag-read result from the flag-write result; retain a concise source-supported fact record for a later listener review."
+  ],
+  "repo": "/home/derek/work/worktrees/amux-local-capability-20261013",
+  "base_commit": "4f3c67f8888a8ed6698af1182d2e94d9ecf0f4d4",
+  "files": [
+    "crates/amux-server/src/listener_handoff.rs"
+  ],
+  "artifact_kind": "markdown",
+  "lane": "deep",
+  "task_family": "code_review",
+  "deadline_s": 600,
+  "receipt_id": "br-20261013-190915-a5ea463f",
+  "idempotency_key": "amux-am4-qualification-20261013-listener-flag-facts-carry-v1",
+  "brief": {
+    "schema": "brief.v2",
+    "substance": [
+      {
+        "id": "f1",
+        "statement": "For prepare_exec, adopt, and exec_failed, record the set_cloexec on argument, the requested FD_CLOEXEC operation, and whether that caller checks or ignores the returned boolean; support the facts with pinned source."
+      },
+      {
+        "id": "f2",
+        "statement": "State exactly what makes set_cloexec return false or true, distinguishing the flag-read result from the flag-write result; retain a concise source-supported fact record for a later listener review."
+      }
+    ],
+    "form": {
+      "words": {
+        "min": 0,
+        "max": 600,
+        "enforce": "fail"
+      },
+      "citations": "quote",
+      "quote_mode": "text",
+      "sections": [
+        "Call facts",
+        "Helper contract"
+      ],
+      "style": "markdown"
+    },
+    "sources": [
+      {
+        "path": "crates/amux-server/src/listener_handoff.rs",
+        "commit": "4f3c67f8888a8ed6698af1182d2e94d9ecf0f4d4"
+      }
+    ],
+    "aids": [
+      "source_map",
+      "quote_renderer",
+      "carried_draft",
+      "thinking",
+      "self_check"
+    ]
+  },
+  "temperature": 0,
+  "procedure": "carry"
+}

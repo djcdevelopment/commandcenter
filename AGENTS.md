@@ -89,3 +89,7 @@ Ordinary questions and small offloads do not require a build request.
 
 <!-- synced by tools/ops/sync-offload-block.mjs from docs/agents/hearth-offload-block.md; edit the source, not this copy -->
 <!-- hearth-offload:end -->
+
+## R&D sessions
+
+For exploratory or probing work ("find the edges", `/rnd`, `$rnd`), follow the tracked contract in `docs/agents/codex-skills/rnd/SKILL.md`: one vertical slice, record the edge, stop the lap.

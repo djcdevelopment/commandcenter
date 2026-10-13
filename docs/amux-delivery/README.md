@@ -1,3 +1,11 @@
+# Amux → HEARTH delivery
+
+**Status, 2026-10-13.** Real AM4 execution happened: the native Amux worker submitted HEARTH work that ran on AM4. A counted citation sidecar took one AM4 result from 1 to 0 unsupported quotes with its 227 words preserved (prose and wrong claims unchanged; semantic review still required). The offline preparer and sidecar are committed. An explicit-thinking adapter for AM4 is built and independently reviewed but **not deployed**. The three-backend pool is **staged, not activated**, and its capacity is unknown. No new production verdict was recorded and no candidate was applied.
+
+Closure packet: [RESULT](RESULT.md) · [PLAN](PLAN.md) · [HANDOFF](HANDOFF.md) · [RETROSPECTIVE](RETROSPECTIVE.md) · [evidence index](evidence-index.json) · [evidence/](evidence/) · [operational-drafts/ (NOT ACTIVATED)](operational-drafts/README.md).
+
+**Scoped thinking fix.** The AM4 facade defaults a missing `reasoning_effort` to `none`, which overrode an explicit `enable_thinking=true`. `hearth/toolsurface/inference.py` now sends `reasoning_effort="xhigh"` only when thinking is explicitly true, the backend is exactly `am4-vllm` and the model exactly `am4-dense-27b`, and only if the trusted serving declaration says `xhigh`. Otherwise it refuses before any network call. Other calls are unchanged, and no credential restriction changes. It takes effect only after a controlled door reload and a separate declaration decision.
+
 # Amux → HEARTH delivery: operator recipe
 
 Two steps that stay separate:
@@ -105,7 +113,7 @@ eligible: only recorded accepted verdicts do. Normal submissions omit it and tak
 Before calling a miss a capability limit, climb in order and keep every rung's result, including the failures:
 
 1. **Record the baseline.** The original candidate, its delivery record and the brief hash stay as they are. Nothing below replaces or regrades them.
-2. **Right-size** the task, source and budget. A dense three-criterion review is a prospective, separately named condition: up to 600 words (target 400-500) and about 3,072 final-output tokens in `brief.generation.max_tokens`, subject to each route's own ceiling (the door decides per provider). That budget caps only the final output; under `carry` the thinking stages are budgeted separately by the procedure and are not capped by it. It is a new condition, not a regrade of the 240-word attempts and not evidence that length caused any reasoning error. The 240-word example specs are unchanged.
+2. **Right-size** the task, source and budget. A dense three-criterion review is a prospective, separately named condition: up to 600 words (target 400-500) and about 3,072 final-output tokens in `brief.generation.max_tokens`, subject to each route's own ceiling (the door decides per provider). That figure is the brief's generation request, used by one-call delivery. `carry` uses procedure-owned stage budgets (work, check, and attachment batches with their own limits) and does not promise that 3,072 caps its final generation; the report word limit is measured separately. It is a new condition, not a regrade of the 240-word attempts and not evidence that length caused any reasoning error. The 240-word example specs are unchanged.
 3. **Use the supported thinking procedures** (carry, and `inference.deliberate` where a seat declares it) before adding anything of your own.
 4. **Apply counted form sidecars** (below), as separate derivatives.
 5. **Judge substance independently**, against the pinned source, by someone other than the sidecar. Mechanical success is never semantic acceptance.

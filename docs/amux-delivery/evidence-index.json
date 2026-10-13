@@ -1,0 +1,31 @@
+{
+  "schema": "amux-landing-evidence.v1",
+  "receipt_id": "br-20261013-190915-a5ea463f",
+  "sources": {
+    "qualification-review.json": {
+      "sha256": "1eab4cefb0622099f5ce1ef40bf2d22c34e383c44996ddc2b99a7d6ed98da273",
+      "bytes": 74036
+    },
+    "qualification-review-addendum.json": {
+      "sha256": "5e96ae29cfd46a59cf2ef37d3f48720b17c3779a11d23cc9ba15657f931ce9bc",
+      "bytes": 1414
+    },
+    "32-focused-pytest-final.txt": {
+      "sha256": "a2739617050cb296e0560ed6c3e0b43cbbdc0e9919d1a1125f42d95154a8247c",
+      "bytes": 2183
+    },
+    "27-sidecar-tests-precommit.txt": {
+      "sha256": "72653f176d8ea4a4081f5fd693da8e848984b97dfea057fcb41051f1ae4914c0",
+      "bytes": 390
+    },
+    "22-existing-regressions.txt": {
+      "sha256": "0776c939cbb25954669c514c26d9c587661e39af4e8c9d437a7159b6937d8355",
+      "bytes": 35697
+    },
+    "23-contract-selfcheck.txt": {
+      "sha256": "d384f5c4756dfccdfb5d6af2645516594525116896813e2f39a8d573c105e5c6",
+      "bytes": 960
+    }
+  },
+  "fresh_tests_at_landing": false
+}

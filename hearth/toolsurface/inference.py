@@ -584,6 +584,13 @@ def _generate_ollama(target: _Target, prompt: str, model: str, system: Optional[
     }, temperature)
 
 
+# Explicit thinking on this seat sends the effort its chat template accepts (xhigh, medium or low; "high" is parsed by
+# the API but rejected by the template). Only xhigh is wired, from the declared profile (SERVING_PROFILE_KEYS).
+_AM4_THINKING_BACKEND = "am4-vllm"
+_AM4_THINKING_MODEL = "am4-dense-27b"
+_AM4_THINKING_EFFORT = "xhigh"
+
+
 def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[str],
                      max_tokens: int, timeout_s: int,
                      image_url: Optional[str] = None,
@@ -631,6 +638,17 @@ def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[
         chat_template_kwargs["enable_thinking"] = thinking
     if chat_template_kwargs:
         payload["chat_template_kwargs"] = chat_template_kwargs
+    if thinking is True and target.backend == _AM4_THINKING_BACKEND and model == _AM4_THINKING_MODEL:
+        # The AM4 dense seat's explicit thinking turns carry the declared effort on the wire; the facade's fleet
+        # default (reasoning_effort "none") only applies when the field is absent. The value comes from the trusted
+        # serving declaration, never from the caller, and a missing or other value refuses before any network call.
+        declared = target.settings.get("reasoning_effort")
+        if declared != _AM4_THINKING_EFFORT:
+            return {"ok": False, "error_code": "reasoning_effort_not_configured",
+                    "error": f"explicit thinking on {target.backend}/{model} requires backend setting "
+                             f"reasoning_effort = {_AM4_THINKING_EFFORT!r}, got {declared!r}",
+                    "endpoint": target.endpoint, "model": model}
+        payload["reasoning_effort"] = declared
     if response_schema is not None:
         payload["response_format"] = {
             "type": "json_schema",

@@ -1,0 +1,484 @@
+#!/usr/bin/env python3
+"""Bounded ADR-0062 qualification routing window. Never dispatches or restarts services.
+
+Default/--preflight reads safe metadata only. --run pauses the drain timer, then
+accepts `select PROVIDER`, `status`, and `restore` on stdin. EOF/deadline attempts
+restoration only when idle. Busy or unreadable work state leaves the owned route
+and drain timer paused for explicit --recover RUN_ID after the work has drained.
+The default window is 600 seconds; explicit carry windows may be up to 2100
+seconds (35 minutes), plus cleanup. The helper never cancels work.
+Root must remain the sole route/timer writer and avoid submissions during a
+selection: the private flock coordinates helper instances, not the HEARTH door.
+"""
+import argparse
+from contextlib import closing
+from datetime import datetime, timezone
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import select
+import signal
+import sqlite3
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+
+CONTROL = Path(__file__).resolve().parent
+ROUTE = Path('/home/derek/hearth-production/local-work-routes-linux.toml')
+EXPECTED = '53cbf3203dbd4fb8d48adeb9065cf6e564dfe37da8197a0a3e722d03d7eac1e0'
+PROVIDERS = ('omen-dense-27b', 'omen-dense-27b-b', 'am4-vllm')
+EXECUTION_ROOTS = (Path('/home/derek/hearth-production/var/execution'),
+                   Path('/home/derek/work/commandcenter-linux-flash/hearth/var/execution'))
+WORK_ROOT = Path('/home/derek/work/commandcenter-linux-flash/runs/operator')
+WORK_FINAL = {'accepted', 'rejected', 'superseded', 'failed', 'awaiting_review'}
+JOB_FINAL = ('succeeded', 'failed', 'cancelled', 'rejected', 'expired')
+TIMER = 'bankedfire-drain.timer'
+SERVICE = 'bankedfire-drain.service'
+
+
+class Refused(RuntimeError):
+    pass
+
+
+class StopWindow(BaseException):
+    pass
+
+
+def digest(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def systemctl(*args):
+    result = subprocess.run(['systemctl', '--user', *args], capture_output=True,
+                            text=True, timeout=12, check=False)
+    if result.returncode:
+        raise Refused(f'systemctl {args[0]} failed (exit {result.returncode})')
+    return result.stdout
+
+
+def unit_state(unit):
+    text = systemctl('show', unit, '--property=LoadState,ActiveState,SubState,UnitFileState')
+    values = dict(line.split('=', 1) for line in text.splitlines() if '=' in line)
+    if values.get('LoadState') != 'loaded':
+        raise Refused(f'{unit} is not loaded')
+    return values
+
+
+def read_route():
+    if ROUTE.is_symlink() or not stat.S_ISREG(ROUTE.stat().st_mode):
+        raise Refused('route must be a regular non-symlink file')
+    return ROUTE.read_bytes()
+
+
+def quiescence():
+    result = {'leases': 0, 'tenancy': 0, 'execution_jobs': 0,
+              'external_bf6_queued': 0, 'work_items': 0}
+    now = time.time()
+    for root in EXECUTION_ROOTS:
+        for filename in ('coordination.sqlite', 'projection.sqlite'):
+            database = root / filename
+            if not database.is_file():
+                raise Refused(f'required state database missing: {database}')
+            with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True, timeout=3)) as db:
+                db.execute('PRAGMA query_only=ON')
+                if filename == 'coordination.sqlite':
+                    result['leases'] += db.execute(
+                        'SELECT count(*) FROM capacity_leases WHERE expires_at > ?', (now,)).fetchone()[0]
+                    # Experiment ownership never expires automatically (coordination.py).
+                    result['tenancy'] += db.execute(
+                        "SELECT count(*) FROM gpu_tenancy WHERE owner='experiment' "
+                        "OR (owner='imagegen' AND expires_at > ?)", (now,)).fetchone()[0]
+                else:
+                    marks = ','.join('?' for _ in JOB_FINAL)
+                    rows = db.execute(
+                        f'SELECT status, state_json FROM jobs WHERE status NOT IN ({marks})', JOB_FINAL)
+                    for status, raw in rows:
+                        try:
+                            job = json.loads(raw)
+                        except (TypeError, ValueError):
+                            job = None
+                        source = job.get('source') if isinstance(job, dict) else None
+                        # BF6 owns external Hatchet dispatch/reconciliation and never
+                        # reads local-work routes (execution/service.py:214-218).
+                        # Keep these records visible; every other nonterminal blocks.
+                        external = (status == 'queued' and isinstance(job, dict)
+                                    and job.get('status') == status
+                                    and isinstance(source, dict)
+                                    and source.get('adapter') == 'bf6-hatchet'
+                                    and job.get('operation') == 'bf6.process_segment'
+                                    and job.get('invocations') == [])
+                        result['external_bf6_queued' if external else 'execution_jobs'] += 1
+    if not WORK_ROOT.is_dir():
+        raise Refused('work manifest root is missing')
+    for path in WORK_ROOT.glob('work_*/work-manifest.json'):
+        value = json.loads(path.read_text(encoding='utf-8'))
+        if not isinstance(value, dict) or not isinstance(value.get('status'), str):
+            raise Refused(f'invalid work manifest: {path.parent.name}')
+        if value['status'] not in WORK_FINAL:
+            result['work_items'] += 1
+    result['drain_service'] = unit_state(SERVICE)['ActiveState']
+    return result
+
+
+def require_idle():
+    state = quiescence()
+    if any(state[key] for key in ('leases', 'tenancy', 'execution_jobs', 'work_items')):
+        raise Refused('not quiescent: ' + json.dumps(state, sort_keys=True))
+    if state['drain_service'] != 'inactive':
+        raise Refused('drain service must be inactive: ' + state['drain_service'])
+    return state
+
+
+def atomic_write(path, data, mode=0o600, expected=None, installed=None):
+    fd, temporary = tempfile.mkstemp(prefix='.' + path.name + '.', dir=path.parent)
+    try:
+        with os.fdopen(fd, 'wb') as stream:
+            os.fchmod(stream.fileno(), mode)
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        # Keep rename and ownership bookkeeping indivisible to our signal handlers.
+        blocked = signal.pthread_sigmask(signal.SIG_BLOCK,
+                                        {signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGALRM})
+        try:
+            if expected is not None and read_route() != expected:
+                raise Refused('route CAS failed immediately before replacement')
+            os.replace(temporary, path)
+            if installed is not None:
+                installed()
+        finally:
+            signal.pthread_sigmask(signal.SIG_SETMASK, blocked)
+        directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def singleton(provider):
+    if provider not in PROVIDERS:
+        raise Refused('provider is not allowlisted')
+    return ('# Temporary ADR-0062 singleton qualification window; no caller backend pin.\n'
+            'version = "local-work-routes.qualification-window-v1"\n\n'
+            '[lane.deep]\nbackend = "' + provider + '"\n').encode()
+
+
+def preflight():
+    original = read_route()
+    if digest(original) != EXPECTED:
+        raise Refused('original route digest differs from the approved baseline')
+    timer = unit_state(TIMER)
+    if timer['ActiveState'] not in ('active', 'inactive'):
+        raise Refused('timer is transitioning; wait for a stable state')
+    state = require_idle()
+    return original, timer, state
+
+
+def lock_window():
+    fd = os.open(CONTROL / 'qualification-window.lock', os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BaseException:
+        os.close(fd)
+        raise Refused('another qualification helper owns the lock')
+    return fd
+
+
+def record(state, event, **fields):
+    state.update(fields, event=event, timestamp=datetime.now(timezone.utc).isoformat())
+    raw = (json.dumps(state, sort_keys=True) + '\n').encode()
+    with open(CONTROL / 'qualification-window.jsonl', 'ab') as log:
+        os.chmod(log.name, 0o600)
+        log.write(raw)
+        log.flush()
+        os.fsync(log.fileno())
+    atomic_write(CONTROL / 'qualification-window-status.json', raw)
+    print(json.dumps(state, sort_keys=True), flush=True)
+
+
+def restore_window(state, original, last, route_mode, timer):
+    """Never restore routes or resume the timer around active/unknown work.
+
+    Called under the helper lock, with termination signals ignored during cleanup.
+    Independent callers must still honor sole-writer/admission ownership.
+    """
+    state.update(restored_route=False, restored_timer=False)
+    owned = digest(last)
+    failures = []
+
+    def restored_bytes():
+        nonlocal owned
+        owned = digest(original)
+
+    try:
+        state['quiescence'] = require_idle()
+        current = read_route()
+        if current != original:
+            if current != last:
+                raise Refused('RESTORE CAS FAILED: route changed by another writer; backup retained')
+            atomic_write(ROUTE, original, route_mode, expected=last, installed=restored_bytes)
+        else:
+            restored_bytes()
+        if read_route() != original:
+            raise Refused('restored route does not match original bytes')
+        state.update(restored_route=True, route_sha256=digest(original))
+        # A carry stage can start between observations unless callers honor the
+        # admission boundary. Recheck before any possible timer resumption.
+        state['quiescence'] = require_idle()
+        if read_route() != original:
+            raise Refused('route ownership lost before timer restoration')
+        expected = timer['ActiveState']
+        if unit_state(TIMER)['ActiveState'] != expected:
+            systemctl('start' if expected == 'active' else 'stop', TIMER)
+        actual = unit_state(TIMER)
+        if actual['ActiveState'] != expected or actual['UnitFileState'] != timer['UnitFileState']:
+            raise Refused('timer state differs from entry state')
+        state['restored_timer'] = True
+        state['recovery'] = {'required': False}
+    except BaseException as error:
+        failures.append(f'cleanup: {type(error).__name__}: {error}')
+        try:
+            if unit_state(TIMER)['ActiveState'] != 'inactive':
+                systemctl('stop', TIMER)
+            if unit_state(TIMER)['ActiveState'] != 'inactive':
+                raise Refused('drain timer could not be verified stopped')
+        except BaseException as pause_error:
+            failures.append(f'URGENT timer pause failed: {pause_error}')
+        try:
+            observed = digest(read_route())
+        except (OSError, Refused):
+            observed = 'unreadable'
+        state['recovery'] = {
+            'required': True, 'backup': state['backup'],
+            'original_sha256': digest(original),
+            'last_installed_sha256': state['last_installed_sha256'],
+            'owned_route_sha256': owned,
+            'observed_route_sha256': observed,
+            'ownership_verified': observed == owned,
+            'instruction': ('RECOVERY NEEDED: work may still be active; no work was cancelled. '
+                            'Keep submissions paused. After work drains, use --recover ' + state['run_id'] +
+                            '. Recovery requires exact recorded ownership, backup hash and fresh quiescence; '
+                            'never overwrite another writer or manually resume the drain into an unknown route.'),
+        }
+    return failures
+
+
+def recover(run_id):
+    """Restore only an exact, durably recorded failed window; never adopt another route."""
+    lock_fd = lock_window()
+    previous = {}
+    try:
+        path = CONTROL / 'qualification-window-status.json'
+        if path.is_symlink() or not stat.S_ISREG(path.stat().st_mode):
+            raise Refused('recovery status must be a regular non-symlink file')
+        state = json.loads(path.read_bytes())
+        if not isinstance(state, dict):
+            raise Refused('invalid recovery status')
+        recovery = state.get('recovery')
+        if (state.get('control_schema') != 'qualification-window.v2'
+                or state.get('run_id') != run_id or state.get('event') != 'failed'
+                or not isinstance(recovery, dict) or recovery.get('required') is not True
+                or recovery.get('ownership_verified') is not True):
+            raise Refused('not the exact recorded failed window with verified route ownership')
+        # A status file alone cannot manufacture an eligible recovery record.
+        log = CONTROL / 'qualification-window.jsonl'
+        if log.is_symlink() or not stat.S_ISREG(log.stat().st_mode):
+            raise Refused('recovery log must be a regular non-symlink file')
+        events = log.read_bytes().splitlines()
+        if not events or json.loads(events[-1]) != state:
+            raise Refused('recovery status does not match the latest durable event')
+        backup = CONTROL / f'original-route-{run_id}.toml'
+        if (backup.parent != CONTROL or str(backup) != state.get('backup')
+                or str(backup) != recovery.get('backup') or backup.is_symlink()
+                or not stat.S_ISREG(backup.stat().st_mode)):
+            raise Refused('recovery backup is not the recorded regular file')
+        original = backup.read_bytes()
+        if digest(original) != EXPECTED or state.get('original_sha256') != EXPECTED \
+                or recovery.get('original_sha256') != EXPECTED:
+            raise Refused('recovery backup does not match the approved original hash')
+        candidates = [original] + [singleton(provider) for provider in PROVIDERS]
+        owned = recovery.get('owned_route_sha256')
+        last = next((data for data in candidates if digest(data) == owned), None)
+        installed = state.get('last_installed_sha256')
+        if (last is None or installed != recovery.get('last_installed_sha256')
+                or installed not in {digest(data) for data in candidates}
+                or owned not in (installed, EXPECTED)
+                or recovery.get('observed_route_sha256') != owned):
+            raise Refused('recovery record is not an owned qualification route')
+        timer = state.get('timer_prior')
+        route_mode = state.get('route_mode')
+        if (not isinstance(timer, dict) or timer.get('LoadState') != 'loaded'
+                or timer.get('ActiveState') not in ('active', 'inactive')
+                or not isinstance(timer.get('UnitFileState'), str) or not timer['UnitFileState']
+                or type(route_mode) is not int or not 0 <= route_mode <= 0o777):
+            raise Refused('recovery lacks valid original timer state or route permissions')
+        if read_route() != last:
+            raise Refused('recovery CAS failed: current route is not the recorded owned bytes')
+        if unit_state(TIMER)['ActiveState'] != 'inactive':
+            raise Refused('recovery requires the drain timer already stopped')
+        require_idle()  # Refuse without mutations if work is still active/unreadable.
+        for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGALRM):
+            previous[sig] = signal.signal(sig, signal.SIG_IGN)
+        failures = restore_window(state, original, last, route_mode, timer)
+        record(state, 'failed' if failures else 'recovered', errors=failures,
+               recovery_attempted_at=datetime.now(timezone.utc).isoformat())
+        return 1 if failures else 0
+    finally:
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        os.close(lock_fd)
+
+
+def run(timeout):
+    lock_fd = lock_window()
+    try:
+        status_path = CONTROL / 'qualification-window-status.json'
+        if status_path.exists() or status_path.is_symlink():
+            if status_path.is_symlink() or not stat.S_ISREG(status_path.stat().st_mode):
+                raise Refused('existing window status is not a regular file; refusing to replace it')
+            previous_state = json.loads(status_path.read_bytes())
+            if not isinstance(previous_state, dict):
+                raise Refused('existing window status is invalid; refusing to replace it')
+            pending = previous_state.get('recovery')
+            if (previous_state.get('control_schema') == 'qualification-window.v2'
+                    and previous_state.get('event') == 'failed'
+                    and isinstance(pending, dict) and pending.get('required') is True):
+                raise Refused('prior window still needs recovery; use --recover ' +
+                              str(previous_state.get('run_id')) + '; status and log preserved')
+    except BaseException:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        os.close(lock_fd)
+        raise
+    original = last = None
+    timer = None
+    timer_touched = False
+    failures = []
+    stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ') + f'-{os.getpid()}'
+    backup = CONTROL / f'original-route-{stamp}.toml'
+    state = {'control_schema': 'qualification-window.v2', 'run_id': stamp,
+             'pid': os.getpid(), 'backup': str(backup)}
+
+    def stop(signum, frame):
+        raise StopWindow(f'signal {signum}')
+
+    def mark_installed(replacement):
+        nonlocal last
+        last = replacement
+        state['last_installed_sha256'] = digest(replacement)
+
+    signals = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGALRM)
+    previous = {sig: signal.signal(sig, stop) for sig in signals}
+    try:
+        original, timer, idle = preflight()
+        last = original
+        route_mode = stat.S_IMODE(ROUTE.stat().st_mode)
+        with open(backup, 'xb') as output:
+            os.chmod(backup, 0o600)
+            output.write(original)
+            output.flush()
+            os.fsync(output.fileno())
+        record(state, 'preflight_passed', original_sha256=digest(original), route_mode=route_mode,
+               last_installed_sha256=digest(last), timer_prior=timer, quiescence=idle)
+        deadline = time.monotonic() + timeout
+        signal.setitimer(signal.ITIMER_REAL, timeout)
+        # Set before stop so a signal/failure during systemctl still restores it.
+        timer_touched = True
+        systemctl('stop', TIMER)
+        if unit_state(TIMER)['ActiveState'] != 'inactive':
+            raise Refused('drain timer did not stop')
+        require_idle()  # A timer firing between the first check and stop must refuse.
+        record(state, 'ready', timeout_seconds=timeout,
+               estimate=f'up to {timeout} seconds plus cleanup; active work leaves recovery required',
+               commands='select PROVIDER | status | restore')
+        pending = ''
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise StopWindow('deadline')
+            if '\n' not in pending:
+                readable, _, _ = select.select([sys.stdin], [], [], remaining)
+                if not readable:
+                    raise StopWindow('deadline')
+                chunk = os.read(sys.stdin.fileno(), 4096)
+                if not chunk:
+                    raise StopWindow('stdin EOF')
+                pending += chunk.decode('utf-8', errors='replace')
+                if len(pending) > 16384:
+                    raise Refused('command input exceeds size limit')
+                continue
+            line, pending = pending.split('\n', 1)
+            words = line.split()
+            if words == ['restore']:
+                break
+            if words == ['status']:
+                record(state, 'status', route_sha256=digest(read_route()), quiescence=quiescence(),
+                       seconds_left=max(0, round(deadline - time.monotonic())))
+                continue
+            if len(words) != 2 or words[0] != 'select' or words[1] not in PROVIDERS:
+                record(state, 'command_refused', reason='expected select ALLOWLISTED_PROVIDER, status or restore')
+                continue
+            idle = require_idle()
+            if unit_state(TIMER)['ActiveState'] != 'inactive':
+                raise Refused('timer changed during window; route selection refused')
+            if read_route() != last:
+                raise Refused('route ownership lost before select; refusing overwrite')
+            replacement = singleton(words[1])
+            # CAS under our flock. Other route writers must honor sole-writer ownership.
+            atomic_write(ROUTE, replacement, route_mode, expected=last,
+                         installed=lambda: mark_installed(replacement))
+            record(state, 'selected', provider=words[1], last_installed_sha256=digest(last), quiescence=idle)
+    except StopWindow as error:
+        record(state, 'stopping', reason=str(error))
+    except BaseException as error:
+        failures.append(f'{type(error).__name__}: {error}')
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        for sig in signals:
+            signal.signal(sig, signal.SIG_IGN)
+        if timer_touched and original is not None and timer is not None:
+            failures.extend(restore_window(state, original, last, route_mode, timer))
+        try:
+            record(state, 'closed' if not failures else 'failed', errors=failures)
+        finally:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            os.close(lock_fd)
+            for sig, handler in previous.items():
+                signal.signal(sig, handler)
+    return 1 if failures else 0
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--preflight', '--dry-run', action='store_true')
+    mode.add_argument('--run', action='store_true')
+    mode.add_argument('--recover', metavar='RUN_ID')
+    parser.add_argument('--timeout', type=int, default=600)
+    args = parser.parse_args()
+    if not 1 <= args.timeout <= 2100:
+        parser.error('--timeout must be 1..2100 seconds (default 600)')
+    if args.run:
+        return run(args.timeout)
+    if args.recover:
+        return recover(args.recover)
+    original, timer, idle = preflight()
+    print(json.dumps({'mode': 'preflight', 'route_sha256': digest(original),
+                      'providers': PROVIDERS, 'timer': timer, 'quiescence': idle}, sort_keys=True))
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except (Refused, OSError, ValueError, sqlite3.Error, subprocess.TimeoutExpired) as error:
+        print(json.dumps({'error': str(error), 'mode': 'run' if '--run' in sys.argv else
+                          'recover' if '--recover' in sys.argv else 'preflight'}), flush=True)
+        sys.exit(1)

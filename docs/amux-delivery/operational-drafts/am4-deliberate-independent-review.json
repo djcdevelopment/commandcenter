@@ -1,0 +1,37 @@
+{
+  "schema": "am4-deliberate-independent-review.v1",
+  "status": "offline_values_and_projection_pass_pending_protocol_code_tests_and_Derek_decision",
+  "staged_backend_patch_applies_cleanly": true,
+  "backend_file_before_sha256": "fcc348a163ca4446f166821feb87f2a7e4e9844c363b60ee34f79f0bbf24d3bb",
+  "backend_file_proposed_sha256": "b908e90067194ec20ebdf7d1134a0ab31d31c8ddf82fe0b361125dcb6cf91560",
+  "current_profile": {
+    "context_tokens": 16384,
+    "engine": "vllm",
+    "max_tokens": 4096,
+    "parallel_slots": 1,
+    "selected_model": "am4-dense-27b",
+    "serving_profile_schema": "serving-profile.v2"
+  },
+  "current_profile_sha256": "c787231c73b2f4825aac63b33a798816df6dbe326f5364001a47f4766e1ab94d",
+  "proposed_profile": {
+    "context_tokens": 49152,
+    "deliberate_max_tokens": 24576,
+    "engine": "vllm",
+    "max_tokens": 4096,
+    "parallel_slots": 1,
+    "reasoning_effort": "xhigh",
+    "selected_model": "am4-dense-27b",
+    "serving_profile_schema": "serving-profile.v2"
+  },
+  "proposed_profile_sha256": "e955dcd89f9e53632a46d32dfa83100368522d4fbfa75e2285534c5248004df1",
+  "fingerprint_method": "Exact _serving_profile, _digest and allowlist constants parsed from tracked source and executed without pool loader or runtime service.",
+  "supplemental_patch": "/home/derek/work/amux/scratch/am4-delivery-20261013/qualification-inputs/am4-deliberate-three-dense-context.patch",
+  "supplemental_patch_sha256": "bc790843e54840a3a9b74e876ce1cf11a05405123b859c0b64c09f4a7770abb6",
+  "host_file_before_sha256": "6600df5a6cda7eca30bc5786d7df1e08bb34bf86749279beafa92f2d413066a0",
+  "host_file_proposed_sha256": "67f0aba3e5e876959a75661a4c474198c858fef01aa33c6b193dcc95bc787a2c",
+  "byte_budget_note": "172032 = 49152*3.5, preserving previous ratio; exact facade token admission remains authoritative. context_bytes is not fingerprinted.",
+  "inactive_profiles": "memsplice and all other profile rows unchanged; reconcile their declarations against the selected recipe before future activation.",
+  "qualification": "No old-profile evidence transfer. Two distinct accepted briefs per exact backend/profile/intended procedure and procedure-choice checks remain. No pool activation.",
+  "gate_review": "New deliberate allowance changes refusal to admission; proposed fresh H-3 decision does not reuse expired delegation.",
+  "runtime_changes": false
+}

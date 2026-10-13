@@ -83,13 +83,17 @@ class LocalGenerateTests(TestCase):
         # silent cloud-escalation leak (fixed 2026-09-04: an auth-configuration fault
         # no longer climbs the ladder). Supply the token so the connection is what
         # fails.
-        with patch.dict(os.environ, {"OMEN_ARC_TOKEN": "test-token"}), \
+        # Pinned to a local fixture backend, with cloud acquisition mocked: an unpinned call that fails to connect
+        # may try the A2 ladder, which must never reach real cloud auth from a test.
+        with patch.dict(os.environ, {"AM4_OXEN_TOKEN": "test-token"}), \
+                patch("hearth.toolsurface.inference._google_access_token") as cloud, \
                 patch("urllib.request.urlopen",
                       side_effect=urllib.error.URLError("connection refused")):
-            result = local_generate("anyone home?")
+            result = local_generate("anyone home?", backend="am4-oxen")
         self.assertFalse(result["ok"])
         self.assertIn("URLError", result["error"])
         self.assertNotIn("text", result)
+        cloud.assert_not_called()
 
     def test_missing_token_fails_loudly_instead_of_escalating_to_a_paid_rung(self) -> None:
         with patch.dict(os.environ, {"OMEN_ARC_TOKEN": ""}, clear=False), \
@@ -772,6 +776,48 @@ class DeliberationParameterTests(TestCase):
         self.assertIs(body["chat_template_kwargs"]["enable_thinking"], False)
         self.assertTrue(body["stream"])
         self.assertEqual(body["response_format"]["json_schema"]["schema"], schema)
+
+    def _am4_call(self, settings, *, backend="am4-vllm", model="am4-dense-27b", **kwargs):
+        from hearth.toolsurface.inference import _generate_openai, _Target
+        target = _Target("http://127.0.0.1:1", "openai", None, None, None, backend, "pinned", "available", settings)
+        with patch("urllib.request.urlopen", return_value=_FakeResponse(OPENAI_REPLY)) as send:
+            result = _generate_openai(target, "q", model, None, 64, 10, **kwargs)
+        return result, (json.loads(send.call_args[0][0].data) if send.called else None), send
+
+    def test_am4_explicit_thinking_sends_declared_xhigh_and_exposes_it(self) -> None:
+        result, body, _ = self._am4_call({"reasoning_effort": "xhigh"}, thinking=True)
+        self.assertEqual(body["reasoning_effort"], "xhigh")
+        self.assertIs(body["chat_template_kwargs"]["enable_thinking"], True)
+        self.assertEqual(result["wire_request"], body)
+        self.assertIs(result["thinking"], True)
+
+    def test_am4_explicit_thinking_refuses_without_declared_xhigh_before_sending(self) -> None:
+        for settings in ({}, {"reasoning_effort": "high"}, {"reasoning_effort": "none"},
+                         {"reasoning_effort": "XHIGH"}, {"reasoning_effort": True}, {"reasoning_effort": None}):
+            with self.subTest(settings=settings):
+                result, body, send = self._am4_call(settings, thinking=True)
+                self.assertFalse(result["ok"])
+                self.assertEqual(result["error_code"], "reasoning_effort_not_configured")
+                self.assertFalse(send.called)
+
+    def test_am4_other_thinking_states_keep_the_existing_payload(self) -> None:
+        settings = {"reasoning_effort": "xhigh"}
+        for kwargs, enabled in (({"thinking": False}, False), ({}, None)):
+            with self.subTest(kwargs=kwargs):
+                _, body, _ = self._am4_call(settings, **kwargs)
+                self.assertNotIn("reasoning_effort", body)
+                self.assertEqual(body.get("chat_template_kwargs", {}).get("enable_thinking"), enabled)
+        _, body, _ = self._am4_call({}, thinking=False)   # an off turn needs no declaration
+        self.assertNotIn("reasoning_effort", body)
+
+    def test_unrelated_backend_or_model_never_gains_reasoning_effort(self) -> None:
+        settings = {"reasoning_effort": "xhigh"}
+        for backend, model in (("am4-oxen", "am4-dense-27b"), ("am4-vllm", "other-model"), (None, "am4-dense-27b")):
+            with self.subTest(backend=backend, model=model):
+                result, body, _ = self._am4_call(settings, backend=backend, model=model, thinking=True)
+                self.assertTrue(result["ok"], result)
+                self.assertNotIn("reasoning_effort", body)
+                self.assertIs(body["chat_template_kwargs"]["enable_thinking"], True)
 
     def test_stream_reads_reasoning_then_content_and_usage(self) -> None:
         events = [_delta(reasoning="think "), _delta(reasoning="hard"), _delta(content="42"),

@@ -1,0 +1,112 @@
+{
+  "schema": "am4-deliberate-enabling-plan.v1",
+  "prepared_at": "2026-10-13T20:02:05.618823+00:00",
+  "status": "review_required_not_applied",
+  "observed": {
+    "engine_model": "qwen3-27b",
+    "engine_root": "/home/derek/models/qwen3-27b-gptq-int4",
+    "engine_live_max_model_len": 49152,
+    "engine_user_service_started": "2026-10-05T10:55:07Z",
+    "facade_system_service_started": "2026-10-07T06:17:57Z",
+    "facade_health": "ok",
+    "facade_map_dense_output_ceiling": 24576,
+    "facade_parallel_slots": 1,
+    "actual_authenticated_extended_allowance_proven": false,
+    "actual_thinking_with_door_credential_proven": false,
+    "full_24576_completion_proven": false
+  },
+  "current_hashes": {
+    "/home/derek/hearth-production/backends-linux.toml": "fcc348a163ca4446f166821feb87f2a7e4e9844c363b60ee34f79f0bbf24d3bb",
+    "/home/derek/work/commandcenter-linux-flash/host/omen-linux/hearth-production/backends-linux.toml": "fcc348a163ca4446f166821feb87f2a7e4e9844c363b60ee34f79f0bbf24d3bb",
+    "/home/derek/work/commandcenter-linux-flash/host/lab-configurations.toml": "6600df5a6cda7eca30bc5786d7df1e08bb34bf86749279beafa92f2d413066a0",
+    "am4:/home/derek/am4-fleet-node/scripts/oxen-facade.py": "8d165f37b1916f746eb51b5ee830a58b9e2e1063b90c10eb071dc20c894be8ff",
+    "am4:/home/derek/.config/am4-fleet/alias-backends.json": "19c953509f0d690c81c479e9778fe19c1eb9154f39e35c41e6d73139265cae43",
+    "am4:/home/derek/run-vllm-canary.sh": "d6d6887f5fe3c31ba574d6bdfbdc609e6474afbc7d2866c362355d0275c7d54e",
+    "am4:/home/derek/models/qwen3-27b-gptq-int4/chat_template.jinja": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041"
+  },
+  "patch": {
+    "path": "/home/derek/work/amux/scratch/am4-delivery-20261013/qualification-inputs/am4-deliberate-declaration.patch",
+    "sha256": "7776d23e84791319c0b5a0f6c8327d741beed3dc9220c5239eae60532a690926",
+    "expected_after_backends_sha256": "b908e90067194ec20ebdf7d1134a0ab31d31c8ddf82fe0b361125dcb6cf91560",
+    "changes": {
+      "context_tokens": [
+        16384,
+        49152
+      ],
+      "context_bytes": [
+        57344,
+        172032
+      ],
+      "deliberate_max_tokens": [
+        null,
+        24576
+      ],
+      "reasoning_effort": [
+        null,
+        "xhigh"
+      ]
+    },
+    "preserved": {
+      "max_tokens": 4096,
+      "parallel_slots": 1,
+      "timeout_s": 1000,
+      "chat_template_kwargs.enable_thinking": false
+    },
+    "configuration_consistency": "When activating the new declaration, update the AM4 row in host/lab-configurations.toml configuration.three-dense.backends from context_tokens16384 to49152, leaving max_tokens4096/slots1. memsplice also shares dense-tp2 but is inactive; parent must explicitly choose/document updating that declared recipe or leaving it historical. Do not silently change other configuration profiles."
+  },
+  "authority": {
+    "reference": "/home/derek/work/commandcenter-linux-flash/docs/adr/0064-scoped-am4-dense-output-ceiling.md",
+    "note": "ADR0064 calls this a scoped H-3 output-gate increase; the October5 delegated authority explicitly expired October12. Current user authorized enabling thinking, but parent must record a fresh scoped authority decision and reviewer classification before runtime declaration activation; do not claim expired dev delegation remains active. No change to credential authorization, facade caps/deadlines or automatic qualification gate is proposed."
+  },
+  "deployment": {
+    "declaration_reload": "backends.load_pool reopens TOML per call; LocalWorkService and ExecutionService reload at submit/validation. Declaration-only changes require no service restart.",
+    "code_reload": "The inference adapter Python change does require the running door to load reviewed code (normally a coordinated door restart). Root owns sole surface, zero active leases/jobs/tenancies and drain pause/restore. Never restart an active job. No AM4 engine/facade restart is indicated by current evidence.",
+    "privilege": "No elevated step is expected for the local configuration/user door update. If a remote system facade restart becomes independently necessary, Derek must run it in his terminal; never noninteractive sudo.",
+    "compare_and_swap": "Verify all relevant current hashes immediately before application. On drift inspect/rebase; do not overwrite another writer. Retain backups and explicit rollback record."
+  },
+  "supported_proof": [
+    "Before deployment, attach reviewed native protocol code/tests and the independently reviewed helper hash. Record the scoped fresh H3 decision; do not reuse expired delegation.",
+    "After activation read list_execution_providers through the authenticated door: context_bytes172032 and ordinary max_tokens4096 show current declaration. This is not facade capability proof. No public readiness/tokenizer-only operation exists in current list_operations.",
+    "Root establishes the supported AM4singleton qualification route with sole ownership, pauseddrain, and no unrelated leases/tenancies/jobs. NativeAmux submits exactly first_proof.payload without backend/model pins. It is a new fact-record task, not completion of the original three-criterion review.",
+    "The normal local-work path uses authenticated facade/tokenization and ledgered inference.deliberate. Capture provider/model/profile, actual wire effort/thinking, exact input counts, requestedceilings, stageIDs, actual tokens/finish reasons/durations and artifact hashes.",
+    "A completed work or check stage with positive observed reasoning tokens demonstrates that particular thinking turn completed. Preserve that component success and its visible artifact even if a later stage fails. Entirecarry delivery success additionally requires successful requiredstages and source-grounded review; qualifier/verdict rules remain separate.",
+    "Do not infer reasoning success from requestedtrue/xhigh alone. Zeros, unknown counts, deadline, truncation or facade refusal remain explicit evidence; no automaticbudgetincrease, routesubstitution, cloudfallback or success label.",
+    "A short successful turn reserving24576 proves allowance admission, not generation of the entire allowance, sustainedcapacity or a capability ceiling. xhigh protocol correctness does not establish it as the best effort regime.",
+    "Use lifecycle_review only after parentreview: at10minutes attempt ownedwork cancellation through native supportedtool if stillactive; verify actual drain before release. Never promise cancellation succeeds. Busy cleanup keepsroute/drainpaused with explicitrecord until safe recovery.",
+    "Grade f1/f2 sourcefacts separately from form. Preserve raw/normalized variants and count all repairs. Reuse verified facts as assistance in a separately identified later full listenerreview; do not transfer this narrower acceptance to missing originalcriteria.",
+    "Any completed candidate remains awaiting_review. Newprofile changes invalidate oldqualification. Restore ordinary route and priordrainstate oncequiescent. Poolactivation still requires two distinct acceptedbriefs per exactbackend/profile/intendedprocedure and procedurechoice checks preserving OMENcarry."
+  ],
+  "no_mutations_performed": [
+    "production configuration",
+    "tracked product code",
+    "services",
+    "credentials",
+    "registry",
+    "qualification verdicts",
+    "inference"
+  ],
+  "updated_at": "2026-10-13T20:28:32.276213+00:00",
+  "first_proof": {
+    "purpose": "Retain a useful source-fact record that can support the later three-criterion listener review.",
+    "brief": {
+      "path": "/home/derek/work/amux/scratch/am4-delivery-20261013/qualification-inputs/am4-listener-flag-facts-carry-v1.brief.json",
+      "sha256": "31495e6d5e3744859724006399a21b2bcacec5e828198425808629a26338eeb7"
+    },
+    "payload": {
+      "path": "/home/derek/work/amux/scratch/am4-delivery-20261013/qualification-inputs/am4-listener-flag-facts-carry-v1.args.json",
+      "sha256": "7261ebbe0b0d38bd1fcc04f5e674f2cf0cfc087e5a513d65dbd050bc4d0987fb"
+    },
+    "validation": "Existing brief.v2 validator passed; acceptance_criteria exactly match two brief substance statements; source pin is unchanged; no backend/model pins or outer max_tokens.",
+    "scope": "Two distinct fact-record criteria f1/f2. Success here does not complete or satisfy all original listener-review s1/s2/s3 criteria. Keep this new brief identity and the earlier failed OMEN run separately attributable.",
+    "form": "Approximate200-word target is guidance, not a scored exact length. The explicit600-word maximum is measured by renderer; no model word counting, silent cap relaxation or truncation.",
+    "procedure": "Explicitcarry through operator-owned AM4singleton route; 600-second stage deadline, procedure-owned24576 work ceiling, xhigh declared profile. Briefgeneration omitted becausecarry owns stage budgets."
+  },
+  "lifecycle_review": {
+    "status": "awaiting_parent_helper_review",
+    "helper": "/home/derek/work/amux/scratch/am4-delivery-20261013/control/qualification_window.py",
+    "reviewed_sha256": null,
+    "proposed": "Default600-second controller preserved; a separately reviewed explicit max2100-second window is proposed for multi-stagecarry. At10minutes attempt to cancel only this owned active execution via supported native tool; confirm stage/job state and engine drain before restoration. Cancellation is an attempt, not a guarantee.",
+    "required_failure_behavior": "If still busy at restore/deadline, keep route and drain paused, record failure and recovery instructions. Recovery must verify exact route CAS, backup digest, sole ownership and fresh quiescence. Parent must attach actual reviewed helper hash before execution.",
+    "not_approved": "No extendedwindow, helperinvocation, cancellation or runtimechange is performed/authorized by this draft alone."
+  }
+}

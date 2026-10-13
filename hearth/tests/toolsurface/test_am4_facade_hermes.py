@@ -32,12 +32,17 @@ def server(monkeypatch, tmp_path):
             self.end_headers()
             self.wfile.write(body)
         def do_GET(self):
+            if self.path == '/v1/models':   # vLLM model listing: id and max_model_len, as alias_status reads them
+                return self.reply({'data': [{'id': 'native', 'max_model_len': 131072}]})
             self.reply({'default_generation_settings': {'n_ctx': 131072}, 'total_slots': 1} if self.path == '/props' else {'status':'ok'})
         def do_POST(self):
             data = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
             self.calls.append((self.path, data))
             if self.path == '/apply-template':
                 self.reply({'prompt': json.dumps(data)})
+            elif self.path == '/tokenize' and 'messages' in data:   # vLLM chat tokenize: messages in, count/tokens out
+                n = 131070 if 'oversized' in json.dumps(data['messages']) else 100
+                self.reply({'count': n, 'max_model_len': 131072, 'tokens': [1] * n})
             elif self.path == '/tokenize':
                 self.reply({'tokens': [1] * (131070 if 'oversized' in data['content'] else 100)})
             elif data.get('stream'):
@@ -223,3 +228,33 @@ def test_http_long_capability_503_and_ordinary_32k_allowed(server, monkeypatch):
     assert status==503 and b'requires live' in data and not calls and not server[1].calls
     assert call(server,body=prompt(max_tokens=8192))[0]==200
     assert len(calls)==1 and any(path=='/v1/chat/completions' for path,_ in server[1].calls)
+
+
+def test_hearth_explicit_thinking_keeps_xhigh_through_fleet_default_and_ordinary_call_stays_off(server, monkeypatch, tmp_path):
+    import os
+    from unittest.mock import patch
+    from hearth.toolsurface.inference import _generate_openai, _Target
+    aliases = json.loads(os.environ['AM4_ALIAS_BACKENDS'])
+    monkeypatch.setenv('AM4_ALIAS_BACKENDS', json.dumps({k: {**v, 'api': 'vllm'} for k, v in aliases.items()}))
+    key = tmp_path/'hermes.key'; key.write_text('hermes-fixture')
+    monkeypatch.setenv('AM4_HERMES_TOKEN_FILE', str(key))
+
+    def wire(thinking):
+        target = _Target('http://127.0.0.1:1', 'openai', None, None, None, 'am4-vllm', 'pinned', 'available',
+                         {'reasoning_effort': 'xhigh'})
+        reply = ({'choices': [{'message': {'content': 'x'}, 'finish_reason': 'stop'}], 'usage': {}}, None)
+        with patch('hearth.toolsurface.inference._post', return_value=reply) as sent:
+            _generate_openai(target, 'real task', 'am4-dense-27b', None, 256, 10, thinking=thinking)
+        return {k: v for k, v in sent.call_args.args[1].items() if k != 'model'}
+
+    def reaches_engine(body):
+        server[1].calls.clear()
+        status, _ = call(server, body={**body, 'model': 'am4-dense-27b'}, token='hermes-fixture')
+        assert status == 200
+        return next(data for path, data in server[1].calls if path == '/v1/chat/completions')
+
+    explicit = reaches_engine(wire(True))
+    assert explicit['reasoning_effort'] == 'xhigh' and explicit['chat_template_kwargs']['enable_thinking'] is True
+    ordinary = reaches_engine(prompt())
+    assert 'reasoning_effort' not in ordinary and ordinary['chat_template_kwargs']['enable_thinking'] is False
+    assert 'reasoning_effort' not in wire(False)

@@ -1,0 +1,1720 @@
+{
+  "schema": "amux-qualification-review.v1",
+  "reviewer": "frontier-subagent-writing_handoff",
+  "generated_at": "2026-10-13T19:45:07.523357+00:00",
+  "purpose": "Independent review recommendations only; not official local-work verdicts or qualification-table updates.",
+  "official_verdicts_recorded_by_this_reviewer": false,
+  "receipt_id": "br-20261013-190915-a5ea463f",
+  "source_truth": "/home/derek/work/amux/scratch/am4-delivery-20261013/qualification-inputs/expected-findings.json",
+  "enabling_comparability": {
+    "schema": "amux-qualification-enabling.v2",
+    "original_candidates_immutable": [
+      "work_e93babeb019650e22a9ecf8e7b995002",
+      "work_eb2686322ad4c268e43bddb78a783c49"
+    ],
+    "comparison": "Enabling retry, not an unchanged A/A repeat. Original three substance criteria, source bytes/base, temperature0, serving profile requirements, one_call procedure, word limit and generation budget are unchanged. Intent adds a reading checklist and anchors; line-reference quote aid replaces free-text quote matching. Score substance and form separately; count new aids and repairs. No original failure is erased or reclassified.",
+    "aids_changed": {
+      "added": [
+        "line_reference"
+      ],
+      "retained": [
+        "source_map",
+        "quote_renderer",
+        "constrained_output"
+      ],
+      "not_added": "source_excerpt: no source excerpts supplied, only anchors into the existing pinned source map"
+    },
+    "quote_mode": {
+      "before": "text",
+      "after": "line_reference"
+    },
+    "payloads": [
+      {
+        "file": "am4-enabling-v2-log-dedupe.json",
+        "idempotency_key": "amux-am4-qualification-20261013-enabling-log-dedupe-v2",
+        "sha256": "40cf7d4d75df9267d4bb09f312b71f7fcdc717f66d6d0cf24904cb7582b52684",
+        "original_payload": "lap1-log-dedupe.json",
+        "anchors_checked": [
+          54,
+          57,
+          58,
+          60,
+          62,
+          84,
+          88,
+          89,
+          123,
+          127
+        ],
+        "brief_sha256": "ba549c59d8c4638482f5e7cec10213019b0234476b9a78727ddd054b1dbe1cd7"
+      },
+      {
+        "file": "am4-enabling-v2-listener-handoff.json",
+        "idempotency_key": "amux-am4-qualification-20261013-enabling-listener-handoff-v2",
+        "sha256": "ba087fadee5361a390bf737fd5562b6a4e8884566d47521606a92f46c091f2dc",
+        "original_payload": "lap1-listener-handoff.json",
+        "anchors_checked": [
+          34,
+          36,
+          51,
+          59,
+          61,
+          76,
+          80,
+          84,
+          88,
+          94,
+          130,
+          135,
+          137,
+          139,
+          152,
+          160,
+          164,
+          166
+        ],
+        "brief_sha256": "7682ccb56f99a8b1afe007c600e49fbcd55cf2fa28d720c7d1e81cbbc5ae4f56"
+      }
+    ]
+  },
+  "original_pairs_byte_identical": [
+    {
+      "work_ids": [
+        "work_a8d77d34bddd7dd98c0123aad7b7cfbb",
+        "work_6efae4c91631944c43b27b59933b75e7"
+      ],
+      "artifact": "delivery-output.json",
+      "identical": true
+    },
+    {
+      "work_ids": [
+        "work_c8a638b51f0cb52a10b4aa5f75254432",
+        "work_68c36256c3ba582c69291ba8d7c420a5"
+      ],
+      "artifact": "delivery-output.json",
+      "identical": true
+    }
+  ],
+  "reviews": [
+    {
+      "work_id": "work_e93babeb019650e22a9ecf8e7b995002",
+      "job_id": "job_62bacf3c589dad65fb5b41cc795028d4",
+      "request_id": "req_63bd478e1b151a83e3bb7fbe8348db38",
+      "payload_path": "/home/derek/work/amux/scratch/am4-delivery-20261013/qualification-inputs/lap1-log-dedupe.json",
+      "idempotency_key": "amux-am4-qualification-20261013-lap1-log-dedupe-v1",
+      "enabling_retry": false,
+      "status_at_review": "awaiting_review",
+      "recommended_verdict": "reject",
+      "official_verdict": null,
+      "substance": {
+        "state": "fail",
+        "criteria": [
+          {
+            "id": "s1",
+            "criterion": "Describe first occurrence, repeated key, bucket change, and poisoned-lock behavior of first_this_bucket from executable code.",
+            "state": "pass",
+            "finding": "Correct first occurrence, repeat, bucket reset and fail-open poisoned-lock behavior.",
+            "source_locator": "log_dedupe.rs:54-62"
+          },
+          {
+            "id": "s2",
+            "criterion": "Assess whether namespaced keys isolate the two tests despite their different bucket values. Give a concrete interleaving and consequence supported by the shared state and reset code.",
+            "state": "fail",
+            "finding": "Finds shared global reset, but interleaving wording has the first test later setting 2,000,000 although it uses 1,000,000 and 1,000,001. It does not complete the repeat-call trace and show true where the assertion expects false.",
+            "source_locator": "log_dedupe.rs:83-104;122-128"
+          },
+          {
+            "id": "s3",
+            "criterion": "Recommend one bounded correction or regression test addressing that interaction; distinguish proposed verification from tests actually present or run.",
+            "state": "fail",
+            "finding": "Serialization is valid, but recommending a unique bucket per test is materially wrong: the tests already have distinct buckets and differing buckets trigger the global reset. Correctly distinguishes proposed work from executed tests.",
+            "source_locator": "log_dedupe.rs:58-62;84;123"
+          }
+        ]
+      },
+      "form": {
+        "state": "pass",
+        "summary": {
+          "by_match": {
+            "exact": 13
+          },
+          "claims": 13,
+          "deterministic": "pass",
+          "deviations": [],
+          "missing": 0,
+          "repairs": {},
+          "unsupported": 0,
+          "words": 226
+        },
+        "verification": {
+          "deterministic": {
+            "state": "pass"
+          },
+          "human": {
+            "state": "not_run"
+          },
+          "judge": {
+            "state": "not_run"
+          },
+          "reviewer": {
+            "state": "not_run"
+          }
+        },
+        "repairs": {},
+        "independent_contract_validation": {
+          "output_schema": "pass",
+          "delivery_manifest_schema": "pass",
+          "recounted_words": 226
+        }
+      },
+      "provenance": {
+        "repo": "/home/derek/work/worktrees/amux-local-capability-20261013",
+        "base_commit": "4f3c67f8888a8ed6698af1182d2e94d9ecf0f4d4",
+        "brief_sha256": "74823663a39215f1e87a580cc3c7e9a55e81d7ff2f9654ed9c347585415cf1ec",
+        "source": {
+          "digest": "a91f970d4c90fc3f1af51da5b287f47ad059935c1a8d16b9f6875332be8731b7",
+          "files": [
+            {
+              "bytes": 7444,
+              "lines": 150,
+              "path": "crates/amux-server/src/log_dedupe.rs",
+              "sha256": "7dfb2244aecb1383910be7c270af6538a07e02f92446d8962d07af0cf5ce1459"
+            }
+          ]
+        },
+        "caller": {
+          "submitted_by": "claude-frontier",
+          "validated_by": null
+        },
+        "conditions": {
+          "environment": "prod",
+          "lab_configuration": "three-dense",
+          "lab_configuration_source": "profiles",
+          "temperature": 0.0
+        },
+        "route": {
+          "backend": "am4-vllm",
+          "backend_choice": {
+            "by": "least_outstanding_then_leases",
+            "excluded": {},
+            "loads": {
+              "am4-vllm": {
+                "active_leases": 0,
+                "configured_order": 0,
+                "outstanding_assignments": 0
+              }
+            }
+          },
+          "duration_ms": 16696,
+          "model": "qwen3-27b",
+          "procedure": "one_call",
+          "procedure_choice": {
+            "by": "caller",
+            "level": "pin"
+          },
+          "profile_sha256": "806f1a6a664402e3da1dbe02cc4201cc238acd5052a20781101be711fbf5a68a",
+          "profile_version": "local-work-routes.v2",
+          "provider": "am4-vllm",
+          "requested_lane": "deep",
+          "response_schema_sha256": "208b4462299e8ec92235375c12e4236fb2628449fc706fc6125cb879a9b82353",
+          "routed_by": "pinned:am4-vllm",
+          "selected_lane": "deep",
+          "selected_model": "am4-dense-27b",
+          "serving_profile": {
+            "context_tokens": 16384,
+            "engine": "vllm",
+            "max_tokens": 4096,
+            "parallel_slots": 1,
+            "selected_model": "am4-dense-27b",
+            "serving_profile_schema": "serving-profile.v2"
+          },
+          "serving_profile_schema": "serving-profile.v2",
+          "serving_profile_sha256": "c787231c73b2f4825aac63b33a798816df6dbe326f5364001a47f4766e1ab94d",
+          "task_family": "code_review",
+          "temperature": 0.0,
+          "tokens_in": 2630,
+          "tokens_out": 641
+        },
+        "execution_status": "succeeded",
+        "invocations": [
+          {
+            "invocation_id": "inv_87642a6fb18dd4f379315006cdd5c45e",
+            "lease_id": "lease_bce1e49e8d5e0bb9d78ecc7debe257c9",
+            "provider": "am4-vllm",
+            "backend": "am4-vllm",
+            "model": "qwen3-27b",
+            "status": "succeeded",
+            "finish_reason": "stop",
+            "started_at": "2026-10-13T19:32:07.349639Z",
+            "finished_at": "2026-10-13T19:32:24.097858Z",
+            "duration_ms": 16696,
+            "tokens_in": 2630,
+            "tokens_out": 641,
+            "max_tokens": 2048,
+            "temperature": 0.0,
+            "thinking": false,
+            "response_schema_sha256": "208b4462299e8ec92235375c12e4236fb2628449fc706fc6125cb879a9b82353"
+          }
+        ]
+      },
+      "original_artifacts": {
+        "candidate": {
+          "file": "candidate.md",
+          "media_type": "text/markdown; charset=utf-8",
+          "sha256": "24194183e151a72bc1ad3236c69e34fb08818384b9d73438f0e22725b8abf64b",
+          "size": 2603,
+          "path": "/home/derek/work/commandcenter-linux-flash/runs/operator/work_e93babeb019650e22a9ecf8e7b995002/candidate.md",
+          "verified_sha256": "24194183e151a72bc1ad3236c69e34fb08818384b9d73438f0e22725b8abf64b"
+        },
+        "manifest": {
+          "file": "delivery.json",
+          "media_type": "application/json",
+          "sha256": "21553a18d6e9d974054528d7707a0865870820e8229b48c794b5779367ff2957",
+          "size": 9082,
+          "path": "/home/derek/work/commandcenter-linux-flash/runs/operator/work_e93babeb019650e22a9ecf8e7b995002/delivery.json",
+          "verified_sha256": "21553a18d6e9d974054528d7707a0865870820e8229b48c794b5779367ff2957"
+        },
+        "output": {
+          "file": "delivery-output.json",
+          "media_type": "application/json",
+          "sha256": "0be22394a6d2e1a19454e27dbbbb8fe1449c0c27fbb6c031bede5ea46dd9b422",
+          "size": 2619,
+          "path": "/home/derek/work/commandcenter-linux-flash/runs/operator/work_e93babeb019650e22a9ecf8e7b995002/delivery-output.json",
+          "verified_sha256": "0be22394a6d2e1a19454e27dbbbb8fe1449c0c27fbb6c031bede5ea46dd9b422"
+        }
+      },
+      "evidence_paths": [
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_e93babeb019650e22a9ecf8e7b995002/work-manifest.json",
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_e93babeb019650e22a9ecf8e7b995002/candidate.md",
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_e93babeb019650e22a9ecf8e7b995002/delivery-output.json",
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_e93babeb019650e22a9ecf8e7b995002/delivery.json",
+        "/home/derek/work/amux/scratch/am4-delivery-20261013/qualification-inputs/expected-findings.json"
+      ]
+    },
+    {
+      "work_id": "work_eb2686322ad4c268e43bddb78a783c49",
+      "job_id": "job_fa389bf934285480cd648e0cfb7332d6",
+      "request_id": "req_22bd6b121b5cc389a5c77e27bbdf3387",
+      "payload_path": "/home/derek/work/amux/scratch/am4-delivery-20261013/qualification-inputs/lap1-listener-handoff.json",
+      "idempotency_key": "amux-am4-qualification-20261013-lap1-listener-handoff-v1",
+      "enabling_retry": false,
+      "status_at_review": "awaiting_review",
+      "recommended_verdict": "reject",
+      "official_verdict": null,
+      "substance": {
+        "state": "fail",
+        "criteria": [
+          {
+            "id": "s1",
+            "criterion": "Describe the PID, numeric descriptor, socket-type, and port checks before inherited-listener acceptance, plus normal bind fallback.",
+            "state": "fail",
+            "finding": "Covers PID, socket type, local port and fresh bind but omits required numeric-descriptor parse. Also claims all failed checks log, although PID mismatch returns silently.",
+            "source_locator": "listener_handoff.rs:33-37;76-104"
+          },
+          {
+            "id": "s2",
+            "criterion": "Compare how prepare_exec, adopt, and exec_failed handle the boolean result of set_cloexec. Explain a conditional consequence of an unchecked failure without claiming it occurred.",
+            "state": "fail",
+            "finding": "Omits adopt restoration handling and reverses flag semantics: failed clearing does not itself leave a normally close-on-exec descriptor inheritable. Relevant conditional risk is failure to restore after successful clearing.",
+            "source_locator": "listener_handoff.rs:49-63;88;127-140"
+          },
+          {
+            "id": "s3",
+            "criterion": "Propose one bounded handling change and a focused failure-path test. State which existing tests cover success and which requested failure behavior remains untested in this file.",
+            "state": "fail",
+            "finding": "No concrete bounded handling change. Proposed test focuses on failed clearing and environment fields instead of unchecked restoration; omitted existing socket/plain-fd test coverage.",
+            "source_locator": "listener_handoff.rs:59-63;88;151-168"
+          }
+        ]
+      },
+      "form": {
+        "state": "fail",
+        "summary": {
+          "by_match": {
+            "exact": 9,
+            "missing": 1
+          },
+          "claims": 10,
+          "deterministic": "fail",
+          "deviations": [],
+          "missing": 1,
+          "repairs": {
+            "short_ambiguous_quote": 1
+          },
+          "unsupported": 1,
+          "words": 227
+        },
+        "verification": {
+          "deterministic": {
+            "note": "s1.p0.q1: quote under 24 characters found 2 times",
+            "state": "fail"
+          },
+          "human": {
+            "state": "not_run"
+          },
+          "judge": {
+            "state": "not_run"
+          },
+          "reviewer": {
+            "state": "not_run"
+          }
+        },
+        "repairs": {
+          "short_ambiguous_quote": 1
+        },
+        "independent_contract_validation": {
+          "output_schema": "pass",
+          "delivery_manifest_schema": "pass",
+          "recounted_words": 227
+        }
+      },
+      "provenance": {
+        "repo": "/home/derek/work/worktrees/amux-local-capability-20261013",
+        "base_commit": "4f3c67f8888a8ed6698af1182d2e94d9ecf0f4d4",
+        "brief_sha256": "807cf7d3630fab4fe08e7e69282447d91a261e658ad6d4d802ad9c1f6d44b144",
+        "source": {
+          "digest": "d520c1b3700202bc25a06f452f33f82c0af2927ab74e7eab99b9f4c1cc1984a4",
+          "files": [
+            {
+              "bytes": 6381,
+              "lines": 169,
+              "path": "crates/amux-server/src/listener_handoff.rs",
+              "sha256": "1e8d4c24cdb764134c8e71dad736a311cecfd4ba8007735e79566b467fe278f4"
+            }
+          ]
+        },
+        "caller": {
+          "submitted_by": "claude-frontier",
+          "validated_by": null
+        },
+        "conditions": {
+          "environment": "prod",
+          "lab_configuration": "three-dense",
+          "lab_configuration_source": "profiles",
+          "temperature": 0.0
+        },
+        "route": {
+          "backend": "am4-vllm",
+          "backend_choice": {
+            "by": "least_outstanding_then_leases",
+            "excluded": {},
+            "loads": {
+              "am4-vllm": {
+                "active_leases": 0,
+                "configured_order": 0,
+                "outstanding_assignments": 0
+              }
+            }
+          },
+          "duration_ms": 12941,
+          "model": "qwen3-27b",
+          "procedure": "one_call",
+          "procedure_choice": {
+            "by": "caller",
+            "level": "pin"
+          },
+          "profile_sha256": "806f1a6a664402e3da1dbe02cc4201cc238acd5052a20781101be711fbf5a68a",
+          "profile_version": "local-work-routes.v2",
+          "provider": "am4-vllm",
+          "requested_lane": "deep",
+          "response_schema_sha256": "208b4462299e8ec92235375c12e4236fb2628449fc706fc6125cb879a9b82353",
+          "routed_by": "pinned:am4-vllm",
+          "selected_lane": "deep",
+          "selected_model": "am4-dense-27b",
+          "serving_profile": {
+            "context_tokens": 16384,
+            "engine": "vllm",
+            "max_tokens": 4096,
+            "parallel_slots": 1,
+            "selected_model": "am4-dense-27b",
+            "serving_profile_schema": "serving-profile.v2"
+          },
+          "serving_profile_schema": "serving-profile.v2",
+          "serving_profile_sha256": "c787231c73b2f4825aac63b33a798816df6dbe326f5364001a47f4766e1ab94d",
+          "task_family": "code_review",
+          "temperature": 0.0,
+          "tokens_in": 2405,
+          "tokens_out": 577
+        },
+        "execution_status": "succeeded",
+        "invocations": [
+          {
+            "invocation_id": "inv_5003c25485cd58d538e729ea1863373a",
+            "lease_id": "lease_7640959bd2f33d38c8d24b85b1f85b03",
+            "provider": "am4-vllm",
+            "backend": "am4-vllm",
+            "model": "qwen3-27b",
+            "status": "succeeded",
+            "finish_reason": "stop",
+            "started_at": "2026-10-13T19:34:10.744327Z",
+            "finished_at": "2026-10-13T19:34:23.725745Z",
+            "duration_ms": 12941,
+            "tokens_in": 2405,
+            "tokens_out": 577,
+            "max_tokens": 2048,
+            "temperature": 0.0,
+            "thinking": false,
+            "response_schema_sha256": "208b4462299e8ec92235375c12e4236fb2628449fc706fc6125cb879a9b82353"
+          }
+        ]
+      },
+      "original_artifacts": {
+        "candidate": {
+          "file": "candidate.md",
+          "media_type": "text/markdown; charset=utf-8",
+          "sha256": "34aeaf4d5d6545e277885232008d3227f67e772f1ff711d59add7fe6c5fd3301",
+          "size": 2472,
+          "path": "/home/derek/work/commandcenter-linux-flash/runs/operator/work_eb2686322ad4c268e43bddb78a783c49/candidate.md",
+          "verified_sha256": "34aeaf4d5d6545e277885232008d3227f67e772f1ff711d59add7fe6c5fd3301"
+        },
+        "manifest": {
+          "file": "delivery.json",
+          "media_type": "application/json",
+          "sha256": "8d18df8dcea5da892085a254f94256b82e6d1bbe300088afe3cee0c79c1be4bf",
+          "size": 7235,
+          "path": "/home/derek/work/commandcenter-linux-flash/runs/operator/work_eb2686322ad4c268e43bddb78a783c49/delivery.json",
+          "verified_sha256": "8d18df8dcea5da892085a254f94256b82e6d1bbe300088afe3cee0c79c1be4bf"
+        },
+        "output": {
+          "file": "delivery-output.json",
+          "media_type": "application/json",
+          "sha256": "722b23637b59b98c69b03ed75c8c280880027c345ea3483d26de57df97a99832",
+          "size": 2522,
+          "path": "/home/derek/work/commandcenter-linux-flash/runs/operator/work_eb2686322ad4c268e43bddb78a783c49/delivery-output.json",
+          "verified_sha256": "722b23637b59b98c69b03ed75c8c280880027c345ea3483d26de57df97a99832"
+        }
+      },
+      "evidence_paths": [
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_eb2686322ad4c268e43bddb78a783c49/work-manifest.json",
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_eb2686322ad4c268e43bddb78a783c49/candidate.md",
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_eb2686322ad4c268e43bddb78a783c49/delivery-output.json",
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_eb2686322ad4c268e43bddb78a783c49/delivery.json",
+        "/home/derek/work/amux/scratch/am4-delivery-20261013/qualification-inputs/expected-findings.json"
+      ]
+    },
+    {
+      "work_id": "work_a8d77d34bddd7dd98c0123aad7b7cfbb",
+      "job_id": "job_e286ea3bf6b25a7165368617fb8d5411",
+      "request_id": "req_ee52ca897580f38c030d6de965fbb14d",
+      "payload_path": "/home/derek/work/amux/scratch/am4-delivery-20261013/qualification-inputs/lap2-log-dedupe.json",
+      "idempotency_key": "amux-am4-qualification-20261013-lap2-log-dedupe-v1",
+      "enabling_retry": false,
+      "status_at_review": "awaiting_review",
+      "recommended_verdict": "reject",
+      "official_verdict": null,
+      "substance": {
+        "state": "fail",
+        "criteria": [
+          {
+            "id": "s1",
+            "criterion": "Describe first occurrence, repeated key, bucket change, and poisoned-lock behavior of first_this_bucket from executable code.",
+            "state": "pass",
+            "finding": "Correct first occurrence, repeat, bucket reset and fail-open poisoned-lock behavior.",
+            "source_locator": "log_dedupe.rs:54-62"
+          },
+          {
+            "id": "s2",
+            "criterion": "Assess whether namespaced keys isolate the two tests despite their different bucket values. Give a concrete interleaving and consequence supported by the shared state and reset code.",
+            "state": "fail",
+            "finding": "Finds shared global reset, but interleaving wording has the first test later setting 2,000,000 although it uses 1,000,000 and 1,000,001. It does not complete the repeat-call trace and show true where the assertion expects false.",
+            "source_locator": "log_dedupe.rs:83-104;122-128"
+          },
+          {
+            "id": "s3",
+            "criterion": "Recommend one bounded correction or regression test addressing that interaction; distinguish proposed verification from tests actually present or run.",
+            "state": "pass",
+            "finding": "Serializing whole tests is a bounded valid remedy and tests are not claimed run. Caveat: alternate shared thread-safe state suggestion is underspecified; current helper already uses a mutex.",
+            "source_locator": "log_dedupe.rs:54-62;83-109;122-137"
+          }
+        ]
+      },
+      "form": {
+        "state": "pass",
+        "summary": {
+          "by_match": {
+            "exact": 13
+          },
+          "claims": 13,
+          "deterministic": "pass",
+          "deviations": [],
+          "missing": 0,
+          "repairs": {},
+          "unsupported": 0,
+          "words": 224
+        },
+        "verification": {
+          "deterministic": {
+            "state": "pass"
+          },
+          "human": {
+            "state": "not_run"
+          },
+          "judge": {
+            "state": "not_run"
+          },
+          "reviewer": {
+            "state": "not_run"
+          }
+        },
+        "repairs": {},
+        "independent_contract_validation": {
+          "output_schema": "pass",
+          "delivery_manifest_schema": "pass",
+          "recounted_words": 224
+        }
+      },
+      "provenance": {
+        "repo": "/home/derek/work/worktrees/amux-local-capability-20261013",
+        "base_commit": "4f3c67f8888a8ed6698af1182d2e94d9ecf0f4d4",
+        "brief_sha256": "74823663a39215f1e87a580cc3c7e9a55e81d7ff2f9654ed9c347585415cf1ec",
+        "source": {
+          "digest": "a91f970d4c90fc3f1af51da5b287f47ad059935c1a8d16b9f6875332be8731b7",
+          "files": [
+            {
+              "bytes": 7444,
+              "lines": 150,
+              "path": "crates/amux-server/src/log_dedupe.rs",
+              "sha256": "7dfb2244aecb1383910be7c270af6538a07e02f92446d8962d07af0cf5ce1459"
+            }
+          ]
+        },
+        "caller": {
+          "submitted_by": "claude-frontier",
+          "validated_by": null
+        },
+        "conditions": {
+          "environment": "prod",
+          "lab_configuration": "three-dense",
+          "lab_configuration_source": "profiles",
+          "temperature": 0.0
+        },
+        "route": {
+          "backend": "omen-dense-27b",
+          "backend_choice": {
+            "by": "least_outstanding_then_leases",
+            "excluded": {},
+            "loads": {
+              "omen-dense-27b": {
+                "active_leases": 0,
+                "configured_order": 0,
+                "outstanding_assignments": 0
+              }
+            }
+          },
+          "duration_ms": 13924,
+          "model": "qwen3.8-27b",
+          "procedure": "one_call",
+          "procedure_choice": {
+            "by": "caller",
+            "level": "pin"
+          },
+          "profile_sha256": "5b1d07663b8698030f5cb2d7a39b407185a829acdee4aff3484ea4e5dee0f9c6",
+          "profile_version": "local-work-routes.v2",
+          "provider": "omen-dense-27b",
+          "requested_lane": "deep",
+          "response_schema_sha256": "208b4462299e8ec92235375c12e4236fb2628449fc706fc6125cb879a9b82353",
+          "routed_by": "pinned:omen-dense-27b",
+          "selected_lane": "deep",
+          "selected_model": "qwen3.8-27b",
+          "serving_profile": {
+            "context_tokens": 65536,
+            "deliberate_max_tokens": 24576,
+            "engine": "vllm",
+            "flash_attention": true,
+            "max_tokens": 16384,
+            "parallel_slots": 2,
+            "selected_model": "qwen3.8-27b",
+            "serving_profile_schema": "serving-profile.v2",
+            "speculative": "mtp-k2"
+          },
+          "serving_profile_schema": "serving-profile.v2",
+          "serving_profile_sha256": "43f8c7fb96c73ec7d43b2f29b31f7ada824bc37851cc4852a23f8254b7db3b41",
+          "task_family": "code_review",
+          "temperature": 0.0,
+          "tokens_in": 2630,
+          "tokens_out": 642
+        },
+        "execution_status": "succeeded",
+        "invocations": [
+          {
+            "invocation_id": "inv_a694eec51a27d2bad3d33740e95c77fe",
+            "lease_id": "lease_c22b75ec790fb81d55cf8cf522d90146",
+            "provider": "omen-dense-27b",
+            "backend": "omen-dense-27b",
+            "model": "qwen3.8-27b",
+            "status": "succeeded",
+            "finish_reason": "stop",
+            "started_at": "2026-10-13T19:36:55.792605Z",
+            "finished_at": "2026-10-13T19:37:09.778618Z",
+            "duration_ms": 13924,
+            "tokens_in": 2630,
+            "tokens_out": 642,
+            "max_tokens": 2048,
+            "temperature": 0.0,
+            "thinking": false,
+            "response_schema_sha256": "208b4462299e8ec92235375c12e4236fb2628449fc706fc6125cb879a9b82353"
+          }
+        ]
+      },
+      "original_artifacts": {
+        "candidate": {
+          "file": "candidate.md",
+          "media_type": "text/markdown; charset=utf-8",
+          "sha256": "5483f63bd0ad281333356b5683f293239f7761035a4a1adcf255fd8fa3789efc",
+          "size": 2583,
+          "path": "/home/derek/work/commandcenter-linux-flash/runs/operator/work_a8d77d34bddd7dd98c0123aad7b7cfbb/candidate.md",
+          "verified_sha256": "5483f63bd0ad281333356b5683f293239f7761035a4a1adcf255fd8fa3789efc"
+        },
+        "manifest": {
+          "file": "delivery.json",
+          "media_type": "application/json",
+          "sha256": "536846510b94922e1bf1b4dfe4f6d15a29e5fcb7e42977fd83a7be9ccc02947d",
+          "size": 9066,
+          "path": "/home/derek/work/commandcenter-linux-flash/runs/operator/work_a8d77d34bddd7dd98c0123aad7b7cfbb/delivery.json",
+          "verified_sha256": "536846510b94922e1bf1b4dfe4f6d15a29e5fcb7e42977fd83a7be9ccc02947d"
+        },
+        "output": {
+          "file": "delivery-output.json",
+          "media_type": "application/json",
+          "sha256": "8fe24d3bdcd5644ce53f9fb7ca42909bbd938b22b54b098411a66795390abeee",
+          "size": 2599,
+          "path": "/home/derek/work/commandcenter-linux-flash/runs/operator/work_a8d77d34bddd7dd98c0123aad7b7cfbb/delivery-output.json",
+          "verified_sha256": "8fe24d3bdcd5644ce53f9fb7ca42909bbd938b22b54b098411a66795390abeee"
+        }
+      },
+      "evidence_paths": [
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_a8d77d34bddd7dd98c0123aad7b7cfbb/work-manifest.json",
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_a8d77d34bddd7dd98c0123aad7b7cfbb/candidate.md",
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_a8d77d34bddd7dd98c0123aad7b7cfbb/delivery-output.json",
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_a8d77d34bddd7dd98c0123aad7b7cfbb/delivery.json",
+        "/home/derek/work/amux/scratch/am4-delivery-20261013/qualification-inputs/expected-findings.json"
+      ]
+    },
+    {
+      "work_id": "work_c8a638b51f0cb52a10b4aa5f75254432",
+      "job_id": "job_8a6d29a44c8a7ef74ed2dd093503b069",
+      "request_id": "req_9bfdc3aa89b32472b75c3b90c3d7cc09",
+      "payload_path": "/home/derek/work/amux/scratch/am4-delivery-20261013/qualification-inputs/lap2-listener-handoff.json",
+      "idempotency_key": "amux-am4-qualification-20261013-lap2-listener-handoff-v1",
+      "enabling_retry": false,
+      "status_at_review": "awaiting_review",
+      "recommended_verdict": "reject",
+      "official_verdict": null,
+      "substance": {
+        "state": "fail",
+        "criteria": [
+          {
+            "id": "s1",
+            "criterion": "Describe the PID, numeric descriptor, socket-type, and port checks before inherited-listener acceptance, plus normal bind fallback.",
+            "state": "fail",
+            "finding": "Covers PID, socket type, local port and fresh bind but omits required numeric-descriptor parse.",
+            "source_locator": "listener_handoff.rs:33-37;76-104"
+          },
+          {
+            "id": "s2",
+            "criterion": "Compare how prepare_exec, adopt, and exec_failed handle the boolean result of set_cloexec. Explain a conditional consequence of an unchecked failure without claiming it occurred.",
+            "state": "fail",
+            "finding": "Correctly explains unchecked exec_failed restoration could leave the descriptor inheritable, but omits adopt restoration and therefore does not compare all three required sites.",
+            "source_locator": "listener_handoff.rs:49-63;88-94"
+          },
+          {
+            "id": "s3",
+            "criterion": "Propose one bounded handling change and a focused failure-path test. State which existing tests cover success and which requested failure behavior remains untested in this file.",
+            "state": "fail",
+            "finding": "Names missing failure-path coverage but does not propose concrete handling behavior: safely handling an unchecked result is not a specified change. Existing socket/plain-fd test also omitted.",
+            "source_locator": "listener_handoff.rs:59-63;88;151-168"
+          }
+        ]
+      },
+      "form": {
+        "state": "fail",
+        "summary": {
+          "by_match": {
+            "exact": 9,
+            "missing": 1
+          },
+          "claims": 10,
+          "deterministic": "fail",
+          "deviations": [],
+          "missing": 1,
+          "repairs": {
+            "short_ambiguous_quote": 1
+          },
+          "unsupported": 1,
+          "words": 208
+        },
+        "verification": {
+          "deterministic": {
+            "note": "s1.p0.q1: quote under 24 characters found 2 times",
+            "state": "fail"
+          },
+          "human": {
+            "state": "not_run"
+          },
+          "judge": {
+            "state": "not_run"
+          },
+          "reviewer": {
+            "state": "not_run"
+          }
+        },
+        "repairs": {
+          "short_ambiguous_quote": 1
+        },
+        "independent_contract_validation": {
+          "output_schema": "pass",
+          "delivery_manifest_schema": "pass",
+          "recounted_words": 208
+        }
+      },
+      "provenance": {
+        "repo": "/home/derek/work/worktrees/amux-local-capability-20261013",
+        "base_commit": "4f3c67f8888a8ed6698af1182d2e94d9ecf0f4d4",
+        "brief_sha256": "807cf7d3630fab4fe08e7e69282447d91a261e658ad6d4d802ad9c1f6d44b144",
+        "source": {
+          "digest": "d520c1b3700202bc25a06f452f33f82c0af2927ab74e7eab99b9f4c1cc1984a4",
+          "files": [
+            {
+              "bytes": 6381,
+              "lines": 169,
+              "path": "crates/amux-server/src/listener_handoff.rs",
+              "sha256": "1e8d4c24cdb764134c8e71dad736a311cecfd4ba8007735e79566b467fe278f4"
+            }
+          ]
+        },
+        "caller": {
+          "submitted_by": "claude-frontier",
+          "validated_by": null
+        },
+        "conditions": {
+          "environment": "prod",
+          "lab_configuration": "three-dense",
+          "lab_configuration_source": "profiles",
+          "temperature": 0.0
+        },
+        "route": {
+          "backend": "omen-dense-27b",
+          "backend_choice": {
+            "by": "least_outstanding_then_leases",
+            "excluded": {},
+            "loads": {
+              "omen-dense-27b": {
+                "active_leases": 0,
+                "configured_order": 0,
+                "outstanding_assignments": 0
+              }
+            }
+          },
+          "duration_ms": 11099,
+          "model": "qwen3.8-27b",
+          "procedure": "one_call",
+          "procedure_choice": {
+            "by": "caller",
+            "level": "pin"
+          },
+          "profile_sha256": "5b1d07663b8698030f5cb2d7a39b407185a829acdee4aff3484ea4e5dee0f9c6",
+          "profile_version": "local-work-routes.v2",
+          "provider": "omen-dense-27b",
+          "requested_lane": "deep",
+          "response_schema_sha256": "208b4462299e8ec92235375c12e4236fb2628449fc706fc6125cb879a9b82353",
+          "routed_by": "pinned:omen-dense-27b",
+          "selected_lane": "deep",
+          "selected_model": "qwen3.8-27b",
+          "serving_profile": {
+            "context_tokens": 65536,
+            "deliberate_max_tokens": 24576,
+            "engine": "vllm",
+            "flash_attention": true,
+            "max_tokens": 16384,
+            "parallel_slots": 2,
+            "selected_model": "qwen3.8-27b",
+            "serving_profile_schema": "serving-profile.v2",
+            "speculative": "mtp-k2"
+          },
+          "serving_profile_schema": "serving-profile.v2",
+          "serving_profile_sha256": "43f8c7fb96c73ec7d43b2f29b31f7ada824bc37851cc4852a23f8254b7db3b41",
+          "task_family": "code_review",
+          "temperature": 0.0,
+          "tokens_in": 2405,
+          "tokens_out": 577
+        },
+        "execution_status": "succeeded",
+        "invocations": [
+          {
+            "invocation_id": "inv_bddacfec56f6ce36d6d930654284ec21",
+            "lease_id": "lease_e6b6b2b258931eb27e75876dbbb5ec9d",
+            "provider": "omen-dense-27b",
+            "backend": "omen-dense-27b",
+            "model": "qwen3.8-27b",
+            "status": "succeeded",
+            "finish_reason": "stop",
+            "started_at": "2026-10-13T19:37:38.059165Z",
+            "finished_at": "2026-10-13T19:37:49.198153Z",
+            "duration_ms": 11099,
+            "tokens_in": 2405,
+            "tokens_out": 577,
+            "max_tokens": 2048,
+            "temperature": 0.0,
+            "thinking": false,
+            "response_schema_sha256": "208b4462299e8ec92235375c12e4236fb2628449fc706fc6125cb879a9b82353"
+          }
+        ]
+      },
+      "original_artifacts": {
+        "candidate": {
+          "file": "candidate.md",
+          "media_type": "text/markdown; charset=utf-8",
+          "sha256": "21bcf644c994e48f2d7f7208040863c5766f3f90352ca42558f81da564eb5e8a",
+          "size": 2407,
+          "path": "/home/derek/work/commandcenter-linux-flash/runs/operator/work_c8a638b51f0cb52a10b4aa5f75254432/candidate.md",
+          "verified_sha256": "21bcf644c994e48f2d7f7208040863c5766f3f90352ca42558f81da564eb5e8a"
+        },
+        "manifest": {
+          "file": "delivery.json",
+          "media_type": "application/json",
+          "sha256": "f2b9da971a99aae1b8079ecb324686cff8cde5c200a3a3134d569de30fd1f98c",
+          "size": 7240,
+          "path": "/home/derek/work/commandcenter-linux-flash/runs/operator/work_c8a638b51f0cb52a10b4aa5f75254432/delivery.json",
+          "verified_sha256": "f2b9da971a99aae1b8079ecb324686cff8cde5c200a3a3134d569de30fd1f98c"
+        },
+        "output": {
+          "file": "delivery-output.json",
+          "media_type": "application/json",
+          "sha256": "d62e35fb0f9f34abe82c81a3f9e03a1d88a3366d75f50041c3ab62bad24c6c94",
+          "size": 2459,
+          "path": "/home/derek/work/commandcenter-linux-flash/runs/operator/work_c8a638b51f0cb52a10b4aa5f75254432/delivery-output.json",
+          "verified_sha256": "d62e35fb0f9f34abe82c81a3f9e03a1d88a3366d75f50041c3ab62bad24c6c94"
+        }
+      },
+      "evidence_paths": [
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_c8a638b51f0cb52a10b4aa5f75254432/work-manifest.json",
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_c8a638b51f0cb52a10b4aa5f75254432/candidate.md",
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_c8a638b51f0cb52a10b4aa5f75254432/delivery-output.json",
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_c8a638b51f0cb52a10b4aa5f75254432/delivery.json",
+        "/home/derek/work/amux/scratch/am4-delivery-20261013/qualification-inputs/expected-findings.json"
+      ]
+    },
+    {
+      "work_id": "work_6efae4c91631944c43b27b59933b75e7",
+      "job_id": "job_8a3ba7e0c67901c35add9bdaa0fe7ccc",
+      "request_id": "req_2136cfb96ec5fc6df10103144ea163f8",
+      "payload_path": "/home/derek/work/amux/scratch/am4-delivery-20261013/qualification-inputs/lap3-log-dedupe.json",
+      "idempotency_key": "amux-am4-qualification-20261013-lap3-log-dedupe-v1",
+      "enabling_retry": false,
+      "status_at_review": "awaiting_review",
+      "recommended_verdict": "reject",
+      "official_verdict": null,
+      "substance": {
+        "state": "fail",
+        "criteria": [
+          {
+            "id": "s1",
+            "criterion": "Describe first occurrence, repeated key, bucket change, and poisoned-lock behavior of first_this_bucket from executable code.",
+            "state": "pass",
+            "finding": "Correct first occurrence, repeat, bucket reset and fail-open poisoned-lock behavior.",
+            "source_locator": "log_dedupe.rs:54-62"
+          },
+          {
+            "id": "s2",
+            "criterion": "Assess whether namespaced keys isolate the two tests despite their different bucket values. Give a concrete interleaving and consequence supported by the shared state and reset code.",
+            "state": "fail",
+            "finding": "Finds shared global reset, but interleaving wording has the first test later setting 2,000,000 although it uses 1,000,000 and 1,000,001. It does not complete the repeat-call trace and show true where the assertion expects false.",
+            "source_locator": "log_dedupe.rs:83-104;122-128"
+          },
+          {
+            "id": "s3",
+            "criterion": "Recommend one bounded correction or regression test addressing that interaction; distinguish proposed verification from tests actually present or run.",
+            "state": "pass",
+            "finding": "Serializing whole tests is a bounded valid remedy and tests are not claimed run. Caveat: alternate shared thread-safe state suggestion is underspecified; current helper already uses a mutex.",
+            "source_locator": "log_dedupe.rs:54-62;83-109;122-137"
+          }
+        ]
+      },
+      "form": {
+        "state": "pass",
+        "summary": {
+          "by_match": {
+            "exact": 13
+          },
+          "claims": 13,
+          "deterministic": "pass",
+          "deviations": [],
+          "missing": 0,
+          "repairs": {},
+          "unsupported": 0,
+          "words": 224
+        },
+        "verification": {
+          "deterministic": {
+            "state": "pass"
+          },
+          "human": {
+            "state": "not_run"
+          },
+          "judge": {
+            "state": "not_run"
+          },
+          "reviewer": {
+            "state": "not_run"
+          }
+        },
+        "repairs": {},
+        "independent_contract_validation": {
+          "output_schema": "pass",
+          "delivery_manifest_schema": "pass",
+          "recounted_words": 224
+        }
+      },
+      "provenance": {
+        "repo": "/home/derek/work/worktrees/amux-local-capability-20261013",
+        "base_commit": "4f3c67f8888a8ed6698af1182d2e94d9ecf0f4d4",
+        "brief_sha256": "74823663a39215f1e87a580cc3c7e9a55e81d7ff2f9654ed9c347585415cf1ec",
+        "source": {
+          "digest": "a91f970d4c90fc3f1af51da5b287f47ad059935c1a8d16b9f6875332be8731b7",
+          "files": [
+            {
+              "bytes": 7444,
+              "lines": 150,
+              "path": "crates/amux-server/src/log_dedupe.rs",
+              "sha256": "7dfb2244aecb1383910be7c270af6538a07e02f92446d8962d07af0cf5ce1459"
+            }
+          ]
+        },
+        "caller": {
+          "submitted_by": "claude-frontier",
+          "validated_by": null
+        },
+        "conditions": {
+          "environment": "prod",
+          "lab_configuration": "three-dense",
+          "lab_configuration_source": "profiles",
+          "temperature": 0.0
+        },
+        "route": {
+          "backend": "omen-dense-27b-b",
+          "backend_choice": {
+            "by": "least_outstanding_then_leases",
+            "excluded": {},
+            "loads": {
+              "omen-dense-27b-b": {
+                "active_leases": 0,
+                "configured_order": 0,
+                "outstanding_assignments": 0
+              }
+            }
+          },
+          "duration_ms": 13669,
+          "model": "qwen3.8-27b",
+          "procedure": "one_call",
+          "procedure_choice": {
+            "by": "caller",
+            "level": "pin"
+          },
+          "profile_sha256": "66d7b6f7f1de1ae512d89875507d04d4970a5cbf00cb5390e8e6b3fc995fc4bd",
+          "profile_version": "local-work-routes.v2",
+          "provider": "omen-dense-27b-b",
+          "requested_lane": "deep",
+          "response_schema_sha256": "208b4462299e8ec92235375c12e4236fb2628449fc706fc6125cb879a9b82353",
+          "routed_by": "pinned:omen-dense-27b-b",
+          "selected_lane": "deep",
+          "selected_model": "qwen3.8-27b",
+          "serving_profile": {
+            "context_tokens": 65536,
+            "deliberate_max_tokens": 24576,
+            "engine": "vllm",
+            "flash_attention": true,
+            "max_tokens": 16384,
+            "parallel_slots": 2,
+            "selected_model": "qwen3.8-27b",
+            "serving_profile_schema": "serving-profile.v2",
+            "speculative": "mtp-k2"
+          },
+          "serving_profile_schema": "serving-profile.v2",
+          "serving_profile_sha256": "43f8c7fb96c73ec7d43b2f29b31f7ada824bc37851cc4852a23f8254b7db3b41",
+          "task_family": "code_review",
+          "temperature": 0.0,
+          "tokens_in": 2630,
+          "tokens_out": 642
+        },
+        "execution_status": "succeeded",
+        "invocations": [
+          {
+            "invocation_id": "inv_4d8f2c4c19e21fcba089e7541c50be17",
+            "lease_id": "lease_af650785596fa4631c77096c69bae1ad",
+            "provider": "omen-dense-27b-b",
+            "backend": "omen-dense-27b-b",
+            "model": "qwen3.8-27b",
+            "status": "succeeded",
+            "finish_reason": "stop",
+            "started_at": "2026-10-13T19:39:42.930378Z",
+            "finished_at": "2026-10-13T19:39:56.610801Z",
+            "duration_ms": 13669,
+            "tokens_in": 2630,
+            "tokens_out": 642,
+            "max_tokens": 2048,
+            "temperature": 0.0,
+            "thinking": false,
+            "response_schema_sha256": "208b4462299e8ec92235375c12e4236fb2628449fc706fc6125cb879a9b82353"
+          }
+        ]
+      },
+      "original_artifacts": {
+        "candidate": {
+          "file": "candidate.md",
+          "media_type": "text/markdown; charset=utf-8",
+          "sha256": "5483f63bd0ad281333356b5683f293239f7761035a4a1adcf255fd8fa3789efc",
+          "size": 2583,
+          "path": "/home/derek/work/commandcenter-linux-flash/runs/operator/work_6efae4c91631944c43b27b59933b75e7/candidate.md",
+          "verified_sha256": "5483f63bd0ad281333356b5683f293239f7761035a4a1adcf255fd8fa3789efc"
+        },
+        "manifest": {
+          "file": "delivery.json",
+          "media_type": "application/json",
+          "sha256": "99bf8af95e43e96a508c7f303f4e10117374f3e6ca63c965afca0705a9424708",
+          "size": 9070,
+          "path": "/home/derek/work/commandcenter-linux-flash/runs/operator/work_6efae4c91631944c43b27b59933b75e7/delivery.json",
+          "verified_sha256": "99bf8af95e43e96a508c7f303f4e10117374f3e6ca63c965afca0705a9424708"
+        },
+        "output": {
+          "file": "delivery-output.json",
+          "media_type": "application/json",
+          "sha256": "8fe24d3bdcd5644ce53f9fb7ca42909bbd938b22b54b098411a66795390abeee",
+          "size": 2599,
+          "path": "/home/derek/work/commandcenter-linux-flash/runs/operator/work_6efae4c91631944c43b27b59933b75e7/delivery-output.json",
+          "verified_sha256": "8fe24d3bdcd5644ce53f9fb7ca42909bbd938b22b54b098411a66795390abeee"
+        }
+      },
+      "evidence_paths": [
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_6efae4c91631944c43b27b59933b75e7/work-manifest.json",
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_6efae4c91631944c43b27b59933b75e7/candidate.md",
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_6efae4c91631944c43b27b59933b75e7/delivery-output.json",
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_6efae4c91631944c43b27b59933b75e7/delivery.json",
+        "/home/derek/work/amux/scratch/am4-delivery-20261013/qualification-inputs/expected-findings.json"
+      ]
+    },
+    {
+      "work_id": "work_68c36256c3ba582c69291ba8d7c420a5",
+      "job_id": "job_ac4da71a73ec24066ee35d8161e08357",
+      "request_id": "req_4b69c63aec449f49b75062786247a974",
+      "payload_path": "/home/derek/work/amux/scratch/am4-delivery-20261013/qualification-inputs/lap3-listener-handoff.json",
+      "idempotency_key": "amux-am4-qualification-20261013-lap3-listener-handoff-v1",
+      "enabling_retry": false,
+      "status_at_review": "awaiting_review",
+      "recommended_verdict": "reject",
+      "official_verdict": null,
+      "substance": {
+        "state": "fail",
+        "criteria": [
+          {
+            "id": "s1",
+            "criterion": "Describe the PID, numeric descriptor, socket-type, and port checks before inherited-listener acceptance, plus normal bind fallback.",
+            "state": "fail",
+            "finding": "Covers PID, socket type, local port and fresh bind but omits required numeric-descriptor parse.",
+            "source_locator": "listener_handoff.rs:33-37;76-104"
+          },
+          {
+            "id": "s2",
+            "criterion": "Compare how prepare_exec, adopt, and exec_failed handle the boolean result of set_cloexec. Explain a conditional consequence of an unchecked failure without claiming it occurred.",
+            "state": "fail",
+            "finding": "Correctly explains unchecked exec_failed restoration could leave the descriptor inheritable, but omits adopt restoration and therefore does not compare all three required sites.",
+            "source_locator": "listener_handoff.rs:49-63;88-94"
+          },
+          {
+            "id": "s3",
+            "criterion": "Propose one bounded handling change and a focused failure-path test. State which existing tests cover success and which requested failure behavior remains untested in this file.",
+            "state": "fail",
+            "finding": "Names missing failure-path coverage but does not propose concrete handling behavior: safely handling an unchecked result is not a specified change. Existing socket/plain-fd test also omitted.",
+            "source_locator": "listener_handoff.rs:59-63;88;151-168"
+          }
+        ]
+      },
+      "form": {
+        "state": "fail",
+        "summary": {
+          "by_match": {
+            "exact": 9,
+            "missing": 1
+          },
+          "claims": 10,
+          "deterministic": "fail",
+          "deviations": [],
+          "missing": 1,
+          "repairs": {
+            "short_ambiguous_quote": 1
+          },
+          "unsupported": 1,
+          "words": 208
+        },
+        "verification": {
+          "deterministic": {
+            "note": "s1.p0.q1: quote under 24 characters found 2 times",
+            "state": "fail"
+          },
+          "human": {
+            "state": "not_run"
+          },
+          "judge": {
+            "state": "not_run"
+          },
+          "reviewer": {
+            "state": "not_run"
+          }
+        },
+        "repairs": {
+          "short_ambiguous_quote": 1
+        },
+        "independent_contract_validation": {
+          "output_schema": "pass",
+          "delivery_manifest_schema": "pass",
+          "recounted_words": 208
+        }
+      },
+      "provenance": {
+        "repo": "/home/derek/work/worktrees/amux-local-capability-20261013",
+        "base_commit": "4f3c67f8888a8ed6698af1182d2e94d9ecf0f4d4",
+        "brief_sha256": "807cf7d3630fab4fe08e7e69282447d91a261e658ad6d4d802ad9c1f6d44b144",
+        "source": {
+          "digest": "d520c1b3700202bc25a06f452f33f82c0af2927ab74e7eab99b9f4c1cc1984a4",
+          "files": [
+            {
+              "bytes": 6381,
+              "lines": 169,
+              "path": "crates/amux-server/src/listener_handoff.rs",
+              "sha256": "1e8d4c24cdb764134c8e71dad736a311cecfd4ba8007735e79566b467fe278f4"
+            }
+          ]
+        },
+        "caller": {
+          "submitted_by": "claude-frontier",
+          "validated_by": null
+        },
+        "conditions": {
+          "environment": "prod",
+          "lab_configuration": "three-dense",
+          "lab_configuration_source": "profiles",
+          "temperature": 0.0
+        },
+        "route": {
+          "backend": "omen-dense-27b-b",
+          "backend_choice": {
+            "by": "least_outstanding_then_leases",
+            "excluded": {},
+            "loads": {
+              "omen-dense-27b-b": {
+                "active_leases": 0,
+                "configured_order": 0,
+                "outstanding_assignments": 0
+              }
+            }
+          },
+          "duration_ms": 11181,
+          "model": "qwen3.8-27b",
+          "procedure": "one_call",
+          "procedure_choice": {
+            "by": "caller",
+            "level": "pin"
+          },
+          "profile_sha256": "66d7b6f7f1de1ae512d89875507d04d4970a5cbf00cb5390e8e6b3fc995fc4bd",
+          "profile_version": "local-work-routes.v2",
+          "provider": "omen-dense-27b-b",
+          "requested_lane": "deep",
+          "response_schema_sha256": "208b4462299e8ec92235375c12e4236fb2628449fc706fc6125cb879a9b82353",
+          "routed_by": "pinned:omen-dense-27b-b",
+          "selected_lane": "deep",
+          "selected_model": "qwen3.8-27b",
+          "serving_profile": {
+            "context_tokens": 65536,
+            "deliberate_max_tokens": 24576,
+            "engine": "vllm",
+            "flash_attention": true,
+            "max_tokens": 16384,
+            "parallel_slots": 2,
+            "selected_model": "qwen3.8-27b",
+            "serving_profile_schema": "serving-profile.v2",
+            "speculative": "mtp-k2"
+          },
+          "serving_profile_schema": "serving-profile.v2",
+          "serving_profile_sha256": "43f8c7fb96c73ec7d43b2f29b31f7ada824bc37851cc4852a23f8254b7db3b41",
+          "task_family": "code_review",
+          "temperature": 0.0,
+          "tokens_in": 2405,
+          "tokens_out": 577
+        },
+        "execution_status": "succeeded",
+        "invocations": [
+          {
+            "invocation_id": "inv_bbb13a9fde3c6afa0eff03a05a79a597",
+            "lease_id": "lease_e736cc83f2b77bdd3f1e91b06d4efaef",
+            "provider": "omen-dense-27b-b",
+            "backend": "omen-dense-27b-b",
+            "model": "qwen3.8-27b",
+            "status": "succeeded",
+            "finish_reason": "stop",
+            "started_at": "2026-10-13T19:40:37.998938Z",
+            "finished_at": "2026-10-13T19:40:49.191397Z",
+            "duration_ms": 11181,
+            "tokens_in": 2405,
+            "tokens_out": 577,
+            "max_tokens": 2048,
+            "temperature": 0.0,
+            "thinking": false,
+            "response_schema_sha256": "208b4462299e8ec92235375c12e4236fb2628449fc706fc6125cb879a9b82353"
+          }
+        ]
+      },
+      "original_artifacts": {
+        "candidate": {
+          "file": "candidate.md",
+          "media_type": "text/markdown; charset=utf-8",
+          "sha256": "21bcf644c994e48f2d7f7208040863c5766f3f90352ca42558f81da564eb5e8a",
+          "size": 2407,
+          "path": "/home/derek/work/commandcenter-linux-flash/runs/operator/work_68c36256c3ba582c69291ba8d7c420a5/candidate.md",
+          "verified_sha256": "21bcf644c994e48f2d7f7208040863c5766f3f90352ca42558f81da564eb5e8a"
+        },
+        "manifest": {
+          "file": "delivery.json",
+          "media_type": "application/json",
+          "sha256": "02e318e3cadd4c1bff6c419565e1f6239baa959cb0c6d60a015462f4a1643bfe",
+          "size": 7244,
+          "path": "/home/derek/work/commandcenter-linux-flash/runs/operator/work_68c36256c3ba582c69291ba8d7c420a5/delivery.json",
+          "verified_sha256": "02e318e3cadd4c1bff6c419565e1f6239baa959cb0c6d60a015462f4a1643bfe"
+        },
+        "output": {
+          "file": "delivery-output.json",
+          "media_type": "application/json",
+          "sha256": "d62e35fb0f9f34abe82c81a3f9e03a1d88a3366d75f50041c3ab62bad24c6c94",
+          "size": 2459,
+          "path": "/home/derek/work/commandcenter-linux-flash/runs/operator/work_68c36256c3ba582c69291ba8d7c420a5/delivery-output.json",
+          "verified_sha256": "d62e35fb0f9f34abe82c81a3f9e03a1d88a3366d75f50041c3ab62bad24c6c94"
+        }
+      },
+      "evidence_paths": [
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_68c36256c3ba582c69291ba8d7c420a5/work-manifest.json",
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_68c36256c3ba582c69291ba8d7c420a5/candidate.md",
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_68c36256c3ba582c69291ba8d7c420a5/delivery-output.json",
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_68c36256c3ba582c69291ba8d7c420a5/delivery.json",
+        "/home/derek/work/amux/scratch/am4-delivery-20261013/qualification-inputs/expected-findings.json"
+      ]
+    },
+    {
+      "work_id": "work_a04362c9e3df133a37df12842b8321f2",
+      "job_id": "job_33ddc2045ca4f25e4fe254f4ef140de9",
+      "request_id": "req_8549a4b9eeac739213a55bf377f56172",
+      "payload_path": "/home/derek/work/amux/scratch/am4-delivery-20261013/qualification-inputs/am4-enabling-v2-log-dedupe.json",
+      "idempotency_key": "amux-am4-qualification-20261013-enabling-log-dedupe-v2",
+      "enabling_retry": true,
+      "status_at_review": "awaiting_review",
+      "recommended_verdict": "reject",
+      "official_verdict": null,
+      "substance": {
+        "state": "fail",
+        "criteria": [
+          {
+            "id": "s1",
+            "criterion": "Describe first occurrence, repeated key, bucket change, and poisoned-lock behavior of first_this_bucket from executable code.",
+            "state": "pass",
+            "finding": "Correct first occurrence, repeat, global bucket reset and poisoned-lock fail-open behavior.",
+            "source_locator": "log_dedupe.rs:53-62"
+          },
+          {
+            "id": "s2",
+            "criterion": "Assess whether namespaced keys isolate the two tests despite their different bucket values. Give a concrete interleaving and consequence supported by the shared state and reset code.",
+            "state": "pass",
+            "finding": "Complete correct trace: A in b1, B in b2 clears A, then A in b1 clears again and returns true where the repeat assertion expects false. Clearly states namespaced keys do not isolate a shared bucket.",
+            "source_locator": "log_dedupe.rs:54-62;84;88-89;123;127"
+          },
+          {
+            "id": "s3",
+            "criterion": "Recommend one bounded correction or regression test addressing that interaction; distinguish proposed verification from tests actually present or run.",
+            "state": "fail",
+            "finding": "Proposed interleaving regression expects repeat status to survive an unrelated bucket change. That conflicts with intentional clearing on any bucket change; it provides neither isolated test state nor a specified correction. A failed new assertion alone does not correct the test-isolation problem.",
+            "source_locator": "log_dedupe.rs:49-62;88-89;103-109"
+          }
+        ]
+      },
+      "form": {
+        "state": "pass",
+        "summary": {
+          "by_match": {
+            "exact": 13
+          },
+          "claims": 13,
+          "deterministic": "pass",
+          "deviations": [],
+          "missing": 0,
+          "repairs": {},
+          "unsupported": 0,
+          "words": 192
+        },
+        "verification": {
+          "deterministic": {
+            "state": "pass"
+          },
+          "human": {
+            "state": "not_run"
+          },
+          "judge": {
+            "state": "not_run"
+          },
+          "reviewer": {
+            "state": "not_run"
+          }
+        },
+        "repairs": {},
+        "independent_contract_validation": {
+          "output_schema": "pass",
+          "delivery_manifest_schema": "pass",
+          "recounted_words": 192
+        }
+      },
+      "provenance": {
+        "repo": "/home/derek/work/worktrees/amux-local-capability-20261013",
+        "base_commit": "4f3c67f8888a8ed6698af1182d2e94d9ecf0f4d4",
+        "brief_sha256": "ba549c59d8c4638482f5e7cec10213019b0234476b9a78727ddd054b1dbe1cd7",
+        "source": {
+          "digest": "a91f970d4c90fc3f1af51da5b287f47ad059935c1a8d16b9f6875332be8731b7",
+          "files": [
+            {
+              "bytes": 7444,
+              "lines": 150,
+              "path": "crates/amux-server/src/log_dedupe.rs",
+              "sha256": "7dfb2244aecb1383910be7c270af6538a07e02f92446d8962d07af0cf5ce1459"
+            }
+          ]
+        },
+        "caller": {
+          "submitted_by": "claude-frontier",
+          "validated_by": null
+        },
+        "conditions": {
+          "environment": "prod",
+          "lab_configuration": "three-dense",
+          "lab_configuration_source": "profiles",
+          "temperature": 0.0
+        },
+        "route": {
+          "backend": "am4-vllm",
+          "backend_choice": {
+            "by": "least_outstanding_then_leases",
+            "excluded": {},
+            "loads": {
+              "am4-vllm": {
+                "active_leases": 0,
+                "configured_order": 0,
+                "outstanding_assignments": 0
+              }
+            }
+          },
+          "duration_ms": 15182,
+          "model": "qwen3-27b",
+          "procedure": "one_call",
+          "procedure_choice": {
+            "by": "caller",
+            "level": "pin"
+          },
+          "profile_sha256": "806f1a6a664402e3da1dbe02cc4201cc238acd5052a20781101be711fbf5a68a",
+          "profile_version": "local-work-routes.v2",
+          "provider": "am4-vllm",
+          "requested_lane": "deep",
+          "response_schema_sha256": "208b4462299e8ec92235375c12e4236fb2628449fc706fc6125cb879a9b82353",
+          "routed_by": "pinned:am4-vllm",
+          "selected_lane": "deep",
+          "selected_model": "am4-dense-27b",
+          "serving_profile": {
+            "context_tokens": 16384,
+            "engine": "vllm",
+            "max_tokens": 4096,
+            "parallel_slots": 1,
+            "selected_model": "am4-dense-27b",
+            "serving_profile_schema": "serving-profile.v2"
+          },
+          "serving_profile_schema": "serving-profile.v2",
+          "serving_profile_sha256": "c787231c73b2f4825aac63b33a798816df6dbe326f5364001a47f4766e1ab94d",
+          "task_family": "code_review",
+          "temperature": 0.0,
+          "tokens_in": 3358,
+          "tokens_out": 657
+        },
+        "execution_status": "succeeded",
+        "invocations": [
+          {
+            "invocation_id": "inv_d5fd9a26ee117a0a539e6a7bba421b46",
+            "lease_id": "lease_d41dae2c9e75a00ba842ae744f885b1f",
+            "provider": "am4-vllm",
+            "backend": "am4-vllm",
+            "model": "qwen3-27b",
+            "status": "succeeded",
+            "finish_reason": "stop",
+            "started_at": "2026-10-13T19:42:24.078485Z",
+            "finished_at": "2026-10-13T19:42:39.302230Z",
+            "duration_ms": 15182,
+            "tokens_in": 3358,
+            "tokens_out": 657,
+            "max_tokens": 2048,
+            "temperature": 0.0,
+            "thinking": false,
+            "response_schema_sha256": "208b4462299e8ec92235375c12e4236fb2628449fc706fc6125cb879a9b82353"
+          }
+        ]
+      },
+      "original_artifacts": {
+        "candidate": {
+          "file": "candidate.md",
+          "media_type": "text/markdown; charset=utf-8",
+          "sha256": "815420ea60ad4f8f729e83bcf2bd72c12a8f505300bdcb6a6f1cc3adcfb7efa1",
+          "size": 2544,
+          "path": "/home/derek/work/commandcenter-linux-flash/runs/operator/work_a04362c9e3df133a37df12842b8321f2/candidate.md",
+          "verified_sha256": "815420ea60ad4f8f729e83bcf2bd72c12a8f505300bdcb6a6f1cc3adcfb7efa1"
+        },
+        "manifest": {
+          "file": "delivery.json",
+          "media_type": "application/json",
+          "sha256": "7c82fee377092c5749ca1f5ec4cbea47d94b95722c230f07ff8c905de01a8667",
+          "size": 9936,
+          "path": "/home/derek/work/commandcenter-linux-flash/runs/operator/work_a04362c9e3df133a37df12842b8321f2/delivery.json",
+          "verified_sha256": "7c82fee377092c5749ca1f5ec4cbea47d94b95722c230f07ff8c905de01a8667"
+        },
+        "output": {
+          "file": "delivery-output.json",
+          "media_type": "application/json",
+          "sha256": "9271231bbbfef6e0b589f69d4265e043981626242b04da2aaae0fc5661e6cdb0",
+          "size": 2425,
+          "path": "/home/derek/work/commandcenter-linux-flash/runs/operator/work_a04362c9e3df133a37df12842b8321f2/delivery-output.json",
+          "verified_sha256": "9271231bbbfef6e0b589f69d4265e043981626242b04da2aaae0fc5661e6cdb0"
+        }
+      },
+      "evidence_paths": [
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_a04362c9e3df133a37df12842b8321f2/work-manifest.json",
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_a04362c9e3df133a37df12842b8321f2/candidate.md",
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_a04362c9e3df133a37df12842b8321f2/delivery-output.json",
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_a04362c9e3df133a37df12842b8321f2/delivery.json",
+        "/home/derek/work/amux/scratch/am4-delivery-20261013/qualification-inputs/expected-findings.json",
+        "/home/derek/work/amux/scratch/am4-delivery-20261013/qualification-inputs/enabling-v2-metadata.json"
+      ]
+    },
+    {
+      "work_id": "work_dc8cb6b22991e89a02b11b8d6d8290c7",
+      "job_id": "job_b50742da4cf4df0f2cbe08d30d38e329",
+      "request_id": "req_9fdec8be5131ecf12663951a17dc6968",
+      "payload_path": "/home/derek/work/amux/scratch/am4-delivery-20261013/qualification-inputs/am4-enabling-v2-listener-handoff.json",
+      "idempotency_key": "amux-am4-qualification-20261013-enabling-listener-handoff-v2",
+      "enabling_retry": true,
+      "status_at_review": "awaiting_review",
+      "recommended_verdict": "reject",
+      "official_verdict": null,
+      "substance": {
+        "state": "fail",
+        "criteria": [
+          {
+            "id": "s1",
+            "criterion": "Describe the PID, numeric descriptor, socket-type, and port checks before inherited-listener acceptance, plus normal bind fallback.",
+            "state": "fail",
+            "finding": "Now includes numeric parsing as well as PID, socket type, port and fallback. Still falsely says every failed check logs a warning; PID mismatch returns silently.",
+            "source_locator": "listener_handoff.rs:33-37;76-104"
+          },
+          {
+            "id": "s2",
+            "criterion": "Compare how prepare_exec, adopt, and exec_failed handle the boolean result of set_cloexec. Explain a conditional consequence of an unchecked failure without claiming it occurred.",
+            "state": "fail",
+            "finding": "Falsely says prepare_exec ignores the bool and sets environment fields even when clearing fails, directly contradicting its own quoted if guard. Correctly names adopt and exec_failed unchecked restore results but constructs the risk around behavior the guard prevents.",
+            "source_locator": "listener_handoff.rs:49-63;88-94;127-140"
+          },
+          {
+            "id": "s3",
+            "criterion": "Propose one bounded handling change and a focused failure-path test. State which existing tests cover success and which requested failure behavior remains untested in this file.",
+            "state": "fail",
+            "finding": "Proposed fix checks prepare_exec result before setting environment fields; that guard already exists. Thus it is not a valid bounded correction. Failure test remains focused on already-guarded clearing rather than unchecked restoration; socket/plain-fd success test omitted.",
+            "source_locator": "listener_handoff.rs:49-55;59-63;88;151-168"
+          }
+        ]
+      },
+      "form": {
+        "state": "fail",
+        "summary": {
+          "by_match": {
+            "exact": 12
+          },
+          "claims": 12,
+          "deterministic": "fail",
+          "deviations": [
+            {
+              "expected": {
+                "max": 240,
+                "min": 0
+              },
+              "kind": "words",
+              "note": "enforce fail",
+              "observed": 246
+            }
+          ],
+          "missing": 0,
+          "repairs": {},
+          "unsupported": 0,
+          "words": 246
+        },
+        "verification": {
+          "deterministic": {
+            "note": "words deviation: expected {'min': 0, 'max': 240}, observed 246 (enforce fail)",
+            "state": "fail"
+          },
+          "human": {
+            "state": "not_run"
+          },
+          "judge": {
+            "state": "not_run"
+          },
+          "reviewer": {
+            "state": "not_run"
+          }
+        },
+        "repairs": {},
+        "independent_contract_validation": {
+          "output_schema": "pass",
+          "delivery_manifest_schema": "pass",
+          "recounted_words": 246
+        }
+      },
+      "provenance": {
+        "repo": "/home/derek/work/worktrees/amux-local-capability-20261013",
+        "base_commit": "4f3c67f8888a8ed6698af1182d2e94d9ecf0f4d4",
+        "brief_sha256": "7682ccb56f99a8b1afe007c600e49fbcd55cf2fa28d720c7d1e81cbbc5ae4f56",
+        "source": {
+          "digest": "d520c1b3700202bc25a06f452f33f82c0af2927ab74e7eab99b9f4c1cc1984a4",
+          "files": [
+            {
+              "bytes": 6381,
+              "lines": 169,
+              "path": "crates/amux-server/src/listener_handoff.rs",
+              "sha256": "1e8d4c24cdb764134c8e71dad736a311cecfd4ba8007735e79566b467fe278f4"
+            }
+          ]
+        },
+        "caller": {
+          "submitted_by": "claude-frontier",
+          "validated_by": null
+        },
+        "conditions": {
+          "environment": "prod",
+          "lab_configuration": "three-dense",
+          "lab_configuration_source": "profiles",
+          "temperature": 0.0
+        },
+        "route": {
+          "backend": "am4-vllm",
+          "backend_choice": {
+            "by": "least_outstanding_then_leases",
+            "excluded": {},
+            "loads": {
+              "am4-vllm": {
+                "active_leases": 0,
+                "configured_order": 0,
+                "outstanding_assignments": 0
+              }
+            }
+          },
+          "duration_ms": 15225,
+          "model": "qwen3-27b",
+          "procedure": "one_call",
+          "procedure_choice": {
+            "by": "caller",
+            "level": "pin"
+          },
+          "profile_sha256": "806f1a6a664402e3da1dbe02cc4201cc238acd5052a20781101be711fbf5a68a",
+          "profile_version": "local-work-routes.v2",
+          "provider": "am4-vllm",
+          "requested_lane": "deep",
+          "response_schema_sha256": "208b4462299e8ec92235375c12e4236fb2628449fc706fc6125cb879a9b82353",
+          "routed_by": "pinned:am4-vllm",
+          "selected_lane": "deep",
+          "selected_model": "am4-dense-27b",
+          "serving_profile": {
+            "context_tokens": 16384,
+            "engine": "vllm",
+            "max_tokens": 4096,
+            "parallel_slots": 1,
+            "selected_model": "am4-dense-27b",
+            "serving_profile_schema": "serving-profile.v2"
+          },
+          "serving_profile_schema": "serving-profile.v2",
+          "serving_profile_sha256": "c787231c73b2f4825aac63b33a798816df6dbe326f5364001a47f4766e1ab94d",
+          "task_family": "code_review",
+          "temperature": 0.0,
+          "tokens_in": 3194,
+          "tokens_out": 666
+        },
+        "execution_status": "succeeded",
+        "invocations": [
+          {
+            "invocation_id": "inv_944b43ea09424a4585c6ce977ac5405b",
+            "lease_id": "lease_89ee9df9196a9ec52d59a0d37ba53112",
+            "provider": "am4-vllm",
+            "backend": "am4-vllm",
+            "model": "qwen3-27b",
+            "status": "succeeded",
+            "finish_reason": "stop",
+            "started_at": "2026-10-13T19:43:25.875844Z",
+            "finished_at": "2026-10-13T19:43:41.141548Z",
+            "duration_ms": 15225,
+            "tokens_in": 3194,
+            "tokens_out": 666,
+            "max_tokens": 2048,
+            "temperature": 0.0,
+            "thinking": false,
+            "response_schema_sha256": "208b4462299e8ec92235375c12e4236fb2628449fc706fc6125cb879a9b82353"
+          }
+        ]
+      },
+      "original_artifacts": {
+        "candidate": {
+          "file": "candidate.md",
+          "media_type": "text/markdown; charset=utf-8",
+          "sha256": "3a35d158bb23ad12a3aeee3dec9b2f66000f4cafaba3a9322706c2fad366ded2",
+          "size": 2781,
+          "path": "/home/derek/work/commandcenter-linux-flash/runs/operator/work_dc8cb6b22991e89a02b11b8d6d8290c7/candidate.md",
+          "verified_sha256": "3a35d158bb23ad12a3aeee3dec9b2f66000f4cafaba3a9322706c2fad366ded2"
+        },
+        "manifest": {
+          "file": "delivery.json",
+          "media_type": "application/json",
+          "sha256": "f51e315577a9371b5f18a0ef4ca313407791e2e9fb5acaa073c286c488364a98",
+          "size": 11004,
+          "path": "/home/derek/work/commandcenter-linux-flash/runs/operator/work_dc8cb6b22991e89a02b11b8d6d8290c7/delivery.json",
+          "verified_sha256": "f51e315577a9371b5f18a0ef4ca313407791e2e9fb5acaa073c286c488364a98"
+        },
+        "output": {
+          "file": "delivery-output.json",
+          "media_type": "application/json",
+          "sha256": "bb1d72da051f4f5e1cc77675e544e27805c00d5770a394ac83521de5898f7bd4",
+          "size": 2780,
+          "path": "/home/derek/work/commandcenter-linux-flash/runs/operator/work_dc8cb6b22991e89a02b11b8d6d8290c7/delivery-output.json",
+          "verified_sha256": "bb1d72da051f4f5e1cc77675e544e27805c00d5770a394ac83521de5898f7bd4"
+        }
+      },
+      "evidence_paths": [
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_dc8cb6b22991e89a02b11b8d6d8290c7/work-manifest.json",
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_dc8cb6b22991e89a02b11b8d6d8290c7/candidate.md",
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_dc8cb6b22991e89a02b11b8d6d8290c7/delivery-output.json",
+        "/home/derek/work/commandcenter-linux-flash/runs/operator/work_dc8cb6b22991e89a02b11b8d6d8290c7/delivery.json",
+        "/home/derek/work/amux/scratch/am4-delivery-20261013/qualification-inputs/expected-findings.json",
+        "/home/derek/work/amux/scratch/am4-delivery-20261013/qualification-inputs/enabling-v2-metadata.json"
+      ]
+    }
+  ],
+  "pending_enabling": [],
+  "bounded_retry_exhausted": true,
+  "conclusion": {
+    "reviewed_candidates": 8,
+    "original_candidates": 6,
+    "enabling_candidates": 2,
+    "recommended_accept": 0,
+    "recommended_reject": 8,
+    "formal_verdicts_recorded": 0,
+    "all_completed_without_token_truncation": true,
+    "am4_execution_proven": true,
+    "qualification_recommendation": "Do not promote the tested one_call delivery lane from these candidates. The one enabling retry per AM4 task is exhausted; retain all original failures. No qualification table or route policy was modified by this reviewer."
+  },
+  "enabling_continuation_authorized": true,
+  "bounded_retry_exhausted_is_stop_reason": false,
+  "review_addendum_path": "/home/derek/work/amux/scratch/am4-delivery-20261013/qualification-review-addendum.json",
+  "continuation_note": "Initial bounded retries remain measured failures. Latest user authorization continues enabling through thinking laps and counted deterministic sidecars; historical retry exhaustion does not end the task."
+}

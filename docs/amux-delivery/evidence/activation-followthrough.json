@@ -1,0 +1,200 @@
+{
+  "receipt_id": "br-20261013-205415-0fa54b22",
+  "authority": "Derek authorized deployment then explicitly delegated qualification verdicts, decided by Codex; existing gate unchanged",
+  "thinking": {
+    "old_commit": "831ecea2a67feb552574e795fef72cf3438844f2",
+    "new_commit": "a9f2cb41ba58165b39da637671565f1ea67ee5f9",
+    "backup": "/home/derek/work/amux/scratch/am4-delivery-20261013/control/thinking-deploy-20261013",
+    "prior_backend_sha": "fcc348a163ca4446f166821feb87f2a7e4e9844c363b60ee34f79f0bbf24d3bb",
+    "new_backend_sha": "b908e90067194ec20ebdf7d1134a0ab31d31c8ddf82fe0b361125dcb6cf91560",
+    "pause_sha": "46c78c7d60839f662b9f0eb22f6c789858300d35f2a4674b0f98fa8540597b0f",
+    "controller_run": "20261013T205533Z-339967",
+    "status": "live_explicit_thinking_completed",
+    "doorcheck": "process_listener healthy; dev-local authentication failed; actual codex authenticated read is the live caller check",
+    "reload_correction": "restarted after owned pause removal: the execution dispatcher latches pause at startup",
+    "first_failed_work": "work_39e14d71af7bcb5729653943211210e3",
+    "work_id": "work_37d9ac46f31e3eb3ff06ea7c9003d9f6",
+    "stages": [
+      {
+        "stage": "work",
+        "duration_ms": 302992,
+        "tokens_out": 14786,
+        "reasoning_tokens": 13656,
+        "finish": "stop"
+      },
+      {
+        "stage": "check",
+        "duration_ms": 231691,
+        "tokens_out": 11329,
+        "reasoning_tokens": 10119,
+        "finish": "stop"
+      }
+    ]
+  },
+  "thinking_form": {
+    "original_work": "work_37d9ac46f31e3eb3ff06ea7c9003d9f6",
+    "original_state": "awaiting_review; original deterministic fail, 11 unsupported quotes; no official verdict",
+    "sidecar_report": "/home/derek/work/amux/scratch/am4-delivery-20261013/sidecar-thinking-live-work_37d9ac46/sidecar-report.json",
+    "derivative_unsupported": 0,
+    "words_before": 404,
+    "words_after": 404,
+    "prose_headings_order_unchanged": true,
+    "repairs": {
+      "punctuation_quote_dropped": 9,
+      "symbol_scoped_quote": 2
+    },
+    "substance_finding": "Root source comparison found all requested listener/helper facts correct; no automatic candidate application or accepted carry capability record"
+  },
+  "qualification_summary": "/home/derek/work/amux/scratch/am4-delivery-20261013/pool-qualification/qualification-summary.json",
+  "pool": {
+    "status": "live_and_unpinned_delivery_completed",
+    "preflight": {
+      "leases": 0,
+      "tenancy": 0,
+      "execution_jobs": 0,
+      "external_bf6_queued": 56,
+      "work_items": 0,
+      "drain_service": "inactive"
+    },
+    "source_commit": "a9f2cb41ba58165b39da637671565f1ea67ee5f9",
+    "timestamp": "2026-10-13T21:24:43.593449+00:00",
+    "files": {
+      "local-work-routes-linux.toml": {
+        "old_sha256": "53cbf3203dbd4fb8d48adeb9065cf6e564dfe37da8197a0a3e722d03d7eac1e0",
+        "new_sha256": "fd074e17770ac8d678b3ef93a80dd3a32cd2941d04853bbe78aa7e38bd1cc9f3"
+      },
+      "delivery-procedures-linux.json": {
+        "old_sha256": "2ed235f84c7e1596b8514f44e7e82870717c6d81c4a823a4fbf954522e8c185b",
+        "new_sha256": "c6a2583c60c7d977e31f56930aac6c7342ae31961a052cb10c761e63fa0ed7ca"
+      }
+    },
+    "pause_removed_before_restart": true,
+    "gpu_or_facade_restart": false,
+    "drain_timer": {
+      "LoadState": "loaded",
+      "ActiveState": "active",
+      "SubState": "waiting",
+      "UnitFileState": "enabled"
+    },
+    "postflight": {
+      "leases": 0,
+      "tenancy": 0,
+      "execution_jobs": 0,
+      "external_bf6_queued": 56,
+      "work_items": 0,
+      "drain_service": "inactive"
+    },
+    "proof_work_id": "work_67962ecd9d341e57e5400b80be9a0797",
+    "cleanup_quiescence": {
+      "leases": 0,
+      "tenancy": 0,
+      "execution_jobs": 0,
+      "external_bf6_queued": 56,
+      "work_items": 0,
+      "drain_service": "inactive"
+    },
+    "completed_at": "2026-10-13T21:26:01.704763+00:00"
+  },
+  "regime": "Narrow source-fact extraction, source_map/line_reference/quote_renderer aids. Initial pooled procedure one_call. Carry is separately unqualified, no current-profile counts borrowed. Capacity unknown.",
+  "validation": "No new tests or regression suite for this follow-through; six real source-fact qualification deliveries and one real thinking delivery with a counted form sidecar. One useful unpinned pool delivery completed: automatic door procedure one_call, all three eligible, no exclusions, 15.455seconds,274words,0unsupported.",
+  "live_pool_delivery": {
+    "work_id": "work_67962ecd9d341e57e5400b80be9a0797",
+    "status": "awaiting_review",
+    "route": {
+      "backend": "omen-dense-27b",
+      "backend_choice": {
+        "by": "least_outstanding_then_leases",
+        "excluded": {},
+        "loads": {
+          "am4-vllm": {
+            "active_leases": 0,
+            "configured_order": 2,
+            "outstanding_assignments": 0
+          },
+          "omen-dense-27b": {
+            "active_leases": 0,
+            "configured_order": 0,
+            "outstanding_assignments": 0
+          },
+          "omen-dense-27b-b": {
+            "active_leases": 0,
+            "configured_order": 1,
+            "outstanding_assignments": 0
+          }
+        },
+        "qualification": {
+          "counts": {
+            "one_call": {
+              "accepted": 2,
+              "accepted_briefs": 2,
+              "briefs": 2,
+              "rejected": 0
+            }
+          },
+          "level": "family",
+          "rule": {
+            "min_accepted_briefs": 2
+          }
+        },
+        "table_sha256": "c6a2583c60c7d977e31f56930aac6c7342ae31961a052cb10c761e63fa0ed7ca"
+      },
+      "duration_ms": 15455,
+      "model": "qwen3.8-27b",
+      "procedure": "one_call",
+      "procedure_choice": {
+        "by": "door",
+        "counts": {
+          "one_call": {
+            "accepted": 2,
+            "accepted_briefs": 2,
+            "briefs": 2,
+            "rejected": 0
+          }
+        },
+        "level": "family",
+        "rule": {
+          "min_accepted_briefs": 2
+        },
+        "table_sha256": "c6a2583c60c7d977e31f56930aac6c7342ae31961a052cb10c761e63fa0ed7ca"
+      },
+      "profile_sha256": "fd074e17770ac8d678b3ef93a80dd3a32cd2941d04853bbe78aa7e38bd1cc9f3",
+      "profile_version": "local-work-routes.v2",
+      "provider": "omen-dense-27b",
+      "requested_lane": "deep",
+      "response_schema_sha256": "208b4462299e8ec92235375c12e4236fb2628449fc706fc6125cb879a9b82353",
+      "routed_by": "pinned:omen-dense-27b",
+      "selected_lane": "deep",
+      "selected_model": "qwen3.8-27b",
+      "serving_profile": {
+        "context_tokens": 65536,
+        "deliberate_max_tokens": 24576,
+        "engine": "vllm",
+        "flash_attention": true,
+        "max_tokens": 16384,
+        "parallel_slots": 2,
+        "selected_model": "qwen3.8-27b",
+        "serving_profile_schema": "serving-profile.v2",
+        "speculative": "mtp-k2"
+      },
+      "serving_profile_schema": "serving-profile.v2",
+      "serving_profile_sha256": "43f8c7fb96c73ec7d43b2f29b31f7ada824bc37851cc4852a23f8254b7db3b41",
+      "task_family": "code_review",
+      "temperature": 0.0,
+      "tokens_in": 1866,
+      "tokens_out": 911
+    },
+    "delivery_summary": {
+      "by_match": {
+        "exact": 19
+      },
+      "claims": 19,
+      "deterministic": "pass",
+      "deviations": [],
+      "missing": 0,
+      "repairs": {},
+      "unsupported": 0,
+      "words": 274
+    },
+    "candidate_path": "/home/derek/work/commandcenter-linux-flash/runs/operator/work_67962ecd9d341e57e5400b80be9a0797/candidate.md"
+  }
+}

@@ -1,0 +1,292 @@
+{
+  "rows": [
+    {
+      "backend": "omen-dense-27b",
+      "profile": "43f8c7fb96c73ec7d43b2f29b31f7ada824bc37851cc4852a23f8254b7db3b41",
+      "procedure": "one_call",
+      "basis": {
+        "level": "family",
+        "rule": {
+          "min_accepted_briefs": 2
+        },
+        "counts": {
+          "one_call": {
+            "accepted": 2,
+            "rejected": 0,
+            "briefs": 2,
+            "accepted_briefs": 2
+          }
+        }
+      }
+    },
+    {
+      "backend": "omen-dense-27b-b",
+      "profile": "43f8c7fb96c73ec7d43b2f29b31f7ada824bc37851cc4852a23f8254b7db3b41",
+      "procedure": "one_call",
+      "basis": {
+        "level": "family",
+        "rule": {
+          "min_accepted_briefs": 2
+        },
+        "counts": {
+          "one_call": {
+            "accepted": 2,
+            "rejected": 0,
+            "briefs": 2,
+            "accepted_briefs": 2
+          }
+        }
+      }
+    },
+    {
+      "backend": "am4-vllm",
+      "profile": "e955dcd89f9e53632a46d32dfa83100368522d4fbfa75e2285534c5248004df1",
+      "procedure": "one_call",
+      "basis": {
+        "level": "family",
+        "rule": {
+          "min_accepted_briefs": 2
+        },
+        "counts": {
+          "one_call": {
+            "accepted": 2,
+            "rejected": 0,
+            "briefs": 2,
+            "accepted_briefs": 2
+          }
+        }
+      }
+    }
+  ],
+  "threshold_unchanged": true,
+  "reviews": [
+    {
+      "schema": "qualification-review.v1",
+      "work_id": "work_97047c2e31978fa23e35b969af6783e8",
+      "reviewed_at": "2026-10-13T21:15:58.304260+00:00",
+      "reviewer": "Codex (decided by Codex), delegated by Derek2026-10-13",
+      "delegation": "../qualification-delegation-20261013.json",
+      "provider": "am4-vllm",
+      "profile": "e955dcd89f9e53632a46d32dfa83100368522d4fbfa75e2285534c5248004df1",
+      "procedure": "one_call",
+      "regime": "Narrow source-fact extraction; source_map and line_reference/renderer aids; not held-out correctness or capacity evidence.",
+      "criteria": [
+        {
+          "criterion": "State the exact repeat-key behavior of first_this_bucket when calls use the same bucket, including which return value admits a log line.",
+          "status": "passed",
+          "evidence": "Candidate describes the ordinary successful-lock path: insertion into the set is true for a new key and false for repeats in the same bucket; true admits a log line. It separately states the poisoned-lock exception, so the complete report covers it. Pinned log_dedupe.rs53-63."
+        },
+        {
+          "criterion": "State what happens when the bucket changes and when locking is poisoned; distinguish these source facts from any claim of executed tests.",
+          "status": "passed",
+          "evidence": "Candidate explicitly records bucketupdate+setclear and poisoned-lock immediate true/failopen. It labels these source facts rather than executed tests. Pinned log_dedupe.rs57-63."
+        }
+      ],
+      "form": {
+        "measures": {
+          "sections": [
+            "Repeat behavior",
+            "Reset and failure"
+          ],
+          "words": 165
+        },
+        "unsupported": [],
+        "verification": {
+          "state": "pass"
+        }
+      },
+      "decision": "accepted",
+      "no_candidate_applied": true
+    },
+    {
+      "schema": "qualification-review.v1",
+      "work_id": "work_def2f5f47e73c4e650e61b089fcaef0f",
+      "reviewed_at": "2026-10-13T21:15:58.304076+00:00",
+      "reviewer": "Codex (decided by Codex), delegated by Derek2026-10-13",
+      "delegation": "../qualification-delegation-20261013.json",
+      "provider": "am4-vllm",
+      "profile": "e955dcd89f9e53632a46d32dfa83100368522d4fbfa75e2285534c5248004df1",
+      "procedure": "one_call",
+      "regime": "Narrow source-fact extraction; source_map and line_reference/renderer aids; not held-out correctness or capacity evidence.",
+      "criteria": [
+        {
+          "criterion": "For prepare_exec, adopt, and exec_failed, record the set_cloexec on argument, the requested FD_CLOEXEC operation, and whether that caller checks or ignores the returned boolean; support the facts with pinned source.",
+          "status": "passed",
+          "evidence": "Candidate separately states prepare_exec false/clear and conditionally sets environment only on true; exec_failed and adopt true/set and ignore the bool. Pinned listener_handoff.rs49-55,59-63,88-94 and134-138 substantiate all requested facts."
+        },
+        {
+          "criterion": "State exactly what makes set_cloexec return false or true, distinguishing the flag-read result from the flag-write result; retain a concise source-supported fact record for a later listener review.",
+          "status": "passed",
+          "evidence": "Candidate explicitly distinguishes F_GETFD negative=>false from F_SETFD==0=>true, otherwisefalse. Pinned listener_handoff.rs130-139. No executionclaim."
+        }
+      ],
+      "form": {
+        "measures": {
+          "sections": [
+            "Call facts",
+            "Helper contract"
+          ],
+          "words": 173
+        },
+        "unsupported": [],
+        "verification": {
+          "state": "pass"
+        }
+      },
+      "decision": "accepted",
+      "no_candidate_applied": true
+    },
+    {
+      "schema": "qualification-review.v1",
+      "work_id": "work_f1740a0f343ad5ff0fdf840580d58d6e",
+      "reviewed_at": "2026-10-13T21:23:03.267547+00:00",
+      "reviewer": "Codex (decided by Codex), delegated by Derek2026-10-13",
+      "delegation": "../qualification-delegation-20261013.json",
+      "provider": "omen-dense-27b",
+      "profile": "43f8c7fb96c73ec7d43b2f29b31f7ada824bc37851cc4852a23f8254b7db3b41",
+      "procedure": "one_call",
+      "regime": "Narrow source-fact extraction; source_map and line_reference/renderer aids; not held-out correctness or capacity evidence.",
+      "criteria": [
+        {
+          "criterion": "For prepare_exec, adopt, and exec_failed, record the set_cloexec on argument, the requested FD_CLOEXEC operation, and whether that caller checks or ignores the returned boolean; support the facts with pinned source.",
+          "status": "passed",
+          "evidence": "Candidate separately states prepare_exec false/clear and conditionally sets environment only on true; exec_failed and adopt true/set and ignore the bool. Pinned listener_handoff.rs49-55,59-63,88-94 and134-138 substantiate all requested facts."
+        },
+        {
+          "criterion": "State exactly what makes set_cloexec return false or true, distinguishing the flag-read result from the flag-write result; retain a concise source-supported fact record for a later listener review.",
+          "status": "passed",
+          "evidence": "Candidate explicitly distinguishes F_GETFD negative=>false from F_SETFD==0=>true, otherwisefalse. Pinned listener_handoff.rs130-139. No executionclaim."
+        }
+      ],
+      "form": {
+        "measures": {
+          "sections": [
+            "Call facts",
+            "Helper contract"
+          ],
+          "words": 188
+        },
+        "unsupported": [],
+        "verification": {
+          "state": "pass"
+        }
+      },
+      "decision": "accepted",
+      "no_candidate_applied": true
+    },
+    {
+      "schema": "qualification-review.v1",
+      "work_id": "work_69dcbd29e31144221ae6cf5b4334e5ad",
+      "reviewed_at": "2026-10-13T21:23:03.267760+00:00",
+      "reviewer": "Codex (decided by Codex), delegated by Derek2026-10-13",
+      "delegation": "../qualification-delegation-20261013.json",
+      "provider": "omen-dense-27b",
+      "profile": "43f8c7fb96c73ec7d43b2f29b31f7ada824bc37851cc4852a23f8254b7db3b41",
+      "procedure": "one_call",
+      "regime": "Narrow source-fact extraction; source_map and line_reference/renderer aids; not held-out correctness or capacity evidence.",
+      "criteria": [
+        {
+          "criterion": "State the exact repeat-key behavior of first_this_bucket when calls use the same bucket, including which return value admits a log line.",
+          "status": "passed",
+          "evidence": "Candidate describes the ordinary successful-lock path: insertion into the set is true for a new key and false for repeats in the same bucket; true admits a log line. It separately states the poisoned-lock exception, so the complete report covers it. Pinned log_dedupe.rs53-63."
+        },
+        {
+          "criterion": "State what happens when the bucket changes and when locking is poisoned; distinguish these source facts from any claim of executed tests.",
+          "status": "passed",
+          "evidence": "Candidate explicitly records bucketupdate+setclear and poisoned-lock immediate true/failopen. It labels these source facts rather than executed tests. Pinned log_dedupe.rs57-63."
+        }
+      ],
+      "form": {
+        "measures": {
+          "sections": [
+            "Repeat behavior",
+            "Reset and failure"
+          ],
+          "words": 204
+        },
+        "unsupported": [],
+        "verification": {
+          "state": "pass"
+        }
+      },
+      "decision": "accepted",
+      "no_candidate_applied": true
+    },
+    {
+      "schema": "qualification-review.v1",
+      "work_id": "work_6b2ec9a23f10558bdda20ac8393278b8",
+      "reviewed_at": "2026-10-13T21:24:09.748873+00:00",
+      "reviewer": "Codex (decided by Codex), delegated by Derek2026-10-13",
+      "delegation": "../qualification-delegation-20261013.json",
+      "provider": "omen-dense-27b-b",
+      "profile": "43f8c7fb96c73ec7d43b2f29b31f7ada824bc37851cc4852a23f8254b7db3b41",
+      "procedure": "one_call",
+      "regime": "Narrow source-fact extraction; source_map and line_reference/renderer aids; not held-out correctness or capacity evidence.",
+      "criteria": [
+        {
+          "criterion": "State the exact repeat-key behavior of first_this_bucket when calls use the same bucket, including which return value admits a log line.",
+          "status": "passed",
+          "evidence": "Candidate describes the ordinary successful-lock path: insertion into the set is true for a new key and false for repeats in the same bucket; true admits a log line. It separately states the poisoned-lock exception, so the complete report covers it. Pinned log_dedupe.rs53-63."
+        },
+        {
+          "criterion": "State what happens when the bucket changes and when locking is poisoned; distinguish these source facts from any claim of executed tests.",
+          "status": "passed",
+          "evidence": "Candidate explicitly records bucketupdate+setclear and poisoned-lock immediate true/failopen. It labels these source facts rather than executed tests. Pinned log_dedupe.rs57-63."
+        }
+      ],
+      "form": {
+        "measures": {
+          "sections": [
+            "Repeat behavior",
+            "Reset and failure"
+          ],
+          "words": 204
+        },
+        "unsupported": [],
+        "verification": {
+          "state": "pass"
+        }
+      },
+      "decision": "accepted",
+      "no_candidate_applied": true
+    },
+    {
+      "schema": "qualification-review.v1",
+      "work_id": "work_0475a004d82e82f7f50d921bf2692c58",
+      "reviewed_at": "2026-10-13T21:24:09.748620+00:00",
+      "reviewer": "Codex (decided by Codex), delegated by Derek2026-10-13",
+      "delegation": "../qualification-delegation-20261013.json",
+      "provider": "omen-dense-27b-b",
+      "profile": "43f8c7fb96c73ec7d43b2f29b31f7ada824bc37851cc4852a23f8254b7db3b41",
+      "procedure": "one_call",
+      "regime": "Narrow source-fact extraction; source_map and line_reference/renderer aids; not held-out correctness or capacity evidence.",
+      "criteria": [
+        {
+          "criterion": "For prepare_exec, adopt, and exec_failed, record the set_cloexec on argument, the requested FD_CLOEXEC operation, and whether that caller checks or ignores the returned boolean; support the facts with pinned source.",
+          "status": "passed",
+          "evidence": "Candidate separately states prepare_exec false/clear and conditionally sets environment only on true; exec_failed and adopt true/set and ignore the bool. Pinned listener_handoff.rs49-55,59-63,88-94 and134-138 substantiate all requested facts."
+        },
+        {
+          "criterion": "State exactly what makes set_cloexec return false or true, distinguishing the flag-read result from the flag-write result; retain a concise source-supported fact record for a later listener review.",
+          "status": "passed",
+          "evidence": "Candidate explicitly distinguishes F_GETFD negative=>false from F_SETFD==0=>true, otherwisefalse. Pinned listener_handoff.rs130-139. No executionclaim."
+        }
+      ],
+      "form": {
+        "measures": {
+          "sections": [
+            "Call facts",
+            "Helper contract"
+          ],
+          "words": 188
+        },
+        "unsupported": [],
+        "verification": {
+          "state": "pass"
+        }
+      },
+      "decision": "accepted",
+      "no_candidate_applied": true
+    }
+  ]
+}

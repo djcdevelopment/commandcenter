@@ -25,3 +25,7 @@ Track the whole workflow's time and cost. Test counts and fast suites do not mea
 ## Left open
 
 AM4 thinking declaration/deployment and a real thinking turn are pending. The pool is unqualified at the new profile. Candidates still need Derek's verdict. The controller's final guard and review are unfinished. These are a handoff, not invitations to another assurance lap during landing.
+
+## Follow-through
+
+Derek then authorized the deployment and delegated the qualification verdicts. The first thinking submission failed because the dispatcher latches the pause at startup; the order was fixed (remove the owned pause, then restart the door) and the thinking lap succeeded. A form miss (11 unsupported fragments) got a counted sidecar rather than a rerun. The pool went live on recorded verdicts for the existing threshold. The items listed under "Left open" above for the declaration, deployment, thinking turn and pool qualification are closed; candidate verdicts for the thinking report, carry qualification, capacity and held-out ability remain open.

@@ -1,6 +1,12 @@
 # Amux local delivery — result, 2026-10-13
 
-The native Amux worker submitted real HEARTH work that executed on AM4. The reusable offline preparer and citation sidecar are implemented. The explicit AM4 thinking adapter is built and reviewed but not deployed. The three-backend pool remains staged; no new production verdict or automatic candidate application occurred.
+The native Amux worker submitted real HEARTH work that executed on AM4. Current state (see the follow-through below): explicit AM4 thinking is deployed and completed both thinking stages; the three-backend deep pool is live with two distinct accepted `one_call` briefs per backend at its current profile, qualification decided by Codex under a fresh delegation; the original thinking report awaits a verdict. The reusable offline preparer and citation sidecar are implemented. No candidate was applied automatically.
+
+**Follow-through (current, receipt `br-20261013-205415-0fa54b22`).** Derek authorized deployment, then delegated qualification verdicts to Codex for this slice (`evidence/qualification-delegation-20261013.json`; threshold and candidate boundary unchanged). Thinking is deployed and the three-backend pool is live:
+- **Thinking.** The reviewed adapter and AM4 declaration (49152 context, deliberate 24576, `xhigh`) were deployed with a controlled door reload only; no GPU or facade restart. The first thinking submission (`work_39e14d71…`) failed because the execution dispatcher latches `pause.dispatch` at startup; the order was corrected (pause removed, then restart) and `work_37d9ac46f31e3eb3ff06ea7c9003d9f6` ran both thinking stages to `stop` with real reasoning tokens (work 13656 reasoning tokens / 302992 ms; check 10119 / 231691 ms).
+- **That report.** It is 404 words, `awaiting_review`, and on the root's source reading its requested facts are correct (no verdict recorded for it). The original has 11 unsupported quote fragments (form). The counted sidecar (9 `punctuation_quote_dropped`, 2 `symbol_scoped_quote`) yields 0 unsupported with 404 words and prose, headings and order unchanged.
+- **Pool.** All three exact current v2 profiles each have two distinct accepted `one_call` briefs (decided by Codex under the fresh delegation); the threshold of 2 is unchanged and no legacy or other-profile counts were borrowed (`evidence/qualification-summary.json`). The deployed route lists `omen-dense-27b`, `omen-dense-27b-b` and `am4-vllm`, with a matching procedure table (`host/omen-linux/hearth-production/`). The automatic pooled procedure is `one_call`; `carry` is separately unqualified. One unpinned delivery completed through the door (all three eligible, 15.5 s, 274 words, 0 unsupported). Capacity, held-out accuracy and broad code-review ability are unknown.
+- **Unchanged.** No local candidate was applied, no cloud substitute, no GPU or facade restart. Preflight and postflight showed zero work, leases and tenancy; the drain timer was restored. Details: `evidence/activation-followthrough.json`. The earlier blocked receipt stays history. Text below this block that says "not deployed", "staged" or "undeployed" describes the first landing and is superseded by this block.
 
 ## What was built
 
@@ -24,7 +30,7 @@ Eight one-call candidates were produced through native Amux: two each on OMEN-A,
 
 OMEN-A/B temperature-0 paired outputs were byte-identical. Root observed both AM4 GPUs at98% utilization during the first AM4 proof; this is an observation in the receipt, not a separately archived telemetry trace.
 
-## AM4 enabling edge
+## AM4 enabling edge (at first landing; now deployed)
 
 The live AM4 engine reports49152 context; the existing facade admits24576 output tokens. HEARTH still declares16384 context, ordinary4096 output, and no deliberate allowance. Its fleet facade default sets effort to `none` when absent, overriding the old adapter's explicit thinking=true. The scoped adapter fixes that request ambiguity; enabling the larger declared profile remains a fresh H-3 decision.
 
@@ -39,6 +45,6 @@ The proposed declaration preserves ordinary4096 output and one slot, adds delibe
 
 Logs remain under `/home/derek/work/amux/scratch/am4-delivery-20261013/`. Selected summaries are archived in `evidence/`. Build receipt: `br-20261013-190915-a5ea463f`. Originals under `runs/operator/` remain immutable.
 
-## Runtime left in place
+## Runtime state at first landing (superseded)
 
 The ordinary deep route is still singleton OMEN-A. Route SHA256 `53cbf3203dbd4fb8d48adeb9065cf6e564dfe37da8197a0a3e722d03d7eac1e0`; procedure-table SHA256 `2ed235f84c7e1596b8514f44e7e82870717c6d81c4a823a4fbf954522e8c185b`. The drain timer was restored active/waiting and the last preflight observed zero work, leases, tenancy and local execution jobs. The56 historical external BF6 queued records were left untouched.

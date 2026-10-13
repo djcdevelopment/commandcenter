@@ -27,5 +27,21 @@
       "bytes": 960
     }
   },
-  "fresh_tests_at_landing": false
+  "fresh_tests_at_landing": false,
+  "followthrough": {
+    "activation-followthrough.json": {
+      "sha256": "74b16598d5ea2d431af1039d49fe4ec5d43c87d2261f56bf8e3c935bd1b9db31",
+      "bytes": 7603
+    },
+    "qualification-summary.json": {
+      "sha256": "1fa83603b211008d4724648418f436afe58bfa4b6ccec085ecf22f6f06a6ca28",
+      "bytes": 13053
+    },
+    "qualification-delegation-20261013.json": {
+      "sha256": "68835755caf1f83989b70ffcc9c9b31b3edf2d98566615e6e9f0887844abfac2",
+      "bytes": 1319
+    }
+  },
+  "followthrough_receipt_id": "br-20261013-205415-0fa54b22",
+  "followthrough_note": "Added after thinking deployment and pool activation; the earlier 'sources' (selected evidence at first landing) are unchanged history."
 }

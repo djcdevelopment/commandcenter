@@ -38,6 +38,8 @@ from hearth.delivery import contract, render, revision, sourcemap, verify  # noq
 
 REPORT_SCHEMA = "amux-delivery-sidecar.v1"
 REPAIR_KEY = "symbol_scoped_quote"
+DROP_KEY = "punctuation_quote_dropped"
+PUNCTUATION = frozenset("{}[]();,")
 IMMUTABLE_PARTS = ("runs", "hybrid-context-trial", "omen-c-read", "omen-e-read")
 _FN = re.compile(r"(?<![A-Za-z0-9_])fn\s+([A-Za-z_][A-Za-z0-9_]*)")
 
@@ -250,7 +252,41 @@ def _excerpt(texts: dict, path: str, span: dict, hit: int, qlen: int) -> tuple:
     return None, f"no unique excerpt inside the function within {contract.MAX_QUOTE_CHARS} characters"
 
 
-def repair_quotes(output: dict, sm, claims: list) -> tuple:
+def drop_punctuation_quotes(output: dict, sm, claims: list) -> tuple:
+    """Drop unresolved quotes made only of Rust punctuation, never a paragraph's only evidence.
+    A paragraph must keep an exact, unique, non-punctuation quote the existing resolver places in the pinned source.
+    -> (output without those quotes, drops, origin) where origin maps (section, paragraph) to the original index of
+    each retained quote. Prose, headings and order are untouched."""
+    stage = copy.deepcopy(output)
+    by_para: dict = {}
+    for row in claims:
+        i, j, k = (int(x[1:]) for x in row["id"].split("."))
+        by_para.setdefault((i, j), []).append((k, row))
+    drops, origin = [], {}
+    for (i, j), rows in sorted(by_para.items()):
+        quotes = output["sections"][i]["paragraphs"][j]["quotes"]
+        kept = [x for x, q in enumerate(quotes) if not (isinstance(q, str) and not q.strip())]   # claim k -> original index
+        supports = [{"original_quote_index": kept[k], "path": r["resolved"]["path"],
+                     "start_line": r["resolved"]["start_line"], "end_line": r["resolved"]["end_line"],
+                     "source_sha256": sm.get(r["resolved"]["path"]).sha256}
+                    for k, r in rows
+                    if r["match"] == "exact" and "ambiguous" not in r and r["resolved"]
+                    and not set(r["quote"].strip()) <= PUNCTUATION]
+        gone = [(kept[k], r) for k, r in rows
+                if r["match"] == "missing" and r["quote"].strip() and set(r["quote"].strip()) <= PUNCTUATION]
+        if not gone or not supports:
+            continue
+        dropped = {x for x, _ in gone}
+        stage["sections"][i]["paragraphs"][j]["quotes"] = [q for x, q in enumerate(quotes) if x not in dropped]
+        origin[(i, j)] = [x for x in range(len(quotes)) if x not in dropped]
+        for x, r in gone:
+            drops.append({"repair": DROP_KEY, "claim_id": r["id"], "paragraph": [i, j], "original_quote_index": x,
+                          "derivative_quote_index": None, "removed_text": quotes[x],
+                          "retained_support": supports})
+    return stage, drops, origin
+
+
+def repair_quotes(output: dict, sm, claims: list, origin: Optional[dict] = None) -> tuple:
     """-> (derivative output, changes, unresolved). Only claims the renderer left short_ambiguous are candidates."""
     derived = copy.deepcopy(output)
     texts = {fm.path: "\n".join(fm.lines) for fm in sm.files}
@@ -266,7 +302,8 @@ def repair_quotes(output: dict, sm, claims: list) -> tuple:
         idx = kept[k]
         original = para["quotes"][idx]
         needle = original.replace("\r\n", "\n").strip("\n")
-        base = {"claim_id": row["id"], "quote_index": idx, "claim_quote_index": k, "quote": original}
+        base = {"claim_id": row["id"], "quote_index": idx, "claim_quote_index": k, "quote": original,
+                "original_quote_index": (origin or {}).get((i, j), list(range(len(para["quotes"]))))[idx]}
 
         def refuse(reason: str, **more: Any) -> None:
             unresolved.append({**base, "reason": reason, **more})
@@ -348,14 +385,23 @@ def derive(output: dict, brief: dict, sm, meta: Optional[dict] = None) -> dict:
     """Pure core: everything the sidecar writes, computed from a verified output/brief/source map."""
     meta = {**(meta or {})}
     base_md, base_man, base_v = _render(output, brief, sm, meta)
-    derived, changes, unresolved = repair_quotes(output, sm, base_man["claims"])
-    if changes:
+    stage, drops, origin = drop_punctuation_quotes(output, sm, base_man["claims"])
+    claims = _render(stage, brief, sm, meta)[1]["claims"] if drops else base_man["claims"]
+    derived, changes, unresolved = repair_quotes(stage, sm, claims, origin)
+    if changes or drops:
         meta["aids_used"] = list(dict.fromkeys([*meta.get("aids_used", []), "sidecar"]))
     md, man, v = _render(derived, brief, sm, meta)
-    if changes:
-        man["repairs"][REPAIR_KEY] = len(changes)
+    if changes or drops:
+        if changes:
+            man["repairs"][REPAIR_KEY] = len(changes)
+        if drops:
+            man["repairs"][DROP_KEY] = len(drops)
         contract.check_manifest(man)
+    index_map = {f"s{i}.p{j}": [o.index(x) if x in o else None
+                                for x in range(len(output["sections"][i]["paragraphs"][j]["quotes"]))]
+                 for (i, j), o in origin.items()}
     return {"output": derived, "markdown": md, "manifest": man, "changes": changes, "unresolved": unresolved,
+            "drops": drops, "quote_index_map": index_map,
             "before": _measure(base_man, base_v), "after": _measure(man, v),
             "prose_unchanged": revision.same_prose(output, derived),
             "headings_unchanged": revision.same_headings(output, derived),
@@ -440,7 +486,8 @@ def run(run_dir: Path, out_dir: Path) -> dict:
                   "sources": [{"path": f.path, "sha256": f.sha256} for f in sm.files]},
         "output": {"dir": str(out), "files": {n: _sha(d) for n, d in files.items() if n != "original/delivery-output.json"},
                    "original_copy_sha256": _sha(raw_output)},
-        "repairs": {REPAIR_KEY: len(result["changes"])},
+        "repairs": {REPAIR_KEY: len(result["changes"]), **({DROP_KEY: len(result["drops"])} if result["drops"] else {})},
+        "drops": result["drops"], "quote_index_map": result["quote_index_map"],
         "changes": result["changes"], "unresolved": result["unresolved"],
         "before": result["before"], "after": result["after"],
         "prose_unchanged": result["prose_unchanged"], "headings_unchanged": result["headings_unchanged"],

@@ -1,8 +1,12 @@
 # Handoff — Amux local capability, 2026-10-13
 
-Read [RESULT.md](RESULT.md), [PLAN.md](PLAN.md), then [RETROSPECTIVE.md](RETROSPECTIVE.md). This is a landed code/documentation slice, not a deployment or accepted local-model candidate.
+Read [RESULT.md](RESULT.md), [PLAN.md](PLAN.md), then [RETROSPECTIVE.md](RETROSPECTIVE.md). Current state: explicit AM4 thinking is deployed and the three-backend `one_call` pool is live (qualification decided by Codex under a fresh delegation, threshold unchanged); the original 404-word thinking report awaits a recorded verdict, and no candidate was applied. See Follow-through below; older sections are first-landing history.
 
-## Entry and saved work
+## Follow-through (current)
+
+Live session: <https://localhost:18824/#peek=amux-local-capability-20261013>. For a normal unpinned delivery use the existing preparer recipe in [README](README.md) (`tools/ops/amux_delivery_prepare.py`, no backend/model/procedure pins) and submit the arguments through the native worker; the door picks among the three qualified backends and chooses `one_call` today. Thinking and the pool are live as recorded in [RESULT](RESULT.md) and `evidence/activation-followthrough.json`; candidates still stop at `awaiting_review`. The drafted controller in `operational-drafts/` stays inert; live control evidence is in the parent scratch directory. The original 404-word thinking report (`work_37d9ac46…`) awaits a recorded verdict; its repaired form is a sidecar derivative, not the original.
+
+## Entry and saved work (first landing)
 
 - Repository worktree: `/home/derek/work/worktrees/amux-am4-delivery-20261013`; branch `amux/am4-delivery-20261013`; base `831ecea2a67feb552574e795fef72cf3438844f2`.
 - Earlier commits: preparer `7f16c46e6d0b4cd4c52626836c0799ca870df564`; sidecar `cf463ebf9beca8874b878e9780188677047a6a0c`. The landing commit adds the reviewed thinking adapter and this closure packet.
@@ -12,7 +16,7 @@ Read [RESULT.md](RESULT.md), [PLAN.md](PLAN.md), then [RETROSPECTIVE.md](RETROSP
 - Receipt `br-20261013-190915-a5ea463f`; scratch and original artifacts named in RESULT. No original run directory is to be modified.
 - Preserve unrelated dirty `hearth/etc/start-hearth-gateway.cmd`; it was not part of this work.
 
-## Exact next action
+## Exact next action (first landing, now done)
 
 Show Derek the existing Amux surface and the proposed small AM4 fact-record lap. Use `PLAN.md` and the archived proposal for the actual activation decision. Do not restart inference or repeat the same24K OMEN carry prompt merely because it produced no answer. No deployment, new verdict or pool activation was authorized by the landing request.
 

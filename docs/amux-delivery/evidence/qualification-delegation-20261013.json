@@ -1,0 +1,28 @@
+{
+  "schema": "scoped-operator-delegation.v1",
+  "recorded_at": "2026-10-13T21:04:32.822196+00:00",
+  "authority": "Derek",
+  "source_question": "To finish pool activation, may I review and record the required qualification verdicts on your behalf for this slice, marked decided by Codex? That means two distinct useful briefs per backend/profile, with the existing acceptance threshold unchanged. Your LAB-INTENT currently reserves PROD verdicts for you; the earlier delegation expired.",
+  "source_answer": "yes",
+  "scope": "This Amux thinking/pool activation slice only; expires when completed or stopped. Does not change hearth-env or other PROD decisions.",
+  "backends": [
+    "omen-dense-27b",
+    "omen-dense-27b-b",
+    "am4-vllm"
+  ],
+  "work": "Two distinct pinned Amux source-fact briefs per current profile, then actual qualified pool activation.",
+  "allowed": [
+    "source-based frontier review",
+    "record candidate verdicts as decided by Codex",
+    "export actual verdict qualification",
+    "activate qualified pool with truthful procedure selection"
+  ],
+  "unchanged": [
+    "qualification threshold2 distinct accepted briefs",
+    "candidate immutable/review boundary",
+    "no automatic candidate application",
+    "no gate waiver",
+    "no cloud fallback",
+    "no unrelated dispatch"
+  ]
+}

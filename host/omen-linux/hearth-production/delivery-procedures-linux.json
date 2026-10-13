@@ -136,6 +136,64 @@
     }
    }
   },
+  "am4-vllm": {
+   "all": {
+    "one_call": {
+     "accepted": 2,
+     "accepted_briefs": 2,
+     "briefs": 2,
+     "record_ids": [
+      "DEL-97047c2e31978fa23e35b969af6783e8",
+      "DEL-def2f5f47e73c4e650e61b089fcaef0f"
+     ],
+     "rejected": 0
+    }
+   },
+   "families": {
+    "code_review": {
+     "one_call": {
+      "accepted": 2,
+      "accepted_briefs": 2,
+      "briefs": 2,
+      "record_ids": [
+       "DEL-97047c2e31978fa23e35b969af6783e8",
+       "DEL-def2f5f47e73c4e650e61b089fcaef0f"
+      ],
+      "rejected": 0
+     }
+    }
+   },
+   "profiles": {
+    "e955dcd89f9e53632a46d32dfa83100368522d4fbfa75e2285534c5248004df1": {
+     "all": {
+      "one_call": {
+       "accepted": 2,
+       "accepted_briefs": 2,
+       "briefs": 2,
+       "record_ids": [
+        "DEL-97047c2e31978fa23e35b969af6783e8",
+        "DEL-def2f5f47e73c4e650e61b089fcaef0f"
+       ],
+       "rejected": 0
+      }
+     },
+     "families": {
+      "code_review": {
+       "one_call": {
+        "accepted": 2,
+        "accepted_briefs": 2,
+        "briefs": 2,
+        "record_ids": [
+         "DEL-97047c2e31978fa23e35b969af6783e8",
+         "DEL-def2f5f47e73c4e650e61b089fcaef0f"
+        ],
+        "rejected": 0
+       }
+      }
+     }
+    }
+   }
+  },
   "omen-dense-27b": {
    "all": {
     "carry": {
@@ -191,9 +249,9 @@
      "rejected": 17
     },
     "one_call": {
-     "accepted": 11,
-     "accepted_briefs": 2,
-     "briefs": 20,
+     "accepted": 13,
+     "accepted_briefs": 4,
+     "briefs": 22,
      "record_ids": [
       "DEL-01d65bf2f3664f44bb2d1b422302a2bd",
       "DEL-0916fe9cb3fa490d9ca0ee6b831d7703",
@@ -220,6 +278,7 @@
       "DEL-5d3cfacc83d340ac9f83d8b42cba8861",
       "DEL-660765503b414844a3cfa248d5a68739",
       "DEL-6698bf499fac4067a17d1622e2a5e4b6",
+      "DEL-69dcbd29e31144221ae6cf5b4334e5ad",
       "DEL-764c8c67c3f4429d9468b2ad3b80d84e",
       "DEL-7819ce9f4c9d4de8b56b778ee8940fa2",
       "DEL-79491626d74d464faad71aa96868cd9b",
@@ -245,6 +304,7 @@
       "DEL-e5bd963fc70b44d591f9dabbc8ced7e3",
       "DEL-ee95fef671974a57b493b9691baabfd5",
       "DEL-f03bd101abf2461a911d2a26487d0e8e",
+      "DEL-f1740a0f343ad5ff0fdf840580d58d6e",
       "DEL-f978d07bc4984281a917f37c189fe137",
       "DEL-f99f6f224f7b44d884891e42ed002668",
       "DEL-fc4586044b954cd8ab8ba23d5b4920b7",
@@ -304,9 +364,9 @@
       "rejected": 14
      },
      "one_call": {
-      "accepted": 8,
-      "accepted_briefs": 1,
-      "briefs": 17,
+      "accepted": 10,
+      "accepted_briefs": 3,
+      "briefs": 19,
       "record_ids": [
        "DEL-01d65bf2f3664f44bb2d1b422302a2bd",
        "DEL-160d61d3b5ed41f7b5440a659826b405",
@@ -326,6 +386,7 @@
        "DEL-5ba8c61f0c7e46279ca15d8f2cbb85db",
        "DEL-5d3cfacc83d340ac9f83d8b42cba8861",
        "DEL-660765503b414844a3cfa248d5a68739",
+       "DEL-69dcbd29e31144221ae6cf5b4334e5ad",
        "DEL-764c8c67c3f4429d9468b2ad3b80d84e",
        "DEL-7819ce9f4c9d4de8b56b778ee8940fa2",
        "DEL-79491626d74d464faad71aa96868cd9b",
@@ -346,6 +407,7 @@
        "DEL-c1dc9d29c9dc41f89ab7e948a2e99fc1",
        "DEL-d3979d5e4b4a4c30aba816ca6de44a4b",
        "DEL-f03bd101abf2461a911d2a26487d0e8e",
+       "DEL-f1740a0f343ad5ff0fdf840580d58d6e",
        "DEL-f978d07bc4984281a917f37c189fe137",
        "DEL-f99f6f224f7b44d884891e42ed002668",
        "DEL-fc4586044b954cd8ab8ba23d5b4920b7",
@@ -388,6 +450,94 @@
        "DEL-fc7ef91e116a41a2b57616a74045d17f"
       ],
       "rejected": 10
+     }
+    }
+   },
+   "profiles": {
+    "43f8c7fb96c73ec7d43b2f29b31f7ada824bc37851cc4852a23f8254b7db3b41": {
+     "all": {
+      "one_call": {
+       "accepted": 2,
+       "accepted_briefs": 2,
+       "briefs": 2,
+       "record_ids": [
+        "DEL-69dcbd29e31144221ae6cf5b4334e5ad",
+        "DEL-f1740a0f343ad5ff0fdf840580d58d6e"
+       ],
+       "rejected": 0
+      }
+     },
+     "families": {
+      "code_review": {
+       "one_call": {
+        "accepted": 2,
+        "accepted_briefs": 2,
+        "briefs": 2,
+        "record_ids": [
+         "DEL-69dcbd29e31144221ae6cf5b4334e5ad",
+         "DEL-f1740a0f343ad5ff0fdf840580d58d6e"
+        ],
+        "rejected": 0
+       }
+      }
+     }
+    }
+   }
+  },
+  "omen-dense-27b-b": {
+   "all": {
+    "one_call": {
+     "accepted": 2,
+     "accepted_briefs": 2,
+     "briefs": 2,
+     "record_ids": [
+      "DEL-0475a004d82e82f7f50d921bf2692c58",
+      "DEL-6b2ec9a23f10558bdda20ac8393278b8"
+     ],
+     "rejected": 0
+    }
+   },
+   "families": {
+    "code_review": {
+     "one_call": {
+      "accepted": 2,
+      "accepted_briefs": 2,
+      "briefs": 2,
+      "record_ids": [
+       "DEL-0475a004d82e82f7f50d921bf2692c58",
+       "DEL-6b2ec9a23f10558bdda20ac8393278b8"
+      ],
+      "rejected": 0
+     }
+    }
+   },
+   "profiles": {
+    "43f8c7fb96c73ec7d43b2f29b31f7ada824bc37851cc4852a23f8254b7db3b41": {
+     "all": {
+      "one_call": {
+       "accepted": 2,
+       "accepted_briefs": 2,
+       "briefs": 2,
+       "record_ids": [
+        "DEL-0475a004d82e82f7f50d921bf2692c58",
+        "DEL-6b2ec9a23f10558bdda20ac8393278b8"
+       ],
+       "rejected": 0
+      }
+     },
+     "families": {
+      "code_review": {
+       "one_call": {
+        "accepted": 2,
+        "accepted_briefs": 2,
+        "briefs": 2,
+        "record_ids": [
+         "DEL-0475a004d82e82f7f50d921bf2692c58",
+         "DEL-6b2ec9a23f10558bdda20ac8393278b8"
+        ],
+        "rejected": 0
+       }
+      }
      }
     }
    }
@@ -571,7 +721,7 @@
    }
   }
  },
- "records": 213,
+ "records": 219,
  "rule": {
   "min_accepted_briefs": 2
  },

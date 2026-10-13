@@ -66,4 +66,4 @@ path.
 
 ## Amux local delivery
 
-See [`docs/amux-delivery/README.md`](docs/amux-delivery/README.md). Status (2026-10-13): real AM4 execution via the native Amux worker; offline preparer and citation sidecar committed; the explicit AM4 thinking adapter is built and reviewed but undeployed; the three-backend pool is staged and not activated; capacity is unknown.
+See [`docs/amux-delivery/README.md`](docs/amux-delivery/README.md). Status (2026-10-13): real AM4 execution via the native Amux worker; offline preparer and citation sidecar committed; explicit AM4 thinking is deployed (two thinking stages finished with real reasoning tokens); the three-backend deep pool is live with two distinct accepted `one_call` briefs per backend at its current profile (qualification decided by Codex under a fresh delegation). The automatic pooled procedure is `one_call`; `carry` is unqualified; capacity, held-out accuracy and broad code-review ability are unknown. No candidate was applied automatically.

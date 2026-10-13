@@ -1,6 +1,6 @@
 # ADR-0065: The AM4 thinking declaration and the intent to activate a qualified pool
 
-- Status: **Accepted by Derek** for the scoped AM4 thinking declaration and protocol deployment, and for the intent to activate a qualified three-backend deep pool. Pool activation itself is **not** done by this ADR.
+- Status: **Accepted by Derek** for the scoped AM4 thinking declaration and protocol deployment. **Follow-through, 2026-10-13: deployed, and the qualified three-backend pool is live** (see below).
 - Date: 2026-10-13
 - Goal: G-ecosystem (G-bench27 context)
 - Receipt: `br-20261013-190915-a5ea463f`
@@ -31,3 +31,7 @@ The parent performs a controlled reload of only the HEARTH door after a sole-wri
 ## Consequences
 
 AM4 explicit thinking turns become possible and attributable in the wire artifact. Whether they complete, and with how many reasoning tokens, is a live observation still to be made. Pool activation follows qualification, not this ADR.
+
+## Follow-through
+
+After deployment, Derek delegated the qualification verdicts for this slice to Codex (`docs/amux-delivery/evidence/qualification-delegation-20261013.json`; threshold, review boundary and cloud ban unchanged). Each of `omen-dense-27b`, `omen-dense-27b-b` and `am4-vllm` (profile `e955dcd8…`) now has two distinct accepted `one_call` briefs at its own current v2 profile, decided by Codex; no counts were borrowed. The matching route and procedure table were deployed with a door reload only (no GPU or facade restart), and the pool is live with `one_call` as its automatic procedure. `carry` is unqualified; capacity and held-out ability are unknown. Evidence: `docs/amux-delivery/evidence/`, receipt `br-20261013-205415-0fa54b22`. The sections above record the state and intent at the time of the decision.

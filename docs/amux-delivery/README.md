@@ -1,10 +1,16 @@
 # Amux → HEARTH delivery
 
-**Status, 2026-10-13.** Real AM4 execution happened: the native Amux worker submitted HEARTH work that ran on AM4. A counted citation sidecar took one AM4 result from 1 to 0 unsupported quotes with its 227 words preserved (prose and wrong claims unchanged; semantic review still required). The offline preparer and sidecar are committed. An explicit-thinking adapter for AM4 is built and independently reviewed but **not deployed**. The three-backend pool is **staged, not activated**, and its capacity is unknown. No new production verdict was recorded and no candidate was applied.
+**Status at first landing, 2026-10-13 (superseded by the follow-through below).** Real AM4 execution happened: the native Amux worker submitted HEARTH work that ran on AM4. A counted citation sidecar took one AM4 result from 1 to 0 unsupported quotes with its 227 words preserved (prose and wrong claims unchanged; semantic review still required). The offline preparer and sidecar are committed. An explicit-thinking adapter for AM4 is built and independently reviewed but **not deployed**. The three-backend pool is **staged, not activated**, and its capacity is unknown. No new production verdict was recorded and no candidate was applied.
 
 Closure packet: [RESULT](RESULT.md) · [PLAN](PLAN.md) · [HANDOFF](HANDOFF.md) · [RETROSPECTIVE](RETROSPECTIVE.md) · [evidence index](evidence-index.json) · [evidence/](evidence/) · [operational-drafts/ (NOT ACTIVATED)](operational-drafts/README.md).
 
-**Scoped thinking fix.** The AM4 facade defaults a missing `reasoning_effort` to `none`, which overrode an explicit `enable_thinking=true`. `hearth/toolsurface/inference.py` now sends `reasoning_effort="xhigh"` only when thinking is explicitly true, the backend is exactly `am4-vllm` and the model exactly `am4-dense-27b`, and only if the trusted serving declaration says `xhigh`. Otherwise it refuses before any network call. Other calls are unchanged, and no credential restriction changes. It takes effect only after a controlled door reload and a separate declaration decision.
+**Follow-through (current, receipt `br-20261013-205415-0fa54b22`).** Derek authorized deployment, then delegated qualification verdicts to Codex for this slice (`evidence/qualification-delegation-20261013.json`; threshold and candidate boundary unchanged). Thinking is deployed and the three-backend pool is live:
+- **Thinking.** The reviewed adapter and AM4 declaration (49152 context, deliberate 24576, `xhigh`) were deployed with a controlled door reload only; no GPU or facade restart. The first thinking submission (`work_39e14d71…`) failed because the execution dispatcher latches `pause.dispatch` at startup; the order was corrected (pause removed, then restart) and `work_37d9ac46f31e3eb3ff06ea7c9003d9f6` ran both thinking stages to `stop` with real reasoning tokens (work 13656 reasoning tokens / 302992 ms; check 10119 / 231691 ms).
+- **That report.** It is 404 words, `awaiting_review`, and on the root's source reading its requested facts are correct (no verdict recorded for it). The original has 11 unsupported quote fragments (form). The counted sidecar (9 `punctuation_quote_dropped`, 2 `symbol_scoped_quote`) yields 0 unsupported with 404 words and prose, headings and order unchanged.
+- **Pool.** All three exact current v2 profiles each have two distinct accepted `one_call` briefs (decided by Codex under the fresh delegation); the threshold of 2 is unchanged and no legacy or other-profile counts were borrowed (`evidence/qualification-summary.json`). The deployed route lists `omen-dense-27b`, `omen-dense-27b-b` and `am4-vllm`, with a matching procedure table (`host/omen-linux/hearth-production/`). The automatic pooled procedure is `one_call`; `carry` is separately unqualified. One unpinned delivery completed through the door (all three eligible, 15.5 s, 274 words, 0 unsupported). Capacity, held-out accuracy and broad code-review ability are unknown.
+- **Unchanged.** No local candidate was applied, no cloud substitute, no GPU or facade restart. Preflight and postflight showed zero work, leases and tenancy; the drain timer was restored. Details: `evidence/activation-followthrough.json`. The earlier blocked receipt stays history. Text below this block that says "not deployed", "staged" or "undeployed" describes the first landing and is superseded by this block.
+
+**Scoped thinking fix.** The AM4 facade defaults a missing `reasoning_effort` to `none`, which overrode an explicit `enable_thinking=true`. `hearth/toolsurface/inference.py` now sends `reasoning_effort="xhigh"` only when thinking is explicitly true, the backend is exactly `am4-vllm` and the model exactly `am4-dense-27b`, and only if the trusted serving declaration says `xhigh`. Otherwise it refuses before any network call. Other calls are unchanged, and no credential restriction changes. It is now deployed (see the follow-through above).
 
 # Amux → HEARTH delivery: operator recipe
 
@@ -75,7 +81,7 @@ door's per-provider admission decision, not the preparer's; a larger budget is a
 Every intent starts `[goal:G-ecosystem] `. Independent files, so concurrent submissions can
 spread across qualified backends by the door's least-outstanding rule; do not add load to force a backend.
 
-## Three-dense pool: staged, not activated
+## Three-dense pool: staged at first landing (historical; now live, see the follow-through above)
 
 `three-dense-routes.NOT-ACTIVATED.toml` lists `omen-dense-27b`, `omen-dense-27b-b`, `am4-vllm`. The pool is not activated. Live routing is still
 the singleton `omen-dense-27b`. A pooled backend is admitted only if its **exact** serving profile
@@ -92,14 +98,14 @@ profiles; legacy unversioned fingerprints (`legacy_profiles`) cannot qualify a p
    table are read at each submission, so this data-only change needs no door or GPU restart (a restart is needed only
    for code changes).
 
-AM4 caveat (the **current** declaration only): `am4-vllm` declares a 16,384-token window and no `deliberate_max_tokens`
+AM4 caveat (historical: the declaration before the follow-through; the 16K/no-deliberate wording below no longer applies): `am4-vllm` declares a 16,384-token window and no `deliberate_max_tokens`
 (the "HEARTH 16K / no-deliberate" declaration). Under it the carried procedure's 24,576-token thinking turn does not
 fit, so carry cannot be admitted there and AM4 can qualify only for `one_call`; the door falls back to `one_call` only
 when that procedure meets the threshold at AM4's profile. This is an admission and profile limit, not a measured
 hardware incapability. A proposed 49K/xhigh AM4 declaration has not been activated; if it ever is, it is a different
 serving profile with its own fingerprint and its own qualification, and these statements would be revisited then.
 
-Today's routing, for contrast: the deployed route is the singleton `omen-dense-27b` with the current table, where an
+Historical (first landing, superseded by the follow-through above): the deployed route was the singleton `omen-dense-27b` with the current table, where an
 unpinned `code_review` delivery automatically selects `carry`. The staged pool remains unqualified and unactivated.
 
 ## Qualification lap with `one_call`
@@ -126,6 +132,8 @@ Offline, no inference or dispatch. `RUN_DIR` is read only: `work-manifest.json`,
 It writes `original/delivery-output.json` (byte copy), `delivery-output.derivative.json`, `candidate.derivative.md`, `delivery.derivative.json` (renderer manifest, `sidecar` aid added only if something changed) and `sidecar-report.json` (`semantic_review_required: true`, `official_verdict: null`, original/derivative SHA-256, brief hash, pinned commit and source hashes, exact diff, per-change log, unresolved list, before/after measures, and checks that prose, headings and paragraph order are identical).
 
 The one repair, `symbol_scoped_quote`: a quote the renderer refuses as short and ambiguous is replaced by the shortest unique excerpt (inside one Rust function, at most 400 characters, never starting or ending on whitespace or inside a word or combining sequence) only when exactly one function named in the paragraph owns exactly one exact occurrence. Functions named but not containing the quote do not make a tie. Equal-length excerpts all contain the same owned occurrence; the earliest is taken and the count is logged. Everything else stays unresolved with a reason: several named owners, no named owner, duplicate hits inside the owner, no unique excerpt, a non-Rust source, or any source shape the stdlib scanner does not trust (unterminated strings or comments, raw identifiers, braces in generics, non-ASCII code tokens outside strings and comments). Blank quotes are kept in place and logged by both original and claim index. A wrong claim with a now-resolving quote is still a wrong claim: only the citation is repaired.
+
+**Punctuation-only attachments (`punctuation_quote_dropped`).** Carry output can attach bare syntax fragments (a lone `}`, `    }`, `};`) that the renderer rightly cannot place. The sidecar drops such a quote only when its stripped text is solely Rust punctuation (`{ } [ ] ( ) ; ,`), the renderer left it unresolved, and the same paragraph keeps an exact, unique, non-punctuation quote that the existing resolver places in the pinned source (the report logs that support's range and hash). Words, operators, identifiers, blank quotes and any paragraph's only evidence are never dropped. Paragraph text, headings and order are unchanged. Each drop is logged with its original index and `derivative_quote_index: null`, and `quote_index_map` gives the original-to-derivative index for every touched paragraph (later claim ids in the derivative manifest follow the derivative indices). Drops are counted separately from `symbol_scoped_quote`; meaningful short fragments are still handled by the scoped repair.
 
 Word overflow is measured against the original brief and reported (`words_over_max`); nothing is trimmed, dropped or re-budgeted, and an over-budget derivative stays failed under `enforce: fail`.
 

@@ -1,0 +1,55 @@
+{
+  "schema": "amux-delivery-spec.v1",
+  "name": "listener-handoff-review",
+  "intent": "[goal:G-ecosystem] Report in at most 240 words when the successor image adopts an inherited listener and when it binds a fresh one, with exact quotations from the pinned source.",
+  "repo": "/home/derek/work/worktrees/amux-local-capability-20261013",
+  "base_commit": "4f3c67f8888a8ed6698af1182d2e94d9ecf0f4d4",
+  "files": [
+    "crates/amux-server/src/listener_handoff.rs"
+  ],
+  "task_family": "code_review",
+  "brief": {
+    "schema": "brief.v2",
+    "builders": [
+      "amux-source-review"
+    ],
+    "task_class": "local-work",
+    "est_tokens": 4000,
+    "requires": [
+      "candidate"
+    ],
+    "max_age_s": 172800,
+    "substance": [
+      {
+        "id": "s1-adopt-conditions",
+        "statement": "The report lists the conditions adopt() checks before taking over the inherited descriptor, including the pid environment match, the socket type and the port."
+      },
+      {
+        "id": "s2-silent-and-logged-fallback",
+        "statement": "The report distinguishes the cases where adopt() returns None silently (the FD environment variable is absent, or the pid environment variable does not match the process) from the cases that call the reject warning closure, states that the server then binds a fresh listener, and notes that this fresh bind can itself return an error."
+      },
+      {
+        "id": "s3-cloexec",
+        "statement": "The report explains when close-on-exec is cleared and when it is set again."
+      }
+    ],
+    "form": {
+      "words": {
+        "min": 0,
+        "max": 240,
+        "enforce": "fail"
+      },
+      "citations": "quote",
+      "sections": [],
+      "style": "markdown"
+    },
+    "generation": {
+      "max_tokens": 2048
+    },
+    "aids": [
+      "source_map",
+      "quote_renderer",
+      "constrained_output"
+    ]
+  }
+}

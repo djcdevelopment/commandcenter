@@ -1,0 +1,55 @@
+{
+  "schema": "amux-delivery-spec.v1",
+  "name": "activation-check-review",
+  "intent": "[goal:G-ecosystem] Report in at most 240 words how activation.rs decides whether an installed binary is skipped before exec, with exact quotations from the pinned source.",
+  "repo": "/home/derek/work/worktrees/amux-local-capability-20261013",
+  "base_commit": "4f3c67f8888a8ed6698af1182d2e94d9ecf0f4d4",
+  "files": [
+    "crates/amux-server/src/activation.rs"
+  ],
+  "task_family": "code_review",
+  "brief": {
+    "schema": "brief.v2",
+    "builders": [
+      "amux-source-review"
+    ],
+    "task_class": "local-work",
+    "est_tokens": 4000,
+    "requires": [
+      "candidate"
+    ],
+    "max_age_s": 172800,
+    "substance": [
+      {
+        "id": "s1-identity-check",
+        "statement": "The report states how Candidate::read computes the build hash and rejects an identity receipt whose build does not match the executable."
+      },
+      {
+        "id": "s2-skip-reasons",
+        "statement": "The report names both skip reasons returned by skip_reason and the condition for each."
+      },
+      {
+        "id": "s3-clean-commit",
+        "statement": "The report states what makes a running commit count as clean for the same_revision comparison."
+      }
+    ],
+    "form": {
+      "words": {
+        "min": 0,
+        "max": 240,
+        "enforce": "fail"
+      },
+      "citations": "quote",
+      "sections": [],
+      "style": "markdown"
+    },
+    "generation": {
+      "max_tokens": 2048
+    },
+    "aids": [
+      "source_map",
+      "quote_renderer",
+      "constrained_output"
+    ]
+  }
+}

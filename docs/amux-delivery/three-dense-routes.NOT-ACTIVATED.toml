@@ -1,0 +1,14 @@
+# NOT ACTIVATED. Staged example of the three-dense deep pool (ADR-0062). The live
+# route is the singleton in host/omen-linux/hearth-production/local-work-routes-linux.toml
+# and stays so until each backend's exact serving profile has the recorded evidence
+# described in docs/amux-delivery/README.md. Route and table are read at each
+# submission (no door restart for this data-only change), so deploy only together
+# with the qualification table, admissions paused. A backend without recorded v2
+# qualification is excluded individually; a delivery is refused only when no eligible
+# provider remains. A partial v2 table can drop an existing singleton from carry to one_call.
+# This file lives outside host/ so no deploy step copies it by accident.
+version = "local-work-routes.linux-v1"
+
+# fast and tool are omitted on purpose (the pool candidate removes absent lanes).
+[lane.deep]
+backends = ["omen-dense-27b", "omen-dense-27b-b", "am4-vllm"]

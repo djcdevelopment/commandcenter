@@ -1,0 +1,55 @@
+{
+  "schema": "amux-delivery-spec.v1",
+  "name": "log-dedupe-review",
+  "intent": "[goal:G-ecosystem] Report in at most 240 words how log_dedupe.rs decides whether a log line is emitted, with exact quotations from the pinned source.",
+  "repo": "/home/derek/work/worktrees/amux-local-capability-20261013",
+  "base_commit": "4f3c67f8888a8ed6698af1182d2e94d9ecf0f4d4",
+  "files": [
+    "crates/amux-server/src/log_dedupe.rs"
+  ],
+  "task_family": "code_review",
+  "brief": {
+    "schema": "brief.v2",
+    "builders": [
+      "amux-source-review"
+    ],
+    "task_class": "local-work",
+    "est_tokens": 4000,
+    "requires": [
+      "candidate"
+    ],
+    "max_age_s": 172800,
+    "substance": [
+      {
+        "id": "s1-bucket-semantics",
+        "statement": "The report states that first_this_bucket returns true the first time a key is seen in a bucket and false for repeats, and that a new bucket clears earlier keys."
+      },
+      {
+        "id": "s2-fail-open",
+        "statement": "The report states what happens on a poisoned lock and why that choice was made."
+      },
+      {
+        "id": "s3-bucket-and-durability",
+        "statement": "The report states how hour_bucket derives its value from unix seconds and that the dedupe is in-process and not durable."
+      }
+    ],
+    "form": {
+      "words": {
+        "min": 0,
+        "max": 240,
+        "enforce": "fail"
+      },
+      "citations": "quote",
+      "sections": [],
+      "style": "markdown"
+    },
+    "generation": {
+      "max_tokens": 2048
+    },
+    "aids": [
+      "source_map",
+      "quote_renderer",
+      "constrained_output"
+    ]
+  }
+}

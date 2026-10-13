@@ -55,9 +55,11 @@ structured_outputs = true   # response_format json_schema, probed on the wire 20
 node = "am4"
 metrics_url = "ssh+http://10.44.0.2:18094/metrics"
 engine = "vllm"
-context_tokens = 16384
-context_bytes = 57344
-max_tokens = 4096    # 16K window: an 8K reserve left 8K of input (sizing-map 2026-09-27)
+context_tokens = 49152
+context_bytes = 172032
+max_tokens = 4096    # Preserve the ordinary delivery budget; deliberate turns declare a separate ceiling.
+deliberate_max_tokens = 24576
+reasoning_effort = "xhigh"    # Explicit AM4 thinking turns; ordinary/attach defaults remain off.
 timeout_s = 1000
 parallel_slots = 1
 

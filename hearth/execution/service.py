@@ -440,7 +440,7 @@ class ExecutionService:
         self, operation: Operation, normalized: dict[str, Any]
     ) -> tuple[dict[str, Any], bytes]:
         allowed = {"messages", "backend", "thinking", "temperature", "seed", "top_p",
-                   "response_schema", "model", "task_id"}
+                   "response_schema", "model", "task_id", "task_family", "procedure"}
         unknown = set(normalized) - allowed
         if unknown:
             raise ExecutionServiceError(
@@ -458,16 +458,28 @@ class ExecutionService:
             )
         if not any(item["content"].strip() for item in messages):
             raise ExecutionServiceError("messages must carry some content")
+        family = normalized.get("task_family")
+        if family is not None and (not isinstance(family, str) or not family.strip()):
+            raise ExecutionServiceError("task_family must be a non-empty string")
+        procedure = normalized.get("procedure")
+        if procedure is not None and procedure not in ("one_call", "think_then_emit"):
+            raise ExecutionServiceError("procedure must be 'one_call' or 'think_then_emit'")
+        # With a task_family the door fills backend, thinking and procedure from the family's regime
+        # (submit); without one the caller names them, as before.
         backend = normalized.get("backend")
-        if not isinstance(backend, str) or not backend.strip():
-            raise ExecutionServiceError("backend is required and must be a non-empty string")
-        provider = load_pool().by_name(backend)
-        if provider is None or not provider.settings.get("deliberate_max_tokens"):
-            raise ExecutionServiceError(
-                f"policy_refusal: backend {backend!r} does not declare deliberate_max_tokens; {operation.name} refuses it"
-            )
-        if not isinstance(normalized.get("thinking"), bool):
-            raise ExecutionServiceError("thinking is required and must be a boolean")
+        if backend is not None or family is None:
+            if not isinstance(backend, str) or not backend.strip():
+                raise ExecutionServiceError("backend is required and must be a non-empty string")
+            provider = load_pool().by_name(backend)
+            if provider is None or not provider.settings.get("deliberate_max_tokens"):
+                raise ExecutionServiceError(
+                    f"policy_refusal: backend {backend!r} does not declare deliberate_max_tokens; {operation.name} refuses it"
+                )
+        if "thinking" in normalized or family is None:
+            if not isinstance(normalized.get("thinking"), bool):
+                raise ExecutionServiceError("thinking is required and must be a boolean")
+        if procedure == "think_then_emit" and normalized.get("thinking") is False:
+            raise ExecutionServiceError("procedure 'think_then_emit' needs thinking")
         for key in ("model", "task_id"):
             value = normalized.get(key)
             if value is not None and (not isinstance(value, str) or not value.strip()):
@@ -492,6 +504,55 @@ class ExecutionService:
                 f"messages are {len(encoded)} bytes; limit is {operation.max_prompt_bytes}"
             )
         return normalized, encoded
+
+    def _apply_family_regime(
+        self, operation: Operation, arguments: dict[str, Any], policy: Optional[Mapping[str, Any]],
+        admit_bytes: int,
+    ) -> tuple[dict[str, Any], Optional[dict[str, Any]]]:
+        """Fill what a deliberate caller left to its task_family: the seat, thinking, the budget and the
+        procedure. A caller who named any of them keeps it (and the regime only advises the rest).
+        Refuses, rather than shrinking a thinking turn, when no live seat can hold the family's budget."""
+        from hearth.execution.lab_config import is_backend_absent
+        from hearth.scheduler.families import recommend as recommend_family
+
+        family = arguments["task_family"]
+        try:
+            recommendation = recommend_family(family, admit_bytes // 4)
+        except Exception as exc:  # noqa: BLE001 - loud: never route on a guess
+            raise ExecutionServiceError(f"task family config error: {type(exc).__name__}: {exc}") from exc
+        if recommendation.get("refused"):
+            raise ExecutionServiceError(f"policy_refusal: {recommendation.get('refusal') or 'missing capability'}")
+        regime = recommendation.get("regime")
+        out = dict(arguments)
+        policy_out = dict(policy or {})
+        pool = load_pool()
+        if out.get("backend") is None:
+            names = [n for n in [recommendation.get("backend_hint"), *recommendation.get("providers", [])] if n]
+            seats = [n for n in dict.fromkeys(names)
+                     if pool.by_name(n) is not None and pool.by_name(n).settings.get("deliberate_max_tokens")
+                     and not is_backend_absent(n)]
+            if regime is not None:
+                floor = regime["max_tokens"]
+                seats = [n for n in seats if int(pool.by_name(n).settings["deliberate_max_tokens"]) >= floor]
+            if not seats:
+                raise ExecutionServiceError(
+                    f"policy_refusal: no live seat for {family!r} declares deliberate_max_tokens"
+                    + (f" >= {regime['max_tokens']}" if regime else "")
+                    + f" (providers {recommendation.get('providers')})")
+            out["backend"] = seats[0]
+        if regime is None:
+            if not isinstance(out.get("thinking"), bool):
+                raise ExecutionServiceError(
+                    f"family {family!r} authors no regime: thinking is required and must be a boolean")
+            return out, policy
+        caller_named = "thinking" in out or "procedure" in out
+        if not caller_named:
+            out["thinking"] = regime["thinking"]
+            out["procedure"] = regime["procedure"]
+        if policy_out.get("max_tokens") is None:
+            cap = int(pool.by_name(out["backend"]).settings["deliberate_max_tokens"])
+            policy_out["max_tokens"] = min(regime["max_tokens"], cap)
+        return out, policy_out
 
     def _family_route(
         self,
@@ -718,6 +779,8 @@ class ExecutionService:
                     f"packed prompt is {len(prompt_bytes)} bytes; "
                     f"limit is {operation.max_prompt_bytes}"
                 )
+        if deliberate and arguments_value.get("task_family") is not None:
+            arguments_value, policy = self._apply_family_regime(operation, arguments_value, policy, admit_bytes)
         policy_value = self.operations.policy_for(operation, policy)
         if deliberate:
             if policy_value.max_tokens is None:
@@ -1151,6 +1214,10 @@ class ExecutionService:
             deliberate_artifacts = (
                 self._record_deliberate_artifacts(state, invocation_id, job_id, result)
                 if deliberate else {})
+            if deliberate and arguments.get("procedure") == "think_then_emit" and not self._is_cancelled(job_id):
+                result, observed, deliberate_artifacts = self._maybe_emit(
+                    state, invocation_id, job_id, provider, route, messages, call_arguments,
+                    result, observed, deliberate_artifacts, deadline)
             if self._is_cancelled(job_id):
                 self._append(
                     "invocation.cancelled",
@@ -1238,6 +1305,63 @@ class ExecutionService:
         finally:
             if lease_id is not None:
                 self.leases.release(lease_id)
+
+    EMIT_INSTRUCTION = (
+        "Your previous turn ended before you wrote the answer; the working notes above are yours. "
+        "Emit the final answer now, exactly in the output form the task asks for. Use the decisions "
+        "already made in the notes. Do not re-analyze and do not explain.")
+    EMIT_DEFAULT_TOKENS = 4096   # a caller-pinned think_then_emit on a family that authors no emit budget
+
+    def _maybe_emit(
+        self, state: Mapping[str, Any], invocation_id: str, job_id: str, provider: Backend, route: FamilyRoute,
+        messages: list[dict[str, Any]], call_arguments: dict[str, Any], result: dict[str, Any],
+        observed: dict[str, Any], artifacts: dict[str, dict[str, Any]], deadline: float,
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, dict[str, Any]]]:
+        """think_then_emit: a thinking turn that ended without a visible answer (stopped inside its
+        reasoning, or cut at max_tokens) gets ONE thinking-off turn that carries its reasoning as notes
+        and asks only for the answer. Measured on 2026-10-14 (routing-families code_fix evidence): the
+        emitted code compiled and passed 20/20. The emit is a form repair of the same turn, recorded as
+        such: the first turn's artifacts stay, the emit's are added, observed.emit says what happened."""
+        text = result.get("text")
+        if isinstance(text, str) and text.strip():
+            return result, observed, artifacts
+        trigger = result.get("error_code") or "no_visible_output"
+        reasoning = result.get("reasoning") or ""
+        if trigger not in ("no_visible_output", "output_truncated") or not reasoning.strip():
+            return result, {**observed, "emit": {"used": False, "trigger": trigger,
+                                                 "why": "no reasoning to carry" if not reasoning.strip()
+                                                 else f"{trigger} is not an emit trigger"}}, artifacts
+        regime = (route.recommendation or {}).get("regime") or {}
+        emit_tokens = int(regime.get("emit_tokens") or self.EMIT_DEFAULT_TOKENS)
+        context = int(provider.settings.get("context_tokens") or 0)
+        room = (context - emit_tokens) * 4 - self._messages_bytes(messages) - len(self.EMIT_INSTRUCTION) - 2048
+        remaining = deadline - time.monotonic()
+        if room <= 0 or remaining <= 5:
+            return result, {**observed, "emit": {"used": False, "trigger": trigger,
+                                                 "why": "no context room" if room <= 0 else "deadline spent"}}, artifacts
+        notes = reasoning[-room:]
+        emit_messages = [*messages, {"role": "assistant", "content": "Working notes:\n" + notes},
+                         {"role": "user", "content": self.EMIT_INSTRUCTION}]
+        started = time.monotonic()
+        emit = self._generate_call(**{**call_arguments, "messages": emit_messages, "thinking": False,
+                                      "max_tokens": emit_tokens, "timeout_s": max(1, int(remaining))})
+        stored = {
+            "emit_wire_request": self.artifacts.put(
+                json.dumps(emit.get("wire_request"), ensure_ascii=False, indent=1, sort_keys=True),
+                media_type="application/json; charset=utf-8", filename=f"{job_id}-emit-wire-request.json"),
+            "emit_output": self.artifacts.put(
+                emit.get("text") or "", media_type="text/plain; charset=utf-8", filename=f"{job_id}-emit-output.txt"),
+        }
+        self._append("artifact.recorded", state, invocation_id=invocation_id,
+                     artifacts=[{**meta, "role": role} for role, meta in stored.items()])
+        emit_observed = self._result_observed(emit, deliberate=True, requested=emit_tokens)
+        record = {"used": True, "trigger": trigger, "notes_chars": len(notes), "reasoning_chars": len(reasoning),
+                  "duration_ms": round((time.monotonic() - started) * 1000),
+                  **{k: emit_observed.get(k) for k in ("finish_reason", "tokens_in", "tokens_out", "error_code")
+                     if emit_observed.get(k) is not None},
+                  "first_turn": {k: observed.get(k) for k in ("finish_reason", "tokens_out", "tokens_reasoning",
+                                                              "duration_ms", "error_code") if observed.get(k) is not None}}
+        return emit, {**observed, "emit": record}, {**artifacts, "output": stored["emit_output"]}
 
     def _record_deliberate_artifacts(
         self, state: Mapping[str, Any], invocation_id: str, job_id: str, result: Mapping[str, Any]

@@ -153,6 +153,26 @@ class DepthRule:
 
 
 @dataclass(frozen=True)
+class Regime:
+    """How a family's turn runs at the door when the caller leaves it to the family:
+    thinking or not, how many tokens, and whether a thinking turn that ends without a
+    visible answer gets one thinking-off emit turn. Authored with the evidence it rests on."""
+
+    procedure: str                    # "one_call" | "think_then_emit"
+    thinking: bool
+    max_tokens: int                   # the first turn's budget (the thinking turn for think_then_emit)
+    evidence: str
+    emit_tokens: Optional[int] = None  # think_then_emit only: the emit turn's budget
+
+    def as_dict(self) -> dict:
+        return {"procedure": self.procedure, "thinking": self.thinking, "max_tokens": self.max_tokens,
+                "emit_tokens": self.emit_tokens, "evidence": self.evidence}
+
+
+REGIME_PROCEDURES = ("one_call", "think_then_emit")
+
+
+@dataclass(frozen=True)
 class FamilyPreference:
     """One authored family -> model preference and the evidence it cites."""
 
@@ -168,6 +188,7 @@ class FamilyPreference:
     tags: Optional[tuple[str, ...]] = None   # routing tags declared for this family (optional)
     refusal: Optional[str] = None
     requires_configuration: Optional[str] = None
+    regime: Optional[Regime] = None
 
 
 @dataclass(frozen=True)
@@ -227,6 +248,26 @@ def _coerce_depth_rule(raw: Any, where: str) -> DepthRule:
     )
 
 
+def _coerce_regime(raw: Any, where: str) -> Regime:
+    if not isinstance(raw, dict):
+        raise FamiliesConfigError(f"{where}: regime must be a table")
+    procedure = _require_str(raw, "procedure", where)
+    if procedure not in REGIME_PROCEDURES:
+        raise FamiliesConfigError(f"{where}: procedure must be one of {REGIME_PROCEDURES}")
+    thinking = raw.get("thinking")
+    if not isinstance(thinking, bool):
+        raise FamiliesConfigError(f"{where}: thinking must be a boolean")
+    emit = None
+    if procedure == "think_then_emit":
+        if not thinking:
+            raise FamiliesConfigError(f"{where}: think_then_emit needs thinking = true")
+        emit = _positive_int(raw, "emit_tokens", where)
+    elif raw.get("emit_tokens") is not None:
+        raise FamiliesConfigError(f"{where}: emit_tokens belongs to think_then_emit only")
+    return Regime(procedure=procedure, thinking=thinking, max_tokens=_positive_int(raw, "max_tokens", where),
+                  evidence=_require_str(raw, "evidence", where), emit_tokens=emit)
+
+
 def _coerce_family(name: str, raw: Any) -> FamilyPreference:
     where = f"family.{name}"
     if not isinstance(raw, dict):
@@ -256,6 +297,7 @@ def _coerce_family(name: str, raw: Any) -> FamilyPreference:
         tags=_optional_tags(raw, where),
         refusal=refusal,
         requires_configuration=_optional_str(raw, "requires_configuration", where),
+        regime=_coerce_regime(raw["regime"], f"{where}.regime") if raw.get("regime") is not None else None,
     )
 
 
@@ -492,6 +534,8 @@ def recommend(task_family: Optional[str], prompt_tokens: Optional[int] = None,
         "advisory": True,
         "refused": False,
         "refusal": None,
+        # Present only for a family that authors one, so other recommendations stay byte-identical.
+        **({"regime": pref.regime.as_dict()} if pref.regime is not None else {}),
     }
 
 
@@ -505,6 +549,8 @@ __all__ = [
     "Families",
     "FamiliesConfigError",
     "FamilyPreference",
+    "REGIME_PROCEDURES",
+    "Regime",
     "job_prompt_tokens",
     "load_families",
     "recommend",

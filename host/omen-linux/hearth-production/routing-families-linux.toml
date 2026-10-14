@@ -187,12 +187,25 @@ evidence = "continuity output/07-serving-recipe.md: Qwen3.8-27B was the only loc
 receipt = "/home/derek/work/continuity/output/07-serving-recipe.md"
 reason = "Bounded code changes that must land go to the dense quality lane; the MoE lane is faster but did not complete the canary."
 
+[family.code_fix.regime]   # how the turn runs when the caller leaves it to the family (inference.deliberate)
+procedure = "one_call"
+thinking = false
+max_tokens = 8192
+evidence = "/home/derek/work/amux/output/receipts/LOCAL-REVIEW-THINKING-RERUN-20261014.md lap 2 (2026-10-14): the same fully specified 239-line amux change, thinking off 8,192: 46 s, compiled first try, 20/20 tests; thinking on 16,384: output_truncated (all reasoning); on 24,576: no_visible_output at 7,994; think-then-emit recovered it (compiled, 20/20) in 184 s"
+
 [family.code_review]
 model_id = "qwen3.8-27b"
 tags = ["quality"]
 evidence = "continuity output/07: 27B blind judging vs 30B 44 wins / 42 ties / 4 losses (Aug-27 promotion record); deterministic pass 0.86 vs 0.47"
 receipt = "/home/derek/work/continuity/output/07-serving-recipe.md"
 reason = "Review quality is the point; throughput is not. The quality lane holds 65,536 tokens so a whole diff plus context fits."
+
+[family.code_review.regime]
+procedure = "think_then_emit"
+thinking = true
+max_tokens = 24576
+emit_tokens = 4096
+evidence = "/home/derek/work/amux/output/receipts/LOCAL-REVIEW-THINKING-RERUN-20261014.md (2026-10-14): lookup.rs no-cloud review, three criteria: thinking off 2,048 (work.produce, 2026-10-13) missed the fallback trace and recommended keeping it; thinking on 16,000: 3/3 met, 14,539 reasoning tokens (97.7% of budget), 292 s. 24,576 gives headroom; the emit turn recovers a thinking turn that ends without an answer (measured on the code task)"
 
 [family.long_review]
 model_id = "qwen3.8-27b"

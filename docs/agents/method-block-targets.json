@@ -1,0 +1,8 @@
+{
+  "schema": "hearth-offload-targets/v1",
+  "description": "Targets for the HEARTH method pack (docs/agents/hearth-method.md), synced with tools/ops/sync-offload-block.mjs --marker hearth-method --block docs/agents/hearth-method.md --manifest docs/agents/method-block-targets.json. Both targets are always-loaded instruction files: Claude Code reads ~/.claude/CLAUDE.md, Codex reads ~/.codex/AGENTS.md (unlike the hearth skill, which loads on a trigger).",
+  "targets": [
+    { "repo": "/home/derek/.claude", "file": "CLAUDE.md", "name": "claude-user" },
+    { "repo": "/home/derek/.codex", "file": "AGENTS.md", "name": "codex-user" }
+  ]
+}

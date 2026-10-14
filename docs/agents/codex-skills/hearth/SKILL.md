@@ -7,8 +7,9 @@ description: Offload bounded work through the local HEARTH MCP gateway and recor
 
 HEARTH is the MCP gateway at `http://127.0.0.1:8710/mcp`. Delegate suitable
 self-contained work through `mcp__hearth__local_generate`: summaries of files/logs/diffs,
-structured extraction, classification, boilerplate, and prose drafts. Keep architecture,
-multi-file logic, ambiguous judgment, integration, and final validation with yourself.
+structured extraction, classification, boilerplate, and prose drafts. Judgment (review, tracing, a bounded fix
+recommendation) goes to the 27B by `task_family` (HEARTH method). Keep architecture,
+multi-file logic, integration, and final validation with yourself.
 Do not split tightly coupled work merely to force an offload.
 Offload when the expected benefit exceeds briefing, latency, and review costs; handle
 trivial work directly. Batch related small items into one call when practical.
@@ -80,8 +81,10 @@ Ordinary questions and small offloads do not require a build request.
 - Dollar savings are estimates. HEARTH's MCP connection does not capture your own
   frontier-model traffic or native shell/edit activity; receipts record meaningful outcomes
   and supplied evidence.
-- `ok:false` or unusable output → one retry at most, then do the work directly and record
-  the limitation; never loop on a cold or failing worker. If the door itself is down, run
+- `ok:false` or unusable output → name the bucket (HEARTH method): a setup miss
+  (`output_truncated`, `no_visible_output`, thin brief) gets one lever changed and one rerun; do the
+  work directly only after a substance miss under a fair setup, and record the limitation; never loop
+  on a cold or failing worker. If the door itself is down, run
   `/checkmcp` once (Claude Code) or `python -m hearth.callers.doorcheck --revive` once from
   the commandcenter repository root before that retry.
 - Receipt writes, projection refreshes, and service recovery follow the task's existing

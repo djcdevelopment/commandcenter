@@ -28,6 +28,7 @@
  *   --only <repo>      restrict to the target whose `repo` resolves to this path
  *   --manifest <path>  target list (default docs/agents/offload-block-targets.json)
  *   --block <path>     block source  (default docs/agents/hearth-offload-block.md)
+ *   --marker <name>    own the <!-- name:begin/end --> span (default hearth-offload)
  *   --force-dirty      write even to a target whose AGENTS.md is already modified
  *   --json             machine-readable report on stdout
  *   -h, --help         this text
@@ -41,8 +42,18 @@ import { join, resolve, dirname, basename, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
-export const MARKER_BEGIN = '<!-- hearth-offload:begin -->';
-export const MARKER_END = '<!-- hearth-offload:end -->';
+export let MARKER_BEGIN = '<!-- hearth-offload:begin -->';
+export let MARKER_END = '<!-- hearth-offload:end -->';
+
+/**
+ * Own a different span with the same discipline (`--marker hearth-method` keeps the HEARTH
+ * method pack in step the way the default keeps the offload block). A name, not free text.
+ */
+export function setMarker(name) {
+  if (!/^[a-z][a-z0-9-]*$/.test(name)) throw new UsageError(`--marker must match [a-z][a-z0-9-]*: ${name}`);
+  MARKER_BEGIN = `<!-- ${name}:begin -->`;
+  MARKER_END = `<!-- ${name}:end -->`;
+}
 
 /**
  * The complete set of git subcommands this tool is allowed to run. Both are reads.
@@ -141,7 +152,7 @@ export function findMarkers(raw) {
  */
 export function renderExisting(raw, block) {
   const markers = findMarkers(raw);
-  if (markers.kind === 'malformed') throw new MarkersMalformedError('unbalanced hearth-offload markers');
+  if (markers.kind === 'malformed') throw new MarkersMalformedError(`unbalanced ${MARKER_BEGIN} markers`);
   const eol = detectEol(raw);
   const body = block.split('\n').join(eol);
 
@@ -415,6 +426,7 @@ function parseArgs(argv) {
     else if (arg === '--only') options.only = resolve(value());
     else if (arg === '--manifest') options.manifest = resolve(value());
     else if (arg === '--block') options.block = resolve(value());
+    else if (arg === '--marker') options.marker = value();
     else throw new UsageError(`unknown argument: ${arg}`);
   }
   return options;
@@ -424,6 +436,7 @@ function main(argv) {
   let options;
   try {
     options = parseArgs(argv);
+    if (options.marker) setMarker(options.marker);
   } catch (err) {
     process.stderr.write(`${err.message}\n`);
     usage();

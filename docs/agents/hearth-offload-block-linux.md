@@ -3,8 +3,9 @@
 HEARTH is the MCP gateway at `http://127.0.0.1:8710/mcp` (registered for Claude Code at user
 scope; for Codex in `~/.codex/config.toml`). Delegate suitable self-contained work through
 `mcp__hearth__local_generate`: summaries of files/logs/diffs, structured extraction,
-classification, boilerplate, and prose drafts. Keep architecture, multi-file logic, ambiguous
-judgment, integration, and final validation with yourself. Do not split tightly coupled work
+classification, boilerplate, and prose drafts; judgment (review, tracing, a bounded fix
+recommendation) goes to the 27B by `task_family` per the HEARTH method below. Keep architecture,
+multi-file logic, integration, and final validation with yourself. Do not split tightly coupled work
 merely to force an offload. Offload when the expected benefit exceeds briefing, latency, and
 review costs; handle trivial work directly. Batch related small items into one call.
 
@@ -106,9 +107,11 @@ audit excludes dev. Code defaults are prod; a missing or expired file reads as p
 
 - Trust the result metadata, not the model's self-report: check `ok`, then read `text`; `backend`
   and `routed_by` prove where the work ran.
-- `ok:false` or unusable output → one retry at most, then do the work directly and record the
-  limitation. If the door is down, run `/checkmcp` once (or `python -m hearth.callers.doorcheck --revive`
-  from the flash repo root with `PYTHONPATH` set) before that retry.
+- `ok:false` or unusable output → name the bucket (HEARTH method §3): a setup miss
+  (`output_truncated`, `no_visible_output`, thin brief) gets one lever changed and one rerun; do the work
+  directly only after a substance miss under a fair setup, and record the limitation. If the door is
+  down, run `/checkmcp` once (or `python -m hearth.callers.doorcheck --revive` from the flash repo
+  root with `PYTHONPATH` set) before that rerun.
 - Every prompt carries `<hearth-task-id>` from the user-level hook; use that id when no `ct` work
   item exists.
 

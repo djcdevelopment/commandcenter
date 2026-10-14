@@ -24,6 +24,16 @@ HEARTH.
    citations against the pinned commit. For a diff, verify `git apply --check`,
    apply only in an isolated worktree, run focused tests, and review security and
    scope. The producer did not run tests even if its prose implies otherwise.
+4a. Review by the HEARTH method: lead with what the candidate gets right, and put
+   each miss in a named bucket (form: repair and count it; setup: change one
+   lever and rerun; substance: the only verdict against the model).
+4b. Inside amux (`$AMUX_SESSION` is set), put the candidate on the board so it is
+   visible from every device. Use the card you were given, or create one with
+   `/home/derek/work/amux/upstream/amux/amux board add "local work: <short intent>"`, then
+   `.../amux board artifact <CARD> hearth:work/<work_id> --kind local-candidate
+   --state awaiting_review --description "<seat>, <family>, <artifact id>, <sha256>"`.
+   A refusal or failure is registered the same way with `--state refused` or
+   `--state failed` and its reason: never hidden, never replaced by a cloud call.
 5. Call `record_local_work_verdict` with `accepted`, `rejected`, or
    `superseded`. Acceptance requires one passed row with concrete evidence for
    every original criterion. Link and close the build receipt when applicable.

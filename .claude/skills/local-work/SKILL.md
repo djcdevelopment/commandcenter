@@ -30,10 +30,11 @@ HEARTH.
 4b. Inside amux (`$AMUX_SESSION` is set), put the candidate on the board so it is
    visible from every device. Use the card you were given, or create one with
    `/home/derek/work/amux/upstream/amux/amux board add "local work: <short intent>"`, then
-   `.../amux board artifact <CARD> hearth:work/<work_id> --kind local-candidate
-   --state awaiting_review --description "<seat>, <family>, <artifact id>, <sha256>"`.
-   A refusal or failure is registered the same way with `--state refused` or
-   `--state failed` and its reason: never hidden, never replaced by a cloud call.
+   `.../amux board artifact <CARD> hearth:work/<work_id> --kind implementation
+   --state submitted --description "awaiting_review: <seat>, <family>, <artifact id>, <sha256>"`
+   (the board's kinds: implementation, verification, design, doc, screenshot, config; states: created,
+   submitted, merged, deployed, invalid, superseded). A refusal or failure is registered with
+   `--state invalid` and its reason: never hidden, never replaced by a cloud call.
 5. Call `record_local_work_verdict` with `accepted`, `rejected`, or
    `superseded`. Acceptance requires one passed row with concrete evidence for
    every original criterion. Link and close the build receipt when applicable.

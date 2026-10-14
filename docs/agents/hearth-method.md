@@ -40,6 +40,8 @@ fair setup, and record it. A refused local lane is terminal: never substitute cl
 **5. Record.** Verdicts carry evidence per criterion; a receipt names the family, the regime and the job id.
 Inside amux (`$AMUX_SESSION` is set), put the result on the board, visible from every device:
 `/home/derek/work/amux/upstream/amux/amux board add "<title>"`, then `... board artifact <CARD> hearth:job/<job_id>
---kind local-result --state awaiting_review --description "<seat>, <family>, <regime>, <artifact id>"`.
+--kind verification --state submitted --description "<seat>, <family>, <regime>, <artifact id>"` (a code candidate is
+`--kind implementation`; a refusal is `--state invalid` with the reason). Inside a Codex sandbox the CLI needs
+`AMUX_API=https://127.0.0.1:18824` and loopback network (an escalation).
 
 <!-- source: docs/agents/hearth-method.md in commandcenter-linux-flash; synced by tools/ops/sync-offload-block.mjs --marker hearth-method --manifest docs/agents/method-block-targets.json; edit the source -->

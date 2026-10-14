@@ -89,8 +89,11 @@ were set when that seat decoded at ~10 tok/s and are bounds now: since ADR-0060 
 and reads a prompt at ~1,500 tok/s). Every size on this host is mapped and checked in
 `docs/sizing-map.md` (`python tools/ops/sizing_map.py --check`).
 
-**Codex:** `codex exec --approve-for-me ... < /dev/null` is required for unattended HEARTH tool calls;
-interactive Codex prompts per call. Skills are installed under `~/.codex/skills/` from
+**Codex:** unattended, use `codex exec -c approval_policy="never" -c sandbox_mode="workspace-write" "<prompt>" < /dev/null`
+(checked by `~/work/lab/tools/cli_doctor.py`; HEARTH read and dispatch tools run through per-tool approvals that
+`hearth_cli_policy.py` keeps in `~/.codex/config.toml`, and mutators are refused, not prompted). Do not use
+`--approve-for-me`: its automatic reviewer also approves HEARTH mutators (amux receipt
+CODEX-UNATTENDED-PROBE-20261014). Interactive Codex prompts only for escalations and mutators. Skills are installed under `~/.codex/skills/` from
 `docs/agents/codex-skills/` (the tracked source).
 
 **Memory tie-in (continuity):** for substantial offloads open or reuse a `ct` work item

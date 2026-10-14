@@ -16,8 +16,8 @@ picks the seat, thinking, budget and recovery from the family's authored regime
 
 Judgment is in scope for delegation: with thinking on, the 27B traced a cloud fallback and recommended
 the right fix where a thinking-off call had missed it (amux receipt LOCAL-REVIEW-THINKING-RERUN-20261014).
-Do not pass `thinking`, `max_tokens` or `backend` unless you are testing a lever on purpose; a pin
-overrides the family and is recorded. The division that works: you design and verify (compile, tests, a
+Do not pass `thinking`, `backend` or a budget (`policy.max_tokens` included) unless you are testing a
+lever on purpose; a pin overrides the family and is recorded. The division that works: you design and verify (compile, tests, a
 live check); the 27B writes the code.
 
 **2. Brief.** The model sees nothing else. Substance criteria first, then form limits. State the house
@@ -38,5 +38,8 @@ setup miss: change one lever and rerun once. Do the work yourself only after a s
 fair setup, and record it. A refused local lane is terminal: never substitute cloud inference.
 
 **5. Record.** Verdicts carry evidence per criterion; a receipt names the family, the regime and the job id.
+Inside amux (`$AMUX_SESSION` is set), put the result on the board, visible from every device:
+`/home/derek/work/amux/upstream/amux/amux board add "<title>"`, then `... board artifact <CARD> hearth:job/<job_id>
+--kind local-result --state awaiting_review --description "<seat>, <family>, <regime>, <artifact id>"`.
 
 <!-- source: docs/agents/hearth-method.md in commandcenter-linux-flash; synced by tools/ops/sync-offload-block.mjs --marker hearth-method --manifest docs/agents/method-block-targets.json; edit the source -->

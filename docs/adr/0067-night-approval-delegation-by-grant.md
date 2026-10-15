@@ -40,3 +40,8 @@ Derek's decision and an ADR (lab intent H-3); he made the decision, and this ADR
   is inert for new grants.
 - Approval only permits submission of the exact brief; qualification, routing, admission, `awaiting_review` and
   frontier verdicts are unchanged.
+
+## Amended 2026-10-15 (ceiling)
+
+The delegation ceiling is the active dev environment's `HEARTH_ENVIRONMENT_UNTIL` (ADR-0053), not a code constant; the
+bench27 constant `DELEGATION_CEILING` (2026-10-12T07:00Z) is retired. A grant can never extend past the dev expiry.

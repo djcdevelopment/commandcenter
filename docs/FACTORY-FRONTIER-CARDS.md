@@ -1578,6 +1578,52 @@ Consequence: Flash pays its prefill *every conversation* (a 2k brief ≈ 6 min) 
 for **short-prompt, long-generation** work. ⚠ Flash also needs the **qwen38 fork** binary — the
 knee build rejects `qwen4exp` — so the lab requires two llama.cpp builds.
 
+### T2 revisited on Linux — Flash-Next is an overnight worker, not a seat *(2026-10-15, cc-0ad7aa53)*
+
+Same UD-IQ4_XS file, same two B70s, now under Linux with the B70 cookbook's llama.cpp SYCL pin
+(`52d4268` + `qwen4exp-mtp-draft-head` + `sycl-fused-mmvq-mt`; build at `~/opt/llama.cpp-flashnext`).
+vLLM is not a route: vLLM XPU 0.30 and 0.31 raise `NotImplementedError("Qwen4Exp currently supports
+CUDA and ROCm only")`, and the n-gram-table offload asserts CUDA. One launch held at 128K context with
+the MTP draft by sizing from the GGUF headers (59.3 GiB of block weights → 29.5/29.8 GiB per card,
+~2.1 GiB left) and parking the routed experts of five layers plus the 26.8 GiB `per_layer_token_embd`
+in host RAM. Full row: `docs/rnd-log.md` 2026-10-15.
+
+| cell (draft on; the build ignores per-request `speculative.n_max=0`) | Windows 2026-08/09 | Linux 2026-10-15 |
+|---|---|---|
+| decode, short prompt | 14.6 (experts→CPU) / 19–21 (4 GPUs, RPC) | **35–37** |
+| decode at 9k / 100k depth | — | 30 / 18 |
+| cold prefill at 512 / 9k / 30k / 100k | 57 (experts→CPU) / 287 (4 GPUs, warm 16k) | 213 / 214 / 123 / 145 |
+| time to first token at 30k / 100k | — | 243 s / 691 s |
+| multi-hop tool calling (3 file tools, 3-part question) | — | 27 calls / 0 malformed / correct to 31k; 23 / 0 / correct at 70k with a 30k pad |
+| night brief (quote_retrieval, 300–400 words), thinking off | — | 39 s, claims verbatim, 410 words (1 trim) |
+| same brief, thinking on | — | no answer at 2,500 or 10,000 tokens (word-count loop) |
+
+**What this revises from 2026-08-29.** (1) "Short-prompt, long-generation only" no longer holds:
+within a live slot the prefix is reused across turns (the server now writes *context checkpoints*
+for the hybrid state; the 100k decode arm re-prefilled 4 tokens), so a long document is paid once
+per session and every later turn costs 5–54 s at 38k–68k tokens. Slot save/restore to disk was not
+re-tested today, so the Aug-29 "cannot be banked" finding stands for cross-session reuse until it is.
+(2) Flash needs a dedicated two-card venue on Linux (30.8/29.5 GiB), not a 1 GB tenancy: the
+`-ngl 0` compute-tenancy mode is the Windows number, not this one. (3) Prefill is disk-bound on new
+vocabulary: the n-gram table is mmap'd and page-faults from E: (process in state D, GPUs idle), which
+cost two minutes of the 100k run. Pre-read shard 2 (46.4 GiB) into page cache, or keep a copy on the
+NVMe. (4) The qwen38 fork is still required; this pin carries `qwen4exp` and the MTP head.
+
+**How the lab should use it, and why.** As an *offline or overnight worker on long material*:
+hand it a repository or a document set once, let it run many tool-calling turns or deliveries
+against that cached context, and collect the results in the morning. The reasons are the numbers
+above: a fresh 100k context costs 11 minutes before the first token (no interactive seat survives
+that), but every turn after is cheap, the calls stay well formed to 70k, and a brief comes back in
+39 s with thinking off. It is *not* a replacement for the 27B seats: it needs both B70s to itself,
+its draft cannot be switched off per request, and the thinking regime does not converge under a
+word-count form rule, which the lab's delivery briefs all carry. Rules for a brief to it: chat
+endpoint, never raw `/completion` on long text (it emits EOS first); thinking off; pre-read the
+table shard; one session per document set; `-np 1` at 128K (a second slot needs 32K each, unmeasured).
+
+**Not sampled:** a true no-draft arm; ub 1024–2048 funded by two more host expert layers (the
+cookbook's 594 tok/s prefill cell); slot save/restore across sessions; `-np 2` at 32K; this model
+as a HEARTH backend (a profile decision, Derek's).
+
 ### Measured KV rates — never derive them *(2026-08-29)*
 
 | model | layers / n_kv / key_len | **measured** | formula |

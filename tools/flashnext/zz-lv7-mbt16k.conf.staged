@@ -1,0 +1,3 @@
+# LEVERS §7 item 7 arm (max-num-batched-tokens 16384 on seat 1): swapped in only by fleet/experiment_linux.py.
+[Service]
+Environment=OMEN_MAX_BATCHED_TOKENS=16384

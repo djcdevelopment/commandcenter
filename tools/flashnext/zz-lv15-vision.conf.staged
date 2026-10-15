@@ -1,0 +1,18 @@
+# LEVERS §7 item 15 arm: Qwen3.8-27B with its vision tower on seat 1 (stage8 recipe: language-model-only off, MTP k=1). Swapped in only by fleet/experiment_linux.py.
+[Service]
+Environment=OMEN_MODEL=/home/derek/models/qwen3.8-27b-gptq-int4-mtp
+Environment=OMEN_SERVED_NAME=qwen3.8-27b
+Environment=OMEN_TOOL_PARSER=qwen3_xml
+Environment=OMEN_REASONING_PARSER=qwen3
+Environment=OMEN_MAX_MODEL_LEN=65536
+Environment=OMEN_MAX_BATCHED_TOKENS=8192
+Environment=OMEN_ATTN_BACKEND=FLASH_ATTN
+Environment=OMEN_MTP_NO_BLOCK_DROP=1
+Environment=OMEN_PREFIX_MATCH_UNIT=64
+Environment=OMEN_PREFIX_CACHE=1
+Environment=OMEN_GRAPH_SIZES=[1,2,4,8,16]
+Environment=OMEN_KV_CACHE_BYTES=
+Environment=OMEN_GPU_MEM_UTIL=0.90
+Environment=OMEN_LANGUAGE_MODEL_ONLY=0
+Environment=OMEN_MTP_K=1
+Environment=OMEN_MAX_NUM_SEQS=2

@@ -1,43 +1,57 @@
 {
   "contract_version": "offload.v1",
-  "evidence_watermark": "2026-09-04T10:46:00.606260Z",
-  "bucket_count": 13,
+  "evidence_watermark": "2026-10-15T08:14:17.868113Z",
+  "bucket_count": 23,
   "totals": {
-    "calls": 1290,
-    "tokens_in": 3065219,
-    "tokens_out": 392483
+    "calls": 23875,
+    "tokens_in": 29964940,
+    "tokens_out": 2830949
   },
   "per_class": {
     "sunk": {
-      "calls": 682,
-      "tokens_in": 386242,
-      "tokens_out": 164283
+      "calls": 744,
+      "tokens_in": 529791,
+      "tokens_out": 188914
     },
     "trial": {
-      "calls": 597,
-      "tokens_in": 2678977,
-      "tokens_out": 228200
+      "calls": 895,
+      "tokens_in": 8297720,
+      "tokens_out": 525492
     },
     "unknown": {
-      "calls": 11,
-      "tokens_in": 0,
-      "tokens_out": 0
+      "calls": 22236,
+      "tokens_in": 21137429,
+      "tokens_out": 2116543
     }
   },
-  "offload_ratio": 1.0,
+  "offload_ratio": 0.2524,
   "est_usd_saved": {
     "reference": "claude-sonnet",
     "input_per_mtok": 3.0,
     "output_per_mtok": 15.0,
-    "usd": 15.082902
+    "usd": 37.198623
   },
   "real_usd_spent": {
     "pricing_source": "vertex-ai-pricing verified 2026-07-23 (global/standard, <=200K tier)",
-    "usd": 6.298192,
-    "priced_calls": 405,
+    "usd": 18.660062,
+    "priced_calls": 703,
     "unpriced_calls": 192
   },
   "buckets": [
+    {
+      "backend": "am4-dense",
+      "cost_class": "unknown",
+      "models": [
+        "/home/derek/work/am4-dual-nvidia-poc/models/Qwen3.8-27B-Q4_K_M.gguf",
+        "am4-dense-27b"
+      ],
+      "calls": 3,
+      "ok_rate": 1.0,
+      "tokens_in": 6875,
+      "tokens_out": 1208,
+      "real_usd": null,
+      "last_seen": "2026-09-22T11:28:57.107880Z"
+    },
     {
       "backend": "am4-moe",
       "cost_class": "sunk",
@@ -50,6 +64,19 @@
       "tokens_out": 140228,
       "real_usd": 0.0,
       "last_seen": "2026-07-30T14:58:23.494179Z"
+    },
+    {
+      "backend": "am4-ollama",
+      "cost_class": "unknown",
+      "models": [
+        "qwen2.5:14b"
+      ],
+      "calls": 1,
+      "ok_rate": 1.0,
+      "tokens_in": 871,
+      "tokens_out": 363,
+      "real_usd": null,
+      "last_seen": "2026-09-15T20:52:06.634689Z"
     },
     {
       "backend": "am4-oxen",
@@ -66,15 +93,82 @@
       "last_seen": "2026-07-30T09:38:02.654937Z"
     },
     {
-      "backend": "fx99-ollama",
-      "cost_class": "sunk",
-      "models": [],
+      "backend": "am4-read-4070ti",
+      "cost_class": "unknown",
+      "models": [
+        "models/qwen2.5-14b-instruct-q4_K_M.gguf"
+      ],
       "calls": 1,
       "ok_rate": 1.0,
-      "tokens_in": 36,
-      "tokens_out": 2,
+      "tokens_in": 7164,
+      "tokens_out": 70,
+      "real_usd": null,
+      "last_seen": "2026-09-18T01:36:57.393645Z"
+    },
+    {
+      "backend": "am4-tool-4070ti",
+      "cost_class": "unknown",
+      "models": [
+        "am4-tool-4070ti"
+      ],
+      "calls": 2520,
+      "ok_rate": 1.0,
+      "tokens_in": 3110906,
+      "tokens_out": 370082,
+      "real_usd": null,
+      "last_seen": "2026-10-04T06:35:27.853143Z"
+    },
+    {
+      "backend": "am4-tool-5070",
+      "cost_class": "unknown",
+      "models": [
+        "am4-tool-5070"
+      ],
+      "calls": 1621,
+      "ok_rate": 1.0,
+      "tokens_in": 2835660,
+      "tokens_out": 308121,
+      "real_usd": null,
+      "last_seen": "2026-10-04T06:33:15.821233Z"
+    },
+    {
+      "backend": "am4-vllm",
+      "cost_class": "unknown",
+      "models": [
+        "qwen3-27b"
+      ],
+      "calls": 770,
+      "ok_rate": 1.0,
+      "tokens_in": 1481383,
+      "tokens_out": 50559,
+      "real_usd": null,
+      "last_seen": "2026-10-10T13:39:18.643758Z"
+    },
+    {
+      "backend": "fx99-ollama",
+      "cost_class": "sunk",
+      "models": [
+        "qwen2.5-coder:7b"
+      ],
+      "calls": 2,
+      "ok_rate": 1.0,
+      "tokens_in": 848,
+      "tokens_out": 61,
       "real_usd": 0.0,
-      "last_seen": "2026-08-28T06:01:10.585369Z"
+      "last_seen": "2026-09-15T20:26:17.419249Z"
+    },
+    {
+      "backend": "fx99-vllm",
+      "cost_class": "unknown",
+      "models": [
+        "qwen2.5-coder-7b"
+      ],
+      "calls": 377,
+      "ok_rate": 1.0,
+      "tokens_in": 580682,
+      "tokens_out": 18284,
+      "real_usd": null,
+      "last_seen": "2026-10-10T16:42:54.114743Z"
     },
     {
       "backend": "gcp-gemini",
@@ -82,12 +176,12 @@
       "models": [
         "gemini-3.5-flash"
       ],
-      "calls": 255,
+      "calls": 462,
       "ok_rate": 1.0,
-      "tokens_in": 539303,
-      "tokens_out": 71697,
-      "real_usd": 0.94451,
-      "last_seen": "2026-09-04T10:46:00.606260Z"
+      "tokens_in": 4223063,
+      "tokens_out": 272111,
+      "real_usd": 8.273878,
+      "last_seen": "2026-09-21T11:44:28.886428Z"
     },
     {
       "backend": "gcp-gemini-pro",
@@ -95,23 +189,23 @@
       "models": [
         "gemini-3.1-pro-preview"
       ],
-      "calls": 191,
+      "calls": 282,
       "ok_rate": 1.0,
-      "tokens_in": 2139674,
-      "tokens_out": 156503,
-      "real_usd": 5.353682,
-      "last_seen": "2026-08-27T20:02:32.872453Z"
+      "tokens_in": 4074657,
+      "tokens_out": 253381,
+      "real_usd": 10.386184,
+      "last_seen": "2026-09-22T03:09:33.582239Z"
     },
     {
       "backend": "model:",
       "cost_class": "unknown",
       "models": [],
-      "calls": 11,
-      "ok_rate": 0.4545,
+      "calls": 262,
+      "ok_rate": 0.8206,
       "tokens_in": 0,
       "tokens_out": 0,
       "real_usd": null,
-      "last_seen": "2026-09-03T19:59:04.135890Z"
+      "last_seen": "2026-10-15T07:24:43.055528Z"
     },
     {
       "backend": "model:/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
@@ -171,12 +265,38 @@
       "models": [
         "qwen3-30b-a3b"
       ],
-      "calls": 58,
+      "calls": 118,
       "ok_rate": 1.0,
-      "tokens_in": 17000,
-      "tokens_out": 7456,
+      "tokens_in": 158912,
+      "tokens_out": 31779,
       "real_usd": 0.0,
-      "last_seen": "2026-09-04T10:19:58.363579Z"
+      "last_seen": "2026-09-22T10:05:25.550058Z"
+    },
+    {
+      "backend": "omen-arc-27b",
+      "cost_class": "unknown",
+      "models": [
+        "qwen38-27b"
+      ],
+      "calls": 4,
+      "ok_rate": 1.0,
+      "tokens_in": 75027,
+      "tokens_out": 4909,
+      "real_usd": null,
+      "last_seen": "2026-09-22T11:28:32.149742Z"
+    },
+    {
+      "backend": "omen-dense-27b",
+      "cost_class": "unknown",
+      "models": [
+        "qwen3.8-27b"
+      ],
+      "calls": 7565,
+      "ok_rate": 1.0,
+      "tokens_in": 6539795,
+      "tokens_out": 650500,
+      "real_usd": null,
+      "last_seen": "2026-10-15T08:14:17.868113Z"
     },
     {
       "backend": "omen-ollama",
@@ -195,15 +315,850 @@
     {
       "backend": "omen-swap",
       "cost_class": "sunk",
-      "models": [],
-      "calls": 3,
+      "models": [
+        "qwen14b-night"
+      ],
+      "calls": 4,
       "ok_rate": 1.0,
-      "tokens_in": 73,
-      "tokens_out": 73,
+      "tokens_in": 898,
+      "tokens_out": 322,
       "real_usd": 0.0,
-      "last_seen": "2026-09-04T01:01:57.278324Z"
+      "last_seen": "2026-09-15T20:35:36.380447Z"
+    },
+    {
+      "backend": "omen-vllm",
+      "cost_class": "unknown",
+      "models": [
+        "qwen3-30b-a3b"
+      ],
+      "calls": 9112,
+      "ok_rate": 1.0,
+      "tokens_in": 6499066,
+      "tokens_out": 712447,
+      "real_usd": null,
+      "last_seen": "2026-10-04T06:34:47.926757Z"
     }
   ],
-  "corpus_digest": "sha256:c77e9d764cb45dffc7c480da23194869e8290f573d54a07a71cac66d4c8555a8",
-  "corpus_event_count": 195782
+  "by_caller": [
+    {
+      "key": "claude-frontier",
+      "calls": 23319,
+      "ok_rate": 0.9988,
+      "tokens_in": 28652731,
+      "tokens_out": 2662481,
+      "per_class": {
+        "sunk": 649,
+        "trial": 877,
+        "unknown": 21793
+      },
+      "est_usd_saved_usd": 33.782193,
+      "last_seen": "2026-10-15T08:14:17.868113Z"
+    },
+    {
+      "key": "codex-cli",
+      "calls": 441,
+      "ok_rate": 0.9841,
+      "tokens_in": 925185,
+      "tokens_out": 56361,
+      "per_class": {
+        "sunk": 21,
+        "trial": 4,
+        "unknown": 416
+      },
+      "est_usd_saved_usd": 0.755517,
+      "last_seen": "2026-10-10T16:42:54.114743Z"
+    },
+    {
+      "key": "docker-open-notebook-facade",
+      "calls": 63,
+      "ok_rate": 1.0,
+      "tokens_in": 283213,
+      "tokens_out": 103897,
+      "per_class": {
+        "sunk": 63,
+        "trial": 0,
+        "unknown": 0
+      },
+      "est_usd_saved_usd": 2.408094,
+      "last_seen": "2026-07-21T03:32:12.096022Z"
+    },
+    {
+      "key": "dev-local",
+      "calls": 39,
+      "ok_rate": 0.7949,
+      "tokens_in": 42498,
+      "tokens_out": 3618,
+      "per_class": {
+        "sunk": 3,
+        "trial": 13,
+        "unknown": 23
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-10-01T14:22:16.575846Z"
+    },
+    {
+      "key": "linux-migration-inspector",
+      "calls": 4,
+      "ok_rate": 0.0,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 4
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-09-23T21:18:16.282499Z"
+    },
+    {
+      "key": "peer-inference",
+      "calls": 4,
+      "ok_rate": 1.0,
+      "tokens_in": 80,
+      "tokens_out": 204,
+      "per_class": {
+        "sunk": 4,
+        "trial": 0,
+        "unknown": 0
+      },
+      "est_usd_saved_usd": 0.0033,
+      "last_seen": "2026-08-24T14:06:44.645985Z"
+    },
+    {
+      "key": "gcp-adk-test",
+      "calls": 3,
+      "ok_rate": 1.0,
+      "tokens_in": 61203,
+      "tokens_out": 4376,
+      "per_class": {
+        "sunk": 2,
+        "trial": 1,
+        "unknown": 0
+      },
+      "est_usd_saved_usd": 0.249249,
+      "last_seen": "2026-07-21T17:28:19.773081Z"
+    },
+    {
+      "key": "omen-worker-1",
+      "calls": 2,
+      "ok_rate": 1.0,
+      "tokens_in": 30,
+      "tokens_out": 12,
+      "per_class": {
+        "sunk": 2,
+        "trial": 0,
+        "unknown": 0
+      },
+      "est_usd_saved_usd": 0.00027,
+      "last_seen": "2026-09-04T10:13:55.328717Z"
+    }
+  ],
+  "by_caller_truncated": false,
+  "by_caller_omitted": 0,
+  "by_task": [
+    {
+      "key": "cc-9568f28c",
+      "calls": 19878,
+      "ok_rate": 1.0,
+      "tokens_in": 14157547,
+      "tokens_out": 1939977,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 19878
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-10-04T06:35:27.853143Z"
+    },
+    {
+      "key": "w-8d9b1d8cee6e",
+      "calls": 1425,
+      "ok_rate": 1.0,
+      "tokens_in": 4078470,
+      "tokens_out": 49465,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 1425
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-10-03T08:24:26.915192Z"
+    },
+    {
+      "key": "(unstamped)",
+      "calls": 1337,
+      "ok_rate": 0.9663,
+      "tokens_in": 3086863,
+      "tokens_out": 393526,
+      "per_class": {
+        "sunk": 679,
+        "trial": 597,
+        "unknown": 61
+      },
+      "est_usd_saved_usd": 15.113466,
+      "last_seen": "2026-10-03T10:47:01.018699Z"
+    },
+    {
+      "key": "br-20261007-092632-642c0ab1",
+      "calls": 369,
+      "ok_rate": 1.0,
+      "tokens_in": 572178,
+      "tokens_out": 16306,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 369
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-10-07T10:09:17.141497Z"
+    },
+    {
+      "key": "br-20261003-084010-7d218bf0",
+      "calls": 283,
+      "ok_rate": 0.9929,
+      "tokens_in": 471134,
+      "tokens_out": 16215,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 283
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-10-03T10:09:06.685162Z"
+    },
+    {
+      "key": "cc-d15259b5",
+      "calls": 142,
+      "ok_rate": 1.0,
+      "tokens_in": 4325207,
+      "tokens_out": 12784,
+      "per_class": {
+        "sunk": 0,
+        "trial": 141,
+        "unknown": 1
+      },
+      "est_usd_saved_usd": 13.167381,
+      "last_seen": "2026-09-12T21:16:26.826344Z"
+    },
+    {
+      "key": "cc-93b2d0fb",
+      "calls": 123,
+      "ok_rate": 1.0,
+      "tokens_in": 1341480,
+      "tokens_out": 26561,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 123
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-10-03T17:57:17.938698Z"
+    },
+    {
+      "key": "cc-e6e9d436",
+      "calls": 119,
+      "ok_rate": 1.0,
+      "tokens_in": 242190,
+      "tokens_out": 198315,
+      "per_class": {
+        "sunk": 4,
+        "trial": 102,
+        "unknown": 13
+      },
+      "est_usd_saved_usd": 3.701295,
+      "last_seen": "2026-09-21T03:22:50.367990Z"
+    },
+    {
+      "key": "eric-menu",
+      "calls": 36,
+      "ok_rate": 1.0,
+      "tokens_in": 68564,
+      "tokens_out": 15904,
+      "per_class": {
+        "sunk": 25,
+        "trial": 11,
+        "unknown": 0
+      },
+      "est_usd_saved_usd": 0.444252,
+      "last_seen": "2026-09-22T04:20:55.897793Z"
+    },
+    {
+      "key": "cc-a8371db0",
+      "calls": 23,
+      "ok_rate": 1.0,
+      "tokens_in": 560738,
+      "tokens_out": 40230,
+      "per_class": {
+        "sunk": 0,
+        "trial": 23,
+        "unknown": 0
+      },
+      "est_usd_saved_usd": 2.285664,
+      "last_seen": "2026-09-12T05:50:42.316669Z"
+    },
+    {
+      "key": "cc-96c16822",
+      "calls": 18,
+      "ok_rate": 1.0,
+      "tokens_in": 151150,
+      "tokens_out": 8160,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 18
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-09-28T01:19:06.012740Z"
+    },
+    {
+      "key": "cc-04e8b85c",
+      "calls": 9,
+      "ok_rate": 1.0,
+      "tokens_in": 9446,
+      "tokens_out": 2800,
+      "per_class": {
+        "sunk": 3,
+        "trial": 3,
+        "unknown": 3
+      },
+      "est_usd_saved_usd": 0.046632,
+      "last_seen": "2026-09-18T02:36:36.685857Z"
+    },
+    {
+      "key": "cc-544e4480",
+      "calls": 7,
+      "ok_rate": 1.0,
+      "tokens_in": 9179,
+      "tokens_out": 3378,
+      "per_class": {
+        "sunk": 5,
+        "trial": 2,
+        "unknown": 0
+      },
+      "est_usd_saved_usd": 0.078207,
+      "last_seen": "2026-09-19T14:51:47.250241Z"
+    },
+    {
+      "key": "br-20261010-134823-70316e83",
+      "calls": 6,
+      "ok_rate": 1.0,
+      "tokens_in": 55540,
+      "tokens_out": 6817,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 6
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-10-10T13:56:48.076306Z"
+    },
+    {
+      "key": "br-20260915-200955-c53c4891",
+      "calls": 5,
+      "ok_rate": 1.0,
+      "tokens_in": 2508,
+      "tokens_out": 671,
+      "per_class": {
+        "sunk": 2,
+        "trial": 0,
+        "unknown": 3
+      },
+      "est_usd_saved_usd": 0.009531,
+      "last_seen": "2026-09-15T20:52:06.634689Z"
+    },
+    {
+      "key": "br-20261001-115441-07599bd4",
+      "calls": 5,
+      "ok_rate": 1.0,
+      "tokens_in": 33211,
+      "tokens_out": 3138,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 5
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-10-01T13:59:07.342443Z"
+    },
+    {
+      "key": "cc-9bbc64c6",
+      "calls": 5,
+      "ok_rate": 1.0,
+      "tokens_in": 39369,
+      "tokens_out": 6049,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 5
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-10-01T09:07:11.058443Z"
+    },
+    {
+      "key": "br-20261001-003121-bc67d85e",
+      "calls": 4,
+      "ok_rate": 1.0,
+      "tokens_in": 10736,
+      "tokens_out": 4706,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 4
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-10-01T00:46:31.903072Z"
+    },
+    {
+      "key": "cc-2697a704",
+      "calls": 4,
+      "ok_rate": 1.0,
+      "tokens_in": 164990,
+      "tokens_out": 21512,
+      "per_class": {
+        "sunk": 0,
+        "trial": 4,
+        "unknown": 0
+      },
+      "est_usd_saved_usd": 0.81765,
+      "last_seen": "2026-09-22T03:09:33.582239Z"
+    },
+    {
+      "key": "cc-49f7ebc0",
+      "calls": 4,
+      "ok_rate": 1.0,
+      "tokens_in": 19212,
+      "tokens_out": 784,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 4
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-10-03T02:49:16.425836Z"
+    },
+    {
+      "key": "cc-d298ecc9",
+      "calls": 4,
+      "ok_rate": 1.0,
+      "tokens_in": 57323,
+      "tokens_out": 20872,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 4
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-10-12T18:20:22.462423Z"
+    },
+    {
+      "key": "cc-0f1c6f20",
+      "calls": 3,
+      "ok_rate": 1.0,
+      "tokens_in": 2266,
+      "tokens_out": 1275,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 3
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-10-15T08:14:17.868113Z"
+    },
+    {
+      "key": "cc-4ae5237b",
+      "calls": 3,
+      "ok_rate": 1.0,
+      "tokens_in": 33447,
+      "tokens_out": 1482,
+      "per_class": {
+        "sunk": 0,
+        "trial": 3,
+        "unknown": 0
+      },
+      "est_usd_saved_usd": 0.122571,
+      "last_seen": "2026-09-19T11:13:52.012311Z"
+    },
+    {
+      "key": "known-world-review-20261010",
+      "calls": 3,
+      "ok_rate": 1.0,
+      "tokens_in": 18969,
+      "tokens_out": 2679,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 3
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-10-10T13:39:18.643758Z"
+    },
+    {
+      "key": "br-20260908-220304-edea1309",
+      "calls": 2,
+      "ok_rate": 1.0,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 2
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-09-08T22:12:41.493307Z"
+    },
+    {
+      "key": "br-20260909-015959-a3b2fea2",
+      "calls": 2,
+      "ok_rate": 1.0,
+      "tokens_in": 58380,
+      "tokens_out": 84,
+      "per_class": {
+        "sunk": 0,
+        "trial": 1,
+        "unknown": 1
+      },
+      "est_usd_saved_usd": 0.1764,
+      "last_seen": "2026-09-09T02:07:14.625119Z"
+    },
+    {
+      "key": "br-20260922-085151-d62755b0",
+      "calls": 2,
+      "ok_rate": 1.0,
+      "tokens_in": 11548,
+      "tokens_out": 1824,
+      "per_class": {
+        "sunk": 2,
+        "trial": 0,
+        "unknown": 0
+      },
+      "est_usd_saved_usd": 0.062004,
+      "last_seen": "2026-09-22T08:57:26.005699Z"
+    },
+    {
+      "key": "br-20260922-100347-eeb5a2c7",
+      "calls": 2,
+      "ok_rate": 1.0,
+      "tokens_in": 5372,
+      "tokens_out": 2265,
+      "per_class": {
+        "sunk": 2,
+        "trial": 0,
+        "unknown": 0
+      },
+      "est_usd_saved_usd": 0.050091,
+      "last_seen": "2026-09-22T10:05:25.550058Z"
+    },
+    {
+      "key": "br-20260922-110056-32959aa1",
+      "calls": 2,
+      "ok_rate": 1.0,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 2
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-09-22T11:01:35.825621Z"
+    },
+    {
+      "key": "br-20260922-112610-ff3c3b5f",
+      "calls": 2,
+      "ok_rate": 1.0,
+      "tokens_in": 10719,
+      "tokens_out": 1230,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 2
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-09-22T11:28:57.107880Z"
+    },
+    {
+      "key": "br-20261010-160953-ca08b08f",
+      "calls": 2,
+      "ok_rate": 1.0,
+      "tokens_in": 130,
+      "tokens_out": 138,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 2
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-10-10T16:14:24.103000Z"
+    },
+    {
+      "key": "cc-4e32c87a",
+      "calls": 2,
+      "ok_rate": 1.0,
+      "tokens_in": 36,
+      "tokens_out": 10,
+      "per_class": {
+        "sunk": 2,
+        "trial": 0,
+        "unknown": 0
+      },
+      "est_usd_saved_usd": 0.000258,
+      "last_seen": "2026-09-09T08:58:26.054193Z"
+    },
+    {
+      "key": "tensor-shared-ram-20260908",
+      "calls": 2,
+      "ok_rate": 1.0,
+      "tokens_in": 821,
+      "tokens_out": 214,
+      "per_class": {
+        "sunk": 0,
+        "trial": 2,
+        "unknown": 0
+      },
+      "est_usd_saved_usd": 0.005673,
+      "last_seen": "2026-09-09T02:46:17.954627Z"
+    },
+    {
+      "key": "br-20260908-202534-ad7feecc",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "tokens_in": 1229,
+      "tokens_out": 113,
+      "per_class": {
+        "sunk": 1,
+        "trial": 0,
+        "unknown": 0
+      },
+      "est_usd_saved_usd": 0.005382,
+      "last_seen": "2026-09-08T20:28:59.307240Z"
+    },
+    {
+      "key": "br-20260915-090614-e56e7bbe",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 1
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-09-15T09:11:47.249660Z"
+    },
+    {
+      "key": "br-20260920-035537-21f37ea1",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "tokens_in": 413,
+      "tokens_out": 319,
+      "per_class": {
+        "sunk": 1,
+        "trial": 0,
+        "unknown": 0
+      },
+      "est_usd_saved_usd": 0.006024,
+      "last_seen": "2026-09-20T03:59:34.777968Z"
+    },
+    {
+      "key": "br-20260921-073615-8a1052e5",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "tokens_in": 2158,
+      "tokens_out": 541,
+      "per_class": {
+        "sunk": 1,
+        "trial": 0,
+        "unknown": 0
+      },
+      "est_usd_saved_usd": 0.014589,
+      "last_seen": "2026-09-21T07:43:35.847543Z"
+    },
+    {
+      "key": "br-20260921-080250-98700cbe",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "tokens_in": 6851,
+      "tokens_out": 729,
+      "per_class": {
+        "sunk": 1,
+        "trial": 0,
+        "unknown": 0
+      },
+      "est_usd_saved_usd": 0.031488,
+      "last_seen": "2026-09-21T08:03:51.800639Z"
+    },
+    {
+      "key": "br-20260921-082020-bce9dd11",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "tokens_in": 2432,
+      "tokens_out": 816,
+      "per_class": {
+        "sunk": 1,
+        "trial": 0,
+        "unknown": 0
+      },
+      "est_usd_saved_usd": 0.019536,
+      "last_seen": "2026-09-21T08:20:50.843480Z"
+    },
+    {
+      "key": "br-20260921-090324-fc28f750",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "tokens_in": 12243,
+      "tokens_out": 1028,
+      "per_class": {
+        "sunk": 1,
+        "trial": 0,
+        "unknown": 0
+      },
+      "est_usd_saved_usd": 0.052149,
+      "last_seen": "2026-09-21T09:10:04.148448Z"
+    },
+    {
+      "key": "br-20260922-025455-98c7c907",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 1
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-09-22T02:55:27.335210Z"
+    },
+    {
+      "key": "br-20260922-062128-ea6e3656",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 1
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-09-22T06:21:56.544719Z"
+    },
+    {
+      "key": "br-20260922-091949-883c11b0",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "tokens_in": 3287,
+      "tokens_out": 642,
+      "per_class": {
+        "sunk": 1,
+        "trial": 0,
+        "unknown": 0
+      },
+      "est_usd_saved_usd": 0.019491,
+      "last_seen": "2026-09-22T09:22:51.791399Z"
+    },
+    {
+      "key": "br-20260922-095147-6c5ad2bc",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "tokens_in": 10567,
+      "tokens_out": 1947,
+      "per_class": {
+        "sunk": 1,
+        "trial": 0,
+        "unknown": 0
+      },
+      "est_usd_saved_usd": 0.060906,
+      "last_seen": "2026-09-22T09:54:06.557887Z"
+    },
+    {
+      "key": "br-20260922-104437-87463c28",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "tokens_in": 47235,
+      "tokens_out": 2098,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 1
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-09-22T10:52:57.440108Z"
+    },
+    {
+      "key": "br-20260922-110225-3943e4d7",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "tokens_in": 19127,
+      "tokens_out": 2048,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 1
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-09-22T11:09:22.455434Z"
+    },
+    {
+      "key": "br-20260922-111722-16776cbf",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "tokens_in": 3428,
+      "tokens_out": 567,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 1
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-09-22T11:22:25.664978Z"
+    },
+    {
+      "key": "br-20260928-040334-a342809b",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "tokens_in": 301,
+      "tokens_out": 158,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 1
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-09-28T04:06:23.906547Z"
+    },
+    {
+      "key": "br-20260928-052214-b633b7c8",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "tokens_in": 1824,
+      "tokens_out": 52,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 1
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-09-28T05:25:52.802235Z"
+    },
+    {
+      "key": "br-20261007-071933-ed681bdb",
+      "calls": 1,
+      "ok_rate": 1.0,
+      "tokens_in": 707,
+      "tokens_out": 236,
+      "per_class": {
+        "sunk": 0,
+        "trial": 0,
+        "unknown": 1
+      },
+      "est_usd_saved_usd": 0.0,
+      "last_seen": "2026-10-07T07:21:41.622062Z"
+    }
+  ],
+  "by_task_truncated": true,
+  "by_task_omitted": 25,
+  "corpus_digest": "sha256:9735cf93a3110be2982e6a0436a332698e1af4ff67c1e0b00bb74fcdf6b02424",
+  "corpus_event_count": 473236
 }

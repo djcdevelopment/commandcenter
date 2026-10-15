@@ -1,7 +1,7 @@
 {
   "contract_version": "experiment-results.v1",
-  "evidence_watermark": "2026-09-27T20:35:33.742030+00:00",
-  "plan_count": 3,
+  "evidence_watermark": "2026-10-15T08:24:47.657257+00:00",
+  "plan_count": 47,
   "unresolved_refs": 0,
   "beliefs_changed": 0,
   "results": [
@@ -71,6 +71,38 @@
     },
     {
       "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:2026-09-27-deepagents-tick-report-retry",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-2026-09-27-deepagents-tick-report-retry-b42930a5",
+      "decision_id": "dec_hearth-authored-2026-09-27-deepagents-tick-report-retry-b42930a5",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "deepagents",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-09-27T21:27:28.543086Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
       "experiment_id": "authored:2026-09-27-exp-qwen3-32b-depth",
       "experiment_type": "coverage_probe",
       "workflow_id": "bankedfire-drain",
@@ -100,6 +132,1384 @@
         "effect": "block"
       },
       "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:2026-10-01-audit-bankedfire-backoff",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-2026-10-01-audit-bankedfire-backoff-9a12ed61",
+      "decision_id": "dec_hearth-authored-2026-10-01-audit-bankedfire-backoff-9a12ed61",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-02T20:09:05.501587Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:2026-10-01-audit-bankedfire-backoff",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-2026-10-01-audit-bankedfire-backoff-ce70f81c",
+      "decision_id": "dec_hearth-authored-2026-10-01-audit-bankedfire-backoff-ce70f81c",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-02T19:13:46.059976Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:2026-10-01-audit-bankedfire-backoff.rerun-20261002T201232Z",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-2026-10-01-audit-bankedfire-backoff-rerun-20261002t-e99a4ce4",
+      "decision_id": "dec_hearth-authored-2026-10-01-audit-bankedfire-backoff-rerun-20261002t-e99a4ce4",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-02T20:13:11.142320Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:2026-10-01-audit-bankedfire-backoff.rerun-20261002T201931Z",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-2026-10-01-audit-bankedfire-backoff-rerun-c6a21de6-38357649",
+      "decision_id": "dec_hearth-authored-2026-10-01-audit-bankedfire-backoff-rerun-c6a21de6-38357649",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-02T20:20:06.164377Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:2026-10-01-audit-sizing-configurations",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-2026-10-01-audit-sizing-configurations-826c8399",
+      "decision_id": "dec_hearth-authored-2026-10-01-audit-sizing-configurations-826c8399",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-02T19:16:18.693235Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:2026-10-01-audit-sizing-configurations.rerun-20261002T201931Z",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-2026-10-01-audit-sizing-configurations-rer-24e95480-3cfa1ee6",
+      "decision_id": "dec_hearth-authored-2026-10-01-audit-sizing-configurations-rer-24e95480-3cfa1ee6",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-02T20:22:46.451293Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:2026-10-01-audit-sizing-configurations.rerun-20261002T201311Z",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-2026-10-01-audit-sizing-configurations-rerun-202610-05f5e3f2",
+      "decision_id": "dec_hearth-authored-2026-10-01-audit-sizing-configurations-rerun-202610-05f5e3f2",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-02T20:16:13.374017Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:2026-10-01-audit-sizing-configurations.rerun-20261002T201003Z",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-2026-10-01-audit-sizing-configurations-rerun-202610-f3b52568",
+      "decision_id": "dec_hearth-authored-2026-10-01-audit-sizing-configurations-rerun-202610-f3b52568",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-02T20:10:48.050749Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:2026-10-01-chore-env-reads-bankedfire",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-2026-10-01-chore-env-reads-bankedfire-58a73364",
+      "decision_id": "dec_hearth-authored-2026-10-01-chore-env-reads-bankedfire-58a73364",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "deepagents",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-01T09:24:54.660904Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:2026-10-01-chore-env-reads-deepagents",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-2026-10-01-chore-env-reads-deepagents-7caeca35",
+      "decision_id": "dec_hearth-authored-2026-10-01-chore-env-reads-deepagents-7caeca35",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "deepagents",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-01T09:24:54.707834Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:2026-10-01-chore-perception-service",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-2026-10-01-chore-perception-service-386a5ccf",
+      "decision_id": "dec_hearth-authored-2026-10-01-chore-perception-service-386a5ccf",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "deepagents",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-02T20:09:05.889489Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:2026-10-01-chore-perception-service",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-2026-10-01-chore-perception-service-ff144496",
+      "decision_id": "dec_hearth-authored-2026-10-01-chore-perception-service-ff144496",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "deepagents",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-02T19:16:18.844506Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:2026-10-01-chore-perception-service.rerun-20261002T201232Z",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-2026-10-01-chore-perception-service-rerun-20261002t-2ce9241f",
+      "decision_id": "dec_hearth-authored-2026-10-01-chore-perception-service-rerun-20261002t-2ce9241f",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "deepagents",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-02T20:13:11.665642Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:2026-10-01-chore-perception-service.rerun-20261002T201931Z",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-2026-10-01-chore-perception-service-rerun-8b1db3a7-64c32318",
+      "decision_id": "dec_hearth-authored-2026-10-01-chore-perception-service-rerun-8b1db3a7-64c32318",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "deepagents",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-02T20:20:06.998045Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:2026-10-01-morning-report-observed-at",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-2026-10-01-morning-report-observed-at-f35c2bdb",
+      "decision_id": "dec_hearth-authored-2026-10-01-morning-report-observed-at-f35c2bdb",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-01T09:24:54.726986Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:rehearsal-code-utcnow",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-rehearsal-code-utcnow-527ca4ea",
+      "decision_id": "dec_hearth-authored-rehearsal-code-utcnow-527ca4ea",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T07:30:00.399196Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:rehearsal-code-utcnow-wholefile",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-rehearsal-code-utcnow-wholefile-9223b0ec",
+      "decision_id": "dec_hearth-authored-rehearsal-code-utcnow-wholefile-9223b0ec",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T07:42:21.721656Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:rehearsal-inventory-hearth",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-rehearsal-inventory-hearth-0b6f5aeb",
+      "decision_id": "dec_hearth-authored-rehearsal-inventory-hearth-0b6f5aeb",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T07:44:44.782988Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:rehearsal-report-choice",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-rehearsal-report-choice-f45431b4",
+      "decision_id": "dec_hearth-authored-rehearsal-report-choice-f45431b4",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T07:24:43.488465Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:w5-00-kv",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-w5-00-kv-fdd464a4",
+      "decision_id": "dec_hearth-authored-w5-00-kv-fdd464a4",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T11:57:52.105683Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:w5-01-transitions",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-w5-01-transitions-dd992138",
+      "decision_id": "dec_hearth-authored-w5-01-transitions-dd992138",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T12:03:43.703933Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:w5-02-targets",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-w5-02-targets-7f9f5780",
+      "decision_id": "dec_hearth-authored-w5-02-targets-7f9f5780",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T12:13:52.125885Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:w5-03-intentcheck",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-w5-03-intentcheck-9722d4ad",
+      "decision_id": "dec_hearth-authored-w5-03-intentcheck-9722d4ad",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T12:25:53.140707Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:w5-04-transport",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-w5-04-transport-93da476e",
+      "decision_id": "dec_hearth-authored-w5-04-transport-93da476e",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T12:35:57.086442Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:w5-05-records",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-w5-05-records-2ac5b3ed",
+      "decision_id": "dec_hearth-authored-w5-05-records-2ac5b3ed",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T12:45:58.060993Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:w5-06-inv-env-labrnd",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-w5-06-inv-env-labrnd-a09e7712",
+      "decision_id": "dec_hearth-authored-w5-06-inv-env-labrnd-a09e7712",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T12:03:43.822445Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:w5-07-inv-env-deepagents",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-w5-07-inv-env-deepagents-1c830e06",
+      "decision_id": "dec_hearth-authored-w5-07-inv-env-deepagents-1c830e06",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T12:03:44.280469Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:w5-08-inv-params-fleet",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-w5-08-inv-params-fleet-ea292766",
+      "decision_id": "dec_hearth-authored-w5-08-inv-params-fleet-ea292766",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T12:03:44.638456Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:w5-09-admission",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-w5-09-admission-a4af7074",
+      "decision_id": "dec_hearth-authored-w5-09-admission-a4af7074",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T12:53:58.839462Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:w5-10-arbiter",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-w5-10-arbiter-3cb19a98",
+      "decision_id": "dec_hearth-authored-w5-10-arbiter-3cb19a98",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T13:01:59.458315Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:w5-11-timers",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-w5-11-timers-a1289bf4",
+      "decision_id": "dec_hearth-authored-w5-11-timers-a1289bf4",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T13:06:01.233536Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:w5-12-rungstate",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-w5-12-rungstate-11f7cb2c",
+      "decision_id": "dec_hearth-authored-w5-12-rungstate-11f7cb2c",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T13:14:02.031349Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:w5-13-recovery",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-w5-13-recovery-958db047",
+      "decision_id": "dec_hearth-authored-w5-13-recovery-958db047",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T13:24:03.051325Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:w5-14-tenancy",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-w5-14-tenancy-5c663c18",
+      "decision_id": "dec_hearth-authored-w5-14-tenancy-5c663c18",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T13:32:03.830107Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:w5-15-fix-arbiter",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-w5-15-fix-arbiter-93b7cb80",
+      "decision_id": "dec_hearth-authored-w5-15-fix-arbiter-93b7cb80",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T13:38:05.445586Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:w5-16-fix-admission",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-w5-16-fix-admission-0107f5b7",
+      "decision_id": "dec_hearth-authored-w5-16-fix-admission-0107f5b7",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T13:40:05.494438Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:w5-17-fix-windows",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-w5-17-fix-windows-01bf5150",
+      "decision_id": "dec_hearth-authored-w5-17-fix-windows-01bf5150",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T13:42:05.851634Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:w5-18-fix-transitions",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-w5-18-fix-transitions-02d4adb9",
+      "decision_id": "dec_hearth-authored-w5-18-fix-transitions-02d4adb9",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T13:44:06.064361Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:w5-19-tuned-backoff",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-w5-19-tuned-backoff-8cf079d1",
+      "decision_id": "dec_hearth-authored-w5-19-tuned-backoff-8cf079d1",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T13:46:06.271082Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:w5-20-tuned-sizing",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-w5-20-tuned-sizing-5119335e",
+      "decision_id": "dec_hearth-authored-w5-20-tuned-sizing-5119335e",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T13:54:07.086216Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:w5-21-tuned-perception",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-w5-21-tuned-perception-b2a0aa08",
+      "decision_id": "dec_hearth-authored-w5-21-tuned-perception-b2a0aa08",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T14:08:10.241197Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:w5-22-tuned-restore",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-w5-22-tuned-restore-b628c04a",
+      "decision_id": "dec_hearth-authored-w5-22-tuned-restore-b628c04a",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T14:16:11.060062Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
+    },
+    {
+      "contract_version": "experiment-result.v1",
+      "experiment_id": "authored:w5-23-tuned-choice",
+      "experiment_type": "coverage_probe",
+      "workflow_id": "bankedfire-drain",
+      "run_id": "hearth-drain/hearth-authored-w5-23-tuned-choice-8c60b2db",
+      "decision_id": "dec_hearth-authored-w5-23-tuned-choice-8c60b2db",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": "local-work",
+        "metric": null
+      },
+      "target_finding_id": null,
+      "observation_ids": [],
+      "outcome": "no_observation",
+      "failure_classes": null,
+      "timestamp": "2026-10-04T14:24:11.896877Z",
+      "belief_before": null,
+      "belief_after": null,
+      "belief_changed": false,
+      "gate_before": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "gate_after": {
+        "policy_id": "block:omen-wsl|qwen3-30b-a3b-awq|vllm|*|*",
+        "effect": "block"
+      },
+      "verdict": "experiment dispatched but no observation recorded; belief unchanged"
     }
-  ]
+  ],
+  "corpus_digest": "sha256:2607e73b69a307c9b205eeafe3a0697a7f25b1299d8bfff65faab055a578b311",
+  "corpus_event_count": 171747
 }

@@ -1,12 +1,13 @@
 {
   "contract_version": "coverage.v1",
-  "observation_count": 1231,
+  "observation_count": 25788,
   "decision_count": 0,
   "unresolved_refs": 0,
-  "evidence_watermark": "2026-09-04T10:46:00.606260Z",
+  "evidence_watermark": "2026-10-15T08:24:47.657257+00:00",
   "gap_counts": {
-    "single_workflow_evidence": 29,
-    "unmeasured_metrics": 41
+    "single_workflow_evidence": 32,
+    "stale_capability": 2,
+    "unmeasured_metrics": 48
   },
   "gaps": [
     {
@@ -65,6 +66,33 @@
     },
     {
       "contract_version": "coverage-gap.v1",
+      "gap_id": "single_workflow_evidence:failure_signature:failure_class=empty_output|backend=omen-dense-27b",
+      "gap_type": "single_workflow_evidence",
+      "statement": "'failure_class=empty_output, backend=omen-dense-27b' has 1 consistent sample(s) but all from wf-hearth-offload-claude-frontier; a second distinct workflow would let the association engine generalize it",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "omen-dense-27b",
+        "task_kind": null,
+        "invariant": {
+          "failure_class": "empty_output",
+          "backend": "omen-dense-27b"
+        },
+        "missing_metrics": null,
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1,
+        "workflows": [
+          "wf-hearth-offload-claude-frontier"
+        ],
+        "summary": "1 sample(s), 1 workflow (need 2)"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-10-14T19:38:00.521967+00:00"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
       "gap_id": "single_workflow_evidence:failure_signature:failure_class=moe_offload_crash|backend=vllm",
       "gap_type": "single_workflow_evidence",
       "statement": "'failure_class=moe_offload_crash, backend=vllm' has 3 consistent sample(s) but all from wf-vllm-moe-crash-omen-wsl-2026-07-02; a second distinct workflow would let the association engine generalize it",
@@ -92,6 +120,33 @@
     },
     {
       "contract_version": "coverage-gap.v1",
+      "gap_id": "single_workflow_evidence:failure_signature:failure_class=timeout|backend=omen-dense-27b",
+      "gap_type": "single_workflow_evidence",
+      "statement": "'failure_class=timeout, backend=omen-dense-27b' has 1 consistent sample(s) but all from wf-hearth-offload-codex-cli; a second distinct workflow would let the association engine generalize it",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "omen-dense-27b",
+        "task_kind": null,
+        "invariant": {
+          "failure_class": "timeout",
+          "backend": "omen-dense-27b"
+        },
+        "missing_metrics": null,
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1,
+        "workflows": [
+          "wf-hearth-offload-codex-cli"
+        ],
+        "summary": "1 sample(s), 1 workflow (need 2)"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-10-03T04:57:12.228453+00:00"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
       "gap_id": "single_workflow_evidence:model_portability:model_id=/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
       "gap_type": "single_workflow_evidence",
       "statement": "'model_id=/home/derek/baseline/models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf' has 237 consistent sample(s) but all from wf-hearth-gateway; a second distinct workflow would let the association engine generalize it",
@@ -115,6 +170,32 @@
       },
       "proposed_experiment_type": "coverage_probe",
       "last_observed": "2026-07-30T09:38:02.654937Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "single_workflow_evidence:model_portability:model_id=am4-tool-5070",
+      "gap_type": "single_workflow_evidence",
+      "statement": "'model_id=am4-tool-5070' has 1621 consistent sample(s) but all from wf-hearth-offload-claude-frontier; a second distinct workflow would let the association engine generalize it",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": null,
+        "task_kind": null,
+        "invariant": {
+          "model_id": "am4-tool-5070"
+        },
+        "missing_metrics": null,
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1621,
+        "workflows": [
+          "wf-hearth-offload-claude-frontier"
+        ],
+        "summary": "1621 sample(s), 1 workflow (need 2)"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-10-04T06:33:15.796419+00:00"
     },
     {
       "contract_version": "coverage-gap.v1",
@@ -706,6 +787,33 @@
     },
     {
       "contract_version": "coverage-gap.v1",
+      "gap_id": "single_workflow_evidence:task_backend:task_kind=offload-generate|backend=am4-tool-5070",
+      "gap_type": "single_workflow_evidence",
+      "statement": "'task_kind=offload-generate, backend=am4-tool-5070' has 1621 consistent sample(s) but all from wf-hearth-offload-claude-frontier; a second distinct workflow would let the association engine generalize it",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "am4-tool-5070",
+        "task_kind": "offload-generate",
+        "invariant": {
+          "task_kind": "offload-generate",
+          "backend": "am4-tool-5070"
+        },
+        "missing_metrics": null,
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1621,
+        "workflows": [
+          "wf-hearth-offload-claude-frontier"
+        ],
+        "summary": "1621 sample(s), 1 workflow (need 2)"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-10-04T06:33:15.796419+00:00"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
       "gap_id": "single_workflow_evidence:task_backend:task_kind=offload-generate|backend=gcp-gemini-pro",
       "gap_type": "single_workflow_evidence",
       "statement": "'task_kind=offload-generate, backend=gcp-gemini-pro' has 1 consistent sample(s) but all from wf-hearth-offload-claude-frontier; a second distinct workflow would let the association engine generalize it",
@@ -730,33 +838,6 @@
       },
       "proposed_experiment_type": "coverage_probe",
       "last_observed": "2026-07-30T14:54:15.389605+00:00"
-    },
-    {
-      "contract_version": "coverage-gap.v1",
-      "gap_id": "single_workflow_evidence:task_backend:task_kind=offload-generate|backend=omen-arc",
-      "gap_type": "single_workflow_evidence",
-      "statement": "'task_kind=offload-generate, backend=omen-arc' has 5 consistent sample(s) but all from wf-hearth-offload-experiment-doc-adr-bench; a second distinct workflow would let the association engine generalize it",
-      "subject": {
-        "builder_id": null,
-        "model_id": null,
-        "backend": "omen-arc",
-        "task_kind": "offload-generate",
-        "invariant": {
-          "task_kind": "offload-generate",
-          "backend": "omen-arc"
-        },
-        "missing_metrics": null,
-        "capability_id": null
-      },
-      "evidence": {
-        "samples": 5,
-        "workflows": [
-          "wf-hearth-offload-experiment-doc-adr-bench"
-        ],
-        "summary": "5 sample(s), 1 workflow (need 2)"
-      },
-      "proposed_experiment_type": "coverage_probe",
-      "last_observed": "2026-09-04T00:57:28.060989+00:00"
     },
     {
       "contract_version": "coverage-gap.v1",
@@ -787,6 +868,57 @@
     },
     {
       "contract_version": "coverage-gap.v1",
+      "gap_id": "stale_capability:capability:task_kind=offload-generate|backend=gcp-gemini",
+      "gap_type": "stale_capability",
+      "statement": "capability 'offload-generate on backend=gcp-gemini' was last validated 41.31 evidence-day(s) ago; dispatch decisions that rely on it rest on old truth",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "gcp-gemini",
+        "task_kind": "offload-generate",
+        "invariant": null,
+        "missing_metrics": null,
+        "capability_id": "capability:task_kind=offload-generate|backend=gcp-gemini"
+      },
+      "evidence": {
+        "samples": 12,
+        "workflows": [
+          "wf-hearth-offload-claude-frontier",
+          "wf-hearth-offload-experiment-doc-adr-bench",
+          "wf-hearth-offload-gcp-adk-test"
+        ],
+        "summary": "41.31 evidence-days stale"
+      },
+      "proposed_experiment_type": "qualification_run",
+      "last_observed": "2026-09-04T00:57:27.501560+00:00"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "stale_capability:capability:task_kind=offload-generate|backend=omen-swap",
+      "gap_type": "stale_capability",
+      "statement": "capability 'offload-generate on backend=omen-swap' was last validated 41.31 evidence-day(s) ago; dispatch decisions that rely on it rest on old truth",
+      "subject": {
+        "builder_id": null,
+        "model_id": null,
+        "backend": "omen-swap",
+        "task_kind": "offload-generate",
+        "invariant": null,
+        "missing_metrics": null,
+        "capability_id": "capability:task_kind=offload-generate|backend=omen-swap"
+      },
+      "evidence": {
+        "samples": 6,
+        "workflows": [
+          "wf-hearth-offload-experiment-doc-adr-bench",
+          "wf-hearth-offload-rotation-proof"
+        ],
+        "summary": "41.31 evidence-days stale"
+      },
+      "proposed_experiment_type": "qualification_run",
+      "last_observed": "2026-09-04T01:02:55.235915+00:00"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
       "gap_id": "unmeasured_metrics:am4-worker-1|vllama-planner|openai",
       "gap_type": "unmeasured_metrics",
       "statement": "am4-worker-1 + vllama-planner + openai has run 2 time(s) but never reported: ttft_s, tokens_per_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
@@ -814,6 +946,58 @@
     },
     {
       "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:am4|am4-tool-4070ti|am4-tool-4070ti",
+      "gap_type": "unmeasured_metrics",
+      "statement": "am4 + am4-tool-4070ti + am4-tool-4070ti has run 2817 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "am4",
+        "model_id": "am4-tool-4070ti",
+        "backend": "am4-tool-4070ti",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 2817,
+        "workflows": null,
+        "summary": "3/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-10-04T14:36:44.757097+00:00"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:am4|am4-tool-5070|am4-tool-5070",
+      "gap_type": "unmeasured_metrics",
+      "statement": "am4 + am4-tool-5070 + am4-tool-5070 has run 1621 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "am4",
+        "model_id": "am4-tool-5070",
+        "backend": "am4-tool-5070",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1621,
+        "workflows": null,
+        "summary": "3/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-10-04T06:33:15.796419+00:00"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
       "gap_id": "unmeasured_metrics:am4|gpt-oss-120b|am4-moe",
       "gap_type": "unmeasured_metrics",
       "statement": "am4 + gpt-oss-120b + am4-moe has run 1 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
@@ -837,6 +1021,32 @@
       },
       "proposed_experiment_type": "coverage_probe",
       "last_observed": "2026-07-30T14:58:23.491180+00:00"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:am4|qwen3-27b|am4-vllm",
+      "gap_type": "unmeasured_metrics",
+      "statement": "am4 + qwen3-27b + am4-vllm has run 1219 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "am4",
+        "model_id": "qwen3-27b",
+        "backend": "am4-vllm",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 1219,
+        "workflows": null,
+        "summary": "3/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-10-13T21:14:42.785341+00:00"
     },
     {
       "contract_version": "coverage-gap.v1",
@@ -1315,6 +1525,32 @@
       },
       "proposed_experiment_type": "coverage_probe",
       "last_observed": "2026-07-21T03:32:12.096022Z"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:fx99|qwen2.5-coder-7b|fx99-vllm",
+      "gap_type": "unmeasured_metrics",
+      "statement": "fx99 + qwen2.5-coder-7b + fx99-vllm has run 380 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "fx99",
+        "model_id": "qwen2.5-coder-7b",
+        "backend": "fx99-vllm",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 380,
+        "workflows": null,
+        "summary": "3/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-10-10T16:42:54.078461+00:00"
     },
     {
       "contract_version": "coverage-gap.v1",
@@ -1829,7 +2065,7 @@
       "contract_version": "coverage-gap.v1",
       "gap_id": "unmeasured_metrics:omen|qwen3-30b-a3b|omen-arc",
       "gap_type": "unmeasured_metrics",
-      "statement": "omen + qwen3-30b-a3b + omen-arc has run 7 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "statement": "omen + qwen3-30b-a3b + omen-arc has run 16 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
       "subject": {
         "builder_id": "omen",
         "model_id": "qwen3-30b-a3b",
@@ -1844,14 +2080,92 @@
         "capability_id": null
       },
       "evidence": {
-        "samples": 7,
+        "samples": 16,
         "workflows": null,
         "summary": "3/4 metrics never measured"
       },
       "proposed_experiment_type": "coverage_probe",
-      "last_observed": "2026-09-04T10:19:58.303917+00:00"
+      "last_observed": "2026-09-20T03:11:40.360893+00:00"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:omen|qwen3-30b-a3b|omen-vllm",
+      "gap_type": "unmeasured_metrics",
+      "statement": "omen + qwen3-30b-a3b + omen-vllm has run 10124 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "omen",
+        "model_id": "qwen3-30b-a3b",
+        "backend": "omen-vllm",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 10124,
+        "workflows": null,
+        "summary": "3/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-10-04T14:36:43.712929+00:00"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:omen|qwen3.8-27b|omen-dense-27b",
+      "gap_type": "unmeasured_metrics",
+      "statement": "omen + qwen3.8-27b + omen-dense-27b has run 8132 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "omen",
+        "model_id": "qwen3.8-27b",
+        "backend": "omen-dense-27b",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 8132,
+        "workflows": null,
+        "summary": "3/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-10-15T08:24:47.657257+00:00"
+    },
+    {
+      "contract_version": "coverage-gap.v1",
+      "gap_id": "unmeasured_metrics:omen|qwen3.8-27b|omen-dense-27b-b",
+      "gap_type": "unmeasured_metrics",
+      "statement": "omen + qwen3.8-27b + omen-dense-27b-b has run 255 time(s) but never reported: ttft_s, ram_gb_peak, vram_gb_peak; predictions of these metrics can never be calibrated",
+      "subject": {
+        "builder_id": "omen",
+        "model_id": "qwen3.8-27b",
+        "backend": "omen-dense-27b-b",
+        "task_kind": null,
+        "invariant": null,
+        "missing_metrics": [
+          "ttft_s",
+          "ram_gb_peak",
+          "vram_gb_peak"
+        ],
+        "capability_id": null
+      },
+      "evidence": {
+        "samples": 255,
+        "workflows": null,
+        "summary": "3/4 metrics never measured"
+      },
+      "proposed_experiment_type": "coverage_probe",
+      "last_observed": "2026-10-13T21:23:56.622865+00:00"
     }
   ],
-  "corpus_digest": "sha256:f7e994ec6fffb66b567028d620458a686dc32ba7b8f67efbc46d697e932b341d",
-  "corpus_event_count": 147111
+  "corpus_digest": "sha256:2607e73b69a307c9b205eeafe3a0697a7f25b1299d8bfff65faab055a578b311",
+  "corpus_event_count": 171747
 }

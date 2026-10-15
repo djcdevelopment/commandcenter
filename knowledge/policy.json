@@ -1,11 +1,11 @@
 {
   "contract_version": "policies.v1",
-  "source_findings": 49,
-  "evidence_watermark": "2026-09-04T10:46:00.606260Z",
+  "source_findings": 56,
+  "evidence_watermark": "2026-10-15T08:24:47.657257+00:00",
   "rule_counts": {
     "block": 1,
     "exploratory_only": 2,
-    "prefer": 16
+    "prefer": 23
   },
   "rules": [
     {
@@ -82,6 +82,72 @@
       "status": "active",
       "suspended_reason": null,
       "last_observed": "2026-07-04T04:18:00+00:00"
+    },
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "prefer:am4|am4-tool-4070ti|am4-tool-4070ti|*|*",
+      "effect": "prefer",
+      "statement": "prefer am4 + am4-tool-4070ti + am4-tool-4070ti when compatible: 2817/2817 success",
+      "subject": {
+        "builder_id": "am4",
+        "model_id": "am4-tool-4070ti",
+        "backend": "am4-tool-4070ti",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "known_good:am4|am4-tool-4070ti|am4-tool-4070ti",
+      "finding_type": "known_good",
+      "confidence": "high",
+      "evidence_summary": "2817/2817 success",
+      "override": null,
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-10-04T14:36:44.757097+00:00"
+    },
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "prefer:am4|am4-tool-5070|am4-tool-5070|*|*",
+      "effect": "prefer",
+      "statement": "prefer am4 + am4-tool-5070 + am4-tool-5070 when compatible: 1621/1621 success",
+      "subject": {
+        "builder_id": "am4",
+        "model_id": "am4-tool-5070",
+        "backend": "am4-tool-5070",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "known_good:am4|am4-tool-5070|am4-tool-5070",
+      "finding_type": "known_good",
+      "confidence": "high",
+      "evidence_summary": "1621/1621 success",
+      "override": null,
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-10-04T06:33:15.796419+00:00"
+    },
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "prefer:am4|qwen3-27b|am4-vllm|*|*",
+      "effect": "prefer",
+      "statement": "prefer am4 + qwen3-27b + am4-vllm when compatible: 1219/1219 success",
+      "subject": {
+        "builder_id": "am4",
+        "model_id": "qwen3-27b",
+        "backend": "am4-vllm",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "known_good:am4|qwen3-27b|am4-vllm",
+      "finding_type": "known_good",
+      "confidence": "high",
+      "evidence_summary": "1219/1219 success",
+      "override": null,
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-10-13T21:14:42.785341+00:00"
     },
     {
       "contract_version": "policy.v1",
@@ -371,6 +437,28 @@
     },
     {
       "contract_version": "policy.v1",
+      "policy_id": "prefer:fx99|qwen2.5-coder-7b|fx99-vllm|*|*",
+      "effect": "prefer",
+      "statement": "prefer fx99 + qwen2.5-coder-7b + fx99-vllm when compatible: 380/380 success",
+      "subject": {
+        "builder_id": "fx99",
+        "model_id": "qwen2.5-coder-7b",
+        "backend": "fx99-vllm",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "known_good:fx99|qwen2.5-coder-7b|fx99-vllm",
+      "finding_type": "known_good",
+      "confidence": "high",
+      "evidence_summary": "380/380 success",
+      "override": null,
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-10-10T16:42:54.078461+00:00"
+    },
+    {
+      "contract_version": "policy.v1",
       "policy_id": "prefer:gcp-vertex|gemini-3.5-flash|gcp-gemini|*|*",
       "effect": "prefer",
       "statement": "prefer gcp-vertex + gemini-3.5-flash + gcp-gemini when compatible: 13/13 success",
@@ -417,7 +505,7 @@
       "contract_version": "policy.v1",
       "policy_id": "prefer:omen|qwen3-30b-a3b|omen-arc|*|*",
       "effect": "prefer",
-      "statement": "prefer omen + qwen3-30b-a3b + omen-arc when compatible: 7/7 success",
+      "statement": "prefer omen + qwen3-30b-a3b + omen-arc when compatible: 16/16 success",
       "subject": {
         "builder_id": "omen",
         "model_id": "qwen3-30b-a3b",
@@ -428,14 +516,80 @@
       "derived_from_finding": "known_good:omen|qwen3-30b-a3b|omen-arc",
       "finding_type": "known_good",
       "confidence": "high",
-      "evidence_summary": "7/7 success",
+      "evidence_summary": "16/16 success",
       "override": null,
       "adjustment": null,
       "status": "active",
       "suspended_reason": null,
-      "last_observed": "2026-09-04T10:19:58.303917+00:00"
+      "last_observed": "2026-09-20T03:11:40.360893+00:00"
+    },
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "prefer:omen|qwen3-30b-a3b|omen-vllm|*|*",
+      "effect": "prefer",
+      "statement": "prefer omen + qwen3-30b-a3b + omen-vllm when compatible: 10124/10124 success",
+      "subject": {
+        "builder_id": "omen",
+        "model_id": "qwen3-30b-a3b",
+        "backend": "omen-vllm",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "known_good:omen|qwen3-30b-a3b|omen-vllm",
+      "finding_type": "known_good",
+      "confidence": "high",
+      "evidence_summary": "10124/10124 success",
+      "override": null,
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-10-04T14:36:43.712929+00:00"
+    },
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "prefer:omen|qwen3.8-27b|omen-dense-27b-b|*|*",
+      "effect": "prefer",
+      "statement": "prefer omen + qwen3.8-27b + omen-dense-27b-b when compatible: 255/255 success",
+      "subject": {
+        "builder_id": "omen",
+        "model_id": "qwen3.8-27b",
+        "backend": "omen-dense-27b-b",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "known_good:omen|qwen3.8-27b|omen-dense-27b-b",
+      "finding_type": "known_good",
+      "confidence": "high",
+      "evidence_summary": "255/255 success",
+      "override": null,
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-10-13T21:23:56.622865+00:00"
+    },
+    {
+      "contract_version": "policy.v1",
+      "policy_id": "prefer:omen|qwen3.8-27b|omen-dense-27b|*|*",
+      "effect": "prefer",
+      "statement": "prefer omen + qwen3.8-27b + omen-dense-27b when compatible: 8132/8132 success",
+      "subject": {
+        "builder_id": "omen",
+        "model_id": "qwen3.8-27b",
+        "backend": "omen-dense-27b",
+        "task_kind": null,
+        "metric": null
+      },
+      "derived_from_finding": "known_good:omen|qwen3.8-27b|omen-dense-27b",
+      "finding_type": "known_good",
+      "confidence": "high",
+      "evidence_summary": "8132/8132 success",
+      "override": null,
+      "adjustment": null,
+      "status": "active",
+      "suspended_reason": null,
+      "last_observed": "2026-10-15T08:24:47.657257+00:00"
     }
   ],
-  "corpus_digest": "sha256:f7e994ec6fffb66b567028d620458a686dc32ba7b8f67efbc46d697e932b341d",
-  "corpus_event_count": 147111
+  "corpus_digest": "sha256:2607e73b69a307c9b205eeafe3a0697a7f25b1299d8bfff65faab055a578b311",
+  "corpus_event_count": 171747
 }

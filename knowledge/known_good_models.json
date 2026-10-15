@@ -1,7 +1,31 @@
 {
   "contract_version": "known-good-models.v1",
-  "evidence_watermark": "2026-09-04T10:46:00.606260Z",
+  "evidence_watermark": "2026-10-15T08:24:47.657257+00:00",
   "entries": [
+    {
+      "builder_id": "am4",
+      "model_id": "am4-tool-4070ti",
+      "backend": "am4-tool-4070ti",
+      "success_rate": 1.0,
+      "samples": 2817,
+      "mean_tokens_per_s": 60.71,
+      "promotion_holds": 0,
+      "confidence": 1.0,
+      "last_observed": "2026-10-04T14:36:44.757097+00:00",
+      "reason": "2817/2817 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "am4",
+      "model_id": "am4-tool-5070",
+      "backend": "am4-tool-5070",
+      "success_rate": 1.0,
+      "samples": 1621,
+      "mean_tokens_per_s": 88.12,
+      "promotion_holds": 0,
+      "confidence": 1.0,
+      "last_observed": "2026-10-04T06:33:15.796419+00:00",
+      "reason": "1621/1621 successful runs (success_rate 1.0)"
+    },
     {
       "builder_id": "am4",
       "model_id": "gpt-oss-120b",
@@ -13,6 +37,18 @@
       "confidence": 0.33,
       "last_observed": "2026-07-30T14:58:23.491180+00:00",
       "reason": "1/1 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "am4",
+      "model_id": "qwen3-27b",
+      "backend": "am4-vllm",
+      "success_rate": 1.0,
+      "samples": 1219,
+      "mean_tokens_per_s": 15.23,
+      "promotion_holds": 0,
+      "confidence": 1.0,
+      "last_observed": "2026-10-13T21:14:42.785341+00:00",
+      "reason": "1219/1219 successful runs (success_rate 1.0)"
     },
     {
       "builder_id": "cc-builder-2",
@@ -217,6 +253,18 @@
       "confidence": 0.97,
       "last_observed": "2026-07-21T03:32:12.096022Z",
       "reason": "63/63 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "fx99",
+      "model_id": "qwen2.5-coder-7b",
+      "backend": "fx99-vllm",
+      "success_rate": 1.0,
+      "samples": 380,
+      "mean_tokens_per_s": 16.85,
+      "promotion_holds": 0,
+      "confidence": 0.99,
+      "last_observed": "2026-10-10T16:42:54.078461+00:00",
+      "reason": "380/380 successful runs (success_rate 1.0)"
     },
     {
       "builder_id": "gcp-adk-test",
@@ -451,14 +499,50 @@
       "model_id": "qwen3-30b-a3b",
       "backend": "omen-arc",
       "success_rate": 1.0,
-      "samples": 7,
-      "mean_tokens_per_s": 21.76,
+      "samples": 16,
+      "mean_tokens_per_s": 37.85,
       "promotion_holds": 0,
-      "confidence": 0.78,
-      "last_observed": "2026-09-04T10:19:58.303917+00:00",
-      "reason": "7/7 successful runs (success_rate 1.0)"
+      "confidence": 0.89,
+      "last_observed": "2026-09-20T03:11:40.360893+00:00",
+      "reason": "16/16 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "omen",
+      "model_id": "qwen3-30b-a3b",
+      "backend": "omen-vllm",
+      "success_rate": 1.0,
+      "samples": 10124,
+      "mean_tokens_per_s": 55.85,
+      "promotion_holds": 0,
+      "confidence": 1.0,
+      "last_observed": "2026-10-04T14:36:43.712929+00:00",
+      "reason": "10124/10124 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "omen",
+      "model_id": "qwen3.8-27b",
+      "backend": "omen-dense-27b",
+      "success_rate": 1.0,
+      "samples": 8132,
+      "mean_tokens_per_s": 32.07,
+      "promotion_holds": 0,
+      "confidence": 1.0,
+      "last_observed": "2026-10-15T08:24:47.657257+00:00",
+      "reason": "8130/8132 successful runs (success_rate 1.0)"
+    },
+    {
+      "builder_id": "omen",
+      "model_id": "qwen3.8-27b",
+      "backend": "omen-dense-27b-b",
+      "success_rate": 1.0,
+      "samples": 255,
+      "mean_tokens_per_s": 46.25,
+      "promotion_holds": 0,
+      "confidence": 0.99,
+      "last_observed": "2026-10-13T21:23:56.622865+00:00",
+      "reason": "255/255 successful runs (success_rate 1.0)"
     }
   ],
-  "corpus_digest": "sha256:f7e994ec6fffb66b567028d620458a686dc32ba7b8f67efbc46d697e932b341d",
-  "corpus_event_count": 147111
+  "corpus_digest": "sha256:2607e73b69a307c9b205eeafe3a0697a7f25b1299d8bfff65faab055a578b311",
+  "corpus_event_count": 171747
 }

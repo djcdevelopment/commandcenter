@@ -1,6 +1,6 @@
 {
   "contract_version": "capacity-estimates.v1",
-  "observation_count": 1231,
+  "observation_count": 25788,
   "unresolved_observation_refs": 0,
   "combos": {
     "am4-worker-1|vllama-planner|openai": {
@@ -21,6 +21,38 @@
       "success_rate": 0.5,
       "confidence": 0.5
     },
+    "am4|am4-tool-4070ti|am4-tool-4070ti": {
+      "builder_id": "am4",
+      "model_id": "am4-tool-4070ti",
+      "backend": "am4-tool-4070ti",
+      "samples": 2817,
+      "successes": 2817,
+      "failures": 0,
+      "failure_classes": {},
+      "promotion_holds": 0,
+      "max_context_tokens": 21384,
+      "max_vram_gb_peak": null,
+      "last_observed": "2026-10-04T14:36:44.757097+00:00",
+      "mean_tokens_per_s": 60.71,
+      "success_rate": 1.0,
+      "confidence": 1.0
+    },
+    "am4|am4-tool-5070|am4-tool-5070": {
+      "builder_id": "am4",
+      "model_id": "am4-tool-5070",
+      "backend": "am4-tool-5070",
+      "samples": 1621,
+      "successes": 1621,
+      "failures": 0,
+      "failure_classes": {},
+      "promotion_holds": 0,
+      "max_context_tokens": 13667,
+      "max_vram_gb_peak": null,
+      "last_observed": "2026-10-04T06:33:15.796419+00:00",
+      "mean_tokens_per_s": 88.12,
+      "success_rate": 1.0,
+      "confidence": 1.0
+    },
     "am4|gpt-oss-120b|am4-moe": {
       "builder_id": "am4",
       "model_id": "gpt-oss-120b",
@@ -36,6 +68,22 @@
       "mean_tokens_per_s": 6.7,
       "success_rate": 1.0,
       "confidence": 0.33
+    },
+    "am4|qwen3-27b|am4-vllm": {
+      "builder_id": "am4",
+      "model_id": "qwen3-27b",
+      "backend": "am4-vllm",
+      "samples": 1219,
+      "successes": 1219,
+      "failures": 0,
+      "failure_classes": {},
+      "promotion_holds": 0,
+      "max_context_tokens": 14400,
+      "max_vram_gb_peak": null,
+      "last_observed": "2026-10-13T21:14:42.785341+00:00",
+      "mean_tokens_per_s": 15.23,
+      "success_rate": 1.0,
+      "confidence": 1.0
     },
     "cc-builder-1|sonnet|claude": {
       "builder_id": "cc-builder-1",
@@ -328,6 +376,22 @@
       "mean_tokens_per_s": 20.67,
       "success_rate": 1.0,
       "confidence": 0.97
+    },
+    "fx99|qwen2.5-coder-7b|fx99-vllm": {
+      "builder_id": "fx99",
+      "model_id": "qwen2.5-coder-7b",
+      "backend": "fx99-vllm",
+      "samples": 380,
+      "successes": 380,
+      "failures": 0,
+      "failure_classes": {},
+      "promotion_holds": 0,
+      "max_context_tokens": 3474,
+      "max_vram_gb_peak": null,
+      "last_observed": "2026-10-10T16:42:54.078461+00:00",
+      "mean_tokens_per_s": 16.85,
+      "success_rate": 1.0,
+      "confidence": 0.99
     },
     "gcp-adk-test|gemini-3.5-flash|gcp-gemini": {
       "builder_id": "gcp-adk-test",
@@ -655,19 +719,70 @@
       "builder_id": "omen",
       "model_id": "qwen3-30b-a3b",
       "backend": "omen-arc",
-      "samples": 7,
-      "successes": 7,
+      "samples": 16,
+      "successes": 16,
       "failures": 0,
       "failure_classes": {},
       "promotion_holds": 0,
-      "max_context_tokens": 1241,
+      "max_context_tokens": 6453,
       "max_vram_gb_peak": null,
-      "last_observed": "2026-09-04T10:19:58.303917+00:00",
-      "mean_tokens_per_s": 21.76,
+      "last_observed": "2026-09-20T03:11:40.360893+00:00",
+      "mean_tokens_per_s": 37.85,
       "success_rate": 1.0,
-      "confidence": 0.78
+      "confidence": 0.89
+    },
+    "omen|qwen3-30b-a3b|omen-vllm": {
+      "builder_id": "omen",
+      "model_id": "qwen3-30b-a3b",
+      "backend": "omen-vllm",
+      "samples": 10124,
+      "successes": 10124,
+      "failures": 0,
+      "failure_classes": {},
+      "promotion_holds": 0,
+      "max_context_tokens": 39936,
+      "max_vram_gb_peak": null,
+      "last_observed": "2026-10-04T14:36:43.712929+00:00",
+      "mean_tokens_per_s": 55.85,
+      "success_rate": 1.0,
+      "confidence": 1.0
+    },
+    "omen|qwen3.8-27b|omen-dense-27b": {
+      "builder_id": "omen",
+      "model_id": "qwen3.8-27b",
+      "backend": "omen-dense-27b",
+      "samples": 8132,
+      "successes": 8130,
+      "failures": 2,
+      "failure_classes": {
+        "empty_output": 1,
+        "timeout": 1
+      },
+      "promotion_holds": 0,
+      "max_context_tokens": 54580,
+      "max_vram_gb_peak": null,
+      "last_observed": "2026-10-15T08:24:47.657257+00:00",
+      "mean_tokens_per_s": 32.07,
+      "success_rate": 1.0,
+      "confidence": 1.0
+    },
+    "omen|qwen3.8-27b|omen-dense-27b-b": {
+      "builder_id": "omen",
+      "model_id": "qwen3.8-27b",
+      "backend": "omen-dense-27b-b",
+      "samples": 255,
+      "successes": 255,
+      "failures": 0,
+      "failure_classes": {},
+      "promotion_holds": 0,
+      "max_context_tokens": 39088,
+      "max_vram_gb_peak": null,
+      "last_observed": "2026-10-13T21:23:56.622865+00:00",
+      "mean_tokens_per_s": 46.25,
+      "success_rate": 1.0,
+      "confidence": 0.99
     }
   },
-  "corpus_digest": "sha256:f7e994ec6fffb66b567028d620458a686dc32ba7b8f67efbc46d697e932b341d",
-  "corpus_event_count": 147111
+  "corpus_digest": "sha256:2607e73b69a307c9b205eeafe3a0697a7f25b1299d8bfff65faab055a578b311",
+  "corpus_event_count": 171747
 }

@@ -179,15 +179,37 @@ class PoolRoutingTests(unittest.TestCase):
             self.assertIn("absent under lab configuration 'three-dense'", choice["skipped"]["deep-b"])
             self.assertFalse(manifest["route"]["backend_choice"].get("qualification"))
             self.settle(manifest["work_id"])
-            # An allowance below the submission's output need is skipped with its reason, explicit or default:
-            # deep-d still sorts before the busy deep-c, and deep-c is the seat left.
-            for max_tokens, word in ((8192, "max_tokens 8192"), (None, "default output need 16384")):
-                manifest = self.submit(max_tokens=max_tokens, **code)
-                choice = manifest["route"]["backend_choice"]
-                self.assertEqual(manifest["route"]["provider"], "deep-c", choice)
-                self.assertIn(f"declares max_tokens 4096 < the submission's {word}", choice["skipped"]["deep-d"])
-                self.assertEqual(manifest["prompt"]["output_reserve_tokens"], max_tokens or 16384)
-                self.settle(manifest["work_id"])
+            # An allowance below the submission's output need is skipped with its reason: deep-d still sorts
+            # before the busy deep-c, and deep-c is the seat left.
+            manifest = self.submit(max_tokens=8192, **code)
+            choice = manifest["route"]["backend_choice"]
+            self.assertEqual(manifest["route"]["provider"], "deep-c", choice)
+            self.assertIn("declares max_tokens 4096 < the submission's max_tokens 8192 (caller)", choice["skipped"]["deep-d"])
+            self.assertEqual((choice["output_need"], choice["output_need_rule"]), (8192, "caller"))
+            self.assertEqual(manifest["prompt"]["output_reserve_tokens"], 8192)
+            self.settle(manifest["work_id"])
+            # No max_tokens: the need is estimated from the packed source, so a small file fits deep-d's 4096 ...
+            manifest = self.submit(max_tokens=None, **code)
+            choice = manifest["route"]["backend_choice"]
+            self.assertEqual(manifest["route"]["provider"], "deep-d", choice)
+            self.assertEqual((choice["output_need"], choice["output_need_rule"]), (1024, "diff_estimate"))
+            self.assertEqual(manifest["prompt"]["output_reserve_tokens"], 4096)
+            self.settle(manifest["work_id"])
+            # ... and a large whole_file source still skips it, with the reason.
+            (self.repo / "big.py").write_text("x = 1  # padding the source to about five thousand tokens\n" * 340)
+            fixtures.git(self.repo, "add", "big.py")
+            fixtures.git(self.repo, "commit", "-qm", "big")
+            big = dict(code, artifact_kind="whole_file", target_path="big.py", files=["big.py"],
+                       base_commit=fixtures.git(self.repo, "rev-parse", "HEAD"))
+            manifest = self.submit(max_tokens=None, **big)
+            choice = manifest["route"]["backend_choice"]
+            self.assertEqual(manifest["route"]["provider"], "deep-c", choice)
+            need = min(16384, max(1024, round(choice["source_tokens"] * 1.5) + 512))
+            self.assertGreater(need, 4096)
+            self.assertEqual((choice["output_need"], choice["output_need_rule"]), (need, "whole_file_estimate"))
+            self.assertIn(f"declares max_tokens 4096 < the submission's estimated output need {need} (whole_file_estimate)",
+                          choice["skipped"]["deep-d"])
+            self.settle(manifest["work_id"])
             with self.assertRaisesRegex(LocalWorkError, "no eligible code backend in lane 'deep'.*deep-d"):
                 (self.root / "routes.toml").write_text('[lane.deep]\nbackends = ["deep-b", "deep-c", "deep-d"]\n'
                                                        'code_backends = ["deep-b", "deep-d"]\n')

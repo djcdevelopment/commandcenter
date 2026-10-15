@@ -68,7 +68,10 @@ Operator direction: all GPUs are available; code work runs in parallel on both B
   output_need}` and one `log.info` line names the same. No eligible seat refuses with the skip map. A
   retry keeps the recorded provider.
 - **Output guard.** A seat whose ordinary `max_tokens` is below the submission's output need is
-  skipped with the reason. The need is the request's `max_tokens`; without one it is the largest
-  ordinary allowance among the listed seats (16,384 on the B70s), so a default-budget whole-file
-  candidate never lands on `am4-vllm` (4,096 ordinary; `deliberate_max_tokens` does not count) and is
-  never silently cut. AM4 takes code work only when the caller asks for 4,096 output tokens or fewer.
+  skipped with the reason (`am4-vllm` declares 4,096 ordinary; `deliberate_max_tokens` does not
+  count). The need is the caller's `max_tokens` (`output_need_rule = "caller"`); without one it is
+  estimated from the packed source (`source_tokens` = source pack bytes // 4, since no exact
+  tokenizer has run before the pick): `whole_file` min(16384, max(1024, round(1.5 x source) + 512))
+  (`whole_file_estimate`), other kinds min(8192, max(1024, source + 512)) (`diff_estimate`). A small
+  file therefore fits AM4; a large whole-file rewrite does not. (First cut, superseded the same day:
+  the largest listed allowance, 16,384, which shut AM4 out of every default-budget submission.)

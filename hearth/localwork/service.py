@@ -288,17 +288,22 @@ class LocalWorkService:
 
     @staticmethod
     def _code_pick(pool: Any, lane: str, ordered: list[str], loads: Mapping[str, Mapping[str, int]],
-                   max_tokens: Optional[int]) -> tuple[str, dict[str, Any]]:
+                   max_tokens: Optional[int], artifact_kind: str, source_tokens: int) -> tuple[str, dict[str, Any]]:
         """ADR-0066 (amended): the first of ``ordered`` (already sorted by the pool's load key) that is not absent
         under the active lab configuration, is in the pool, and declares an ordinary output allowance that covers the
-        submission's ``max_tokens``; without one, the need is the largest allowance among the declared seats, so a
-        default-budget candidate never lands on a seat that would silently cut its output."""
+        submission's output need. The need is the caller's ``max_tokens``; without one it is estimated from the packed
+        source: whole_file min(16384, max(1024, round(1.5 x source) + 512)), otherwise min(8192, max(1024, source + 512))."""
         declared = {}
         for name in ordered:
             provider = pool.by_name(name)
             if provider is not None and not provider.retired and provider.models:
                 declared[name] = int(provider.settings.get("max_tokens") or 4096)
-        need = max_tokens if max_tokens is not None else max(declared.values(), default=0)
+        if max_tokens is not None:
+            need, rule = max_tokens, "caller"
+        elif artifact_kind == "whole_file":
+            need, rule = min(16384, max(1024, round(source_tokens * 1.5) + 512)), "whole_file_estimate"
+        else:
+            need, rule = min(8192, max(1024, source_tokens + 512)), "diff_estimate"
         skipped: dict[str, str] = {}
         chosen = None
         for name in ordered:
@@ -309,7 +314,7 @@ class LocalWorkService:
                 skipped[name] = "not in the backend pool (missing, retired or no models)"
             elif declared[name] < need:
                 skipped[name] = (f"declares max_tokens {declared[name]} < the submission's "
-                                 f"{'max_tokens' if max_tokens is not None else 'default output need'} {need}")
+                                 f"{'max_tokens' if max_tokens is not None else 'estimated output need'} {need} ({rule})")
             else:
                 chosen = name
                 break
@@ -317,7 +322,8 @@ class LocalWorkService:
             raise LocalWorkError(f"no eligible code backend in lane {lane!r}: {skipped}")
         choice = {"by": "lane_code_backend", "backend": chosen, "considered": list(ordered),
                   "assignments": {n: loads[n]["outstanding_assignments"] for n in ordered},
-                  "skipped": skipped, "output_need": need}
+                  "skipped": skipped, "output_need": need, "output_need_rule": rule,
+                  "source_tokens": source_tokens, "source_tokens_basis": "source_pack_bytes_div_4"}
         log.info("local-work %s: code family on pooled lane -> %s (lane_code_backend; considered %s, assignments %s, skipped %s)",
                  lane, chosen, list(ordered), choice["assignments"], skipped)
         return chosen, choice
@@ -594,7 +600,9 @@ class LocalWorkService:
                         "configured_order": index} for index, name in enumerate(names)}
         names = sorted(names, key=lambda n: tuple(loads[n].values()))
         if backend_choice is not None and backend_choice.get("by") == "lane_code_backend":
-            chosen, backend_choice = self._code_pick(pool, selected_lane, names, loads, max_tokens)
+            # No exact tokenizer has run yet (it is per provider); the packed source's bytes // 4 is the estimate.
+            chosen, backend_choice = self._code_pick(pool, selected_lane, names, loads, max_tokens, artifact_kind,
+                                                     len(source_pack.encode("utf-8")) // 4)
             names = [chosen]
         excluded = {}
         original_max_tokens = max_tokens

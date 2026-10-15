@@ -152,9 +152,50 @@ class PoolRoutingTests(unittest.TestCase):
         manifest = self.submit(brief=None, procedure=None, artifact_kind="unified_diff", task_family="code_fix")
         self.assertEqual(manifest["route"]["provider"], "deep-c")
         self.assertEqual(manifest["route"]["backend_choice"]["by"], "lane_code_backend")
+        self.settle(manifest["work_id"])
         (self.root / "routes.toml").write_text('[lane.deep]\nbackends = ["deep-b", "deep-c"]\ncode_backend = "other"\n')
         with self.assertRaisesRegex(LocalWorkError, "code_backend must name one of the lane's backends"):
             self.submit(brief=None, procedure=None, artifact_kind="unified_diff", task_family="code_fix")
+        # Amended 2026-10-15: a list; the pick is the pool's load order, skipping absent seats and short allowances.
+        path = self.root / "backends.toml"
+        text = path.read_text()
+        deep = text[text.index('[[backend]]\nname = "deep-c"'):]
+        path.write_text(text + deep.replace('deep-c', 'deep-d').replace('9002', '9003')
+                        .replace('max_tokens = 16384', 'max_tokens = 4096'))
+        (self.root / "routes.toml").write_text('[lane.deep]\nbackends = ["deep-b", "deep-c", "deep-d"]\n'
+                                               'code_backends = ["deep-b", "deep-c", "deep-d"]\n')
+        busy = self.root / "runs" / "operator" / "work_busy" / "work-manifest.json"
+        busy.parent.mkdir(parents=True, exist_ok=True)
+        busy.write_text(json.dumps({"status": "running", "route": {"provider": "deep-c"}}))
+        absent = lambda name: ("absent" if name == "deep-b" else "live", "three-dense")
+        code = dict(brief=None, procedure=None, artifact_kind="unified_diff", task_family="code_fix")
+        with mock.patch("hearth.localwork.service._absent", side_effect=absent):
+            manifest = self.submit(max_tokens=1024, **code)
+            choice = manifest["route"]["backend_choice"]
+            self.assertEqual(manifest["route"]["provider"], "deep-d")
+            self.assertEqual((choice["by"], choice["backend"]), ("lane_code_backend", "deep-d"))
+            self.assertEqual(choice["considered"], ["deep-b", "deep-d", "deep-c"])
+            self.assertEqual(choice["assignments"], {"deep-b": 0, "deep-d": 0, "deep-c": 1})
+            self.assertIn("absent under lab configuration 'three-dense'", choice["skipped"]["deep-b"])
+            self.assertFalse(manifest["route"]["backend_choice"].get("qualification"))
+            self.settle(manifest["work_id"])
+            # An allowance below the submission's output need is skipped with its reason, explicit or default:
+            # deep-d still sorts before the busy deep-c, and deep-c is the seat left.
+            for max_tokens, word in ((8192, "max_tokens 8192"), (None, "default output need 16384")):
+                manifest = self.submit(max_tokens=max_tokens, **code)
+                choice = manifest["route"]["backend_choice"]
+                self.assertEqual(manifest["route"]["provider"], "deep-c", choice)
+                self.assertIn(f"declares max_tokens 4096 < the submission's {word}", choice["skipped"]["deep-d"])
+                self.assertEqual(manifest["prompt"]["output_reserve_tokens"], max_tokens or 16384)
+                self.settle(manifest["work_id"])
+            with self.assertRaisesRegex(LocalWorkError, "no eligible code backend in lane 'deep'.*deep-d"):
+                (self.root / "routes.toml").write_text('[lane.deep]\nbackends = ["deep-b", "deep-c", "deep-d"]\n'
+                                                       'code_backends = ["deep-b", "deep-d"]\n')
+                self.submit(max_tokens=8192, **code)
+        (self.root / "routes.toml").write_text('[lane.deep]\nbackends = ["deep-b", "deep-c"]\n'
+                                               'code_backend = "deep-c"\ncode_backends = ["deep-c"]\n')
+        with self.assertRaisesRegex(LocalWorkError, "at most one of code_backend or code_backends"):
+            self.submit(**code)
 
     def test_pool_requires_minimum_declared_serving_facts(self):
         path = self.root / "backends.toml"

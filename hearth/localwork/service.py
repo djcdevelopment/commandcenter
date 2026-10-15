@@ -33,7 +33,7 @@ from hearth.execution import ExecutionService
 from hearth.execution.model import FINAL_JOB_STATUSES
 from hearth.execution.lab_config import active_configuration
 from hearth.operator import canonical, envelope, history, paths
-from hearth.toolsurface.backends import Backend, load_pool
+from hearth.toolsurface.backends import Backend, _absent, load_pool
 
 CANDIDATE_SCHEMA = "local-work-candidate.v1"
 MANIFEST_SCHEMA = "local-work-manifest.v1"
@@ -228,7 +228,7 @@ class LocalWorkService:
         return "deep" if evidence_tokens >= floor else "fast"
 
     @staticmethod
-    def _route_profile() -> tuple[dict[str, str | list[str]], str, dict[str, str]]:
+    def _route_profile() -> tuple[dict[str, str | list[str]], str, dict[str, list[str]]]:
         # HEARTH_LOCAL_WORK_ROUTES names a per-host route profile (the Linux production
         # host routes fast/deep to backends that exist in HEARTH_BACKENDS); unset, the
         # packaged profile applies, so the checked-in tests keep their meaning.
@@ -250,32 +250,77 @@ class LocalWorkService:
             if name != "deep" and len(names) != 1:
                 raise LocalWorkError("only the deep lane supports multiple backends")
             resolved[name] = names if "backends" in value else names[0]
-            if "code_backend" in value:
-                # ADR-0066: code work on a pooled lane goes to one declared backend until a
-                # code-qualification source exists (report verdicts are not one; ADR-0062).
-                if value["code_backend"] not in names:
-                    raise LocalWorkError("code_backend must name one of the lane's backends")
-                code_backends[name] = value["code_backend"]
+            if "code_backend" in value and "code_backends" in value:
+                raise LocalWorkError(f"lane {name!r} must declare at most one of code_backend or code_backends")
+            if "code_backend" in value or "code_backends" in value:
+                # ADR-0066 (amended 2026-10-15): code work on a pooled lane goes to one seat picked from a
+                # declared list until a code-qualification source exists (report verdicts are not one; ADR-0062).
+                # `code_backend` is the one-element alias.
+                code = value["code_backends"] if "code_backends" in value else [value["code_backend"]]
+                if (not isinstance(code, list) or not code or len(set(map(str, code))) != len(code) or
+                        not all(isinstance(n, str) and n in names for n in code)):
+                    raise LocalWorkError("code_backend must name one of the lane's backends"
+                                         if "code_backend" in value else
+                                         "code_backends must be a nonempty list of distinct names from the lane's backends")
+                code_backends[name] = list(code)
         if "deep" not in resolved or not set(resolved) <= {"fast", "deep", "tool"}:
             raise LocalWorkError("local-work route profile requires deep; fast and tool are optional")
         return resolved, _digest(raw), code_backends
 
     @staticmethod
-    def _candidates(route_sets: Mapping[str, str | list[str]], code_backends: Mapping[str, str], lane: str,
+    def _candidates(route_sets: Mapping[str, str | list[str]], code_backends: Mapping[str, list[str]], lane: str,
                     delivery: bool, existing: Optional[Mapping[str, Any]]) -> tuple[list[str], bool, Optional[dict[str, str]]]:
-        """Backends this submission may land on: (names, pooled, choice); choice None means the pool decides."""
+        """Backends this submission may land on: (names, pooled, choice); choice None means the pool decides.
+
+        For code work on a pooled lane the names are the lane's code backends and ``pooled`` is False: ``submit``
+        orders them by load and ``_code_pick`` keeps one (ADR-0066 amended 2026-10-15; no pooled claim, ADR-0062)."""
         configured = route_sets[lane]
         names = configured if isinstance(configured, list) else [configured]
         if existing is not None:
             # A retry keeps the lane's pooled checks (profile-bound procedure choice, declared reserve).
             return [existing["route"]["provider"]], len(names) > 1, {"by": "recorded"}
         if not delivery and len(names) > 1:
-            code_backend = code_backends.get(lane)
-            if code_backend is None:
+            code = code_backends.get(lane)
+            if not code:
                 raise LocalWorkError("pooled code work is unsupported: no code-qualification source; a delivery brief is required")
-            log.info("local-work %s: code family on pooled lane %s -> %s (lane_code_backend)", lane, names, code_backend)
-            return [code_backend], False, {"by": "lane_code_backend", "backend": code_backend}
+            return list(code), False, {"by": "lane_code_backend"}
         return names, len(names) > 1, None
+
+    @staticmethod
+    def _code_pick(pool: Any, lane: str, ordered: list[str], loads: Mapping[str, Mapping[str, int]],
+                   max_tokens: Optional[int]) -> tuple[str, dict[str, Any]]:
+        """ADR-0066 (amended): the first of ``ordered`` (already sorted by the pool's load key) that is not absent
+        under the active lab configuration, is in the pool, and declares an ordinary output allowance that covers the
+        submission's ``max_tokens``; without one, the need is the largest allowance among the declared seats, so a
+        default-budget candidate never lands on a seat that would silently cut its output."""
+        declared = {}
+        for name in ordered:
+            provider = pool.by_name(name)
+            if provider is not None and not provider.retired and provider.models:
+                declared[name] = int(provider.settings.get("max_tokens") or 4096)
+        need = max_tokens if max_tokens is not None else max(declared.values(), default=0)
+        skipped: dict[str, str] = {}
+        chosen = None
+        for name in ordered:
+            status, configuration = _absent(name)
+            if status == "absent":
+                skipped[name] = f"absent under lab configuration {configuration!r}"
+            elif name not in declared:
+                skipped[name] = "not in the backend pool (missing, retired or no models)"
+            elif declared[name] < need:
+                skipped[name] = (f"declares max_tokens {declared[name]} < the submission's "
+                                 f"{'max_tokens' if max_tokens is not None else 'default output need'} {need}")
+            else:
+                chosen = name
+                break
+        if chosen is None:
+            raise LocalWorkError(f"no eligible code backend in lane {lane!r}: {skipped}")
+        choice = {"by": "lane_code_backend", "backend": chosen, "considered": list(ordered),
+                  "assignments": {n: loads[n]["outstanding_assignments"] for n in ordered},
+                  "skipped": skipped, "output_need": need}
+        log.info("local-work %s: code family on pooled lane -> %s (lane_code_backend; considered %s, assignments %s, skipped %s)",
+                 lane, chosen, list(ordered), choice["assignments"], skipped)
+        return chosen, choice
 
     @staticmethod
     def _serving_profile(settings: Mapping[str, Any], model: str) -> tuple[dict[str, Any], str]:
@@ -548,6 +593,9 @@ class LocalWorkService:
                         "active_leases": self.execution.leases.active_count(f"provider:{name}"),
                         "configured_order": index} for index, name in enumerate(names)}
         names = sorted(names, key=lambda n: tuple(loads[n].values()))
+        if backend_choice is not None and backend_choice.get("by") == "lane_code_backend":
+            chosen, backend_choice = self._code_pick(pool, selected_lane, names, loads, max_tokens)
+            names = [chosen]
         excluded = {}
         original_max_tokens = max_tokens
         for backend_name in names:

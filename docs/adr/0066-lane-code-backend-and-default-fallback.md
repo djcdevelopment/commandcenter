@@ -50,3 +50,25 @@ Two refusals reached frontier sessions through amux on 2026-10-15:
 - Deploy: the integrator syncs `local-work-routes-linux.toml` and the managed
   `lab-configurations.toml` copy to their live partners (`host_config.py --check` shows the drift
   until then) and restarts the door after the suite passes.
+
+## Amended 2026-10-15
+
+Operator direction: all GPUs are available; code work runs in parallel on both B70s and AM4.
+
+- **A list.** A lane may declare `code_backends = [...]` (nonempty, distinct, each one of the lane's
+  backends). `code_backend = "<name>"` stays as its one-element alias; declaring both refuses
+  (`must declare at most one of code_backend or code_backends`). The tracked Linux profile declares
+  `code_backends = ["omen-dense-27b", "omen-dense-27b-b", "am4-vllm"]`.
+- **The pick.** Work without a delivery brief on a pooled lane still lands on ONE seat, unpooled (no
+  pooled claim, no qualification check; ADR-0062 unchanged in intent). The list is ordered by the
+  pool's own load key in `submit` (outstanding assignments, then active leases, then configured
+  order) and the first seat that is not `absent` under the active lab configuration
+  (`hearth.toolsurface.backends._absent`) and is in the pool is taken. The manifest records
+  `route.backend_choice = {by: "lane_code_backend", backend, considered, assignments, skipped,
+  output_need}` and one `log.info` line names the same. No eligible seat refuses with the skip map. A
+  retry keeps the recorded provider.
+- **Output guard.** A seat whose ordinary `max_tokens` is below the submission's output need is
+  skipped with the reason. The need is the request's `max_tokens`; without one it is the largest
+  ordinary allowance among the listed seats (16,384 on the B70s), so a default-budget whole-file
+  candidate never lands on `am4-vllm` (4,096 ordinary; `deliberate_max_tokens` does not count) and is
+  never silently cut. AM4 takes code work only when the caller asks for 4,096 output tokens or fewer.

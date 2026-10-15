@@ -2,5 +2,7 @@ version = "local-work-routes.linux-v1"
 
 [lane.deep]
 backends = ["omen-dense-27b", "omen-dense-27b-b", "am4-vllm"]
-# ADR-0066: code work (no delivery brief) is singleton on this backend until a code-qualification source exists.
-code_backend = "omen-dense-27b"
+# ADR-0066 (amended 2026-10-15): code work (no delivery brief) goes to ONE of these, picked per submission:
+# live under the active lab configuration, fewest outstanding assignments, then fewest leases, then this order;
+# a seat whose ordinary max_tokens is below the submission's output need is skipped (am4-vllm declares 4096).
+code_backends = ["omen-dense-27b", "omen-dense-27b-b", "am4-vllm"]

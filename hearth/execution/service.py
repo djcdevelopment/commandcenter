@@ -1028,6 +1028,8 @@ class ExecutionService:
         if occupancy.get("lane_not_live"):
             res["lane_status"] = "lane_not_live"
             res["note"] = occupancy.get("lane_reason", "lane is not live under active configuration")
+        if occupancy.get("fallback_from"):
+            res["fallback_from"] = occupancy["fallback_from"]   # ADR-0066: same provider and reason as dispatch
         return res
 
     def _forget(self, job_id: str) -> None:
@@ -1164,6 +1166,8 @@ class ExecutionService:
                 dispatch_observed["capability"] = cap_slice
             if occupancy.get("lane_not_live"):
                 dispatch_observed["lane_status"] = "lane_not_live"
+            if occupancy.get("fallback_from"):
+                dispatch_observed["fallback_from"] = occupancy["fallback_from"]
             self._append("job.dispatched", state, observed=dispatch_observed)
             self._append(
                 "invocation.started",

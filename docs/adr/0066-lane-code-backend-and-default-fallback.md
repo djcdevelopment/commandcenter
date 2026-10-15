@@ -1,0 +1,52 @@
+# ADR-0066: A pooled lane declares its code backend; an absent default falls back by configuration
+
+- Status: **Proposed** (built on `agent/streams-door-20261015`, not deployed)
+- Date: 2026-10-15
+- Goal: G-bench27 (G-lab); INTEGRATION G7
+
+## Context
+
+Two refusals reached frontier sessions through amux on 2026-10-15:
+
+1. `submit_local_work(task_family="code_fix")` without a delivery brief refused with
+   "pooled code work is unsupported: no code-qualification source; a delivery brief is required".
+   ADR-0062 says report verdicts are not code qualification and that singleton code behaviour is
+   unchanged, but ADR-0065 made the deep lane a three-backend pool on 2026-10-13, so no singleton
+   code route remained.
+2. `local_generate` with a default-lane family (summarization, drafting) failed with
+   "routing failed: backend 'omen-vllm' is marked absent under active configuration 'three-dense'".
+   `select_backend` skipped absent tag candidates but then returned the absent pool default, and
+   `plan_execution` reported `lane_not_live` without refusing, so plan and dispatch disagreed.
+
+## Decision
+
+1. **Lane code backend.** A lane table in the local-work route profile may declare
+   `code_backend = "<name>"`; it must name one of the lane's backends (else
+   `code_backend must name one of the lane's backends`). Work without a delivery brief on a pooled
+   lane goes to that one backend, unpooled, and the manifest records
+   `route.backend_choice.by = "lane_code_backend"`. Without a `code_backend` the ADR-0062 refusal
+   stands unchanged. The tracked Linux profile declares `[lane.deep] code_backend = "omen-dense-27b"`.
+2. **Default fallback by configuration.** When the pool default is absent under the active lab
+   configuration and the call asked for the default lane (no tags, or tags including `default`),
+   the door walks the configuration's `default_fallback` list (three-dense:
+   `["omen-dense-27b", "omen-dense-27b-b"]`), else `dense`-tagged backends in pool order, and takes
+   the first live one that fits the payload and output reserve. The reason is
+   `absent_fallback:<default>-><name>`, logged as a warning, carried in `routed_by`, and the
+   occupancy, plan and dispatch record carry `fallback_from`. Plan and dispatch share the selection,
+   so they name the same provider and reason. No live fallback that fits is a loud refusal.
+3. **Capability lanes refuse loudly.** When the default is absent and the call named a capability
+   other than default (tool-use, utility, vision) whose candidates are all absent, the door raises
+   `lane [...] absent under configuration <cfg>: <names>` instead of returning the absent default.
+   With a live default the documented `<tag>_lane_not_live:default` behaviour is unchanged.
+
+## Consequences
+
+- Code work is singleton on the deep lane (omen-dense-27b) until a code-qualification source exists;
+  ADR-0062 is unchanged in intent. Delivery briefs still pool by recorded verdicts.
+- Default-lane offloads keep working under three-dense on a 27B replica, visibly labelled; they are
+  slower per token than the absent 30B, and the label lets the ledger count them.
+- Tool-use calls under three-dense refuse with the lane named, instead of failing at dispatch on a
+  seat name.
+- Deploy: the integrator syncs `local-work-routes-linux.toml` and the managed
+  `lab-configurations.toml` copy to their live partners (`host_config.py --check` shows the drift
+  until then) and restarts the door after the suite passes.

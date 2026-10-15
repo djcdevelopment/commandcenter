@@ -258,7 +258,7 @@ class LocalWorkServiceTests(unittest.TestCase):
         self.assertEqual(profile["device_backend"], "CUDA")
         self.assertEqual(profile["kv_cache_key_type"], "q4_0")
         self.assertEqual(profile["batch_tokens"], 2048)
-        routes, _route_digest = LocalWorkService._route_profile()
+        routes, _route_digest, _code_backends = LocalWorkService._route_profile()
         self.assertEqual(routes["fast"], "am4-dense")
         self.assertEqual(routes["deep"], "omen-arc-27b")
 

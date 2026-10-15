@@ -13,6 +13,7 @@ import functools
 import sqlite3
 import hashlib
 import json
+import logging
 import os
 import re
 import subprocess
@@ -57,6 +58,7 @@ ITEMS_WINDOW = 12
 ITEMS_MAX_TOKENS = 400
 ITEMS_AIDS = ["item_enumerator", "reader_agreement", "line_reference", "constrained_output"]
 IN_FLIGHT = frozenset({"accepted", "queued", "dispatched", "running"})
+log = logging.getLogger(__name__)
 KINDS = frozenset({"markdown", "json", "whole_file", "unified_diff"})
 LANES = frozenset({"auto", "fast", "deep", "tool"})   # tool: explicit only, when the route profile names it
 FINAL = frozenset({"accepted", "rejected", "superseded", "failed"})
@@ -226,7 +228,7 @@ class LocalWorkService:
         return "deep" if evidence_tokens >= floor else "fast"
 
     @staticmethod
-    def _route_profile() -> tuple[dict[str, str | list[str]], str]:
+    def _route_profile() -> tuple[dict[str, str | list[str]], str, dict[str, str]]:
         # HEARTH_LOCAL_WORK_ROUTES names a per-host route profile (the Linux production
         # host routes fast/deep to backends that exist in HEARTH_BACKENDS); unset, the
         # packaged profile applies, so the checked-in tests keep their meaning.
@@ -236,7 +238,7 @@ class LocalWorkService:
         raw = target.read_bytes()
         document = tomllib.loads(raw.decode("utf-8"))
         lanes = document.get("lane") or {}
-        resolved = {}
+        resolved, code_backends = {}, {}
         for name, value in lanes.items():
             if not isinstance(value, dict) or ("backend" in value) == ("backends" in value):
                 raise LocalWorkError(f"lane {name!r} must declare exactly one of backend or backends")
@@ -248,9 +250,32 @@ class LocalWorkService:
             if name != "deep" and len(names) != 1:
                 raise LocalWorkError("only the deep lane supports multiple backends")
             resolved[name] = names if "backends" in value else names[0]
+            if "code_backend" in value:
+                # ADR-0066: code work on a pooled lane goes to one declared backend until a
+                # code-qualification source exists (report verdicts are not one; ADR-0062).
+                if value["code_backend"] not in names:
+                    raise LocalWorkError("code_backend must name one of the lane's backends")
+                code_backends[name] = value["code_backend"]
         if "deep" not in resolved or not set(resolved) <= {"fast", "deep", "tool"}:
             raise LocalWorkError("local-work route profile requires deep; fast and tool are optional")
-        return resolved, _digest(raw)
+        return resolved, _digest(raw), code_backends
+
+    @staticmethod
+    def _candidates(route_sets: Mapping[str, str | list[str]], code_backends: Mapping[str, str], lane: str,
+                    delivery: bool, existing: Optional[Mapping[str, Any]]) -> tuple[list[str], bool, Optional[dict[str, str]]]:
+        """Backends this submission may land on: (names, pooled, choice); choice None means the pool decides."""
+        configured = route_sets[lane]
+        names = configured if isinstance(configured, list) else [configured]
+        if existing is not None:
+            # A retry keeps the lane's pooled checks (profile-bound procedure choice, declared reserve).
+            return [existing["route"]["provider"]], len(names) > 1, {"by": "recorded"}
+        if not delivery and len(names) > 1:
+            code_backend = code_backends.get(lane)
+            if code_backend is None:
+                raise LocalWorkError("pooled code work is unsupported: no code-qualification source; a delivery brief is required")
+            log.info("local-work %s: code family on pooled lane %s -> %s (lane_code_backend)", lane, names, code_backend)
+            return [code_backend], False, {"by": "lane_code_backend", "backend": code_backend}
+        return names, len(names) > 1, None
 
     @staticmethod
     def _serving_profile(settings: Mapping[str, Any], model: str) -> tuple[dict[str, Any], str]:
@@ -443,7 +468,7 @@ class LocalWorkService:
                     (max_tokens is not None and max_tokens != prior["prompt"]["output_reserve_tokens"])):
                 raise LocalWorkError("idempotency_key was already used for different local work")
             return prior
-        route_sets, route_hash = self._route_profile()
+        route_sets, route_hash, code_backends = self._route_profile()
         routes = {name: value[0] if isinstance(value, list) else value for name, value in route_sets.items()}
         pool = load_pool()
         if items_run and isinstance(route_sets.get("deep"), list) and len(route_sets["deep"]) > 1:
@@ -507,13 +532,7 @@ class LocalWorkService:
         existing = prior
         if existing is not None and procedure is not None and procedure != existing["route"].get("procedure", "one_call"):
             raise LocalWorkError("idempotency retry cannot change the recorded procedure")
-        configured = route_sets[selected_lane]
-        names = configured if isinstance(configured, list) else [configured]
-        pooled = len(names) > 1
-        if pooled and not delivery and existing is None:
-            raise LocalWorkError("pooled code work is unsupported: no code-qualification source; a delivery brief is required")
-        if existing is not None:
-            names = [existing["route"]["provider"]]
+        names, pooled, backend_choice = self._candidates(route_sets, code_backends, selected_lane, delivery, existing)
         outstanding = {name: 0 for name in names}
         for path in (self.root / "runs" / "operator").glob("work_*/work-manifest.json"):
             try:
@@ -699,7 +718,7 @@ class LocalWorkService:
                       "profile_sha256": route_hash,
                       "requested_lane": lane, "selected_lane": selected_lane,
                       "provider": backend_name, "model": model, "selected_model": model, "task_family": task_family,
-                      "backend_choice": {"by": "recorded" if existing else "least_outstanding_then_leases",
+                      "backend_choice": {**(backend_choice or {"by": "least_outstanding_then_leases"}),
                                          "loads": loads, "excluded": excluded},
                       "serving_profile_schema": SERVING_PROFILE_SCHEMA,
                       "serving_profile": serving_profile,

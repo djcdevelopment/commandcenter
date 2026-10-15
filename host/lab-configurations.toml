@@ -139,6 +139,8 @@ description = "G-bench27: two OMEN 27B replicas, AM4 dense-tp2, FX99 utility; 30
 omen_profile = "two-dense"
 am4_profile = "dense-tp2"
 fx99_state = "live"
+# ADR-0066: the door default (omen-vllm) is absent here; default-lane calls fall back in this order.
+default_fallback = ["omen-dense-27b", "omen-dense-27b-b"]
 
 [configuration.three-dense.backends]
 omen-vllm = { status = "absent" }

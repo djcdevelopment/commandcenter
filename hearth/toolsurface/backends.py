@@ -27,11 +27,14 @@ time — every dispatch is an assay observation (principle #6).
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
+
+log = logging.getLogger(__name__)
 
 # Pool file: HEARTH_BACKENDS wins; else the etc/ default beside this package.
 ENV_VAR = "HEARTH_BACKENDS"
@@ -341,6 +344,40 @@ def _output_reserve_rejection(candidate: Backend, payload_bytes: int,
     return None
 
 
+def _absent(name: str) -> tuple[str, str]:
+    """(status, configuration) for ``name`` under the active lab configuration; ("unknown", "unknown") without it."""
+    try:
+        from hearth.execution.lab_config import get_backend_status
+    except ImportError:
+        return "unknown", "unknown"
+    return get_backend_status(name)
+
+
+def _fits(candidate: Backend, payload_bytes: Optional[int], max_tokens: Optional[int],
+          exclude: Optional[set[str]], model: Optional[str] = None) -> bool:
+    """True when ``candidate`` is not excluded and the payload plus its output reserve fits its window."""
+    if exclude and candidate.name in exclude:
+        return False
+    if payload_bytes is None:
+        return True
+    context = candidate.context_bytes(model)
+    if context is not None and payload_bytes > context:
+        return False
+    return _output_reserve_rejection(candidate, payload_bytes, max_tokens) is None
+
+
+def _default_fallback(pool: Pool, configuration: str) -> list[Backend]:
+    """ADR-0066: the configuration's ``default_fallback`` names, else dense-tagged backends in pool order."""
+    try:
+        from hearth.execution.lab_config import load_lab_configurations
+        names = load_lab_configurations().get(configuration, {}).get("default_fallback")
+    except ImportError:
+        names = None
+    if isinstance(names, list) and names:
+        return [b for b in (pool.by_name(n) for n in names if isinstance(n, str)) if b is not None]
+    return [b for b in pool.backends if "dense" in b.tags]
+
+
 def select_backend(pool: Pool, *, backend: Optional[str] = None,
                    model: Optional[str] = None,
                    task: Optional[str] = None,
@@ -401,15 +438,11 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
                 f"backend {backend!r} does not provide model {model!r} "
                 f"(provides: {', '.join(chosen.models) or 'none'})"
             )
-        try:
-            from hearth.execution.lab_config import get_backend_status
-            b_status, cname = get_backend_status(chosen.name)
-            if b_status == "absent":
-                raise BackendConfigError(
-                    f"backend {chosen.name!r} is marked absent under active configuration {cname!r}"
-                )
-        except ImportError:
-            pass
+        b_status, cname = _absent(chosen.name)
+        if b_status == "absent":
+            raise BackendConfigError(
+                f"backend {chosen.name!r} is marked absent under active configuration {cname!r}"
+            )
         if payload_bytes is not None:
             # Decided BEFORE _occ() so an unreachable rung costs no probe to
             # refuse. Refusing here is what attributes the failure to the door
@@ -472,20 +505,10 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
                 f"(have: {', '.join(declared) or 'none'})"
             )
         for candidate in candidates:
-            try:
-                from hearth.execution.lab_config import get_backend_status
-                if get_backend_status(candidate.name)[0] == "absent":
-                    continue
-            except ImportError:
-                pass
-            if exclude and candidate.name in exclude:
+            if _absent(candidate.name)[0] == "absent":
                 continue
-            if payload_bytes is not None:
-                context = candidate.context_bytes(model)
-                if context is not None and payload_bytes > context:
-                    continue
-                if _output_reserve_rejection(candidate, payload_bytes, max_tokens) is not None:
-                    continue
+            if not _fits(candidate, payload_bytes, max_tokens, exclude, model):
+                continue
             occupancy = _occ(candidate.name)
             if occupancy.get("occupancy") == "available":
                 return candidate, f"model:{model}", occupancy
@@ -512,29 +535,18 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
     if tags:
         wanted.extend(tags)
     tag_candidates_checked = 0
-    tag_candidates_absent = 0
+    tag_absent: list[str] = []
     for tag in wanted:
         for candidate in pool.backends:
             if tag in candidate.tags:
                 tag_candidates_checked += 1
-                try:
-                    from hearth.execution.lab_config import get_backend_status
-                    b_status, cname = get_backend_status(candidate.name)
-                    if b_status == "absent":
-                        tag_candidates_absent += 1
-                        continue
-                except ImportError:
-                    pass
-                if exclude and candidate.name in exclude:
+                if _absent(candidate.name)[0] == "absent":
+                    tag_absent.append(candidate.name)
                     continue
-                if payload_bytes is not None:
-                    c_bytes = candidate.context_bytes()
-                    if c_bytes is not None and payload_bytes > c_bytes:
-                        # A1: the payload cannot fit this rung's declared context —
-                        # skip it exactly like a busy candidate.
-                        continue
-                    if _output_reserve_rejection(candidate, payload_bytes, max_tokens) is not None:
-                        continue
+                if not _fits(candidate, payload_bytes, max_tokens, exclude):
+                    # A1: the payload cannot fit this rung's declared context —
+                    # skip it exactly like a busy candidate.
+                    continue
                 occ = _occ(candidate.name)
                 occupancy = occ.get("occupancy", "unknown")
                 if occupancy == "busy" or (occupancy == "unknown"):
@@ -601,8 +613,26 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
             default_context_bytes=default.context_bytes(),
         )
 
+    tag_lane_absent = (tag_candidates_checked > 0 and len(tag_absent) == tag_candidates_checked)
+    d_status, d_cfg = _absent(default.name)
+    if d_status == "absent":
+        # ADR-0066 (INTEGRATION G7): never hand back a default the configuration says is absent.
+        if wanted and "default" not in wanted and tag_lane_absent:
+            raise BackendConfigError(
+                f"lane {wanted} absent under configuration {d_cfg}: {', '.join(dict.fromkeys(tag_absent))}")
+        for candidate in _default_fallback(pool, d_cfg):
+            if (candidate.name == default.name or _absent(candidate.name)[0] == "absent" or
+                    not _fits(candidate, payload_bytes, max_tokens, exclude)):
+                continue
+            log.warning("default %s absent under %s; fallback %s (wanted %s)",
+                        default.name, d_cfg, candidate.name, wanted)
+            occ = dict(_occ(candidate.name))
+            occ["fallback_from"] = default.name
+            return candidate, f"absent_fallback:{default.name}->{candidate.name}", occ
+        raise BackendConfigError(
+            f"default {default.name!r} absent under configuration {d_cfg} and no live default_fallback fits")
+
     occ = _occ(default.name)
-    tag_lane_absent = (tag_candidates_checked > 0 and tag_candidates_absent == tag_candidates_checked)
     if tag_lane_absent and wanted:
         try:
             from hearth.execution.lab_config import get_active_configuration_name

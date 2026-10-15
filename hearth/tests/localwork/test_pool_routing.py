@@ -147,6 +147,15 @@ class PoolRoutingTests(unittest.TestCase):
         with self.assertRaisesRegex(LocalWorkError, "no code-qualification source"):
             self.submit(brief=None, procedure=None, artifact_kind="unified_diff", task_family="code_fix")
 
+    def test_non_delivery_code_routes_to_declared_lane_code_backend(self):
+        (self.root / "routes.toml").write_text('[lane.deep]\nbackends = ["deep-b", "deep-c"]\ncode_backend = "deep-c"\n')
+        manifest = self.submit(brief=None, procedure=None, artifact_kind="unified_diff", task_family="code_fix")
+        self.assertEqual(manifest["route"]["provider"], "deep-c")
+        self.assertEqual(manifest["route"]["backend_choice"]["by"], "lane_code_backend")
+        (self.root / "routes.toml").write_text('[lane.deep]\nbackends = ["deep-b", "deep-c"]\ncode_backend = "other"\n')
+        with self.assertRaisesRegex(LocalWorkError, "code_backend must name one of the lane's backends"):
+            self.submit(brief=None, procedure=None, artifact_kind="unified_diff", task_family="code_fix")
+
     def test_pool_requires_minimum_declared_serving_facts(self):
         path = self.root / "backends.toml"
         path.write_text(path.read_text().replace('engine = "vllm"\n', ''))

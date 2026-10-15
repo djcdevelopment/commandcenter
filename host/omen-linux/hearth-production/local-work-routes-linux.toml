@@ -2,3 +2,5 @@ version = "local-work-routes.linux-v1"
 
 [lane.deep]
 backends = ["omen-dense-27b", "omen-dense-27b-b", "am4-vllm"]
+# ADR-0066: code work (no delivery brief) is singleton on this backend until a code-qualification source exists.
+code_backend = "omen-dense-27b"

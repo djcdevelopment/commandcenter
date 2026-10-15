@@ -1,6 +1,6 @@
 # 0067 — Night approval delegation is scoped by the grant, not by a constant
 
-**Status:** Proposed 2026-10-15. Extends ADR-0063; nothing in ADR-0053 changes.
+**Status:** Accepted (Derek, 2026-10-15: "Derek said to file the paperwork on his behalf, he approves"). Extends ADR-0063; nothing in ADR-0053 changes.
 
 ## Context
 

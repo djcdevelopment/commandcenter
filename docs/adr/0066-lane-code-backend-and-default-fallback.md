@@ -1,6 +1,6 @@
 # ADR-0066: A pooled lane declares its code backend; an absent default falls back by configuration
 
-- Status: **Proposed** (built on `agent/streams-door-20261015`, not deployed)
+- Status: **Accepted** (Derek, 2026-10-15; deployed on the door at c0c7dc3)
 - Date: 2026-10-15
 - Goal: G-bench27 (G-lab); INTEGRATION G7
 

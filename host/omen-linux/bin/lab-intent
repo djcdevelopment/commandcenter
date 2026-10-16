@@ -1,3 +1,11 @@
 #!/bin/bash
 # lab-intent: load | render | check for ~/work/lab/intent.yaml. Source: ~/work/lab/tools/lab-intent.sh (byte copy at ~/bin/lab-intent)
+# Token counts come from a live loopback seat's /tokenize; with LAB_SEAT_URL unset, take the first seat that answers
+# (18090 = omen-vllm HAProxy under day; 18091/18092 = the 27B seats under three-dense). A 401 still means "answering".
+if [ -z "$LAB_SEAT_URL" ]; then
+  for p in 18090 18091 18092; do
+    code=$(curl -s -m 2 -o /dev/null -w '%{http_code}' "http://127.0.0.1:$p/v1/models" 2>/dev/null)
+    case "$code" in 200|401|403) export LAB_SEAT_URL="http://127.0.0.1:$p"; break;; esac
+  done
+fi
 exec "$HOME/.venvs/hearth-private/bin/python" "$HOME/work/lab/tools/intent.py" "$@"

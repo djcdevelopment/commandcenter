@@ -308,6 +308,9 @@ class SweepLeavesRoutingUntouched(TempDirs):
         shutil.copytree(REAL_WORK_DIR, original)
         target = self.runs / REAL_WORK_DIR.name
         shutil.copytree(REAL_WORK_DIR, target)
+        # The real tree may already carry a shadow sweep's advice; the test is about a fresh run.
+        for copy in (original, target):
+            shutil.rmtree(copy / "precursor", ignore_errors=True)
         pi.build_index(FIXTURE_CORPUS, self.tmp / "empty", self.knowledge, research_dir=None)
 
         proc = subprocess.run([PY, "-m", "tools.workflow.project_precursor", "--advise"], cwd=str(ROOT),
@@ -410,3 +413,41 @@ class LateAdviceAndJoin(TempDirs):
         self.assertEqual(summary["join"]["advice_count"], 2)
         rows = json.loads((self.runs / ("work_e2e" + "0" * 28) / pi.ADVICE_DIR / pi.ADVICE_FILE).read_text())
         self.assertEqual({r["mode"] for r in rows}, {"shadow"}, "display records as shadow in this increment")
+
+
+class LiveRefreshTest(TestCase):
+    """A corpus row whose run also exists on disk takes the disk's verdict events and timestamps
+    (owner's fix after the first real sweep read every row as stale)."""
+
+    def test_corpus_row_is_refreshed_from_live_work_dir(self):
+        import tempfile, json, shutil
+        from pathlib import Path
+        from tools.workflow import precursor_index as pi
+        fixture = Path(__file__).resolve().parents[2] / "fixtures" / "workflow" / "precursor" / "v1"
+        rows = [json.loads(l) for l in (fixture / "runs.jsonl").read_text().splitlines() if l.strip()]
+        src = rows[0]
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            work = tmp / "runs" / src["run_id"]
+            (work / "refs").mkdir(parents=True)
+            (work / "refs" / "envelope.json").write_text(json.dumps({
+                "intent": src["intent_text"], "acceptance_criteria": src.get("criteria") or [],
+                "submitted_at": src["submitted_at"], "submitted_by": "test"}))
+            later = "2099-01-01T00:00:00Z"
+            events = [
+                {"event_type": "task.received", "timestamp": src["submitted_at"], "payload": {}},
+                {"event_type": "step.dispatched", "timestamp": src["submitted_at"], "payload": {"provider": src["backend"]}},
+                {"event_type": "artifact.produced", "timestamp": src["submitted_at"], "payload": {}},
+                {"event_type": "outcome.final", "timestamp": later, "payload": {"decision": "accepted"}},
+            ]
+            (work / "history.ndjson").write_text("\n".join(json.dumps(e) for e in events) + "\n")
+            (work / "work-manifest.json").write_text(json.dumps({
+                "work_id": src["run_id"], "status": "accepted", "route": {"backend": src["backend"],
+                "task_family": src["task_family"]}, "verdict": {"decision": "accepted", "caller_id": "test"}}))
+            out = tmp / "knowledge"; out.mkdir()
+            doc = pi.build_index(fixture / "runs.jsonl", tmp / "runs", out, research_dir=None)
+            row = next(r for r in doc["rows"] if r["run_id"] == src["run_id"])
+            self.assertEqual(row["source"], "both")
+            self.assertEqual(row["first_final_at"], later)
+            self.assertEqual(doc["refreshed_from_live"], 1)
+            self.assertEqual(doc["evidence_watermark"], later)

@@ -1,0 +1,18 @@
+{
+  "schema": "precursor-accuracy.v1",
+  "contract_version": "precursor-accuracy.v1",
+  "built_at": "2026-10-16T07:58:33Z",
+  "corpus_version": "v1",
+  "config_id": "ee46c9264051",
+  "index_built_at": "2026-10-16T07:58:31Z",
+  "advice_files": 303,
+  "advice_count": 606,
+  "joined_count": 0,
+  "late_excluded": 580,
+  "awaiting_verdict": 26,
+  "nonbinary_excluded": 0,
+  "unreadable": 0,
+  "evidence_watermark": null,
+  "arms": {},
+  "note": "advisory record only; no verdict is recorded and no routing decision is read or changed (ADR-0070)"
+}

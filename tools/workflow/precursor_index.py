@@ -42,6 +42,8 @@ BINARY_DECISIONS = {"accepted": True, "rejected": False}
 VERDICT_DECISIONS = ("accepted", "rejected", "superseded", "failed")
 LATE_DIAGNOSTIC = "late:advice_after_verdict"
 STALE_AFTER = timedelta(hours=24)
+# Fields a live work dir refreshes on a corpus row (the disk is newer than any export).
+LIVE_REFRESH_FIELDS = ("dispatched_at", "artifact_at", "first_final_at", "first_final_decision", "verdict_events")
 
 # Frozen defaults (CONTRACT §2 arm rules). A frozen replay config at
 # <research dir>/results/*/config.json overrides these key by key; config_id hashes the result.
@@ -325,24 +327,38 @@ def build_index(corpus_path: Path, runs_root: Path, out_dir: Path, *, research_d
     corpus_version = corpus_manifest.get("corpus_version") or (
         Path(corpus_path).parent.name if Path(corpus_path).is_file() else "none")
 
-    rows: list[dict] = []
-    seen: set[str] = set()
-    group_by_intent: dict[str, str] = {}
-    for src in corpus_rows:
-        group_id = src.get("group_id") or ("g_" + sha256_text(src["run_id"])[:12])
-        rows.append(_index_row(src, "corpus", group_id))
-        seen.add(src["run_id"])
-        sha = src.get("intent_sha256") or sha256_text(src.get("intent_text") or "")
-        group_by_intent.setdefault(sha, group_id)
-
-    live_rows = 0
+    # Live work dirs first: for a run that is also in the corpus, the disk is the fresher source of
+    # the temporal and verdict fields (a verdict recorded after the corpus export would otherwise
+    # be invisible and every advice row would read stale). The corpus keeps text, lineage and the
+    # fields only Track A derives.
+    live_infos: dict[str, dict] = {}
     for path in work_dirs(runs_root):
         try:
             info = read_work_dir(path)
         except (OSError, ValueError):
             skipped += 1
             continue
-        if info is None or info["run_id"] in seen:
+        if info is not None:
+            live_infos[info["run_id"]] = info
+
+    rows: list[dict] = []
+    seen: set[str] = set()
+    group_by_intent: dict[str, str] = {}
+    refreshed = 0
+    for src in corpus_rows:
+        group_id = src.get("group_id") or ("g_" + sha256_text(src["run_id"])[:12])
+        live = live_infos.get(src["run_id"])
+        if live is not None:
+            src = {**src, **{k: live.get(k) for k in LIVE_REFRESH_FIELDS}}
+            refreshed += 1
+        rows.append(_index_row(src, "both" if live is not None else "corpus", group_id))
+        seen.add(src["run_id"])
+        sha = src.get("intent_sha256") or sha256_text(src.get("intent_text") or "")
+        group_by_intent.setdefault(sha, group_id)
+
+    live_rows = 0
+    for run_id, info in sorted(live_infos.items()):
+        if run_id in seen:
             continue
         # Lineage (lineage.py) is Track A's; live rows newer than the corpus share a group only
         # when their intent text is identical, else they are singleton groups.
@@ -365,6 +381,7 @@ def build_index(corpus_path: Path, runs_root: Path, out_dir: Path, *, research_d
         "row_count": len(rows),
         "corpus_rows": len(corpus_rows),
         "live_rows": live_rows,
+        "refreshed_from_live": refreshed,
         "skipped": skipped,
         "evidence_watermark": max(finals) if finals else None,
         "config": config,

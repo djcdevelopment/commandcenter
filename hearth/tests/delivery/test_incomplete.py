@@ -113,6 +113,16 @@ class RenderIncompleteTests(unittest.TestCase):
                 _, man, _ = render_with_findings(out, brief_bytes(), sm)
                 self.assertEqual(man["suspected_incomplete"], [])
 
+    def test_quote_boundary_follows_resolved_range_not_another_source(self) -> None:
+        sm = SourceMap("fixture", COMMIT, [
+            file_map("a.py", b'def alpha():\n    result = function_call_with_name(argument)\n'),
+            file_map("b.py", b'def beta():\n    result = function_call_with_name("argument")\n')])
+        out = output("The alpha function calls the helper.")
+        out["sections"][0]["paragraphs"][0]["quotes"] = ["result = function_call_with_name("]
+        _, man, _ = render_with_findings(out, brief_bytes(), sm)
+        self.assertEqual(man["claims"][0]["resolved"]["path"], "a.py")
+        self.assertEqual(man["suspected_incomplete"], [])
+
 
 class ReplayIncompleteTests(unittest.TestCase):
     EXPECT = {"a83187bb": "trailing_space", "25fd75d0": "open_token", "921d1a59": "open_token"}

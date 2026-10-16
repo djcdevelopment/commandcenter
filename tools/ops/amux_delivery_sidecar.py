@@ -409,6 +409,11 @@ def reviewed_quote_repairs(output: dict, sm, claims: list, repairs: list) -> tup
         if patch.get("repair_prose"):
             if para["text"].count(old) != 1:
                 raise SidecarError(f"{cid}: erroneous quotation must occur exactly once in paragraph text")
+            start = para["text"].index(old)
+            end = start + len(old)
+            if not start or end >= len(para["text"]) or para["text"][start - 1] not in "\"'`" or \
+                    para["text"][end] != para["text"][start - 1]:
+                raise SidecarError(f"{cid}: prose repair must stay inside matching quotation delimiters")
             change["old_text"] = para["text"]
             para["text"] = para["text"].replace(old, new, 1)
             change["new_text"] = para["text"]

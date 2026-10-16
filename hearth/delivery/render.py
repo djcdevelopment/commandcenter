@@ -96,7 +96,7 @@ def suspected_incomplete(text: str) -> Optional[dict]:
     return None
 
 
-def suspected_quote_cut(quote: str, sm: SourceMap) -> Optional[dict]:
+def suspected_quote_cut(quote: str, sm: SourceMap, loc: Optional[Location] = None) -> Optional[dict]:
     """Flag the observed decoder boundary: an open fragment just before a source double quote.
 
     Quotes are excerpts, so prose punctuation/whitespace rules alone do not apply. Require
@@ -115,9 +115,12 @@ def suspected_quote_cut(quote: str, sm: SourceMap) -> Optional[dict]:
     if not needle:
         return None
     for fm in sm.files:
+        if loc is not None and loc.match != "missing" and fm.path != loc.path:
+            continue
+        lines = fm.lines[loc.start - 1:loc.end] if loc is not None and loc.match != "missing" else fm.lines
         # Do not cross a newline: a dictionary opener before its first key on the
         # next line is an ordinary intentional excerpt, not this decoder boundary.
-        for line in fm.lines:
+        for line in lines:
             source = " ".join(line.split())
             pos = source.find(needle)
             while pos >= 0:
@@ -351,7 +354,7 @@ def render_with_findings(output: Mapping[str, Any], brief: Union[bytes, str, Map
             for k, q in enumerate(para["quotes"]):
                 loc = locate_line_reference(reference_map, q) if line_reference else locs[k]
                 if not line_reference:
-                    hit = suspected_quote_cut(q, sm)
+                    hit = suspected_quote_cut(q, sm, loc)
                     if hit:
                         suspected.append({"id": f"s{i}.p{j}.q{k}", **hit})
                 echoed = sm.get(loc.path).lines[loc.start - 1] if line_reference and loc.match != "missing" else q

@@ -132,16 +132,19 @@ class Scope(Fixture):
                 sc.derive(out, self.brief, self.sm, reviewed_repairs=[bad])
 
     def test_reviewed_prose_edit_is_only_the_same_erroneous_quotation(self):
-        out = output_with("It calls fn gama() to proceed.", ["fn gama()"])
+        out = output_with("It calls 'fn gama()' to proceed.", ["fn gama()"])
         patch = {"claim_id": "s0.p0.q0", "old_quote": "fn gama()", "new_quote": "fn gamma()",
                  "repair_prose": True}
         result = sc.derive(out, self.brief, self.sm, reviewed_repairs=[patch])
         self.assertEqual(result["output"]["sections"][0]["paragraphs"][0]["text"],
-                         "It calls fn gamma() to proceed.")
+                         "It calls 'fn gamma()' to proceed.")
         self.assertEqual(result["manifest"]["repairs"][sc.PROSE_KEY], 1)
         self.assertFalse(result["prose_unchanged"])
         self.assertTrue(result["headings_unchanged"] and result["paragraph_order_unchanged"])
         out["sections"][0]["paragraphs"][0]["text"] = "It calls the function."
+        with self.assertRaises(sc.SidecarError):
+            sc.derive(out, self.brief, self.sm, reviewed_repairs=[patch])
+        out["sections"][0]["paragraphs"][0]["text"] = "It calls fn gama() to proceed."
         with self.assertRaises(sc.SidecarError):
             sc.derive(out, self.brief, self.sm, reviewed_repairs=[patch])
 

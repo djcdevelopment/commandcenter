@@ -11,13 +11,20 @@ review costs; handle trivial work directly. Batch related small items into one c
 
 **Lanes on this host (from `~/hearth-production/backends-linux.toml`):**
 
-- `omen-vllm` (default; tags `default, code, research, reasoning`): Qwen3-30B-A3B MoE behind
-  HAProxy `:18090`, 40,960 ctx, 8 slots. Sunk local compute, resident: spend it freely on grunt work.
-- `omen-dense-27b` (tags `dense, quality, agent`): Qwen3.8-27B behind `:18095`, 65,536 ctx, 2 slots
-  (its KV pool holds ~1.5 full-window requests), output reserve 16,384.
-  The only local model that completed the fix task with receipts (continuity output/07). Pin it
-  with `backend="omen-dense-27b"` for code candidates, careful review, or long inputs; it is
-  slower per token, so do not send it grunt work.
+Seats are profile-bound: `host/lab-configurations.toml` names the live set and `submit_local_work` records it in
+`conditions.lab_configuration`. Since 2026-10-05 the configuration is `three-dense` (G-bench27): `omen-dense-27b`,
+`omen-dense-27b-b`, `am4-vllm` (dense-tp2) and `fx99-vllm` live; `omen-vllm` and the AM4 tool pair absent;
+default-lane calls fall back to the 27B replicas (ADR-0066). Check before pinning a seat another profile serves.
+
+- `omen-vllm` (default; tags `default, code, research, reasoning`; profiles `day` and two-lane only, **absent under
+  three-dense**): Qwen3-30B-A3B MoE behind HAProxy `:18090`, 40,960 ctx, 8 slots. Sunk local compute, resident: spend it freely on grunt work.
+- `omen-dense-27b` (tags `dense, quality, agent, vision`) and `omen-dense-27b-b` (the second replica on the other
+  B70; no routing tags, so it is reached by lane load balancing or an explicit pin): Qwen3.8-27B, 65,536 ctx, 2 slots
+  each (a KV pool holds ~1.5 full-window requests), output reserve 16,384.
+  The only local model that completed the fix task with receipts (continuity output/07). Name the family
+  (`code_fix`, `code_review`, `claim_verification`, `quote_retrieval`, `long_review`) and let the door pick the
+  replica; pin a backend only to test a lever or to keep a judge off the author's seat. It is slower per token,
+  so do not send it grunt work.
   `local_generate` and local-work run it with thinking off, one call per request (`enable_thinking = false` on every
   backend). Its design regime is multi-step work with thinking on in a long window (Derek 2026-10-03; ADR-0059,
   proposed). For a thinking turn use operation `inference.deliberate` through `submit_execution` / `watch_execution`
@@ -36,31 +43,50 @@ review costs; handle trivial work directly. Batch related small items into one c
   relying on it. A brief that declares `"items": {"kind": "env_reads"}` takes the items procedure (code lists the
   items, the 30B and an AM4 8B read each, the 27B judges disputes with thinking on; two runs, both rejected, the second
   on 1 wrong row of 91).
-- `am4-vllm` (tags `dense, reasoning`): AM4 27B over the direct cable, 16,384 ctx, 1 slot. Live only under
-  the `memsplice` lab configuration, for MemSplice research; the default `day` has AM4 on `tool-pair`.
-  Depth specialist for needle retrieval; never route it through the tailnet.
+- `am4-vllm` (tags `dense, reasoning`): the AM4 27B over the direct cable, dense-tp2 across both AM4 cards,
+  49,152 ctx under three-dense (16,384 under `memsplice`), 1 slot, 4,096 output for a one-call answer (thinking
+  turns through `inference.deliberate` at 24,576). In the deep pool: `lane="auto"` code work and deliveries spread
+  to it (I1.5: the waits-panel report, accepted). Depth specialist for needle retrieval; never route it through
+  the tailnet.
 - `fx99-vllm` (tag `utility`): Qwen2.5-Coder-7B on FX99, 4,096 ctx. Text-only summaries; it cannot
   produce reliable tool calls.
 - `am4-tool-4070ti` / `am4-tool-5070` (tag `tool-use`): Qwen3-8B-AWQ, one seat per AM4 card, 24,576 /
-  16,384 ctx, the Ti admitting 4 concurrent requests (3 HEARTH leases), the 5070 2, live by default
-  (configuration `day`, AM4 on `tool-pair`; check `ssh 10.44.0.2 ~/bin/am4-profile status`).
+  16,384 ctx, the Ti admitting 4 concurrent requests (3 HEARTH leases), the 5070 2; live only under the AM4
+  `tool-pair` profile (configurations `day`, `tool-night`), **absent under three-dense** (`ssh 10.44.0.2
+  ~/bin/am4-profile status` reads `dense-tp2`).
   `submit_local_work` takes `lane="tool"` (`am4-tool-4070ti`) and a `brief` for deliveries. Small
   OS-local chores on one file (read, grep, summarize with citations) go here through
   `task_family="tool_execution"` or a `deepagents` brief with `backend: am4-tool-4070ti`: 6/6 chores at a
   10 s median where the 27B took 172 s. When the profile is not live the tag resolves to the door default.
-- There is no cloud rung in this pool. A refused local lane is terminal; never substitute cloud.
+- There is no cloud rung in this pool: the `gcp-gemini` rungs are retired (the GCP trial ended, 2026-10-15).
+  A refused local lane is terminal; never substitute cloud.
 - `am4-tool-5070` also carries `tool-long` (ADR-0050): when `HEARTH_SIZER` is on, a `tool_execution`
   call whose answer the sizer bins l/xl (>= 1,024 expected output tokens: a rewrite, an 800-word report)
   is refined to `tool_long_output` and lands on the 5070, the faster decoder; the Ti keeps the short,
   prefill-heavy volume. A `deepagents` brief may say `backend: am4-tool` to have the sizer pick the seat.
   The gate is off by default; the sizer only fills an absent `max_tokens` for admission and never sets a
   generation budget or a family for a call that named none.
+- `omen-perception` (tags `perception, ocr`; models `tesseract-ocr`, `clip-vit-l14`): the CPU perception lane,
+  2 slots. `task_family="document_ocr"` lands here (plain text extraction; no tables, formulas or layout).
+  `chart_diagram` and `screenshot_grounded` go to the 27B with its vision tower, which under three-dense means
+  the seat-1 fenced swap of ADR-0068 (accepted 2026-10-15; the `perception` alias and the swap request/release
+  are harness-plan I2.6, not yet code): until then those families are refused outside `seat0-27b-vision`.
 
 **Routing and context:**
 
 - Task-family routing is live: `task_family="summarization" | "extraction" | "classification" |
-  "drafting" | "reasoning_planning" | "quote_retrieval"`. Explicit `backend=`/`model=` pins override
-  the family; omit them when family routing is intended. `plan_execution(operation="inference.generate",
+  "drafting" | "reasoning_planning" | "quote_retrieval" | "code_fix" | "code_review" | "claim_verification" |
+  "long_review" | "tool_execution" | "utility_text" | "document_ocr"`. Explicit `backend=`/`model=` pins override
+  the family; omit them when family routing is intended. A family with an authored regime (`code_fix`: one call,
+  thinking off, 8,192; `code_review`: think then emit, 24,576; `claim_verification`: one call, thinking off,
+  4,096) sets thinking and the budget itself: pass neither unless you are testing a lever.
+- Report briefs with verbatim quotes (the measured default, harness-plan I1.5, 2026-10-15): `quote_retrieval`
+  on a 27B replica, one call, thinking off under the word cap, input + 16,384 <= 65,536, output cap = word cap
+  x 1.75; then a claim-check pass through `claim_verification` on every sentence that states what code or
+  configuration does, pinning the replica that did not write the report (the family cannot know the author).
+  Measured: 3 of 3 unseen briefs accepted on substance, the 2 seen briefs rejected (one false code-behaviour
+  claim; one form miss), review 1-5 min against 10-20 manual, the false claim caught in 38 s by the
+  thinking-off pass (the thinking-on pass took 200 s and truncated once). `plan_execution(operation="inference.generate",
   task_family=..., prompt_bytes=...)` inspects a route without dispatching.
 - Don't paste file contents: pass `files=[...]` and the door packs them scope-guarded. Relative paths
   resolve against the gateway's primary repository (`~/work/commandcenter-linux-flash`); absolute paths
@@ -73,12 +99,14 @@ review costs; handle trivial work directly. Batch related small items into one c
 
 `submit_local_work(intent, acceptance_criteria, repo, base_commit, paths, lane="auto")` freezes the
 named files at a commit, produces an immutable candidate, and stops at `awaiting_review`. `auto`
-sends `task_family` `code_fix`/`code_review` to `deep` (`omen-dense-27b`) at any size; otherwise
+sends `task_family` `code_fix`/`code_review` to `deep` (the 27B replicas `omen-dense-27b`, `omen-dense-27b-b`
+and `am4-vllm`, balanced by `lane_code_backend`) at any size; otherwise
 evidence of 8,192 tokens or more goes to `deep` and less to `fast` (`omen-vllm`). The exact check is
 `input + output reserve <= context_tokens`, so on the deep lane input may reach 65,536 − reserve.
 Watch with `watch_local_work`, fetch with `get_local_work_artifact`, validate in an isolated worktree,
-then `record_local_work_verdict(accepted|rejected|superseded)` with evidence per criterion. Never apply
-a candidate before the verdict.
+then `record_local_work_verdict(accepted|rejected|superseded)` with evidence per criterion (each
+`criteria[].criterion` repeats a submitted acceptance criterion verbatim) and `bucket="form"|"setup"|"substance"`
+naming the miss (HEARTH method section 3). Never apply a candidate before the verdict.
 
 Artifact kinds, measured 2026-09-27: prefer `whole_file` (with `target_path`) for any target under
 ~6K output tokens; the 27B writes correct edits but unreliable `unified_diff` hunks (wrong counts are
@@ -100,6 +128,14 @@ CODEX-UNATTENDED-PROBE-20261014). Interactive Codex prompts only for escalations
 (`ct work open --repo <id> --objective ...`) and pass its id as `task_id` on `local_generate` /
 `submit_local_work`; run validation under `ct receipt --work <id> -- <cmd>`. `ct recall` then finds the
 candidate manifest and HEARTH's `query_offload(task_id=...)` finds the spend, correlated by native ids.
+
+**Asynchronous hand-off (harness-plan I1.4):** `~/work/amux/streams/bin/handoff.sh submit|status|fetch|list|track|ack`
+wraps `submit_execution` / `get_execution` / `get_execution_artifact` with an idempotency key
+(`sha256(task_id + brief sha + family)`), keeps only the association in `streams/stats/handoffs.jsonl` (state is
+read from the door), survives a gateway restart and a session change (proved 2026-10-15), and the hook
+`~/.claude/hooks/hearth_handoffs.py` prints one line per prompt when a tracked job's state changed. It runs as the
+`dev-local` operator caller until the caller key is routed (I2.5), so jobs submitted through the MCP tools are not
+yet listed by it.
 
 **Environment (ADR-0053):** `hearth-env show | set dev|prod --by WHO --reason WHY [--until ISO] | check`.
 Dev relaxes the night window, re-runs and the presence gate for daytime R&D; approvals, `pause.dispatch`,

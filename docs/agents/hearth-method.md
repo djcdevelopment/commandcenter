@@ -44,4 +44,6 @@ Inside amux (`$AMUX_SESSION` is set), put the result on the board, visible from 
 `--kind implementation`; a refusal is `--state invalid` with the reason). Inside a Codex sandbox the CLI needs
 `AMUX_API=https://127.0.0.1:18824` and loopback network (an escalation).
 
+**6. Attribute (Codex).** Stamp every HEARTH call with task_id='cx-<lane name>' (the AMUX lane you run in; `cx-adhoc` outside a lane). Claude Code sessions get their `cc-` id from the user-level hook; this is the Codex counterpart, so the session census can join Codex work to the ledger.
+
 <!-- source: docs/agents/hearth-method.md in commandcenter-linux-flash; synced by tools/ops/sync-offload-block.mjs --marker hearth-method --manifest docs/agents/method-block-targets.json; edit the source -->

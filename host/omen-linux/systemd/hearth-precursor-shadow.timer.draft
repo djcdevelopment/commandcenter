@@ -5,10 +5,9 @@ Description=HEARTH precursor shadow sweep every 30 minutes (stage 1: unexposed)
 
 [Timer]
 OnBootSec=10min
-# STOPGAP 2026-10-16 (cc-20b3ab45): 2min while hearth-precursor-shadow.path cannot start (the user's inotify watch
-# limit, fs.inotify.max_user_watches=65536, is held almost entirely by one dotnet process on /mnt/omen-*; raising it
-# is a sudo step for Derek, see streams/stats/waits.jsonl). Restore 30min once the path unit is active.
-OnUnitActiveSec=2min
+# 2026-10-16: ran at 2min as a stopgap while the path unit could not start (inotify watch limit 65,536 held by one
+# dotnet process); Derek raised fs.inotify.max_user_watches to 524,288 and the path unit started, so 30min is restored.
+OnUnitActiveSec=30min
 RandomizedDelaySec=2min
 Persistent=true
 

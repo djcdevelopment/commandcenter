@@ -377,11 +377,11 @@ def main():
                 row['am4'] = {'core_c': am4_data.get('cores'), 'source': 'ssh', 'loss': am4_data.get('loss', False)}
                 if 'am4' in tripped_cards:
                     row['trip-held-am4'] = True
-                    continue
-                tripped, reason = state.update_am4(am4_data, a.am4_limit, a.simulate, sample_number)
-                if tripped:
-                    tripped_cards.add('am4')
-                    new_trips.append({'card': 'am4', 'backend': am4_backend, 'reason': reason})
+                else:
+                    tripped, reason = state.update_am4(am4_data, a.am4_limit, a.simulate, sample_number)
+                    if tripped:
+                        tripped_cards.add('am4')
+                        new_trips.append({'card': 'am4', 'backend': am4_backend, 'reason': reason})
 
             # Handle new trips
             for trip in new_trips:
@@ -453,6 +453,11 @@ def main():
         lock.close()
         sys.exit(0)
     except BaseException as exc:
+        # A crashed sampler cannot protect subsequent dispatches. Latch first,
+        # just as for a thermal trip, before trying the optional stop command.
+        write_latch(pause_file, 'guard', f'guard failure: {type(exc).__name__}', a.out)
+        if a.on_trip:
+            run_on_trip(a.on_trip)
         guard_failure(a.out, exc)
         raise
     finally:

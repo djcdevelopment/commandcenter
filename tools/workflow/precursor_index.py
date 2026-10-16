@@ -319,6 +319,18 @@ def load_corpus(corpus_path: Path) -> tuple[list[dict], dict, int]:
     return rows, manifest, skipped
 
 
+def _file_sha256(path: Path) -> Optional[str]:
+    """Identity of the active corpus file (Derek 2026-10-16: recorded on every advice row); None when unreadable."""
+    try:
+        h = hashlib.sha256()
+        with open(path, "rb") as fh:
+            for chunk in iter(lambda: fh.read(1 << 20), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except OSError:
+        return None
+
+
 def build_index(corpus_path: Path, runs_root: Path, out_dir: Path, *, research_dir: Optional[Path],
                 now: Optional[datetime] = None) -> dict:
     t0 = time.perf_counter()
@@ -377,6 +389,7 @@ def build_index(corpus_path: Path, runs_root: Path, out_dir: Path, *, research_d
         "schema": INDEX_SCHEMA,
         "corpus_version": corpus_version,
         "corpus_path": str(corpus_path),
+        "corpus_sha256": _file_sha256(Path(corpus_path)),
         "built_at": iso_z(now),
         "row_count": len(rows),
         "corpus_rows": len(corpus_rows),
@@ -548,7 +561,8 @@ def _request_id(run_id: str, arm: str, corpus_version: str, config_id: str) -> s
 
 def _advice_row(run_id: str, arm: str, mode: str, at: Optional[datetime], generated_at: datetime,
                 corpus_version: str, config_id: str, state: str, diagnostic: Optional[str],
-                conditions: dict, result: Optional[dict], pool: Optional[list[dict]], latency_ms: float) -> dict:
+                conditions: dict, result: Optional[dict], pool: Optional[list[dict]], latency_ms: float,
+                corpus_sha256: Optional[str] = None) -> dict:
     result = result or {}
     return {
         "schema": ADVICE_SCHEMA,
@@ -560,6 +574,7 @@ def _advice_row(run_id: str, arm: str, mode: str, at: Optional[datetime], genera
         "as_of": iso_z(at) if at else None,
         "generated_at": iso_z(generated_at),
         "corpus_version": corpus_version,
+        "corpus_sha256": corpus_sha256,
         "config_id": config_id,
         "state": state,
         "diagnostic": diagnostic,
@@ -590,6 +605,7 @@ def advise_run(info: dict, index: Optional[dict], index_diag: Optional[str], *, 
     late = _join_diag(LATE_DIAGNOSTIC if info.get("first_final_at") else None,
                       "as_of:task.received" if not info.get("dispatched_at") and info.get("received_at") else None)
     corpus_version = (index or {}).get("corpus_version") or "none"
+    corpus_sha256 = (index or {}).get("corpus_sha256")
     config = (index or {}).get("config") or DEFAULT_CONFIG
     config_id = (index or {}).get("config_id") or config_id_of(config)
     conditions = {k: info.get(k) for k in ("backend", "task_family", "serving_profile_sha")}
@@ -600,7 +616,8 @@ def advise_run(info: dict, index: Optional[dict], index_diag: Optional[str], *, 
                   pool: Optional[list[dict]] = None) -> list[dict]:
         latency = (time.perf_counter() - t0) * 1000
         return [_advice_row(run_id, arm, mode, at, now, corpus_version, config_id, state,
-                            diagnostic, conditions, (results or {}).get(arm), pool, latency)
+                            diagnostic, conditions, (results or {}).get(arm), pool, latency,
+                            corpus_sha256=corpus_sha256)
                 for arm in arms]
 
     try:
@@ -632,7 +649,8 @@ def advise_run(info: dict, index: Optional[dict], index_diag: Optional[str], *, 
             if state == "ok" and res.get("diagnostic"):
                 diagnostic = _join_diag(res.get("diagnostic"), late)
             out.append(_advice_row(run_id, arm, mode, at, now, corpus_version, config_id, state,
-                                   diagnostic, conditions, res, pool, (time.perf_counter() - t0) * 1000))
+                                   diagnostic, conditions, res, pool, (time.perf_counter() - t0) * 1000,
+                                   corpus_sha256=corpus_sha256))
         return out
     except Exception as exc:  # noqa: BLE001 -- an advisor fault is a signal, never a failure
         diag = f"{type(exc).__name__}: {str(exc)[:200]}"
@@ -746,6 +764,8 @@ def join(runs_root: Path, out_dir: Path, corpus_path: Path, *, now: Optional[dat
     unreadable = 0
     per: dict[str, dict[str, dict]] = {}
     watermark = None
+    joined_run_ids: set[str] = set()            # Gate 2 counts distinct runs (Derek 2026-10-16), not paired arm rows
+    runs_by_brief: dict[str, set[str]] = {}     # intent_sha256 -> joined run ids, to track repeated briefs
 
     for path in work_dirs(runs_root):
         advice_path = path / ADVICE_DIR / ADVICE_FILE
@@ -778,6 +798,8 @@ def join(runs_root: Path, out_dir: Path, corpus_path: Path, *, now: Optional[dat
                 nonbinary += 1
                 continue
             joined += 1
+            joined_run_ids.add(info["run_id"])
+            runs_by_brief.setdefault(info.get("intent_sha256") or "", set()).add(info["run_id"])
             watermark = max(watermark or "", info["first_final_at"])
             arm = row.get("arm") or "?"
             period = _period_of(parse_ts(row.get("as_of")), periods)
@@ -816,6 +838,10 @@ def join(runs_root: Path, out_dir: Path, corpus_path: Path, *, now: Optional[dat
         "advice_files": files,
         "advice_count": advice_count,
         "joined_count": joined,
+        "joined_runs": len(joined_run_ids),
+        "repeated_briefs": sum(1 for ids in runs_by_brief.values() if len(ids) > 1),
+        "joined_runs_with_repeated_brief": sum(len(ids) for ids in runs_by_brief.values() if len(ids) > 1),
+        "gate2_target_runs": 40,
         "late_excluded": late_excluded,
         "awaiting_verdict": not_yet,
         "nonbinary_excluded": nonbinary,

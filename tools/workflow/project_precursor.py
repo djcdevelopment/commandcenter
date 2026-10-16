@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import resource
 import os
 import sys
 from pathlib import Path
@@ -52,6 +53,9 @@ def precursor_mode() -> str:
 def _resolve(raw: str) -> Path:
     path = Path(raw).expanduser()
     return path if path.is_absolute() else REPO_ROOT / path
+
+
+CPU_TARGET_S = 2.0  # measured operating target per sweep (Derek 2026-10-16), reported as cpu_overrun when exceeded
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -95,10 +99,18 @@ def main(argv: list[str] | None = None) -> int:
         summary["advise"] = pi.advise(runs_root, out_dir, mode="shadow")
     if args.join:
         accuracy = pi.join(runs_root, out_dir, corpus)
-        summary["join"] = {k: accuracy[k] for k in ("advice_files", "advice_count", "joined_count", "late_excluded",
+        summary["join"] = {k: accuracy[k] for k in ("advice_files", "advice_count", "joined_count", "joined_runs",
+                                                    "repeated_briefs", "gate2_target_runs", "late_excluded",
                                                     "awaiting_verdict", "nonbinary_excluded", "unreadable")}
         summary["join"]["arms"] = {arm: periods.get("all") for arm, periods in accuracy["arms"].items()}
 
+    # CPU rule (Derek 2026-10-16): nice 10 and a measured operating target of CPU_TARGET_S per sweep; overruns are
+    # reported here (the journal keeps this line), not enforced, until interference is observed.
+    ru_self, ru_kids = resource.getrusage(resource.RUSAGE_SELF), resource.getrusage(resource.RUSAGE_CHILDREN)
+    cpu_s = ru_self.ru_utime + ru_self.ru_stime + ru_kids.ru_utime + ru_kids.ru_stime
+    summary["cpu_s"] = round(cpu_s, 3)
+    summary["cpu_target_s"] = CPU_TARGET_S
+    summary["cpu_overrun"] = cpu_s > CPU_TARGET_S
     print(json.dumps(summary, indent=2, default=str))
     return 0
 

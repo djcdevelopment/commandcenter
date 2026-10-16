@@ -1,6 +1,6 @@
 # 0070 — A precursor advises: it never records a verdict and never picks a seat
 
-**Status:** Proposed (Track D1, 2026-10-16, filed by Claude Fable 5.1 under cc-c657d41c on the plan
+**Status:** Accepted 2026-10-16 by Derek (decision review applied by cc-20b3ab45; the cadence, Gate 2 unit and corpus lines below carry the same date). Proposed earlier that day (Track D1, 2026-10-16, filed by Claude Fable 5.1 under cc-c657d41c on the plan
 `tender-gathering-fox` rev 2 §5–§6 and `~/work/lab-rnd/research/precursor/CONTRACT.md`; nothing here is
 live until Derek accepts it and Gate 1 of that plan reads "proceed"). Goal tag G-harness under G-lab.
 
@@ -87,8 +87,13 @@ Standing decisions it builds on:
 ## Exposure stages
 
 - **Stage 1, unexposed shadow** (this ADR, after Gate 1): advice recorded, nothing displayed, no hook
-  line, no dashboard line. Runs until ≥ 40 joined rows exist (Gate 2; `joined_count` counts arm rows, two per
-  run, so 40 rows is 20 runs: whether the gate counts rows or runs is Derek's decision, DECISIONS-PENDING 2026-10-16).
+  line, no dashboard line. Runs until advice has joined a verdict on ≥ 40 distinct runs (Gate 2; Derek 2026-10-16:
+  runs, not arm rows, because the two arm rows of one run are paired measurements of one brief and one verdict;
+  `joined_runs` and `repeated_briefs` in `knowledge/precursor_accuracy.json` beside the row count). Gate 2 is sufficient
+  evidence for an operational display-pilot decision, not proof of predictive accuracy or statistical superiority; no
+  further evaluation gates are added. Stage 1 runs on corpus v1 (Derek 2026-10-16: not switched mid-evaluation); every
+  advice row records the active corpus identity (`corpus_version`, `corpus_sha256`); v2 becomes the next explicit
+  evaluation stage after an offline comparative replay.
 - **Stage 2, bounded display pilot** (after Gate 2, its own increment): attributable evidence and
   sample counts only ("k prior runs like this on this seat and family: n accepted of m; nearest:
   work_…"), a probability only if the calibration criterion holds for that arm, ids and counts only

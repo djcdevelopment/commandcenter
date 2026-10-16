@@ -1,5 +1,8 @@
-# Installed 2026-10-16 as ~/.config/systemd/user/hearth-precursor-shadow.service (ADR-0070 still Proposed; Gate 1
-# read "proceed" for bm25 and the stage-1 shadow went live at the 2026-10-16 cutover). Triggered by
+# Installed 2026-10-16 as ~/.config/systemd/user/hearth-precursor-shadow.service (ADR-0070 accepted by Derek 2026-10-16; Gate 1
+# read "proceed" for bm25 and the stage-1 shadow went live at the 2026-10-16 cutover). CPU rule (Derek 2026-10-16):
+# nice 10, target <= 2 CPU-seconds per sweep, measured by the script (`cpu_s`, `cpu_overrun` in its summary line in the
+# journal), allowed while the night backlog has dispatched > 0. Sweeps never overlap: the timer and the path unit both
+# start this one oneshot service, and systemd runs one instance of a service at a time. Triggered by
 # hearth-precursor-shadow.timer (30-minute catch-all) and hearth-precursor-shadow.path (work-dir creation, added
 # 2026-10-16 by cc-20b3ab45). The README's `cp host/omen-linux/systemd/*.{service,timer}` step skips the .draft files.
 #

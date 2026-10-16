@@ -1,0 +1,4 @@
+{
+  "_note": "Task ids of R&D sessions that are excluded from the session census denominator (tools/ops/session_census.py). A session is excluded when its id prefix cc-<first 8 chars of sessionId> is listed here. cc-9568f28c is the long-running R&D session that makes most of the HEARTH ledger traffic; counting it as an adoption sample would be circular. Add an id only with a reason in this note.",
+  "task_ids": ["cc-9568f28c"]
+}

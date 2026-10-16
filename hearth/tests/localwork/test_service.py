@@ -132,6 +132,28 @@ class LocalWorkServiceTests(unittest.TestCase):
         self.assertEqual(accepted["status"], "accepted")
         self.assertEqual(accepted["caller"]["validated_by"], "frontier")
 
+    def test_verdict_bucket_is_optional_enumerated_and_stored(self) -> None:
+        crit = [{"criterion": "diff applies", "status": "passed", "evidence": "git apply --check"}]
+        final = self.settle(self.submit()["work_id"])
+        kw = dict(decision="rejected", criteria=crit, summary="reviewed", evidence=["pytest"],
+                  receipt_id=None, caller_id="frontier")
+        with self.assertRaisesRegex(LocalWorkError, "bucket must be one of form, setup, substance"):
+            self.service.verdict(final["work_id"], bucket="vibes", **kw)
+        with self.assertRaisesRegex(LocalWorkError, "bucket must be one of"):
+            self.service.verdict(final["work_id"], bucket="", **kw)
+        self.assertEqual(self.service.get(final["work_id"])["status"], "awaiting_review")  # refusal wrote nothing
+        done = self.service.verdict(final["work_id"], bucket="setup", **kw)
+        self.assertEqual(done["verdict"]["bucket"], "setup")
+        stored = json.loads(self.service._manifest_path(final["work_id"]).read_text())
+        self.assertEqual(stored["verdict"]["bucket"], "setup")
+
+    def test_verdict_without_bucket_has_no_bucket_key(self) -> None:
+        crit = [{"criterion": "diff applies", "status": "passed", "evidence": "git apply --check"}]
+        final = self.settle(self.submit()["work_id"])
+        done = self.service.verdict(final["work_id"], decision="accepted", criteria=crit, summary="ok",
+                                    evidence=["e"], receipt_id=None, caller_id="frontier")
+        self.assertNotIn("bucket", done["verdict"])
+
     def test_only_one_structural_repair_is_attempted(self) -> None:
         self.outputs[:] = ["not json", "still not json"]
         manifest = self.submit()

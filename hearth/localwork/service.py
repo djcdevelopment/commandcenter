@@ -56,6 +56,7 @@ CARRY_NOTES_HEADING = ("WORKING NOTES (written by the draft's author; they name 
 ITEMS_WINDOW = 12
 ITEMS_MAX_TOKENS = 400
 ITEMS_AIDS = ["item_enumerator", "reader_agreement", "line_reference", "constrained_output"]
+VERDICT_BUCKETS = ("form", "setup", "substance")   # HEARTH method section 3; optional on a verdict
 IN_FLIGHT = frozenset({"accepted", "queued", "dispatched", "running"})
 KINDS = frozenset({"markdown", "json", "whole_file", "unified_diff"})
 LANES = frozenset({"auto", "fast", "deep", "tool"})   # tool: explicit only, when the route profile names it
@@ -2041,9 +2042,12 @@ class LocalWorkService:
 
     def verdict(self, work_id: str, *, decision: str, criteria: list[dict[str, Any]],
                 summary: str, evidence: list[Any], receipt_id: str | None,
-                caller_id: str) -> dict[str, Any]:
+                caller_id: str, bucket: str | None = None) -> dict[str, Any]:
         if decision not in {"accepted", "rejected", "superseded"}:
             raise LocalWorkError("decision must be accepted, rejected, or superseded")
+        if bucket is not None and bucket not in VERDICT_BUCKETS:
+            raise LocalWorkError(
+                f"bucket must be one of {', '.join(VERDICT_BUCKETS)} when given, got {bucket!r}")
         with self._lock:
             manifest = self.reconcile(work_id)
             if manifest["status"] != "awaiting_review":
@@ -2061,6 +2065,8 @@ class LocalWorkService:
             verdict = {"decision": decision, "criteria": criteria, "summary": summary,
                        "evidence": evidence, "receipt_id": receipt_id or manifest.get("receipt_id"),
                        "caller_id": caller_id}
+            if bucket is not None:
+                verdict["bucket"] = bucket
             manifest["verdict"] = verdict
             manifest["status"] = decision
             manifest["caller"]["validated_by"] = caller_id

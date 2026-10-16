@@ -105,12 +105,14 @@ def get_local_work_artifact(work_id: str) -> dict[str, Any]:
 
 def record_local_work_verdict(work_id: str, decision: str,
                               criteria: list[dict[str, Any]], summary: str,
-                              evidence: list[Any], receipt_id: str | None = None) -> dict[str, Any]:
-    """Record the frontier caller's explicit candidate verdict."""
+                              evidence: list[Any], receipt_id: str | None = None,
+                              bucket: str | None = None) -> dict[str, Any]:
+    """Record the frontier caller's explicit candidate verdict. Optional ``bucket`` names the miss:
+    "form", "setup" or "substance" (HEARTH method section 3); stored as ``verdict.bucket``."""
     service, _, identity = _owned(work_id)
     return service.verdict(work_id, decision=decision, criteria=criteria,
                            summary=summary, evidence=evidence, receipt_id=receipt_id,
-                           caller_id=identity.caller_id)
+                           caller_id=identity.caller_id, bucket=bucket)
 
 
 def get_tools() -> list[Callable]:

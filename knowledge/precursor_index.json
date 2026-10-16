@@ -2,13 +2,13 @@
   "schema": "precursor-index.v1",
   "corpus_version": "v1",
   "corpus_path": "/home/derek/work/lab-rnd/research/precursor/corpus/v1/runs.jsonl",
-  "built_at": "2026-10-16T07:58:31Z",
-  "row_count": 329,
+  "built_at": "2026-10-16T16:55:10Z",
+  "row_count": 330,
   "corpus_rows": 329,
-  "live_rows": 0,
+  "live_rows": 1,
   "refreshed_from_live": 303,
   "skipped": 0,
-  "evidence_watermark": "2026-10-16T07:53:53Z",
+  "evidence_watermark": "2026-10-16T10:47:00Z",
   "config": {
     "k": 5,
     "min_pool": 3,
@@ -39,7 +39,7 @@
   },
   "config_source": null,
   "config_id": "ee46c9264051",
-  "sha256": "9e3cc982863432410f6ea0cc3e2c1251b3fe4b37a8c5e9df247a8e6f540c794e",
+  "sha256": "f19c576d9b17bbf0ad6e173055938b0c83ec99e81e3b18475d3da357210cf740",
   "rows": [
     {
       "run_id": "DEL-DA-delivery-codex-a-perception-5070-085401",
@@ -1908,6 +1908,39 @@
         }
       ],
       "source": "both"
+    },
+    {
+      "run_id": "work_2f21a7141c0c49918a9bfee63adf6641",
+      "group_id": "g_b791e1870c98",
+      "intent_text": "[goal:G-harness] CUTOVER-PROOF for ADR-0071 events: in research/labels/transcripts.py, make sure the module has a one-line module docstring as its first statement describing the file (transcript span derivation for review-effort labels). If one already exists, return the file unchanged. Change nothing else.",
+      "criteria": [
+        "The first statement of research/labels/transcripts.py is a one-line module docstring",
+        "No other line of the file changes",
+        "The file still imports and compiles (python3 -m py_compile)"
+      ],
+      "backend": "omen-dense-27b",
+      "task_family": "code_fix",
+      "serving_profile_sha": "43f8c7fb96c73ec7d43b2f29b31f7ada824bc37851cc4852a23f8254b7db3b41",
+      "dispatched_at": "2026-10-16T10:43:47Z",
+      "artifact_at": "2026-10-16T10:46:13Z",
+      "first_final_at": "2026-10-16T10:47:00Z",
+      "verdict_events": [
+        {
+          "at": "2026-10-16T10:47:00Z",
+          "decision": "rejected",
+          "bucket": "setup",
+          "by": "claude-frontier",
+          "receipt_id": null
+        },
+        {
+          "at": "2026-10-16T10:47:00Z",
+          "decision": "rejected",
+          "bucket": "setup",
+          "by": "claude-frontier",
+          "receipt_id": null
+        }
+      ],
+      "source": "live"
     },
     {
       "run_id": "work_2fe527d500108f54f16cd51f1b624c5b",
@@ -10015,5 +10048,5 @@
       "source": "both"
     }
   ],
-  "build_ms": 32.3
+  "build_ms": 56.9
 }

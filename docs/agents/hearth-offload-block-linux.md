@@ -107,6 +107,13 @@ Watch with `watch_local_work`, fetch with `get_local_work_artifact`, validate in
 then `record_local_work_verdict(accepted|rejected|superseded)` with evidence per criterion (each
 `criteria[].criterion` repeats a submitted acceptance criterion verbatim) and `bucket="form"|"setup"|"substance"`
 naming the miss (HEARTH method section 3). Never apply a candidate before the verdict.
+Verdict labels (live since 2026-10-16, ADR-0071 proposed): a `rejected` verdict without `bucket` is refused; pass `attended`
+(false only for an unattended Codex verdict, which may only reject and never its own candidate, ADR-0069) and `task_id`
+(this session's `cc-`/`cx-` id); criteria rows are `{criterion, status: passed|failed, evidence}`; put `review_minutes_active=<n>`
+in one evidence row as your estimate. Fetch the candidate through `get_local_work_artifact`, not from disk: that call is the
+`artifact.fetched` event the measured review time starts from. When an accepted candidate is applied, commit with the trailer
+`Local-Work: work_<id>`. Two sidecars appear beside each run and are advisory only: `precursor/advice.json` (prior-run evidence,
+shadow, never displayed unless a later decision) and `labels.json` (every label with its method; `knowledge/labels.json` rolls up).
 
 Artifact kinds, measured 2026-09-27: prefer `whole_file` (with `target_path`) for any target under
 ~6K output tokens; the 27B writes correct edits but unreliable `unified_diff` hunks (wrong counts are

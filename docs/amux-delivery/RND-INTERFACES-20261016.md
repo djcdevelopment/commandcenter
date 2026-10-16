@@ -1,7 +1,7 @@
 # HEARTH interfaces R&D slice — 2026-10-16
 
 Receipt: `br-20261016-065248-7c6bf7ea`; parent task attribution `cx-adhoc`.
-Status: BUILT NOT DEPLOYED. No service restarts, configuration changes or inference dispatches in this slice.
+Status: DEPLOYED by the parent integration at 2026-10-16T07:00Z, flash ea31bca. Builder-only checks below are retained as history.
 
 Observed defects: `plan_execution(inference.deliberate, task_family=...)` bypassed the family regime that submission applies. Direct callers had no authenticated own-execution inbox, while delegated listing reversed only the oldest 10,000 global jobs and could hide recent work. Delegated submitted timestamps read a nonexistent `submitted_at` field.
 
@@ -29,3 +29,9 @@ Restart edge retained: an interrupted running `inference.deliberate` execution i
 Next physical action: parent integrates this commit with the staged delivery increment, then performs its sole-owner gateway deployment. After deployment call `plan_execution(operation="inference.deliberate", task_family="code_review", prompt_bytes=100)` and compare a matching authorized submission's desired regime and invocation. Use `list_my_executions(limit=1)` under the caller that submitted it, then its returned cursor. Live MCP registration, real inference agreement and cross-session caller credentials remain UNVERIFIED here; they require the parent deployment and caller integration. The catalog renderer may need refreshing after the merged capability set is final.
 
 No local offload was made: this slice is coupled authorization, ledger and execution-path integration; briefing and reviewing separate generated fragments would not reduce its integration cost.
+
+## Parent deployment evidence
+
+Gateway restarted with zero active inference leases and no GPU tenant. Live `plan_execution(inference.deliberate, code_review)` returned thinking=true, think_then_emit, max_tokens24576, family provenance and three-dense/dev context with expiry. Native MCP `operator_whoami` using the explicit handoff keyfile resolved codex-cli; `list_my_executions(limit=3)` returned that caller's recent jobs and next_before_sequence279957, without prompt bodies. Live registration/authentication/own discovery are verified. Family preview/submission equality was checked by the focused existing backend-fixture test, not a new deliberate inference lap. Three local-work sidecar reruns were separate from that interface proof.
+
+Combined integration ran19 focused existing checks, all passed. Remaining sidecar quote-field edge and timer disposition: `/home/derek/work/amux/output/receipts/RND-OPS-20261016.md`, AMUX-68. No failed candidate applied. Interrupted deliberate jobs still require explicit resubmission.

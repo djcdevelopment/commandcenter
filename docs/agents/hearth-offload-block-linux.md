@@ -156,4 +156,6 @@ audit excludes dev. Code defaults are prod; a missing or expired file reads as p
 
 <!-- source: docs/agents/hearth-offload-block-linux.md in commandcenter-linux-flash; ~/.claude/CLAUDE.md is a synced copy — edit the source -->
 <!-- layout: the synced ~/.claude/CLAUDE.md may carry a leading span delimited by the lab-intent:begin and lab-intent:end marker comments, owned by ~/work/lab tools, above this offload block.
-     A sync writes only the offload span (lines above the source comment) and must preserve that leading span. -->
+     A sync writes only the offload span (lines above the source comment) and must preserve that leading span.
+     On omen-linux (no node) the sync is tools/ops/sync_claude_block.py: --write for this span, --method for the
+     hearth-method span, --target for ~/.codex/AGENTS.md; it proves the bytes outside the span unchanged. -->

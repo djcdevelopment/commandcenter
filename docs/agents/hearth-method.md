@@ -27,6 +27,8 @@ code it must read, line-numbered. An output cap in words implies a budget of abo
 **3. Review protocol.** Put every miss in one bucket, and name the bucket:
 - **form** (wrong date format, citation off by a line, extra prose): a sidecar or you repair it; count
   the repair; it is not a verdict.
+  Functionally the same or very close (a budget up to about 20% over, a cap a little missed) is a warning with
+  the measure, never a failure (Derek 2026-10-15); a cut-off response and a wrong answer are never "close".
 - **setup** (thinking off for judgment, budget too small, rule missing from the brief, excerpt missing
   context, wrong seat): change one lever and rerun.
 - **substance** (a wrong answer under a fair setup): only this counts against the model. Write it as

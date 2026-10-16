@@ -6,84 +6,206 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "contract_version", "evidence_watermark", "bucket_count", "totals",
-    "per_class", "offload_ratio", "est_usd_saved", "buckets"
+    "contract_version",
+    "evidence_watermark",
+    "bucket_count",
+    "totals",
+    "per_class",
+    "offload_ratio",
+    "est_usd_saved",
+    "buckets"
   ],
   "properties": {
-    "contract_version": { "const": "offload.v1" },
-    "evidence_watermark": { "type": ["string", "null"] },
-    "bucket_count": { "type": "integer", "minimum": 0 },
-    "corpus_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
-    "corpus_event_count": { "type": "integer", "minimum": 0 },
+    "contract_version": {
+      "const": "offload.v1"
+    },
+    "evidence_watermark": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "bucket_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "corpus_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "corpus_event_count": {
+      "type": "integer",
+      "minimum": 0
+    },
     "totals": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["calls", "tokens_in", "tokens_out"],
+      "required": [
+        "calls",
+        "tokens_in",
+        "tokens_out"
+      ],
       "properties": {
-        "calls": { "type": "integer", "minimum": 0 },
-        "tokens_in": { "type": "integer", "minimum": 0 },
-        "tokens_out": { "type": "integer", "minimum": 0 }
+        "calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tokens_in": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tokens_out": {
+          "type": "integer",
+          "minimum": 0
+        }
       }
     },
     "per_class": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["sunk", "trial", "unknown"],
+      "required": [
+        "sunk",
+        "trial",
+        "unknown"
+      ],
       "properties": {
         "sunk": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["calls", "tokens_in", "tokens_out"],
+          "required": [
+            "calls",
+            "tokens_in",
+            "tokens_out"
+          ],
           "properties": {
-            "calls": { "type": "integer", "minimum": 0 },
-            "tokens_in": { "type": "integer", "minimum": 0 },
-            "tokens_out": { "type": "integer", "minimum": 0 }
+            "calls": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tokens_in": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tokens_out": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         },
         "trial": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["calls", "tokens_in", "tokens_out"],
+          "required": [
+            "calls",
+            "tokens_in",
+            "tokens_out"
+          ],
           "properties": {
-            "calls": { "type": "integer", "minimum": 0 },
-            "tokens_in": { "type": "integer", "minimum": 0 },
-            "tokens_out": { "type": "integer", "minimum": 0 }
+            "calls": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tokens_in": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tokens_out": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         },
         "unknown": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["calls", "tokens_in", "tokens_out"],
+          "required": [
+            "calls",
+            "tokens_in",
+            "tokens_out"
+          ],
           "properties": {
-            "calls": { "type": "integer", "minimum": 0 },
-            "tokens_in": { "type": "integer", "minimum": 0 },
-            "tokens_out": { "type": "integer", "minimum": 0 }
+            "calls": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tokens_in": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tokens_out": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         }
       }
     },
-    "offload_ratio": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "offload_ratio": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 1
+    },
     "est_usd_saved": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["reference", "input_per_mtok", "output_per_mtok", "usd"],
+      "required": [
+        "reference",
+        "input_per_mtok",
+        "output_per_mtok",
+        "usd"
+      ],
       "properties": {
-        "reference": { "type": "string" },
-        "input_per_mtok": { "type": "number" },
-        "output_per_mtok": { "type": "number" },
-        "usd": { "type": "number", "minimum": 0 }
+        "reference": {
+          "type": "string"
+        },
+        "input_per_mtok": {
+          "type": "number"
+        },
+        "output_per_mtok": {
+          "type": "number"
+        },
+        "usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "basis": {
+          "type": "string",
+          "description": "what the figure assumes: every offloaded token priced at the reference frontier rate; an estimate of avoided spend, not a measured saving"
+        },
+        "scope": {
+          "type": "string"
+        }
       }
     },
     "real_usd_spent": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["pricing_source", "usd", "priced_calls", "unpriced_calls"],
+      "required": [
+        "pricing_source",
+        "usd",
+        "priced_calls",
+        "unpriced_calls"
+      ],
       "description": "Real $ over TRIAL calls priced by gemini_pricing (verified rates). Optional: absent on documents built before 2026-07-23. usd is a floor -- unpriced_calls counts trial calls that could not be priced (unlisted model or null tokens).",
       "properties": {
-        "pricing_source": { "type": "string" },
-        "usd": { "type": "number", "minimum": 0 },
-        "priced_calls": { "type": "integer", "minimum": 0 },
-        "unpriced_calls": { "type": "integer", "minimum": 0 }
+        "pricing_source": {
+          "type": "string"
+        },
+        "usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "priced_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unpriced_calls": {
+          "type": "integer",
+          "minimum": 0
+        }
       }
     },
     "buckets": {
@@ -92,22 +214,66 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "backend", "cost_class", "models", "calls", "ok_rate",
-          "tokens_in", "tokens_out", "last_seen"
+          "backend",
+          "cost_class",
+          "models",
+          "calls",
+          "ok_rate",
+          "tokens_in",
+          "tokens_out",
+          "last_seen"
         ],
         "properties": {
-          "backend": { "type": ["string", "null"] },
-          "cost_class": { "type": "string", "enum": ["sunk", "trial", "unknown"] },
+          "backend": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cost_class": {
+            "type": "string",
+            "enum": [
+              "sunk",
+              "trial",
+              "unknown"
+            ]
+          },
           "models": {
             "type": "array",
-            "items": { "type": "string" }
+            "items": {
+              "type": "string"
+            }
           },
-          "calls": { "type": "integer", "minimum": 0 },
-          "ok_rate": { "type": "number", "minimum": 0, "maximum": 1 },
-          "tokens_in": { "type": "integer", "minimum": 0 },
-          "tokens_out": { "type": "integer", "minimum": 0 },
-          "real_usd": { "type": ["number", "null"], "minimum": 0 },
-          "last_seen": { "type": ["string", "null"] }
+          "calls": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "ok_rate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "tokens_in": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tokens_out": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "real_usd": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "last_seen": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
         }
       }
     },
@@ -115,42 +281,147 @@
       "type": "array",
       "maxItems": 50,
       "description": "Per-caller attribution over the same events as buckets. Optional: absent on documents built before 2026-09-07. key is a caller.id -- a PRIVATE internal identity from callers.json. This document is private (knowledge/offload.json); it is never published, and the public portfolio projection has its own separate key allowlist. Counts, ids and timestamps only -- no prompt text, arguments, paths or error strings.",
-      "items": { "$ref": "#/$defs/attribution_row" }
+      "items": {
+        "$ref": "#/$defs/attribution_row"
+      }
     },
-    "by_caller_truncated": { "type": "boolean" },
-    "by_caller_omitted": { "type": "integer", "minimum": 0 },
+    "by_caller_truncated": {
+      "type": "boolean"
+    },
+    "by_caller_omitted": {
+      "type": "integer",
+      "minimum": 0
+    },
     "by_task": {
       "type": "array",
       "maxItems": 50,
       "description": "Per-task attribution over the same events as buckets. Optional: absent on documents built before 2026-09-07. key is the caller-supplied task_id; events with a null or missing task_id are aggregated under the single key \"(unstamped)\" so they are counted, never dropped.",
-      "items": { "$ref": "#/$defs/attribution_row" }
+      "items": {
+        "$ref": "#/$defs/attribution_row"
+      }
     },
-    "by_task_truncated": { "type": "boolean" },
-    "by_task_omitted": { "type": "integer", "minimum": 0 }
+    "by_task_truncated": {
+      "type": "boolean"
+    },
+    "by_task_omitted": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "unmapped_backends": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "backend ids seen on counted events that COST_CLASS_MAP does not name (they fell to cost_class unknown); empty when every seat is classified"
+    },
+    "energy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "watt_s",
+        "instrumented_calls",
+        "status"
+      ],
+      "properties": {
+        "watt_s": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "instrumented_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "type": "string"
+        }
+      }
+    },
+    "offload_outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "accepted_calls",
+        "outcome_unknown_calls",
+        "status"
+      ],
+      "properties": {
+        "accepted_calls": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "outcome_unknown_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "type": "string"
+        }
+      }
+    }
   },
   "$defs": {
     "attribution_row": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "key", "calls", "ok_rate", "tokens_in", "tokens_out", "per_class",
-        "est_usd_saved_usd", "last_seen"
+        "key",
+        "calls",
+        "ok_rate",
+        "tokens_in",
+        "tokens_out",
+        "per_class",
+        "est_usd_saved_usd",
+        "last_seen"
       ],
       "properties": {
-        "key": { "type": "string" },
-        "calls": { "type": "integer", "minimum": 0 },
-        "ok_rate": { "type": "number", "minimum": 0, "maximum": 1 },
-        "tokens_in": { "type": "integer", "minimum": 0 },
-        "tokens_out": { "type": "integer", "minimum": 0 },
+        "key": {
+          "type": "string"
+        },
+        "calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ok_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "tokens_in": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tokens_out": {
+          "type": "integer",
+          "minimum": 0
+        },
         "per_class": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["sunk", "trial", "unknown"],
+          "required": [
+            "sunk",
+            "trial",
+            "unknown"
+          ],
           "description": "CALLS per cost class for this row (not tokens).",
           "properties": {
-            "sunk": { "type": "integer", "minimum": 0 },
-            "trial": { "type": "integer", "minimum": 0 },
-            "unknown": { "type": "integer", "minimum": 0 }
+            "sunk": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "trial": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unknown": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         },
         "est_usd_saved_usd": {
@@ -158,7 +429,12 @@
           "minimum": 0,
           "description": "The document's own est_usd_saved formula (reference frontier price) applied to this row's offloaded (sunk+trial) tokens."
         },
-        "last_seen": { "type": ["string", "null"] }
+        "last_seen": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
       }
     }
   }

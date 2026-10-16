@@ -577,3 +577,81 @@ class AttributionDimensionTests(TestCase):
         row = build_offload_document(self.ledger)["by_task"][0]
         self.assertEqual(row["last_seen"], "2026-07-03T12:00:00.123+00:00")
         self.assertEqual(row["calls"], 3)  # the unparseable ts is still counted
+
+
+class AccountingSplitTests(TestCase):
+    """harness-plan I2.3 (§4): Linux seats classified, unmapped seats named, energy and outcome as values or an
+    unavailable reason, the estimate labelled as an estimate."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.ledger = Path(self.tmp.name) / "events.ndjson"
+
+    def write(self, events: list[dict]) -> dict:
+        with self.ledger.open("w", encoding="utf-8", newline="\n") as handle:
+            for event in events:
+                handle.write(json.dumps(event) + "\n")
+        return build_offload_document(self.ledger)
+
+    def test_linux_seats_are_sunk_and_unmapped_seats_are_named(self) -> None:
+        doc = self.write([
+            make_offload_event("omen-vllm", "2026-10-15T10:00:00Z"),
+            make_offload_event("omen-dense-27b", "2026-10-15T10:01:00Z"),
+            make_offload_event("omen-dense-27b-b", "2026-10-15T10:02:00Z"),
+            make_offload_event("am4-vllm", "2026-10-15T10:03:00Z"),
+            make_offload_event("am4-tool-4070ti", "2026-10-15T10:04:00Z"),
+            make_offload_event("am4-tool-5070", "2026-10-15T10:05:00Z"),
+            make_offload_event("fx99-vllm", "2026-10-15T10:06:00Z"),
+            make_offload_event("omen-perception", "2026-10-15T10:07:00Z"),
+            make_offload_event("tesseract-ocr", "2026-10-15T10:08:00Z"),
+            make_offload_event("mystery-seat", "2026-10-15T10:09:00Z"),
+            make_offload_event("mystery-seat", "2026-10-15T10:10:00Z"),
+        ])
+        self.assertEqual(doc["per_class"]["sunk"]["calls"], 9)
+        self.assertEqual(doc["per_class"]["unknown"]["calls"], 2)
+        self.assertEqual(doc["unmapped_backends"], ["mystery-seat"])
+
+    def test_unmapped_is_empty_and_model_fallback_never_lists(self) -> None:
+        doc = self.write([
+            make_offload_event("omen-vllm", "2026-10-15T10:00:00Z"),
+            {"schema": "hearth-event.v1", "ts": "2026-10-15T10:01:00Z", "task_class": "inference", "tool": "local_generate",
+             "backend": None, "model": "gpt-4", "ok": True, "cost": {"tokens_in": 1, "tokens_out": 1}},
+        ])
+        self.assertEqual(doc["per_class"]["unknown"]["calls"], 1)
+        self.assertEqual(doc["unmapped_backends"], [])
+
+    def test_energy_unavailable_when_no_event_is_instrumented(self) -> None:
+        ev = make_offload_event("omen-vllm", "2026-10-15T10:00:00Z")
+        ev["cost"]["watt_s"] = None
+        doc = self.write([ev, make_offload_event("omen-vllm", "2026-10-15T10:01:00Z")])
+        self.assertIsNone(doc["energy"]["watt_s"])
+        self.assertEqual(doc["energy"]["instrumented_calls"], 0)
+        self.assertTrue(doc["energy"]["status"].startswith("unavailable: not instrumented"))
+
+    def test_energy_sums_numeric_watt_s_only(self) -> None:
+        a = make_offload_event("omen-vllm", "2026-10-15T10:00:00Z"); a["cost"]["watt_s"] = 12.5
+        b = make_offload_event("omen-vllm", "2026-10-15T10:01:00Z"); b["cost"]["watt_s"] = 7.5
+        c = make_offload_event("omen-vllm", "2026-10-15T10:02:00Z"); c["cost"]["watt_s"] = "n/a"
+        d = make_offload_event("omen-vllm", "2026-10-15T10:03:00Z")
+        doc = self.write([a, b, c, d])
+        self.assertEqual(doc["energy"], {"watt_s": 20.0, "instrumented_calls": 2, "status": "measured"})
+
+    def test_outcome_unavailable_and_estimate_labelled(self) -> None:
+        doc = self.write([
+            make_offload_event("omen-vllm", "2026-10-15T10:00:00Z"),
+            make_offload_event("gcp-gemini", "2026-10-15T10:01:00Z"),
+            make_offload_event("mystery-seat", "2026-10-15T10:02:00Z"),
+        ])
+        self.assertIsNone(doc["offload_outcome"]["accepted_calls"])
+        self.assertEqual(doc["offload_outcome"]["outcome_unknown_calls"], 2)
+        self.assertTrue(doc["offload_outcome"]["status"].startswith("unavailable: no use link"))
+        self.assertIn("estimate", doc["est_usd_saved"]["basis"])
+        self.assertIn("outcome is unknown", doc["est_usd_saved"]["scope"])
+        self.assertEqual(doc["est_usd_saved"]["usd"], round((20 * 3.0 + 40 * 15.0) / 1e6, 6))
+        try:
+            import jsonschema
+        except ImportError:
+            self.skipTest("jsonschema not installed")
+        schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+        jsonschema.Draft202012Validator(schema).validate(doc)

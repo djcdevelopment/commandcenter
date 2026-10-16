@@ -35,12 +35,27 @@ REAL_PRICING_SOURCE = "vertex-ai-pricing verified 2026-07-23 (global/standard, <
 COST_CLASS_MAP = {
     "omen-arc": "sunk",       # resident Qwen3-30B-A3B on OMEN's dual B70s (ADR-0034)
     "omen-arc-oss": "sunk",   # banked-fire gpt-oss-120b, same cards (ADR-0034)
-    "omen-ollama": "sunk",
+    "omen-ollama": "sunk",    # resident ollama on OMEN
     "omen-swap": "sunk",      # rotation rung -- the SAME dual B70s (ADR-0045); a side
                               # model costs a load, not a dollar
+    "omen-vllm": "sunk",      # resident vllm on OMEN
+    "omen-dense-27b": "sunk", # resident dense-27b on OMEN
+    "omen-dense-27b-b": "sunk", # resident dense-27b-b on OMEN
     "fx99-ollama": "sunk",    # RTX 2070 SUPER sidecar on the monitoring node (ADR-0039)
+    "fx99-vllm": "sunk",      # resident vllm on FX99
     "am4-oxen": "sunk",       # ☠ tombstone (cards moved to OMEN 2026-08-20)
     "am4-moe": "sunk",        # ☠ tombstone; was resident gpt-oss-120b on AM4 (2026-07-18)
+    "am4-vllm": "sunk",       # resident vllm on AM4
+    "am4-tool-4070ti": "sunk", # resident tool on AM4 4070ti
+    "am4-tool-5070": "sunk",   # resident tool on AM4 5070
+    "omen-perception": "sunk", # resident perception on OMEN
+    "tesseract-ocr": "sunk",   # resident tesseract on OMEN
+    # Retired Linux ids still present in the ledger (271 calls up to 2026-10); mapped so the live document's
+    # unmapped_backends stays reserved for a seat nobody has classified (harness-plan I2.3, 2026-10-15).
+    "am4-dense": "sunk",      # ☠ retired AM4 dense rung (pre-dense-tp2 naming)
+    "am4-ollama": "sunk",     # ☠ retired AM4 ollama rung
+    "am4-read-4070ti": "sunk",  # ☠ retired AM4 read seat (renamed am4-tool-4070ti 2026-09-28)
+    "omen-arc-27b": "sunk",   # ☠ retired Windows-era 27B rung on the same B70s
     "gcp-gemini": "trial",
     "gcp-gemini-pro": "trial",
 }
@@ -285,6 +300,9 @@ def build_offload_document(ledger_path: Path = DEFAULT_LEDGER, *,
     buckets_data = {}
     by_caller_data: dict[str, dict] = {}
     by_task_data: dict[str, dict] = {}
+    unmapped_backends = set()
+    energy_watt_s_sum = 0.0
+    energy_instrumented_calls = 0
     newest_ts: str | None = None
     newest_moment: datetime | None = None
     line_count = 0
@@ -310,6 +328,8 @@ def build_offload_document(ledger_path: Path = DEFAULT_LEDGER, *,
             if backend:
                 cost_class = COST_CLASS_MAP.get(backend, "unknown")
                 bucket_key = backend
+                if cost_class == "unknown":
+                    unmapped_backends.add(backend)
             else:
                 lower_model = model.lower()
                 if "gemini" in lower_model:
@@ -344,9 +364,14 @@ def build_offload_document(ledger_path: Path = DEFAULT_LEDGER, *,
             cost = event.get("cost") or {}
             tokens_in = int(cost.get("tokens_in") or 0)
             tokens_out = int(cost.get("tokens_out") or 0)
+            watt_s = cost.get("watt_s")
 
             acc["tokens_in"] += tokens_in
             acc["tokens_out"] += tokens_out
+
+            if isinstance(watt_s, (int, float)) and not isinstance(watt_s, bool):
+                energy_watt_s_sum += float(watt_s)
+                energy_instrumented_calls += 1
 
             totals["calls"] += 1
             totals["tokens_in"] += tokens_in
@@ -431,10 +456,23 @@ def build_offload_document(ledger_path: Path = DEFAULT_LEDGER, *,
     # ledger's non-blank line count changes, stable across checkouts.
     corpus_digest = f"sha256:{hashlib.sha256(f'events.ndjson:{line_count}'.encode('utf-8')).hexdigest()}"
 
+    # Energy: sum of watt_s over counted events (inference/local_generate).
+    energy_status = "measured" if energy_instrumented_calls > 0 else "unavailable: not instrumented (cost.watt_s null on every counted event)"
+    energy_watt_s = float(energy_watt_s_sum) if energy_instrumented_calls > 0 else None
+
+    # Outcome: we have no verdict or use record joins, so outcome is unknown.
+    outcome_unknown_calls = per_class["sunk"]["calls"] + per_class["trial"]["calls"]
+
     return {
         "contract_version": "offload.v1",
         "evidence_watermark": newest_ts,
         "bucket_count": len(buckets),
+        "unmapped_backends": sorted(unmapped_backends),
+        "energy": {
+            "watt_s": energy_watt_s,
+            "instrumented_calls": energy_instrumented_calls,
+            "status": energy_status,
+        },
         "totals": totals,
         "per_class": per_class,
         "offload_ratio": offload_ratio,
@@ -442,13 +480,20 @@ def build_offload_document(ledger_path: Path = DEFAULT_LEDGER, *,
             "reference": "claude-sonnet",
             "input_per_mtok": 3.0,
             "output_per_mtok": 15.0,
-            "usd": round(usd, 6)
+            "usd": round(usd, 6),
+            "basis": "every offloaded (sunk+trial) token priced at the reference frontier rate; an estimate of avoided spend, not a measured saving",
+            "scope": "all offloaded calls; no verdict or use record joins to an inference event, so outcome is unknown for every call",
         },
         "real_usd_spent": {
             "pricing_source": REAL_PRICING_SOURCE,
             "usd": round(real["usd"], 6),
             "priced_calls": real["priced_calls"],
             "unpriced_calls": real["unpriced_calls"],
+        },
+        "offload_outcome": {
+            "accepted_calls": None,
+            "outcome_unknown_calls": outcome_unknown_calls,
+            "status": "unavailable: no use link on inference rows (no verdict or board artifact joins to a local_generate event)",
         },
         "buckets": buckets,
         # Attribution dimensions (C-06). Private identifiers; see the docstring.

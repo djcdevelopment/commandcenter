@@ -554,6 +554,52 @@ class ExecutionService:
             policy_out["max_tokens"] = min(regime["max_tokens"], cap)
         return out, policy_out
 
+    def _normalize_regime(
+        self, operation: Operation, arguments: dict[str, Any],
+        policy: Optional[dict[str, Any]], admit_bytes: int,
+    ) -> tuple[dict[str, Any], ExecutionPolicy, dict[str, str]]:
+        """One content-free regime/policy resolution for preview and admission."""
+        original_arguments, original_policy = dict(arguments), dict(policy or {})
+        if operation.name == DELIBERATE and arguments.get("task_family") is not None:
+            arguments, policy = self._apply_family_regime(operation, arguments, policy, admit_bytes)
+        resolved = self.operations.policy_for(operation, policy)
+        if operation.name == DELIBERATE:
+            if not isinstance(arguments.get("thinking"), bool):
+                raise ExecutionServiceError("thinking is required and must be a boolean")
+            if arguments.get("procedure") == "think_then_emit" and not arguments["thinking"]:
+                raise ExecutionServiceError("procedure 'think_then_emit' needs thinking")
+            if resolved.max_tokens is None:
+                raise ExecutionServiceError(f"{operation.name} requires policy.max_tokens")
+            cap = int(load_pool().by_name(arguments["backend"]).settings["deliberate_max_tokens"])
+            if resolved.max_tokens > cap:
+                raise ExecutionServiceError(
+                    f"policy_refusal: max_tokens {resolved.max_tokens} exceeds {arguments['backend']} "
+                    f"deliberate_max_tokens {cap}"
+                )
+        provenance = {}
+        for key in ("backend", "model", "thinking", "procedure"):
+            provenance[key] = ("caller" if original_arguments.get(key) is not None else
+                               "family" if arguments.get(key) is not None else
+                               "route_resolution" if key in {"backend", "model"} else "operation_default")
+        for key in ("max_tokens", "deadline_s", "priority"):
+            provenance[key] = ("caller" if original_policy.get(key) is not None else
+                               "family" if (policy or {}).get(key) is not None else "operation_default")
+        return arguments, resolved, provenance
+
+    @staticmethod
+    def _planning_context() -> dict[str, Any]:
+        from fleet.environment import read_environment, stamp
+        from hearth.execution.lab_config import active_configuration
+        from datetime import datetime, timezone
+
+        name, source = active_configuration()
+        env = read_environment()
+        return {
+            "observed_at": datetime.now(timezone.utc).isoformat(),
+            "configuration": {"name": name, "source": source},
+            "environment": {**stamp(env), "source": env["path"], "missing": env.get("missing", False)},
+        }
+
     def _family_route(
         self,
         operation: Operation,
@@ -779,18 +825,8 @@ class ExecutionService:
                     f"packed prompt is {len(prompt_bytes)} bytes; "
                     f"limit is {operation.max_prompt_bytes}"
                 )
-        if deliberate and arguments_value.get("task_family") is not None:
-            arguments_value, policy = self._apply_family_regime(operation, arguments_value, policy, admit_bytes)
-        policy_value = self.operations.policy_for(operation, policy)
-        if deliberate:
-            if policy_value.max_tokens is None:
-                raise ExecutionServiceError(f"{operation.name} requires policy.max_tokens")
-            cap = int(load_pool().by_name(arguments_value["backend"]).settings["deliberate_max_tokens"])
-            if policy_value.max_tokens > cap:
-                raise ExecutionServiceError(
-                    f"policy_refusal: max_tokens {policy_value.max_tokens} exceeds {arguments_value['backend']} "
-                    f"deliberate_max_tokens {cap}"
-                )
+        arguments_value, policy_value, regime_provenance = self._normalize_regime(
+            operation, arguments_value, policy, admit_bytes)
         backend = None if is_delegated else arguments_value.get("backend")
         endpoint = None if is_delegated else arguments_value.get("endpoint")
         pool = None if is_delegated else load_pool()
@@ -860,6 +896,8 @@ class ExecutionService:
                     "priority": policy_value.priority,
                 },
                 "idempotency_key": idempotency_key,
+                "regime_provenance": regime_provenance,
+                "planning_context": self._planning_context(),
             }
             initial = {
                 "request_id": request_id,
@@ -915,6 +953,8 @@ class ExecutionService:
         task_family: Optional[str] = None,
         response_schema: Optional[dict[str, Any]] = None,
         temperature: Optional[float] = None,
+        thinking: Optional[bool] = None,
+        procedure: Optional[str] = None,
     ) -> dict[str, Any]:
         """Resolve policy and provider without storing content or dispatching work.
 
@@ -937,12 +977,20 @@ class ExecutionService:
             raise ExecutionServiceError(
                 f"prompt_bytes must be between 0 and {operation.max_prompt_bytes}"
             )
-        resolved_policy = self.operations.policy_for(operation, policy)
-        route = self._family_route(
-            operation,
-            {"model": model, "backend": backend, "task_family": task_family},
-            prompt_bytes,
-        )
+        arguments = {key: value for key, value in {
+            "model": model, "backend": backend, "task_family": task_family,
+            "thinking": thinking, "procedure": procedure,
+        }.items() if value is not None}
+        if operation.name == DELIBERATE:
+            # Validate controls exactly as submit does, without accepting/storing content.
+            self._validate_deliberate(operation, {
+                **arguments, "messages": [{"role": "user", "content": "preview"}]})
+        elif thinking is not None or procedure is not None:
+            raise ExecutionServiceError("thinking/procedure preview requires inference.deliberate")
+        arguments, resolved_policy, provenance = self._normalize_regime(
+            operation, arguments, policy, prompt_bytes)
+        planning_context = self._planning_context()
+        route = self._family_route(operation, arguments, prompt_bytes)
         if route.recommendation and route.recommendation.get("refused"):
             refusal = route.recommendation.get("refusal") or "missing capability"
             return {
@@ -959,6 +1007,8 @@ class ExecutionService:
                 },
                 "task_family": task_family,
                 "family_recommendation": route.recommendation,
+                "regime_provenance": provenance,
+                "planning_context": planning_context,
                 "dispatch": False,
                 "ok": False,
                 "error": f"policy_refusal: {refusal}",
@@ -986,6 +1036,8 @@ class ExecutionService:
                     },
                     "task_family": task_family,
                     "family_recommendation": route.recommendation,
+                    "regime_provenance": provenance,
+                    "planning_context": planning_context,
                     "dispatch": False,
                     "ok": False,
                     "error": f"policy_refusal: {err_msg}",
@@ -1013,6 +1065,10 @@ class ExecutionService:
             "task_family": task_family,
             "family_recommendation": family_recommendation,
             "capability": capability_slice,
+            "thinking": arguments.get("thinking"),
+            "procedure": arguments.get("procedure", "one_call") if operation.name == DELIBERATE else None,
+            "regime_provenance": provenance,
+            "planning_context": planning_context,
             "dispatch": False,
         }
         if temperature is not None:

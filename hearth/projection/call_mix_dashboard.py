@@ -57,6 +57,7 @@ DOOR_STATUS_TOOLS = {
     "list_execution_providers",
     "list_operations",
     "list_owned_executions",
+    "list_my_executions",
     "get_image_status",
     "get_render_status",
     "get_image_session",

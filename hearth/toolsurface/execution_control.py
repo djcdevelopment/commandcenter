@@ -85,6 +85,8 @@ def plan_execution(
     task_family: str | None = None,
     response_schema: dict[str, Any] | None = None,
     temperature: float | None = None,
+    thinking: bool | None = None,
+    procedure: str | None = None,
 ) -> dict[str, Any]:
     """Resolve Operation, Provider, and policy without content or dispatch.
 
@@ -96,7 +98,10 @@ def plan_execution(
     decides for both, so a plan cannot promise a rung the dispatch would not
     use). A caller-supplied ``model``/``backend`` still wins, and the
     recommendation always rides back as ``family_recommendation``. Nothing is
-    dispatched.
+    dispatched. Deliberate previews apply the same family thinking/procedure
+    and policy defaults as submission; explicit overrides remain visible in
+    ``regime_provenance``. ``planning_context`` timestamps the configuration
+    and environment snapshot; availability may change before dispatch.
     """
     _identity()
     return _get_service().plan(
@@ -108,6 +113,8 @@ def plan_execution(
         task_family=task_family,
         response_schema=response_schema,
         temperature=temperature,
+        thinking=thinking,
+        procedure=procedure,
     )
 
 
@@ -195,6 +202,43 @@ def get_execution_artifact(artifact_id: str) -> dict[str, Any]:
     return {**metadata, "content": content.decode("utf-8")}
 
 
+def _execution_summary(state: dict[str, Any]) -> dict[str, Any]:
+    desired = state.get("desired") or {}
+    return {
+        "job_id": state.get("job_id"),
+        "request_id": state.get("request_id"),
+        "status": state.get("status"),
+        "submitted_at": state.get("created_at"),
+        "updated_at": state.get("updated_at"),
+        "operation": desired.get("operation", state.get("operation")),
+        "task_id": (desired.get("arguments") or {}).get("task_id"),
+        "reason": state.get("reason"),
+        "artifacts": [
+            {key: artifact[key] for key in ("artifact_id", "role", "media_type", "size", "sha256")
+             if key in artifact}
+            for artifact in (state.get("artifacts") or []) if isinstance(artifact, dict)
+        ],
+    }
+
+
+def list_my_executions(
+    task_id: str | None = None, status: str | None = None,
+    limit: int = 20, before_sequence: int | None = None,
+) -> dict[str, Any]:
+    """Newest executions owned by this authenticated caller, with an exclusive page cursor.
+
+    Even unrestricted callers see only their own direct principal here. This
+    does not acknowledge, cancel, or resolve work. Fetch artifacts by their IDs.
+    """
+    identity = _identity()
+    page = _get_service().ledger.list_principal_jobs(
+        principal_type="hearth_caller", principal_id=identity.caller_id,
+        task_id=task_id, status=status, limit=limit, before_sequence=before_sequence,
+    )
+    return {"executions": [_execution_summary(state) for state in page["jobs"]],
+            "next_before_sequence": page["next_before_sequence"]}
+
+
 def list_owned_executions(
     principal_type: str, principal_id: str, limit: int = 20
 ) -> list[dict[str, Any]]:
@@ -208,37 +252,11 @@ def list_owned_executions(
         raise ValueError("unsupported delegated principal_type")
     if not isinstance(principal_id, str) or not principal_id.strip():
         raise ValueError("principal_id must be a non-empty string")
-    if limit <= 0 or limit > 100:
-        raise ValueError("limit must be between 1 and 100")
-
-    result: list[dict[str, Any]] = []
-    for state in reversed(_get_service().ledger.list_jobs(limit=10000)):
-        principal = state.get("principal") or {}
-        if principal.get("type") != principal_type or principal.get("id") != principal_id:
-            continue
-        if not _may_access(identity, state):
-            continue
-        desired = state.get("desired") or {}
-        result.append({
-            "job_id": state.get("job_id"),
-            "request_id": state.get("request_id"),
-            "status": state.get("status"),
-            "submitted_at": state.get("submitted_at"),
-            "updated_at": state.get("updated_at"),
-            "operation": desired.get("operation"),
-            "artifacts": [
-                {
-                    key: artifact.get(key)
-                    for key in ("artifact_id", "role", "media_type", "size", "sha256")
-                    if artifact.get(key) is not None
-                }
-                for artifact in (state.get("artifacts") or [])
-                if isinstance(artifact, dict)
-            ],
-        })
-        if len(result) >= limit:
-            break
-    return result
+    page = _get_service().ledger.list_principal_jobs(
+        principal_type=principal_type, principal_id=principal_id, limit=limit,
+        adapter=None if identity.profile == "unrestricted" else identity.caller_id,
+    )
+    return [_execution_summary(state) for state in page["jobs"]]
 
 
 def list_operations() -> list[dict[str, Any]]:
@@ -292,6 +310,7 @@ def get_tools() -> list[Callable]:
         watch_execution,
         get_execution_artifact,
         list_owned_executions,
+        list_my_executions,
         list_operations,
         list_execution_providers,
     ]

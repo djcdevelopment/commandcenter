@@ -595,6 +595,51 @@ class ExecutionLedger:
             ).fetchall()
         return [copy.deepcopy(json.loads(row["state_json"])) for row in rows]
 
+    def list_principal_jobs(
+        self, *, principal_type: str, principal_id: str, task_id: Optional[str] = None,
+        status: Optional[str] = None, limit: int = 20, before_sequence: Optional[int] = None,
+        adapter: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """Page newest requests for an exact principal, filtering before LIMIT.
+
+        The request event sequence is immutable: job updates cannot move records
+        between pages. The cursor is exclusive; newly submitted jobs appear on
+        a fresh first page. No global oldest-N scan can hide a caller's work.
+        """
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 100:
+            raise ValueError("limit must be between 1 and 100")
+        if before_sequence is not None and (
+                isinstance(before_sequence, bool) or not isinstance(before_sequence, int)
+                or before_sequence <= 0):
+            raise ValueError("before_sequence must be a positive integer")
+        if status is not None and status not in _JOB_EVENT_STATUSES.values():
+            raise ValueError("unsupported execution status")
+        if task_id is not None and (not isinstance(task_id, str) or not task_id.strip()):
+            raise ValueError("task_id must be a non-empty string")
+        clauses = ["e.event_type IN ('request.accepted', 'request.rejected')",
+                   "json_extract(j.state_json, '$.principal.type') = ?",
+                   "json_extract(j.state_json, '$.principal.id') = ?"]
+        parameters: list[Any] = [principal_type, principal_id]
+        for clause, value in (
+            ("json_extract(j.state_json, '$.desired.arguments.task_id') = ?", task_id),
+            ("j.status = ?", status),
+            ("e.sequence < ?", before_sequence),
+            ("json_extract(j.state_json, '$.source.adapter') = ?", adapter),
+        ):
+            if value is not None:
+                clauses.append(clause)
+                parameters.append(value)
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT j.state_json, e.sequence FROM events e JOIN jobs j ON j.job_id = e.job_id "
+                "WHERE " + " AND ".join(clauses) + " ORDER BY e.sequence DESC LIMIT ?",
+                [*parameters, limit + 1],
+            ).fetchall()
+        return {
+            "jobs": [json.loads(row["state_json"]) for row in rows[:limit]],
+            "next_before_sequence": rows[limit - 1]["sequence"] if len(rows) > limit else None,
+        }
+
     def get_artifact(self, artifact_id: str) -> Optional[dict[str, Any]]:
         with self._connect() as connection:
             row = connection.execute(

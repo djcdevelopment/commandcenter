@@ -1108,6 +1108,41 @@ deliberate_max_tokens = 4096
         self.assertEqual(("worker_exception", True, 4096), (boom["invocations"][0]["error_code"],
                          boom["invocations"][0]["thinking"], boom["invocations"][0]["max_tokens_requested"]))
 
+    def test_family_preview_matches_submitted_regime_and_explicit_controls(self) -> None:
+        recommendation = {
+            "backend_hint": "deep", "providers": ["deep"], "model_id": "deep-model",
+            "regime": {"thinking": True, "procedure": "think_then_emit", "max_tokens": 2048},
+        }
+        service = self.service(lambda **kwargs: {
+            "ok": True, "text": "answer", "backend": "deep", "model": "deep-model",
+            "thinking": kwargs["thinking"], "finish_reason": "stop",
+        })
+        with patch("hearth.scheduler.families.recommend", return_value=recommendation), patch(
+                "hearth.execution.lab_config.is_backend_absent", return_value=False):
+            for explicit, policy in (({}, None), ({"backend": "deep", "thinking": False,
+                                                    "procedure": "one_call"}, {"max_tokens": 1024}),
+                                     ({"thinking": False}, {"max_tokens": 1024})):
+                plan = service.plan(operation_name="inference.deliberate", task_family="code_review",
+                                    prompt_bytes=5, policy=policy, **explicit)
+                job = service.submit(operation_name="inference.deliberate", arguments={
+                    "messages": [{"role": "user", "content": "think"}],
+                    "task_family": "code_review", **explicit,
+                }, principal=self.principal, source=self.source, policy=policy)
+                final = self.wait_final(service, job["job_id"])
+                desired = final["desired"]
+                self.assertEqual("succeeded", final["status"])
+                self.assertEqual(plan["provider"], desired["arguments"]["backend"])
+                self.assertEqual(plan["thinking"], desired["arguments"]["thinking"])
+                self.assertEqual(plan["procedure"], desired["arguments"].get("procedure", "one_call"))
+                self.assertEqual(plan["policy"], desired["policy"])
+                self.assertEqual(plan["regime_provenance"], desired["regime_provenance"])
+                self.assertEqual("caller" if explicit else "family", plan["regime_provenance"]["thinking"])
+                self.assertIn("until", plan["planning_context"]["environment"])
+                self.assertIn("source", plan["planning_context"]["configuration"])
+            with self.assertRaisesRegex(ExecutionServiceError, "exceeds"):
+                service.plan(operation_name="inference.deliberate", task_family="code_review",
+                             backend="deep", thinking=True, policy={"max_tokens": 5000})
+
     def test_admission_refusals(self) -> None:
         service = self.service(lambda **_k: {"ok": True, "text": "x"})
         def refused(arguments, policy=None):

@@ -182,10 +182,31 @@ class LabelsEventTests(unittest.TestCase):
                              {"bucket": "form", "attended": False, "task_id": "cx-night", "validator": "codex-cli"},
                              event_type)
 
-    def test_a_caller_may_state_attended_itself(self) -> None:
-        # The class sets the default (ADR-0069 item 4); a caller that states `attended` is recorded as it said.
-        done = self.verdict(self.awaiting(), decision="accepted", caller_id="codex-cli", attended=True, bucket=None)
+    def test_an_unattended_class_cannot_accept_by_declaring_itself_attended(self) -> None:
+        # ADR-0071 amendment: the class decides; `attended=True` from codex-cli is recorded, never honoured.
+        work_id = self.awaiting()
+        with self.assertRaisesRegex(LocalWorkError, r"rejection only, never accepted \(ADR-0069\).*ADR-0071"):
+            self.verdict(work_id, decision="accepted", caller_id="codex-cli", attended=True, bucket=None)
+        self.assertEqual(self.service.get(work_id)["status"], "awaiting_review")   # the refusal wrote nothing
+
+    def test_a_declared_attended_rejection_from_codex_is_recorded_unattended_with_the_attempt_visible(self) -> None:
+        work_id = self.awaiting()
+        done = self.verdict(work_id, caller_id="codex-cli", attended=True, bucket="form", task_id="cx-night")
+        self.assertEqual((done["status"], done["verdict"]["attended"], done["verdict"]["attended_declared"]),
+                         ("rejected", False, True))
+        for event_type, row in self.verdict_events(work_id).items():
+            self.assertEqual({k: row["payload"][k] for k in LABEL_KEYS + ("attended_declared",)},
+                             {"bucket": "form", "attended": False, "task_id": "cx-night", "validator": "codex-cli",
+                              "attended_declared": True}, event_type)
+        # a plain unattended rejection carries no `attended_declared` at all: the key marks an attempt, not a default
+        plain = self.verdict(self.awaiting(), caller_id="codex-cli", bucket="form")
+        self.assertNotIn("attended_declared", plain["verdict"])
+        self.assertNotIn("attended_declared", self.events(plain["work_id"], "outcome.final")[0]["payload"])
+
+    def test_an_attended_caller_stating_attended_still_accepts(self) -> None:
+        done = self.verdict(self.awaiting(), decision="accepted", caller_id="frontier", attended=True, bucket=None)
         self.assertEqual((done["status"], done["verdict"]["attended"]), ("accepted", True))
+        self.assertNotIn("attended_declared", done["verdict"])
         with self.assertRaisesRegex(LocalWorkError, "attended must be true or false"):
             self.verdict(self.awaiting(), attended="yes")
         with self.assertRaisesRegex(LocalWorkError, "task_id must be a nonempty string"):

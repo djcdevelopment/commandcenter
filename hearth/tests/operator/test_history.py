@@ -13,14 +13,15 @@ class OperatorHistoryTests(OperatorTestCase):
         super().setUp()
         self.run_id = "run-history-test"
 
-    def test_22_event_closed_taxonomy(self) -> None:
+    def test_23_event_closed_taxonomy(self) -> None:
         """History enforces the closed event taxonomy — 22 types since WI-G2a
-        added `approval.revoked` (D-112 item 5: revocation is append-only)."""
-        self.assertEqual(len(history.EVENT_TYPES), 22)
-        self.assertEqual(len(set(history.EVENT_TYPES)), 22)
+        added `approval.revoked` (D-112 item 5: revocation is append-only), 23 since
+        ADR-0071 added `artifact.fetched` (a review candidate was read; once per caller)."""
+        self.assertEqual(len(history.EVENT_TYPES), 23)
+        self.assertEqual(len(set(history.EVENT_TYPES)), 23)
         for event_type in ("task.received", "route.proposed", "route.validated",
                            "approval.requested", "human.decided", "approval.revoked",
-                           "decision.invalidated"):
+                           "decision.invalidated", "artifact.fetched"):
             self.assertIn(event_type, history.EVENT_TYPES)
 
         # The contract's enum and the writer's taxonomy are the same closed set.

@@ -99,20 +99,30 @@ def get_local_work(work_id: str) -> dict[str, Any]:
 def get_local_work_artifact(work_id: str) -> dict[str, Any]:
     """Verify and return the immutable review candidate. A delivery returns the rendered markdown as
     ``candidate`` plus ``delivery`` (the delivery.v1 manifest, raw output and file refs, and tallies)."""
-    service, _, _ = _owned(work_id)
-    return service.artifact(work_id)
+    service, _, identity = _owned(work_id)
+    # The first fetch by a caller is appended to the run's history as `artifact.fetched` (ADR-0071): it dates the
+    # start of that caller's review. Later fetches by the same caller add nothing; the manifest is never rewritten.
+    return service.artifact(work_id, caller_id=identity.caller_id)
 
 
 def record_local_work_verdict(work_id: str, decision: str,
                               criteria: list[dict[str, Any]], summary: str,
                               evidence: list[Any], receipt_id: str | None = None,
-                              bucket: str | None = None) -> dict[str, Any]:
-    """Record the frontier caller's explicit candidate verdict. Optional ``bucket`` names the miss:
-    "form", "setup" or "substance" (HEARTH method section 3); stored as ``verdict.bucket``."""
+                              bucket: str | None = None, attended: bool | None = None,
+                              task_id: str | None = None) -> dict[str, Any]:
+    """Record the frontier caller's explicit candidate verdict. ``bucket`` names the miss: "form", "setup" or
+    "substance" (HEARTH method section 3); required when ``decision`` is "rejected" (ADR-0071), optional otherwise;
+    stored as ``verdict.bucket``. ``attended`` says whether a person or an attended frontier lane stands behind the
+    verdict; absent, it defaults by caller class (``codex-cli`` is unattended, every other caller attended; ADR-0069).
+    An unattended caller may record a rejection only and never on a candidate it submitted. ``task_id`` is the
+    reviewing session's id (``cc-...`` or ``cx-...``) so the record can be joined to its transcript. ``bucket``,
+    ``attended``, ``task_id`` and the validator are copied onto the ``verification.recorded`` and ``outcome.final``
+    events."""
     service, _, identity = _owned(work_id)
     return service.verdict(work_id, decision=decision, criteria=criteria,
                            summary=summary, evidence=evidence, receipt_id=receipt_id,
-                           caller_id=identity.caller_id, bucket=bucket)
+                           caller_id=identity.caller_id, bucket=bucket, attended=attended,
+                           task_id=task_id)
 
 
 def get_tools() -> list[Callable]:

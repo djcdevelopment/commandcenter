@@ -57,7 +57,11 @@ CARRY_NOTES_HEADING = ("WORKING NOTES (written by the draft's author; they name 
 ITEMS_WINDOW = 12
 ITEMS_MAX_TOKENS = 400
 ITEMS_AIDS = ["item_enumerator", "reader_agreement", "line_reference", "constrained_output"]
-VERDICT_BUCKETS = ("form", "setup", "substance")   # HEARTH method section 3; optional on a verdict
+VERDICT_BUCKETS = ("form", "setup", "substance")   # HEARTH method section 3; required on a rejection (ADR-0071)
+# ADR-0069: caller classes whose verdicts are unattended unless the call says `attended=True`. An unattended caller may
+# record a rejection only, and never on a candidate it submitted; `claude-frontier`, `derek-human` and every other class
+# default to attended. The class is the caller id as the gateway authenticates it; the caller may state `attended` itself.
+UNATTENDED_CALLERS = ("codex-cli",)
 IN_FLIGHT = frozenset({"accepted", "queued", "dispatched", "running"})
 log = logging.getLogger(__name__)
 KINDS = frozenset({"markdown", "json", "whole_file", "unified_diff"})
@@ -99,6 +103,25 @@ class _Refused(Exception):
 def _digest(value: bytes | str) -> str:
     data = value.encode("utf-8") if isinstance(value, str) else value
     return hashlib.sha256(data).hexdigest()
+
+
+def _dispatch_conditions(manifest: Mapping[str, Any]) -> dict[str, Any]:
+    """What a `step.dispatched` event says about the conditions it ran under (labels contract section 2, ADR-0071):
+    identities, hashes and numbers read from the manifest's route and conditions, so the label is known when the work is
+    sent and not projected back from the manifest after the outcome. The keys are always present; a value the run does
+    not have is null, never imputed. `temperature` is the one fractional value: an event payload is an identity
+    preimage and carries integers only, so it travels as the house fixed-precision decimal string ("0.20"); the
+    manifest keeps the number."""
+    route = manifest.get("route") or {}
+    conditions = manifest.get("conditions") or {}
+    return {"task_family": route.get("task_family"),
+            "lane": route.get("requested_lane"),
+            "selected_lane": route.get("selected_lane"),
+            "serving_profile_sha256": route.get("serving_profile_sha256"),
+            "route_profile_sha256": route.get("profile_sha256"),
+            "procedure": route.get("procedure"),
+            "lab_configuration": conditions.get("lab_configuration"),
+            "temperature": canonical.decimal_str(conditions.get("temperature"))}
 
 
 def _observe_temperature(manifest: dict[str, Any], observed: Mapping[str, Any]) -> None:
@@ -862,7 +885,8 @@ class LocalWorkService:
                                          "job_id": state["job_id"], "repair": False})
             self._write(manifest)
             self._event(manifest, "step.dispatched", {"job_id": state["job_id"], "attempt": 1,
-                        "provider": backend_name, "model": model}, refs={"receipt_id": receipt_id} if receipt_id else {})
+                        "provider": backend_name, "model": model, **_dispatch_conditions(manifest)},
+                        refs={"receipt_id": receipt_id} if receipt_id else {})
             self._spawn_auto_reconcile(work_id, state["job_id"])
         return self.reconcile(work_id)
 
@@ -1074,7 +1098,7 @@ class LocalWorkService:
         self._event(manifest, "attempt.recorded", {"job_id": job["job_id"], "ok": False,
                     "structural_repair": True, "reason_sha256": _digest(str(exc))})
         self._event(manifest, "step.dispatched", {"job_id": state["job_id"], "attempt": 2,
-                    "structural_repair": True})
+                    "structural_repair": True, **_dispatch_conditions(manifest)})
         self._spawn_auto_reconcile(work_id, state["job_id"])
 
     def _fail(self, manifest: dict[str, Any], reason: str) -> None:
@@ -1262,7 +1286,7 @@ class LocalWorkService:
         manifest["attempts"].append({"number": 2, "job_id": state["job_id"], "request_id": state["request_id"],
                                      "repair": False, "revision": True})
         self._event(manifest, "step.dispatched", {"job_id": state["job_id"], "attempt": 2, "revision": True,
-                    "objections": len(objections)})
+                    "objections": len(objections), **_dispatch_conditions(manifest)})
         self._spawn_auto_reconcile(work_id, state["job_id"])
 
     @staticmethod
@@ -1344,7 +1368,7 @@ class LocalWorkService:
                            "output_reserve_tokens": reserve}
         manifest.update(job_id=state["job_id"], request_id=state["request_id"], status="queued")
         self._event(manifest, "step.dispatched", {"job_id": state["job_id"], "revision_coverage": True,
-                    "provider": backend})
+                    "provider": backend, **_dispatch_conditions(manifest)})
         self._spawn_auto_reconcile(work_id, state["job_id"])
 
     def _revision_output(self, manifest: Mapping[str, Any], version: str) -> dict:
@@ -1465,7 +1489,7 @@ class LocalWorkService:
                                          "job_id": state["job_id"], "repair": False, "carry_stage": stage})
         self._event(manifest, "step.dispatched", {"job_id": state["job_id"], "attempt": len(manifest["attempts"]),
                     "provider": manifest["route"]["provider"], "model": manifest["route"]["model"],
-                    "carry_stage": stage, "carry_batch": batch, "carry_part": part},
+                    "carry_stage": stage, "carry_batch": batch, "carry_part": part, **_dispatch_conditions(manifest)},
                     refs={"receipt_id": manifest["receipt_id"]} if manifest.get("receipt_id") else {})
         return state
 
@@ -1856,11 +1880,13 @@ class LocalWorkService:
             room = (slots if stage == "settle" else ITEMS_WINDOW) - len(live)
             if todo and not state["jobs"]:
                 self._event(manifest, "step.dispatched", {"items_stage": "read", "jobs": len(plan),
-                            "provider": manifest["route"]["provider"], "model": manifest["route"]["model"]})
+                            "provider": manifest["route"]["provider"], "model": manifest["route"]["model"],
+                            **_dispatch_conditions(manifest)})
             sent = todo[:max(room, 0)]
             if stage == "settle" and sent and not any(j["stage"] == "settle" for j in state["jobs"]):
                 self._event(manifest, "step.dispatched", {"items_stage": "settle", "jobs": len(plan),
-                            "provider": state["settler"]["backend"], "model": state["settler"]["model"]})
+                            "provider": state["settler"]["backend"], "model": state["settler"]["model"],
+                            **_dispatch_conditions(manifest)})
             got = self._items_gather(manifest) if stage == "settle" and sent else {}
             for _, reader, item_id in sent:
                 self._items_submit(manifest, stage, reader, by_id[item_id], (
@@ -2095,10 +2121,21 @@ class LocalWorkService:
         return {"events": selected, "next_sequence": selected[-1]["sequence"] if selected else after_sequence,
                 "status": manifest["status"]}
 
-    def artifact(self, work_id: str) -> dict[str, Any]:
+    def _note_fetch(self, manifest: Mapping[str, Any], caller_id: str) -> None:
+        """One `artifact.fetched` per (work, caller): the first read dates the start of that caller's review (labels
+        contract section 2, ADR-0071). A read appends to history and never rewrites the manifest."""
+        with self._lock:   # read-then-append: two fetches by one caller at once would otherwise both write
+            for event in history.read_run_history(str(manifest["work_id"])):
+                if event.get("event_type") == "artifact.fetched" and (event.get("payload") or {}).get("by") == caller_id:
+                    return
+            self._event(manifest, "artifact.fetched", {"by": caller_id, "status": manifest["status"]})
+
+    def artifact(self, work_id: str, caller_id: str | None = None) -> dict[str, Any]:
         manifest = self.reconcile(work_id)
         if manifest["status"] not in {"awaiting_review", "accepted", "rejected", "superseded"}:
             raise LocalWorkError("candidate is not available for review")
+        if caller_id:
+            self._note_fetch(manifest, caller_id)
         if manifest.get("delivery"):
             run_dir = self._run_dir(work_id)
             texts = {}
@@ -2134,16 +2171,32 @@ class LocalWorkService:
 
     def verdict(self, work_id: str, *, decision: str, criteria: list[dict[str, Any]],
                 summary: str, evidence: list[Any], receipt_id: str | None,
-                caller_id: str, bucket: str | None = None) -> dict[str, Any]:
+                caller_id: str, bucket: str | None = None, attended: bool | None = None,
+                task_id: str | None = None) -> dict[str, Any]:
         if decision not in {"accepted", "rejected", "superseded"}:
             raise LocalWorkError("decision must be accepted, rejected, or superseded")
         if bucket is not None and bucket not in VERDICT_BUCKETS:
             raise LocalWorkError(
                 f"bucket must be one of {', '.join(VERDICT_BUCKETS)} when given, got {bucket!r}")
+        if decision == "rejected" and bucket is None:
+            raise LocalWorkError("a rejection names its bucket: form, setup or substance (ADR-0071)")
+        if attended is not None and not isinstance(attended, bool):
+            raise LocalWorkError("attended must be true or false when given")
+        if task_id is not None and (not isinstance(task_id, str) or not task_id.strip()):
+            raise LocalWorkError("task_id must be a nonempty string when given")
+        if attended is None:
+            # ADR-0069: the caller class sets the default; the caller may state it on the call.
+            attended = caller_id not in UNATTENDED_CALLERS
+        if not attended and decision != "rejected":
+            raise LocalWorkError(
+                f"an unattended caller records a rejection only, never {decision} (ADR-0069); "
+                "write a wait for a person or an attended lane to record it")
         with self._lock:
             manifest = self.reconcile(work_id)
             if manifest["status"] != "awaiting_review":
                 raise LocalWorkError("only awaiting_review work can receive a verdict")
+            if not attended and (manifest.get("caller") or {}).get("submitted_by") == caller_id:
+                raise LocalWorkError("an unattended caller never judges its own candidate (ADR-0069)")
             expected = list(manifest["criteria"])
             rows = {row.get("criterion"): row for row in criteria if isinstance(row, dict)}
             if decision == "accepted":
@@ -2156,16 +2209,18 @@ class LocalWorkService:
                 raise LocalWorkError("verdict requires summary and evidence")
             verdict = {"decision": decision, "criteria": criteria, "summary": summary,
                        "evidence": evidence, "receipt_id": receipt_id or manifest.get("receipt_id"),
-                       "caller_id": caller_id}
+                       "caller_id": caller_id, "attended": attended, "task_id": task_id}
             if bucket is not None:
                 verdict["bucket"] = bucket
             manifest["verdict"] = verdict
             manifest["status"] = decision
             manifest["caller"]["validated_by"] = caller_id
+            # The labels a record needs (ADR-0071) travel on both events, so a reader of history alone has them.
+            labels = {"bucket": bucket, "attended": attended, "task_id": task_id, "validator": caller_id}
             self._event(manifest, "verification.recorded", {"passed": decision == "accepted",
                         "decision": decision, "criteria_count": len(criteria),
-                        "evidence_count": len(evidence), "validator": caller_id},
+                        "evidence_count": len(evidence), **labels},
                         refs={"receipt_id": verdict["receipt_id"]} if verdict["receipt_id"] else {})
-            self._event(manifest, "outcome.final", {"status": decision, "validator": caller_id})
+            self._event(manifest, "outcome.final", {"status": decision, **labels})
             self._write(manifest)
             return manifest

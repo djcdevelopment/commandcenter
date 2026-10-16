@@ -34,8 +34,11 @@ Standing decisions it builds on:
 ## Decision
 
 1. **A materializer, not a door component.** `tools/workflow/project_precursor.py` (with its lazily
-   imported sibling `tools/workflow/precursor_index.py`) runs off the request path: by hand or from a
-   user timer (`host/omen-linux/systemd/hearth-precursor-shadow.{service,timer}.draft`, not installed).
+   imported sibling `tools/workflow/precursor_index.py`) runs off the request path: by hand, from the
+   user path unit at work-dir creation, or from the 30-minute user timer
+   (`host/omen-linux/systemd/hearth-precursor-shadow.{service,timer,path}.draft`; installed under
+   `~/.config/systemd/user/` 2026-10-16; the path unit was added the same day by cc-20b3ab45 after the timer
+   alone lost to a verdict recorded 47 s after the artifact).
    `hearth/localwork/service.py`, `hearth/delivery/procedures.py`, `hearth/toolsurface/*`,
    `hearth/execution/*` and every routing table are unchanged. The door does not import it.
 2. **Gate.** `HEARTH_PRECURSOR ∈ {off, shadow, display}`, default `off`. In `off` the script prints
@@ -69,7 +72,9 @@ Standing decisions it builds on:
 - **Record a verdict.** It writes no `verification.recorded`, no `outcome.final`, no manifest
   `verdict`, and calls no `record_local_work_verdict`. `p_accept` is an association under the recorded
   configuration, not a decision (ADR-0048).
-- **Pick a seat.** It never reads a request before dispatch and never writes anything a router reads.
+- **Pick a seat.** It reads a request only to advise on it (`as_of` is the dispatch time, or the received time
+  when the path unit fires first, marked `as_of:task.received` in the row diagnostic) and never writes anything
+  a router reads.
   `choose()`, `lane_code_backend`, the family regimes and every route field in the manifest are
   identical with the gate `off` or `shadow` (the sweep test diffs a work dir byte-for-byte and finds
   only the new `precursor/advice.json`). Callers still never choose seats.
@@ -82,7 +87,8 @@ Standing decisions it builds on:
 ## Exposure stages
 
 - **Stage 1, unexposed shadow** (this ADR, after Gate 1): advice recorded, nothing displayed, no hook
-  line, no dashboard line. Runs until ≥ 40 joined rows exist (Gate 2).
+  line, no dashboard line. Runs until ≥ 40 joined rows exist (Gate 2; `joined_count` counts arm rows, two per
+  run, so 40 rows is 20 runs: whether the gate counts rows or runs is Derek's decision, DECISIONS-PENDING 2026-10-16).
 - **Stage 2, bounded display pilot** (after Gate 2, its own increment): attributable evidence and
   sample counts only ("k prior runs like this on this seat and family: n accepted of m; nearest:
   work_…"), a probability only if the calibration criterion holds for that arm, ids and counts only

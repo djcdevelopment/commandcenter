@@ -585,7 +585,10 @@ def advise_run(info: dict, index: Optional[dict], index_diag: Optional[str], *, 
     t0 = time.perf_counter()
     run_id = info["run_id"]
     at = parse_ts(info.get("dispatched_at")) or parse_ts(info.get("received_at"))
-    late = LATE_DIAGNOSTIC if info.get("first_final_at") else None
+    # `late` carries the row-level tags every state keeps: advice after the verdict, and (when the path unit fires
+    # before step.dispatched is written) an as_of taken from task.received; visible, never silent (H-2).
+    late = _join_diag(LATE_DIAGNOSTIC if info.get("first_final_at") else None,
+                      "as_of:task.received" if not info.get("dispatched_at") and info.get("received_at") else None)
     corpus_version = (index or {}).get("corpus_version") or "none"
     config = (index or {}).get("config") or DEFAULT_CONFIG
     config_id = (index or {}).get("config_id") or config_id_of(config)

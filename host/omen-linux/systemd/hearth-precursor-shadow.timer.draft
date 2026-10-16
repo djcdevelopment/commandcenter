@@ -1,10 +1,14 @@
-# DRAFT (Track D1, ADR-0070 proposed). NOT installed, NOT enabled. See the .service.draft header.
+# Installed 2026-10-16 as ~/.config/systemd/user/hearth-precursor-shadow.timer (ADR-0070 proposed): the 30-minute
+# catch-all sweep; hearth-precursor-shadow.path fires the same service on work-dir creation. See the .service.draft header.
 [Unit]
 Description=HEARTH precursor shadow sweep every 30 minutes (stage 1: unexposed)
 
 [Timer]
 OnBootSec=10min
-OnUnitActiveSec=30min
+# STOPGAP 2026-10-16 (cc-20b3ab45): 2min while hearth-precursor-shadow.path cannot start (the user's inotify watch
+# limit, fs.inotify.max_user_watches=65536, is held almost entirely by one dotnet process on /mnt/omen-*; raising it
+# is a sudo step for Derek, see streams/stats/waits.jsonl). Restore 30min once the path unit is active.
+OnUnitActiveSec=2min
 RandomizedDelaySec=2min
 Persistent=true
 

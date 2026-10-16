@@ -1,0 +1,16 @@
+# Installed 2026-10-16 as ~/.config/systemd/user/hearth-precursor-shadow.path (cc-20b3ab45, hearth-env dev; ADR-0070
+# proposed, cadence revised). Event trigger for the shadow materializer: fires hearth-precursor-shadow.service when a
+# work directory appears under runs/operator, so advice exists before a fast verdict (the 30-minute timer alone lost
+# to a verdict 47 s after the artifact on 2026-10-16). The timer stays as the catch-all: a submission during a
+# running sweep is not re-triggered, and the timer picks it up. Same service, same environment, same nice 10.
+# If it fires before refs/envelope.json exists the sweep writes nothing for that run; if only task.received exists,
+# as_of is the received time and the advice row's diagnostic says as_of:task.received.
+[Unit]
+Description=HEARTH precursor shadow materializer on work-dir creation (runs/operator)
+
+[Path]
+PathChanged=/home/derek/work/commandcenter-linux-flash/runs/operator
+Unit=hearth-precursor-shadow.service
+
+[Install]
+WantedBy=default.target

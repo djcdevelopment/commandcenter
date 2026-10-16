@@ -1,6 +1,7 @@
-# DRAFT (Track D1, ADR-0070 proposed). NOT installed, NOT enabled. Rename without .draft only after
-# ADR-0070 is accepted and Gate 1 of the precursor plan reads "proceed". The README's
-# `cp host/omen-linux/systemd/*.{service,timer}` step skips this file on purpose.
+# Installed 2026-10-16 as ~/.config/systemd/user/hearth-precursor-shadow.service (ADR-0070 still Proposed; Gate 1
+# read "proceed" for bm25 and the stage-1 shadow went live at the 2026-10-16 cutover). Triggered by
+# hearth-precursor-shadow.timer (30-minute catch-all) and hearth-precursor-shadow.path (work-dir creation, added
+# 2026-10-16 by cc-20b3ab45). The README's `cp host/omen-linux/systemd/*.{service,timer}` step skips the .draft files.
 #
 # Off the door's request path: a user oneshot that rebuilds knowledge/precursor_index.json, writes
 # precursor/advice.json for runs without one, and joins advice to verdicts. HEARTH_PRECURSOR defaults

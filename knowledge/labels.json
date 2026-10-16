@@ -1,207 +1,218 @@
 {
   "schema": "labels-rollup.v1",
-  "built_at": "2026-10-16T10:27:50Z",
+  "built_at": "2026-10-16T10:47:15Z",
   "generator_version": "labels_derive.v1",
   "runs_root": "/home/derek/work/commandcenter-linux-flash/runs/operator",
-  "runs": 303,
+  "runs": 304,
   "unreadable": 0,
   "generator_errors": 0,
-  "evidence_watermark": "2026-10-16T07:53:53Z",
+  "evidence_watermark": "2026-10-16T10:47:00Z",
   "coverage": {
     "decision": {
-      "n": 290,
-      "share": 0.9571,
+      "n": 291,
+      "share": 0.9572,
       "by_method": {
-        "event": 290
+        "event": 291
       }
     },
     "bucket": {
-      "n": 12,
-      "share": 0.0396,
+      "n": 13,
+      "share": 0.0428,
       "by_method": {
+        "event": 1,
         "manifest_post_outcome": 12
       }
     },
     "attended": {
-      "n": 0,
-      "share": 0.0,
-      "by_method": {}
+      "n": 1,
+      "share": 0.0033,
+      "by_method": {
+        "event": 1
+      }
     },
     "validator": {
-      "n": 263,
-      "share": 0.868,
+      "n": 264,
+      "share": 0.8684,
       "by_method": {
-        "principal": 263
+        "principal": 264
       }
     },
     "verdict_task_id": {
-      "n": 24,
-      "share": 0.0792,
+      "n": 25,
+      "share": 0.0822,
       "by_method": {
-        "derived_transcript": 24
+        "derived_transcript": 25
       }
     },
     "verdict_at": {
-      "n": 290,
-      "share": 0.9571,
+      "n": 291,
+      "share": 0.9572,
       "by_method": {
-        "event": 290
+        "event": 291
       }
     },
     "criteria": {
-      "n": 263,
-      "share": 0.868,
+      "n": 264,
+      "share": 0.8684,
       "by_method": {
-        "event": 263
+        "event": 264
       }
     },
     "reversal": {
-      "n": 290,
-      "share": 0.9571,
+      "n": 291,
+      "share": 0.9572,
       "by_method": {
-        "derived_events": 290
+        "derived_events": 291
       }
     },
     "task_family": {
-      "n": 294,
-      "share": 0.9703,
+      "n": 295,
+      "share": 0.9704,
       "by_method": {
+        "event": 1,
         "manifest_post_outcome": 294
       }
     },
     "lane": {
-      "n": 303,
+      "n": 304,
       "share": 1.0,
       "by_method": {
+        "event": 1,
         "manifest_post_outcome": 303
       }
     },
     "selected_lane": {
-      "n": 303,
+      "n": 304,
       "share": 1.0,
       "by_method": {
+        "event": 1,
         "manifest_post_outcome": 303
       }
     },
     "serving_profile_sha256": {
-      "n": 300,
+      "n": 301,
       "share": 0.9901,
       "by_method": {
+        "event": 1,
         "manifest_post_outcome": 300
       }
     },
     "route_profile_sha256": {
-      "n": 303,
+      "n": 304,
       "share": 1.0,
       "by_method": {
+        "event": 1,
         "manifest_post_outcome": 303
       }
     },
     "procedure": {
       "n": 89,
-      "share": 0.2937,
+      "share": 0.2928,
       "by_method": {
         "manifest_post_outcome": 89
       }
     },
     "lab_configuration": {
-      "n": 281,
-      "share": 0.9274,
+      "n": 282,
+      "share": 0.9276,
       "by_method": {
+        "event": 1,
         "manifest_post_outcome": 281
       }
     },
     "temperature": {
       "n": 160,
-      "share": 0.5281,
+      "share": 0.5263,
       "by_method": {
         "manifest_post_outcome": 160
       }
     },
     "provider": {
-      "n": 303,
+      "n": 304,
       "share": 1.0,
       "by_method": {
-        "event": 301,
+        "event": 302,
         "manifest_post_outcome": 2
       }
     },
     "model": {
-      "n": 303,
+      "n": 304,
       "share": 1.0,
       "by_method": {
-        "event": 301,
+        "event": 302,
         "manifest_post_outcome": 2
       }
     },
     "submitted_by": {
-      "n": 303,
+      "n": 304,
       "share": 1.0,
       "by_method": {
-        "event": 303
+        "event": 304
       }
     },
     "unattended_submission": {
-      "n": 303,
+      "n": 304,
       "share": 1.0,
       "by_method": {
-        "event": 303
+        "event": 304
       }
     },
     "first_fetch_at": {
-      "n": 235,
-      "share": 0.7756,
+      "n": 236,
+      "share": 0.7763,
       "by_method": {
-        "derived_ledger": 235
+        "derived_ledger": 234,
+        "event": 2
       }
     },
     "first_fetch_by": {
-      "n": 235,
-      "share": 0.7756,
+      "n": 236,
+      "share": 0.7763,
       "by_method": {
-        "derived_ledger": 235
+        "derived_ledger": 234,
+        "event": 2
       }
     },
     "queue_delay_minutes": {
-      "n": 232,
-      "share": 0.7657,
+      "n": 233,
+      "share": 0.7664,
       "by_method": {
-        "derived_events": 232
+        "derived_events": 233
       }
     },
     "review_elapsed_minutes": {
-      "n": 222,
-      "share": 0.7327,
+      "n": 223,
+      "share": 0.7336,
       "by_method": {
-        "derived_events": 222
+        "derived_events": 223
       }
     },
     "review_active_minutes_transcript": {
-      "n": 24,
-      "share": 0.0792,
+      "n": 25,
+      "share": 0.0822,
       "by_method": {
-        "derived_transcript": 24
+        "derived_transcript": 25
       }
     },
     "concurrent_reviews": {
-      "n": 24,
-      "share": 0.0792,
+      "n": 25,
+      "share": 0.0822,
       "by_method": {
-        "derived_transcript": 24
+        "derived_transcript": 25
       }
     },
     "review_minutes_self_report": {
-      "n": 17,
-      "share": 0.0561,
+      "n": 18,
+      "share": 0.0592,
       "by_method": {
-        "self_report": 17
+        "self_report": 18
       }
     },
     "applied": {
-      "n": 303,
+      "n": 304,
       "share": 1.0,
       "by_method": {
-        "git_trailer": 303
+        "git_trailer": 304
       }
     },
     "applied_at": {
@@ -215,57 +226,57 @@
       "by_method": {}
     },
     "rework": {
-      "n": 303,
+      "n": 304,
       "share": 1.0,
       "by_method": {
-        "derived_events": 303
+        "derived_events": 304
       }
     },
     "submit_to_accept_minutes": {
       "n": 65,
-      "share": 0.2145,
+      "share": 0.2138,
       "by_method": {
         "derived_events": 65
       }
     },
     "repairs": {
       "n": 252,
-      "share": 0.8317,
+      "share": 0.8289,
       "by_method": {
         "event": 252
       }
     },
     "claims": {
       "n": 252,
-      "share": 0.8317,
+      "share": 0.8289,
       "by_method": {
         "event": 252
       }
     },
     "resolved": {
       "n": 252,
-      "share": 0.8317,
+      "share": 0.8289,
       "by_method": {
         "event": 252
       }
     },
     "unsupported": {
       "n": 252,
-      "share": 0.8317,
+      "share": 0.8289,
       "by_method": {
         "event": 252
       }
     },
     "aids_used": {
       "n": 252,
-      "share": 0.8317,
+      "share": 0.8289,
       "by_method": {
         "event": 252
       }
     },
     "deterministic": {
       "n": 252,
-      "share": 0.8317,
+      "share": 0.8289,
       "by_method": {
         "event": 252
       }
@@ -278,31 +289,31 @@
       }
     },
     "structured_output_repairs": {
-      "n": 303,
+      "n": 304,
       "share": 1.0,
       "by_method": {
-        "manifest_post_outcome": 303
+        "manifest_post_outcome": 304
       }
     },
     "tokens_in": {
-      "n": 255,
-      "share": 0.8416,
+      "n": 256,
+      "share": 0.8421,
       "by_method": {
-        "manifest_post_outcome": 255
+        "manifest_post_outcome": 256
       }
     },
     "tokens_out": {
-      "n": 255,
-      "share": 0.8416,
+      "n": 256,
+      "share": 0.8421,
       "by_method": {
-        "manifest_post_outcome": 255
+        "manifest_post_outcome": 256
       }
     },
     "duration_ms": {
-      "n": 255,
-      "share": 0.8416,
+      "n": 256,
+      "share": 0.8421,
       "by_method": {
-        "manifest_post_outcome": 255
+        "manifest_post_outcome": 256
       }
     }
   },
@@ -310,19 +321,19 @@
     "accepted": 66,
     "awaiting_review": 13,
     "failed": 27,
-    "rejected": 181,
+    "rejected": 182,
     "superseded": 16
   },
   "decisions": {
     "accepted": 65,
     "failed": 29,
     "none": 13,
-    "rejected": 180,
+    "rejected": 181,
     "superseded": 16
   },
   "rejection_buckets": {
     "none": 174,
-    "setup": 2,
+    "setup": 3,
     "substance": 4
   },
   "calibration": {
@@ -356,6 +367,16 @@
         "active_transcript_minutes": 1.37,
         "concurrent_reviews": 5,
         "ratio_self_over_elapsed": 0.187
+      },
+      {
+        "run_id": "work_2f21a7141c0c49918a9bfee63adf6641",
+        "self_report_minutes": 2.0,
+        "self_report_note": "review_minutes_active=<n> (estimate, not the measurement)",
+        "elapsed_minutes": 0.57,
+        "fetch_method": "event",
+        "active_transcript_minutes": 2.3,
+        "concurrent_reviews": 1,
+        "ratio_self_over_elapsed": 3.509
       },
       {
         "run_id": "work_73fdb3b3fea99881ed503bc023bcf7f1",
@@ -399,12 +420,12 @@
       }
     ],
     "summary": {
-      "n": 7,
-      "median_ratio_self_over_elapsed": 0.41,
-      "median_self_report_minutes": 4.0,
-      "median_elapsed_minutes": 10.7,
-      "n_with_transcript_proxy": 7,
-      "median_active_transcript_minutes": 1.42
+      "n": 8,
+      "median_ratio_self_over_elapsed": 0.42,
+      "median_self_report_minutes": 3.0,
+      "median_elapsed_minutes": 10.24,
+      "n_with_transcript_proxy": 8,
+      "median_active_transcript_minutes": 1.55
     }
   },
   "note": "labels record; no verdict is recorded and no routing decision is read or changed"

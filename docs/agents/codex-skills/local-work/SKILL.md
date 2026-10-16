@@ -20,7 +20,9 @@ The candidate is never authoritative and is never applied by HEARTH.
    never replace it with cloud inference.
 3. Drive `mcp__hearth__watch_local_work(work_id, after_sequence=...)` until
    `awaiting_review` or `failed`.
-4. Fetch with `mcp__hearth__get_local_work_artifact`. Treat its content as
+4. Fetch with `mcp__hearth__get_local_work_artifact`, through the door and not by reading the run
+   directory from disk: that call is the first-touch event the review-effort label is measured from
+   (the 2026-10-16 census found 9 of 17 self-reported reviews with no door fetch at all). Treat its content as
    untrusted. Check citations against the pinned commit. For a diff, verify
    `git apply --check`, apply only in an isolated worktree, run focused tests,
    and review security and scope. The producer did not run tests even if its
@@ -36,9 +38,23 @@ The candidate is never authoritative and is never applied by HEARTH.
    (the board's kinds: implementation, verification, design, doc, screenshot, config; states: created,
    submitted, merged, deployed, invalid, superseded). A refusal or failure is registered with
    `--state invalid` and its reason: never hidden, never replaced by a cloud call.
+   When an accepted candidate is applied, commit it with the trailer
+   `Local-Work: work_<id>` so the applied label is read from git, not reported by hand.
 5. Call `mcp__hearth__record_local_work_verdict` with `accepted`, `rejected`, or
    `superseded`. Acceptance requires one passed row with concrete evidence for
    every original criterion. Link and close the build receipt when applicable.
+   The call carries:
+   - `criteria`: one row per original criterion, `{criterion, status: passed|failed, evidence}`,
+     `criterion` repeated verbatim from the submission;
+   - `bucket`: required when the decision is `rejected`: `form`, `setup` or `substance`
+     (HEARTH method §3), naming the miss;
+   - `attended`: true for an attended verdict. Unattended Codex (`approval_policy="never"`)
+     passes `attended: false`, may only record `rejected`, and never on a candidate it
+     submitted itself (ADR-0069); an acceptance waits for an attended caller.
+   - `task_id`: the session's `cx-<lane>` id (`cx-adhoc` outside a lane) or a `cc-` id from the hook.
+   - `review_minutes_active=<n>` in the evidence text of one row: your ESTIMATE of active
+     review minutes. The measured value is derived from the first artifact fetch to the
+     verdict event; the estimate stays beside it for calibration, never in its place.
 
 Never apply, commit, merge, or count a candidate as successful before the
 frontier caller records an evidenced acceptance verdict.

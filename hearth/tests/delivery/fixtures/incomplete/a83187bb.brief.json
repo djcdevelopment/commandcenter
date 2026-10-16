@@ -1,0 +1,63 @@
+{
+ "aids": [
+  "source_map",
+  "quote_renderer",
+  "constrained_output"
+ ],
+ "builders": [
+  "omen-local-work"
+ ],
+ "est_tokens": 3000,
+ "form": {
+  "citations": "quote",
+  "sections": [],
+  "style": "markdown",
+  "words": {
+   "enforce": "measure",
+   "max": 400,
+   "min": 300
+  }
+ },
+ "max_age_s": 172800,
+ "requires": [
+  "candidate"
+ ],
+ "schema": "brief.v2",
+ "sources": [
+  {
+   "commit": "aa85a801b0d7c87d04ab00c5746e30bd71d502fa",
+   "path": "streams/bin/lane.sh"
+  },
+  {
+   "commit": "aa85a801b0d7c87d04ab00c5746e30bd71d502fa",
+   "path": "streams/lib/stream.sh"
+  }
+ ],
+ "substance": [
+  {
+   "id": "s1",
+   "statement": "Explains render_brief in streams/lib/stream.sh: substitutes {RUN} and {STREAM} with sed, writes with printf '%s' so there is no trailing newline, and prints the path."
+  },
+  {
+   "id": "s2",
+   "statement": "Explains lane_run_brief: send, then wait-idle with a default 45-minute timeout, then transcript saved under runs/."
+  },
+  {
+   "id": "s3",
+   "statement": "States the lane.sh send guard: a prompt file outside the streams directory is refused, quoting 'refused: prompt must live under'."
+  },
+  {
+   "id": "s4",
+   "statement": "Describes hash_cfg (sha256 of ~/.claude.json and ~/.codex/config.toml, first 16 characters) compared before and after start or create, and that a change prints host_config_changed and exits 3."
+  },
+  {
+   "id": "s5",
+   "statement": "States what wait-idle does when the session status is waiting and what exit code a timeout returns (4)."
+  },
+  {
+   "id": "s6",
+   "statement": "Cites only streams/bin/lane.sh and streams/lib/stream.sh."
+  }
+ ],
+ "task_class": "local-work"
+}

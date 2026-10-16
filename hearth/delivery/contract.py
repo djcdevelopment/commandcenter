@@ -79,6 +79,7 @@ MATCHES = ("exact", "normalized", "missing")  # plus "fuzzy:<score>", score 0..1
 # Repair counts the contract knows and cross-checks against claims; the renderer (task 3) may add other
 # snake_case keys (line_reference_stripped, quotes_beyond_cap_dropped, json_unescaped_quote from the carry procedure: counts of code edits, no claim carries them, so they stay out of this tuple; empty_quote_dropped: the door drops blank quote strings before validation; heading_added, trailing_prose_removed, citation_syntax_stripped, ...).
 REPAIR_KEYS = ("normalized_quote", "fuzzy_quote", "ambiguous_quote", "short_ambiguous_quote", "truncated_quote")
+SUSPECT_SIGNALS = ("trailing_space", "open_token", "dangling_word")  # suspected-incomplete text findings (audit 2026-10-16)
 VERIFY_RUNGS = ("deterministic", "judge", "reviewer", "human")
 VERIFY_STATES = ("pass", "fail", "unverified", "not_run")  # unrun = not_run, judge unavailable = unverified; never pass
 DEVIATION_KINDS = ("words", "sections", "other")
@@ -369,8 +370,26 @@ def validate_manifest(doc: Any) -> list:
     errs: list = []
     req = {"schema", "brief_sha256", "model", "backend", "configuration", "environment", "aids_used",
            "claims", "measures", "repairs", "unsupported", "verification", "form_applied", "deviations"}
-    if not _exact(doc, req, {"procedure", "items"}, "manifest", errs):
+    if not _exact(doc, req, {"procedure", "items", "suspected_incomplete", "hold_for_review"}, "manifest", errs):
         return errs
+    # Audit 2026-10-16: suspected-incomplete rows are findings with evidence, never a repair and never a
+    # state. hold_for_review mirrors their presence so a reader cannot miss them.
+    if "suspected_incomplete" in doc or "hold_for_review" in doc:
+        rows = doc.get("suspected_incomplete")
+        if not isinstance(rows, list):
+            errs.append("manifest.suspected_incomplete: a list is required when present")
+        else:
+            for n, row in enumerate(rows):
+                w = f"manifest.suspected_incomplete[{n}]"
+                if not isinstance(row, dict) or set(row) != {"id", "signal", "tail"}:
+                    errs.append(f"{w}: exactly id, signal, tail")
+                    continue
+                if row["signal"] not in SUSPECT_SIGNALS:
+                    errs.append(f"{w}.signal: one of {SUSPECT_SIGNALS}, got {row['signal']!r}")
+                if not _is_str(row["id"]) or not isinstance(row["tail"], str) or len(row["tail"]) > 40:
+                    errs.append(f"{w}: id non-empty text and tail at most 40 characters")
+        if doc.get("hold_for_review") is not bool(rows):
+            errs.append("manifest.hold_for_review: must equal the presence of suspected_incomplete rows")
     if "items" in doc:
         errs += _validate_manifest_items(doc["items"])
         if doc.get("procedure") != "items":

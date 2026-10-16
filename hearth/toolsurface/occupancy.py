@@ -396,8 +396,13 @@ def _fetch_vllm_metrics(url: str, timeout_s: float = MOE_HTTP_TIMEOUT_S) -> tupl
     return found, None
 
 
-def _hearth_active_jobs() -> tuple[Optional[int], Optional[str]]:
-    """Non-legacy HEARTH jobs not yet final, from the execution projection (read-only)."""
+DRAIN_PRINCIPAL = "bankedfire-drain"
+
+
+def _hearth_active_jobs_by_owner() -> tuple[Optional[dict], Optional[str]]:
+    """Non-legacy HEARTH jobs not yet final, from the execution projection (read-only), split by owner:
+    {"external": jobs of any other principal, "drain": the drain's own}. Audit 2026-10-16 (C9): the drain's own
+    jobs are capacity (counted per seat at admission), not an external tenant; an unreadable row counts as external."""
     import json as _json
     import sqlite3
     root = os.environ.get("HEARTH_EXECUTION_DIR") or os.path.join(
@@ -409,16 +414,24 @@ def _hearth_active_jobs() -> tuple[Optional[int], Optional[str]]:
                               "('succeeded','failed','cancelled','expired')").fetchall()
     except Exception as exc:  # noqa: BLE001 -- unreadable is a real answer here
         return None, "projection unreadable: %s" % exc
-    active = 0
+    counts = {"external": 0, "drain": 0}
     for (raw,) in rows:
         try:
             job = _json.loads(raw)
         except ValueError:
-            active += 1
+            counts["external"] += 1
             continue
-        if not (job.get("status") == "queued" and job.get("operation") == "bf6.process_segment"):
-            active += 1
-    return active, None
+        if job.get("status") == "queued" and job.get("operation") == "bf6.process_segment":
+            continue
+        owner = ((job.get("principal") or {}).get("id")) if isinstance(job.get("principal"), dict) else None
+        counts["drain" if owner == DRAIN_PRINCIPAL else "external"] += 1
+    return counts, None
+
+
+def _hearth_active_jobs() -> tuple[Optional[int], Optional[str]]:
+    """Total non-final HEARTH jobs (every owner); kept for callers that want one number."""
+    counts, err = _hearth_active_jobs_by_owner()
+    return (None, err) if counts is None else (counts["external"] + counts["drain"], None)
 
 
 def probe_omen_vllm() -> dict:
@@ -440,18 +453,31 @@ def probe_omen_vllm() -> dict:
     waiting = sum(g["vllm:num_requests_waiting"] for g in detail["seats"].values())
     detail["requests_running"] = running
     detail["requests_waiting"] = waiting
-    active, err = _hearth_active_jobs()
-    if active is None:
+    counts, err = _hearth_active_jobs_by_owner()
+    if counts is None:
         return {"occupancy": "unknown", "detail": {**detail, "error": err}}
-    detail["hearth_active_jobs"] = active
+    detail["hearth_active_jobs"] = counts["external"] + counts["drain"]
+    detail["jobs"] = dict(counts)
     try:
         from fleet.presence_linux import report as presence_report
         presence = presence_report()
     except Exception as exc:  # noqa: BLE001 -- unreadable presence is "present"
         presence = {"away": False, "present_reasons": ["presence:unreadable:%s" % type(exc).__name__]}
     detail["presence"] = {k: presence.get(k) for k in ("away", "mode", "idle_ms", "rdp_sessions", "present_reasons", "presence_gate")}
-    busy = running > 0 or waiting > 0 or active > 0 or not presence.get("away")
-    return {"occupancy": "busy" if busy else "available", "detail": detail}
+    # Audit 2026-10-16 (C9): "busy" means an EXTERNAL tenant is on the seats or the operator is present. The drain's
+    # own running jobs are not a tenant; they are capacity, admitted per seat by the drain (bankedfire_linux.seat_capacity).
+    # Every signal that fires is named, so a ledgered tick says why it yielded.
+    signals = []
+    if waiting > 0:
+        signals.append("seat_waiting=%d" % int(waiting))
+    if counts["external"] > 0:
+        signals.append("external_jobs=%d" % counts["external"])
+    if running > counts["drain"]:
+        signals.append("running=%d>drain_jobs=%d" % (int(running), counts["drain"]))
+    if not presence.get("away"):
+        signals.append("presence:" + ",".join(presence.get("present_reasons") or ["present"]))
+    detail["busy_signals"] = signals
+    return {"occupancy": "busy" if signals else "available", "detail": detail}
 
 
 OMEN_SWAP_BASE_URL = "http://127.0.0.1:8081"

@@ -1,0 +1,6 @@
+[Unit]
+Description=Banked Fire night kick (one drain tick)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl --user start --no-block bankedfire-drain.service

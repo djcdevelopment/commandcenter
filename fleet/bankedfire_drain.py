@@ -525,6 +525,28 @@ def _environment_name() -> str:
         return f"unreadable:{type(exc).__name__}"
 
 
+def _gate_summary(reason: str, detail: dict) -> str:
+    """One short string naming WHY a tick ended, kept in the ledger row's args (which survive; `result` is digested).
+    Audit 2026-10-16 (C9): tonight's two `busy` ticks could not be explained afterwards."""
+    parts = [reason]
+    if detail.get("busy_reason"):
+        parts.append(str(detail["busy_reason"]))
+    occ = detail.get("occupancy_detail") or {}
+    if isinstance(occ, dict):
+        inner = occ.get("detail") or {}
+        if isinstance(inner, dict):
+            if inner.get("busy_signals"):
+                parts.append("signals=" + "|".join(str(x) for x in inner["busy_signals"]))
+            if inner.get("error"):
+                parts.append("error=" + str(inner["error"])[:80])
+        if occ.get("occupancy") and not inner:
+            parts.append("occupancy=" + str(occ["occupancy"]))
+    for key in ("seat_capacity", "latch", "budget_fail_field", "submit_error"):
+        if detail.get(key):
+            parts.append(f"{key}=" + str(detail[key])[:120])
+    return "; ".join(parts)[:400]
+
+
 def _record_tick(reason: str, detail: dict, ledger=None) -> Optional[str]:
     """Append one bankedfire_drain event. Best-effort: a ledger hiccup must
     never crash the scheduled task (same discipline as mechnet_watchdog's
@@ -556,7 +578,8 @@ def _record_tick(reason: str, detail: dict, ledger=None) -> Optional[str]:
         led = ledger or Ledger()
         return led.append(new_event(
             DRAIN_CALLER, "bankedfire_drain.tick",
-            args={"backend": DRAIN_BACKEND, "outcome": outcome, "environment": _environment_name()},
+            args={"backend": DRAIN_BACKEND, "outcome": outcome, "environment": _environment_name(),
+                  "gate": _gate_summary(reason, detail)},
             result={"reason": reason, **detail},
             ok=ok,
             outcome=outcome,

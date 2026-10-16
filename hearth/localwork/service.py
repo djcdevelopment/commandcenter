@@ -1035,6 +1035,7 @@ class LocalWorkService:
 
     def _dispatch_repair(self, manifest: dict[str, Any], job: Mapping[str, Any], raw: bytes, exc: Exception) -> None:
         work_id = str(manifest["work_id"])
+        self._note_result_artifact(manifest, job, failure=str(exc))
         if len(manifest["attempts"]) >= 2:
             manifest["status"] = "failed"
             manifest["failure"] = str(exc)
@@ -1148,7 +1149,9 @@ class LocalWorkService:
             "claims": len(delivery["claims"]), "by_match": by_match,
             "missing": by_match.get("missing", 0), "unsupported": len(delivery["unsupported"]),
             "words": delivery["measures"]["words"], "repairs": delivery["repairs"],
-            "deviations": delivery["deviations"], "deterministic": delivery["verification"]["deterministic"]["state"]}
+            "deviations": delivery["deviations"], "deterministic": delivery["verification"]["deterministic"]["state"],
+            "suspected_incomplete": len(delivery.get("suspected_incomplete") or []),
+            "hold_for_review": bool(delivery.get("hold_for_review"))}
         # The route describes the kept answer: a repair the first answer needed must not survive a kept revision
         # that needed none (each attempt keeps its own, _note_attempt).
         manifest["route"].pop("structured_output_repairs", None)
@@ -1168,6 +1171,19 @@ class LocalWorkService:
         for attempt in manifest.get("attempts") or []:
             if attempt.get("job_id") == job.get("job_id"):
                 attempt["structured_output_repairs"] = list(repairs)
+
+    @staticmethod
+    def _note_result_artifact(manifest: dict[str, Any], job: Mapping[str, Any], failure: str | None = None) -> None:
+        """Audit 2026-10-16 (C3): a failed attempt keeps a pointer to the raw answer it was judged on, and the
+        failure text verbatim, on the attempt row; nothing about a failure is reduced to a digest only."""
+        artifact_id = job.get("result_artifact_id") or next(
+            (x.get("artifact_id") for x in job.get("artifacts", []) if x.get("role") in ("result", "failed_output")), None)
+        for attempt in manifest.get("attempts") or []:
+            if attempt.get("job_id") == job.get("job_id"):
+                if artifact_id:
+                    attempt["result_artifact_id"] = str(artifact_id)
+                if failure:
+                    attempt["failure"] = failure
 
     def _finish_delivery(self, manifest: dict[str, Any], job_id: str) -> None:
         manifest["status"] = "awaiting_review"
@@ -1929,6 +1945,7 @@ class LocalWorkService:
         try:
             rendered = self._render_answer(manifest, job, raw)
         except _Refused as exc:
+            self._note_result_artifact(manifest, job, failure=str(exc))
             return self._fail(manifest, str(exc))
         self._adopt_delivery(manifest, job, metadata, raw, rendered)
         if manifest.get("revise") and not manifest.get("revision"):

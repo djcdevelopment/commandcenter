@@ -132,7 +132,7 @@ class OmenVllmProbeTests(unittest.TestCase):
         gauges = {"vllm:num_requests_running": 0.0, "vllm:num_requests_waiting": 0.0}
         with mock.patch.object(occ, "_tenancy_fence", return_value=None), \
              mock.patch.object(occ, "_fetch_vllm_metrics", return_value=(gauges, None)), \
-             mock.patch.object(occ, "_hearth_active_jobs", return_value=(0, None)), \
+             mock.patch.object(occ, "_hearth_active_jobs_by_owner", return_value=({"external": 0, "drain": 0}, None)), \
              mock.patch("fleet.presence_linux.report", return_value={"away": False, "mode": "frontier-collab", "present_reasons": ["idle:1m<20m"]}):
             res = occ.probe_omen_vllm()
         self.assertEqual(res["occupancy"], "busy")
@@ -142,7 +142,7 @@ class OmenVllmProbeTests(unittest.TestCase):
         gauges = {"vllm:num_requests_running": 0.0, "vllm:num_requests_waiting": 0.0}
         with mock.patch.object(occ, "_tenancy_fence", return_value=None), \
              mock.patch.object(occ, "_fetch_vllm_metrics", return_value=(gauges, None)), \
-             mock.patch.object(occ, "_hearth_active_jobs", return_value=(0, None)), \
+             mock.patch.object(occ, "_hearth_active_jobs_by_owner", return_value=({"external": 0, "drain": 0}, None)), \
              mock.patch("fleet.presence_linux.report", return_value={"away": True, "mode": "deep-research", "present_reasons": []}):
             self.assertEqual(occ.probe_omen_vllm()["occupancy"], "available")
 
@@ -745,3 +745,94 @@ class WholeFileDefaultTests(GitRepoCase):
             lane.submit_args_from_brief(self.fix_body(paths="[gone.py]"))
         result = lane.submit_task(prompt=self.fix_body(paths="[gone.py]"), plan_id_hint="x")
         self.assertFalse(result["ok"])
+
+
+class AdmissionAndLatchTests(ProfileIsolation, unittest.TestCase):
+    """Audit 2026-10-16, first increment step 6: dispatch respects the seats' actual capacity and the guard latch,
+    and every gate that ends a tick is named durably. seat_capacity is read from the lease store and manifests
+    (never the metrics cache); the drain's own jobs count as capacity, never as an external tenant."""
+
+    def test_seat_capacity_counts_every_owner_and_fails_closed(self) -> None:
+        loads = {"omen-dense-27b": {"slots": 2, "leases": 2, "outstanding": 1},
+                 "omen-dense-27b-b": {"slots": 2, "leases": 0, "outstanding": 1},
+                 "am4-vllm": {"slots": 1, "leases": 0, "outstanding": 0}}
+        with mock.patch.object(lane, "_lane_backends", return_value=list(loads)), \
+             mock.patch.object(lane, "_seat_loads", side_effect=lambda n: dict(loads[n])):
+            cap = lane.seat_capacity("deep")
+        self.assertIsNone(cap["error"])
+        self.assertEqual({n: v["free"] for n, v in cap["seats"].items()},
+                         {"omen-dense-27b": 0, "omen-dense-27b-b": 1, "am4-vllm": 1})
+        self.assertEqual(cap["free"], 2)
+        # unavailable telemetry: no admission, the reason kept
+        with mock.patch.object(lane, "_lane_backends", return_value=["omen-dense-27b"]), \
+             mock.patch.object(lane, "_seat_loads", side_effect=OSError("coordination.sqlite locked")):
+            cap = lane.seat_capacity("deep")
+        self.assertEqual(cap["free"], 0)
+        self.assertIn("coordination.sqlite locked", cap["error"])
+        # no lane declared: no admission
+        with mock.patch.object(lane, "_lane_backends", return_value=[]):
+            self.assertEqual(lane.seat_capacity("deep")["free"], 0)
+
+    def test_two_ticks_see_each_others_work_through_outstanding_manifests(self) -> None:
+        """Simultaneous ticks: the first tick's submission is an outstanding manifest (and a door lease) before the
+        second tick computes capacity, so the second sees one slot fewer; the door's lease is the reservation."""
+        outstanding = {"omen-dense-27b": 0}
+        def loads(name):
+            return {"slots": 1, "leases": 0, "outstanding": outstanding[name]}
+        with mock.patch.object(lane, "_lane_backends", return_value=["omen-dense-27b"]), \
+             mock.patch.object(lane, "_seat_loads", side_effect=loads):
+            first = lane.seat_capacity("deep")
+            outstanding["omen-dense-27b"] = 1    # the first tick submitted
+            second = lane.seat_capacity("deep")
+        self.assertEqual((first["free"], second["free"]), (1, 0))
+
+    def test_latch_is_read_uncached_and_fails_closed(self) -> None:
+        tmp = tempfile.TemporaryDirectory(); self.addCleanup(tmp.cleanup)
+        latch = Path(tmp.name) / "pause.dispatch"
+        with mock.patch.object(lane, "PAUSE_FILE", latch):
+            self.assertFalse(lane.latched())
+            latch.write_text('{"paused_by": "night_guard"}\n')
+            self.assertTrue(lane.latched())
+        with mock.patch.object(lane, "PAUSE_FILE", mock.Mock(exists=mock.Mock(side_effect=OSError("io")))):
+            self.assertTrue(lane.latched())
+
+    def test_gate_summary_names_the_signal(self) -> None:
+        from fleet import bankedfire_drain as drain_mod
+        detail = {"occupancy_detail": {"occupancy": "busy", "detail": {"busy_signals": ["external_jobs=1", "running=1>drain_jobs=0"]}}}
+        self.assertEqual(drain_mod._gate_summary("busy", detail), "busy; signals=external_jobs=1|running=1>drain_jobs=0")
+        self.assertEqual(drain_mod._gate_summary("busy", {"busy_reason": "conductor-queue-not-idle"}), "busy; conductor-queue-not-idle")
+        self.assertEqual(drain_mod._gate_summary("no-op:latched:pause.dispatch", {"latch": "/x/pause.dispatch"}),
+                         "no-op:latched:pause.dispatch; latch=/x/pause.dispatch")
+
+
+class OccupancyOwnerSplitTests(unittest.TestCase):
+    GAUGES = {"vllm:num_requests_running": 1.0, "vllm:num_requests_waiting": 0.0}
+    AWAY = {"away": True, "mode": "deep-research", "present_reasons": []}
+
+    def _probe(self, jobs):
+        with mock.patch.object(occ, "_tenancy_fence", return_value=None), \
+             mock.patch.object(occ, "_fetch_vllm_metrics", return_value=(self.GAUGES, None)), \
+             mock.patch.object(occ, "_hearth_active_jobs_by_owner", return_value=(jobs, None)), \
+             mock.patch("fleet.presence_linux.report", return_value=dict(self.AWAY)):
+            return occ.probe_omen_vllm()
+
+    def test_drain_own_running_job_is_capacity_not_a_tenant(self) -> None:
+        # the mocked gauges are returned for both OMEN seats, so running sums to 2: two drain jobs cover it
+        res = self._probe({"external": 0, "drain": 2})
+        self.assertEqual(res["occupancy"], "available")
+        self.assertEqual(res["detail"]["busy_signals"], [])
+        self.assertEqual(res["detail"]["jobs"], {"external": 0, "drain": 2})
+
+    def test_external_job_reads_busy_with_the_signal_named(self) -> None:
+        res = self._probe({"external": 1, "drain": 0})
+        self.assertEqual(res["occupancy"], "busy")
+        self.assertIn("external_jobs=1", res["detail"]["busy_signals"])
+        self.assertIn("running=2>drain_jobs=0", res["detail"]["busy_signals"])
+
+    def test_unreadable_projection_reads_unknown(self) -> None:
+        with mock.patch.object(occ, "_tenancy_fence", return_value=None), \
+             mock.patch.object(occ, "_fetch_vllm_metrics", return_value=(self.GAUGES, None)), \
+             mock.patch.object(occ, "_hearth_active_jobs_by_owner", return_value=(None, "projection unreadable: locked")):
+            res = occ.probe_omen_vllm()
+        self.assertEqual(res["occupancy"], "unknown")
+        self.assertIn("unreadable", res["detail"]["error"])

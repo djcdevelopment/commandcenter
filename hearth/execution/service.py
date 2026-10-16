@@ -1290,6 +1290,25 @@ class ExecutionService:
                 return
             if result.get("ok") is not True:
                 reason = str(result.get("error") or "provider returned an unsuccessful result")
+                # Audit 2026-10-16 (C3): a failed answer stays inspectable. Whatever text the provider returned
+                # (truncated or invalid JSON included) is kept as an artifact with the failure metadata beside it.
+                failed_text = result.get("text")
+                if isinstance(failed_text, str) and failed_text.strip():
+                    failed_artifact = self.artifacts.put(
+                        failed_text,
+                        media_type="text/plain; charset=utf-8",
+                        filename=f"{job_id}-failed-output.txt",
+                    )
+                    self._append(
+                        "artifact.recorded",
+                        state,
+                        invocation_id=invocation_id,
+                        artifacts=[{**failed_artifact, "role": "failed_output",
+                                    "failure": {"error_code": result.get("error_code"),
+                                                "finish_reason": result.get("finish_reason"),
+                                                "reason": reason}}],
+                    )
+                    observed = {**observed, "failed_output_artifact_id": failed_artifact.get("artifact_id")}
                 self._append(
                     "invocation.failed",
                     state,

@@ -1,0 +1,92 @@
+{
+  "sections": [
+    {
+      "heading": "Ledger Sources and Functions",
+      "paragraphs": [
+        {
+          "quotes": [
+            "LEDGER = os.path.join(WORK, "
+            ,
+            "jepa-add-protocol",
+            "ledger",
+            "live_transitions.jsonl",
+            ")",
+            "LEDGER_V2 = "
+            ,
+            "/home/derek/hearth-production/var/jepa-harvest/transitions.v2.jsonl",
+            "def ledger_stats(): def ledger_v2_stats():"
+          ],
+          "text": "In streams/08-lab-stats/jepa.py, the collector reads two ledgers: LEDGER, the frozen v1 live_transitions.jsonl, and LEDGER_V2, the transitions.v2.jsonl. These are summarized by the functions ledger_stats and ledger_v2_stats. The v1 ledger scan only tests the intent for 'co-authored-by' and keeps a count, as shown by if "
+        }
+      ]
+    },
+    {
+      "heading": "Integrity Verification",
+      "paragraphs": [
+        {
+          "quotes": [
+            "expected = fe.get("
+            ,
+            "manifest_sha256"
+            ,
+            ")",
+            "actual = sha256(EXPORT_MANIFEST) if os.path.exists(EXPORT_MANIFEST) else None",
+            "ok = missing = mismatch = 0",
+            "out["
+            ,
+            "export_files"
+            ,
+            "] = {"
+            ],
+          "text": "In streams/08-lab-stats/jepa.py, integrity() verifies the export manifest sha256 against the state file by comparing expected from fe.get("
+        }
+      ]
+    },
+    {
+      "heading": "Frozen Quality Inputs",
+      "paragraphs": [
+        {
+          "quotes": [
+            "VERDICT = os.path.join(WORK, "
+            ,
+            "jepa-add-protocol",
+            "results",
+            "VERDICT_AMENDMENT_002.json",
+            ")",
+            "GATE2 = os.path.join(WORK, "
+            ,
+            "jepa-add-protocol",
+            "output/phase5/gate2-blind-retrieval-results.json"
+            ]
+          ,
+          "text": "In streams/08-lab-stats/jepa.py, frozen_quality() reads the amendment verdict file VERDICT_AMENDMENT_002.json, the gate-2 blind-retrieval results file gate2-blind-retrieval-results.json, EXPERIMENTS.md headings, and the game-jepa reports. The function checks if os.path.exists(VERDICT) to read the verdict status."
+        }
+      ]
+    },
+    {
+      "heading": "Never-Do List and Failure Handling",
+      "paragraphs": [
+        {
+          "quotes": [
+            "Never imports from or writes into jepa-*; never copies intent or diff_sample text; never restarts the daemon.",
+            "row["
+            ,
+            "data"
+            ,
+            "] = {"
+            ,
+            "collector"
+            ,
+            ": "
+            ,
+            "jepa"
+            ,
+            ", "
+            ],
+          "text": "In streams/08-lab-stats/jepa.py, the module docstring lists what the stream never does: never imports from or writes into jepa-*; never copies intent or diff_sample text; never restarts the daemon. In main(), if an exception occurs, the code records a failure by setting receipt.finish_row(row, outcome="
+        }
+      ]
+    }
+  ],
+  "summary": "This report examines the stream 08 JEPA collector in streams/08-lab-stats/jepa.py. It details the two ledgers read (v1 and v2), the integrity checks performed against manifests, and the quality metrics gathered from frozen experiments. The code explicitly adheres to a strict read-only policy, ensuring no data is written to or imported from the jepa-* directories, and it handles errors by recording them without executing the daemon."
+}

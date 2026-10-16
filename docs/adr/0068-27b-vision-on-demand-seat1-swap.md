@@ -52,3 +52,5 @@ explicit refusal on ambiguous input), met on the model's native tower with no OC
   image session) are code changes in the flash repo that follow this acceptance; vision at length (a 20-image batch,
   decode rate) and MTP k=1 vs k=2 under the vision recipe are unsampled; the resident-switch throughput number is
   the precondition for decision 3.
+
+**Note 2026-10-15 (Derek: "i approve the others"):** the `perception` family alias is approved. It routes `needs_vision` work to the 27B vision recipe through the seat-1 swap and refuses loudly when no lease is held. The alias and the swap request/release are harness-plan I2 code; until they land, callers use the existing `chart_diagram` / `screenshot_grounded` families.
